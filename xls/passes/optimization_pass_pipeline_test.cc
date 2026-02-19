@@ -294,6 +294,51 @@ TEST_F(OptimizationPipelineTest, MultiplyBy16StrengthReduction) {
   EXPECT_THAT(f->return_value(), m::Concat());
 }
 
+TEST_F(OptimizationPipelineTest, UModShiftedOneBitDivisorSimplified) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* bits32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", bits32);
+  BValue b = fb.Param("b", p->GetBitsType(1));
+
+  // Construct the pattern:
+  //   umod(x, shll(zext(b), k))
+  const int64_t k = 2;
+  BValue divisor = fb.Shll(fb.ZeroExtend(b, 32), fb.Literal(UBits(k, 32)));
+  fb.UMod(x, divisor);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // In the pipeline we expect:
+  //
+  // umod(x, shll(zext(b), k)) -> sel(b, zext(bit_slice(x, 0, k), width(x)), 0)
+  //
+  // which will often then become:
+  //
+  // and(sign_ext(b), zext(bit_slice(x, 0, k), width(x))).
+  auto reduced =
+      m::ZeroExt(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/k));
+  auto and_form = m::And(m::SignExt(m::Param("b")), reduced);
+  auto and_form_flipped = m::And(reduced, m::SignExt(m::Param("b")));
+  auto sel_form = m::Select(m::Param("b"),
+                            /*cases=*/{m::Literal(UBits(0, 32)), reduced});
+  auto narrowed_and = m::And(m::SignExt(m::Param("b")),
+                             m::BitSlice(m::Param("x"), /*start=*/0,
+                                         /*width=*/k));
+  auto narrowed_and_flipped =
+      m::And(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/k),
+             m::SignExt(m::Param("b")));
+  auto concat_form =
+      m::Concat(m::Literal(UBits(0, 32 - k)), narrowed_and);
+  auto concat_form_flipped =
+      m::Concat(m::Literal(UBits(0, 32 - k)), narrowed_and_flipped);
+  EXPECT_THAT(f->return_value(),
+              ::testing::AnyOf(and_form, and_form_flipped, sel_form, concat_form,
+                               concat_form_flipped))
+      << f->DumpIr();
+}
+
 TEST_F(OptimizationPipelineTest, LogicAbsorption) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

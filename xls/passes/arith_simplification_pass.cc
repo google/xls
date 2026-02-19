@@ -1030,6 +1030,52 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     }
   }
 
+  // Pattern:
+  //
+  // umod(x, shll(zext(b), k)) -> sel(b, zext(bit_slice(x, 0, k), width(x)), 0)
+  //
+  // where b is a 1-bit value.
+  if (n->op() == Op::kUMod) {
+    Node* x = n->operand(0);
+    Node* divisor = n->operand(1);
+    const int64_t bit_count = x->BitCountOrDie();
+
+    auto replace_with_select = [&](Node* b, int64_t k) -> absl::StatusOr<bool> {
+      XLS_RET_CHECK_EQ(b->BitCountOrDie(), 1);
+      if (k <= 0 || k >= bit_count) {
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
+        return true;
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          Node * slice, n->function_base()->MakeNode<BitSlice>(
+                            n->loc(), x, /*start=*/0, /*width=*/k));
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed,
+          n->function_base()->MakeNode<ExtendOp>(n->loc(), slice, bit_count,
+                                                Op::kZeroExt));
+      XLS_ASSIGN_OR_RETURN(
+          Node * zero, n->function_base()->MakeNode<Literal>(
+                           n->loc(), Value(UBits(0, bit_count))));
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<Select>(
+               b, std::vector<Node*>{zero, narrowed},
+               /*default_value=*/std::nullopt)
+              .status());
+      return true;
+    };
+
+    std::optional<ShiftedBitView> shifted_bit = IsOneShiftedBit(divisor);
+    if (shifted_bit.has_value()) {
+      XLS_ASSIGN_OR_RETURN(bool changed,
+                           replace_with_select(shifted_bit->b, shifted_bit->k));
+      if (changed) {
+        return true;
+      }
+    }
+  }
+
   // Pattern: UMod/SMod by a literal.
   if (n->OpIn({Op::kUMod, Op::kSMod}) &&
       query_engine.IsFullyKnown(n->operand(1))) {

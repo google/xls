@@ -788,6 +788,28 @@ TEST_F(ArithSimplificationPassTest, UModByVariable) {
   EXPECT_THAT(f->return_value(), m::UMod());
 }
 
+TEST_F(ArithSimplificationPassTest, UModShiftedOneBitDivisor) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* bits32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", bits32);
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  const int64_t k = 2;
+  BValue divisor = fb.Shll(fb.ZeroExtend(b, 32), fb.Literal(UBits(k, 32)));
+  fb.UMod(x, divisor);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Param("b"),
+                /*cases=*/{m::Literal(UBits(0, 32)),
+                           m::ZeroExt(m::BitSlice(m::Param("x"),
+                                                 /*start=*/0, /*width=*/k))}));
+}
+
 TEST_F(ArithSimplificationPassTest, UModOf13) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

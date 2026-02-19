@@ -48,6 +48,22 @@
 
 namespace xls {
 
+struct ShiftedBitView {
+  Node* b;
+  int64_t k;
+};
+
+// Returns (b, k) if `node` is structurally equivalent to a value with a single
+// potentially-set bit at position `k` (0 == LSb) controlled by the 1-bit value
+// `b`. The recognized forms are:
+//
+// * shll(zext(b), literal(k))
+// * concat(0..., b, 0...)
+//
+// This is a structural matcher and only recognizes literal zeros / literal shift
+// amounts (it does not use any query engine).
+std::optional<ShiftedBitView> IsOneShiftedBit(Node* node);
+
 inline bool IsLiteralZero(Node* node) {
   return node->Is<Literal>() && node->As<Literal>()->value().IsBits() &&
          node->As<Literal>()->value().bits().IsZero();
