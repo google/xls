@@ -575,16 +575,6 @@ int64_t xls_aot_entrypoint_trampoline(
     struct xls_aot_exec_context* context, int64_t continuation_point,
     size_t* trace_messages_count_out, size_t* assert_messages_count_out);
 
-// Runs the first FUNCTION entrypoint from serialized AOT artifacts.
-bool xls_aot_run_function(const uint8_t* object_code, size_t object_code_count,
-                          const uint8_t* entrypoints_proto,
-                          size_t entrypoints_proto_count,
-                          struct xls_aot_exec_context* context, size_t argc,
-                          const struct xls_value* const* args, char** error_out,
-                          struct xls_value** result_out,
-                          size_t* trace_messages_count_out,
-                          size_t* assert_messages_count_out);
-
 struct xls_trace_message {
   char* message;
   int64_t verbosity;

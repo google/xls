@@ -7,7 +7,6 @@ xls_aot_exec_context_free
 xls_aot_exec_context_get_assert_message
 xls_aot_exec_context_get_trace_message
 xls_aot_object_code_free
-xls_aot_run_function
 xls_bits_abs
 xls_bits_add
 xls_bits_and
