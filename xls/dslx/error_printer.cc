@@ -30,13 +30,13 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {

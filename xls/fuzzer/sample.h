@@ -27,11 +27,11 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/sample.pb.h"
 #include "xls/tests/testvector.pb.h"
-#include "re2/re2.h"
 
 namespace xls {
 

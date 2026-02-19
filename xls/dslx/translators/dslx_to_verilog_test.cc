@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
+#include "re2/re2.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
@@ -30,7 +31,6 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/virtualizable_file_system.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {

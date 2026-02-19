@@ -36,6 +36,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/string_to_int.h"
@@ -43,7 +44,6 @@
 #include "xls/ir/bits.h"
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/netlist.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace netlist {

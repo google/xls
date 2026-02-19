@@ -40,12 +40,12 @@
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/io/zero_copy_stream_impl.h"
 #include "google/protobuf/text_format.h"
+#include "re2/re2.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/error_code_to_status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace {

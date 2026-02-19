@@ -33,6 +33,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/enumerate.hpp"
+#include "re2/re2.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
@@ -51,7 +52,6 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
-#include "re2/re2.h"
 
 namespace xls::codegen {
 

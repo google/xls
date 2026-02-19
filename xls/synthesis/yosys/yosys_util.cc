@@ -26,9 +26,9 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "libs/json11/json11.hpp"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace synthesis {

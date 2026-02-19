@@ -43,6 +43,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -89,7 +90,6 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {

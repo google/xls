@@ -29,6 +29,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "re2/re2.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -37,7 +38,6 @@
 #include "xls/ir/xls_value.pb.h"
 #include "xls/tests/testvector.pb.h"
 #include "xls/tools/proc_channel_values.pb.h"
-#include "re2/re2.h"
 
 namespace xls {
 

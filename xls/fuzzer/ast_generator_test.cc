@@ -31,6 +31,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "re2/re2.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -40,7 +41,6 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/virtualizable_file_system.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {

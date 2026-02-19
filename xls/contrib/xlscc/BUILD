@@ -255,7 +255,6 @@ cc_library(
         "//xls/passes:inlining_pass",
         "//xls/passes:node_source_analysis",
         "//xls/passes:optimization_pass",
-        "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:partial_info_query_engine",
         "//xls/passes:pass_base",
         "//xls/solvers:z3_ir_translator",

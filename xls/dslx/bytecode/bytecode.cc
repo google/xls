@@ -35,6 +35,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
@@ -48,7 +49,6 @@
 #include "xls/ir/format_preference.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/number_parser.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {

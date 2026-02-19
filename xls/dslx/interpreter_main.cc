@@ -33,6 +33,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -47,7 +48,6 @@
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/format_preference.h"
-#include "re2/re2.h"
 
 // LINT.IfChange
 ABSL_FLAG(std::string, dslx_path, "",

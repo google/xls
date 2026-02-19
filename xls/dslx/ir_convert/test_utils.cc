@@ -19,8 +19,8 @@
 
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/golden_files.h"
 #include "re2/re2.h"
+#include "xls/common/golden_files.h"
 
 namespace xls::dslx {
 

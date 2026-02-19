@@ -57,10 +57,10 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/synchronization/mutex.h"
+#include "re2/re2.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/subprocess.h"
 #include "xls/common/thread.h"
-#include "re2/re2.h"
 
 // Some configuration for this project.
 static constexpr std::string_view kProjectCachePrefix = "xls_";

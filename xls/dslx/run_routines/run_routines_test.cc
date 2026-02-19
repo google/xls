@@ -30,6 +30,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "re2/re2.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
@@ -44,7 +45,6 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {

@@ -1,5 +1,6 @@
 #include <optional>
 
+#include "re2/re2.h"
 #include "xls/dslx/type_system_v2/trait_deriver.h"
 // Copyright 2023 The XLS Authors
 //
@@ -28,7 +29,6 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system_v2/type_inference_error_handler.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 

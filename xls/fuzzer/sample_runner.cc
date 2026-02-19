@@ -45,6 +45,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/log_lines.h"
@@ -79,7 +80,6 @@
 #include "xls/simulation/check_simulator.h"
 #include "xls/tests/testvector.pb.h"
 #include "xls/tools/eval_utils.h"
-#include "re2/re2.h"
 
 // These are used to forward, but also see comment below.
 ABSL_DECLARE_FLAG(int32_t, v);

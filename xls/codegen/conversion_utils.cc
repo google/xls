@@ -33,6 +33,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
@@ -56,7 +57,6 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "re2/re2.h"
 
 namespace xls::verilog {
 

@@ -27,6 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -35,7 +36,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "z3/src/api/z3_api.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace solvers {

@@ -36,6 +36,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "cppitertools/enumerate.hpp"
+#include "re2/re2.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -62,7 +63,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/verify_node.h"
 #include "xls/passes/node_dependency_analysis.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace {

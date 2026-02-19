@@ -30,6 +30,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "re2/re2.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_representation.h"
 #include "xls/codegen/op_override.h"
@@ -38,7 +39,6 @@
 #include "xls/common/visitor.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
-#include "re2/re2.h"
 
 namespace xls::verilog {
 

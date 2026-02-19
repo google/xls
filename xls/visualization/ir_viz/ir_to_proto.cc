@@ -31,6 +31,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
@@ -53,7 +54,6 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/visualization/ir_viz/node_attribute_visitor.h"
 #include "xls/visualization/ir_viz/visualization.pb.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace {

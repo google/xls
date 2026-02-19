@@ -29,6 +29,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/text_format.h"
+#include "re2/re2.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -47,7 +48,6 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_pipeline.pb.h"
-#include "re2/re2.h"
 
 namespace m = ::xls::op_matchers;
 namespace xls {

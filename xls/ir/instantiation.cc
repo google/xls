@@ -33,6 +33,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/block.h"
@@ -42,7 +43,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/type.h"
-#include "re2/re2.h"
 
 namespace xls {
 

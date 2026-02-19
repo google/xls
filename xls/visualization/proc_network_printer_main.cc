@@ -27,6 +27,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "re2/re2.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -39,7 +40,6 @@
 #include "xls/ir/state_element.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
-#include "re2/re2.h"
 
 const char kUsage[] = R"(
 Dump scheduling result to stdout in Graphviz's dot plain text format.

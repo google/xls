@@ -26,6 +26,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
@@ -46,7 +47,6 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
 #include "xls/jit/function_jit.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace {

@@ -73,6 +73,7 @@
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
@@ -99,7 +100,6 @@
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
 #include "z3/src/api/z3_api.h"
-#include "re2/re2.h"
 
 using ::std::list;
 using ::std::ostringstream;

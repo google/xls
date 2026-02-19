@@ -25,6 +25,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/variant.h"
+#include "re2/re2.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -32,7 +33,6 @@
 #include "xls/dslx/status_payload.pb.h"
 #include "xls/dslx/status_payload_utils.h"
 #include "xls/dslx/type_system/type_info_to_proto.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 
