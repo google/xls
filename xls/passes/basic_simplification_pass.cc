@@ -726,6 +726,96 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     return true;
   }
 
+  // Pattern: AND subset check (mask subset).
+  //
+  // This is also commonly described as an AND "absorption" rewrite: if y has no
+  // bits set outside x, then `y & x == y`. The rewritten form makes that "no
+  // bits set outside x" condition explicit as `(y & ~x) == 0`.
+  //
+  // Why "subset":
+  // Think of a bitvector as the set of positions where it has a 1-bit.
+  // Then eq(and(x, y), y) holds when that set for y is a subset of the
+  // set for x. y has no bits set outside the 1-bits of x.
+  //
+  // For same-width bitvectors, the following are equivalent:
+  // - `eq(and(x, y), y)` means: every 1-bit in y is also a 1-bit in x
+  //
+  // - `eq(and(not(x), y), 0)` means: y has no 1-bits in positions where x has a
+  //   0-bit (equivalently, and(not(x), y) has no 1-bits at all).
+  //
+  // So we can rewrite:
+  // `eq(and(x, y), y)` <=> `eq(and(not(x), y), 0)`
+  // `eq(and(x, y), x)` <=> `eq(and(not(y), x), 0)`
+  //
+  // This generalizes to n-ary and:
+  //
+  // `eq(and(a, b, ..., t), t)` <=> `eq(and(not(and(a, b, ...)), t), 0)`
+  //
+  // And similarly for `ne`.
+  if (n->op() == Op::kEq || n->op() == Op::kNe) {
+    auto try_rewrite_and_subset_check =
+        [&](Node* and_node, Node* subset) -> absl::StatusOr<bool> {
+      if (and_node->op() != Op::kAnd) {
+        return false;
+      }
+
+      std::vector<Node*> mask_operands;
+      mask_operands.reserve(and_node->operand_count());
+      bool found_subset = false;
+      for (Node* operand : and_node->operands()) {
+        if (operand == subset) {
+          found_subset = true;
+          continue;
+        }
+        mask_operands.push_back(operand);
+      }
+      if (!found_subset) {
+        return false;
+      }
+
+      FunctionBase* f = n->function_base();
+      Node* mask = nullptr;
+      if (mask_operands.empty()) {
+        XLS_ASSIGN_OR_RETURN(
+            mask,
+            f->MakeNode<Literal>(n->loc(), AllOnesOfType(subset->GetType())));
+      } else if (mask_operands.size() == 1) {
+        mask = mask_operands[0];
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            mask, f->MakeNode<NaryOp>(n->loc(), mask_operands, Op::kAnd));
+      }
+
+      XLS_ASSIGN_OR_RETURN(Node * not_mask,
+                           f->MakeNode<UnOp>(n->loc(), mask, Op::kNot));
+      XLS_ASSIGN_OR_RETURN(
+          Node * disallowed_bits,
+          f->MakeNode<NaryOp>(n->loc(), std::vector<Node*>{not_mask, subset},
+                              Op::kAnd));
+      XLS_ASSIGN_OR_RETURN(
+          Node * zero,
+          f->MakeNode<Literal>(n->loc(), ZeroOfType(subset->GetType())));
+      XLS_ASSIGN_OR_RETURN(
+          Node * replacement,
+          f->MakeNode<CompareOp>(n->loc(), disallowed_bits, zero, n->op()));
+
+      VLOG(2) << "FOUND: and subset check via compare-to-zero";
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(replacement));
+      return true;
+    };
+
+    XLS_ASSIGN_OR_RETURN(bool rewritten, try_rewrite_and_subset_check(
+                                             n->operand(0), n->operand(1)));
+    if (rewritten) {
+      return true;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        rewritten, try_rewrite_and_subset_check(n->operand(1), n->operand(0)));
+    if (rewritten) {
+      return true;
+    }
+  }
+
   // Patterns (where x is a bits[1] type):
   //   eq(x, 1) => x
   //   eq(x, 0) => not(x)
