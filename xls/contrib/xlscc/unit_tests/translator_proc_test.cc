@@ -6735,6 +6735,9 @@ TEST_P(TranslatorProcTest, LocalChannel) {
     };
   )";
 
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
+
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
@@ -6768,6 +6771,9 @@ TEST_P(TranslatorProcTest, LocalChannelUsedInSubroutine) {
     };
   )";
 
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
+
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
@@ -6800,6 +6806,9 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInSubroutine) {
       }
     };
   )";
+
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
@@ -6836,6 +6845,9 @@ TEST_P(TranslatorProcTest, LocalChannelPipelinedLoop) {
       }
     };
   )";
+
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
@@ -6881,6 +6893,9 @@ TEST_P(TranslatorProcTest, LocalChannelPipelinedLoopDeclaredInSubroutine) {
     };
   )";
 
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
+
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
@@ -6925,6 +6940,9 @@ TEST_P(TranslatorProcTest, LocalChannelPipelinedLoopUsedInSubroutine) {
     };
   )";
 
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
+
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
@@ -6961,6 +6979,9 @@ TEST_P(TranslatorProcTest, LocalChannelSubBlock) {
     };
   )";
 
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
+
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
@@ -6996,6 +7017,9 @@ TEST_P(TranslatorProcTest, LocalChannelSubBlockNonStatic) {
       }
     };
   )";
+
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
 
   XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
                          /*io_test_mode=*/false,
@@ -7038,6 +7062,9 @@ TEST_P(TranslatorProcTest, LocalChannelPassUpAndDown) {
     };
   )";
 
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
+
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
@@ -7066,6 +7093,9 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInTopClassUnspecified) {
       }
     };
   )";
+
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
 
   XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
                          /*io_test_mode=*/false,
@@ -7097,6 +7127,9 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInTopClass) {
       }
     };
   )";
+
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
 
   XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
                          /*io_test_mode=*/false,
@@ -7151,6 +7184,9 @@ TEST_P(TranslatorProcTest, ChannelDeclaredInClassInitialized) {
       }
     };
   )";
+
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
@@ -7248,6 +7284,9 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClass) {
     };
   )";
 
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
+
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
@@ -7295,6 +7334,9 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassNonStatic) {
     };
   )";
 
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
+
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
@@ -7335,6 +7377,9 @@ TEST_P(TranslatorProcTest, LocalChannelAddCondition) {
       }
     };
   )";
+
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32)),
@@ -7378,6 +7423,9 @@ TEST_P(TranslatorProcTest, LocalChannelAddCondition2) {
       }
     };
   )";
+
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32)),
@@ -7433,6 +7481,9 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassNonStaticAddCondition) {
       }
     };
   )";
+
+  // Enforce ordering on internal
+  split_states_on_channel_ops_ = true;
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(55, 32)),

@@ -668,25 +668,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   absl::btree_multimap<const xls::StateElement*, NextStateValue>
       extra_next_state_values;
 
-  // Also contains null bundle for sequencing non-channel ops, such as traces
-  absl::btree_map<ChannelBundle, TrackedBValue> token_by_channel_bundle;
-  auto token_ref_by_channel_bundle =
-      [&pb, body_loc, &token_by_channel_bundle](
-          const ChannelBundle& channel_bundle) -> TrackedBValue& {
-    if (!token_by_channel_bundle.contains(channel_bundle)) {
-      std::string channel_name = "unknown";
-      if (channel_bundle.regular != nullptr) {
-        channel_name = channel_bundle.regular->name();
-      } else if (channel_bundle.read_request != nullptr) {
-        channel_name = channel_bundle.read_request->name();
-      }
-      token_by_channel_bundle[channel_bundle] =
-          pb.Literal(xls::Value::Token(), body_loc,
-                     /*name=*/absl::StrFormat("token_%s", channel_name));
-    }
-    return token_by_channel_bundle.at(channel_bundle);
-  };
-
   // Create state elements for jumps (jumped vs didn't jump yet)
   absl::flat_hash_map<int64_t, TrackedBValue> state_element_by_jump_slice_index;
   for (int64_t jump_slice_index : layout.all_jump_from_slice_indices) {
@@ -860,20 +841,17 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       XLSCC_CHECK(after_op->op != OpType::kLoopEndJump, body_loc);
       std::optional<ChannelBundle> optional_bundle =
           translator_io_.GetChannelBundleForOp(*after_op, body_loc);
-      ChannelBundle bundle = optional_bundle.value_or(ChannelBundle{});
-      TrackedBValue& token = token_ref_by_channel_bundle(bundle);
+      // Do not generate an explicit token network.
+      // Tokens edges will still be inserted downstream for data dependencies.
+      // Ordering can be imposed via activation transitions.
+      TrackedBValue token = pb.Literal(xls::Value::Token(), body_loc,
+                                       /*name=*/"token");
       XLSCC_CHECK(last_op_out_value.valid(), body_loc);
       XLS_ASSIGN_OR_RETURN(
           GenerateIOReturn io_return,
           translator_io_.GenerateIO(*after_op, token, last_op_out_value, pb,
                                     optional_bundle,
                                     /*extra_condition=*/slice_active));
-
-      // With split states mode on, ordering within a channel is enforced via
-      // activation barriers.
-      if (!split_states_on_channel_ops_) {
-        token = io_return.token_out;
-      }
 
       // Add IO parameter if applicable
       if (io_return.received_value.valid()) {
