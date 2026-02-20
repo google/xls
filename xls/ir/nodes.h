@@ -752,8 +752,8 @@ class StateRead final : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kStateRead};
   StateRead(const SourceInfo& loc, StateElement* state_element,
-            std::optional<Node*> predicate, std::string_view name,
-            FunctionBase* function);
+            std::optional<Node*> predicate, std::optional<std::string> label,
+            std::string_view name, FunctionBase* function);
 
   StateElement* state_element() const { return state_element_; }
 
@@ -761,6 +761,8 @@ class StateRead final : public Node {
     return has_predicate_ ? std::make_optional(operand(kPredicateOperand))
                           : std::nullopt;
   }
+
+  const std::optional<std::string>& label() const { return label_; }
 
   absl::StatusOr<int64_t> predicate_operand_number() const {
     if (!has_predicate_) {
@@ -791,6 +793,8 @@ class StateRead final : public Node {
     has_predicate_ = false;
     return absl::OkStatus();
   }
+
+  void set_label(std::optional<std::string> label) { label_ = label; }
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
@@ -803,6 +807,7 @@ class StateRead final : public Node {
 
   StateElement* state_element_;
   bool has_predicate_;
+  std::optional<std::string> label_;
 };
 
 class Next final : public Node {
@@ -812,8 +817,8 @@ class Next final : public Node {
   static constexpr int64_t kValueOperand = 1;
 
   Next(const SourceInfo& loc, Node* state_read, Node* value,
-       std::optional<Node*> predicate, std::string_view name,
-       FunctionBase* function);
+       std::optional<Node*> predicate, std::optional<std::string> label,
+       std::string_view name, FunctionBase* function);
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
@@ -821,6 +826,8 @@ class Next final : public Node {
   Node* state_read() const { return operand(0); }
 
   Node* value() const { return operand(1); }
+
+  const std::optional<std::string>& label() const { return label_; }
 
   std::optional<Node*> predicate() const {
     return has_predicate_ ? std::make_optional(operand(kPredicateOperand))
@@ -857,6 +864,8 @@ class Next final : public Node {
     return absl::OkStatus();
   }
 
+  void set_label(std::optional<std::string> label) { label_ = label; }
+
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
   StateElement* state_element() const {
@@ -867,6 +876,7 @@ class Next final : public Node {
   static constexpr int64_t kPredicateOperand = 2;
 
   bool has_predicate_;
+  std::optional<std::string> label_;
 };
 
 class OneHot final : public Node {
