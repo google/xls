@@ -35,84 +35,51 @@ import apfloat;
 // }
 // 20 would be represented using minimal bits as FixedPoint2<3, 2> { significand: 0b101 }
 //
-// TODO when https://github.com/google/xls/issues/1841 is resolved, undo the workaround
-// that changed BINARY_EXPONENT:s32 to (EXPONENT_IS_NEGATIVE:u32, BINARY_UEXPONENT: u32).
-//
-// BINARY_UEXPONENT means unsigned exponent. It is the magnitude of the binary exponent.
-//
-// TODO when https://github.com/google/xls/issues/1848 is resolved, delete the two unused
-// fields
-//
-// TODO when https://github.com/google/xls/issues/1861 is resolved, make the type
-// sign-parametric (i.e. xN[sign][NUM_BITS])
-pub struct FixedPoint<NUM_BITS: u32, EXPONENT_IS_NEGATIVE: u32, BINARY_UEXPONENT: u32> {
+pub struct FixedPoint<NUM_BITS: u32, BINARY_EXPONENT: s32> {
     significand: sN[NUM_BITS],  // concatenation of integer and fraction bits
-    // TODO delete when https://github.com/google/xls/issues/1848 is resolved
-    unused_eis: uN[EXPONENT_IS_NEGATIVE],
-    // TODO delete when https://github.com/google/xls/issues/1848 is resolved
-    unused_exp: uN[BINARY_UEXPONENT],
 }
 
-// Creates a fixed point number with the given significand. The two unused fields are set to 0.
-// Exists because it's annoying to set the unused fields to 0 manually.
-//
-// TODO delete when https://github.com/google/xls/issues/1848 is resolved: we won't
-// need this helper to set the two dummy fields to 0
-pub fn make_fixed_point_with_zeros<NUM_BITS: u32, EXPONENT_IS_NEGATIVE: u32, BINARY_UEXPONENT: u32>
-    (significand: sN[NUM_BITS]) -> FixedPoint<NUM_BITS, EXPONENT_IS_NEGATIVE, BINARY_UEXPONENT> {
-    FixedPoint<NUM_BITS, EXPONENT_IS_NEGATIVE, BINARY_UEXPONENT> {
-        significand,
-        unused_eis: uN[EXPONENT_IS_NEGATIVE]:0,
-        unused_exp: uN[BINARY_UEXPONENT]:0,
-    }
-}
-
-// Converts from sign & magnitude to two's complement.
-//
-// TODO delete when https://github.com/google/xls/issues/1848 is resolved:
-// we won't need to convert between two's complement and sign & magnitude representations.
+// DEPRECATED compatibility helper: convert sign + magnitude exponent representation to signed
+// exponent.
+// Prefer using signed exponents directly.
 pub fn binary_exponent(EXPONENT_IS_NEGATIVE: u32, BINARY_UEXPONENT: u32) -> s32 {
     if EXPONENT_IS_NEGATIVE > u32:0 { -BINARY_UEXPONENT as s32 } else { BINARY_UEXPONENT as s32 }
 }
 
-// Converts from two's complement to sign of sign & magnitude representation.
-//
-// TODO delete when https://github.com/google/xls/issues/1848 is resolved:
-// we won't need to convert between two's complement and sign & magnitude representations.
+// DEPRECATED compatibility helper: convert signed exponent to sign bit.
+// Prefer using signed exponents directly.
 pub fn is_negative(binary_exponent: s32) -> u32 {
     if binary_exponent < s32:0 { u32:1 } else { u32:0 }
 }
 
-// Converts from two's complement to magnitude of sign & magnitude representation.
-//
-// TODO delete when https://github.com/google/xls/issues/1848 is resolved:
-// we won't need to convert between two's complement and sign & magnitude representations.
+// DEPRECATED compatibility helper: convert signed exponent to magnitude.
+// Prefer using signed exponents directly.
 pub fn binary_uexponent(binary_exponent: s32) -> u32 {
     if binary_exponent < s32:0 { (-binary_exponent) as u32 } else { binary_exponent as u32 }
 }
 
-// Creates a FixedPoint of with appropriate sign and magnitude representation, given the signed
-// binary exponent. This is a convenience function to avoid having to determine the sign and
-// magnitude.
+// DEPRECATED compatibility constructor that accepts sign + magnitude exponent type parameters.
+// Prefer `make_fixed_point<BINARY_EXPONENT>(significand)` with a signed exponent.
+pub fn make_fixed_point_with_zeros
+    <NUM_BITS: u32, EXPONENT_IS_NEGATIVE: u32, BINARY_UEXPONENT: u32,
+     BINARY_EXPONENT: s32 = {binary_exponent(EXPONENT_IS_NEGATIVE, BINARY_UEXPONENT)}>
+    (significand: sN[NUM_BITS]) -> FixedPoint<NUM_BITS, BINARY_EXPONENT> {
+    FixedPoint<NUM_BITS, BINARY_EXPONENT> { significand }
+}
+
+// Creates a FixedPoint with a signed binary exponent.
 //
 // Note that BINARY_EXPONENT is located first so that you can specify it and elide the
 // other type parameters, as they are inferrable.
 // E.g. make_fixed_point<s32:-2>(s6:31) = 31 * 2^-2 = 7.75
-//
-// TODO change when https://github.com/google/xls/issues/1848 is resolved:
-// we won't need to convert between two's complement and sign & magnitude representations.
-pub fn make_fixed_point
-    <BINARY_EXPONENT: s32, NUM_BITS: u32,
-     EXPONENT_IS_NEGATIVE: u32 = {is_negative(BINARY_EXPONENT)},
-     BINARY_UEXPONENT: u32 = {binary_uexponent(BINARY_EXPONENT)}>
-    (significand: sN[NUM_BITS]) -> FixedPoint<NUM_BITS, EXPONENT_IS_NEGATIVE, BINARY_UEXPONENT> {
-    make_fixed_point_with_zeros<NUM_BITS, EXPONENT_IS_NEGATIVE, BINARY_UEXPONENT>(significand)
+pub fn make_fixed_point<BINARY_EXPONENT: s32, NUM_BITS: u32>
+    (significand: sN[NUM_BITS]) -> FixedPoint<NUM_BITS, BINARY_EXPONENT> {
+    FixedPoint<NUM_BITS, BINARY_EXPONENT> { significand }
 }
 
 // Returns a FixedPoint equivalent to the given integer.
-pub fn from_integer<NUM_BITS: u32>
-    (significand: sN[NUM_BITS]) -> FixedPoint<NUM_BITS, u32:0, u32:0> {
-    make_fixed_point_with_zeros<NUM_BITS, u32:0, u32:0>(significand)
+pub fn from_integer<NUM_BITS: u32>(significand: sN[NUM_BITS]) -> FixedPoint<NUM_BITS, s32:0> {
+    make_fixed_point<s32:0>(significand)
 }
 
 // Returns the number of integer bits representable by a fixed point number with these parameters.
@@ -154,10 +121,8 @@ pub fn num_nonzero_fractional_bits(NUM_BITS: u32, BINARY_EXPONENT: s32) -> u32 {
 // Returns the bits of a fixed point number's fractional part. These bits are _not_ shifted or
 // normalized in any sense. E.g. it would be wrong to add the raw fractional parts of two different
 // fixed point numbers without first aligning their binary points.
-pub fn fractional_bits_raw
-    <NB: u32, BE: s32, F: u32 = {num_nonzero_fractional_bits(NB, BE)},
-     EXPONENT_IS_NEGATIVE: u32 = {is_negative(BE)}>
-    (a: FixedPoint<NB, EXPONENT_IS_NEGATIVE, BE>) -> uN[F] {
+pub fn fractional_bits_raw<NB: u32, BE: s32, F: u32 = {num_nonzero_fractional_bits(NB, BE)}>
+    (a: FixedPoint<NB, BE>) -> uN[F] {
     a.significand[0+:uN[F]]
 }
 
@@ -165,24 +130,19 @@ pub fn fractional_bits_raw
 // normalized in any sense. Less-significant bits that are always zero are not included. E.g. it
 // would be wrong to add the raw integer parts of two different fixed point numbers without first
 // aligning their binary points.
-pub fn integer_bits_raw
-    <NB: u32, BE: s32, I: u32 = {num_nonzero_integer_bits(NB, BE)},
-     EXPONENT_IS_NEGATIVE: u32 = {is_negative(BE)}>
-    (a: FixedPoint<NB, EXPONENT_IS_NEGATIVE, BE>) -> uN[I] {
+pub fn integer_bits_raw<NB: u32, BE: s32, I: u32 = {num_nonzero_integer_bits(NB, BE)}>
+    (a: FixedPoint<NB, BE>) -> uN[I] {
     let F = num_nonzero_fractional_bits(NB, BE);
     a.significand[F+:uN[I]]
 }
 
-// Multiplies two unsigned fixed point numbers.
+// Multiplies two fixed point numbers.
 //
 // The number of bits in the result is the sum of the number of bits in the inputs.
 pub fn mul
-    <NB_A: u32, EN_A: u32, BU_A: u32, NB_B: u32, EN_B: u32, BU_B: u32,
-     EXP_SUM: s32 = {binary_exponent(EN_A, BU_A) + binary_exponent(EN_B, BU_B)},
-     NB_R: u32 = {NB_A + NB_B}, EN_R: u32 = {is_negative(EXP_SUM)},
-     BU_R: u32 = {binary_uexponent(EXP_SUM)}>
-    (a: FixedPoint<NB_A, EN_A, BU_A>, b: FixedPoint<NB_B, EN_B, BU_B>)
-    -> FixedPoint<NB_R, EN_R, BU_R> {
+    <NB_A: u32, BE_A: s32, NB_B: u32, BE_B: s32, EXP_SUM: s32 = {BE_A + BE_B},
+     NB_R: u32 = {NB_A + NB_B}>
+    (a: FixedPoint<NB_A, BE_A>, b: FixedPoint<NB_B, BE_B>) -> FixedPoint<NB_R, EXP_SUM> {
     make_fixed_point<EXP_SUM>(std::smul(a.significand, b.significand))
 }
 
@@ -240,16 +200,13 @@ fn aligned_width(NB_A: u32, BE_A: s32, NB_B: u32, BE_B: s32) -> u32 {
 // Note: when there is no overlap of aligned inputs, then there is no chance of carry out and result
 // width is not increased by 1
 pub fn add
-    <NB_A: u32, EN_A: u32, BU_A: u32, NB_B: u32, EN_B: u32, BU_B: u32,
-     BE_A: s32 = {binary_exponent(EN_A, BU_A)}, BE_B: s32 = {binary_exponent(EN_B, BU_B)},
+    <NB_A: u32, BE_A: s32, NB_B: u32, BE_B: s32,
      NB_R:
      u32 = {
          aligned_width(NB_A, BE_A, NB_B, BE_B) +
          if num_bits_overlapping(NB_A, BE_A, NB_B, BE_B) == u32:0 { u32:0 } else { u32:1 }},
-     BE_R: s32 = {std::min(BE_A, BE_B)}, EN_R: u32 = {is_negative(BE_R)},
-     BU_R: u32 = {binary_uexponent(BE_R)}>
-    (lhs: FixedPoint<NB_A, EN_A, BU_A>, rhs: FixedPoint<NB_B, EN_B, BU_B>)
-    -> FixedPoint<NB_R, EN_R, BU_R> {
+     BE_R: s32 = {std::min(BE_A, BE_B)}>
+    (lhs: FixedPoint<NB_A, BE_A>, rhs: FixedPoint<NB_B, BE_B>) -> FixedPoint<NB_R, BE_R> {
     // Widen before left shifting to avoid overflow
     let aligned_lhs = (lhs.significand as sN[NB_R]) << (BE_A - BE_R) as u32;
     let aligned_rhs = (rhs.significand as sN[NB_R]) << (BE_B - BE_R) as u32;
@@ -257,18 +214,15 @@ pub fn add
     make_fixed_point<BE_R>(aligned_lhs + aligned_rhs)
 }
 
-// Subtracts two unsigned fixed point numbers, returns lhs - rhs
+// Subtracts two fixed point numbers, returns lhs - rhs
 pub fn sub
-    <NB_A: u32, EN_A: u32, BU_A: u32, NB_B: u32, EN_B: u32, BU_B: u32,
-     BE_A: s32 = {binary_exponent(EN_A, BU_A)}, BE_B: s32 = {binary_exponent(EN_B, BU_B)},
+    <NB_A: u32, BE_A: s32, NB_B: u32, BE_B: s32,
      NB_R:
      u32 = {
          aligned_width(NB_A, BE_A, NB_B, BE_B) +
          if num_bits_overlapping(NB_A, BE_A, NB_B, BE_B) == u32:0 { u32:0 } else { u32:1 }},
-     BE_R: s32 = {std::min(BE_A, BE_B)}, EN_R: u32 = {is_negative(BE_R)},
-     BU_R: u32 = {binary_uexponent(BE_R)}>
-    (lhs: FixedPoint<NB_A, EN_A, BU_A>, rhs: FixedPoint<NB_B, EN_B, BU_B>)
-    -> FixedPoint<NB_R, EN_R, BU_R> {
+     BE_R: s32 = {std::min(BE_A, BE_B)}>
+    (lhs: FixedPoint<NB_A, BE_A>, rhs: FixedPoint<NB_B, BE_B>) -> FixedPoint<NB_R, BE_R> {
     // Widen before left shifting to avoid overflow
     let aligned_lhs = (lhs.significand as sN[NB_R]) << (BE_A - BE_R) as u32;
     let aligned_rhs = (rhs.significand as sN[NB_R]) << (BE_B - BE_R) as u32;
@@ -288,10 +242,9 @@ fn binary_exponent_after_truncation
 // Truncates a fixed point number to a smaller width, preserving the most significant bits. The
 // first type parameter, NB_R, is the number of bits in the result.
 pub fn truncate
-    <NB_R: u32, NB_A: u32, EN_A: u32, BU_A: u32, NUM_BITS_TRUNCATED: u32 = {NB_A - NB_R},
-     BE_R: s32 = {binary_exponent_after_truncation(NB_R, NB_A, binary_exponent(EN_A, BU_A))},
-     EN_R: u32 = {is_negative(BE_R)}, BU_R: u32 = {binary_uexponent(BE_R)}>
-    (a: FixedPoint<NB_A, EN_A, BU_A>) -> FixedPoint<NB_R, EN_R, BU_R> {
+    <NB_R: u32, NB_A: u32, BE_A: s32, NUM_BITS_TRUNCATED: u32 = {NB_A - NB_R},
+     BE_R: s32 = {binary_exponent_after_truncation(NB_R, NB_A, BE_A)}>
+    (a: FixedPoint<NB_A, BE_A>) -> FixedPoint<NB_R, BE_R> {
     // Shift the significand to preserve the most significant bits
     let truncated_data = a.significand >> NUM_BITS_TRUNCATED;
 
@@ -320,10 +273,9 @@ pub fn truncate
 // The IEEE 754 standard denotes “round to nearest, ties to even” with the abbreviation RNE. We
 // keep "round" in the name to avoid excessive brevity.
 pub fn round_ne_bits_discarded
-    <NUM_BITS_ROUNDED: u32, NB_A: u32, EN_A: u32, BU_A: u32, NB_R: u32 = {NB_A - NUM_BITS_ROUNDED},
-     BE_R: s32 = {binary_exponent_after_truncation(NB_R, NB_A, binary_exponent(EN_A, BU_A))},
-     EN_R: u32 = {is_negative(BE_R)}, BU_R: u32 = {binary_uexponent(BE_R)}>
-    (a: FixedPoint<NB_A, EN_A, BU_A>) -> FixedPoint<NB_R, EN_R, BU_R> {
+    <NUM_BITS_ROUNDED: u32, NB_A: u32, BE_A: s32, NB_R: u32 = {NB_A - NUM_BITS_ROUNDED},
+     BE_R: s32 = {binary_exponent_after_truncation(NB_R, NB_A, BE_A)}>
+    (a: FixedPoint<NB_A, BE_A>) -> FixedPoint<NB_R, BE_R> {
     if NUM_BITS_ROUNDED == u32:0 {
         // no rounding needed, but we have to make DSLX happy about unifying the types
         // (otherwise we'd just return `a`)
@@ -369,10 +321,9 @@ pub fn round_ne_bits_discarded
 // bit to handle overflow - consider what happens when rounding up and the retained bits are
 // already at maximum).
 pub fn round_ne_target_width
-    <NB_R: u32, NB_A: u32, EN_A: u32, BU_A: u32, NUM_BITS_ROUNDED: u32 = {NB_A - NB_R},
-     BE_R: s32 = {binary_exponent_after_truncation(NB_R, NB_A, binary_exponent(EN_A, BU_A))},
-     EN_R: u32 = {is_negative(BE_R)}, BU_R: u32 = {binary_uexponent(BE_R)}>
-    (a: FixedPoint<NB_A, EN_A, BU_A>) -> FixedPoint<NB_R, EN_R, BU_R> {
+    <NB_R: u32, NB_A: u32, BE_A: s32, NUM_BITS_ROUNDED: u32 = {NB_A - NB_R},
+     BE_R: s32 = {binary_exponent_after_truncation(NB_R, NB_A, BE_A)}>
+    (a: FixedPoint<NB_A, BE_A>) -> FixedPoint<NB_R, BE_R> {
     // NUM_BITS_ROUNDED must be non-negative
     const_assert!(NB_A >= NB_R);
     round_ne_bits_discarded<NUM_BITS_ROUNDED>(a)
@@ -387,10 +338,8 @@ pub fn round_ne_target_width
 // bit to handle overflow - consider what happens when rounding up and the retained bits are
 // already at maximum).
 pub fn round_ne_target_exponent
-    <BE_R: s32, NB_A: u32, EN_A: u32, BU_A: u32, BE_A: s32 = {binary_exponent(EN_A, BU_A)},
-     NUM_BITS_ROUNDED: u32 = {(BE_R - BE_A) as u32}, NB_R: u32 = {NB_A - NUM_BITS_ROUNDED},
-     EN_R: u32 = {is_negative(BE_R)}, BU_R: u32 = {binary_uexponent(BE_R)}>
-    (a: FixedPoint<NB_A, EN_A, BU_A>) -> FixedPoint<NB_R, EN_R, BU_R> {
+    <BE_R: s32, NB_A: u32, BE_A: s32, NUM_BITS_ROUNDED: u32 = {(BE_R - BE_A) as u32},
+     NB_R: u32 = {NB_A - NUM_BITS_ROUNDED}>(a: FixedPoint<NB_A, BE_A>) -> FixedPoint<NB_R, BE_R> {
     // rounding cannot decrease the binary exponent
     const_assert!(BE_R >= BE_A);
     round_ne_target_width<NB_R>(a)
@@ -404,11 +353,10 @@ pub fn round_ne_target_exponent
 //
 // Currently only supports discarding bits from the integer part of the number. This means the
 // binary exponent can't change. This could be relaxed with a little bit of work.
-pub fn narrow_by
-    <NUM_DISCARDED: u32, NB_A: u32, EN_A: u32, BU_A: u32, NB_R: u32 = {NB_A - NUM_DISCARDED}>
-    (a: FixedPoint<NB_A, EN_A, BU_A>) -> FixedPoint<NB_R, EN_A, BU_A> {
+pub fn narrow_by<NUM_DISCARDED: u32, NB_A: u32, BE_A: s32, NB_R: u32 = {NB_A - NUM_DISCARDED}>
+    (a: FixedPoint<NB_A, BE_A>) -> FixedPoint<NB_R, BE_A> {
     assert!(NUM_DISCARDED <= NB_A, "narrow_by_cant_yet_discard_fractional_bits");
-    make_fixed_point_with_zeros<NB_R, EN_A, BU_A>(a.significand as sN[NB_R])
+    make_fixed_point<BE_A>(a.significand as sN[NB_R])
 }
 
 // Returns a FixedPoint that uses a common num bits and binary exponent.
@@ -417,29 +365,25 @@ pub fn narrow_by
 // (i.e. fewest number of bits used) by the generating program, and then all co-normalized so that
 // they have the same type in DSLX.
 //
-// Assumes that EXPONENT_IS_NEGATIVE of `x` matches the result's EXPONENT_IS_NEGATIVE.
-//
-// When COMMON_BINARY_UEXPONENT > BINARY_UEXPONENT, the significand is shifted right, and there is
+// When COMMON_BINARY_EXPONENT > BINARY_EXPONENT, the significand is shifted right, and there is
 // potential information loss, so this branch is currently a `fail!`.
 //
-// WARNING:Does not check that the result's bitwidth is wide enough to hold `x.significand` shifted
+// WARNING: Does not check that the result's bitwidth is wide enough to hold `x.significand` shifted
 // appropriately.
 pub fn to_common_type
-    <COMMON_NUM_BITS: u32, COMMON_BINARY_UEXPONENT: u32, NUM_BITS: u32, EXPONENT_IS_NEGATIVE: u32,
-     BINARY_UEXPONENT: u32>
-    (x: FixedPoint<NUM_BITS, EXPONENT_IS_NEGATIVE, BINARY_UEXPONENT>)
-    -> FixedPoint<COMMON_NUM_BITS, EXPONENT_IS_NEGATIVE, COMMON_BINARY_UEXPONENT> {
-    let x_exp = binary_exponent(EXPONENT_IS_NEGATIVE, BINARY_UEXPONENT);
-    let result_exp = binary_exponent(EXPONENT_IS_NEGATIVE, COMMON_BINARY_UEXPONENT);
-    let significand = if result_exp > x_exp {
+    <COMMON_NUM_BITS: u32, COMMON_BINARY_EXPONENT: s32, NUM_BITS: u32, BINARY_EXPONENT: s32>
+    (x: FixedPoint<NUM_BITS, BINARY_EXPONENT>)
+    -> FixedPoint<COMMON_NUM_BITS, COMMON_BINARY_EXPONENT> {
+    let significand = if COMMON_BINARY_EXPONENT > BINARY_EXPONENT {
         // If the exponent is increasing, then the significand needs to decrease.
-        let expr = (x.significand as sN[COMMON_NUM_BITS]) >> (result_exp - x_exp) as u32;
-        fail!("you_are_losing_information_is_this_really_what_you_want", expr)
+        let shifted_significand = (x.significand as sN[COMMON_NUM_BITS]) >>
+                                  (COMMON_BINARY_EXPONENT - BINARY_EXPONENT) as u32;
+        fail!("you_are_losing_information_is_this_really_what_you_want", shifted_significand)
     } else {
         // If the exponent is decreasing, then the significand needs to increase.
-        (x.significand as sN[COMMON_NUM_BITS]) << (x_exp - result_exp) as u32
+        (x.significand as sN[COMMON_NUM_BITS]) << (BINARY_EXPONENT - COMMON_BINARY_EXPONENT) as u32
     };
-    make_fixed_point<result_exp>(significand)
+    make_fixed_point<COMMON_BINARY_EXPONENT>(significand)
 }
 
 // Round to nearest, ties to even (aka roundTiesToEven).
@@ -448,8 +392,8 @@ pub fn to_common_type
 // if truncated bits == halfway bit and lsb bit is odd: round up.
 // if truncated bits == halfway bit and lsb bit is even: round down.
 //
-// TODO this is apfloat's rne, because apfloat's is not public. Make apfloat's rne public?
-// Consolidate with apfloat' implementation.
+// TODO this duplicates apfloat's rne, because apfloat's is not public. Make apfloat's rne public?
+// Consolidate with apfloat's implementation.
 fn rne<FRACTION_SZ: u32, LSB_INDEX_SZ: u32 = {std::clog2(FRACTION_SZ)}>
     (fraction: uN[FRACTION_SZ], lsb_idx: uN[LSB_INDEX_SZ]) -> bool {
     let lsb_bit_mask = uN[FRACTION_SZ]:1 << lsb_idx;
@@ -474,9 +418,8 @@ pub enum SubnormalOutputs : u1 {
 // even as the rounding mode.
 pub fn convert_to_float_using_round_ties_to_even
     <SUBNORMAL_OUTPUTS: SubnormalOutputs, EXP_SZ: u32, FRACTION_SZ: u32, NUM_BITS: u32,
-     EXPONENT_IS_NEGATIVE: u32, BINARY_UEXPONENT: u32>
-    (src: FixedPoint<NUM_BITS, EXPONENT_IS_NEGATIVE, BINARY_UEXPONENT>)
-    -> apfloat::APFloat<EXP_SZ, FRACTION_SZ> {
+     BINARY_EXPONENT: s32>
+    (src: FixedPoint<NUM_BITS, BINARY_EXPONENT>) -> apfloat::APFloat<EXP_SZ, FRACTION_SZ> {
     let magnitude = std::abs(src.significand as sN[NUM_BITS + u32:1]) as uN[NUM_BITS];
     let leading_zeroes = clz(magnitude);
     let num_trailing_nonzeros = NUM_BITS - leading_zeroes as u32;
@@ -532,9 +475,8 @@ pub fn convert_to_float_using_round_ties_to_even
     // want fraction to be 0, so the logic works out).
     let fraction = normalized_significand as uN[FRACTION_SZ];
 
-    const BINARY_EXPONENT_OF_X = binary_exponent(EXPONENT_IS_NEGATIVE, BINARY_UEXPONENT);
     let exponent =
-        BINARY_EXPONENT_OF_X + num_trailing_nonzeros as s32 + increment_exponent as s32 - s32:1;
+        BINARY_EXPONENT + num_trailing_nonzeros as s32 + increment_exponent as s32 - s32:1;
 
     const MAX_NORMAL_EXP = apfloat::max_normal_exp<EXP_SZ>();
     let exponent_overflows = exponent > MAX_NORMAL_EXP as s32;
@@ -565,9 +507,7 @@ pub fn convert_to_float_using_round_ties_to_even
 // Converts a FixedPoint to its underlying bits; i.e. the significand.
 //
 // Note: discards the signedness, hence 'u' in the name.
-pub fn to_ubits<NB: u32, EN: u32, BU: u32>(x: FixedPoint<NB, EN, BU>) -> uN[NB] {
-    x.significand as uN[NB]
-}
+pub fn to_ubits<NB: u32, BE: s32>(x: FixedPoint<NB, BE>) -> uN[NB] { x.significand as uN[NB] }
 
 #[test]
 fn test_most_significant_bit_position() {
@@ -629,7 +569,7 @@ fn test_num_bits_overlapping() {
     // Different widths and binary exponents
     assert_eq(num_bits_overlapping(u32:5, s32:0, u32:6, s32:1), u32:4);
 
-    // Neighboring, excactly zero overlap
+    // Neighboring, exactly zero overlap
     assert_eq(num_bits_overlapping(u32:4, s32:0, u32:2, s32:-2), u32:0);
     assert_eq(num_bits_overlapping(u32:2, s32:-2, u32:4, s32:0), u32:0);
     assert_eq(num_bits_overlapping(u32:32, s32:31, u32:31, s32:0), u32:0);
@@ -801,7 +741,7 @@ fn test_mul_different_exponents() {
 }
 
 #[test]
-fn test_uadd_zero_zero() {
+fn test_add_zero_zero() {
     let a = make_fixed_point<s32:0>(s5:0);
     let b = make_fixed_point<s32:0>(s5:0);
     let result = add(a, b);
@@ -819,7 +759,7 @@ fn test_uadd_zero_zero() {
 }
 
 #[test]
-fn test_uadd_zero_five() {
+fn test_add_zero_five() {
     let a = make_fixed_point<s32:0>(s2:0b0);
     let b = make_fixed_point<s32:0>(s4:0b101);
     let result = add(a, b);
@@ -827,7 +767,7 @@ fn test_uadd_zero_five() {
 }
 
 #[test]
-fn test_uadd_1_5() {
+fn test_add_1_5() {
     let a = make_fixed_point<s32:0>(s2:0b1);  // 1
     let b = make_fixed_point<s32:0>(s4:0b101);  // 5
     let result = add(a, b);
@@ -835,7 +775,7 @@ fn test_uadd_1_5() {
 }
 
 #[test]
-fn test_uadd_1_5_exp1() {
+fn test_add_1_5_exp1() {
     let a = make_fixed_point<s32:1>(s2:0b1);  // 1*2^1 = 2
     let b = make_fixed_point<s32:1>(s4:0b101);  // 5*2^1 = 10
     let result = add(a, b);
@@ -843,7 +783,7 @@ fn test_uadd_1_5_exp1() {
 }
 
 #[test]
-fn test_uadd_carry_out() {
+fn test_add_carry_out() {
     let a = make_fixed_point<s32:0>(s5:0b1111);  // 15
     let b = make_fixed_point<s32:0>(s5:0b0001);  // 1
     let result = add(a, b);
@@ -851,7 +791,7 @@ fn test_uadd_carry_out() {
 }
 
 #[test]
-fn test_uadd_different_exps() {
+fn test_add_different_exps() {
     let a = make_fixed_point<s32:1>(s3:0b01);  // 1*2^1 = 2
     let b = make_fixed_point<s32:2>(s3:0b01);  // 1*2^2 = 4
     let result = add(a, b);
@@ -864,7 +804,7 @@ fn test_uadd_different_exps() {
 }
 
 #[test]
-fn test_uadd_2_7_exp2() {
+fn test_add_2_7_exp2() {
     let a = make_fixed_point<s32:2>(s2:0b1);  // 2*2^2 = 8
     let b = make_fixed_point<s32:2>(s4:0b111);  // 7*2^2 = 28
     let result = add(a, b);
@@ -872,7 +812,7 @@ fn test_uadd_2_7_exp2() {
 }
 
 #[test]
-fn test_uadd_4_3_exp1() {
+fn test_add_4_3_exp1() {
     let a = make_fixed_point<s32:1>(s4:0b100);  // 4*2^1 = 8
     let b = make_fixed_point<s32:1>(s3:0b11);  // 3*2^1 = 6
     let result = add(a, b);
@@ -880,7 +820,7 @@ fn test_uadd_4_3_exp1() {
 }
 
 #[test]
-fn test_uadd_1_1_exp3_partial_overlap() {
+fn test_add_1_1_exp3_partial_overlap() {
     let a = make_fixed_point<s32:3>(s2:0b1);  // 1*2^3 = 8
     let b = make_fixed_point<s32:0>(s5:0b1111);  // 15*2^0 = 15
     let result = add(a, b);
@@ -888,7 +828,7 @@ fn test_uadd_1_1_exp3_partial_overlap() {
 }
 
 #[test]
-fn test_uadd_2_4_exp0_non_overlap() {
+fn test_add_2_4_exp0_non_overlap() {
     let a = make_fixed_point<s32:0>(s3:0b01);  // 1*2^0 = 1
     let b = make_fixed_point<s32:2>(s5:0b1000);  // 8*2^2 = 32
     let result = add(a, b);
@@ -897,7 +837,7 @@ fn test_uadd_2_4_exp0_non_overlap() {
 }
 
 #[test]
-fn test_uadd_wide_exp2() {
+fn test_add_wide_exp2() {
     let a = make_fixed_point<s32:0>(s5:0b1111);  // 15*2^0 = 15
     let b = make_fixed_point<s32:1>(s4:0b111);  // 7*2^1 = 14
     let result = add(a, b);
@@ -906,7 +846,7 @@ fn test_uadd_wide_exp2() {
 }
 
 #[test]
-fn test_uadd_neg_neg_exp2() {
+fn test_add_neg_neg_exp2() {
     let a = make_fixed_point<s32:-2>(s3:0b01);  // 1*2^-2 = 0.25
     let b = make_fixed_point<s32:-2>(s3:0b10);  // 2*2^-2 = 0.5
     let result = add(a, b);
@@ -914,7 +854,7 @@ fn test_uadd_neg_neg_exp2() {
 }
 
 #[test]
-fn test_uadd_neg_pos_exp1() {
+fn test_add_neg_pos_exp1() {
     let a = make_fixed_point<s32:-1>(s5:0b111);  // 7*2^-1 = 3.5
     let b = make_fixed_point<s32:1>(s4:0b111);  // 7*2^1 = 14
     let result = add(a, b);
@@ -922,7 +862,7 @@ fn test_uadd_neg_pos_exp1() {
 }
 
 #[test]
-fn test_uadd_pos_neg_exp0() {
+fn test_add_pos_neg_exp0() {
     let a = make_fixed_point<s32:0>(s5:0b1001);  // 9*2^0 = 9
     let b = make_fixed_point<s32:-3>(s4:0b101);  // 5*2^-3 = 0.625
     let result = add(a, b);
@@ -1299,7 +1239,7 @@ fn test_narrow_by() {
     assert_eq(narrow_by<u32:0>(x), x);
 
     // Test no overflow case
-    // posiitve input
+    // positive input
     assert_eq(
         narrow_by<u32:1>(make_fixed_point<s32:-2>(s9:0b011111111)),
         make_fixed_point<s32:-2>(s8:0b11111111));
@@ -1326,18 +1266,18 @@ fn test_narrow_by() {
 fn test_to_common_numbits_and_exponent() {
     // exponent decrease by 1. numbits increase by 1
     assert_eq(
-        to_common_type<u32:11, u32:4>(make_fixed_point<s32:-3>(s10:375)),
+        to_common_type<u32:11, s32:-4>(make_fixed_point<s32:-3>(s10:375)),
         make_fixed_point<s32:-4>(s11:750));
 
     // exponent decrease by 2. numbits unchanged.
     assert_eq(
-        to_common_type<u32:12, u32:5>(make_fixed_point<s32:-3>(s12:253)),
+        to_common_type<u32:12, s32:-5>(make_fixed_point<s32:-3>(s12:253)),
         make_fixed_point<s32:-5>(s12:1012));
 
     // exponent decrease by 3. numbits increases by 3. negative significand. If casting before
     // shifting is not done, the shift will overflow.
     assert_eq(
-        to_common_type<u32:10, u32:15>(make_fixed_point<s32:-12>(s7:-63)),
+        to_common_type<u32:10, s32:-15>(make_fixed_point<s32:-12>(s7:-63)),
         make_fixed_point<s32:-15>(s10:-504));
 }
 
