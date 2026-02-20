@@ -157,6 +157,7 @@ cc_test(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
         "@llvm-project//clang:ast",
     ],

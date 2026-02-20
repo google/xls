@@ -1191,10 +1191,20 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
                         }));
     }
   }
-  if (node->op() == xls::Op::kOr && node->operand_count() == 2) {
-    return absl::StrFormat("(%s | %s)",
-                           Debug_NodeToInfix(node->operand(0), n_printed),
-                           Debug_NodeToInfix(node->operand(1), n_printed));
+  if (node->op() == xls::Op::kOr) {
+    if (node->operand_count() == 2) {
+      return absl::StrFormat("(%s | %s)",
+                             Debug_NodeToInfix(node->operand(0), n_printed),
+                             Debug_NodeToInfix(node->operand(1), n_printed));
+    } else {
+      return absl::StrFormat(
+          "or(%s)",
+          absl::StrJoin(node->operands(), ", ",
+                        [&n_printed](std::string* out, const xls::Node* node) {
+                          absl::StrAppend(out,
+                                          Debug_NodeToInfix(node, n_printed));
+                        }));
+    }
   }
   if (node->op() == xls::Op::kAdd && node->operand_count() == 2) {
     return absl::StrFormat("(%s + %s)",
@@ -1245,6 +1255,13 @@ void LogContinuations(const xlscc::GeneratedFunction& func) {
     }
     return absl::StrJoin(decl_names, ",");
   };
+  auto limit_length = [](std::string s) -> std::string {
+    constexpr int64_t max_len = 32;
+    if (s.size() > max_len) {
+      s = s.substr(0, max_len);
+    }
+    return s;
+  };
   int64_t slice_index = 0;
   for (const GeneratedFunctionSlice& slice : func.slices) {
     LOG(INFO) << "";
@@ -1259,7 +1276,8 @@ void LogContinuations(const xlscc::GeneratedFunction& func) {
           "direct-in? "
           "%i",
           slices_by_continuation_out.at(continuation_in.continuation_out),
-          continuation_in.continuation_out, continuation_in.name.c_str(),
+          continuation_in.continuation_out,
+          limit_length(continuation_in.name).c_str(),
           continuation_in.input_node->name().data(), continuation_in.input_node,
           decl_names_string(continuation_in.decls),
           continuation_in.input_node->users().size(),
@@ -1273,7 +1291,7 @@ void LogContinuations(const xlscc::GeneratedFunction& func) {
       LOG(INFO) << absl::StrFormat(
           "  out: %p.%s top decls %s has %li users, type = %s, literal = %s, "
           "direct-in? %i",
-          &continuation_out, continuation_out.name.c_str(),
+          &continuation_out, limit_length(continuation_out.name).c_str(),
           decl_names_string(continuation_out.decls),
           continuation_out.output_node->users().size(), type_str.c_str(),
           continuation_out.literal.has_value()

@@ -29,6 +29,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
@@ -2674,6 +2675,37 @@ TEST_F(ContinuationsTest, StructTypes) {
                                          xls::SourceInfo(), decomposed_nodes));
 
   EXPECT_TRUE(composed->GetType()->IsEqualTo(outer_type));
+}
+
+TEST_F(ContinuationsTest, ConditionContinuedByName) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      if (x == 3) {
+        out.write(x);
+        out.write(x);
+      }
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 4);
+
+  auto slice_it = func->slices.begin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+
+  bool found_condition = false;
+  for (const ContinuationValue& cont : second_slice.continuations_out) {
+    if (absl::StrContains(cont.name, "condition")) {
+      found_condition = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_condition);
 }
 
 }  // namespace

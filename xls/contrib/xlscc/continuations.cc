@@ -69,6 +69,16 @@ absl::StatusOr<std::optional<std::string>> FindContinuationNamesInThisContext(
     const xls::SourceInfo& loc) {
   CHECK_NE(bval, nullptr);
 
+  auto compound_cond_contains = [](const TrackedBValue* bval,
+                                   const CompoundPredicate& pred) -> bool {
+    for (const TrackedBValue& term : pred.all_terms()) {
+      if (&term == bval) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   // Look for names of special context values
   std::string ctx_found_name = "";
 
@@ -82,11 +92,11 @@ absl::StatusOr<std::optional<std::string>> FindContinuationNamesInThisContext(
     ctx_found_name = "last_return_condition";
   } else if (bval == &context.have_returned_condition) {
     ctx_found_name = "have_returned_condition";
-  } else if (bval == &context.full_condition) {
+  } else if (compound_cond_contains(bval, context.full_condition)) {
     ctx_found_name = "full_condition";
   } else if (bval == &context.full_condition_on_enter_block) {
     ctx_found_name = "full_condition_on_enter_block";
-  } else if (bval == &context.relative_condition) {
+  } else if (compound_cond_contains(bval, context.relative_condition)) {
     ctx_found_name = "relative_condition";
   } else if (bval == &context.relative_break_condition) {
     ctx_found_name = "relative_break_condition";
@@ -392,6 +402,7 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
     }
 
     // Prefer names from the top of the stack first
+    absl::flat_hash_set<const TrackedBValue*> bvals_with_default_names;
     {
       int64_t idx_from_top = 0;
       for (auto rev_it = context_stack_.rbegin();
@@ -428,11 +439,13 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
       // Fill in default unique names for those not found
       int64_t continuation_idx = 0;
       absl::flat_hash_set<std::string> names_inserted;
+
       for (const TrackedBValue* bval : bvalues) {
         std::string& name_found = name_found_for_bval[bval];
         if (name_found.empty()) {
           name_found = absl::StrFormat("continuation_%li", continuation_idx);
           continuation_idx++;
+          bvals_with_default_names.insert(bval);
         }
         // Ensure the name is unique, even if it's a decl name
         std::string name_found_base = name_found;
@@ -460,12 +473,22 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
         const std::vector<TrackedBValue*>& bvals =
             bvalues_by_continuation_output.at(&continuation_out);
 
+        std::optional<std::string> default_name = std::nullopt;
+
         std::vector<std::string> names_found;
         names_found.reserve(bvals.size());
         for (const TrackedBValue* bval : bvals) {
+          if (bvals_with_default_names.contains(bval)) {
+            default_name = name_found_for_bval.at(bval);
+            continue;
+          }
           names_found.push_back(name_found_for_bval.at(bval));
         }
-        continuation_out.name = absl::StrJoin(names_found, " ");
+        if (names_found.empty()) {
+          continuation_out.name = default_name.value();
+        } else {
+          continuation_out.name = absl::StrJoin(names_found, " ");
+        }
 
         static constexpr int64_t max_continuation_name_len = 32;
         if (continuation_out.name.size() > max_continuation_name_len) {
