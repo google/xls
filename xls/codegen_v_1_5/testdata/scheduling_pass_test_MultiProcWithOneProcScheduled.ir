@@ -4,11 +4,6 @@ chan test__a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=read
 chan test__b(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 chan test__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
-proc __test2__P_0_next(__state: bits[32], init={0}) {
-  __state: bits[32] = state_read(state_element=__state, id=117)
-  next_value.100: () = next_value(param=__state, value=__state, id=100)
-}
-
 top scheduled_proc __test__P_0_next(__state: bits[32], init={0}) {
   literal.3: bits[1] = literal(value=1, id=3)
   stage {
