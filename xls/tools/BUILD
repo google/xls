@@ -978,6 +978,7 @@ pytype_strict_contrib_test(
         "//xls/examples:delay.sig.textproto",
         "//xls/examples/dslx_module:manual_chan_caps_streaming_configured_multiproc_proc_scoped.block.ir",
         "//xls/examples/dslx_module:manual_chan_caps_streaming_configured_multiproc_proc_scoped.sig.textproto",
+        "//xls/examples/dslx_module:manual_chan_caps_streaming_configured_opt_ir_proc_scoped.opt.ir",
         "//xls/tools/testdata:eval_proc_main_conditional_test_proc_scoped.opt.ir",
         "//xls/tools/testdata:eval_proc_main_test_broken_proc_scoped.block.ir",
         "//xls/tools/testdata:eval_proc_main_test_memory_proc_scoped.block.ir",

@@ -374,8 +374,11 @@ MULTI_BLOCK_IR_FILE = runfiles.get_path(
 MULTI_BLOCK_SIG_FILE = runfiles.get_path(
     "xls/examples/dslx_module/manual_chan_caps_streaming_configured_multiproc_proc_scoped.sig.textproto"
 )
+MULTI_PROC_PATH = runfiles.get_path(
+    "xls/examples/dslx_module/manual_chan_caps_streaming_configured_opt_ir_proc_scoped.opt.ir"
+)
 
-# TODO: google/xls#2078 - Update these to use proc-scoped channels.
+
 MULTI_BLOCK_MEMORY_IR_FILE = runfiles.get_path("xls/examples/delay.block.ir")
 MULTI_BLOCK_MEMORY_SIG_FILE = runfiles.get_path(
     "xls/examples/delay.sig.textproto"
@@ -402,7 +405,7 @@ MULTI_BLOCK_INPUT_CHANNEL_VALUES = (
     proc_channel_values_pb2.ProcChannelValuesProto(
         channels=[
             proc_channel_values_pb2.ProcChannelValuesProto.Channel(
-                name="some_caps_streaming_configured__external_input_wire",
+                name="_external_input_wire",
                 entry=[
                     _eight_chars(b"abcdabcd"),
                     _eight_chars(b"abcdabcd"),
@@ -419,7 +422,7 @@ MULTI_BLOCK_OUTPUT_CHANNEL_VALUES = (
     proc_channel_values_pb2.ProcChannelValuesProto(
         channels=[
             proc_channel_values_pb2.ProcChannelValuesProto.Channel(
-                name="some_caps_streaming_configured__external_output_wire",
+                name="_external_output_wire",
                 entry=[
                     _eight_chars(b"ABCDABCD"),
                     _eight_chars(b"abcdabcd"),
@@ -1007,17 +1010,16 @@ class EvalProcTest(parameterized.TestCase):
     output = run_command(shared_args)
     self.assertIn("Memory Model", output.stderr)
 
-  @absltest.skip("Update test case to use proc-scoped channels.")
   @parameterized_block_backends
   def test_multi_block_memory(self, backend):
     tick_count = 3 * 2048
     ir_file = MULTI_BLOCK_MEMORY_IR_FILE
     signature_file = MULTI_BLOCK_MEMORY_SIG_FILE
     input_channel = proc_channel_values_pb2.ProcChannelValuesProto.Channel(
-        name="delay__data_in"
+        name="_data_in"
     )
     output_channel = proc_channel_values_pb2.ProcChannelValuesProto.Channel(
-        name="delay__data_out"
+        name="_data_out"
     )
     # Make a little oracle to get the results.
     buffer = [3] * 2048
@@ -1377,10 +1379,9 @@ out: {
       packets = list(reader.read_messages(trace_pb2.TracePacketProto))
     self.assertNotEmpty(packets)
 
-  @absltest.skip("Update test case to use proc-scoped channels.")
   @parameterized_proc_backends
   def test_multi_proc(self, backend):
-    ir_file = MULTI_BLOCK_IR_FILE
+    ir_file = MULTI_PROC_PATH
     channels_in_file = self.create_tempfile(
         content=MULTI_BLOCK_INPUT_CHANNEL_VALUES.SerializeToString()
     )
@@ -1400,7 +1401,6 @@ out: {
         + backend
     )
 
-  @absltest.skip("Update test case to use proc-scoped channels.")
   @parameterized_block_backends
   def test_multi_block(self, backend):
     ir_file = MULTI_BLOCK_IR_FILE
