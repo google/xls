@@ -1352,7 +1352,7 @@ const TEST_EXPECTED_COMMANDS_1 = CommandConstructorData[14]:[
 //
 //        // write OF table
 //        let tok = for ((i, of_record), tok): ((u32, u32), token) in
-//        enumerate(TEST_OF_TABLE[state]) {
+//        std::enumerate(TEST_OF_TABLE[state]) {
 //            let tok = send(tok, of_fse_wr_req_s, FseRamWrReq {
 //                addr: i as u8,
 //                data: of_record,
@@ -1364,7 +1364,7 @@ const TEST_EXPECTED_COMMANDS_1 = CommandConstructorData[14]:[
 //
 //        // write ML table
 //        let tok = for ((i, ml_record), tok): ((u32, u32), token) in
-//        enumerate(TEST_ML_TABLE[state]) {
+//        std::enumerate(TEST_ML_TABLE[state]) {
 //            let tok = send(tok, ml_fse_wr_req_s, FseRamWrReq {
 //                addr: i as u8,
 //                data: ml_record,
@@ -1376,7 +1376,7 @@ const TEST_EXPECTED_COMMANDS_1 = CommandConstructorData[14]:[
 //
 //        // write LL table
 //        let tok = for ((i, ll_record), tok): ((u32, u32), token) in
-//        enumerate(TEST_LL_TABLE[state]) {
+//        std::enumerate(TEST_LL_TABLE[state]) {
 //            let tok = send(tok, ll_fse_wr_req_s, FseRamWrReq {
 //                addr: i as u8,
 //                data: ll_record,
@@ -1395,7 +1395,7 @@ const TEST_EXPECTED_COMMANDS_1 = CommandConstructorData[14]:[
 //                // block #0
 //                // send data
 //                let tok = for ((i, data), tok): ((u32, RefillingSBOutput), token) in
-//                enumerate(TEST_DATA_0) {
+//                std::enumerate(TEST_DATA_0) {
 //                    let (tok, buf_ctrl) = recv(tok, rsb_ctrl_r);
 //                    trace_fmt!("Received #{} buf ctrl {:#x}", i + u32:1, buf_ctrl);
 //                    assert_eq(RefillingSBCtrl {length: data.length}, buf_ctrl);
@@ -1406,7 +1406,7 @@ const TEST_EXPECTED_COMMANDS_1 = CommandConstructorData[14]:[
 //
 //                // recv commands
 //                let tok = for ((i, expected_cmd), tok): ((u32, CommandConstructorData), token) in
-//                enumerate(TEST_EXPECTED_COMMANDS_0) {
+//                std::enumerate(TEST_EXPECTED_COMMANDS_0) {
 //                    let (tok, cmd) = recv(tok, command_r);
 //                    trace_fmt!("Received #{} cmd {:#x}", i + u32:1, cmd);
 //                    assert_eq(expected_cmd, cmd);
@@ -1420,7 +1420,7 @@ const TEST_EXPECTED_COMMANDS_1 = CommandConstructorData[14]:[
 //                // block #1
 //                // send data
 //                let tok = for ((i, data), tok): ((u32, RefillingSBOutput), token) in
-//                enumerate(TEST_DATA_1) {
+//                std::enumerate(TEST_DATA_1) {
 //                    let (tok, buf_ctrl) = recv(tok, rsb_ctrl_r);
 //                    trace_fmt!("Received #{} buf ctrl {:#x}", i + u32:1, buf_ctrl);
 //                    assert_eq(RefillingSBCtrl {length: data.length}, buf_ctrl);
@@ -1431,7 +1431,7 @@ const TEST_EXPECTED_COMMANDS_1 = CommandConstructorData[14]:[
 //
 //                // recv commands
 //                let tok = for ((i, expected_cmd), tok): ((u32, CommandConstructorData), token) in
-//                enumerate(TEST_EXPECTED_COMMANDS_1) {
+//                std::enumerate(TEST_EXPECTED_COMMANDS_1) {
 //                    let (tok, cmd) = recv(tok, command_r);
 //                    trace_fmt!("Received #{} cmd {:#x}", i + u32:1, cmd);
 //                    assert_eq(expected_cmd, cmd);

@@ -2082,7 +2082,7 @@ proc LiteralsDecoder_test {
         let tok = join();
 
         trace_fmt!("Filling system memory mock");
-        let tok = for ((i, mem_req), tok):((u32, AxiRamWrReq), token) in enumerate(TEST_MEMORY) {
+        let tok = for ((i, mem_req), tok):((u32, AxiRamWrReq), token) in std::enumerate(TEST_MEMORY) {
             trace_fmt!("Sent memory write request #{}: {:#x}", i + u32:1, mem_req);
             let tok = send(tok, ram_wr_req_header_s, mem_req);
             let (tok, _) = recv(tok, ram_wr_resp_header_r);
@@ -2106,7 +2106,7 @@ proc LiteralsDecoder_test {
         assert_eq(array_size(TEST_CTRL), array_size(TEST_EXPECTED_RESP));
 
         trace_fmt!("Sending literals decoding requests");
-        let tok = for ((i, test_ctrl), tok): ((u32, CtrlReq), token) in enumerate(TEST_CTRL) {
+        let tok = for ((i, test_ctrl), tok): ((u32, CtrlReq), token) in std::enumerate(TEST_CTRL) {
             let tok = send(tok, ctrl_req_s, test_ctrl);
             trace_fmt!("Sent #{} literals decoding request: {:#x}", i + u32:1, test_ctrl);
             let (tok, resp) = recv(tok, ctrl_resp_r);
@@ -2116,14 +2116,14 @@ proc LiteralsDecoder_test {
         }(tok);
 
         trace_fmt!("Sending literals buffer requests");
-        let tok = for ((i, test_buf_ctrl), tok): ((u32, LiteralsBufferCtrl), token) in enumerate(TEST_BUF_CTRL) {
+        let tok = for ((i, test_buf_ctrl), tok): ((u32, LiteralsBufferCtrl), token) in std::enumerate(TEST_BUF_CTRL) {
             let tok = send(tok, buf_ctrl_s, test_buf_ctrl);
             trace_fmt!("Sent #{} literals buffer request {:#x}", i + u32:1, test_buf_ctrl);
             tok
         }(tok);
 
         // receive and check packets
-        let tok = for ((i, test_exp_literals), tok): ((u32, SequenceExecutorPacket), token) in enumerate(TEST_EXPECTED_LITERALS) {
+        let tok = for ((i, test_exp_literals), tok): ((u32, SequenceExecutorPacket), token) in std::enumerate(TEST_EXPECTED_LITERALS) {
             let (tok, literals) = recv(tok, buf_out_r);
             trace_fmt!("Received #{} literals packet {:#x}", i + u32:1, literals);
             trace_fmt!("Expected {:#x}", test_exp_literals);
@@ -2331,7 +2331,7 @@ proc LiteralsDecoder_test {
 //     next (state: u32) {
 //         // send literals
 //         let ok = if (state == u32:0) {
-//             for ((i, test_data), tok): ((u32, LiteralsData), token) in enumerate(TEST_DATA) {
+//             for ((i, test_data), tok): ((u32, LiteralsData), token) in std::enumerate(TEST_DATA) {
 //                 let tok = send(tok, literals_data_s, test_data);
 //                 trace_fmt!("Sent #{} literals data, {:#x}", i + u32:1, test_data);
 //                 tok
@@ -2339,7 +2339,7 @@ proc LiteralsDecoder_test {
 //         } else { tok };
 
 //         // send ctrl and read RAM content
-//         let tok = for ((i, test_ctrl), tok): ((u32, LiteralsPathCtrl), token) in enumerate(TEST_CTRL) {
+//         let tok = for ((i, test_ctrl), tok): ((u32, LiteralsPathCtrl), token) in std::enumerate(TEST_CTRL) {
 //             if (state == i * CYCLES_PER_RAM_READ) {
 //                 let tok = send(tok, literals_ctrl_s, test_ctrl);
 //                 trace_fmt!("Sent #{} literals ctrl, {:#x}", i + u32:1, test_ctrl);

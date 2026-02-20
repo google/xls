@@ -14,6 +14,43 @@
 
 // DSLX standard library routines.
 
+#![feature(generics)]
+
+pub fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N] {
+    for (i, result) in 0..N {
+        update(result, i, (i, x[i]))
+    }([(u32:0, zero!<T>()), ...])
+}
+
+#[test]
+fn emumerate_test() {
+    let array = [1, 2, 4, 8];
+    let enumerated = enumerate(array);
+    assert_eq(enumerated[0], (0, 1));
+    assert_eq(enumerated[1], (1, 2));
+    assert_eq(enumerated[2], (2, 4));
+    assert_eq(enumerated[3], (3, 8));
+}
+
+#[test]
+fn enumerate_type_test() {
+    type RamData = uN[8];
+    const DATA = [RamData:1, 2, 4, 8];
+    let enumerated = enumerate(DATA);
+    assert_eq(enumerated[0], (0, 1));
+    assert_eq(enumerated[1], (1, 2));
+    assert_eq(enumerated[2], (2, 4));
+    assert_eq(enumerated[3], (3, 8));
+}
+
+#[test]
+fn enumerate_tuple_test() {
+    let x = [(true, 3), (false, 2)];
+    let enumerated = enumerate(x);
+    assert_eq(enumerated[0], (0, (true, 3)));
+    assert_eq(enumerated[1], (1, (false, 2)));
+}
+
 pub fn sizeof<S: bool, N: u32>(x: xN[S][N]) -> u32 { N }
 
 #[test]

@@ -1957,29 +1957,6 @@ fn main(x: s10, y: s10) -> s10 {
   EXPECT_THAT(bits.ToInt64(), IsOkAndHolds(-507));
 }
 
-TEST_F(BytecodeInterpreterTest, BuiltinEnumerate) {
-  constexpr std::string_view kProgram = R"(
-fn main() -> (u32, u8)[4] {
-  let x = u8[4]:[5, 6, 7, 8];
-  enumerate(x)
-})";
-
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue actual, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue expected,
-      InterpValue::MakeArray({
-          InterpValue::MakeTuple(
-              {InterpValue::MakeUBits(32, 0), InterpValue::MakeUBits(8, 5)}),
-          InterpValue::MakeTuple(
-              {InterpValue::MakeUBits(32, 1), InterpValue::MakeUBits(8, 6)}),
-          InterpValue::MakeTuple(
-              {InterpValue::MakeUBits(32, 2), InterpValue::MakeUBits(8, 7)}),
-          InterpValue::MakeTuple(
-              {InterpValue::MakeUBits(32, 3), InterpValue::MakeUBits(8, 8)}),
-      }));
-  EXPECT_TRUE(expected.Eq(actual));
-}
-
 TEST_F(BytecodeInterpreterTest, BuiltinUMulp) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u10, y: u10) -> u10 {

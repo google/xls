@@ -46,7 +46,6 @@ namespace xls::dslx {
   X("decode", kDecode)                         \
   X("element_count", kElementCount)            \
   X("encode", kEncode)                         \
-  X("enumerate", kEnumerate)                   \
   X("fail!", kFail)                            \
   X("gate!", kGate)                            \
   X("map", kMap)                               \

@@ -387,6 +387,12 @@ DocRef Fmt(const ChannelTypeAnnotation& n, Comments& comments,
   return ConcatNGroup(arena, pieces);
 }
 
+DocRef Fmt(const TypeVariableTypeAnnotation& n, Comments& comments,
+           DocArena& arena) {
+  std::vector<DocRef> pieces = {Fmt(*n.type_variable(), comments, arena)};
+  return ConcatNGroup(arena, pieces);
+}
+
 DocRef Fmt(const TypeAnnotation& n, Comments& comments, DocArena& arena) {
   if (auto* t = dynamic_cast<const BuiltinTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
@@ -402,6 +408,12 @@ DocRef Fmt(const TypeAnnotation& n, Comments& comments, DocArena& arena) {
   }
   if (auto* t = dynamic_cast<const ChannelTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
+  }
+  if (auto* t = dynamic_cast<const TypeVariableTypeAnnotation*>(&n)) {
+    return Fmt(*t, comments, arena);
+  }
+  if (dynamic_cast<const GenericTypeAnnotation*>(&n)) {
+    return arena.Make(Keyword::kType);
   }
   if (dynamic_cast<const SelfTypeAnnotation*>(&n)) {
     return arena.Make(Keyword::kSelfType);

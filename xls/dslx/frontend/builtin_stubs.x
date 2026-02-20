@@ -56,8 +56,6 @@ fn decode<T: type, N: u32>(x: uN[N]) -> T;
 
 fn element_count<T: type>() -> u32;
 
-fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N];
-
 fn fail!<N: u32, T: type> (label: u8[N], fallback_value: T) -> T;
 
 fn gate!<T: type>(x: u1, y: T) -> T;

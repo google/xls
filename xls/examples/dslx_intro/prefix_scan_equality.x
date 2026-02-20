@@ -14,10 +14,12 @@
 
 // Prefix scans an array of 8 32-bit values and produces a running count of
 // duplicate values in the run.
+import std;
+
 fn prefix_scan_eq(x: u32[8]) -> u3[8] {
   let (_, _, result) =
     for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, u3[8]))
-          in enumerate(x) {
+          in std::enumerate(x) {
       let (to_place, new_count): (u3, u3) = match (i == u32:0, prior == elem) {
         // The first iteration always places 0 and propagates seen count of 1.
         (true, _) => (u3:0, u3:1),

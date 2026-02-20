@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import std;
 import xls.modules.zstd.memory.mem_reader;
 import xls.modules.zstd.common;
 
@@ -265,7 +266,7 @@ proc SequenceConfDecoderTest {
         const ADDR = uN[TEST_AXI_ADDR_W]:0xDEAD;
 
         // positive cases
-        let tok = for ((_, (test_vec, expected_length, expected_header)), tok): ((u32, (u32, u3, SequenceConf)), token) in enumerate(tests) {
+        let tok = for ((_, (test_vec, expected_length, expected_header)), tok): ((u32, (u32, u3, SequenceConf)), token) in std::enumerate(tests) {
             send(tok, req_s, Req {
                 addr: ADDR,
             });

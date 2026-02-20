@@ -4006,7 +4006,8 @@ TEST_F(ParserTest, ParseMapWithLambdaNoParamAnnotation) {
 
 TEST_F(ParserTest, ParseMapWithLambdaNoParamAnnotationMultipleParams) {
   RoundTrip(
-      R"(const ARR = map(enumerate(range(0, u16:5)), |i, j| { 2 * i * j });)");
+      R"(import std;
+const ARR = map(std::enumerate(range(0, u16:5)), |i, j| { 2 * i * j });)");
 }
 
 TEST_F(ParserTest, ParseParametricInMapBuiltin) {

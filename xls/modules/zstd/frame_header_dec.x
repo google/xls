@@ -599,13 +599,13 @@ proc FrameHeaderDecoderTest {
         ];
 
         const ADDR = u16:0x1234;
-        let tok = for ((_, (test_vec, expected)), tok): ((u32, (u32[TEST_XFERS_FOR_HEADER], FrameHeaderDecoderResp)), token) in enumerate(tests) {
+        let tok = for ((_, (test_vec, expected)), tok): ((u32, (u32[TEST_XFERS_FOR_HEADER], FrameHeaderDecoderResp)), token) in std::enumerate(tests) {
             let tok = send(tok, decode_req_s, FrameHeaderDecoderReq { addr: ADDR });
             let (tok, recv_data) = recv(tok, reader_req_r);
 
             assert_eq(recv_data, ReaderReq { addr: ADDR, length: MAX_MAGIC_PLUS_HEADER_LEN as u16 });
 
-            let tok = for ((j, word), tok): ((u32, u32), token) in enumerate(test_vec) {
+            let tok = for ((j, word), tok): ((u32, u32), token) in std::enumerate(test_vec) {
                 let last = j + u32:1 == array_size(test_vec);
                 send(tok, reader_resp_s, ReaderResp {
                     status: mem_reader::MemReaderStatus::OKAY,

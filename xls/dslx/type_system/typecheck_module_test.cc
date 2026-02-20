@@ -2200,9 +2200,10 @@ fn f() -> u32[3] {
 
 TEST_F(TypecheckV2Test, EnumerateBuiltin) {
   XLS_EXPECT_OK(Typecheck(R"(
+import std;
 type MyTup = (u32, u2);
 fn f(x: u2[7]) -> MyTup[7] {
-  enumerate(x)
+  std::enumerate(x)
 }
 )"));
 }
