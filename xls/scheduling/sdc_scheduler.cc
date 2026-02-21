@@ -676,6 +676,18 @@ absl::Status SDCSchedulingModel::AddSameChannelConstraint(
       absl::btree_set<Node*, Node::NodeIdLessThan> new_dependencies;
       for (Node* dependency : dependencies) {
         if (dependency->op() == schedule_node.node->op()) {
+          // NB We must have already merged all kProvenMutuallyExclusive
+          // channels so there should be at most one operation per channel for
+          // those channels. This means we don't need to worry about
+          // accidentally preventing the scheduler from putting two operations
+          // on the same channel in the same cycle. Ideally we'd like to let the
+          // solver do this (and just avoid adding this constraint in the
+          // proven-mutex case) but first we need to work through all the weird
+          // channel legalization edge cases.
+          XLS_RET_CHECK(strictness !=
+                        ChannelStrictness::kProvenMutuallyExclusive)
+              << "Proven mutually exclusive channels should have been "
+                 "merged by now.";
           DiffAtLeastConstraint(schedule_node.node, dependency,
                                 constraint.MinimumLatency(),
                                 "same_channel_dependency");
