@@ -40,13 +40,13 @@ ChannelOptionsProtoBuilder& ChannelOptionsProtoBuilder::CopyFrom(
 
 ChannelOptionsProtoBuilder& ChannelOptionsProtoBuilder::SetSourceNodeName(
     std::string_view source_node_name) {
-  proto_ptr_->set_source_node_name(xls::ToProtoString(source_node_name));
+  proto_ptr_->set_source_node_name(source_node_name);
   return *this;
 }
 
 ChannelOptionsProtoBuilder& ChannelOptionsProtoBuilder::SetSinkNodeName(
     std::string_view sink_node_name) {
-  proto_ptr_->set_sink_node_name(xls::ToProtoString(sink_node_name));
+  proto_ptr_->set_sink_node_name(sink_node_name);
   return *this;
 }
 

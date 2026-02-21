@@ -41,7 +41,7 @@ NodeOptionsProtoBuilder& NodeOptionsProtoBuilder::CopyFrom(
 
 NodeOptionsProtoBuilder& NodeOptionsProtoBuilder::SetName(
     std::string_view name) {
-  proto_ptr_->set_name(xls::ToProtoString(name));
+  proto_ptr_->set_name(name);
   return *this;
 }
 
