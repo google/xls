@@ -19,6 +19,37 @@ package xls;
 import "google/api/field_behavior.proto";
 import "ortools/math_opt/parameters.proto";
 
+enum ProtoSchedulingStrategy {
+  // This is aliased to SCHEDULER_TYPE_SDC.
+  SCHEDULER_TYPE_UNSPECIFIED = 0;
+  // The SDC (system-of-difference-constraints) scheduler.
+  //
+  // This scheduler is based on the work in:
+  //   https://www.csl.cornell.edu/~zhiruz/pdfs/sdcmod-iccad2013.pdf
+  // and is a general-purpose constraint optimizer.
+  //
+  // This is the default scheduler.
+  SCHEDULER_TYPE_SDC = 1;
+  // An alternative scheduler which simply attempts to create a feasible
+  // schedule.
+  //
+  // Unlike SDC this scheduler does not attempt to minimize the number of
+  // registers or evenly spread delay across the pipeline. Instead this simply
+  // forces all computation into the earliest stage where it fits and all
+  // predicates are available. As this scheduler is less constrained it is
+  // faster to run than the SDC scheduler.
+  //
+  // This scheduler is primarily intended for use during development when
+  // iteration speed is paramount. It should not be used to create the final
+  // schedule for a design.
+  SCHEDULER_TYPE_ASAP = 2;
+  // An alternative scheduler which approximates the minimum number of registers
+  // using a min-cut based algorithm.
+  SCHEDULER_TYPE_MIN_CUT = 3;
+  // A scheduler which randomly schedules nodes. For internal testing only.
+  SCHEDULER_TYPE_RANDOM = 4;
+}
+
 message SchedulingFailureBehaviorProto {
   optional bool explain_infeasibility = 1
       [(google.api.field_behavior) = REQUIRED];
@@ -70,4 +101,6 @@ message SchedulingOptionsFlagsProto {
   optional operations_research.math_opt.SolverTypeProto solver_type = 36;
   optional operations_research.math_opt.SolveParametersProto solve_parameters =
       37;
+  // What sort of scheduler one should use.
+  optional ProtoSchedulingStrategy scheduling_strategy = 38;
 }

@@ -17,14 +17,17 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/status_macros.h"
@@ -37,6 +40,68 @@
 
 namespace xls {
 
+ProtoSchedulingStrategy ToProtoSchedulingStrategy(SchedulingStrategy strategy) {
+  switch (strategy) {
+    case SchedulingStrategy::ASAP:
+      return ProtoSchedulingStrategy::SCHEDULER_TYPE_ASAP;
+    case SchedulingStrategy::MIN_CUT:
+      return ProtoSchedulingStrategy::SCHEDULER_TYPE_MIN_CUT;
+    case SchedulingStrategy::SDC:
+      return ProtoSchedulingStrategy::SCHEDULER_TYPE_SDC;
+    case SchedulingStrategy::RANDOM:
+      return ProtoSchedulingStrategy::SCHEDULER_TYPE_RANDOM;
+  }
+}
+SchedulingStrategy FromProtoSchedulingStrategy(
+    ProtoSchedulingStrategy strategy) {
+  switch (strategy) {
+    case ProtoSchedulingStrategy::SCHEDULER_TYPE_ASAP:
+      return SchedulingStrategy::ASAP;
+    case ProtoSchedulingStrategy::SCHEDULER_TYPE_MIN_CUT:
+      return SchedulingStrategy::MIN_CUT;
+    case ProtoSchedulingStrategy::SCHEDULER_TYPE_SDC:
+    case ProtoSchedulingStrategy::SCHEDULER_TYPE_UNSPECIFIED:
+      return SchedulingStrategy::SDC;
+    case ProtoSchedulingStrategy::SCHEDULER_TYPE_RANDOM:
+      return SchedulingStrategy::RANDOM;
+    default:
+      LOG(FATAL) << "Unknown scheduling strategy: " << strategy;
+  }
+}
+bool AbslParseFlag(std::string_view text, SchedulingStrategy* strategy,
+                   std::string* error) {
+  if (text.empty()) {
+    *error = "Empty scheduling strategy";
+    return false;
+  }
+  if (text == "asap") {
+    *strategy = SchedulingStrategy::ASAP;
+  } else if (text == "min_cut") {
+    *strategy = SchedulingStrategy::MIN_CUT;
+  } else if (text == "sdc") {
+    *strategy = SchedulingStrategy::SDC;
+  } else if (text == "random") {
+    *strategy = SchedulingStrategy::RANDOM;
+  } else {
+    *error = absl::StrCat("Unknown scheduling strategy: ", text);
+    return false;
+  }
+  return true;
+}
+
+std::string AbslUnparseFlag(const SchedulingStrategy& strategy) {
+  switch (strategy) {
+    case SchedulingStrategy::ASAP:
+      return "asap";
+    case SchedulingStrategy::MIN_CUT:
+      return "min_cut";
+    case SchedulingStrategy::SDC:
+      return "sdc";
+    case SchedulingStrategy::RANDOM:
+      return "random";
+  }
+}
+
 namespace {
 
 absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
@@ -44,6 +109,12 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   // Some fields are pre-initialized with defaults
   SchedulingOptions scheduling_options;
 
+  if (proto.has_scheduling_strategy() &&
+      proto.scheduling_strategy() !=
+          ProtoSchedulingStrategy::SCHEDULER_TYPE_UNSPECIFIED) {
+    scheduling_options.strategy(
+        FromProtoSchedulingStrategy(proto.scheduling_strategy()));
+  }
   if (proto.has_opt_level()) {
     scheduling_options.opt_level(proto.opt_level());
   }

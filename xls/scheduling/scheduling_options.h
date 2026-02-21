@@ -1,3 +1,5 @@
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 // Copyright 2022 The XLS Authors
 //
@@ -55,6 +57,14 @@ enum class SchedulingStrategy : int8_t {
   // Create a random but sound schedule. This is useful for testing.
   RANDOM,
 };
+
+ProtoSchedulingStrategy ToProtoSchedulingStrategy(SchedulingStrategy strategy);
+SchedulingStrategy FromProtoSchedulingStrategy(
+    ProtoSchedulingStrategy strategy);
+
+bool AbslParseFlag(std::string_view text, SchedulingStrategy* strategy,
+                   std::string* error);
+std::string AbslUnparseFlag(const SchedulingStrategy& strategy);
 
 enum class PathEvaluateStrategy : int8_t {
   PATH,
@@ -277,6 +287,10 @@ class SchedulingOptions {
 
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
+  SchedulingOptions& strategy(SchedulingStrategy strategy) {
+    strategy_ = strategy;
+    return *this;
+  }
 
   // Sets/gets the target delay model
   SchedulingOptions& opt_level(int64_t value) {
