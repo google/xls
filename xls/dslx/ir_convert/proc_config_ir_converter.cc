@@ -216,6 +216,18 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
   return absl::OkStatus();
 }
 
+absl::Status ProcConfigIrConverter::HandleMatch(const Match* node) {
+  VLOG(4) << "ProcConfigIrConverter::HandleMatch : " << node->ToString();
+  if (node->IsConst()) {
+    XLS_ASSIGN_OR_RETURN(uint32_t arm_id,
+                         type_info_->GetArmSelectionResult(node));
+    MatchArm* arm = node->arms()[arm_id];
+    XLS_RETURN_IF_ERROR(arm->expr()->Accept(this));
+  }
+
+  return absl::OkStatus();
+}
+
 absl::Status ProcConfigIrConverter::HandleNameRef(const NameRef* node) {
   VLOG(4) << "ProcConfigIrConverter::HandleNameRef : " << node->ToString();
   const NameDef* name_def = std::get<const NameDef*>(node->name_def());

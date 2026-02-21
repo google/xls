@@ -3374,6 +3374,70 @@ fn repro(x: u3) -> u2 {
               TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
 }
 
+TEST(TypecheckV2Test, ConstMatch) {
+  EXPECT_THAT(R"(
+fn main(a: u32, b: u32) -> u32 {
+    const A = true;
+    let retval = const match A {
+        true => a,
+        false => b
+    };
+    retval
+}
+  )",
+              TypecheckSucceeds(HasNodeWithType("retval", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, ConstMatchWithDifferentTypes) {
+  EXPECT_THAT(R"(
+fn match_test<N: u32>() -> uN[N] {
+  const match N {
+    u32:1 => u1:0,
+        _ => zero!<uN[N]>()
+  }
+}
+
+fn main() {
+  let first = match_test<u32:1>();
+  let second = match_test<u32:8>();
+}
+  )",
+              TypecheckSucceeds(AllOf(HasNodeWithType("first", "uN[1]"),
+                                      HasNodeWithType("second", "uN[8]"))));
+}
+
+TEST(TypecheckV2Test, ConstMatchWithParametricMatched) {
+  EXPECT_THAT(R"(
+fn match_test<cond: bool>() -> u32 {
+    const A = u32:1;
+    const B = u32:2;
+    const match cond {
+        true => A,
+        _ => B
+    }
+}
+
+fn main() {
+    let retval = match_test<true>();
+}
+  )",
+              TypecheckSucceeds(HasNodeWithType("retval", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, ConstMatchUnableToEvaluate) {
+  constexpr std::string_view kProgram = R"(
+fn main(cond: u32) -> bool {
+    const match cond {
+        u32:0 => u32:0,
+        _ => u32:1
+    }
+}
+)";
+  EXPECT_THAT(TypecheckV2(kProgram),
+      StatusIs(absl::StatusCode::kNotFound,
+               HasSubstr("No constexpr value found for node `cond`")));
+}
+
 TEST(TypecheckV2Test, MatchMismatch) {
   EXPECT_THAT(R"(
 const X = u32:1;

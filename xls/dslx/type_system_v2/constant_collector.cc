@@ -721,10 +721,71 @@ class ConstantCollectorImpl : public ConstantCollector {
                     file_table_, converter_, evaluator_,
                     parametric_struct_instantiator_, tracer_,
                     parametric_context, type, ti, std::move(trace));
-    return node->Accept(&visitor);
+    XLS_RETURN_IF_ERROR(node->Accept(&visitor));
+
+    if (const AstNode* parent_node = node->parent();
+        parent_node && parent_node->kind() == AstNodeKind::kMatch) {
+      const Match* parent_as_match = absl::down_cast<const Match*>(parent_node);
+      if (parent_as_match->IsConst()) {
+        return EvaluateAndNoteMatchSelection(
+            &import_data_, ti, &warning_collector_,
+            table_.GetParametricEnv(parametric_context), parent_as_match);
+      }
+    }
+
+    return absl::OkStatus();
   }
 
  private:
+  absl::Status EvaluateAndNoteMatchSelection(
+      ImportData* import_data, TypeInfo* type_info,
+      WarningCollector* warning_collector, const ParametricEnv& bindings,
+      const Match* match) {
+
+    Module* module = match->owner();
+    std::vector<MatchArm*> construct_match_arms;
+    construct_match_arms.reserve(match->arms().size());
+
+    // Construct a new Match object, which has the same `matched` and
+    // `patterns` as the original. Create a new expression for each arm
+    // so that the whole match can be evaluated to know which arm is selected.
+    for (int64_t i = 0; i < match->arms().size(); ++i) {
+      MatchArm* arm = match->arms()[i];
+      // Create a new expression for this arm - a number
+      // with the index of the arm.
+      Number* expr = module->Make<Number>(
+          Span::Fake(),
+          absl::StrFormat("%d", i),
+          NumberKind::kOther,
+          CreateU32Annotation(*module, Span::Fake()));
+
+      type_info->SetItem(expr, BitsType::MakeU32());
+      type_info->NoteConstExpr(expr, InterpValue::MakeUBits(32, i));
+
+      construct_match_arms.push_back(
+          module->Make<MatchArm>(arm->span(), arm->patterns(), expr));
+    }
+
+    XLS_ASSIGN_OR_RETURN(Expr* fake_matched, CloneNode(match->matched()));
+    std::optional<Type*> matched_type = type_info->GetItem(match->matched());
+    XLS_RET_CHECK(matched_type.has_value());
+    type_info->SetItem(fake_matched, **matched_type);
+    XLS_ASSIGN_OR_RETURN(InterpValue matched_val,
+                         type_info->GetConstExpr(match->matched()));
+    type_info->NoteConstExpr(fake_matched, matched_val);
+
+    Match* fake_match = module->Make<Match>(
+        match->span(), fake_matched, construct_match_arms);
+
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue interp_match,
+        ConstexprEvaluator::EvaluateToValue(
+            import_data, type_info, warning_collector, bindings, fake_match));
+    XLS_ASSIGN_OR_RETURN(uint32_t arm_id, interp_match.GetBitValueUnsigned());
+    type_info->NoteArmSelectionResult(match, arm_id);
+    return absl::OkStatus();
+  }
+
   InferenceTable& table_;
   Module& module_;
   ImportData& import_data_;

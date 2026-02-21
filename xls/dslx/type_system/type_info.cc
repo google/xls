@@ -302,6 +302,38 @@ std::vector<Expr*> TypeInfo::GetAllUnrolledLoops(const ConstFor* loop) const {
   return result;
 }
 
+void TypeInfo::NoteArmSelectionResult(const Match* expr, uint32_t value) {
+  VLOG(5) << absl::StreamFormat(
+      "noting const match: `%s` (%p) has resolved arm selection index: `%d`",
+      expr->ToString(), expr, value);
+  arm_selection_indices_.insert_or_assign(expr, value);
+}
+
+absl::StatusOr<uint32_t> TypeInfo::GetArmSelectionResult(
+    const Match* expr) const {
+  CHECK_EQ(expr->owner(), module_)
+      << expr->owner()->name() << " vs " << module_->name()
+      << " node: " << expr->ToString();
+
+  if (auto it = arm_selection_indices_.find(expr);
+      it != arm_selection_indices_.end()) {
+    return it->second;
+  }
+
+  if (parent_ != nullptr) {
+    // In a case where a [child] type info is for a parametric function
+    // specialization, it won't contain top-level constants, but its parent
+    // [transitively] will.
+    return parent_->GetArmSelectionResult(expr);
+  }
+
+  return absl::NotFoundError(
+      absl::StrFormat("No resolved arm selection index "
+                      "found for node `%s` (%s) @ %s",
+                      expr->ToString(), expr->GetNodeTypeName(),
+                      SpanToString(expr->GetSpan(), file_table())));
+}
+
 absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
     TypeDefinition source) {
   return absl::visit(

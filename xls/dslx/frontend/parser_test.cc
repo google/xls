@@ -2338,6 +2338,26 @@ fn f(x: u32) {
 })");
 }
 
+TEST_F(ParserTest, ConstMatchWithSimpleValue) {
+  RoundTrip(R"(fn f(x: u32) {
+    const COND = true;
+    const match COND {
+        true => u32:64,
+        _ => u32:42,
+    }
+})");
+}
+
+TEST_F(ParserTest, ConstMatchWithOutsideValue) {
+  RoundTrip(R"(const FOO = u32:64;
+fn f(x: u32) {
+    const match x {
+        FOO => u32:64,
+        _ => u32:42,
+    }
+})");
+}
+
 TEST_F(ParserTest, MatchWithMultiplePatterns) {
   RoundTrip(R"(fn f(x: u32) {
     match x {

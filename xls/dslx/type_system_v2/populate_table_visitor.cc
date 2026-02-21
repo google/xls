@@ -589,6 +589,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                                       file_table_);
     }
 
+    std::vector<TypeAnnotation*> type_annotation_members;
     absl::flat_hash_set<std::string> seen_patterns;
     for (MatchArm* arm : node->arms()) {
       // Identify syntactically identical match arms.
@@ -603,7 +604,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             file_table_);
       }
 
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_type));
+      if (node->IsConst()) {
+        XLS_RETURN_IF_ERROR(
+            DefineAndSetTypeVariable(arm->expr(), "const_match_arm_expr"));
+        XLS_ASSIGN_OR_RETURN(const NameRef* arm_expr_type,
+                             DefineTypeVariable(arm->expr(), "const_match_arm"));
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_expr_type));
+
+        type_annotation_members.push_back(
+            module_.Make<TypeVariableTypeAnnotation>(arm_expr_type));
+      } else {
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_type));
+      }
+
       for (const NameDefTree* pattern : arm->patterns()) {
         XLS_RETURN_IF_ERROR(table_.SetTypeVariable(pattern, matched_var));
         if (pattern->is_leaf()) {
@@ -611,6 +624,17 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
               table_.SetTypeVariable(ToAstNode(pattern->leaf()), matched_var));
         }
       }
+    }
+    if (node->IsConst()) {
+      XLS_ASSIGN_OR_RETURN(const NameRef* matched_type,
+                           DefineTypeVariable(node->matched(), "const_matched"));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->matched(), matched_type));
+      type_annotation_members.push_back(
+          module_.Make<TypeVariableTypeAnnotation>(matched_type));
+      ConstMatchTypeAnnotation* type_annotation =
+          module_.Make<ConstMatchTypeAnnotation>(
+              node->span(), std::move(type_annotation_members));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, type_annotation));
     }
     return DefaultHandler(node);
   }

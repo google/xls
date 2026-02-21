@@ -337,6 +337,10 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     MatchExhaustivenessChecker exhaustiveness_checker(
         node->matched()->span(), import_data_, ti_, *matched);
 
+    if (node->IsConst()) {
+      return absl::OkStatus();
+    }
+
     for (MatchArm* arm : node->arms()) {
       for (NameDefTree* pattern : arm->patterns()) {
         bool exhaustive_before = exhaustiveness_checker.IsExhaustive();

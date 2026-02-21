@@ -422,6 +422,30 @@ fn do_match() -> u32 {
 030 jump_dest)");
 }
 
+TEST(BytecodeEmitterTest, ConstMatchSimpleArms) {
+  constexpr std::string_view kProgram = R"(
+fn do_const_match() -> u32 {
+  const x = u32:77;
+  const match x {
+    u32:42 => u32:64,
+    u32:64 => u32:42,
+    _ => x + u32:1
+  }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "do_const_match"));
+
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                              import_data.file_table()),
+            R"(000 literal u32:77
+001 store 0
+002 load 0
+003 literal u32:1
+004 uadd)");
+}
+
 TEST(BytecodeEmitterTest, BytecodesFromString) {
   std::string s = R"(000 literal u2:1
 001 literal s2:-1
