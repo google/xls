@@ -1,3 +1,12 @@
+xls_aot_compile_function
+xls_aot_entrypoint_trampoline
+xls_aot_entrypoints_proto_free
+xls_aot_exec_context_clear_events
+xls_aot_exec_context_create
+xls_aot_exec_context_free
+xls_aot_exec_context_get_assert_message
+xls_aot_exec_context_get_trace_message
+xls_aot_object_code_free
 xls_bits_abs
 xls_bits_add
 xls_bits_and
