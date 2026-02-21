@@ -50,6 +50,8 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
+#include "xls/scheduling/mutual_exclusion_pass.h"
+#include "xls/scheduling/scheduling_pass.h"
 
 namespace xlscc {
 namespace {
@@ -74,6 +76,7 @@ struct TestParams {
     }                                                                  \
   }
 
+// TODO(seanhaskell): Switch to new FSM
 class TranslatorProcTestWithoutFSMParam : public XlsccTestBase {
  public:
   TranslatorProcTestWithoutFSMParam() {
@@ -183,19 +186,44 @@ INSTANTIATE_TEST_SUITE_P(
                       .split_states_on_channel_ops = true}),
     GetTestInfo);
 
-bool ContainsToken(const xls::Type* type) {
-  if (type->IsToken()) {
-    return true;
+class TranslatorProcTest_NewFSM_Mutex : public XlsccTestBase {
+ public:
+  TranslatorProcTest_NewFSM_Mutex() {
+    generate_new_fsm_ = true;
+    merge_states_ = true;
+    split_states_on_channel_ops_ = false;
   }
-  if (type->IsTuple()) {
-    for (const xls::Type* element : type->AsTupleOrDie()->element_types()) {
-      if (ContainsToken(element)) {
-        return true;
-      }
-    }
+
+  absl::Status RunMutualExclusion() {
+    xls::OptimizationPassOptions pass_options;
+    pass_options.opt_level = xls::kMaxOptLevel;
+    xls::OptimizationContext xls_opt_context;
+    xls::PassResults pass_results;
+    std::unique_ptr<xls::OptimizationCompoundPass> pipeline =
+        xls::CreateOptimizationPassPipeline();
+    XLS_RETURN_IF_ERROR(
+        pipeline
+            ->Run(package_.get(), pass_options, &pass_results, xls_opt_context)
+            .status());
+
+    auto scheduling_pipeline = std::make_unique<xls::SchedulingCompoundPass>(
+        "scheduling", "Top level scheduling pass pipeline");
+    scheduling_pipeline->Add<xls::MutualExclusionPass>();
+
+    xls::SchedulingContext scheduling_context =
+        xls::SchedulingContext::CreateForWholePackage(package_.get());
+
+    xls::PassResults results;
+    xls::SchedulingPassOptions sched_options;
+
+    XLS_RETURN_IF_ERROR(
+        scheduling_pipeline
+            ->Run(package_.get(), sched_options, &results, scheduling_context)
+            .status());
+
+    return absl::OkStatus();
   }
-  return false;
-}
+};
 
 TEST_P(TranslatorProcTest, IOProcMux) {
   const std::string content = R"(
@@ -10676,6 +10704,99 @@ TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrierAtEnd) {
     ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
              /*min_ticks=*/1, /*max_ticks=*/1);
   }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOps) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<bool, __xls_channel_dir_In>& control_in;
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+            const bool control = control_in.read();
+            int x = 0;
+            if (control) {
+              x = data_in.read();
+            } else {
+              x = 3 * data_in.read();
+            }
+            data_out.write(x);
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "control_in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOpsInLoop3) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<bool, __xls_channel_dir_In>& control_in;
+         __xls_channel<int, __xls_channel_dir_In>& data_in_a;
+         __xls_channel<int, __xls_channel_dir_In>& data_in_b;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+            static int x = 0;
+            const bool control = control_in.read();
+            if (x == 0) {
+              if (control) {
+                x = data_in_a.read();
+              }
+
+              [[hls_pipeline_init_interval(1)]]
+              for (int i = 0; i < 4; i++) {
+              }
+
+              if (!control) {
+                x = data_in_a.read();
+              }
+            }
+         }
+
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in_a") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
 }
 
 }  // namespace

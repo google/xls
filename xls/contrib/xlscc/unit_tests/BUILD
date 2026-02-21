@@ -235,6 +235,8 @@ cc_test(
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
+        "//xls/scheduling:mutual_exclusion_pass",
+        "//xls/scheduling:scheduling_pass",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

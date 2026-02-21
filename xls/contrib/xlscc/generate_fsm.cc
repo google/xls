@@ -784,6 +784,7 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   value_by_continuation_value = state_element_by_continuation_value;
 
   TrackedBValue last_op_out_value;
+  TrackedBValue slice_before_active;
   TrackedBValue after_conditional_activation_transition =
       pb.Literal(xls::UBits(0, 1), body_loc);
 
@@ -944,11 +945,14 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       TrackedBValue token = pb.Literal(xls::Value::Token(), body_loc,
                                        /*name=*/"token");
       XLSCC_CHECK(last_op_out_value.valid(), body_loc);
+      // No IO before first slice
+      XLSCC_CHECK(slice_before_active.valid(), body_loc);
       XLS_ASSIGN_OR_RETURN(
           GenerateIOReturn io_return,
           translator_io_.GenerateIO(*after_op, token, last_op_out_value, pb,
                                     optional_bundle,
-                                    /*extra_condition=*/slice_active));
+                                    /*extra_condition=*/
+                                    slice_before_active));
 
       // Add IO parameter if applicable
       if (io_return.received_value.valid()) {
@@ -1006,6 +1010,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
         continue;
       }
 
+      // A continuation value is available directly if the slice that produces
+      // it is active this activation.
       value_by_continuation_value[&continuation_out] = pb.Select(
           slice_active,
           /*on_true=*/value_out,
@@ -1170,6 +1176,9 @@ NewFSMGenerator::GenerateNewFSMInvocation(
         }
       }
     }
+
+    // Save for IO op predicates
+    slice_before_active = slice_active;
   }
 
   for (auto& [key, or_nodes] :

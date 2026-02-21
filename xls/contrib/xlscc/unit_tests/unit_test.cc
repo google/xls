@@ -274,7 +274,7 @@ absl::Status XlsccTestBase::ScanFile(
       /*generate_new_fsm=*/generate_new_fsm_,
       /*merge_states=*/merge_states_,
       /*split_states_on_channel_ops=*/split_states_on_channel_ops_,
-      /*debug_ir_trace_flags=*/xlscc::DebugIrTraceFlags_None,
+      /*debug_ir_trace_flags=*/xlscc::DebugIrTraceFlags_FSMStates,
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
       /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
       /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser));
@@ -421,19 +421,27 @@ void XlsccTestBase::BuildTestIR(
                            /*max_unroll_iters=*/0,
                            /*top_class_name=*/top_class_name));
 
+    // Use RuntimeMutuallyExclusive for mutual exclusion tests.
     package_ = std::make_unique<xls::Package>("my_package");
     if (block_spec.has_value()) {
       block_spec_ = block_spec.value();
-      XLS_ASSERT_OK(translator_
-                        ->GenerateIR_Block(package_.get(), block_spec.value(),
-                                           top_level_init_interval)
-                        .status());
+      XLS_ASSERT_OK(
+          translator_
+              ->GenerateIR_Block(
+                  package_.get(), block_spec.value(), top_level_init_interval,
+                  xlscc::ChannelOptions{
+                      .default_strictness =
+                          xls::ChannelStrictness::kRuntimeMutuallyExclusive})
+              .status());
     } else {
-      XLS_ASSERT_OK(translator_
-                        ->GenerateIR_BlockFromClass(package_.get(),
-                                                    &block_spec_,
-                                                    top_level_init_interval)
-                        .status());
+      XLS_ASSERT_OK(
+          translator_
+              ->GenerateIR_BlockFromClass(
+                  package_.get(), &block_spec_, top_level_init_interval,
+                  xlscc::ChannelOptions{
+                      .default_strictness =
+                          xls::ChannelStrictness::kRuntimeMutuallyExclusive})
+              .status());
     }
     package_text = package_->DumpIr();
     ir_texts.push_back(package_text);
