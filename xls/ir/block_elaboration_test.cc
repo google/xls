@@ -284,6 +284,96 @@ TEST_F(ElaborationTest, ElaborateFifoInstantiation) {
           HasSubstr("is not a block and has no instantiation `some_inst`")));
 }
 
+TEST_F(ElaborationTest, ElaborateBlockFifoCycle) {
+  auto p = CreatePackage();
+  p->AcceptInvalid();
+
+  // Child block which has a combinational path from input to output.
+  BlockBuilder child_bb("child", p.get());
+  BValue child_in = child_bb.InputPort("in", p->GetBitsType(32));
+  BValue internal = child_bb.Not(child_in);
+  internal.node()->SetName("my_internal");
+  child_bb.OutputPort("out", internal);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * child, child_bb.Build());
+
+  // Add provenance to child block to test the new error format.
+  child->SetProvenance(
+      BlockProvenance{.name = "my_proc", .kind = BlockProvenanceKind::kProc});
+
+  BlockBuilder bb("parent", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockInstantiation * child_inst,
+      bb.block()->AddBlockInstantiation("child_inst", child));
+
+  // FIFO 1: Output from child -> Input to FIFO 2
+  // Combinational path: PushReady depend on PopReady
+  // (register_push_outputs=false)
+  XLS_ASSERT_OK_AND_ASSIGN(FifoInstantiation * fifo1,
+                           bb.block()->AddFifoInstantiation(
+                               "fifo1",
+                               FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                          /*register_push_outputs=*/false,
+                                          /*register_pop_outputs=*/false),
+                               p->GetBitsType(32)));
+
+  // FIFO 2: Output from FIFO 1 -> Input to child
+  // Combinational path: PushReady depend on PopReady
+  XLS_ASSERT_OK_AND_ASSIGN(FifoInstantiation * fifo2,
+                           bb.block()->AddFifoInstantiation(
+                               "fifo2",
+                               FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                          /*register_push_outputs=*/false,
+                                          /*register_pop_outputs=*/false),
+                               p->GetBitsType(32)));
+
+  // Connect Child -> FIFO 1
+  bb.InstantiationInput(fifo1, "push_data",
+                        bb.InstantiationOutput(child_inst, "out"));
+  bb.InstantiationInput(fifo1, "push_valid",
+                        bb.Literal(UBits(1, 1)));  // Always valid
+  // Connect FIFO 1 -> FIFO 2
+  bb.InstantiationInput(fifo2, "push_data",
+                        bb.InstantiationOutput(fifo1, "pop_data"));
+  bb.InstantiationInput(fifo2, "push_valid",
+                        bb.InstantiationOutput(fifo1, "pop_valid"));
+  bb.InstantiationInput(fifo1, "pop_ready",
+                        bb.InstantiationOutput(fifo2, "push_ready"));
+  // Connect FIFO 2 -> Child
+  bb.InstantiationInput(child_inst, "in",
+                        bb.InstantiationOutput(fifo2, "pop_data"));
+  // Connect Child Input Read (ignored but needed for completeness/readiness) -
+  // loops back to FIFO 2
+  bb.InstantiationInput(fifo2, "pop_ready",
+                        bb.Literal(UBits(1, 1)));  // Always ready
+
+  EXPECT_THAT(
+      bb.Build(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(
+              HasSubstr("Cycle detected involving the following components (in "
+                        "flow order):"),
+              HasSubstr("  * FIFO: `fifo1`\n"
+                        "    Combinational path: push_data -> pop_data (due to "
+                        "`bypass=true` and `register_pop_outputs=false`)"),
+              HasSubstr("  * FIFO: `fifo2`\n"
+                        "    Combinational path: push_data -> pop_data (due to "
+                        "`bypass=true` and `register_pop_outputs=false`)"),
+              HasSubstr("  * Proc: `my_proc` (instance: `child "
+                        "[parent::child_inst->child]`)\n"
+                        "    Combinational path: input `in` -> `my_internal` "
+                        "-> output `out`"),
+              HasSubstr("Possible mitigations:"),
+              HasSubstr("FIFO `fifo1`: Disable `bypass` or enable "
+                        "`register_pop_outputs`."),
+              HasSubstr("FIFO `fifo2`: Disable `bypass` or enable "
+                        "`register_pop_outputs`."),
+              HasSubstr("Proc `my_proc` (instance: `child "
+                        "[parent::child_inst->child]`): Cut the combinational "
+                        "path from input `in` to output `out` (e.g. by "
+                        "inserting a register or FIFO)."))));
+}
+
 class RecordingVisitor : public ElaboratedBlockDfsVisitorWithDefault {
  public:
   absl::Status DefaultHandler(

@@ -208,8 +208,8 @@ TEST_F(ElaboratedBlockDfsVisitor, DetectSimpleCycle) {
                            BlockElaboration::Elaborate(top));
 
   TestVisitor v;
-  EXPECT_THAT(elab.Accept(v), StatusIs(absl::StatusCode::kInternal,
-                                       HasSubstr("Cycle detected:")));
+  EXPECT_THAT(elab.Accept(v), StatusIs(absl::StatusCode::kInvalidArgument,
+                                       HasSubstr("Cycle detected")));
   EXPECT_LT(v.visited_count(), top->node_count());
 }
 
@@ -248,10 +248,16 @@ block foo(p: bits[42], q: bits[42], r: bits[42]) {
   TestVisitor v;
   EXPECT_THAT(
       elab.Accept(v),
-      StatusIs(absl::StatusCode::kInternal,
-               AllOf(HasSubstr("Cycle detected:"), HasSubstr("sum"),
-                     HasSubstr("p_plus_c"), HasSubstr("bar_c"), HasSubstr("c"),
-                     HasSubstr("b"), HasSubstr("bar_b"), HasSubstr("sum"))));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstr("Cycle detected involving the following components "
+                          "(in flow order):"),
+                HasSubstr(
+                    "Block: `bar` (instance: `foo::inst->bar`)\n"
+                    "    Combinational path: input `b` -> ... -> output `c`"),
+                HasSubstr(
+                    "Block: `foo` (instance: `foo`)\n"
+                    "    Combinational path: `p_plus_c` -> ... -> `sum`"))));
 }
 
 }  // namespace

@@ -15,6 +15,7 @@
 #include "xls/ir/block_elaboration.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -32,6 +33,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -41,6 +43,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/elaborated_block_dfs_visitor.h"
 #include "xls/ir/elaboration.h"
@@ -377,12 +380,287 @@ std::string ElaboratedNode::ToString() const {
   return absl::StrFormat("%s (%s)", node->ToString(), instance->ToString());
 }
 
+namespace {
+
+enum class ComponentKind {
+  kFifo,
+  kBlock,
+  kProc,
+  kFunction,
+  kBlockInstance,
+};
+
+template <typename Sink>
+void AbslStringify(Sink& sink, ComponentKind kind) {
+  switch (kind) {
+    case ComponentKind::kFifo:
+      absl::Format(&sink, "FIFO");
+      return;
+    case ComponentKind::kBlock:
+      absl::Format(&sink, "Block");
+      return;
+    case ComponentKind::kProc:
+      absl::Format(&sink, "Proc");
+      return;
+    case ComponentKind::kFunction:
+      absl::Format(&sink, "Function");
+      return;
+    case ComponentKind::kBlockInstance:
+      absl::Format(&sink, "Block Instance");
+      return;
+  }
+}
+
+}  // namespace
+
+absl::Status AnalyzeCycle(absl::Span<const ElaboratedNode> cycle) {
+  if (VLOG_IS_ON(1)) {
+    std::vector<std::string> cycle_names;
+    cycle_names.reserve(cycle.size());
+    for (const ElaboratedNode& node : cycle) {
+      cycle_names.push_back(node.ToString());
+    }
+    VLOG(1) << "Found cycle during elaboration; raw cycle:\n * "
+            << absl::StrJoin(cycle_names, "\n * ");
+  }
+
+  struct ComponentTrace {
+    std::string name;
+    ComponentKind kind;
+    std::string description;
+    std::string recommendation;
+    const ElaboratedNode* input_port = nullptr;
+    const ElaboratedNode* output_port = nullptr;
+    const ElaboratedNode* start_node = nullptr;
+    const ElaboratedNode* end_node = nullptr;
+  };
+  std::vector<ComponentTrace> components;
+
+  // Iterate through the cycle nodes to build a high-level trace.
+  // We look for patterns like:
+  // - FIFO: InstantiationInput(A) -> ... -> InstantiationOutput(B)
+  //   (Usually immediate for FIFOs)
+  // - Block: InputPort -> ... -> OutputPort
+  for (size_t i = 0; i < cycle.size(); ++i) {
+    const ElaboratedNode& curr = cycle[i];
+    const ElaboratedNode& next = cycle[(i + 1) % cycle.size()];
+
+    // Check for FIFO hop: InstantiationInput -> InstantiationOutput
+    // This happens within the *parent* block's instance.
+    if (curr.node->Is<InstantiationInput>() &&
+        next.node->Is<InstantiationOutput>()) {
+      InstantiationInput* in = curr.node->As<InstantiationInput>();
+      InstantiationOutput* out = next.node->As<InstantiationOutput>();
+      if (in->instantiation() == out->instantiation() &&
+          in->instantiation()->kind() == InstantiationKind::kFifo) {
+        FifoInstantiation* fifo =
+            absl::down_cast<FifoInstantiation*>(in->instantiation());
+        const FifoConfig& config = fifo->fifo_config();
+        std::string description = absl::StrFormat(
+            "Combinational path: %s -> %s", in->port_name(), out->port_name());
+        std::string recommendation;
+
+        // Check for specific combinational paths
+        bool is_param_valid_path =
+            (in->port_name() == FifoInstantiation::kPushValidPortName &&
+             out->port_name() == FifoInstantiation::kPopValidPortName);
+        bool is_param_data_path =
+            (in->port_name() == FifoInstantiation::kPushDataPortName &&
+             out->port_name() == FifoInstantiation::kPopDataPortName);
+        bool is_param_ready_path =
+            (in->port_name() == FifoInstantiation::kPopReadyPortName &&
+             out->port_name() == FifoInstantiation::kPushReadyPortName);
+
+        if ((is_param_valid_path || is_param_data_path) && config.bypass() &&
+            !config.register_pop_outputs()) {
+          absl::StrAppend(
+              &description,
+              " (due to `bypass=true` and `register_pop_outputs=false`)");
+          recommendation = "Disable `bypass` or enable `register_pop_outputs`.";
+        } else if (is_param_ready_path && !config.register_push_outputs()) {
+          absl::StrAppend(&description,
+                          " (due to `register_push_outputs=false`)");
+          recommendation = "Enable `register_push_outputs`.";
+        } else {
+          recommendation = "unrecognized path through FIFO; file a bug?";
+        }
+
+        components.push_back({
+            .name = absl::StrFormat("`%s`", fifo->name()),
+            .kind = ComponentKind::kFifo,
+            .description = description,
+            .recommendation = recommendation,
+        });
+        continue;
+      }
+    }
+
+    // Check for Block activity.
+    // If we are traversing internal nodes of a block, collect them into a
+    // "Block" entry. We dedup consecutive nodes in the same block instance.
+    if (!curr.node->Is<InstantiationInput>() &&
+        !curr.node->Is<InstantiationOutput>()) {
+      std::string name = absl::StrFormat("`%s`", curr.instance->ToString());
+      ComponentKind kind = ComponentKind::kBlockInstance;
+      // Description will be realized later based on ports.
+      std::string description = "Combinational logic";
+      if (components.empty() ||
+          (components.back().kind != ComponentKind::kBlockInstance &&
+           components.back().kind != ComponentKind::kBlock &&
+           components.back().kind != ComponentKind::kProc &&
+           components.back().kind != ComponentKind::kFunction) ||
+          (components.back().name !=
+               absl::StrFormat("`%s`", curr.instance->ToString()) &&
+           components.back().name.find(curr.instance->ToString()) ==
+               std::string::npos)) {
+        if (curr.instance->block().has_value()) {
+          const std::optional<BlockProvenance>& provenance =
+              curr.instance->block().value()->GetProvenance();
+          if (provenance.has_value()) {
+            name = absl::StrFormat("`%s` (instance: `%s`)", provenance->name,
+                                   curr.instance->ToString());
+            kind = provenance->IsFromProc() ? ComponentKind::kProc
+                                            : ComponentKind::kFunction;
+            description = absl::StrFormat(
+                "Combinational logic through %s %s.",
+                provenance->IsFromProc() ? "proc" : "function", name);
+          } else {
+            name = absl::StrFormat("`%s` (instance: `%s`)",
+                                   curr.instance->block().value()->name(),
+                                   curr.instance->path().ToString());
+            kind = ComponentKind::kBlock;
+          }
+        }
+
+        // We might have already added this component if the provenance name is
+        // the same as the previous one (e.g. multiple nodes in same proc).
+        // Check strictly against the last added component to avoid duplicates.
+        if (components.empty() || components.back().name != name ||
+            components.back().kind != kind) {
+          components.push_back({
+              .name = name,
+              .kind = kind,
+              .description = description,
+              .recommendation = "",
+          });
+        }
+      }
+
+      // Update ports and internal nodes for the current block component.
+      if (!components.empty() &&
+          (components.back().kind == ComponentKind::kBlockInstance ||
+           components.back().kind == ComponentKind::kBlock ||
+           components.back().kind == ComponentKind::kProc ||
+           components.back().kind == ComponentKind::kFunction)) {
+        if (curr.node->Is<InputPort>()) {
+          components.back().input_port = &curr;
+        } else if (curr.node->Is<OutputPort>()) {
+          components.back().output_port = &curr;
+        } else if (!curr.node->Is<InstantiationInput>() &&
+                   !curr.node->Is<InstantiationOutput>()) {
+          // Track internal nodes (ignoring ports and instantiation boundaries).
+          if (components.back().start_node == nullptr) {
+            components.back().start_node = &curr;
+          }
+          components.back().end_node = &curr;
+        }
+      }
+    }
+  }
+
+  std::vector<std::string> mitigations;
+  std::string message =
+      "Cycle detected involving the following components (in flow order):\n";
+  for (const auto& comp : components) {
+    std::string description = comp.description;
+    std::string recommendation = comp.recommendation;
+
+    // Enhance block description/recommendation if paths are known.
+    if ((comp.kind == ComponentKind::kBlockInstance ||
+         comp.kind == ComponentKind::kBlock ||
+         comp.kind == ComponentKind::kProc ||
+         comp.kind == ComponentKind::kFunction)) {
+      if (comp.start_node != nullptr && comp.end_node != nullptr &&
+          comp.start_node != comp.end_node) {
+        std::string start =
+            comp.input_port == nullptr
+                ? absl::StrFormat("`%s`", comp.start_node->node->GetName())
+                : absl::StrFormat("input `%s` -> `%s`",
+                                  comp.input_port->node->GetName(),
+                                  comp.start_node->node->GetName());
+        std::string end =
+            comp.output_port == nullptr
+                ? absl::StrFormat("`%s`", comp.end_node->node->GetName())
+                : absl::StrFormat("`%s` -> output `%s`",
+                                  comp.end_node->node->GetName(),
+                                  comp.output_port->node->GetName());
+        description =
+            absl::StrFormat("Combinational path: %s -> ... -> %s", start, end);
+        recommendation = absl::StrFormat(
+            "Cut the combinational path from %s to %s (e.g. by inserting a "
+            "register or FIFO).",
+            start, end);
+      } else if (comp.input_port != nullptr && comp.output_port != nullptr) {
+        if (comp.start_node != nullptr && comp.start_node == comp.end_node) {
+          description = absl::StrFormat(
+              "Combinational path: input `%s` -> `%s` -> output `%s`",
+              comp.input_port->node->GetName(),
+              comp.start_node->node->GetName(),
+              comp.output_port->node->GetName());
+        } else {
+          // Fallback to ports if no internal nodes found.
+          description = absl::StrFormat(
+              "Combinational path: input `%s` -> ... -> output `%s`",
+              comp.input_port->node->GetName(),
+              comp.output_port->node->GetName());
+        }
+        recommendation = absl::StrFormat(
+            "Cut the combinational path from input `%s` to output `%s` (e.g. "
+            "by inserting a register or FIFO).",
+            comp.input_port->node->GetName(),
+            comp.output_port->node->GetName());
+      }
+    }
+
+    absl::StrAppend(&message,
+                    absl::StrFormat("  * %v: %s\n", comp.kind, comp.name));
+    if (!description.empty()) {
+      absl::StrAppend(&message, absl::StrFormat("    %s\n", description));
+    }
+    if (!recommendation.empty()) {
+      mitigations.push_back(
+          absl::StrFormat("%v %s: %s", comp.kind, comp.name, recommendation));
+    }
+  }
+
+  if (mitigations.empty()) {
+    absl::StrAppend(&message,
+                    "\nNo known mitigations found; for more investigation, "
+                    "please consider filing a bug with steps to reproduce.\n");
+  } else {
+    absl::StrAppend(
+        &message,
+        "\nTo break this cycle, you must add a register to at least one of the "
+        "combinational paths in the loop; applying a single mitigation is "
+        "usually sufficient.\n\n"
+        "Possible mitigations:\n");
+    for (const auto& mitigation : mitigations) {
+      absl::StrAppend(&message, absl::StrFormat("    * %s\n", mitigation));
+    }
+    absl::StrAppend(&message, "\n");
+  }
+
+  return absl::InvalidArgumentError(message);
+}
+
 absl::Status ElaboratedNode::Accept(ElaboratedBlockDfsVisitor& visitor) const {
   if (visitor.IsVisited(*this)) {
     return absl::OkStatus();
   }
   if (visitor.IsTraversing(*this)) {
-    std::vector<std::string> cycle_names = {ToString()};
+    std::vector<ElaboratedNode> cycle;
+    cycle.push_back(*this);
+
     auto first_traversing_node = [&](ElaboratedNode node)
         -> absl::StatusOr<std::optional<ElaboratedNode>> {
       ElaboratedNode to_check;
@@ -409,10 +687,15 @@ absl::Status ElaboratedNode::Accept(ElaboratedBlockDfsVisitor& visitor) const {
       bool broke = first_traversing.has_value();
       CHECK(broke);
       current_node = *first_traversing;
-      cycle_names.push_back(current_node.ToString());
+      cycle.push_back(current_node);
     } while (current_node != *this);
-    return absl::InternalError(absl::StrFormat(
-        "Cycle detected: [\n%s\n]", absl::StrJoin(cycle_names, " ->\n")));
+
+    // We collected the cycle in reverse order, from users to operands (... C ->
+    // B -> A), but AnalyzeCycle expects it in forward order, from operands to
+    // users (A -> B -> C -> ...).
+    std::reverse(cycle.begin(), cycle.end());
+
+    return AnalyzeCycle(cycle);
   }
   VLOG(5) << "Traversing node: " << ToString();
   visitor.SetTraversing(*this);
