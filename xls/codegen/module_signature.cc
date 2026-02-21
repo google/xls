@@ -62,7 +62,7 @@ std::optional<std::string> GetDataPortName(
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithClock(
     std::string_view name) {
   CHECK(!proto_.has_clock_name());
-  proto_.set_clock_name(ToProtoString(name));
+  proto_.set_clock_name(name);
   return *this;
 }
 
@@ -71,7 +71,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithReset(std::string_view name,
                                                           bool active_low) {
   CHECK(!proto_.has_reset());
   ResetProto* reset = proto_.mutable_reset();
-  reset->set_name(ToProtoString(name));
+  reset->set_name(name);
   reset->set_asynchronous(asynchronous);
   reset->set_active_low(active_low);
   return *this;
@@ -118,7 +118,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataInput(
     std::string_view name, Type* type) {
   PortProto* port = proto_.add_data_ports();
   port->set_direction(PORT_DIRECTION_INPUT);
-  port->set_name(ToProtoString(name));
+  port->set_name(name);
   port->set_width(type->GetFlatBitCount());
   *port->mutable_type() = type->ToProto();
   return *this;
@@ -128,7 +128,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutput(
     std::string_view name, Type* type) {
   PortProto* port = proto_.add_data_ports();
   port->set_direction(PORT_DIRECTION_OUTPUT);
-  port->set_name(ToProtoString(name));
+  port->set_name(name);
   port->set_width(type->GetFlatBitCount());
   *port->mutable_type() = type->ToProto();
   return *this;
@@ -147,11 +147,9 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutputAsBits(
 }
 
 absl::Status ModuleSignatureBuilder::RemoveData(std::string_view name) {
-  auto port_itr =
-      std::find_if(proto_.data_ports().begin(), proto_.data_ports().end(),
-                   [name](const PortProto& port) -> bool {
-                     return port.name() == ToProtoString(name);
-                   });
+  auto port_itr = std::find_if(
+      proto_.data_ports().begin(), proto_.data_ports().end(),
+      [name](const PortProto& port) -> bool { return port.name() == name; });
   if (port_itr == proto_.data_ports().end()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Port with name %s could not be found in the ModuleSignature.", name));
@@ -163,7 +161,7 @@ absl::Status ModuleSignatureBuilder::RemoveData(std::string_view name) {
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
     std::string_view name, Type* type) {
   ChannelProto* channel = proto_.add_channels();
-  channel->set_name(ToProtoString(name));
+  channel->set_name(name);
   channel->set_kind(CHANNEL_KIND_SINGLE_VALUE);
   *channel->mutable_type() = type->ToProto();
   return *this;
@@ -173,7 +171,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
     std::string_view name, Type* type, FlowControl flow_control,
     std::optional<FifoConfig> fifo_config) {
   ChannelProto* channel = proto_.add_channels();
-  channel->set_name(ToProtoString(name));
+  channel->set_name(name);
   channel->set_kind(CHANNEL_KIND_STREAMING);
   if (flow_control == FlowControl::kReadyValid) {
     channel->set_flow_control(CHANNEL_FLOW_CONTROL_READY_VALID);
@@ -193,12 +191,11 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannelInterface(
     std::string_view data_port_name, FlopKindProto flop_kind,
     std::optional<int64_t> stage) {
   ChannelInterfaceProto* interface = proto_.add_channel_interfaces();
-  interface->set_channel_name(ToProtoString(name));
+  interface->set_channel_name(name);
   interface->set_direction(direction);
   *interface->mutable_type() = type->ToProto();
   interface->set_kind(CHANNEL_KIND_SINGLE_VALUE);
-  interface->mutable_single_value()->set_data_port_name(
-      ToProtoString(data_port_name));
+  interface->mutable_single_value()->set_data_port_name(data_port_name);
   interface->set_flop_kind(flop_kind);
   if (stage.has_value()) {
     interface->set_stage(*stage);
@@ -213,7 +210,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannelInterface(
     std::optional<std::string> valid_port_name, FlopKindProto flop_kind,
     std::optional<int64_t> stage) {
   ChannelInterfaceProto* interface = proto_.add_channel_interfaces();
-  interface->set_channel_name(ToProtoString(name));
+  interface->set_channel_name(name);
   interface->set_direction(direction);
   *interface->mutable_type() = type->ToProto();
   interface->set_kind(CHANNEL_KIND_STREAMING);
@@ -223,16 +220,13 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannelInterface(
           : CHANNEL_FLOW_CONTROL_NONE);
   interface->set_flop_kind(flop_kind);
   if (data_port_name.has_value()) {
-    interface->mutable_streaming()->set_data_port_name(
-        ToProtoString(*data_port_name));
+    interface->mutable_streaming()->set_data_port_name(*data_port_name);
   }
   if (ready_port_name.has_value()) {
-    interface->mutable_streaming()->set_ready_port_name(
-        ToProtoString(*ready_port_name));
+    interface->mutable_streaming()->set_ready_port_name(*ready_port_name);
   }
   if (valid_port_name.has_value()) {
-    interface->mutable_streaming()->set_valid_port_name(
-        ToProtoString(*valid_port_name));
+    interface->mutable_streaming()->set_valid_port_name(*valid_port_name);
   }
   if (stage.has_value()) {
     interface->set_stage(*stage);
@@ -244,7 +238,7 @@ absl::Status ModuleSignatureBuilder::RemoveChannel(std::string_view name) {
   auto channel_itr =
       std::find_if(proto_.channels().begin(), proto_.channels().end(),
                    [name](const ChannelProto& channel) -> bool {
-                     return channel.name() == ToProtoString(name);
+                     return channel.name() == name;
                    });
   if (channel_itr == proto_.mutable_channels()->end()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -261,7 +255,7 @@ absl::Status ModuleSignatureBuilder::RemoveChannelInterface(
   auto channel_itr = std::find_if(
       proto_.channel_interfaces().begin(), proto_.channel_interfaces().end(),
       [name](const ChannelInterfaceProto& interface) -> bool {
-        return interface.channel_name() == ToProtoString(name);
+        return interface.channel_name() == name;
       });
   if (channel_itr == proto_.mutable_channel_interfaces()->end()) {
     return absl::InvalidArgumentError(
@@ -280,9 +274,9 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddFifoInstantiation(
   InstantiationProto* instantiation = proto_.add_instantiations();
   FifoInstantiationProto* fifo_instantiation =
       instantiation->mutable_fifo_instantiation();
-  fifo_instantiation->set_instance_name(ToProtoString(instance_name));
+  fifo_instantiation->set_instance_name(instance_name);
   if (channel_name.has_value()) {
-    fifo_instantiation->set_channel_name(ToProtoString(channel_name.value()));
+    fifo_instantiation->set_channel_name(channel_name.value());
   }
   *fifo_instantiation->mutable_fifo_config() =
       fifo_config.ToProto(data_type->GetFlatBitCount());
@@ -297,8 +291,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddBlockInstantiation(
   InstantiationProto* instantiation = proto_.add_instantiations();
   BlockInstantiationProto* block_instantiation =
       instantiation->mutable_block_instantiation();
-  block_instantiation->set_block_name(ToProtoString(block_name));
-  block_instantiation->set_instance_name(ToProtoString(instance_name));
+  block_instantiation->set_block_name(block_name);
+  block_instantiation->set_instance_name(instance_name);
   return *this;
 }
 
@@ -307,7 +301,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
   RamProto* ram = proto_.add_rams();
   int64_t data_width = args.data_type->GetFlatBitCount();
 
-  ram->set_name(ToProtoString(args.ram_name));
+  ram->set_name(args.ram_name);
 
   Ram1RWProto* ram_1rw = ram->mutable_ram_1rw();
   RamRWPortProto* rw_port = ram_1rw->mutable_rw_port();
@@ -315,43 +309,43 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
   RamRWRequestProto* req = rw_port->mutable_request();
   RamRWResponseProto* resp = rw_port->mutable_response();
 
-  req->set_name(ToProtoString(args.req_name));
-  resp->set_name(ToProtoString(args.resp_name));
+  req->set_name(args.req_name);
+  resp->set_name(args.resp_name);
 
   auto* address_proto = req->mutable_address();
-  address_proto->set_name(ToProtoString(args.address_name));
+  address_proto->set_name(args.address_name);
   address_proto->set_direction(PORT_DIRECTION_OUTPUT);
   address_proto->set_width(args.address_width);
   *address_proto->mutable_type() =
       args.package->GetBitsType(args.address_width)->ToProto();
 
   auto* read_enable_proto = req->mutable_read_enable();
-  read_enable_proto->set_name(ToProtoString(args.read_enable_name));
+  read_enable_proto->set_name(args.read_enable_name);
   read_enable_proto->set_direction(PORT_DIRECTION_OUTPUT);
   read_enable_proto->set_width(1);
   *read_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
   auto* write_enable_proto = req->mutable_write_enable();
-  write_enable_proto->set_name(ToProtoString(args.write_enable_name));
+  write_enable_proto->set_name(args.write_enable_name);
   write_enable_proto->set_direction(PORT_DIRECTION_OUTPUT);
   write_enable_proto->set_width(1);
   *write_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
   auto* write_data_proto = req->mutable_write_data();
-  write_data_proto->set_name(ToProtoString(args.write_data_name));
+  write_data_proto->set_name(args.write_data_name);
   write_data_proto->set_direction(PORT_DIRECTION_OUTPUT);
   write_data_proto->set_width(data_width);
   *write_data_proto->mutable_type() = args.data_type->ToProto();
 
   auto* read_data_proto = resp->mutable_read_data();
-  read_data_proto->set_name(ToProtoString(args.read_data_name));
+  read_data_proto->set_name(args.read_data_name);
   read_data_proto->set_direction(PORT_DIRECTION_INPUT);
   read_data_proto->set_width(data_width);
   *read_data_proto->mutable_type() = args.data_type->ToProto();
 
   if (args.write_mask_width > 0) {
     auto* write_mask_proto = req->mutable_write_mask();
-    write_mask_proto->set_name(ToProtoString(args.write_mask_name));
+    write_mask_proto->set_name(args.write_mask_name);
     write_mask_proto->set_direction(PORT_DIRECTION_OUTPUT);
     write_mask_proto->set_width(args.write_mask_width);
     *write_mask_proto->mutable_type() =
@@ -360,7 +354,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
 
   if (args.read_mask_width > 0) {
     auto* read_mask_proto = req->mutable_read_mask();
-    read_mask_proto->set_name(ToProtoString(args.read_mask_name));
+    read_mask_proto->set_name(args.read_mask_name);
     read_mask_proto->set_direction(PORT_DIRECTION_OUTPUT);
     read_mask_proto->set_width(args.read_mask_width);
     *read_mask_proto->mutable_type() =
@@ -374,7 +368,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
     const Ram1R1WArgs& args) {
   int64_t data_width = args.data_type->GetFlatBitCount();
   RamProto* ram = proto_.add_rams();
-  ram->set_name(ToProtoString(args.ram_name));
+  ram->set_name(args.ram_name);
 
   Ram1R1WProto* ram_1r1w = ram->mutable_ram_1r1w();
 
@@ -385,32 +379,32 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
   RamRResponseProto* r_resp = r_port->mutable_response();
   RamWRequestProto* w_req = w_port->mutable_request();
 
-  r_req->set_name(ToProtoString(args.rd_req_name));
-  r_resp->set_name(ToProtoString(args.rd_resp_name));
-  w_req->set_name(ToProtoString(args.wr_req_name));
+  r_req->set_name(args.rd_req_name);
+  r_resp->set_name(args.rd_resp_name);
+  w_req->set_name(args.wr_req_name);
 
   auto* rd_address_proto = r_req->mutable_address();
-  rd_address_proto->set_name(ToProtoString(args.read_address_name));
+  rd_address_proto->set_name(args.read_address_name);
   rd_address_proto->set_direction(PORT_DIRECTION_OUTPUT);
   rd_address_proto->set_width(args.address_width);
   *rd_address_proto->mutable_type() =
       args.package->GetBitsType(args.address_width)->ToProto();
 
   auto* rd_enable_proto = r_req->mutable_enable();
-  rd_enable_proto->set_name(ToProtoString(args.read_enable_name));
+  rd_enable_proto->set_name(args.read_enable_name);
   rd_enable_proto->set_direction(PORT_DIRECTION_OUTPUT);
   rd_enable_proto->set_width(1);
   *rd_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
   auto* rd_data_proto = r_resp->mutable_data();
-  rd_data_proto->set_name(ToProtoString(args.read_data_name));
+  rd_data_proto->set_name(args.read_data_name);
   rd_data_proto->set_direction(PORT_DIRECTION_INPUT);
   rd_data_proto->set_width(data_width);
   *rd_data_proto->mutable_type() = args.data_type->ToProto();
 
   if (args.read_mask_width > 0) {
     auto* read_mask_proto = w_req->mutable_mask();
-    read_mask_proto->set_name(ToProtoString(args.read_mask_name));
+    read_mask_proto->set_name(args.read_mask_name);
     read_mask_proto->set_direction(PORT_DIRECTION_OUTPUT);
     read_mask_proto->set_width(args.read_mask_width);
     *read_mask_proto->mutable_type() =
@@ -418,21 +412,21 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
   }
 
   auto* wr_address_proto = w_req->mutable_address();
-  wr_address_proto->set_name(ToProtoString(args.write_address_name));
+  wr_address_proto->set_name(args.write_address_name);
   wr_address_proto->set_direction(PORT_DIRECTION_OUTPUT);
   wr_address_proto->set_width(args.address_width);
   *wr_address_proto->mutable_type() =
       args.package->GetBitsType(args.address_width)->ToProto();
 
   auto* wr_data_proto = w_req->mutable_data();
-  wr_data_proto->set_name(ToProtoString(args.write_data_name));
+  wr_data_proto->set_name(args.write_data_name);
   wr_data_proto->set_direction(PORT_DIRECTION_OUTPUT);
   wr_data_proto->set_width(data_width);
   *wr_data_proto->mutable_type() = args.data_type->ToProto();
 
   if (args.write_mask_width > 0) {
     auto* write_mask_proto = w_req->mutable_mask();
-    write_mask_proto->set_name(ToProtoString(args.write_mask_name));
+    write_mask_proto->set_name(args.write_mask_name);
     write_mask_proto->set_direction(PORT_DIRECTION_OUTPUT);
     write_mask_proto->set_width(args.write_mask_width);
     *write_mask_proto->mutable_type() =
@@ -440,7 +434,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
   }
 
   auto* wr_enable_proto = w_req->mutable_enable();
-  wr_enable_proto->set_name(ToProtoString(args.write_enable_name));
+  wr_enable_proto->set_name(args.write_enable_name);
   wr_enable_proto->set_direction(PORT_DIRECTION_OUTPUT);
   wr_enable_proto->set_width(1);
   *wr_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();

@@ -60,7 +60,7 @@ CodegenOptions& CodegenOptions::output_port_name(std::string_view name) {
 CodegenOptions& CodegenOptions::reset(std::string_view name, bool asynchronous,
                                       bool active_low, bool reset_data_path) {
   reset_proto_ = ResetProto();
-  reset_proto_->set_name(ToProtoString(name));
+  reset_proto_->set_name(name);
   reset_proto_->set_asynchronous(asynchronous);
   reset_proto_->set_active_low(active_low);
   reset_proto_->set_reset_data_path(reset_data_path);
@@ -81,8 +81,7 @@ CodegenOptions& CodegenOptions::manual_control(std::string_view input_name) {
   if (!pipeline_control_.has_value()) {
     pipeline_control_ = PipelineControl();
   }
-  pipeline_control_->mutable_manual()->set_input_name(
-      ToProtoString(input_name));
+  pipeline_control_->mutable_manual()->set_input_name(input_name);
   return *this;
 }
 
@@ -99,9 +98,9 @@ CodegenOptions& CodegenOptions::valid_control(
     pipeline_control_ = PipelineControl();
   }
   ValidProto* valid = pipeline_control_->mutable_valid();
-  valid->set_input_name(ToProtoString(input_name));
+  valid->set_input_name(input_name);
   if (output_name.has_value()) {
-    valid->set_output_name(ToProtoString(*output_name));
+    valid->set_output_name(*output_name);
   }
   return *this;
 }
