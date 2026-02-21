@@ -350,6 +350,8 @@ def cc_xls_ir_jit_wrapper(
         top = "",
         llvm_opt_level = 3,
         exec_properties = {},
+        tags = [],
+        aot_tags = [],
         **kwargs):
     """Invokes the JIT wrapper generator and compiles the result as a cc_library.
 
@@ -370,6 +372,8 @@ def cc_xls_ir_jit_wrapper(
       top: Name of the top function/proc/block.
       llvm_opt_level: what opt level to configure aot compiled code to use.
       exec_properties: normal exec-properties to pass to actions.
+      tags: normal tags to pass to actions.
+      aot_tags: Tags to apply to the AOT compiler only.
       **kwargs: Keyword arguments. Named arguments.
     """
 
@@ -400,6 +404,7 @@ def cc_xls_ir_jit_wrapper(
         llvm_opt_level = llvm_opt_level,
         top_type = wrapper_type,
         exec_properties = exec_properties,
+        tags = tags + aot_tags,
         aot_target = select({
             "@platforms//cpu:aarch64": "aarch64",
             "@platforms//cpu:x86_64": "x86_64",
@@ -419,6 +424,7 @@ def cc_xls_ir_jit_wrapper(
         source_file = source_filename,
         header_file = header_filename,
         exec_properties = exec_properties,
+        tags = tags,
         **kwargs
     )
     cc_library(
@@ -426,6 +432,7 @@ def cc_xls_ir_jit_wrapper(
         srcs = [":" + source_filename],
         hdrs = [":" + header_filename],
         exec_properties = exec_properties,
+        tags = tags,
         deps = extra_lib_deps +
                _BASE_JIT_WRAPPER_DEPS[wrapper_type] + [
             "@com_google_absl//absl/status",
