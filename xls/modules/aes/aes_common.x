@@ -162,43 +162,43 @@ fn test_shift_rows() {
 }
 
 // Performs multiplication of the input by 2 in GF(2^8). See "MixColumns" below.
-fn gfmul2(input: u8) -> u8 {
-    let result = input << 1;
-    if input & u8:0x80 != u8:0 { result ^ u8:0x1b } else { result }
+fn gfmul2(x: u8) -> u8 {
+    let result = x << 1;
+    if x & u8:0x80 != u8:0 { result ^ u8:0x1b } else { result }
 }
 
 // Performs multiplication of the input by 3 in GF(2^8). See "MixColumns" below.
-fn gfmul3(input: u8) -> u8 {
-    let result = gfmul2(input);
-    result ^ input
+fn gfmul3(x: u8) -> u8 {
+    let result = gfmul2(x);
+    result ^ x
 }
 
 // Performs multiplication of the input by 9 in GF(2^8). See "MixColumns" below.
 // TODO(rspringer): Consider implementing the math instead of a lookup; not sure
 // what the computation vs. area cost would be.
-fn gfmul9(input: u8) -> u8 {
-    constants::GF_MUL_9_TBL[input]
+fn gfmul9(x: u8) -> u8 {
+    constants::GF_MUL_9_TBL[x]
 }
 
 // Performs multiplication of the input by 11 in GF(2^8). See "MixColumns" below.
 // TODO(rspringer): Consider implementing the math instead of a lookup; not sure
 // what the computation vs. area cost would be.
-fn gfmul11(input: u8) -> u8 {
-    constants::GF_MUL_11_TBL[input]
+fn gfmul11(x: u8) -> u8 {
+    constants::GF_MUL_11_TBL[x]
 }
 
 // Performs multiplication of the input by 13 in GF(2^8). See "MixColumns" below.
 // TODO(rspringer): Consider implementing the math instead of a lookup; not sure
 // what the computation vs. area cost would be.
-fn gfmul13(input: u8) -> u8 {
-    constants::GF_MUL_13_TBL[input]
+fn gfmul13(x: u8) -> u8 {
+    constants::GF_MUL_13_TBL[x]
 }
 
 // Performs multiplication of the input by 14 in GF(2^8). See "MixColumns" below.
 // TODO(rspringer): Consider implementing the math instead of a lookup; not sure
 // what the computation vs. area cost would be.
-fn gfmul14(input: u8) -> u8 {
-    constants::GF_MUL_14_TBL[input]
+fn gfmul14(x: u8) -> u8 {
+    constants::GF_MUL_14_TBL[x]
 }
 
 // See "MixColumns" below. This implements transformation of one column.

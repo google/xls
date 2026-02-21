@@ -112,22 +112,18 @@ pub fn tag(f: BF16) -> FloatTag { apfloat::tag(f) }
 
 // Increments the fraction of the input BF16 by one and returns the
 // normalized result. Input must be a normal *non-zero* number.
-pub fn increment_fraction(input: BF16) -> BF16 {
+pub fn increment_fraction(x: BF16) -> BF16 {
     // Add the hidden bit and one (the increment amount) to the fractional part.
     // If it overflows 8 bits the number must be normalized.
-    let new_fraction = u9:0x80 + (input.fraction as u9) + u9:1;
+    let new_fraction = u9:0x80 + (x.fraction as u9) + u9:1;
     let new_fraction_msb = new_fraction[8+:u1];
-    match (new_fraction_msb, input.bexp >= u8:0xfe) {
+    match (new_fraction_msb, x.bexp >= u8:0xfe) {
         // Overflow to infinity.
-        (true, true) => inf(input.sign),
+        (true, true) => inf(x.sign),
         // Significand overflowed, normalize.
-        (true, false) => BF16 {
-            sign: input.sign,
-            bexp: input.bexp + u8:1,
-            fraction: new_fraction[1+:u7],
-        },
+        (true, false) => BF16 { sign: x.sign, bexp: x.bexp + u8:1, fraction: new_fraction[1+:u7] },
         // No normalization required.
-        (_, _) => BF16 { sign: input.sign, bexp: input.bexp, fraction: new_fraction[:7] },
+        (_, _) => BF16 { sign: x.sign, bexp: x.bexp, fraction: new_fraction[:7] },
     }
 }
 

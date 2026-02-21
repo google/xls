@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "xls/codegen/vast/verilog_keywords.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -298,6 +299,22 @@ class PreTypecheckPass : public AstNodeVisitorWithDefault {
 
   absl::Status HandleFunction(const Function* node) override {
     WarnIfConfusinglyNamedLikeTest(*node, warning_collector_);
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleParam(const Param* node) override {
+    const auto* parent_fn = dynamic_cast<const Function*>(node->parent());
+    if (parent_fn == nullptr || parent_fn->tag() != FunctionTag::kNormal) {
+      return DefaultHandler(node);
+    }
+    if (SystemVerilogKeywords().contains(node->identifier())) {
+      warning_collector_.Add(
+          node->name_def()->span(), WarningKind::kKeywordParameterName,
+          absl::StrFormat(
+              "Parameter name `%s` is a Verilog/SystemVerilog keyword; "
+              "(System)Verilog code generation may fail",
+              node->identifier()));
+    }
     return DefaultHandler(node);
   }
 

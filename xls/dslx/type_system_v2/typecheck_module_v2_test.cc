@@ -30,6 +30,7 @@
 #include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace {
@@ -9321,6 +9322,18 @@ fn g() {
   ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
   EXPECT_EQ(result.tm.warnings.warnings()[0].message,
             "Definition of `a` (type `uN[2]`) is not used in function `f`");
+}
+
+TEST(TypecheckV2Test, SystemVerilogKeywordParameterNameGivesWarning) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn f(input: u32) -> u32 { input }
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].kind,
+            WarningKind::kKeywordParameterName);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "Parameter name `input` is a Verilog/SystemVerilog keyword; "
+            "(System)Verilog code generation may fail");
 }
 
 TEST(TypecheckV2Test, AllowSomeUnusedDefInNameDefTree) {
