@@ -233,54 +233,97 @@ class LazyDagCache {
 
   Value* QueryValue(const Key& key) {
     // If `key` is already known, return a pointer to the cached value.
-    if (auto it = cache_.find(key);
-        it != cache_.end() && (it->second.state == CacheState::kKnown ||
-                               it->second.state == CacheState::kForced)) {
-      return it->second.value.get();
+    auto getKnownKey = [&](const Key& k, bool expected = false) -> Value* {
+      auto it = cache_.find(k);
+      if (it != cache_.end() && (it->second.state == CacheState::kKnown ||
+                                 it->second.state == CacheState::kForced)) {
+        return it->second.value.get();
+      }
+      QCHECK(!expected) << "Key" << provider_->GetName(k)
+                        << " is not known/forced ("
+                        << (it == cache_.end() ? "not in cache"
+                                               : absl::StrCat(it->second.state))
+                        << ")";
+      return nullptr;
+    };
+    auto getExpectedKey = [&](const Key& k) { return getKnownKey(k, true); };
+    if (auto* found = getKnownKey(key)) {
+      return found;
     }
+    std::vector<std::pair<Key, bool>> stack;
+    stack.reserve(16);
+    stack.push_back({key, false});
 
-    // Retrieve the values for all of this node's inputs.
-    std::vector<const Value*> input_values;
-    for (const Key& input : provider_->GetInputs(key)) {
-      input_values.push_back(QueryValue(input));
-    }
+    std::vector<const Value*> input_values_buffer;
+    while (!stack.empty()) {
+      auto [current_key, is_post_visit] = stack.back();
+      stack.pop_back();
 
-    // Find the CacheEntry for this node; if not present, this will insert a
-    // default-constructed CacheEntry, with state kUnknown and empty value,
-    // which we will populate below.
-    auto& [state, cached_value] = cache_[key];
+      // If `key` is already known, we don't need to do anything.
+      if (getKnownKey(current_key)) {
+        continue;
+      }
 
-    // If this node was previously in state kInputsUnverified and any input
-    // changed, QueryValue on that input would have automatically downgraded
-    // this node to kUnverified. Therefore, if we're still in state
-    // kInputsUnverified, the stored value is still valid; we can skip
-    // recomputation.
-    if (state == CacheState::kInputsUnverified) {
+      absl::Span<const Key> inputs = provider_->GetInputs(current_key);
+      if (!is_post_visit) {
+        // Pre-visit: Push back as post-visit, then push inputs.
+        stack.push_back({current_key, true});
+        for (auto input = inputs.rbegin(); input != inputs.rend(); ++input) {
+          if (!getKnownKey(*input)) {
+            stack.push_back({*input, false});
+          }
+        }
+        continue;
+      }
+
+      // Post-visit: Compute value.
+      // Retrieve the values for all of this node's inputs.
+      input_values_buffer.clear();
+      input_values_buffer.reserve(inputs.size());
+      for (const Key& input : inputs) {
+        // All inputs should be known now.
+        auto* knownValue = getExpectedKey(input);
+        input_values_buffer.push_back(knownValue);
+      }
+
+      // Find the CacheEntry for this node; if not present, this will insert a
+      // default-constructed CacheEntry, with state kUnknown and empty value,
+      // which we will populate below.
+      auto& [state, cached_value] = cache_[current_key];
+
+      // If this node was previously in state kInputsUnverified and any input
+      // changed, QueryValue on that input would have automatically downgraded
+      // this node to kUnverified via MarkUnverified. Therefore, if we're still
+      // in state kInputsUnverified, the stored value is still valid; we can
+      // skip recomputation.
+      if (state == CacheState::kInputsUnverified) {
+        state = CacheState::kKnown;
+        continue;
+      }
+
+      absl::StatusOr<Value> new_value =
+          provider_->ComputeValue(current_key, input_values_buffer);
+      CHECK_OK(new_value);
+      if (state == CacheState::kUnverified && *new_value == *cached_value) {
+        // The value didn't change; the stored value is still valid.
+        state = CacheState::kKnown;
+        continue;
+      }
+
+      CHECK_NE(state, CacheState::kForced);
       state = CacheState::kKnown;
-      return cached_value.get();
-    }
+      cached_value = std::make_unique<Value>(*std::move(new_value));
 
-    absl::StatusOr<Value> new_value =
-        provider_->ComputeValue(key, input_values);
-    CHECK_OK(new_value);
-    if (state == CacheState::kUnverified && *new_value == *cached_value) {
-      // The value didn't change; the stored value is still valid.
-      state = CacheState::kKnown;
-      return cached_value.get();
-    }
-
-    CHECK_NE(state, CacheState::kForced);
-    state = CacheState::kKnown;
-    cached_value = std::make_unique<Value>(*std::move(new_value));
-
-    // Our stored value changed; make sure we downgrade any users that were
-    // previously kInputsUnverified to kUnverified.
-    for (const Key& user : provider_->GetUsers(key)) {
-      if (GetCacheState(user) == CacheState::kInputsUnverified) {
-        MarkUnverified(user);
+      // Our stored value changed; make sure we downgrade any users that were
+      // previously kInputsUnverified to kUnverified.
+      for (const Key& user : provider_->GetUsers(current_key)) {
+        if (GetCacheState(user) == CacheState::kInputsUnverified) {
+          MarkUnverified(user);
+        }
       }
     }
-    return cached_value.get();
+
+    return getExpectedKey(key);
   }
 
   // Eagerly computes the values for all nodes in the DAG that do not have known
