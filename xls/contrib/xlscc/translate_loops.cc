@@ -291,6 +291,9 @@ Translator::GenerateIR_LoopImplImpl(
   IOOp* begin_op = nullptr;
 
   if (add_loop_jump) {
+    if (!merge_states_) {
+      XLS_RETURN_IF_ERROR(InsertActivationBarrier(/*conditional=*/false, loc));
+    }
     XLS_ASSIGN_OR_RETURN(begin_op, GenerateIR_AddLoopBegin(loc));
   }
 

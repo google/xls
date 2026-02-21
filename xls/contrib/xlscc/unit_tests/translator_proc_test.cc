@@ -24,6 +24,7 @@
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/match.h"
@@ -32,6 +33,7 @@
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
@@ -95,7 +97,7 @@ std::string GetTestInfo(const ::testing::TestParamInfo<TestParams>& info) {
   return absl::StrFormat(
       "With%sFSM%s%s", info.param.generate_new_fsm ? "New" : "Old",
       info.param.split_states_on_channel_ops ? "_SplitOnChannelOps" : "",
-      info.param.merge_states ? "_MergeStates" : "");
+      info.param.merge_states ? "" : "_BarrierBeforeLoop");
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -113,8 +115,16 @@ INSTANTIATE_TEST_SUITE_P(
                       .merge_states = true,
                       .split_states_on_channel_ops = true},
            TestParams{.generate_new_fsm = true,
+                      .merge_states = false,
                       .split_states_on_channel_ops = false},
            TestParams{.generate_new_fsm = true,
+                      .merge_states = false,
+                      .split_states_on_channel_ops = true},
+           TestParams{.generate_new_fsm = true,
+                      .merge_states = true,
+                      .split_states_on_channel_ops = false},
+           TestParams{.generate_new_fsm = true,
+                      .merge_states = true,
                       .split_states_on_channel_ops = true}),
     GetTestInfo);
 
@@ -145,6 +155,47 @@ INSTANTIATE_TEST_SUITE_P(
                       .merge_states = true,
                       .split_states_on_channel_ops = true}),
     GetTestInfo);
+
+class TranslatorProcTest_NewFSMOnly
+    : public TranslatorProcTestWithoutFSMParam,
+      public ::testing::WithParamInterface<TestParams> {
+ protected:
+  TranslatorProcTest_NewFSMOnly() {
+    generate_new_fsm_ = GetParam().generate_new_fsm;
+    merge_states_ = GetParam().merge_states;
+    split_states_on_channel_ops_ = GetParam().split_states_on_channel_ops;
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    TranslatorProcTest_NewFSMOnly, TranslatorProcTest_NewFSMOnly,
+    Values(TestParams{.generate_new_fsm = true,
+                      .merge_states = false,
+                      .split_states_on_channel_ops = false},
+           TestParams{.generate_new_fsm = true,
+                      .merge_states = false,
+                      .split_states_on_channel_ops = true},
+           TestParams{.generate_new_fsm = true,
+                      .merge_states = true,
+                      .split_states_on_channel_ops = false},
+           TestParams{.generate_new_fsm = true,
+                      .merge_states = true,
+                      .split_states_on_channel_ops = true}),
+    GetTestInfo);
+
+bool ContainsToken(const xls::Type* type) {
+  if (type->IsToken()) {
+    return true;
+  }
+  if (type->IsTuple()) {
+    for (const xls::Type* element : type->AsTupleOrDie()->element_types()) {
+      if (ContainsToken(element)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 TEST_P(TranslatorProcTest, IOProcMux) {
   const std::string content = R"(
@@ -9470,10 +9521,18 @@ TEST_P(TranslatorProcTest, ForPartiallyUnrolled) {
   // 2 iterations on 4 inputs, single state
   int64_t min_ticks = 8, max_ticks = 8;
 
-  if (!merge_states_ && !generate_new_fsm_) {
-    // 4 inputs/activations: 2 IO states, loop state iterates 2x
-    min_ticks = 16;
-    max_ticks = 16;
+  if (generate_new_fsm_) {
+    // New FSM just inserts one extra activation (barrier) before the loop.
+    if (!merge_states_) {
+      min_ticks += 4;
+      max_ticks += 4;
+    }
+  } else {
+    if (!merge_states_) {
+      // 4 inputs/activations: 2 IO states, loop state iterates 2x
+      min_ticks = 16;
+      max_ticks = 16;
+    }
   }
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
@@ -9574,10 +9633,18 @@ TEST_P(TranslatorProcTest, ForFullyPipelined) {
   // 4 iterations on 4 inputs, single state
   int64_t min_ticks = 16, max_ticks = 16;
 
-  if (!merge_states_ && !generate_new_fsm_) {
-    // 4 inputs/activations: 2 IO states, loop state iterates 4x
-    min_ticks = 24;
-    max_ticks = 24;
+  if (generate_new_fsm_) {
+    if (!merge_states_) {
+      // New FSM just inserts one extra activation (barrier) before the loop.
+      min_ticks += 4;
+      max_ticks += 4;
+    }
+  } else {
+    if (!merge_states_) {
+      // 4 inputs/activations: 2 IO states, loop state iterates 4x
+      min_ticks = 24;
+      max_ticks = 24;
+    }
   }
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
@@ -9629,10 +9696,18 @@ TEST_P(TranslatorProcTest, ForFullyPipelinedInferredByDefault) {
   // 4 iterations on 4 inputs, single state
   int64_t min_ticks = 16, max_ticks = 16;
 
-  if (!merge_states_ && !generate_new_fsm_) {
-    // 4 inputs/activations: 2 IO states, loop state iterates 4x
-    min_ticks = 24;
-    max_ticks = 24;
+  if (generate_new_fsm_) {
+    if (!merge_states_) {
+      // New FSM just inserts one extra activation (barrier) before the loop.
+      min_ticks += 4;
+      max_ticks += 4;
+    }
+  } else {
+    if (!merge_states_) {
+      // 4 inputs/activations: 2 IO states, loop state iterates 4x
+      min_ticks = 24;
+      max_ticks = 24;
+    }
   }
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
@@ -9726,10 +9801,22 @@ TEST_P(TranslatorProcTest, ForFullyPipelinedInferredInner) {
   // 4 iterations on 4 inputs, single state
   int64_t min_ticks = 16, max_ticks = 16;
 
-  if (!merge_states_ && !generate_new_fsm_) {
-    // 4 inputs/activations: 2 IO states, loop state iterates 4x
-    min_ticks = 24;
-    max_ticks = 24;
+  if (generate_new_fsm_) {
+    if (!merge_states_) {
+      // Account for barrier before the outer loop
+      min_ticks += 4;
+      max_ticks += 4;
+
+      // Account for barrier before the inner loop
+      min_ticks += 4 * 2;
+      max_ticks += 4 * 2;
+    }
+  } else {
+    if (!merge_states_) {
+      // 4 inputs/activations: 2 IO states, loop state iterates 4x
+      min_ticks = 24;
+      max_ticks = 24;
+    }
   }
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
@@ -10399,6 +10486,195 @@ TEST_P(TranslatorProcTest, PassthroughFeedbackOrder) {
              /* min_ticks = */ 1,
              /* max_ticks = */ 100,
              /* top_level_init_interval = */ 1);
+  }
+}
+
+TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrier) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int x = in.read();
+          __xlscc_activation_barrier</*conditional=*/false>();
+          out.write(3 * x);
+         }
+      };)";
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(3, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(9, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/2);
+  }
+}
+
+TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrierConditional) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int x = in.read();
+          if (x == 42) {
+            __xlscc_activation_barrier</*conditional=*/true>();
+          }
+          out.write(3 * x);
+         }
+      };)";
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(3, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(9, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/1, /*max_ticks=*/1);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(42, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(42 * 3, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/2);
+  }
+}
+
+TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrierUnconditionalInIf) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int x = in.read();
+          if (x == 42) {
+            __xlscc_activation_barrier</*conditional=*/false>();
+          }
+          out.write(3 * x);
+         }
+      };)";
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(3, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(9, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/2);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(42, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(42 * 3, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/2);
+  }
+}
+
+TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrierInLoop) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          [[hls_pipeline_init_interval(1)]]
+          for (int i=0;i<4;++i) {
+            int x = in.read();
+            if (i >= 2) {
+              __xlscc_activation_barrier</*conditional=*/true>();
+            }
+            out.write(3 * x);
+          }
+         }
+      };)";
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {
+        xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(4, 32)),
+        xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(6, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(9, 32)), xls::Value(xls::SBits(12, 32)),
+        xls::Value(xls::SBits(15, 32)), xls::Value(xls::SBits(18, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/6, /*max_ticks=*/6);
+  }
+}
+
+TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrierAtBeginning) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          __xlscc_activation_barrier</*conditional=*/false>();
+          int x = in.read();
+          out.write(3 * x);
+         }
+      };)";
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(42, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(42 * 3, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/1, /*max_ticks=*/1);
+  }
+}
+
+TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrierAtEnd) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int x = in.read();
+          out.write(3 * x);
+          __xlscc_activation_barrier</*conditional=*/false>();
+         }
+      };)";
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(42, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(42 * 3, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/1, /*max_ticks=*/1);
   }
 }
 

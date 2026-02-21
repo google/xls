@@ -69,8 +69,7 @@ class FSMLayoutTest : public XlsccTestBase {
                              package_.get(), top_channel_injections));
 
     NewFSMGenerator generator(*translator_, *translator_,
-                              DebugIrTraceFlags_FSMStates,
-                              split_states_on_channel_ops_);
+                              DebugIrTraceFlags_FSMStates);
 
     absl::flat_hash_map<DeclLeaf, xls::StateElement*> state_element_for_static;
 
@@ -228,14 +227,26 @@ class FSMLayoutTest : public XlsccTestBase {
 
   void ExpectSliceTransition(const NewFSMLayout layout,
                              int64_t from_slice_index, int64_t to_slice_index,
-                             bool unconditional) {
-    EXPECT_TRUE(
-        layout.transition_by_slice_from_index.contains(from_slice_index));
+                             bool conditional, bool forward) {
+    const bool has_transition =
+        layout.transition_by_slice_from_index.contains(from_slice_index);
+    EXPECT_TRUE(has_transition);
+    if (!has_transition) {
+      return;
+    }
     const NewFSMActivationTransition& transition =
         layout.transition_by_slice_from_index.at(from_slice_index);
     EXPECT_EQ(transition.from_slice, from_slice_index);
     EXPECT_EQ(transition.to_slice, to_slice_index);
-    EXPECT_EQ(transition.unconditional_forward, unconditional);
+    EXPECT_EQ(transition.conditional, conditional);
+    EXPECT_EQ(transition.forward, forward);
+  }
+
+  void ExpectNoSliceTransition(const NewFSMLayout layout,
+                               int64_t from_slice_index) {
+    const bool has_transition =
+        layout.transition_by_slice_from_index.contains(from_slice_index);
+    EXPECT_FALSE(has_transition);
   }
 };
 
@@ -394,7 +405,7 @@ TEST_F(FSMLayoutTest, PipelinedLoop) {
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
   ExpectSliceTransition(layout, /*from_slice_index=*/2, /*to_slice_index=*/2,
-                        /*unconditional=*/false);
+                        /*conditional=*/true, /*forward=*/false);
 
   EXPECT_TRUE(StateInputsDecl(layout, /*slice_index=*/2,
                               /*jumped_from_slice_indices=*/{}, "r",
@@ -491,7 +502,7 @@ TEST_F(FSMLayoutTest, PipelinedLoopConstantPropagation) {
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
   ExpectSliceTransition(layout, /*from_slice_index=*/2, /*to_slice_index=*/2,
-                        /*unconditional=*/false);
+                        /*conditional=*/true, /*forward=*/false);
 
   EXPECT_TRUE(StateInputsDecl(layout, /*slice_index=*/2,
                               /*jumped_from_slice_indices=*/{}, "r",
@@ -589,7 +600,7 @@ TEST_F(FSMLayoutTest, PipelinedLoopBypass) {
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
   ExpectSliceTransition(layout, /*from_slice_index=*/2, /*to_slice_index=*/2,
-                        /*unconditional=*/false);
+                        /*conditional=*/true, /*forward=*/false);
 
   EXPECT_FALSE(StateInputsDecl(layout, /*slice_index=*/2,
                                /*jumped_from_slice_indices=*/{}, "r"));
@@ -633,9 +644,9 @@ TEST_F(FSMLayoutTest, PipelinedLoopNested) {
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
   ExpectSliceTransition(layout, /*from_slice_index=*/3, /*to_slice_index=*/3,
-                        /*unconditional=*/false);
+                        /*conditional=*/true, /*forward=*/false);
   ExpectSliceTransition(layout, /*from_slice_index=*/4, /*to_slice_index=*/2,
-                        /*unconditional=*/false);
+                        /*conditional=*/true, /*forward=*/false);
 
   for (const NewFSMState& state : layout.states) {
     EXPECT_LE(StateSavesDeclCount(state, "j"), 1);
@@ -725,9 +736,9 @@ TEST_F(FSMLayoutTest, IOActivationTransitions) {
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
   ExpectSliceTransition(layout, /*from_slice_index=*/2, /*to_slice_index=*/3,
-                        /*unconditional=*/true);
+                        /*conditional=*/false, /*forward=*/true);
   ExpectSliceTransition(layout, /*from_slice_index=*/6, /*to_slice_index=*/7,
-                        /*unconditional=*/true);
+                        /*conditional=*/false, /*forward=*/true);
 
   const ContinuationValue* x_value = nullptr;
   ASSERT_TRUE(x_value = StateSavesDecl(layout, /*slice_index=*/2,
@@ -751,7 +762,7 @@ TEST_F(FSMLayoutTest, IOActivationTransitionsMultiTransition) {
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
   ExpectSliceTransition(layout, /*from_slice_index=*/4, /*to_slice_index=*/5,
-                        /*unconditional=*/true);
+                        /*conditional=*/false, /*forward=*/true);
 }
 
 TEST_F(FSMLayoutTest, IOActivationTransitionsNoTransition) {
@@ -886,6 +897,96 @@ TEST_F(FSMLayoutTest, StaticStateElementLeafSharedByRef) {
       GenerateTopFunction(content, &state_element_for_static));
 
   ASSERT_EQ(layout.state_elements.size(), 2);
+}
+
+TEST_F(FSMLayoutTest, ActivationBarrier) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      __xlscc_activation_barrier</*conditional=*/true>();
+      out.write(x);
+    })";
+  split_states_on_channel_ops_ = false;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  ExpectSliceTransition(layout, /*from_slice_index=*/1, /*to_slice_index=*/2,
+                        /*conditional=*/true, /*forward=*/true);
+}
+
+TEST_F(FSMLayoutTest, ActivationBarrierUnconditional) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      __xlscc_activation_barrier</*conditional=*/false>();
+      out.write(x);
+    })";
+  split_states_on_channel_ops_ = false;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  ExpectSliceTransition(layout, /*from_slice_index=*/1, /*to_slice_index=*/2,
+                        /*conditional=*/false, /*forward=*/true);
+}
+
+TEST_F(FSMLayoutTest, ActivationBarrierAtBeginning) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      __xlscc_activation_barrier</*conditional=*/true>();
+      const int x = in.read();
+      out.write(x);
+    })";
+  split_states_on_channel_ops_ = false;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  ExpectNoSliceTransition(layout, /*from_slice_index=*/0);
+}
+
+TEST_F(FSMLayoutTest, ActivationBarrierAtEnd) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      out.write(x);
+      __xlscc_activation_barrier</*conditional=*/true>();
+    })";
+  split_states_on_channel_ops_ = false;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  ExpectNoSliceTransition(layout, /*from_slice_index=*/1);
+}
+
+TEST_F(FSMLayoutTest, MergeStatesBarrierBeforeLoop) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int r = in.read();
+      int a = 0;
+      #pragma hls_pipeline_init_interval 1
+      for (int i=0;i<10;++i) {
+        a += r;
+      }
+      out.write(a);
+    })";
+  split_states_on_channel_ops_ = false;
+  merge_states_ = false;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  ExpectSliceTransition(layout, /*from_slice_index=*/1, /*to_slice_index=*/2,
+                        /*conditional=*/false, /*forward=*/true);
+  ExpectSliceTransition(layout, /*from_slice_index=*/3, /*to_slice_index=*/3,
+                        /*conditional=*/true, /*forward=*/false);
 }
 
 }  // namespace

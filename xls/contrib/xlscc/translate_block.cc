@@ -580,8 +580,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   GenerateFSMInvocationReturn fsm_ret;
   if (generate_new_fsm_) {
-    NewFSMGenerator generator(*this, *this, debug_ir_trace_flags_,
-                              split_states_on_channel_ops_);
+    NewFSMGenerator generator(*this, *this, debug_ir_trace_flags_);
     XLS_ASSIGN_OR_RETURN(
         fsm_ret,
         generator.GenerateNewFSMInvocation(
@@ -2234,7 +2233,7 @@ Translator::GenerateIRBlockPrepare(
 std::optional<ChannelBundle> Translator::GetChannelBundleForOp(
     const IOOp& op, const xls::SourceInfo& loc) {
   if (op.op == OpType::kTrace || op.op == OpType::kLoopBegin ||
-      op.op == OpType::kLoopEndJump) {
+      op.op == OpType::kLoopEndJump || op.op == OpType::kActivationBarrier) {
     return std::nullopt;
   }
 
@@ -2383,6 +2382,7 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
                                       elem->name(), priority_it->first));
         TrackedBValue one_hot_wide =
             pb.OneHot(conditions_bval, xls::LsbOrMsb::kMsb, loc);
+        // Remove added MSBit
         TrackedBValue one_hot =
             pb.BitSlice(one_hot_wide, /*start=*/0,
                         /*width=*/conditions_this_priority.size(), loc);

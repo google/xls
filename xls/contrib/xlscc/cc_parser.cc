@@ -1348,6 +1348,11 @@ void __xlscc_assert(const char*message, bool condition, const char*label=nullptr
 // See XLS IR trace op format
 void __xlscc_trace(const char*fmt, ...) { }
 
+// Forces the FSM to a new activation / initiation.
+// The transition will be conditional on the context like an IO operation.
+template<bool conditional>
+void __xlscc_activation_barrier() { }
+
 bool __xlscc_on_reset = false;
 
 // Returns bits for 32.32 fixed point representation

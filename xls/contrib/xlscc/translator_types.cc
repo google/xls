@@ -1292,6 +1292,9 @@ std::string Debug_OpName(const IOOp& op) {
   if (op.op == OpType::kLoopBegin || op.op == OpType::kLoopEndJump) {
     return op.op == OpType::kLoopBegin ? "begin" : "jump";
   }
+  if (op.op == OpType::kActivationBarrier) {
+    return "activation_barrier";
+  }
   if (op.channel != nullptr) {
     std::string op_type_name;
     switch (op.op) {

@@ -94,7 +94,8 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
   context().any_io_ops_requested = true;
 
   CHECK(op.op == OpType::kTrace || op.op == OpType::kLoopBegin ||
-        op.op == OpType::kLoopEndJump || channel != nullptr);
+        op.op == OpType::kLoopEndJump || op.op == OpType::kActivationBarrier ||
+        channel != nullptr);
   CHECK_EQ(op.channel, nullptr);
 
   const bool masked = OpIsMasked(op);
@@ -103,7 +104,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
     IOOpReturn ret;
     ret.generate_expr = false;
     if (op.op != OpType::kTrace && op.op != OpType::kLoopBegin &&
-        op.op != OpType::kLoopEndJump) {
+        op.op != OpType::kLoopEndJump && op.op != OpType::kActivationBarrier) {
       XLS_ASSIGN_OR_RETURN(TrackedBValue default_bval,
                            CreateMaskedIOOpInput(channel, loc));
       op.input_value = CValue(default_bval, channel->item_type);
@@ -819,7 +820,8 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
           loc);
       break;
     case OpType::kLoopEndJump:
-    case OpType::kLoopBegin: {
+    case OpType::kLoopBegin:
+    case OpType::kActivationBarrier: {
       op_condition = retval;
       break;
     }
@@ -873,7 +875,8 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
           loc);
       break;
     case OpType::kLoopBegin:
-    case OpType::kLoopEndJump: {
+    case OpType::kLoopEndJump:
+    case OpType::kActivationBarrier: {
       new_retval = op_condition;
       break;
     }
@@ -929,8 +932,10 @@ absl::StatusOr<TrackedBValue> Translator::GetOpCondition(
 
   switch (op.op) {
     case OpType::kRecv:
+    case OpType::kActivationBarrier: {
       io_condition = ret_val;
       break;
+    }
     case OpType::kTrace: {
       switch (op.trace_type) {
         case TraceType::kNull:
@@ -1121,7 +1126,8 @@ absl::StatusOr<GenerateIOReturn> Translator::GenerateIO(
     // Condition not recorded
     XLS_ASSIGN_OR_RETURN(new_token, GenerateTrace(ret_io_value, before_token,
                                                   condition, op, pb));
-  } else if (op.op == OpType::kLoopBegin || op.op == OpType::kLoopEndJump) {
+  } else if (op.op == OpType::kLoopBegin || op.op == OpType::kLoopEndJump ||
+             op.op == OpType::kActivationBarrier) {
     // TODO: Need to do anything here?
     new_token = before_token;
   } else {

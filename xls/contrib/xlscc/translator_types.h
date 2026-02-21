@@ -453,6 +453,7 @@ enum class OpType {
   kTrace,
   kLoopBegin,
   kLoopEndJump,
+  kActivationBarrier,
 };
 enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory, kTrace };
 enum class TraceType { kNull = 0, kAssert, kTrace };
@@ -927,6 +928,9 @@ struct IOOp {
 
   // Jump has a pointer to the begin, begin has a pointer to the jump
   const IOOp* loop_op_paired = nullptr;
+
+  // Whether or not a condition is to be applied to the barrier.
+  bool activation_barrier_conditional = false;
 
   // --- Not preserved across calls ---
 

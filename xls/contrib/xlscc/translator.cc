@@ -3092,7 +3092,6 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
   if (funcdecl->getNameAsString() == "__xlscc_unimplemented") {
     return absl::UnimplementedError(ErrorMessage(loc, "Unimplemented marker"));
   }
-
   if (funcdecl->getNameAsString() == "__xlscc_fixed_32_32_bits_for_double" ||
       funcdecl->getNameAsString() == "__xlscc_fixed_32_32_bits_for_float") {
     XLSCC_CHECK_EQ(call->getNumArgs(), 1, loc);
@@ -3107,7 +3106,7 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
     return std::make_pair(true, CValue(sliced, return_type));
   }
 
-  // Tracing handled below
+  // Side-effecting handled below
   std::string message_string;
 
   if (funcdecl->getNameAsString() == "__xlscc_assert" ||
@@ -3115,6 +3114,20 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
     XLSCC_CHECK_GE(call->getNumArgs(), 1, loc);
     const clang::Expr* fmt_arg = call->getArg(0);
     XLS_ASSIGN_OR_RETURN(message_string, GetStringLiteral(fmt_arg, loc));
+  } else if (funcdecl->getNameAsString() == "__xlscc_activation_barrier") {
+    const clang::TemplateArgumentList* temp_args =
+        funcdecl->getTemplateSpecializationArgs();
+    XLSCC_CHECK(temp_args != nullptr, loc);
+    XLSCC_CHECK_EQ(temp_args->size(), 1, loc);
+
+    const clang::TemplateArgument& arg = temp_args->get(0);
+    XLSCC_CHECK_EQ(arg.getKind(), clang::TemplateArgument::Integral, loc);
+
+    const bool conditional = arg.getAsIntegral().getExtValue() != 0;
+
+    XLS_RETURN_IF_ERROR(InsertActivationBarrier(conditional, loc));
+
+    return std::make_pair(true, CValue());
   } else {
     // Not a built-in call
     return std::make_pair(false, CValue());
@@ -3169,6 +3182,23 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
   XLS_RETURN_IF_ERROR(
       AddOpToChannel(op, /*channel_param=*/nullptr, loc).status());
   return std::make_pair(true, CValue());
+}
+
+absl::Status Translator::InsertActivationBarrier(bool conditional,
+                                                 const xls::SourceInfo& loc) {
+  if (!generate_new_fsm_) {
+    return absl::InvalidArgumentError(
+        ErrorMessage(loc, "Activation barrier is only supported in new FSM."));
+  }
+
+  IOOp op = {.op = OpType::kActivationBarrier,
+             .activation_barrier_conditional = conditional,
+             .ret_value = context().full_condition_bval(loc)};
+
+  XLS_RETURN_IF_ERROR(
+      AddOpToChannel(op, /*channel_param=*/nullptr, loc).status());
+
+  return absl::OkStatus();
 }
 
 absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
@@ -4481,6 +4511,8 @@ absl::Status Translator::AddIOOpForSliceForCall(
   caller_op.label_string = callee_op.label_string;
   caller_op.scheduling_option = callee_op.scheduling_option;
   caller_op.sub_op = &callee_op;
+  caller_op.activation_barrier_conditional =
+      callee_op.activation_barrier_conditional;
 
   XLSCC_CHECK(last_slice_ret.valid(), loc);
 
@@ -4509,6 +4541,7 @@ absl::Status Translator::AddIOOpForSliceForCall(
   XLSCC_CHECK(caller_op_ptr->op == OpType::kTrace ||
                   caller_op_ptr->op == OpType::kLoopBegin ||
                   caller_op_ptr->op == OpType::kLoopEndJump ||
+                  caller_op_ptr->op == OpType::kActivationBarrier ||
                   caller_op_ptr->channel->generated.has_value() ||
                   IOChannelInCurrentFunction(caller_op_ptr->channel, loc),
               loc);

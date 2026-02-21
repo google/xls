@@ -226,7 +226,7 @@ class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
   std::unique_ptr<xlscc::Translator> translator_;
   xlscc::HLSBlock block_spec_;
   bool generate_new_fsm_ = false;
-  bool merge_states_ = false;
+  bool merge_states_ = true;
   bool split_states_on_channel_ops_ = false;
 
  protected:

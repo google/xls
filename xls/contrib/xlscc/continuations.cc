@@ -164,7 +164,7 @@ absl::Status ValidateContinuations(GeneratedFunction& func,
 
 SourcesSetNodeInfo::SourcesSetNodeInfo()
     : xls::DataFlowLazyNodeInfo<SourcesSetNodeInfo, ParamSet>(
-          /*compute_tree_for_source=*/false, /*default_to_leaf=*/false,
+          /*compute_tree_for_source=*/false, /*default_info_source=*/false,
           /*include_selectors=*/true) {}
 
 ParamSet SourcesSetNodeInfo::ComputeInfoForBitsLiteral(
@@ -197,7 +197,7 @@ ParamSet SourcesSetNodeInfo::MergeInfos(
 
 SourcesSetTreeNodeInfo::SourcesSetTreeNodeInfo()
     : xls::DataFlowLazyNodeInfo<SourcesSetTreeNodeInfo, NodeSourceSet>(
-          /*compute_tree_for_source=*/true, /*default_to_leaf=*/true,
+          /*compute_tree_for_source=*/true, /*default_info_source=*/true,
           /*include_selectors=*/false) {}
 
 NodeSourceSet SourcesSetTreeNodeInfo::ComputeInfoForBitsLiteral(
