@@ -315,7 +315,7 @@ std::string Sample::Serialize(
 
   fuzzer::CrasherConfigurationProto config;
   if (error_message.has_value()) {
-    config.set_exception(ToProtoString(error_message.value()));
+    config.set_exception(error_message.value());
   }
   // Split the D.N.S string to avoid triggering presubmit checks.
   config.set_issue(std::string("DO NOT ") +
