@@ -82,6 +82,26 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "io_printer_main",
+    srcs = ["io_printer_main.cc"],
+    deps = [
+        "//xls/codegen_v_1_5:block_conversion_pass",
+        "//xls/codegen_v_1_5:scheduling_pass",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@cppitertools",
+    ],
+)
+
 cc_library(
     name = "math_notation",
     srcs = ["math_notation.cc"],
