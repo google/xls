@@ -156,6 +156,7 @@ def _xls_aot_generate_impl(ctx):
         mnemonic = "AOTCompiling",
         progress_message = "Aot(JIT)Compiling %{label}: %{input}",
         toolchain = None,
+        execution_requirements = {tag: "" for tag in ctx.attr.tags},
     )
 
     # Skeleton run to create the proto file.
@@ -167,6 +168,7 @@ def _xls_aot_generate_impl(ctx):
         mnemonic = "AotSkeleton",
         progress_message = "Generating AOT skeleton %{label}: %{input}",
         toolchain = None,
+        execution_requirements = {tag: "" for tag in ctx.attr.tags},
     )
 
     obj_file_outputs = cc_common.create_compilation_outputs(
