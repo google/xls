@@ -54,10 +54,14 @@ TEST(WarningKindTest, InitializerListHasAllKinds) {
 
 TEST(WarningKindTest, DefaultSetAnyMissing) {
   ASSERT_TRUE(WarningIsEnabled(kAllWarningsSet, WarningKind::kShouldUseAssert));
+  ASSERT_TRUE(
+      WarningIsEnabled(kAllWarningsSet, WarningKind::kKeywordParameterName));
 
   // Currently "should use assert" warning is disabled for propagation delay.
   ASSERT_FALSE(
       WarningIsEnabled(kDefaultWarningsSet, WarningKind::kShouldUseAssert));
+  ASSERT_FALSE(WarningIsEnabled(kDefaultWarningsSet,
+                                WarningKind::kKeywordParameterName));
 }
 
 TEST(WarningKindTest, Complement) {
