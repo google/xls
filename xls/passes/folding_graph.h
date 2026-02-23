@@ -203,10 +203,10 @@ class FoldingGraph {
   std::vector<BinaryFoldingAction*> GetEdges() const;
 
   // This function returns the in-degree of the node @n.
-  uint64_t GetInDegree(Node* n) const;
+  uint64_t GetInDegree(const Node* n) const;
 
   // This function returns the out-degree of the node @n.
-  uint64_t GetOutDegree(Node* n) const;
+  uint64_t GetOutDegree(const Node* n) const;
 
   // This function returns all the edges of the folding graph that have @n as
   // destination.

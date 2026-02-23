@@ -267,14 +267,14 @@ std::vector<BinaryFoldingAction*> FoldingGraph::GetEdges() const {
   return edges;
 }
 
-uint64_t FoldingGraph::GetInDegree(Node* n) const {
+uint64_t FoldingGraph::GetInDegree(const Node* n) const {
   NodeIndex node_id = node_to_index_.at(n);
   uint64_t in_degree = graph_->InDegree(node_id);
 
   return in_degree;
 }
 
-uint64_t FoldingGraph::GetOutDegree(Node* n) const {
+uint64_t FoldingGraph::GetOutDegree(const Node* n) const {
   NodeIndex node_id = node_to_index_.at(n);
   uint64_t out_degree = graph_->OutDegree(node_id);
 
