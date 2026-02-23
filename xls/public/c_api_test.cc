@@ -2301,9 +2301,8 @@ top fn add_one(x: bits[8]) -> bits[8] {
   size_t trace_messages_count = 0;
   size_t assert_messages_count = 0;
   int64_t continuation = xls_aot_entrypoint_trampoline(
-      static_cast<uintptr_t>(packed_address.getValue()), inputs, outputs,
-      temp_buffer, context, /*continuation_point=*/0, &trace_messages_count,
-      &assert_messages_count);
+      packed_address.toPtr<void*>(), inputs, outputs, temp_buffer, context,
+      /*continuation_point=*/0, &trace_messages_count, &assert_messages_count);
 
   EXPECT_EQ(continuation, 0);
   EXPECT_EQ(output, 42);
