@@ -1545,10 +1545,10 @@ void xls_aot_exec_context_free(struct xls_aot_exec_context* context) {
 }
 
 int64_t xls_aot_entrypoint_trampoline(
-    uintptr_t function_ptr, const uint8_t* const* inputs,
-    uint8_t* const* outputs, void* temp_buffer,
-    struct xls_aot_exec_context* context, int64_t continuation_point,
-    size_t* trace_messages_count_out, size_t* assert_messages_count_out) {
+    void* function_ptr, const uint8_t* const* inputs, uint8_t* const* outputs,
+    void* temp_buffer, struct xls_aot_exec_context* context,
+    int64_t continuation_point, size_t* trace_messages_count_out,
+    size_t* assert_messages_count_out) {
   CHECK(function_ptr != 0);
   CHECK(inputs != nullptr);
   CHECK(outputs != nullptr);

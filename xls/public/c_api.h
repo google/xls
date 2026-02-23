@@ -570,10 +570,10 @@ void xls_aot_exec_context_free(struct xls_aot_exec_context* context);
 // `function_ptr` must be the symbol address of an AOT entrypoint compatible
 // with the `JitFunctionType` ABI.
 int64_t xls_aot_entrypoint_trampoline(
-    uintptr_t function_ptr, const uint8_t* const* inputs,
-    uint8_t* const* outputs, void* temp_buffer,
-    struct xls_aot_exec_context* context, int64_t continuation_point,
-    size_t* trace_messages_count_out, size_t* assert_messages_count_out);
+    void* function_ptr, const uint8_t* const* inputs, uint8_t* const* outputs,
+    void* temp_buffer, struct xls_aot_exec_context* context,
+    int64_t continuation_point, size_t* trace_messages_count_out,
+    size_t* assert_messages_count_out);
 
 struct xls_trace_message {
   char* message;
