@@ -61,6 +61,7 @@ py_proto_library(
 xls_default_pass_registry(
     name = "passes",
     tags = ["keep_dep"],
+    visibility = ["//xls:xls_users"],
 )
 
 xls_pass_registry(
