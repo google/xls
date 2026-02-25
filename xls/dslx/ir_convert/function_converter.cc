@@ -819,18 +819,27 @@ absl::Status FunctionConverter::HandleParam(const Param* node) {
   VLOG(5) << "FunctionConverter::HandleParam: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
                        ResolveTypeToIr(node->type_annotation()));
-  Def(node->name_def(), [&](const SourceInfo& loc) {
+  BValue param = Def(node->name_def(), [&](const SourceInfo& loc) {
     return function_builder_->Param(node->identifier(), type);
   });
+  if (is_top_ && param.GetName() != node->identifier()) {
+    return IrConversionErrorStatus(
+        node->span(),
+        absl::StrFormat(
+            "Top function parameter name `%s` would be changed to `%s` in IR. "
+            "Choose a different name.",
+            node->identifier(), param.GetName()),
+        file_table());
+  }
   XLS_RET_CHECK(function_proto_);
-  PackageInterfaceProto::NamedValue* param =
+  PackageInterfaceProto::NamedValue* param_proto =
       function_proto_.value()->add_parameters();
-  param->set_name(node->identifier());
-  *param->mutable_type() = type->ToProto();
+  param_proto->set_name(node->identifier());
+  *param_proto->mutable_type() = type->ToProto();
   XLS_ASSIGN_OR_RETURN(std::optional<std::string> sv_value,
                        current_type_info_->FindSvType(node->type_annotation()));
   if (sv_value) {
-    param->set_sv_type(*sv_value);
+    param_proto->set_sv_type(*sv_value);
   }
   return absl::OkStatus();
 }
