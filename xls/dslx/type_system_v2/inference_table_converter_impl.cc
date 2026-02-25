@@ -1116,12 +1116,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return type.status();
     }
 
-    // Mark NameDef's concretized type to tell if it is actually unused.
     if (semantics_analysis_) {
+      // Mark NameDef's concretized type to tell if it is actually unused.
       if (node->kind() == AstNodeKind::kNameDef) {
         semantics_analysis_->SetNameDefType(
             absl::down_cast<const NameDef*>(node), type->get());
       }
+
+      XLS_RETURN_IF_ERROR(semantics_analysis_->TrackIODependency(node));
     }
 
     XLS_RETURN_IF_ERROR(
