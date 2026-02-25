@@ -87,7 +87,7 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_D
         const _BYTES_PER_TRANSACTION = (AXI_ADDR_W / u32:8) as u8;
 
         // receive and store ctrl
-        let (_, ctrl, ctrl_valid) = recv_if_non_blocking(join(), ctrl_r, state.ctrl.len == state.bytes_sent, zero!<Ctrl>());
+        let (tok, ctrl, ctrl_valid) = recv_if_non_blocking(join(), ctrl_r, state.ctrl.len == state.bytes_sent, zero!<Ctrl>());
 
         let state = if ctrl_valid {
             trace_fmt!("[HuffmanAxiReader] Received CTRL {:#x}", ctrl);
@@ -105,7 +105,7 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_D
             length: uN[AXI_ADDR_W]:1
         };
         let do_send_mem_rd_req = (state.bytes_requested < state.ctrl.len);
-        send_if(join(), mem_rd_req_s, do_send_mem_rd_req, mem_rd_req);
+        send_if(tok, mem_rd_req_s, do_send_mem_rd_req, mem_rd_req);
         if (do_send_mem_rd_req) {
             trace_fmt!("[HuffmanAxiReader] Sent memory read request {:#x}", mem_rd_req);
         } else {};
