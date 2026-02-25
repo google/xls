@@ -67,9 +67,11 @@ proc Delay0or1<DATA_WIDTH:u32, DELAY_IS_ONE:bool, INIT_DATA:u32> {
 
     next (prev_recv: bits[DATA_WIDTH]) {
         let (recv_tok, next_recv) = recv(join(), data_in);
-        let to_send = if (DELAY_IS_ONE) { prev_recv } else { next_recv };
-        trace!(DELAY_IS_ONE);
-        let send_tok = send(join(), data_out, to_send);
+        const if DELAY_IS_ONE {
+            send(join(), data_out, prev_recv);
+        } else {
+            send(recv_tok, data_out, next_recv);
+        };
         (next_recv)
     }
 }
