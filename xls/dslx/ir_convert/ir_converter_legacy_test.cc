@@ -4029,33 +4029,6 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterLegacyTest, ProcMemberInDynamicLoopUnsupported) {
-  constexpr std::string_view program = R"(
-proc Proc {
-  inputs: chan<s32>[2] in;
-  outputs: chan<s32>[2] out;
-  config() {
-    let (a, b) = chan<s32>[2]("c");
-    (b, a)
-  }
-  init { () }
-  next(state: ()) {
-    let tok = join();
-    for (i, _) in u32:0..u32:2 {
-        recv(tok, inputs[i]);
-        send(tok, outputs[i], s32:1);
-    } (());
-  }
-}
-)";
-  EXPECT_THAT(
-      ConvertModuleForTest(program),
-      StatusIs(
-          absl::StatusCode::kUnimplemented,
-          HasSubstr(
-              "Accessing proc member in non-unrolled loop is unsupported")));
-}
-
 TEST_F(IrConverterLegacyTest, GenericTypePassthroughFunction) {
   if (TypeInferenceVersion::kVersion2 == TypeInferenceVersion::kVersion1) {
     return;

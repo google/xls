@@ -360,6 +360,13 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleIndex(const Index* index) override {
+    if (type_.IsChannel() && std::holds_alternative<Expr*>(index->rhs()) &&
+        !Evaluate(std::get<Expr*>(index->rhs())).ok()) {
+      return xls::dslx::TypeInferenceErrorStatus(
+          index->span(), &type_,
+          "Non-constexpr value used in channel array indexing", file_table_);
+    }
+
     // A `Slice` actually has its bounds stored in `TypeInfo` out-of-band from
     // the real type info, mirroring the `StartAndWidthExprs` that we store in
     // the `InferenceTable`.
