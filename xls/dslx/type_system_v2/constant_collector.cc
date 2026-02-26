@@ -86,6 +86,21 @@ class Visitor : public AstNodeVisitorWithDefault {
         ti_(ti),
         trace_(std::move(trace)) {}
 
+  absl::Status HandleBinop(const Binop* binop) override {
+    // See TODO comment in ConstexprEvaluator::InterpretExpr(const Expr*).
+    bool warn_rollover =
+        binop->parent() && binop->parent()->kind() ==
+                           AstNodeKind::kParametricBinding;
+    absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+        &import_data_, ti_, &warning_collector_,
+        table_.GetParametricEnv(parametric_context_), binop);
+    if (value.ok()) {
+      trace_.SetResult(*value);
+      ti_->NoteConstExpr(binop, *value);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleConstantDef(const ConstantDef* constant_def) override {
     VLOG(6) << "Checking constant def value: " << constant_def->ToString()
             << " with type: " << type_.ToString();
