@@ -320,15 +320,20 @@ enum class ChannelStrictness : uint8_t {
   // Requires that channel operations be formally proven to be mutually
   // exclusive by Z3.
   kProvenMutuallyExclusive,
-  // Requires that channel operations be mutually exclusive- enforced during
+  // Requires that channel operations be mutually exclusive - enforced during
   // simulation via assertions.
   kRuntimeMutuallyExclusive,
   // For each proc, requires a total order on all operations on a channel. Note:
   // operations from different procs will not be ordered with respect to each
   // other.
   kTotalOrder,
-  // Requires that a total order exists on every subset of channel operations
-  // that fires at runtime. Adds assertions.
+  // Requires that all operations on a channel are either mutually exclusive or
+  // are ordered with respect to each other; requires that we can prove mutual
+  // exclusion.
+  kProvenOrdered,
+  // Requires that all operations on a channel are either mutually exclusive or
+  // are ordered with respect to each other; mutual exclusion is enforced during
+  // simulation via assertions.
   kRuntimeOrdered,
   // For each proc, an arbitrary (respecting existing token relationships)
   // static priority is chosen for multiple channel operations. Operations

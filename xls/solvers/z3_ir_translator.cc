@@ -50,6 +50,8 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -1745,6 +1747,55 @@ namespace {
 
 enum class PredicateCombination : std::uint8_t { kDisjunction, kConjunction };
 
+absl::StatusOr<ProverResult> SolveAndGetResult(FunctionBase* f,
+                                               IrTranslator* translator,
+                                               Z3_ast objective) {
+  Z3_context ctx = translator->ctx();
+  VLOG(1) << "objective:\n" << Z3_ast_to_string(ctx, objective);
+  Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+  auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
+
+  Z3_solver_assert(ctx, solver, objective);
+  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+
+  VLOG(1) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
+  switch (satisfiable) {
+    case Z3_L_FALSE:
+      // Unsatisfiable; no value contradicts the claim, so the result is true.
+      return ProvenTrue();
+    case Z3_L_TRUE: {
+      // Satisfiable; found a value that contradicts the claim.
+      absl::StatusOr<absl::flat_hash_map<const Param*, Value>> counterexample =
+          absl::flat_hash_map<const Param*, Value>();
+      auto model = Z3_solver_get_model(ctx, solver);
+      for (Node* node : f->nodes()) {
+        if (!node->Is<Param>()) {
+          // This node doesn't produce inputs to the circuit.
+          continue;
+        }
+        absl::StatusOr<Value> value = NodeValue(
+            ctx, model, translator->GetTranslation(node), node->GetType());
+        if (value.ok()) {
+          counterexample->emplace(node->As<Param>(), *std::move(value));
+        } else {
+          counterexample = std::move(value).status();
+          break;
+        }
+      }
+      return ProvenFalse{
+          .counterexample = std::move(counterexample),
+          .message =
+              solvers::z3::SolverResultToString(ctx, solver, satisfiable),
+      };
+    }
+    case Z3_L_UNDEF:
+      // No result; timeout.
+      return absl::DeadlineExceededError("Z3 solver timed out");
+  }
+
+  return absl::InternalError(absl::StrCat("Invalid Z3 result: ", satisfiable));
+}
+
 absl::StatusOr<ProverResult> TryProveCombination(
     FunctionBase* f, std::unique_ptr<IrTranslator> translator,
     absl::Span<const PredicateOfNode> terms,
@@ -1781,46 +1832,7 @@ absl::StatusOr<ProverResult> TryProveCombination(
   CHECK(objective.has_value());
   CHECK(objective.value() != nullptr);
 
-  Z3_context ctx = translator->ctx();
-  VLOG(1) << "objective:\n" << Z3_ast_to_string(ctx, objective.value());
-  Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
-  auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
-
-  Z3_solver_assert(ctx, solver, objective.value());
-  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
-
-  VLOG(1) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
-  switch (satisfiable) {
-    case Z3_L_FALSE:
-      // Unsatisfiable; no value contradicts the claim, so the result is true.
-      return ProvenTrue();
-    case Z3_L_TRUE: {
-      // Satisfiable; found a value that contradicts the claim.
-      absl::StatusOr<absl::flat_hash_map<const Param*, Value>> counterexample =
-          absl::flat_hash_map<const Param*, Value>();
-      auto model = Z3_solver_get_model(ctx, solver);
-      for (const Param* param : f->params()) {
-        absl::StatusOr<Value> value = NodeValue(
-            ctx, model, translator->GetTranslation(param), param->GetType());
-        if (value.ok()) {
-          counterexample->emplace(param, *std::move(value));
-        } else {
-          counterexample = std::move(value).status();
-          break;
-        }
-      }
-      return ProvenFalse{
-          .counterexample = std::move(counterexample),
-          .message =
-              solvers::z3::SolverResultToString(ctx, solver, satisfiable),
-      };
-    }
-    case Z3_L_UNDEF:
-      // No result; timeout.
-      return absl::DeadlineExceededError("Z3 solver timed out");
-  }
-
-  return absl::InternalError(absl::StrCat("Invalid Z3 result: ", satisfiable));
+  return SolveAndGetResult(f, translator.get(), objective.value());
 }
 
 }  // namespace
@@ -1883,6 +1895,63 @@ absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
   PredicateOfNode term = {.subject = subject, .p = std::move(p)};
   return TryProveConjunction(f, absl::MakeConstSpan(&term, 1), rlimit,
                              allow_unsupported);
+}
+
+absl::StatusOr<ProverResult> ProveMutuallyExclusive(
+    FunctionBase* f, std::optional<Node*> node,
+    absl::Span<Node* const> other_nodes, IrTranslator* translator,
+    std::optional<int64_t> rlimit) {
+  if (other_nodes.empty()) {
+    // `node` is trivially mutually exclusive with nothing.
+    return ProvenTrue();
+  }
+
+  Z3_context ctx = translator->ctx();
+
+  Z3_ast other_node_active = translator->GetTranslation(other_nodes.front());
+  for (Node* other_node : other_nodes.subspan(1)) {
+    other_node_active = Z3_mk_bvor(ctx, other_node_active,
+                                   translator->GetTranslation(other_node));
+  }
+
+  Z3_ast conflict_condition;
+  if (node.has_value()) {
+    conflict_condition =
+        Z3_mk_bvand(ctx, translator->GetTranslation(*node), other_node_active);
+  } else {
+    conflict_condition = other_node_active;
+  }
+
+  Z3_ast condition_boolean = BitVectorToBoolean(ctx, conflict_condition);
+
+  if (rlimit.has_value()) {
+    Z3_update_param_value(ctx, "rlimit", absl::StrCat(*rlimit).c_str());
+  }
+  auto cleanup = absl::Cleanup([&] {
+    if (rlimit.has_value()) {
+      Z3_update_param_value(ctx, "rlimit", "0");
+    }
+  });
+
+  return SolveAndGetResult(translator->xls_function(), translator,
+                           condition_boolean);
+}
+
+absl::StatusOr<ProverResult> ProveMutuallyExclusive(
+    FunctionBase* f, std::optional<Node*> active1, std::optional<Node*> active2,
+    IrTranslator* translator, std::optional<int64_t> rlimit) {
+  if (!active1.has_value() && !active2.has_value()) {
+    // Both are unconditional. They can definitely be active at the same time.
+    return ProvenFalse{
+        .message = "Both predicates are unconditional (always active)."};
+  }
+
+  if (!active2.has_value()) {
+    return ProveMutuallyExclusive(f, active2, absl::MakeConstSpan({*active1}),
+                                  translator, rlimit);
+  }
+  return ProveMutuallyExclusive(f, active1, absl::MakeConstSpan({*active2}),
+                                translator, rlimit);
 }
 
 absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function) {

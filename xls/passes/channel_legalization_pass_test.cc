@@ -45,6 +45,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
@@ -146,6 +147,7 @@ top proc my_proc() {
                  StatusIs(absl::StatusCode::kInvalidArgument,
                           HasSubstr("unconditional operations on channel in "
                                     "with no ordering"))},
+                {ChannelStrictness::kProvenOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 // Build should be OK, but will fail at runtime.
@@ -242,6 +244,10 @@ top proc my_proc() {
                      AllOf(HasSubstr("Channel in is proven_mutually_exclusive"),
                            HasSubstr("recv0 is unconditionally active"),
                            HasSubstr("can be active in the same activation")))},
+                {ChannelStrictness::kProvenOrdered,
+                 StatusIs(absl::StatusCode::kInvalidArgument,
+                          AllOf(HasSubstr("Channel in is proven_ordered"),
+                                HasSubstr("can be active at the same time")))},
                 {ChannelStrictness::kTotalOrder,
                  StatusIs(absl::StatusCode::kInvalidArgument,
                           HasSubstr("is not totally ordered"))},
@@ -401,6 +407,7 @@ top proc test_proc(state:(), init={()}) {
                      absl::StatusCode::kInvalidArgument,
                      AllOf(HasSubstr("Channel in is proven_mutually_exclusive"),
                            HasSubstr("can be active at the same time")))},
+                {ChannelStrictness::kProvenOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 // For runtime mutually exclusive channels, channel legalization
@@ -491,6 +498,7 @@ top proc test_proc(state:(), init={()}) {
                 // For this test, it's false.
                 {ChannelStrictness::kProvenMutuallyExclusive,
                  StatusIs(absl::StatusCode::kInvalidArgument)},
+                {ChannelStrictness::kProvenOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
@@ -587,6 +595,7 @@ top proc test_proc(state:(), init={()}) {
                 // For this test, it's false.
                 {ChannelStrictness::kProvenMutuallyExclusive,
                  StatusIs(absl::StatusCode::kInvalidArgument)},
+                {ChannelStrictness::kProvenOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
@@ -698,6 +707,7 @@ top proc test_proc(state:(), init={()}) {
                 // For this test, it's false.
                 {ChannelStrictness::kProvenMutuallyExclusive,
                  StatusIs(absl::StatusCode::kInvalidArgument)},
+                {ChannelStrictness::kProvenOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
@@ -1022,6 +1032,163 @@ TEST_F(ChannelLegalizationPassIrTest, LegalizeWithTokenSel) {
   solvers::z3::ScopedVerifyProcEquivalence svpe(f, /*activation_count=*/5);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
+TEST_F(ChannelLegalizationPassIrTest,
+       MinDelayInsertedForOrderedNonMutuallyExclusive) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, "my_proc", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_in,
+      pb.AddInputChannel("in", p->GetBitsType(32), ChannelKind::kStreaming,
+                         ChannelStrictness::kTotalOrder));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_out,
+      pb.AddOutputChannel("out", p->GetBitsType(32), ChannelKind::kStreaming,
+                          ChannelStrictness::kTotalOrder));
+
+  auto tok = pb.StateElement("tok", Value::Token());
+  auto st = pb.StateElement("st", Value(UBits(0, 1)));
+  auto pred1 = pb.Not(st);
+  auto pred2 = pb.Literal(UBits(1, 1));  // Always true
+
+  // They are ordered (recv1 happens after recv0).
+  auto recv0 = pb.ReceiveIf(chan_in, tok, pred1);
+  auto recv0_tok = pb.TupleIndex(recv0, 0);
+  auto recv0_data = pb.TupleIndex(recv0, 1);
+  auto recv1 = pb.ReceiveIf(chan_in, recv0_tok, pred2);
+  auto recv1_tok = pb.TupleIndex(recv1, 0);
+  auto recv1_data = pb.TupleIndex(recv1, 1);
+
+  // Send the results
+  auto send0 = pb.Send(chan_out, recv1_tok, recv0_data);
+  auto send1 = pb.Send(chan_out, send0, recv1_data);
+
+  pb.Next(tok, send1);
+  pb.Next(st, pred1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(f));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // Verify that the MinDelay node is present for recv1 and send1.
+  int64_t min_delay_count = 0;
+  for (Node* node : f->nodes()) {
+    if (node->Is<MinDelay>()) {
+      min_delay_count++;
+      EXPECT_EQ(node->As<MinDelay>()->delay(), 1);
+    }
+  }
+  EXPECT_EQ(min_delay_count, 2);
+}
+
+TEST_F(ChannelLegalizationPassIrTest,
+       NoMinDelayInsertedForOrderedMutuallyExclusive) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, "my_proc", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_in,
+      pb.AddInputChannel("in", p->GetBitsType(32), ChannelKind::kStreaming,
+                         ChannelStrictness::kTotalOrder));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_out,
+      pb.AddOutputChannel("out", p->GetBitsType(32), ChannelKind::kStreaming,
+                          ChannelStrictness::kTotalOrder));
+
+  auto tok = pb.StateElement("tok", Value::Token());
+  auto st = pb.StateElement("st", Value(UBits(0, 1)));
+  auto pred1 = pb.Not(st);
+  auto pred2 = st;  // Mutually exclusive
+
+  // They are ordered (recv1 happens after recv0), but mutually exclusive
+  auto recv0 = pb.ReceiveIf(chan_in, tok, pred1);
+  auto recv0_tok = pb.TupleIndex(recv0, 0);
+  auto recv0_data = pb.TupleIndex(recv0, 1);
+  auto recv1 = pb.ReceiveIf(chan_in, recv0_tok, pred2);
+  auto recv1_tok = pb.TupleIndex(recv1, 0);
+  auto recv1_data = pb.TupleIndex(recv1, 1);
+
+  // Send the results, conditionally
+  auto send0 = pb.SendIf(chan_out, recv1_tok, pred1, recv0_data);
+  auto send1 = pb.SendIf(chan_out, send0, pred2, recv1_data);
+
+  pb.Next(tok, send1);
+  pb.Next(st, pred1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(f));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // Verify that the MinDelay node is NOT present.
+  int64_t min_delay_count = 0;
+  for (Node* node : f->nodes()) {
+    if (node->Is<MinDelay>()) {
+      min_delay_count++;
+    }
+  }
+  EXPECT_EQ(min_delay_count, 0);
+}
+
+TEST_F(ChannelLegalizationPassIrTest, MinDelayInsertedForTimeout) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, "my_proc", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_in,
+      pb.AddInputChannel("in", p->GetBitsType(32), ChannelKind::kStreaming,
+                         ChannelStrictness::kTotalOrder));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_out,
+      pb.AddOutputChannel("out", p->GetBitsType(32), ChannelKind::kStreaming,
+                          ChannelStrictness::kTotalOrder));
+
+  auto tok = pb.StateElement("tok", Value::Token());
+  auto st = pb.StateElement("st", Value(UBits(0, 1)));
+  auto pred1 = pb.Not(st);
+  auto pred2 = st;  // Mutually exclusive!
+
+  // However, we'll intentionally set the rlimit to 1, causing the Z3 solver to
+  // timeout. It won't have time to prove mutual exclusion, so it should
+  // conservatively insert a MinDelay.
+
+  auto recv0 = pb.ReceiveIf(chan_in, tok, pred1);
+  auto recv0_tok = pb.TupleIndex(recv0, 0);
+  auto recv0_data = pb.TupleIndex(recv0, 1);
+  auto recv1 = pb.ReceiveIf(chan_in, recv0_tok, pred2);
+  auto recv1_tok = pb.TupleIndex(recv1, 0);
+  auto recv1_data = pb.TupleIndex(recv1, 1);
+
+  // Send the results, conditionally
+  auto send0 = pb.SendIf(chan_out, recv1_tok, pred1, recv0_data);
+  auto send1 = pb.SendIf(chan_out, send0, pred2, recv1_data);
+
+  pb.Next(tok, send1);
+  pb.Next(st, pred1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(f));
+
+  // Use a very tiny rlimit so the solver drops out immediately.
+  OptimizationPassOptions options;
+  options.mutual_exclusion_z3_rlimit = 1;
+
+  PassResults results;
+  OptimizationContext context;
+  EXPECT_THAT(
+      ChannelLegalizationPass().Run(p.get(), options, &results, context),
+      IsOkAndHolds(true));
+
+  // Verify that the MinDelay node IS present, even though they are mutually
+  // exclusive.
+  int64_t min_delay_count = 0;
+  for (Node* node : f->nodes()) {
+    if (node->Is<MinDelay>()) {
+      min_delay_count++;
+      EXPECT_EQ(node->As<MinDelay>()->delay(), 1);
+    }
+  }
+  EXPECT_EQ(min_delay_count, 2);
 }
 
 INSTANTIATE_TEST_SUITE_P(
