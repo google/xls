@@ -481,6 +481,8 @@ class FunctionConverter {
   absl::Status HandleBuiltinEnumerate(const Invocation* node);
   absl::Status HandleBuiltinGate(const Invocation* node);
   absl::Status HandleBuiltinJoin(const Invocation* node);
+  absl::Status HandleBuiltinLabeledRead(const Invocation* node);
+  absl::Status HandleBuiltinLabeledWrite(const Invocation* node);
   absl::Status HandleBuiltinOneHot(const Invocation* node);
   absl::Status HandleBuiltinOneHotSel(const Invocation* node);
   absl::Status HandleBuiltinOrReduce(const Invocation* node);
@@ -652,8 +654,8 @@ class FunctionConverter {
   // A predicate for whether any code path leading to a state read or write has
   // been taken each proc activation. This gets updated to accumulate terms
   // every time we emit a state read/write.
-  std::optional<BValue> state_read_called_;
-  std::optional<BValue> state_write_called_;
+  absl::flat_hash_map<std::string, BValue> state_read_map_;
+  absl::flat_hash_map<std::string, BValue> state_write_map_;
 };
 
 }  // namespace xls::dslx

@@ -59,9 +59,10 @@ TEST_F(RemoveIdentifersTest, BasicProc) {
   auto out_tok = pb.Send(orig_chan.send_interface,
                          pb.TupleIndex(recv, 0, SourceInfo(), "nxt_tok"),
                          next_param, SourceInfo(), "surprising");
-  pb.Next(start_param, next_param, /*pred=*/std::nullopt, SourceInfo(),
-          "Revealing");
-  pb.Next(tok, out_tok, /*pred=*/std::nullopt, SourceInfo(), "nxt_tok_val");
+  pb.Next(start_param, next_param, /*pred=*/std::nullopt,
+          /*label=*/std::nullopt, SourceInfo(), "Revealing");
+  pb.Next(tok, out_tok, /*pred=*/std::nullopt, /*label=*/std::nullopt,
+          SourceInfo(), "nxt_tok_val");
   XLS_ASSERT_OK_AND_ASSIGN(auto* orig_proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(

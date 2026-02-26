@@ -191,15 +191,15 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
           old_to_new[n] =
               pb.Next(BValue(old_to_new[nxt->state_read()], &pb),
                       BValue(old_to_new[nxt->value()], &pb),
-                      BValue(old_to_new[*nxt->predicate()], &pb), nxt->loc(),
-                      nxt->HasAssignedName() ? nxt->GetName() : "")
-                  .node();
-        } else {
-          old_to_new[n] =
-              pb.Next(BValue(old_to_new[nxt->state_read()], &pb),
-                      BValue(old_to_new[nxt->value()], &pb), std::nullopt,
+                      BValue(old_to_new[*nxt->predicate()], &pb), nxt->label(),
                       nxt->loc(), nxt->HasAssignedName() ? nxt->GetName() : "")
                   .node();
+        } else {
+          old_to_new[n] = pb.Next(BValue(old_to_new[nxt->state_read()], &pb),
+                                  BValue(old_to_new[nxt->value()], &pb),
+                                  std::nullopt, nxt->label(), nxt->loc(),
+                                  nxt->HasAssignedName() ? nxt->GetName() : "")
+                              .node();
         }
       }
       // Non-extracted nexts can be dropped.
