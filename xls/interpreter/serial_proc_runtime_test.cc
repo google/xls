@@ -248,6 +248,45 @@ TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessReadWithLabeledRead) {
                       "State element read after read in same activation.")));
 }
 
+TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessMultipleStates) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
+  EXPECT_THAT(interpreter->Tick(), absl_testing::IsOk());
+}
+
+TEST_F(ExplicitStateRuntimeTest,
+       ExplicitStateAccessMultipleStatesMultipleReads) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
+
+  EXPECT_THAT(interpreter->Tick(),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kAborted,
+                  ::testing::HasSubstr(
+                      "State element read after read in same activation.")));
+}
+
+TEST_F(ExplicitStateRuntimeTest,
+       ExplicitStateAccessMultipleStatesMultipleWrites) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
+
+  EXPECT_THAT(
+      interpreter->Tick(),
+      absl_testing::StatusIs(
+          absl::StatusCode::kAborted,
+          ::testing::HasSubstr(
+              "State element written after write in same activation.")));
+}
+
+TEST_F(ExplicitStateRuntimeTest,
+       ExplicitStateAccessMultipleStatesWriteBeforeRead) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
+
+  EXPECT_THAT(
+      interpreter->Tick(),
+      absl_testing::StatusIs(
+          absl::StatusCode::kAborted,
+          ::testing::HasSubstr(
+              "State element written before read in same activation.")));
+}
 // Instantiate and run all the tests in proc_runtime_test_base.cc using
 // proc interpreters.
 INSTANTIATE_TEST_SUITE_P(
