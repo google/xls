@@ -93,7 +93,8 @@ class Visitor : public AstNodeVisitorWithDefault {
                            AstNodeKind::kParametricBinding;
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_,
-        table_.GetParametricEnv(parametric_context_), binop);
+        table_.GetParametricEnv(parametric_context_),
+        binop, warn_rollover);
     if (value.ok()) {
       trace_.SetResult(*value);
       ti_->NoteConstExpr(binop, *value);
