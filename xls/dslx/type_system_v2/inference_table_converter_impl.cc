@@ -1139,6 +1139,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         semantics_analysis_->SetNameDefType(
             absl::down_cast<const NameDef*>(node), type->get());
       }
+
+      if (node->kind() == AstNodeKind::kIndex && type->get()->IsChannel()) {
+        XLS_RETURN_IF_ERROR(semantics_analysis_->CheckChannelArrayIndex(
+            absl::down_cast<const Index*>(node), ti, file_table_));
+      }
     }
 
     XLS_RETURN_IF_ERROR(
