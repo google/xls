@@ -58,7 +58,6 @@ def py_test_c_api_symbols(name = "test_c_api_symbols"):
     py_test(
         name = name,
         srcs = ["test_c_api_symbols.py"],
-        strict_deps = False,  # copybara:strip
         data = [
             ":c_api",
             ":c_api_dslx",
