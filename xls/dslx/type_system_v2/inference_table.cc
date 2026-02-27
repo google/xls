@@ -446,15 +446,25 @@ class InferenceTableImpl : public InferenceTable {
     return result;
   }
 
+  std::optional<StructContextResult> GetCachedParametricStructContext(
+      const StructDefBase* struct_def, ParametricEnv parametric_env) override {
+    auto& contexts = parametric_struct_contexts_[struct_def];
+    const auto it = contexts.find(parametric_env);
+    if (it != contexts.end()) {
+      return StructContextResult{.context = it->second, .created_new = false};
+    }
+    return std::nullopt;
+  }
+
   absl::StatusOr<StructContextResult> GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
       ParametricEnv parametric_env, const TypeAnnotation* self_type,
       absl::FunctionRef<absl::StatusOr<TypeInfo*>()> type_info_factory)
       override {
-    auto& contexts = parametric_struct_contexts_[struct_def];
-    const auto it = contexts.find(parametric_env);
-    if (it != contexts.end()) {
-      return StructContextResult{.context = it->second, .created_new = false};
+    std::optional<StructContextResult> cached_result =
+        GetCachedParametricStructContext(struct_def, parametric_env);
+    if (cached_result.has_value()) {
+      return *cached_result;
     }
     XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, type_info_factory());
     auto context = std::make_unique<ParametricContext>(
@@ -463,7 +473,8 @@ class InferenceTableImpl : public InferenceTable {
         /*parent_context=*/std::nullopt, self_type);
     const ParametricContext* result = context.get();
     parametric_contexts_.push_back(std::move(context));
-    contexts.emplace_hint(it, parametric_env, result);
+    auto& contexts = parametric_struct_contexts_[struct_def];
+    contexts.emplace_hint(contexts.end(), parametric_env, result);
     mutable_parametric_context_data_.emplace(result,
                                              MutableParametricContextData{});
     converted_parametric_envs_.emplace(result, parametric_env);

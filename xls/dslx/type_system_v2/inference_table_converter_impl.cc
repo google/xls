@@ -2120,11 +2120,30 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                          GetTypeInfo(struct_def.owner(), parent_context));
     XLS_ASSIGN_OR_RETURN(TypeInfo * actual_arg_ti,
                          GetTypeInfo(&module, parent_context));
-    XLS_ASSIGN_OR_RETURN(TypeInfo * instance_type_info,
-                         import_data_.type_info_owner().New(
-                             struct_def.owner(),
-                             absl::StrCat("struct_", struct_def.identifier()),
-                             instance_parent_ti));
+    absl::flat_hash_map<std::string, InterpValue> parametrics_map;
+    for (int i = 0; i < explicit_parametrics.size(); i++) {
+      parametrics_map.emplace(struct_def.parametric_bindings()[i]->identifier(),
+                              explicit_parametrics[i]);
+    }
+    ParametricEnv env(parametrics_map);
+    std::optional<InferenceTable::StructContextResult> context_result =
+        table_.GetCachedParametricStructContext(
+            static_cast<const StructDefBase*>(&struct_def), env);
+
+    TypeInfo* instance_type_info;
+    if (context_result.has_value()) {
+      instance_type_info = context_result->context->type_info();
+    } else {
+      // If the context is not yet cached, create a temporary TypeInfo to
+      // instantiate the struct for now. At this stage, we may not have full
+      // information to create the parametric context and add all relevant
+      // information for the table.
+      XLS_ASSIGN_OR_RETURN(instance_type_info,
+                           import_data_.type_info_owner().New(
+                               struct_def.owner(),
+                               absl::StrCat("struct_", struct_def.identifier()),
+                               instance_parent_ti));
+    }
     ParametricBindings bindings(struct_def.parametric_bindings());
     absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
     auto set_value = [&](const ParametricBinding* binding,
