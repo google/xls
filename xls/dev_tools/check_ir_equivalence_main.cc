@@ -85,7 +85,7 @@ ABSL_FLAG(int, match_exit_code, 0,
 ABSL_FLAG(xls::solvers::SolverKind, solver, xls::solvers::SolverKind::kZ3,
           "Solver backend to use (z3 or bitwuzla).");
 ABSL_FLAG(std::string, equivalence_report, "",
-          "Path to write an equivalence report to if verification succeeds.");
+          "Path to write an equivalence report to if equivalence is proven.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
