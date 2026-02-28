@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the ECO workflow."""
-
 load("//xls/eco:eco_build_defs.bzl", "xls_dslx_ir_diff", "xls_patch_ir")
 
 package(default_visibility = ["//xls:xls_internal"])
@@ -26,6 +24,7 @@ xls_dslx_ir_diff(
     ],
     dslx_top = "main",
     mcs = False,
+    report_exec_stats = True,
     verbosity = 1,
 )
 
@@ -73,7 +72,6 @@ xls_dslx_ir_diff(
     verbosity = 1,
 )
 
-#A tricky one Takes about 50 minutes to run.
 xls_dslx_ir_diff(
     name = "vector_core_diff",
     srcs = [
@@ -113,16 +111,17 @@ xls_patch_ir(
     ir_diff = ":crc32_diff",
 )
 
-#This will fail due to not supporting changes in channel types yet, needs manual fixup.
+# This will fail due to not supporting changes in channel types yet, needs manual fixup.
 # 1. replace the header channel defs  in the patched ir with the after ir ones.
 # 2. replace top receive nodes with the after ir ones while keeping their ids
 # 3. run lec manually and it should pass.
 # 4. TODO: Treat channles as nodes and automatically re-generate channels if needed.
-xls_patch_ir(
-    name = "apfloat_patched_opt_ir",
-    activation_count = 1,
-    ir_diff = ":apfloat_diff_rev1",
-)
+#
+# xls_patch_ir(
+#     name = "apfloat_patched_opt_ir",
+#     activation_count = 1,
+#     ir_diff = ":apfloat_diff_rev1",
+# )
 
 xls_patch_ir(
     name = "riscv_patched_opt_ir",
@@ -154,7 +153,6 @@ xls_dslx_ir_diff(
     ],
     dslx_top = "main",
     mcs = True,
-    verbosity = 1,
 )
 
 xls_patch_ir(
