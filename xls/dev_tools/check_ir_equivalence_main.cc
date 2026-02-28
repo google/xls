@@ -82,6 +82,8 @@ ABSL_FLAG(int, mismatch_exit_code, 255,
           "Value to exit with if equivalence is not proven.");
 ABSL_FLAG(int, match_exit_code, 0,
           "Value to exit with if equivalence is not proven.");
+ABSL_FLAG(std::string, equivalence_report, "",
+          "Path to write an equivalence report to if verification succeeds.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
@@ -235,6 +237,21 @@ int main(int argc, char** argv) {
   if (!result.ok()) {
     return xls::ExitStatus(result.status());
   }
-  return *result ? absl::GetFlag(FLAGS_match_exit_code)
-                 : absl::GetFlag(FLAGS_mismatch_exit_code);
+
+  bool is_equivalent = *result;
+  int exit_code = is_equivalent ? absl::GetFlag(FLAGS_match_exit_code)
+                                : absl::GetFlag(FLAGS_mismatch_exit_code);
+
+  if (exit_code == 0 && is_equivalent &&
+      !absl::GetFlag(FLAGS_equivalence_report).empty()) {
+    std::string report = absl::StrFormat(
+        "Equivalence verification successful.\n"
+        "Verified equivalent:\n  File 1: %s\n  File 2: %s\n",
+        positional_args[0], positional_args[1]);
+    absl::Status stamp_status =
+        xls::SetFileContents(absl::GetFlag(FLAGS_equivalence_report), report);
+    QCHECK_OK(stamp_status) << "Failed to write equivalence report.";
+  }
+
+  return exit_code;
 }
