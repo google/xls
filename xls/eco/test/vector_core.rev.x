@@ -1,3 +1,29 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Parameterized vector analysis core operating on arrays of u8[N] vectors.
+// Implements Euclidean and Manhattan distance, dot product, cosine similarity,
+// element-wise arithmetic, nearest-neighbor search, distance matrix, variance
+// estimate, per-component standard deviation (via Newton-Raphson sqrt), and
+// average cosine similarity over all distinct vector pairs.
+//
+// NOTE: This file exists solely to provide a rich, realistic IR for testing
+// the XLS ECO toolchain. It has NOT been functionally verified for
+// correctness. Use at your own risk.
+
+#![feature(type_inference_v2)]
+
 const N = u32:4;           // Length of each vector
 const M = u32:4;           // Number of vectors to compare
 const COUNT_OFF_DIAGONAL = (M * M) - M;

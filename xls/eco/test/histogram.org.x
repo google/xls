@@ -1,3 +1,30 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// A streaming histogram proc that accepts floating-point data samples over a
+// channel and accumulates counts per configurable bin. Supports runtime
+// reconfiguration of the bin count and [min, max] range, and exposes a
+// reset signal. Bin mapping uses fixed-point scaling to avoid division.
+// All values use APFloat<8,23> (equivalent to IEEE 754 single-precision).
+//
+// NOTE: This file exists solely to provide a rich, realistic IR for testing
+// the XLS ECO toolchain. It has NOT been functionally verified for
+// correctness. Use at your own risk.
+
+
+#![feature(type_inference_v2)]
+
 import apfloat;
 import std;
 
@@ -43,17 +70,17 @@ pub proc histogram {
 
         // Receive inputs from all channels
         let (tok0, config_valid) = recv(join(), bin_config_valid);
-        
+
         // Define default BinConfig for recv_if
         let default_bin_config = BinConfig {
             num_bins: u32:0,
             min_value: apfloat::zero<EXP_SZ, SFD_SZ>(u1:0),
             max_value: apfloat::zero<EXP_SZ, SFD_SZ>(u1:0),
         };
-        
+
         // Receive bin config conditionally
         let (tok1, bin_config) = recv_if(tok0, bin_config_channel, config_valid, default_bin_config);
-        
+
         let (tok2, data) = recv(join(), data_channel);
         let (tok3, valid) = recv(join(), data_valid);
         let (tok4, do_reset) = recv(join(), reset);
@@ -84,11 +111,11 @@ pub proc histogram {
                 // Compute relative position and range using subtraction
                 let relative_value = apfloat::sub(data, final_min_value);
                 let range = apfloat::sub(final_max_value, final_min_value);
-                
+
                 // Convert to fixed-point for scaling (avoid division)
                 let relative_int = apfloat::cast_to_fixed<u32:32, EXP_SZ, SFD_SZ>(relative_value);
                 let range_int = apfloat::cast_to_fixed<u32:32, EXP_SZ, SFD_SZ>(range);
-                
+
                 // Scale relative position: (relative_int * num_bins) / range_int
                 let scaled_value = if range_int != s32:0 {
                     let temp = (relative_int as u32) * final_num_bins;
@@ -96,7 +123,7 @@ pub proc histogram {
                 } else {
                     u32:0  // Avoid division by zero
                 };
-                
+
                 // Clamp index to valid range (replace min)
                 let index = if scaled_value < final_num_bins - u32:1 {
                     scaled_value

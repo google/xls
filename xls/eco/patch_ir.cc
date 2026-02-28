@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "xls/eco/patch_ir.h"
 
 #include <algorithm>
@@ -251,6 +252,34 @@ absl::Status PatchIr::ApplyDeletePath(
     XLS_ASSIGN_OR_RETURN(int64_t index, proc_->GetStateElementIndex(se));
     XLS_RETURN_IF_ERROR(proc_->RemoveStateElement(index));
   } else {
+    // TODO(eco): Remove this loop once ir2nx.py / ir2gxl.py are deprecated in
+    // favour of the C++ GXL toolchain.  When that happens, the C++ parser will
+    // export assert/trace nodes into the GXL graph so the GED will generate
+    // proper edge-deletions for them, making this clean-up unnecessary.
+    //
+    // Background: ir2nx.py's _parse_dbg_node silently skips 'assert' and
+    // 'trace' nodes (software-only, no hardware representation), so the GED
+    // never sees edges to/from those nodes and never generates edge-deletions
+    // for them.  We must therefore disconnect any remaining debug-node users
+    // ourselves before calling RemoveNode.
+    for (Node* user : n->users()) {
+      if (user->op() != Op::kAssert && user->op() != Op::kTrace) {
+        return absl::InternalError(absl::StrFormat(
+            "Unexpected non-debug remaining user '%s' (op=%s) "
+            "of node '%s' to be deleted",
+            user->GetName(), OpToString(user->op()), n->GetName()));
+      }
+    }
+    while (!n->users().empty()) {
+      Node* user = *n->users().begin();
+      for (int64_t i = 0; i < user->operand_count(); ++i) {
+        if (user->operand(i) == n) {
+          XLS_ASSIGN_OR_RETURN(Node * dummy, MakeDummyNode(n->GetType()));
+          dummy_nodes_map_[user].push_back(dummy);
+          XLS_RETURN_IF_ERROR(user->ReplaceOperandNumber(i, dummy, false));
+        }
+      }
+    }
     XLS_RETURN_IF_ERROR(function_base_->RemoveNode(n));
     XLS_RETURN_IF_ERROR(CleanupDummyNodes(n));
   }
@@ -576,15 +605,15 @@ absl::Status PatchIr::ApplyInsertPath(
       }
       // Get the payload type from the Receive node's tuple return type
       // Receive returns a tuple (token, payload), so we need element 1
-      XLS_ASSIGN_OR_RETURN(Type* node_type,
+      XLS_ASSIGN_OR_RETURN(Type * node_type,
                            package_->GetTypeFromProto(patch_node.data_type()));
       TupleType* tuple_type = node_type->AsTupleOrDie();
       Type* payload_type = tuple_type->element_type(1);
-      XLS_ASSIGN_OR_RETURN(n, function_base_->MakeNode<Receive>(
-                                  SourceInfo(), dummy_operands[0], predicate,
-                                  patch_node.unique_args(0).channel(),
-                                  patch_node.unique_args(1).blocking(),
-                                  payload_type));
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<Receive>(
+                 SourceInfo(), dummy_operands[0], predicate,
+                 patch_node.unique_args(0).channel(),
+                 patch_node.unique_args(1).blocking(), payload_type));
       XLS_RETURN_IF_ERROR(
           UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
       break;

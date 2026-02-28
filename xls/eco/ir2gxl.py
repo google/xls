@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 # TODO(b/1234567890): DEPRECATED - This GXL export tool will be replaced by
 # C++ GXL parser in gxl_parser.h/cc which provides:
@@ -177,19 +190,28 @@ def ir_to_gxl(ir_file_path: str) -> str:
 
 def main():
     """Command-line interface for IR to GXL conversion."""
-    if len(sys.argv) != 2:
-        print("Usage: python ir2gxl.py <ir_file_path>")
-        sys.exit(1)
+    import argparse
 
-    ir_file_path = sys.argv[1]
+    parser = argparse.ArgumentParser(description="IR to GXL conversion")
+    parser.add_argument("ir_file_path", help="Path to the IR file")
+    parser.add_argument(
+        "output_path", nargs="?", help="Optional output GXL file path", default=None
+    )
+    args = parser.parse_args()
+
+    ir_file_path = args.ir_file_path
     if not os.path.exists(ir_file_path):
         print(f"Error: IR file not found: {ir_file_path}")
         sys.exit(1)
 
     try:
         # Use the same pattern as ir2nx
-        parser = IrParser(ir_file_path)
-        print(parser.gxl)
+        ir_parser = IrParser(ir_file_path)
+        if args.output_path:
+            with open(args.output_path, "w") as f:
+                f.write(ir_parser.gxl)
+        else:
+            print(ir_parser.gxl)
     except Exception as e:
         print(f"Error converting IR to GXL: {e}")
         sys.exit(1)

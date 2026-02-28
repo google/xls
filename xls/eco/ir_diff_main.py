@@ -1,11 +1,3 @@
-# TODO(b/1234567890): DEPRECATED - This Python NetworkX-based GED tool
-# will be replaced by ged_main.cc (C++ implementation) which provides:
-# - 10-100x faster graph edit distance computation
-# - MCS preprocessing optimization
-# - Direct GXL file parsing without NetworkX dependency
-# Please use //xls/eco:ged_main instead.
-
-#
 # Copyright 2023 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# TODO: DEPRECATE - This Python NetworkX-based GED tool
+# will be replaced by ged_main.cc (C++ implementation) which provides:
+# - 10-100x faster graph edit distance computation
+# - MCS preprocessing optimization
+# - Direct GXL file parsing without NetworkX dependency
+# Please use //xls/eco:ged_main instead.
 
 """The main routine for the python-side of the ECO flow."""
 
@@ -73,73 +72,71 @@ _RECURSION_LIMIT = flags.DEFINE_integer(
 
 
 def main(argv: Sequence[str]) -> int:
-  del argv  # Unused.
+    del argv  # Unused.
 
-  if _RECURSION_LIMIT.value is not None:
-    sys.setrecursionlimit(_RECURSION_LIMIT.value)
+    if _RECURSION_LIMIT.value is not None:
+        sys.setrecursionlimit(_RECURSION_LIMIT.value)
 
-  # Parse IR files
-  before_ir_graph = xls_ir_to_networkx.read_xls_ir_to_networkx(
-      pathlib.Path(_BEFORE_IR_PATH.value)
-  )
-  after_ir_graph = xls_ir_to_networkx.read_xls_ir_to_networkx(
-      pathlib.Path(_AFTER_IR_PATH.value)
-  )
-  # Compute IR diff
-  # Initialize edit_paths to None to avoid potential UnboundLocalError.
-  edit_paths = None
-  if _TIMEOUT.value is None:
-    edit_paths = ir_diff.find_optimal_edit_paths(
-        before_ir_graph, after_ir_graph
+    # Parse IR files
+    before_ir_graph = xls_ir_to_networkx.read_xls_ir_to_networkx(
+        pathlib.Path(_BEFORE_IR_PATH.value)
     )
-    print(f"Found the optimal edit paths:\t path cost: {edit_paths.cost}")
-  else:
-    costs = []
-    durations = []
-    for i, edit_paths in enumerate(
-        ir_diff.find_optimized_edit_paths(
-            before_ir_graph, after_ir_graph, _TIMEOUT.value
+    after_ir_graph = xls_ir_to_networkx.read_xls_ir_to_networkx(
+        pathlib.Path(_AFTER_IR_PATH.value)
+    )
+    # Compute IR diff
+    # Initialize edit_paths to None to avoid potential UnboundLocalError.
+    edit_paths = None
+    if _TIMEOUT.value is None:
+        edit_paths = ir_diff.find_optimal_edit_paths(before_ir_graph, after_ir_graph)
+        print(f"Found the optimal edit paths:\t path cost: {edit_paths.cost}")
+    else:
+        costs = []
+        durations = []
+        for i, edit_paths in enumerate(
+            ir_diff.find_optimized_edit_paths(
+                before_ir_graph, after_ir_graph, _TIMEOUT.value
+            )
+        ):
+            if not edit_paths:
+                continue
+            costs.append(edit_paths.cost)
+            durations.append(edit_paths.duration)
+            print(
+                f"Found {i+1} edit paths\tpath cost: {edit_paths.cost}\telapsed time:"
+                f" {edit_paths.duration:.2f}s"
+            )
+            if _OUTPUT_PATH.value:
+                ir_diff_utils.plot_optimized_edit_paths_cost_vs_time(
+                    costs,
+                    durations,
+                    output_path=os.path.join(
+                        _OUTPUT_PATH.value, "optimized_edit_paths_benchmark.png"
+                    ),
+                )
+    if edit_paths is None:
+        raise ValueError(
+            "edit paths was not set, find_optimized_edit_paths timed out before"
+            " producing a result."
         )
-    ):
-      if not edit_paths:
-        continue
-      costs.append(edit_paths.cost)
-      durations.append(edit_paths.duration)
-      print(
-          f"Found {i+1} edit paths\tpath cost: {edit_paths.cost}\telapsed time:"
-          f" {edit_paths.duration:.2f}s"
-      )
-      if _OUTPUT_PATH.value:
-        ir_diff_utils.plot_optimized_edit_paths_cost_vs_time(
-            costs,
-            durations,
-            output_path=os.path.join(
-                _OUTPUT_PATH.value, "optimized_edit_paths_benchmark.png"
-            ),
+    interpreted_edit_paths_path = None
+    if _OUTPUT_PATH.value:
+        interpreted_edit_paths_path = os.path.join(
+            _OUTPUT_PATH.value, "interpreted_edit_paths.txt"
         )
-  if edit_paths is None:
-    raise ValueError(
-        "edit paths was not set, find_optimized_edit_paths timed out before"
-        " producing a result."
+    ir_diff_utils.interpret_edit_paths(
+        edit_paths=edit_paths, output_path=interpreted_edit_paths_path
     )
-  interpreted_edit_paths_path = None
-  if _OUTPUT_PATH.value:
-    interpreted_edit_paths_path = os.path.join(
-        _OUTPUT_PATH.value, "interpreted_edit_paths.txt"
-    )
-  ir_diff_utils.interpret_edit_paths(
-      edit_paths=edit_paths, output_path=interpreted_edit_paths_path
-  )
-  if _OUTPUT_PATH.value:
-    patch = ir_patch_gen.IrPatch(
-        edit_paths,
-        before_ir_graph,
-        after_ir_graph,
-        os.path.join(_OUTPUT_PATH.value, "patch.bin"),
-    )
-    patch.write_proto()
-  return 0
+    if _OUTPUT_PATH.value:
+        patch = ir_patch_gen.IrPatch(
+            edit_paths,
+            before_ir_graph,
+            after_ir_graph,
+            os.path.join(_OUTPUT_PATH.value, "patch.bin"),
+        )
+        patch.write_proto()
+    return 0
 
 
 if __name__ == "__main__":
-  app.run(main)
+    app.run(main)

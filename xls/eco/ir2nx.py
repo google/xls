@@ -1,11 +1,3 @@
-# TODO(b/1234567890): DEPRECATED - This IR to NetworkX converter will be replaced
-# by xls_ir_to_cytoscape.cc which provides:
-# - JSON-based graph representation (Cytoscape format)
-# - Better performance and memory efficiency
-# - Richer node/edge attributes for visualization
-# Please use //xls/eco:xls_ir_to_cytoscape with xls_ir_to_networkx.py wrapper.
-
-#
 # Copyright 2023 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
