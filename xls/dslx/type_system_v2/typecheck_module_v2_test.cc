@@ -3227,6 +3227,21 @@ const Z = match X {
               TypecheckSucceeds(HasNodeWithType("Z", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, MatchArmUnifiedWithTypeAliasInLaterArm) {
+  EXPECT_THAT(R"(
+const X = u32:1;
+const Y = u32:2;
+const Z = match X {
+  u32:1 => u3:2,
+  _ => {
+    type InternalType = uN[Y + 1];
+    InternalType:3
+  }
+};
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "uN[3]")));
+}
+
 TEST(TypecheckV2Test, MatchInFn) {
   EXPECT_THAT(R"(
 fn f(a: u32) -> u32 {

@@ -113,6 +113,26 @@ class Flattener : public AstNodeVisitorWithDefault {
 
   absl::Status HandleMatch(const Match* node) override {
     XLS_RETURN_IF_ERROR(node->matched()->Accept(this));
+
+    // For match arms with statement blocks, we need to deal with those blocks
+    // up to the last statement before the return expr, then deal with the
+    // return exprs across all the arms. This is because the final expression
+    // types are unified across arms. If the final expression type in one arm is
+    // e.g. a type alias declared within that arm, which depends on some
+    // constant within the arm, that type alias needs to be processed before any
+    // arm's final expression.
+    for (const MatchArm* arm : node->arms()) {
+      if (arm->expr()->kind() == AstNodeKind::kStatementBlock) {
+        auto* block = absl::down_cast<StatementBlock*>(arm->expr());
+        if (!block->statements().empty()) {
+          for (Statement* statement :
+               block->statements().subspan(0, block->statements().size() - 1)) {
+            XLS_RETURN_IF_ERROR(statement->Accept(this));
+          }
+        }
+      }
+    }
+
     // Prefer to visit arms that contain invocations first so that any type
     // information they produce is available when analyzing other arms whose
     // types unify with them.
@@ -127,7 +147,19 @@ class Flattener : public AstNodeVisitorWithDefault {
     for (const NameDefTree* name_def_tree : node->patterns()) {
       XLS_RETURN_IF_ERROR(name_def_tree->Accept(this));
     }
-    XLS_RETURN_IF_ERROR(node->expr()->Accept(this));
+    if (node->expr()->kind() == AstNodeKind::kStatementBlock) {
+      // Statement blocks as arm exprs have special handling which essentially
+      // splits the handling of the non-final statements in the block from the
+      // final expr and the block node itself. Here we are only doing only the
+      // final expr and the block itself. See `HandleMatch` for more details.
+      auto* block = absl::down_cast<StatementBlock*>(node->expr());
+      if (!block->statements().empty()) {
+        XLS_RETURN_IF_ERROR(block->statements().back()->Accept(this));
+      }
+      nodes_.push_back(block);
+    } else {
+      XLS_RETURN_IF_ERROR(node->expr()->Accept(this));
+    }
     nodes_.push_back(node);
     return absl::OkStatus();
   }
