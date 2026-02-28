@@ -176,7 +176,7 @@ xls_dslx_ir_diff_rule = rule(
             doc = "Stop MCS when remaining nodes <= this value; negative means run to completion.",
         ),
         "report_exec_stats": attr.bool(
-            default = False,
+            default = True,
             doc = "If true, write an execution stats report file.",
         ),
     },
