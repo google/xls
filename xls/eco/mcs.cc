@@ -1,14 +1,28 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "xls/eco/mcs.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <string>
-#include <unordered_set>
+#include "absl/container/flat_hash_set.h"
 
 #include "absl/log/log.h"
 
-/* Algorithm inspired by:
+/* Implementation of the Maximum Common Subgraph (MCS) algorithm based on the work:
 Kaiqiang Yu, Kaixin Wang, Cheng Long, Laks Lakshmanan, and Reynold Cheng.
 "Fast Maximum Common Subgraph Search: A Redundancy-Reduced Backtracking
 Approach." Proc. ACM Manag. Data 3, 3, Article 160 (2025).
@@ -54,10 +68,10 @@ CandidateSet RefineCandidates(const State& S, const CandidateSet& C, int u,
   auto v_out = G.get_outgoing_neighbors(v);
   auto v_in = G.get_incoming_neighbors(v);
 
-  std::unordered_set<int> u_neighbors(u_out.begin(), u_out.end());
+  absl::flat_hash_set<int> u_neighbors(u_out.begin(), u_out.end());
   u_neighbors.insert(u_in.begin(), u_in.end());
 
-  std::unordered_set<int> v_neighbors(v_out.begin(), v_out.end());
+  absl::flat_hash_set<int> v_neighbors(v_out.begin(), v_out.end());
   v_neighbors.insert(v_in.begin(), v_in.end());
 
   for (const auto& [x, candidates] : C) {
@@ -377,7 +391,7 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
 
   VLOG(1) << "MCS found with " << result.size << " matched nodes";
 
-  std::unordered_set<int> matched_g1, matched_g2;
+  absl::flat_hash_set<int> matched_g1, matched_g2;
   for (const auto& [u, v] : S_best) {
     matched_g1.insert(u);
     matched_g2.insert(v);
@@ -408,13 +422,13 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
 
   return result;
 }
-std::unordered_map<int, int> GetBoundaryNodes(const MCSResult& mcs,
+absl::flat_hash_map<int, int> GetBoundaryNodes(const MCSResult& mcs,
                                               const XLSGraph& graph1,
                                               const XLSGraph& graph2) {
-  std::unordered_map<int, int> boundary_nodes;
+  absl::flat_hash_map<int, int> boundary_nodes;
   if (mcs.mapping.empty()) return boundary_nodes;
 
-  std::unordered_set<int> mcs_g1, mcs_g2;
+  absl::flat_hash_set<int> mcs_g1, mcs_g2;
   for (const auto& [u, v] : mcs.mapping) {
     mcs_g1.insert(u);
     mcs_g2.insert(v);
