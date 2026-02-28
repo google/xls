@@ -288,6 +288,8 @@ cc_library(
     srcs = ["graph.cc"],
     hdrs = ["graph.h"],
     deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
     ],
 )
@@ -299,6 +301,8 @@ cc_library(
     deps = [
         ":graph",
         ":tinyxml2",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
     ],
 )
@@ -307,9 +311,6 @@ cc_library(
     name = "lap_solver",
     srcs = ["lap_solver.cc"],
     hdrs = ["lap_solver.h"],
-    deps = [
-        ":scipy_lap",
-    ],
 )
 
 cc_library(
@@ -322,6 +323,8 @@ cc_library(
     deps = [
         ":graph",
         ":lap_solver",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
     ],
 )
@@ -332,6 +335,8 @@ cc_library(
     hdrs = ["mcs.h"],
     deps = [
         ":graph",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
     ],
 )
@@ -368,6 +373,7 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/log:vlog_is_on",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],

@@ -1,10 +1,25 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "xls/eco/graph.h"
+
+#include "absl/container/flat_hash_set.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
-#include <unordered_set>
 
 #include "absl/log/log.h"
 
@@ -80,10 +95,11 @@ int XLSGraph::add_edge(const XLSEdge& edge) {
   }
   if (!edge_sink_op.empty() && sink_op != edge_sink_op) {
     LOG(FATAL) << "Edge sink_op mismatch: edge specifies '" << edge_sink_op
-        << "' but sink node has op='" << sink_op << "'";
+               << "' but sink node has op='" << sink_op << "'";
   }
 
-  edges.emplace_back(source_index, sink_index, edge.cost_attributes, edge.index);
+  edges.emplace_back(source_index, sink_index, edge.cost_attributes,
+                     edge.index);
 
   int edge_idx = static_cast<int>(edges.size()) - 1;
   node_edges[source_index].push_back(edge_idx);
@@ -266,8 +282,7 @@ void XLSGraph::populate_node_signatures() {
   // populate incoming/outgoing labels per node, preserving operand order
   for (std::size_t u = 0; u < nodes.size(); ++u) {
     nodes[u].incoming_labels = collect_incoming_ordered(static_cast<int>(u));
-    nodes[u].outgoing_labels =
-        collect_outgoing_unordered(static_cast<int>(u));
+    nodes[u].outgoing_labels = collect_outgoing_unordered(static_cast<int>(u));
 
     // signature = hash(label, ordered(incoming_labels),
     // unordered(outgoing_labels))
@@ -307,7 +322,7 @@ void XLSGraph::Cut(const std::vector<int>& node_indices) {
   }
 
   // 1) Build removal set, EXCLUDING pinned nodes
-  std::unordered_set<int> to_remove;
+  absl::flat_hash_set<int> to_remove;
   to_remove.reserve(node_indices.size());
   for (int idx : node_indices) {
     if (idx >= 0 && idx < (int)nodes.size() && !nodes[idx].pinned)
@@ -356,7 +371,7 @@ void XLSGraph::Cut(const std::vector<int>& node_indices) {
   RefreshAdjacency();
   RefreshEdgeCounts();
   RefreshReturnAndIndex();
-  ValidateEdges();  // should be a no-op or very small now
+  ValidateEdges();
 
   VLOG(1) << "Cut complete: " << nodes.size() << " nodes and " << edges.size()
           << " edges remaining.";
@@ -404,7 +419,7 @@ void XLSGraph::RefreshEdgeCounts() {
   }
 
   VLOG(2) << "RefreshEdgeCounts: counted " << edge_counts.size()
-        << " unique edge pairs.";
+          << " unique edge pairs.";
 }
 
 void XLSGraph::RefreshReturnAndIndex() {

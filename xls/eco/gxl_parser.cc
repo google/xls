@@ -1,3 +1,17 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "xls/eco/gxl_parser.h"
 
 #include <algorithm>
@@ -8,7 +22,8 @@
 #include <optional>
 #include <set>
 #include <unistd.h>
-#include <unordered_map>
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 
 #include "absl/log/log.h"
 static XLSNode parse_node(tinyxml2::XMLElement *NodeElem);
@@ -69,13 +84,11 @@ static void parse_edges(XLSGraph &graph, tinyxml2::XMLElement *graph_elem,
        edge_elem; edge_elem = edge_elem->NextSiblingElement("edge"))
   {
     auto [from_node, to_node, cost_attrs, edge_index] = parse_edge(edge_elem);
-    auto source_it = std::find_if(
-        graph.nodes.begin(), graph.nodes.end(),
-        [&from_node](const XLSNode &node)
+    auto source_it = absl::c_find_if(
+        graph.nodes, [&from_node](const XLSNode &node)
         { return node.name == from_node; });
-    auto target_it = std::find_if(
-        graph.nodes.begin(), graph.nodes.end(),
-        [&to_node](const XLSNode &node)
+    auto target_it = absl::c_find_if(
+        graph.nodes, [&to_node](const XLSNode &node)
         { return node.name == to_node; });
     int source = (source_it != graph.nodes.end())
                      ? std::distance(graph.nodes.begin(), source_it)
@@ -90,15 +103,14 @@ static void parse_edges(XLSGraph &graph, tinyxml2::XMLElement *graph_elem,
     }
     graph.add_edge(XLSEdge(source, sink, cost_attrs, edge_index));
   }
-  std::sort(graph.edges.begin(), graph.edges.end(),
-            [](const XLSEdge &a, const XLSEdge &b)
-            {
-              if (a.endpoints.first != b.endpoints.first)
-                return a.endpoints.first < b.endpoints.first;
-              if (a.endpoints.second != b.endpoints.second)
-                return a.endpoints.second < b.endpoints.second;
-              return a.index < b.index;
-            });
+  absl::c_sort(graph.edges, [](const XLSEdge &a, const XLSEdge &b)
+               {
+                 if (a.endpoints.first != b.endpoints.first)
+                   return a.endpoints.first < b.endpoints.first;
+                 if (a.endpoints.second != b.endpoints.second)
+                   return a.endpoints.second < b.endpoints.second;
+                 return a.index < b.index;
+               });
   graph.node_edges.clear();
   for (size_t i = 0; i < graph.edges.size(); ++i)
   {
@@ -108,11 +120,10 @@ static void parse_edges(XLSGraph &graph, tinyxml2::XMLElement *graph_elem,
   }
   for (auto &[node_idx, edge_indices] : graph.node_edges)
   {
-    std::sort(edge_indices.begin(), edge_indices.end(),
-              [&graph](int a, int b)
-              {
-                return graph.edges[a].index < graph.edges[b].index;
-              });
+    absl::c_sort(edge_indices, [&graph](int a, int b)
+                 {
+                   return graph.edges[a].index < graph.edges[b].index;
+                 });
   }
   VLOG(1) << "Parsed " << graph.edges.size() << " edges";
 }

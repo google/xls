@@ -1,9 +1,22 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <sstream>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -39,9 +52,9 @@ std::optional<xls::TypeProto> ParseTypeProto(absl::string_view type_str) {
   return type_or.value()->ToProto();
 }
 
-std::unordered_map<std::string, std::string> ParseFields(
+absl::flat_hash_map<std::string, std::string> ParseFields(
     const std::string& input) {
-  std::unordered_map<std::string, std::string> result;
+  absl::flat_hash_map<std::string, std::string> result;
   std::stringstream ss(input);
   std::string token;
 
@@ -137,7 +150,7 @@ std::vector<std::string> SplitTopLevel(absl::string_view input) {
 }
 
 void PopulateUniqueArgs(
-    const std::unordered_map<std::string, std::string>& attrs,
+    const absl::flat_hash_map<std::string, std::string>& attrs,
     absl::string_view op_name, xls_eco::NodeProto* node_proto) {
   if (node_proto == nullptr) {
     return;
@@ -247,7 +260,7 @@ void PopulateUniqueArgs(
       }
     }
   }
-    }
+}
 
 void ExportNodeProto(const XLSNode& node, xls_eco::NodeProto* node_proto) {
   auto attribs = ParseFields(node.cost_attributes);
@@ -391,10 +404,12 @@ xls_eco::IrPatchProto GenerateIrPatchProto(const XLSGraph& original_graph,
     id++;
   }
 
-  if (modified_graph.return_node_name.has_value() &&
-      modified_graph.return_node_name != original_graph.return_node_name) {
-    auto it =
-        modified_graph.node_name_to_index.find(*modified_graph.return_node_name);
+  // Always record the return node when present.  RestoreReturnNode() needs it
+  // whenever the return node was isolated via UPDATE or DELETE, even if the
+  // return-node name did not change between the two versions.
+  if (modified_graph.return_node_name.has_value()) {
+    auto it = modified_graph.node_name_to_index.find(
+        *modified_graph.return_node_name);
     if (it != modified_graph.node_name_to_index.end()) {
       xls_eco::NodeProto* ret_proto = patch_proto.mutable_return_node();
       ret_proto->set_name(*modified_graph.return_node_name);
