@@ -1,72 +1,56 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef XLS_ECO_GED_H_
 #define XLS_ECO_GED_H_
 
 #include <climits>
-#include <cstdint>
 #include <functional>
 #include <limits>
+#include <utility>
 #include <vector>
-#include <chrono>
-#include <unordered_map>
 
+#include "graph.h"
 
-#include "xls/eco/graph.h"
+namespace ged {
 
-namespace ged
-{
-struct SparseCostMatrix {
-  std::vector<int> row_ind;
-  std::vector<int> col_ind;
-  std::vector<int> cost;
+// Dense cost matrix stored in row-major order.
+struct RawCostMatrix {
+  std::vector<int> data;
   int n_rows = 0;
   int n_cols = 0;
 
-  std::vector<int> row_map;
-  std::vector<int> col_map;
-
   static constexpr int INF = std::numeric_limits<int>::max();
 
-  explicit SparseCostMatrix(size_t reserve_nnz = 0) {
-    if (reserve_nnz) {
-      row_ind.reserve(reserve_nnz);
-      col_ind.reserve(reserve_nnz);
-      cost.reserve(reserve_nnz);
-    }
-  }
+  RawCostMatrix() = default;
+  RawCostMatrix(int rows, int cols)
+      : data(static_cast<size_t>(rows) * cols, INF),  // Initialize with INF
+        n_rows(rows),
+        n_cols(cols) {}
 
-  inline void add(int i, int j, int c) {
-    row_ind.push_back(i);
-    col_ind.push_back(j);
-    cost.push_back(c);
-  }
-
-  inline int get(int i, int j) const {
-    for (size_t k = 0; k < row_ind.size(); ++k)
-      if (row_ind[k] == i && col_ind[k] == j) return cost[k];
-    return INF;
-  }
-
-  inline void set(int i, int j, int c) {
-    for (size_t k = 0; k < row_ind.size(); ++k) {
-      if (row_ind[k] == i && col_ind[k] == j) {
-        cost[k] = c;
-        return;
-      }
-    }
-    add(i, j, c);
-  }
-
-  inline size_t nnz() const { return cost.size(); }
+  int Get(int i, int j) const { return data[i * n_cols + j]; }
+  void Set(int i, int j, int c) { data[i * n_cols + j] = c; }
 };
 
 struct CostMatrix {
-  SparseCostMatrix C;
-  int ls;
+  RawCostMatrix C;
+  int ls = 0;
   std::vector<int> lsa_row_ind;
   std::vector<int> lsa_col_ind;
 };
 
-CostMatrix MakeCostMatrix(const SparseCostMatrix& C, int m, int n,
+CostMatrix MakeCostMatrix(const RawCostMatrix& C, int m, int n,
                           std::vector<std::vector<double>>& dense_buffer);
 
 struct MatchEdgesResult {
@@ -99,7 +83,7 @@ void GetEditOps(const std::vector<std::pair<int, int>>& matched_uv,
                 const std::vector<int>& pending_g,
                 const std::vector<int>& pending_h, const CostMatrix& Ce,
                 const XLSGraph& G1, const XLSGraph& G2, int matched_cost,
-                std::function<bool(long long)> prune,
+                std::function<bool(int64_t)> prune,
                 std::vector<std::vector<double>>& dense_Cv_buffer,
                 std::vector<std::vector<double>>& dense_Ce_buffer,
                 const std::function<void(EditOp&)>& op_callback);
@@ -111,7 +95,7 @@ struct AssignmentResult {
   std::vector<int> ins;
 };
 
-AssignmentResult SolveLSAP(const SparseCostMatrix& M, int m, int n,
+AssignmentResult SolveLSAP(const RawCostMatrix& M, int m, int n,
                            std::vector<std::vector<double>>& dense_buffer);
 
 struct NodeCostFunctions {
@@ -125,6 +109,7 @@ struct EdgeCostFunctions {
   int (*ins)(const XLSEdge&);
   int (*del)(const XLSEdge&);
 };
+
 struct GEDOptions {
   NodeCostFunctions nodeCosts;
   EdgeCostFunctions edgeCosts;
@@ -153,35 +138,14 @@ struct SearchState;
 
 void GetEditPaths(SearchState& state, CostMatrix& Cv, CostMatrix& Ce,
                   const XLSGraph& G1, const XLSGraph& G2,
-                  std::function<bool(long long)> prune, int& maxcost_value,
+                  std::function<bool(int64_t)> prune, int& maxcost_value,
                   int& best_cost, GEDResult& best_result, int& expansion_count,
                   std::vector<std::vector<double>>& dense_Cv_buffer,
                   std::vector<std::vector<double>>& dense_Ce_buffer);
-inline std::function<bool(long long)>
-MakePruneFunction(const GEDOptions& options,
-                  const std::chrono::steady_clock::time_point& start_time,
-  bool& timed_out, int maxcost_value, int& best_cost) {
-  return [&](long long cost) -> bool {
-    if (options.timeout == -1 && !options.optimal &&
-        best_cost < SparseCostMatrix::INF) {
-      // Best cost already set: exit immediately when timeout == -1.
-      return true;
-    }
-    if (options.timeout > 0 && !options.optimal) {
-      double elapsed = std::chrono::duration<double>(
-          std::chrono::steady_clock::now() - start_time).count();
-      if (elapsed > options.timeout) {
-        timed_out = true;
-        return true;
-      }
-    }
-    return (cost > maxcost_value) ||
-           (options.upper_bound != INT_MAX && cost > options.upper_bound) ||
-           (options.strictly_decreasing && cost >= maxcost_value);
-  };
-}
 
 GEDResult SolveGED(const XLSGraph& graph1, const XLSGraph& graph2,
                    const GEDOptions& options);
+
 }  // namespace ged
+
 #endif  // XLS_ECO_GED_H_

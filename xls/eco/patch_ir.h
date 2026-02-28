@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #ifndef XLS_ECO_PATCH_IR_H_
 #define XLS_ECO_PATCH_IR_H_
 
