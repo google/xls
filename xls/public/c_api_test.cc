@@ -348,6 +348,52 @@ TEST(XlsCApiTest, BitsEqualityAndInequalityComparisons) {
   EXPECT_TRUE(xls_bits_ne(a, c));
 }
 
+TEST(XlsCApiTest, BitsUnsignedDivMod) {
+  char* error_out = nullptr;
+  xls_bits* lhs = nullptr;
+  xls_bits* rhs = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(8, /*value=*/20, &error_out, &lhs));
+  absl::Cleanup free_lhs([lhs] { xls_bits_free(lhs); });
+  ASSERT_TRUE(xls_bits_make_ubits(8, /*value=*/6, &error_out, &rhs));
+  absl::Cleanup free_rhs([rhs] { xls_bits_free(rhs); });
+
+  xls_bits* div = xls_bits_udiv(lhs, rhs);
+  absl::Cleanup free_div([div] { xls_bits_free(div); });
+  xls_bits* mod = xls_bits_umod(lhs, rhs);
+  absl::Cleanup free_mod([mod] { xls_bits_free(mod); });
+
+  uint64_t div_value = 0;
+  ASSERT_TRUE(xls_bits_to_uint64(div, &error_out, &div_value));
+  EXPECT_EQ(div_value, 3);
+
+  uint64_t mod_value = 0;
+  ASSERT_TRUE(xls_bits_to_uint64(mod, &error_out, &mod_value));
+  EXPECT_EQ(mod_value, 2);
+}
+
+TEST(XlsCApiTest, BitsSignedDivMod) {
+  char* error_out = nullptr;
+  xls_bits* lhs = nullptr;
+  xls_bits* rhs = nullptr;
+  ASSERT_TRUE(xls_bits_make_sbits(8, /*value=*/-18, &error_out, &lhs));
+  absl::Cleanup free_lhs([lhs] { xls_bits_free(lhs); });
+  ASSERT_TRUE(xls_bits_make_sbits(8, /*value=*/6, &error_out, &rhs));
+  absl::Cleanup free_rhs([rhs] { xls_bits_free(rhs); });
+
+  xls_bits* div = xls_bits_sdiv(lhs, rhs);
+  absl::Cleanup free_div([div] { xls_bits_free(div); });
+  xls_bits* mod = xls_bits_smod(lhs, rhs);
+  absl::Cleanup free_mod([mod] { xls_bits_free(mod); });
+
+  int64_t div_value = 0;
+  ASSERT_TRUE(xls_bits_to_int64(div, &error_out, &div_value));
+  EXPECT_EQ(div_value, -3);
+
+  int64_t mod_value = 0;
+  ASSERT_TRUE(xls_bits_to_int64(mod, &error_out, &mod_value));
+  EXPECT_EQ(mod_value, 0);
+}
+
 // TODO(williamjhuang) - Many warnings that may be generated under TIv1 are not
 // generated under TIv2, so we are forcing TIv1 in this case.
 TEST(XlsCApiTest, ConvertDslxToIrWithWarningsSet) {
