@@ -1,11 +1,3 @@
-# TODO(b/1234567890): DEPRECATED - This Python patch generator will be replaced
-# by patch_ir.h/cc (C++ implementation) which provides:
-# - Better type safety and error handling
-# - Direct integration with XLS IR infrastructure
-# - More efficient patch application
-# Please use //xls/eco:patch_ir_main instead.
-
-#
 # Copyright 2023 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+# TODO: DEPRECATE - This Python patch generator will be replaced
+# by patch_ir.h/cc (C++ implementation) which provides:
+# - Better type safety and error handling
+# - Direct integration with XLS IR infrastructure
+# - More efficient patch application
+# Please use //xls/eco:patch_ir_main instead.
+
 
 """A library for constructing proto-based patches from IR edit paths."""
 

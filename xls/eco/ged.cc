@@ -1,11 +1,24 @@
-#include "xls/eco/ged.h"
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "ged.h"
 
 #include <algorithm>
 #include <chrono>
-#include <numeric>
-#include <unordered_map>
-#include <unordered_set>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "xls/eco/lap_solver.h"
 
@@ -15,100 +28,100 @@ Zeina Abu-Aisheh, Romain Raveaux, Jean-Yves Ramel, Patrick Martineau.
 Problems." ICPRAM 2015. https://hal.archives-ouvertes.fr/hal-01168816 */
 
 namespace ged {
-SparseCostMatrix BuildNodeCostMatrix(const XLSGraph& G1, const XLSGraph& G2,
-                                     const NodeCostFunctions& costs) {
+
+RawCostMatrix BuildNodeCostMatrix(const XLSGraph& G1, const XLSGraph& G2,
+                                  const NodeCostFunctions& costs) {
   VLOG(1) << "BuildNodeCostMatrix start: G1 nodes=" << G1.nodes.size()
           << " G2 nodes=" << G2.nodes.size();
   const int m = G1.nodes.size();
   const int n = G2.nodes.size();
-  SparseCostMatrix M;
-  M.n_rows = m + n;
-  M.n_cols = m + n;
-  long long subs_sum = 0;
-  for (int i = 0; i < m; ++i)
+  RawCostMatrix M(m + n, m + n);
+
+  // Substitution block (m × n).
+  for (int i = 0; i < m; ++i) {
     for (int j = 0; j < n; ++j) {
-      int c = costs.subst(G1.nodes[i], G2.nodes[j]);
-      subs_sum += c;
-      M.add(i, j, c);
+      M.Set(i, j, costs.subst(G1.nodes[i], G2.nodes[j]));
     }
-  std::vector<int> del_costs(m), ins_costs(n);
-  for (int i = 0; i < m; ++i) del_costs[i] = costs.del(G1.nodes[i]);
-  for (int j = 0; j < n; ++j) ins_costs[j] = costs.ins(G2.nodes[j]);
-  long long inf_val =
-      subs_sum + std::accumulate(del_costs.begin(), del_costs.end(), 0LL) +
-      std::accumulate(ins_costs.begin(), ins_costs.end(), 0LL) + 1;
-  if (inf_val > SparseCostMatrix::INF) inf_val = SparseCostMatrix::INF;
-  VLOG(3) << "BuildNodeCostMatrix: m=" << m << " n=" << n
-          << " inf_val=" << inf_val << " subs_sum=" << subs_sum;
-  for (int i = 0; i < m; ++i)
-    for (int j = 0; j < m; ++j)
-      M.add(i, n + j, (i == j) ? del_costs[i] : (int)inf_val);
-  for (int i = 0; i < n; ++i)
-    for (int j = 0; j < n; ++j)
-      M.add(m + i, j, (i == j) ? ins_costs[i] : (int)inf_val);
-  for (int i = 0; i < n; ++i)
-    for (int j = 0; j < m; ++j) M.add(m + i, n + j, 0);
+  }
+
+  // Deletion block (m × m): diagonal = del cost, off-diagonal stays INF.
+  for (int i = 0; i < m; ++i) {
+    M.Set(i, n + i, costs.del(G1.nodes[i]));
+  }
+
+  // Insertion block (n × n): diagonal = ins cost, off-diagonal stays INF.
+  for (int j = 0; j < n; ++j) {
+    M.Set(m + j, j, costs.ins(G2.nodes[j]));
+  }
+
+  // Dummy block (n × m): all zeros.
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < m; ++j) {
+      M.Set(m + i, n + j, 0);
+    }
+  }
+
   VLOG(1) << "BuildNodeCostMatrix done (rows=" << M.n_rows
-          << ", cols=" << M.n_cols << ", nnz=" << M.cost.size() << ")";
+          << ", cols=" << M.n_cols << ")";
   return M;
 }
-SparseCostMatrix BuildEdgeCostMatrix(const XLSGraph& G1, const XLSGraph& G2,
-                                     const EdgeCostFunctions& costs) {
+
+RawCostMatrix BuildEdgeCostMatrix(const XLSGraph& G1, const XLSGraph& G2,
+                                  const EdgeCostFunctions& costs) {
   VLOG(1) << "BuildEdgeCostMatrix start: G1 edges=" << G1.edges.size()
           << " G2 edges=" << G2.edges.size();
   const int m = G1.edges.size();
   const int n = G2.edges.size();
-  SparseCostMatrix M;
-  M.n_rows = m + n;
-  M.n_cols = m + n;
-  long long subs_sum = 0;
-  for (int i = 0; i < m; ++i)
-    for (int j = 0; j < n; ++j) {
-      int c = costs.subst(G1.edges[i], G2.edges[j]);
-      subs_sum += c;
-      M.add(i, j, c);
-    }
-  long long del_sum = 0, ins_sum = 0;
-  for (int i = 0; i < m; ++i) del_sum += costs.del(G1.edges[i]);
-  for (int j = 0; j < n; ++j) ins_sum += costs.ins(G2.edges[j]);
-  long long inf_val =
-      std::min<long long>(subs_sum + del_sum + ins_sum + 1,
-                          static_cast<long long>(SparseCostMatrix::INF));
+  RawCostMatrix M(m + n, m + n);
 
-  VLOG(3) << "BuildEdgeCostMatrix: m=" << m << " n=" << n
-          << " inf_val=" << inf_val << " subs_sum=" << subs_sum;
-  for (int i = 0; i < m; ++i)
-    for (int j = 0; j < m; ++j)
-      M.add(i, n + j, (i == j) ? costs.del(G1.edges[i]) : (int)inf_val);
-  for (int i = 0; i < n; ++i)
-    for (int j = 0; j < n; ++j)
-      M.add(m + i, j, (i == j) ? costs.ins(G2.edges[i]) : (int)inf_val);
-  for (int i = 0; i < n; ++i)
-    for (int j = 0; j < m; ++j) M.add(m + i, n + j, 0);
+  // Substitution block.
+  for (int i = 0; i < m; ++i) {
+    for (int j = 0; j < n; ++j) {
+      M.Set(i, j, costs.subst(G1.edges[i], G2.edges[j]));
+    }
+  }
+
+  // Deletion block: diagonal only.
+  for (int i = 0; i < m; ++i) {
+    M.Set(i, n + i, costs.del(G1.edges[i]));
+  }
+
+  // Insertion block: diagonal only.
+  for (int j = 0; j < n; ++j) {
+    M.Set(m + j, j, costs.ins(G2.edges[j]));
+  }
+
+  // Dummy block: all zeros.
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < m; ++j) {
+      M.Set(m + i, n + j, 0);
+    }
+  }
+
   VLOG(1) << "BuildEdgeCostMatrix done (rows=" << M.n_rows
-          << ", cols=" << M.n_cols << ", nnz=" << M.cost.size() << ")";
+          << ", cols=" << M.n_cols << ")";
   return M;
 }
-CostMatrix MakeCostMatrix(const SparseCostMatrix& C, int m, int n,
+
+CostMatrix MakeCostMatrix(const RawCostMatrix& C, int m, int n,
                           std::vector<std::vector<double>>& dense) {
   CostMatrix result;
   result.C = C;
 
   const int size = std::max(C.n_rows, C.n_cols);
   if (dense.size() != static_cast<size_t>(size)) {
-    dense.assign(size,
-                 std::vector<double>(size, (double)SparseCostMatrix::INF));
+    dense.assign(size, std::vector<double>(size, (double)RawCostMatrix::INF));
   } else {
     for (auto& row : dense) {
-      std::fill(row.begin(), row.end(), (double)SparseCostMatrix::INF);
+      std::fill(row.begin(), row.end(), (double)RawCostMatrix::INF);
     }
   }
 
-  for (size_t k = 0; k < C.cost.size(); ++k) {
-    int i = C.row_ind[k];
-    int j = C.col_ind[k];
-    double c = (double)C.cost[k];
-    dense[i][j] = c;
+  // Direct copy from dense int grid to dense double buffer.
+  for (int i = 0; i < C.n_rows; ++i) {
+    for (int j = 0; j < C.n_cols; ++j) {
+      dense[i][j] = static_cast<double>(C.Get(i, j));
+    }
   }
 
   auto [row_ind, col_ind] = linear_sum_assignment(dense);
@@ -118,18 +131,18 @@ CostMatrix MakeCostMatrix(const SparseCostMatrix& C, int m, int n,
   result.lsa_row_ind.reserve(row_ind.size());
   result.lsa_col_ind.reserve(col_ind.size());
 
-  long long ls_sum = 0;
+  int64_t ls_sum = 0;
   for (size_t p = 0; p < row_ind.size(); ++p) {
     int i = row_ind[p];
     int j = col_ind[p];
     result.lsa_row_ind.push_back(i);
     result.lsa_col_ind.push_back(j);
     double c = dense[i][j];
-    if (c >= (double)SparseCostMatrix::INF) {
-      ls_sum = (long long)SparseCostMatrix::INF;
+    if (c >= (double)RawCostMatrix::INF) {
+      ls_sum = (int64_t)RawCostMatrix::INF;
       break;
     }
-    ls_sum += (long long)c;
+    ls_sum += (int64_t)c;
   }
 
   std::vector<int> subst_rows, subst_cols, dummy_idx;
@@ -151,132 +164,143 @@ CostMatrix MakeCostMatrix(const SparseCostMatrix& C, int m, int n,
     result.lsa_col_ind[idx] = subst_rows[p] + n;
   }
 
-  result.ls =
-      (ls_sum > SparseCostMatrix::INF) ? SparseCostMatrix::INF : (int)ls_sum;
+  result.ls = (ls_sum > RawCostMatrix::INF) ? RawCostMatrix::INF : (int)ls_sum;
   VLOG(2) << "MakeCostMatrix: rows=" << result.C.n_rows
           << " cols=" << result.C.n_cols << " m=" << m << " n=" << n
           << " ls=" << result.ls
           << " assignments=" << result.lsa_row_ind.size();
-  VLOG(3) << "MakeCostMatrix detail: row_ind size=" << row_ind.size()
-          << " col_ind size=" << col_ind.size();
   return result;
 }
 
-SparseCostMatrix ExtractC(const SparseCostMatrix& C, const std::vector<int>& i,
-                          const std::vector<int>& j, int m, int n) {
+RawCostMatrix ExtractC(const RawCostMatrix& C, const std::vector<int>& i_vec,
+                       const std::vector<int>& j_vec, int m, int n) {
   const int size = m + n;
+  absl::flat_hash_set<int> i_set(i_vec.begin(), i_vec.end());
+  absl::flat_hash_set<int> j_set(j_vec.begin(), j_vec.end());
+
   std::vector<bool> row_mask(size, false), col_mask(size, false);
-
   for (int k = 0; k < size; ++k) {
-    bool in_i = std::find(i.begin(), i.end(), k) != i.end();
-    bool in_j = std::find(j.begin(), j.end(), k) != j.end();
-    bool in_i_shift =
-        (k >= n) && std::find(i.begin(), i.end(), k - n) != i.end();
-    bool in_j_shift =
-        (k >= m) && std::find(j.begin(), j.end(), k - m) != j.end();
-
+    bool in_i = i_set.contains(k);
+    bool in_j = j_set.contains(k);
+    bool in_i_shift = (k >= n) && i_set.contains(k - n);
+    bool in_j_shift = (k >= m) && j_set.contains(k - m);
     row_mask[k] = in_i || in_j_shift;
     col_mask[k] = in_j || in_i_shift;
   }
 
-  SparseCostMatrix result;
-  result.n_rows = std::count(row_mask.begin(), row_mask.end(), true);
-  result.n_cols = std::count(col_mask.begin(), col_mask.end(), true);
+  int new_rows = absl::c_count(row_mask, true);
+  int new_cols = absl::c_count(col_mask, true);
+  RawCostMatrix result(new_rows, new_cols);
 
   std::vector<int> row_inv(size, -1), col_inv(size, -1);
   int ridx = 0, cidx = 0;
-  for (int k = 0; k < size; ++k)
-    if (row_mask[k]) row_inv[k] = ridx++;
-  for (int k = 0; k < size; ++k)
-    if (col_mask[k]) col_inv[k] = cidx++;
-
-  for (size_t k = 0; k < C.cost.size(); ++k) {
-    int old_i = C.row_ind[k];
-    int old_j = C.col_ind[k];
-    if (row_mask[old_i] && col_mask[old_j])
-      result.add(row_inv[old_i], col_inv[old_j], C.cost[k]);
+  for (int k = 0; k < size; ++k) {
+    if (row_mask[k]) {
+      row_inv[k] = ridx++;
+    }
+  }
+  for (int k = 0; k < size; ++k) {
+    if (col_mask[k]) {
+      col_inv[k] = cidx++;
+    }
   }
 
-  static int extractc_logs = 0;
-  if (extractc_logs < 10) {
-    VLOG(3) << "ExtractC: m=" << m << " n=" << n
-            << " keep_rows=" << result.n_rows << " keep_cols=" << result.n_cols;
-    ++extractc_logs;
+  for (int r = 0; r < size; ++r) {
+    if (!row_mask[r]) {
+      continue;
+    }
+    for (int c = 0; c < size; ++c) {
+      if (!col_mask[c]) {
+        continue;
+      }
+      result.Set(row_inv[r], col_inv[c], C.Get(r, c));
+    }
   }
 
+  VLOG(3) << "ExtractC: m=" << m << " n=" << n << " keep_rows=" << result.n_rows
+          << " keep_cols=" << result.n_cols;
   return result;
 }
 
-SparseCostMatrix ReduceC(const SparseCostMatrix& C, const std::vector<int>& i,
-                         const std::vector<int>& j, int m, int n) {
+RawCostMatrix ReduceC(const RawCostMatrix& C, const std::vector<int>& i_vec,
+                      const std::vector<int>& j_vec, int m, int n) {
   const int size = m + n;
+  absl::flat_hash_set<int> i_set(i_vec.begin(), i_vec.end());
+  absl::flat_hash_set<int> j_set(j_vec.begin(), j_vec.end());
+
   std::vector<bool> row_mask(size, false), col_mask(size, false);
-
   for (int k = 0; k < size; ++k) {
-    bool in_i = std::find(i.begin(), i.end(), k) != i.end();
-    bool in_j = std::find(j.begin(), j.end(), k) != j.end();
-    bool in_i_shift =
-        (k >= n) && std::find(i.begin(), i.end(), k - n) != i.end();
-    bool in_j_shift =
-        (k >= m) && std::find(j.begin(), j.end(), k - m) != j.end();
-
+    bool in_i = i_set.contains(k);
+    bool in_j = j_set.contains(k);
+    bool in_i_shift = (k >= n) && i_set.contains(k - n);
+    bool in_j_shift = (k >= m) && j_set.contains(k - m);
     row_mask[k] = !in_i && !in_j_shift;
     col_mask[k] = !in_j && !in_i_shift;
   }
 
-  SparseCostMatrix result;
-  result.n_rows = std::count(row_mask.begin(), row_mask.end(), true);
-  result.n_cols = std::count(col_mask.begin(), col_mask.end(), true);
+  int new_rows = absl::c_count(row_mask, true);
+  int new_cols = absl::c_count(col_mask, true);
+  RawCostMatrix result(new_rows, new_cols);
 
   std::vector<int> row_inv(size, -1), col_inv(size, -1);
   int ridx = 0, cidx = 0;
-  for (int k = 0; k < size; ++k)
-    if (row_mask[k]) row_inv[k] = ridx++;
-  for (int k = 0; k < size; ++k)
-    if (col_mask[k]) col_inv[k] = cidx++;
-
-  for (size_t k = 0; k < C.cost.size(); ++k) {
-    int old_i = C.row_ind[k];
-    int old_j = C.col_ind[k];
-    if (row_mask[old_i] && col_mask[old_j])
-      result.add(row_inv[old_i], col_inv[old_j], C.cost[k]);
+  for (int k = 0; k < size; ++k) {
+    if (row_mask[k]) {
+      row_inv[k] = ridx++;
+    }
+  }
+  for (int k = 0; k < size; ++k) {
+    if (col_mask[k]) {
+      col_inv[k] = cidx++;
+    }
   }
 
-  static int reducec_logs = 0;
-  if (reducec_logs < 10) {
-    VLOG(3) << "ReduceC: m=" << m << " n=" << n
-            << " keep_rows=" << result.n_rows << " keep_cols=" << result.n_cols;
-    ++reducec_logs;
+  for (int r = 0; r < size; ++r) {
+    if (!row_mask[r]) {
+      continue;
+    }
+    for (int c = 0; c < size; ++c) {
+      if (!col_mask[c]) {
+        continue;
+      }
+      result.Set(row_inv[r], col_inv[c], C.Get(r, c));
+    }
   }
 
+  VLOG(3) << "ReduceC: m=" << m << " n=" << n << " keep_rows=" << result.n_rows
+          << " keep_cols=" << result.n_cols;
   return result;
 }
 
 std::vector<int> ReduceInd(const std::vector<int>& ind,
                            const std::vector<int>& i) {
-  if (i.empty()) return ind;
-
-  std::unordered_set<int> i_set(i.begin(), i.end());
-  std::vector<int> rind;
-  rind.reserve(ind.size());
-  for (int k : ind)
-    if (!i_set.count(k)) rind.push_back(k);
-
-  std::vector<int> i_sorted(i.begin(), i.end());
-  std::sort(i_sorted.begin(), i_sorted.end());
-  i_sorted.erase(std::unique(i_sorted.begin(), i_sorted.end()), i_sorted.end());
-
-  for (int k : i_sorted)
-    for (int& idx : rind)
-      if (idx >= k) idx--;
-
-  static int reduceind_logs = 0;
-  if (reduceind_logs < 10) {
-    VLOG(3) << "ReduceInd: in=" << ind.size() << " remove=" << i.size()
-            << " out=" << rind.size();
-    ++reduceind_logs;
+  if (i.empty()) {
+    return ind;
   }
 
+  absl::flat_hash_set<int> i_set(i.begin(), i.end());
+  std::vector<int> rind;
+  rind.reserve(ind.size());
+  for (int k : ind) {
+    if (!i_set.count(k)) {
+      rind.push_back(k);
+    }
+  }
+
+  std::vector<int> i_sorted(i.begin(), i.end());
+  absl::c_sort(i_sorted);
+  i_sorted.erase(std::unique(i_sorted.begin(), i_sorted.end()), i_sorted.end());
+
+  for (int k : i_sorted) {
+    for (int& idx : rind) {
+      if (idx >= k) {
+        idx--;
+      }
+    }
+  }
+
+  VLOG(3) << "ReduceInd: in=" << ind.size() << " remove=" << i.size()
+          << " out=" << rind.size();
   return rind;
 }
 
@@ -336,14 +360,12 @@ MatchEdgesResult MatchEdges(int u, int v, const std::vector<int>& pending_g,
   const int n = (int)h_ind.size();
 
   if (m == 0 && n == 0) {
-    result.localCe.C = SparseCostMatrix();
-    result.localCe.C.n_rows = 0;
-    result.localCe.C.n_cols = 0;
+    result.localCe.C = RawCostMatrix();
     result.localCe.ls = 0;
     return result;
   }
 
-  SparseCostMatrix C = ExtractC(Ce.C, g_ind, h_ind, M, N);
+  RawCostMatrix C = ExtractC(Ce.C, g_ind, h_ind, M, N);
 
   const bool directed = true;
 
@@ -408,7 +430,7 @@ MatchEdgesResult MatchEdges(int u, int v, const std::vector<int>& pending_g,
         if (h_self_matched) continue;
       }
 
-      C.set(k, l, SparseCostMatrix::INF);
+      C.Set(k, l, RawCostMatrix::INF);
     }
   }
 
@@ -430,24 +452,12 @@ MatchEdgesResult MatchEdges(int u, int v, const std::vector<int>& pending_g,
   result.ij = std::move(ij);
   result.localCe = std::move(localCe);
 
-  int inf_overwrites = 0;
-  for (size_t t = 0; t < C.cost.size(); ++t) {
-    int rr = C.row_ind[t];
-    int cc = C.col_ind[t];
-    if (rr < m && cc < n && C.cost[t] >= SparseCostMatrix::INF)
-      ++inf_overwrites;
-  }
-  static int matchedges_logs = 0;
-  if (matchedges_logs < 10) {
-    VLOG(3) << "MatchEdges: u=" << u << " v=" << v << " M=" << M << " N=" << N
-            << " m=" << m << " n=" << n << " directed=" << (directed ? 1 : 0)
-            << " INF_overwrites=" << inf_overwrites
-            << " localCe.ls=" << result.localCe.ls
-            << " pairs=" << result.ij.size();
-    ++matchedges_logs;
-  }
+  VLOG(3) << "MatchEdges: u=" << u << " v=" << v << " M=" << M << " N=" << N
+          << " m=" << m << " n=" << n << " localCe.ls=" << result.localCe.ls
+          << " pairs=" << result.ij.size();
   return result;
 }
+
 CostMatrix ReduceCe(const CostMatrix& Ce,
                     const std::vector<std::pair<int, int>>& ij, int m, int n,
                     std::vector<std::vector<double>>& dense_buffer) {
@@ -461,32 +471,35 @@ CostMatrix ReduceCe(const CostMatrix& Ce,
     i_list.push_back(i);
     j_list.push_back(j);
   }
-  std::unordered_set<int> i_unique, j_unique;
-  for (int i : i_list)
-    if (i < m) i_unique.insert(i);
-  for (int j : j_list)
-    if (j < n) j_unique.insert(j);
+  absl::flat_hash_set<int> i_unique, j_unique;
+  for (int i : i_list) {
+    if (i < m) {
+      i_unique.insert(i);
+    }
+  }
+  for (int j : j_list) {
+    if (j < n) {
+      j_unique.insert(j);
+    }
+  }
   int m_i = m - static_cast<int>(i_unique.size());
   int n_j = n - static_cast<int>(j_unique.size());
-  SparseCostMatrix reduced = ReduceC(Ce.C, i_list, j_list, m, n);
+  RawCostMatrix reduced = ReduceC(Ce.C, i_list, j_list, m, n);
 
-  static int reducece_logs = 0;
-  if (reducece_logs < 10) {
-    VLOG(3) << "ReduceCe: m=" << m << " n=" << n << " |ij|=" << ij.size()
-            << " -> m_i=" << m_i << " n_j=" << n_j
-            << " (unique_i=" << i_unique.size()
-            << " unique_j=" << j_unique.size() << ")";
-    ++reducece_logs;
-  }
+  VLOG(3) << "ReduceCe: m=" << m << " n=" << n << " |ij|=" << ij.size()
+          << " -> m_i=" << m_i << " n_j=" << n_j
+          << " (unique_i=" << i_unique.size() << " unique_j=" << j_unique.size()
+          << ")";
   return MakeCostMatrix(reduced, m_i, n_j, dense_buffer);
 }
+
 void GetEditOps(const std::vector<std::pair<int, int>>& matched_uv,
                 const std::vector<int>& pending_u,
                 const std::vector<int>& pending_v, const CostMatrix& Cv,
                 const std::vector<int>& pending_g,
                 const std::vector<int>& pending_h, const CostMatrix& Ce,
                 const XLSGraph& G1, const XLSGraph& G2, int matched_cost,
-                std::function<bool(long long)> prune,
+                std::function<bool(int64_t)> prune,
                 std::vector<std::vector<double>>& dense_Cv_buffer,
                 std::vector<std::vector<double>>& dense_Ce_buffer,
                 const std::function<void(EditOp&)>& op_callback) {
@@ -497,7 +510,9 @@ void GetEditOps(const std::vector<std::pair<int, int>>& matched_uv,
   for (size_t idx = 0; idx < Cv.lsa_row_ind.size(); idx++) {
     int k = Cv.lsa_row_ind[idx];
     int l = Cv.lsa_col_ind[idx];
-    if (!(k < m || l < n)) continue;
+    if (!(k < m || l < n)) {
+      continue;
+    }
     if (!has_min ||
         std::pair<int, int>(k, l) < std::pair<int, int>(min_i, min_j)) {
       min_i = k;
@@ -505,21 +520,27 @@ void GetEditOps(const std::vector<std::pair<int, int>>& matched_uv,
       has_min = true;
     }
   }
-  if (!has_min) return;
+  if (!has_min) {
+    return;
+  }
 
   std::vector<std::pair<int, int>> candidates;
   candidates.emplace_back(min_i, min_j);
   if (m <= n) {
-    for (int t = 0; t < m + n; t++)
-      if (t != min_i && (t < m || t == m + min_j))
+    for (int t = 0; t < m + n; t++) {
+      if (t != min_i && (t < m || t == m + min_j)) {
         candidates.emplace_back(t, min_j);
+      }
+    }
   } else {
-    for (int t = 0; t < m + n; t++)
-      if (t != min_j && (t < n || t == n + min_i))
+    for (int t = 0; t < m + n; t++) {
+      if (t != min_j && (t < n || t == n + min_i)) {
         candidates.emplace_back(min_i, t);
+      }
+    }
   }
 
-  const int lsap_node_cost = Cv.C.get(min_i, min_j);
+  const int lsap_node_cost = Cv.C.Get(min_i, min_j);
   const int u_lsap = (min_i < m) ? pending_u[min_i] : -1;
   const int v_lsap = (min_j < n) ? pending_v[min_j] : -1;
   auto lsap_edge_res = MatchEdges(u_lsap, v_lsap, pending_g, pending_h, Ce, G1,
@@ -545,38 +566,41 @@ void GetEditOps(const std::vector<std::pair<int, int>>& matched_uv,
   std::vector<EditOp> other_ops;
   for (const auto& candidate : candidates) {
     auto [i, j] = candidate;
-    if (i == min_i && j == min_j) continue;
+    if (i == min_i && j == min_j) {
+      continue;
+    }
 
     int u = (i < m) ? pending_u[i] : -1;
     int v = (j < n) ? pending_v[j] : -1;
-    int node_cost = Cv.C.get(i, j);
-    if (prune(matched_cost + node_cost + Ce.ls)) continue;
+    int node_cost = Cv.C.Get(i, j);
+    if (prune(matched_cost + node_cost + Ce.ls)) {
+      continue;
+    }
 
     const int new_m = (i < m) ? m - 1 : m;
     const int new_n = (j < n) ? n - 1 : n;
-    SparseCostMatrix reduced_C = ReduceC(Cv.C, {i}, {j}, m, n);
+    RawCostMatrix reduced_C = ReduceC(Cv.C, {i}, {j}, m, n);
     CostMatrix Cv_ij = MakeCostMatrix(reduced_C, new_m, new_n, dense_Cv_buffer);
-    if (prune(matched_cost + node_cost + Cv_ij.ls + Ce.ls)) continue;
+    if (prune(matched_cost + node_cost + Cv_ij.ls + Ce.ls)) {
+      continue;
+    }
 
     auto edge_res = MatchEdges(u, v, pending_g, pending_h, Ce, G1, G2,
                                matched_uv, dense_Ce_buffer);
-    if (prune(matched_cost + node_cost + Cv_ij.ls + edge_res.localCe.ls))
+    if (prune(matched_cost + node_cost + Cv_ij.ls + edge_res.localCe.ls)) {
       continue;
+    }
 
     CostMatrix Ce_xy = ReduceCe(Ce, edge_res.ij, pending_g.size(),
                                 pending_h.size(), dense_Ce_buffer);
     if (prune(matched_cost + node_cost + Cv_ij.ls + edge_res.localCe.ls +
-              Ce_xy.ls))
+              Ce_xy.ls)) {
       continue;
-
-    static int geteditops_logs = 0;
-    if (geteditops_logs < 10) {
-      VLOG(3) << "GetEditOps: i=" << i << " j=" << j
-              << " node_cost=" << node_cost << " Cv_ij.ls=" << Cv_ij.ls
-              << " localCe.ls=" << edge_res.localCe.ls
-              << " Ce_xy.ls=" << Ce_xy.ls;
-      ++geteditops_logs;
     }
+
+    VLOG(3) << "GetEditOps: i=" << i << " j=" << j << " node_cost=" << node_cost
+            << " Cv_ij.ls=" << Cv_ij.ls << " localCe.ls=" << edge_res.localCe.ls
+            << " Ce_xy.ls=" << Ce_xy.ls;
 
     EditOp op;
     op.ij = {i, j};
@@ -587,17 +611,17 @@ void GetEditOps(const std::vector<std::pair<int, int>>& matched_uv,
     other_ops.push_back(op);
   }
 
-  std::sort(
-      other_ops.begin(), other_ops.end(), [](const EditOp& a, const EditOp& b) {
-        long long bound_a = (long long)a.edit_cost + a.Cv_ij.ls + a.Ce_xy.ls;
-        long long bound_b = (long long)b.edit_cost + b.Cv_ij.ls + b.Ce_xy.ls;
-        return bound_a < bound_b;
-      });
+  absl::c_sort(other_ops, [](const EditOp& a, const EditOp& b) {
+    int64_t bound_a = (int64_t)a.edit_cost + a.Cv_ij.ls + a.Ce_xy.ls;
+    int64_t bound_b = (int64_t)b.edit_cost + b.Cv_ij.ls + b.Ce_xy.ls;
+    return bound_a < bound_b;
+  });
 
   for (auto& op : other_ops) {
     op_callback(op);
   }
 }
+
 struct SearchState {
   std::vector<std::pair<int, int>> matched_uv;
   std::vector<int> pending_u;
@@ -607,9 +631,10 @@ struct SearchState {
   std::vector<int> pending_h;
   int matched_cost;
 };
+
 void GetEditPaths(SearchState& state, CostMatrix& Cv, CostMatrix& Ce,
                   const XLSGraph& G1, const XLSGraph& G2,
-                  std::function<bool(long long)> prune, int& maxcost_value,
+                  std::function<bool(int64_t)> prune, int& maxcost_value,
                   int& best_cost, GEDResult& best_result, int& expansion_count,
                   std::vector<std::vector<double>>& dense_Cv_buffer,
                   std::vector<std::vector<double>>& dense_Ce_buffer) {
@@ -633,20 +658,22 @@ void GetEditPaths(SearchState& state, CostMatrix& Cv, CostMatrix& Ce,
       best_result.edge_deletions.clear();
       best_result.edge_insertions.clear();
       for (const auto& [u, v] : state.matched_uv) {
-        if (u != -1 && v != -1)
+        if (u != -1 && v != -1) {
           best_result.node_substitutions.emplace_back(u, v);
-        else if (u != -1)
+        } else if (u != -1) {
           best_result.node_deletions.push_back(u);
-        else if (v != -1)
+        } else if (v != -1) {
           best_result.node_insertions.push_back(v);
+        }
       }
       for (const auto& [g, h] : state.matched_gh) {
-        if (g != -1 && h != -1)
+        if (g != -1 && h != -1) {
           best_result.edge_substitutions.emplace_back(g, h);
-        else if (g != -1)
+        } else if (g != -1) {
           best_result.edge_deletions.push_back(g);
-        else if (h != -1)
+        } else if (h != -1) {
           best_result.edge_insertions.push_back(h);
+        }
       }
       best_result.node_cost = 0;
       best_result.edge_cost = 0;
@@ -663,19 +690,14 @@ void GetEditPaths(SearchState& state, CostMatrix& Cv, CostMatrix& Ce,
     return;
   }
   auto edit_op_handler = [&](EditOp& op) {
-    long long new_cost =
-        (long long)state.matched_cost + (long long)op.edit_cost;
-    long long branch_bound =
-        new_cost + (long long)op.Cv_ij.ls + (long long)op.Ce_xy.ls;
+    int64_t new_cost = (int64_t)state.matched_cost + (int64_t)op.edit_cost;
+    int64_t branch_bound =
+        new_cost + (int64_t)op.Cv_ij.ls + (int64_t)op.Ce_xy.ls;
     bool should_prune = prune(branch_bound);
     if (should_prune) {
-      static int prune_logs = 0;
-      if (prune_logs < 20) {
-        VLOG(2) << "Pruned branch: bound=" << branch_bound
-                << " matched_cost=" << state.matched_cost
-                << " edit_cost=" << op.edit_cost;
-        ++prune_logs;
-      }
+      VLOG(2) << "Pruned branch: bound=" << branch_bound
+              << " matched_cost=" << state.matched_cost
+              << " edit_cost=" << op.edit_cost;
       return;
     }
     auto [i, j] = op.ij;
@@ -701,105 +723,141 @@ void GetEditPaths(SearchState& state, CostMatrix& Cv, CostMatrix& Ce,
       sortedx.push_back(x);
       sortedy.push_back(y);
     }
-    std::sort(sortedx.begin(), sortedx.end());
-    std::sort(sortedy.begin(), sortedy.end());
+    absl::c_sort(sortedx);
+    absl::c_sort(sortedy);
     for (auto it = sortedx.rbegin(); it != sortedx.rend(); ++it) {
       int x = *it;
       if (x < (int)state.pending_g.size()) {
         removed_g.push_back(state.pending_g[x]);
         state.pending_g.erase(state.pending_g.begin() + x);
-      } else
+      } else {
         removed_g.push_back(-1);
+      }
     }
     for (auto it = sortedy.rbegin(); it != sortedy.rend(); ++it) {
       int y = *it;
       if (y < (int)state.pending_h.size()) {
         removed_h.push_back(state.pending_h[y]);
         state.pending_h.erase(state.pending_h.begin() + y);
-      } else
+      } else {
         removed_h.push_back(-1);
+      }
     }
     int old_cost = state.matched_cost;
     state.matched_cost =
-        (int)std::min<long long>(new_cost, std::numeric_limits<int>::max());
+        (int)std::min<int64_t>(new_cost, std::numeric_limits<int>::max());
     GetEditPaths(state, op.Cv_ij, op.Ce_xy, G1, G2, prune, maxcost_value,
                  best_cost, best_result, expansion_count, dense_Cv_buffer,
                  dense_Ce_buffer);
     state.matched_cost = old_cost;
-    if (u != -1) state.pending_u.insert(state.pending_u.begin() + i, u);
-    if (v != -1) state.pending_v.insert(state.pending_v.begin() + j, v);
+    if (u != -1) {
+      state.pending_u.insert(state.pending_u.begin() + i, u);
+    }
+    if (v != -1) {
+      state.pending_v.insert(state.pending_v.begin() + j, v);
+    }
     state.matched_uv.pop_back();
     std::reverse(removed_g.begin(), removed_g.end());
     std::reverse(removed_h.begin(), removed_h.end());
     for (size_t idx = 0; idx < sortedx.size(); idx++) {
       int x = sortedx[idx];
       int g = removed_g[idx];
-      if (g != -1) state.pending_g.insert(state.pending_g.begin() + x, g);
+      if (g != -1) {
+        state.pending_g.insert(state.pending_g.begin() + x, g);
+      }
     }
     for (size_t idx = 0; idx < sortedy.size(); idx++) {
       int y = sortedy[idx];
       int h = removed_h[idx];
-      if (h != -1) state.pending_h.insert(state.pending_h.begin() + y, h);
+      if (h != -1) {
+        state.pending_h.insert(state.pending_h.begin() + y, h);
+      }
     }
-    for (size_t idx = 0; idx < xy_backup.size(); idx++)
+    for (size_t idx = 0; idx < xy_backup.size(); idx++) {
       state.matched_gh.pop_back();
+    }
   };
 
   GetEditOps(state.matched_uv, state.pending_u, state.pending_v, Cv,
              state.pending_g, state.pending_h, Ce, G1, G2, state.matched_cost,
              prune, dense_Cv_buffer, dense_Ce_buffer, edit_op_handler);
 }
-AssignmentResult SolveLSAP(const SparseCostMatrix& M, int m, int n,
+
+AssignmentResult SolveLSAP(const RawCostMatrix& M, int m, int n,
                            std::vector<std::vector<double>>& dense) {
   AssignmentResult result;
   VLOG(2) << "SolveLSAP start: m=" << m << " n=" << n << " rows=" << M.n_rows
-          << " cols=" << M.n_cols << " nnz=" << M.cost.size();
+          << " cols=" << M.n_cols;
 
   const int size = std::max(M.n_rows, M.n_cols);
   if (dense.size() != static_cast<size_t>(size)) {
-    dense.assign(size,
-                 std::vector<double>(size, (double)SparseCostMatrix::INF));
+    dense.assign(size, std::vector<double>(size, (double)RawCostMatrix::INF));
   } else {
     for (auto& row : dense) {
-      std::fill(row.begin(), row.end(), (double)SparseCostMatrix::INF);
+      std::fill(row.begin(), row.end(), (double)RawCostMatrix::INF);
     }
   }
-  for (size_t k = 0; k < M.cost.size(); ++k) {
-    int i = M.row_ind[k];
-    int j = M.col_ind[k];
-    double c = (double)M.cost[k];
-    dense[i][j] = c;
+  for (int i = 0; i < M.n_rows; ++i) {
+    for (int j = 0; j < M.n_cols; ++j) {
+      dense[i][j] = static_cast<double>(M.Get(i, j));
+    }
   }
 
   auto [row_ind, col_ind] = linear_sum_assignment(dense);
 
-  long long total_cost = 0;
+  int64_t total_cost = 0;
   for (size_t p = 0; p < row_ind.size(); ++p) {
     int i = row_ind[p];
     int j = col_ind[p];
     double c = dense[i][j];
-    if (c >= (double)SparseCostMatrix::INF) {
-      result.cost = SparseCostMatrix::INF;
+    if (c >= (double)RawCostMatrix::INF) {
+      result.cost = RawCostMatrix::INF;
       VLOG(1) << "SolveLSAP infeasible assignment detected";
       return result;
     }
-    total_cost += (long long)c;
+    total_cost += (int64_t)c;
 
-    if (i < m && j < n)
+    if (i < m && j < n) {
       result.subs.emplace_back(i, j);
-    else if (i < m && j >= n)
+    } else if (i < m && j >= n) {
       result.dels.push_back(i);
-    else if (i >= m && j < n)
+    } else if (i >= m && j < n) {
       result.ins.push_back(j);
+    }
   }
 
-  result.cost = (total_cost > SparseCostMatrix::INF)
-                    ? SparseCostMatrix::INF
+  result.cost = (total_cost > RawCostMatrix::INF)
+                    ? RawCostMatrix::INF
                     : static_cast<int>(total_cost);
   VLOG(2) << "SolveLSAP done: cost=" << result.cost
           << " subs=" << result.subs.size() << " dels=" << result.dels.size()
           << " ins=" << result.ins.size();
   return result;
+}
+
+// Returns a pruning function that checks cost, timeout, and upper bound.
+static std::function<bool(int64_t)> MakePruneFunction(
+    const GEDOptions& options,
+    const std::chrono::steady_clock::time_point& start_time, bool& timed_out,
+    int maxcost_value, int& best_cost) {
+  return [&](int64_t cost) -> bool {
+    if (options.timeout == -1 && !options.optimal &&
+        best_cost < RawCostMatrix::INF) {
+      return true;
+    }
+    if (options.timeout > 0 && !options.optimal) {
+      double elapsed = std::chrono::duration<double>(
+                           std::chrono::steady_clock::now() - start_time)
+                           .count();
+      if (elapsed > options.timeout) {
+        timed_out = true;
+        return true;
+      }
+    }
+    return (cost > maxcost_value) ||
+           (options.upper_bound != INT_MAX && cost > options.upper_bound) ||
+           (options.strictly_decreasing && cost >= maxcost_value);
+  };
 }
 
 GEDResult SolveGED(const XLSGraph& G1, const XLSGraph& G2,
@@ -812,28 +870,32 @@ GEDResult SolveGED(const XLSGraph& G1, const XLSGraph& G2,
   GEDResult result;
   SearchState state;
 
-  // initialize pending node/edge lists
-  for (size_t i = 0; i < G1.nodes.size(); ++i)
+  // Initialize pending node/edge lists.
+  for (size_t i = 0; i < G1.nodes.size(); ++i) {
     state.pending_u.push_back((int)i);
-  for (size_t j = 0; j < G2.nodes.size(); ++j)
+  }
+  for (size_t j = 0; j < G2.nodes.size(); ++j) {
     state.pending_v.push_back((int)j);
-  for (size_t i = 0; i < G1.edges.size(); ++i)
+  }
+  for (size_t i = 0; i < G1.edges.size(); ++i) {
     state.pending_g.push_back((int)i);
-  for (size_t j = 0; j < G2.edges.size(); ++j)
+  }
+  for (size_t j = 0; j < G2.edges.size(); ++j) {
     state.pending_h.push_back((int)j);
+  }
 
   std::vector<std::vector<double>> dense_Cv_buffer;
   std::vector<std::vector<double>> dense_Ce_buffer;
 
-  // build cost matrices
-  SparseCostMatrix M_node = BuildNodeCostMatrix(G1, G2, options.nodeCosts);
+  // Build cost matrices.
+  RawCostMatrix M_node = BuildNodeCostMatrix(G1, G2, options.nodeCosts);
   CostMatrix Cv = MakeCostMatrix(M_node, (int)state.pending_u.size(),
                                  (int)state.pending_v.size(), dense_Cv_buffer);
   VLOG(3) << "MakeCostMatrix(kind=nodes): m=" << state.pending_u.size()
           << " n=" << state.pending_v.size() << " ls=" << Cv.ls
           << " pairs=" << Cv.lsa_row_ind.size();
 
-  SparseCostMatrix M_edge = BuildEdgeCostMatrix(G1, G2, options.edgeCosts);
+  RawCostMatrix M_edge = BuildEdgeCostMatrix(G1, G2, options.edgeCosts);
   CostMatrix Ce = MakeCostMatrix(M_edge, (int)state.pending_g.size(),
                                  (int)state.pending_h.size(), dense_Ce_buffer);
   VLOG(3) << "MakeCostMatrix(kind=edges): m=" << state.pending_g.size()
@@ -846,29 +908,35 @@ GEDResult SolveGED(const XLSGraph& G1, const XLSGraph& G2,
 
   state.matched_cost = 0;
 
-  // compute max cost limit
+  // Compute max cost limit.
   auto dense_sum = [](const auto& costs, const auto& elems1,
-                      const auto& elems2) -> long long {
-    long long subst_sum = 0, del_sum = 0, ins_sum = 0;
-    for (const auto& a : elems1)
-      for (const auto& b : elems2) subst_sum += costs.subst(a, b);
-    for (const auto& a : elems1) del_sum += costs.del(a);
-    for (const auto& b : elems2) ins_sum += costs.ins(b);
+                      const auto& elems2) -> int64_t {
+    int64_t subst_sum = 0, del_sum = 0, ins_sum = 0;
+    for (const auto& a : elems1) {
+      for (const auto& b : elems2) {
+        subst_sum += costs.subst(a, b);
+      }
+    }
+    for (const auto& a : elems1) {
+      del_sum += costs.del(a);
+    }
+    for (const auto& b : elems2) {
+      ins_sum += costs.ins(b);
+    }
     return subst_sum + del_sum + ins_sum;
   };
 
-  long long maxcost_ll = dense_sum(options.nodeCosts, G1.nodes, G2.nodes) +
-                         dense_sum(options.edgeCosts, G1.edges, G2.edges) + 1;
-  int maxcost_value = (maxcost_ll > SparseCostMatrix::INF)
-                          ? SparseCostMatrix::INF
-                          : (int)maxcost_ll;
+  int64_t maxcost_ll = dense_sum(options.nodeCosts, G1.nodes, G2.nodes) +
+                       dense_sum(options.edgeCosts, G1.edges, G2.edges) + 1;
+  int maxcost_value =
+      (maxcost_ll > RawCostMatrix::INF) ? RawCostMatrix::INF : (int)maxcost_ll;
 
-  int best_cost = SparseCostMatrix::INF;
+  int best_cost = RawCostMatrix::INF;
   const auto start_time = std::chrono::steady_clock::now();
   bool timed_out = false;
 
-  auto prune =
-      MakePruneFunction(options, start_time, timed_out, maxcost_value, best_cost);
+  auto prune = MakePruneFunction(options, start_time, timed_out, maxcost_value,
+                                 best_cost);
   int expansion_count = 0;
 
   GetEditPaths(state, Cv, Ce, G1, G2, prune, maxcost_value, best_cost, result,
@@ -877,38 +945,41 @@ GEDResult SolveGED(const XLSGraph& G1, const XLSGraph& G2,
           << " expansions; best_cost=" << best_cost
           << " timed_out=" << (timed_out ? 1 : 0);
 
-  if (best_cost == SparseCostMatrix::INF) {
+  if (best_cost == RawCostMatrix::INF) {
     if (timed_out) {
       VLOG(1) << "GED search timed out before finding a valid edit path.";
-    }
-
-    else {
+    } else {
       VLOG(1) << "GED search produced no valid result.";
     }
     return {};
   }
 
-  // accumulate final costs
+  // Accumulate final costs.
   auto sum_costs = [](int& total, const auto& pairs, const auto& elems1,
                       const auto& elems2, const auto& cost_fn) {
-    for (const auto& [a, b] : pairs)
+    for (const auto& [a, b] : pairs) {
       total += cost_fn.subst(elems1[a], elems2[b]);
+    }
   };
 
   int node_cost = 0, edge_cost = 0;
   sum_costs(node_cost, result.node_substitutions, G1.nodes, G2.nodes,
             options.nodeCosts);
-  for (int u : result.node_deletions)
+  for (int u : result.node_deletions) {
     node_cost += options.nodeCosts.del(G1.nodes[u]);
-  for (int v : result.node_insertions)
+  }
+  for (int v : result.node_insertions) {
     node_cost += options.nodeCosts.ins(G2.nodes[v]);
+  }
 
   sum_costs(edge_cost, result.edge_substitutions, G1.edges, G2.edges,
             options.edgeCosts);
-  for (int g : result.edge_deletions)
+  for (int g : result.edge_deletions) {
     edge_cost += options.edgeCosts.del(G1.edges[g]);
-  for (int h : result.edge_insertions)
+  }
+  for (int h : result.edge_insertions) {
     edge_cost += options.edgeCosts.ins(G2.edges[h]);
+  }
 
   result.node_cost = node_cost;
   result.edge_cost = edge_cost;
@@ -919,4 +990,5 @@ GEDResult SolveGED(const XLSGraph& G1, const XLSGraph& G2,
           << " edge_subs=" << result.edge_substitutions.size();
   return result;
 }
+
 }  // namespace ged

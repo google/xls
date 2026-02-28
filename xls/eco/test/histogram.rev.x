@@ -1,3 +1,30 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// A streaming histogram proc that accepts floating-point data samples over a
+// channel and accumulates counts per configurable bin. Supports runtime
+// reconfiguration of the bin count and [min, max] range, and exposes a
+// reset signal. Bin mapping uses rounded fixed-point scaling to avoid
+// division. All values use APFloat<8,23> (IEEE 754 single-precision).
+//
+// NOTE: This file exists solely to provide a rich, realistic IR for testing
+// the XLS ECO toolchain. It has NOT been functionally verified for
+// correctness. Use at your own risk.
+
+#![feature(type_inference_v2)]
+
+
 import apfloat;
 import std;
 
