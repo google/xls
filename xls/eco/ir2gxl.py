@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-# TODO(b/1234567890): DEPRECATED - This GXL export tool will be replaced by
+# TODO: DEPRECATE - This GXL export tool will be replaced by
 # C++ GXL parser in gxl_parser.h/cc which provides:
 # - Bidirectional GXL parsing (not just export)
 # - Better XML handling through tinyxml2
