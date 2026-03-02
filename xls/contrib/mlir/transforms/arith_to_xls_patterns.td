@@ -8,6 +8,7 @@ defvar NoOverflow = ConstantEnumCase<Arith_IntegerOverflowAttr, "none">;
 
 def FloatLib : NativeCodeCall<"getFloatLib($0.getType())">;
 
+def GetNullAttr : NativeCodeCall<"Attribute()">;
 // Shorthand for a constant string attribute.
 class CS<string s> : ConstantStrAttr<StrAttr, s>;
 
@@ -17,6 +18,7 @@ class ScalarOrTensorOf<Type element> :
 class BinaryOpPat<Arith_Op a, Xls_Op b> : Pat<(a $a, $b), (b $a, $b)>;
 class BinaryOpOverflowPat<Arith_Op a, Xls_Op b> : Pat<(a $a, $b, $_), (b $a, $b)>;
 class BinaryVariadicOpPat<Arith_Op a, Xls_Op b> : Pat<(a $a, $b), (b (variadic $a, $b))>;
+class UnaryOpPatUI<Arith_Op a, Xls_Op b> : Pat<(a $a, $_), (b $a)>;
 class UnaryOpPat<Arith_Op a, Xls_Op b> : Pat<(a $a), (b $a)>;
 
 def : BinaryOpOverflowPat<Arith_AddIOp, Xls_AddOp>;
@@ -33,7 +35,7 @@ def : BinaryVariadicOpPat<Arith_OrIOp, Xls_OrOp>;
 def : BinaryVariadicOpPat<Arith_XOrIOp, Xls_XorOp>;
 
 def : UnaryOpPat<Arith_ExtSIOp, Xls_SignExtOp>;
-def : UnaryOpPat<Arith_ExtUIOp, Xls_ZeroExtOp>;
+def : UnaryOpPatUI<Arith_ExtUIOp, Xls_ZeroExtOp>;
 
 class CmpPat<string s, Xls_Op target> :
     Pat<(Arith_CmpIOp ConstantEnumCase<Arith_CmpIPredicateAttr, s>, $lhs, $rhs),
@@ -156,7 +158,28 @@ def : Pat<(Arith_TruncFOp:$op $a, /*RoundingMode=*/$_, /*FastMathFlags=*/$_),
           (Xls_CallDslxOp ExtLib, CS<"trunc">, (variadic $a), PureCall, VectorCall),
           [(ScalarOrTensorOf<F32> $a)]>;
 
-multiclass FloatToIntegralPat<Op fptoi, Op itofp, Op exti, string u> {
+multiclass FloatToIntegralPatBase<Op fptoi, Op itofp, Op exti, string u> {
+  def : Pat<(fptoi:$op F32:$a),
+            (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int32">, (variadic $a),
+                            PureCall, VectorCall),
+            [(ScalarOrTensorOf<I32> $op)]>;
+
+  def : Pat<(fptoi:$op BF16:$a),
+            (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int16">, (variadic $a),
+                            PureCall, VectorCall),
+            [(ScalarOrTensorOf<I16> $op)]>;
+
+  // TODO(jmolloy): to_int8 doesn't exist, so truncating the result of to_int16
+  // seems like a reasonable approximation but I don't know if it's bit accurate.
+  def : Pat<(fptoi:$op BF16:$a),
+            (Arith_TruncIOp
+              (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int16">, (variadic $a),
+                              PureCall, VectorCall,
+                              (returnType "$_builder.getI16Type()")), NoOverflow),
+            [(ScalarOrTensorOf<I8> $op)]>;
+}
+
+multiclass FloatToIntegralPatSI<Op fptoi, Op itofp, Op exti, string u> : FloatToIntegralPatBase<fptoi, itofp, exti, u> {
   def : Pat<(itofp:$op I32:$a),
           (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int32">, (variadic $a),
                           PureCall, VectorCall),
@@ -184,39 +207,50 @@ multiclass FloatToIntegralPat<Op fptoi, Op itofp, Op exti, string u> {
             (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int8">, (variadic $a),
                             PureCall, VectorCall),
             [(ScalarOrTensorOf<BF16> $op)]>;
-
-  def : Pat<(fptoi:$op F32:$a),
-            (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int32">, (variadic $a),
-                            PureCall, VectorCall),
-            [(ScalarOrTensorOf<I32> $op)]>;
-
-  def : Pat<(fptoi:$op BF16:$a),
-            (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int16">, (variadic $a),
-                            PureCall, VectorCall),
-            [(ScalarOrTensorOf<I16> $op)]>;
-
-  // TODO(jmolloy): to_int8 doesn't exist, so truncating the result of to_int16
-  // seems like a reasonable approximation but I don't know if it's bit accurate.
-  def : Pat<(fptoi:$op BF16:$a),
-            (Arith_TruncIOp
-              (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int16">, (variadic $a),
-                              PureCall, VectorCall,
-                              (returnType "$_builder.getI16Type()")), NoOverflow),
-            [(ScalarOrTensorOf<I8> $op)]>;
 }
 
-defm : FloatToIntegralPat<Arith_FPToSIOp, Arith_SIToFPOp, Arith_ExtSIOp, "">;
-defm : FloatToIntegralPat<Arith_FPToUIOp, Arith_UIToFPOp, Arith_ExtUIOp, "u">;
+multiclass FloatToIntegralPatUI<Op fptoi, Op itofp, Op exti, string u> : FloatToIntegralPatBase<fptoi, itofp, exti, u> {
+  def : Pat<(itofp:$op I32:$a, $_),
+          (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int32">, (variadic $a),
+                          PureCall, VectorCall),
+          [(ScalarOrTensorOf<F32> $op)]>;
 
-// TODO(jpienaar): This can be made more templated, like the above.
-def : Pat<(Arith_FPToSIOp:$op BF16:$a),
-  (Xls_CallDslxOp (FloatLib $a),
-    CS<"fn to_int_imp(a : BF16) -> s32 { apfloat::to_int<BF16::EXP_SIZE, BF16::FRACTION_SIZE, u32:32>(a) }">,
-    (variadic $a), PureCall, VectorCall), [(ScalarOrTensorOf<I32> $op)]>;
-def : Pat<(Arith_FPToUIOp:$op BF16:$a),
-  (Xls_CallDslxOp (FloatLib $a),
-    CS<"fn to_int_imp(a : BF16) -> u32 { apfloat::to_uint<u32:32>(a) }">,
-    (variadic $a), PureCall, VectorCall), [(ScalarOrTensorOf<I32> $op)]>;
+  def : Pat<(itofp:$op I32:$a, $_),
+            (Xls_CallDslxOp (FloatLib $op), CS<"from_float32">,
+              (variadic (itofp $a, (GetNullAttr), (returnType "$_builder.getF32Type()"))),
+              PureCall, VectorCall),
+            [(ScalarOrTensorOf<BF16> $op)]>;
+
+  def : Pat<(itofp:$op I16:$a, $_),
+          (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int32">,
+                          (variadic (exti $a, (GetNullAttr), (returnType "$_builder.getI32Type()"))),
+                          PureCall, VectorCall),
+          [(ScalarOrTensorOf<F32> $op)]>;
+
+  def : Pat<(itofp:$op I16:$a, $_),
+            (Xls_CallDslxOp (FloatLib $op), CS<"from_float32">,
+              (variadic (itofp $a, (GetNullAttr), (returnType "$_builder.getF32Type()"))),
+              PureCall, VectorCall),
+            [(ScalarOrTensorOf<BF16> $op)]>;
+
+  def : Pat<(itofp:$op I8:$a, $_),
+            (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int8">, (variadic $a),
+                            PureCall, VectorCall),
+            [(ScalarOrTensorOf<BF16> $op)]>;
+}
+
+defm : FloatToIntegralPatSI<Arith_FPToSIOp, Arith_SIToFPOp, Arith_ExtSIOp, "">;
+defm : FloatToIntegralPatUI<Arith_FPToUIOp, Arith_UIToFPOp, Arith_ExtUIOp, "u">;
+
+multiclass FloatToI32BF16Pat<Op fptoi, string Name, string Type> {
+  def : Pat<(fptoi:$op BF16:$a),
+    (Xls_CallDslxOp (FloatLib $a),
+      CS<"fn to_int_imp(a : BF16) -> "#Type#"32 { apfloat::"#Name#"<BF16::EXP_SIZE, BF16::FRACTION_SIZE, u32:32>(a) }">,
+      (variadic $a), PureCall, VectorCall), [(ScalarOrTensorOf<I32> $op)]>;
+}
+
+defm : FloatToI32BF16Pat<Arith_FPToSIOp, "to_int", "s">;
+defm : FloatToI32BF16Pat<Arith_FPToUIOp, "to_uint", "u">;
 
 defvar IntOfFloatBitwidth = NativeCodeCall<
   "$_builder.getIntegerType($0.getType().getIntOrFloatBitWidth())">;
@@ -238,7 +272,7 @@ def : Pat<(Arith_FPToSIOp:$op $a),
 def : Pat<(Arith_FPToUIOp:$op $a),
           (Arith_ExtUIOp
             (Arith_FPToUIOp $a,
-            (returnType (IntOfFloatBitwidth $a)))),
+            (returnType (IntOfFloatBitwidth $a))), (GetNullAttr)),
           [(ScalarOrTensorOf<ConfinedType<AnyInteger,
                              [BitwidthGreaterThan<32>]>> $op)]>;
 // ([us]itofp x) -> ([us]itofp (trunc x)) for types with bitwidth > 32.
@@ -247,9 +281,9 @@ def : Pat<(Arith_SIToFPOp:$op $a),
             (Arith_TruncIOp $a, NoOverflow, (returnType "$_builder.getI32Type()"))),
           [(ScalarOrTensorOf<ConfinedType<AnyInteger,
                              [BitwidthGreaterThan<32>]>> $a)]>;
-def : Pat<(Arith_UIToFPOp:$op $a),
+def : Pat<(Arith_UIToFPOp:$op $a, $_),
           (Arith_UIToFPOp
-            (Arith_TruncIOp $a, NoOverflow, (returnType "$_builder.getI32Type()"))),
+            (Arith_TruncIOp $a, NoOverflow, (returnType "$_builder.getI32Type()")), (GetNullAttr)),
           [(ScalarOrTensorOf<ConfinedType<AnyInteger,
                              [BitwidthGreaterThan<32>]>> $a)]>;
 
@@ -270,9 +304,9 @@ def : Pat<(Arith_SIToFPOp:$op $a),
             (Arith_ExtSIOp $a, (returnType (IntOfFloatBitwidth $op)))),
           [(ScalarOrTensorOf<ConfinedType<AnyInteger,
                              [BitwidthLessThan<32>]>> $a)]>;
-def : Pat<(Arith_UIToFPOp:$op $a),
+def : Pat<(Arith_UIToFPOp:$op $a, $_),
           (Arith_UIToFPOp
-            (Arith_ExtUIOp $a, (returnType (IntOfFloatBitwidth $op)))),
+            (Arith_ExtUIOp $a, (GetNullAttr), (returnType (IntOfFloatBitwidth $op))), (GetNullAttr)),
           [(ScalarOrTensorOf<ConfinedType<AnyInteger,
                              [BitwidthLessThan<32>]>> $a)]>;
 
