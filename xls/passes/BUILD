@@ -1073,6 +1073,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_ortools//ortools/graph",
         "@com_google_ortools//ortools/graph:cliques",
+        "@com_google_ortools//ortools/graph:connected_components",
     ],
 )
 
