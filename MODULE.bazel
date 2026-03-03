@@ -138,7 +138,7 @@ single_version_override(
 
 # Dev dependencies
 bazel_dep(name = "fuzztest", version = "20250805.0", dev_dependency = True, repo_name = "com_google_fuzztest")
-bazel_dep(name = "google_benchmark", version = "1.9.4", dev_dependency = True)
+bazel_dep(name = "google_benchmark", version = "1.9.5", dev_dependency = True)
 bazel_dep(name = "googletest", version = "1.17.0", dev_dependency = True)
 
 # Repositories we don't really depend on directly, but we need to provide
