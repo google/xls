@@ -191,7 +191,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   static constexpr double kDefaultMaxDelaySpreadSquared =
       kDefaultMaxDelaySpread * kDefaultMaxDelaySpread;
   // avoids folds with too large a delay increase or (delay spread)^2
-  static constexpr uint64_t kDefaultMaxDelayIncrease = 2000;
+  static constexpr uint64_t kDefaultMaxDelayIncrease = 1800;
   static constexpr uint64_t kDefaultMaxDelayIncreasePerFold = 200;
 
   // avoids large visibility expressions that will likely be disqualified later

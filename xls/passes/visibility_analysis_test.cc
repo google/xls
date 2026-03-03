@@ -998,5 +998,52 @@ TEST_F(VisibilityAnalysisTest, SingleSelectVisibilityNotPostDominating) {
   EXPECT_TRUE(visibility->IsMutuallyExclusive(x.node(), y.node()));
 }
 
+TEST_F(VisibilityAnalysisTest, EdgesForVisibilityExcludeDependencies) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue op = fb.Param("op", p->GetBitsType(2));
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue one_add = fb.Add(x, fb.Literal(UBits(1, 4)));
+  BValue other_add = fb.Add(x, fb.Literal(UBits(2, 4)));
+  // This is designed to include two mutually exclusive values 'one_add' and
+  // 'other_add' (it is never visible because op cannot both be 0 and 2). The
+  // edge between `one_add` and this node should be excluded when collecting
+  // edges for `one_add` because this node's visibility depends on `other_add`.
+  BValue one_and_other_if_op_0 =
+      fb.And({one_add, other_add,
+              fb.SignExtend(fb.Eq(op, fb.Literal(UBits(0, 2))), 4)});
+  BValue select = fb.Select(op, {one_add, other_add, one_and_other_if_op_0},
+                            fb.Literal(UBits(0, 4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(select));
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
+                                                  bdd_engine.get(), &post_dom));
+
+  // Confirm one_add and other_add are mutually exclusive
+  EXPECT_TRUE(
+      visibility->IsMutuallyExclusive(one_add.node(), other_add.node()));
+
+  // Confirm the edge `one_add -> one_and_other_if_op_0` is not included.
+  absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> edges_one;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      edges_one, visibility->GetEdgesForMutuallyExclusiveVisibilityExpr(
+                     one_add.node(), {other_add.node()}, -1));
+  EXPECT_THAT(edges_one, UnorderedElementsAre(
+                             OperandVisibilityAnalysis::OperandNode(
+                                 one_add.node(), select.node()),
+                             OperandVisibilityAnalysis::OperandNode(
+                                 one_and_other_if_op_0.node(), select.node())));
+}
+
 }  // namespace
 }  // namespace xls
