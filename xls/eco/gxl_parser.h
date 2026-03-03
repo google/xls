@@ -16,7 +16,7 @@
 #define XLS_ECO_GXL_PARSER_H_
 
 #include "xls/eco/graph.h"
-#include "tinyxml2.h"
+#include "xls/eco/libs/tinyxml2/tinyxml2.h"
 #include <iostream>
 #include <map>
 #include <sstream>
