@@ -199,17 +199,7 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
         std::chrono::duration<double>(t_mcs_end - t_mcs_start).count();
 
     stats.mcs_matched_nodes = mcs.mapping.size();
-    int mcs_edges = 0;
-    for (const auto& [u, v] : mcs.mapping) {
-      for (const auto& eu : graph1.edges) {
-        for (const auto& ev : graph2.edges) {
-          if ((eu.endpoints.first == u || eu.endpoints.second == u) &&
-              (ev.endpoints.first == v || ev.endpoints.second == v))
-            mcs_edges++;
-        }
-      }
-    }
-    stats.mcs_matched_edges = mcs_edges;
+    stats.mcs_matched_edges = mcs.edge_size;
 
     auto boundary_nodes = GetBoundaryNodes(mcs, graph1, graph2);
     std::vector<int> boundary_g1_indices;
