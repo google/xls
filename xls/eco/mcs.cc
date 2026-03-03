@@ -18,12 +18,12 @@
 #include <cmath>
 #include <limits>
 #include <string>
-#include "absl/container/flat_hash_set.h"
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 
-/* Implementation of the Maximum Common Subgraph (MCS) algorithm based on the work:
-Kaiqiang Yu, Kaixin Wang, Cheng Long, Laks Lakshmanan, and Reynold Cheng.
+/* Implementation of the Maximum Common Subgraph (MCS) algorithm based on the
+work: Kaiqiang Yu, Kaixin Wang, Cheng Long, Laks Lakshmanan, and Reynold Cheng.
 "Fast Maximum Common Subgraph Search: A Redundancy-Reduced Backtracking
 Approach." Proc. ACM Manag. Data 3, 3, Article 160 (2025).
 https://doi.org/10.1145/3725404 */
@@ -207,7 +207,7 @@ void RRSplitRec(State& S, const CandidateSet& C, const ForbiddenSet& D,
     S_best = S;
     g_best_size = (int)S.size();
     VLOG(2) << indent(depth) << "[best] improved best_size=" << g_best_size;
-    
+
     // Check cutoff: stop if remaining unmatched nodes <= cutoff threshold
     if (g_mcs_cutoff >= 0) {
       int remaining = g_total_nodes - g_best_size;
@@ -218,7 +218,7 @@ void RRSplitRec(State& S, const CandidateSet& C, const ForbiddenSet& D,
         return;
       }
     }
-    
+
     if (g_best_size == (int)Q.nodes.size()) {
       g_stop = true;
       VLOG(2) << indent(depth)
@@ -347,8 +347,7 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
   VLOG(0) << "MCS start: G1 nodes=" << graph1.nodes.size()
           << " edges=" << graph1.edges.size()
           << " | G2 nodes=" << graph2.nodes.size()
-          << " edges=" << graph2.edges.size()
-          << " | cutoff=" << mcs_cutoff;
+          << " edges=" << graph2.edges.size() << " | cutoff=" << mcs_cutoff;
 
   g_stop = false;
   g_best_size = 0;
@@ -361,9 +360,8 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
   // Check cutoff condition before starting search
   int total_nodes = graph1.nodes.size();
   if (mcs_cutoff >= 0 && total_nodes <= mcs_cutoff) {
-    VLOG(0) << "MCS cutoff: total nodes (" << total_nodes
-            << ") <= cutoff (" << mcs_cutoff
-            << "), skipping MCS (will use GED for all nodes)";
+    VLOG(0) << "MCS cutoff: total nodes (" << total_nodes << ") <= cutoff ("
+            << mcs_cutoff << "), skipping MCS (will use GED for all nodes)";
     MCSResult empty_result;
     empty_result.size = 0;
     for (int i = 0; i < total_nodes; ++i) {
@@ -385,8 +383,9 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
   // Check if cutoff threshold is met
   int remaining_nodes = total_nodes - result.size;
   if (mcs_cutoff >= 0 && remaining_nodes <= mcs_cutoff) {
-    VLOG(0) << "MCS cutoff reached: remaining unmatched nodes (" << remaining_nodes
-            << ") <= cutoff (" << mcs_cutoff << "), stopping MCS early";
+    VLOG(0) << "MCS cutoff reached: remaining unmatched nodes ("
+            << remaining_nodes << ") <= cutoff (" << mcs_cutoff
+            << "), stopping MCS early";
   }
 
   VLOG(1) << "MCS found with " << result.size << " matched nodes";
@@ -423,8 +422,8 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
   return result;
 }
 absl::flat_hash_map<int, int> GetBoundaryNodes(const MCSResult& mcs,
-                                              const XLSGraph& graph1,
-                                              const XLSGraph& graph2) {
+                                               const XLSGraph& graph1,
+                                               const XLSGraph& graph2) {
   absl::flat_hash_map<int, int> boundary_nodes;
   if (mcs.mapping.empty()) return boundary_nodes;
 
