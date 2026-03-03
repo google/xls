@@ -193,6 +193,60 @@ int UpperBound(const State& S, const CandidateSet& C, const XLSGraph& Q,
 
 inline std::string indent(int depth) { return std::string(depth * 2, ' '); }
 
+void PopulateMatchedEdges(const XLSGraph& graph1, const XLSGraph& graph2,
+                          const State& mapping, MCSResult& result) {
+  std::vector<int> g1_to_g2(graph1.nodes.size(), -1);
+  for (const auto& [u, v] : mapping) {
+    if (u >= 0 && u < static_cast<int>(graph1.nodes.size()) && v >= 0 &&
+        v < static_cast<int>(graph2.nodes.size())) {
+      g1_to_g2[u] = v;
+    }
+  }
+
+  std::vector<char> used_g2_edges(graph2.edges.size(), 0);
+  result.edge_mapping.clear();
+  result.edge_mapping.reserve(
+      std::min(graph1.edges.size(), graph2.edges.size()));
+
+  for (int e1_idx = 0; e1_idx < static_cast<int>(graph1.edges.size());
+       ++e1_idx) {
+    const auto& e1 = graph1.edges[e1_idx];
+    const int src_g1 = e1.endpoints.first;
+    const int dst_g1 = e1.endpoints.second;
+    if (src_g1 < 0 || src_g1 >= static_cast<int>(g1_to_g2.size()) ||
+        dst_g1 < 0 || dst_g1 >= static_cast<int>(g1_to_g2.size())) {
+      continue;
+    }
+
+    const int src_g2 = g1_to_g2[src_g1];
+    const int dst_g2 = g1_to_g2[dst_g1];
+    if (src_g2 < 0 || dst_g2 < 0) {
+      continue;
+    }
+
+    auto it = graph2.node_edges.find(src_g2);
+    if (it == graph2.node_edges.end()) {
+      continue;
+    }
+
+    for (int e2_idx : it->second) {
+      if (e2_idx < 0 || e2_idx >= static_cast<int>(graph2.edges.size()) ||
+          used_g2_edges[e2_idx]) {
+        continue;
+      }
+      const auto& e2 = graph2.edges[e2_idx];
+      if (e2.endpoints.first == src_g2 && e2.endpoints.second == dst_g2 &&
+          e2.index == e1.index) {
+        used_g2_edges[e2_idx] = 1;
+        result.edge_mapping.emplace_back(e1_idx, e2_idx);
+        break;
+      }
+    }
+  }
+
+  result.edge_size = result.edge_mapping.size();
+}
+
 void RRSplitRec(State& S, const CandidateSet& C, const ForbiddenSet& D,
                 const XLSGraph& Q, const XLSGraph& G, State& S_best,
                 int depth) {
@@ -379,6 +433,7 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
   MCSResult result;
   result.mapping = S_best;
   result.size = S_best.size();
+  PopulateMatchedEdges(graph1, graph2, S_best, result);
 
   // Check if cutoff threshold is met
   int remaining_nodes = total_nodes - result.size;
@@ -389,6 +444,7 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
   }
 
   VLOG(1) << "MCS found with " << result.size << " matched nodes";
+  VLOG(1) << "MCS matched edges=" << result.edge_size;
 
   absl::flat_hash_set<int> matched_g1, matched_g2;
   for (const auto& [u, v] : S_best) {
