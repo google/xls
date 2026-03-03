@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "ged.h"
+#include "xls/eco/ged.h"
 
 #include <algorithm>
 #include <chrono>
