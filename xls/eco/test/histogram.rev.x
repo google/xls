@@ -165,4 +165,3 @@ pub proc histogram {
         (final_num_bins, final_min_value, final_max_value, updated_histogram)
     }
 }
-
