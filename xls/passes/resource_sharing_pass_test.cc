@@ -1343,6 +1343,71 @@ TEST_F(ResourceSharingPassTest, PreventCyclesInFoldingChains) {
   EXPECT_EQ(NumberOfAdders(f), 2);
 }
 
+TEST_F(ResourceSharingPassTest, PreventCyclesInFoldingChainsNary) {
+  // Construct def-use chains: D <- A1, E <- A2, F <- A3, B <- C. Folding all As
+  // => B makes it so that folding C with any of D, E, ... causes a cycle since
+  // the def-use chains are now D / E / ... <- A1_A2_A3_B, A1_A2_A3_B <- C.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue i = fb.Param("i", u32);
+  BValue A1 = fb.Add(i, i, SourceInfo(), "A1");
+  BValue A2 = fb.Add(i, i, SourceInfo(), "A2");
+  BValue A3 = fb.Add(i, i, SourceInfo(), "A3");
+  BValue C = fb.Shll(i, fb.Literal(UBits(1, 32)), SourceInfo(), "C");
+  BValue B = fb.Add(C, i, SourceInfo(), "B");
+  BValue D = fb.Shll(A1, fb.Literal(UBits(1, 32)), SourceInfo(), "D");
+  BValue E = fb.Shll(A2, fb.Literal(UBits(1, 32)), SourceInfo(), "E");
+  BValue F = fb.Shll(A3, fb.Literal(UBits(1, 32)), SourceInfo(), "F");
+
+  // Make the following pairs mutually exclusive: (X, D) and (Y, B)
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
+  BValue sel1 = fb.Select(cond, {A1, A2, A3, B});
+  BValue sel2 = fb.Select(cond, {D, E, F, C});
+  BValue result = fb.Tuple({sel1, sel2});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  // Initially, there are 4 adders and 4 shifters.
+  // All the adders and all but one of the shifters should fold.
+  EXPECT_EQ(NumberOfAdders(f), 4);
+  EXPECT_EQ(NumberOfShifts(f), 4);
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfAdders(f), 1);
+  EXPECT_EQ(NumberOfShifts(f), 2);
+}
+
+TEST_F(ResourceSharingPassTest, PreventCyclesInFoldingChainsIndirect) {
+  // Construct three def-use chains: B <- X, D <- Y, and F <- Z.
+  // Folding X => D and Y => F then means folding Z => B would cause a cycle.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u8 = p->GetBitsType(8);
+  BValue i = fb.Param("i", u8);
+  BValue X = fb.UMul(i, i, 8, SourceInfo(), "X");
+  BValue B = fb.Shll(X, fb.Literal(UBits(1, 8)), SourceInfo(), "B");
+  BValue Y = fb.Shrl(i, i, SourceInfo(), "Y");
+  BValue D = fb.UMul(Y, i, 8, SourceInfo(), "D");
+  BValue Z = fb.Shll(i, fb.Literal(UBits(1, 8)), SourceInfo(), "Z");
+  BValue F = fb.Shrl(Z, i, SourceInfo(), "F");
+
+  // Make the following pairs mutually exclusive: (X, D), (Y, F), and (Z, B)
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
+  BValue sel1 = fb.Select(cond, {X, Y, Z, fb.Literal(UBits(0, 8))});
+  BValue sel2 = fb.Select(cond, {B, D, F, fb.Literal(UBits(0, 8))});
+  BValue result = fb.Tuple({sel1, sel2});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  // Initially, there are 2 multipliers and 4 shifters.
+  // Only the multipliers and one pair of shifters should be folded.
+  EXPECT_EQ(NumberOfMultiplications(f), 2);
+  EXPECT_EQ(NumberOfShifts(f), 4);
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfMultiplications(f), 1);
+  EXPECT_EQ(NumberOfShifts(f), 3);
+}
+
 }  // namespace
 
 }  // namespace xls

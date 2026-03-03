@@ -22,6 +22,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <queue>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -40,6 +41,7 @@
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/union_find.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
@@ -935,6 +937,50 @@ ListOfFoldingActionsWithDestination(
   return potential_folding_actions_to_perform;
 }
 
+// WillToUseFrom detects when a `to` node will depend on a `from` node after
+// foldings are taken into account.
+// For example, if Xs, Ys, and Zs are each in their own def-use chains X1 -...->
+// Xn, Y1 -...-> Yn, Z1 -...-> Zn, and we fold (Xn, Y1), (Yn, Z1), then
+// WillToUseFrom(X1, Zn, {Xn: {Y1}, Yn: {Z1}, ...}, {}) will return true.
+bool WillToUseFrom(Node* from, Node* to,
+                   const NodeBackwardDependencyAnalysis& nda,
+                   const absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>&
+                       one_to_others_folded,
+                   UnionFind<Node*>& fold_representative) {
+  absl::flat_hash_set<Node*> visited;
+  std::queue<Node*> dependency_queue;
+  dependency_queue.push(from);
+  visited.insert(from);
+  while (!dependency_queue.empty()) {
+    // Determine if `from`, or a node transitively using `from` through future
+    // foldings, is used by `to`.
+    Node* current = dependency_queue.front();
+    dependency_queue.pop();
+    const absl::flat_hash_set<Node*>* nodes_using_from = nda.GetInfo(current);
+    if (nodes_using_from->contains(to)) {
+      return true;
+    }
+
+    for (Node* node_using_from : *nodes_using_from) {
+      Node* node_repr = fold_representative.Contains(node_using_from)
+                            ? fold_representative.Find(node_using_from)
+                            : node_using_from;
+      if (auto merged_nodes_it = one_to_others_folded.find(node_repr);
+          merged_nodes_it != one_to_others_folded.end()) {
+        // Check `to` does not use any nodes that will use `from` post-foldings.
+        for (Node* will_use_from : merged_nodes_it->second) {
+          if (visited.contains(will_use_from)) {
+            continue;
+          }
+          visited.insert(will_use_from);
+          dependency_queue.push(will_use_from);
+        }
+      }
+    }
+  }
+  return false;
+}
+
 absl::StatusOr<std::pair<std::vector<std::unique_ptr<NaryFoldingAction>>, bool>>
 ResourceSharingPass::LegalizeSequenceOfFolding(
     absl::Span<const std::unique_ptr<NaryFoldingAction>>
@@ -960,24 +1006,18 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
   // NOTE: If nda could be modified to merge dependency sets of nodes that
   // will be folded together, this map would not be necessary:
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> one_to_others_folded;
-  auto will_to_use_from = [&](Node* from, Node* to) -> bool {
-    const absl::flat_hash_set<Node*>* nodes_using_from = nda.GetInfo(from);
-    if (nodes_using_from->contains(to)) {
-      return true;
+  UnionFind<Node*> fold_representative;
+  // Initialize by tracking each node as folded with itself.
+  for (const std::unique_ptr<NaryFoldingAction>& folding :
+       potential_folding_actions_to_perform) {
+    for (auto& [from_node, _] : folding->GetFrom()) {
+      fold_representative.Insert(from_node);
+      one_to_others_folded[from_node].insert(from_node);
     }
-    for (Node* node_using_from : *nodes_using_from) {
-      if (auto merged_nodes_it = one_to_others_folded.find(node_using_from);
-          merged_nodes_it != one_to_others_folded.end()) {
-        // Check `to` does not use any nodes that will use `from` post-foldings.
-        for (Node* will_use_from : merged_nodes_it->second) {
-          if (nda.IsDependent(will_use_from, to)) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  };
+    Node* to_node = folding->GetTo();
+    fold_representative.Insert(to_node);
+    one_to_others_folded[to_node].insert(to_node);
+  }
 
   // Remove folding actions (via removing either a whole n-ary folding or a
   // subset of the froms of a given n-ary folding) that overlaps.
@@ -1123,8 +1163,10 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
         }
       }
 
-      if (will_to_use_from(source, to_node) ||
-          will_to_use_from(to_node, source)) {
+      if (WillToUseFrom(source, to_node, nda, one_to_others_folded,
+                        fold_representative) ||
+          WillToUseFrom(to_node, source, nda, one_to_others_folded,
+                        fold_representative)) {
         VLOG(4) << "      Excluding the following source because it causes a"
                    "use-chain between source and destination to become a cycle";
         VLOG(4) << "        Source removed = " << source->ToString();
@@ -1154,9 +1196,32 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
     }
 
     // Track what nodes are merged together for future cycle detection.
+    Node* old_to_repr = fold_representative.Find(to_node);
+    std::vector<Node*> old_from_reprs;
+    old_from_reprs.reserve(legal_froms.size());
     for (auto& [from, _] : legal_froms) {
-      one_to_others_folded[from].insert(to_node);
-      one_to_others_folded[to_node].insert(from);
+      old_from_reprs.push_back(fold_representative.Find(from));
+      fold_representative.Union(from, to_node);
+    }
+    // Update the current representative's folded set to include all nodes
+    // currently folded into (represented by) the representative transitively.
+    for (int i = 0; i < old_from_reprs.size(); ++i) {
+      Node* old_from_repr = old_from_reprs[i];
+      Node* from = legal_froms[i].first;
+      Node* new_from_repr = fold_representative.Find(from);
+      if (old_from_repr != new_from_repr) {
+        absl::flat_hash_set<Node*> old_folded_set =
+            one_to_others_folded[old_from_repr];
+        one_to_others_folded[new_from_repr].insert(old_folded_set.begin(),
+                                                   old_folded_set.end());
+      }
+    }
+    Node* new_to_repr = fold_representative.Find(to_node);
+    if (old_to_repr != new_to_repr) {
+      absl::flat_hash_set<Node*> old_folded_set =
+          one_to_others_folded[old_to_repr];
+      one_to_others_folded[new_to_repr].insert(old_folded_set.begin(),
+                                               old_folded_set.end());
     }
 
     // The current n-ary folding is worth considering. Allocate a new n-ary

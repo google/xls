@@ -55,6 +55,10 @@ class UnionFind {
     return result->first;
   }
 
+  bool Contains(const T& element) const {
+    return union_find_map_.Contains(element);
+  }
+
   absl::flat_hash_set<T> GetRepresentatives() {
     return union_find_map_.GetRepresentatives();
   }

@@ -1094,6 +1094,7 @@ xls_pass(
         ":visibility_expr_builder",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:union_find",
         "//xls/estimators/area_model:area_estimator",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
