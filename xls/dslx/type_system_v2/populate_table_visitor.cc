@@ -1609,11 +1609,21 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     std::vector<const TypeAnnotation*> arg_types;
     arg_types.reserve(node->args().size());
     int self_arg_offset = 0;
+
+    const Attr* attr = nullptr;
     if (node->callee()->kind() == AstNodeKind::kAttr) {
+      attr = absl::down_cast<const Attr*>(node->callee());
+    } else if (node->callee()->kind() == AstNodeKind::kFunctionRef) {
+      const auto* fr = absl::down_cast<const FunctionRef*>(node->callee());
+      if (fr->callee()->kind() == AstNodeKind::kAttr) {
+        attr = absl::down_cast<const Attr*>(fr->callee());
+      }
+    }
+
+    if (attr != nullptr) {
       // An invocation like foo.bar(args), which is targeting an instance
       // function of a struct, needs the actual object type added to the
       // signature in place of the formal `Self`.
-      const Attr* attr = absl::down_cast<const Attr*>(node->callee());
       XLS_ASSIGN_OR_RETURN(const NameRef* obj_type_variable,
                            DefineTypeVariable(attr->lhs(), "target_obj"));
       XLS_RETURN_IF_ERROR(
@@ -1676,6 +1686,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         }
       }
     }
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* type_variable,
+        DefineTypeVariable(
+            node,
+            absl::StrCat("function_ref_", node->span().ToString(file_table_))));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, type_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->callee(), type_variable));
+
     return DefaultHandler(node);
   }
 

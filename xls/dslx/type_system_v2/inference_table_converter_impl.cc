@@ -1574,7 +1574,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // Given an invocation of the `map` builtin, creates a FunctionTypeAnnotation
   // for the `mapper` argument
   absl::StatusOr<const FunctionTypeAnnotation*> CreateMapperFunctionType(
-      const std::optional<const Function*> caller, const Invocation* invocation,
+      const std::optional<const Function*> caller, Invocation* invocation,
       const ParametricContext* invocation_context) {
     std::vector<ExprOrType> explicit_parametrics =
         invocation->explicit_parametrics();
@@ -1597,11 +1597,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_RET_CHECK(array_type.has_value());
 
     Expr* mapper = invocation->args()[1];
+    if (mapper->kind() == AstNodeKind::kAttr) {
+      mapper = module_.Make<FunctionRef>(mapper->span(), mapper,
+                                         std::vector<ExprOrType>{});
+      invocation->set_arg(1, mapper);
+    }
     FunctionRef* mapper_fn = dynamic_cast<FunctionRef*>(mapper);
     std::vector<ExprOrType> mapper_explicit_parametrics;
     if (mapper_fn != nullptr && !mapper_fn->explicit_parametrics().empty()) {
       mapper_explicit_parametrics = mapper_fn->explicit_parametrics();
-      mapper = mapper_fn->callee();
     }
 
     // Create an invocation of the mapper with array[0], to make the
@@ -1680,7 +1684,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           CreateMapperFunctionType(std::get<ParametricInvocationDetails>(
                                        invocation_context->details())
                                        .caller,
-                                   invocation, invocation_context));
+                                   const_cast<Invocation*>(invocation),
+                                   invocation_context));
 
       // These must be the first actual two parametrics because they're listed
       // as the first two formals.

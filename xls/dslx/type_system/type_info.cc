@@ -22,6 +22,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -562,6 +563,16 @@ absl::StatusOr<Type*> TypeInfo::GetItemOrError(const AstNode* key) const {
       absl::StrCat("Could not find concrete type for node: ", key->ToString()));
 }
 
+void TypeInfo::InsertInvocationData(const Invocation& invocation,
+                                    std::unique_ptr<InvocationData> data) {
+  CHECK(!invocations_.contains(&invocation));
+  if (invocation.callee()->kind() == AstNodeKind::kFunctionRef) {
+    function_refs_.emplace(
+        absl::down_cast<const FunctionRef*>(invocation.callee()), data.get());
+  }
+  invocations_.emplace(&invocation, std::move(data));
+}
+
 absl::Status TypeInfo::AddInvocation(const Invocation& invocation,
                                      const Function* callee,
                                      const Function* caller,
@@ -581,8 +592,8 @@ absl::Status TypeInfo::AddInvocation(const Invocation& invocation,
     XLS_RET_CHECK(it->second->callee() == callee);
     return absl::OkStatus();
   }
-  ti->invocations_.emplace(
-      &invocation,
+  ti->InsertInvocationData(
+      invocation,
       std::make_unique<InvocationData>(
           &invocation, callee, caller,
           absl::flat_hash_map<ParametricEnv, InvocationCalleeData>{}));
@@ -621,7 +632,7 @@ absl::Status TypeInfo::AddInvocationTypeInfo(
                                      derived_type_info, &invocation};
     env_to_callee_data[caller_env] = callee_data;
 
-    ti->invocations_.emplace(&invocation,
+    ti->InsertInvocationData(invocation,
                              std::make_unique<InvocationData>(
                                  &invocation, callee, caller,
                                  std::move(env_to_callee_data), target_struct));
@@ -769,6 +780,26 @@ absl::StatusOr<TypeInfo*> TypeInfo::GetTopLevelProcTypeInfo(const Proc* p) {
         "Top-level type info not found for proc \"", p->identifier(), "\"."));
   }
   return top_level_proc_type_info_.at(p);
+}
+
+absl::StatusOr<const Function*> TypeInfo::GetCallee(
+    const FunctionRef* function_ref) const {
+  std::optional<const InvocationData*> invocation_data;
+  auto it = function_refs_.find(function_ref);
+  if (it != function_refs_.end()) {
+    invocation_data = it->second;
+  } else {
+    const TypeInfo* top = GetRoot();
+    it = top->function_refs_.find(function_ref);
+    if (it != top->function_refs_.end()) {
+      invocation_data = it->second;
+    }
+  }
+  if (!invocation_data.has_value()) {
+    return absl::NotFoundError(
+        absl::StrCat("Could not find function ref ", function_ref->ToString()));
+  }
+  return (*invocation_data)->callee();
 }
 
 absl::StatusOr<const Function*> TypeInfo::GetCallee(

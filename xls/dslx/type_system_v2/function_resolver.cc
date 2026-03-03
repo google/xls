@@ -72,6 +72,12 @@ class FunctionResolverImpl : public FunctionResolver {
   absl::StatusOr<const FunctionAndTargetObject> ResolveFunction(
       const Expr* callee, std::optional<const Function*> caller_function,
       std::optional<const ParametricContext*> caller_context) override {
+    if (callee->kind() == AstNodeKind::kFunctionRef) {
+      const auto* function_ref = absl::down_cast<const FunctionRef*>(callee);
+      return ResolveFunction(function_ref->callee(), caller_function,
+                             caller_context);
+    }
+
     const AstNode* function_node = nullptr;
     std::optional<Expr*> target_object;
     std::optional<const TypeAnnotation*> target_object_type;

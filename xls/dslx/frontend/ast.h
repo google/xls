@@ -2816,6 +2816,11 @@ class Invocation : public Instantiation {
 
   absl::Span<Expr* const> args() const { return args_; }
 
+  void set_arg(int i, Expr* arg) {
+    CHECK(i >= 0 && i < args_.size());
+    args_[i] = arg;
+  }
+
   Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kFunctionCallOrArrayIndex;
   }

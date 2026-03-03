@@ -268,6 +268,9 @@ class TypeInfo {
 
   // Retrieves the Function of the given Invocation.
   absl::StatusOr<const Function*> GetCallee(const Invocation* invocation) const;
+  // Variation that operates on FunctionRef
+  absl::StatusOr<const Function*> GetCallee(
+      const FunctionRef* function_ref) const;
 
   // Used by type inference to set the resolved subject (first part) of a
   // ColonRef once it resolves it.
@@ -494,6 +497,9 @@ class TypeInfo {
  private:
   friend class TypeInfoOwner;
 
+  void InsertInvocationData(const Invocation& invocation,
+                            std::unique_ptr<InvocationData> data);
+
   const absl::flat_hash_map<const Invocation*, std::unique_ptr<InvocationData>>&
   invocations() const {
     CHECK(IsRoot());
@@ -539,6 +545,11 @@ class TypeInfo {
   absl::flat_hash_map<ImportSubject, ImportedInfo> imports_;
   absl::flat_hash_map<const Invocation*, std::unique_ptr<InvocationData>>
       invocations_;
+  // Store invocation data associated with FunctionRefs. FunctionRefs are
+  // currently created as callees of invocations, so the invocation data is
+  // owned by `invocations_` but referenced here so that we can find the data
+  // from the FunctionRef directly.
+  absl::flat_hash_map<const FunctionRef*, InvocationData*> function_refs_;
   // Non-unique callee data for this function
   absl::flat_hash_map<const Function*, std::vector<InvocationCalleeData>>
       callee_data_;

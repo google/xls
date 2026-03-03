@@ -936,7 +936,16 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
 }
 
 absl::Status BytecodeEmitter::HandleFunctionRef(const FunctionRef* node) {
-  return node->callee()->AcceptExpr(this);
+  if (node->callee()->kind() == AstNodeKind::kAttr) {
+    const auto* attr = absl::down_cast<const Attr*>(node->callee());
+    // Place the struct instance on the stack as the self argument.
+    XLS_RETURN_IF_ERROR(attr->lhs()->AcceptExpr(this));
+  }
+  XLS_ASSIGN_OR_RETURN(const Function* func, type_info_->GetCallee(node));
+  Add(Bytecode::MakeLiteral(
+      node->span(),
+      InterpValue::MakeFunction(InterpValue::UserFnData{func->owner(), func})));
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleZeroMacro(const ZeroMacro* node) {
