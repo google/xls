@@ -445,6 +445,28 @@ absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
                                       Predicate p, int64_t rlimit,
                                       bool allow_unsupported = false);
 
+// Attempts to prove that the given `node` (as a boolean predicate) is mutually
+// exclusive with the list of `other_nodes` (i.e., cannot be true at the same
+// time as any of these nodes). If the node is `std::nullopt`, it is treated as
+// always true, so all other nodes must be unconditionally false. If an `rlimit`
+// is provided, the solver's resource limit is bounded. Returns `ProvenTrue` if
+// proven mutually exclusive, and `ProvenFalse` with a counterexample if `node`
+// can be active simultaneously with any of the `other_nodes`.
+absl::StatusOr<ProverResult> ProveMutuallyExclusive(
+    FunctionBase* f, std::optional<Node*> node,
+    absl::Span<Node* const> other_nodes, IrTranslator* translator,
+    std::optional<int64_t> rlimit = std::nullopt);
+
+// Attempts to prove that the given two nodes (acting as boolean predicates) are
+// mutually exclusive (i.e. cannot be true at the same time). If a predicate is
+// `std::nullopt`, it is treated as an unpredicated (unconditional) execution
+// condition. If an `rlimit` is provided, the solver's resource limit is
+// bounded. Returns `ProvenTrue` if proven mutually exclusive, and `ProvenFalse`
+// with a counterexample if they can be active simultaneously.
+absl::StatusOr<ProverResult> ProveMutuallyExclusive(
+    FunctionBase* f, std::optional<Node*> active1, std::optional<Node*> active2,
+    IrTranslator* translator, std::optional<int64_t> rlimit = std::nullopt);
+
 // Emits a self-contained SMT-LIB2 representation of `function` consisting of:
 // Returns Z3's pretty-printed SMT-LIB2 form of a λ-expression that binds all
 // parameters of `function` (currently Bits-typed only) and yields the

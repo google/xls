@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -49,12 +50,12 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/token_provenance_analysis.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_utils.h"
-#include "z3/src/api/z3_api.h"
 
 namespace xls {
 
 namespace {
+
+constexpr int64_t kDefaultZ3Rlimit = 10000;
 
 struct ChannelSends {
   Channel* channel;
@@ -360,18 +361,11 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedDAG(
   return result_vector;
 }
 
-Z3_lbool RunSolver(Z3_context c, Z3_ast asserted) {
-  Z3_solver solver = solvers::z3::CreateSolver(c, 1);
-  Z3_solver_assert(c, solver, asserted);
-  Z3_lbool satisfiable = Z3_solver_check(c, solver);
-  Z3_solver_dec_ref(c, solver);
-  return satisfiable;
-}
-
-absl::Status CheckMutualExclusion(Proc* proc,
-                                  absl::Span<Node* const> operations,
-                                  ChannelStrictness strictness,
-                                  OptimizationContext& context) {
+absl::StatusOr<bool> AddNonExclusionDelays(
+    Proc* proc, absl::Span<Node* const> operations,
+    ChannelStrictness strictness, OptimizationContext& context,
+    const OptimizationPassOptions& options) {
+  bool changed = false;
   XLS_RET_CHECK(absl::c_all_of(
       operations, [proc](Node* node) { return node->function_base() == proc; }))
       << "Tried to check mutual exclusion for operations not all in the same "
@@ -401,8 +395,52 @@ absl::Status CheckMutualExclusion(Proc* proc,
       }
       if (n1.predecessors.contains(n2.node) ||
           n2.predecessors.contains(n1.node)) {
-        // These nodes are related by a dependency chain; no
-        // mutual-exclusivity required.
+        // These nodes are related by a dependency chain.
+        // If they are NOT mutually exclusive, we want to add a MinDelay
+        // between them to prevent them from firing in the same cycle.
+        absl::StatusOr<solvers::z3::ProverResult> mutually_exclusive =
+            solvers::z3::ProveMutuallyExclusive(
+                proc, node->predicate(),
+                n2.node->As<ChannelNode>()->predicate(), *get_translator(),
+                options.mutual_exclusion_z3_rlimit.value_or(kDefaultZ3Rlimit));
+
+        if (!mutually_exclusive.ok() ||
+            std::holds_alternative<solvers::z3::ProvenFalse>(
+                *mutually_exclusive)) {
+          // If the solver couldn't prove it or they are active at the same
+          // time, we need to add a delay.
+          ChannelNode* earlier;
+          ChannelNode* later;
+          if (n1.predecessors.contains(n2.node)) {
+            earlier = n2.node->As<ChannelNode>();
+            later = n1.node->As<ChannelNode>();
+          } else {
+            earlier = n1.node->As<ChannelNode>();
+            later = n2.node->As<ChannelNode>();
+          }
+
+          Node* earlier_token = earlier;
+          if (earlier->Is<Receive>()) {
+            XLS_ASSIGN_OR_RETURN(
+                earlier_token,
+                proc->MakeNode<TupleIndex>(earlier->loc(), earlier, 0));
+          }
+
+          XLS_ASSIGN_OR_RETURN(
+              Node * delay_node,
+              proc->MakeNodeWithName<MinDelay>(
+                  earlier->loc(), earlier_token, 1,
+                  absl::StrFormat("delay_%s", earlier->GetName())));
+
+          XLS_ASSIGN_OR_RETURN(
+              Node * new_token,
+              proc->MakeNode<AfterAll>(
+                  later->loc(),
+                  std::vector<Node*>{later->token(), delay_node}));
+          XLS_RETURN_IF_ERROR(later->ReplaceToken(new_token));
+          changed = true;
+        }
+
         continue;
       }
       unrelated_nodes.push_back(n2.node->As<ChannelNode>());
@@ -431,7 +469,10 @@ absl::Status CheckMutualExclusion(Proc* proc,
           proc->name(), node->channel_name(), *node, *unpredicated_node));
     }
 
-    if (strictness != ChannelStrictness::kProvenMutuallyExclusive) {
+    if (strictness != ChannelStrictness::kProvenMutuallyExclusive &&
+        strictness != ChannelStrictness::kProvenOrdered) {
+      // We need to add assertions to enforce that no unrelated operations are
+      // active at the same time.
       Node* no_conflict;
       if (unrelated_predicates.empty() && !node->predicate().has_value()) {
         CHECK_NE(unpredicated_node, nullptr);
@@ -472,23 +513,28 @@ absl::Status CheckMutualExclusion(Proc* proc,
                       absl::StrCat(node->GetName(), "__no_conflicting_ops_A")),
                   /*original_label=*/std::nullopt)
               .status());
-      return absl::OkStatus();
+      changed = true;
+      continue;
     }
 
+    XLS_RET_CHECK(strictness == ChannelStrictness::kProvenMutuallyExclusive ||
+                  strictness == ChannelStrictness::kProvenOrdered);
     if (unrelated_predicates.empty()) {
       // Prove that `node` is never active.
       XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * translator,
                            get_translator());
-      Z3_lbool can_be_active =
-          RunSolver(translator->ctx(),
-                    solvers::z3::BitVectorToBoolean(
-                        translator->ctx(),
-                        translator->GetTranslation(*node->predicate())));
-      if (can_be_active == Z3_L_FALSE) {
+      absl::StatusOr<solvers::z3::ProverResult> mutually_exclusive =
+          ProveMutuallyExclusive(proc, node->predicate(), std::nullopt,
+                                 translator, /*rlimit=*/std::nullopt);
+      if (mutually_exclusive.ok() &&
+          std::holds_alternative<solvers::z3::ProvenTrue>(
+              *mutually_exclusive)) {
         // Proved mutual exclusion for `node`.
         continue;
       }
-      if (can_be_active == Z3_L_TRUE) {
+      if (mutually_exclusive.ok() &&
+          std::holds_alternative<solvers::z3::ProvenFalse>(
+              *mutually_exclusive)) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Channel %s is %s, and %v is unconditionally active; proved that "
             "%v is also sometimes active.",
@@ -497,34 +543,34 @@ absl::Status CheckMutualExclusion(Proc* proc,
       }
       return absl::InvalidArgumentError(absl::StrFormat(
           "Channel %s is %s, and %v is unconditionally active; failed to "
-          "prove that %v is never active.",
+          "prove that %v is never active: %s",
           node->channel_name(), ChannelStrictnessToString(strictness),
-          *unpredicated_node, *node));
+          *unpredicated_node, *node, mutually_exclusive.status().ToString()));
     }
 
     XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * translator,
                          get_translator());
-    Z3_ast unrelated_node_active =
-        translator->GetTranslation(unrelated_predicates.front());
-    for (Node* predicate :
-         absl::MakeConstSpan(unrelated_predicates).subspan(1)) {
-      unrelated_node_active =
-          Z3_mk_bvor(translator->ctx(), unrelated_node_active,
-                     translator->GetTranslation(predicate));
+
+    absl::StatusOr<solvers::z3::ProverResult> mutually_exclusive =
+        ProveMutuallyExclusive(proc, node->predicate(), unrelated_predicates,
+                               translator,
+                               /*rlimit=*/std::nullopt);
+    if (mutually_exclusive.ok() &&
+        std::holds_alternative<solvers::z3::ProvenTrue>(*mutually_exclusive)) {
+      // Proved mutual exclusion for `node`.
+      continue;
     }
 
-    if (!node->predicate().has_value()) {
-      // Prove that no other node can be active.
-      XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * translator,
-                           get_translator());
-      Z3_lbool unrelated_can_be_active = RunSolver(
-          translator->ctx(), solvers::z3::BitVectorToBoolean(
-                                 translator->ctx(), unrelated_node_active));
-      if (unrelated_can_be_active == Z3_L_FALSE) {
-        // Proved mutual exclusion for `node`; no assert needed.
-        continue;
-      }
-      if (unrelated_can_be_active == Z3_L_TRUE) {
+    if (mutually_exclusive.ok() &&
+        std::holds_alternative<solvers::z3::ProvenFalse>(*mutually_exclusive)) {
+      if (node->predicate().has_value()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Channel %s is %s, and %v can be active at the "
+                            "same time as another "
+                            "node on the same channel.",
+                            node->channel_name(),
+                            ChannelStrictnessToString(strictness), *node));
+      } else {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Channel %s is %s, and %v is unconditionally active; proved that "
             "another node on the same channel can be active in the same "
@@ -532,37 +578,24 @@ absl::Status CheckMutualExclusion(Proc* proc,
             node->channel_name(), ChannelStrictnessToString(strictness),
             *node));
       }
+    }
+
+    if (node->predicate().has_value()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Channel %s is %s, and we failed to prove that no other node on the "
+          "same channel as %v can be active in the same activation: %s",
+          node->channel_name(), ChannelStrictnessToString(strictness), *node,
+          mutually_exclusive.status().ToString()));
+    } else {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Channel %s is %s, and %v is unconditionally active; failed to prove "
           "that no other node on the same channel can be active in the same "
-          "activation.",
-          node->channel_name(), ChannelStrictnessToString(strictness), *node));
+          "activation: %s",
+          node->channel_name(), ChannelStrictnessToString(strictness), *node,
+          mutually_exclusive.status().ToString()));
     }
-
-    Z3_lbool not_mutually_exclusive = RunSolver(
-        translator->ctx(),
-        solvers::z3::BitVectorToBoolean(
-            translator->ctx(),
-            Z3_mk_bvand(translator->ctx(),
-                        translator->GetTranslation(*node->predicate()),
-                        unrelated_node_active)));
-    if (not_mutually_exclusive == Z3_L_FALSE) {
-      // Proved mutual exclusion for `node`; no assert needed.
-      continue;
-    }
-    if (not_mutually_exclusive == Z3_L_TRUE) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Channel %s is %s, and %v can be active at the same time as another "
-          "node on the same channel.",
-          node->channel_name(), ChannelStrictnessToString(strictness), *node));
-    }
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Channel %s is %s, and %v is unconditionally active; failed to prove "
-        "that no other node on the same channel can be active in the same "
-        "activation.",
-        node->channel_name(), ChannelStrictnessToString(strictness), *node));
   }
-  return absl::OkStatus();
+  return changed;
 }
 
 }  // namespace
@@ -588,9 +621,13 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
 
     std::optional<ChannelStrictness> strictness = ChannelRefStrictness(channel);
     CHECK(strictness.has_value());
-    XLS_RETURN_IF_ERROR(
-        CheckMutualExclusion(proc, std::vector<Node*>(ops.begin(), ops.end()),
-                             *strictness, context));
+    XLS_ASSIGN_OR_RETURN(
+        bool delays_added,
+        AddNonExclusionDelays(proc, std::vector<Node*>(ops.begin(), ops.end()),
+                              *strictness, context, options));
+    if (delays_added) {
+      changed = true;
+    }
 
     // Add cross-activation constraints for all operations on this channel.
     std::vector<StateRead*> self_tokens;
@@ -646,9 +683,13 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
 
     std::optional<ChannelStrictness> strictness = ChannelRefStrictness(channel);
     CHECK(strictness.has_value());
-    XLS_RETURN_IF_ERROR(
-        CheckMutualExclusion(proc, std::vector<Node*>(ops.begin(), ops.end()),
-                             *strictness, context));
+    XLS_ASSIGN_OR_RETURN(
+        bool delays_added,
+        AddNonExclusionDelays(proc, std::vector<Node*>(ops.begin(), ops.end()),
+                              *strictness, context, options));
+    if (delays_added) {
+      changed = true;
+    }
 
     // Add cross-activation constraints for all operations on this channel.
     std::vector<StateRead*> self_tokens;

@@ -293,6 +293,9 @@ absl::StatusOr<ChannelStrictness> ChannelStrictnessFromString(
   if (text == "total_order") {
     return ChannelStrictness::kTotalOrder;
   }
+  if (text == "proven_ordered") {
+    return ChannelStrictness::kProvenOrdered;
+  }
   if (text == "runtime_ordered") {
     return ChannelStrictness::kRuntimeOrdered;
   }
@@ -304,20 +307,19 @@ absl::StatusOr<ChannelStrictness> ChannelStrictnessFromString(
 }
 
 std::string ChannelStrictnessToString(ChannelStrictness in) {
-  if (in == ChannelStrictness::kProvenMutuallyExclusive) {
-    return "proven_mutually_exclusive";
-  }
-  if (in == ChannelStrictness::kRuntimeMutuallyExclusive) {
-    return "runtime_mutually_exclusive";
-  }
-  if (in == ChannelStrictness::kTotalOrder) {
-    return "total_order";
-  }
-  if (in == ChannelStrictness::kRuntimeOrdered) {
-    return "runtime_ordered";
-  }
-  if (in == ChannelStrictness::kArbitraryStaticOrder) {
-    return "arbitrary_static_order";
+  switch (in) {
+    case ChannelStrictness::kProvenMutuallyExclusive:
+      return "proven_mutually_exclusive";
+    case ChannelStrictness::kRuntimeMutuallyExclusive:
+      return "runtime_mutually_exclusive";
+    case ChannelStrictness::kTotalOrder:
+      return "total_order";
+    case ChannelStrictness::kProvenOrdered:
+      return "proven_ordered";
+    case ChannelStrictness::kRuntimeOrdered:
+      return "runtime_ordered";
+    case ChannelStrictness::kArbitraryStaticOrder:
+      return "arbitrary_static_order";
   }
   return "unknown";
 }
