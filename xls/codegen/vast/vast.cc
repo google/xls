@@ -33,7 +33,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/codegen/vast/verilog_keywords.h"
@@ -1399,7 +1399,15 @@ std::string Comment::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   LineInfoIncrease(line_info, NumberOfNewlines(text_));
   LineInfoEnd(line_info, this);
-  return absl::StrCat("// ", absl::StrReplaceAll(text_, {{"\n", "\n// "}}));
+  std::vector<std::string> lines = absl::StrSplit(text_, '\n');
+  for (std::string& line : lines) {
+    if (line.empty()) {
+      line = "//";
+    } else {
+      line = absl::StrCat("// ", line);
+    }
+  }
+  return absl::StrJoin(lines, "\n");
 }
 
 std::string InlineVerilogStatement::Emit(LineInfo* line_info) const {
