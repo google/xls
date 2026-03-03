@@ -21,7 +21,7 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test")
+load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 
 # Load proto_library
 load(
@@ -312,6 +312,17 @@ cc_library(
     ],
 )
 
+pytype_strict_library(
+    name = "jit_wrapper_generator",
+    srcs = ["jit_wrapper_generator.py"],
+    deps = [
+        ":aot_entrypoint_py_pb2",
+        "//xls/ir:xls_ir_interface_py_pb2",
+        "//xls/ir:xls_type_py_pb2",
+        "@abseil-py//absl:app",
+    ],
+)
+
 pytype_strict_binary(
     name = "jit_wrapper_generator_main",
     srcs = ["jit_wrapper_generator_main.py"],
@@ -327,9 +338,9 @@ pytype_strict_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":aot_entrypoint_py_pb2",
+        ":jit_wrapper_generator",
         "//xls/common:runfiles",
         "//xls/ir:xls_ir_interface_py_pb2",
-        "//xls/ir:xls_type_py_pb2",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
         "@xls_pip_deps//jinja2",
