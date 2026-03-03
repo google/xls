@@ -20,6 +20,11 @@
 # - Integration with C++ GED implementation
 # Please migrate to using the C++ GXL tools in //xls/eco.
 
+import sys
+import os
+from pathlib import Path
+
+
 """IR to GXL conversion library for XLS ECO.
 
 This module provides functionality to convert XLS IR files to GXL format
@@ -32,12 +37,6 @@ parsing), faster, and better maintained. Consider extending the C++ cytoscape
 tool to support GXL output format, or create a C++ GXL exporter that shares
 the same IR graph construction logic.
 """
-
-import sys
-import os
-from pathlib import Path
-from typing import Optional
-import networkx as nx
 
 # Add the parent directory to the path so we can import the modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
