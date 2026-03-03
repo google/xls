@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include "graph.h"
+#include "xls/eco/graph.h"
 
 namespace ged {
 
@@ -133,15 +133,6 @@ struct GEDResult {
   int edge_cost = INT_MAX;
   int total_cost = INT_MAX;
 };
-
-struct SearchState;
-
-void GetEditPaths(SearchState& state, CostMatrix& Cv, CostMatrix& Ce,
-                  const XLSGraph& G1, const XLSGraph& G2,
-                  std::function<bool(int64_t)> prune, int& maxcost_value,
-                  int& best_cost, GEDResult& best_result, int& expansion_count,
-                  std::vector<std::vector<double>>& dense_Cv_buffer,
-                  std::vector<std::vector<double>>& dense_Ce_buffer);
 
 GEDResult SolveGED(const XLSGraph& graph1, const XLSGraph& graph2,
                    const GEDOptions& options);

@@ -69,7 +69,7 @@ struct XLSGraph
   absl::flat_hash_map<std::pair<int, int>, int, PairHash> edge_counts;
   absl::flat_hash_map<std::string, int> node_name_to_index;
   std::optional<std::string> return_node_name;
-  
+
   // Mapping between current indices and original indices after cutting
   std::vector<int> original_indices;  // current_index -> original_index
   absl::flat_hash_map<int, int> current_indices;  // original_index -> current_index
