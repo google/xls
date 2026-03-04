@@ -20,6 +20,7 @@ import enum
 from typing import Optional
 
 from absl import app
+import jinja2
 
 from xls.ir import xls_ir_interface_pb2 as ir_interface_pb2
 from xls.ir import xls_type_pb2 as type_pb2
@@ -579,3 +580,14 @@ def wrapped_to_fuzztest(wrapped: WrappedIr) -> PropertyFunction:
       params=params,
       return_type=wrapped.result is not None,
   )
+
+
+def render_fuzztest(
+    wrapped: WrappedIr, env: jinja2.Environment, cc_template_content: str
+) -> str:
+  """Renders the fuzztest C++ code."""
+  env.filters["property_param"] = lambda p: p.c_type + " " + p.name
+  cc_template = env.from_string(cc_template_content)
+  fuzztest = wrapped_to_fuzztest(wrapped)
+  bindings = {"fuzztest": fuzztest, "len": len}
+  return cc_template.render(bindings)

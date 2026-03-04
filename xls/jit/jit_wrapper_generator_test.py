@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import jinja2
+
 from absl.testing import absltest
+from xls.common import runfiles
 from xls.ir import xls_type_pb2 as type_pb2
 from xls.jit import jit_wrapper_generator
 
@@ -697,6 +700,265 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
     self.assertFalse(prop_func.return_type)
     self.assertLen(prop_func.params, 1)
     self.assertEqual(prop_func.params[0].name, 'a')
+
+
+class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.env = jinja2.Environment(
+        undefined=jinja2.StrictUndefined, lstrip_blocks=True, trim_blocks=True
+    )
+    self.template = runfiles.get_contents_as_text('xls/jit/fuzztest_cc.tmpl')
+
+  def test_render_fuzztest_basic(self):
+    u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    wrapped_ir = jit_wrapper_generator.WrappedIr(
+        jit_type=jit_wrapper_generator.JitType.FUNCTION,
+        ir_text='',
+        function_name='my_func',
+        class_name='MyFuncJit',
+        header_guard='HEADER_GUARD',
+        header_filename='my_func_jit.h',
+        namespace='xls::test',
+        aot_entrypoint=None,
+        params=[
+            jit_wrapper_generator.XlsNamedValue(
+                name='a',
+                type_proto=u8,
+                packed_type='',
+                unpacked_type='',
+                specialized_type=None,
+            ),
+            jit_wrapper_generator.XlsNamedValue(
+                name='b',
+                type_proto=u32,
+                packed_type='',
+                unpacked_type='',
+                specialized_type=None,
+            ),
+        ],
+        result=jit_wrapper_generator.XlsNamedValue(
+            name='res',
+            type_proto=u8,
+            packed_type='',
+            unpacked_type='',
+            specialized_type=None,
+        ),
+    )
+    rendered_code = jit_wrapper_generator.render_fuzztest(
+        wrapped_ir, self.env, self.template
+    )
+    self.assertIn('namespace xls::test {', rendered_code)
+    self.assertIn('void my_func(uint8_t a, uint32_t b)', rendered_code)
+    self.assertIn('xls::Value a_value(xls::Bits(a, 8));', rendered_code)
+    self.assertIn('xls::Value b_value(xls::Bits(b, 32));', rendered_code)
+    self.assertIn('a_value, b_value', rendered_code)
+    self.assertIn('FUZZ_TEST(my_func_fuzztest, my_func)', rendered_code)
+    self.assertIn('fuzztest::Arbitrary<uint8_t>(),', rendered_code)
+    self.assertIn('fuzztest::Arbitrary<uint32_t>()', rendered_code)
+
+  def test_render_fuzztest_array_of_int(self):
+    u16 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=16)
+    a16 = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.ARRAY, array_size=4, array_element=u16
+    )
+    wrapped_ir = jit_wrapper_generator.WrappedIr(
+        jit_type=jit_wrapper_generator.JitType.FUNCTION,
+        ir_text='',
+        function_name='array_int_func',
+        class_name='ArrayIntFuncJit',
+        header_guard='HEADER_GUARD',
+        header_filename='array_int_func_jit.h',
+        namespace='xls::test',
+        aot_entrypoint=None,
+        params=[
+            jit_wrapper_generator.XlsNamedValue(
+                name='x',
+                type_proto=a16,
+                packed_type='',
+                unpacked_type='',
+                specialized_type=None,
+            ),
+        ],
+        result=None,
+    )
+    rendered_code = jit_wrapper_generator.render_fuzztest(
+        wrapped_ir, self.env, self.template
+    )
+    self.assertIn(
+        'void array_int_func(std::array<uint16_t, 4> x)', rendered_code
+    )
+    self.assertIn('std::vector<xls::Value> _x_value_vector;', rendered_code)
+    self.assertIn(
+        'XLS_ASSERT_OK_AND_ASSIGN(xls::Value x_value,'
+        ' xls::Value::Array(_x_value_vector));',
+        rendered_code,
+    )
+    self.assertIn(
+        'FUZZ_TEST(array_int_func_fuzztest, array_int_func)', rendered_code
+    )
+    self.assertIn(
+        'fuzztest::ArrayOf<4>(fuzztest::Arbitrary<uint16_t>())', rendered_code
+    )
+
+  def test_render_fuzztest_array_of_tuple(self):
+    u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u8, u32]
+    )
+    arr = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.ARRAY, array_size=3, array_element=tup
+    )
+    wrapped_ir = jit_wrapper_generator.WrappedIr(
+        jit_type=jit_wrapper_generator.JitType.FUNCTION,
+        ir_text='',
+        function_name='array_tuple_func',
+        class_name='ArrayTupleFuncJit',
+        header_guard='HEADER_GUARD',
+        header_filename='array_tuple_func_jit.h',
+        namespace='xls::test',
+        aot_entrypoint=None,
+        params=[
+            jit_wrapper_generator.XlsNamedValue(
+                name='y',
+                type_proto=arr,
+                packed_type='',
+                unpacked_type='',
+                specialized_type=None,
+            ),
+        ],
+        result=None,
+    )
+    rendered_code = jit_wrapper_generator.render_fuzztest(
+        wrapped_ir, self.env, self.template
+    )
+    self.assertIn(
+        'void array_tuple_func(std::array<std::tuple<uint8_t, uint32_t>, 3> y)',
+        rendered_code,
+    )
+    self.assertIn('std::vector<xls::Value> _y_value_vector;', rendered_code)
+    self.assertIn(
+        'XLS_ASSERT_OK_AND_ASSIGN(xls::Value y_value,'
+        ' xls::Value::Array(_y_value_vector));',
+        rendered_code,
+    )
+    self.assertIn(
+        'FUZZ_TEST(array_tuple_func_fuzztest, array_tuple_func)', rendered_code
+    )
+    self.assertIn(
+        'fuzztest::ArrayOf<3>(fuzztest::TupleOf(fuzztest::Arbitrary<uint8_t>(),'
+        ' fuzztest::Arbitrary<uint32_t>()))',
+        rendered_code,
+    )
+
+  def test_render_fuzztest_tuple_of_int(self):
+    u16 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=16)
+    u64 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=64)
+    tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u16, u64]
+    )
+    wrapped_ir = jit_wrapper_generator.WrappedIr(
+        jit_type=jit_wrapper_generator.JitType.FUNCTION,
+        ir_text='',
+        function_name='tuple_int_func',
+        class_name='TupleIntFuncJit',
+        header_guard='HEADER_GUARD',
+        header_filename='tuple_int_func_jit.h',
+        namespace='xls::test',
+        aot_entrypoint=None,
+        params=[
+            jit_wrapper_generator.XlsNamedValue(
+                name='t',
+                type_proto=tup,
+                packed_type='',
+                unpacked_type='',
+                specialized_type=None,
+            ),
+        ],
+        result=None,
+    )
+    rendered_code = jit_wrapper_generator.render_fuzztest(
+        wrapped_ir, self.env, self.template
+    )
+    self.assertIn(
+        'void tuple_int_func(std::tuple<uint16_t, uint64_t> t)', rendered_code
+    )
+    self.assertIn('uint16_t _t_0 = std::get<0>(t);', rendered_code)
+    self.assertIn('xls::Value _t_0_value(xls::Bits(_t_0, 16));', rendered_code)
+    self.assertIn('uint64_t _t_1 = std::get<1>(t);', rendered_code)
+    self.assertIn('xls::Value _t_1_value(xls::Bits(_t_1, 64));', rendered_code)
+    self.assertIn('xls::Value t_value(xls::Value::TupleOwned(', rendered_code)
+    self.assertIn(
+        'FUZZ_TEST(tuple_int_func_fuzztest, tuple_int_func)', rendered_code
+    )
+    self.assertIn(
+        'fuzztest::TupleOf(fuzztest::TupleOf(fuzztest::Arbitrary<uint16_t>(),'
+        ' fuzztest::Arbitrary<uint64_t>()))',
+        rendered_code,
+    )
+
+  def test_render_fuzztest_tuple_mixed(self):
+    u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
+    u16 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=16)
+    inner_tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u8, u16]
+    )
+    tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE,
+        tuple_elements=[u8, inner_tup],
+    )
+    wrapped_ir = jit_wrapper_generator.WrappedIr(
+        jit_type=jit_wrapper_generator.JitType.FUNCTION,
+        ir_text='',
+        function_name='tuple_mixed_func',
+        class_name='TupleMixedFuncJit',
+        header_guard='HEADER_GUARD',
+        header_filename='tuple_mixed_func_jit.h',
+        namespace='xls::test',
+        aot_entrypoint=None,
+        params=[
+            jit_wrapper_generator.XlsNamedValue(
+                name='m',
+                type_proto=tup,
+                packed_type='',
+                unpacked_type='',
+                specialized_type=None,
+            ),
+        ],
+        result=None,
+    )
+    rendered_code = jit_wrapper_generator.render_fuzztest(
+        wrapped_ir, self.env, self.template
+    )
+    self.assertIn(
+        'void tuple_mixed_func(std::tuple<uint8_t, std::tuple<uint8_t,'
+        ' uint16_t>> m)',
+        rendered_code,
+    )
+    self.assertIn('uint8_t __m_1_0 = std::get<0>(_m_1);', rendered_code)
+    self.assertIn(
+        'xls::Value __m_1_0_value(xls::Bits(__m_1_0, 8));', rendered_code
+    )
+    self.assertIn('uint16_t __m_1_1 = std::get<1>(_m_1);', rendered_code)
+    self.assertIn(
+        'xls::Value __m_1_1_value(xls::Bits(__m_1_1, 16));', rendered_code
+    )
+    self.assertIn(
+        'xls::Value _m_1_value(xls::Value::TupleOwned(', rendered_code
+    )
+    self.assertIn('xls::Value m_value(xls::Value::TupleOwned(', rendered_code)
+    self.assertIn(
+        'FUZZ_TEST(tuple_mixed_func_fuzztest, tuple_mixed_func)', rendered_code
+    )
+    self.assertIn(
+        'fuzztest::TupleOf(fuzztest::TupleOf(fuzztest::Arbitrary<uint8_t>(), '
+        'fuzztest::TupleOf(fuzztest::Arbitrary<uint8_t>(),'
+        ' fuzztest::Arbitrary<uint16_t>())))',
+        rendered_code,
+    )
 
 
 if __name__ == '__main__':
