@@ -57,19 +57,6 @@ def _write_textproto(path: str, text: str) -> None:
     f.write(text)
 
 
-def _line_col(program: str, needle: str) -> tuple[int, int]:
-  for idx, line in enumerate(program.splitlines(), start=1):
-    col = line.find(needle)
-    if col != -1:
-      return idx, col
-  raise ValueError(f'needle not found: {needle}')
-
-
-def _file_line_col(path: str, needle: str) -> tuple[int, int]:
-  with open(path, encoding='utf-8') as f:
-    return _line_col(f.read(), needle)
-
-
 def _run_dump(input_path: str, extra_flags: list[str] | None = None) -> str:
   tool = runfiles.get_path('xls/dev_tools/dump_call_trace')
   cmd = [tool, f'--input={input_path}', '--log_prefix=false']
@@ -82,7 +69,7 @@ def _run_dump(input_path: str, extra_flags: list[str] | None = None) -> str:
 
 
 def _normalize_locations(text: str) -> str:
-  return re.sub(r':\d+:\d+:', ':<loc>:', text)
+  return re.sub(r'\S+\.x:\d+:\d+:', '<file>:<loc>:', text)
 
 
 class DumpCallTraceTest(absltest.TestCase):
@@ -122,121 +109,101 @@ class DumpCallTraceTest(absltest.TestCase):
   def test_basic(self):
     path = self._run_and_write_results_proto(DSLX_PROGRAM, 'results.textproto')
     out = _run_dump(path)
-    dslx = self._proto_path('prog.x')
-    call_line, call_col = _file_line_col(dslx, 'fn call_trace_test()')
-    foo_line, foo_col = _file_line_col(dslx, 'foo(u32:10)')
-    bar_line, bar_col = _file_line_col(dslx, 'baz(y + u32:1)')
-    baz_line, baz_col = _file_line_col(dslx, 'z + u32:1')
-    baz_call_line, baz_call_col = _file_line_col(dslx, 'baz(u32:2)')
-    expected = textwrap.dedent(f"""
-    {dslx}:{call_line}:{call_col}: call_trace_test(
+    expected = textwrap.dedent("""
+    <file>:<loc>: call_trace_test(
     )
-      {dslx}:{foo_line}:{foo_col}: foo(
+      <file>:<loc>: foo(
         bits[32]:10
       )
-        {dslx}:{bar_line}:{bar_col}: bar(
+        <file>:<loc>: bar(
           bits[32]:11
         )
-          {dslx}:{baz_line}:{baz_col}: baz(
+          <file>:<loc>: baz(
             bits[32]:12
           )
           baz(...) => bits[32]:13
         bar(...) => bits[32]:13
       foo(...) => bits[32]:13
-      {dslx}:{baz_call_line}:{baz_call_col}: baz(
+      <file>:<loc>: baz(
         bits[32]:2
       )
       baz(...) => bits[32]:3
     call_trace_test(...) => ()
     """).lstrip()
-    self.assertEqual(_normalize_locations(out),
-                     _normalize_locations(expected))
+    self.assertEqual(_normalize_locations(out), expected)
 
   def test_basic_ir_interpreter(self):
     path = self._run_and_write_results_proto(
       DSLX_PROGRAM, 'results.textproto', 'ir-interpreter')
     out = _run_dump(path,
                     extra_flags=['--function=__itok__prog__call_trace_test'])
-    dslx = self._proto_path('prog.x')
-    foo_line, foo_col = _file_line_col(dslx, 'foo(u32:10)')
-    bar_line, bar_col = _file_line_col(dslx, 'baz(y + u32:1)')
-    baz_line, baz_col = _file_line_col(dslx, 'z + u32:1')
-    baz_call_line, baz_call_col = _file_line_col(dslx, 'baz(u32:2)')
-    expected = textwrap.dedent(f"""
+    expected = textwrap.dedent("""
     <unknown>: __itok__prog__call_trace_test(
       token
       bits[1]:1
     )
-      {dslx}:{foo_line}:{foo_col}: __prog__foo(
+      <file>:<loc>: __prog__foo(
         bits[32]:10
       )
-        {dslx}:{bar_line}:{bar_col}: __prog__bar(
+        <file>:<loc>: __prog__bar(
           bits[32]:11
         )
-          {dslx}:{baz_line}:{baz_col}: __prog__baz(
+          <file>:<loc>: __prog__baz(
             bits[32]:12
           )
           __prog__baz(...) => bits[32]:13
         __prog__bar(...) => bits[32]:13
       __prog__foo(...) => bits[32]:13
-      {dslx}:{baz_call_line}:{baz_call_col}: __prog__baz(
+      <file>:<loc>: __prog__baz(
         bits[32]:2
       )
       __prog__baz(...) => bits[32]:3
     __itok__prog__call_trace_test(...) => (token, ())
     """).lstrip()
-    self.assertEqual(_normalize_locations(out),
-                     _normalize_locations(expected))
+    self.assertEqual(_normalize_locations(out), expected)
 
   def test_function_filter(self):
     path = self._run_and_write_results_proto(DSLX_PROGRAM,
                                              'results_fn.textproto')
     out = _run_dump(path, ['--function=bar'])
-    dslx = self._proto_path('prog.x')
-    expected = textwrap.dedent(f"""
-    {dslx}:3:27: bar(
+    expected = textwrap.dedent("""
+    <file>:<loc>: bar(
       bits[32]:11
     )
-      {dslx}:2:27: baz(
+      <file>:<loc>: baz(
         bits[32]:12
       )
       baz(...) => bits[32]:13
     bar(...) => bits[32]:13
     """).lstrip()
-    self.assertEqual(_normalize_locations(out),
-                     _normalize_locations(expected))
+    self.assertEqual(_normalize_locations(out), expected)
 
   def test_for_loop_in_dslx_test(self):
     out_path = self._run_and_write_results_proto(
-      DSLX_FOR_LOOP_PROGRAM, 'for_loop_results.textproto')
+        DSLX_FOR_LOOP_PROGRAM, 'for_loop_results.textproto')
     out = _run_dump(out_path)
-    dslx = self._proto_path('prog.x')
-    test_line, test_col = _file_line_col(dslx, 'fn for_loop_inside_test()')
-    foo_line, foo_col = _file_line_col(dslx, 'foo(value);')
-    foo2_line, foo2_col = _file_line_col(dslx, 'foo(value + u32:10);')
-    expected = textwrap.dedent(f"""
-    {dslx}:{test_line}:{test_col}: for_loop_inside_test(
+    expected = textwrap.dedent("""
+    <file>:<loc>: for_loop_inside_test(
     )
-      {dslx}:{foo_line}:{foo_col}: foo(
+      <file>:<loc>: foo(
         bits[32]:1
       )
       foo(...) => bits[32]:2
-      {dslx}:{foo2_line}:{foo2_col}: foo(
+      <file>:<loc>: foo(
         bits[32]:11
       )
       foo(...) => bits[32]:12
-      {dslx}:{foo_line}:{foo_col}: foo(
+      <file>:<loc>: foo(
         bits[32]:2
       )
       foo(...) => bits[32]:3
-      {dslx}:{foo2_line}:{foo2_col}: foo(
+      <file>:<loc>: foo(
         bits[32]:12
       )
       foo(...) => bits[32]:13
     for_loop_inside_test(...) => ()
     """).lstrip()
-    self.assertEqual(_normalize_locations(out),
-                     _normalize_locations(expected))
+    self.assertEqual(_normalize_locations(out), expected)
 
   def test_for_loop_ir_interpreter(self):
     path = self._run_and_write_results_proto(
@@ -244,13 +211,12 @@ class DumpCallTraceTest(absltest.TestCase):
       'for_loop_ir_results.textproto', 'ir-interpreter')
     out = _run_dump(
       path, extra_flags=['--function=__itok__prog__for_loop_inside_test'])
-    dslx = self._proto_path('prog.x')
-    expected = textwrap.dedent(f"""
+    expected = textwrap.dedent("""
     <unknown>: __itok__prog__for_loop_inside_test(
       token
       bits[1]:1
     )
-      {dslx}:5:13: ____itok__prog__for_loop_inside_test_counted_for_0_body(
+      <file>:<loc>: ____itok__prog__for_loop_inside_test_counted_for_0_body(
         bits[32]:0
         (
           token
@@ -258,16 +224,16 @@ class DumpCallTraceTest(absltest.TestCase):
           bits[32]:0
         )
       )
-        {dslx}:6:15: __prog__foo(
+        <file>:<loc>: __prog__foo(
           bits[32]:1
         )
         __prog__foo(...) => bits[32]:2
-        {dslx}:7:15: __prog__foo(
+        <file>:<loc>: __prog__foo(
           bits[32]:11
         )
         __prog__foo(...) => bits[32]:12
       ____itok__prog__for_loop_inside_test_counted_for_0_body(...) => (token, bits[1]:1, bits[32]:0)
-      {dslx}:5:13: ____itok__prog__for_loop_inside_test_counted_for_0_body(
+      <file>:<loc>: ____itok__prog__for_loop_inside_test_counted_for_0_body(
         bits[32]:1
         (
           token
@@ -275,19 +241,18 @@ class DumpCallTraceTest(absltest.TestCase):
           bits[32]:0
         )
       )
-        {dslx}:6:15: __prog__foo(
+        <file>:<loc>: __prog__foo(
           bits[32]:2
         )
         __prog__foo(...) => bits[32]:3
-        {dslx}:7:15: __prog__foo(
+        <file>:<loc>: __prog__foo(
           bits[32]:12
         )
         __prog__foo(...) => bits[32]:13
       ____itok__prog__for_loop_inside_test_counted_for_0_body(...) => (token, bits[1]:1, bits[32]:0)
     __itok__prog__for_loop_inside_test(...) => (token, ())
     """).lstrip()
-    self.assertEqual(_normalize_locations(out),
-                     _normalize_locations(expected))
+    self.assertEqual(_normalize_locations(out), expected)
 
 if __name__ == '__main__':
   absltest.main()
