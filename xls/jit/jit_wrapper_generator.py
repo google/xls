@@ -183,6 +183,19 @@ def is_float_tuple(t: type_pb2.TypeProto) -> bool:
   return is_floating_point(t, 8, 23)
 
 
+def to_c_type(t: type_pb2.TypeProto) -> str:
+  c_type = to_specialized(t, int_only=True)
+  if c_type is not None:
+    return c_type
+  the_type = t.type_enum
+  if the_type == type_pb2.TypeProto.TUPLE:
+    inner = ", ".join(to_c_type(e) for e in t.tuple_elements)
+    return f"std::tuple<{inner}>"
+  elif the_type == type_pb2.TypeProto.ARRAY:
+    return f"std::array<{to_c_type(t.array_element)}, {t.array_size}>"
+  raise app.UsageError(f"Cannot convert {t} to c_type")
+
+
 def to_specialized(
     t: type_pb2.TypeProto, *, int_only: bool = False
 ) -> Optional[str]:

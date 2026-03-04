@@ -347,6 +347,17 @@ pytype_strict_binary(
     ],
 )
 
+pytype_strict_contrib_test(
+    name = "jit_wrapper_generator_test",
+    srcs = ["jit_wrapper_generator_test.py"],
+    deps = [
+        ":jit_wrapper_generator",
+        "//xls/ir:xls_ir_interface_py_pb2",
+        "//xls/ir:xls_type_py_pb2",
+        "@abseil-py//absl/testing:absltest",
+    ],
+)
+
 cc_test(
     name = "jit_wrapper_test",
     srcs = ["jit_wrapper_test.cc"],
