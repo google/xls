@@ -419,7 +419,6 @@ class FunctionConverter {
 
   absl::Status HandleIndex(const Index* node);
   absl::Status HandleInvocation(const Invocation* node);
-  absl::Status HandleLambda(const Lambda* node);
   absl::Status HandleLet(const Let* node);
   absl::Status HandleLetChannelDecl(const Let* node);
   absl::Status HandleMatch(const Match* node);

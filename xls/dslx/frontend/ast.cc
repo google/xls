@@ -2399,8 +2399,8 @@ TestFunction::~TestFunction() = default;
 
 // -- class Lambda
 
-Lambda::Lambda(Module* owner, Span span, Impl* impl)
-    : Expr(owner, std::move(span)), impl_(impl) {}
+Lambda::Lambda(Module* owner, Span span, Function* function)
+    : Expr(owner, std::move(span)), function_(function) {}
 
 Lambda::~Lambda() = default;
 

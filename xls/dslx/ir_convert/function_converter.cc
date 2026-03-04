@@ -926,10 +926,6 @@ absl::Status FunctionConverter::HandleConstantDef(const ConstantDef* node) {
   return DefAlias(node->value(), /*to=*/node->name_def());
 }
 
-absl::Status FunctionConverter::HandleLambda(const Lambda* node) {
-  return absl::UnimplementedError("lambdas not yet supported");
-}
-
 absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
   XLS_RET_CHECK(options_.lower_to_proc_scoped_channels)
       << "Should only call FunctionConverter::HandleLetChannelDecl when "

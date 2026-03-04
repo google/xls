@@ -1380,10 +1380,7 @@ absl::Status BytecodeEmitter::DestructureLet(
 }
 
 absl::Status BytecodeEmitter::HandleLambda(const Lambda* node) {
-  XLS_ASSIGN_OR_RETURN(auto result,
-                       HandleNameDefInternal(node->function()->name_def()));
-  AddResult(node->span(), result);
-  return absl::OkStatus();
+  return absl::InternalError("Should not encounter Lambda node at this stage.");
 }
 
 absl::Status BytecodeEmitter::HandleLet(const Let* node) {

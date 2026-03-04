@@ -343,28 +343,7 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
                               /*is_public=*/false, /*is_stub=*/false);
   fn_name_def->set_definer(fn);
 
-  // TODO: erinzmoore - Switch lambda to just wrap a function and don't
-  // create the struct/impl here.
-  NameDef* struct_name_def =
-      module_->Make<NameDef>(sp,
-                             absl::Substitute("lambda_capture_struct_at_$0",
-                                              sp.ToString(file_table())),
-                             /*definer=*/nullptr);
-
-  StructDef* struct_def = module_->Make<StructDef>(
-      sp, struct_name_def, std::vector<ParametricBinding*>{},
-      std::vector<StructMemberNode*>{},
-      /*is_public=*/false);
-  TypeRefTypeAnnotation* struct_type_annotation =
-      module_->Make<TypeRefTypeAnnotation>(
-          sp, module_->Make<TypeRef>(sp, struct_def),
-          std::vector<ExprOrType>{});
-
-  Impl* impl = module_->Make<Impl>(sp, struct_type_annotation,
-                                   std::vector<ImplMember>{fn},
-                                   /*is_public=*/false);
-
-  return module_->Make<Lambda>(sp, impl);
+  return module_->Make<Lambda>(sp, fn);
 }
 
 absl::Status Parser::ParseModuleAttribute() {

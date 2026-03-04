@@ -370,7 +370,7 @@ absl::Status ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleLambda(const Lambda* expr) {
-  return absl::OkStatus();
+  return absl::InternalError("Should not encounter Lambda node at this stage.");
 }
 
 absl::Status ConstexprEvaluator::HandleMatch(const Match* expr) {

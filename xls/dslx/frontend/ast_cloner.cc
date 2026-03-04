@@ -542,7 +542,7 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     auto new_lambda = module(n)->Make<Lambda>(
-        n->span(), absl::down_cast<Impl*>(old_to_new_.at(n->impl())));
+        n->span(), absl::down_cast<Function*>(old_to_new_.at(n->function())));
     old_to_new_[n] = new_lambda;
     return absl::OkStatus();
   }
@@ -1110,14 +1110,14 @@ class AstCloner : public AstNodeVisitor {
 
     // A TypeRef doesn't own its referenced type definition, so we have to
     // explicitly visit it.
-    XLS_RETURN_IF_ERROR(absl::visit(
-        Visitor{[&](auto* ref) -> absl::Status {
-          XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
-          new_type_definition =
-              absl::down_cast<decltype(ref)>(old_to_new_.at(ref));
-          return absl::OkStatus();
-        }},
-        n->type_definition()));
+    XLS_RETURN_IF_ERROR(absl::visit(Visitor{[&](auto* ref) -> absl::Status {
+                                      XLS_RETURN_IF_ERROR(ReplaceOrVisit(ref));
+                                      new_type_definition =
+                                          absl::down_cast<decltype(ref)>(
+                                              old_to_new_.at(ref));
+                                      return absl::OkStatus();
+                                    }},
+                                    n->type_definition()));
 
     old_to_new_[n] = module(n)->Make<TypeRef>(n->span(), new_type_definition);
     return absl::OkStatus();

@@ -3456,13 +3456,12 @@ class Impl : public AstNode {
 // Example: `let squares = map(range(u32:0, u32:5), |x| { x * x });`
 //
 // Attributes:
-// * impl: An impl containing the function for the lambda.
-
+// * function: The function for the lambda.
 class Lambda : public Expr {
  public:
   static constexpr std::string_view kCallLambdaFn = "call";
 
-  Lambda(Module* owner, Span span, Impl* impl);
+  Lambda(Module* owner, Span span, Function* function);
 
   ~Lambda() override;
 
@@ -3476,18 +3475,17 @@ class Lambda : public Expr {
   std::string_view GetNodeTypeName() const override { return "Lambda"; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {impl_};
+    return {function()};
   }
 
   const std::vector<Param*>& params() const { return function()->params(); }
   TypeAnnotation* return_type() const { return function()->return_type(); }
   StatementBlock* body() const { return function()->body(); }
 
-  Function* function() const { return *impl_->GetFunction(kCallLambdaFn); }
-  Impl* impl() const { return impl_; }
+  Function* function() const { return function_; }
 
  private:
-  Impl* impl_;
+  Function* function_;
 
   std::string ToStringInternal() const final;
 
