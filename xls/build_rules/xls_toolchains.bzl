@@ -24,6 +24,8 @@ load(
 )
 
 _DEFAULT_AOT_COMPILER_TARGET = "//xls/jit:aot_compiler_main"
+_DEFAULT_AOT_COMPILER_SEGMENT_TARGET = "//xls/jit:aot_compiler_segment_main"
+_DEFAULT_AOT_COMPILER_GENERATE_SEGMENTS_TARGET = "//xls/jit:aot_compiler_generate_segments_main"
 
 _DEFAULT_AOT_BASIC_FUNCTION_TARGET = "//xls/jit:aot_basic_function_entrypoint_main"
 
@@ -62,6 +64,20 @@ xls_toolchain_attrs = {
     "_xls_aot_compiler_tool": attr.label(
         doc = "The target of the AOT IR compiler executable.",
         default = Label(_DEFAULT_AOT_COMPILER_TARGET),
+        allow_single_file = True,
+        executable = True,
+        cfg = "exec",
+    ),
+    "_xls_aot_compiler_segment_tool": attr.label(
+        doc = "The target of the AOT IR compiler executable for concurrent compilation.",
+        default = Label(_DEFAULT_AOT_COMPILER_SEGMENT_TARGET),
+        allow_single_file = True,
+        executable = True,
+        cfg = "exec",
+    ),
+    "_xls_aot_generate_compiler_segments_tool": attr.label(
+        doc = "The target of the AOT IR compiler executable for generating concurrent compilation segments.",
+        default = Label(_DEFAULT_AOT_COMPILER_GENERATE_SEGMENTS_TARGET),
         allow_single_file = True,
         executable = True,
         cfg = "exec",

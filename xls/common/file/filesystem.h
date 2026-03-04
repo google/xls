@@ -99,6 +99,10 @@ absl::StatusOr<std::string> GetFileContents(
 //  * StatusCode::kUnknown (a Write or Open error occurred)
 absl::Status SetFileContents(const std::filesystem::path& file_name,
                              std::string_view content);
+absl::Status SetFileContents(const std::filesystem::path& file_name,
+                             absl::Span<uint8_t const> content);
+absl::Status SetFileContents(const std::filesystem::path& file_name,
+                             absl::Span<int8_t const> content);
 
 // Writes the data provided in `content` to the file `file_name`, overwriting
 // any existing content. Fails if directory does not exist.

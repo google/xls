@@ -89,6 +89,13 @@ _xls_aot_files_attrs = {
         default = "FUNCTION",
         mandatory = False,
     ),
+    "jobs": attr.int(
+        doc = "Number of jobs to use for compilation. If not 1 then compilation will be done " +
+              "in by splitting the design into multiple pieces which are optimized and comipled " +
+              "into object code separately and then linked.",
+        default = 1,
+        mandatory = False,
+    ),
 }
 
 def _xls_aot_generate_impl(ctx):
@@ -100,12 +107,11 @@ def _xls_aot_generate_impl(ctx):
         requested_features = ctx.features,
         unsupported_features = ctx.disabled_features,
     )
+    jobs = ctx.attr.jobs
     src = get_src_ir_for_xls(ctx)
     aot_compiler = ctx.executable._xls_aot_compiler_tool
     out_proto_filename = ctx.attr.name + _PROTO_FILE_EXTENSION
-    out_obj_filename = ctx.attr.name + _OBJ_FILE_EXTENSION
     proto_file = ctx.actions.declare_file(out_proto_filename)
-    obj_file = ctx.actions.declare_file(out_obj_filename)
     args = ctx.actions.args()
     skeleton_args = ctx.actions.args()
 
@@ -128,36 +134,111 @@ def _xls_aot_generate_impl(ctx):
     else:
         common_add("--include_msan=false")
 
-    args.add("-output_object", obj_file.path)
-    args.add("-llvm_opt_level", ctx.attr.llvm_opt_level)
+    extra_files = []
 
     skeleton_args.add("-output_proto", proto_file.path)
 
-    extra_files = []
-    aot_direct_request = ctx.attr._emit_aot_intermediates[BuildSettingInfo].value
-    save_temps_reqest = ctx.attr._save_temps_is_requested[BoolConfigSettingInfo].value
-    if aot_direct_request or save_temps_reqest:
-        textproto_file = ctx.actions.declare_file(ctx.attr.name + ".text_proto")
-        llvm_ir_file = ctx.actions.declare_file(ctx.attr.name + ".ll")
-        llvm_opt_ir_file = ctx.actions.declare_file(ctx.attr.name + ".opt.ll")
-        asm_file = ctx.actions.declare_file(ctx.attr.name + ".S")
-        extra_files = [llvm_ir_file, llvm_opt_ir_file, asm_file, textproto_file]
-        args.add("-output_textproto", textproto_file.path)
-        args.add("-output_llvm_ir", llvm_ir_file.path)
-        args.add("-output_llvm_opt_ir", llvm_opt_ir_file.path)
-        args.add("-output_asm", asm_file.path)
+    # NB If we have jobs we don't really need to do anything to get save_temps to work since the
+    # split llvm ir files will be saved anyway. Note that the asm and opt_ir won't be saved however.
+    # TODO(allight): It would be nice to emit the opt_ir and asm in this situation as well.
+    if jobs == 1:
+        aot_direct_request = ctx.attr._emit_aot_intermediates[BuildSettingInfo].value
+        save_temps_request = ctx.attr._save_temps_is_requested[BoolConfigSettingInfo].value
+        if aot_direct_request or save_temps_request:
+            textproto_file = ctx.actions.declare_file(ctx.attr.name + ".text_proto")
+            llvm_ir_file = ctx.actions.declare_file(ctx.attr.name + ".ll")
+            llvm_opt_ir_file = ctx.actions.declare_file(ctx.attr.name + ".opt.ll")
+            asm_file = ctx.actions.declare_file(ctx.attr.name + ".S")
+            extra_files += [llvm_ir_file, llvm_opt_ir_file, asm_file, textproto_file]
+            args.add("-output_textproto", textproto_file.path)
+            args.add("-output_llvm_ir", llvm_ir_file.path)
+            args.add("-output_llvm_opt_ir", llvm_opt_ir_file.path)
+            args.add("-output_asm", asm_file.path)
+        out_obj_filename = ctx.attr.name + _OBJ_FILE_EXTENSION
+        obj_file = ctx.actions.declare_file(out_obj_filename)
+        args.add("-llvm_opt_level", ctx.attr.llvm_opt_level)
 
-    # Non-skeleton run to create the object file.
-    ctx.actions.run(
-        outputs = [obj_file] + extra_files,
-        inputs = [src.ir_file],
-        arguments = [args],
-        executable = aot_compiler,
-        mnemonic = "AOTCompiling",
-        progress_message = "Aot(JIT)Compiling %{label}: %{input}",
-        toolchain = None,
-        execution_requirements = {tag: "" for tag in ctx.attr.tags},
-    )
+        args.add("-output_object", obj_file.path)
+
+        # Non-skeleton run to create the object file.
+        ctx.actions.run(
+            outputs = [obj_file] + extra_files,
+            inputs = [src.ir_file],
+            arguments = [args],
+            executable = aot_compiler,
+            mnemonic = "AOTCompiling",
+            progress_message = "Aot(JIT)Compiling %{label}: %{input}",
+            toolchain = None,
+            execution_requirements = {tag: "" for tag in ctx.attr.tags},
+        )
+        obj_files = [obj_file]
+        obj_file_outputs = cc_common.create_compilation_outputs(
+            objects = depset([obj_file]),
+            pic_objects = depset([obj_file]),
+        )
+    else:
+        unopt_llvm_ir_file = ctx.actions.declare_file(ctx.attr.name + ".bc")
+        split_files = []
+        for i in range(jobs):
+            split_file = ctx.actions.declare_file(ctx.attr.name + ".part." + str(i) + ".bc")
+            extra_files.append(split_file)
+            split_files.append(split_file)
+        args.add("-output_llvm_ir", unopt_llvm_ir_file.path)
+
+        # Non-skeleton run to create the unoptimized llvm ir file.
+        ctx.actions.run(
+            outputs = [unopt_llvm_ir_file],
+            inputs = [src.ir_file],
+            arguments = [args],
+            executable = aot_compiler,
+            mnemonic = "AOTCompiling",
+            progress_message = "Aot(JIT)Compiling %{label}: %{input}",
+            toolchain = None,
+            execution_requirements = {tag: "" for tag in ctx.attr.tags},
+        )
+        ctx.actions.run(
+            outputs = split_files,
+            inputs = [unopt_llvm_ir_file],
+            arguments = [
+                ctx.actions.args()
+                    .add("-input", unopt_llvm_ir_file.path)
+                    .add("-outputs", ",".join([f.path for f in split_files]))
+                    .add("-private_salt", str(ctx.label)),
+            ],
+            executable = ctx.executable._xls_aot_generate_compiler_segments_tool,
+            mnemonic = "AOTGenerateCompilerSegments",
+            progress_message = "AOTGenerateCompilerSegments %{label}: %{input}",
+            toolchain = None,
+            execution_requirements = {tag: "" for tag in ctx.attr.tags},
+        )
+        obj_files = [
+            ctx.actions.declare_file(ctx.attr.name + ".part." + str(i) + ".o")
+            for i in range(jobs)
+        ]
+        for i in range(jobs):
+            piece_args = ctx.actions.args()
+            piece_args.add("-input", split_files[i].path)
+            piece_args.add("-output_object", obj_files[i].path)
+            piece_args.add("-llvm_opt_level", ctx.attr.llvm_opt_level)
+            piece_args.add("-aot_target", ctx.attr.aot_target)
+            if ctx.attr.with_msan:
+                piece_args.add("--include_msan=true")
+            else:
+                piece_args.add("--include_msan=false")
+            ctx.actions.run(
+                outputs = [obj_files[i]],
+                inputs = [split_files[i]],
+                arguments = [piece_args],
+                executable = ctx.executable._xls_aot_compiler_segment_tool,
+                mnemonic = "AOTCompiling",
+                progress_message = "AOTJitCompiling %{label}: %{input}",
+                toolchain = None,
+                execution_requirements = {tag: "" for tag in ctx.attr.tags},
+            )
+        obj_file_outputs = cc_common.create_compilation_outputs(
+            objects = depset(obj_files),
+            pic_objects = depset(obj_files),
+        )
 
     # Skeleton run to create the proto file.
     ctx.actions.run(
@@ -171,10 +252,6 @@ def _xls_aot_generate_impl(ctx):
         execution_requirements = {tag: "" for tag in ctx.attr.tags},
     )
 
-    obj_file_outputs = cc_common.create_compilation_outputs(
-        objects = depset([obj_file]),
-        pic_objects = depset([obj_file]),
-    )
     (linking_context, _linking_outputs) = cc_common.create_linking_context_from_compilation_outputs(
         name = ctx.label.name,
         actions = ctx.actions,
@@ -183,11 +260,10 @@ def _xls_aot_generate_impl(ctx):
         compilation_outputs = obj_file_outputs,
         linking_contexts = other_linking_contexts,
     )
-    cc_common.merge_compilation_contexts()
 
     return [
-        AotCompileInfo(object_file = obj_file, proto_file = proto_file),
-        DefaultInfo(files = depset([obj_file, proto_file] + extra_files)),
+        AotCompileInfo(object_files = obj_files, proto_file = proto_file),
+        DefaultInfo(files = depset(obj_files + [proto_file] + extra_files)),
         CcInfo(linking_context = linking_context),
     ] + get_input_infos(ctx.attr.src)
 
@@ -198,7 +274,11 @@ xls_aot_generate = rule(
         xls_ir_top_attrs,
         _xls_aot_files_attrs,
         CONFIG["xls_outs_attrs"],
-        dicts.pick(xls_toolchain_attrs, ["_xls_aot_compiler_tool"]),
+        dicts.pick(xls_toolchain_attrs, [
+            "_xls_aot_compiler_tool",
+            "_xls_aot_compiler_segment_tool",
+            "_xls_aot_generate_compiler_segments_tool",
+        ]),
     ),
     fragments = ["cpp"],
     toolchains = use_cpp_toolchain(),

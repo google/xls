@@ -264,6 +264,7 @@ struct FunctionEntrypoint {
 // Data structure containing jitted object code and metadata about how to call
 // it.
 struct JitObjectCode {
+  // The final object code. (May be llvm IR if we're doing a two step compile)
   std::vector<uint8_t> object_code;
   std::vector<FunctionEntrypoint> entrypoints;
   llvm::DataLayout data_layout;

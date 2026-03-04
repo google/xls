@@ -27,6 +27,7 @@
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Analysis/CGSCCPassManager.h"
+#include "llvm/include/llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/include/llvm/IR/Attributes.h"
 #include "llvm/include/llvm/IR/BasicBlock.h"
@@ -220,6 +221,15 @@ absl::Status AotCompiler::CompileModule(
   }
   if (notification.unoptimized_module) {
     jit_options_.jit_observer()->UnoptimizedModule(module.get());
+  }
+  if (jit_options_.generate_only_unopt_llvm_ir()) {
+    // Again no need to actually compile anything.
+    llvm::SmallVector<char, 0> stream_buffer;
+    llvm::raw_svector_ostream ostream(stream_buffer);
+    llvm::WriteBitcodeToFile(*module, ostream);
+    object_code_ =
+        std::vector<uint8_t>(stream_buffer.begin(), stream_buffer.end());
+    return absl::OkStatus();
   }
   auto err = PerformStandardOptimization(module.get());
   if (err) {

@@ -639,7 +639,7 @@ currently produced should be considered INCOMPLETE.
 load("//xls/build_rules:xls_build_defs.bzl", "cc_xls_ir_jit_wrapper")
 
 cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-name">name</a>, <a href="#cc_xls_ir_jit_wrapper-src">src</a>, <a href="#cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#cc_xls_ir_jit_wrapper-top">top</a>, <a href="#cc_xls_ir_jit_wrapper-llvm_opt_level">llvm_opt_level</a>,
-                      <a href="#cc_xls_ir_jit_wrapper-exec_properties">exec_properties</a>, <a href="#cc_xls_ir_jit_wrapper-tags">tags</a>, <a href="#cc_xls_ir_jit_wrapper-aot_tags">aot_tags</a>, <a href="#cc_xls_ir_jit_wrapper-kwargs">**kwargs</a>)
+                      <a href="#cc_xls_ir_jit_wrapper-exec_properties">exec_properties</a>, <a href="#cc_xls_ir_jit_wrapper-tags">tags</a>, <a href="#cc_xls_ir_jit_wrapper-aot_tags">aot_tags</a>, <a href="#cc_xls_ir_jit_wrapper-jobs">jobs</a>, <a href="#cc_xls_ir_jit_wrapper-kwargs">**kwargs</a>)
 </pre>
 
 Invokes the JIT wrapper generator and compiles the result as a cc_library.
@@ -663,6 +663,7 @@ identical to this macro.
 | <a id="cc_xls_ir_jit_wrapper-exec_properties"></a>exec_properties |  normal exec-properties to pass to actions.   |  `{}` |
 | <a id="cc_xls_ir_jit_wrapper-tags"></a>tags |  normal tags to pass to actions.   |  `[]` |
 | <a id="cc_xls_ir_jit_wrapper-aot_tags"></a>aot_tags |  Tags to apply to the AOT compiler only.   |  `[]` |
+| <a id="cc_xls_ir_jit_wrapper-jobs"></a>jobs |  Number of jobs to use for AOT compilation.   |  `1` |
 | <a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 

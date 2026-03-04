@@ -24,6 +24,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
@@ -306,10 +307,6 @@ absl::Status RealMain(const std::string& input_ir_path,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(input_ir, input_ir_path));
 
-  IntermediatesObserver obs(
-      {.unoptimized_module = output_llvm_ir_path.has_value(),
-       .optimized_module = output_llvm_opt_ir_path.has_value(),
-       .assembly_code_str = output_asm_path.has_value()});
   FunctionBase* f;
   std::string package_prefix = absl::StrCat("__", package->name(), "__");
   if (!top || top->empty()) {
@@ -338,12 +335,20 @@ absl::Status RealMain(const std::string& input_ir_path,
   std::optional<JitObjectCode> object_code;
   bool generate_skeleton = !output_object_path && !output_llvm_ir_path &&
                            !output_llvm_opt_ir_path && !output_asm_path;
+  bool only_unopt_llvm_ir = output_llvm_ir_path && !output_llvm_opt_ir_path &&
+                            !output_asm_path && !output_object_path;
+  IntermediatesObserver obs(
+      {.unoptimized_module =
+           output_llvm_ir_path.has_value() && !only_unopt_llvm_ir,
+       .optimized_module = output_llvm_opt_ir_path.has_value(),
+       .assembly_code_str = output_asm_path.has_value()});
   JitEvaluatorOptions jit_opts;
   jit_opts.set_opt_level(llvm_opt_level)
       .set_jit_observer(&obs)
       .set_symbol_salt(absl::GetFlag(FLAGS_symbol_salt))
       .set_include_msan(include_msan)
-      .set_generate_skeleton(generate_skeleton);
+      .set_generate_skeleton(generate_skeleton)
+      .set_generate_only_unopt_llvm_ir(only_unopt_llvm_ir);
   if (f->IsFunction()) {
     XLS_ASSIGN_OR_RETURN(
         object_code, FunctionJit::CreateObjectCode(
@@ -394,8 +399,14 @@ absl::Status RealMain(const std::string& input_ir_path,
     }
   }
   if (output_llvm_ir_path) {
-    XLS_RETURN_IF_ERROR(
-        SetFileContents(*output_llvm_ir_path, obs.unoptimized_code()));
+    if (only_unopt_llvm_ir) {
+      XLS_RETURN_IF_ERROR(SetFileContents(
+          *output_llvm_ir_path, std::string(object_code->object_code.begin(),
+                                            object_code->object_code.end())));
+    } else {
+      XLS_RETURN_IF_ERROR(
+          SetFileContents(*output_llvm_ir_path, obs.unoptimized_code()));
+    }
   }
   if (output_llvm_opt_ir_path) {
     XLS_RETURN_IF_ERROR(

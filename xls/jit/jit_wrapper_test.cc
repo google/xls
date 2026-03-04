@@ -34,6 +34,8 @@
 #include "xls/jit/compound_type_jit_wrapper.h"
 #include "xls/jit/multi_func_block_wrapper.h"
 #include "xls/jit/multi_func_with_trace_block_wrapper.h"
+#include "xls/jit/multi_function_with_trace_a.h"
+#include "xls/jit/multi_function_with_trace_b.h"
 #include "xls/jit/parameterized_design_func_wrapper.h"
 #include "xls/jit/parameterized_design_wrapper.h"
 #include "xls/jit/testdata/v1/multi_proc_jit_wrapper.h"
@@ -72,6 +74,18 @@ TEST(JitWrapperTest, CanCallTargetsWithSameNameMultiProc) {
   EXPECT_THAT(v1_jit->ReceiveFromBytesResult(), IsOkAndHolds(200));
   EXPECT_THAT(v2_jit->ReceiveFromBytesResult(), IsOkAndHolds(10));
   EXPECT_THAT(v2_jit->ReceiveFromBytesResult(), IsOkAndHolds(0));
+}
+
+// Splitting modules for sharded aot compilation adds a lot of symbols to the
+// namespace. Need to ensure they don't collide anywhere. Really just building
+// this target is enough to prove the test passes.
+TEST(JitWrapperTest, JobsDoNotCauseSymbolCollisions) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_jit,
+                           something::cool::a::MultiFuncWithTrace::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto b_jit,
+                           something::cool::b::MultiFuncWithTrace::Create());
+  EXPECT_THAT(a_jit->Run(1), IsOkAndHolds(5));
+  EXPECT_THAT(b_jit->Run(1), IsOkAndHolds(5));
 }
 
 TEST(JitWrapperTest, BasicFunctionCall) {

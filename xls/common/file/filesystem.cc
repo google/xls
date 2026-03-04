@@ -21,6 +21,8 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <concepts>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <string>
@@ -35,6 +37,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/io/tokenizer.h"
 #include "google/protobuf/io/zero_copy_stream.h"
@@ -87,8 +90,14 @@ class ParseTextProtoFileErrorCollector : public google::protobuf::io::ErrorColle
 
 enum class SetOrAppend { kSet, kAppend };
 
+template <typename T>
+concept ByteSpanLike = std::convertible_to<T, std::string_view> ||
+                       std::convertible_to<T, absl::Span<int8_t const>> ||
+                       std::convertible_to<T, absl::Span<uint8_t const>>;
+
+template <ByteSpanLike DataSpan>
 absl::Status SetFileContentsOrAppend(const std::filesystem::path& file_name,
-                                     std::string_view content,
+                                     DataSpan content,
                                      SetOrAppend set_or_append) {
   // Use POSIX C APIs instead of C++ iostreams to avoid exceptions.
   int fd = open(file_name.c_str(),
@@ -211,6 +220,16 @@ absl::StatusOr<std::string> GetFileContents(
 
 absl::Status SetFileContents(const std::filesystem::path& file_name,
                              std::string_view content) {
+  return SetFileContentsOrAppend(file_name, content, SetOrAppend::kSet);
+}
+
+absl::Status SetFileContents(const std::filesystem::path& file_name,
+                             absl::Span<uint8_t const> content) {
+  return SetFileContentsOrAppend(file_name, content, SetOrAppend::kSet);
+}
+
+absl::Status SetFileContents(const std::filesystem::path& file_name,
+                             absl::Span<int8_t const> content) {
   return SetFileContentsOrAppend(file_name, content, SetOrAppend::kSet);
 }
 

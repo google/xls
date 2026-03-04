@@ -75,6 +75,14 @@ class JitEvaluatorOptions {
   }
   bool generate_skeleton() const { return generate_skeleton_; }
 
+  JitEvaluatorOptions& set_generate_only_unopt_llvm_ir(bool value) {
+    generate_only_unopt_llvm_ir_ = value;
+    return *this;
+  }
+  bool generate_only_unopt_llvm_ir() const {
+    return generate_only_unopt_llvm_ir_;
+  }
+
  private:
   int64_t opt_level_ = LlvmCompiler::kDefaultOptLevel;
   std::string symbol_salt_;
@@ -82,6 +90,7 @@ class JitEvaluatorOptions {
   bool include_msan_ = false;
   JitObserver* jit_observer_ = nullptr;
   bool generate_skeleton_ = false;
+  bool generate_only_unopt_llvm_ir_ = false;
 };
 
 }  // namespace xls

@@ -283,7 +283,7 @@ AotCompileInfo = provider(
     doc = "A provider containing the object code for a compiled function " +
           "and the proto describing the compiled code.",
     fields = {
-        "object_file": "File: The object code file",
+        "object_files": "File: The object code file",
         "proto_file": "File: The protobuf AotEntrypointProto message.",
     },
 )

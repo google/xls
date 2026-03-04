@@ -243,7 +243,7 @@ def _no_aot_info_impl(ctx):
     ctx.actions.write(file, "", is_executable = False)
     return [
         DefaultInfo(files = depset([file])),
-        AotCompileInfo(object_file = None, proto_file = file),
+        AotCompileInfo(object_file = [], proto_file = file),
     ]
 
 _no_aot_info = rule(
@@ -352,6 +352,7 @@ def cc_xls_ir_jit_wrapper(
         exec_properties = {},
         tags = [],
         aot_tags = [],
+        jobs = 1,
         **kwargs):
     """Invokes the JIT wrapper generator and compiles the result as a cc_library.
 
@@ -374,6 +375,7 @@ def cc_xls_ir_jit_wrapper(
       exec_properties: normal exec-properties to pass to actions.
       tags: normal tags to pass to actions.
       aot_tags: Tags to apply to the AOT compiler only.
+      jobs: Number of jobs to use for AOT compilation.
       **kwargs: Keyword arguments. Named arguments.
     """
 
@@ -405,6 +407,7 @@ def cc_xls_ir_jit_wrapper(
         top_type = wrapper_type,
         exec_properties = exec_properties,
         tags = tags + aot_tags,
+        jobs = jobs,
         aot_target = select({
             "@platforms//cpu:aarch64": "aarch64",
             "@platforms//cpu:x86_64": "x86_64",

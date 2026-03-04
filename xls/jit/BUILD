@@ -102,6 +102,48 @@ cc_library(
 )
 
 cc_binary(
+    name = "aot_compiler_generate_segments_main",
+    srcs = ["aot_compiler_generate_segments_main.cc"],
+    deps = [
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "@llvm-project//llvm:BitReader",
+        "@llvm-project//llvm:BitWriter",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:TransformUtils",
+        "@llvm-project//llvm:ir_headers",
+    ],
+)
+
+cc_binary(
+    name = "aot_compiler_segment_main",
+    srcs = ["aot_compiler_segment_main.cc"],
+    deps = [
+        ":aot_compiler",
+        ":jit_evaluator_options",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@llvm-project//llvm:BitReader",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:ir_headers",
+    ],
+)
+
+cc_binary(
     name = "aot_compiler_main",
     srcs = ["aot_compiler_main.cc"],
     deps = [
@@ -365,6 +407,8 @@ cc_test(
         ":compound_type_jit_wrapper",
         ":multi_func_block_wrapper",
         ":multi_func_with_trace_block_wrapper",
+        ":multi_function_with_trace_a",
+        ":multi_function_with_trace_b",
         ":parameterized_design_func_wrapper",
         ":parameterized_design_wrapper",
         "//xls/common:xls_gunit_main",
@@ -780,7 +824,9 @@ cc_library(
         "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:Analysis",
-        "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:BitWriter",
+        "@llvm-project//llvm:JITLink",
+        "@llvm-project//llvm:OrcJIT",  # build_cleaner: keep
         "@llvm-project//llvm:Passes",
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:Target",
@@ -1340,6 +1386,28 @@ cc_xls_ir_jit_wrapper(
     },
     top = "multi_func_with_trace_top",
     wrapper_type = "BLOCK",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "multi_function_with_trace_a",
+    src = ":multi_function_with_trace",
+    jit_wrapper_args = {
+        "class_name": "MultiFuncWithTrace",
+        "namespace": "something::cool::a",
+    },
+    jobs = 2,
+    top = "multi_function_one",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "multi_function_with_trace_b",
+    src = ":multi_function_with_trace",
+    jit_wrapper_args = {
+        "class_name": "MultiFuncWithTrace",
+        "namespace": "something::cool::b",
+    },
+    jobs = 2,
+    top = "multi_function_one",
 )
 
 xls_ir_cc_library(
