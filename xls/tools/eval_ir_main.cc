@@ -205,6 +205,9 @@ ABSL_FLAG(std::string, output_results_proto, "",
           "argset) to the given file path.");
 ABSL_FLAG(bool, trace_to_stderr, false,
           "If true, write trace messages to stderr.");
+ABSL_FLAG(int64_t, max_trace_verbosity, 0,
+          "Maximum verbosity for traces. Traces with higher verbosity are "
+          "stripped from the output. 0 by default.");
 ABSL_FLAG(std::string, input_validator_expr, "",
           "DSLX expression to validate randomly-generated inputs. "
           "The expression can reference entry function input arguments "
@@ -458,8 +461,12 @@ absl::StatusOr<std::vector<Value>> Eval(
                                      eval_observer));
     }
     if (absl::GetFlag(FLAGS_trace_to_stderr)) {
-      for (const std::string& msg : run_res.events.GetTraceMessageStrings()) {
-        std::cerr << msg << '\n';
+      for (const auto& msg : run_res.events.GetTraceMessages()) {
+        int64_t verbosity =
+            msg.has_statement() ? msg.statement().verbosity() : 0;
+        if (verbosity <= absl::GetFlag(FLAGS_max_trace_verbosity)) {
+          std::cerr << msg.message() << '\n';
+        }
       }
     }
     if (results_out != nullptr) {
