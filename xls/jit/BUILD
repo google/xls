@@ -394,7 +394,7 @@ pytype_strict_contrib_test(
     srcs = ["jit_wrapper_generator_test.py"],
     deps = [
         ":jit_wrapper_generator",
-        "//xls/ir:xls_ir_interface_py_pb2",
+        "//xls/common:test_base",
         "//xls/ir:xls_type_py_pb2",
         "@abseil-py//absl/testing:absltest",
     ],
