@@ -9569,6 +9569,26 @@ proc Counter {
                               HasNodeWithType("write(state, y)", "()"))));
 }
 
+TEST(TypecheckV2Test, ExplicitStateAccessLabeledSimpleU32) {
+  EXPECT_THAT(
+      R"(#![feature(explicit_state_access)]
+proc Counter {
+  init { u32:0 }
+  config() { }
+  next(state: u32) {
+    let x = labeled_read(state, "counter_read");
+    let y = x + u32:1;
+    labeled_write(state, y, "counter_write");
+  }
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("labeled_read(state, \"counter_read\")", "uN[32]"),
+          HasNodeWithType("y", "uN[32]"),
+          HasNodeWithType("labeled_write(state, y, \"counter_write\")",
+                          "()"))));
+}
+
 TEST(TypecheckV2Test, ExplicitStateAccessFailOnInteractingWithState) {
   EXPECT_THAT(R"(#![feature(explicit_state_access)]
 proc Counter {
