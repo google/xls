@@ -1317,6 +1317,30 @@ TEST_F(FunctionFmtTest, SingletonTupleWithLeadingComment) {
   EXPECT_EQ(got, expected);
 }
 
+TEST_F(FunctionFmtTest, FunctionWithLambda) {
+  const std::string_view original =
+      R"(fn f() -> u32 { (|i, j| -> u32 { i + j + u32:2 })(u32:0, u32:1) })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest, FunctionWithLambdaWithExplicitTypes) {
+  const std::string_view original =
+      R"(fn f() -> u32 { (|i: u32, j: u32| -> u32 { i + j + u32:2 + u32:5 })(u32:0, u32:1) })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest, FunctionWithMapAndLambda) {
+  const std::string_view original =
+      R"(fn f() -> u32 {
+    let arr = map(u32:0..5, |i| -> u32 { i - u32:3 });
+    arr[0]
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"map"}));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 class ModuleFmtTest : public testing::Test {

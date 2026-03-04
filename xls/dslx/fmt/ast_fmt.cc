@@ -294,6 +294,35 @@ DocRef FmtJoin(absl::Span<const T> items, Joiner joiner,
   return ConcatNGroup(arena, pieces);
 }
 
+DocRef Fmt(const Lambda& n, Comments& comments, DocArena& arena) {
+  DocRef body = Fmt(*n.body(), comments, arena);
+  DocRef params = FmtJoin<const Param*>(
+      n.params(), Joiner::kCommaBreak1AsGroupNoTrailingComma,
+      [](const Param* param, Comments& comments, DocArena& arena) {
+        DocRef id = arena.MakeText(param->identifier());
+        if (auto* tvta = dynamic_cast<TypeVariableTypeAnnotation*>(
+                param->type_annotation());
+            tvta != nullptr && tvta->internal()) {
+          return id;
+        }
+        DocRef type = Fmt(*param->type_annotation(), comments, arena);
+        return ConcatN(arena, {id, arena.colon(), arena.space(), type});
+      },
+      comments, arena);
+
+  return ConcatNGroup(arena, {
+                                 arena.bar(),
+                                 params,
+                                 arena.bar(),
+                                 arena.space(),
+                                 arena.arrow(),
+                                 arena.space(),
+                                 Fmt(*n.return_type(), comments, arena),
+                                 arena.space(),
+                                 body,
+                             });
+}
+
 DocRef Fmt(const BuiltinTypeAnnotation& n, Comments& comments,
            DocArena& arena) {
   return arena.MakeText(BuiltinTypeToString(n.builtin_type()));
