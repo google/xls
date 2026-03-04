@@ -1392,12 +1392,12 @@ bool xls_aot_compile_function(struct xls_function* function, char** error_out,
                               size_t* object_code_count_out,
                               uint8_t** entrypoints_proto_out,
                               size_t* entrypoints_proto_count_out) {
-  CHECK(function != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(object_code_out != nullptr);
-  CHECK(object_code_count_out != nullptr);
-  CHECK(entrypoints_proto_out != nullptr);
-  CHECK(entrypoints_proto_count_out != nullptr);
+  CHECK_NE(function, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(object_code_out, nullptr);
+  CHECK_NE(object_code_count_out, nullptr);
+  CHECK_NE(entrypoints_proto_out, nullptr);
+  CHECK_NE(entrypoints_proto_count_out, nullptr);
 
   xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
   absl::StatusOr<xls::JitObjectCode> object_code =
@@ -1479,9 +1479,9 @@ bool xls_aot_exec_context_create(const uint8_t* entrypoints_proto,
                                  size_t entrypoints_proto_count,
                                  char** error_out,
                                  struct xls_aot_exec_context** out) {
-  CHECK(entrypoints_proto != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(out != nullptr);
+  CHECK_NE(entrypoints_proto, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(out, nullptr);
 
   xls::AotPackageEntrypointsProto proto;
   if (!proto.ParseFromArray(entrypoints_proto, entrypoints_proto_count)) {
@@ -1536,7 +1536,7 @@ bool xls_aot_exec_context_create(const uint8_t* entrypoints_proto,
 }
 
 void xls_aot_exec_context_clear_events(struct xls_aot_exec_context* context) {
-  CHECK(context != nullptr);
+  CHECK_NE(context, nullptr);
   context->events.Clear();
 }
 
@@ -1549,13 +1549,13 @@ int64_t xls_aot_entrypoint_trampoline(
     void* temp_buffer, struct xls_aot_exec_context* context,
     int64_t continuation_point, size_t* trace_messages_count_out,
     size_t* assert_messages_count_out) {
-  CHECK(function_ptr != 0);
-  CHECK(inputs != nullptr);
-  CHECK(outputs != nullptr);
-  CHECK(context != nullptr);
-  CHECK(context->jit_runtime != nullptr);
-  CHECK(trace_messages_count_out != nullptr);
-  CHECK(assert_messages_count_out != nullptr);
+  CHECK_NE(function_ptr, nullptr);
+  CHECK_NE(inputs, nullptr);
+  CHECK_NE(outputs, nullptr);
+  CHECK_NE(context, nullptr);
+  CHECK_NE(context->jit_runtime, nullptr);
+  CHECK_NE(trace_messages_count_out, nullptr);
+  CHECK_NE(assert_messages_count_out, nullptr);
 
   xls::JitFunctionType fn = absl::bit_cast<xls::JitFunctionType>(function_ptr);
   int64_t continuation = fn(inputs, outputs, temp_buffer, &context->events,
@@ -1569,9 +1569,9 @@ int64_t xls_aot_entrypoint_trampoline(
 bool xls_aot_exec_context_get_trace_message(
     const struct xls_aot_exec_context* context, size_t index, char** error_out,
     struct xls_trace_message* trace_message_out) {
-  CHECK(context != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(trace_message_out != nullptr);
+  CHECK_NE(context, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(trace_message_out, nullptr);
 
   const auto& trace_messages = context->events.GetTraceMessages();
   if (index >= trace_messages.size()) {
@@ -1597,9 +1597,9 @@ bool xls_aot_exec_context_get_trace_message(
 bool xls_aot_exec_context_get_assert_message(
     const struct xls_aot_exec_context* context, size_t index, char** error_out,
     char** assert_message_out) {
-  CHECK(context != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(assert_message_out != nullptr);
+  CHECK_NE(context, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(assert_message_out, nullptr);
 
   std::vector<std::string> assert_messages =
       context->events.GetAssertMessages();
@@ -1631,10 +1631,10 @@ bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
                           struct xls_value** result_out) {
   CHECK(jit != nullptr);
   CHECK(error_out != nullptr);
-  CHECK(trace_messages_out != nullptr);
-  CHECK(trace_messages_count_out != nullptr);
-  CHECK(assert_messages_out != nullptr);
-  CHECK(assert_messages_count_out != nullptr);
+  CHECK_NE(trace_messages_out, nullptr);
+  CHECK_NE(trace_messages_count_out, nullptr);
+  CHECK_NE(assert_messages_out, nullptr);
+  CHECK_NE(assert_messages_count_out, nullptr);
   CHECK(result_out != nullptr);
 
   std::vector<xls::Value> cpp_args;
