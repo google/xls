@@ -112,10 +112,6 @@ class FunctionResolverImpl : public FunctionResolver {
       if (target.has_value()) {
         function_node = *target;
       }
-    } else if (callee->kind() == AstNodeKind::kLambda) {
-      function_node = absl::down_cast<const Lambda*>(callee)->function();
-      XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
-          function_node, caller_function, caller_context));
     } else if (callee->kind() == AstNodeKind::kNameRef) {
       // Either a local function or a built-in function call.
       const auto* name_ref = absl::down_cast<const NameRef*>(callee);

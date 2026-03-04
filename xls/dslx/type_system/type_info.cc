@@ -185,8 +185,8 @@ absl::StatusOr<TypeInfo*> TypeInfoOwner::GetRootTypeInfo(const Module* module) {
 
 void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
   VLOG(5) << absl::StreamFormat(
-      "noting node: `%s` (%p) has constexpr value: `%s`",
-      const_expr->ToString(), const_expr, value.ToString());
+      "noting node: `%s` (%p) has constexpr value: `%s` in TypeInfo %p",
+      const_expr->ToString(), const_expr, value.ToString(), this);
 
   // Note: this assertion will generally hold as of 2024-08-23, except in the
   // case of `ConstFor` nodes, which https://github.com/richmckeever is

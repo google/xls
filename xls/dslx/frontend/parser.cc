@@ -339,10 +339,12 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
       module_->Make<NameDef>(sp, std::string(Lambda::kCallLambdaFn), nullptr);
   Function* fn =
       module_->Make<Function>(sp, fn_name_def, parametrics, params, return_type,
-                              body, FunctionTag::kLambda,
+                              body, FunctionTag::kNormal,
                               /*is_public=*/false, /*is_stub=*/false);
   fn_name_def->set_definer(fn);
 
+  // TODO: erinzmoore - Switch lambda to just wrap a function and don't
+  // create the struct/impl here.
   NameDef* struct_name_def =
       module_->Make<NameDef>(sp,
                              absl::Substitute("lambda_capture_struct_at_$0",

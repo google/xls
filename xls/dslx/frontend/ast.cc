@@ -118,8 +118,6 @@ std::string_view FunctionTagToString(FunctionTag tag) {
       return "proc next";
     case FunctionTag::kProcInit:
       return "proc init";
-    case FunctionTag::kLambda:
-      return "lambda";
   }
   LOG(FATAL) << "Out-of-range function tag: " << static_cast<int>(tag);
 }

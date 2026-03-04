@@ -9514,18 +9514,20 @@ fn main() -> u32 {
       TypecheckFails(HasSizeMismatch("bool", "u32")));
 }
 
-// TODO: Add `const_assert!` statements once we fully support lambdas with
-// captured variables.
 TEST(TypecheckV2Test, LambdaWithContextCapture) {
   EXPECT_THAT(
       R"(
 fn main() -> u32 {
-  const X = u32:8;
-  let ARR = map(u32:0..5, |i| -> u32 { X * i });
+  const X = u32:4;
+  const Y = u32:2;
+  let ARR = map(u32:0..5, |i| -> u32 { X * Y * i });
   ARR[4]
 }
+
+const_assert!(main() == 32);
 )",
-      TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][5]")));
+      TypecheckSucceeds(AllOf(HasNodeWithType("ARR", "uN[32][5]"),
+                              HasNodeWithType("X", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, LambdaWithContextParamsTypeMismatch) {
@@ -9539,8 +9541,7 @@ fn main() {
       TypecheckFails(HasSizeMismatch("uN[1]", "uN[32]")));
 }
 
-// TODO: Fully support lambdas with captured variables.
-TEST(TypecheckV2Test, DISABLED_LambdaGeneratedValueAsType) {
+TEST(TypecheckV2Test, LambdaGeneratedValueAsType) {
   EXPECT_THAT(R"(
 const X = u32:3;
 const ARR = map(u32:0..5, |i: u32| -> u32 { X * i });

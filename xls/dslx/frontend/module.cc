@@ -362,6 +362,35 @@ absl::Status Module::AddTop(ModuleMember member,
   return absl::OkStatus();
 }
 
+absl::Status Module::InsertTop(ModuleMember member,
+                               const MakeCollisionError& make_collision_error) {
+  std::vector<std::string> member_names = GetMemberNames(member);
+
+  for (const std::string& member_name : member_names) {
+    if (top_by_name_.contains(member_name)) {
+      const AstNode* node = ToAstNode(top_by_name_.at(member_name));
+      const Span existing_span = node->GetSpan().value();
+      const AstNode* new_node = ToAstNode(member);
+      const Span new_span = new_node->GetSpan().value();
+      if (make_collision_error != nullptr) {
+        return make_collision_error(name_, member_name, existing_span, node,
+                                    new_span, new_node);
+      }
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Module %s already contains a member named %s @ %s: %s", name_,
+          member_name, existing_span.ToString(*file_table_), node->ToString()));
+    }
+  }
+
+  top_.insert(top_.begin(), member);
+
+  top_set_.insert(ToAstNode(member));
+  for (const std::string& member_name : member_names) {
+    top_by_name_.insert({member_name, member});
+  }
+  return absl::OkStatus();
+}
+
 absl::Status Module::InsertTopAfter(
     const AstNode* target_member, ModuleMember member,
     const MakeCollisionError& make_collision_error) {

@@ -99,6 +99,9 @@ class Visitor : public AstNodeVisitorWithDefault {
       ti_->NoteConstExpr(constant_def, *value);
       ti_->NoteConstExpr(constant_def->value(), *value);
       ti_->NoteConstExpr(constant_def->name_def(), *value);
+    } else {
+      VLOG(6) << "Constant def: " << constant_def->ToString()
+              << " failed constexpr eval: " << value.status();
     }
     return absl::OkStatus();
   }
@@ -366,6 +369,7 @@ class Visitor : public AstNodeVisitorWithDefault {
         &import_data_, ti_, &warning_collector_,
         table_.GetParametricEnv(parametric_context_), node->arg());
     if (!value.ok()) {
+      VLOG(6) << "Failed to const_assert " << value.status();
       return NotConstantErrorStatus(node->span(), node->arg(), file_table_);
     }
     VLOG(6) << "Evaluated const assert: " << node->arg()->ToString()

@@ -2453,7 +2453,6 @@ enum class FunctionTag : uint8_t {
   kProcConfig,
   kProcNext,
   kProcInit,
-  kLambda,
 };
 
 std::string_view FunctionTagToString(FunctionTag tag);
@@ -2744,6 +2743,8 @@ class Instantiation : public Expr {
   const std::vector<ExprOrType>& explicit_parametrics() const {
     return explicit_parametrics_;
   }
+
+  void set_callee(Expr* callee) { callee_ = callee; }
 
  protected:
   std::string FormatParametrics() const;
@@ -3393,6 +3394,8 @@ class Impl : public AstNode {
   ~Impl() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kImpl; }
+
+  static std::string_view GetDebugTypeName() { return "impl"; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleImpl(this);
