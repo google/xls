@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -26,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
@@ -52,22 +54,28 @@
 namespace xls {
 namespace {
 
-constexpr const char kIrAssertPath[] = "xls/interpreter/force_assert.ir";
-constexpr const char kExplicitStateAccessMultipleReadsPath[] =
-    "xls/interpreter/testdata/"
-    "serial_proc_runtime_test_ExplicitStateAccessMultipleReads.ir";
-constexpr const char kExplicitStateAccessMultipleWritesPath[] =
-    "xls/interpreter/testdata/"
-    "serial_proc_runtime_test_ExplicitStateAccessMultipleWrites.ir";
-constexpr const char kExplicitStateAccessWriteBeforeReadPath[] =
-    "xls/interpreter/testdata/"
-    "serial_proc_runtime_test_ExplicitStateAccessWriteBeforeRead.ir";
-constexpr const char kExplicitStateAccessMatchPath[] =
-    "xls/interpreter/testdata/"
-    "serial_proc_runtime_test_ExplicitStateAccessMatch.ir";
-constexpr const char kExplicitStateAccessMatchMultipleWritesPath[] =
-    "xls/interpreter/testdata/"
-    "serial_proc_runtime_test_ExplicitStateAccessMatchMultipleWrites.ir";
+std::string GetTestDataPath() {
+  const ::testing::TestInfo* const test_info =
+      ::testing::UnitTest::GetInstance()->current_test_info();
+  return absl::StrCat("xls/interpreter/testdata/serial_proc_runtime_test_",
+                      test_info->name(), ".ir");
+}
+
+constexpr const char kIrAssertPath[] =
+    "xls/interpreter/testdata/serial_proc_runtime_test_force_assert.ir";
+
+class ExplicitStateRuntimeTest : public ::testing::Test {
+ protected:
+  absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
+      std::string_view ir_path_str) {
+    XLS_ASSIGN_OR_RETURN(std::filesystem::path ir_path,
+                         GetXlsRunfilePath(ir_path_str));
+    XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
+    XLS_ASSIGN_OR_RETURN(package_, Parser::ParsePackage(ir_text));
+    return CreateInterpreterSerialProcRuntime(package_.get());
+  }
+  std::unique_ptr<Package> package_;
+};
 
 // Create a SerialProcRuntime composed of a mix of ProcInterpreters and
 // ProcJits.
@@ -173,14 +181,8 @@ TEST(SerialProcRuntimeTest, InterpreterAsserts) {
 }
 
 // Negative test - can we handle explicit state access multiple reads
-TEST(SerialProcRuntimeTest, ExplicitStateAccessMultipleReads) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::filesystem::path ir_path,
-      GetXlsRunfilePath(kExplicitStateAccessMultipleReadsPath));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
-                           CreateInterpreterSerialProcRuntime(package.get()));
+TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessMultipleReads) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
 
   EXPECT_THAT(interpreter->Tick(),
               absl_testing::StatusIs(
@@ -190,14 +192,8 @@ TEST(SerialProcRuntimeTest, ExplicitStateAccessMultipleReads) {
 }
 
 // Negative test - can we handle explicit state access multiple writes
-TEST(SerialProcRuntimeTest, ExplicitStateAccessMultipleWrites) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::filesystem::path ir_path,
-      GetXlsRunfilePath(kExplicitStateAccessMultipleWritesPath));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
-                           CreateInterpreterSerialProcRuntime(package.get()));
+TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessMultipleWrites) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
   EXPECT_THAT(
       interpreter->Tick(),
       absl_testing::StatusIs(
@@ -207,14 +203,8 @@ TEST(SerialProcRuntimeTest, ExplicitStateAccessMultipleWrites) {
 }
 
 // Negative test - can we handle explicit state access write before read
-TEST(SerialProcRuntimeTest, ExplicitStateAccessWriteBeforeRead) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::filesystem::path ir_path,
-      GetXlsRunfilePath(kExplicitStateAccessWriteBeforeReadPath));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
-                           CreateInterpreterSerialProcRuntime(package.get()));
+TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessWriteBeforeRead) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
   EXPECT_THAT(
       interpreter->Tick(),
       absl_testing::StatusIs(
@@ -223,25 +213,14 @@ TEST(SerialProcRuntimeTest, ExplicitStateAccessWriteBeforeRead) {
               "State element written before read in same activation.")));
 }
 
-TEST(SerialProcRuntimeTest, ExplicitStateAccessMatch) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path ir_path,
-                           GetXlsRunfilePath(kExplicitStateAccessMatchPath));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
-                           CreateInterpreterSerialProcRuntime(package.get()));
+TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessMatch) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
   EXPECT_THAT(interpreter->Tick(), absl_testing::IsOk());
 }
 
 // Negative test - can we handle explicit state access match multiple writes
-TEST(SerialProcRuntimeTest, ExplicitStateAccessMatchMultipleWrites) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::filesystem::path ir_path,
-      GetXlsRunfilePath(kExplicitStateAccessMatchMultipleWritesPath));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
-                           CreateInterpreterSerialProcRuntime(package.get()));
+TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessMatchMultipleWrites) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
   EXPECT_THAT(
       interpreter->Tick(),
       absl_testing::StatusIs(

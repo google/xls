@@ -477,14 +477,7 @@ cc_library(
 cc_test(
     name = "serial_proc_runtime_test",
     srcs = ["serial_proc_runtime_test.cc"],
-    data = [
-        "force_assert.ir",
-        "testdata/serial_proc_runtime_test_ExplicitStateAccessMatch.ir",
-        "testdata/serial_proc_runtime_test_ExplicitStateAccessMatchMultipleWrites.ir",
-        "testdata/serial_proc_runtime_test_ExplicitStateAccessMultipleReads.ir",
-        "testdata/serial_proc_runtime_test_ExplicitStateAccessMultipleWrites.ir",
-        "testdata/serial_proc_runtime_test_ExplicitStateAccessWriteBeforeRead.ir",
-    ],
+    data = glob(["testdata/serial_proc_runtime_test_*.ir"]),
     deps = [
         ":channel_queue",
         ":evaluator_options",
@@ -514,6 +507,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )
