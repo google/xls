@@ -220,7 +220,6 @@ NODE_MATCHER(Identity);
 NODE_MATCHER(Nand);
 NODE_MATCHER(Ne);
 NODE_MATCHER(Neg);
-NODE_MATCHER(Next);
 NODE_MATCHER(Nor);
 NODE_MATCHER(Not);
 NODE_MATCHER(Or);
@@ -1274,9 +1273,12 @@ inline ::testing::Matcher<const ::xls::Node*> OutputPort(
 class StateReadMatcher : public NodeMatcher {
  public:
   explicit StateReadMatcher(
-      std::optional<::testing::Matcher<const std::string>> state_element_name)
+      std::optional<::testing::Matcher<const std::string>> state_element_name,
+      std::optional<::testing::Matcher<const std::optional<std::string>&>>
+          label = std::nullopt)
       : NodeMatcher(Op::kStateRead, /*operands=*/{}),
-        state_element_name_(std::move(state_element_name)) {}
+        state_element_name_(std::move(state_element_name)),
+        label_(std::move(label)) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -1284,23 +1286,86 @@ class StateReadMatcher : public NodeMatcher {
 
  private:
   std::optional<::testing::Matcher<const std::string>> state_element_name_;
+  std::optional<::testing::Matcher<const std::optional<std::string>&>> label_;
 };
 
 template <typename T>
-inline ::testing::Matcher<const ::xls::Node*> StateRead(T register_name)
+inline ::testing::Matcher<const ::xls::Node*> StateRead(
+    T state_element_name,
+    ::testing::Matcher<const std::optional<std::string>&> label)
   requires(std::is_convertible_v<T, std::string_view>)
 {
   return ::xls::op_matchers::StateReadMatcher(
-      internal::NameMatcherInternal(std::string_view{register_name}));
+      internal::NameMatcherInternal(std::string_view{state_element_name}),
+      label);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> StateRead(
+    ::testing::Matcher<const std::string> name,
+    ::testing::Matcher<const std::optional<std::string>&> label) {
+  return ::xls::op_matchers::StateReadMatcher(std::move(name), label);
+}
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::Node*> StateRead(T state_element_name)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return ::xls::op_matchers::StateReadMatcher(
+      internal::NameMatcherInternal(std::string_view{state_element_name}),
+      std::nullopt);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> StateRead(
     ::testing::Matcher<const std::string> name) {
-  return ::xls::op_matchers::StateReadMatcher(std::move(name));
+  return ::xls::op_matchers::StateReadMatcher(std::move(name), std::nullopt);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> StateRead() {
-  return ::xls::op_matchers::NodeMatcher(Op::kStateRead, {});
+  return ::xls::op_matchers::StateReadMatcher(std::nullopt, std::nullopt);
+}
+
+// Next matcher. Supported forms:
+//
+//   EXPECT_THAT(x, m::Next());
+//   EXPECT_THAT(x, m::Next(m::StateRead("foo"), m::Literal(1)));
+//   EXPECT_THAT(x, m::Next(m::StateRead("foo"), m::Literal(1),
+//   m::Literal(1)))
+//   EXPECT_THAT(x, m::Next(m::StateRead("foo"), m::Literal(1),
+//   m::Literal(1), "some_label"))
+class NextMatcher : public NodeMatcher {
+ public:
+  explicit NextMatcher(
+      absl::Span<const ::testing::Matcher<const Node*>> operands = {},
+      std::optional<::testing::Matcher<const std::optional<std::string>&>>
+          label = std::nullopt)
+      : NodeMatcher(Op::kNext, operands), label_(std::move(label)) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+  void DescribeTo(::std::ostream* os) const override;
+
+ private:
+  std::optional<::testing::Matcher<const std::optional<std::string>&>> label_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> Next() { return NextMatcher(); }
+inline ::testing::Matcher<const ::xls::Node*> Next(
+    ::testing::Matcher<const Node*> state_read,
+    ::testing::Matcher<const Node*> value) {
+  return NextMatcher({state_read, value});
+}
+inline ::testing::Matcher<const ::xls::Node*> Next(
+    ::testing::Matcher<const Node*> state_read,
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate) {
+  return NextMatcher({state_read, value, predicate});
+}
+inline ::testing::Matcher<const ::xls::Node*> Next(
+    ::testing::Matcher<const Node*> state_read,
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate,
+    ::testing::Matcher<const std::optional<std::string>&> label) {
+  return NextMatcher({state_read, value, predicate}, label);
 }
 
 // RegisterRead matcher. Matches register name only. Supported forms:

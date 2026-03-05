@@ -15,6 +15,7 @@
 #include "xls/ir/function_builder.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,8 @@ using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::Optional;
+using ::testing::StrEq;
 
 TEST(FunctionBuilderTest, SimpleSourceLocation) {
   // Lineno/Colno are faked out here.
@@ -938,6 +941,73 @@ TEST(FunctionBuilderTest, ProcWithNextValue) {
   EXPECT_THAT(next.node(),
               m::Next(m::StateRead("y"), /*value=*/m::StateRead("z"),
                       /*predicate=*/m::StateRead("x")));
+}
+
+TEST(FunctionBuilderTest, ProcWithNextValueWithLabel) {
+  Package p("p");
+  ProcBuilder pb("the_proc", &p);
+  BValue x = pb.StateElement("x", Value(UBits(1, 1)));
+  BValue y = pb.StateElement("y", Value(UBits(2, 32)));
+  BValue z = pb.StateElement("z", Value(UBits(3, 32)));
+  y.node()->As<StateRead>()->set_label("y_label");
+  BValue next = pb.Next(/*state_read=*/y, /*value=*/z, /*pred=*/x,
+                        /*label=*/"y_next_label");
+
+  XLS_ASSERT_OK(pb.Build());
+  EXPECT_THAT(next.node(),
+              m::Next(m::StateRead("y"), m::StateRead("z"), m::StateRead("x"),
+                      Optional(StrEq("y_next_label"))));
+  EXPECT_THAT(y.node(), m::StateRead("y", Optional(StrEq("y_label"))));
+}
+
+TEST(FunctionBuilderTest, StateReadIsDefinitelyEqualTo) {
+  Package p("p");
+  ProcBuilder pb("the_proc", &p);
+  BValue pred = pb.Literal(UBits(1, 1));
+  Value v = Value(UBits(0, 32));
+  BValue y_pred_label0 = pb.StateElement("y_pred_label0", v, pred);
+  BValue y_pred_label1 = pb.StateElement("y_pred_label1", v, pred);
+  BValue y_pred_nolabel = pb.StateElement("y_nolabel_nopred", v);
+  BValue y_nopred_label0 = pb.StateElement("y_nopred_label0", v);
+  BValue y_pred_label0_copy = pb.StateElement("y_nopred_copy", v, pred);
+
+  y_pred_label0.node()->As<StateRead>()->set_label("label0");
+  y_pred_label1.node()->As<StateRead>()->set_label("label1");
+  y_nopred_label0.node()->As<StateRead>()->set_label("label0");
+  y_pred_label0_copy.node()->As<StateRead>()->set_label("label0");
+
+  EXPECT_TRUE(y_pred_label0.node()->IsDefinitelyEqualTo(y_pred_label0.node()));
+  EXPECT_FALSE(y_pred_label0.node()->IsDefinitelyEqualTo(y_pred_label1.node()));
+  EXPECT_FALSE(
+      y_pred_label0.node()->IsDefinitelyEqualTo(y_pred_nolabel.node()));
+  EXPECT_FALSE(
+      y_pred_label0.node()->IsDefinitelyEqualTo(y_nopred_label0.node()));
+  EXPECT_FALSE(
+      y_pred_label0.node()->IsDefinitelyEqualTo(y_pred_label0_copy.node()));
+}
+
+TEST(FunctionBuilderTest, NextIsDefinitelyEqualTo) {
+  Package p("p");
+  ProcBuilder pb("the_proc", &p);
+  BValue s = pb.StateElement("s", Value(UBits(0, 32)));
+  BValue pred = pb.Literal(UBits(1, 1));
+  BValue v = pb.Literal(UBits(123, 32));
+  BValue next_pred_label0 = pb.Next(s, v, pred, "label0");
+  BValue next_pred_label1 = pb.Next(s, v, pred, "label1");
+  BValue next_pred_nolabel = pb.Next(s, v, pred, std::nullopt);
+  BValue next_nopred_label0 = pb.Next(s, v, std::nullopt, "label0");
+  BValue next_pred_label0_copy = pb.Next(s, v, pred, "label0");
+
+  EXPECT_TRUE(
+      next_pred_label0.node()->IsDefinitelyEqualTo(next_pred_label0.node()));
+  EXPECT_FALSE(
+      next_pred_label0.node()->IsDefinitelyEqualTo(next_pred_label1.node()));
+  EXPECT_FALSE(
+      next_pred_label0.node()->IsDefinitelyEqualTo(next_pred_nolabel.node()));
+  EXPECT_FALSE(
+      next_pred_label0.node()->IsDefinitelyEqualTo(next_nopred_label0.node()));
+  EXPECT_FALSE(next_pred_label0.node()->IsDefinitelyEqualTo(
+      next_pred_label0_copy.node()));
 }
 
 TEST(FunctionBuilderTest, ProcWithNextValueBadPredicate) {

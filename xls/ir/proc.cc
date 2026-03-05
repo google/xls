@@ -271,10 +271,10 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
   XLS_ASSIGN_OR_RETURN(
       StateElement * state_element,
       InsertUnreadStateElement(index, requested_state_name, init_value));
-  XLS_ASSIGN_OR_RETURN(
-      StateRead * state_read,
-      MakeNodeWithName<StateRead>(SourceInfo(), state_element, read_predicate,
-                                  state_element->name()));
+  XLS_ASSIGN_OR_RETURN(StateRead * state_read,
+                       MakeNodeWithName<StateRead>(
+                           SourceInfo(), state_element, read_predicate,
+                           /*label=*/std::nullopt, state_element->name()));
   state_reads_[state_element] = state_read;
 
   if (next_state.has_value()) {
@@ -286,7 +286,8 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
           next_state.value()->GetType()->ToString(), init_value.ToString()));
     }
     XLS_RETURN_IF_ERROR(MakeNode<Next>(SourceInfo(), state_read, *next_state,
-                                       /*predicate=*/std::nullopt)
+                                       /*predicate=*/std::nullopt,
+                                       /*label=*/std::nullopt)
                             .status());
   }
 
@@ -967,7 +968,8 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
     XLS_ASSIGN_OR_RETURN(
         Next * nxt,
         MakeNodeWithName<Next>(nt.old_next->loc(), new_state_read, nt.new_value,
-                               nt.new_predicate, nt.old_next->GetName()));
+                               nt.new_predicate, nt.old_next->label(),
+                               nt.old_next->GetName()));
     to_replace.push_back({nt.old_next, nxt});
     // Identity-ify the old next.
     XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(

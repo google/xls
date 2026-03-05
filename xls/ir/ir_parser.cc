@@ -825,6 +825,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
           arg_parser.AddKeywordArg<IdentifierString>("state_element");
       std::optional<BValue>* predicate =
           arg_parser.AddOptionalKeywordArg<BValue>("predicate");
+      std::optional<QuotedString>* label =
+          arg_parser.AddOptionalKeywordArg<QuotedString>("label");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
       auto it = name_to_value->find(state_name->value);
       if (it == name_to_value->end()) {
@@ -838,6 +840,9 @@ absl::StatusOr<BValue> Parser::ParseNode(
         XLS_RETURN_IF_ERROR(
             bvalue.node()->As<StateRead>()->SetPredicate((*predicate)->node()));
       }
+      if (label->has_value()) {
+        bvalue.node()->As<StateRead>()->set_label(label->value().value);
+      }
       break;
     }
     case Op::kNext: {
@@ -849,8 +854,15 @@ absl::StatusOr<BValue> Parser::ParseNode(
       BValue* value = arg_parser.AddKeywordArg<BValue>("value");
       std::optional<BValue>* predicate =
           arg_parser.AddOptionalKeywordArg<BValue>("predicate");
+      std::optional<QuotedString>* label =
+          arg_parser.AddOptionalKeywordArg<QuotedString>("label");
+      std::optional<std::string> label_string;
+      if (label->has_value()) {
+        label_string = label->value().value;
+      }
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
-      bvalue = fb->Next(*state_read, *value, *predicate, *loc, node_name);
+      bvalue = fb->Next(*state_read, *value, *predicate, label_string, *loc,
+                        node_name);
       break;
     }
     case Op::kCountedFor: {
