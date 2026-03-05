@@ -20,7 +20,6 @@ jobs:
     runs-on:
       labels: ubuntu-22.04-64core
     timeout-minutes: 600
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v2
 
