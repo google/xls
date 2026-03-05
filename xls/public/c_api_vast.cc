@@ -1043,7 +1043,7 @@ struct xls_vast_index* xls_vast_verilog_file_make_index(
   // Add a soundness check just in case users confuse this API with
   // xls_vast_verilog_file_make_index_i64 and pass a literal zero in the place
   // of the pointer.
-  CHECK(index != nullptr)
+  CHECK_NE(index, nullptr)
       << "xls_vast_verilog_file_make_index: index is nullptr";
   auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
   auto* cpp_subject =
@@ -1379,7 +1379,7 @@ struct xls_vast_statement_block* xls_vast_case_statement_add_default(
 
 struct xls_vast_module_port** xls_vast_verilog_module_get_ports(
     struct xls_vast_verilog_module* m, size_t* out_count) {
-  CHECK(out_count != nullptr);
+  CHECK_NE(out_count, nullptr);
   auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
   absl::Span<const xls::verilog::ModulePort> ports = cpp_module->ports();
   *out_count = ports.size();
@@ -1437,8 +1437,8 @@ xls_vast_data_type* xls_vast_def_get_data_type(struct xls_vast_def* def) {
 
 bool xls_vast_data_type_width_as_int64(struct xls_vast_data_type* type,
                                        int64_t* out_width, char** error_out) {
-  CHECK(out_width != nullptr);
-  CHECK(error_out != nullptr);
+  CHECK_NE(out_width, nullptr);
+  CHECK_NE(error_out, nullptr);
   auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
   absl::StatusOr<int64_t> result = cpp_type->WidthAsInt64();
   if (!result.ok()) {
@@ -1453,8 +1453,8 @@ bool xls_vast_data_type_width_as_int64(struct xls_vast_data_type* type,
 bool xls_vast_data_type_flat_bit_count_as_int64(struct xls_vast_data_type* type,
                                                 int64_t* out_flat_bit_count,
                                                 char** error_out) {
-  CHECK(out_flat_bit_count != nullptr);
-  CHECK(error_out != nullptr);
+  CHECK_NE(out_flat_bit_count, nullptr);
+  CHECK_NE(error_out, nullptr);
   auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
   absl::StatusOr<int64_t> result = cpp_type->FlatBitCountAsInt64();
   if (!result.ok()) {

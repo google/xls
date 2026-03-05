@@ -67,13 +67,13 @@ struct CallGraphHolder {
 
 const struct xls_dslx_type* GetMetaTypeHelper(
     struct xls_dslx_type_info* type_info, xls::dslx::AstNode* cpp_node) {
-  CHECK(cpp_node != nullptr);
+  CHECK_NE(cpp_node, nullptr);
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
   std::optional<xls::dslx::Type*> maybe_type = cpp_type_info->GetItem(cpp_node);
   if (!maybe_type.has_value()) {
     return nullptr;
   }
-  CHECK(maybe_type.value() != nullptr);
+  CHECK_NE(maybe_type.value(), nullptr);
   // Should always have a metatype as its associated type.
   absl::StatusOr<const xls::dslx::Type*> unwrapped =
       xls::dslx::UnwrapMetaType(*maybe_type.value());
@@ -115,8 +115,8 @@ extern "C" {
 bool xls_dslx_parametric_env_create(
     const struct xls_dslx_parametric_env_item* items, size_t items_count,
     char** error_out, struct xls_dslx_parametric_env** env_out) {
-  CHECK(error_out != nullptr);
-  CHECK(env_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(env_out, nullptr);
   *error_out = nullptr;
   if (items_count == 0) {
     *env_out = reinterpret_cast<xls_dslx_parametric_env*>(
@@ -128,8 +128,8 @@ bool xls_dslx_parametric_env_create(
   v.reserve(items_count);
   for (size_t i = 0; i < items_count; ++i) {
     const xls_dslx_parametric_env_item& it = items[i];
-    CHECK(it.identifier != nullptr);
-    CHECK(it.value != nullptr);
+    CHECK_NE(it.identifier, nullptr);
+    CHECK_NE(it.value, nullptr);
     const xls::dslx::InterpValue* iv =
         reinterpret_cast<const xls::dslx::InterpValue*>(it.value);
     v.emplace_back(it.identifier, *iv);
@@ -142,7 +142,7 @@ bool xls_dslx_parametric_env_create(
 
 struct xls_dslx_parametric_env* xls_dslx_parametric_env_clone(
     const struct xls_dslx_parametric_env* env) {
-  CHECK(env != nullptr);
+  CHECK_NE(env, nullptr);
   const auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
   auto* heap = new xls::dslx::ParametricEnv(*cpp_env);
   return reinterpret_cast<xls_dslx_parametric_env*>(heap);
@@ -150,8 +150,8 @@ struct xls_dslx_parametric_env* xls_dslx_parametric_env_clone(
 
 bool xls_dslx_parametric_env_equals(const struct xls_dslx_parametric_env* lhs,
                                     const struct xls_dslx_parametric_env* rhs) {
-  CHECK(lhs != nullptr);
-  CHECK(rhs != nullptr);
+  CHECK_NE(lhs, nullptr);
+  CHECK_NE(rhs, nullptr);
   const auto* cpp_lhs = reinterpret_cast<const xls::dslx::ParametricEnv*>(lhs);
   const auto* cpp_rhs = reinterpret_cast<const xls::dslx::ParametricEnv*>(rhs);
   return *cpp_lhs == *cpp_rhs;
@@ -160,8 +160,8 @@ bool xls_dslx_parametric_env_equals(const struct xls_dslx_parametric_env* lhs,
 bool xls_dslx_parametric_env_less_than(
     const struct xls_dslx_parametric_env* lhs,
     const struct xls_dslx_parametric_env* rhs) {
-  CHECK(lhs != nullptr);
-  CHECK(rhs != nullptr);
+  CHECK_NE(lhs, nullptr);
+  CHECK_NE(rhs, nullptr);
   const auto* cpp_lhs = reinterpret_cast<const xls::dslx::ParametricEnv*>(lhs);
   const auto* cpp_rhs = reinterpret_cast<const xls::dslx::ParametricEnv*>(rhs);
   const auto& lhs_bindings = cpp_lhs->bindings();
@@ -188,14 +188,14 @@ bool xls_dslx_parametric_env_less_than(
 
 uint64_t xls_dslx_parametric_env_hash(
     const struct xls_dslx_parametric_env* env) {
-  CHECK(env != nullptr);
+  CHECK_NE(env, nullptr);
   const auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
   return static_cast<uint64_t>(absl::HashOf(*cpp_env));
 }
 
 char* xls_dslx_parametric_env_to_string(
     const struct xls_dslx_parametric_env* env) {
-  CHECK(env != nullptr);
+  CHECK_NE(env, nullptr);
   const auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
   return xls::ToOwnedCString(cpp_env->ToString());
 }
@@ -206,14 +206,14 @@ void xls_dslx_parametric_env_free(struct xls_dslx_parametric_env* env) {
 
 int64_t xls_dslx_parametric_env_get_binding_count(
     const struct xls_dslx_parametric_env* env) {
-  CHECK(env != nullptr);
+  CHECK_NE(env, nullptr);
   auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
   return cpp_env->size();
 }
 
 const char* xls_dslx_parametric_env_get_binding_identifier(
     const struct xls_dslx_parametric_env* env, int64_t index) {
-  CHECK(env != nullptr);
+  CHECK_NE(env, nullptr);
   auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
   const xls::dslx::ParametricEnvItem& item = cpp_env->bindings().at(index);
   return item.identifier.c_str();
@@ -221,7 +221,7 @@ const char* xls_dslx_parametric_env_get_binding_identifier(
 
 struct xls_dslx_interp_value* xls_dslx_parametric_env_get_binding_value(
     const struct xls_dslx_parametric_env* env, int64_t index) {
-  CHECK(env != nullptr);
+  CHECK_NE(env, nullptr);
   auto* cpp_env = reinterpret_cast<const xls::dslx::ParametricEnv*>(env);
   const xls::dslx::ParametricEnvItem& item = cpp_env->bindings().at(index);
   return reinterpret_cast<xls_dslx_interp_value*>(
@@ -246,8 +246,8 @@ struct xls_dslx_interp_value* xls_dslx_interp_value_make_sbits(
 bool xls_dslx_interp_value_make_enum(
     struct xls_dslx_enum_def* def, bool is_signed, const struct xls_bits* bits,
     char** error_out, struct xls_dslx_interp_value** result_out) {
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   *error_out = nullptr;
   auto* enum_def = reinterpret_cast<xls::dslx::EnumDef*>(def);
   const xls::Bits* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
@@ -260,8 +260,8 @@ bool xls_dslx_interp_value_make_enum(
 bool xls_dslx_interp_value_from_string(
     const char* text, const char* dslx_stdlib_path, char** error_out,
     struct xls_dslx_interp_value** result_out) {
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   *error_out = nullptr;
   auto status_or = xls::dslx::InterpValueFromString(
       std::string_view{text}, std::filesystem::path{dslx_stdlib_path});
@@ -278,13 +278,13 @@ bool xls_dslx_interp_value_from_string(
 bool xls_dslx_interp_value_make_tuple(
     size_t element_count, struct xls_dslx_interp_value** elements,
     char** error_out, struct xls_dslx_interp_value** result_out) {
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   *error_out = nullptr;
   std::vector<xls::dslx::InterpValue> vec;
   vec.reserve(element_count);
   for (size_t i = 0; i < element_count; ++i) {
-    CHECK(elements[i] != nullptr);
+    CHECK_NE(elements[i], nullptr);
     auto* iv = reinterpret_cast<xls::dslx::InterpValue*>(elements[i]);
     vec.push_back(*iv);
   }
@@ -297,13 +297,13 @@ bool xls_dslx_interp_value_make_tuple(
 bool xls_dslx_interp_value_make_array(
     size_t element_count, struct xls_dslx_interp_value** elements,
     char** error_out, struct xls_dslx_interp_value** result_out) {
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   *error_out = nullptr;
   std::vector<xls::dslx::InterpValue> vec;
   vec.reserve(element_count);
   for (size_t i = 0; i < element_count; ++i) {
-    CHECK(elements[i] != nullptr);
+    CHECK_NE(elements[i], nullptr);
     auto* iv = reinterpret_cast<xls::dslx::InterpValue*>(elements[i]);
     vec.push_back(*iv);
   }
@@ -321,7 +321,7 @@ bool xls_dslx_interp_value_make_array(
 
 struct xls_dslx_interp_value* xls_dslx_interp_value_clone(
     const struct xls_dslx_interp_value* value) {
-  CHECK(value != nullptr);
+  CHECK_NE(value, nullptr);
   const auto* cpp_interp_value =
       reinterpret_cast<const xls::dslx::InterpValue*>(value);
   auto* heap = new xls::dslx::InterpValue(*cpp_interp_value);
@@ -400,8 +400,8 @@ bool xls_dslx_typechecked_module_clone_removing_functions(
     struct xls_dslx_function* functions[], size_t function_count,
     const char* install_subject, struct xls_dslx_import_data* import_data,
     char** error_out, struct xls_dslx_typechecked_module** result_out) {
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   auto fail = [&](std::string_view message) {
     *error_out = xls::ToOwnedCString(std::string(message));
     *result_out = nullptr;
@@ -430,8 +430,8 @@ bool xls_dslx_typechecked_module_clone_removing_members(
     struct xls_dslx_module_member* members[], size_t member_count,
     const char* install_subject, struct xls_dslx_import_data* import_data,
     char** error_out, struct xls_dslx_typechecked_module** result_out) {
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   *error_out = nullptr;
   *result_out = nullptr;
 
@@ -499,7 +499,7 @@ bool xls_dslx_typechecked_module_clone_removing_members(
 }
 
 int64_t xls_dslx_module_get_member_count(struct xls_dslx_module* module) {
-  CHECK(module != nullptr);
+  CHECK_NE(module, nullptr);
   auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
   return cpp_module->top().size();
 }
@@ -794,7 +794,7 @@ char* xls_dslx_attribute_get_string_argument(
   const xls::dslx::Attribute::Argument& argument =
       cpp_attribute->args().at(index);
   const std::string* value = std::get_if<std::string>(&argument);
-  CHECK(value != nullptr) << "Attribute argument is not a string";
+  CHECK_NE(value, nullptr) << "Attribute argument is not a string";
   return xls::ToOwnedCString(*value);
 }
 
@@ -805,7 +805,7 @@ char* xls_dslx_attribute_get_string_literal_argument(
       cpp_attribute->args().at(index);
   const xls::dslx::Attribute::StringLiteralArgument* value =
       std::get_if<xls::dslx::Attribute::StringLiteralArgument>(&argument);
-  CHECK(value != nullptr) << "Attribute argument is not a string literal";
+  CHECK_NE(value, nullptr) << "Attribute argument is not a string literal";
   return xls::ToOwnedCString(value->text);
 }
 
@@ -834,7 +834,7 @@ char* xls_dslx_attribute_get_key_value_string_argument_value(
       cpp_attribute->args().at(index);
   const auto* kv =
       std::get_if<xls::dslx::Attribute::StringKeyValueArgument>(&argument);
-  CHECK(kv != nullptr)
+  CHECK_NE(kv, nullptr)
       << "Attribute argument is not a string key/value argument";
   return xls::ToOwnedCString(kv->second);
 }
@@ -846,7 +846,8 @@ int64_t xls_dslx_attribute_get_key_value_int_argument_value(
       cpp_attribute->args().at(index);
   const auto* kv =
       std::get_if<xls::dslx::Attribute::IntKeyValueArgument>(&argument);
-  CHECK(kv != nullptr) << "Attribute argument is not an int key/value argument";
+  CHECK_NE(kv, nullptr)
+      << "Attribute argument is not an int key/value argument";
   return kv->second;
 }
 
@@ -889,9 +890,9 @@ char* xls_dslx_expr_to_string(struct xls_dslx_expr* expr) {
 bool xls_dslx_type_info_build_function_call_graph(
     struct xls_dslx_type_info* type_info, char** error_out,
     struct xls_dslx_call_graph** result_out) {
-  CHECK(type_info != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(type_info, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   *error_out = nullptr;
   *result_out = nullptr;
 
@@ -985,8 +986,8 @@ bool xls_dslx_typechecked_module_insert_function_specializations(
     size_t request_count, struct xls_dslx_import_data* import_data,
     const char* install_subject, char** error_out,
     struct xls_dslx_typechecked_module** result_out) {
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   *error_out = nullptr;
   *result_out = nullptr;
   if (typechecked_module == nullptr || requests == nullptr ||
@@ -1116,9 +1117,9 @@ bool xls_dslx_type_info_get_requires_implicit_token(
     struct xls_dslx_type_info* type_info, struct xls_dslx_function* function,
     char** error_out, bool* result_out) {
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
-  CHECK(cpp_type_info != nullptr);
+  CHECK_NE(cpp_type_info, nullptr);
   auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(function);
-  CHECK(cpp_function != nullptr);
+  CHECK_NE(cpp_function, nullptr);
   std::optional<bool> requires_implicit_token =
       cpp_type_info->GetRequiresImplicitToken(*cpp_function);
   if (!requires_implicit_token.has_value()) {
@@ -1448,7 +1449,7 @@ const struct xls_dslx_type* xls_dslx_type_info_get_type_constant_def(
   if (!maybe_type.has_value()) {
     return nullptr;
   }
-  CHECK(maybe_type.value() != nullptr);
+  CHECK_NE(maybe_type.value(), nullptr);
   xls::dslx::Type* cpp_type = maybe_type.value();
   return reinterpret_cast<const struct xls_dslx_type*>(cpp_type);
 }
@@ -1524,8 +1525,8 @@ bool xls_dslx_type_info_get_const_expr(
 struct xls_dslx_invocation_callee_data_array*
 xls_dslx_type_info_get_unique_invocation_callee_data(
     struct xls_dslx_type_info* type_info, struct xls_dslx_function* function) {
-  CHECK(type_info != nullptr);
-  CHECK(function != nullptr);
+  CHECK_NE(type_info, nullptr);
+  CHECK_NE(function, nullptr);
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
   auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(function);
   std::vector<xls::dslx::InvocationCalleeData> entries =
@@ -1537,8 +1538,8 @@ xls_dslx_type_info_get_unique_invocation_callee_data(
 struct xls_dslx_invocation_callee_data_array*
 xls_dslx_type_info_get_all_invocation_callee_data(
     struct xls_dslx_type_info* type_info, struct xls_dslx_function* function) {
-  CHECK(type_info != nullptr);
-  CHECK(function != nullptr);
+  CHECK_NE(type_info, nullptr);
+  CHECK_NE(function, nullptr);
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
   auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(function);
   std::vector<xls::dslx::InvocationCalleeData> entries =
@@ -1550,8 +1551,8 @@ xls_dslx_type_info_get_all_invocation_callee_data(
 struct xls_dslx_invocation_data* xls_dslx_type_info_get_root_invocation_data(
     struct xls_dslx_type_info* type_info,
     struct xls_dslx_invocation* invocation) {
-  CHECK(type_info != nullptr);
-  CHECK(invocation != nullptr);
+  CHECK_NE(type_info, nullptr);
+  CHECK_NE(invocation, nullptr);
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
   auto* cpp_invocation = reinterpret_cast<xls::dslx::Invocation*>(invocation);
   std::optional<const xls::dslx::InvocationData*> result =
@@ -1574,7 +1575,7 @@ void xls_dslx_invocation_callee_data_array_free(
 
 int64_t xls_dslx_invocation_callee_data_array_get_count(
     struct xls_dslx_invocation_callee_data_array* array) {
-  CHECK(array != nullptr);
+  CHECK_NE(array, nullptr);
   auto* cpp_array = reinterpret_cast<InvocationCalleeDataArray*>(array);
   return cpp_array->entries.size();
 }
@@ -1582,7 +1583,7 @@ int64_t xls_dslx_invocation_callee_data_array_get_count(
 struct xls_dslx_invocation_callee_data*
 xls_dslx_invocation_callee_data_array_get(
     struct xls_dslx_invocation_callee_data_array* array, int64_t index) {
-  CHECK(array != nullptr);
+  CHECK_NE(array, nullptr);
   auto* cpp_array = reinterpret_cast<InvocationCalleeDataArray*>(array);
   xls::dslx::InvocationCalleeData& entry = cpp_array->entries.at(index);
   return reinterpret_cast<xls_dslx_invocation_callee_data*>(&entry);
@@ -1590,7 +1591,7 @@ xls_dslx_invocation_callee_data_array_get(
 
 struct xls_dslx_invocation_callee_data* xls_dslx_invocation_callee_data_clone(
     struct xls_dslx_invocation_callee_data* data) {
-  CHECK(data != nullptr);
+  CHECK_NE(data, nullptr);
   auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
   auto* clone = new xls::dslx::InvocationCalleeData(*cpp_data);
   return reinterpret_cast<xls_dslx_invocation_callee_data*>(clone);
@@ -1608,7 +1609,7 @@ void xls_dslx_invocation_callee_data_free(
 const struct xls_dslx_parametric_env*
 xls_dslx_invocation_callee_data_get_callee_bindings(
     struct xls_dslx_invocation_callee_data* data) {
-  CHECK(data != nullptr);
+  CHECK_NE(data, nullptr);
   auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
   return reinterpret_cast<const struct xls_dslx_parametric_env*>(
       &cpp_data->callee_bindings);
@@ -1617,7 +1618,7 @@ xls_dslx_invocation_callee_data_get_callee_bindings(
 const struct xls_dslx_parametric_env*
 xls_dslx_invocation_callee_data_get_caller_bindings(
     struct xls_dslx_invocation_callee_data* data) {
-  CHECK(data != nullptr);
+  CHECK_NE(data, nullptr);
   auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
   return reinterpret_cast<const struct xls_dslx_parametric_env*>(
       &cpp_data->caller_bindings);
@@ -1626,14 +1627,14 @@ xls_dslx_invocation_callee_data_get_caller_bindings(
 struct xls_dslx_type_info*
 xls_dslx_invocation_callee_data_get_derived_type_info(
     struct xls_dslx_invocation_callee_data* data) {
-  CHECK(data != nullptr);
+  CHECK_NE(data, nullptr);
   auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
   return reinterpret_cast<xls_dslx_type_info*>(cpp_data->derived_type_info);
 }
 
 struct xls_dslx_invocation* xls_dslx_invocation_callee_data_get_invocation(
     struct xls_dslx_invocation_callee_data* data) {
-  CHECK(data != nullptr);
+  CHECK_NE(data, nullptr);
   auto* cpp_data = reinterpret_cast<xls::dslx::InvocationCalleeData*>(data);
   return reinterpret_cast<xls_dslx_invocation*>(
       const_cast<xls::dslx::Invocation*>(cpp_data->invocation));
@@ -1641,7 +1642,7 @@ struct xls_dslx_invocation* xls_dslx_invocation_callee_data_get_invocation(
 
 struct xls_dslx_invocation* xls_dslx_invocation_data_get_invocation(
     struct xls_dslx_invocation_data* data) {
-  CHECK(data != nullptr);
+  CHECK_NE(data, nullptr);
   auto* cpp_data = reinterpret_cast<xls::dslx::InvocationData*>(data);
   return reinterpret_cast<xls_dslx_invocation*>(
       const_cast<xls::dslx::Invocation*>(cpp_data->node()));
@@ -1649,7 +1650,7 @@ struct xls_dslx_invocation* xls_dslx_invocation_data_get_invocation(
 
 struct xls_dslx_function* xls_dslx_invocation_data_get_callee(
     struct xls_dslx_invocation_data* data) {
-  CHECK(data != nullptr);
+  CHECK_NE(data, nullptr);
   auto* cpp_data = reinterpret_cast<xls::dslx::InvocationData*>(data);
   return reinterpret_cast<xls_dslx_function*>(
       const_cast<xls::dslx::Function*>(cpp_data->callee()));
@@ -1657,7 +1658,7 @@ struct xls_dslx_function* xls_dslx_invocation_data_get_callee(
 
 struct xls_dslx_function* xls_dslx_invocation_data_get_caller(
     struct xls_dslx_invocation_data* data) {
-  CHECK(data != nullptr);
+  CHECK_NE(data, nullptr);
   auto* cpp_data = reinterpret_cast<xls::dslx::InvocationData*>(data);
   return reinterpret_cast<xls_dslx_function*>(
       const_cast<xls::dslx::Function*>(cpp_data->caller()));
@@ -1846,13 +1847,13 @@ bool xls_dslx_replace_invocations_in_module(
     const struct xls_dslx_invocation_rewrite_rule* rules, size_t rules_count,
     struct xls_dslx_import_data* import_data, const char* install_subject,
     char** error_out, struct xls_dslx_typechecked_module** result_out) {
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   *error_out = nullptr;
   *result_out = nullptr;
-  CHECK(tm != nullptr);
-  CHECK(import_data != nullptr);
-  CHECK(install_subject != nullptr);
+  CHECK_NE(tm, nullptr);
+  CHECK_NE(import_data, nullptr);
+  CHECK_NE(install_subject, nullptr);
   CHECK(callers != nullptr || callers_count == 0);
   CHECK(rules != nullptr || rules_count == 0);
 
@@ -1862,7 +1863,7 @@ bool xls_dslx_replace_invocations_in_module(
   std::vector<const xls::dslx::Function*> callers_cpp;
   callers_cpp.reserve(callers_count);
   for (size_t i = 0; i < callers_count; ++i) {
-    CHECK(callers[i] != nullptr);
+    CHECK_NE(callers[i], nullptr);
     callers_cpp.push_back(
         reinterpret_cast<const xls::dslx::Function*>(callers[i]));
   }
@@ -1871,8 +1872,8 @@ bool xls_dslx_replace_invocations_in_module(
   rules_cpp.reserve(rules_count);
   for (size_t i = 0; i < rules_count; ++i) {
     const xls_dslx_invocation_rewrite_rule& r = rules[i];
-    CHECK(r.from_callee != nullptr);
-    CHECK(r.to_callee != nullptr);
+    CHECK_NE(r.from_callee, nullptr);
+    CHECK_NE(r.to_callee, nullptr);
     xls::dslx::InvocationRewriteRule rr;
     rr.from_callee =
         reinterpret_cast<const xls::dslx::Function*>(r.from_callee);

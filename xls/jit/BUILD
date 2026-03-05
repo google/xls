@@ -101,6 +101,21 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "aot_entrypoint",
+    srcs = ["aot_entrypoint.cc"],
+    hdrs = ["aot_entrypoint.h"],
+    deps = [
+        ":aot_entrypoint_cc_proto",
+        ":function_base_jit",
+        ":llvm_type_converter",
+        "//xls/common/status:ret_check",
+        "//xls/dev_tools:extract_interface",
+        "//xls/ir",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
 cc_binary(
     name = "aot_compiler_generate_segments_main",
     srcs = ["aot_compiler_generate_segments_main.cc"],
@@ -147,6 +162,7 @@ cc_binary(
     name = "aot_compiler_main",
     srcs = ["aot_compiler_main.cc"],
     deps = [
+        ":aot_entrypoint",
         ":aot_entrypoint_cc_proto",
         ":block_jit",
         ":function_base_jit",
@@ -157,13 +173,11 @@ cc_binary(
         ":llvm_compiler",
         ":llvm_type_converter",
         ":observer",
-        ":type_buffer_metadata",
         ":type_layout_cc_proto",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/dev_tools:extract_interface",
         "//xls/interpreter:evaluator_options",
         "//xls/ir",
         "//xls/ir:block_elaboration",

@@ -55,6 +55,7 @@
 #include "llvm/include/llvm/Support/CodeGen.h"
 #include "llvm/include/llvm/Support/Error.h"
 #include "llvm/include/llvm/Support/ErrorHandling.h"
+#include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "xls/common/logging/log_lines.h"

@@ -157,9 +157,9 @@ bool xls_ir_analysis_create_from_package(struct xls_package* p,
 bool xls_ir_analysis_create_from_package_with_options(
     struct xls_package* p, const struct xls_ir_analysis_options* options,
     char** error_out, struct xls_ir_analysis** out) {
-  CHECK(p != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(out != nullptr);
+  CHECK_NE(p, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(out, nullptr);
 
   auto* analysis = new xls_ir_analysis;
   analysis->package = reinterpret_cast<xls::Package*>(p);
@@ -210,10 +210,10 @@ void xls_ir_analysis_free(struct xls_ir_analysis* a) { delete a; }
 bool xls_ir_analysis_get_known_bits_for_node_id(
     const struct xls_ir_analysis* a, int64_t node_id, char** error_out,
     struct xls_bits** known_mask_out, struct xls_bits** known_value_out) {
-  CHECK(a != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(known_mask_out != nullptr);
-  CHECK(known_value_out != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(known_mask_out, nullptr);
+  CHECK_NE(known_value_out, nullptr);
 
   absl::StatusOr<xls::Node*> node =
       xls::GetBitsNodeById(a->id_to_node, node_id);
@@ -244,9 +244,9 @@ bool xls_ir_analysis_get_known_bits_for_node_id(
 bool xls_ir_analysis_get_intervals_for_node_id(
     const struct xls_ir_analysis* a, int64_t node_id, char** error_out,
     struct xls_interval_set** intervals_out) {
-  CHECK(a != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(intervals_out != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(intervals_out, nullptr);
 
   absl::StatusOr<xls::Node*> node =
       xls::GetBitsNodeById(a->id_to_node, node_id);
@@ -265,7 +265,7 @@ bool xls_ir_analysis_get_intervals_for_node_id(
 }
 
 int64_t xls_interval_set_get_interval_count(const struct xls_interval_set* s) {
-  CHECK(s != nullptr);
+  CHECK_NE(s, nullptr);
   return s->set.NumberOfIntervals();
 }
 
@@ -273,10 +273,10 @@ bool xls_interval_set_get_interval_bounds(const struct xls_interval_set* s,
                                           int64_t i, char** error_out,
                                           struct xls_bits** lo_out,
                                           struct xls_bits** hi_out) {
-  CHECK(s != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(lo_out != nullptr);
-  CHECK(hi_out != nullptr);
+  CHECK_NE(s, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(lo_out, nullptr);
+  CHECK_NE(hi_out, nullptr);
 
   if (i < 0 || i >= s->set.NumberOfIntervals()) {
     *lo_out = nullptr;

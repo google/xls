@@ -37,7 +37,7 @@ std::vector<std::filesystem::path> ToCppPaths(
   additional_search_paths_cpp.reserve(additional_search_paths_count);
   for (size_t i = 0; i < additional_search_paths_count; ++i) {
     const char* additional_search_path = additional_search_paths[i];
-    CHECK(additional_search_path != nullptr);
+    CHECK_NE(additional_search_path, nullptr);
     additional_search_paths_cpp.push_back(additional_search_path);
   }
   return additional_search_paths_cpp;
@@ -49,7 +49,7 @@ std::vector<std::string_view> ToCppStringViews(const char* strings[],
   strings_cpp.reserve(strings_count);
   for (size_t i = 0; i < strings_count; ++i) {
     const char* string = strings[i];
-    CHECK(string != nullptr);
+    CHECK_NE(string, nullptr);
     strings_cpp.push_back(string);
   }
   return strings_cpp;
@@ -59,8 +59,8 @@ char* ToOwnedCString(std::string_view s) { return strndup(s.data(), s.size()); }
 
 void ToOwnedCStrings(absl::Span<const std::string> cpp, char*** c_out,
                      size_t* c_out_count) {
-  CHECK(c_out != nullptr);
-  CHECK(c_out_count != nullptr);
+  CHECK_NE(c_out, nullptr);
+  CHECK_NE(c_out_count, nullptr);
 
   // For the empty array case we avoid a needless zero-sized allocation.
   if (cpp.empty()) {
@@ -132,8 +132,8 @@ bool FormatPreferenceFromC(xls_format_preference c_pref,
 
 void ToOwnedCStrings(absl::Span<const std::string_view> cpp,
                      char*** c_string_array_out, size_t* count_out) {
-  CHECK(count_out != nullptr);
-  CHECK(c_string_array_out != nullptr);
+  CHECK_NE(count_out, nullptr);
+  CHECK_NE(c_string_array_out, nullptr);
   *count_out = cpp.size();
   if (cpp.empty()) {
     *c_string_array_out = nullptr;

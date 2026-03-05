@@ -22,12 +22,14 @@
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <new>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/btree_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -35,6 +37,9 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/IR/LLVMContext.h"
+#include "llvm/include/llvm/Support/Error.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/mangle.h"
@@ -52,7 +57,10 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
+#include "xls/jit/aot_entrypoint.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/llvm_type_converter.h"
+#include "xls/jit/orc_jit.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_impl_helpers.h"
 #include "xls/public/runtime_codegen_actions.h"
@@ -61,6 +69,12 @@
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
+
+struct xls_aot_exec_context {
+  xls::InterpreterEvents events;
+  xls::InstanceContext instance_context = xls::InstanceContext::CreateForFunc();
+  std::unique_ptr<xls::JitRuntime> jit_runtime;
+};
 
 extern "C" {
 
@@ -76,10 +90,10 @@ bool xls_convert_dslx_to_ir_with_warnings(
     size_t disable_warnings_count, bool warnings_as_errors,
     bool force_implicit_token_calling_convention, char*** warnings_out,
     size_t* warnings_out_count, char** error_out, char** ir_out) {
-  CHECK(dslx != nullptr);
-  CHECK(path != nullptr);
-  CHECK(dslx_stdlib_path != nullptr);
-  CHECK(error_out != nullptr);
+  CHECK_NE(dslx, nullptr);
+  CHECK_NE(path, nullptr);
+  CHECK_NE(dslx_stdlib_path, nullptr);
+  CHECK_NE(error_out, nullptr);
 
   std::vector<std::filesystem::path> additional_search_paths_cpp =
       xls::ToCppPaths(additional_search_paths, additional_search_paths_count);
@@ -139,11 +153,11 @@ bool xls_convert_dslx_path_to_ir_with_warnings(
     bool warnings_as_errors, bool force_implicit_token_calling_convention,
     char*** warnings_out, size_t* warnings_out_count, char** error_out,
     char** ir_out) {
-  CHECK(path != nullptr);
-  CHECK(dslx_stdlib_path != nullptr);
-  CHECK(error_out != nullptr);
+  CHECK_NE(path, nullptr);
+  CHECK_NE(dslx_stdlib_path, nullptr);
+  CHECK_NE(error_out, nullptr);
   if (warnings_out != nullptr) {
-    CHECK(warnings_out_count != nullptr);
+    CHECK_NE(warnings_out_count, nullptr);
   }
 
   std::vector<std::filesystem::path> additional_search_paths_cpp =
@@ -194,8 +208,8 @@ bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
 
 bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
                      char** ir_out) {
-  CHECK(ir != nullptr);
-  CHECK(top != nullptr);
+  CHECK_NE(ir, nullptr);
+  CHECK_NE(top, nullptr);
 
   absl::StatusOr<std::string> result = xls::OptimizeIr(ir, top);
   return xls::ReturnStringHelper(result, error_out, ir_out);
@@ -203,8 +217,8 @@ bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
 
 bool xls_mangle_dslx_name(const char* module_name, const char* function_name,
                           char** error_out, char** mangled_out) {
-  CHECK(module_name != nullptr);
-  CHECK(function_name != nullptr);
+  CHECK_NE(module_name, nullptr);
+  CHECK_NE(function_name, nullptr);
 
   absl::StatusOr<std::string> result =
       xls::MangleDslxName(module_name, function_name);
@@ -238,10 +252,10 @@ bool xls_mangle_dslx_name_full(
     xls_calling_convention convention, const char* const free_keys[],
     size_t free_keys_count, const struct xls_dslx_parametric_env* param_env,
     const char* scope, char** error_out, char** mangled_out) {
-  CHECK(module_name != nullptr);
-  CHECK(function_name != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(mangled_out != nullptr);
+  CHECK_NE(module_name, nullptr);
+  CHECK_NE(function_name, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(mangled_out, nullptr);
 
   xls::dslx::CallingConvention cc_cpp;
   if (!CallingConventionFromC(convention, &cc_cpp, error_out)) {
@@ -250,7 +264,7 @@ bool xls_mangle_dslx_name_full(
 
   absl::btree_set<std::string> free_key_set;
   for (size_t i = 0; i < free_keys_count; ++i) {
-    CHECK(free_keys[i] != nullptr);
+    CHECK_NE(free_keys[i], nullptr);
     free_key_set.insert(free_keys[i]);
   }
 
@@ -271,11 +285,11 @@ bool xls_schedule_and_codegen_package(
     xls_package* p, const char* scheduling_options_flags_proto,
     const char* codegen_flags_proto, bool with_delay_model, char** error_out,
     struct xls_schedule_and_codegen_result** result_out) {
-  CHECK(p != nullptr);
-  CHECK(scheduling_options_flags_proto != nullptr);
-  CHECK(codegen_flags_proto != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(p, nullptr);
+  CHECK_NE(scheduling_options_flags_proto, nullptr);
+  CHECK_NE(codegen_flags_proto, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
 
   xls::Package* cpp_package = reinterpret_cast<xls::Package*>(p);
 
@@ -313,7 +327,7 @@ bool xls_schedule_and_codegen_package(
 
 char* xls_schedule_and_codegen_result_get_verilog_text(
     const struct xls_schedule_and_codegen_result* result) {
-  CHECK(result != nullptr);
+  CHECK_NE(result, nullptr);
   auto* cpp_result =
       reinterpret_cast<const xls::ScheduleAndCodegenResult*>(result);
   return xls::ToOwnedCString(cpp_result->codegen_result.verilog_text);
@@ -325,8 +339,8 @@ void xls_schedule_and_codegen_result_free(
 }
 
 bool xls_verify_package(struct xls_package* p, char** error_out) {
-  CHECK(p != nullptr);
-  CHECK(error_out != nullptr);
+  CHECK_NE(p, nullptr);
+  CHECK_NE(error_out, nullptr);
 
   xls::Package* cpp_package = reinterpret_cast<xls::Package*>(p);
   absl::Status st = xls::VerifyPackage(cpp_package);
@@ -340,9 +354,9 @@ bool xls_verify_package(struct xls_package* p, char** error_out) {
 
 bool xls_parse_typed_value(const char* input, char** error_out,
                            xls_value** xls_value_out) {
-  CHECK(input != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(xls_value_out != nullptr);
+  CHECK_NE(input, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(xls_value_out, nullptr);
 
   absl::StatusOr<xls::Value> value = xls::Parser::ParseTypedValue(input);
   if (value.ok()) {
@@ -358,9 +372,9 @@ bool xls_parse_typed_value(const char* input, char** error_out,
 
 bool xls_value_get_bits(const struct xls_value* value, char** error_out,
                         struct xls_bits** bits_out) {
-  CHECK(value != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(bits_out != nullptr);
+  CHECK_NE(value, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(bits_out, nullptr);
 
   const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
   absl::StatusOr<xls::Bits> bits = cpp_value->GetBitsWithStatus();
@@ -377,9 +391,9 @@ bool xls_value_get_bits(const struct xls_value* value, char** error_out,
 
 bool xls_value_get_element_count(const struct xls_value* value,
                                  char** error_out, int64_t* count_out) {
-  CHECK(value != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(count_out != nullptr);
+  CHECK_NE(value, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(count_out, nullptr);
   const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
   switch (cpp_value->kind()) {
     case xls::ValueKind::kTuple:
@@ -400,9 +414,9 @@ bool xls_value_get_element_count(const struct xls_value* value,
 
 bool xls_value_get_element(const struct xls_value* value, size_t index,
                            char** error_out, struct xls_value** element_out) {
-  CHECK(value != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(element_out != nullptr);
+  CHECK_NE(value, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(element_out, nullptr);
   const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
   switch (cpp_value->kind()) {
     case xls::ValueKind::kTuple:
@@ -429,14 +443,14 @@ bool xls_value_get_element(const struct xls_value* value, size_t index,
 }
 
 struct xls_value* xls_value_clone(const struct xls_value* value) {
-  CHECK(value != nullptr);
+  CHECK_NE(value, nullptr);
   const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
   return reinterpret_cast<xls_value*>(new xls::Value(*cpp_value));
 }
 
 bool xls_value_get_kind(const struct xls_value* value, char** error_out,
                         xls_value_kind* kind_out) {
-  CHECK(value != nullptr);
+  CHECK_NE(value, nullptr);
   const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
   *error_out = nullptr;
   switch (cpp_value->kind()) {
@@ -462,8 +476,8 @@ bool xls_value_get_kind(const struct xls_value* value, char** error_out,
 
 bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                           struct xls_value** xls_value_out) {
-  CHECK(error_out != nullptr);
-  CHECK(xls_value_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(xls_value_out, nullptr);
   absl::StatusOr<xls::Bits> bits = xls::UBitsWithStatus(value, bit_count);
   if (!bits.ok()) {
     *error_out = xls::ToOwnedCString(bits.status().ToString());
@@ -477,8 +491,8 @@ bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
 
 bool xls_value_make_sbits(int64_t bit_count, int64_t value, char** error_out,
                           struct xls_value** xls_value_out) {
-  CHECK(error_out != nullptr);
-  CHECK(xls_value_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(xls_value_out, nullptr);
   absl::StatusOr<xls::Bits> bits = xls::SBitsWithStatus(value, bit_count);
   if (!bits.ok()) {
     *error_out = xls::ToOwnedCString(bits.status().ToString());
@@ -511,15 +525,15 @@ struct xls_bits_rope* xls_create_bits_rope(int64_t bit_count) {
 
 void xls_bits_rope_append_bits(struct xls_bits_rope* bits_rope,
                                const struct xls_bits* bits) {
-  CHECK(bits_rope != nullptr);
-  CHECK(bits != nullptr);
+  CHECK_NE(bits_rope, nullptr);
+  CHECK_NE(bits, nullptr);
   auto* cpp_bits_rope = reinterpret_cast<xls::BitsRope*>(bits_rope);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   cpp_bits_rope->push_back(*cpp_bits);
 }
 
 struct xls_bits* xls_bits_rope_get_bits(struct xls_bits_rope* bits_rope) {
-  CHECK(bits_rope != nullptr);
+  CHECK_NE(bits_rope, nullptr);
   auto* cpp_bits_rope = reinterpret_cast<xls::BitsRope*>(bits_rope);
   xls::Bits bits = cpp_bits_rope->Build();
   return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(bits)));
@@ -528,8 +542,8 @@ struct xls_bits* xls_bits_rope_get_bits(struct xls_bits_rope* bits_rope) {
 bool xls_bits_make_bits_from_bytes(size_t bit_count, const uint8_t* bytes,
                                    size_t byte_count, char** error_out,
                                    struct xls_bits** bits_out) {
-  CHECK(bits_out != nullptr);
-  CHECK(error_out != nullptr);
+  CHECK_NE(bits_out, nullptr);
+  CHECK_NE(error_out, nullptr);
 
   *bits_out = nullptr;
 
@@ -569,8 +583,8 @@ bool xls_bits_make_bits_from_bytes(size_t bit_count, const uint8_t* bytes,
 
 bool xls_bits_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                          struct xls_bits** bits_out) {
-  CHECK(error_out != nullptr);
-  CHECK(bits_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(bits_out, nullptr);
   absl::StatusOr<xls::Bits> bits = xls::UBitsWithStatus(value, bit_count);
   if (!bits.ok()) {
     *error_out = xls::ToOwnedCString(bits.status().ToString());
@@ -584,8 +598,8 @@ bool xls_bits_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
 
 bool xls_bits_make_sbits(int64_t bit_count, int64_t value, char** error_out,
                          struct xls_bits** bits_out) {
-  CHECK(error_out != nullptr);
-  CHECK(bits_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(bits_out, nullptr);
   absl::StatusOr<xls::Bits> bits = xls::SBitsWithStatus(value, bit_count);
   if (!bits.ok()) {
     *error_out = xls::ToOwnedCString(bits.status().ToString());
@@ -598,17 +612,17 @@ bool xls_bits_make_sbits(int64_t bit_count, int64_t value, char** error_out,
 }
 
 bool xls_bits_get_bit(const struct xls_bits* bits, int64_t index) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   return cpp_bits->Get(index);
 }
 
 bool xls_bits_to_bytes(const struct xls_bits* bits, char** error_out,
                        uint8_t** bytes_out, size_t* byte_count_out) {
-  CHECK(bits != nullptr);
-  CHECK(bytes_out != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(byte_count_out != nullptr);
+  CHECK_NE(bits, nullptr);
+  CHECK_NE(bytes_out, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(byte_count_out, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   std::vector<uint8_t> bytes = cpp_bits->ToBytes();
   *byte_count_out = bytes.size();
@@ -619,9 +633,9 @@ bool xls_bits_to_bytes(const struct xls_bits* bits, char** error_out,
 
 bool xls_bits_to_uint64(const struct xls_bits* bits, char** error_out,
                         uint64_t* value_out) {
-  CHECK(bits != nullptr);
-  CHECK(value_out != nullptr);
-  CHECK(error_out != nullptr);
+  CHECK_NE(bits, nullptr);
+  CHECK_NE(value_out, nullptr);
+  CHECK_NE(error_out, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   absl::StatusOr<uint64_t> result = cpp_bits->ToUint64();
   if (!result.ok()) {
@@ -634,9 +648,9 @@ bool xls_bits_to_uint64(const struct xls_bits* bits, char** error_out,
 
 bool xls_bits_to_int64(const struct xls_bits* bits, char** error_out,
                        int64_t* value_out) {
-  CHECK(bits != nullptr);
-  CHECK(value_out != nullptr);
-  CHECK(error_out != nullptr);
+  CHECK_NE(bits, nullptr);
+  CHECK_NE(value_out, nullptr);
+  CHECK_NE(error_out, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   absl::StatusOr<int64_t> result = cpp_bits->ToInt64();
   if (!result.ok()) {
@@ -649,7 +663,7 @@ bool xls_bits_to_int64(const struct xls_bits* bits, char** error_out,
 
 struct xls_bits* xls_bits_width_slice(const struct xls_bits* bits,
                                       int64_t start, int64_t width) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   return reinterpret_cast<xls_bits*>(
       new xls::Bits(cpp_bits->Slice(start, width)));
@@ -657,7 +671,7 @@ struct xls_bits* xls_bits_width_slice(const struct xls_bits* bits,
 
 struct xls_bits* xls_bits_shift_left_logical(const struct xls_bits* bits,
                                              int64_t shift_amount) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   xls::Bits result = xls::bits_ops::ShiftLeftLogical(*cpp_bits, shift_amount);
   return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
@@ -665,7 +679,7 @@ struct xls_bits* xls_bits_shift_left_logical(const struct xls_bits* bits,
 
 struct xls_bits* xls_bits_shift_right_logical(const struct xls_bits* bits,
                                               int64_t shift_amount) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   xls::Bits result = xls::bits_ops::ShiftRightLogical(*cpp_bits, shift_amount);
   return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
@@ -673,14 +687,14 @@ struct xls_bits* xls_bits_shift_right_logical(const struct xls_bits* bits,
 
 struct xls_bits* xls_bits_shift_right_arithmetic(const struct xls_bits* bits,
                                                  int64_t shift_amount) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   xls::Bits result = xls::bits_ops::ShiftRightArith(*cpp_bits, shift_amount);
   return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
 }
 
 struct xls_bits* xls_bits_negate(const struct xls_bits* bits) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   xls::Bits result = xls::bits_ops::Negate(*cpp_bits);
   return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
@@ -688,8 +702,8 @@ struct xls_bits* xls_bits_negate(const struct xls_bits* bits) {
 
 bool xls_value_make_array(size_t element_count, struct xls_value** elements,
                           char** error_out, struct xls_value** result_out) {
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   std::vector<xls::Value> cpp_elements;
   cpp_elements.reserve(element_count);
   for (size_t i = 0; i < element_count; ++i) {
@@ -706,14 +720,14 @@ bool xls_value_make_array(size_t element_count, struct xls_value** elements,
 }
 
 struct xls_bits* xls_bits_abs(const struct xls_bits* bits) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   xls::Bits result = xls::bits_ops::Abs(*cpp_bits);
   return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
 }
 
 struct xls_bits* xls_bits_not(const struct xls_bits* bits) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   xls::Bits result = xls::bits_ops::Not(*cpp_bits);
   return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
@@ -721,8 +735,8 @@ struct xls_bits* xls_bits_not(const struct xls_bits* bits) {
 
 struct xls_bits* xls_bits_add(const struct xls_bits* lhs,
                               const struct xls_bits* rhs) {
-  CHECK(lhs != nullptr);
-  CHECK(rhs != nullptr);
+  CHECK_NE(lhs, nullptr);
+  CHECK_NE(rhs, nullptr);
   const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
   const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
   xls::Bits result = xls::bits_ops::Add(*cpp_lhs, *cpp_rhs);
@@ -731,8 +745,8 @@ struct xls_bits* xls_bits_add(const struct xls_bits* lhs,
 
 struct xls_bits* xls_bits_sub(const struct xls_bits* lhs,
                               const struct xls_bits* rhs) {
-  CHECK(lhs != nullptr);
-  CHECK(rhs != nullptr);
+  CHECK_NE(lhs, nullptr);
+  CHECK_NE(rhs, nullptr);
   const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
   const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
   xls::Bits result = xls::bits_ops::Sub(*cpp_lhs, *cpp_rhs);
@@ -741,8 +755,8 @@ struct xls_bits* xls_bits_sub(const struct xls_bits* lhs,
 
 struct xls_bits* xls_bits_and(const struct xls_bits* lhs,
                               const struct xls_bits* rhs) {
-  CHECK(lhs != nullptr);
-  CHECK(rhs != nullptr);
+  CHECK_NE(lhs, nullptr);
+  CHECK_NE(rhs, nullptr);
   const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
   const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
   xls::Bits result = xls::bits_ops::And(*cpp_lhs, *cpp_rhs);
@@ -751,8 +765,8 @@ struct xls_bits* xls_bits_and(const struct xls_bits* lhs,
 
 struct xls_bits* xls_bits_or(const struct xls_bits* lhs,
                              const struct xls_bits* rhs) {
-  CHECK(lhs != nullptr);
-  CHECK(rhs != nullptr);
+  CHECK_NE(lhs, nullptr);
+  CHECK_NE(rhs, nullptr);
   const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
   const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
   xls::Bits result = xls::bits_ops::Or(*cpp_lhs, *cpp_rhs);
@@ -761,8 +775,8 @@ struct xls_bits* xls_bits_or(const struct xls_bits* lhs,
 
 struct xls_bits* xls_bits_xor(const struct xls_bits* lhs,
                               const struct xls_bits* rhs) {
-  CHECK(lhs != nullptr);
-  CHECK(rhs != nullptr);
+  CHECK_NE(lhs, nullptr);
+  CHECK_NE(rhs, nullptr);
   const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
   const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
   xls::Bits result = xls::bits_ops::Xor(*cpp_lhs, *cpp_rhs);
@@ -771,8 +785,8 @@ struct xls_bits* xls_bits_xor(const struct xls_bits* lhs,
 
 struct xls_bits* xls_bits_umul(const struct xls_bits* lhs,
                                const struct xls_bits* rhs) {
-  CHECK(lhs != nullptr);
-  CHECK(rhs != nullptr);
+  CHECK_NE(lhs, nullptr);
+  CHECK_NE(rhs, nullptr);
   const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
   const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
   xls::Bits result = xls::bits_ops::UMul(*cpp_lhs, *cpp_rhs);
@@ -781,8 +795,8 @@ struct xls_bits* xls_bits_umul(const struct xls_bits* lhs,
 
 struct xls_bits* xls_bits_smul(const struct xls_bits* lhs,
                                const struct xls_bits* rhs) {
-  CHECK(lhs != nullptr);
-  CHECK(rhs != nullptr);
+  CHECK_NE(lhs, nullptr);
+  CHECK_NE(rhs, nullptr);
   const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
   const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
   xls::Bits result = xls::bits_ops::SMul(*cpp_lhs, *cpp_rhs);
@@ -830,7 +844,7 @@ struct xls_bits* xls_bits_smod(const struct xls_bits* lhs,
 }
 
 char* xls_bits_to_debug_string(const struct xls_bits* bits) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   std::string s = cpp_bits->ToDebugString();
   return xls::ToOwnedCString(s);
@@ -838,7 +852,7 @@ char* xls_bits_to_debug_string(const struct xls_bits* bits) {
 
 struct xls_value* xls_value_make_tuple(size_t element_count,
                                        struct xls_value** elements) {
-  CHECK(elements != nullptr);
+  CHECK_NE(elements, nullptr);
   std::vector<xls::Value> cpp_elements;
   cpp_elements.reserve(element_count);
   for (size_t i = 0; i < element_count; ++i) {
@@ -849,7 +863,7 @@ struct xls_value* xls_value_make_tuple(size_t element_count,
 }
 
 struct xls_bits* xls_value_flatten_to_bits(const struct xls_value* value) {
-  CHECK(value != nullptr);
+  CHECK_NE(value, nullptr);
   const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
   xls::BitPushBuffer push_buffer;
   cpp_value->FlattenTo(&push_buffer);
@@ -860,85 +874,85 @@ struct xls_bits* xls_value_flatten_to_bits(const struct xls_value* value) {
 }
 
 bool xls_bits_eq(const struct xls_bits* a, const struct xls_bits* b) {
-  CHECK(a != nullptr);
-  CHECK(b != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
   const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
   const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
   return *cpp_a == *cpp_b;
 }
 
 bool xls_bits_ne(const struct xls_bits* a, const struct xls_bits* b) {
-  CHECK(a != nullptr);
-  CHECK(b != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
   return !xls_bits_eq(a, b);
 }
 
 bool xls_bits_ult(const struct xls_bits* a, const struct xls_bits* b) {
-  CHECK(a != nullptr);
-  CHECK(b != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
   const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
   const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
   return xls::bits_ops::ULessThan(*cpp_a, *cpp_b);
 }
 
 bool xls_bits_ule(const struct xls_bits* a, const struct xls_bits* b) {
-  CHECK(a != nullptr);
-  CHECK(b != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
   const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
   const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
   return xls::bits_ops::ULessThanOrEqual(*cpp_a, *cpp_b);
 }
 
 bool xls_bits_ugt(const struct xls_bits* a, const struct xls_bits* b) {
-  CHECK(a != nullptr);
-  CHECK(b != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
   const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
   const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
   return xls::bits_ops::UGreaterThan(*cpp_a, *cpp_b);
 }
 
 bool xls_bits_uge(const struct xls_bits* a, const struct xls_bits* b) {
-  CHECK(a != nullptr);
-  CHECK(b != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
   const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
   const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
   return xls::bits_ops::UGreaterThanOrEqual(*cpp_a, *cpp_b);
 }
 
 bool xls_bits_slt(const struct xls_bits* a, const struct xls_bits* b) {
-  CHECK(a != nullptr);
-  CHECK(b != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
   const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
   const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
   return xls::bits_ops::SLessThan(*cpp_a, *cpp_b);
 }
 
 bool xls_bits_sle(const struct xls_bits* a, const struct xls_bits* b) {
-  CHECK(a != nullptr);
-  CHECK(b != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
   const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
   const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
   return xls::bits_ops::SLessThanOrEqual(*cpp_a, *cpp_b);
 }
 
 bool xls_bits_sgt(const struct xls_bits* a, const struct xls_bits* b) {
-  CHECK(a != nullptr);
-  CHECK(b != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
   const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
   const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
   return xls::bits_ops::SGreaterThan(*cpp_a, *cpp_b);
 }
 
 bool xls_bits_sge(const struct xls_bits* a, const struct xls_bits* b) {
-  CHECK(a != nullptr);
-  CHECK(b != nullptr);
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
   const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
   const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
   return xls::bits_ops::SGreaterThanOrEqual(*cpp_a, *cpp_b);
 }
 
 int64_t xls_bits_get_bit_count(const struct xls_bits* bits) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   return cpp_bits->bit_count();
 }
@@ -952,13 +966,13 @@ void xls_bits_rope_free(xls_bits_rope* b) {
 void xls_value_free(xls_value* v) { delete reinterpret_cast<xls::Value*>(v); }
 
 struct xls_value* xls_value_from_bits(const struct xls_bits* bits) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   return reinterpret_cast<xls_value*>(new xls::Value(*cpp_bits));
 }
 
 struct xls_value* xls_value_from_bits_owned(struct xls_bits* bits) {
-  CHECK(bits != nullptr);
+  CHECK_NE(bits, nullptr);
   auto* cpp_bits = reinterpret_cast<xls::Bits*>(bits);
   auto* result =
       reinterpret_cast<xls_value*>(new xls::Value(std::move(*cpp_bits)));
@@ -967,7 +981,7 @@ struct xls_value* xls_value_from_bits_owned(struct xls_bits* bits) {
 }
 
 struct xls_function_base* xls_package_get_top(struct xls_package* p) {
-  CHECK(p != nullptr);
+  CHECK_NE(p, nullptr);
   xls::Package* cpp_package = reinterpret_cast<xls::Package*>(p);
   std::optional<xls::FunctionBase*> top = cpp_package->GetTop();
   if (!top.has_value()) {
@@ -978,7 +992,7 @@ struct xls_function_base* xls_package_get_top(struct xls_package* p) {
 
 bool xls_package_set_top_by_name(struct xls_package* p, const char* name,
                                  char** error_out) {
-  CHECK(p != nullptr);
+  CHECK_NE(p, nullptr);
   xls::Package* cpp_package = reinterpret_cast<xls::Package*>(p);
   absl::Status status = cpp_package->SetTopByName(name);
   if (!status.ok()) {
@@ -1014,8 +1028,8 @@ void xls_c_strs_free(char** c_strs, size_t count) {
 void xls_bytes_free(uint8_t* bytes) { delete[] bytes; }
 
 bool xls_value_to_string(const struct xls_value* v, char** string_out) {
-  CHECK(v != nullptr);
-  CHECK(string_out != nullptr);
+  CHECK_NE(v, nullptr);
+  CHECK_NE(string_out, nullptr);
   std::string s = reinterpret_cast<const xls::Value*>(v)->ToString();
   *string_out = xls::ToOwnedCString(s);
   return *string_out != nullptr;
@@ -1024,9 +1038,9 @@ bool xls_value_to_string(const struct xls_value* v, char** string_out) {
 bool xls_value_to_string_format_preference(
     const struct xls_value* v, xls_format_preference format_preference,
     char** error_out, char** result_out) {
-  CHECK(v != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(v, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
 
   xls::FormatPreference cpp_pref;
   if (!FormatPreferenceFromC(format_preference, &cpp_pref, error_out)) {
@@ -1042,9 +1056,9 @@ bool xls_bits_to_string(const struct xls_bits* bits,
                         xls_format_preference format_preference,
                         bool include_bit_count, char** error_out,
                         char** result_out) {
-  CHECK(bits != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(bits, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
 
   xls::FormatPreference cpp_format_preference;
   if (!FormatPreferenceFromC(format_preference, &cpp_format_preference,
@@ -1060,8 +1074,8 @@ bool xls_bits_to_string(const struct xls_bits* bits,
 }
 
 bool xls_value_eq(const struct xls_value* v, const struct xls_value* w) {
-  CHECK(v != nullptr);
-  CHECK(w != nullptr);
+  CHECK_NE(v, nullptr);
+  CHECK_NE(w, nullptr);
 
   const auto* lhs = reinterpret_cast<const xls::Value*>(v);
   const auto* rhs = reinterpret_cast<const xls::Value*>(w);
@@ -1070,9 +1084,9 @@ bool xls_value_eq(const struct xls_value* v, const struct xls_value* w) {
 
 bool xls_format_preference_from_string(const char* s, char** error_out,
                                        xls_format_preference* result_out) {
-  CHECK(s != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(s, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
 
   std::string_view got(s);
   if (got == "default") {
@@ -1105,16 +1119,16 @@ bool xls_format_preference_from_string(const char* s, char** error_out,
 }
 
 bool xls_package_to_string(const struct xls_package* p, char** string_out) {
-  CHECK(p != nullptr);
-  CHECK(string_out != nullptr);
+  CHECK_NE(p, nullptr);
+  CHECK_NE(string_out, nullptr);
   std::string s = reinterpret_cast<const xls::Package*>(p)->DumpIr();
   *string_out = xls::ToOwnedCString(s);
   return *string_out != nullptr;
 }
 
 bool xls_function_to_string(const struct xls_function* f, char** string_out) {
-  CHECK(f != nullptr);
-  CHECK(string_out != nullptr);
+  CHECK_NE(f, nullptr);
+  CHECK_NE(string_out, nullptr);
   std::string s = reinterpret_cast<const xls::Function*>(f)->DumpIr();
   *string_out = xls::ToOwnedCString(s);
   return *string_out != nullptr;
@@ -1123,9 +1137,9 @@ bool xls_function_to_string(const struct xls_function* f, char** string_out) {
 bool xls_parse_ir_package(const char* ir, const char* filename,
                           char** error_out,
                           struct xls_package** xls_package_out) {
-  CHECK(ir != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(xls_package_out != nullptr);
+  CHECK_NE(ir, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(xls_package_out, nullptr);
 
   std::optional<std::string_view> cpp_filename;
   if (filename != nullptr) {
@@ -1163,10 +1177,10 @@ bool xls_package_get_function(struct xls_package* package,
 bool xls_package_get_functions(struct xls_package* package, char** error_out,
                                struct xls_function*** result_out,
                                size_t* count_out) {
-  CHECK(package != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
-  CHECK(count_out != nullptr);
+  CHECK_NE(package, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
+  CHECK_NE(count_out, nullptr);
   xls::Package* xls_package = reinterpret_cast<xls::Package*>(package);
   absl::Span<const std::unique_ptr<xls::Function>> functions =
       xls_package->functions();
@@ -1192,10 +1206,10 @@ bool xls_package_get_functions(struct xls_package* package, char** error_out,
 bool xls_package_get_type_for_value(struct xls_package* package,
                                     struct xls_value* value, char** error_out,
                                     struct xls_type** result_out) {
-  CHECK(package != nullptr);
-  CHECK(value != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(package, nullptr);
+  CHECK_NE(value, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   xls::Package* xls_package = reinterpret_cast<xls::Package*>(package);
   xls::Value* xls_value = reinterpret_cast<xls::Value*>(value);
   xls::Type* type = xls_package->GetTypeForValue(*xls_value);
@@ -1205,9 +1219,9 @@ bool xls_package_get_type_for_value(struct xls_package* package,
 
 bool xls_type_get_kind(struct xls_type* type, char** error_out,
                        xls_value_kind* kind_out) {
-  CHECK(type != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(kind_out != nullptr);
+  CHECK_NE(type, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(kind_out, nullptr);
   xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
   *error_out = nullptr;
   switch (xls_type->kind()) {
@@ -1233,16 +1247,16 @@ bool xls_type_get_kind(struct xls_type* type, char** error_out,
 }
 
 int64_t xls_type_get_leaf_count(struct xls_type* type) {
-  CHECK(type != nullptr);
+  CHECK_NE(type, nullptr);
   xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
   return xls_type->leaf_count();
 }
 
 bool xls_type_to_string(struct xls_type* type, char** error_out,
                         char** result_out) {
-  CHECK(type != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(type, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
   xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
   *error_out = nullptr;
   *result_out = xls::ToOwnedCString(xls_type->ToString());
@@ -1250,16 +1264,16 @@ bool xls_type_to_string(struct xls_type* type, char** error_out,
 }
 
 int64_t xls_type_get_flat_bit_count(struct xls_type* type) {
-  CHECK(type != nullptr);
+  CHECK_NE(type, nullptr);
   xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
   return xls_type->GetFlatBitCount();
 }
 
 bool xls_function_get_name(struct xls_function* function, char** error_out,
                            char** string_out) {
-  CHECK(function != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(string_out != nullptr);
+  CHECK_NE(function, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(string_out, nullptr);
   xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
 
   *error_out = nullptr;
@@ -1269,9 +1283,9 @@ bool xls_function_get_name(struct xls_function* function, char** error_out,
 
 bool xls_function_get_type(struct xls_function* function, char** error_out,
                            xls_function_type** xls_fn_type_out) {
-  CHECK(function != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(xls_fn_type_out != nullptr);
+  CHECK_NE(function, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(xls_fn_type_out, nullptr);
   xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
   xls::FunctionType* type = xls_function->GetType();
 
@@ -1282,9 +1296,9 @@ bool xls_function_get_type(struct xls_function* function, char** error_out,
 
 bool xls_function_type_to_string(struct xls_function_type* type,
                                  char** error_out, char** string_out) {
-  CHECK(type != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(string_out != nullptr);
+  CHECK_NE(type, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(string_out, nullptr);
   xls::FunctionType* ft = reinterpret_cast<xls::FunctionType*>(type);
   *error_out = nullptr;
   *string_out = xls::ToOwnedCString(ft->ToString());
@@ -1292,7 +1306,7 @@ bool xls_function_type_to_string(struct xls_function_type* type,
 }
 
 int64_t xls_function_type_get_param_count(struct xls_function_type* type) {
-  CHECK(type != nullptr);
+  CHECK_NE(type, nullptr);
   const auto* ft = reinterpret_cast<const xls::FunctionType*>(type);
   return ft->parameter_count();
 }
@@ -1300,9 +1314,9 @@ int64_t xls_function_type_get_param_count(struct xls_function_type* type) {
 bool xls_function_type_get_param_type(struct xls_function_type* type,
                                       size_t index, char** error_out,
                                       struct xls_type** param_type_out) {
-  CHECK(type != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(param_type_out != nullptr);
+  CHECK_NE(type, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(param_type_out, nullptr);
   const auto* ft = reinterpret_cast<const xls::FunctionType*>(type);
   if (index >= static_cast<size_t>(ft->parameter_count())) {
     *error_out = xls::ToOwnedCString(
@@ -1321,16 +1335,16 @@ bool xls_function_type_get_param_type(struct xls_function_type* type,
 
 struct xls_type* xls_function_type_get_return_type(
     struct xls_function_type* type) {
-  CHECK(type != nullptr);
+  CHECK_NE(type, nullptr);
   const auto* ft = reinterpret_cast<const xls::FunctionType*>(type);
   return reinterpret_cast<xls_type*>(ft->return_type());
 }
 
 bool xls_function_get_param_name(struct xls_function* function, size_t index,
                                  char** error_out, char** name_out) {
-  CHECK(function != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(name_out != nullptr);
+  CHECK_NE(function, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(name_out, nullptr);
 
   xls::Function* cpp_fn = reinterpret_cast<xls::Function*>(function);
   int64_t param_count = cpp_fn->params().size();
@@ -1353,9 +1367,9 @@ bool xls_function_get_param_name(struct xls_function* function, size_t index,
 
 bool xls_make_function_jit(struct xls_function* function, char** error_out,
                            struct xls_function_jit** result_out) {
-  CHECK(function != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(function, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
 
   xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
   absl::StatusOr<std::unique_ptr<xls::FunctionJit>> jit =
@@ -1373,6 +1387,237 @@ void xls_function_jit_free(struct xls_function_jit* jit) {
   delete reinterpret_cast<xls::FunctionJit*>(jit);
 }
 
+bool xls_aot_compile_function(struct xls_function* function, char** error_out,
+                              uint8_t** object_code_out,
+                              size_t* object_code_count_out,
+                              uint8_t** entrypoints_proto_out,
+                              size_t* entrypoints_proto_count_out) {
+  CHECK_NE(function, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(object_code_out, nullptr);
+  CHECK_NE(object_code_count_out, nullptr);
+  CHECK_NE(entrypoints_proto_out, nullptr);
+  CHECK_NE(entrypoints_proto_count_out, nullptr);
+
+  xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
+  absl::StatusOr<xls::JitObjectCode> object_code =
+      xls::FunctionJit::CreateObjectCode(xls_function);
+  if (!object_code.ok()) {
+    *error_out = xls::ToOwnedCString(object_code.status().ToString());
+    return false;
+  }
+
+  if (object_code->entrypoints.size() != 1) {
+    *error_out = xls::ToOwnedCString(
+        absl::InternalError(
+            absl::StrFormat("Expected exactly one AOT entrypoint; got: %d",
+                            object_code->entrypoints.size()))
+            .ToString());
+    return false;
+  }
+
+  const xls::FunctionEntrypoint& entrypoint = object_code->entrypoints.front();
+  auto context = std::make_unique<llvm::LLVMContext>();
+  xls::LlvmTypeConverter type_converter(context.get(),
+                                        object_code->data_layout);
+  xls::Package* package = object_code->package ? object_code->package.get()
+                                               : xls_function->package();
+  absl::StatusOr<xls::AotEntrypointProto> aot_entrypoint =
+      xls::GenerateAotEntrypointProto(package, entrypoint,
+                                      /*include_msan=*/false, type_converter);
+  if (!aot_entrypoint.ok()) {
+    *error_out = xls::ToOwnedCString(aot_entrypoint.status().ToString());
+    return false;
+  }
+  xls::AotPackageEntrypointsProto entrypoints_proto;
+  *entrypoints_proto.mutable_data_layout() =
+      object_code->data_layout.getStringRepresentation();
+  *entrypoints_proto.add_entrypoint() = std::move(*aot_entrypoint);
+
+  *object_code_out = nullptr;
+  *entrypoints_proto_out = nullptr;
+  *object_code_count_out = object_code->object_code.size();
+  *object_code_out = new (std::nothrow) uint8_t[*object_code_count_out];
+  if (*object_code_out == nullptr) {
+    *error_out = xls::ToOwnedCString(
+        absl::InternalError("Failed to allocate output object-code buffer")
+            .ToString());
+    return false;
+  }
+  memcpy(*object_code_out, object_code->object_code.data(),
+         *object_code_count_out);
+
+  std::string proto_bytes = entrypoints_proto.SerializeAsString();
+  *entrypoints_proto_count_out = proto_bytes.size();
+  *entrypoints_proto_out =
+      new (std::nothrow) uint8_t[*entrypoints_proto_count_out];
+  if (*entrypoints_proto_out == nullptr) {
+    xls_bytes_free(*object_code_out);
+    *object_code_out = nullptr;
+    *object_code_count_out = 0;
+    *error_out = xls::ToOwnedCString(
+        absl::InternalError("Failed to allocate output proto buffer")
+            .ToString());
+    return false;
+  }
+  memcpy(*entrypoints_proto_out, proto_bytes.data(),
+         *entrypoints_proto_count_out);
+
+  *error_out = nullptr;
+  return true;
+}
+
+void xls_aot_object_code_free(uint8_t* object_code) {
+  xls_bytes_free(object_code);
+}
+
+void xls_aot_entrypoints_proto_free(uint8_t* entrypoints_proto) {
+  xls_bytes_free(entrypoints_proto);
+}
+
+bool xls_aot_exec_context_create(const uint8_t* entrypoints_proto,
+                                 size_t entrypoints_proto_count,
+                                 char** error_out,
+                                 struct xls_aot_exec_context** out) {
+  CHECK_NE(entrypoints_proto, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(out, nullptr);
+
+  xls::AotPackageEntrypointsProto proto;
+  if (!proto.ParseFromArray(entrypoints_proto, entrypoints_proto_count)) {
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError("Unable to parse AotPackageEntrypointsProto")
+            .ToString());
+    *out = nullptr;
+    return false;
+  }
+  if (!proto.has_data_layout()) {
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            "AotPackageEntrypointsProto missing required `data_layout`")
+            .ToString());
+    *out = nullptr;
+    return false;
+  }
+
+  llvm::Expected<llvm::DataLayout> maybe_data_layout =
+      llvm::DataLayout::parse(proto.data_layout());
+  if (!maybe_data_layout) {
+    std::string parse_error = llvm::toString(maybe_data_layout.takeError());
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            absl::StrFormat("Unable to parse '%s' to an llvm data-layout: %s",
+                            proto.data_layout(), parse_error))
+            .ToString());
+    *out = nullptr;
+    return false;
+  }
+
+  auto* context = new (std::nothrow) xls_aot_exec_context();
+  if (context == nullptr) {
+    *error_out = xls::ToOwnedCString(
+        absl::InternalError("Failed to allocate AOT exec context").ToString());
+    *out = nullptr;
+    return false;
+  }
+  context->jit_runtime = std::unique_ptr<xls::JitRuntime>(
+      new (std::nothrow) xls::JitRuntime(*maybe_data_layout));
+  if (context->jit_runtime == nullptr) {
+    delete context;
+    *error_out = xls::ToOwnedCString(
+        absl::InternalError("Failed to allocate AOT JIT runtime").ToString());
+    *out = nullptr;
+    return false;
+  }
+
+  *out = context;
+  *error_out = nullptr;
+  return true;
+}
+
+void xls_aot_exec_context_clear_events(struct xls_aot_exec_context* context) {
+  CHECK_NE(context, nullptr);
+  context->events.Clear();
+}
+
+void xls_aot_exec_context_free(struct xls_aot_exec_context* context) {
+  delete context;
+}
+
+int64_t xls_aot_entrypoint_trampoline(
+    void* function_ptr, const uint8_t* const* inputs, uint8_t* const* outputs,
+    void* temp_buffer, struct xls_aot_exec_context* context,
+    int64_t continuation_point, size_t* trace_messages_count_out,
+    size_t* assert_messages_count_out) {
+  CHECK_NE(function_ptr, nullptr);
+  CHECK_NE(inputs, nullptr);
+  CHECK_NE(outputs, nullptr);
+  CHECK_NE(context, nullptr);
+  CHECK_NE(context->jit_runtime, nullptr);
+  CHECK_NE(trace_messages_count_out, nullptr);
+  CHECK_NE(assert_messages_count_out, nullptr);
+
+  xls::JitFunctionType fn = absl::bit_cast<xls::JitFunctionType>(function_ptr);
+  int64_t continuation = fn(inputs, outputs, temp_buffer, &context->events,
+                            &context->instance_context,
+                            context->jit_runtime.get(), continuation_point);
+  *trace_messages_count_out = context->events.GetTraceMessages().size();
+  *assert_messages_count_out = context->events.GetAssertMessages().size();
+  return continuation;
+}
+
+bool xls_aot_exec_context_get_trace_message(
+    const struct xls_aot_exec_context* context, size_t index, char** error_out,
+    struct xls_trace_message* trace_message_out) {
+  CHECK_NE(context, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(trace_message_out, nullptr);
+
+  const auto& trace_messages = context->events.GetTraceMessages();
+  if (index >= trace_messages.size()) {
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            absl::StrFormat("Trace-message index %zu out of range "
+                            "(trace count: %zu)",
+                            index, static_cast<size_t>(trace_messages.size())))
+            .ToString());
+    return false;
+  }
+
+  trace_message_out->message =
+      xls::ToOwnedCString(trace_messages.Get(index).message());
+  trace_message_out->verbosity =
+      trace_messages.Get(index).has_statement()
+          ? trace_messages.Get(index).statement().verbosity()
+          : 0;
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_aot_exec_context_get_assert_message(
+    const struct xls_aot_exec_context* context, size_t index, char** error_out,
+    char** assert_message_out) {
+  CHECK_NE(context, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(assert_message_out, nullptr);
+
+  std::vector<std::string> assert_messages =
+      context->events.GetAssertMessages();
+  if (index >= assert_messages.size()) {
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            absl::StrFormat("Assert-message index %zu out of range "
+                            "(assert count: %zu)",
+                            index, assert_messages.size()))
+            .ToString());
+    return false;
+  }
+
+  *assert_message_out = xls::ToOwnedCString(assert_messages[index]);
+  *error_out = nullptr;
+  return true;
+}
+
 void xls_function_ptr_array_free(struct xls_function** function_pointer_array) {
   delete[] function_pointer_array;
 }
@@ -1384,14 +1629,18 @@ bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
                           char*** assert_messages_out,
                           size_t* assert_messages_count_out,
                           struct xls_value** result_out) {
-  CHECK(jit != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK_NE(jit, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(trace_messages_out, nullptr);
+  CHECK_NE(trace_messages_count_out, nullptr);
+  CHECK_NE(assert_messages_out, nullptr);
+  CHECK_NE(assert_messages_count_out, nullptr);
+  CHECK_NE(result_out, nullptr);
 
   std::vector<xls::Value> cpp_args;
   cpp_args.reserve(argc);
   for (size_t i = 0; i < argc; ++i) {
-    CHECK(args[i] != nullptr);
+    CHECK_NE(args[i], nullptr);
     cpp_args.push_back(*reinterpret_cast<const xls::Value*>(args[i]));
   }
 
@@ -1437,15 +1686,15 @@ void xls_trace_messages_free(struct xls_trace_message* trace_messages,
 bool xls_interpret_function(struct xls_function* function, size_t argc,
                             const struct xls_value* const* args,
                             char** error_out, struct xls_value** result_out) {
-  CHECK(function != nullptr);
-  CHECK(args != nullptr);
+  CHECK_NE(function, nullptr);
+  CHECK_NE(args, nullptr);
 
   xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
 
   std::vector<xls::Value> xls_args;
   xls_args.reserve(argc);
   for (size_t i = 0; i < argc; ++i) {
-    CHECK(args[i] != nullptr);
+    CHECK_NE(args[i], nullptr);
     xls_args.push_back(*reinterpret_cast<const xls::Value*>(args[i]));
   }
 
@@ -1481,9 +1730,9 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
 
 bool xls_function_to_z3_smtlib(struct xls_function* function, char** error_out,
                                char** string_out) {
-  CHECK(function != nullptr);
-  CHECK(error_out != nullptr);
-  CHECK(string_out != nullptr);
+  CHECK_NE(function, nullptr);
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(string_out, nullptr);
 
   xls::Function* cpp_function = reinterpret_cast<xls::Function*>(function);
   absl::StatusOr<std::string> smtlib =
