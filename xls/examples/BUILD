@@ -1542,3 +1542,27 @@ xls_dslx_verilog(
     library = ":const_match_dslx",
     verilog_file = "const_match.sv",
 )
+
+xls_dslx_library(
+    name = "vtrace_fmt_dslx",
+    srcs = [ "vtrace_fmt.x" ],
+)
+
+xls_dslx_test(
+    name = "vtrace_fmt_dslx_test",
+    library = "vtrace_fmt_dslx",
+)
+
+xls_dslx_verilog(
+    name = "vtrace_fmt_verilog",
+    codegen_args = {
+        "delay_model": "asap7",
+        "max_trace_verbosity": "2",
+        "pipeline_stages": "2",
+        "reset": "rst",
+    },
+    dslx_top = "vtrace_fmt_example",
+    library = ":vtrace_fmt_dslx",
+    tags = ["manual"],
+    verilog_file = "vtrace_fmt.sv",
+)
