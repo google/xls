@@ -9529,6 +9529,43 @@ const_assert!(main() == 32);
       TypecheckSucceeds(AllOf(HasNodeWithType("ARR", "uN[32][5]"),
                               HasNodeWithType("X", "uN[32]"))));
 }
+TEST(TypecheckV2Test, LambdaCallsFunction) {
+  EXPECT_THAT(
+      R"(
+fn add_two(x: u32) -> u32 {
+  x + 2
+}
+
+fn main() -> u32 {
+  let ARR = map(u32:0..5, |i| -> u32 { add_two(i) });
+  ARR[4]
+}
+
+const_assert!(main() == 6);
+)",
+      TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][5]")));
+}
+
+TEST(TypecheckV2Test, LambdaCallsImportedFunction) {
+  constexpr std::string_view kImported = R"(
+pub fn add_two(x: u32) -> u32 {
+  x + 2
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+fn main() -> u32 {
+  let ARR = map(u32:0..5, |i| -> u32 { imported::add_two(i) });
+  ARR[4]
+}
+
+const_assert!(main() == 6);
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("ARR", "uN[32][5]"))));
+}
 
 TEST(TypecheckV2Test, LambdaWithContextParamsTypeMismatch) {
   EXPECT_THAT(

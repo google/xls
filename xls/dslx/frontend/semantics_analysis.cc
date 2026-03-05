@@ -257,7 +257,10 @@ class SideEffectExpressionFinder : public AstNodeVisitorWithDefault {
 class CollectNameRefs : public AstNodeVisitorWithDefault {
  public:
   absl::Status HandleNameRef(const NameRef* node) override {
-    name_refs_.insert(node);
+    if (node->GetDefiner()->kind() != AstNodeKind::kFunction &&
+        node->GetDefiner()->kind() != AstNodeKind::kImport) {
+      name_refs_.insert(node);
+    }
     return absl::OkStatus();
   }
 
