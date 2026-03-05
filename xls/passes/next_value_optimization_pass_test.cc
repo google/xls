@@ -32,6 +32,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
@@ -46,8 +47,12 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::AllOf;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::testing::Optional;
+using ::testing::Property;
+using ::testing::StrEq;
 using ::testing::UnorderedElementsAre;
 
 class NextValueOptimizationPassTest : public IrTestBase {
@@ -109,6 +114,43 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
               ElementsAre(m::Next(m::StateRead(), m::Literal(3))));
+}
+
+// Clarify that the label should be propagated through priority select.
+TEST_F(NextValueOptimizationPassTest, NextValuesWithLabels) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 3)));
+  BValue priority_select = pb.PrioritySelect(
+      x,
+      std::vector({pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
+                   pb.Literal(UBits(2, 3))}),
+      pb.Literal(UBits(0, 3)));
+  pb.Next(/*state_read=*/x, /*value=*/priority_select,
+          /*pred=*/std::nullopt, "label");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                                /*include_state=*/true);
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          AllOf(
+              m::Next(m::StateRead(), m::Literal(2),
+                      m::Eq(m::BitSlice(m::StateRead(), 0, 1), m::Literal(1))),
+              Property(&Next::label, Optional(StrEq("label")))),
+          AllOf(
+              m::Next(m::StateRead(), m::Literal(1),
+                      m::Eq(m::BitSlice(m::StateRead(), 0, 2), m::Literal(2))),
+              Property(&Next::label, Optional(StrEq("label")))),
+          AllOf(
+              m::Next(m::StateRead(), m::Literal(2),
+                      m::Eq(m::BitSlice(m::StateRead(), 0, 3), m::Literal(4))),
+              Property(&Next::label, Optional(StrEq("label")))),
+          AllOf(m::Next(m::StateRead(), m::Literal(0),
+                        m::Eq(m::StateRead(), m::Literal(0))),
+                Property(&Next::label, Optional(StrEq("label"))))));
 }
 
 TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {

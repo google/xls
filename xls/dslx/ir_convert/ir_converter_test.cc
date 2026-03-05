@@ -8057,15 +8057,9 @@ proc main {
   }
 }
 )";
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
 }
 
 TEST_F(IrConverterTest, ExplicitStateAccessMultipleWrites) {
@@ -8083,15 +8077,9 @@ proc main {
   }
 }
 )";
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
 }
 
 TEST_F(IrConverterTest, ExplicitStateAccessWriteBeforeRead) {
@@ -8106,15 +8094,9 @@ proc main {
   }
 }
 )";
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
 }
 
 TEST_F(IrConverterTest, ExplicitStateAccessConditionalWrite) {
@@ -8134,15 +8116,9 @@ proc main {
   }
 }
 )";
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
 }
 
 TEST_F(IrConverterTest, ExplicitStateAccessMatch) {
@@ -8167,14 +8143,9 @@ proc main {
   }
 }
 )";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
 }
 
 TEST_F(IrConverterTest, ExplicitStateAccessMatchMultipleWrites) {
@@ -8197,15 +8168,44 @@ proc main {
   }
 }
 )";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(program, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ExplicitStateAccessLabeledReadAndWrite) {
+  constexpr std::string_view program = R"(#![feature(explicit_state_access)]
+proc main {
+  init { 0 }
+  config() { }
+  next(state: u32) {
+    let x = labeled_read(state, "main_read");
+    let y = x + 1;
+    labeled_write(state, y, "main_write");
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessReadWithLabeledRead) {
+  constexpr std::string_view program = R"(#![feature(explicit_state_access)]
+proc main {
+  init { 0 }
+  config() { }
+  next(state: u32) {
+    let curr = read(state);
+    let x = labeled_read(state, "main_read");
+    let y = x + 1 + curr;
+    labeled_write(state, y, "main_write");
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
 }  // namespace
 }  // namespace xls::dslx

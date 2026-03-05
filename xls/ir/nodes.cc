@@ -959,11 +959,13 @@ Param::Param(const SourceInfo& loc, Type* type, std::string_view name,
 }
 
 StateRead::StateRead(const SourceInfo& loc, StateElement* state_element,
-                     std::optional<Node*> predicate, std::string_view name,
+                     std::optional<Node*> predicate,
+                     std::optional<std::string> label, std::string_view name,
                      FunctionBase* function)
     : Node(Op::kStateRead, state_element->type(), loc, name, function),
       state_element_(state_element),
-      has_predicate_(predicate.has_value()) {
+      has_predicate_(predicate.has_value()),
+      label_(std::move(label)) {
   CHECK(IsOpClass<StateRead>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `StateRead`.";
   AddOptionalOperand(predicate);
@@ -976,16 +978,18 @@ bool StateRead::IsDefinitelyEqualTo(const Node* other) const {
   if (!Node::IsDefinitelyEqualTo(other)) {
     return false;
   }
-
-  return state_element_ == other->As<StateRead>()->state_element_;
+  const StateRead* other_state_read = other->As<StateRead>();
+  return state_element_ == other_state_read->state_element_ &&
+         label_ == other_state_read->label();
 }
 
 Next::Next(const SourceInfo& loc, Node* state_read, Node* value,
-           std::optional<Node*> predicate, std::string_view name,
-           FunctionBase* function)
+           std::optional<Node*> predicate, std::optional<std::string> label,
+           std::string_view name, FunctionBase* function)
     : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
            function),
-      has_predicate_(predicate.has_value()) {
+      has_predicate_(predicate.has_value()),
+      label_(std::move(label)) {
   CHECK(IsOpClass<Next>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Next`.";
   AddOperand(state_read);
@@ -1000,8 +1004,9 @@ bool Next::IsDefinitelyEqualTo(const Node* other) const {
   if (!Node::IsDefinitelyEqualTo(other)) {
     return false;
   }
-
-  return has_predicate_ == other->As<Next>()->has_predicate_;
+  const Next* other_next = other->As<Next>();
+  return has_predicate_ == other_next->has_predicate_ &&
+         label_ == other_next->label_;
 }
 
 Select::Select(const SourceInfo& loc, Node* selector,
@@ -1442,7 +1447,7 @@ absl::StatusOr<Node*> StateRead::CloneInNewFunction(
   return new_function->MakeNodeWithName<StateRead>(
       loc(), new_function->AsProcOrDie()->GetStateElement(idx),
       new_operands.empty() ? std::nullopt : std::make_optional(new_operands[0]),
-      GetNameView());
+      label(), GetNameView());
 }
 
 absl::StatusOr<Node*> Next::CloneInNewFunction(
@@ -1452,7 +1457,7 @@ absl::StatusOr<Node*> Next::CloneInNewFunction(
       loc(), new_operands[0], new_operands[1],
       new_operands.size() > 2 ? std::make_optional(new_operands[2])
                               : std::nullopt,
-      GetNameView());
+      label(), GetNameView());
 }
 
 bool Select::AllCases(const std::function<bool(Node*)>& p) const {
