@@ -1331,6 +1331,17 @@ TEST_F(FunctionFmtTest, FunctionWithLambdaWithExplicitTypes) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, FunctionWithLambdaAssign) {
+  const std::string_view original =
+      R"(fn f() -> u32 {
+    let my_val = u32:2;
+    let x = (|i, j| -> u32 { my_val * i * j })(u32:1, u32:4);
+    x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 TEST_F(FunctionFmtTest, FunctionWithMapAndLambda) {
   const std::string_view original =
       R"(fn f() -> u32 {
@@ -1452,6 +1463,15 @@ TEST_F(ModuleFmtTest, ImportSuperLongName) {
   DoFmt(R"(// Module-level comment
 import blahhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
     as blah;
+)");
+}
+
+TEST_F(ModuleFmtTest, LambdaPreservesParens) {
+  DoFmt(R"(fn main() {
+    let my_val = u32:2;
+    let x = (|i, j| -> u32 { my_val * i * j })(u32:1, u32:4);
+    const_assert!(x == 8);
+}
 )");
 }
 

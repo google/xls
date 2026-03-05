@@ -542,7 +542,8 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     auto new_lambda = module(n)->Make<Lambda>(
-        n->span(), absl::down_cast<Function*>(old_to_new_.at(n->function())));
+        n->span(), absl::down_cast<Function*>(old_to_new_.at(n->function())),
+        n->in_parens());
     old_to_new_[n] = new_lambda;
     return absl::OkStatus();
   }

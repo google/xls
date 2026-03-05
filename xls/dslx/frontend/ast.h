@@ -3461,7 +3461,7 @@ class Lambda : public Expr {
  public:
   static constexpr std::string_view kCallLambdaFn = "call";
 
-  Lambda(Module* owner, Span span, Function* function);
+  Lambda(Module* owner, Span span, Function* function, bool in_parens = false);
 
   ~Lambda() override;
 
