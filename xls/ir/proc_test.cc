@@ -205,6 +205,45 @@ TEST_F(ProcTest, StatelessProc) {
   EXPECT_EQ(proc->DumpIr(), "proc p() {\n}\n");
 }
 
+TEST_F(ProcTest, NextValuesByStateElement) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({add}));
+
+  StateElement* st_elem = proc->GetStateElement(0);
+  StateRead* st_read = proc->GetStateRead(st_elem);
+
+  EXPECT_THAT(proc->next_values(st_elem),
+              ElementsAre(m::Next(m::StateRead("st"), m::Add())));
+  EXPECT_THAT(proc->next_values(st_read),
+              ElementsAre(m::Next(m::StateRead("st"), m::Add())));
+
+  // Add another next value for the same state element using the StateElement
+  // constructor.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * literal_10,
+      proc->MakeNode<Literal>(SourceInfo(), Value(UBits(10, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Next * next2,
+      proc->MakeNode<Next>(SourceInfo(), st_elem, literal_10,
+                           /*predicate=*/std::nullopt, /*label=*/std::nullopt));
+
+  EXPECT_THAT(
+      proc->next_values(st_elem),
+      UnorderedElementsAre(m::Next(m::StateRead("st"), m::Add()), next2));
+  EXPECT_THAT(
+      proc->next_values(st_read),
+      UnorderedElementsAre(m::Next(m::StateRead("st"), m::Add()), next2));
+
+  XLS_ASSERT_OK(proc->RemoveNode(next2));
+  EXPECT_THAT(proc->next_values(st_elem),
+              ElementsAre(m::Next(m::StateRead("st"), m::Add())));
+  EXPECT_THAT(proc->next_values(st_read),
+              ElementsAre(m::Next(m::StateRead("st"), m::Add())));
+}
+
 TEST_F(ProcTest, RemoveStateThatStillHasUse) {
   // Don't call CreatePackage which creates a VerifiedPackage because we
   // intentionally create a malformed proc.
