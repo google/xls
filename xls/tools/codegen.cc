@@ -361,6 +361,7 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options.emit_sv_types(p.emit_sv_types());
   }
 
+  options.set_max_trace_verbosity(p.max_trace_verbosity());
   options.set_simulation_macro_name(p.simulation_macro_name());
   options.set_assertion_macro_names(std::vector<std::string>(
       p.assertion_macro_names().begin(), p.assertion_macro_names().end()));
