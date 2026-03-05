@@ -331,6 +331,18 @@ struct xls_bits* xls_bits_umul(const struct xls_bits* lhs,
 struct xls_bits* xls_bits_smul(const struct xls_bits* lhs,
                                const struct xls_bits* rhs);
 
+struct xls_bits* xls_bits_udiv(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs);
+
+struct xls_bits* xls_bits_sdiv(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs);
+
+struct xls_bits* xls_bits_umod(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs);
+
+struct xls_bits* xls_bits_smod(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs);
+
 // Returns a new `bits[1]:0` XLS value which the caller must free.
 struct xls_value* xls_value_make_false();
 

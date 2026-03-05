@@ -789,6 +789,46 @@ struct xls_bits* xls_bits_smul(const struct xls_bits* lhs,
   return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
 }
 
+struct xls_bits* xls_bits_udiv(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::UDiv(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_sdiv(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::SDiv(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_umod(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::UMod(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_smod(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::SMod(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
 char* xls_bits_to_debug_string(const struct xls_bits* bits) {
   CHECK(bits != nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);

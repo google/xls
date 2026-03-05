@@ -15,6 +15,7 @@ xls_bits_or
 xls_bits_rope_append_bits
 xls_bits_rope_free
 xls_bits_rope_get_bits
+xls_bits_sdiv
 xls_bits_sge
 xls_bits_sgt
 xls_bits_shift_left_logical
@@ -22,6 +23,7 @@ xls_bits_shift_right_arithmetic
 xls_bits_shift_right_logical
 xls_bits_sle
 xls_bits_slt
+xls_bits_smod
 xls_bits_smul
 xls_bits_sub
 xls_bits_to_bytes
@@ -29,10 +31,12 @@ xls_bits_to_debug_string
 xls_bits_to_int64
 xls_bits_to_string
 xls_bits_to_uint64
+xls_bits_udiv
 xls_bits_uge
 xls_bits_ugt
 xls_bits_ule
 xls_bits_ult
+xls_bits_umod
 xls_bits_umul
 xls_bits_width_slice
 xls_bits_xor
