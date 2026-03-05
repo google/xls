@@ -118,6 +118,30 @@ proc proc1(my_state: (), init={()}) {
 }
 """
 
+VTRACE_IR = """package vtrace_fmt
+
+fn vtrace_fmt(__token: token id=1, __activated: bits[1] id=2, a: bits[32] id=3, b: bits[32] id=4) -> (token, bits[32]) {
+  VERBOSITY_LEV_0: bits[32] = literal(value=0, id=5, pos=[(0,14,24)])
+  VERBOSITY_LEV_1: bits[32] = literal(value=2, id=6, pos=[(0,15,24)])
+  VERBOSITY_LEV_2: bits[32] = literal(value=4, id=7, pos=[(0,16,24)])
+  VERBOSITY_LEV_3: bits[32] = literal(value=8, id=8, pos=[(0,17,24)])
+  VERBOSITY_LEV_4: bits[32] = literal(value=16, id=9, pos=[(0,18,24)])
+  VERBOSITY_LEV_5: bits[32] = literal(value=32, id=10, pos=[(0,19,24)])
+  VERBOSITY_LEV_6: bits[32] = literal(value=64, id=11, pos=[(0,20,24)])
+  trace.12: token = trace(__token, __activated, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_0], id=12)
+  trace.13: token = trace(__token, __activated, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_1], verbosity=2, id=13)
+  trace.14: token = trace(__token, __activated, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_2], verbosity=4, id=14)
+  trace.15: token = trace(__token, __activated, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_3], verbosity=8, id=15)
+  trace.16: token = trace(__token, __activated, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_4], verbosity=16, id=16)
+  trace.17: token = trace(__token, __activated, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_5], verbosity=32, id=17)
+  trace.18: token = trace(__token, __activated, format="Verbosity level {:d}", data_operands=[VERBOSITY_LEV_6], verbosity=64, id=18)
+  trace.19: token = trace(__token, __activated, format="Trace verification.", data_operands=[], id=19)
+  after_all.21: token = after_all(trace.12, trace.13, trace.14, trace.15, trace.16, trace.17, trace.18, trace.19, id=21)
+  add.20: bits[32] = add(a, b, id=20, pos=[(0,31,4)])
+  ret tuple.22: (token, bits[32]) = tuple(after_all.21, add.20, id=22)
+}
+"""
+
 # Requires II of at least 2.
 HIGH_II_PROC_IR = """package test
 
@@ -331,6 +355,28 @@ class CodeGenMainTest(parameterized.TestCase):
         ir_file.full_path,
     ]).decode('utf-8')
     self._compare_to_golden(verilog)
+
+  def test_vtrace_verbosity(self):
+    ir_file = self.create_tempfile(content=VTRACE_IR)
+    verilog = subprocess.check_output([
+        CODEGEN_MAIN_PATH,
+        "--generator=pipeline",
+        "--delay_model=asap7",
+        "--pipeline_stages=2",
+        "--reset=rst",
+        "--max_trace_verbosity=4",
+        "--alsologtostderr",
+        "--top=vtrace_fmt",
+        ir_file.full_path,
+    ]).decode("utf-8")
+    self.assertIn('Verbosity level %d", p1_VERBOSITY_LEV_0_comb', verilog)
+    self.assertIn('Verbosity level %d", p1_VERBOSITY_LEV_1_comb', verilog)
+    self.assertIn('Verbosity level %d", p1_VERBOSITY_LEV_2_comb', verilog)
+    self.assertIn("Trace verification.", verilog)
+    self.assertNotIn('Verbosity level %d", p1_VERBOSITY_LEV_3_comb', verilog)
+    self.assertNotIn('Verbosity level %d", p1_VERBOSITY_LEV_4_comb', verilog)
+    self.assertNotIn('Verbosity level %d", p1_VERBOSITY_LEV_5_comb', verilog)
+    self.assertNotIn('Verbosity level %d", p1_VERBOSITY_LEV_6_comb', verilog)
 
   def test_proc_verilog_port_default_suffix(self):
     ir_file = self.create_tempfile(content=NEG_PROC_IR)
