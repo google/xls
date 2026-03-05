@@ -12,7 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for xls.dev_tools.dump_call_trace."""
+"""Tests for xls.dev_tools.dump_call_trace.
+
+Tests which check that the dump_call_trace tool produces the correct output."""
 
 import os
 import re
