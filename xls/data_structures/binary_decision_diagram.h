@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -123,6 +124,16 @@ class BinaryDecisionDiagram {
   // Returns the number of nodes in the graph.
   int64_t size() const { return nodes_size_; }
   int64_t capacity() const { return nodes_.capacity(); }
+  // Get a (very) rough approximation of how much memory is being used by the
+  // BDD. This can be used to decide to perform a GC to try to avoid using too
+  // much memory.
+  int64_t approximate_memory_use() const {
+    return nodes_.capacity() * sizeof(decltype(nodes_)::value_type) +
+           variable_base_nodes_.capacity() *
+               sizeof(decltype(variable_base_nodes_)::value_type) +
+           node_map_.capacity() * sizeof(decltype(node_map_)::value_type) +
+           ite_map_.capacity() * sizeof(decltype(ite_map_)::value_type);
+  }
 
   // Returns the number of variables in the graph.
   int64_t variable_count() const { return variable_base_nodes_.size(); }

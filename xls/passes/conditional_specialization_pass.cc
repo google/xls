@@ -927,6 +927,9 @@ absl::StatusOr<bool> EliminateNoopNext(FunctionBase* f) {
   return !to_remove.empty();
 }
 
+static constexpr int64_t kBddGcRate = 10000;
+static constexpr int64_t kBddGcThreshold = 5'000'000'000;  // 5GB
+
 }  // namespace
 
 absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
@@ -938,9 +941,11 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   }
 
   UnionQueryEngine query_engine;
+  std::optional<BddQueryEngine*> bdd_query_engine;
   if (use_bdd_) {
-    query_engine = UnionQueryEngine::Of(
-        StatelessQueryEngine(), context.SharedQueryEngine<BddQueryEngine>(f));
+    bdd_query_engine = context.SharedQueryEngine<BddQueryEngine>(f);
+    query_engine =
+        UnionQueryEngine::Of(StatelessQueryEngine(), *bdd_query_engine);
   } else {
     query_engine = UnionQueryEngine::Of(StatelessQueryEngine());
   }
@@ -953,10 +958,24 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   std::optional<absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>
       affected_by;
 
+  int64_t time_since_last_gc = 0;
   // Iterate backwards through the graph because we add conditions at the case
   // arm operands of selects and propagate them upwards through the expressions
   // which compute the case arm.
   for (Node* node : context.ReverseTopoSort(f)) {
+    // This is adding a lot of bdd info. Run GC between nodes on the bdd query
+    // engine (if needed) to avoid having it grow to consume a huge amount of
+    // memory. Do it not more than every 10000 nodes to avoid hammering it too
+    // much. Also don't bother if the approximate memory use is below 5GB.
+    // NB The GC is likely to not actually reduce the memory use much at all
+    // (since we don't bother trying to recover the memory from dead nodes very
+    // hard) but it should ensure that it grows at a much slower rate.
+    if (use_bdd_ && time_since_last_gc++ >= kBddGcRate &&
+        (*bdd_query_engine)->bdd().approximate_memory_use() >=
+            kBddGcThreshold) {
+      time_since_last_gc = 0;
+      XLS_RETURN_IF_ERROR((*bdd_query_engine)->MaybePerformGarbageCollection());
+    }
     ConditionSet& set = condition_map.GetNodeConditionSet(node);
     VLOG(4) << absl::StreamFormat("Considering node %s: %s", node->GetName(),
                                   set.ToString());
