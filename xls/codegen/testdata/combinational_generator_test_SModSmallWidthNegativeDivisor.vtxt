@@ -1,0 +1,14 @@
+module SModSmallWidthNegativeDivisor(
+  input wire [3:0] x,
+  input wire [3:0] y,
+  output wire [3:0] out
+);
+  function automatic [3:0] smod_4b (input reg [3:0] lhs, input reg [3:0] rhs);
+    begin
+      smod_4b = rhs == 4'h0 ? 4'h0 : $unsigned($signed(lhs) % $signed(rhs));
+    end
+  endfunction
+  wire [3:0] smod_6;
+  assign smod_6 = smod_4b(x, y);
+  assign out = smod_6;
+endmodule
