@@ -89,6 +89,9 @@ ABSL_FLAG(bool, trace_calls, false,
 ABSL_FLAG(int64_t, max_ticks, 100000,
           "If non-zero, the maximum number of ticks to execute on any proc. If "
           "exceeded an error is returned.");
+ABSL_FLAG(int64_t, max_trace_verbosity, 0,
+          "Maximum verbosity for traces. Traces with higher verbosity are "
+          "stripped from the output. 0 by default.");
 ABSL_FLAG(std::string, evaluator, "dslx-interpreter",
           "What evaluator should be used to actually execute the dslx test. "
           "'dslx-interpreter' is the DSLX bytecode interpreter. 'ir-jit' is "
@@ -169,6 +172,11 @@ absl::StatusOr<TestResult> RealMain(
                                    : TypeInferenceVersion::kVersion1)
           : std::nullopt;
 
+  std::optional<int64_t> max_trace_verbosity =
+      absl::GetFlag(FLAGS_max_trace_verbosity) == 0
+          ? std::nullopt
+          : std::optional<int64_t>(absl::GetFlag(FLAGS_max_trace_verbosity));
+
   RealFilesystem vfs;
 
   XLS_ASSIGN_OR_RETURN(std::string program,
@@ -243,6 +251,7 @@ absl::StatusOr<TestResult> RealMain(
       .trace_channels = trace_channels,
       .trace_calls = trace_calls,
       .max_ticks = max_ticks,
+      .max_trace_verbosity = max_trace_verbosity,
   };
 
   std::unique_ptr<AbstractTestRunner> test_runner = GetTestRunner(evaluator);

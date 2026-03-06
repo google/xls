@@ -100,6 +100,18 @@ class BytecodeInterpreterOptions {
   }
   std::optional<int64_t> max_ticks() const { return max_ticks_; }
 
+  // Store verbosity level from the `max_trace_verbosity` flag. Used to filter
+  // `vtrace` messages if their verbosity level is set higher than the verbosity
+  // level passed by the flag.
+  BytecodeInterpreterOptions& max_trace_verbosity(
+      std::optional<int64_t> value) {
+    max_trace_verbosity_ = value;
+    return *this;
+  }
+  std::optional<int64_t> max_trace_verbosity() const {
+    return max_trace_verbosity_;
+  }
+
   void set_validate_final_stack_depth(bool enabled) {
     validate_final_stack_depth_ = enabled;
   }
@@ -123,6 +135,7 @@ class BytecodeInterpreterOptions {
   bool trace_channels_ = false;
   bool trace_calls_ = false;
   std::optional<int64_t> max_ticks_;
+  std::optional<int64_t> max_trace_verbosity_;
   bool validate_final_stack_depth_ = true;
   FormatPreference format_preference_ = FormatPreference::kDefault;
 };
