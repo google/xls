@@ -78,9 +78,21 @@ bool StatelessQueryEngine::IsAllOnes(Node* node) const {
 std::optional<SharedLeafTypeTree<TernaryVector>>
 StatelessQueryEngine::GetTernary(Node* node) const {
   if (node->Is<Literal>()) {
+    const Value& value = node->As<Literal>()->value();
+
+    if (value.IsBits()) {
+      return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+                 node->GetType(), ternary_ops::BitsToTernary(value.bits()))
+          .AsShared();
+    }
+    if (value.IsToken()) {
+      return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+                 node->GetType(), TernaryVector())
+          .AsShared();
+    }
+
     LeafTypeTree<Value> values =
-        ValueToLeafTypeTree(node->As<Literal>()->value(), node->GetType())
-            .value();
+        ValueToLeafTypeTree(value, node->GetType()).value();
     return leaf_type_tree::Map<TernaryVector, Value>(
                values.AsView(),
                [](const Value& v) -> TernaryVector {
