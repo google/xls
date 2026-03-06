@@ -879,7 +879,8 @@ TEST_F(VerifierTest, NextNodeWithWrongType) {
   // making the node.
   EXPECT_THAT(pb.function()->MakeNode<Next>(SourceInfo(), s.node(),
                                             // This shouldn't verify!
-                                            lit0_width_1.node(), pred.node()),
+                                            lit0_width_1.node(), pred.node(),
+                                            /*label=*/std::nullopt),
               StatusIs(absl::StatusCode::kInternal,
                        AllOf(HasSubstr("to have type bits[32]"),
                              HasSubstr("has type bits[1]"))));
@@ -914,10 +915,12 @@ TEST_F(VerifierTest, NextNodeWithWrongTypePredicate) {
   XLS_ASSERT_OK(pb.function()
                     ->MakeNode<Next>(SourceInfo(), s.node(),
                                      // This shouldn't verify!
-                                     lit0.node(), pred.node())
+                                     lit0.node(), pred.node(),
+                                     /*label=*/std::nullopt)
                     .status());
   EXPECT_THAT(pb.function()->MakeNode<Next>(SourceInfo(), s.node(),
-                                            s_plus_one.node(), not_pred.node()),
+                                            s_plus_one.node(), not_pred.node(),
+                                            /*label=*/std::nullopt),
               StatusIs(absl::StatusCode::kInternal,
                        AllOf(HasSubstr("to have bit count 1:"),
                              HasSubstr("had 32 bits"))));

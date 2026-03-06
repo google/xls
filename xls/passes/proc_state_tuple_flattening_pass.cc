@@ -137,6 +137,7 @@ struct NextValue {
   SourceInfo loc;
   Node* value;
   std::optional<Node*> predicate;
+  std::optional<std::string> label;
 };
 struct AbstractStateElement {
   std::string name;
@@ -172,13 +173,13 @@ absl::Status ReplaceProcState(Proc* proc,
       read->state_element()->SetNonSynthesizable();
     }
     for (const NextValue& next_value : element.next_values) {
-      XLS_RETURN_IF_ERROR(
-          proc->MakeNodeWithName<Next>(next_value.loc,
-                                       /*state_read=*/read,
-                                       /*value=*/next_value.value,
-                                       /*predicate=*/next_value.predicate,
-                                       next_value.name)
-              .status());
+      XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
+                                  next_value.loc,
+                                  /*state_read=*/read,
+                                  /*value=*/next_value.value,
+                                  /*predicate=*/next_value.predicate,
+                                  /*label=*/next_value.label, next_value.name)
+                              .status());
       XLS_RETURN_IF_ERROR(element.placeholder->ReplaceUsesWith(read));
     }
   }

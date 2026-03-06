@@ -48,6 +48,8 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::testing::Optional;
+using ::testing::StrEq;
 using ::testing::UnorderedElementsAre;
 
 class NextValueOptimizationPassTest : public IrTestBase {
@@ -109,6 +111,40 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
               ElementsAre(m::Next(m::StateRead(), m::Literal(3))));
+}
+
+// Clarify that the label should be propagated through priority select.
+TEST_F(NextValueOptimizationPassTest, NextValuesWithLabels) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 3)));
+  BValue priority_select = pb.PrioritySelect(
+      x,
+      std::vector({pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
+                   pb.Literal(UBits(2, 3))}),
+      pb.Literal(UBits(0, 3)));
+  pb.Next(/*state_read=*/x, /*value=*/priority_select,
+          /*pred=*/std::nullopt, "label");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                                /*include_state=*/true);
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::Next(m::StateRead(), m::Literal(2),
+                  m::Eq(m::BitSlice(m::StateRead(), 0, 1), m::Literal(1)),
+                  Optional(StrEq("label"))),
+          m::Next(m::StateRead(), m::Literal(1),
+                  m::Eq(m::BitSlice(m::StateRead(), 0, 2), m::Literal(2)),
+                  Optional(StrEq("label"))),
+          m::Next(m::StateRead(), m::Literal(2),
+                  m::Eq(m::BitSlice(m::StateRead(), 0, 3), m::Literal(4)),
+                  Optional(StrEq("label"))),
+          m::Next(m::StateRead(), m::Literal(0),
+                  m::Eq(m::StateRead(), m::Literal(0)),
+                  Optional(StrEq("label")))));
 }
 
 TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {

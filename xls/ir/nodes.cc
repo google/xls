@@ -959,11 +959,13 @@ Param::Param(const SourceInfo& loc, Type* type, std::string_view name,
 }
 
 StateRead::StateRead(const SourceInfo& loc, StateElement* state_element,
-                     std::optional<Node*> predicate, std::string_view name,
+                     std::optional<Node*> predicate,
+                     std::optional<std::string> label, std::string_view name,
                      FunctionBase* function)
     : Node(Op::kStateRead, state_element->type(), loc, name, function),
       state_element_(state_element),
-      has_predicate_(predicate.has_value()) {
+      has_predicate_(predicate.has_value()),
+      label_(std::move(label)) {
   CHECK(IsOpClass<StateRead>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `StateRead`.";
   AddOptionalOperand(predicate);
@@ -981,11 +983,12 @@ bool StateRead::IsDefinitelyEqualTo(const Node* other) const {
 }
 
 Next::Next(const SourceInfo& loc, Node* state_read, Node* value,
-           std::optional<Node*> predicate, std::string_view name,
-           FunctionBase* function)
+           std::optional<Node*> predicate, std::optional<std::string> label,
+           std::string_view name, FunctionBase* function)
     : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
            function),
-      has_predicate_(predicate.has_value()) {
+      has_predicate_(predicate.has_value()),
+      label_(std::move(label)) {
   CHECK(IsOpClass<Next>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Next`.";
   AddOperand(state_read);
@@ -1442,7 +1445,7 @@ absl::StatusOr<Node*> StateRead::CloneInNewFunction(
   return new_function->MakeNodeWithName<StateRead>(
       loc(), new_function->AsProcOrDie()->GetStateElement(idx),
       new_operands.empty() ? std::nullopt : std::make_optional(new_operands[0]),
-      GetNameView());
+      label(), GetNameView());
 }
 
 absl::StatusOr<Node*> Next::CloneInNewFunction(
@@ -1452,7 +1455,7 @@ absl::StatusOr<Node*> Next::CloneInNewFunction(
       loc(), new_operands[0], new_operands[1],
       new_operands.size() > 2 ? std::make_optional(new_operands[2])
                               : std::nullopt,
-      GetNameView());
+      label(), GetNameView());
 }
 
 bool Select::AllCases(const std::function<bool(Node*)>& p) const {

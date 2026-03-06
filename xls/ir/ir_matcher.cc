@@ -623,6 +623,11 @@ bool StateReadMatcher::MatchAndExplain(
     }
     return false;
   }
+  if (label_.has_value() &&
+      !label_->MatchAndExplain(node->As<xls::StateRead>()->label(), listener)) {
+    *listener << " has incorrect label";
+    return false;
+  }
   return true;
 }
 
@@ -633,6 +638,36 @@ void StateReadMatcher::DescribeTo(::std::ostream* os) const {
     ss << "state_element=\"";
     state_element_name_->DescribeTo(&ss);
     ss << '"';
+    additional_fields.push_back(ss.str());
+  }
+  if (label_.has_value()) {
+    std::stringstream ss;
+    ss << "label=";
+    label_->DescribeTo(&ss);
+    additional_fields.push_back(ss.str());
+  }
+  DescribeToHelper(os, additional_fields);
+}
+
+bool NextMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (label_.has_value() &&
+      !label_->MatchAndExplain(node->As<xls::Next>()->label(), listener)) {
+    *listener << " has incorrect label";
+    return false;
+  }
+  return true;
+}
+
+void NextMatcher::DescribeTo(::std::ostream* os) const {
+  std::vector<std::string> additional_fields;
+  if (label_.has_value()) {
+    std::stringstream ss;
+    ss << "label=";
+    label_->DescribeTo(&ss);
     additional_fields.push_back(ss.str());
   }
   DescribeToHelper(os, additional_fields);
