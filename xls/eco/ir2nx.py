@@ -251,11 +251,28 @@ class IrParser:
             line (str): The line representing the top proc in the IR format.
         """
         line = line.split("(", 1)[1]
-        line, inits = line.split("init=")
-        state_elements = self._split_params(line)
-        state_elements = zip(
-            state_elements, self._split_inits(inits[1:-4]), strict=True
-        )
+        line, inits = line.split("init=", 1)
+        state_elements = self._split_params(line.rstrip(", "))
+
+        if not inits.startswith("{"):
+            raise ValueError(f"Expected proc init list to start with '{{': {inits}")
+
+        depth = 0
+        end_index = None
+        for index, char in enumerate(inits):
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    end_index = index
+                    break
+
+        if end_index is None:
+            raise ValueError(f"Failed to parse proc init list: {inits}")
+
+        init_values = self._split_inits(inits[1:end_index])
+        state_elements = zip(state_elements, init_values, strict=True)
         for index, state_element in enumerate(state_elements):
             self._parse_state_element(state_element, index)
 
