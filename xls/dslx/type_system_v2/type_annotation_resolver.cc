@@ -67,6 +67,10 @@ namespace {
 // already resolved.
 class NeedsResolutionDetector : public AstNodeVisitorWithDefault {
  public:
+  absl::Status HandleConstMatchTypeAnnotation(
+      const ConstMatchTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
   absl::Status HandleTypeRefTypeAnnotation(
       const TypeRefTypeAnnotation*) override {
     return MarkNeedsResolution();
@@ -537,6 +541,37 @@ class StatefulResolver : public TypeAnnotationResolver {
                                     file_table_);
   }
 
+  absl::StatusOr<const TypeAnnotation*> ResolveConstMatchType(
+      std::optional<const ParametricContext*> parametric_context,
+      std::optional<const AstNode*> context_node,
+      const ConstMatchTypeAnnotation* annotation, TypeAnnotationFilter filter) {
+    if (!context_node.has_value()) {
+      return TypeInferenceErrorStatus(
+          annotation->span(), /*type=*/nullptr,
+          "context_node is required for ResolveConstMatchType()",
+          file_table_);
+    }
+
+    const Match* match = absl::down_cast<const Match*>(context_node.value());
+
+    TypeInfo * ti;
+    if (parametric_context.has_value()) {
+      ti = (*parametric_context)->type_info();
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          ti,
+          import_data_.GetRootTypeInfoForNode(match));
+    }
+
+    XLS_ASSIGN_OR_RETURN(uint32_t arm_id, ti->GetArmSelectionResult(match));
+
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<const TypeAnnotation*> final,
+        ResolveAndUnifyTypeAnnotationsForNode(
+            parametric_context, match->arms()[arm_id]->expr(), filter));
+    return *final;
+  }
+
   // Converts `member_type` into a regular `TypeAnnotation` that expresses the
   // type of the given struct member independently of the struct type. For
   // example, if `member_type` refers to `SomeStruct.foo`, and the type
@@ -902,6 +937,14 @@ class StatefulResolver : public TypeAnnotationResolver {
           parametric_context_(parametric_context),
           context_node_(context_node),
           filter_(filter) {}
+
+    absl::Status HandleConstMatchTypeAnnotation(
+        const ConstMatchTypeAnnotation* annotation) override {
+      XLS_ASSIGN_OR_RETURN(result_, resolver_.ResolveConstMatchType(
+                                        parametric_context_, context_node_,
+                                        annotation, filter_));
+      return absl::OkStatus();
+    }
 
     absl::Status HandleTypeVariableTypeAnnotation(
         const TypeVariableTypeAnnotation* variable_type_annotation) override {
