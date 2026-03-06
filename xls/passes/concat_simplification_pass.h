@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_CONCAT_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_CONCAT_SIMPLIFICATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -190,6 +192,10 @@ class ConcatSimplificationPass : public OptimizationFunctionBasePass {
   explicit ConcatSimplificationPass()
       : OptimizationFunctionBasePass(kName, "Concat simplification") {}
   ~ConcatSimplificationPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

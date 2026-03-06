@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -96,6 +98,12 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f,
 }
 
 }  // namespace
+
+std::optional<std::string> BddCsePass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

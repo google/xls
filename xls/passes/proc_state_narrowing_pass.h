@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_PROC_STATE_NARROWING_PASS_H_
 #define XLS_PASSES_PROC_STATE_NARROWING_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -126,6 +128,10 @@ class ProcStateNarrowingPass : public OptimizationProcPass {
   ProcStateNarrowingPass()
       : OptimizationProcPass(kName, "Proc State Narrowing") {}
   ~ProcStateNarrowingPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(

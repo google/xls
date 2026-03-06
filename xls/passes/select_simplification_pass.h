@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_SELECT_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_SELECT_SIMPLIFICATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -188,6 +190,10 @@ class SelectSimplificationPassBase : public OptimizationFunctionBasePass {
                                         bool with_range_analysis = false)
       : OptimizationFunctionBasePass(short_name, name),
         range_analysis_(with_range_analysis) {}
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

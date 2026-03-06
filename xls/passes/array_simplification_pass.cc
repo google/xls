@@ -1699,6 +1699,12 @@ absl::StatusOr<SimplifyResult> SimplifySelect(Node* select,
 
 }  // namespace
 
+std::optional<std::string> ArraySimplificationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return absl::StrFormat("%s(O%d)", short_name(), options.opt_level);
+}
+
 absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {

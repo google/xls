@@ -15,6 +15,8 @@
 #ifndef XLS_DEV_TOOLS_DEV_PASSES_REMOVE_ASSERT_AND_COVER_PASS_H_
 #define XLS_DEV_TOOLS_DEV_PASSES_REMOVE_ASSERT_AND_COVER_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -22,6 +24,7 @@
 #include "xls/ir/node.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+
 namespace xls {
 
 class AssertAndCoverRemovalPass : public OptimizationFunctionBasePass {
@@ -29,6 +32,11 @@ class AssertAndCoverRemovalPass : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "assert_and_cover_removal";
   AssertAndCoverRemovalPass()
       : OptimizationFunctionBasePass(kName, "Assert and cover removal") {}
+  ~AssertAndCoverRemovalPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

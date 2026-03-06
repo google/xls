@@ -20,6 +20,7 @@
 #include <functional>
 #include <limits>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -1055,6 +1056,12 @@ absl::StatusOr<bool> SimplifyBitSliceUpdate(BitSliceUpdate* update,
 }
 
 }  // namespace
+
+std::optional<std::string> BitSliceSimplificationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return absl::StrFormat("%s(O%d)", short_name(), options.opt_level);
+}
 
 absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

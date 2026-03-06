@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_LUT_CONVERSION_PASS_H_
 #define XLS_PASSES_LUT_CONVERSION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -161,6 +163,10 @@ class LutConversionPass : public OptimizationFunctionBasePass {
   explicit LutConversionPass()
       : OptimizationFunctionBasePass(kName, "LUT Conversion") {}
   ~LutConversionPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

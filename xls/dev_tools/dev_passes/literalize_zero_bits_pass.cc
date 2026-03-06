@@ -14,6 +14,8 @@
 
 #include "xls/dev_tools/dev_passes/literalize_zero_bits_pass.h"
 
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -27,6 +29,13 @@
 #include "xls/passes/pass_base.h"
 
 namespace xls {
+
+std::optional<std::string> LiteralizeZeroBits::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
+
 absl::StatusOr<bool> LiteralizeZeroBits::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {

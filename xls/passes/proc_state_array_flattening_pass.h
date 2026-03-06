@@ -16,6 +16,8 @@
 #define XLS_PASSES_PROC_STATE_ARRAY_FLATTENING_PASS_H_
 
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -156,6 +158,10 @@ class ProcStateArrayFlatteningPass : public OptimizationProcPass {
   ProcStateArrayFlatteningPass()
       : OptimizationProcPass(kName, "Proc State Array Flattening") {}
   ~ProcStateArrayFlatteningPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(

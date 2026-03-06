@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_PROC_STATE_TUPLE_FLATTENING_PASS_H_
 #define XLS_PASSES_PROC_STATE_TUPLE_FLATTENING_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -36,6 +38,10 @@ class ProcStateTupleFlatteningPass : public OptimizationProcPass {
   ProcStateTupleFlatteningPass()
       : OptimizationProcPass(kName, "Proc State Tuple Flattening") {}
   ~ProcStateTupleFlatteningPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(

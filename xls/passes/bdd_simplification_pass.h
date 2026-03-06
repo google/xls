@@ -15,9 +15,12 @@
 #ifndef XLS_PASSES_BDD_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_BDD_SIMPLIFICATION_PASS_H_
 
-#include <string_view>
+#include <optional>
+#include <string>
+#include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -90,6 +93,10 @@ class BddSimplificationPass : public OptimizationFunctionBasePass {
   explicit BddSimplificationPass()
       : OptimizationFunctionBasePass(kName, "BDD-based Simplification") {}
   ~BddSimplificationPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   // Run all registered passes in order of registration.

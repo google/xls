@@ -16,6 +16,8 @@
 #define XLS_PASSES_NEXT_VALUE_OPTIMIZATION_PASS_H_
 
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -95,6 +97,10 @@ class NextValueOptimizationPass : public OptimizationProcPass {
       : OptimizationProcPass(kName, "Next Value Optimization"),
         max_split_depth_(max_split_depth) {}
   ~NextValueOptimizationPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   const int64_t max_split_depth_;

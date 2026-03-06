@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -144,6 +145,10 @@ class BooleanSimplificationPass : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "bool_simp";
   BooleanSimplificationPass()
       : OptimizationFunctionBasePass(kName, "boolean simplification") {}
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

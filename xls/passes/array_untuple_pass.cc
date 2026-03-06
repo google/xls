@@ -597,7 +597,14 @@ class UntupleVisitor : public DfsVisitorWithDefault {
   absl::flat_hash_map<Node*, std::vector<Node*>> components_;
   bool changed_ = false;
 };
+
 }  // namespace
+
+std::optional<std::string> ArrayUntuplePass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> ArrayUntuplePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

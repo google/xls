@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_NON_SYNTH_SEPARATION_PASS_H_
 #define XLS_PASSES_NON_SYNTH_SEPARATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -162,6 +164,10 @@ class NonSynthSeparationPass : public OptimizationPass {
   explicit NonSynthSeparationPass()
       : OptimizationPass(kName, "Non-Synthesizable Separation") {}
   ~NonSynthSeparationPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,

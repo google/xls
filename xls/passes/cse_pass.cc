@@ -23,6 +23,8 @@
 #include <cstring>
 #include <iterator>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -456,6 +458,13 @@ absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext& context,
   }
 
   return true;
+}
+
+std::optional<std::string> CsePass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return absl::StrFormat("%s(%s)", short_name(),
+                         common_literals_ ? "literals" : "no_literals");
 }
 
 absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(

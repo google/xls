@@ -17,6 +17,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -137,6 +138,12 @@ absl::Status RemoveSignBits(StateRead* state_read, const Value& orig_init_value,
 }
 
 }  // namespace
+
+std::optional<std::string> ProcStateNarrowingPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 // TODO(allight): Technically we'd probably want to run this whole pass to fixed
 // point (incorporating the results into later runs) to get optimal results.

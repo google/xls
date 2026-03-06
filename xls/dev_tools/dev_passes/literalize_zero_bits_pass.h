@@ -15,12 +15,15 @@
 #ifndef XLS_DEV_TOOLS_DEV_PASSES_LITERALIZE_ZERO_BITS_PASS_H_
 #define XLS_DEV_TOOLS_DEV_PASSES_LITERALIZE_ZERO_BITS_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+
 namespace xls {
 
 class LiteralizeZeroBits final : public OptimizationFunctionBasePass {
@@ -28,6 +31,11 @@ class LiteralizeZeroBits final : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "literalize_zero_bits";
   LiteralizeZeroBits()
       : OptimizationFunctionBasePass(kName, "Literalize zero bits") {}
+  ~LiteralizeZeroBits() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

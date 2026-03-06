@@ -2387,6 +2387,12 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
 }  // namespace
 
+std::optional<std::string> SelectSimplificationPassBase::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return absl::StrFormat("%s(O%d)", short_name(), options.opt_level);
+}
+
 absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {

@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_PROC_STATE_OPTIMIZATION_PASS_H_
 #define XLS_PASSES_PROC_STATE_OPTIMIZATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -190,6 +192,10 @@ class ProcStateOptimizationPass : public OptimizationProcPass {
   ProcStateOptimizationPass()
       : OptimizationProcPass(kName, "Proc State Optimization") {}
   ~ProcStateOptimizationPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(

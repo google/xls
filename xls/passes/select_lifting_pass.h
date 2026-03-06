@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_SELECT_LIFTING_PASS_H_
 #define XLS_PASSES_SELECT_LIFTING_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -155,6 +157,12 @@ class SelectLiftingPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "Select Lifting") {}
 
   ~SelectLiftingPass() override = default;
+
+  bool IsIdempotent() const override { return true; }
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

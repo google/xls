@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <iterator>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -751,6 +752,12 @@ absl::StatusOr<bool> StrengthReduceNode(Node* node,
 }
 
 }  // namespace
+
+std::optional<std::string> StrengthReductionPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return absl::StrFormat("%s(O%d)", short_name(), options.opt_level);
+}
 
 absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

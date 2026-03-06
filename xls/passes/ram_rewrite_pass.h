@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -152,6 +153,12 @@ class RamRewritePass : public OptimizationPass {
   explicit RamRewritePass() : OptimizationPass(kName, "RAM Rewrite") {}
 
   ~RamRewritePass() override = default;
+
+  bool IsIdempotent() const override { return true; }
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,

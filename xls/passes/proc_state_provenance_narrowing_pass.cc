@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -247,6 +248,13 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
 }
 
 }  // namespace
+
+std::optional<std::string>
+ProcStateProvenanceNarrowingPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,

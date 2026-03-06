@@ -138,6 +138,12 @@ class RemoveAssertsPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(
             "remove_asserts", "remove asserts for z3 equivalence checking") {}
 
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return std::string(short_name());
+  }
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

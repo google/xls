@@ -26,7 +26,7 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -188,6 +188,10 @@ class PassResults {
   const PassInvocation& root_invocation() const { return *root_invocation_; }
   int64_t total_invocations() const { return total_invocations_; }
   int64_t finished_invocations() const { return finished_invocations_; }
+
+  // Set of invocation signatures for passes that have been run and are known
+  // to not change the IR since the last time the IR was changed.
+  absl::flat_hash_set<std::string> known_unchanged_passes;
 
  private:
   // This vector contains and entry for each invocation of each pass.
@@ -353,6 +357,31 @@ class PassBase {
       return false;
     }
 
+    std::optional<std::string> invocation_signature =
+        GetInvocationSignature(options, context...);
+    // If debugging, we verify that the pass really doesn't change anything if
+    // we think it's known-unchanged. Otherwise, we can skip it.
+#ifndef DEBUG
+    if (invocation_signature.has_value() &&
+        results->known_unchanged_passes.contains(*invocation_signature)) {
+      VLOG(1) << "Skipping known-unchanged pass: " << short_name();
+
+      // Record the no-op invocation so that we can still track pass numbers
+      // and such as if the pass had actually run.
+      PassInvocation& invocation = results->PushInvocation(base_short_name);
+      RecordPassEntry(base_short_name);
+      RecordPassAnnotation(pass_profile::kNodeCountBefore, ir->GetNodeCount());
+      invocation.metrics() = ir->transform_metrics();
+      invocation.run_duration() = absl::ZeroDuration();
+      invocation.set_ir_changed(false);
+      RecordPassAnnotation(pass_profile::kNodeCountAfter, ir->GetNodeCount());
+      ExitPass(false);
+      results->PopInvocation();
+
+      return false;
+    }
+#endif
+
     ScopedPassInvocation invocation(results, base_short_name, ir);
     VLOG(2) << absl::StreamFormat("Running %s [pass #%d]", long_name(),
                                   invocation->pass_number());
@@ -423,11 +452,57 @@ class PassBase {
       }
     }
 #endif
+
+#ifdef DEBUG
+    if (invocation_signature.has_value() &&
+        results->known_unchanged_passes.contains(*invocation_signature) &&
+        changed) {
+      return absl::InternalError(
+          absl::StrFormat("Pass %s appeared redundant, but IR is "
+                          "changed:\n\n[Before]\n%s  !=\n[after]\n%s",
+                          short_name(), ir_before, ir_after));
+    }
+#endif
+
+    if (invocation_signature.has_value()) {
+      if (invocation.changed()) {
+        // This pass changed the IR, so we clear the known unchanged passes.
+        results->known_unchanged_passes.clear();
+        if (IsIdempotent()) {
+          // If the pass is idempotent, we can mark it as known unchanged
+          // for next time, since running it twice in a row is the same as
+          // running it once.
+          results->known_unchanged_passes.insert(
+              *std::move(invocation_signature));
+        }
+      } else {
+        // This pass did not change the IR, so it will have no effect until the
+        // IR changes.
+        results->known_unchanged_passes.insert(
+            *std::move(invocation_signature));
+      }
+    } else if (invocation.changed()) {
+      results->known_unchanged_passes.clear();
+    }
+
     return invocation.changed();
   }
 
   // Returns true if this is a compound pass.
   virtual bool IsCompound() const { return false; }
+
+  // Returns true if this pass is idempotent (i.e., if it is run twice in a
+  // row without the IR changing in between, the second run will not change the
+  // IR).
+  virtual bool IsIdempotent() const { return false; }
+
+  // Returns a signature of the pass invocation, including any options that
+  // might affect its behavior (like opt_level). If a pass does not have a
+  // signature, it cannot be skipped even if it is idempotent.
+  virtual std::optional<std::string> GetInvocationSignature(
+      const OptionsT& options, ContextT&... context) const {
+    return std::nullopt;
+  }
 
   // Adds an invariant checker to the pass. The invariant checker is
   // run after the pass if it changed anything. For compound passes they are
@@ -605,6 +680,21 @@ class CompoundPassBase : public PassBase<OptionsT, ContextT...> {
 
   bool IsCompound() const override { return true; }
 
+  std::optional<std::string> GetInvocationSignature(
+      const OptionsT& options, ContextT&... context) const override {
+    std::string signature = absl::StrCat(this->short_name(), "[");
+    for (const auto& pass : passes_) {
+      std::optional<std::string> child_sig =
+          pass->GetInvocationSignature(options, context...);
+      if (!child_sig.has_value()) {
+        return std::nullopt;
+      }
+      absl::StrAppend(&signature, *child_sig, ",");
+    }
+    absl::StrAppend(&signature, "]");
+    return signature;
+  }
+
  protected:
   // Internal implementation of Run for compound passes. Invoked when a compound
   // pass is nested within another compound pass. Enables passing of invariant
@@ -639,6 +729,8 @@ class FixedPointCompoundPassBase
     *res.mutable_fixedpoint()->mutable_long_name() = this->long_name();
     return res;
   }
+
+  bool IsIdempotent() const override { return true; }
 
   absl::StatusOr<bool> RunNested(Package* ir, const OptionsT& options,
                                  PassResults* results,

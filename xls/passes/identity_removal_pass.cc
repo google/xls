@@ -14,6 +14,9 @@
 
 #include "xls/passes/identity_removal_pass.h"
 
+#include <optional>
+#include <string>
+
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
@@ -23,6 +26,12 @@
 #include "xls/passes/pass_base.h"
 
 namespace xls {
+
+std::optional<std::string> IdentityRemovalPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 // Identity Removal performs one forward pass over the nodes and replaces
 // identities with their respective operands.

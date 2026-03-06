@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -67,6 +68,12 @@ absl::StatusOr<ChannelMaps> ComputeChannelMaps(Package* package) {
 }
 
 }  // namespace
+
+std::optional<std::string> UselessIORemovalPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
     Package* p, const OptimizationPassOptions& options, PassResults* results,

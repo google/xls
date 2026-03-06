@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_UNROLL_PASS_H_
 #define XLS_PASSES_UNROLL_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -60,6 +62,12 @@ class UnrollPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "loop_unroll";
   UnrollPass() : OptimizationFunctionBasePass(kName, "Unroll counted loops") {}
+
+  bool IsIdempotent() const override { return true; }
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

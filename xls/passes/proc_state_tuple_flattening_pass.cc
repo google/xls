@@ -319,6 +319,12 @@ absl::Status FlattenState(Proc* proc) {
 
 }  // namespace
 
+std::optional<std::string> ProcStateTupleFlatteningPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
+
 absl::StatusOr<bool> ProcStateTupleFlatteningPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,
     OptimizationContext& context) const {

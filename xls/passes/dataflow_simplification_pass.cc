@@ -15,6 +15,8 @@
 #include "xls/passes/dataflow_simplification_pass.h"
 
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -81,6 +83,12 @@ absl::StatusOr<bool> MaybeReplaceWithArrayOfExistingNodes(
 }
 
 }  // namespace
+
+std::optional<std::string> DataflowSimplificationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,

@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_BASIC_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_BASIC_SIMPLIFICATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -126,6 +128,12 @@ class BasicSimplificationPass : public OptimizationFunctionBasePass {
   explicit BasicSimplificationPass()
       : OptimizationFunctionBasePass(kName, "Basic Simplifications") {}
   ~BasicSimplificationPass() override = default;
+
+  bool IsIdempotent() const override { return true; }
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

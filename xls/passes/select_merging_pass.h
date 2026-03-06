@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_SELECT_MERGING_PASS_H_
 #define XLS_PASSES_SELECT_MERGING_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -150,6 +152,10 @@ class SelectMergingPass : public OptimizationFunctionBasePass {
   explicit SelectMergingPass()
       : OptimizationFunctionBasePass(kName, "Select Merging") {}
   ~SelectMergingPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

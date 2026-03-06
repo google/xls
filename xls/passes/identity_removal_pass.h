@@ -17,6 +17,8 @@
 #ifndef XLS_PASSES_IDENTITY_REMOVAL_PASS_H_
 #define XLS_PASSES_IDENTITY_REMOVAL_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -111,6 +113,12 @@ class IdentityRemovalPass : public OptimizationFunctionBasePass {
   IdentityRemovalPass()
       : OptimizationFunctionBasePass(kName, "Identity Removal") {}
   ~IdentityRemovalPass() override = default;
+
+  bool IsIdempotent() const override { return true; }
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   // Iterate all nodes and eliminate identities.

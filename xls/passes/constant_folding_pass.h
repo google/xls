@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_CONSTANT_FOLDING_PASS_H_
 #define XLS_PASSES_CONSTANT_FOLDING_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -116,7 +118,10 @@ class ConstantFoldingPass : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "const_fold";
   ConstantFoldingPass()
       : OptimizationFunctionBasePass(kName, "Constant folding") {}
-  ~ConstantFoldingPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

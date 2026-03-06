@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_TOKEN_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_TOKEN_SIMPLIFICATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -168,6 +170,10 @@ class TokenSimplificationPass : public OptimizationFunctionBasePass {
   TokenSimplificationPass()
       : OptimizationFunctionBasePass(kName, "Simplify token networks") {}
   ~TokenSimplificationPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

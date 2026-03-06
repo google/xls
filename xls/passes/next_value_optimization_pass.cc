@@ -323,6 +323,19 @@ struct StateElementPair {
 
 }  // namespace
 
+std::optional<std::string> NextValueOptimizationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  if (options.split_next_value_selects.has_value() &&
+      *options.split_next_value_selects > 0) {
+    return absl::StrFormat("%s(O%d,max_depth=%d,split_selects=%d)",
+                           short_name(), options.opt_level, max_split_depth_,
+                           *options.split_next_value_selects);
+  }
+  return absl::StrFormat("%s(O%d,max_depth=%d)", short_name(),
+                         options.opt_level, max_split_depth_);
+}
+
 absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,
     OptimizationContext& context) const {

@@ -15,9 +15,12 @@
 #ifndef XLS_PASSES_BIT_SLICE_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_BIT_SLICE_SIMPLIFICATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -155,6 +158,10 @@ class BitSliceSimplificationPass : public OptimizationFunctionBasePass {
   explicit BitSliceSimplificationPass()
       : OptimizationFunctionBasePass(kName, "Bit-slice simplification") {}
   ~BitSliceSimplificationPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

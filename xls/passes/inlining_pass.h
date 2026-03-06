@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_INLINING_PASS_H_
 #define XLS_PASSES_INLINING_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/status.h"
@@ -174,6 +176,10 @@ class InliningPass : public OptimizationPass {
   explicit InliningPass(InlineDepth depth = InlineDepth::kFull)
       : OptimizationPass(ConfiguredName(depth), "Inlines invocations"),
         depth_(depth) {}
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
   // Inline a single invoke instruction. Provided for test and utility
   // (ir_minimizer) use.

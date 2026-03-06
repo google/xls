@@ -14,6 +14,8 @@
 
 #include "xls/passes/constant_folding_pass.h"
 
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -35,6 +37,7 @@
 namespace xls {
 
 namespace {
+
 // Check if we can do constant folding on this node.
 bool NodeIsConstantFoldable(Node* node, QueryEngine& query_engine) {
   if (node->users().empty() && !node->function_base()->HasImplicitUse(node)) {
@@ -58,7 +61,14 @@ bool NodeIsConstantFoldable(Node* node, QueryEngine& query_engine) {
     return query_engine.IsFullyKnown(operand);
   });
 }
+
 }  // namespace
+
+std::optional<std::string> ConstantFoldingPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

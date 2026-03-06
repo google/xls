@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_ARRAY_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_ARRAY_SIMPLIFICATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -175,6 +177,12 @@ class ArraySimplificationPass : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "array_simp";
   explicit ArraySimplificationPass()
       : OptimizationFunctionBasePass(kName, "Array Simplification") {}
+
+  bool IsIdempotent() const override { return true; }
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

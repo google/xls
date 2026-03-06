@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <iterator>
 #include <limits>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -332,6 +334,12 @@ int64_t NumberOfTokensInType(Type* type) {
 }
 
 }  // namespace
+
+std::optional<std::string> TokenSimplificationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

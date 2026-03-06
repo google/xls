@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_ARRAY_UNTUPLE_PASS_H_
 #define XLS_PASSES_ARRAY_UNTUPLE_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -179,6 +181,10 @@ class ArrayUntuplePass : public OptimizationFunctionBasePass {
   explicit ArrayUntuplePass()
       : OptimizationFunctionBasePass(kName, "Array UnTuple") {}
   ~ArrayUntuplePass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

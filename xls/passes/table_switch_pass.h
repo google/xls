@@ -14,6 +14,8 @@
 #ifndef XLS_PASSES_TABLE_SWITCH_PASS_H_
 #define XLS_PASSES_TABLE_SWITCH_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -147,6 +149,10 @@ class TableSwitchPass : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "table_switch";
   TableSwitchPass()
       : OptimizationFunctionBasePass(kName, "Table switch conversion") {}
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
