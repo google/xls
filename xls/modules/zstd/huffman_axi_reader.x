@@ -269,13 +269,13 @@ proc HuffmanAxiReader_test {
     next (state: ()) {
         let tok = join();
 
-        let tok = for ((i, test_ctrl), tok): ((u32, TestHuffmanAxiReaderCtrl), token) in enumerate(TEST_DATA_CTRL) {
+        let tok = for ((i, test_ctrl), tok): ((u32, TestHuffmanAxiReaderCtrl), token) in std::enumerate(TEST_DATA_CTRL) {
             let tok = send(tok, ctrl_s, test_ctrl);
             trace_fmt!("Sent #{} ctrl {:#x}", i + u32:1, test_ctrl);
             tok
         }(tok);
 
-        let tok = for ((i, test_axi), tok): ((u32, TestAxiData), token) in enumerate(TEST_DATA_AXI) {
+        let tok = for ((i, test_axi), tok): ((u32, TestAxiData), token) in std::enumerate(TEST_DATA_AXI) {
             let (tok, axi_req) = recv(tok, axi_ar_r);
             trace_fmt!("Received #{} AXI request {:#x}", i + u32:1, axi_req);
             let aligned_addr = test_axi.addr & !(test_axi.addr % TEST_AXI_DATA_DIV8 as uN[TEST_AXI_ADDR_W]);
@@ -295,7 +295,7 @@ proc HuffmanAxiReader_test {
             tok
         }(tok);
 
-        let tok = for ((i, test_data), tok): ((u32, HuffmanAxiReaderData), token) in enumerate(TEST_DATA_OUT) {
+        let tok = for ((i, test_data), tok): ((u32, HuffmanAxiReaderData), token) in std::enumerate(TEST_DATA_OUT) {
             let (tok, data) = recv(tok, data_r);
             trace_fmt!("Received #{} data {:#x}", i + u32:1, data);
 
