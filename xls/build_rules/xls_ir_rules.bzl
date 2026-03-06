@@ -632,6 +632,9 @@ def get_mangled_ir_symbol(
         scope = scope + "__"
         scope = scope.replace("<", "_")
         scope = scope.replace(">", "_")
+        scope = scope.replace("/", "_")
+        scope = scope.replace(":", "_")
+        scope = scope.replace("-", "_")
 
     suffix = ""
 

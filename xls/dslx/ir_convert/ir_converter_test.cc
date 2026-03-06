@@ -3919,6 +3919,43 @@ fn main() -> u64[4] {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, MapLambda) {
+  constexpr std::string_view kModule = R"(
+fn add_five(arr: u32[4]) -> u32[4] {
+  let x = u32:5;
+  map(arr, | i | -> u32 { i + x })
+}
+
+fn main() -> u32 {
+  add_five(u32:0..4)[1]
+}
+
+const_assert!(main() == 6);
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MapLambdaWithImplicitToken) {
+  constexpr std::string_view program =
+      R"(
+fn f(x: u32) -> u64 {
+    assert!(x != u32:42, "foobar");
+    u16:0 ++ x ++ u16:4
+}
+
+fn main() -> u64[4] {
+    map(u32[4]:[0, 1, 2, 3], |i| -> u64 { f(i) })
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, MapInvocationWithStruct) {
   constexpr std::string_view program =
       R"(

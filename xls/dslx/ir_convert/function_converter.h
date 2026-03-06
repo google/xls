@@ -218,6 +218,19 @@ class FunctionConverter {
     return unwrapped;
   }
 
+  // Helpers to construct a synthetic function to use when iterating with `map`.
+  void BuildMapIterFunction(FunctionBuilder* syn, const SourceInfo& loc,
+                            xls::Type* output_type,
+                            std::optional<BValue> self_value, BValue arg,
+                            xls::Function* f, std::string mapped_fn_identifier);
+
+  void BuildMapIterFunctionWithToken(FunctionBuilder* syn,
+                                     const SourceInfo& loc,
+                                     xls::Type* output_type,
+                                     std::optional<BValue> self_value,
+                                     BValue arg, xls::Function* f,
+                                     std::string mapped_fn_identifier);
+
   // An IR-conversion-time-constant value, decorates a BValue with its evaluated
   // constant form.
   struct CValue {

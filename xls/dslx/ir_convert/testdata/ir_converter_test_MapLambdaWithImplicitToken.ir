@@ -1,0 +1,54 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __itok__test_module__f(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3) -> (token, bits[64]) {
+  literal.4: bits[32] = literal(value=42, id=4)
+  not.7: bits[1] = not(__activated, id=7)
+  ne.5: bits[1] = ne(x, literal.4, id=5)
+  or.8: bits[1] = or(not.7, ne.5, id=8)
+  literal.11: bits[16] = literal(value=0, id=11)
+  assert.9: token = assert(__token, or.8, message="Assertion failure via assert! @ test_module.x:3:12-3:35", label="foobar", id=9)
+  concat.12: bits[48] = concat(literal.11, x, id=12)
+  literal.13: bits[16] = literal(value=4, id=13)
+  after_all.15: token = after_all(assert.9, id=15)
+  concat.14: bits[64] = concat(concat.12, literal.13, id=14)
+  literal.6: bits[8][6] = literal(value=[102, 111, 111, 98, 97, 114], id=6)
+  tuple.10: () = tuple(id=10)
+  ret tuple.16: (token, bits[64]) = tuple(after_all.15, concat.14, id=16)
+}
+
+fn __itok__test_module__lambda_capture_struct_at_test_module.x_8_30_8_49__call__u32(__token: token id=17, __activated: bits[1] id=18, self: () id=19, i: bits[32] id=20) -> (token, bits[64]) {
+  invoke.21: (token, bits[64]) = invoke(__token, __activated, i, to_apply=__itok__test_module__f, id=21)
+  tuple_index.22: token = tuple_index(invoke.21, index=0, id=22)
+  after_all.24: token = after_all(tuple_index.22, id=24)
+  tuple_index.23: bits[64] = tuple_index(invoke.21, index=1, id=23)
+  ret tuple.25: (token, bits[64]) = tuple(after_all.24, tuple_index.23, id=25)
+}
+
+fn __SYNTHETIC_LOOP_BODY___itok__test_module__main_CALLING___itok__test_module__lambda_capture_struct_at_test_module.x_8_30_8_49__call__u32__MAP_0(idx: bits[32] id=34, token_and_array: (token, bits[64][4]) id=35, activated: bits[1] id=36, context_struct: () id=37, input_array: bits[32][4] id=38) -> (token, bits[64][4]) {
+  token_value: token = tuple_index(token_and_array, index=0, id=40)
+  input_value: bits[32] = array_index(input_array, indices=[idx], id=41)
+  map_call_call: (token, bits[64]) = invoke(token_value, activated, context_struct, input_value, to_apply=__itok__test_module__lambda_capture_struct_at_test_module.x_8_30_8_49__call__u32, id=42)
+  out_array_value: bits[64][4] = tuple_index(token_and_array, index=1, id=39)
+  tuple_index.44: bits[64] = tuple_index(map_call_call, index=1, id=44)
+  tuple_index.43: token = tuple_index(map_call_call, index=0, id=43)
+  map_iteration: bits[64][4] = array_update(out_array_value, tuple_index.44, indices=[idx], id=45)
+  ret tuple.46: (token, bits[64][4]) = tuple(tuple_index.43, map_iteration, id=46)
+}
+
+fn __itok__test_module__main(__token: token id=26, __activated: bits[1] id=27) -> (token, bits[64][4]) {
+  literal.47: bits[64][4] = literal(value=[0, 0, 0, 0], id=47)
+  literal.28: bits[32] = literal(value=0, id=28)
+  literal.29: bits[32] = literal(value=1, id=29)
+  literal.30: bits[32] = literal(value=2, id=30)
+  literal.31: bits[32] = literal(value=3, id=31)
+  tuple.48: (token, bits[64][4]) = tuple(__token, literal.47, id=48)
+  tuple.33: () = tuple(id=33)
+  array.32: bits[32][4] = array(literal.28, literal.29, literal.30, literal.31, id=32)
+  map_invocation__call: (token, bits[64][4]) = counted_for(tuple.48, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___itok__test_module__main_CALLING___itok__test_module__lambda_capture_struct_at_test_module.x_8_30_8_49__call__u32__MAP_0, invariant_args=[__activated, tuple.33, array.32], id=49)
+  tuple_index.50: token = tuple_index(map_invocation__call, index=0, id=50)
+  after_all.52: token = after_all(tuple_index.50, id=52)
+  tuple_index.51: bits[64][4] = tuple_index(map_invocation__call, index=1, id=51)
+  ret tuple.53: (token, bits[64][4]) = tuple(after_all.52, tuple_index.51, id=53)
+}
