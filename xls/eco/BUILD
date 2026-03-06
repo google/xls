@@ -92,15 +92,7 @@ py_library(
     ],
 )
 
-py_binary(
-    name = "ir_stats",
-    srcs = ["ir_stats.py"],
-    deps = [
-        ":ir2nx",
-    ],
-)
-
-py_binary(
+pytype_strict_binary(
     name = "ir2gxl",
     srcs = ["ir2gxl.py"],
     main = "ir2gxl.py",
@@ -276,14 +268,6 @@ cc_library(
 )
 
 cc_library(
-    name = "scipy_lap",
-    srcs = ["libs/scipy_lap/rectangular_lsap.cpp"],
-    hdrs = ["libs/scipy_lap/rectangular_lsap.h"],
-    strip_include_prefix = "libs",
-    visibility = ["//visibility:private"],
-)
-
-cc_library(
     name = "graph",
     srcs = ["graph.cc"],
     hdrs = ["graph.h"],
@@ -315,7 +299,10 @@ cc_library(
 
 cc_library(
     name = "ged",
-    srcs = ["ged.cc"],
+    srcs = [
+        "ged.cc",
+        "ged_cost_functions.cc",
+    ],
     hdrs = [
         "ged.h",
         "ged_cost_functions.h",
@@ -325,6 +312,7 @@ cc_library(
         ":lap_solver",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/log",
     ],
 )

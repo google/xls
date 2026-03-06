@@ -82,8 +82,8 @@ ABSL_FLAG(int, mismatch_exit_code, 255,
           "Value to exit with if equivalence is not proven.");
 ABSL_FLAG(int, match_exit_code, 0,
           "Value to exit with if equivalence is not proven.");
-ABSL_FLAG(std::string, equivalence_report, "",
-          "Path to write an equivalence report to if equivalence is proven.");
+ABSL_FLAG(std::string, equivalence_report_path, "",
+          "Path to write an equivalence report file.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
@@ -242,15 +242,21 @@ int main(int argc, char** argv) {
   int exit_code = is_equivalent ? absl::GetFlag(FLAGS_match_exit_code)
                                 : absl::GetFlag(FLAGS_mismatch_exit_code);
 
-  if (exit_code == 0 && is_equivalent &&
-      !absl::GetFlag(FLAGS_equivalence_report).empty()) {
-    std::string report = absl::StrFormat(
-        "Equivalence verification successful.\n"
-        "Verified equivalent:\n  File 1: %s\n  File 2: %s\n",
-        positional_args[0], positional_args[1]);
-    absl::Status stamp_status =
-        xls::SetFileContents(absl::GetFlag(FLAGS_equivalence_report), report);
-    QCHECK_OK(stamp_status) << "Failed to write equivalence report.";
+  const std::string report_file = absl::GetFlag(FLAGS_equivalence_report_path);
+  if (!report_file.empty()) {
+    const std::string report =
+        is_equivalent
+            ? absl::StrFormat(
+                  "Equivalence verification successful.\n"
+                  "Verified equivalent:\n  File 1: %s\n  File 2: %s\n",
+                  positional_args[0], positional_args[1])
+            : absl::StrFormat(
+                  "Equivalence verification failed.\n"
+                  "Verified NOT equivalent:\n  File 1: %s\n  File 2: %s\n",
+                  positional_args[0], positional_args[1]);
+    absl::Status stamp_status = xls::SetFileContents(report_file, report);
+    QCHECK_OK(stamp_status)
+        << "Failed to write equivalence report to: " << report_file;
   }
 
   return exit_code;
