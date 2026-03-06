@@ -24,8 +24,6 @@ xls_dslx_ir_diff(
     ],
     dslx_top = "main",
     mcs = False,
-    report_exec_stats = True,
-    verbosity = 1,
 )
 
 xls_dslx_ir_diff(
@@ -36,7 +34,6 @@ xls_dslx_ir_diff(
     ],
     dslx_top = "fmac",
     mcs = True,
-    verbosity = 1,
 )
 
 xls_dslx_ir_diff(
@@ -47,7 +44,6 @@ xls_dslx_ir_diff(
     ],
     dslx_top = "fmac",
     mcs = False,
-    verbosity = 1,
 )
 
 xls_dslx_ir_diff(
@@ -58,7 +54,6 @@ xls_dslx_ir_diff(
     ],
     dslx_top = "run_instruction",
     mcs = False,
-    verbosity = 1,
 )
 
 xls_dslx_ir_diff(
@@ -69,7 +64,6 @@ xls_dslx_ir_diff(
     ],
     dslx_top = "histogram",
     mcs = False,
-    verbosity = 1,
 )
 
 xls_dslx_ir_diff(
@@ -80,7 +74,6 @@ xls_dslx_ir_diff(
     ],
     dslx_top = "vector_core",
     mcs = False,
-    verbosity = 1,
 )
 
 xls_dslx_ir_diff(
@@ -92,7 +85,6 @@ xls_dslx_ir_diff(
     dslx_top = "main",
     mcs = True,
     mcs_cutoff = 1500,
-    verbosity = 1,
 )
 
 xls_dslx_ir_diff(
@@ -103,7 +95,6 @@ xls_dslx_ir_diff(
     ],
     dslx_top = "main",
     mcs = True,
-    verbosity = 1,
 )
 
 xls_patch_ir(
