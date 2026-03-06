@@ -63,7 +63,7 @@ xls_dslx_ir_diff(
         ":histogram.rev.x",
     ],
     dslx_top = "histogram",
-    mcs = False,
+    mcs = True,
 )
 
 xls_dslx_ir_diff(
