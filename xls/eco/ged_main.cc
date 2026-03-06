@@ -37,6 +37,8 @@
 #include "xls/eco/ir_patch_gen.h"
 #include "xls/eco/mcs.h"
 
+namespace {
+
 long GetRSSBytes() {
   struct rusage usage;
   getrusage(RUSAGE_SELF, &usage);
@@ -114,6 +116,8 @@ Examples:
 
 Alternately, two positional arguments may be provided for the GXL files.)";
 
+}  // namespace
+
 ABSL_FLAG(std::string, before_ir, "",
           "Path to the first (golden) GXL graph file.");
 ABSL_FLAG(std::string, after_ir, "",
@@ -131,8 +135,8 @@ ABSL_FLAG(std::string, patch, "",
 ABSL_FLAG(bool, optimal, false,
           "Require optimal GED solution (Will override timeout and might take "
           "a long time to compute).");
-ABSL_FLAG(bool, report, false,
-          "Write execution statistics report to report.txt in the working directory.");
+ABSL_FLAG(std::string, report, "",
+          "Write execution statistics report to this path.");
 
 namespace {
 
@@ -157,7 +161,8 @@ void AnnotateMcsMappings(
 absl::Status RealMain(const std::vector<std::string_view>& positional_args,
                       std::string before_ir, std::string after_ir,
                       bool use_mcs, int mcs_cutoff, double timeout,
-                      bool optimal, std::string patch_path, bool report) {
+                      bool optimal, std::string patch_path,
+                      std::string report_path) {
   if (before_ir.empty() && !positional_args.empty()) {
     before_ir = std::string(positional_args[0]);
   }
@@ -168,7 +173,7 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
   }
   if (before_ir.empty() || after_ir.empty()) {
     return absl::InvalidArgumentError(
-        "Provide two GXL inputs via --before_ir/--after_ir (or aliases) or as "
+        "Provide two GXL inputs via --before_ir/--after_ir or as "
         "positional arguments.");
   }
 
@@ -393,29 +398,28 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
             << " bytes)";
   }
 
-  if (report) {
-    constexpr std::string_view kReportPath = "report.txt";
-    std::filesystem::path out_path(kReportPath);
+  if (!report_path.empty()) {
+    std::filesystem::path out_path(report_path);
     if (out_path.has_parent_path()) {
       std::error_code ec;
       std::filesystem::create_directories(out_path.parent_path(), ec);
       if (ec) {
         return absl::InternalError(
-            absl::StrCat("Failed to create directories for '", kReportPath,
+            absl::StrCat("Failed to create directories for '", report_path,
                          "': ", ec.message()));
       }
     }
-    std::ofstream report_out{std::string(kReportPath)};
+    std::ofstream report_out{report_path};
     if (!report_out) {
       return absl::InternalError(
-          absl::StrCat("Failed to open '", kReportPath, "' for writing."));
+          absl::StrCat("Failed to open '", report_path, "' for writing."));
     }
     report_out << stats.ToString(use_mcs);
     if (!report_out) {
       return absl::InternalError(
-          absl::StrCat("Failed to write report to '", kReportPath, "'."));
+          absl::StrCat("Failed to write report to '", report_path, "'."));
     }
-    VLOG(0) << "Wrote execution report: " << kReportPath;
+    VLOG(0) << "Wrote execution report: " << report_path;
   }
 
   return absl::OkStatus();
@@ -432,9 +436,9 @@ int main(int argc, char* argv[]) {
   double timeout = absl::GetFlag(FLAGS_timeout);
   bool optimal = absl::GetFlag(FLAGS_optimal);
   std::string patch_path = absl::GetFlag(FLAGS_patch);
-  bool report = absl::GetFlag(FLAGS_report);
+  std::string report_path = absl::GetFlag(FLAGS_report);
   return xls::ExitStatus(RealMain(positional, std::move(before_ir),
                                   std::move(after_ir), use_mcs, mcs_cutoff,
                                   timeout, optimal, std::move(patch_path),
-                                  report));
+                                  std::move(report_path)));
 }

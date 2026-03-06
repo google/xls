@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "xls/eco/graph.h"
 
 namespace ged {
@@ -99,15 +100,15 @@ AssignmentResult SolveLSAP(const RawCostMatrix& M, int m, int n,
                            std::vector<std::vector<double>>& dense_buffer);
 
 struct NodeCostFunctions {
-  int (*subst)(const XLSNode&, const XLSNode&);
-  int (*ins)(const XLSNode&);
-  int (*del)(const XLSNode&);
+  absl::AnyInvocable<int(const XLSNode&, const XLSNode&) const> subst;
+  absl::AnyInvocable<int(const XLSNode&) const> ins;
+  absl::AnyInvocable<int(const XLSNode&) const> del;
 };
 
 struct EdgeCostFunctions {
-  int (*subst)(const XLSEdge&, const XLSEdge&);
-  int (*ins)(const XLSEdge&);
-  int (*del)(const XLSEdge&);
+  absl::AnyInvocable<int(const XLSEdge&, const XLSEdge&) const> subst;
+  absl::AnyInvocable<int(const XLSEdge&) const> ins;
+  absl::AnyInvocable<int(const XLSEdge&) const> del;
 };
 
 struct GEDOptions {
