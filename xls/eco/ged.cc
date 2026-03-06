@@ -840,23 +840,28 @@ static std::function<bool(int64_t)> MakePruneFunction(
     const GEDOptions& options,
     const std::chrono::steady_clock::time_point& start_time, bool& timed_out,
     int maxcost_value, int& best_cost) {
-  return [&](int64_t cost) -> bool {
-    if (options.timeout == -1 && !options.optimal &&
+  const double timeout = options.timeout;
+  const bool optimal = options.optimal;
+  const int upper_bound = options.upper_bound;
+  const bool strictly_decreasing = options.strictly_decreasing;
+  return [start_time, timeout, optimal, upper_bound, strictly_decreasing,
+          maxcost_value, &timed_out, &best_cost](int64_t cost) -> bool {
+    if (timeout == -1 && !optimal &&
         best_cost < RawCostMatrix::INF) {
       return true;
     }
-    if (options.timeout > 0 && !options.optimal) {
+    if (timeout > 0 && !optimal) {
       double elapsed = std::chrono::duration<double>(
                            std::chrono::steady_clock::now() - start_time)
                            .count();
-      if (elapsed > options.timeout) {
+      if (elapsed > timeout) {
         timed_out = true;
         return true;
       }
     }
     return (cost > maxcost_value) ||
-           (options.upper_bound != INT_MAX && cost > options.upper_bound) ||
-           (options.strictly_decreasing && cost >= maxcost_value);
+           (upper_bound != INT_MAX && cost > upper_bound) ||
+           (strictly_decreasing && cost >= maxcost_value);
   };
 }
 
