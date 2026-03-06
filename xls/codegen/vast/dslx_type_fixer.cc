@@ -59,7 +59,8 @@ class DslxTypeFixerImpl : public DslxTypeFixer {
   }
 
   TypeInferenceErrorHandler GetErrorHandler() {
-    return [this](const AstNode* node, absl::Span<const CandidateType> types) {
+    return [this](const absl::Status&, const AstNode* node,
+                  absl::Span<const CandidateType> types) {
       return HandleError(node, types);
     };
   }
