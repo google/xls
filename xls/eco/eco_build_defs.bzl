@@ -19,7 +19,7 @@ Build rules for generating and patching XLS IR to support ECO workflows.
 load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_opt_ir")
 load("//xls/build_rules:xls_providers.bzl", "IrFileInfo")
 
-EcopatchInfo = provider(
+EcoPatchInfo = provider(
     doc = "Carries the generated patch file.",
     fields = {
         "patch": "File containing the IrPatchProto.",
@@ -39,7 +39,7 @@ def _dslx_ir_diff_impl(ctx):
     before_gxl = ctx.actions.declare_file(ctx.label.name + ".before.gxl")
     after_gxl = ctx.actions.declare_file(ctx.label.name + ".after.gxl")
     patch_out = ctx.actions.declare_file(ctx.label.name + ".patch.bin")
-    report_out = None
+    report_out = ctx.actions.declare_file(ctx.label.name + ".report.txt")
 
     # before.ir -> before.gxl
     ctx.actions.run(
@@ -59,79 +59,46 @@ def _dslx_ir_diff_impl(ctx):
         arguments = [after_ir.path, after_gxl.path],
     )
 
-    timeout_flag = []
+    ged_args = []
     if ctx.attr.timeout >= 0:
-        timeout_flag = ["--timeout=" + str(ctx.attr.timeout)]
-
-    verbosity_flag = []
-    if ctx.attr.verbosity >= 0:
-        # Ensure VLOG output is emitted to stderr in Bazel action logs.
-        verbosity_flag = ["--v=" + str(ctx.attr.verbosity)]
-        verbosity_flag.append("--stderrthreshold=0")
-
-    mcs_flag = []
+        ged_args.append("--timeout=" + str(ctx.attr.timeout))
     if ctx.attr.mcs == False:
-        mcs_flag = ["--use_mcs=false"]
-
-    mcs_cutoff_flag = []
+        ged_args.append("--use_mcs=false")
     if ctx.attr.mcs_cutoff >= 0:
-        mcs_cutoff_flag = ["--mcs_cutoff=" + str(ctx.attr.mcs_cutoff)]
-
-    report_flag = []
-    if ctx.attr.report_exec_stats:
-        report_out = ctx.actions.declare_file(ctx.label.name + ".report.txt")
-        report_flag = ["--report=true"]
+        ged_args.append("--mcs_cutoff=" + str(ctx.attr.mcs_cutoff))
+    ged_args.append("--report=" + report_out.path)
 
     ged_runfiles = ctx.attr.ged_main[DefaultInfo].default_runfiles.files.to_list()
-    outputs = [patch_out]
-    if report_out != None:
-        outputs.append(report_out)
+    outputs = [patch_out, report_out]
 
-    ged_args = timeout_flag + verbosity_flag + mcs_flag + mcs_cutoff_flag + report_flag + [
+    ged_args += [
         "--before_ir=" + before_gxl.path,
         "--after_ir=" + after_gxl.path,
         "--patch=" + patch_out.path,
     ]
-    if report_out != None:
-        ctx.actions.run_shell(
-            inputs = [before_gxl, after_gxl] + ctx.files.ged_main + ged_runfiles,
-            outputs = outputs,
-            tools = [ctx.executable.ged_main],
-            mnemonic = "GedMain",
-            command = "{ged} {args} && cp report.txt {report}".format(
-                ged = ctx.executable.ged_main.path,
-                args = " ".join(['"%s"' % a for a in ged_args]),
-                report = report_out.path,
-            ),
-            use_default_shell_env = True,
-        )
-    else:
-        ctx.actions.run(
-            inputs = [before_gxl, after_gxl] + ctx.files.ged_main + ged_runfiles,
-            outputs = outputs,
-            tools = [ctx.executable.ged_main],
-            mnemonic = "GedMain",
-            arguments = ged_args,
-            executable = ctx.executable.ged_main,
-            use_default_shell_env = True,
-        )
+    ctx.actions.run(
+        inputs = [before_gxl, after_gxl] + ctx.files.ged_main + ged_runfiles,
+        outputs = outputs,
+        tools = [ctx.executable.ged_main],
+        mnemonic = "GedMain",
+        arguments = ged_args,
+        executable = ctx.executable.ged_main,
+        use_default_shell_env = True,
+    )
 
-    default_files = [patch_out, before_ir, after_ir]
-    if report_out != None:
-        default_files.append(report_out)
+    default_files = [patch_out, before_ir, after_ir, report_out]
     output_groups = dict(
         patch = depset([patch_out]),
         opt_irs = depset([before_ir, after_ir]),
+        report = depset([report_out]),
     )
-    if report_out != None:
-        output_groups["report"] = depset([report_out])
 
     return [
         DefaultInfo(files = depset(default_files)),
         OutputGroupInfo(
             **output_groups
         ),
-        EcopatchInfo(
+        EcoPatchInfo(
             patch = patch_out,
             before_ir = before_ir,
             after_ir = after_ir,
@@ -167,22 +134,14 @@ xls_dslx_ir_diff_rule = rule(
             default = -1,
             doc = "Optional GED timeout in seconds; negative means omit flag.",
         ),
-        "verbosity": attr.int(
-            default = -1,
-            doc = "Optional GED verbosity passed as --v; negative means omit flag.",
-        ),
         "mcs_cutoff": attr.int(
             default = -1,
             doc = "Stop MCS when remaining nodes <= this value; negative means run to completion.",
         ),
-        "report_exec_stats": attr.bool(
-            default = True,
-            doc = "If true, write an execution stats report file.",
-        ),
     },
 )
 
-def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, verbosity = None, mcs_cutoff = None, report_exec_stats = None):
+def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutoff = None):
     """Builds opt IRs for two DSLX sources and emits a patch between them.
 
     Args:
@@ -191,9 +150,7 @@ def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, verbosity
       dslx_top: Either a single top name (applied to both) or a list of two.
       timeout: Optional GED timeout (seconds). None or negative => omit flag.
       mcs: Optional boolean. If false, pass --use_mcs=false to GED; true leaves default.
-      verbosity: Optional GED verbosity mapped to --v. None or negative => omit flag.
       mcs_cutoff: Optional int. Stop MCS when remaining nodes <= this value; negative => run to completion.
-      report_exec_stats: Optional bool. If true, emits a per-run execution report from GED.
     """
     if len(srcs) != 2:
         fail("xls_dslx_ir_diff.srcs must have length 2")
@@ -228,12 +185,8 @@ def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, verbosity
         xls_dslx_ir_diff_rule_kwargs["timeout"] = timeout
     if mcs != None:
         xls_dslx_ir_diff_rule_kwargs["mcs"] = mcs
-    if verbosity != None:
-        xls_dslx_ir_diff_rule_kwargs["verbosity"] = verbosity
     if mcs_cutoff != None:
         xls_dslx_ir_diff_rule_kwargs["mcs_cutoff"] = mcs_cutoff
-    if report_exec_stats != None:
-        xls_dslx_ir_diff_rule_kwargs["report_exec_stats"] = report_exec_stats
 
     xls_dslx_ir_diff_rule(**xls_dslx_ir_diff_rule_kwargs)
 
@@ -246,7 +199,7 @@ def _xls_patch_ir_impl(ctx):
     if not diff_target:
         fail("xls_patch_ir: 'ir_diff' label is required.")
 
-    diff_info = diff_target[EcopatchInfo]
+    diff_info = diff_target[EcoPatchInfo]
     ir_file = diff_info.before_ir
     patch_file = diff_info.patch
     after_ir = diff_info.after_ir
@@ -295,7 +248,7 @@ def _xls_patch_ir_impl(ctx):
         check_flags.append("--timeout=" + str(ctx.attr.check_timeout) + "s")
 
     equivalence_report = ctx.actions.declare_file(ctx.label.name + ".equiv.report")
-    check_flags.append("--equivalence_report=" + equivalence_report.path)
+    check_flags.append("--equivalence_report_path=" + equivalence_report.path)
 
     ctx.actions.run(
         inputs = check_inputs,
@@ -314,7 +267,7 @@ xls_patch_ir_rule = rule(
     implementation = _xls_patch_ir_impl,
     attrs = {
         "ir_diff": attr.label(
-            providers = [EcopatchInfo],
+            providers = [EcoPatchInfo],
             doc = "xls_dslx_ir_diff target providing the before IR and patch.",
         ),
         "schedule": attr.label(
