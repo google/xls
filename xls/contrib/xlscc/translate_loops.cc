@@ -340,10 +340,11 @@ Translator::GenerateIR_LoopImplImpl(
     if (!add_loop_jump) {
       XLS_RETURN_IF_ERROR(refresh_z3());
 
+      TrackedBValue bval = context().relative_condition_bval(loc);
+
       XLS_ASSIGN_OR_RETURN(
           bool condition_must_be_true,
-          BitMustBe(true, context().relative_condition, current_solver,
-                    current_z3_translator, loc));
+          BitMustBe(true, bval, current_solver, current_z3_translator, loc));
 
       if (condition_must_be_true) {
         ret.proven_iteration_count = nIters + 1;
@@ -351,8 +352,7 @@ Translator::GenerateIR_LoopImplImpl(
 
       XLS_ASSIGN_OR_RETURN(
           bool condition_must_be_false,
-          BitMustBe(false, context().relative_condition, current_solver,
-                    current_z3_translator, loc));
+          BitMustBe(false, bval, current_solver, current_z3_translator, loc));
 
       if (condition_must_be_false) {
         ret.proven_max_iteration_count = nIters;
@@ -1480,7 +1480,7 @@ Translator::GenerateIR_PipelinedLoopContents(
   prepared.orig_token = token;
   prepared.token = prepared.orig_token;
 
-  TrackedBValue save_full_condition = context().full_condition;
+  TranslationContext save_context = context();
 
   PushContextGuard pb_guard_block(*this, loc);
 
@@ -1497,7 +1497,7 @@ Translator::GenerateIR_PipelinedLoopContents(
 
   // GenerateIRBlockPrepare resets the context
   if (in_fsm) {
-    context().full_condition = save_full_condition;
+    context() = save_context;
   }
   XLS_ASSIGN_OR_RETURN(
       GenerateFSMInvocationReturn fsm_ret,

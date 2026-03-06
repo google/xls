@@ -316,7 +316,6 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
         };
         ret.state_elements.push_back(state_element);
         element_index = ret.state_elements.size() - 1;
-        ret.state_element_by_continuation_value[value] = element_index;
       }
 
       // Mark element used for this value in this transition
@@ -784,7 +783,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   value_by_continuation_value = state_element_by_continuation_value;
 
   TrackedBValue last_op_out_value;
-  TrackedBValue slice_before_active;
   TrackedBValue after_conditional_activation_transition =
       pb.Literal(xls::UBits(0, 1), body_loc);
 
@@ -838,7 +836,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
     const bool is_last_slice = (slice_index == func.slices.size() - 1);
 
     TrackedBValue slice_is_current = pb.Literal(xls::UBits(1, 1), body_loc);
-
     if (next_unconditional_transition_index > 0) {
       const int64_t from_slice_index =
           unconditional_from_slice_indices_ordered.at(
@@ -918,9 +915,10 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       std::optional<TrackedBValue> input_value;
       XLS_ASSIGN_OR_RETURN(
           input_value,
-          GenerateInputValueInContext(param, phi_elements_by_param_node_id,
-                                      value_by_continuation_value, slice_index,
-                                      pb, body_loc));
+          GenerateInputValueInContext(
+              param, phi_elements_by_param_node_id, value_by_continuation_value,
+              state_element_by_continuation_value, slice_index, slice_active,
+              slice_is_current, pb, body_loc));
 
       if (!input_value.has_value()) {
         continue;
@@ -946,17 +944,41 @@ NewFSMGenerator::GenerateNewFSMInvocation(
                                        /*name=*/"token");
       XLSCC_CHECK(last_op_out_value.valid(), body_loc);
       // No IO before first slice
-      XLSCC_CHECK(slice_before_active.valid(), body_loc);
+      XLSCC_CHECK(slice_active.valid(), body_loc);
+      XLSCC_CHECK(slice_is_current.valid(), body_loc);
+
+      // The IO op is predicated on the slice after it being active.
+      // This is because the predicate/value to send, outputted from the slice
+      // before it, remains valid even when the slice outputting it is inactive,
+      // but the received value is only valid in the activation in which the IO
+      // op happens, so it must be consumed in that same activation by the slice
+      // after it.
+
       XLS_ASSIGN_OR_RETURN(
           GenerateIOReturn io_return,
           translator_io_.GenerateIO(*after_op, token, last_op_out_value, pb,
                                     optional_bundle,
                                     /*extra_condition=*/
-                                    slice_before_active));
+                                    slice_active));
 
       // Add IO parameter if applicable
       if (io_return.received_value.valid()) {
-        invoke_params.push_back(io_return.received_value);
+        TrackedBValue received_value = io_return.received_value;
+
+        // Help the optimizer to remove references to the IO op from downstream
+        // slices where they are spurious. This improves IO merging and
+        // throughput.
+        received_value = pb.Select(
+            slice_active,
+            /*on_true=*/received_value,
+            /*on_false=*/
+            pb.Literal(xls::ZeroOfType(received_value.GetType()), body_loc),
+            body_loc,
+            /*name=*/
+            absl::StrFormat("select_io_out_or_0_%li_%s", slice_index,
+                            after_op->final_param_name));
+
+        invoke_params.push_back(received_value);
       }
     }
 
@@ -1073,6 +1095,10 @@ NewFSMGenerator::GenerateNewFSMInvocation(
           layout.transition_by_slice_from_index.at(slice_index);
       TrackedBValue jump_condition = slice_active;
 
+      // Save values before transition for forming state element next values.
+      auto value_by_continuation_value_before_transition =
+          value_by_continuation_value;
+
       if (transition.forward) {
         XLSCC_CHECK_GE(transition.to_slice, transition.from_slice, body_loc);
       } else {
@@ -1109,6 +1135,20 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       } else {
         after_conditional_activation_transition =
             pb.Literal(xls::UBits(0, 1), body_loc);
+
+        // Remove direct references from downstream slices to raw outputs
+        // of upstream slices by referring directly to the state element,
+        // not a select over the state element and raw value.
+        //
+        // This is only done for values that have state elements. Others,
+        // such as direct-ins, still need to be fed through directly.
+        //
+        // This makes it clear to the optimizer that dependencies don't exist
+        // across the unconditional transition.
+        for (auto& [continuation_out, value_out] :
+             state_element_by_continuation_value) {
+          value_by_continuation_value[continuation_out] = value_out;
+        }
       }
 
       TrackedBValue jump_to_slice_index = pb.Literal(
@@ -1159,7 +1199,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
                    /*name=*/GetIRStateName(state));
 
         for (const ContinuationValue* continuation_out : state.values_to_save) {
-          // Generate next values for state elements
           xls::StateElement* state_elem =
               state_element_by_continuation_value.at(continuation_out)
                   .node()
@@ -1168,7 +1207,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
 
           std::tuple<xls::StateElement*, xls::Node*> key = {
               state_elem,
-              value_by_continuation_value.at(continuation_out).node()};
+              value_by_continuation_value_before_transition.at(continuation_out)
+                  .node()};
 
           // Generate next values
           next_value_conditions_by_state_element_and_value[key].insert(
@@ -1176,9 +1216,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
         }
       }
     }
-
-    // Save for IO op predicates
-    slice_before_active = slice_active;
   }
 
   for (auto& [key, or_nodes] :
@@ -1347,7 +1384,10 @@ NewFSMGenerator::GenerateInputValueInContext(
         phi_elements_by_param_node_id,
     const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
         value_by_continuation_value,
-    const int64_t slice_index, xls::ProcBuilder& pb,
+    const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
+        state_element_by_continuation_value,
+    const int64_t slice_index, TrackedBValue slice_active,
+    TrackedBValue slice_is_current, xls::ProcBuilder& pb,
     const xls::SourceInfo& body_loc) {
   // Ignore IO params
   if (!phi_elements_by_param_node_id.contains(param->id())) {
@@ -1381,8 +1421,11 @@ NewFSMGenerator::GenerateInputValueInContext(
     XLSCC_CHECK(value_by_continuation_value.contains(phi_element.value),
                 phi_element.value->output_node->loc());
 
-    xls::Node* value_node =
-        value_by_continuation_value.at(phi_element.value).node();
+    TrackedBValue value_from_output =
+        value_by_continuation_value.at(phi_element.value);
+
+    xls::Node* value_node = value_from_output.node();
+
     conditions_by_value_node[value_node].insert(phi_element.condition);
   }
 

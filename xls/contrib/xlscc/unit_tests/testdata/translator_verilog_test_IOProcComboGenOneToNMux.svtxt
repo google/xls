@@ -10,15 +10,15 @@ module foo_proc(
   output wire [31:0] out2,
   output wire out2_vld
 );
-  wire continuation_3_ctx_3__full_condi_output__1;
-  wire ctx_3__full_condition_ctx_3__rel_output__1;
+  wire ctx_3__relative_condition_ctx_3__output__2;
+  wire ctx_3__relative_condition_ctx_3__output__3;
   wire p0_all_active_outputs_ready;
-  assign continuation_3_ctx_3__full_condi_output__1 = dir == 32'h0000_0000;
-  assign ctx_3__full_condition_ctx_3__rel_output__1 = ~continuation_3_ctx_3__full_condi_output__1;
-  assign p0_all_active_outputs_ready = (~continuation_3_ctx_3__full_condi_output__1 | out1_rdy) & (~ctx_3__full_condition_ctx_3__rel_output__1 | out2_rdy);
+  assign ctx_3__relative_condition_ctx_3__output__2 = dir == 32'h0000_0000;
+  assign ctx_3__relative_condition_ctx_3__output__3 = ~ctx_3__relative_condition_ctx_3__output__2;
+  assign p0_all_active_outputs_ready = (~ctx_3__relative_condition_ctx_3__output__2 | out1_rdy) & (~ctx_3__relative_condition_ctx_3__output__3 | out2_rdy);
   assign in_rdy = p0_all_active_outputs_ready;
   assign out1 = in;
-  assign out1_vld = in_vld & 1'h1 & 1'h1 & continuation_3_ctx_3__full_condi_output__1;
+  assign out1_vld = in_vld & 1'h1 & 1'h1 & ctx_3__relative_condition_ctx_3__output__2;
   assign out2 = in;
-  assign out2_vld = in_vld & 1'h1 & 1'h1 & ctx_3__full_condition_ctx_3__rel_output__1;
+  assign out2_vld = in_vld & 1'h1 & 1'h1 & ctx_3__relative_condition_ctx_3__output__3;
 endmodule

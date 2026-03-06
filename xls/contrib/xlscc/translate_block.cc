@@ -1819,8 +1819,8 @@ TrackedBValue Translator::ConditionWithExtra(
   if (extra_condition.has_value() && extra_condition.value().valid()) {
     ret = builder.And(ret, extra_condition.value(), op_loc);
   }
-  if (context().full_condition.valid()) {
-    ret = builder.And(ret, context().full_condition, op_loc);
+  if (!context().full_condition.empty()) {
+    ret = builder.And(ret, context().full_condition_bval(op_loc), op_loc);
   }
   return ret;
 }
@@ -1831,6 +1831,8 @@ absl::StatusOr<TrackedBValue> Translator::GenerateIOInvoke(
     xls::ProcBuilder& pb) {
   const IOOp& op = invoke.op;
   xls::SourceInfo op_loc = op.op_location;
+
+  XLSCC_CHECK(!generate_new_fsm_, op_loc);
 
   const int64_t return_index = prepared.return_index_for_op.at(&op);
 

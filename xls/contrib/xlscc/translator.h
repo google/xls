@@ -33,6 +33,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -63,6 +64,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/fileno.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -96,6 +98,29 @@ struct FunctionInProgress {
   std::unique_ptr<GeneratedFunction> generated_function;
 };
 
+// Some machinery compares BValues / Node* pointers, avoid confusing it
+// unnecessarily. Also yields efficiency.
+class CompoundPredicate {
+ public:
+  bool empty() const;
+  void clear();
+  void and_condition(TrackedBValue condition);
+  TrackedBValue condition_bval(const TranslationContext* context,
+                               const xls::SourceInfo& loc,
+                               bool literal_1_on_invalid) const;
+
+  // Can't copy, have to preserve TrackedBValue addresses
+  const absl::InlinedVector<TrackedBValue, 2>& all_terms() const;
+
+ private:
+  absl::InlinedVector<TrackedBValue, 2> terms_;
+
+  mutable xls::FunctionBase* cached_function_ = nullptr;
+  // Don't want these to be continued
+  mutable NATIVE_BVAL cached_literal_1_;
+  mutable NATIVE_BVAL cached_condition_;
+};
+
 // Encapsulates a context for translating Clang AST to XLS IR.
 // This is roughly equivalent to a "scope" in C++. There will typically
 //  be at least one context pushed into the context stack for each C++ scope.
@@ -103,32 +128,20 @@ struct FunctionInProgress {
 //  as new CValues for assignments to variables declared outside the scope,
 //  up to the next context / outer scope.
 struct TranslationContext {
-  TrackedBValue not_full_condition_bval(const xls::SourceInfo& loc) const {
-    if (!full_condition.valid()) {
-      return fb->Literal(xls::UBits(0, 1), loc);
-    }
-    return fb->Not(full_condition, loc);
+  TrackedBValue relative_condition_bval(
+      const xls::SourceInfo& loc, bool literal_1_on_invalid = true) const {
+    return relative_condition.condition_bval(this, loc, literal_1_on_invalid);
   }
 
-  TrackedBValue full_condition_bval(const xls::SourceInfo& loc) const {
-    if (!full_condition.valid()) {
-      return fb->Literal(xls::UBits(1, 1), loc);
-    }
-    return full_condition;
+  TrackedBValue full_condition_bval(const xls::SourceInfo& loc,
+                                    bool literal_1_on_invalid = true) const {
+    return full_condition.condition_bval(this, loc, literal_1_on_invalid);
   }
 
-  TrackedBValue not_relative_condition_bval(const xls::SourceInfo& loc) const {
-    if (!relative_condition.valid()) {
-      return fb->Literal(xls::UBits(0, 1), loc);
-    }
-    return fb->Not(relative_condition, loc);
-  }
-
-  TrackedBValue relative_condition_bval(const xls::SourceInfo& loc) const {
-    if (!relative_condition.valid()) {
-      return fb->Literal(xls::UBits(1, 1), loc);
-    }
-    return relative_condition;
+  void and_condition_util(TrackedBValue and_condition,
+                          CompoundPredicate& mod_condition,
+                          const xls::SourceInfo& loc) const {
+    mod_condition.and_condition(and_condition);
   }
 
   void and_condition_util(TrackedBValue and_condition,
@@ -140,7 +153,6 @@ struct TranslationContext {
       mod_condition = fb->And(mod_condition, and_condition, loc);
     }
   }
-
   void or_condition_util(TrackedBValue or_condition,
                          TrackedBValue& mod_condition,
                          const xls::SourceInfo& loc) const {
@@ -190,9 +202,9 @@ struct TranslationContext {
   TrackedBValue have_returned_condition;
 
   // Condition for assignments
-  TrackedBValue full_condition;
+  CompoundPredicate full_condition;
   TrackedBValue full_condition_on_enter_block;
-  TrackedBValue relative_condition;
+  CompoundPredicate relative_condition;
 
   // These flags control the behavior of break and continue statements
   bool in_for_body = false;
