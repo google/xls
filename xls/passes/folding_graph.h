@@ -193,6 +193,10 @@ class FoldingGraph {
   absl::flat_hash_set<absl::flat_hash_set<BinaryFoldingAction*>>
   GetEdgeCliques();
 
+  // This function returns the connected components of the folding graph.
+  std::vector<absl::flat_hash_set<BinaryFoldingAction*>>
+  GetConnectedComponents();
+
   // This function returns the IR function that this folding graph represents.
   FunctionBase* function() const;
 

@@ -34,6 +34,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
 #include "xls/passes/visibility_analysis.h"
+#include "ortools/graph/connected_components.h"
 #include "ortools/graph/cliques.h"
 
 namespace xls {
@@ -212,6 +213,41 @@ void FoldingGraph::IdentifyCliques() {
   };
   ::operations_research::FindCliques(graph_descriptor, nodes_.size(),
                                      found_clique);
+}
+
+std::vector<absl::flat_hash_set<BinaryFoldingAction*>>
+FoldingGraph::GetConnectedComponents() {
+  // Build the graph
+  ConnectedComponentsFinder<NodeIndex> cc;
+  for (NodeIndex i = 0; i < nodes_.size(); ++i) {
+    cc.AddNode(i);
+  }
+  for (const auto& edge : edges_) {
+    cc.AddEdge(node_to_index_.at(edge->GetFrom()),
+               node_to_index_.at(edge->GetTo()));
+  }
+
+  // Find the connected components
+  std::vector<std::vector<NodeIndex>> components = cc.FindConnectedComponents();
+  std::vector<absl::flat_hash_set<BinaryFoldingAction*>>
+      connected_components_edges;
+  connected_components_edges.reserve(components.size());
+  for (const auto& component : components) {
+    absl::flat_hash_set<BinaryFoldingAction*> edge_component;
+    for (NodeIndex node_idx : component) {
+      for (EdgeIndex edge_idx : graph_->OutgoingArcs(node_idx)) {
+        edge_component.insert(edges_[edge_idx].get());
+      }
+      for (EdgeIndex edge_idx : graph_->IncomingArcs(node_idx)) {
+        edge_component.insert(edges_[edge_idx].get());
+      }
+    }
+    if (!edge_component.empty()) {
+      connected_components_edges.push_back(edge_component);
+    }
+  }
+
+  return connected_components_edges;
 }
 
 absl::flat_hash_set<absl::flat_hash_set<BinaryFoldingAction*>>
