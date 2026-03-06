@@ -43,6 +43,11 @@
 namespace xls::interval_ops {
 
 namespace {
+
+// How many exact calculations we are willing to perform (or exact values we are
+// willing to enumerate) before falling back to a conservative approximation.
+static constexpr int64_t kMaxExactCalculations = 16;
+
 TernaryVector ExtractTernaryInterval(const Interval& interval) {
   Bits lcp = bits_ops::LongestCommonPrefixMSB(
       {interval.LowerBound(), interval.UpperBound()});
@@ -360,8 +365,6 @@ std::optional<IntervalSet> MaybePerformExactCalculation(
       })) {
     return std::nullopt;
   }
-  // How many exact calculations we are willing to perform.
-  static constexpr int64_t kMaxExactCalculations = 16;
   int64_t required_calculations = 1;
   for (const IntervalSet& is : input_operands) {
     // required_calculations *= is.Size();
@@ -1016,6 +1019,72 @@ IntervalSet Decode(const IntervalSet& a, int64_t width) {
   result.Normalize();
   return result;
 }
+
+IntervalSet Encode(const IntervalSet& a, int64_t width) {
+  if (a.IsEmpty()) {
+    return IntervalSet(width);
+  }
+  CHECK(a.IsNormalized());
+
+  const int64_t input_width = a.BitCount();
+  const int64_t output_width = width;
+
+  // For small ranges, compute the exact output by enumerating all possible
+  // input values. This keeps Encode precise when the input range is small, and
+  // avoids blowing up for large ranges.
+  if (std::optional<int64_t> sz = a.Size();
+      sz.has_value() && *sz <= kMaxExactCalculations) {
+    IntervalSet result(output_width);
+    for (const Bits& in : a.Values()) {
+      uint64_t out_value = 0;
+      for (int64_t i = 0; i < input_width; ++i) {
+        if (in.Get(i)) {
+          out_value |= static_cast<uint64_t>(i);
+        }
+      }
+      result.AddInterval(Interval::Precise(UBits(out_value, output_width)));
+    }
+    result.Normalize();
+    return result;
+  }
+
+  // Otherwise, fall back to extracting a ternary approximation for the input
+  // and computing the ternary of the OR-based encode operation.
+  TernaryVector input_ternary = ExtractTernaryVector(a);
+  TernaryVector output_ternary(output_width, TernaryValue::kKnownZero);
+  for (int64_t j = 0; j < output_width; ++j) {
+    bool any_one = false;
+    bool any_unknown = false;
+    for (int64_t i = 0; i < input_width; ++i) {
+      if (((i >> j) & 1) == 0) {
+        continue;
+      }
+      switch (input_ternary[i]) {
+        case TernaryValue::kKnownZero:
+          break;
+        case TernaryValue::kKnownOne:
+          any_one = true;
+          break;
+        case TernaryValue::kUnknown:
+          any_unknown = true;
+          break;
+      }
+      if (any_one) {
+        break;
+      }
+    }
+    if (any_one) {
+      output_ternary[j] = TernaryValue::kKnownOne;
+    } else if (any_unknown) {
+      output_ternary[j] = TernaryValue::kUnknown;
+    } else {
+      output_ternary[j] = TernaryValue::kKnownZero;
+    }
+  }
+
+  return FromTernary(output_ternary, /*max_interval_bits=*/4);
+}
+
 IntervalSet SignExtend(const IntervalSet& a, int64_t width) {
   return PerformUnaryOp(
       [&](const Bits& b) -> Bits { return bits_ops::SignExtend(b, width); }, a,
