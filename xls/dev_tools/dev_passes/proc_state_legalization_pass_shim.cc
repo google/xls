@@ -14,31 +14,21 @@
 
 #include "xls/dev_tools/dev_passes/proc_state_legalization_pass_shim.h"
 
-#include <utility>
-
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/function_base.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
-absl::StatusOr<bool> ProcStateLegalizationPassShim::RunOnFunctionBaseInternal(
-    FunctionBase* fb, const OptimizationPassOptions& options,
+absl::StatusOr<bool> ProcStateLegalizationPassShim::RunInternal(
+    Package* p, const OptimizationPassOptions& options,
     PassResults* pass_results, OptimizationContext& context) const {
-  SchedulingContext sched_context =
-      SchedulingContext::CreateForSingleFunction(fb);
-  PassResults results;
-  if (pass_results) {
-    results.invocation = std::move(pass_results->invocation);
-  }
-  XLS_ASSIGN_OR_RETURN(
-      bool res, proc_state_sched_pass_.RunOnFunctionBase(
-                    fb, SchedulingPassOptions(), &results, sched_context));
-  if (pass_results) {
-    pass_results->invocation = std::move(results.invocation);
-  }
+  SchedulingContext sched_context = SchedulingContext::CreateForWholePackage(p);
+  XLS_ASSIGN_OR_RETURN(bool res,
+                       proc_state_sched_pass_.Run(p, SchedulingPassOptions(),
+                                                  pass_results, sched_context));
   return res;
 }
 

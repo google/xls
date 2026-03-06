@@ -18,7 +18,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
-#include "xls/ir/function_base.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/proc_state_legalization_pass.h"
@@ -26,16 +26,17 @@ namespace xls {
 
 // Compatibility shim to use the scheduling pass 'ProcStateLegalizationPass' in
 // the optimization pass pipeline for modernizing procs.
-class ProcStateLegalizationPassShim : public OptimizationFunctionBasePass {
+class ProcStateLegalizationPassShim : public OptimizationPass {
  public:
   static constexpr std::string_view kName = "proc_state_legalization_shim";
   ProcStateLegalizationPassShim()
-      : OptimizationFunctionBasePass(kName, "Proc State Legalization Pass") {}
+      : OptimizationPass(kName, "Proc State Legalization Pass") {}
 
  protected:
-  absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* fb, const OptimizationPassOptions& options,
-      PassResults* pass_results, OptimizationContext& context) const override;
+  absl::StatusOr<bool> RunInternal(Package* p,
+                                   const OptimizationPassOptions& options,
+                                   PassResults* pass_results,
+                                   OptimizationContext& context) const override;
 
  private:
   ProcStateLegalizationPass proc_state_sched_pass_;

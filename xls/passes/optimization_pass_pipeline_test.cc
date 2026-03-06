@@ -387,7 +387,7 @@ void DefaultPipelineFinishes(std::shared_ptr<Package> package) {
   PassResults res;
   OptimizationContext ctx;
   XLS_ASSERT_OK(pipeline->Run(package.get(), options, &res, ctx).status());
-  ASSERT_LT(res.total_invocations, kMaxPassCount)
+  ASSERT_LT(res.total_invocations(), kMaxPassCount)
       << "Took an unreasonable amount of passes to finish.";
 }
 

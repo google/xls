@@ -150,10 +150,16 @@ TEST(PassesTest, AddPasses) {
       pass_mgr.Run(p.get(), OptimizationPassOptions(), &results, context),
       IsOkAndHolds(false));
   std::vector<std::string> invocation_names;
-  invocation_names.reserve(results.invocation.nested_invocations.size());
-  for (const PassInvocation& invocation :
-       results.invocation.nested_invocations) {
-    invocation_names.push_back(invocation.pass_name);
+  invocation_names.reserve(results.root_invocation()
+                               .nested_invocations()
+                               .front()
+                               ->nested_invocations()
+                               .size());
+  for (const auto& invocation : results.root_invocation()
+                                    .nested_invocations()
+                                    .front()
+                                    ->nested_invocations()) {
+    invocation_names.emplace_back(invocation->pass_name());
   }
   EXPECT_THAT(invocation_names, ElementsAre("d1", "d2", "d3", "C1", "d6"));
 }
@@ -311,10 +317,9 @@ TEST(PassesTest, InvariantCheckerFailsAfterPass) {
   absl::down_cast<OptimizationCompoundPass*>(top->passes()[0])
       ->Add<FunctionAdderPass>("bar");
   auto result = top->Run(p.get(), OptimizationPassOptions(), &results, context);
-  EXPECT_THAT(result,
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Function has name 'bar'; [after 'Adds "
-                                 "function named bar' pass")))
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInternal,
+                               HasSubstr("Function has name 'bar'; after 'Adds "
+                                         "function named bar' pass")))
       << result.status();
 }
 
@@ -511,7 +516,7 @@ TEST(PassesTest, CapOptLevelWithCompoundPassAndInvariantChecker) {
 
   // The invariant checker runs at the beginning of each compound pass and after
   // each pass which changes the IR.
-  EXPECT_EQ(checker->run_count(), 5);
+  EXPECT_EQ(checker->run_count(), 6);
 }
 
 TEST(PassesTest, OptLevelIsAtLeast) {
@@ -583,7 +588,7 @@ TEST(PassesTest, OptLevelIsAtLeastWithCompoundPassAndInvariantChecker) {
                 IsOkAndHolds(true));
 
     // The inner pass ran so the checker should have run after each pass.
-    EXPECT_EQ(checker->run_count(), 5);
+    EXPECT_EQ(checker->run_count(), 6);
   }
 }
 

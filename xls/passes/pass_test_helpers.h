@@ -43,12 +43,6 @@ class RecordIfPassChanged : public OptimizationPass {
     long_name_ = absl::StrCat(inner_.long_name(), " Result Observer");
   }
   bool IsCompound() const override { return inner_.IsCompound(); }
-  absl::StatusOr<bool> Run(Package* ir, const OptimizationPassOptions& options,
-                           PassResults* results,
-                           OptimizationContext& context) const override {
-    XLS_ASSIGN_OR_RETURN(*changed_, inner_.Run(ir, options, results, context));
-    return *changed_;
-  }
 
  protected:
   absl::StatusOr<bool> RunInternal(

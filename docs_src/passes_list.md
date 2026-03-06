@@ -807,7 +807,7 @@ are applied conditionally based on the optimization level (`opt_level`).
 
 
 
-## bdd_simp(2) - BDD-based Simplification with opt_level <= 2 {#bdd_simp2}
+## bdd_simp(2) - BDD-based Simplification {#bdd_simp2}
 
 
 Runs BDD-based simplifications on the function.
@@ -879,7 +879,7 @@ are applied conditionally based on the optimization level (`opt_level`).
 
 
 
-## bdd_simp(3) - BDD-based Simplification with opt_level <= 3 {#bdd_simp3}
+## bdd_simp(3) - BDD-based Simplification {#bdd_simp3}
 
 
 Runs BDD-based simplifications on the function.

@@ -58,20 +58,6 @@ class SchedulingWrapperPass : public SchedulingPass {
 
   bool IsCompound() const override { return wrapped_pass_->IsCompound(); }
 
-  absl::StatusOr<bool> RunNested(
-      Package* package, const SchedulingPassOptions& options,
-      PassResults* results, SchedulingContext& context,
-      PassInvocation& invocation,
-      absl::Span<const SchedulingInvariantChecker* const> invariant_checkers)
-      const override {
-    return wrapped_pass_->RunNested(
-        package,
-        OptimizationPassOptions(options)
-            .WithOptLevel(opt_level_)
-            .WithEliminateNoopNext(eliminate_noop_next_),
-        results, opt_context_, invocation, /*invariant_checkers=*/{});
-  }
-
  protected:
   absl::StatusOr<bool> RunInternal(Package* package,
                                    const SchedulingPassOptions& options,

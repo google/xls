@@ -34,6 +34,10 @@ message PassMetricsProto {
   optional int64 fixed_point_iterations = 5;
   // For compound passes, this is the results of the passes invoked by the pass.
   repeated PassMetricsProto nested_results = 6;
+
+  // What pass number this was run at. Fixedpoint will have one for each time it
+  // restarts.
+  repeated int64 pass_number = 7;
 }
 
 // Overall metrics for a pass pipeline.
