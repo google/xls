@@ -867,8 +867,12 @@ TEST_F(ScheduleBoundsTest, ConvertBackedgeConstraint) {
   Node* state_read = nullptr;
   Node* next_node = nullptr;
   for (Node* node : proc->nodes()) {
-    if (node->Is<StateRead>()) state_read = node;
-    if (node->Is<Next>()) next_node = node;
+    if (node->Is<StateRead>()) {
+      state_read = node;
+    }
+    if (node->Is<Next>()) {
+      next_node = node;
+    }
   }
   EXPECT_EQ(ndc.anchor, state_read);
   EXPECT_EQ(ndc.subject, next_node);
