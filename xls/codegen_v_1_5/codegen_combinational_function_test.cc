@@ -2167,6 +2167,36 @@ TEST_P(CodegenCombinationalFunctionTest, SDiv) {
                                  result.verilog_text);
 }
 
+TEST_P(CodegenCombinationalFunctionTest, UMod) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue x = fb.Param("x", package.GetBitsType(32));
+  BValue y = fb.Param("y", package.GetBitsType(32));
+  fb.UMod(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  verilog::ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(42, 32)}, {"y", UBits(7, 32)}}),
+              IsOkAndHolds(UBits(0, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(10, 32)}, {"y", UBits(7, 32)}}),
+              IsOkAndHolds(UBits(3, 32)));
+  // Mod by zero should return zero.
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(0, 32)}, {"y", UBits(0, 32)}}),
+              IsOkAndHolds(UBits(0, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(12345, 32)}, {"y", UBits(0, 32)}}),
+              IsOkAndHolds(UBits(0, 32)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 TEST_P(CodegenCombinationalFunctionTest, SMod) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
