@@ -224,15 +224,10 @@ TEST_F(TypecheckV2Test, ReturnTypeMismatch) {
 TEST_F(TypecheckV2Test, ReturnTypeMismatchWithImplicitUnitReturn) {
   EXPECT_THAT(
       Typecheck("fn f(x: bits[1]) -> bits[1] { x; }"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          AllOf(HasTypeMismatchInV1(GetParam(), "()", "uN[1]"),
-                HasTypeMismatchInV2(GetParam(), "()", "bits[1]"),
-                HasSubstrInV1(
-                    GetParam(),
-                    "Return type of function body for 'f' did not match "
-                    "the annotated return type"),
-                HasSubstrInV1(GetParam(), "terminated with a semicolon"))));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasTypeMismatch("()", "bits[1]"),
+                     HasSubstr("Did you intend to add a trailing semicolon to "
+                               "the last expression in the function body?"))));
 }
 
 TEST_F(TypecheckV2Test, ReturnTypeMismatchWithExplicitUnitReturn) {

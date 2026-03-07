@@ -66,8 +66,9 @@ class FakeErrorHandler {
 
   // Deals out a handler function that can be passed to type inference.
   TypeInferenceErrorHandler fn() {
-    return [this](const AstNode* node,
+    return [this](const absl::Status& error, const AstNode* node,
                   absl::Span<const CandidateType> candidates) {
+      EXPECT_THAT(error, StatusIs(absl::StatusCode::kInvalidArgument));
       std::string candidates_string = FormatCandidates(candidates);
       const auto it = cases_.find(candidates_string);
       EXPECT_NE(it, cases_.end())

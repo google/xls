@@ -54,8 +54,8 @@
 
 namespace xls::dslx {
 
-std::vector<std::pair<uint8_t, std::string>>* TypeInferenceFlag::flag_names_ =
-    new std::vector<std::pair<uint8_t, std::string>>();
+std::vector<std::pair<uint32_t, std::string>>* TypeInferenceFlag::flag_names_ =
+    new std::vector<std::pair<uint32_t, std::string>>();
 
 const TypeInferenceFlag TypeInferenceFlag::kNone(0, "none");
 const TypeInferenceFlag TypeInferenceFlag::kMinSize(1, "min-size");
@@ -72,6 +72,8 @@ const TypeInferenceFlag TypeInferenceFlag::kFormalFunctionType(
     1 << 6, "formal-function-type");
 const TypeInferenceFlag TypeInferenceFlag::kDeclarationType(1 << 7,
                                                             "declaration-type");
+const TypeInferenceFlag TypeInferenceFlag::kFormalReturnType(
+    1 << 8, "formal-return-type");
 
 namespace {
 

@@ -43,7 +43,8 @@ namespace xls::dslx {
 using ResolverErrorHandler =
     std::function<absl::StatusOr<const TypeAnnotation*>(
         std::optional<const ParametricContext*> parametric_context,
-        const AstNode*, absl::Span<const TypeAnnotation*>)>;
+        const absl::Status& error, const AstNode*,
+        absl::Span<const TypeAnnotation*>)>;
 
 // An object that wraps type unification logic with resolution of indirect type
 // annotations. Indirect type annotations, such as `MemberTypeAnnotation`,

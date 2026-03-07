@@ -65,6 +65,24 @@ cc_library(
 )
 
 cc_library(
+    name = "decorate_error",
+    srcs = ["decorate_error.cc"],
+    hdrs = ["decorate_error.h"],
+    deps = [
+        ":inference_table",
+        ":type_inference_error_handler",
+        "//xls/dslx:errors",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "function_resolver",
     srcs = ["function_resolver.cc"],
     hdrs = ["function_resolver.h"],
@@ -397,6 +415,8 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/type_system:type",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
     ],
@@ -407,6 +427,7 @@ cc_library(
     srcs = ["typecheck_module_v2.cc"],
     hdrs = ["typecheck_module_v2.h"],
     deps = [
+        ":decorate_error",
         ":inference_table",
         ":inference_table_converter",
         ":inference_table_converter_impl",

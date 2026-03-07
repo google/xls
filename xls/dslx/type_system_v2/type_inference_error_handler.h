@@ -16,7 +16,10 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_TYPE_INFERENCE_ERROR_HANDLER_H_
 
 #include <functional>
+#include <utility>
 
+#include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
@@ -55,7 +58,29 @@ struct CandidateType {
 //   error, and flag it to the user later.
 using TypeInferenceErrorHandler =
     std::function<absl::StatusOr<const TypeAnnotation*>(
-        const AstNode*, absl::Span<const CandidateType> candidate_types)>;
+        const absl::Status& error, const AstNode*,
+        absl::Span<const CandidateType> candidate_types)>;
+
+// Chains two error handlers together so that if `first` is non-null and
+// does not return an unimplemented error, its result is returned; otherwise the
+// result of `second` is returned. `second` must be non-null.
+inline TypeInferenceErrorHandler ChainTypeInferenceErrorHandlers(
+    TypeInferenceErrorHandler first, TypeInferenceErrorHandler second) {
+  CHECK(second != nullptr);
+  return [first = std::move(first), second = std::move(second)](
+             const absl::Status& error, const AstNode* node,
+             absl::Span<const CandidateType> candidate_types)
+             -> absl::StatusOr<const TypeAnnotation*> {
+    if (first) {
+      absl::StatusOr<const TypeAnnotation*> first_result =
+          first(error, node, candidate_types);
+      if (first_result.ok() || !absl::IsUnimplemented(first_result.status())) {
+        return first_result;
+      }
+    }
+    return second(error, node, candidate_types);
+  };
+}
 
 }  // namespace xls::dslx
 

@@ -34,10 +34,12 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/decorate_error.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
 #include "xls/dslx/type_system_v2/populate_table.h"
+#include "xls/dslx/type_system_v2/trait_deriver.h"
 #include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
@@ -57,6 +59,12 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
   if (top_module) {
     VLOG(3) << "Using type system v2 for type checking of " << path;
   }
+
+  // When a type unification error occurs, and the externally provided handler
+  // (if any) cannot fix the situation, decorate the error with the built-in
+  // decorator. This gets more helpful output in certain cases.
+  error_handler =
+      ChainTypeInferenceErrorHandlers(std::move(error_handler), &DecorateError);
 
   InferenceTable* table = import_data->GetOrCreateInferenceTable();
   XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings, table));
