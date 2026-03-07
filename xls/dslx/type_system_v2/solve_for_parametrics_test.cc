@@ -104,6 +104,30 @@ const BAR: uN[4] = uN[4]:1;
   EXPECT_THAT(values, IsEmpty());
 }
 
+TEST_F(SolveForParametricsTest, SolveWithNoSolutionDueToCombinedExpr) {
+  // In this example, we can't solve for `N` using the type annotation of `a`.
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
+fn foo<M: u32, N: u32>(a: uN[M * N]) -> uN[M * N] { a }
+const BAR: uN[4] = uN[4]:1;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* bar,
+                           module->GetMemberOrError<ConstantDef>("BAR"));
+  const ParametricBinding* n = foo->parametric_bindings()[0];
+  const Param* a = foo->params()[0];
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      values, SolveForParametrics(
+                  *import_data_, bar->type_annotation(), a->type_annotation(),
+                  absl::flat_hash_set<const ParametricBinding*>{n},
+                  [&](const TypeAnnotation*, const Expr* expr) {
+                    return EvaluateLiteral(expr, false, 32);
+                  }));
+  EXPECT_THAT(values, IsEmpty());
+}
+
 TEST_F(SolveForParametricsTest, SolveForUnWithUn) {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }

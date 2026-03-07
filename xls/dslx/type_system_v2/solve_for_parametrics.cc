@@ -226,9 +226,17 @@ class Resolver {
       return ResolveVariable(resolvable, *dependent_visitor_->last_variable());
     }
 
+    // Scenario 3: `resolvable` and and `dependent` are both complex
+    // expressions. Since `dependent` is not a direct reference to one
+    // parametric, we can't use it for a solution.
+    if (dynamic_cast<const Expr*>(resolvable) != nullptr &&
+        dynamic_cast<const Expr*>(dependent) != nullptr) {
+      return absl::OkStatus();
+    }
+
     XLS_RETURN_IF_ERROR(resolvable->Accept(resolvable_visitor_));
 
-    // Scenario 3: `dependent` is a TVTA and `resolvable` is a direct type
+    // Scenario 4: `dependent` is a TVTA and `resolvable` is a direct type
     // annotation. This means the generic type referred to by the TVTA is the
     // resovable type.
     if (dependent_visitor_->last_tvta().has_value() &&
@@ -239,7 +247,7 @@ class Resolver {
               (*dependent_visitor_->last_tvta())->type_variable()->name_def()));
     }
 
-    // Scenario 4: The 2 annotations just aren't related.
+    // Scenario 5: The 2 annotations just aren't related.
     if (!resolvable_visitor_->last_signedness_and_bit_count().has_value() ||
         !dependent_visitor_->last_signedness_and_bit_count().has_value()) {
       return absl::InvalidArgumentError(
@@ -247,7 +255,7 @@ class Resolver {
                            dependent->ToString()));
     }
 
-    // Scenario 5: `dependent` is a more-expanded form of `resolvable` or vice
+    // Scenario 6: `dependent` is a more-expanded form of `resolvable` or vice
     // versa. The more compact one is a built-in type like `u24`, so the zipper
     // is not going to line up the 24 and the N, much less the implicit
     // signedness value.
