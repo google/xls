@@ -2,23 +2,24 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top proc __test_module__main_0_next<>(__state: bits[32], init={0}) {
-  literal.5: bits[1] = literal(value=1, id=5)
-  not.8: bits[1] = not(literal.5, id=8)
+top proc __test_module__main_0_next<>(__state: bits[32], state: bits[32], init={0, 0}) {
+  literal.6: bits[1] = literal(value=1, id=6)
+  not.9: bits[1] = not(literal.6, id=9)
   literal.3: bits[1] = literal(value=0, id=3)
   literal.4: bits[1] = literal(value=0, id=4)
   __token: token = literal(value=token, id=1)
-  or.9: bits[1] = or(not.8, literal.3, id=9)
-  not.11: bits[1] = not(literal.5, id=11)
-  not.12: bits[1] = not(literal.4, id=12)
-  assert.10: token = assert(__token, or.9, message="State element written before read in same activation.", id=10)
-  or.13: bits[1] = or(not.11, not.12, id=13)
+  or.10: bits[1] = or(not.9, literal.3, id=10)
+  not.12: bits[1] = not(literal.6, id=12)
+  not.13: bits[1] = not(literal.4, id=13)
+  assert.11: token = assert(__token, or.10, message="State element written before read in same activation.", id=11)
+  or.14: bits[1] = or(not.12, not.13, id=14)
+  state: bits[32] = state_read(state_element=state, id=5)
+  literal.8: bits[32] = literal(value=1, id=8)
   __state: bits[32] = state_read(state_element=__state, id=2)
-  literal.7: bits[32] = literal(value=1, id=7)
-  tuple.6: () = tuple(id=6)
-  assert.14: token = assert(assert.10, or.13, message="State element written after write in same activation.", id=14)
-  or.15: bits[1] = or(literal.4, literal.5, id=15)
-  next_value.16: () = next_value(param=__state, value=literal.7, predicate=literal.5, id=16)
-  tuple.17: () = tuple(id=17)
+  tuple.7: () = tuple(id=7)
+  assert.15: token = assert(assert.11, or.14, message="State element written after write in same activation.", id=15)
+  or.16: bits[1] = or(literal.4, literal.6, id=16)
+  next_value.17: () = next_value(param=state, value=literal.8, predicate=literal.6, id=17)
   tuple.18: () = tuple(id=18)
+  tuple.19: () = tuple(id=19)
 }

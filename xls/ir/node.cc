@@ -633,6 +633,9 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
         args.push_back(absl::StrFormat("predicate=%s",
                                        (*state_read->predicate())->GetName()));
       }
+      if (state_read->label()) {
+        args.push_back(absl::StrFormat("label=\"%s\"", *state_read->label()));
+      }
       break;
     }
     case Op::kNext: {
@@ -643,6 +646,9 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       if (predicate.has_value()) {
         args.push_back(
             absl::StrFormat("predicate=%s", (*predicate)->GetName()));
+      }
+      if (next->label()) {
+        args.push_back(absl::StrFormat("label=\"%s\"", *next->label()));
       }
       break;
     }

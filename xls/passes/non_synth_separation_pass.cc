@@ -205,10 +205,11 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(
         StateElement * non_synth_element,
         GetOrAddNonSynthStateElement(src_proc, state_read->state_element()));
-    XLS_ASSIGN_OR_RETURN(StateRead * non_synth_read,
-                         src_proc->MakeNodeWithName<StateRead>(
-                             state_read->loc(), non_synth_element,
-                             state_read->predicate(), nonsynth_read_name));
+    XLS_ASSIGN_OR_RETURN(
+        StateRead * non_synth_read,
+        src_proc->MakeNodeWithName<StateRead>(
+            state_read->loc(), non_synth_element, state_read->predicate(),
+            state_read->label(), nonsynth_read_name));
     non_synth_reads_map_[state_read] = non_synth_read;
     XLS_RET_CHECK(non_synth_element->non_synthesizable()) << non_synth_element;
     VLOG(2) << "Created non-synth element: " << non_synth_element->ToString();
@@ -285,7 +286,8 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
     XLS_RETURN_IF_ERROR(
         next->function_base()
             ->MakeNodeWithName<Next>(next->loc(), non_synth, next->value(),
-                                     next->predicate(), non_synth_name)
+                                     next->predicate(), next->label(),
+                                     non_synth_name)
             .status());
     return absl::OkStatus();
   }
