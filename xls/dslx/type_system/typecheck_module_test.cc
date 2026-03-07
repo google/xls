@@ -2926,6 +2926,659 @@ TEST_F(TypecheckV2Test, WidthSliceTupleSubject) {
                             "Expected a bits-like type; got: `(u32,)`"))));
 }
 
+TEST_F(TypecheckV2Test, TokenOrderSimple) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data) = recv(tok0, req_r);
+    send(tok1, resp_s, data);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+  EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderSendIfMismatch) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data) = recv(tok0, req_r);
+    send_if(tok0, resp_s, data > 15, data);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kIOOrderingMismatch);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderLiteral) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, _) = recv(tok0, req_r);
+    send(tok0, resp_s, u32:5);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+  EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderSimpleMismatch) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data) = recv(tok0, req_r);
+    send(tok0, resp_s, data);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kIOOrderingMismatch);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderState) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init { u32:0 }
+
+  next (state: u32) {
+    let tok0 = send(join(), resp_s, state);
+    let (tok1, data) = recv(tok0, req_r);
+    data + state
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderDecomposedTuple) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<(u32, u32)> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<(u32, u32)> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let (tok0, (first, second)) = recv(join(), req_r);
+    send(tok0, resp_s, first);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderDecomposedTupleMismatch) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<(u32, u32)> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<(u32, u32)> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let (tok0, (first, second)) = recv(join(), req_r);
+    send(join(), resp_s, first);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kIOOrderingMismatch);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderDataAlias) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let (tok0, data0) = recv(join(), req_r);
+    let data1 = data0;
+    send(tok0, resp_s, data1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderDataAliasMismatch) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let (tok0, data0) = recv(join(), req_r);
+    let data1 = data0;
+    send(join(), resp_s, data1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kIOOrderingMismatch);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderCombinedVariables) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req0_r: chan<u32> in;
+  req1_r: chan<u32> in;
+  resp_s: chan<(u32, u32)> out;
+
+  config(
+    req0_r: chan<u32> in,
+    req1_r: chan<u32> in,
+    resp_s: chan<(u32, u32)> out
+  ) {
+    (req0_r, req1_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data0) = recv(join(), req0_r);
+    let (tok2, data1) = recv(tok1, req1_r);
+    send(tok2, resp_s, (data0, data1));
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderCombinedVariablesMismatch) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req0_r: chan<u32> in;
+  req1_r: chan<u32> in;
+  resp_s: chan<(u32, u32)> out;
+
+  config(
+    req0_r: chan<u32> in,
+    req1_r: chan<u32> in,
+    resp_s: chan<(u32, u32)> out
+  ) {
+    (req0_r, req1_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data0) = recv(join(), req0_r);
+    let (tok2, data1) = recv(tok1, req1_r);
+    send(tok1, resp_s, (data0, data1));
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kIOOrderingMismatch);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderCombinedVariablesAlias) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req0_r: chan<u32> in;
+  req1_r: chan<u32> in;
+  resp_s: chan<(u32, u32)> out;
+
+  config(
+    req0_r: chan<u32> in,
+    req1_r: chan<u32> in,
+    resp_s: chan<(u32, u32)> out
+  ) {
+    (req0_r, req1_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data0) = recv(join(), req0_r);
+    let (tok2, data1) = recv(tok1, req1_r);
+    let combined_data = (data0, data1);
+    send(tok2, resp_s, combined_data);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderCombinedVariablesAliasMismatch) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req0_r: chan<u32> in;
+  req1_r: chan<u32> in;
+  resp_s: chan<(u32, u32)> out;
+
+  config(
+    req0_r: chan<u32> in,
+    req1_r: chan<u32> in,
+    resp_s: chan<(u32, u32)> out
+  ) {
+    (req0_r, req1_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data0) = recv(join(), req0_r);
+    let (tok2, data1) = recv(tok1, req1_r);
+    let combined_data = (data0, data1);
+    send(tok1, resp_s, combined_data);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kIOOrderingMismatch);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderBitSliceUpdate) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req0_r: chan<u16> in;
+  req1_r: chan<u16> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req0_r: chan<u16> in,
+    req1_r: chan<u16> in,
+    resp_s: chan<u32> out
+  ) {
+    (req0_r, req1_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data0) = recv(join(), req0_r);
+    let (tok2, data1) = recv(tok1, req1_r);
+    let data = data0 as u32;
+    let data = bit_slice_update(data, u32:16, data1);
+    send(tok2, resp_s, data);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderBitSliceUpdateMismatch) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req0_r: chan<u16> in;
+  req1_r: chan<u16> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req0_r: chan<u16> in,
+    req1_r: chan<u16> in,
+    resp_s: chan<u32> out
+  ) {
+    (req0_r, req1_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data0) = recv(join(), req0_r);
+    let (tok2, data1) = recv(tok1, req1_r);
+    let data = data0 as u32;
+    let data = bit_slice_update(data, u32:16, data1);
+    send(tok1, resp_s, data);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kIOOrderingMismatch);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderNestedJoin) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let tok1 = join();
+    let tok2 = join();
+    let (tok3, data) = recv(join(tok0, join(tok1, tok2)), req_r);
+    send(tok3, resp_s, data);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+  EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderAlias) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let tok1 = tok0;
+    let (tok2, data) = recv(join(tok0, tok1), req_r);
+    send(tok2, resp_s, data);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+  EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderAliasMismatch) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let tok2 = tok0;
+    // ...
+    let (tok1, data) = recv(tok0, req_r);
+    send(tok2, resp_s, data);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kIOOrderingMismatch);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderJoinMixedLevels) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req1_r: chan<u32> in;
+  resp1_s: chan<u32> out;
+  req2_r: chan<u32> in;
+  resp2_s: chan<u32> out;
+
+  config(
+    req1_r: chan<u32> in, resp1_s: chan<u32> out,
+    req2_r: chan<u32> in, resp2_s: chan<u32> out
+  ) {
+    (req1_r, resp1_s, req2_r, resp2_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data0) = recv(tok0, req1_r);
+    let tok2 = send(tok1, resp1_s, data0);
+    let (tok3, data1) = recv(tok2, req2_r);
+    send(join(tok0, tok3), resp2_s, data1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderJoinMismatch) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req1_r: chan<u32> in;
+  resp1_s: chan<u32> out;
+  req2_r: chan<u32> in;
+  resp2_s: chan<u32> out;
+
+  config(
+    req1_r: chan<u32> in, resp1_s: chan<u32> out,
+    req2_r: chan<u32> in, resp2_s: chan<u32> out
+  ) {
+    (req1_r, resp1_s, req2_r, resp2_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let (tok1, data0) = recv(tok0, req1_r);
+    let tok2 = send(tok1, resp1_s, data0);
+    let (tok3, data1) = recv(tok2, req2_r);
+    send(join(tok0, tok2), resp2_s, data1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kIOOrderingMismatch);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderTupleIndex) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let resp = recv(tok0, req_r);
+    send(resp.0, resp_s, resp.1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 0);
+}
+
+TEST_F(TypecheckV2Test, TokenOrderTupleIndexMismatch) {
+  std::string kProgram = R"(
+proc TokenOrder {
+  req_r: chan<u32> in;
+  resp_s: chan<u32> out;
+
+  config(
+    req_r: chan<u32> in, resp_s: chan<u32> out,
+  ) {
+    (req_r, resp_s)
+  }
+
+  init {  }
+
+  next (state: ()) {
+    let tok0 = join();
+    let resp = recv(tok0, req_r);
+    send(tok0, resp_s, resp.1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result,
+                           Typecheck(kProgram));
+
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings().at(0).kind,
+            WarningKind::kIOOrderingMismatch);
+}
+
 TEST_F(TypecheckV2Test, BadAttributeAccessOnTuple) {
   EXPECT_THAT(
       Typecheck(R"(

@@ -139,8 +139,8 @@ pub proc WeightCodeBuilder
                 (false, false)
             }
         };
-        let (_, start, start_valid) = recv_if_non_blocking(tok, start_r, recv_start, false);
-        let (_, prescan_data, prescan_data_valid) = recv_if_non_blocking(tok, weight_r, recv_prescan, zero!<PreScanData>());
+        let (tok0, start, start_valid) = recv_if_non_blocking(tok, start_r, recv_start, false);
+        let (tok1, prescan_data, prescan_data_valid) = recv_if_non_blocking(tok, weight_r, recv_prescan, zero!<PreScanData>());
 
         if start_valid {
             trace_fmt!("[WeightCodeBuilder] Received start {:#x}", start);
@@ -233,6 +233,7 @@ pub proc WeightCodeBuilder
         } else {
             state.huffman_base_codes
         };
+        let tok = join(tok0, tok1);
         let tok = send_if(tok, weights_pow_sum_loopback_s, do_send_loopback, sum_of_weights_powers);
 
         // receive sum of weights powers from loopback
