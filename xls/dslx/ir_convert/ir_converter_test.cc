@@ -3849,6 +3849,108 @@ fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ConfiguredValueBoolFalse) {
+  constexpr std::string_view program = R"(
+fn main() -> bool {
+  configured_value_or<bool>("val", true)
+}
+)";
+  ConvertOptions options;
+  options.configured_values = {"val:false"};
+  options.emit_positions = false;
+  options.lower_to_proc_scoped_channels = true;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, options));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ConfiguredValueBoolTrue) {
+  constexpr std::string_view program = R"(
+fn main() -> bool {
+  configured_value_or<bool>("val", false)
+}
+)";
+  ConvertOptions options;
+  options.configured_values = {"val:true"};
+  options.emit_positions = false;
+  options.lower_to_proc_scoped_channels = true;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, options));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ConfiguredValueBoolZero) {
+  constexpr std::string_view program = R"(
+fn main() -> bool {
+  configured_value_or<bool>("val", true)
+}
+)";
+  ConvertOptions options;
+  options.configured_values = {"val:0"};
+  options.emit_positions = false;
+  options.lower_to_proc_scoped_channels = true;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, options));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ConfiguredValueBoolOne) {
+  constexpr std::string_view program = R"(
+fn main() -> bool {
+  configured_value_or<bool>("val", false)
+}
+)";
+  ConvertOptions options;
+  options.configured_values = {"val:1"};
+  options.emit_positions = false;
+  options.lower_to_proc_scoped_channels = true;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, options));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ConfiguredValueBoolTwo) {
+  constexpr std::string_view program = R"(
+fn main() -> bool {
+  configured_value_or<bool>("val", false)
+}
+)";
+  ConvertOptions options;
+  options.configured_values = {"val:2"};
+  options.emit_positions = false;
+  options.lower_to_proc_scoped_channels = true;
+  EXPECT_THAT(ConvertModuleForTest(program, options),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(IrConverterTest, ConfiguredValueBoolMinus1) {
+  constexpr std::string_view program = R"(
+fn main() -> bool {
+  configured_value_or<bool>("val", true)
+}
+)";
+  ConvertOptions options;
+  options.configured_values = {"val:-1"};
+  options.emit_positions = false;
+  options.lower_to_proc_scoped_channels = true;
+  EXPECT_THAT(ConvertModuleForTest(program, options),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(IrConverterTest, ConfiguredValueBoolBogus) {
+  constexpr std::string_view program = R"(
+fn main() -> bool {
+  configured_value_or<bool>("val", false)
+}
+)";
+  ConvertOptions options;
+  options.configured_values = {"val:foobar"};
+  options.emit_positions = false;
+  options.lower_to_proc_scoped_channels = true;
+  EXPECT_THAT(ConvertModuleForTest(program, options),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
 TEST_F(IrConverterTest, MapInvocationWithBuiltinFunction) {
   constexpr std::string_view program =
       R"(

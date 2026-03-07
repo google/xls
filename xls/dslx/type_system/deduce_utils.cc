@@ -638,7 +638,8 @@ absl::StatusOr<InterpValue> GetConfiguredValueAsInterpValue(
     XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
   }
   if (IsBool(*type)) {
-    return InterpValue::MakeBool(override_value == "true");
+    XLS_ASSIGN_OR_RETURN(bool value, ParseNumberAsBool(override_value));
+    return InterpValue::MakeBool(value);
   }
 
   if (const auto* enum_type = dynamic_cast<const EnumType*>(type)) {

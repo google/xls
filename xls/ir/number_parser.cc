@@ -254,7 +254,7 @@ absl::StatusOr<bool> ParseNumberAsBool(std::string_view input) {
   if (magnitude.bit_count() > 1) {
     return not_representable();
   }
-  return magnitude.Get(0);
+  return magnitude.bit_count() > 0 && magnitude.Get(0);
 }
 
 }  // namespace xls
