@@ -16,7 +16,10 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_TYPE_INFERENCE_ERROR_HANDLER_H_
 
 #include <functional>
+#include <utility>
 
+#include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
@@ -36,12 +39,19 @@ struct CandidateType {
 // A hook that allows external logic to resolve an unsupported type unification
 // scenario, so that type inference can proceed where it would otherwise error.
 // When invoked, the handler receives the competing type annotations for a node,
-// and the concretized renditions of each of them. If the handler can resolve
-// the situation, it should return its own unification result, and internally
-// remember either the fact that the node is erroneous, or an automatic fix to
-// apply in a later pass. If the handler cannot help the given situation, it
+// and the concretized renditions of each of them.
+//
+// If the handler can resolve the situation, it should return its own
+// unification result, and internally remember either the fact that the node is
+// erroneous, or an automatic fix to apply in a later pass.
+//
+// If the handler has logic for the given situation, but it fails, the handler
 // should yield its own error, which will become the result of the type
 // inference pass.
+//
+// If the handler generally does not deal with the given situation, it should
+// return an unimplemented error, which will cause the type inference pass to
+// act as if the handler were not present.
 //
 // Example use cases:
 // - Translating another language to DSLX. Translating an expr verbatim may fail
@@ -55,7 +65,29 @@ struct CandidateType {
 //   error, and flag it to the user later.
 using TypeInferenceErrorHandler =
     std::function<absl::StatusOr<const TypeAnnotation*>(
-        const AstNode*, absl::Span<const CandidateType> candidate_types)>;
+        const absl::Status& error, const AstNode*,
+        absl::Span<const CandidateType> candidate_types)>;
+
+// Chains two error handlers together so that if `first` is non-null and
+// does not return an unimplemented error, its result is returned; otherwise the
+// result of `second` is returned. `second` must be non-null.
+inline TypeInferenceErrorHandler ChainTypeInferenceErrorHandlers(
+    TypeInferenceErrorHandler first, TypeInferenceErrorHandler second) {
+  CHECK(second != nullptr);
+  return [first = std::move(first), second = std::move(second)](
+             const absl::Status& error, const AstNode* node,
+             absl::Span<const CandidateType> candidate_types)
+             -> absl::StatusOr<const TypeAnnotation*> {
+    if (first) {
+      absl::StatusOr<const TypeAnnotation*> first_result =
+          first(error, node, candidate_types);
+      if (first_result.ok() || !absl::IsUnimplemented(first_result.status())) {
+        return first_result;
+      }
+    }
+    return second(error, node, candidate_types);
+  };
+}
 
 }  // namespace xls::dslx
 

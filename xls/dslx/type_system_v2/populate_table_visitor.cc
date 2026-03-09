@@ -1432,8 +1432,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                            function_type_annotation->return_type()));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->body(), return_type_variable));
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node->body(), function_type_annotation->return_type()));
+    const TypeAnnotation* body_type = function_type_annotation->return_type();
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node->body(), body_type));
+    table_.SetAnnotationFlag(body_type, TypeInferenceFlag::kFormalReturnType);
 
     // Only apply a type annotation to the function itself if it's
     // non-parametric. This is to avoid leaking types like `uN[N]` into type

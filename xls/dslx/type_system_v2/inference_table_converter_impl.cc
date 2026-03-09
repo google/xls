@@ -1539,7 +1539,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     return [this, handler = std::move(handler)](
                std::optional<const ParametricContext*> parametric_context,
-               const AstNode* node,
+               const absl::Status& error, const AstNode* node,
                absl::Span<const TypeAnnotation*> annotations)
                -> absl::StatusOr<const TypeAnnotation*> {
       std::vector<std::unique_ptr<Type>> types;
@@ -1547,14 +1547,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       types.reserve(annotations.size());
       candidates.reserve(annotations.size());
       for (const TypeAnnotation* annotation : annotations) {
-        XLS_ASSIGN_OR_RETURN(
-            std::unique_ptr<Type> type,
-            Concretize(annotation, parametric_context, false, std::nullopt));
-        candidates.emplace_back(annotation, type.get(),
+        absl::StatusOr<std::unique_ptr<Type>> type =
+            Concretize(annotation, parametric_context, false, std::nullopt);
+        candidates.emplace_back(annotation, type.ok() ? type->get() : nullptr,
                                 table_.GetAnnotationFlag(annotation));
-        types.push_back(std::move(type));
+        if (type.ok()) {
+          types.push_back(std::move(*type));
+        }
       }
-      return handler(node, absl::MakeSpan(candidates));
+      return handler(error, node, absl::MakeSpan(candidates));
     };
   }
 

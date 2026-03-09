@@ -98,6 +98,9 @@ class TypeInferenceFlag {
   // Indicates the formal type of a function.
   static const TypeInferenceFlag kFormalFunctionType;
 
+  // Indicates the formal return type of a function.
+  static const TypeInferenceFlag kFormalReturnType;
+
   // Indicates the type annotation on the LHS of a declaration. For example, in
   // `const A: u32 = 0;`, the `u32` is a declaration type. This flag is set in
   // any context where there is a declaration with an LHS type, such as a local
@@ -125,9 +128,10 @@ class TypeInferenceFlag {
     // 1. Zero or one flag is set (except those we specifically allow combining
     // with others).
     // 2. Both kMinSize and kHasPrefix are set.
-    const uint8_t combo_allowed_flags =
+    const uint32_t combo_allowed_flags =
         kSliceContainerSize.flags_ | kFormalMemberType.flags_ |
-        kFormalFunctionType.flags_ | kDeclarationType.flags_;
+        kFormalFunctionType.flags_ | kDeclarationType.flags_ |
+        kFormalReturnType.flags_;
     CHECK((flags_ & (flags_ - 1) & ~combo_allowed_flags) == 0 ||
           flags_ == (kMinSize.flags_ | kHasPrefix.flags_));
   }
@@ -139,13 +143,13 @@ class TypeInferenceFlag {
  private:
   // Only the named static const TypeInferenceFlag values are allowed to be used
   // externally.
-  explicit constexpr TypeInferenceFlag(uint8_t flags, std::string_view name)
+  explicit constexpr TypeInferenceFlag(uint32_t flags, std::string_view name)
       : flags_(flags) {
     flag_names_->push_back(std::make_pair(flags, std::string(name)));
   }
 
-  static std::vector<std::pair<uint8_t, std::string>>* flag_names_;
-  uint8_t flags_;
+  static std::vector<std::pair<uint32_t, std::string>>* flag_names_;
+  uint32_t flags_;
 };
 
 // Forward declaration.

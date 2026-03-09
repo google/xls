@@ -360,21 +360,35 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
 
     TypeSystemTrace trace = tracer_.TraceUnify(annotations);
+    bool result_is_from_error_handler = false;
     absl::StatusOr<const TypeAnnotation*> result = UnifyTypeAnnotations(
         module_, table_, file_table_, error_generator_, evaluator_,
         parametric_struct_instantiator_, parametric_context, annotations, span,
         import_data_);
     if (!result.ok() && error_handler_ && context_node.has_value()) {
-      result = error_handler_(parametric_context, *context_node,
-                              absl::MakeSpan(annotations));
-      if (result.ok() && used_error_handler != nullptr) {
-        *used_error_handler = true;
+      absl::StatusOr<const TypeAnnotation*> handler_result =
+          error_handler_(parametric_context, result.status(), *context_node,
+                         absl::MakeSpan(annotations));
+
+      // A handler can return an unimplemented status to avoid meddling with the
+      // original result.
+      if (handler_result.ok() ||
+          !absl::IsUnimplemented(handler_result.status())) {
+        result = handler_result;
+        result_is_from_error_handler = true;
+        if (result.ok() && used_error_handler != nullptr) {
+          *used_error_handler = true;
+        }
       }
     }
 
     if (!result.ok()) {
       absl::Status status = result.status();
-      if (context_node.has_value()) {
+
+      // Add the context node span to the error payload, only if the error was
+      // not produced by the external error handler/decorator. This way the
+      // handler is allowed to override the span.
+      if (context_node.has_value() && !result_is_from_error_handler) {
         AddSpanToStatusPayload(status, (*context_node)->GetSpan(),
                                const_cast<FileTable&>(file_table_));
       }
