@@ -251,6 +251,8 @@ place_and_route(
     name = "remove_empty_bytes_place_and_route",
     clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
+    die_height_microns = 150,
+    die_width_microns = 150,
     min_pin_distance = "0.5",
     placement_density = "0.30",
     stop_after_step = "global_routing",
