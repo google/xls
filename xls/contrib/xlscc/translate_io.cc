@@ -679,10 +679,9 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
           ErrorMessage(loc, "Unsupported IO op: %s", op_name));
     }
 
-    XLS_ASSIGN_OR_RETURN(
-        IOOp * op_ptr,
-        AddOpToChannel(op, channel, loc, /*do_default_mask=*/do_default));
-    (void)op_ptr;
+    XLS_RETURN_IF_ERROR(
+        AddOpToChannel(op, channel, loc, /*do_default_mask=*/do_default)
+            .status());
 
     if (!ret.value.valid()) {
       ret.value = op.input_value;

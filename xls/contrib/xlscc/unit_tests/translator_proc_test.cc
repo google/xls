@@ -10740,7 +10740,7 @@ TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOps) {
   for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
     for (const xls::Node* node : proc->nodes()) {
       if (node->op() == xls::Op::kReceive &&
-          node->As<xls::Receive>()->channel_name() == "control_in") {
+          node->As<xls::Receive>()->channel_name() == "data_in") {
         ++receive_count;
       }
     }

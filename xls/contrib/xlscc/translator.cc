@@ -39,6 +39,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -174,10 +175,11 @@ Translator::Translator(bool error_on_init_interval, bool error_on_uninitialized,
 Translator::~Translator() = default;
 
 TranslationContext& Translator::PushContext() {
-  auto ocond = context().full_condition;
+  auto ocond = context().full_condition_bval(xls::SourceInfo(),
+                                             /*literal_1_on_invalid=*/false);
   context_stack_.push_front(context());
   context().full_condition_on_enter_block = ocond;
-  context().relative_condition = TrackedBValue();
+  context().relative_condition.clear();
   context().propagate_up = true;
   context().propagate_break_up = true;
   context().propagate_continue_up = true;
@@ -235,8 +237,8 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
         popped.relative_break_condition;
 
     if (popped.relative_break_condition.valid() &&
-        context().relative_condition.valid()) {
-      context().and_condition_util(context().relative_condition,
+        !context().relative_condition.empty()) {
+      context().and_condition_util(context().relative_condition_bval(loc),
                                    saved_popped_relative_break_condition, loc);
     }
 
@@ -252,8 +254,8 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
         popped.relative_continue_condition;
 
     if (popped.relative_continue_condition.valid() &&
-        context().relative_condition.valid()) {
-      context().and_condition_util(context().relative_condition,
+        !context().relative_condition.empty()) {
+      context().and_condition_util(context().relative_condition_bval(loc),
                                    saved_popped_relative_continue_condition,
                                    loc);
     }
@@ -281,7 +283,9 @@ absl::Status Translator::PropagateVariables(TranslationContext& from,
         XLS_ASSIGN_OR_RETURN(CValue prepared,
                              PrepareRValueWithSelect(
                                  to.variables.at(name), from.variables.at(name),
-                                 from.relative_condition, loc));
+                                 from.relative_condition_bval(
+                                     loc, /*literal_1_on_invalid=*/false),
+                                 loc));
 
         // Don't use Assign(), it uses context()
         to.variables.at(name) = prepared;
@@ -5740,10 +5744,7 @@ absl::Status Translator::GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
       if (context().last_return_condition.valid()) {
         // If there are multiple returns with the same condition, this will
         // take the first one
-        TrackedBValue this_cond =
-            context().full_condition.valid()
-                ? context().full_condition
-                : TrackedBValue(context().fb->Literal(xls::UBits(1, 1)));
+        TrackedBValue this_cond = context().full_condition_bval(loc);
 
         // Select the previous return instead of this one if
         //  the last return condition is true or this one is false
@@ -5785,11 +5786,7 @@ absl::Status Translator::GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
       }
     }
 
-    if (context().full_condition.valid()) {
-      context().last_return_condition = context().full_condition;
-    } else {
-      context().last_return_condition = context().fb->Literal(xls::UBits(1, 1));
-    }
+    context().last_return_condition = context().full_condition_bval(loc);
   }
 
   TrackedBValue reach_here_cond = context().full_condition_bval(loc);
@@ -5798,7 +5795,7 @@ absl::Status Translator::GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
     context().have_returned_condition = reach_here_cond;
   } else {
     context().have_returned_condition =
-        context().fb->Or(reach_here_cond, context().have_returned_condition);
+        context().fb->Or(context().have_returned_condition, reach_here_cond);
   }
 
   XLS_RETURN_IF_ERROR(and_condition(
@@ -6270,7 +6267,10 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
       cond = (case_conds.empty())
                  ? context().fb->Literal(xls::UBits(1, 1), loc)
                  : context().fb->Not(
-                       context().fb->Or(ToNativeBValues(case_conds), loc), loc);
+                       (case_conds.size() > 1)
+                           ? context().fb->Or(ToNativeBValues(case_conds), loc)
+                           : (NATIVE_BVAL)case_conds.at(0),
+                       loc);
     } else {
       // For anything other than a case or break, translate it through
       //  the default path. case and break  can still occur inside of
@@ -6282,7 +6282,8 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
               ? accum_cond
               : TrackedBValue(context().fb->Literal(xls::UBits(0, 1)));
       // Break goes through this path, sets hit_break
-      auto ocond = context().full_condition;
+      auto ocond =
+          context().full_condition_bval(loc, /*literal_1_on_invalid=*/false);
       PushContextGuard stmt_guard(*this, and_accum, loc);
       context().hit_break = false;
       context().full_switch_cond = ocond;
@@ -6978,6 +6979,73 @@ absl::StatusOr<bool> Translator::IsSubBlockDirectInParam(
 std::shared_ptr<CType> Translator::GetCTypeForAlias(
     const std::shared_ptr<CInstantiableTypeAlias>& alias) {
   return inst_types_.at(alias);
+}
+
+void CompoundPredicate::clear() {
+  terms_.clear();
+  cached_condition_ = NATIVE_BVAL();
+}
+
+bool CompoundPredicate::empty() const { return terms_.empty(); }
+
+void CompoundPredicate::and_condition(TrackedBValue condition) {
+  terms_.push_back(condition);
+  cached_condition_ = NATIVE_BVAL();
+}
+
+const absl::InlinedVector<TrackedBValue, 2>& CompoundPredicate::all_terms()
+    const {
+  return terms_;
+}
+
+TrackedBValue CompoundPredicate::condition_bval(
+    const TranslationContext* context, const xls::SourceInfo& loc,
+    bool literal_1_on_invalid) const {
+  // Can do this without context or builder
+  if (terms_.empty()) {
+    if (!literal_1_on_invalid) {
+      return TrackedBValue();
+    }
+  }
+
+  CHECK_NE(context, nullptr);
+  CHECK_NE(context->fb, nullptr);
+  CHECK_NE(context->fb->function(), nullptr);
+
+  if (context->fb->function() != cached_function_) {
+    cached_condition_ = NATIVE_BVAL();
+    cached_literal_1_ = NATIVE_BVAL();
+    cached_function_ = context->fb->function();
+  }
+
+  if (terms_.empty()) {
+    CHECK(literal_1_on_invalid);
+    if (!cached_literal_1_.valid()) {
+      cached_literal_1_ = context->fb->Literal(xls::UBits(1, 1), loc);
+    }
+    CHECK(cached_literal_1_.valid() &&
+          cached_literal_1_.builder() == context->fb);
+    return cached_literal_1_;
+  }
+
+  if (!cached_condition_.valid()) {
+    if (terms_.size() == 1) {
+      CHECK_EQ(terms_.front().builder(), context->fb);
+      cached_condition_ = terms_.front();
+    } else {
+      absl::InlinedVector<NATIVE_BVAL, 2> bvalues;
+      for (const TrackedBValue& condition : terms_) {
+        CHECK_EQ(condition.builder(), context->fb);
+        bvalues.push_back(condition);
+      }
+
+      cached_condition_ = context->fb->And(bvalues, loc);
+    }
+  }
+
+  CHECK(cached_condition_.valid() &&
+        cached_condition_.builder() == context->fb);
+  return cached_condition_;
 }
 
 }  // namespace xlscc
