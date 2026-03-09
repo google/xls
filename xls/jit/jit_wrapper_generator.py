@@ -34,6 +34,7 @@ class XlsNamedValue:
   packed_type: str
   unpacked_type: str
   specialized_type: Optional[str]
+  type_proto: type_pb2.TypeProto
 
   @property
   def value_arg(self):
@@ -56,6 +57,7 @@ class JitType(enum.Enum):
   FUNCTION = 1
   PROC = 2
   BLOCK = 3
+  FUZZTEST = 4
 
 
 @dataclasses.dataclass(frozen=True)
@@ -111,6 +113,44 @@ class WrappedIr:
   @property
   def params_and_result(self):
     return list(self.params) + [self.result]
+
+
+@dataclasses.dataclass(frozen=True)
+class PropertyFunctionParam:
+  """A fuzztest property function parameter. This will be fuzzed by FuzzTest."""
+
+  name: str
+  # The "value" name to use, typically name+"_value"
+  value_name: str
+  # One of BITS, ARRAY, TUPLE
+  value_type: str
+  # The C++ type of the parameter, e.g., "uint32_t",
+  # "std::tuple<uint8_t, uint32_t>" or "std::array<uint16_t, 3>"
+  c_type: str
+  # The fuzztest domain to apply for this parameter.
+  domain: str
+  # If BITS, the number of bits.
+  num_bits: Optional[int] = None
+  # If ARRAY or TUPLE, the children are the sub-elements.
+  children: Optional[Sequence["PropertyFunctionParam"]] = None
+  # For TUPLEs, the parent to access
+  parent: Optional[str] = None
+  # The index into the TUPLE to access
+  tuple_index: Optional[int] = None
+
+
+@dataclasses.dataclass(frozen=True)
+class PropertyFunction:
+  """A fuzztest property function."""
+
+  fuzztest_name: str
+  property_function_name: str
+  jit_class_header_filename: str
+  jit_classname: str
+  namespace: str
+  # Function params and result.
+  params: Sequence[PropertyFunctionParam]
+  return_type: bool
 
 
 def to_packed(t: type_pb2.TypeProto) -> str:
@@ -258,6 +298,7 @@ def to_param(
       packed_type=to_packed(p.type),
       unpacked_type=to_unpacked(p.type),
       specialized_type=to_specialized(p.type),
+      type_proto=p.type,
   )
 
 
@@ -309,6 +350,7 @@ def interpret_function_interface(
       packed_type=to_packed(func_ir.result_type),
       unpacked_type=to_unpacked(func_ir.result_type, mutable=True),
       specialized_type=to_specialized(func_ir.result_type),
+      type_proto=func_ir.result_type,
   )
   namespace = wrapper_namespace
   return WrappedIr(
@@ -421,3 +463,119 @@ def interpret_block_interface(
 
 def camelize(name: str) -> str:
   return name.title().replace("_", "")
+
+
+def convert_to_fuzztest_param(
+    name: str, type_proto: type_pb2.TypeProto, is_top_level: bool = False
+) -> PropertyFunctionParam:
+  """Converts an XLS type proto to a FuzzTest property function parameter.
+
+  Recursively walks the given XLS type proto and builds the equivalent parameter
+  for a FuzzTest property function, including its C++ type, value name, and
+  fuzzing domain.
+
+  Args:
+    name: The base name for the parameter.
+    type_proto: The XLS TypeProto to convert.
+    is_top_level: Whether the parameter is a top-level parameter of its
+      function.
+
+  Returns:
+    A PropertyFunctionParam dataclass instance.
+
+  Raises:
+    ValueError: If the type_proto contains an unsupported type.
+  """
+  children = []
+  domain = None
+  if type_proto.type_enum == type_pb2.TypeProto.BITS:
+    value_type = "BITS"
+    c_type = to_c_type(type_proto)
+    if type_proto.bit_count not in (8, 16, 32, 64):
+      domain = f"fuzztest::InRange(0, {(1 << type_proto.bit_count) - 1})"
+  elif type_proto.type_enum == type_pb2.TypeProto.ARRAY:
+    value_type = "ARRAY"
+    c_type = to_c_type(type_proto)
+    child = convert_to_fuzztest_param(
+        f"_{name}_element", type_proto.array_element
+    )
+    children = [
+        PropertyFunctionParam(
+            name=child.name,
+            c_type=child.c_type,
+            value_name=child.value_name,
+            value_type=child.value_type,
+            domain=child.domain,
+            num_bits=child.num_bits,
+            children=child.children,
+        )
+    ]
+    domain = f"fuzztest::ArrayOf<{type_proto.array_size}>({child.domain})"
+  elif type_proto.type_enum == type_pb2.TypeProto.TUPLE:
+    # Convert, recursively.
+    converted_children = [
+        convert_to_fuzztest_param(f"_{name}_{idx}", child)
+        for idx, child in enumerate(type_proto.tuple_elements)
+    ]
+    # Make "real" list of children.
+    children = [
+        PropertyFunctionParam(
+            name=child.name,
+            c_type=child.c_type,
+            value_name=child.value_name,
+            value_type=child.value_type,
+            domain=child.domain,
+            num_bits=child.num_bits,
+            children=child.children,
+            parent=name,
+            tuple_index=idx,
+        )
+        for idx, child in enumerate(converted_children)
+    ]
+    domains = ", ".join([child.domain for child in converted_children])
+
+    value_type = "TUPLE"
+    c_type = to_c_type(type_proto)
+    domain = f"fuzztest::TupleOf({domains})"
+    if is_top_level:
+      # Wrap in another tuple if top level, because otherwise FuzzTest will
+      # try to interpret the tuple as a sequence of separate params instead
+      # of a single tuple param.
+      domain = f"fuzztest::TupleOf({domain})"
+  else:
+    raise ValueError(f"Unsupported type: {type_proto.type_enum}")
+
+  if domain is None:
+    domain = f"fuzztest::Arbitrary<{c_type}>()"
+
+  return PropertyFunctionParam(
+      name=name,
+      c_type=c_type,
+      value_type=value_type,
+      value_name=name + "_value",
+      domain=domain,
+      num_bits=(
+          type_proto.bit_count
+          if type_proto.type_enum == type_pb2.TypeProto.BITS
+          else 0
+      ),
+      children=children,
+  )
+
+
+def wrapped_to_fuzztest(wrapped: WrappedIr) -> PropertyFunction:
+  """Converts a WrappedIr object to a dictionary for fuzztest template."""
+  params = []
+  if wrapped.params:
+    for p in wrapped.params:
+      params.append(convert_to_fuzztest_param(p.name, p.type_proto, True))
+  return PropertyFunction(
+      fuzztest_name=wrapped.function_name + "_fuzztest",
+      property_function_name=wrapped.function_name,
+      jit_classname=wrapped.namespace + "::" + wrapped.class_name,
+      jit_class_header_filename=wrapped.header_filename,
+      # Everything shares the namespace
+      namespace=wrapped.namespace,
+      params=params,
+      return_type=wrapped.result is not None,
+  )
