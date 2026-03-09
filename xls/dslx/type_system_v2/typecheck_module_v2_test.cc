@@ -2150,6 +2150,33 @@ const Y = foo(u32:1) + foo(u32:2) + foo(u32:3) + foo(u32:4) + foo(u32:5) +
       TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, ParametricFunctionWithParametricBinopParamType) {
+  // The point here is to ensure that we solve for A and B by matching against
+  // `uN[A][B][C]`, and the unsolvable `A * B` doesn't derail the solution of
+  // any parametrics.
+  EXPECT_THAT(
+      R"(
+fn foo<A: u32, B: u32, C: u32, D: u32>(
+    _values: uN[A * B][D],
+    _want: uN[A][B][C],
+) -> uN[A][B][C][D] {
+    zero!<uN[A][B][C][D]>()
+}
+
+const E = u32:12;
+const F = u32:6;
+
+fn main() {
+    let values1 = zero!<uN[12][6]>();
+    let result1 = foo(values1, zero!<uN[3][4][5]>());
+    let values2 = zero!<uN[E][F]>();
+    let result2 = foo(values2, zero!<uN[3][4][5]>());
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("result1", "uN[3][4][5][6]"),
+                              HasNodeWithType("result2", "uN[3][4][5][6]"))));
+}
+
 TEST(TypecheckV2Test, ParametricDefaultWithTypeBasedOnOtherParametric) {
   EXPECT_THAT(R"(
 fn p<X: u32, Y: bits[X] = {u1:0}>(x: bits[X]) -> bits[X] { x }
