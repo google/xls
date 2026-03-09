@@ -832,6 +832,12 @@ absl::StatusOr<std::string> ToHumanString(const AstNodeTypeInfoProto& antip,
   XLS_ASSIGN_OR_RETURN(std::string type_str,
                        ToHumanString(antip.type(), import_data, file_table));
   XLS_ASSIGN_OR_RETURN(AstNodeKind kind, FromProto(antip.kind()));
+
+  // TODO: https://github.com/google/xls/issues/3930 - This use of FindNode is
+  // brittle because there can be nodes fabricated in type inference mapped to
+  // the same span as the node from which the proto node was generated. We
+  // should either do it another way or fix TIv2 to strictly use `Span::None()`
+  // to avoid such collisions.
   XLS_ASSIGN_OR_RETURN(
       const AstNode* n,
       import_data.FindNode(kind, FromProto(antip.span(), file_table)));

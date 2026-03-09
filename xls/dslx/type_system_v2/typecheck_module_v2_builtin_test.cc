@@ -764,6 +764,17 @@ const Y = map([u32:2], to_zero_31);
       TypecheckSucceeds(HasNodeWithType("Y", "uN[31][1]")));
 }
 
+TEST(TypecheckV2BuiltinTest, MapOverArrayFromStackedParametricCall) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+fn foo<N: u32, T: type>(a: T) -> T[N] { [a, ...] }
+fn id<T: type>(a: T) -> T { a }
+const X = map(foo<5>(u32:3), id);
+  )",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[32][5]")));
+}
+
 TEST(TypecheckV2BuiltinTest, MapSizeMismatch) {
   EXPECT_THAT(
       R"(

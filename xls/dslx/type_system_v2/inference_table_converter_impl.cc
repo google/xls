@@ -240,7 +240,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(5) << "Next node: " << node->ToString();
       if (node->kind() == AstNodeKind::kInvocation) {
         XLS_RETURN_IF_ERROR(ConvertInvocation(
-            absl::down_cast<const Invocation*>(node), parametric_context));
+            absl::down_cast<const Invocation*>(node), parametric_context,
+            /*short_circuit_if_duplicate=*/!filter_param_type_annotations));
       } else if (node->kind() == AstNodeKind::kProc &&
                  !IsProcAtTopOfTypeInfoStack(
                      absl::down_cast<const Proc*>(node))) {
@@ -487,10 +488,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // types of the arguments to the actual arguments in the inference table.
   absl::Status ConvertInvocation(
       const Invocation* invocation,
-      std::optional<const ParametricContext*> caller_context) {
+      std::optional<const ParametricContext*> caller_context,
+      bool short_circuit_if_duplicate = true) {
     // Short-circuit re-processing the same invocation, except for map()
     // invocations, whose unusual parametric resolution makes this problematic.
-    if (!converted_invocations_[caller_context].insert(invocation).second &&
+    if (short_circuit_if_duplicate &&
+        !converted_invocations_[caller_context].insert(invocation).second &&
         !IsMapInvocation(invocation)) {
       return absl::OkStatus();
     }
@@ -1139,8 +1142,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_RETURN_IF_ERROR(constant_collector_->CollectConstants(
         parametric_context, node, **type, ti));
     VLOG(5) << "Generated type: " << (*ti->GetItem(node))->ToString()
-            << " for node: " << node->ToString() << " in ti module "
-            << ti->module()->name();
+            << " for node: " << node->ToString() << " in TI module "
+            << ti->module()->name() << " with TI name " << ti->name();
     return absl::OkStatus();
   }
 

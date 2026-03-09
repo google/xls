@@ -50,7 +50,8 @@ TypeAnnotation* CreateUnOrSnAnnotation(Module& module, const Span& span,
                                        bool is_signed, int64_t bit_count) {
   return CreateUnOrSnAnnotation(
       module, span, is_signed,
-      module.Make<Number>(span, absl::StrCat(bit_count), NumberKind::kOther,
+      module.Make<Number>(Span::None(), absl::StrCat(bit_count),
+                          NumberKind::kOther,
                           /*type_annotation=*/nullptr));
 }
 
@@ -241,18 +242,18 @@ absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
   switch (number.number_kind()) {
     case NumberKind::kCharacter:
       return module.Make<BuiltinTypeAnnotation>(
-          number.span(), BuiltinType::kU8,
+          Span::None(), BuiltinType::kU8,
           module.GetOrCreateBuiltinNameDef("u8"));
     case NumberKind::kBool:
       return module.Make<BuiltinTypeAnnotation>(
-          number.span(), BuiltinType::kBool,
+          Span::None(), BuiltinType::kBool,
           module.GetOrCreateBuiltinNameDef("bool"));
     case NumberKind::kOther:
       XLS_ASSIGN_OR_RETURN((auto [sign, magnitude]),
                            GetSignAndMagnitude(number.text()));
       XLS_ASSIGN_OR_RETURN(Bits raw_bits, ParseNumber(number.text()));
       const bool is_negative = sign == Sign::kNegative;
-      return CreateUnOrSnAnnotation(module, number.span(), is_negative,
+      return CreateUnOrSnAnnotation(module, Span::None(), is_negative,
                                     raw_bits.bit_count());
   }
 }
