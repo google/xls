@@ -1482,22 +1482,25 @@ xls_dslx_verilog(
 )
 
 xls_dslx_library(
-    name = "peek_dslx",
-    srcs = ["peek.x"],
+    name = "content_based_arbiter_dslx",
+    srcs = ["content_based_arbiter.x"],
 )
 
 xls_dslx_test(
-    name = "peek_dslx_test",
-    size = "small",
-    srcs = ["peek.x"],
+    name = "content_based_arbiter_dslx_test",
+    srcs = ["content_based_arbiter.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
-xls_dslx_ir(
-    name = "peek_ir",
-    dslx_top = "PeekPacketFiller",
-    ir_conv_args = {
-        "lower_to_proc_scoped_channels": "true"
+xls_dslx_verilog(
+    name = "content_based_arbiter_verilog",
+    codegen_args = {
+        "module_name": "content_based_arbiter",
+        "delay_model": "unit",
+        "pipeline_stages": "4",
+        "reset": "rst",
     },
-    ir_file = "peek.ir",
-    library = ":peek_dslx",
+    dslx_top = "ContentBasedArbiterInst",
+    library = "content_based_arbiter_dslx",
+    verilog_file = "content_based_arbiter.sv",
 )
