@@ -260,11 +260,10 @@ xls_dslx_test(
 
 SEQUENCE_EXECUTOR_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "sequence_executor",
-    "clock_period_ps": "0",
     "generator": "pipeline",
     "delay_model": "asap7",
     "worst_case_throughput": "2",
-    "pipeline_stages": "3",
+    "pipeline_stages": "6",
     "reset": "rst",
     "reset_data_path": "true",
     "reset_active_low": "false",

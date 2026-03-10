@@ -1845,62 +1845,6 @@ module zstd_dec_wrapper #(
         .clk(clk),
         .rst(rst),
 
-        // CSR Interface
-        .zstd_dec__csr_axi_aw_r(zstd_dec__csr_axi_aw),
-        .zstd_dec__csr_axi_aw_r_vld(zstd_dec__csr_axi_aw_vld),
-        .zstd_dec__csr_axi_aw_r_rdy(zstd_dec__csr_axi_aw_rdy),
-        .zstd_dec__csr_axi_w_r(zstd_dec__csr_axi_w),
-        .zstd_dec__csr_axi_w_r_vld(zstd_dec__csr_axi_w_vld),
-        .zstd_dec__csr_axi_w_r_rdy(zstd_dec__csr_axi_w_rdy),
-        .zstd_dec__csr_axi_b_s(zstd_dec__csr_axi_b),
-        .zstd_dec__csr_axi_b_s_vld(zstd_dec__csr_axi_b_vld),
-        .zstd_dec__csr_axi_b_s_rdy(zstd_dec__csr_axi_b_rdy),
-        .zstd_dec__csr_axi_ar_r(zstd_dec__csr_axi_ar),
-        .zstd_dec__csr_axi_ar_r_vld(zstd_dec__csr_axi_ar_vld),
-        .zstd_dec__csr_axi_ar_r_rdy(zstd_dec__csr_axi_ar_rdy),
-        .zstd_dec__csr_axi_r_s(zstd_dec__csr_axi_r),
-        .zstd_dec__csr_axi_r_s_vld(zstd_dec__csr_axi_r_vld),
-        .zstd_dec__csr_axi_r_s_rdy(zstd_dec__csr_axi_r_rdy),
-
-        // FrameHeaderDecoder
-        .zstd_dec__fh_axi_ar_s(zstd_dec__fh_axi_ar),
-        .zstd_dec__fh_axi_ar_s_vld(zstd_dec__fh_axi_ar_vld),
-        .zstd_dec__fh_axi_ar_s_rdy(zstd_dec__fh_axi_ar_rdy),
-        .zstd_dec__fh_axi_r_r(zstd_dec__fh_axi_r),
-        .zstd_dec__fh_axi_r_r_vld(zstd_dec__fh_axi_r_vld),
-        .zstd_dec__fh_axi_r_r_rdy(zstd_dec__fh_axi_r_rdy),
-
-        // BlockHeaderDecoder
-        .zstd_dec__bh_axi_ar_s(zstd_dec__bh_axi_ar),
-        .zstd_dec__bh_axi_ar_s_vld(zstd_dec__bh_axi_ar_vld),
-        .zstd_dec__bh_axi_ar_s_rdy(zstd_dec__bh_axi_ar_rdy),
-        .zstd_dec__bh_axi_r_r(zstd_dec__bh_axi_r),
-        .zstd_dec__bh_axi_r_r_vld(zstd_dec__bh_axi_r_vld),
-        .zstd_dec__bh_axi_r_r_rdy(zstd_dec__bh_axi_r_rdy),
-
-        // RawBlockDecoder
-        .zstd_dec__raw_axi_ar_s(zstd_dec__raw_axi_ar),
-        .zstd_dec__raw_axi_ar_s_vld(zstd_dec__raw_axi_ar_vld),
-        .zstd_dec__raw_axi_ar_s_rdy(zstd_dec__raw_axi_ar_rdy),
-        .zstd_dec__raw_axi_r_r(zstd_dec__raw_axi_r),
-        .zstd_dec__raw_axi_r_r_vld(zstd_dec__raw_axi_r_vld),
-        .zstd_dec__raw_axi_r_r_rdy(zstd_dec__raw_axi_r_rdy),
-
-        // Output Writer
-        .zstd_dec__output_axi_aw_s(zstd_dec__output_axi_aw),
-        .zstd_dec__output_axi_aw_s_vld(zstd_dec__output_axi_aw_vld),
-        .zstd_dec__output_axi_aw_s_rdy(zstd_dec__output_axi_aw_rdy),
-        .zstd_dec__output_axi_w_s(zstd_dec__output_axi_w),
-        .zstd_dec__output_axi_w_s_vld(zstd_dec__output_axi_w_vld),
-        .zstd_dec__output_axi_w_s_rdy(zstd_dec__output_axi_w_rdy),
-        .zstd_dec__output_axi_b_r(zstd_dec__output_axi_b),
-        .zstd_dec__output_axi_b_r_vld(zstd_dec__output_axi_b_vld),
-        .zstd_dec__output_axi_b_r_rdy(zstd_dec__output_axi_b_rdy),
-
-        // Other ports
-        .zstd_dec__notify_s_vld(notify_vld),
-        .zstd_dec__notify_s_rdy(notify_rdy),
-
         .zstd_dec__axi_ram_ar_s__0_data(zstd_dec__axi_ram_ar_s__0),
         .zstd_dec__axi_ram_ar_s__0_vld(zstd_dec__axi_ram_ar_s__0_vld),
         .zstd_dec__axi_ram_ar_s__0_rdy(zstd_dec__axi_ram_ar_s__0_rdy),
@@ -2267,6 +2211,62 @@ module zstd_dec_wrapper #(
         .literals_buffer_ram7_wr_data(literals_buffer_ram7_wr_data),
         .literals_buffer_ram7_wr_mask(literals_buffer_ram7_wr_mask),
         .literals_buffer_ram7_wr_en(literals_buffer_ram7_wr_en),
+
+        // CSR Interface
+        .zstd_dec__csr_axi_aw_r_data(zstd_dec__csr_axi_aw),
+        .zstd_dec__csr_axi_aw_r_vld(zstd_dec__csr_axi_aw_vld),
+        .zstd_dec__csr_axi_aw_r_rdy(zstd_dec__csr_axi_aw_rdy),
+        .zstd_dec__csr_axi_w_r_data(zstd_dec__csr_axi_w),
+        .zstd_dec__csr_axi_w_r_vld(zstd_dec__csr_axi_w_vld),
+        .zstd_dec__csr_axi_w_r_rdy(zstd_dec__csr_axi_w_rdy),
+        .zstd_dec__csr_axi_b_s_data(zstd_dec__csr_axi_b),
+        .zstd_dec__csr_axi_b_s_vld(zstd_dec__csr_axi_b_vld),
+        .zstd_dec__csr_axi_b_s_rdy(zstd_dec__csr_axi_b_rdy),
+        .zstd_dec__csr_axi_ar_r_data(zstd_dec__csr_axi_ar),
+        .zstd_dec__csr_axi_ar_r_vld(zstd_dec__csr_axi_ar_vld),
+        .zstd_dec__csr_axi_ar_r_rdy(zstd_dec__csr_axi_ar_rdy),
+        .zstd_dec__csr_axi_r_s_data(zstd_dec__csr_axi_r),
+        .zstd_dec__csr_axi_r_s_vld(zstd_dec__csr_axi_r_vld),
+        .zstd_dec__csr_axi_r_s_rdy(zstd_dec__csr_axi_r_rdy),
+
+        // FrameHeaderDecoder
+        .zstd_dec__fh_axi_ar_s_data(zstd_dec__fh_axi_ar),
+        .zstd_dec__fh_axi_ar_s_vld(zstd_dec__fh_axi_ar_vld),
+        .zstd_dec__fh_axi_ar_s_rdy(zstd_dec__fh_axi_ar_rdy),
+        .zstd_dec__fh_axi_r_r_data(zstd_dec__fh_axi_r),
+        .zstd_dec__fh_axi_r_r_vld(zstd_dec__fh_axi_r_vld),
+        .zstd_dec__fh_axi_r_r_rdy(zstd_dec__fh_axi_r_rdy),
+
+        // BlockHeaderDecoder
+        .zstd_dec__bh_axi_ar_s_data(zstd_dec__bh_axi_ar),
+        .zstd_dec__bh_axi_ar_s_vld(zstd_dec__bh_axi_ar_vld),
+        .zstd_dec__bh_axi_ar_s_rdy(zstd_dec__bh_axi_ar_rdy),
+        .zstd_dec__bh_axi_r_r_data(zstd_dec__bh_axi_r),
+        .zstd_dec__bh_axi_r_r_vld(zstd_dec__bh_axi_r_vld),
+        .zstd_dec__bh_axi_r_r_rdy(zstd_dec__bh_axi_r_rdy),
+
+        // RawBlockDecoder
+        .zstd_dec__raw_axi_ar_s_data(zstd_dec__raw_axi_ar),
+        .zstd_dec__raw_axi_ar_s_vld(zstd_dec__raw_axi_ar_vld),
+        .zstd_dec__raw_axi_ar_s_rdy(zstd_dec__raw_axi_ar_rdy),
+        .zstd_dec__raw_axi_r_r_data(zstd_dec__raw_axi_r),
+        .zstd_dec__raw_axi_r_r_vld(zstd_dec__raw_axi_r_vld),
+        .zstd_dec__raw_axi_r_r_rdy(zstd_dec__raw_axi_r_rdy),
+
+        // Output Writer
+        .zstd_dec__output_axi_aw_s_data(zstd_dec__output_axi_aw),
+        .zstd_dec__output_axi_aw_s_vld(zstd_dec__output_axi_aw_vld),
+        .zstd_dec__output_axi_aw_s_rdy(zstd_dec__output_axi_aw_rdy),
+        .zstd_dec__output_axi_w_s_data(zstd_dec__output_axi_w),
+        .zstd_dec__output_axi_w_s_vld(zstd_dec__output_axi_w_vld),
+        .zstd_dec__output_axi_w_s_rdy(zstd_dec__output_axi_w_rdy),
+        .zstd_dec__output_axi_b_r_data(zstd_dec__output_axi_b),
+        .zstd_dec__output_axi_b_r_vld(zstd_dec__output_axi_b_vld),
+        .zstd_dec__output_axi_b_r_rdy(zstd_dec__output_axi_b_rdy),
+
+        // Other ports
+        .zstd_dec__notify_s_vld(notify_vld),
+        .zstd_dec__notify_s_rdy(notify_rdy)
   );
 
   assign frame_header_decoder_axi_r_rresp[2] = '0;

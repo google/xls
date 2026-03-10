@@ -53,15 +53,12 @@ xls_dslx_library(
 xls_dslx_test(
     name = "common_dslx_test",
     library = ":common_dslx",
+    tags = ["manual"],
 )
-
-COMMON_IR_CONV_ARGS = {"lower_to_proc_scoped_channels": "true"}
 
 CLOCK_PERIOD_PS = "750"
 
-CODEGEN_VERSION = "1.5"
-
-COMMON_CODEGEN_ARGS = {
+common_codegen_args = {
     "delay_model": "asap7",
     "reset": "rst",
     "worst_case_throughput": "1",
@@ -74,7 +71,6 @@ COMMON_CODEGEN_ARGS = {
     "materialize_internal_fifos": "true",
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
-    "codegen_version": CODEGEN_VERSION,
 }
 
 xls_dslx_library(
@@ -90,11 +86,12 @@ xls_dslx_library(
 xls_dslx_test(
     name = "axi_reader_dslx_test",
     library = ":axi_reader_dslx",
+    tags = ["manual"],
 )
 
 AXI_READER_CLOCK_PERIOD_PS = "1700"
 
-AXI_READER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+AXI_READER_CODEGEN_ARGS = common_codegen_args | {
     "clock_period_ps": AXI_READER_CLOCK_PERIOD_PS,
     "module_name": "axi_reader",
 }
@@ -103,14 +100,15 @@ xls_dslx_verilog(
     name = "axi_reader_verilog",
     codegen_args = AXI_READER_CODEGEN_ARGS,
     dslx_top = "AxiReaderInst",
-    ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":axi_reader_dslx",
+    tags = ["manual"],
     verilog_file = "axi_reader.v",
 )
 
 xls_benchmark_ir(
     name = "axi_reader_opt_ir_benchmark",
     src = ":axi_reader_verilog.opt.ir",
+    tags = ["manual"],
     benchmark_ir_args = AXI_READER_CODEGEN_ARGS,
 )
 
@@ -119,6 +117,7 @@ verilog_library(
     srcs = [
         ":axi_reader.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -161,14 +160,15 @@ xls_dslx_library(
 xls_dslx_test(
     name = "axi_stream_remove_empty_dslx_test",
     library = ":axi_stream_remove_empty_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
     name = "axi_stream_remove_empty_verilog",
-    codegen_args = COMMON_CODEGEN_ARGS | {"module_name": "axi_stream_remove_empty"},
+    codegen_args = common_codegen_args | {"module_name": "axi_stream_remove_empty"},
     dslx_top = "AxiStreamRemoveEmptyInst",
-    ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":axi_stream_remove_empty_dslx",
+    tags = ["manual"],
     verilog_file = "axi_stream_remove_empty.v",
 )
 
@@ -177,6 +177,7 @@ verilog_library(
     srcs = [
         ":axi_stream_remove_empty.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -210,17 +211,18 @@ place_and_route(
 
 xls_dslx_verilog(
     name = "remove_empty_bytes_verilog",
-    codegen_args = COMMON_CODEGEN_ARGS | {"module_name": "remove_empty_bytes"},
+    codegen_args = common_codegen_args | {"module_name": "remove_empty_bytes"},
     dslx_top = "RemoveEmptyBytesInst",
-    ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":axi_stream_remove_empty_dslx",
+    tags = ["manual"],
     verilog_file = "remove_empty_bytes.v",
 )
 
 xls_benchmark_ir(
     name = "remove_empty_bytes_opt_ir_benchmark",
     src = ":remove_empty_bytes_verilog.opt.ir",
-    benchmark_ir_args = COMMON_CODEGEN_ARGS,
+    benchmark_ir_args = common_codegen_args,
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -228,6 +230,7 @@ verilog_library(
     srcs = [
         ":remove_empty_bytes.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -272,21 +275,23 @@ xls_dslx_library(
 xls_dslx_test(
     name = "axi_stream_downscaler_dslx_test",
     library = ":axi_stream_downscaler_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
     name = "axi_stream_downscaler_verilog",
-    codegen_args = COMMON_CODEGEN_ARGS | {"module_name": "axi_stream_downscaler"},
+    codegen_args = common_codegen_args | {"module_name": "axi_stream_downscaler"},
     dslx_top = "AxiStreamDownscalerInst",
-    ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":axi_stream_downscaler_dslx",
+    tags = ["manual"],
     verilog_file = "axi_stream_downscaler.v",
 )
 
 xls_benchmark_ir(
     name = "axi_stream_downscaler_opt_ir_benchmark",
     src = ":axi_stream_downscaler_verilog.opt.ir",
-    benchmark_ir_args = COMMON_CODEGEN_ARGS,
+    benchmark_ir_args = common_codegen_args,
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -294,6 +299,7 @@ verilog_library(
     srcs = [
         ":axi_stream_downscaler.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -342,16 +348,16 @@ xls_dslx_test(
 
 AXI_RAM_READER_CLOCK_PERIOD_PS = "850"
 
-AXI_RAM_READER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+AXI_RAM_READER_CODEGEN_ARGS = common_codegen_args | {
     "module_name": "axi_ram_reader",
     "clock_period_ps": AXI_RAM_READER_CLOCK_PERIOD_PS,
     "ram_configurations": "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
         latency = 1,
         ram_name = "ram",
-        rd_req = "_rd_req_s",
-        rd_resp = "_rd_resp_r",
-        wr_req = "_wr_req_s",
-        wr_resp = "_wr_resp_r",
+        rd_req = "axi_ram_reader__rd_req_s",
+        rd_resp = "axi_ram_reader__rd_resp_r",
+        wr_req = "axi_ram_reader__wr_req_s",
+        wr_resp = "axi_ram_reader__wr_resp_r",
     ),
 }
 
@@ -359,8 +365,8 @@ xls_dslx_verilog(
     name = "axi_ram_reader_verilog",
     codegen_args = AXI_RAM_READER_CODEGEN_ARGS,
     dslx_top = "AxiRamReaderInstWithEmptyWrites",
-    ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":axi_ram_reader_dslx",
+    tags = ["manual"],
     verilog_file = "axi_ram_reader.v",
 )
 
@@ -369,11 +375,13 @@ verilog_library(
     srcs = [
         ":axi_ram_reader.v",
     ],
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
     name = "axi_ram_reader_opt_ir_benchmark",
     src = ":axi_ram_reader_verilog.opt.ir",
+    tags = ["manual"],
     benchmark_ir_args = AXI_RAM_READER_CODEGEN_ARGS,
 )
 
@@ -421,11 +429,12 @@ xls_dslx_library(
 xls_dslx_test(
     name = "mem_reader_dslx_test",
     library = ":mem_reader_dslx",
+    tags = ["manual"],
 )
 
 MEM_READER_CLOCK_PERIOD_PS = "2600"
 
-mem_reader_codegen_args = COMMON_CODEGEN_ARGS | {
+mem_reader_codegen_args = common_codegen_args | {
     "clock_period_ps": MEM_READER_CLOCK_PERIOD_PS,
     "module_name": "mem_reader",
 }
@@ -434,8 +443,8 @@ xls_dslx_verilog(
     name = "mem_reader_verilog",
     codegen_args = mem_reader_codegen_args,
     dslx_top = "MemReaderInst",
-    ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":mem_reader_dslx",
+    tags = ["manual"],
     verilog_file = "mem_reader.v",
 )
 
@@ -444,12 +453,14 @@ verilog_library(
     srcs = [
         ":mem_reader.v",
     ],
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
     name = "mem_reader_opt_ir_benchmark",
     src = ":mem_reader_verilog.opt.ir",
     benchmark_ir_args = mem_reader_codegen_args,
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -485,8 +496,8 @@ xls_dslx_verilog(
     name = "mem_reader_adv_verilog",
     codegen_args = mem_reader_codegen_args | {"module_name": "mem_reader_adv"},
     dslx_top = "MemReaderAdvInst",
-    ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":mem_reader_dslx",
+    tags = ["manual"],
     verilog_file = "mem_reader_adv.v",
 )
 
@@ -494,6 +505,7 @@ xls_benchmark_ir(
     name = "mem_reader_adv_opt_ir_benchmark",
     src = ":mem_reader_adv_verilog.opt.ir",
     benchmark_ir_args = mem_reader_codegen_args,
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -501,6 +513,7 @@ verilog_library(
     srcs = [
         ":mem_reader_adv.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -570,21 +583,23 @@ xls_dslx_library(
 xls_dslx_test(
     name = "axi_writer_dslx_test",
     library = ":axi_writer_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
     name = "axi_writer_verilog",
-    codegen_args = COMMON_CODEGEN_ARGS | {"module_name": "axi_writer"},
+    codegen_args = common_codegen_args | {"module_name": "axi_writer"},
     dslx_top = "AxiWriterInst",
-    ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":axi_writer_dslx",
+    tags = ["manual"],
     verilog_file = "axi_writer.v",
 )
 
 xls_benchmark_ir(
     name = "axi_writer_opt_ir_benchmark",
     src = ":axi_writer_verilog.opt.ir",
-    benchmark_ir_args = COMMON_CODEGEN_ARGS,
+    benchmark_ir_args = common_codegen_args,
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -592,6 +607,7 @@ verilog_library(
     srcs = [
         ":axi_writer.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -663,7 +679,7 @@ xls_dslx_test(
     library = ":axi_stream_add_empty_dslx",
 )
 
-axi_stream_add_empty_codegen_args = COMMON_CODEGEN_ARGS | {
+axi_stream_add_empty_codegen_args = common_codegen_args | {
     "module_name": "axi_stream_add_empty",
     "pipeline_stages": "2",
     "streaming_channel_data_suffix": "_data",
@@ -673,8 +689,8 @@ xls_dslx_verilog(
     name = "axi_stream_add_empty_verilog",
     codegen_args = axi_stream_add_empty_codegen_args,
     dslx_top = "AxiStreamAddEmptyInst",
-    ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":axi_stream_add_empty_dslx",
+    tags = ["manual"],
     verilog_file = "axi_stream_add_empty.v",
 )
 
@@ -682,6 +698,7 @@ xls_benchmark_ir(
     name = "axi_stream_add_empty_opt_ir_benchmark",
     src = ":axi_stream_add_empty_verilog.opt.ir",
     benchmark_ir_args = axi_stream_add_empty_codegen_args,
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -689,6 +706,7 @@ verilog_library(
     srcs = [
         ":axi_stream_add_empty.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -740,10 +758,10 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "mem_writer_verilog",
-    codegen_args = COMMON_CODEGEN_ARGS | {"module_name": "mem_writer"},
+    codegen_args = common_codegen_args | {"module_name": "mem_writer"},
     dslx_top = "MemWriterInst",
-    ir_conv_args = COMMON_IR_CONV_ARGS,
     library = ":mem_writer_dslx",
+    tags = ["manual"],
     verilog_file = "mem_writer.v",
 )
 
@@ -752,6 +770,7 @@ verilog_library(
     srcs = [
         ":mem_writer.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(

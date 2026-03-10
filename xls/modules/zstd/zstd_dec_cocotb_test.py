@@ -22,6 +22,7 @@ from xls.modules.zstd.zstd_dec_cocotb_common import (
   test_reset,
 )
 
+
 @cocotb.test(timeout_time=50, timeout_unit="ms")
 async def zstd_csr_test(dut):
   await test_csr(dut)
@@ -48,12 +49,12 @@ async def zstd_rle_frames_test(dut):
 
 @cocotb.test(timeout_time=5000, timeout_unit="ms")
 async def zstd_compressed_frames_test(dut):
-    test_cases = 1
-    block_type = data_generator.BlockType.COMPRESSED
-    literal_type = data_generator.LiteralType.RAW
-    await randomized_testing_routine(dut, test_cases, block_type, literal_type)
+  test_cases = 1
+  block_type = data_generator.BlockType.COMPRESSED
+  literal_type = data_generator.LiteralType.RAW
+  await randomized_testing_routine(dut, test_cases, block_type, literal_type)
 
 
 if __name__ == "__main__":
-    test_module = [pathlib.Path(__file__).stem]
-    run_test(test_module, sim="icarus")
+  test_module = [pathlib.Path(__file__).stem]
+  run_test(test_module, sim="icarus")

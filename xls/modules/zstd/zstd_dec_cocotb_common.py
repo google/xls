@@ -497,7 +497,7 @@ async def await_state_cycle(clk, wire, func, startvals, endvals):
     func(end - start)
 
 async def report_fse_decoder_work(dut, clk):
-  fse_state = dut.ZstdDecoder.xls_modules_zstd_fse_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__FseDecoder_0__64_15_32_1_64_7_next_inst10.p2_____state_0__1
+  fse_state = dut.ZstdDecoder.xls_modules_zstd_fse_dec__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__SequenceDecoder_0__FseDecoder_0__64_15_32_1_64_7_next_inst10.p1_____state_0__1
   start_states = [1]
   end_states = [16]
 
