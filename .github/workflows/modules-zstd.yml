@@ -72,4 +72,4 @@ jobs:
       - name: Build ZSTD place and route targets (opt)
         if: ${{ !cancelled() }}
         run: |
-          bazel build -c opt -- $(bazel query 'filter("_place_and_route$", kind(rule, //xls/modules/zstd/...))')
+          bazel build -c opt -- $(bazel query 'filter("_place_and_route$", kind(rule, //xls/modules/zstd/...)) except attr(tags, "long", //xls/modules/zstd/...)')
