@@ -1048,6 +1048,50 @@ BValue BuilderBase::Concat(absl::Span<const BValue> operands,
   return AddNode<xls::Concat>(loc, node_operands, name);
 }
 
+BValue BuilderBase::Peek(
+    ReceiveChannelRef channel, BValue token,
+    const SourceInfo& loc, std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat(
+            "Token operand of peek must be of token type; is: %s",
+            token.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Peek>(loc, token.node(), /*predicate=*/std::nullopt,
+                            ChannelRefName(channel), ChannelRefType(channel),
+                            name);
+}
+
+BValue BuilderBase::PeekIf(
+    ReceiveChannelRef channel, BValue token, BValue pred,
+    const SourceInfo& loc, std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat(
+            "Token operand of peek must be of token type; is: %s",
+            token.GetType()->ToString()),
+        loc);
+  }
+  if (!pred.GetType()->IsBits() ||
+      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(
+        absl::StrFormat("Predicate operand of peek_if must be of bits "
+                        "type of width 1; is: %s",
+                        pred.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Peek>(loc, token.node(), pred.node(),
+                            ChannelRefName(channel), ChannelRefType(channel),
+                            name);
+}
+
 BValue BuilderBase::Receive(ReceiveChannelRef channel, BValue token,
                             const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
@@ -1873,6 +1917,13 @@ std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveIfNonBlocking(
       ProcBuilder::ReceiveIfNonBlocking(channel, last_token_, pred, loc, name);
   last_token_ = TupleIndex(rcv, 0, loc);
   return {TupleIndex(rcv, 1), TupleIndex(rcv, 2)};
+}
+
+std::pair<BValue, BValue> TokenlessProcBuilder::Peek(
+    ReceiveChannelRef channel, const SourceInfo& loc, std::string_view name) {
+  BValue peek = ProcBuilder::Peek(channel, last_token_, loc, name);
+  last_token_ = TupleIndex(peek, 0, loc);
+  return {TupleIndex(peek, 1), TupleIndex(peek, 2)};
 }
 
 BValue TokenlessProcBuilder::Send(SendChannelRef channel, BValue data,

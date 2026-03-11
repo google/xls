@@ -1170,9 +1170,16 @@ TEST_P(ProcRuntimeTestBase, TraceChannels) {
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
-  TokenlessProcBuilder pb("incrementer", "tkn", package.get());
-  pb.Send(out_channel,
-          pb.Add(pb.Literal(UBits(1, 32)), pb.Receive(in_channel)));
+  ProcBuilder pb("incrementer", package.get());
+
+  // The following `peek` has no side effects, but allows us to check
+  // correctness of the channel trace callback.
+  BValue peek_result = pb.Peek(
+      in_channel, pb.Literal(Value::Token(), SourceInfo(), "tok"));
+
+  BValue rcv_result = pb.Receive(in_channel, pb.TupleIndex(peek_result, 0));
+  pb.Send(out_channel, pb.TupleIndex(rcv_result, 0),
+          pb.Add(pb.Literal(UBits(1, 32)), pb.TupleIndex(rcv_result, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   XLS_ASSERT_OK(package->SetTop(proc));
 
@@ -1193,8 +1200,10 @@ TEST_P(ProcRuntimeTestBase, TraceChannels) {
         events.GetTraceMessageStrings(),
         ElementsAre(ContainsRegex("Sent data on channel `in`.*:42"),
                     ContainsRegex("Sent data on channel `in`.*:123"),
+                    ContainsRegex("Peeked data on channel `in`.*:42"),
                     ContainsRegex("Received data on channel `in`.*:42"),
                     ContainsRegex("Sent data on channel `out`.*:43"),
+                    ContainsRegex("Peeked data on channel `in`.*:123"),
                     ContainsRegex("Received data on channel `in`.*:123"),
                     ContainsRegex("Sent data on channel `out`.*:124")));
   }
@@ -1216,8 +1225,10 @@ TEST_P(ProcRuntimeTestBase, TraceChannels) {
         events.GetTraceMessageStrings(),
         ElementsAre(ContainsRegex("Sent data on channel `in`.*:0x2a"),
                     ContainsRegex("Sent data on channel `in`.*:0x7b"),
+                    ContainsRegex("Peeked data on channel `in`.*:0x2a"),
                     ContainsRegex("Received data on channel `in`.*:0x2a"),
                     ContainsRegex("Sent data on channel `out`.*:0x2b"),
+                    ContainsRegex("Peeked data on channel `in`.*:0x7b"),
                     ContainsRegex("Received data on channel `in`.*:0x7b"),
                     ContainsRegex("Sent data on channel `out`.*:0x7c")));
   }

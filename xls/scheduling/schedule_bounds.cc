@@ -300,6 +300,11 @@ class ConstraintConverter {
         "Unsupported constraint type: DifferenceConstraint");
   }
 
+  absl::Status AddSpecificConstraint(
+      const PeekWithReceiveConstraint& constraint) {
+    return absl::OkStatus();
+  }
+
   absl::StatusOr<std::vector<NodeSchedulingConstraint>> Finalize() && {
     // Refine the topo sort if needed to ensure that io-constraints can be
     // satisfied in a single pass.

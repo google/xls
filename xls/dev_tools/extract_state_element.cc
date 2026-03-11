@@ -59,7 +59,7 @@ class RemoveUnusedReceivesPass : public OptimizationProcPass {
     XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
                          context.TopoSort(proc));
     for (Node* n : topo_sort_nodes) {
-      if (n->Is<Receive>()) {
+      if (n->Is<Receive>() || n->Is<Peek>()) {
         if (n->users().empty()) {
           XLS_RETURN_IF_ERROR(proc->RemoveNode(n));
           changed = true;
@@ -81,7 +81,9 @@ class RemoveUnusedReceivesPass : public OptimizationProcPass {
                 return (n->Is<Receive>() &&
                         n->As<Receive>()->channel_name() == chan->name()) ||
                        (n->Is<Send>() &&
-                        n->As<Send>()->channel_name() == chan->name());
+                        n->As<Send>()->channel_name() == chan->name()) ||
+                       (n->Is<Peek>() &&
+                        n->As<Peek>()->channel_name() == chan->name());
               });
             })) {
           XLS_RETURN_IF_ERROR(proc->package()->RemoveChannel(chan));
@@ -91,6 +93,17 @@ class RemoveUnusedReceivesPass : public OptimizationProcPass {
     return changed;
   }
 };
+
+absl::StatusOr<Channel*> CreateStreamingChannel(
+    Package* new_pkg, ChannelNode* channel_node) {
+  XLS_ASSIGN_OR_RETURN(auto orig_chan_ref, channel_node->GetChannelRef());
+  Channel* orig_chan = std::get<Channel*>(orig_chan_ref);
+  XLS_ASSIGN_OR_RETURN(
+      Type * map_ty, new_pkg->MapTypeFromOtherPackage(orig_chan->type()));
+  return new_pkg->CreateStreamingChannel(
+             channel_node->channel_name(), ChannelOps::kReceiveOnly, map_ty,
+             orig_chan->initial_values());
+}
 
 absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
                                 absl::Span<StateElement* const> state_elements,
@@ -122,14 +135,7 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
       if (new_pkg->HasChannelWithName(r->channel_name())) {
         XLS_ASSIGN_OR_RETURN(chan, new_pkg->GetChannel(r->channel_name()));
       } else {
-        XLS_ASSIGN_OR_RETURN(auto orig_chan_ref, r->GetChannelRef());
-        Channel* orig_chan = std::get<Channel*>(orig_chan_ref);
-        XLS_ASSIGN_OR_RETURN(
-            Type * map_ty, new_pkg->MapTypeFromOtherPackage(orig_chan->type()));
-        XLS_ASSIGN_OR_RETURN(
-            chan, new_pkg->CreateStreamingChannel(
-                      r->channel_name(), ChannelOps::kReceiveOnly, map_ty,
-                      orig_chan->initial_values()));
+        XLS_ASSIGN_OR_RETURN(chan, CreateStreamingChannel(new_pkg, r));
         if (r->is_blocking()) {
           if (r->predicate()) {
             old_to_new[n] =
@@ -151,6 +157,23 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
                 pb.ReceiveNonBlocking(chan, BValue(old_to_new[r->token()], &pb))
                     .node();
           }
+        }
+      }
+    } else if (n->Is<Peek>()) {
+      Peek* peek = n->As<Peek>();
+      Channel* chan;
+      if (new_pkg->HasChannelWithName(peek->channel_name())) {
+        XLS_ASSIGN_OR_RETURN(chan, new_pkg->GetChannel(peek->channel_name()));
+      } else {
+        XLS_ASSIGN_OR_RETURN(chan, CreateStreamingChannel(new_pkg, peek));
+        if (peek->predicate()) {
+          old_to_new[n] = pb.PeekIf(
+                              chan, BValue(old_to_new[peek->token()], &pb),
+                              BValue(old_to_new[*peek->predicate()], &pb))
+                                  .node();
+        } else {
+          old_to_new[n] =
+              pb.Peek(chan, BValue(old_to_new[peek->token()], &pb)).node();
         }
       }
     } else if (n->Is<StateRead>()) {

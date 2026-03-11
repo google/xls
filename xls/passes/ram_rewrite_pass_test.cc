@@ -186,6 +186,50 @@ TEST_F(RamRewritePassTest, NoRamRewrites) {
               m::ChannelWithType("()"));
 }
 
+TEST_F(RamRewritePassTest, PeekRamRewriteError) {
+  auto p = std::make_unique<Package>(TestName());
+  RamConfig config_abstract{.kind = RamKind::kAbstract,
+                            .depth = 1024,
+                            .word_partition_size = std::nullopt,
+                            .initial_value = std::nullopt};
+  RamConfig config_1rw = config_abstract;
+  config_1rw.kind = RamKind::k1RW;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      RamChannels channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
+                      /*data_type=*/p->GetBitsType(32),
+                      /*strictness=*/ChannelStrictness::kTotalOrder));
+
+  auto pb = MakeProcBuilder(p.get(), "p");
+  pb->Send(channels.read_req,
+           pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
+  pb->Receive(channels.read_resp);
+  pb->Send(channels.write_req,
+           pb->Literal(Value::Tuple(
+               {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
+  pb->Receive(channels.write_resp);
+  pb->Peek(channels.write_resp);
+  XLS_ASSERT_OK(pb->Build({}).status());
+  XLS_ASSERT_OK(p->SetTopByName("p"));
+
+  std::vector<RamRewrite> ram_rewrites{RamRewrite{
+      .from_config = config_abstract,
+      .from_channels_logical_to_physical =
+          absl::flat_hash_map<std::string, std::string>{
+              {"abstract_read_req", "ram_abstract_read_req"},
+              {"abstract_read_resp", "ram_abstract_read_resp"},
+              {"abstract_write_req", "ram_abstract_write_req"},
+              {"write_completion", "ram_abstract_write_resp"},
+          },
+      .to_config = config_1rw,
+      .to_name_prefix = "ram_1rw",
+      .proc_name = std::nullopt,
+  }};
+  EXPECT_THAT(Run(p.get(), ram_rewrites),
+              StatusIs(absl::StatusCode::kAborted,
+                       HasSubstr("`peek` operation on RAM channel")));
+}
+
 TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewrite) {
   auto p = std::make_unique<Package>(TestName());
   auto pb = MakeProcBuilder(p.get(), "p");

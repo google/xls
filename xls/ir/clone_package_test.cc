@@ -89,6 +89,33 @@ TEST_F(ClonePackageTest, BasicProc) {
               IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(ClonePackageTest, ProcWithPeek) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * chan, p->CreateStreamingChannel(
+                                               "chan", ChannelOps::kReceiveOnly,
+                                               p->GetBitsType(32)));
+  ProcBuilder pb("prc", p.get());
+  auto st = pb.StateElement("foo", UBits(32, 32));
+  auto nv = pb.TupleIndex(pb.Peek(chan, pb.Literal(Value::Token())), 1);
+  auto nv_even = pb.BitSlice(nv, 0, 1);
+  pb.Next(st, pb.Add(st, nv), nv_even);
+  pb.Next(st, st, pb.Not(nv_even));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto p2, ClonePackage(p.get(), "foobar"));
+  EXPECT_EQ(p2->name(), "foobar");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * cp, p2->GetProc("prc"));
+  ASSERT_NE(cp, proc);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * original_f,
+                           UnrollProcToFunction(proc, /*activation_count=*/10,
+                                                /*include_state=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * cloned_f,
+                           UnrollProcToFunction(cp, /*activation_count=*/10,
+                                                /*include_state=*/true));
+  EXPECT_THAT(TryProveEquivalence(original_f, cloned_f),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(ClonePackageTest, BasicBlock) {
   auto p = CreatePackage();
   BlockBuilder bb("blk", p.get());

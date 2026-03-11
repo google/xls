@@ -428,7 +428,7 @@ absl::Status PipelineSchedule::VerifyConstraints(
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
                        TopoSort(function_base_));
   for (Node* node : topo_sort_nodes) {
-    if (node->Is<Receive>() || node->Is<Send>()) {
+    if (node->Is<Receive>() || node->Is<Send>() || node->Is<Peek>()) {
       channel_to_nodes[node->As<ChannelNode>()->channel_name()].push_back(node);
     }
     if (!IsUntimed(node)) {
@@ -460,7 +460,7 @@ absl::Status PipelineSchedule::VerifyConstraints(
   auto matches_direction = [](IODirection direction, Node* node) -> bool {
     switch (direction) {
       case IODirection::kReceive:
-        return node->Is<Receive>();
+        return node->Is<Receive>() || node->Is<Peek>();
       case IODirection::kSend:
         return node->Is<Send>();
     }
@@ -543,11 +543,11 @@ absl::Status PipelineSchedule::VerifyConstraints(
     } else if (std::holds_alternative<RecvsFirstSendsLastConstraint>(
                    constraint)) {
       for (Node* node : function_base_->nodes()) {
-        if (node->Is<Receive>() && cycle_map_.at(node) != 0) {
+        if ((node->Is<Receive>() || node->Is<Peek>()) && cycle_map_.at(node) != 0) {
           return absl::ResourceExhaustedError(absl::StrFormat(
               "Scheduling constraint violated: node %s was scheduled in "
-              "cycle %d which violates the constraint that all receives must "
-              "be in cycle 0.",
+              "cycle %d which violates the constraint that all receives "
+              "and peeks must be in cycle 0.",
               node->ToString(), cycle_map_.at(node)));
         }
         if (node->Is<Send>() && cycle_map_.at(node) != last_cycle) {
@@ -665,6 +665,22 @@ absl::Status PipelineSchedule::VerifyConstraints(
                 plural_s(same_channel_latency), node->ToString(),
                 same_channel_const.MinimumLatency(),
                 plural_s(same_channel_const.MinimumLatency())));
+          }
+        }
+      }
+    } else if (std::holds_alternative<PeekWithReceiveConstraint>(constraint)) {
+      for (auto& [channel_name, channel_nodes] : channel_to_nodes) {
+        std::optional<int64_t> peek_receive_cycle;
+        for (const Node* channel_node : channel_nodes) {
+          if (!peek_receive_cycle.has_value()) {
+            peek_receive_cycle = cycle_map_.at(channel_node);
+          }
+          if (channel_node->Is<Peek>() &&
+              peek_receive_cycle.value() != cycle_map_.at(channel_node)) {
+              return absl::ResourceExhaustedError(absl::StrFormat(
+                  "Scheduling constraint violated: node %s was scheduled in a "
+                  "differenct cycle than other peek/receive nodes.",
+                  channel_node->ToString()));
           }
         }
       }

@@ -480,6 +480,10 @@ absl::Status SDCSchedulingModel::AddSchedulingConstraint(
     return AddSameChannelConstraint(
         std::get<SameChannelConstraint>(constraint));
   }
+  if (std::holds_alternative<PeekWithReceiveConstraint>(constraint)) {
+    return AddPeekWithReceiveConstraint(
+        std::get<PeekWithReceiveConstraint>(constraint));
+  }
   return absl::InternalError("Unhandled scheduling constraint type");
 }
 
@@ -489,7 +493,7 @@ absl::Status SDCSchedulingModel::AddIOConstraint(
   absl::flat_hash_map<std::string, std::vector<Node*>> channel_to_nodes;
   for (const ScheduleNode& schedule_node : graph_.nodes()) {
     Node* node = schedule_node.node;
-    if (node->Is<Receive>() || node->Is<Send>()) {
+    if (node->Is<Receive>() || node->Is<Send>() || node->Is<Peek>()) {
       channel_to_nodes[node->As<ChannelNode>()->channel_name()].push_back(node);
     }
   }
@@ -501,7 +505,8 @@ absl::Status SDCSchedulingModel::AddIOConstraint(
     for (Node* target : channel_to_nodes[constraint.TargetChannel()]) {
       auto node_matches_direction = [](Node* node, IODirection dir) -> bool {
         return (node->Is<Send>() && dir == IODirection::kSend) ||
-               (node->Is<Receive>() && dir == IODirection::kReceive);
+               (node->Is<Receive>() && dir == IODirection::kReceive) ||
+               (node->Is<Peek>() && dir == IODirection::kReceive);
       };
       if (!node_matches_direction(source, constraint.SourceDirection())) {
         continue;
@@ -561,11 +566,13 @@ absl::Status SDCSchedulingModel::AddRFSLConstraint(
     const RecvsFirstSendsLastConstraint& constraint) {
   for (const ScheduleNode& schedule_node : graph_.nodes()) {
     Node* node = schedule_node.node;
-    if (node->Is<Receive>()) {
+    if (node->Is<Receive>() || node->Is<Peek>()) {
       VLOG(2) << "Setting receive-in-first-cycle constraint: "
               << absl::StrFormat("cycle[%s] ≤ 0", node->GetName());
+      auto constr_name = node->Is<Receive>() ? "recv" : "peek";
       model_.AddLinearConstraint(cycle_var_.at(node) <= 0,
-                                 absl::StrFormat("recv_%s", node->GetName()));
+                                 absl::StrFormat("%s_%s", constr_name,
+                                 node->GetName()));
     } else if (node->Is<Send>()) {
       VLOG(2) << "Setting send-in-last-cycle constraint: "
               << absl::StrFormat("%s ≤ cycle[%s]", last_stage_.name(),
@@ -706,6 +713,43 @@ absl::Status SDCSchedulingModel::AddSameChannelConstraint(
       }
       new_dependencies.insert(schedule_node.node);
       dependencies = std::move(new_dependencies);
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status SDCSchedulingModel::AddPeekWithReceiveConstraint(
+    const PeekWithReceiveConstraint& constraint) {
+  struct PeekRecv {
+    std::vector<Node*> recvs;
+    std::vector<Node*> peeks;
+  };
+  absl::flat_hash_map<std::string, PeekRecv> channel_to_nodes;
+  for (const ScheduleNode& schedule_node : graph_.nodes()) {
+    Node* node = schedule_node.node;
+    if (node->Is<Receive>()) {
+      channel_to_nodes[node->As<Receive>()->channel_name()].recvs.push_back(node);
+    } else if (node->Is<Peek>()) {
+      channel_to_nodes[node->As<Peek>()->channel_name()].peeks.push_back(node);
+    }
+  }
+
+  for (auto& [_, channel_nodes] : channel_to_nodes) {
+    auto& [receives, peeks] = channel_nodes;
+    if (!peeks.empty()) {
+      Node* first_peek = peeks.front();
+      for (Node* receive : receives) {
+        model_.AddLinearConstraint(
+            cycle_var_.at(receive) == cycle_var_.at(first_peek),
+            absl::StrFormat("%s", first_peek->GetName()));
+      }
+
+      for (int i = 1; i < peeks.size(); ++i) {
+        Node* peek = peeks[i];
+        model_.AddLinearConstraint(
+            cycle_var_.at(first_peek) == cycle_var_.at(peek),
+            absl::StrFormat("%s", peek->GetName()));
+      }
     }
   }
   return absl::OkStatus();

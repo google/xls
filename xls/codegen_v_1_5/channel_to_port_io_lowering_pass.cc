@@ -252,7 +252,7 @@ GetLoopbackChannels(ScheduledBlock* block) {
                            GetChannelUsedByNode(node->As<ChannelNode>()));
       if (node->Is<Send>()) {
         send_channels.insert(channel);
-      } else if (node->Is<Receive>()) {
+      } else if (node->Is<Receive>() || node->Is<Peek>()) {
         receive_channels.insert(channel);
       }
     }
@@ -674,7 +674,7 @@ LowerChannelsToConnectors(ScheduledBlock* block,
           // Loopback channels are handled above.
           continue;
         }
-        if (node->Is<Receive>()) {
+        if (node->Is<Receive>() || node->Is<Peek>()) {
           channels.insert({channel, ChannelDirection::kReceive});
         } else if (node->Is<Send>()) {
           channels.insert({channel, ChannelDirection::kSend});
@@ -720,7 +720,7 @@ absl::Status ConnectReceivesToConnector(
   std::vector<int64_t> stage_indices;
   stage_indices.reserve(receives.size());
   for (Node* receive : receives) {
-    XLS_RET_CHECK(receive->Is<Receive>());
+    XLS_RET_CHECK(receive->Is<Receive>() || receive->Is<Peek>());
     XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(receive));
     stage_indices.push_back(stage_index);
   }
@@ -735,9 +735,10 @@ absl::Status ConnectReceivesToConnector(
   for (const auto& [receive, stage_index] :
        iter::zip(receives, stage_indices)) {
     Stage& stage = block->stages()[stage_index];
-    Node* token = receive->As<Receive>()->token();
-    bool is_blocking = receive->As<Receive>()->is_blocking();
-    std::optional<Node*> predicate = receive->As<Receive>()->predicate();
+    ChannelNode* as_channel_node = receive->As<ChannelNode>();
+    Node* token = as_channel_node->token();
+    bool is_blocking = as_channel_node->is_blocking();
+    std::optional<Node*> predicate = as_channel_node->predicate();
 
     // If needed, add identity nodes to signal that the predicate needs to be
     // available at the receive's stage. (This enables pipeline register
@@ -749,19 +750,28 @@ absl::Status ConnectReceivesToConnector(
     }
 
     if (connector.ready.has_value()) {
-      // The ready signal from this receive is:
-      //     (predicate AND outputs_ready AND outputs_valid)
-      absl::InlinedVector<Node*, 3> recv_finishing_requirements;
-      recv_finishing_requirements.push_back(stage.outputs_valid());
-      recv_finishing_requirements.push_back(stage.outputs_ready());
-      if (predicate.has_value()) {
-        recv_finishing_requirements.push_back(*predicate);
+      if (receive->Is<Receive>()) {
+        // The ready signal from this receive is:
+        //     (predicate AND outputs_ready AND outputs_valid)
+        absl::InlinedVector<Node*, 3> recv_finishing_requirements;
+        recv_finishing_requirements.push_back(stage.outputs_valid());
+        recv_finishing_requirements.push_back(stage.outputs_ready());
+        if (predicate.has_value()) {
+          recv_finishing_requirements.push_back(*predicate);
+        }
+        XLS_ASSIGN_OR_RETURN(
+            Node * recv_finishing,
+            block->MakeNode<NaryOp>(receive->loc(), recv_finishing_requirements,
+                                    Op::kAnd));
+        ready_signals.push_back(recv_finishing);
       }
-      XLS_ASSIGN_OR_RETURN(
-          Node * recv_finishing,
-          block->MakeNode<NaryOp>(receive->loc(), recv_finishing_requirements,
-                                  Op::kAnd));
-      ready_signals.push_back(recv_finishing);
+      // Ignore setting ready signal value in case of `peek` operation.
+      else {
+        XLS_ASSIGN_OR_RETURN(
+            Node* peek_ready, block->MakeNodeInStage<Literal>(
+                stage_index, receive->loc(), Value(UBits(0, 1))));
+        ready_signals.push_back(peek_ready);
+      }
     }
 
     if (connector.valid.has_value() && is_blocking) {
@@ -1700,7 +1710,7 @@ absl::StatusOr<bool> LowerIoToPorts(
     } else {
       XLS_RET_CHECK_EQ(connector.direction, ChannelDirection::kReceive);
       XLS_RET_CHECK(absl::c_all_of(io_ops_for_channel, [](Node* io_op) {
-        return io_op->Is<Receive>();
+        return io_op->Is<Receive>() || io_op->Is<Peek>();
       }));
       XLS_RETURN_IF_ERROR(ConnectReceivesToConnector(
           io_ops_for_channel, connector, block, options));

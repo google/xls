@@ -167,6 +167,8 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleBuiltinDecode(const Invocation* node);
   absl::Status HandleBuiltinElementCount(const Invocation* node);
   absl::Status HandleBuiltinJoin(const Invocation* node);
+  absl::Status HandleBuiltinPeek(const Invocation* node);
+  absl::Status HandleBuiltinPeekIf(const Invocation* node);
   absl::Status HandleBuiltinRead(const Invocation* node);
   absl::Status HandleBuiltinRecv(const Invocation* node);
   absl::Status HandleBuiltinRecvIf(const Invocation* node);

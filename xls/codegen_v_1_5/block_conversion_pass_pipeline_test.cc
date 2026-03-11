@@ -6826,6 +6826,36 @@ TEST_F(BlockConversionTest, TwoBitSelectorAllCasesPopulated) {
                                       m::InputPort("z"), m::InputPort("a")})));
 }
 
+TEST_F(BlockConversionTest, PeekSingleValue) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateSingleValueChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateSingleValueChannel("out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  auto [data, valid] = pb.Peek(ch_in);
+  pb.SendIf(ch_out, valid, data);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  CodegenOptions codegen_options = CodegenOptions();
+  codegen_options.module_name("Peek");
+  codegen_options.clock_name("clk");
+  codegen_options.generate_combinational(true);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(proc, codegen_options));
+
+  EXPECT_THAT(
+      InterpretCombinationalBlock(block, {{"in", 42}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("out", 42))));
+}
+
 TEST_F(ProcConversionTestFixture, SimpleMultiProcConversion) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            CreateMultiProcPackage());
@@ -7521,6 +7551,364 @@ TEST_F(ProcConversionTestFixture, DeclaredChannelInProc) {
   EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
               IsOkAndHolds(ElementsAre(10, 40, 100)));
 }
+
+class PeekOperationTestFixture
+    : public BlockConversionTest,
+      public testing::WithParamInterface<int64_t> {
+ public:
+  static std::string PrintToStringParamName(
+      const testing::TestParamInfo<ParamType>& info) {
+    int64_t stage_count = info.param;
+    return absl::StrFormat("stage_count_%d", stage_count);
+  }
+
+  static SchedulingOptions GetSchedulingOptions() {
+    int64_t stage_count = GetParam();
+
+    SchedulingOptions scheduling_options;
+    scheduling_options.pipeline_stages(stage_count);
+    scheduling_options.delay_model("unit");
+    scheduling_options.schedule_all_procs(true);
+    return scheduling_options;
+  }
+
+  static CodegenOptions GetCodegenOptions() {
+    CodegenOptions codegen_options;
+    codegen_options.module_name("Peek");
+    codegen_options.clock_name("clk");
+    codegen_options.reset("rst", /*asynchronous=*/false,
+                          /*active_low=*/false, /*reset_data_path=*/false);
+    codegen_options.flop_inputs(true).flop_outputs(true);
+    codegen_options.flop_single_value_channels(true);
+    return codegen_options;
+  }
+};
+
+TEST_P(PeekOperationTestFixture, Peek) {
+  constexpr std::string_view kIrText = R"(
+package peek
+
+top proc Peek<_req_r: bits[32] in, _resp_s: bits[32] out>() {
+  chan_interface _req_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  peek.7: (token, bits[32], bits[1]) = peek(after_all.5, predicate=literal.3, channel=_req_r, id=7)
+  tuple_index.9: bits[32] = tuple_index(peek.7, index=1, id=9)
+  literal.16: bits[32] = literal(value=4, id=16, pos=[(0,80,37)])
+  valid: bits[1] = tuple_index(peek.7, index=2, id=10)
+  ugt.43: bits[1] = ugt(tuple_index.9, literal.16, id=43, pos=[(0,80,28)])
+  tok: token = tuple_index(peek.7, index=0, id=8)
+  and.52: bits[1] = and(valid, ugt.43, id=52, pos=[(0,81,48)])
+  receive.21: (token, bits[32]) = receive(tok, predicate=and.52, channel=_req_r, id=21)
+  tok__1: token = tuple_index(receive.21, index=0, id=22)
+  packet__1: bits[32] = tuple_index(receive.21, index=1, id=23)
+  send.29: token = send(tok__1, packet__1, predicate=valid, channel=_resp_s, id=29)
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(kIrText));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("Peek"));
+
+  SchedulingOptions scheduling_options = GetSchedulingOptions();
+  CodegenOptions codegen_options = GetCodegenOptions();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block* block, ConvertToBlock(proc, codegen_options, scheduling_options));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 5, {{"rst", 0}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 0, {{"rst", 1}}, inputs));
+
+  ChannelSource source = ChannelSource("_req_r", "_req_r_vld", "_req_r_rdy",
+                                       /*io_probability=*/1.0, block);
+
+  XLS_ASSERT_OK(source.SetDataSequence({7, 5, 3}));
+
+  ChannelSink sink = ChannelSink("_resp_s", "_resp_s_vld", "_resp_s_rdy",
+                                 /*io_probability=*/1.0, block);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          block, absl::MakeSpan(&source, 1), absl::MakeSpan(&sink, 1), inputs,
+          codegen_options.reset()));
+
+  // Peek prevented receiving packets with value <= 4.
+  EXPECT_FALSE(source.AllDataSent());
+  EXPECT_THAT(sink.GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(7, 5, 0, 0, 0)));
+}
+
+TEST_P(PeekOperationTestFixture, PeekIf) {
+  constexpr std::string_view kIrText = R"(
+package peek
+
+top proc Peek<_req_r: bits[32] in, _resp_s: bits[32] out, _enable_r: bits[1] in>(__state: bits[1], init={0}) {
+  chan_interface _req_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _enable_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  receive.65: (token, bits[1], bits[1]) = receive(after_all.5, channel=_enable_r, blocking=false, id=65)
+  enabled_1_case_cmp: bits[1] = tuple_index(receive.65, index=2, id=9)
+  __state: bits[1] = state_read(state_element=__state, id=2)
+  tuple_index.8: bits[1] = tuple_index(receive.65, index=1, id=8)
+  tuple_index.67: token = tuple_index(receive.65, index=0, id=67)
+  enabled: bits[1] = sel(enabled_1_case_cmp, cases=[__state, tuple_index.8], id=10)
+  peek.18: (token, bits[32], bits[1]) = peek(tuple_index.67, predicate=enabled, channel=_req_r, id=18)
+  tuple_index.20: bits[32] = tuple_index(peek.18, index=1, id=20)
+  literal.27: bits[32] = literal(value=4, id=27, pos=[(0,104,38)])
+  packet_valid: bits[1] = tuple_index(peek.18, index=2, id=21)
+  ugt.55: bits[1] = ugt(tuple_index.20, literal.27, id=55, pos=[(0,104,29)])
+  not.30: bits[1] = not(enabled, id=30, pos=[(0,105,26)])
+  handle_packet: bits[1] = and(packet_valid, ugt.55, id=64, pos=[(0,104,29)])
+  tok__1: token = tuple_index(peek.18, index=0, id=19)
+  packet_cond: bits[1] = or(not.30, handle_packet, id=31, pos=[(0,105,26)])
+  receive.34: (token, bits[32]) = receive(tok__1, predicate=packet_cond, channel=_req_r, id=34)
+  tok__2: token = tuple_index(receive.34, index=0, id=35)
+  packet__1: bits[32] = tuple_index(receive.34, index=1, id=36)
+  not.84: bits[1] = not(enabled_1_case_cmp, id=84)
+  send.66: token = send(tok__2, packet__1, channel=_resp_s, id=66)
+  next_value.75: () = next_value(param=__state, value=tuple_index.8, predicate=enabled_1_case_cmp, id=75)
+  __state_default: () = next_value(param=__state, value=__state, predicate=not.84, id=85)
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(kIrText));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("Peek"));
+
+  SchedulingOptions scheduling_options = GetSchedulingOptions();
+  CodegenOptions codegen_options = GetCodegenOptions();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block* block, ConvertToBlock(proc, codegen_options, scheduling_options));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 16, {{"rst", 0}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 0, {{"rst", 1}}, inputs));
+
+  std::vector<ChannelSource> sources{
+      ChannelSource("_enable_r", "_enable_r_vld", "_enable_r_rdy",
+                    /*io_probability=*/1.0, block),
+      ChannelSource("_req_r", "_req_r_vld", "_req_r_rdy",
+                    /*io_probability=*/1.0, block)
+  };
+
+  ChannelSource& source_enable = sources.at(0);
+  source_enable.DeferUntil(3);
+  XLS_ASSERT_OK(source_enable.SetDataSequence({1, 0}));
+
+  XLS_ASSERT_OK(sources.at(1).SetDataSequence({0, 1, 2, 3, 4, 5}));
+
+  ChannelSink sink = ChannelSink("_resp_s", "_resp_s_vld", "_resp_s_rdy",
+                                 /*io_probability=*/1.0, block);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          block, absl::MakeSpan(sources), absl::MakeSpan(&sink, 1), inputs,
+          codegen_options.reset()));
+
+  // When enabled peek prevented receiving packets with value <= 4.
+  EXPECT_THAT(sink.GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(0, 1, 0, 2, 3, 4, 5)));
+}
+
+TEST_P(PeekOperationTestFixture, LoopbackChannelWithPeek) {
+  constexpr std::string_view ir_text = R"(package peek
+
+top proc Peek<_req_r: bits[32] in, _resp_s: bits[32] out>(__state_1: bits[1], init={0}) {
+  chan_interface _req_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan _loopback(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=2, bypass=false, register_push_outputs=true, register_pop_outputs=false)
+  chan_interface _loopback(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _loopback(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  __state_1: bits[1] = state_read(state_element=__state_1, id=143)
+  after_all.7: token = after_all(id=7)
+  handle_req: bits[1] = not(__state_1, id=6, pos=[(0,158,25)])
+  receive.10: (token, bits[32]) = receive(after_all.7, predicate=handle_req, channel=_req_r, id=10)
+  tok: token = tuple_index(receive.10, index=0, id=11)
+  state_processing: bits[1] = literal(value=1, id=131, pos=[(0,160,20)])
+  peek.23: (token, bits[32], bits[1]) = peek(tok, predicate=state_processing, channel=_loopback, id=23)
+  tok__1: token = tuple_index(peek.23, index=0, id=24)
+  packet_valid: bits[1] = tuple_index(peek.23, index=2, id=26)
+  receive.34: (token, bits[32]) = receive(tok__1, predicate=packet_valid, channel=_loopback, id=34)
+  tuple_index.12: bits[32] = tuple_index(receive.10, index=1, id=12)
+  packet__1: bits[32] = tuple_index(receive.34, index=1, id=36)
+  bit_slice.118: bits[31] = bit_slice(tuple_index.12, start=0, width=31, id=118)
+  bit_slice.104: bits[31] = bit_slice(packet__1, start=0, width=31, id=104, pos=[(0,172,29)])
+  literal.41: bits[32] = literal(value=100, id=41, pos=[(0,171,32)])
+  sel.105: bits[31] = sel(__state_1, cases=[bit_slice.118, bit_slice.104], id=105, pos=[(0,172,29)])
+  literal.86: bits[1] = literal(value=0, id=86, pos=[(0,172,29)])
+  finished: bits[1] = ugt(packet__1, literal.41, id=42, pos=[(0,171,23)])
+  tok__2: token = tuple_index(receive.34, index=0, id=35)
+  packet_to_send: bits[32] = concat(sel.105, literal.86, id=88, pos=[(0,172,29)])
+  not.115: bits[1] = not(finished, id=115, pos=[(0,175,8)])
+  send.50: token = send(tok__2, packet_to_send, predicate=not.115, channel=_loopback, id=50)
+  send.52: token = send(tok__2, packet__1, predicate=finished, channel=_resp_s, id=52)
+  next_value.144: () = next_value(param=__state_1, value=not.115, id=144)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("Peek"));
+
+  SchedulingOptions scheduling_options = GetSchedulingOptions();
+  CodegenOptions codegen_options = GetCodegenOptions();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block* block, ConvertToBlock(proc, codegen_options, scheduling_options));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 20, {{"rst", 0}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 0, {{"rst", 1}}, inputs));
+
+  ChannelSource source = ChannelSource("_req_r", "_req_r_vld", "_req_r_rdy",
+                                       /*io_probability=*/1.0, block);
+
+  XLS_ASSERT_OK(source.SetDataSequence({3}));
+
+  ChannelSink sink = ChannelSink("_resp_s", "_resp_s_vld", "_resp_s_rdy",
+                                 /*io_probability=*/1.0, block);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          block, absl::MakeSpan(&source, 1), absl::MakeSpan(&sink, 1), inputs,
+          codegen_options.reset()));
+
+  EXPECT_THAT(sink.GetOutputSequenceAsUint64(), IsOkAndHolds(ElementsAre(192)));
+}
+
+TEST_P(PeekOperationTestFixture, TwoPeeksOneRecv) {
+  const std::string ir_text = R"(package peek
+
+top proc Peek<_req_r: bits[32] in, _resp_s: bits[32] out>() {
+  chan_interface _req_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  peek.7: (token, bits[32], bits[1]) = peek(after_all.5, predicate=literal.3, channel=_req_r, id=7)
+  peek.18: (token, bits[32], bits[1]) = peek(after_all.5, predicate=literal.3, channel=_req_r, id=18)
+  tok0: token = tuple_index(peek.7, index=0, id=8)
+  tok1: token = tuple_index(peek.18, index=0, id=19)
+  valid0: bits[1] = tuple_index(peek.7, index=2, id=10)
+  valid1: bits[1] = tuple_index(peek.18, index=2, id=21)
+  after_all.28: token = after_all(tok0, tok1, id=28)
+  should_process: bits[1] = and(valid0, valid1, id=27, pos=[(0,34,29)])
+  receive.31: (token, bits[32]) = receive(after_all.28, predicate=should_process, channel=_req_r, id=31)
+  tok: token = tuple_index(receive.31, index=0, id=32)
+  packet: bits[32] = tuple_index(receive.31, index=1, id=33)
+  send.39: token = send(tok, packet, predicate=should_process, channel=_resp_s, id=39)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("Peek"));
+
+  SchedulingOptions scheduling_options = GetSchedulingOptions();
+  CodegenOptions codegen_options = GetCodegenOptions();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block* block, ConvertToBlock(proc, codegen_options, scheduling_options));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 20, {{"rst", 0}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 0, {{"rst", 1}}, inputs));
+
+  ChannelSource source = ChannelSource("_req_r", "_req_r_vld", "_req_r_rdy",
+                                       /*io_probability=*/1.0, block);
+
+  XLS_ASSERT_OK(source.SetDataSequence({3}));
+
+  ChannelSink sink = ChannelSink("_resp_s", "_resp_s_vld", "_resp_s_rdy",
+                                 /*io_probability=*/1.0, block);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          block, absl::MakeSpan(&source, 1), absl::MakeSpan(&sink, 1), inputs,
+          codegen_options.reset()));
+
+  EXPECT_THAT(sink.GetOutputSequenceAsUint64(), IsOkAndHolds(ElementsAre(3)));
+}
+
+TEST_P(PeekOperationTestFixture, OnePeekTwoRecvs) {
+  const std::string ir_text = R"(package peek
+
+top proc Peek<_req_r: bits[32] in, _resp_s: bits[32] out>(name: token, name__1: token, init={token, token}) {
+  chan_interface _req_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  peek.7: (token, bits[32], bits[1]) = peek(after_all.5, predicate=literal.3, channel=_req_r, id=7)
+  tuple_index.9: bits[32] = tuple_index(peek.7, index=1, id=9)
+  literal.16: bits[32] = literal(value=4, id=16, pos=[(0,33,38)])
+  tok: token = tuple_index(peek.7, index=0, id=8)
+  name: token = state_read(state_element=name, id=111)
+  name__1: token = state_read(state_element=name__1, id=113)
+  valid: bits[1] = tuple_index(peek.7, index=2, id=10)
+  ugt.82: bits[1] = ugt(tuple_index.9, literal.16, id=82, pos=[(0,33,29)])
+  after_all.102: token = after_all(tok, name, name__1, id=102)
+  packet__1: bits[1] = and(valid, ugt.82, id=85, pos=[(0,33,29)])
+  receive.21: (token, bits[32]) = receive(after_all.102, predicate=packet__1, channel=_req_r, id=21)
+  not.93: bits[1] = not(valid, id=93)
+  tuple_index.23: bits[32] = tuple_index(receive.21, index=1, id=23)
+  nor.94: bits[1] = nor(not.93, ugt.82, id=94)
+  bit_slice.115: bits[31] = bit_slice(tuple_index.23, start=1, width=31, id=115, pos=[(0,35,18)])
+  literal.120: bits[31] = literal(value=5, id=120, pos=[(0,35,18)])
+  receive.35: (token, bits[32]) = receive(after_all.102, predicate=nor.94, channel=_req_r, id=35)
+  add.117: bits[31] = add(bit_slice.115, literal.120, id=117, pos=[(0,35,18)])
+  bit_slice.118: bits[1] = bit_slice(tuple_index.23, start=0, width=1, id=118, pos=[(0,35,18)])
+  tuple_index.36: token = tuple_index(receive.35, index=0, id=36)
+  tok__1: token = tuple_index(receive.21, index=0, id=22)
+  tuple_index.37: bits[32] = tuple_index(receive.35, index=1, id=37)
+  concat.119: bits[32] = concat(add.117, bit_slice.118, id=119, pos=[(0,35,18)])
+  tok__2: token = sel(packet__1, cases=[tuple_index.36, tok__1], id=89, pos=[(0,33,26)])
+  data__1: bits[32] = sel(ugt.82, cases=[tuple_index.37, concat.119], id=90, pos=[(0,33,26)])
+  send.44: token = send(tok__2, data__1, predicate=valid, channel=_resp_s, id=44)
+  next_value.112: () = next_value(param=name, value=tok__1, predicate=packet__1, id=112)
+  next_value.114: () = next_value(param=name__1, value=tuple_index.36, predicate=nor.94, id=114)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("Peek"));
+
+  SchedulingOptions scheduling_options = GetSchedulingOptions();
+  CodegenOptions codegen_options = GetCodegenOptions();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block* block, ConvertToBlock(proc, codegen_options, scheduling_options));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 20, {{"rst", 0}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 0, {{"rst", 1}}, inputs));
+
+  ChannelSource source = ChannelSource("_req_r", "_req_r_vld", "_req_r_rdy",
+                                       /*io_probability=*/1.0, block);
+
+  XLS_ASSERT_OK(source.SetDataSequence({5, 3}));
+
+  ChannelSink sink = ChannelSink("_resp_s", "_resp_s_vld", "_resp_s_rdy",
+                                 /*io_probability=*/1.0, block);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          block, absl::MakeSpan(&source, 1), absl::MakeSpan(&sink, 1), inputs,
+          codegen_options.reset()));
+
+  EXPECT_THAT(sink.GetOutputSequenceAsUint64(), IsOkAndHolds(ElementsAre(15, 3)));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    PipelinedPeekOperationBlockConversionTests, PeekOperationTestFixture,
+    /*stage_count=*/testing::Values(1, 2, 3),
+    PeekOperationTestFixture::PrintToStringParamName);
 
 }  // namespace
 }  // namespace verilog
