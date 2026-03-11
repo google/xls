@@ -91,7 +91,7 @@ absl::StatusOr<WarningKindSet> WarningKindSetFromDisabledString(
   }
   for (std::string_view s : absl::StrSplit(disabled_string, ',')) {
     XLS_ASSIGN_OR_RETURN(WarningKind k, WarningKindFromString(s));
-    enabled = DisableWarning(enabled, k);
+    enabled = DisableWarnings(enabled, k);
   }
   return enabled;
 }

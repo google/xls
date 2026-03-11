@@ -98,7 +98,7 @@ void CheckNonExhaustive(std::string_view program) {
 
 void CheckExhaustiveWithRedundantPattern(std::string_view program) {
   WarningKindSet warnings =
-      DisableWarning(kAllWarningsSet, WarningKind::kUnusedDefinition);
+      DisableWarnings(kAllWarningsSet, WarningKind::kUnusedDefinition);
   ImportData import_data = CreateImportDataForTest(nullptr, warnings);
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
