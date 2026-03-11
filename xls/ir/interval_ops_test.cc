@@ -830,6 +830,29 @@ TEST(IntervalOpsTest, Decode) {
   }
 }
 
+TEST(IntervalOpsTest, Encode) {
+  // 1-bit encode returns 0-bit output.
+  EXPECT_EQ(Encode(FromValues({1}, /*bits=*/1), /*width=*/0),
+            IntervalSet::Precise(Bits(0)));
+
+  // Encode is "OR of indices" of set input bits.
+  //
+  // - onehot at index 2  => output 0b010 (2)
+  // - onehot at index 5  => output 0b101 (5)
+  // - both set (2 and 5) => output 0b111 (7)
+  IntervalSet in = FromValues({(1 << 2), (1 << 5), (1 << 2) | (1 << 5)},
+                              /*bits=*/8);
+  EXPECT_EQ(Encode(in, /*width=*/3), FromValues({2, 5, 7}, /*bits=*/3));
+}
+
+void EncodeZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs) {
+  UnaryOpFuzz(
+      "encode", [&](FunctionBuilder& fb, BValue l) { return fb.Encode(l); },
+      [&](const IntervalSet& l) { return Encode(l, /*width=*/3); }, lhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, EncodeZ3Fuzz).WithDomains(IntervalDomain(8));
+
 void DecodeZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
                   std::optional<int64_t> width) {
   UnaryOpFuzz(
