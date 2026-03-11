@@ -238,7 +238,7 @@ fn qc(x: MyEnum) -> bool {
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
   options.parse_and_typecheck_options.warnings =
-      DisableWarning(kAllWarningsSet, WarningKind::kAlreadyExhaustiveMatch);
+      DisableWarnings(kAllWarningsSet, WarningKind::kAlreadyExhaustiveMatch);
   options.quickcheck_runner = &jit_comparator;
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
