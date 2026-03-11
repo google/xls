@@ -484,6 +484,8 @@ static bool MatchChannel(
 
 static std::string_view GetChannelName(const Node* node) {
   switch (node->op()) {
+    case Op::kPeek:
+      return node->As<::xls::Peek>()->channel_name();
     case Op::kReceive:
       return node->As<::xls::Receive>()->channel_name();
     case Op::kSend:
@@ -504,7 +506,7 @@ bool ChannelNodeMatcher::MatchAndExplain(
   ChannelDirection direction;
   if (node->Is<::xls::Send>()) {
     direction = ChannelDirection::kSend;
-  } else if (node->Is<::xls::Receive>()) {
+  } else if (node->Is<::xls::Receive>() || node->Is<::xls::Peek>()) {
     direction = ChannelDirection::kReceive;
   } else {
     LOG(FATAL) << absl::StrFormat(

@@ -54,6 +54,15 @@ class ChannelTraceRecorder : public ChannelQueueCallback {
       : runtime_(runtime), format_preference_(format_preference) {}
   ~ChannelTraceRecorder() override = default;
 
+  void PeekValue(ChannelInstance* channel_instance,
+                 const Value& value) override {
+    std::string message = absl::StrFormat("Peeked data on channel `%s`: %s",
+                                          channel_instance->ToString(),
+                                          value.ToString(format_preference_));
+    VLOG(3) << message;
+    runtime_->AddTraceMessage(0, std::move(message));
+  }
+
   void ReadValue(ChannelInstance* channel_instance,
                  const Value& value) override {
     std::string message = absl::StrFormat("Received data on channel `%s`: %s",

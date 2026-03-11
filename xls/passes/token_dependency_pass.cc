@@ -136,9 +136,9 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
       // This operation does not consume a token.
       continue;
     }
-    if (a->op() != Op::kReceive) {
+    if (a->op() != Op::kReceive && a->op() != Op::kPeek) {
       return absl::InternalError(
-          "Can't handle token-and-data producing ops other than receive yet");
+          "Can't handle token-and-data producing ops other than receive or peek yet");
     }
     for (Node* b : dfs(a, data_deps)) {
       if (a == b) {
