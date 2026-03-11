@@ -1504,3 +1504,16 @@ xls_dslx_verilog(
     library = "content_based_arbiter_dslx",
     verilog_file = "content_based_arbiter.sv",
 )
+
+xls_dslx_library(
+    name = "blocking_peek_dslx",
+    srcs = [
+        "blocking_peek.x",
+    ],
+)
+
+xls_dslx_test(
+    name = "blocking_peek_dslx_test",
+    srcs = ["blocking_peek.x"],
+    dslx_test_args = {"compare": "jit"},
+)
