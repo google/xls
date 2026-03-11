@@ -75,7 +75,7 @@ namespace {
 // that value.
 //
 // We return the strongest delaying operation according to the order:
-//   Send > Recv > None
+//   Send > Recv > Peek > None
 LastDelayingOp ComposeDelayingOps(
     absl::Span<const LastDelayingOp> delaying_ops) {
   absl::flat_hash_set<LastDelayingOp> delaying_ops_set(delaying_ops.begin(),
@@ -85,6 +85,9 @@ LastDelayingOp ComposeDelayingOps(
   }
   if (delaying_ops_set.contains(LastDelayingOp::kRecv)) {
     return LastDelayingOp::kRecv;
+  }
+  if (delaying_ops_set.contains(LastDelayingOp::kPeek)) {
+    return LastDelayingOp::kPeek;
   }
   return LastDelayingOp::kNone;
 }
@@ -384,6 +387,8 @@ enum class ChannelOpType : std::uint8_t {
   kRecvIf,
   kSend,
   kSendIf,
+  kPeek,
+  kPeekIf,
 };
 
 struct ChannelOpInfo {
@@ -420,6 +425,16 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
                            .requires_payload = true,
                            .requires_predicate = true,
                            .requires_default_value = false};
+    case ChannelOpType::kPeek:
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kIn,
+                           .requires_payload = false,
+                           .requires_predicate = false,
+                           .requires_default_value = true};
+    case ChannelOpType::kPeekIf:
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kIn,
+                           .requires_payload = false,
+                           .requires_predicate = true,
+                           .requires_default_value = true};
   }
 
   LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op);
@@ -433,7 +448,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
       RandomChoice(absl::MakeConstSpan(
                        {ChannelOpType::kRecv, ChannelOpType::kRecvNonBlocking,
                         ChannelOpType::kRecvIf, ChannelOpType::kSend,
-                        ChannelOpType::kSendIf}),
+                        ChannelOpType::kSendIf, ChannelOpType::kPeek,
+                        ChannelOpType::kPeekIf}),
                    bit_gen_);
   ChannelOpInfo chan_op_info = GetChannelOpInfo(chan_op_type);
 
@@ -463,12 +479,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
     min_stage = std::max(min_stage, successor_min_stage);
   }
 
-  // The recv_non_blocking has an implicit bool in its return type, resulting in
-  // one bit. Therefore, its maximum width must be one less than the maximum
-  // width defined in the AST generator options.
+  // Non-blocking operations have an implicit bool in its return type,
+  // resulting in one bit. Therefore, its maximum width must be one less
+  // than the maximum width defined in the AST generator options.
   std::optional<int64_t> max_width_bits_types;
   std::optional<int64_t> max_width_aggregate_types;
-  if (chan_op_type == ChannelOpType::kRecvNonBlocking) {
+  if (chan_op_type == ChannelOpType::kRecvNonBlocking ||
+      chan_op_type == ChannelOpType::kPeek ||
+      chan_op_type == ChannelOpType::kPeekIf) {
     // The recv_non_blocking returns an aggregate type that may contain a bits
     // type. If the max_width_bits_types > max_width_aggregate_types, it would
     // fail the aggregate width bounds check. Therefore, the bits type is
@@ -605,6 +623,25 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
           .type = token_type,
           .last_delaying_op = LastDelayingOp::kSend,
           .min_stage = min_stage};
+    case ChannelOpType::kPeek:
+      return TypedExpr{.expr = module_->Make<Invocation>(
+                           fake_span_, MakeBuiltinNameRef("peek"),
+                           std::vector<Expr*>{token_ref, chan_expr,
+                                              default_value.value().expr}),
+                       .type = MakeTupleType({token_type, channel_type,
+                                              MakeBoolTypeAnnotation()}),
+                       .last_delaying_op = LastDelayingOp::kPeek,
+                       .min_stage = min_stage};
+    case ChannelOpType::kPeekIf:
+      return TypedExpr{.expr = module_->Make<Invocation>(
+                           fake_span_, MakeBuiltinNameRef("peek_if"),
+                           std::vector<Expr*>{token_ref, chan_expr,
+                                              predicate.value().expr,
+                                              default_value.value().expr}),
+                       .type = MakeTupleType({token_type, channel_type,
+                                              MakeBoolTypeAnnotation()}),
+                       .last_delaying_op = LastDelayingOp::kPeek,
+                       .min_stage = min_stage};
   }
 
   LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op_type);

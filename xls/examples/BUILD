@@ -24,6 +24,7 @@ load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
+    "PROC_WRAPPER_TYPE",
     "xls_benchmark_ir",
     "xls_dslx_fmt_test",
     "xls_dslx_ir",

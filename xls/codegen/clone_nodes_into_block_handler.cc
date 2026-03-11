@@ -75,7 +75,7 @@ absl::StatusOr<std::vector<Channel*>> GetLoopbackChannels(Proc* proc) {
                            GetChannelUsedByNode(node->As<ChannelNode>()));
       if (node->Is<Send>()) {
         send_channels.insert(channel);
-      } else if (node->Is<Receive>()) {
+      } else if (node->Is<Receive>() || node->Is<Peek>()) {
         receive_channels.insert(channel);
       }
     }
@@ -385,7 +385,7 @@ AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options) {
           // Loopback channels are handled above.
           continue;
         }
-        if (node->Is<Receive>()) {
+        if (node->Is<Receive>() || node->Is<Peek>()) {
           channels.insert({channel, ChannelDirection::kReceive});
         } else if (node->Is<Send>()) {
           channels.insert({channel, ChannelDirection::kSend});
@@ -607,6 +607,13 @@ absl::Status CloneNodesIntoBlockHandler::CloneNodes(
                                        channel_connections_.at(
                                            {receive->channel_name(),
                                             ChannelDirection::kReceive})));
+    } else if (node->Is<Peek>()) {
+      Peek* peek = node->As<Peek>();
+      XLS_ASSIGN_OR_RETURN(
+          next_node, HandlePeekNode(peek, stage,
+                                    channel_connections_.at(
+                                        {peek->channel_name(),
+                                         ChannelDirection::kReceive})));
     } else if (node->Is<Send>()) {
       Send* send = node->As<Send>();
       XLS_ASSIGN_OR_RETURN(
@@ -845,6 +852,12 @@ absl::Status CloneNodesIntoBlockHandler::HandleNextValue(Node* node,
 
 absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
     Receive* receive, int64_t stage, const ChannelConnection& connection) {
+  return HandleReceivingNode(receive, stage, connection);
+}
+
+absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceivingNode(
+    ChannelNode* node, int64_t stage, const ChannelConnection& connection) {
+  XLS_RET_CHECK(node->Is<Receive>() || node->Is<Peek>());
   Node* next_node;
 
   if (std::optional<PackageInterfaceProto::Channel> c = FindChannelInterface(
@@ -857,22 +870,22 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
 
   XLS_ASSIGN_OR_RETURN(
       Node * literal_1,
-      block()->MakeNode<xls::Literal>(receive->loc(), Value(UBits(1, 1))));
+      block()->MakeNode<xls::Literal>(node->loc(), Value(UBits(1, 1))));
 
   if (ChannelRefKind(connection.channel) == ChannelKind::kSingleValue) {
     XLS_RET_CHECK(!connection.valid.has_value());
     XLS_RET_CHECK(!connection.ready.has_value());
-    if (receive->is_blocking()) {
+    if (node->is_blocking()) {
       XLS_ASSIGN_OR_RETURN(
           next_node, block()->MakeNode<Tuple>(
-                         receive->loc(),
-                         std::vector<Node*>({node_map_.at(receive->operand(0)),
+                         node->loc(),
+                         std::vector<Node*>({node_map_.at(node->operand(0)),
                                              connection.data})));
     } else {
       XLS_ASSIGN_OR_RETURN(
           next_node, block()->MakeNode<Tuple>(
-                         receive->loc(),
-                         std::vector<Node*>({node_map_.at(receive->operand(0)),
+                         node->loc(),
+                         std::vector<Node*>({node_map_.at(node->operand(0)),
                                              connection.data, literal_1})));
     }
 
@@ -893,18 +906,18 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
 
   // If blocking return a tuple of (token, data), and if non-blocking
   // return a tuple of (token, data, valid).
-  if (receive->is_blocking()) {
+  if (node->is_blocking()) {
     Node* data = connection.data;
-    if (receive->predicate().has_value() && options_.gate_recvs()) {
+    if (node->predicate().has_value() && options_.gate_recvs()) {
       XLS_ASSIGN_OR_RETURN(
           Node * zero_value,
           block()->MakeNode<xls::Literal>(
-              receive->loc(), ZeroOfType(connection.data->GetType())));
+              node->loc(), ZeroOfType(connection.data->GetType())));
       XLS_ASSIGN_OR_RETURN(
           Select * select,
           block()->MakeNodeWithName<Select>(
-              /*loc=*/receive->loc(),
-              /*selector=*/node_map_.at(receive->predicate().value()),
+              /*loc=*/node->loc(),
+              /*selector=*/node_map_.at(node->predicate().value()),
               /*cases=*/
               std::vector<Node*>({zero_value, connection.data}),
               /*default_value=*/std::nullopt,
@@ -915,25 +928,25 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
     XLS_ASSIGN_OR_RETURN(
         next_node,
         block()->MakeNode<Tuple>(
-            receive->loc(),
-            std::vector<Node*>({node_map_.at(receive->operand(0)), data})));
+            node->loc(),
+            std::vector<Node*>({node_map_.at(node->operand(0)), data})));
   } else {
     XLS_ASSIGN_OR_RETURN(
         Node * zero_value,
         block()->MakeNode<xls::Literal>(
-            receive->loc(), ZeroOfType(connection.data->GetType())));
-    // Ensure that the output of the receive is zero when the data is not
+            node->loc(), ZeroOfType(connection.data->GetType())));
+    // Ensure that the output of the node is zero when the data is not
     // valid or the predicate is false.
     Node* valid = connection.valid.value();
     Node* data = connection.data;
     if (options_.gate_recvs()) {
-      if (receive->predicate().has_value()) {
+      if (node->predicate().has_value()) {
         XLS_ASSIGN_OR_RETURN(
             NaryOp * and_pred,
             block()->MakeNode<NaryOp>(
-                /*loc=*/receive->loc(),
+                /*loc=*/node->loc(),
                 /*args=*/
-                std::vector<Node*>({node_map_.at(receive->predicate().value()),
+                std::vector<Node*>({node_map_.at(node->predicate().value()),
                                     connection.valid.value()}),
                 /*op=*/Op::kAnd));
         valid = and_pred;
@@ -941,7 +954,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
       XLS_ASSIGN_OR_RETURN(
           Select * select,
           block()->MakeNodeWithName<Select>(
-              /*loc=*/receive->loc(), /*selector=*/valid,
+              /*loc=*/node->loc(), /*selector=*/valid,
               /*cases=*/
               std::vector<Node*>({zero_value, connection.data}),
               /*default_value=*/std::nullopt,
@@ -951,26 +964,31 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
     }
     XLS_ASSIGN_OR_RETURN(
         next_node, block()->MakeNode<Tuple>(
-                       receive->loc(),
+                       node->loc(),
                        std::vector<Node*>(
-                           {node_map_.at(receive->operand(0)), data, valid})));
+                           {node_map_.at(node->operand(0)), data, valid})));
   }
 
-  // To the rest of the logic, a non-blocking receive is always valid.
+  // To the rest of the logic, a non-blocking node is always valid.
   Node* signal_valid =
-      receive->is_blocking() ? connection.valid.value() : literal_1;
+      node->is_blocking() ? connection.valid.value() : literal_1;
 
   StreamingInput streaming_input(block(), ChannelRefName(connection.channel),
                                  connection.kind);
   streaming_input.SetSignalData(next_node);
   streaming_input.SetSignalValid(signal_valid);
 
-  if (receive->predicate().has_value()) {
-    streaming_input.SetPredicate(node_map_.at(receive->predicate().value()));
+  if (node->predicate().has_value()) {
+    streaming_input.SetPredicate(node_map_.at(node->predicate().value()));
   }
   result_.inputs[stage].push_back(streaming_input);
 
   return next_node;
+}
+
+absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandlePeekNode(
+    Peek* peek, int64_t stage, const ChannelConnection& connection) {
+  return HandleReceivingNode(peek, stage, connection);
 }
 
 absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(

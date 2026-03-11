@@ -589,6 +589,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalOr(bytecode));
       break;
     }
+    case Bytecode::Op::kPeek: {
+      XLS_RETURN_IF_ERROR(EvalPeek(bytecode));
+      break;
+    }
     case Bytecode::Op::kPop: {
       XLS_RETURN_IF_ERROR(EvalPop(bytecode));
       break;
@@ -1301,6 +1305,40 @@ absl::Status BytecodeInterpreter::EvalOr(const Bytecode& bytecode) {
   });
 }
 
+absl::Status BytecodeInterpreter::EvalPeek(
+    const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue default_value, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue::ChannelReference channel_reference,
+                       channel_value.GetChannelReference());
+  XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+
+  XLS_RET_CHECK(channel_manager_.has_value());
+  InterpValueChannel& channel =
+      (*channel_manager_)
+          ->GetChannel(frames_.back().type_info(), channel_reference);
+
+  XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
+                       bytecode.channel_data());
+  if (condition.IsTrue() && !channel.IsEmpty()) {
+    InterpValue value = channel.Peek();
+    if (options_.trace_channels() && events_.has_value()) {
+      (*events_)->AddTraceChannelMessage(
+          import_data_->file_table(), bytecode.source_span(),
+          FormatChannelNameForTracing(*channel_data), value,
+          ChannelDirection::kIn, channel_data->value_fmt_desc());
+    }
+    stack_.Push(InterpValue::MakeTuple(
+        {token, std::move(value), InterpValue::MakeBool(true)}));
+  } else {
+    stack_.Push(InterpValue::MakeTuple(
+        {token, default_value, InterpValue::MakeBool(false)}));
+  }
+
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::EvalPop(const Bytecode& bytecode) {
   return Pop().status();
 }
@@ -1726,6 +1764,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kSendIf:
     case Builtin::kRead:
     case Builtin::kWrite:
+    case Builtin::kPeek:
+    case Builtin::kPeekIf:
     case Builtin::kRecv:
     case Builtin::kRecvIf:
     case Builtin::kRecvNonBlocking:

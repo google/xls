@@ -1353,6 +1353,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleOneHotSel(OneHotSelect* sel) override;
   absl::Status HandleOrReduce(BitwiseReductionOp* op) override;
   absl::Status HandleParam(Param* param) override;
+  absl::Status HandlePeek(Peek* peek) override;
   absl::Status HandlePrioritySel(PrioritySelect* sel) override;
   absl::Status HandleReceive(Receive* recv) override;
   absl::Status HandleReverse(UnOp* reverse) override;
@@ -1468,6 +1469,9 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
       llvm::Value* events, llvm::Value* instance_context, llvm::Value* runtime,
       llvm::IRBuilder<>& builder);
 
+  // Shared handler for channel receiving nodes.
+  absl::Status HandleReceivingNode(ChannelNode* node);
+
   // Invokes the receive callback function. The received data is written into
   // the buffer pointer to be `output_ptr`. Returns an i1 value indicating
   // whether the receive fired.
@@ -1476,6 +1480,15 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
                                                 Receive* receive,
                                                 llvm::Value* output_ptr,
                                                 llvm::Value* instance_context);
+  // Invokes the peek callback function. The received data is written into
+  // the buffer pointer to be `output_ptr`. Returns an i1 value indicating
+  // whether the receive fired.
+  absl::StatusOr<llvm::Value*> PeekFromQueue(llvm::IRBuilder<>* builder,
+                                             int64_t queue_index,
+                                             Peek* peek,
+                                             llvm::Value* output_ptr,
+                                             llvm::Value* instance_context);
+
   absl::Status SendToQueue(llvm::IRBuilder<>* builder, int64_t queue_index,
                            Send* send, llvm::Value* send_data_ptr,
                            llvm::Value* instance_context);
@@ -3548,23 +3561,35 @@ absl::StatusOr<llvm::Value*> IrBuilderVisitor::ReceiveFromQueue(
       builder, bool_type, instance_context, {queue_index_value, output_ptr});
 }
 
-absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
+absl::StatusOr<llvm::Value*> IrBuilderVisitor::PeekFromQueue(
+    llvm::IRBuilder<>* builder, int64_t queue_index, Peek* peek,
+    llvm::Value* output_ptr, llvm::Value* instance_context) {
+  llvm::Type* bool_type = llvm::Type::getInt1Ty(ctx());
+  // Call the wrapper to JitChannelQueue::Peek.
+  llvm::Value* queue_index_value =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()), queue_index);
+  return InvokeCallback<InstanceContext::kQueuePeekWrapperOffset>(
+      builder, bool_type, instance_context, {queue_index_value, output_ptr});
+}
+
+absl::Status IrBuilderVisitor::HandleReceivingNode(ChannelNode* node) {
+  XLS_RET_CHECK(node->Is<Receive>() || node->Is<Peek>());
   std::vector<std::string> operand_names = {"tkn"};
-  if (recv->predicate().has_value()) {
+  if (node->predicate().has_value()) {
     operand_names.push_back("predicate");
   }
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
-                       NewNodeIrContext(recv, operand_names,
+                       NewNodeIrContext(node, operand_names,
                                         /*include_wrapper_args=*/true));
   llvm::Value* instance_context = node_context.GetInstanceContextArg();
 
   int64_t queue_index =
-      jit_context_.GetOrAllocateQueueIndex(recv->channel_name());
+      jit_context_.GetOrAllocateQueueIndex(node->channel_name());
 
   llvm::Value* output_buffer = node_context.GetOutputPtr(0);
   // The data buffer is element 1 of the output tuple.
   llvm::Type* receive_type =
-      type_converter()->ConvertToLlvmType(recv->GetType());
+      type_converter()->ConvertToLlvmType(node->GetType());
   llvm::Value* data_buffer = node_context.entry_builder().CreateGEP(
       receive_type, output_buffer,
       {llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
@@ -3573,33 +3598,42 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
 
   // Always initialize the data buffer to zero.
   llvm::Type* data_type =
-      type_converter()->ConvertToLlvmType(recv->GetPayloadType());
+      type_converter()->ConvertToLlvmType(node->GetPayloadType());
   node_context.entry_builder().CreateStore(
       LlvmTypeConverter::ZeroOfType(data_type), data_buffer);
 
-  if (recv->predicate().has_value()) {
+  if (node->predicate().has_value()) {
     llvm::Value* predicate =
         Truthiness(node_context.LoadOperand(1), node_context.entry_builder());
 
     // First, declare the join block (so the case blocks can refer to it).
     llvm::BasicBlock* join_block =
-        llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_join"),
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(node->GetName(), "_join"),
                                  node_context.llvm_function());
 
     // Create a block/branch for the true predicate case.
     llvm::BasicBlock* true_block =
-        llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_true"),
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(node->GetName(), "_true"),
                                  node_context.llvm_function(), join_block);
     llvm::IRBuilder<> true_builder(true_block);
-    XLS_ASSIGN_OR_RETURN(llvm::Value * true_receive_fired,
-                         ReceiveFromQueue(&true_builder, queue_index, recv,
-                                          data_buffer, instance_context));
+    llvm::Value* true_receive_fired = nullptr;
+    if (node->Is<Receive>()) {
+      XLS_ASSIGN_OR_RETURN(true_receive_fired,
+                           ReceiveFromQueue(&true_builder, queue_index,
+                                            node->As<Receive>(), data_buffer,
+                                            instance_context));
+    } else if (node->Is<Peek>()) {
+      XLS_ASSIGN_OR_RETURN(true_receive_fired,
+                           PeekFromQueue(&true_builder, queue_index,
+                                         node->As<Peek>(), data_buffer,
+                                         instance_context));
+    }
     true_builder.CreateBr(join_block);
 
     // And the same for a false predicate - this will keep the stored
     // zero value in the data buffer.
     llvm::BasicBlock* false_block =
-        llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_false"),
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(node->GetName(), "_false"),
                                  node_context.llvm_function(), join_block);
     llvm::IRBuilder<> false_builder(false_block);
     false_builder.CreateBr(join_block);
@@ -3616,7 +3650,7 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
     receive_fired->addIncoming(true_receive_fired, true_block);
     receive_fired->addIncoming(llvm::ConstantInt::getFalse(ctx()), false_block);
     receive_fired->setName("receive_fired");
-    if (!recv->is_blocking()) {
+    if (!node->is_blocking()) {
       // If the receive is non-blocking, the output of the receive has an
       // additional element (index 2) which indicates whether the receive fired.
       llvm::Value* receive_fired_buffer = join_builder.CreateGEP(
@@ -3628,17 +3662,25 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
     return FinalizeNodeIrContextWithPointerToValue(
         std::move(node_context), output_buffer,
         /*exit_builder=*/&join_builder,
-        /*return_value=*/recv->is_blocking()
+        /*return_value=*/node->is_blocking()
             ? join_builder.CreateAnd(predicate,
                                      join_builder.CreateNot(receive_fired))
             : join_builder.getFalse());
   }
-  XLS_ASSIGN_OR_RETURN(
-      llvm::Value * receive_fired,
-      ReceiveFromQueue(&node_context.entry_builder(), queue_index, recv,
-                       data_buffer, instance_context));
+  llvm::Value* receive_fired = nullptr;
+  if (node->Is<Receive>()) {
+    XLS_ASSIGN_OR_RETURN(
+        receive_fired,
+        ReceiveFromQueue(&node_context.entry_builder(), queue_index,
+                         node->As<Receive>(), data_buffer, instance_context));
+  } else if (node->Is<Peek>()) {
+    XLS_ASSIGN_OR_RETURN(
+        receive_fired,
+        PeekFromQueue(&node_context.entry_builder(), queue_index,
+                      node->As<Peek>(), data_buffer, instance_context));
+  }
   receive_fired->setName("receive_fired");
-  if (!recv->is_blocking()) {
+  if (!node->is_blocking()) {
     // If the receive is non-blocking, the output of the receive has an
     // additional element (index 2) which indicates whether the receive fired.
     llvm::Value* receive_fired_buffer = node_context.entry_builder().CreateGEP(
@@ -3652,9 +3694,17 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
       std::move(node_context), output_buffer,
       /*exit_builder=*/&node_context.entry_builder(),
       /*return_value=*/
-      recv->is_blocking()
+      node->is_blocking()
           ? node_context.entry_builder().CreateNot(receive_fired)
           : node_context.entry_builder().getFalse());
+}
+
+absl::Status IrBuilderVisitor::HandlePeek(Peek* peek) {
+  return HandleReceivingNode(peek);
+}
+
+absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
+  return HandleReceivingNode(recv);
 }
 
 absl::Status IrBuilderVisitor::SendToQueue(llvm::IRBuilder<>* builder,
