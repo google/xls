@@ -122,7 +122,8 @@ inline bool WarningIsEnabled(WarningKindSet set, WarningKind warning) {
 // some propagation time.
 inline constexpr WarningKindSet kDefaultWarningsSet =
     DisableWarnings(kAllWarningsSet, WarningKind::kShouldUseAssert,
-                    WarningKind::kAlreadyExhaustiveMatch);
+                    WarningKind::kAlreadyExhaustiveMatch,
+                    WarningKind::kIOOrderingMismatch);
 
 // Converts a string representation of a warnings to its corresponding enum
 // value.
