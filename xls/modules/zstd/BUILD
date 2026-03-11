@@ -330,7 +330,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":shift_buffer_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "5",
 )
 
@@ -891,7 +891,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":sequence_executor_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
@@ -1805,7 +1805,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":command_constructor_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
@@ -2089,7 +2089,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":fse_dec_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
@@ -2261,7 +2261,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":ram_mux_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
@@ -2580,7 +2580,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":literals_buffer_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
@@ -2740,9 +2740,8 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
-    name = "literals_decoder_place_and_route_skip",
+    name = "literals_decoder_place_and_route",
     clock_period = "750",
     core_padding_microns = 2,
     min_pin_distance = "0.5",
@@ -2750,7 +2749,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":literals_decoder_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
@@ -2926,7 +2925,7 @@ place_and_route(
     placement_density = "0.30",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":huffman_code_builder_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
@@ -3066,9 +3065,8 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
-    name = "huffman_data_preprocessor_place_and_route_skip",
+    name = "huffman_data_preprocessor_place_and_route",
     clock_period = "750",
     core_padding_microns = 2,
     die_height_microns = 150,
@@ -3078,7 +3076,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":huffman_data_preprocessor_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
@@ -3147,9 +3145,8 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
-    name = "huffman_decoder_place_and_route_skip",
+    name = "huffman_decoder_place_and_route",
     clock_period = "750",
     core_padding_microns = 2,
     min_pin_distance = "0.5",
@@ -3157,7 +3154,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":huffman_decoder_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
@@ -3327,7 +3324,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":huffman_weights_dec_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
@@ -3405,9 +3402,8 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
-    name = "huffman_literals_dec_place_and_route_skip",
+    name = "huffman_literals_dec_place_and_route",
     clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
@@ -3415,7 +3411,7 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":huffman_literals_dec_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
 
