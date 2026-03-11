@@ -1480,3 +1480,15 @@ xls_dslx_verilog(
     library = "const_for_dslx",
     verilog_file = "const_for.sv",
 )
+
+xls_dslx_library(
+    name = "peek_dslx",
+    srcs = ["peek.x"],
+)
+
+xls_dslx_test(
+    name = "peek_test",
+    size = "small",
+    srcs = ["peek.x"],
+    dslx_test_args = {"compare": "jit"},
+)
