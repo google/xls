@@ -733,6 +733,6 @@ place_and_route(
     stop_after_step = "global_routing",
     suppress_warnings = ASAP7_SUPPPRESSED_WARNINGS,
     synthesized_rtl = ":mem_writer_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
     target_die_utilization_percentage = "10",
 )
