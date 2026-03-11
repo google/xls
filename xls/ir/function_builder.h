@@ -692,6 +692,7 @@ class BuilderBase {
   // empty tuple.
   BValue Next(BValue state_read, BValue value,
               std::optional<BValue> pred = std::nullopt,
+              std::optional<std::string> label = std::nullopt,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   Package* package() const;

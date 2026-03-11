@@ -416,7 +416,8 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
             std::nullopt));
     XLS_RETURN_IF_ERROR(
         proc->MakeNode<Next>(SourceInfo(), /*state_read=*/state_machine_read,
-                             /*value=*/sel, /*predicate=*/std::nullopt)
+                             /*value=*/sel, /*predicate=*/std::nullopt,
+                             /*label=*/std::nullopt)
             .status());
   }
 
