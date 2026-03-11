@@ -3039,5 +3039,29 @@ fn main(p: Point) -> u64 {
   EXPECT_TRUE(cloned_fn->IsCompilerDerived());
 }
 
+TEST(AstClonerTest, PeekVariants) {
+  constexpr std::string_view kProgram = R"(proc MyProc {
+    input_c: chan<u32> in;
+    config(input: chan<u32> in) {
+        (input)
+    }
+    init {
+        ()
+    }
+    next(state: ()) {
+        let tok = join();
+        let (_tok, _data, _valid) = peek(tok, input_c, u32:0);
+        let (_tok, _data, _valid) = peek_if(tok, input_c, true, u32:0);
+    }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 }  // namespace
 }  // namespace xls::dslx

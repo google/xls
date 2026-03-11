@@ -90,9 +90,30 @@ void ChannelQueue::WriteInternal(const Value& value) {
   queue_.push_back(value);
 }
 
-std::optional<Value> ChannelQueue::Read() {
+std::optional<Value> ChannelQueue::Peek() {
   absl::MutexLock lock(mutex_);
   if (generator_.has_value()) {
+    // Write/PeekInternal are virtual and may have other side-effects so rather
+    // than directly returning the generated value, write then read it.
+    std::optional<Value> generated_value = (*generator_)();
+    if (generated_value.has_value()) {
+      WriteInternal(generated_value.value());
+      peeked_generator_value_ = true;
+    }
+  }
+  std::optional<Value> value = PeekInternal();
+  VLOG(4) << absl::StreamFormat(
+      "Peeking data from channel instance %s: %s",
+      channel_instance()->ToString(),
+      value.has_value() ? value->ToString() : "(none)");
+  return value;
+}
+
+std::optional<Value> ChannelQueue::Read() {
+  absl::MutexLock lock(mutex_);
+  // If present, `peek` operation should've already generated a value for read,
+  // so skip generating new channel value if it's not empty.
+  if (generator_.has_value() && !peeked_generator_value_) {
     // Write/ReadInternal are virtual and may have other side-effects so rather
     // than directly returning the generated value, write then read it.
     std::optional<Value> generated_value = (*generator_)();
@@ -101,6 +122,7 @@ std::optional<Value> ChannelQueue::Read() {
     }
   }
   std::optional<Value> value = ReadInternal();
+  peeked_generator_value_ = false;
   VLOG(4) << absl::StreamFormat(
       "Reading data from channel instance %s: %s",
       channel_instance()->ToString(),
@@ -110,6 +132,15 @@ std::optional<Value> ChannelQueue::Read() {
 }
 
 int64_t ChannelQueue::GetSizeInternal() const { return queue_.size(); }
+
+std::optional<Value> ChannelQueue::PeekInternal() {
+  if (queue_.empty()) {
+    return std::nullopt;
+  }
+  Value value = queue_.front();
+  CallPeekCallbacks(value);
+  return value;
+}
 
 std::optional<Value> ChannelQueue::ReadInternal() {
   if (queue_.empty()) {

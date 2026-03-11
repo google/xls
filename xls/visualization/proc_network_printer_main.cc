@@ -71,7 +71,7 @@ struct ChannelOperation {
   std::string function_name;
   std::string op_name;
   int64_t op_stage;
-  Op op;  // kSend or kReceive
+  Op op;  // kSend, kReceive or kPeek
 };
 
 struct StateOperation {
@@ -150,7 +150,7 @@ std::ostream& DumpChannels(
     os << "  " << channel_name << ";\n\n";
     for (const auto& op : ops) {
       std::string lhs, rhs;
-      if (op.op == Op::kReceive) {
+      if (op.op == Op::kReceive || op.op == Op::kPeek) {
         lhs = channel_name;
         rhs = op_name(op);
       } else {
@@ -284,7 +284,7 @@ absl::Status RealMain(std::string_view ir_path, std::string_view schedule_path,
   for (FunctionBase* f : p->GetFunctionBases()) {
     const PipelineSchedule& schedule = schedules.GetSchedule(f);
     for (Node* n : f->nodes()) {
-      if (n->OpIn({Op::kSend, Op::kReceive})) {
+      if (n->OpIn({Op::kSend, Op::kReceive, Op::kPeek})) {
         int64_t cycle = schedule.cycle(n);
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(n));
         channel_operations[get_channel_name(channel)].push_back(

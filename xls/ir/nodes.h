@@ -1061,7 +1061,7 @@ class SendChannelEnd : public Node {
 // Base class for nodes which communicate over channels.
 class ChannelNode : public Node {
  public:
-  static constexpr std::array<Op, 2> kOps = {Op::kReceive, Op::kSend};
+  static constexpr std::array<Op, 3> kOps = {Op::kPeek, Op::kReceive, Op::kSend};
 
   ChannelNode(const SourceInfo& loc, Op op, Type* type,
               std::string_view channel_name, ChannelDirection direction,
@@ -1149,10 +1149,30 @@ class ChannelNode : public Node {
 
   virtual bool is_blocking() const { return true; }
 
+  absl::StatusOr<ReceiveChannelRef> GetReceiveChannelRef() const;
+
  private:
   std::string channel_name_;
   ChannelDirection direction_;
   bool has_predicate_;
+};
+
+class Peek final : public ChannelNode {
+ public:
+  static constexpr std::array<Op, 1> kOps = {Op::kPeek};
+  static constexpr int64_t kTokenOperand = 0;
+
+  Peek(const SourceInfo& loc, Node* token, std::optional<Node*> predicate,
+       std::string_view channel_name, Type* payload_type,
+       std::string_view name, FunctionBase* function);
+
+  absl::StatusOr<Node*> CloneInNewFunction(
+      absl::Span<Node* const> new_operands,
+      FunctionBase* new_function) const final;
+
+  bool IsDefinitelyEqualTo(const Node* other) const final;
+
+  bool is_blocking() const override { return false; }
 };
 
 class Receive final : public ChannelNode {
@@ -1171,8 +1191,6 @@ class Receive final : public ChannelNode {
   bool is_blocking() const override { return is_blocking_; }
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
-
-  absl::StatusOr<ReceiveChannelRef> GetReceiveChannelRef() const;
 
  private:
   bool is_blocking_;
