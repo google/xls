@@ -106,6 +106,8 @@ class ElaboratedBlockDfsVisitor {
   virtual absl::Status HandleStateRead(StateRead* state_read,
                                        BlockInstance* instance) = 0;
   virtual absl::Status HandleNext(Next* next, BlockInstance* instance) = 0;
+  virtual absl::Status HandlePeek(Peek* peek,
+                                  BlockInstance* instance) = 0;
   virtual absl::Status HandleReceive(Receive* receive,
                                      BlockInstance* instance) = 0;
   virtual absl::Status HandleRegisterRead(RegisterRead* reg_read,
@@ -264,6 +266,8 @@ class ElaboratedBlockDfsVisitorWithDefault : public ElaboratedBlockDfsVisitor {
   absl::Status HandleStateRead(StateRead* state_read,
                                BlockInstance* instance) override;
   absl::Status HandleNext(Next* next, BlockInstance* instance) override;
+  absl::Status HandlePeek(Peek* peek,
+                          BlockInstance* instance) override;
   absl::Status HandleReceive(Receive* receive,
                              BlockInstance* instance) override;
   absl::Status HandleRegisterRead(RegisterRead* reg_read,

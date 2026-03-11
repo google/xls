@@ -139,17 +139,21 @@ TYPED_TEST(JitChannelQueueTest, BasicAccess) {
 
   EXPECT_TRUE(queue.IsEmpty());
   std::vector<uint8_t> send_buffer(4);
+  std::vector<uint8_t> peek_buffer(4);
   std::vector<uint8_t> recv_buffer(4);
   // Send and receive immediately.
   for (int64_t i = 0; i < 10; i++) {
     send_buffer[0] = i;
     queue.WriteRaw(send_buffer.data());
     EXPECT_FALSE(queue.IsEmpty());
+    EXPECT_TRUE(queue.PeekRaw(peek_buffer.data()));
     EXPECT_TRUE(queue.ReadRaw(recv_buffer.data()));
+    EXPECT_THAT(recv_buffer[0], peek_buffer[0]);
     EXPECT_THAT(recv_buffer[0], i);
     EXPECT_TRUE(queue.IsEmpty());
   }
 
+  EXPECT_FALSE(queue.PeekRaw(peek_buffer.data()));
   EXPECT_FALSE(queue.ReadRaw(recv_buffer.data()));
 
   // Send then receive.
@@ -158,7 +162,9 @@ TYPED_TEST(JitChannelQueueTest, BasicAccess) {
     queue.WriteRaw(send_buffer.data());
   }
   for (int64_t i = 0; i < 10; i++) {
+    EXPECT_TRUE(queue.PeekRaw(peek_buffer.data()));
     EXPECT_TRUE(queue.ReadRaw(recv_buffer.data()));
+    EXPECT_THAT(recv_buffer[0], peek_buffer[0]);
     EXPECT_THAT(recv_buffer[0], i);
   }
   EXPECT_TRUE(queue.IsEmpty());
