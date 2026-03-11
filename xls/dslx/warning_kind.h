@@ -97,10 +97,13 @@ inline WarningKindSet Complement(WarningKindSet a) {
   return WarningKindSet{~a.value() & kAllWarningsSet.value()};
 }
 
-// Disables "warning" out of "set" and returns that updated result.
-constexpr WarningKindSet DisableWarning(WarningKindSet set,
-                                        WarningKind warning) {
-  return WarningKindSet{set.value() & ~static_cast<WarningKindInt>(warning)};
+// Disables "warnings" out of "set" and returns that updated result.
+template <typename ...Warnings>
+constexpr WarningKindSet DisableWarnings(
+    WarningKindSet set, Warnings... warnings) {
+  static_assert((std::is_same_v<WarningKind, Warnings> && ...));
+  return WarningKindSet{
+      set.value() & ~(static_cast<WarningKindInt>(warnings) | ...)};
 }
 
 constexpr WarningKindSet EnableWarning(WarningKindSet set,
@@ -117,9 +120,9 @@ inline bool WarningIsEnabled(WarningKindSet set, WarningKind warning) {
 // propagation time.
 // TODO(cdleary): 2025-02-03 Enable "already exhaustive match" by default after
 // some propagation time.
-inline constexpr WarningKindSet kDefaultWarningsSet = DisableWarning(
-    DisableWarning(kAllWarningsSet, WarningKind::kShouldUseAssert),
-    WarningKind::kAlreadyExhaustiveMatch);
+inline constexpr WarningKindSet kDefaultWarningsSet =
+    DisableWarnings(kAllWarningsSet, WarningKind::kShouldUseAssert,
+                    WarningKind::kAlreadyExhaustiveMatch);
 
 // Converts a string representation of a warnings to its corresponding enum
 // value.
