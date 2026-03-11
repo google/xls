@@ -49,6 +49,21 @@
 namespace xls::codegen {
 namespace {
 
+bool IsDatalessStateElementType(const Type* type) {
+  if (type->IsToken()) {
+    return true;
+  }
+  if (type->IsTuple()) {
+    for (const Type* element : type->AsTupleOrDie()->element_types()) {
+      if (!IsDatalessStateElementType(element)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 // Replaces `old_node` with `new_node` in the given block. Returns whether
 // `old_node` was removed after the replacement.
 absl::StatusOr<bool> ReplaceNode(Block* block, Node* old_node, Node* new_node,
@@ -155,12 +170,11 @@ absl::Status LowerStateElement(ScheduledBlock* block,
   Type* type = state_element.type();
   const bool has_data = type->GetFlatBitCount() > 0;
 
-  if (!has_data && !state_element.type()->IsToken() &&
-      state_element.type() != block->package()->GetTupleType({})) {
-    return absl::UnimplementedError(
-        absl::StrFormat("Proc has zero-width state element `%s`, but type is "
-                        "not token or empty tuple, instead got %s.",
-                        state_element.name(), type->ToString()));
+  if (!has_data && !IsDatalessStateElementType(type)) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "Proc has zero-width state element `%s`, but type is: %s, "
+        "which is not token, empty tuple, or tuple of tokens.",
+        state_element.name(), type->ToString()));
   }
 
   // Lower the read of the state element.
