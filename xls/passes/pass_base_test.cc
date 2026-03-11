@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
+#include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -49,6 +50,7 @@
 #include "xls/ir/value_utils.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_metrics.pb.h"
 
 namespace m = ::xls::op_matchers;
 namespace xls {
@@ -107,10 +109,12 @@ class ArchitectNumber : public OptimizationFunctionBasePass {
 
 // Bigger numbers are always better!
 // Replace all constant numbers with their successor as long as doing so does
-// not cause the number to wrap around.
+// not cause the number to wrap around or hit the max.
 class LevelUpPass : public OptimizationFunctionBasePass {
  public:
-  LevelUpPass() : OptimizationFunctionBasePass("level_up", "Level up Pass") {}
+  LevelUpPass(std::optional<Bits> max = std::nullopt)
+      : OptimizationFunctionBasePass("level_up", "Level up Pass"),
+        max_(std::move(max)) {}
   ~LevelUpPass() override = default;
 
  protected:
@@ -120,7 +124,7 @@ class LevelUpPass : public OptimizationFunctionBasePass {
     bool changed = false;
     for (Node* n : context.TopoSort(f)) {
       if (n->Is<Literal>() && n->GetType()->IsBits() &&
-          !n->As<Literal>()->value().bits().IsAllOnes()) {
+          !IsTooBig(n->As<Literal>()->value().bits())) {
         changed = true;
         XLS_RETURN_IF_ERROR(
             n->ReplaceUsesWithNew<Literal>(
@@ -130,6 +134,19 @@ class LevelUpPass : public OptimizationFunctionBasePass {
     }
     return changed;
   }
+
+ private:
+  bool IsTooBig(const Bits& bits) const {
+    if (!max_.has_value()) {
+      return bits.IsAllOnes();
+    }
+    int64_t max_bit_count = std::max(max_->bit_count(), bits.bit_count());
+    return bits_ops::UGreaterThanOrEqual(
+        bits_ops::ZeroExtend(bits, max_bit_count),
+        bits_ops::ZeroExtend(*max_, max_bit_count));
+  }
+
+  std::optional<Bits> max_;
 };
 
 // Pass which adds literal nodes to the graph.
@@ -226,10 +243,10 @@ class CounterChecker : public OptimizationInvariantChecker {
   mutable int64_t counter_ = 0;
 };
 
-auto DceInvoke() { return Field(&PassInvocation::pass_name, Eq("dce")); }
-auto LevelUpInvoke() {
-  return Field(&PassInvocation::pass_name, Eq("level_up"));
-}
+// auto DceInvoke() { return Field(&PassInvocation::pass_name, Eq("dce")); }
+// auto LevelUpInvoke() {
+//   return Field(&PassInvocation::pass_name, Eq("level_up"));
+// }
 
 TEST_F(PassBaseTest, DetectEasyIncorrectReturn) {
   auto p = CreatePackage();
@@ -266,23 +283,56 @@ TEST_F(PassBaseTest, DetectEasyIncorrectReturnInCompound) {
 TEST_F(PassBaseTest, BisectLimitMid) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  fb.Literal(UBits(0, 64));
+  fb.Literal(UBits(0, 16));
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
   OptimizationCompoundPass opt("opt", "opt");
+  {
+    auto fp =
+        std::make_unique<OptimizationFixedPointCompoundPass>("fixed", "fixed");
+    fp->Add<LevelUpPass>();
+    fp->Add<DeadCodeEliminationPass>();
+    fp->Add<LevelUpPass>();
+    fp->Add<DeadCodeEliminationPass>();
+    fp->Add<LevelUpPass>();
+    fp->Add<DeadCodeEliminationPass>();
+    opt.AddOwned(std::move(fp));
+  }
   PassResults results;
   OptimizationContext context;
-  for (int i = 0; i < 4; ++i) {
-    opt.Add<LevelUpPass>();
-    opt.Add<DeadCodeEliminationPass>();
-  }
-  // Should run Level DCE level DCE
   EXPECT_THAT(
       opt.Run(p.get(),
-              OptimizationPassOptions(PassOptionsBase{.bisect_limit = 4}),
+              OptimizationPassOptions(PassOptionsBase{.bisect_limit = 11}),
               &results, context),
       IsOk());
-  EXPECT_THAT(f->return_value(), m::Literal(UBits(2, 64)));
+  // 1 for opt, 2 for fixed runs, 8 for passes, 4 are level up.
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(4, 16)));
   EXPECT_EQ(f->node_count(), 1);
+
+  PassPipelineMetricsProto proto = results.ToProto();
+  EXPECT_THAT(
+      proto, proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+        total_passes: 11
+        pass_metrics {
+          pass_name: "opt"
+          changed: 1
+          pass_numbers: 0
+          nested_results {
+            pass_name: "fixed"
+            changed: 1
+            pass_numbers: 1
+            pass_numbers: 8
+            fixed_point_iterations: 2
+            nested_results { pass_name: "level_up" changed: 1 pass_numbers: 2 }
+            nested_results { pass_name: "dce" changed: 1 pass_numbers: 3 }
+            nested_results { pass_name: "level_up" changed: 1 pass_numbers: 4 }
+            nested_results { pass_name: "dce" changed: 1 pass_numbers: 5 }
+            nested_results { pass_name: "level_up" changed: 1 pass_numbers: 6 }
+            nested_results { pass_name: "dce" changed: 1 pass_numbers: 7 }
+            nested_results { pass_name: "level_up" changed: 1 pass_numbers: 9 }
+            nested_results { pass_name: "dce" changed: 1 pass_numbers: 10 }
+          }
+        }
+      )pb")));
 }
 
 TEST_F(PassBaseTest, BisectLimitAfterEnd) {
@@ -297,24 +347,33 @@ TEST_F(PassBaseTest, BisectLimitAfterEnd) {
     opt.Add<LevelUpPass>();
     opt.Add<DeadCodeEliminationPass>();
   }
-  // Should run Level DCE Level DCE Level DCE Level DCE
+  // Should run opt Level DCE Level DCE Level DCE Level DCE
   EXPECT_THAT(
       opt.Run(p.get(),
-              OptimizationPassOptions(PassOptionsBase{.bisect_limit = 8}),
+              OptimizationPassOptions(PassOptionsBase{.bisect_limit = 9}),
               &results, context),
       IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(4, 64)));
   EXPECT_EQ(f->node_count(), 1);
-  EXPECT_EQ(results.invocation.pass_name, "opt");
-
-  EXPECT_EQ(results.invocation.nested_invocations.size(), 8);
-
-  auto is_dce = Field(&PassInvocation::pass_name, Eq("dce"));
-  auto is_level_up = Field(&PassInvocation::pass_name, Eq("level_up"));
+  PassPipelineMetricsProto proto = results.ToProto();
   EXPECT_THAT(
-      results.invocation.nested_invocations,
-      ElementsAre(LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke(),
-                  LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke()));
+      proto, proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+        total_passes: 9
+        pass_metrics {
+          pass_name: "opt"
+          changed: 1
+          pass_numbers: 0
+          nested_results { pass_name: "level_up" changed: 1 pass_numbers: 1 }
+          nested_results { pass_name: "dce" changed: 1 pass_numbers: 2 }
+          nested_results { pass_name: "level_up" changed: 1 pass_numbers: 3 }
+          nested_results { pass_name: "dce" changed: 1 pass_numbers: 4 }
+          nested_results { pass_name: "level_up" changed: 1 pass_numbers: 5 }
+          nested_results { pass_name: "dce" changed: 1 pass_numbers: 6 }
+          nested_results { pass_name: "level_up" changed: 1 pass_numbers: 7 }
+          nested_results { pass_name: "dce" changed: 1 pass_numbers: 8 }
+        }
+      )pb")));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(4, 64)));
 }
 
 TEST_F(PassBaseTest, BisectLimitInFixedPoint) {
@@ -337,59 +396,40 @@ TEST_F(PassBaseTest, BisectLimitInFixedPoint) {
               OptimizationPassOptions(PassOptionsBase{.bisect_limit = 16}),
               &results, context),
       IsOk());
-  EXPECT_THAT(f->return_value(), m::Literal(UBits(8, 16)));
+  // 1 for opt, 5 for fixed runs, 10 for passes, 5 are level up.
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(5, 16)));
   EXPECT_EQ(f->node_count(), 1);
 
-  const std::vector<PassInvocation>& fixed_point_invocations =
-      results.invocation.nested_invocations[0].nested_invocations;
-  EXPECT_EQ(fixed_point_invocations.size(), 16);
+  PassPipelineMetricsProto proto = results.ToProto();
   EXPECT_THAT(
-      fixed_point_invocations,
-      ElementsAre(LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke(),
-                  LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke(),
-                  LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke(),
-                  LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke()));
-}
-
-TEST_F(PassBaseTest, BisectLimitInMiddleOfFixedPoint) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.Literal(UBits(0, 16));
-  XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  OptimizationCompoundPass opt("opt", "opt");
-  {
-    auto fp =
-        std::make_unique<OptimizationFixedPointCompoundPass>("fixed", "fixed");
-    fp->Add<DeadCodeEliminationPass>();
-    fp->Add<LevelUpPass>();
-    fp->Add<DeadCodeEliminationPass>();
-    fp->Add<DeadCodeEliminationPass>();
-    opt.AddOwned(std::move(fp));
-  }
-  PassResults results;
-  OptimizationContext context;
-  // Run 3 times all the way through then the first 3 passes of one last
-  // go-around.
-  EXPECT_THAT(opt.Run(p.get(),
-                      OptimizationPassOptions(
-                          PassOptionsBase{.bisect_limit = (3 * 4 + 3)}),
-                      &results, context),
-              IsOk());
-  EXPECT_THAT(f->return_value(), m::Literal(UBits(4, 16)));
-  EXPECT_EQ(f->node_count(), 1);
-  EXPECT_EQ(results.invocation.pass_name, "opt");
-  EXPECT_EQ(results.invocation.nested_invocations.size(), 1);
-  EXPECT_EQ(results.invocation.nested_invocations[0].pass_name, "fixed");
-
-  const std::vector<PassInvocation>& fixed_point_invocations =
-      results.invocation.nested_invocations[0].nested_invocations;
-  EXPECT_EQ(fixed_point_invocations.size(), 15);
-  EXPECT_THAT(
-      fixed_point_invocations,
-      ElementsAre(DceInvoke(), LevelUpInvoke(), DceInvoke(), DceInvoke(),
-                  DceInvoke(), LevelUpInvoke(), DceInvoke(), DceInvoke(),
-                  DceInvoke(), LevelUpInvoke(), DceInvoke(), DceInvoke(),
-                  DceInvoke(), LevelUpInvoke(), DceInvoke()));
+      proto, proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+        total_passes: 16
+        pass_metrics {
+          pass_name: "opt"
+          changed: 1
+          pass_numbers: 0
+          nested_results {
+            pass_name: "fixed"
+            changed: 1
+            pass_numbers: 1
+            pass_numbers: 4
+            pass_numbers: 7
+            pass_numbers: 10
+            pass_numbers: 13
+            fixed_point_iterations: 5
+            nested_results { pass_name: "level_up" changed: 1 pass_numbers: 2 }
+            nested_results { pass_name: "dce" changed: 1 pass_numbers: 3 }
+            nested_results { pass_name: "level_up" changed: 1 pass_numbers: 5 }
+            nested_results { pass_name: "dce" changed: 1 pass_numbers: 6 }
+            nested_results { pass_name: "level_up" changed: 1 pass_numbers: 8 }
+            nested_results { pass_name: "dce" changed: 1 pass_numbers: 9 }
+            nested_results { pass_name: "level_up" changed: 1 pass_numbers: 11 }
+            nested_results { pass_name: "dce" changed: 1 pass_numbers: 12 }
+            nested_results { pass_name: "level_up" changed: 1 pass_numbers: 14 }
+            nested_results { pass_name: "dce" changed: 1 pass_numbers: 15 }
+          }
+        }
+      )pb")));
 }
 
 TEST_F(PassBaseTest, BisectLimitZero) {
@@ -412,7 +452,7 @@ TEST_F(PassBaseTest, BisectLimitZero) {
       IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 64)));
   EXPECT_EQ(f->node_count(), 1);
-  EXPECT_THAT(results.invocation.nested_invocations, IsEmpty());
+  EXPECT_THAT(results.root_invocation().nested_invocations(), IsEmpty());
 }
 
 TEST_F(PassBaseTest, EmptyCompoundPass) {
@@ -429,7 +469,7 @@ TEST_F(PassBaseTest, EmptyCompoundPass) {
   OptimizationContext context;
   EXPECT_THAT(opt.Run(p.get(), OptimizationPassOptions(), &results, context),
               IsOkAndHolds(false));
-  EXPECT_EQ(results.total_invocations, 0);
+  EXPECT_EQ(results.total_invocations(), 1);
 
   // The invariant checker runs at the beginning of each compound pass.
   EXPECT_EQ(checker->run_count(), 1);
@@ -453,58 +493,144 @@ TEST_F(PassBaseTest, NopCompoundPass) {
   OptimizationContext context;
   EXPECT_THAT(opt.Run(p.get(), OptimizationPassOptions(), &results, context),
               IsOkAndHolds(false));
-  EXPECT_EQ(results.total_invocations, 5);
+  // opt and the 5 adders
+  EXPECT_EQ(results.total_invocations(), 6);
 
   // The invariant checker runs at the beginning of each compound pass but not
   // after the individual passes because the passes don't change the IR.
   EXPECT_EQ(checker->run_count(), 1);
 }
 
-TEST_F(PassBaseTest, SimpleCompoundPass) {
+TEST_F(PassBaseTest, SimpleCompoundPasses) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(UBits(0, 64));
   XLS_ASSERT_OK(fb.Build());
-  OptimizationCompoundPass opt("my_compound", "My Compound Pass");
+  OptimizationCompoundPass opt("my_compound_1", "My Compound Pass");
   opt.Add<NodeAdderPass>(/*nodes_to_add=*/0);
   opt.Add<NodeAdderPass>(/*nodes_to_add=*/42);
   opt.Add<DeadCodeEliminationPass>();
+  auto opt2 = std::make_unique<OptimizationCompoundPass>("my_compound_2",
+                                                         "My Compound Pass 2");
+  opt2->Add<NodeAdderPass>(/*nodes_to_add=*/100);
+  opt2->Add<NodeAdderPass>(/*nodes_to_add=*/0);
+  opt.AddOwned(std::move(opt2));
+  opt.Add<DeadCodeEliminationPass>();
+
   auto* checker = opt.AddInvariantChecker<CounterChecker>();
 
   PassResults results;
   OptimizationContext context;
   OptimizationPassOptions options;
   EXPECT_THAT(opt.Run(p.get(), options, &results, context), IsOkAndHolds(true));
-  EXPECT_EQ(results.total_invocations, 3);
 
-  EXPECT_EQ(results.invocation.pass_name, "my_compound");
-  EXPECT_TRUE(results.invocation.ir_changed);
-  EXPECT_EQ(results.invocation.metrics.nodes_added, 42);
-  EXPECT_EQ(results.invocation.metrics.nodes_removed, 42);
-
-  EXPECT_EQ(results.invocation.nested_invocations.size(), 3);
-
-  EXPECT_EQ(results.invocation.nested_invocations[0].pass_name, "node_adder_0");
-  EXPECT_FALSE(results.invocation.nested_invocations[0].ir_changed);
-  EXPECT_EQ(results.invocation.nested_invocations[0].metrics.nodes_added, 0);
-  EXPECT_EQ(results.invocation.nested_invocations[0].metrics.nodes_removed, 0);
-
-  EXPECT_EQ(results.invocation.nested_invocations[1].pass_name,
-            "node_adder_42");
-  EXPECT_TRUE(results.invocation.nested_invocations[1].ir_changed);
-  EXPECT_EQ(results.invocation.nested_invocations[1].metrics.nodes_added, 42);
-  EXPECT_EQ(results.invocation.nested_invocations[1].metrics.nodes_removed, 0);
-
-  EXPECT_EQ(results.invocation.nested_invocations[2].pass_name, "dce");
-  EXPECT_TRUE(results.invocation.nested_invocations[2].ir_changed);
-  EXPECT_EQ(results.invocation.nested_invocations[2].metrics.nodes_added, 0);
-  EXPECT_EQ(results.invocation.nested_invocations[2].metrics.nodes_removed, 42);
-
-  EXPECT_EQ(results.total_invocations, 3);
+  auto proto = results.ToProto();
+  EXPECT_THAT(proto, proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+                total_passes: 8
+                pass_metrics {
+                  pass_name: "my_compound_1"
+                  changed: 1
+                  pass_numbers: 0
+                  nested_results {
+                    pass_name: "node_adder_0"
+                    changed: 0
+                    pass_numbers: 1
+                  }
+                  nested_results {
+                    pass_name: "node_adder_42"
+                    changed: 1
+                    pass_numbers: 2
+                  }
+                  nested_results { pass_name: "dce" changed: 1 pass_numbers: 3 }
+                  nested_results {
+                    pass_name: "my_compound_2"
+                    changed: 1
+                    pass_numbers: 4
+                    nested_results {
+                      pass_name: "node_adder_100"
+                      changed: 1
+                      pass_numbers: 5
+                    }
+                    nested_results {
+                      pass_name: "node_adder_0"
+                      changed: 0
+                      pass_numbers: 6
+                    }
+                  }
+                  nested_results { pass_name: "dce" changed: 1 pass_numbers: 7 }
+                }
+              )pb")));
 
   // The invariant checker runs at the beginning of the compound pass and after
   // each pass which changes the IR.
-  EXPECT_EQ(checker->run_count(), 3);
+  EXPECT_EQ(checker->run_count(), 6);
+}
+
+TEST_F(PassBaseTest, InvariantCheckerAddedEarly) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK(fb.Build());
+
+  OptimizationCompoundPass opt("my_compound_1", "My Compound Pass");
+
+  auto* checker = opt.AddInvariantChecker<CounterChecker>();
+
+  opt.Add<NodeAdderPass>(/*nodes_to_add=*/0);
+  opt.Add<NodeAdderPass>(/*nodes_to_add=*/42);
+  opt.Add<DeadCodeEliminationPass>();
+  auto opt2 = std::make_unique<OptimizationCompoundPass>("my_compound_2",
+                                                         "My Compound Pass 2");
+  opt2->Add<NodeAdderPass>(/*nodes_to_add=*/100);
+  opt2->Add<NodeAdderPass>(/*nodes_to_add=*/0);
+  opt.AddOwned(std::move(opt2));
+  opt.Add<DeadCodeEliminationPass>();
+
+  PassResults results;
+  OptimizationContext context;
+  OptimizationPassOptions options;
+  EXPECT_THAT(opt.Run(p.get(), options, &results, context), IsOkAndHolds(true));
+
+  auto proto = results.ToProto();
+  EXPECT_THAT(proto, proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+                total_passes: 8
+                pass_metrics {
+                  pass_name: "my_compound_1"
+                  changed: 1
+                  pass_numbers: 0
+                  nested_results {
+                    pass_name: "node_adder_0"
+                    changed: 0
+                    pass_numbers: 1
+                  }
+                  nested_results {
+                    pass_name: "node_adder_42"
+                    changed: 1
+                    pass_numbers: 2
+                  }
+                  nested_results { pass_name: "dce" changed: 1 pass_numbers: 3 }
+                  nested_results {
+                    pass_name: "my_compound_2"
+                    changed: 1
+                    pass_numbers: 4
+                    nested_results {
+                      pass_name: "node_adder_100"
+                      changed: 1
+                      pass_numbers: 5
+                    }
+                    nested_results {
+                      pass_name: "node_adder_0"
+                      changed: 0
+                      pass_numbers: 6
+                    }
+                  }
+                  nested_results { pass_name: "dce" changed: 1 pass_numbers: 7 }
+                }
+              )pb")));
+
+  // The invariant checker runs at the beginning of the compound pass and after
+  // each pass which changes the IR.
+  EXPECT_EQ(checker->run_count(), 6);
 }
 
 TEST_F(PassBaseTest, NestedCompoundPass) {
@@ -534,35 +660,50 @@ TEST_F(PassBaseTest, NestedCompoundPass) {
   OptimizationPassOptions options;
   EXPECT_THAT(top.Run(p.get(), options, &results, context), IsOkAndHolds(true));
 
-  EXPECT_EQ(results.invocation.pass_name, "top_compound");
-  EXPECT_TRUE(results.invocation.ir_changed);
-  EXPECT_EQ(results.invocation.metrics.nodes_added, 210);
-  EXPECT_EQ(results.invocation.metrics.nodes_removed, 0);
-
-  EXPECT_EQ(results.invocation.nested_invocations.size(), 3);
-  EXPECT_EQ(results.invocation.nested_invocations[0].pass_name, "node_adder_0");
-  EXPECT_EQ(results.invocation.nested_invocations[1].pass_name, "subcompound0");
-  EXPECT_EQ(results.invocation.nested_invocations[2].pass_name, "subcompound1");
-
-  const PassInvocation& sub0_invocation =
-      results.invocation.nested_invocations[1];
-  EXPECT_TRUE(sub0_invocation.ir_changed);
-  EXPECT_EQ(sub0_invocation.metrics.nodes_added, 10);
-  EXPECT_EQ(sub0_invocation.metrics.nodes_removed, 0);
-  EXPECT_EQ(sub0_invocation.nested_invocations.size(), 1);
-  EXPECT_EQ(sub0_invocation.nested_invocations[0].pass_name, "node_adder_10");
-
-  const PassInvocation& sub1_invocation =
-      results.invocation.nested_invocations[2];
-  EXPECT_TRUE(sub1_invocation.ir_changed);
-  EXPECT_EQ(sub1_invocation.metrics.nodes_added, 200);
-  EXPECT_EQ(sub1_invocation.metrics.nodes_removed, 0);
-  EXPECT_EQ(sub1_invocation.nested_invocations.size(), 3);
-  EXPECT_EQ(sub1_invocation.nested_invocations[0].pass_name, "node_adder_100");
-  EXPECT_EQ(sub1_invocation.nested_invocations[1].pass_name, "node_adder_100");
-  EXPECT_EQ(sub1_invocation.nested_invocations[2].pass_name, "node_adder_0");
-
-  EXPECT_EQ(results.total_invocations, 5);
+  EXPECT_THAT(results.ToProto(),
+              proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+                total_passes: 8
+                pass_metrics {
+                  pass_name: "top_compound"
+                  changed: 1
+                  pass_numbers: 0
+                  nested_results {
+                    pass_name: "node_adder_0"
+                    changed: 0
+                    pass_numbers: 1
+                  }
+                  nested_results {
+                    pass_name: "subcompound0"
+                    changed: 1
+                    pass_numbers: 2
+                    nested_results {
+                      pass_name: "node_adder_10"
+                      changed: 1
+                      pass_numbers: 3
+                    }
+                  }
+                  nested_results {
+                    pass_name: "subcompound1"
+                    changed: 1
+                    pass_numbers: 4
+                    nested_results {
+                      pass_name: "node_adder_100"
+                      changed: 1
+                      pass_numbers: 5
+                    }
+                    nested_results {
+                      pass_name: "node_adder_100"
+                      changed: 1
+                      pass_numbers: 6
+                    }
+                    nested_results {
+                      pass_name: "node_adder_0"
+                      changed: 0
+                      pass_numbers: 7
+                    }
+                  }
+                }
+              )pb")));
 
   // The invariant checker runs at the beginning of each compound pass
   // and after each pass which changes the IR.
@@ -608,11 +749,16 @@ TEST_F(PassBaseTest, DumpIrWithNestedPasses) {
   EXPECT_THAT(
       dump_filenames,
       UnorderedElementsAre(
-          "DumpIrWithNestedPasses.00004.after_node_adder_0.subcompound1."
+          "DumpIrWithNestedPasses.00007.after_top_compound.root.changed.ir",
+          "DumpIrWithNestedPasses.00006.after_subcompound1.top_compound."
+          "changed.ir",
+          "DumpIrWithNestedPasses.00005.after_node_adder_0.subcompound1."
           "unchanged.ir",
+          "DumpIrWithNestedPasses.00004.after_node_adder_100.subcompound1."
+          "changed.ir",
           "DumpIrWithNestedPasses.00003.after_node_adder_100.subcompound1."
           "changed.ir",
-          "DumpIrWithNestedPasses.00002.after_node_adder_100.subcompound1."
+          "DumpIrWithNestedPasses.00002.after_subcompound0.top_compound."
           "changed.ir",
           "DumpIrWithNestedPasses.00001.after_node_adder_10.subcompound0."
           "changed.ir",
@@ -634,25 +780,46 @@ TEST_F(PassBaseTest, MetricsTest) {
   OptimizationContext context;
   OptimizationPassOptions options;
   EXPECT_THAT(opt.Run(p.get(), options, &results, context), IsOkAndHolds(true));
-  EXPECT_EQ(results.total_invocations, 2);
-
-  EXPECT_EQ(results.invocation.nested_invocations.size(), 2);
-  const TransformMetrics& adder_metrics =
-      results.invocation.nested_invocations[0].metrics;
-  EXPECT_EQ(adder_metrics.nodes_added, 10);
-  EXPECT_EQ(adder_metrics.nodes_removed, 0);
-  EXPECT_EQ(adder_metrics.nodes_replaced, 0);
-
-  const TransformMetrics& replacer_metrics =
-      results.invocation.nested_invocations[1].metrics;
-  EXPECT_EQ(replacer_metrics.nodes_added, 100);
-  EXPECT_EQ(replacer_metrics.nodes_removed, 0);
-  EXPECT_EQ(replacer_metrics.nodes_replaced, 100);
-
-  const TransformMetrics& top_metrics = results.invocation.metrics;
-  EXPECT_EQ(top_metrics.nodes_added, 110);
-  EXPECT_EQ(top_metrics.nodes_removed, 0);
-  EXPECT_EQ(top_metrics.nodes_replaced, 100);
+  EXPECT_THAT(results.ToProto(),
+              proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+                total_passes: 3
+                pass_metrics {
+                  pass_name: "opt"
+                  changed: 1
+                  pass_numbers: 0
+                  transformation_metrics {
+                    nodes_added: 110
+                    nodes_removed: 0
+                    nodes_replaced: 100
+                    operands_replaced: 0
+                    operands_removed: 0
+                  }
+                  nested_results {
+                    pass_name: "node_adder_10"
+                    changed: 1
+                    pass_numbers: 1
+                    transformation_metrics {
+                      nodes_added: 10
+                      nodes_removed: 0
+                      nodes_replaced: 0
+                      operands_replaced: 0
+                      operands_removed: 0
+                    }
+                  }
+                  nested_results {
+                    pass_name: "replacer_100"
+                    changed: 1
+                    pass_numbers: 2
+                    transformation_metrics {
+                      nodes_added: 100
+                      nodes_removed: 0
+                      nodes_replaced: 100
+                      operands_replaced: 0
+                      operands_removed: 0
+                    }
+                  }
+                }
+              )pb")));
 }
 
 }  // namespace

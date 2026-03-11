@@ -53,17 +53,6 @@ class BlockConversionWrapperPass : public BlockConversionPass {
                                    const BlockConversionPassOptions& options,
                                    PassResults* results) const final;
 
-  absl::StatusOr<bool> RunNested(Package* package,
-                                 const BlockConversionPassOptions& options,
-                                 PassResults* results,
-                                 PassInvocation& invocation,
-                                 absl::Span<const InvariantChecker* const>
-                                     invariant_checkers) const override {
-    return wrapped_pass_->RunNested(package, OptimizationPassOptions(options),
-                                    results, opt_context_, invocation,
-                                    /*invariant_checkers=*/{});
-  }
-
  private:
   std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass_;
   OptimizationContext& opt_context_;

@@ -20,7 +20,6 @@
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/span.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
@@ -52,16 +51,6 @@ class CodegenWrapperPass : public CodegenPass {
                                    const CodegenPassOptions& options,
                                    PassResults* results,
                                    CodegenContext& context) const final;
-
-  absl::StatusOr<bool> RunNested(
-      Package* package, const CodegenPassOptions& options, PassResults* results,
-      CodegenContext& context, PassInvocation& invocation,
-      absl::Span<const CodegenInvariantChecker* const> invariant_checkers)
-      const override {
-    return wrapped_pass_->RunNested(package, OptimizationPassOptions(options),
-                                    results, opt_context_, invocation,
-                                    /*invariant_checkers=*/{});
-  }
 
  private:
   std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass_;

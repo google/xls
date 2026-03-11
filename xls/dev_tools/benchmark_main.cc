@@ -202,7 +202,7 @@ absl::Status RunOptimizationAndPrintStats(
   std::cout << absl::StreamFormat("Optimization time: %dms\n",
                                   DurationToMs(total_time));
   std::cout << absl::StreamFormat("Dynamic pass count: %d\n",
-                                  pass_results.total_invocations);
+                                  pass_results.total_invocations());
 
   // Print table(s) of pass metrics.
   std::cout << SummarizePassPipelineMetrics(pass_results.ToProto(),

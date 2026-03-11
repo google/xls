@@ -29,6 +29,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -62,8 +63,9 @@ fn main() -> bits[16][4] {
   MapInliningPass pass;
   OptimizationPassOptions options;
   OptimizationContext context;
+  PassResults results;
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, pass.RunOnFunctionBase(func, options, nullptr, context));
+      bool changed, pass.RunOnFunctionBase(func, options, &results, context));
   ASSERT_TRUE(changed);
   EXPECT_THAT(
       func->return_value(),
@@ -94,8 +96,9 @@ fn main(a: bits[32][4]) -> bits[16][4] {
   MapInliningPass pass;
   OptimizationPassOptions options;
   OptimizationContext context;
+  PassResults results;
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, pass.RunOnFunctionBase(func, options, nullptr, context));
+      bool changed, pass.RunOnFunctionBase(func, options, &results, context));
   ASSERT_TRUE(changed);
 
   EXPECT_THAT(
