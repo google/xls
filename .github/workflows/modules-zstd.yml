@@ -63,7 +63,7 @@ jobs:
       - name: Build and run synthesis benchmarks of the ZSTD module (opt)
         if: ${{ !cancelled() }}
         run: |
-          for target in $(bazel query 'filter("_benchmark_synth$", kind(rule, //xls/modules/zstd/...))');
+          for target in $(bazel query 'filter("_benchmark_synth$", kind(rule, //xls/modules/zstd/...)) except attr(tags, "long", //xls/modules/zstd/...)');
           do
             echo "running $target";
             bazel run -c opt $target -- --logtostderr;
