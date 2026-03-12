@@ -33,6 +33,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/variant.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -333,12 +334,9 @@ absl::StatusOr<TypeDefinition> Module::GetTypeDefinition(
   return it->second;
 }
 
-absl::Status Module::AddTop(ModuleMember member,
-                            const MakeCollisionError& make_collision_error) {
-  // Get name
-  std::vector<std::string> member_names = GetMemberNames(member);
-
-  for (const std::string& member_name : member_names) {
+absl::Status Module::CheckForCollision(
+    ModuleMember member, const MakeCollisionError& make_collision_error) {
+  for (const std::string& member_name : GetMemberNames(member)) {
     if (top_by_name_.contains(member_name)) {
       const AstNode* node = ToAstNode(top_by_name_.at(member_name));
       const Span existing_span = node->GetSpan().value();
@@ -353,6 +351,15 @@ absl::Status Module::AddTop(ModuleMember member,
           member_name, existing_span.ToString(*file_table_), node->ToString()));
     }
   }
+  return absl::OkStatus();
+}
+
+absl::Status Module::AddTop(ModuleMember member,
+                            const MakeCollisionError& make_collision_error) {
+  XLS_RETURN_IF_ERROR(CheckForCollision(member, make_collision_error));
+
+  // Get name
+  std::vector<std::string> member_names = GetMemberNames(member);
 
   top_.push_back(member);
   top_set_.insert(ToAstNode(member));
@@ -362,27 +369,32 @@ absl::Status Module::AddTop(ModuleMember member,
   return absl::OkStatus();
 }
 
-absl::Status Module::InsertTop(ModuleMember member,
-                               const MakeCollisionError& make_collision_error) {
+absl::Status Module::InsertTopBefore(
+    const AstNode* target_member, ModuleMember member,
+    const MakeCollisionError& make_collision_error) {
+  CHECK_NE(target_member, nullptr);
+  if (!top_set_.contains(target_member)) {
+    return absl::NotFoundError(
+        absl::StrFormat("Target member is not part of module %s", name_));
+  }
+
+  XLS_RETURN_IF_ERROR(CheckForCollision(member, make_collision_error));
+
   std::vector<std::string> member_names = GetMemberNames(member);
 
-  for (const std::string& member_name : member_names) {
-    if (top_by_name_.contains(member_name)) {
-      const AstNode* node = ToAstNode(top_by_name_.at(member_name));
-      const Span existing_span = node->GetSpan().value();
-      const AstNode* new_node = ToAstNode(member);
-      const Span new_span = new_node->GetSpan().value();
-      if (make_collision_error != nullptr) {
-        return make_collision_error(name_, member_name, existing_span, node,
-                                    new_span, new_node);
-      }
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Module %s already contains a member named %s @ %s: %s", name_,
-          member_name, existing_span.ToString(*file_table_), node->ToString()));
+  auto insert_it = top_.end();
+  for (auto it = top_.begin(); it != top_.end(); ++it) {
+    if (ToAstNode(*it) == target_member) {
+      insert_it = it;
+      break;
     }
   }
 
-  top_.insert(top_.begin(), member);
+  if (insert_it == top_.end()) {
+    top_.push_back(member);
+  } else {
+    insert_it = top_.insert(insert_it, member);
+  }
 
   top_set_.insert(ToAstNode(member));
   for (const std::string& member_name : member_names) {
@@ -399,24 +411,9 @@ absl::Status Module::InsertTopAfter(
     return absl::NotFoundError(
         absl::StrFormat("Target member is not part of module %s", name_));
   }
+  XLS_RETURN_IF_ERROR(CheckForCollision(member, make_collision_error));
 
   std::vector<std::string> member_names = GetMemberNames(member);
-
-  for (const std::string& member_name : member_names) {
-    if (top_by_name_.contains(member_name)) {
-      const AstNode* node = ToAstNode(top_by_name_.at(member_name));
-      const Span existing_span = node->GetSpan().value();
-      const AstNode* new_node = ToAstNode(member);
-      const Span new_span = new_node->GetSpan().value();
-      if (make_collision_error != nullptr) {
-        return make_collision_error(name_, member_name, existing_span, node,
-                                    new_span, new_node);
-      }
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Module %s already contains a member named %s @ %s: %s", name_,
-          member_name, existing_span.ToString(*file_table_), node->ToString()));
-    }
-  }
 
   auto insert_it = top_.end();
   for (auto it = top_.begin(); it != top_.end(); ++it) {

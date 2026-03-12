@@ -284,6 +284,19 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
   ReplaceLambdaWithInvocation(const FileTable& file_table)
       : file_table_(file_table) {}
 
+  std::optional<ModuleMember> GetContainingModuleMember(const Lambda* node) {
+    AstNode* parent = node->parent();
+    while (parent != nullptr) {
+      for (ModuleMember module_member : node->owner()->top()) {
+        if (ToAstNode(module_member) == parent) {
+          return module_member;
+        }
+      }
+      parent = parent->parent();
+    }
+    return std::nullopt;
+  }
+
   // Converts a lambda into a struct instance and an impl. For example,
   //
   //   fn add_two(arr: u32[5]) -> u32[5] {
@@ -423,6 +436,9 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
 
     // Swap the Lambda in its parent with the attr invocation. After this step,
     // Lambdas should no longer appear in the AST.
+    std::optional<ModuleMember> containing_member =
+        GetContainingModuleMember(node);
+    XLS_RET_CHECK(containing_member.has_value());
     auto* parent_inv = absl::down_cast<Invocation*>(node->parent());
     XLS_RET_CHECK(parent_inv != nullptr);
     if (parent_inv->callee() == node) {
@@ -435,7 +451,8 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
       }
     }
 
-    XLS_RETURN_IF_ERROR(module->InsertTop(full_struct_def));
+    XLS_RETURN_IF_ERROR(module->InsertTopBefore(ToAstNode(*containing_member),
+                                                full_struct_def));
     return module->InsertTopAfter(full_struct_def, impl);
   }
 

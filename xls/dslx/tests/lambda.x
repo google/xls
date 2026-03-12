@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import xls.dslx.tests.mod_u16_type_alias;
+
 fn add_two(arr: u32[4]) -> u32[4] { map(arr, |i| -> u32 { i + u32:2 }) }
 
 #[test]
@@ -27,4 +29,8 @@ fn main() -> () {
     let my_val = u32:2;
     let x = (|i, j| -> u32 { my_val * i * j })(u32:1, u32:4);
     const_assert!(x == 8);
+
+    // https://github.com/google/xls/issues/3937
+    let u = map(u32:0..5, |i| -> mod_u16_type_alias::T { mod_u16_type_alias::T:0 });
+    const_assert!(u == zero!<u16[5]>());
 }
