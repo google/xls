@@ -54,10 +54,14 @@ TEST(WarningKindTest, InitializerListHasAllKinds) {
 
 TEST(WarningKindTest, DefaultSetAnyMissing) {
   ASSERT_TRUE(WarningIsEnabled(kAllWarningsSet, WarningKind::kShouldUseAssert));
+  ASSERT_TRUE(
+      WarningIsEnabled(kAllWarningsSet, WarningKind::kKeywordParameterName));
 
   // Currently "should use assert" warning is disabled for propagation delay.
   ASSERT_FALSE(
       WarningIsEnabled(kDefaultWarningsSet, WarningKind::kShouldUseAssert));
+  ASSERT_FALSE(WarningIsEnabled(kDefaultWarningsSet,
+                                WarningKind::kKeywordParameterName));
 }
 
 TEST(WarningKindTest, Complement) {
@@ -89,6 +93,12 @@ TEST(WarningKindTest, WarningKindSetFromString) {
   XLS_ASSERT_OK_AND_ASSIGN(WarningKindSet set,
                            WarningKindSetFromString("should_use_assert"));
   ASSERT_TRUE(WarningIsEnabled(set, WarningKind::kShouldUseAssert));
+}
+
+TEST(WarningKindTest, WarningKindSetFromStringKeywordParameterName) {
+  XLS_ASSERT_OK_AND_ASSIGN(WarningKindSet set,
+                           WarningKindSetFromString("keyword_parameter_name"));
+  ASSERT_TRUE(WarningIsEnabled(set, WarningKind::kKeywordParameterName));
 }
 
 TEST(WarningKindTest, GetWarningsSetFromFlagsEmpty) {
