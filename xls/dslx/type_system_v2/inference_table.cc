@@ -75,6 +75,9 @@ const TypeInferenceFlag TypeInferenceFlag::kDeclarationType(1 << 7,
 const TypeInferenceFlag TypeInferenceFlag::kFormalReturnType(
     1 << 8, "formal-return-type");
 
+const TypeInferenceFlag TypeInferenceFlag::kFormalParametricType(
+    1 << 9, "formal-parametric-type");
+
 namespace {
 
 // Converts an `InferenceVariableKind` to string for tracing purposes.

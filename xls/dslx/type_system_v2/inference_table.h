@@ -101,6 +101,9 @@ class TypeInferenceFlag {
   // Indicates the formal return type of a function.
   static const TypeInferenceFlag kFormalReturnType;
 
+  // Indicates the formal type of a parametric binding.
+  static const TypeInferenceFlag kFormalParametricType;
+
   // Indicates the type annotation on the LHS of a declaration. For example, in
   // `const A: u32 = 0;`, the `u32` is a declaration type. This flag is set in
   // any context where there is a declaration with an LHS type, such as a local
@@ -131,7 +134,7 @@ class TypeInferenceFlag {
     const uint32_t combo_allowed_flags =
         kSliceContainerSize.flags_ | kFormalMemberType.flags_ |
         kFormalFunctionType.flags_ | kDeclarationType.flags_ |
-        kFormalReturnType.flags_;
+        kFormalReturnType.flags_ | kFormalParametricType.flags_;
     CHECK((flags_ & (flags_ - 1) & ~combo_allowed_flags) == 0 ||
           flags_ == (kMinSize.flags_ | kHasPrefix.flags_));
   }

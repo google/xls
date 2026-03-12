@@ -1455,6 +1455,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleParametricBinding(const ParametricBinding* node) override {
     VLOG(5) << "HandleParametricBinding: " << node->ToString();
     XLS_RETURN_IF_ERROR(table_.DefineParametricVariable(*node).status());
+    table_.SetAnnotationFlag(node->type_annotation(),
+                             TypeInferenceFlag::kFormalParametricType);
     if (node->expr() != nullptr) {
       // To handle the default expression correctly, we need to impose a type
       // variable pretending that there is something like a `let` or `const`
@@ -1814,7 +1816,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // An expr that isn't a type is not allowed.
       return TypeInferenceErrorStatus(
           *node->GetSpan(), nullptr,
-          absl::Substitute("Expected a type argument in `$0`; saw `$1`.",
+          absl::Substitute("Expected a type argument in `$0`; saw `$1`, which "
+                           "is not a type.",
                            node->ToString(), std::get<Expr*>(type)->ToString()),
           file_table_);
     }
