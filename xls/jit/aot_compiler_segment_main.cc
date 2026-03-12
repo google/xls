@@ -48,6 +48,9 @@ static constexpr bool kHasMsan = false;
 #endif
 ABSL_FLAG(bool, include_msan, kHasMsan,
           "Whether to include MSAN instrumentation.");
+ABSL_FLAG(bool, enable_llvm_coverage, false,
+          "Whether to include llvm's 'trace-cmp' and 'inline-8bit-counters'"
+          "coverage instrumentation");
 
 namespace xls {
 namespace {
@@ -68,12 +71,15 @@ class StrMemBuf : public llvm::MemoryBuffer {
 
 absl::Status RealMain(std::string_view input_file_path,
                       std::string_view output_object_file,
-                      int64_t llvm_opt_level, bool include_msan) {
+                      int64_t llvm_opt_level, bool include_msan,
+                      bool enable_llvm_coverage) {
   XLS_ASSIGN_OR_RETURN(std::string input_ir, GetFileContents(input_file_path));
   XLS_ASSIGN_OR_RETURN(
-      auto compiler, AotCompiler::Create(JitEvaluatorOptions()
-                                             .set_opt_level(llvm_opt_level)
-                                             .set_include_msan(include_msan)));
+      auto compiler,
+      AotCompiler::Create(JitEvaluatorOptions()
+                              .set_opt_level(llvm_opt_level)
+                              .set_include_msan(include_msan)
+                              .set_enable_llvm_coverage(enable_llvm_coverage)));
   StrMemBuf input_buffer(input_ir);
   llvm::Expected<std::unique_ptr<llvm::Module>> module_or_err =
       llvm::parseBitcodeFile(input_buffer, *compiler->GetContext());
@@ -102,5 +108,6 @@ int main(int argc, char** argv) {
 
   return xls::ExitStatus(xls::RealMain(
       absl::GetFlag(FLAGS_input), absl::GetFlag(FLAGS_output_object),
-      absl::GetFlag(FLAGS_llvm_opt_level), absl::GetFlag(FLAGS_include_msan)));
+      absl::GetFlag(FLAGS_llvm_opt_level), absl::GetFlag(FLAGS_include_msan),
+      absl::GetFlag(FLAGS_enable_llvm_coverage)));
 }

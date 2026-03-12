@@ -1352,6 +1352,38 @@ xls_aot_generate(
     with_msan = XLS_IS_MSAN_BUILD,
 )
 
+xls_aot_generate(
+    name = "multi_function_aot_coverage",
+    testonly = True,
+    src = ":multi_function",
+    enable_llvm_coverage = True,
+    salt_symbols = False,
+    top = "multi_function_one",
+    top_type = "FUNCTION",
+    with_msan = XLS_IS_MSAN_BUILD,
+)
+
+xls_aot_generate(
+    name = "multi_function_aot_coverage_jobs",
+    testonly = True,
+    src = ":multi_function",
+    enable_llvm_coverage = True,
+    jobs = 2,
+    salt_symbols = False,
+    top = "multi_function_one",
+    top_type = "FUNCTION",
+    with_msan = XLS_IS_MSAN_BUILD,
+)
+
+# Tests that the coverage instrumentation can be enabled.
+build_test(
+    name = "jit_build_test",
+    targets = [
+        ":multi_function_aot_coverage",
+        ":multi_function_aot_coverage_jobs",
+    ],
+)
+
 # This is needed since xls_aot_generate isn't really meant to be used directly
 # so doesn't register the protobuf as a pre-declared output file, complicating its use in a genrule.
 aot_protobuf(

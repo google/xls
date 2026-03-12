@@ -96,6 +96,11 @@ _xls_aot_files_attrs = {
         default = 1,
         mandatory = False,
     ),
+    "enable_llvm_coverage": attr.bool(
+        doc = "If true, passes --enable_llvm_coverage to the AOT compiler to instrument the " +
+              "generated code for LLVM coverage.",
+        default = False,
+    ),
 }
 
 def _xls_aot_generate_impl(ctx):
@@ -133,6 +138,11 @@ def _xls_aot_generate_impl(ctx):
         other_linking_contexts = [ctx.attr._jit_emulated_tls[CcInfo].linking_context]
     else:
         common_add("--include_msan=false")
+
+    if ctx.attr.enable_llvm_coverage:
+        common_add("--enable_llvm_coverage=true")
+    else:
+        common_add("--enable_llvm_coverage=false")
 
     extra_files = []
 
@@ -225,6 +235,11 @@ def _xls_aot_generate_impl(ctx):
                 piece_args.add("--include_msan=true")
             else:
                 piece_args.add("--include_msan=false")
+            if ctx.attr.enable_llvm_coverage:
+                piece_args.add("--enable_llvm_coverage=true")
+            else:
+                piece_args.add("--enable_llvm_coverage=false")
+
             ctx.actions.run(
                 outputs = [obj_files[i]],
                 inputs = [split_files[i]],
