@@ -79,7 +79,8 @@ class SharedCompiler final : public LlvmCompiler {
                           llvm::DataLayout data_layout)
       : LlvmCompiler(std::move(target), std::move(data_layout),
                      underlying->opt_level(), underlying->include_msan(),
-                     /*include_observer_callbacks=*/false),
+                     /*include_observer_callbacks=*/false,
+                     underlying->include_llvm_coverage()),
         underlying_(underlying),
         the_module_(underlying_->NewModule(
             absl::StrFormat("__shared_module_for_%s", name))) {}

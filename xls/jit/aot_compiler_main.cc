@@ -43,18 +43,14 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/ir/block_elaboration.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
-#include "xls/ir/type.h"
 #include "xls/jit/aot_entrypoint.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
-#include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_evaluator_options.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/llvm_compiler.h"
@@ -108,6 +104,9 @@ static constexpr bool kHasMsan = false;
 ABSL_FLAG(bool, include_msan, kHasMsan,
           "Whether to include msan calls in the jitted code. This *must* match "
           "the configuration of the binary the jitted code is included in.");
+ABSL_FLAG(bool, enable_llvm_coverage, false,
+          "Whether to include llvm's 'trace-cmp' and 'inline-8bit-counters'"
+          "coverage instrumentation");
 
 namespace xls {
 bool AbslParseFlag(std::string_view flag_value, FunctionBase::Kind* kind,
@@ -245,6 +244,7 @@ absl::Status RealMain(const std::string& input_ir_path,
       .set_jit_observer(&obs)
       .set_symbol_salt(absl::GetFlag(FLAGS_symbol_salt))
       .set_include_msan(include_msan)
+      .set_enable_llvm_coverage(absl::GetFlag(FLAGS_enable_llvm_coverage))
       .set_generate_skeleton(generate_skeleton)
       .set_generate_only_unopt_llvm_ir(only_unopt_llvm_ir);
   if (f->IsFunction()) {

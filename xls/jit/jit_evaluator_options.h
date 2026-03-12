@@ -83,6 +83,12 @@ class JitEvaluatorOptions {
     return generate_only_unopt_llvm_ir_;
   }
 
+  JitEvaluatorOptions& set_enable_llvm_coverage(bool value) {
+    enable_llvm_coverage_ = value;
+    return *this;
+  }
+  bool enable_llvm_coverage() const { return enable_llvm_coverage_; }
+
  private:
   int64_t opt_level_ = LlvmCompiler::kDefaultOptLevel;
   std::string symbol_salt_;
@@ -91,6 +97,7 @@ class JitEvaluatorOptions {
   JitObserver* jit_observer_ = nullptr;
   bool generate_skeleton_ = false;
   bool generate_only_unopt_llvm_ir_ = false;
+  bool enable_llvm_coverage_ = false;
 };
 
 }  // namespace xls

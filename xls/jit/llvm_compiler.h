@@ -91,6 +91,7 @@ class LlvmCompiler {
   bool include_observer_callbacks() const {
     return include_observer_callbacks_;
   }
+  bool include_llvm_coverage() const { return include_llvm_coverage_; }
 
   // Return true if this is a skeleton compilation. That is don't actually
   // compile anything just create the symbols.
@@ -106,21 +107,23 @@ class LlvmCompiler {
   llvm::Error PerformStandardOptimization(llvm::Module* module);
 
   LlvmCompiler(int64_t opt_level, bool include_msan,
-               bool include_observer_callbacks)
+               bool include_observer_callbacks, bool include_llvm_coverage)
       : data_layout_(""),
         opt_level_(opt_level),
         include_msan_(include_msan),
-        include_observer_callbacks_(include_observer_callbacks) {}
+        include_observer_callbacks_(include_observer_callbacks),
+        include_llvm_coverage_(include_llvm_coverage) {}
 
   // Constructor to manually setup the compiler without Init.
   LlvmCompiler(std::unique_ptr<llvm::TargetMachine> target,
                llvm::DataLayout&& layout, int64_t opt_level, bool include_msan,
-               bool include_observer_callbacks)
+               bool include_observer_callbacks, bool include_llvm_coverage)
       : target_machine_(std::move(target)),
         data_layout_(layout),
         opt_level_(opt_level),
         include_msan_(include_msan),
-        include_observer_callbacks_(include_observer_callbacks) {}
+        include_observer_callbacks_(include_observer_callbacks),
+        include_llvm_coverage_(include_llvm_coverage) {}
 
   // Setup by Init
   std::unique_ptr<llvm::TargetMachine> target_machine_;
@@ -135,6 +138,9 @@ class LlvmCompiler {
   // If the jitted/compiled code should include calls to the RecordNodeResult
   // callback.
   const bool include_observer_callbacks_;
+
+  // If the jitted/compiled code should include LLVM coverage information.
+  const bool include_llvm_coverage_;
 
   bool module_created_ = false;
 };

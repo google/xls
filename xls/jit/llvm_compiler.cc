@@ -44,6 +44,8 @@
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
 #include "llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h"
+#include "llvm/include/llvm/Transforms/Instrumentation/SanitizerCoverage.h"
+#include "llvm/include/llvm/Transforms/Utils/Instrumentation.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -165,6 +167,17 @@ llvm::Error LlvmCompiler::PerformStandardOptimization(
         });
   } else {
     VLOG(2) << "No sanitizer";
+  }
+  if (include_llvm_coverage_) {
+    VLOG(2) << "Building with LLVM Coverage Instrumentation";
+    pass_builder.registerPipelineStartEPCallback(
+        [](llvm::ModulePassManager& mpm, llvm::OptimizationLevel) {
+          llvm::SanitizerCoverageOptions cov_opts;
+          cov_opts.CoverageType = llvm::SanitizerCoverageOptions::SCK_Edge;
+          cov_opts.Inline8bitCounters = true;
+          cov_opts.TraceCmp = true;
+          mpm.addPass(llvm::SanitizerCoveragePass(cov_opts));
+        });
   }
   pass_builder.registerModuleAnalyses(mam);
   pass_builder.registerCGSCCAnalyses(cgam);

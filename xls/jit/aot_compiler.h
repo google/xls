@@ -72,7 +72,8 @@ class AotCompiler final : public LlvmCompiler {
   // support runtime observer callbacks in aot'd code.
   explicit AotCompiler(const JitEvaluatorOptions& jit_options)
       : LlvmCompiler(jit_options.opt_level(), jit_options.include_msan(),
-                     /*include_observer_callbacks=*/false),
+                     /*include_observer_callbacks=*/false,
+                     jit_options.enable_llvm_coverage()),
         jit_options_(jit_options) {}
 
   std::unique_ptr<llvm::LLVMContext> context_ =

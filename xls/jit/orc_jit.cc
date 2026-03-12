@@ -109,7 +109,8 @@ class UnsupportedExecutorProcessControl
 
 OrcJit::OrcJit(int64_t opt_level, bool include_msan,
                bool include_observer_callbacks)
-    : LlvmCompiler(opt_level, include_msan, include_observer_callbacks),
+    : LlvmCompiler(opt_level, include_msan, include_observer_callbacks,
+                   /*include_llvm_coverage=*/false),
       context_(std::make_unique<llvm::LLVMContext>()),
       execution_session_(std::make_unique<UnsupportedExecutorProcessControl>()),
       object_layer_(execution_session_,
