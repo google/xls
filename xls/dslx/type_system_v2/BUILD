@@ -635,6 +635,7 @@ cc_test(
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/type_system:typecheck_test_utils",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
