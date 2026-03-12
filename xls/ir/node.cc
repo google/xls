@@ -170,6 +170,10 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kTrace:
       XLS_RETURN_IF_ERROR(visitor->HandleTrace(absl::down_cast<Trace*>(this)));
       break;
+    case Op::kPeek:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandlePeek(absl::down_cast<Peek*>(this)));
+      break;
     case Op::kReceive:
       XLS_RETURN_IF_ERROR(
           visitor->HandleReceive(absl::down_cast<Receive*>(this)));

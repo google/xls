@@ -2753,6 +2753,18 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   if (called_name == "map") {
     return HandleMap(node).status();
   }
+  if (called_name == "peek") {
+    return HandleBuiltinPeek(node);
+  }
+  if (called_name == "peek_if") {
+    return HandleBuiltinPeekIf(node);
+  }
+  if (called_name == "peek_if_non_blocking") {
+    return HandleBuiltinPeekIfNonBlocking(node);
+  }
+  if (called_name == "peek_non_blocking") {
+    return HandleBuiltinPeekNonBlocking(node);
+  }
   if (called_name == "read") {
     return HandleBuiltinRead(node);
   }
@@ -3056,6 +3068,54 @@ absl::Status FunctionConverter::HandleBuiltinSendIf(const Invocation* node) {
   node_to_ir_[node] = result;
   tokens_.push_back(result);
   return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinPeek(const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("peek", node));
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef channel_ref,
+                       IrValueToReceiveChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  BValue value;
+  if (implicit_token_data_.has_value()) {
+    XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    value = builder_ptr->PeekIf(
+        channel_ref, token_value,
+        implicit_token_data_->create_control_predicate());
+  } else {
+    value = builder_ptr->Peek(channel_ref, token_value);
+  }
+  BValue new_token_value = builder_ptr->TupleIndex(value, 0);
+  tokens_.push_back(new_token_value);
+  node_to_ir_[node] = value;
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinPeekIf(const Invocation* node) {
+  return absl::UnimplementedError(
+      absl::StrFormat("IrConversionError: Unhandled peek variant."));
+}
+
+absl::Status FunctionConverter::HandleBuiltinPeekIfNonBlocking(
+    const Invocation* node) {
+  return absl::UnimplementedError(
+      absl::StrFormat("IrConversionError: Unhandled peek variant."));
+}
+
+absl::Status FunctionConverter::HandleBuiltinPeekNonBlocking(
+    const Invocation* node) {
+  return absl::UnimplementedError(
+      absl::StrFormat("IrConversionError: Unhandled peek variant."));
 }
 
 absl::Status FunctionConverter::HandleRange(const Range* node) {

@@ -497,6 +497,10 @@ class FunctionConverter {
   absl::Status HandleBuiltinOneHot(const Invocation* node);
   absl::Status HandleBuiltinOneHotSel(const Invocation* node);
   absl::Status HandleBuiltinOrReduce(const Invocation* node);
+  absl::Status HandleBuiltinPeek(const Invocation* node);
+  absl::Status HandleBuiltinPeekIf(const Invocation* node);
+  absl::Status HandleBuiltinPeekIfNonBlocking(const Invocation* node);
+  absl::Status HandleBuiltinPeekNonBlocking(const Invocation* node);
   absl::Status HandleBuiltinPrioritySel(const Invocation* node);
   absl::Status HandleBuiltinRead(const Invocation* node);
   absl::Status HandleBuiltinRecv(const Invocation* node);

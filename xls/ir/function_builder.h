@@ -653,6 +653,26 @@ class BuilderBase {
   BValue Gate(BValue condition, BValue data,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
+  // TODO: add description
+  BValue Peek(ReceiveChannelRef channel, BValue token,
+              const SourceInfo& loc = SourceInfo(),
+              std::string_view name = "");
+
+  // TODO: add description
+  BValue PeekIf(ReceiveChannelRef channel, BValue token, BValue pred,
+                const SourceInfo& loc = SourceInfo(),
+                std::string_view name = "");
+
+  // TODO: add description
+  BValue PeekIfNonBlocking(ReceiveChannelRef channel, BValue token,
+                           BValue pred, const SourceInfo& loc = SourceInfo(),
+                           std::string_view name = "");
+
+  // TODO: add description
+  BValue PeekNonBlocking(ReceiveChannelRef channel, BValue token,
+                         const SourceInfo& loc = SourceInfo(),
+                         std::string_view name = "");
+
   // Add a receive operation. The type of the data value received is
   // determined by the channel.
   BValue Receive(ReceiveChannelRef channel, BValue token,

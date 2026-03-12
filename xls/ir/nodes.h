@@ -1164,6 +1164,29 @@ class ChannelNode : public Node {
   bool has_predicate_;
 };
 
+class Peek final : public ChannelNode {
+ public:
+  static constexpr std::array<Op, 1> kOps = {Op::kPeek};
+  static constexpr int64_t kTokenOperand = 0;
+
+  Peek(const SourceInfo& loc, Node* token, std::optional<Node*> predicate,
+       std::string_view channel_name, bool is_blocking, Type* payload_type,
+       std::string_view name, FunctionBase* function);
+
+  absl::StatusOr<Node*> CloneInNewFunction(
+      absl::Span<Node* const> new_operands,
+      FunctionBase* new_function) const final;
+
+  bool is_blocking() const { return is_blocking_; }
+
+  bool IsDefinitelyEqualTo(const Node* other) const final;
+
+  absl::StatusOr<ReceiveChannelRef> GetReceiveChannelRef() const;
+
+ private:
+  bool is_blocking_;
+};
+
 class Receive final : public ChannelNode {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kReceive};

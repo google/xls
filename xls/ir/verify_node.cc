@@ -130,6 +130,62 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandlePeek(Peek* peek) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCountRange(peek, 1, 2));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(peek, /*operand_no=*/0));
+    if (peek->predicate().has_value()) {
+      XLS_RETURN_IF_ERROR(
+          ExpectOperandHasBitsType(peek, 1, /*expected_bit_count=*/1));
+    }
+    if (!peek->function_base()->HasEffectiveProc()) {
+      return absl::InternalError(absl::StrFormat(
+          "Peek node %s is not in a proc", peek->GetName()));
+    }
+    Proc* proc = peek->function_base()->GetEffectiveProcOrDie();
+    Type* channel_type;
+    if (proc->is_new_style_proc()) {
+      if (!proc->HasChannelInterface(peek->channel_name(),
+                                     ChannelDirection::kReceive)) {
+        return absl::InternalError(
+            absl::StrFormat("No receivable channel named `%s`, node %s",
+                            peek->channel_name(), peek->GetName()));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          ChannelInterface * channel_ref,
+          proc->GetChannelInterface(peek->channel_name(),
+                                    ChannelDirection::kReceive));
+      channel_type = channel_ref->type();
+    } else {
+      if (!peek->package()->HasChannelWithName(peek->channel_name())) {
+        return absl::InternalError(
+            absl::StrFormat("%s refers to channel `%s` which does not exist",
+                            peek->GetName(), peek->channel_name()));
+      }
+      XLS_ASSIGN_OR_RETURN(Channel * channel, peek->package()->GetChannel(
+                                                  peek->channel_name()));
+
+      channel_type = channel->type();
+      if (!channel->CanReceive()) {
+        return absl::InternalError(absl::StrFormat(
+            "Cannot peek over channel `%s`, peek operation: %s",
+            peek->channel_name(), peek->GetName()));
+      }
+    }
+    Type* expected_type =
+        peek->is_blocking()
+            ? peek->package()->GetTupleType(
+                  {peek->package()->GetTokenType(), channel_type})
+            : peek->package()->GetTupleType(
+                  {peek->package()->GetTokenType(), channel_type,
+                   peek->package()->GetBitsType(1)});
+    if (peek->GetType() != expected_type) {
+      return absl::InternalError(absl::StrFormat(
+          "Expected %s to have type %s, has type %s", peek->GetName(),
+          expected_type->ToString(), peek->GetType()->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleReceive(Receive* receive) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCountRange(receive, 1, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(receive, /*operand_no=*/0));

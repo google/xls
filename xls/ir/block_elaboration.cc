@@ -742,6 +742,9 @@ absl::Status ElaboratedNode::VisitSingleNode(
     case Op::kReceive:
       return visitor.HandleReceive(absl::down_cast<Receive*>(node), instance);
 
+    case Op::kPeek:
+      return visitor.HandlePeek(absl::down_cast<Peek*>(node), instance);
+
     case Op::kSend:
       return visitor.HandleSend(absl::down_cast<Send*>(node), instance);
 
