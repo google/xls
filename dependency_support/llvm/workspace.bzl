@@ -31,6 +31,7 @@ def repo():
         patches = [
             Label("@//dependency_support/llvm:llvm.patch"),
             Label("@//dependency_support/llvm:zlib-header.patch"),
+            Label("@//dependency_support/llvm:run_lit.patch"),
         ],
         patch_args = ["-p1"],
         strip_prefix = "llvm-project-" + LLVM_COMMIT,
