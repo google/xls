@@ -14,9 +14,11 @@
 
 #![feature(type_inference_v2)]
 
+type PacketData = uN[1024];
+
 struct Packet {
     id: u8,
-    data: uN[1024]
+    data: PacketData
 }
 
 struct PeekPacketFillerState {
@@ -43,7 +45,7 @@ proc PeekPacketFiller {
         let (packet, next_state) = if state.current_id < packet.id {
             // we need to generate an artificial packet
             (
-                Packet { id: state.current_id, ..zero!<Packet>() },
+                Packet { id: state.current_id, data: state.current_id as PacketData },
                 State { current_id: state.current_id + u8:1}
             )
         } else {
@@ -77,15 +79,33 @@ proc Test {
     init {  }
 
     next(_: ()) {
-        const PACKET_ID = u32:5;
-        const PACKET_DATA = uN[1024]:1234;
-        let tok = send(join(), req_s, Packet{id: PACKET_ID as u8, data: PACKET_DATA});
-        const for (_, _): (u32, ()) in u32:0..PACKET_ID {
+        // First packet
+        const FIRST_PACKET_ID = u32:2;
+        const FIRST_PACKET_DATA = PacketData:4;
+        let tok = send(join(), req_s, Packet{
+            id: FIRST_PACKET_ID as u8,
+            data: FIRST_PACKET_DATA
+        });
+        const for (_, _): (u32, ()) in u32:0..FIRST_PACKET_ID {
             let (tok, packet) = recv(tok, resp_r);
-            trace_fmt!("Packet: {}", packet);
+            trace_fmt!("Artifical packet: {}", packet);
         }(());
         let (tok, packet) = recv(tok, resp_r);
-        trace_fmt!("Last packet: {}", packet);
+        trace_fmt!("Peek packet: {}", packet);
+
+        // Second packet
+        const SECOND_PACKET_ID = u32:4;
+        const SECOND_PACKET_DATA = PacketData:16;
+        let tok = send(join(), req_s, Packet{
+            id: SECOND_PACKET_ID as u8,
+            data: SECOND_PACKET_DATA
+        });
+        let (tok, packet) = recv(tok, resp_r);
+        trace_fmt!("Artifical packet: {}", packet);
+
+        let (tok, packet) = recv(tok, resp_r);
+        trace_fmt!("Peek packet: {}", packet);
+
         send(tok, terminator, true);
     }
 }
