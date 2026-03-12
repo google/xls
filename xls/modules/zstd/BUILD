@@ -2737,7 +2737,7 @@ synthesize_rtl(
 benchmark_synth(
     name = "literals_decoder_benchmark_synth",
     synth_target = ":literals_decoder_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
 )
 
 place_and_route(
@@ -3399,7 +3399,7 @@ synthesize_rtl(
 benchmark_synth(
     name = "huffman_literals_dec_benchmark_synth",
     synth_target = ":huffman_literals_dec_synth_asap7",
-    tags = ["manual"],
+    tags = ["manual", "long"],
 )
 
 place_and_route(
