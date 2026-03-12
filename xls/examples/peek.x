@@ -48,6 +48,7 @@ proc PeekPacketFiller {
             )
         } else {
             // we can use a packet from the input
+            let (tok, packet) = recv(tok, req_r);
             (
                 packet,
                 State { current_id: packet.id + u8:1 }
@@ -76,13 +77,15 @@ proc Test {
     init {  }
 
     next(_: ()) {
-        const PACKET_ID = 5;
-        let tok = send(join(), req_s, Packet{id: PACKET_ID, zero!<Packet>()});
+        const PACKET_ID = u32:5;
+        const PACKET_DATA = uN[1024]:1234;
+        let tok = send(join(), req_s, Packet{id: PACKET_ID as u8, data: PACKET_DATA});
         const for (_, _): (u32, ()) in u32:0..PACKET_ID {
             let (tok, packet) = recv(tok, resp_r);
-            trace_fmt!("Packet: {:#x}", packet);
+            trace_fmt!("Packet: {}", packet);
         }(());
         let (tok, packet) = recv(tok, resp_r);
-        trace_fmt!("Last packet: {:#x}", packet);
+        trace_fmt!("Last packet: {}", packet);
+        send(tok, terminator, true);
     }
 }

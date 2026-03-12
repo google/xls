@@ -69,6 +69,10 @@ namespace xls::dslx {
   X("token", kToken)                           \
   /* send/recv routines */                     \
   /* keep-sorted start */                   \
+  X("peek", kPeek)                             \
+  X("peek_if", kPeekIf)                        \
+  X("peek_if_nonblocking", kPeekIfNonBlocking) \
+  X("peek_nonblocking", kPeekNonBlocking)      \
   X("recv", kRecv)                             \
   X("recv_if", kRecvIf)                        \
   X("recv_if_nonblocking", kRecvIfNonBlocking) \

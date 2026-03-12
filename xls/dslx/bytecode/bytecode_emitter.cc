@@ -538,6 +538,41 @@ absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleBuiltinPeek(const Invocation* node) {
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+
+  XLS_RETURN_IF_ERROR(token->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(channel->AcceptExpr(this));
+  // All receives need a predicate. Set to true for unconditional receive.
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
+  XLS_ASSIGN_OR_RETURN(
+      Bytecode::ChannelData channel_data,
+      CreateChannelData(channel, type_info_, options_.format_preference));
+  // Default value which is unused because the predicate is always
+  // true. Required because the `peek` bytecode has a predicate and
+  // a default value operand.
+  XLS_ASSIGN_OR_RETURN(InterpValue default_value,
+                       CreateZeroValueFromType(channel_data.payload_type()));
+  Add(Bytecode::MakeLiteral(node->span(), default_value));
+  Add(Bytecode::MakePeek(node->span(), std::move(channel_data)));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeEmitter::HandleBuiltinPeekIf(const Invocation* node) {
+  return absl::UnimplementedError("peek_if not handled yet");
+}
+
+absl::Status BytecodeEmitter::HandleBuiltinPeekIfNonBlocking(
+    const Invocation* node) {
+  return absl::UnimplementedError("peek_if_non_blocking not handled yet");
+}
+
+absl::Status BytecodeEmitter::HandleBuiltinPeekNonBlocking(
+    const Invocation* node) {
+  return absl::UnimplementedError("peek_non_blocking not handled yet");
+}
+
 absl::Status BytecodeEmitter::HandleBuiltinRecv(const Invocation* node) {
   Expr* token = node->args()[0];
   Expr* channel = node->args()[1];
@@ -1141,6 +1176,18 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
     }
     if (name_ref->identifier() == "join") {
       return HandleBuiltinJoin(node);
+    }
+    if (name_ref->identifier() == "peek") {
+      return HandleBuiltinPeek(node);
+    }
+    if (name_ref->identifier() == "peek_if") {
+      return HandleBuiltinPeekIf(node);
+    }
+    if (name_ref->identifier() == "peek_if_non_blocking") {
+      return HandleBuiltinPeekIfNonBlocking(node);
+    }
+    if (name_ref->identifier() == "peek_non_blocking") {
+      return HandleBuiltinPeekNonBlocking(node);
     }
     if (name_ref->identifier() == "recv") {
       return HandleBuiltinRecv(node);

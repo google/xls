@@ -1487,8 +1487,7 @@ xls_dslx_library(
 )
 
 xls_dslx_test(
-    name = "peek_test",
+    name = "peek_dslx_test",
     size = "small",
     srcs = ["peek.x"],
-    dslx_test_args = {"compare": "jit"},
 )

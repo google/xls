@@ -136,6 +136,11 @@ class Bytecode {
     kPop,
     // Creates an array of values [TOS1, TOS0).
     kRange,
+    // TODO: add description.
+    kPeek,
+    // TODO: add description.
+    kPeekNonBlocking,
+    // Inserts the value at TOS0 into the channel at TOS1.
     // Pulls TOS0 (a condition) and TOS1 (a channel).
     // If TOS0 is true, then
     //   pulls a value off of the channel or "blocks"
@@ -390,6 +395,8 @@ class Bytecode {
   static Bytecode MakeLoad(Span span, SlotIndex slot_index);
   static Bytecode MakeLogicalOr(Span span);
   static Bytecode MakeMatchArm(Span span, MatchArmItem item);
+  static Bytecode MakePeek(Span span, ChannelData channel_data);
+  static Bytecode MakePeekNonBlocking(Span span, ChannelData channel_data);
   static Bytecode MakePop(Span span);
   static Bytecode MakeRecv(Span span, ChannelData channel_data);
   static Bytecode MakeRecvNonBlocking(Span span, ChannelData channel_data);
