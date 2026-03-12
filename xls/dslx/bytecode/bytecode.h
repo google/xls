@@ -330,14 +330,17 @@ class Bytecode {
     TraceData& operator=(TraceData&& other) = default;
 
     TraceData(std::vector<FormatStep> steps,
-              std::vector<ValueFormatDescriptor> value_fmt_descs)
+              std::vector<ValueFormatDescriptor> value_fmt_descs,
+              std::optional<int64_t> verbosity = std::nullopt)
         : steps_(std::move(steps)),
-          value_fmt_descs_(std::move(value_fmt_descs)) {}
+          value_fmt_descs_(std::move(value_fmt_descs)),
+          verbosity_(verbosity) {}
 
     absl::Span<const FormatStep> steps() const { return steps_; }
     absl::Span<const ValueFormatDescriptor> value_fmt_descs() const {
       return value_fmt_descs_;
     }
+    const std::optional<int64_t> verbosity() const { return verbosity_; }
 
    private:
     std::vector<FormatStep> steps_;
@@ -345,6 +348,8 @@ class Bytecode {
     // For default formatting of struct operands we hold metadata that allows us
     // to format them in more detail (struct name, fields, etc).
     std::vector<ValueFormatDescriptor> value_fmt_descs_;
+    // Verbosity of the `vtrace` messages
+    std::optional<int64_t> verbosity_;
   };
 
   // Information necessary for channel operations.
