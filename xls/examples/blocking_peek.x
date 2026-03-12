@@ -65,6 +65,7 @@ struct Packet {
 //             )
 //         } else {
 //             // we can use a packet from the input
+//             let (tok, packet) = recv(tok, req_r);
 //             (
 //                 packet,
 //                 State { current_id: packet.id + u8:1 }
