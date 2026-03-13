@@ -1389,3 +1389,8 @@ dslx_lang_test(
     dslx_entry = "main",
     lower_to_proc_scoped_channels = True,
 )
+
+dslx_lang_test(
+    name = "const_match",
+    dslx_entry = "main",
+)

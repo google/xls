@@ -724,6 +724,20 @@ TEST_F(FunctionFmtTest, SimpleMatchOnBool) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, SimpleConstMatchOnBool) {
+  const std::string_view original =
+      "fn f(b:bool)->u32{const match b{true=>u32:42,_=>u32:64}}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(b: bool) -> u32 {
+    const match b {
+        true => u32:42,
+        _ => u32:64,
+    }
+})";
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, SimpleLetEqualsMatchOnBool) {
   const std::string_view original =
       "fn f(b:bool)->u32{let x=match b{true=>u32:42,_=>u32:64};x}";
