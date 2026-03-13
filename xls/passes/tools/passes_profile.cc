@@ -101,9 +101,6 @@ class ProfileEntry {
       }
     };
     add_label("changed", changed_ ? "true" : "false");
-    auto* changed_label = samp->add_label();
-    changed_label->set_key(str_id("changed"));
-    changed_label->set_str(str_id(changed_ ? "true" : "false"));
     // count sample
     samp->add_value(1);
     // calculate time sample.
