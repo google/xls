@@ -44,6 +44,10 @@ class SemanticsAnalysis {
 
   void SetNameDefType(const NameDef* def, const Type* type);
 
+  absl::Status CheckChannelArrayIndex(const Index* array_index,
+                                      const TypeInfo* type_info,
+                                      const FileTable& file_table);
+
  private:
   // Used by kUnusedDefinition. We cannot completely determine whether a
   // definition is truly unused at RunPreTypeCheckPass, because (1) tokens are

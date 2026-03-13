@@ -312,6 +312,7 @@ class Type {
   // Type equality, but ignores tuple member naming discrepancies.
   bool CompatibleWith(const Type& other) const;
 
+  bool IsChannel() const;
   bool IsUnit() const;
   bool IsToken() const;
   bool IsStruct() const;

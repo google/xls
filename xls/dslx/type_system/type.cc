@@ -246,6 +246,10 @@ bool Type::CompatibleWith(const Type& other) const {
   return false;
 }
 
+bool Type::IsChannel() const {
+  return dynamic_cast<const ChannelType*>(this) != nullptr;
+}
+
 bool Type::IsUnit() const {
   if (auto* t = dynamic_cast<const TupleType*>(this)) {
     return t->empty();
