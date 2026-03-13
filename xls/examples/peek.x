@@ -96,7 +96,7 @@ proc Test {
         // Second packet
         const SECOND_PACKET_ID = u32:4;
         const SECOND_PACKET_DATA = PacketData:16;
-        let tok = send(join(), req_s, Packet{
+        let tok = send(tok, req_s, Packet{
             id: SECOND_PACKET_ID as u8,
             data: SECOND_PACKET_DATA
         });

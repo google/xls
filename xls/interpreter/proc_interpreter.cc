@@ -156,7 +156,7 @@ class ProcIrInterpreter : public IrInterpreter {
       }
     }
 
-    std::optional<Value> value = queue->Read();
+    std::optional<Value> value = queue->Peek();
     if (!value.has_value()) {
       if (peek->is_blocking()) {
         // Record the channel this peek instruction is blocked on and exit.

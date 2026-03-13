@@ -1120,6 +1120,68 @@ absl::StatusOr<BValue> Parser::ParseNode(
                                        *loc, node_name);
       break;
     }
+    case Op::kPeek: {
+      XLS_ASSIGN_OR_RETURN(Proc * proc,
+                           GetEffectiveProcOrError(
+                               fb, "peek operations only supported in procs",
+                               op_token.pos()));
+      std::optional<BValue>* predicate =
+          arg_parser.AddOptionalKeywordArg<BValue>("predicate");
+      IdentifierString* channel_name =
+          arg_parser.AddKeywordArg<IdentifierString>("channel");
+      bool* is_blocking = arg_parser.AddOptionalKeywordArg<bool>(
+          "blocking", /*default_value=*/true);
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
+      // Get the channel from the package.
+      if (!HasReceiveChannelRef(proc, channel_name->value)) {
+        if (!HasSendChannelRef(proc, channel_name->value)) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("No such channel `%s`", channel_name->value));
+        }
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Cannot receive on channel `%s`", channel_name->value));
+      }
+      ReceiveChannelRef channel_ref;
+      Type* channel_type;
+      if (proc->is_new_style_proc()) {
+        XLS_ASSIGN_OR_RETURN(
+            channel_ref, proc->GetReceiveChannelInterface(channel_name->value));
+        channel_type = std::get<ReceiveChannelInterface*>(channel_ref)->type();
+      } else {
+        XLS_ASSIGN_OR_RETURN(channel_ref,
+                             package->GetChannel(channel_name->value));
+        channel_type = std::get<Channel*>(channel_ref)->type();
+      }
+
+      Type* expected_type =
+          (*is_blocking)
+              ? package->GetTupleType({package->GetTokenType(), channel_type})
+              : package->GetTupleType({package->GetTokenType(), channel_type,
+                                       package->GetBitsType(1)});
+
+      if (expected_type != type) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("peek op type is type: %s. Expected: %s",
+                            type->ToString(), expected_type->ToString()));
+      }
+      if (predicate->has_value()) {
+        if (*is_blocking) {
+          bvalue = fb->PeekIf(channel_ref, operands[0], predicate->value(),
+                                 *loc, node_name);
+        } else {
+          bvalue = fb->PeekIfNonBlocking(
+              channel_ref, operands[0], predicate->value(), *loc, node_name);
+        }
+      } else {
+        if (*is_blocking) {
+          bvalue = fb->Peek(channel_ref, operands[0], *loc, node_name);
+        } else {
+          bvalue =
+              fb->PeekNonBlocking(channel_ref, operands[0], *loc, node_name);
+        }
+      }
+      break;
+    }
     case Op::kReceive: {
       XLS_ASSIGN_OR_RETURN(Proc * proc,
                            GetEffectiveProcOrError(

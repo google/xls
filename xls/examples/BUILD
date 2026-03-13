@@ -1527,6 +1527,7 @@ xls_dslx_test(
     name = "peek_dslx_test",
     size = "small",
     srcs = ["peek.x"],
+    evaluator = "ir-interpreter",
 )
 
 xls_dslx_ir(
