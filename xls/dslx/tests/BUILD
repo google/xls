@@ -446,7 +446,10 @@ dslx_lang_test(name = "struct_as_parametric")
 
 dslx_lang_test(name = "impl")
 
-dslx_lang_test(name = "lambda")
+dslx_lang_test(
+    name = "lambda",
+    dslx_deps = [":mod_u16_type_alias_dslx"],
+)
 
 dslx_lang_test(
     name = "parametric_impl",

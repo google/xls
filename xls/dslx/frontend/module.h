@@ -192,10 +192,10 @@ class Module : public AstNode {
       const AstNode* target_member, ModuleMember member,
       const MakeCollisionError& make_collision_error = nullptr);
 
-  // Inserts a top-level member as the first member of the module. Behaves like
+  // Inserts a top-level member immediately before `target_member`. Behaves like
   // `AddTop` with respect to collision checks.
-  absl::Status InsertTop(
-      ModuleMember member,
+  absl::Status InsertTopBefore(
+      const AstNode* target_member, ModuleMember member,
       const MakeCollisionError& make_collision_error = nullptr);
 
   // Gets the element in this module with the given target_name, or returns a
@@ -422,6 +422,9 @@ class Module : public AstNode {
   }
 
   std::vector<std::string> GetMemberNames(const ModuleMember& member) const;
+
+  absl::Status CheckForCollision(
+      ModuleMember member, const MakeCollisionError& make_collision_error);
 
   std::string name_;  // Name of this module.
 
