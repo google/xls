@@ -243,6 +243,22 @@ class ScopedPassInvocation {
     changed_ = changed;
     invocation_.set_ir_changed(changed);
   }
+  class ChangedRef {
+   public:
+    ChangedRef(ScopedPassInvocation& invocation, bool& changed)
+        : invocation_(invocation), changed_(changed) {}
+    operator bool() const { return changed_; }
+    ChangedRef& operator=(bool other) {
+      changed_ = other;
+      invocation_.set_ir_changed(other);
+      return *this;
+    }
+
+   private:
+    ScopedPassInvocation& invocation_;
+    bool& changed_;
+  };
+  ChangedRef changed() { return ChangedRef(*this, changed_); }
 
  private:
   PassResults* results_;
@@ -350,10 +366,11 @@ class PassBase {
     std::string ir_before = ir->DumpIr();
 #endif
     XLS_ASSIGN_OR_RETURN(
-        bool changed, RunInternal(ir, options, results, context...),
+        invocation.changed(), RunInternal(ir, options, results, context...),
         _ << "Running pass #" << invocation->pass_number() << ": "
           << long_name() << " [short: " << short_name() << "]");
-    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+    VLOG(3) << absl::StreamFormat("After [changed = %d]:",
+                                  invocation.changed());
     XLS_VLOG_LINES(3, ir->DumpIr());
     if (!options.ir_dump_path.empty()) {
       XLS_RETURN_IF_ERROR(
@@ -364,11 +381,11 @@ class PassBase {
           DumpIr(options.ir_dump_path, ir, invocation->parent().pass_name(),
                  absl::StrCat("after_", short_name()),
                  /*ordinal=*/results->finished_invocations(),
-                 /*changed=*/changed));
+                 /*changed=*/invocation.changed()));
     }
     // Perform a fast check nothing seems to have changed if we aren't told it
     // has.
-    XLS_RET_CHECK(changed || ir_count_before == ir->GetNodeCount())
+    XLS_RET_CHECK(invocation.changed() || ir_count_before == ir->GetNodeCount())
         << absl::StreamFormat(
                "Pass %s indicated IR unchanged, but IR is "
                "changed: [Before] %d nodes != [after] %d nodes",
@@ -378,7 +395,7 @@ class PassBase {
     // after the non-compound passes. Running after compound passes is
     // necessarily redundant because the invariant checker would have been run
     // within the compound pass.
-    if (changed && !IsCompound()) {
+    if (invocation.changed() && !IsCompound()) {
       Stopwatch invariant_checker_stopwatch;
       for (const auto& checker : invariant_checker_ptrs_) {
         XLS_RETURN_IF_ERROR(checker->Run(ir, options, results, context...))
@@ -389,7 +406,6 @@ class PassBase {
           "Ran invariant checkers [elapsed %s]",
           FormatDuration(invariant_checker_stopwatch.GetElapsedTime()));
     }
-    invocation->set_ir_changed(changed);
 #ifdef DEBUG
     std::string ir_after = ir->DumpIr();
     if (changed) {
@@ -407,7 +423,7 @@ class PassBase {
       }
     }
 #endif
-    return changed;
+    return invocation.changed();
   }
 
   // Returns true if this is a compound pass.
