@@ -741,6 +741,20 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args.push_back(absl::StrFormat("channel=%s", send->channel_name()));
       break;
     }
+    case Op::kPeek: {
+      const Peek* peek = As<Peek>();
+      if (peek->predicate().has_value()) {
+        args = {operand(0)->GetName()};
+        args.push_back(absl::StrFormat(
+            "predicate=%s", peek->predicate().value()->GetName()));
+      }
+      args.push_back(absl::StrFormat("channel=%s", peek->channel_name()));
+      if (peek->is_blocking() == false) {
+        // Default blocking=true so we only need to push is !is_blocking().
+        args.push_back("blocking=false");
+      }
+      break;
+    }
     case Op::kReceive: {
       const Receive* receive = As<Receive>();
       if (receive->predicate().has_value()) {
