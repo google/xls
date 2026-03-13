@@ -125,6 +125,9 @@ class LeafTypeTreeView {
                                              absl::Span<Type* const> leaf_types,
                                              absl::Span<const int64_t> index) {
     CHECK_EQ(elements.size(), leaf_types.size());
+    if (index.empty()) {
+      return LeafTypeTreeView<T>(t, elements, leaf_types);
+    }
     auto [subtype, linear_offset] =
         leaf_type_tree_internal::GetSubtypeAndOffset(t, index);
     return LeafTypeTreeView<T>(
@@ -208,6 +211,9 @@ class MutableLeafTypeTreeView {
   static MutableLeafTypeTreeView<T> CreateFromSpans(
       Type* t, absl::Span<T> elements, absl::Span<Type* const> leaf_types,
       absl::Span<const int64_t> index) {
+    if (index.empty()) {
+      return MutableLeafTypeTreeView<T>(t, elements, leaf_types);
+    }
     auto [subtype, linear_offset] =
         leaf_type_tree_internal::GetSubtypeAndOffset(t, index);
     return MutableLeafTypeTreeView<T>(
@@ -678,6 +684,10 @@ class SharedLeafTypeTree {
  private:
   std::variant<LeafTypeTreeView<T>, LeafTypeTree<T>> inner_;
 
+  explicit SharedLeafTypeTree(LeafTypeTreeView<T>&& inner)
+      : inner_(std::move(inner)) {}
+  explicit SharedLeafTypeTree(LeafTypeTree<T>&& inner)
+      : inner_(std::move(inner)) {}
   explicit SharedLeafTypeTree(
       std::variant<LeafTypeTreeView<T>, LeafTypeTree<T>>&& inner)
       : inner_(std::move(inner)) {}
@@ -923,13 +933,12 @@ absl::StatusOr<LeafTypeTree<T>> MapIndex(
 template <typename T, typename R>
 LeafTypeTree<T> Map(LeafTypeTreeView<R> ltt,
                     std::function<T(const R& element)> function) {
-  return MapIndex<T, R>(
-             {ltt},
-             [&](Type* element_type, const R& element,
-                 absl::Span<const int64_t> index) -> absl::StatusOr<T> {
-               return function(element);
-             })
-      .value();
+  typename LeafTypeTree<T>::DataContainerT result;
+  result.reserve(ltt.size());
+  for (const R& element : ltt.elements()) {
+    result.push_back(function(element));
+  }
+  return LeafTypeTree<T>::CreateFromVector(ltt.type(), std::move(result));
 }
 
 // Use the given function to update each leaf element in this `LeafTypeTree`
