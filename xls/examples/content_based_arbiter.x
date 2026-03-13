@@ -88,7 +88,7 @@ pub proc PeekContentBasedArbiter<N: u32> {
                 tok
             }(peek_in_tok);
             let sent_out_tok = send_if(recv_in_tok, output_s, has_value, packet);
-        } else {};
+        };
         State { enabled }
     }
 }
