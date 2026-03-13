@@ -35,6 +35,7 @@ load(
     "xls_ir_verilog",
 )
 load("//xls/build_rules:xls_cc_embed_data_rules.bzl", "xls_cc_embed_data")
+load("//xls/build_rules:xls_fuzz_rules.bzl", "dslx_fuzz_test")
 load("//xls/build_rules:xls_internal_aot_rules.bzl", "xls_aot_generate")
 load(
     "//xls/build_rules:xls_rules_build_defs.bzl",
@@ -940,4 +941,22 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "@googletest//:gtest",
     ],
+)
+
+xls_dslx_library(
+    name = "fuzz_test_example_dslx",
+    srcs = ["fuzz_test_example.x"],
+)
+
+dslx_fuzz_test(
+    name = "fuzz_test_example_fuzz_test",
+    library = ":fuzz_test_example_dslx",
+    test_function = "my_fuzz_property",
+)
+
+dslx_fuzz_test(
+    name = "fuzz_test_example_opt_fuzz_test",
+    library = ":fuzz_test_example_dslx",
+    opt_ir = True,
+    test_function = "my_fuzz_property",
 )
