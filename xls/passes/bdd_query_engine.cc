@@ -984,7 +984,7 @@ bool BddQueryEngine::AtLeastOneTrue(
 
 bool BddQueryEngine::Implies(const BddNodeIndex& a,
                              const BddNodeIndex& b) const {
-  return bdd().Implies(a, b) == bdd().one();
+  return bdd().DoesImply(a, b);
 }
 
 bool BddQueryEngine::Implies(const TreeBitLocation& a,

@@ -15,12 +15,12 @@
 #ifndef XLS_DATA_STRUCTURES_BINARY_DECISION_DIAGRAM_H_
 #define XLS_DATA_STRUCTURES_BINARY_DECISION_DIAGRAM_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
 #include <string>
 #include <tuple>
-#include <utility>
 #include <variant>
 #include <vector>
 
@@ -30,6 +30,7 @@
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/strong_int.h"
+#include "xls/data_structures/inline_bitmap.h"
 
 namespace xls {
 
@@ -100,6 +101,12 @@ class BinaryDecisionDiagram {
   // Returns the expression a -> b (i.e., (!a || b))
   BddNodeIndex Implies(BddNodeIndex a, BddNodeIndex b);
 
+  // Returns whether a implies b.
+  // Equivalent to checking if `Implies(a, b) == one()`. However, this will not
+  // create any new BDD nodes & has more early-return conditions, so it's
+  // usually faster & more efficient.
+  bool DoesImply(BddNodeIndex a, BddNodeIndex b);
+
   // Returns the leaf node corresponding to zero or one.
   BddNodeIndex zero() const { return BddNodeIndex(0); }
   BddNodeIndex one() const { return BddNodeIndex(1); }
@@ -116,9 +123,8 @@ class BinaryDecisionDiagram {
   const BddNode& GetNode(BddNodeIndex node_index) const {
     CHECK_GT(nodes_.size(), node_index.value()) << "bad index";
     const auto& e = nodes_.at(node_index.value());
-    CHECK(!std::holds_alternative<FreeListNode>(e))
-        << "Got a free list index at " << node_index;
-    return std::get<BddNode>(e);
+    CHECK(!IsFreeNode(e)) << "Got a free list index at " << node_index;
+    return e;
   }
 
   // Returns the number of nodes in the graph.
@@ -132,7 +138,7 @@ class BinaryDecisionDiagram {
            variable_base_nodes_.capacity() *
                sizeof(decltype(variable_base_nodes_)::value_type) +
            node_map_.capacity() * sizeof(decltype(node_map_)::value_type) +
-           ite_map_.capacity() * sizeof(decltype(ite_map_)::value_type);
+           ite_cache_.approximate_memory_use();
   }
 
   // Returns the number of variables in the graph.
@@ -164,6 +170,12 @@ class BinaryDecisionDiagram {
   BddNodeIndex IfThenElse(BddNodeIndex cond, BddNodeIndex if_true,
                           BddNodeIndex if_false);
 
+  // Returns whether the given if-then-else expression is known true or false,
+  // without computing any new intermediate BDD nodes.
+  std::optional<bool> IfThenElseConstant(BddNodeIndex cond,
+                                         BddNodeIndex if_true,
+                                         BddNodeIndex if_false);
+
   // Perform a garbage collection and clear all bdd node information that isn't
   // referenced (transitively or directly) by one of the bdd-nodes in the roots
   // list. After calling this BddNodeIndex values might be reused. A node holds
@@ -187,49 +199,38 @@ class BinaryDecisionDiagram {
   int64_t last_gc_node_size() { return prev_nodes_size_; }
 
  private:
-  // Node in the ids free list.
-  class FreeListNode {
-   public:
-    // Actual offset in the list.
-    XLS_DEFINE_STRONG_INT_TYPE(Index, internal::BddIdTy);
-    // A special index value that indicates this is in a list where all
-    // consecutive numbers up to the last element in the free list are free.
-    // After hitting this every subsequent value in the free list must be this
-    // value.
-    static constexpr Index kNextIsConsecutive{-1};
-    // Zero-arg constructor so the address space can be extended with just
-    // resize.
-    constexpr FreeListNode() : next_(kNextIsConsecutive) {}
+  static constexpr BddVariable kFreeNodeVariable = BddVariable(-2);
 
-    explicit FreeListNode(Index next) : next_(next) {
-      CHECK_NE(next, kNextIsConsecutive)
-          << "Next must be non-consecutive value.";
-    }
+  // A special index value, used only for the free list. that indicates this is
+  // in a list where all consecutive numbers up to the last element in the free
+  // list are free. After hitting this every subsequent value in the free list
+  // must be this value.
+  static constexpr BddNodeIndex kNextFreeIsConsecutive = BddNodeIndex(-1);
 
-    constexpr Index next_free(Index current_addr) const {
-      if (next_ == kNextIsConsecutive) {
-        return Index(current_addr.value() + 1);
-      }
-      return next_;
-    }
-
-    constexpr Index raw_next() const { return next_; }
-
-   private:
-    Index next_;
-  };
-  template <typename T>
-  const T& AllocatedElement(const std::variant<FreeListNode, T>& e) const {
-    CHECK(!std::holds_alternative<FreeListNode>(e)) << "Got a free list index.";
-    return std::get<T>(e);
+  static bool IsFreeNode(const BddNode& node) {
+    return node.variable == kFreeNodeVariable;
   }
-  template <typename T>
-  T& AllocatedElement(std::variant<FreeListNode, T>& e) {
-    CHECK(!std::holds_alternative<FreeListNode>(e)) << "Got a free list index.";
-    return std::get<T>(e);
+  static void SetFreeNode(BddNode& node, BddNodeIndex next) {
+    node.variable = BddVariable(kFreeNodeVariable);
+    node.high = BddNodeIndex(next);
+  }
+  static BddNodeIndex GetNextFreeNode(const BddNode& node) {
+    CHECK(IsFreeNode(node));
+    return node.high;
+  }
+  static BddNodeIndex NextFree(BddNodeIndex next, BddNodeIndex current_addr) {
+    if (next == kNextFreeIsConsecutive) {
+      return BddNodeIndex(current_addr.value() + 1);
+    }
+    return next;
   }
 
-  // Helper for constructing a DNF string respresentation.
+  // If-Then-Else helper for trivial cases. Returns std::nullopt if non-trivial.
+  std::optional<BddNodeIndex> IfThenElseTrivial(BddNodeIndex cond,
+                                                BddNodeIndex if_true,
+                                                BddNodeIndex if_false);
+
+  // Helper for constructing a DNF string representation.
   void ToStringDnfHelper(BddNodeIndex expr, int64_t* minterms_to_emit,
                          std::vector<std::string>* terms,
                          std::string* str) const;
@@ -238,10 +239,6 @@ class BinaryDecisionDiagram {
   // children. Creates it if it does not exist.
   BddNodeIndex GetOrCreateNode(BddVariable var, BddNodeIndex high,
                                BddNodeIndex low);
-
-  // Returns the node equal to given expression with the given variable
-  // set to the given value.
-  BddNodeIndex Restrict(BddNodeIndex expr, BddVariable var, bool value);
 
   // Returns the node corresponding to the value of the given variable.
   BddNodeIndex GetVariableBaseNode(BddVariable variable) const {
@@ -255,6 +252,26 @@ class BinaryDecisionDiagram {
 
   // Adds the node to the address space and returns the id.
   BddNodeIndex CreateNode(BddNode node);
+
+  struct IfThenElseExpr {
+    BddNodeIndex cond;
+    BddNodeIndex if_true;
+    BddNodeIndex if_false;
+  };
+
+  struct ITEDecomposition {
+    BddVariable min_var;
+    IfThenElseExpr true_cofactor;
+    IfThenElseExpr false_cofactor;
+  };
+
+  // Performs a Shannon expansion about the minimum variable, where Shannon
+  // expansion is the identity:
+  //
+  //   F(x0, x1, ..) = !x0 && F(0, x1, ...) + x0 && F(1, x1, ...)
+  //
+  ITEDecomposition DecomposeITE(BddNodeIndex cond, BddNodeIndex if_true,
+                                BddNodeIndex if_false);
 
   // NodeIndexes corresponding to the base nodes (var, one, zero) for each
   // variable. std::nullopt if the variable has been garbage collected.
@@ -283,9 +300,9 @@ class BinaryDecisionDiagram {
   // GarbageCollect often enough that they don't grow too large.
   //
   // The vector of all the nodes in the BDD and the free list of ids.
-  std::vector<std::variant<FreeListNode, BddNode>> nodes_;
+  std::vector<BddNode> nodes_;
   // The first free offset in the nodes_ list.
-  FreeListNode::Index free_node_head_;
+  BddNodeIndex free_node_head_;
   internal::BddIdTy nodes_size_;
 
   // A map from BDD node content (variable id, high child, low child) to the
@@ -294,11 +311,44 @@ class BinaryDecisionDiagram {
   using NodeKey = std::tuple<BddVariable, BddNodeIndex, BddNodeIndex>;
   absl::flat_hash_map<NodeKey, BddNodeIndex> node_map_;
 
-  // A map from if-then-else expression to the node corresponding to that
-  // expression. The key elements are (condition, if-true, if-false). This map
+  // A cache from if-then-else expression to the node corresponding to that
+  // expression. The key elements are (condition, if-true, if-false). This
   // enables fast lookup for expressions.
-  using IteKey = std::tuple<BddNodeIndex, BddNodeIndex, BddNodeIndex>;
-  absl::flat_hash_map<IteKey, BddNodeIndex> ite_map_;
+  class DynamicIteCache {
+   public:
+    using IteKey = std::tuple<BddNodeIndex, BddNodeIndex, BddNodeIndex>;
+    using ExactMap = absl::flat_hash_map<IteKey, BddNodeIndex>;
+    struct IteCacheEntry {
+      BddNodeIndex cond = kInfeasible;
+      BddNodeIndex if_true = kInfeasible;
+      BddNodeIndex if_false = kInfeasible;
+      BddNodeIndex result = kInfeasible;
+
+      friend bool operator==(const IteCacheEntry& a,
+                             const IteCacheEntry& b) = default;
+    };
+    using LossyArray = std::vector<IteCacheEntry>;
+
+    static constexpr size_t kLossyCacheSize = size_t{1} << 20;
+    static constexpr size_t kCutoverThreshold = size_t{1} << 20;
+
+    DynamicIteCache() : cache_(ExactMap()) {}
+
+    std::optional<BddNodeIndex> Get(BddNodeIndex cond, BddNodeIndex if_true,
+                                    BddNodeIndex if_false) const;
+    void Insert(BddNodeIndex cond, BddNodeIndex if_true, BddNodeIndex if_false,
+                BddNodeIndex result);
+    void GarbageCollect(const InlineBitmap& live_nodes);
+    size_t approximate_memory_use() const;
+
+   private:
+    size_t Index(BddNodeIndex cond, BddNodeIndex if_true,
+                 BddNodeIndex if_false) const;
+    void TransitionToLossy();
+
+    std::variant<ExactMap, LossyArray> cache_;
+  };
+  DynamicIteCache ite_cache_;
 
   int64_t max_paths_;
   int64_t prev_nodes_size_ = 2;

@@ -15,6 +15,7 @@
 #include "xls/data_structures/binary_decision_diagram.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <limits>
@@ -26,6 +27,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
@@ -35,14 +37,20 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "cppitertools/chain.hpp"
 #include "cppitertools/enumerate.hpp"
-#include "cppitertools/sliding_window.hpp"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/data_structures/inline_bitmap.h"
 
 namespace xls {
+
+namespace {
+#ifdef NDEBUG
+constexpr bool kDebug = false;
+#else
+constexpr bool kDebug = true;
+#endif
+}  // namespace
 
 BinaryDecisionDiagram::BinaryDecisionDiagram()
     : BinaryDecisionDiagram(kDefaultMaxPaths) {}
@@ -58,20 +66,21 @@ BinaryDecisionDiagram::BinaryDecisionDiagram(int64_t max_paths)
 }
 
 BddNodeIndex BinaryDecisionDiagram::CreateNode(BddNode node) {
-  auto slot = free_node_head_;
-  CHECK_LE(slot.value(), nodes_.size())
+  int32_t slot = free_node_head_.value();
+  CHECK_LE(slot, nodes_.size())
       << "free list head is far outside of the available ids";
-  if (slot.value() == nodes_.size()) {
+  if (slot == nodes_.size()) {
     VLOG(2) << "Extending nodes_ to " << (nodes_.size() * 2) << " elements";
-    nodes_.resize(nodes_.size() * 2, FreeListNode());
+    nodes_.resize(
+        nodes_.size() * 2,
+        BddNode(kFreeNodeVariable, kNextFreeIsConsecutive, BddNodeIndex(0), 0));
   }
-  CHECK(std::holds_alternative<FreeListNode>(nodes_.at(slot.value())))
-      << " at slot " << slot;
+  DCHECK(IsFreeNode(nodes_.at(slot))) << " at slot " << slot;
   free_node_head_ =
-      std::get<FreeListNode>(nodes_.at(slot.value())).next_free(slot);
+      NextFree(GetNextFreeNode(nodes_.at(slot)), BddNodeIndex(slot));
   ++nodes_size_;
-  nodes_[slot.value()] = node;
-  return BddNodeIndex(slot.value());
+  nodes_[slot] = node;
+  return BddNodeIndex(slot);
 }
 
 BddNodeIndex BinaryDecisionDiagram::CreateVariableBaseNode(BddVariable var) {
@@ -108,24 +117,103 @@ BddNodeIndex BinaryDecisionDiagram::GetOrCreateNode(BddVariable var,
   });
   return it->second;
 }
-
-BddNodeIndex BinaryDecisionDiagram::Restrict(BddNodeIndex expr, BddVariable var,
-                                             bool value) {
-  if (expr == zero() || expr == one()) {
-    return expr;
+size_t BinaryDecisionDiagram::DynamicIteCache::approximate_memory_use() const {
+  if (std::holds_alternative<ExactMap>(cache_)) {
+    return std::get<ExactMap>(cache_).capacity() * sizeof(ExactMap::value_type);
+  } else {
+    return std::get<LossyArray>(cache_).capacity() * sizeof(IteCacheEntry);
   }
-
-  const BddNode& node = GetNode(expr);
-  CHECK_LE(var, node.variable);
-  if (node.variable == var) {
-    return value ? node.high : node.low;
-  }
-  return expr;
 }
 
-BddNodeIndex BinaryDecisionDiagram::IfThenElse(BddNodeIndex cond,
-                                               BddNodeIndex if_true,
-                                               BddNodeIndex if_false) {
+size_t BinaryDecisionDiagram::DynamicIteCache::Index(
+    BddNodeIndex cond, BddNodeIndex if_true, BddNodeIndex if_false) const {
+  return absl::HashOf(cond, if_true, if_false) % kLossyCacheSize;
+}
+
+std::optional<BddNodeIndex> BinaryDecisionDiagram::DynamicIteCache::Get(
+    BddNodeIndex cond, BddNodeIndex if_true, BddNodeIndex if_false) const {
+  if (const ExactMap* map = std::get_if<ExactMap>(&cache_)) {
+    auto it = map->find(std::make_tuple(cond, if_true, if_false));
+    if (it != map->end()) {
+      return it->second;
+    }
+    return std::nullopt;
+  } else {
+    const LossyArray& array = std::get<LossyArray>(cache_);
+    const IteCacheEntry& entry = array[Index(cond, if_true, if_false)];
+    if (entry.cond == cond && entry.if_true == if_true &&
+        entry.if_false == if_false) {
+      return entry.result;
+    }
+    return std::nullopt;
+  }
+}
+
+void BinaryDecisionDiagram::DynamicIteCache::TransitionToLossy() {
+  ExactMap& map = std::get<ExactMap>(cache_);
+  LossyArray new_array(kLossyCacheSize);
+
+  // Note: if multiple entries from the exact map hash to the same slot, to
+  //       avoid non-determinism, we will keep the last one in lexicographic
+  //       order.
+  for (const auto& [key, result] : map) {
+    const auto& [cond, if_true, if_false] = key;
+    size_t index = Index(cond, if_true, if_false);
+    if (new_array[index] == IteCacheEntry() ||
+        key > std::tie(new_array[index].cond, new_array[index].if_true,
+                       new_array[index].if_false)) {
+      new_array[Index(cond, if_true, if_false)] = IteCacheEntry{
+          .cond = cond,
+          .if_true = if_true,
+          .if_false = if_false,
+          .result = result,
+      };
+    }
+  }
+  cache_ = std::move(new_array);
+}
+
+void BinaryDecisionDiagram::DynamicIteCache::Insert(BddNodeIndex cond,
+                                                    BddNodeIndex if_true,
+                                                    BddNodeIndex if_false,
+                                                    BddNodeIndex result) {
+  if (ExactMap* map = std::get_if<ExactMap>(&cache_)) {
+    map->try_emplace(std::make_tuple(cond, if_true, if_false), result);
+    if (map->size() > kCutoverThreshold) {
+      TransitionToLossy();
+    }
+  } else {
+    LossyArray& array = std::get<LossyArray>(cache_);
+    array[Index(cond, if_true, if_false)] = IteCacheEntry{
+        .cond = cond,
+        .if_true = if_true,
+        .if_false = if_false,
+        .result = result,
+    };
+  }
+}
+
+void BinaryDecisionDiagram::DynamicIteCache::GarbageCollect(
+    const InlineBitmap& live_nodes) {
+  if (ExactMap* map = std::get_if<ExactMap>(&cache_)) {
+    absl::erase_if(*map, [&live_nodes](const auto& entry) {
+      const auto& [key, value] = entry;
+      const auto& [cond, if_true, if_false] = key;
+      return !live_nodes.Get(cond.value()) ||
+             !live_nodes.Get(if_true.value()) ||
+             !live_nodes.Get(if_false.value()) ||
+             (value != kInfeasible && !live_nodes.Get(value.value()));
+    });
+  } else {
+    // We're already accepting a lossy cache; if we remove *all* entries, then
+    // we've removed all dead entries.
+    LossyArray& array = std::get<LossyArray>(cache_);
+    std::fill(array.begin(), array.end(), IteCacheEntry{});
+  }
+}
+
+std::optional<BddNodeIndex> BinaryDecisionDiagram::IfThenElseTrivial(
+    BddNodeIndex cond, BddNodeIndex if_true, BddNodeIndex if_false) {
   if (cond == one()) {
     return if_true;
   }
@@ -142,25 +230,28 @@ BddNodeIndex BinaryDecisionDiagram::IfThenElse(BddNodeIndex cond,
       if_false == kInfeasible) {
     return kInfeasible;
   }
-  auto key = std::make_tuple(cond, if_true, if_false);
-  auto it = ite_map_.find(key);
-  if (it != ite_map_.end()) {
-    return it->second;
-  }
+  return std::nullopt;
+}
 
-  // The expression is non-trivial and has not been computed before.
-  // Recursively decompose the expression by peeling away the first variable
-  // and performing a Shannon decomposition.
+BinaryDecisionDiagram::ITEDecomposition BinaryDecisionDiagram::DecomposeITE(
+    BddNodeIndex cond, BddNodeIndex if_true, BddNodeIndex if_false) {
+  ITEDecomposition result;
 
   // First, find the lowest-index variable amongst all expressions. In all
   // paths through the BDD the variable indices are strictly increasing.
-  BddVariable min_var = GetNode(cond).variable;
-  // Only non-leaf nodes (not zero or one) have associated variables.
+  const BddNode& cond_node = GetNode(cond);
+  result.min_var = cond_node.variable;
+
+  const BddNode* if_true_node = nullptr;
   if (if_true != zero() && if_true != one()) {
-    min_var = std::min(min_var, GetNode(if_true).variable);
+    if_true_node = &GetNode(if_true);
+    result.min_var = std::min(result.min_var, if_true_node->variable);
   }
+
+  const BddNode* if_false_node = nullptr;
   if (if_false != zero() && if_false != one()) {
-    min_var = std::min(min_var, GetNode(if_false).variable);
+    if_false_node = &GetNode(if_false);
+    result.min_var = std::min(result.min_var, if_false_node->variable);
   }
 
   // Perform a Shannon expansion about the variable where Shannon expansion is
@@ -168,31 +259,145 @@ BddNodeIndex BinaryDecisionDiagram::IfThenElse(BddNodeIndex cond,
   //
   //   F(x0, x1, ..) = !x0 && F(0, x1, ...) + x0 && F(1, x1, ...)
   //
-  BddNodeIndex true_cofactor = IfThenElse(Restrict(cond, min_var, true),
-                                          Restrict(if_true, min_var, true),
-                                          Restrict(if_false, min_var, true));
-  BddNodeIndex false_cofactor = IfThenElse(Restrict(cond, min_var, false),
-                                           Restrict(if_true, min_var, false),
-                                           Restrict(if_false, min_var, false));
+  if (cond_node.variable == result.min_var) {
+    result.true_cofactor.cond = cond_node.high;
+    result.false_cofactor.cond = cond_node.low;
+  } else {
+    result.true_cofactor.cond = cond;
+    result.false_cofactor.cond = cond;
+  }
 
-  if (true_cofactor == kInfeasible || false_cofactor == kInfeasible) {
+  if (if_true_node != nullptr && if_true_node->variable == result.min_var) {
+    result.true_cofactor.if_true = if_true_node->high;
+    result.false_cofactor.if_true = if_true_node->low;
+  } else {
+    result.true_cofactor.if_true = if_true;
+    result.false_cofactor.if_true = if_true;
+  }
+
+  if (if_false_node != nullptr && if_false_node->variable == result.min_var) {
+    result.true_cofactor.if_false = if_false_node->high;
+    result.false_cofactor.if_false = if_false_node->low;
+  } else {
+    result.true_cofactor.if_false = if_false;
+    result.false_cofactor.if_false = if_false;
+  }
+
+  return result;
+}
+
+BddNodeIndex BinaryDecisionDiagram::IfThenElse(BddNodeIndex cond,
+                                               BddNodeIndex if_true,
+                                               BddNodeIndex if_false) {
+  std::optional<BddNodeIndex> initial_result =
+      IfThenElseTrivial(cond, if_true, if_false);
+  if (initial_result.has_value()) {
+    return *initial_result;
+  }
+
+  std::optional<BddNodeIndex> cached = ite_cache_.Get(cond, if_true, if_false);
+  if (cached.has_value()) {
+    return *cached;
+  }
+
+  // The expression is non-trivial and has not been computed before.
+  // Recursively decompose the expression by peeling away the first variable
+  // and performing a Shannon decomposition.
+  ITEDecomposition decomposition = DecomposeITE(cond, if_true, if_false);
+
+  BddNodeIndex true_cofactor = IfThenElse(decomposition.true_cofactor.cond,
+                                          decomposition.true_cofactor.if_true,
+                                          decomposition.true_cofactor.if_false);
+  if (true_cofactor == kInfeasible) {
+    ite_cache_.Insert(cond, if_true, if_false, kInfeasible);
     return kInfeasible;
   }
+
+  BddNodeIndex false_cofactor = IfThenElse(
+      decomposition.false_cofactor.cond, decomposition.false_cofactor.if_true,
+      decomposition.false_cofactor.if_false);
+  if (false_cofactor == kInfeasible) {
+    ite_cache_.Insert(cond, if_true, if_false, kInfeasible);
+    return kInfeasible;
+  }
+
   if (true_cofactor == false_cofactor) {
     if (path_count(true_cofactor) > max_paths_) {
+      ite_cache_.Insert(cond, if_true, if_false, kInfeasible);
       return kInfeasible;
     }
-    ite_map_[key] = true_cofactor;
+
+    ite_cache_.Insert(cond, if_true, if_false, true_cofactor);
     return true_cofactor;
   }
+
   SaturatedResult<int64_t> total_path_count =
       SaturatingAdd(path_count(true_cofactor), path_count(false_cofactor));
   if (total_path_count.did_overflow || total_path_count.result > max_paths_) {
+    ite_cache_.Insert(cond, if_true, if_false, kInfeasible);
     return kInfeasible;
   }
-  BddNodeIndex expr = GetOrCreateNode(min_var, true_cofactor, false_cofactor);
-  ite_map_[key] = expr;
-  return expr;
+
+  BddNodeIndex result =
+      GetOrCreateNode(decomposition.min_var, true_cofactor, false_cofactor);
+  ite_cache_.Insert(cond, if_true, if_false, result);
+  return result;
+}
+
+std::optional<bool> BinaryDecisionDiagram::IfThenElseConstant(
+    BddNodeIndex cond, BddNodeIndex if_true, BddNodeIndex if_false) {
+  auto to_constant = [&](BddNodeIndex node) -> std::optional<bool> {
+    if (node == zero()) {
+      return false;
+    } else if (node == one()) {
+      return true;
+    } else {
+      return std::nullopt;
+    }
+  };
+
+  std::optional<BddNodeIndex> initial_result =
+      IfThenElseTrivial(cond, if_true, if_false);
+  if (initial_result.has_value()) {
+    if (*initial_result == kInfeasible) {
+      return std::nullopt;
+    }
+    return to_constant(*initial_result);
+  }
+
+  if (if_true == zero() && if_false == one()) {
+    std::optional<bool> c = to_constant(cond);
+    if (c.has_value()) {
+      return !*c;
+    }
+    return std::nullopt;
+  }
+
+  std::optional<BddNodeIndex> cached = ite_cache_.Get(cond, if_true, if_false);
+  if (cached.has_value()) {
+    return to_constant(*cached);
+  }
+
+  // The expression is non-trivial and has not been computed before.
+  // Recursively decompose the expression by peeling away the first variable
+  // and performing a Shannon decomposition.
+  ITEDecomposition decomposition = DecomposeITE(cond, if_true, if_false);
+
+  std::optional<bool> then_branch = IfThenElseConstant(
+      decomposition.true_cofactor.cond, decomposition.true_cofactor.if_true,
+      decomposition.true_cofactor.if_false);
+  if (!then_branch.has_value()) {
+    return std::nullopt;
+  }
+  std::optional<bool> else_branch = IfThenElseConstant(
+      decomposition.false_cofactor.cond, decomposition.false_cofactor.if_true,
+      decomposition.false_cofactor.if_false);
+  if (else_branch != then_branch) {
+    return std::nullopt;
+  }
+
+  ite_cache_.Insert(cond, if_true, if_false, *then_branch ? one() : zero());
+  return then_branch;
 }
 
 template <typename T>
@@ -255,6 +460,10 @@ BddNodeIndex BinaryDecisionDiagram::And(BddNodeIndex a, BddNodeIndex b) {
 
 BddNodeIndex BinaryDecisionDiagram::Implies(BddNodeIndex a, BddNodeIndex b) {
   return IfThenElse(a, b, one());
+}
+
+bool BinaryDecisionDiagram::DoesImply(BddNodeIndex a, BddNodeIndex b) {
+  return IfThenElseConstant(a, b, one()) == true;
 }
 
 absl::StatusOr<bool> BinaryDecisionDiagram::Evaluate(
@@ -344,14 +553,6 @@ std::string BinaryDecisionDiagram::ToStringDnf(BddNodeIndex expr,
   return result;
 }
 
-namespace {
-#ifdef NDEBUG
-constexpr bool kDebug = false;
-#else
-constexpr bool kDebug = true;
-#endif
-}  // namespace
-
 absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
     absl::Span<BddNodeIndex const> roots, double gc_threshold) {
   if (nodes_size_ * gc_threshold < prev_nodes_size_) {
@@ -403,7 +604,7 @@ absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
   XLS_RET_CHECK_GT(nodes_size_, cnt_live) << "Bad size";
   dead.reserve(nodes_size_ - cnt_live);
   for (auto [idx, live] : iter::enumerate(live_nodes)) {
-    if (!live && std::holds_alternative<BddNode>(nodes_.at(idx))) {
+    if (!live && !IsFreeNode(nodes_.at(idx))) {
       dead.push_back(BddNodeIndex(idx));
     }
   }
@@ -411,12 +612,11 @@ absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
   // Don't use iter::sliding_window because this is faster.
   for (int i = 0; i < dead.size(); ++i) {
     BddNodeIndex first = dead[i];
-    BddNodeIndex second = i + 1 < dead.size()
-                              ? dead[i + 1]
-                              : BddNodeIndex(free_node_head_.value());
-    nodes_[first.value()] = FreeListNode(FreeListNode::Index(second.value()));
+    BddNodeIndex second =
+        i + 1 < dead.size() ? dead[i + 1] : BddNodeIndex(free_node_head_);
+    SetFreeNode(nodes_[first.value()], second);
   }
-  free_node_head_ = FreeListNode::Index(dead.front().value());
+  free_node_head_ = dead.front();
 
   // Clear the references to deleted variables.
   for (auto [idx, live] : iter::enumerate(live_variables)) {
@@ -425,47 +625,32 @@ absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
     }
   }
 
-  // Clear the ite_map_ of references to deleted things.
-  for (auto it = ite_map_.begin(); it != ite_map_.end();) {
-    const auto& [key, value] = *it;
-    const auto& [cond, if_true, if_false] = key;
-    if (!live_nodes.Get(cond.value()) || !live_nodes.Get(if_true.value()) ||
-        !live_nodes.Get(if_false.value()) || !live_nodes.Get(value.value())) {
-      ite_map_.erase(it++);
-    } else {
-      ++it;
-    }
-  }
+  ite_cache_.GarbageCollect(live_nodes);
+
   // clear out the node_map_ of references to deleted things.
-  for (auto it = node_map_.begin(); it != node_map_.end();) {
-    const auto& [key, value] = *it;
-    if (!live_nodes.Get(value.value())) {
-      node_map_.erase(it++);
-    } else {
-      ++it;
-    }
-  }
+  absl::erase_if(node_map_, [&live_nodes](const auto& entry) {
+    const auto& [key, value] = entry;
+    return !live_nodes.Get(value.value());
+  });
   nodes_size_ = cnt_live;
   prev_nodes_size_ = nodes_size_;
   if constexpr (kDebug) {
     auto head = free_node_head_;
     auto it = dead.begin();
     InlineBitmap debug_seen(nodes_.size());
-    while (head.value() < nodes_.size() &&
-           head != FreeListNode::kNextIsConsecutive) {
-      CHECK(!debug_seen.Get(head.value()))
-          << " loop in free list at " << head.value();
+    while (head.value() < nodes_.size() && head != kNextFreeIsConsecutive) {
+      CHECK(!debug_seen.Get(head.value())) << " loop in free list at " << head;
       debug_seen.Set(head.value());
       if (it != dead.end()) {
-        CHECK_EQ(head, FreeListNode::Index(it->value()));
+        CHECK_EQ(head, *it);
         ++it;
       }
-      CHECK(std::holds_alternative<FreeListNode>(nodes_[head.value()]));
-      auto cur = std::get<FreeListNode>(nodes_[head.value()]);
-      if (cur.raw_next() == FreeListNode::kNextIsConsecutive) {
+      CHECK(IsFreeNode(nodes_[head.value()]));
+      auto cur_next = GetNextFreeNode(nodes_[head.value()]);
+      if (cur_next == kNextFreeIsConsecutive) {
         break;
       }
-      head = cur.next_free(head);
+      head = NextFree(cur_next, head);
     }
   }
   return std::move(dead);
