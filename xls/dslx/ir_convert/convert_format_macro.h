@@ -43,13 +43,11 @@ namespace xls::dslx {
 //    operation on.
 //
 // Returns the trace (IR operation) token.
-absl::StatusOr<BValue> ConvertFormatMacro(const FormatMacro& node,
-                                          const BValue& entry_token,
-                                          const BValue& control_predicate,
-                                          absl::Span<const BValue> arg_vals,
-                                          int64_t verbosity,
-                                          const TypeInfo& current_type_info,
-                                          BuilderBase& function_builder);
+absl::StatusOr<BValue> ConvertFormatMacro(
+    const FormatMacro& node, const BValue& entry_token,
+    const BValue& control_predicate, absl::Span<const BValue> arg_vals,
+    int64_t verbosity, const TypeInfo& current_type_info,
+    BuilderBase& function_builder, const SourceInfo& loc);
 
 }  // namespace xls::dslx
 
