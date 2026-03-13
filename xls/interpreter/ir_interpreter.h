@@ -152,6 +152,7 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleNewChannel(NewChannel* new_channel) override;
   absl::Status HandleRecvChannelEnd(RecvChannelEnd* rce) override;
   absl::Status HandleSendChannelEnd(SendChannelEnd* sce) override;
+  absl::Status HandlePeek(Peek* peek) override;
   absl::Status HandleReceive(Receive* receive) override;
   absl::Status HandleRegisterRead(RegisterRead* reg_read) override;
   absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override;

@@ -777,6 +777,10 @@ absl::Status IrInterpreter::HandleSendChannelEnd(SendChannelEnd* sce) {
       "SendChannelEnd value not implemented in IrInterpreter");
 }
 
+absl::Status IrInterpreter::HandlePeek(Peek* peek) {
+  return absl::UnimplementedError("Peek not implemented in IrInterpreter");
+}
+
 absl::Status IrInterpreter::HandleReverse(UnOp* reverse) {
   return SetBitsResult(reverse,
                        bits_ops::Reverse(ResolveAsBits(reverse->operand(0))));

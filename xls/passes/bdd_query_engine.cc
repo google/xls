@@ -170,6 +170,7 @@ bool ShouldEvaluate(Node* node) {
     case Op::kParam:
     case Op::kStateRead:
     case Op::kNext:
+    case Op::kPeek:
     case Op::kReceive:
     case Op::kRecvChannelEnd:
     case Op::kRegisterRead:
