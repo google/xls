@@ -478,7 +478,7 @@ pub proc HuffmanFseDecoder<
 
         // receive ram read response
         let do_recv_table_rd_resp = state.fsm == FSM::RECV_RAM_EVEN_RD_RESP || state.fsm == FSM::RECV_RAM_ODD_RD_RESP;
-        let (_, table_rd_resp, table_rd_resp_valid) = recv_if_non_blocking(tok, table_rd_resp_r, do_recv_table_rd_resp, zero!<FseRamRdResp>());
+        let (tok, table_rd_resp, table_rd_resp_valid) = recv_if_non_blocking(tok, table_rd_resp_r, do_recv_table_rd_resp, zero!<FseRamRdResp>());
 
         let table_record = fse_table_creator::bits_to_fse_record(table_rd_resp.data);
 
@@ -538,7 +538,7 @@ pub proc HuffmanFseDecoder<
         } else { state };
 
         let recv_sb_output = (do_read_bits && state.sent_buf_ctrl);
-        let (_, buf_data, buf_data_valid) = recv_if_non_blocking(tok, rsb_data_r, recv_sb_output, zero!<RefillingSBOutput>());
+        let (tok, buf_data, buf_data_valid) = recv_if_non_blocking(tok, rsb_data_r, recv_sb_output, zero!<RefillingSBOutput>());
         if buf_data_valid && buf_data.length as u32 > u32:0{
             trace_fmt!("[HuffmanFseDecoder] Received data {:#x} in state {}", buf_data, state.fsm);
         } else { };

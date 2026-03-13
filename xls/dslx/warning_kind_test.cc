@@ -40,7 +40,21 @@ TEST(WarningKindTest, AllWarningsPresentInAllWarningSet) {
     EXPECT_TRUE(WarningIsEnabled(kAllWarningsSet, kind));
 
     // After we disable it, it should not be enabled.
-    EXPECT_FALSE(WarningIsEnabled(DisableWarning(kAllWarningsSet, kind), kind));
+    EXPECT_FALSE(WarningIsEnabled(DisableWarnings(kAllWarningsSet, kind), kind));
+  }
+}
+
+TEST(WarningKindTest, DisableMultipleWarningsAtOnce) {
+  WarningKindSet warning_set = DisableWarnings(
+      kAllWarningsSet, WarningKind::kShouldUseAssert,
+      WarningKind::kMemberNaming);
+  for (const WarningKind kind : kAllWarningKinds) {
+    if (kind == WarningKind::kShouldUseAssert ||
+        kind == WarningKind::kMemberNaming) {
+      EXPECT_FALSE(WarningIsEnabled(warning_set, kind));
+    } else {
+      EXPECT_TRUE(WarningIsEnabled(warning_set, kind));
+    }
   }
 }
 
@@ -70,7 +84,7 @@ TEST(WarningKindTest, SetIntersection) {
   EXPECT_EQ(kAllWarningsSet & kNoWarningsSet, kNoWarningsSet);
   EXPECT_EQ(kNoWarningsSet & kAllWarningsSet, kNoWarningsSet);
   EXPECT_EQ(kNoWarningsSet & kNoWarningsSet, kNoWarningsSet);
-  EXPECT_EQ(DisableWarning(kAllWarningsSet, WarningKind::kShouldUseAssert) &
+  EXPECT_EQ(DisableWarnings(kAllWarningsSet, WarningKind::kShouldUseAssert) &
                 EnableWarning(kNoWarningsSet, WarningKind::kShouldUseAssert),
             kNoWarningsSet);
 }
@@ -80,7 +94,7 @@ TEST(WarningKindTest, SetUnion) {
   EXPECT_EQ(kAllWarningsSet | kNoWarningsSet, kAllWarningsSet);
   EXPECT_EQ(kNoWarningsSet | kAllWarningsSet, kAllWarningsSet);
   EXPECT_EQ(kNoWarningsSet | kNoWarningsSet, kNoWarningsSet);
-  EXPECT_EQ(DisableWarning(kAllWarningsSet, WarningKind::kShouldUseAssert) |
+  EXPECT_EQ(DisableWarnings(kAllWarningsSet, WarningKind::kShouldUseAssert) |
                 EnableWarning(kNoWarningsSet, WarningKind::kShouldUseAssert),
             kAllWarningsSet);
 }
@@ -99,8 +113,8 @@ TEST(WarningKindTest, GetWarningsSetFromFlagsEmpty) {
 TEST(WarningKindTest, GetWarningsSetFromFlagsEmptyEnable) {
   XLS_ASSERT_OK_AND_ASSIGN(WarningKindSet set,
                            GetWarningsSetFromFlags("", "constant_naming"));
-  EXPECT_EQ(set,
-            DisableWarning(kDefaultWarningsSet, WarningKind::kConstantNaming));
+  EXPECT_EQ(
+      set, DisableWarnings(kDefaultWarningsSet, WarningKind::kConstantNaming));
 }
 
 TEST(WarningKindTest, GetWarningsSetFromFlagsContradiction) {
