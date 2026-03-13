@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "ortools/graph/generic_max_flow.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
@@ -37,7 +38,6 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/passes/query_engine.h"
-#include "ortools/graph/generic_max_flow.h"
 
 namespace xls {
 
