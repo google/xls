@@ -1362,9 +1362,12 @@ class Trace final : public Node {
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
+  const std::optional<std::string>& filename() const { return filename_; }
+
  private:
   std::vector<FormatStep> format_;
   int64_t verbosity_;
+  std::optional<std::string> filename_;
 };
 
 class Tuple final : public Node {
