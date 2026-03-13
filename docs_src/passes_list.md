@@ -6739,6 +6739,11 @@ Key strength reductions performed by this pass include:
         position `i`, it's not possible for both `A[i]` and `B[i]` to be `1`
         simultaneously, as determined by ternary analysis), the `add` can be
         replaced by a bitwise `or` operation, which is typically cheaper.
+    *   **Addition to Shift**: `add(A, A)` is replaced by `concat(bitslice(A,
+        0, width(A)-1), 0)`. This is the same as a shift left by 1 or a
+        multiplication by 2. Since this does no operations which cause delay
+        and ternary can easily see through the concat this is always a
+        profitable transformation.
     *   **Splitting Adders (No Carry Propagation)**: At higher optimization
         levels (`SplitsEnabled`), if `QueryEngine` can determine a bit
         position in `add(A, B)` where a carry can provably *not* propagate
