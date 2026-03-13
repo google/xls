@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -45,6 +46,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 
@@ -733,6 +735,62 @@ class GenericSelect {
  private:
   std::variant<Select*, PrioritySelect*, OneHotSelect*> sel_;
 };
+
+// A helper to allow one to treat a node as if it was a zero-ext.
+class ZeroExtLike {
+ public:
+  static std::optional<ZeroExtLike> Make(Node* n, const QueryEngine& qe) {
+    if (n->GetType()->GetFlatBitCount() == 0) {
+      return std::nullopt;
+    }
+    switch (n->op()) {
+      case Op::kZeroExt:
+        return ZeroExtLike(n, n->operand(0), /*op_num=*/0);
+      case Op::kSignExt:
+        if (qe.KnownLeadingZeros(n->operand(0)).value_or(0) >= 1) {
+          return ZeroExtLike(n, n->operand(0), /*op_num=*/0);
+        }
+        return std::nullopt;
+      case Op::kConcat:
+        if (absl::c_all_of(n->operands().subspan(0, n->operand_count() - 1),
+                           [&](Node* op) { return qe.IsAllZeros(op); })) {
+          return ZeroExtLike(n, n->operands().back(),
+                             /*op_num=*/n->operand_count() - 1);
+        }
+        return std::nullopt;
+      default:
+        return std::nullopt;
+    }
+  }
+
+  Node* real_node() const { return src_; }
+  Node* to_extend() const { return arg_; }
+  int64_t op_num() const { return op_num_; }
+
+  friend bool operator==(const ZeroExtLike& lhs, const ZeroExtLike& rhs) {
+    return lhs.src_ == rhs.src_ && lhs.arg_ == rhs.arg_ &&
+           lhs.op_num_ == rhs.op_num_;
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const ZeroExtLike& s) {
+    return H::combine(std::move(h), s.src_, s.arg_, s.op_num_);
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const ZeroExtLike& s) {
+    absl::Format(&sink, "ZeroExtLike(%s, new_width=%d)", s.arg_->ToString(),
+                 s.src_->GetType()->GetFlatBitCount());
+  }
+
+ private:
+  ZeroExtLike(Node* src, Node* arg, int64_t op_num)
+      : src_(src), arg_(arg), op_num_(op_num) {}
+  Node* src_;
+  Node* arg_;
+  int64_t op_num_;
+};
+
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_UTIL_H_

@@ -117,6 +117,9 @@ xls_pass_registry(
         ":unroll_pass",
         ":useless_assert_removal_pass",
         ":useless_io_removal_pass",
+
+        # Passes which are mostly for manual use while investigating opt
+        ":to_zero_ext_pass",
     ],
     pipeline = "optimization_pass_pipeline.txtpb",
     tags = ["keep_dep"],
@@ -2211,6 +2214,7 @@ xls_pass(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:change_listener",
+        "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:ternary",
         "//xls/ir:type",
@@ -4821,6 +4825,43 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/visualization:math_notation",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+xls_pass(
+    name = "to_zero_ext_pass",
+    srcs = ["to_zero_ext_pass.cc"],
+    hdrs = ["to_zero_ext_pass.h"],
+    pass_class = "ToZeroExtPass",
+    deps = [
+        ":optimization_pass",
+        ":partial_info_query_engine",
+        ":pass_base",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "to_zero_ext_pass_test",
+    srcs = ["to_zero_ext_pass_test.cc"],
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        ":to_zero_ext_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
