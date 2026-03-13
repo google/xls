@@ -1517,3 +1517,24 @@ xls_dslx_test(
     srcs = ["blocking_peek.x"],
     dslx_test_args = {"compare": "jit"},
 )
+
+xls_dslx_library(
+    name = "peek_dslx",
+    srcs = ["peek.x"],
+)
+
+xls_dslx_test(
+    name = "peek_dslx_test",
+    size = "small",
+    srcs = ["peek.x"],
+)
+
+xls_dslx_ir(
+    name = "peek_ir",
+    dslx_top = "PeekPacketFiller",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true"
+    },
+    ir_file = "peek.ir",
+    library = ":peek_dslx",
+)
