@@ -23,10 +23,8 @@ struct Packet {
     data: u32,
 }
 
-struct ContentBasedArbiterState<N: u32> {
+struct PeekContentBasedArbiterState {
     enabled: bool,
-    storage: Packet[N],
-    storage_valid: bool[N],
 }
 
 fn highest_priority_packet<N: u32>(storage: Packet[N], storage_valid: bool[N]) -> (Packet, u32) {
@@ -41,8 +39,9 @@ fn highest_priority_packet<N: u32>(storage: Packet[N], storage_valid: bool[N]) -
     }((init_packet, init_idx))
 }
 
-pub proc ContentBasedArbiter<N: u32> {
-    type State = ContentBasedArbiterState<N>;
+pub proc PeekContentBasedArbiter<N: u32> {
+    type State = PeekContentBasedArbiterState;
+
     enable_r: chan<bool> in;
     enable_comp_s: chan<()> out;
     inputs_r: chan<Packet>[N] in;
@@ -65,41 +64,43 @@ pub proc ContentBasedArbiter<N: u32> {
         let send_en_tok = send_if(recv_en_tok, enable_comp_s, enabled_valid, ());
 
         if state.enabled {
-            let (storage, storage_valid, recv_in_tok) =
-                unroll_for! (i, (storage, storage_valid, prev_tok)) in u32:0..N {
-                    let (tok, data, data_valid) = recv_if_non_blocking(
-                        join(), inputs_r[i], !state.storage_valid[i], state.storage[i]);
+            let (storage, storage_valid, peek_in_tok) =
+                const for (i, (storage, storage_valid, prev_tok)) in u32:0..N {
+                    let (tok, data, data_valid) =
+                        peek_non_blocking(join(), inputs_r[i], zero!<Packet>());
                     if data_valid {
                         (
-                            update(storage, i, data), update(storage_valid, i, data_valid),
+                            update(storage, i, data),
+                            update(storage_valid, i, data_valid),
                             join(prev_tok, tok),
                         )
                     } else {
                         (storage, storage_valid, join(prev_tok, tok))
                     }
-                }((state.storage, state.storage_valid, join()));
+                }((Packet[N]:[zero!<Packet>(), ...], bool[N]:[false, ...], join()));
 
             let (packet, idx) = highest_priority_packet(storage, storage_valid);
 
             let has_value = or_reduce(std::convert_to_bits_msb0(storage_valid));
+            let recv_in_tok = unroll_for!(i, tok): (u32, token) in u32:0..N {
+                let (tok, _) =
+                    recv_if(peek_in_tok, inputs_r[i], has_value && (idx == i), zero!<Packet>());
+                tok
+            }(peek_in_tok);
             let sent_out_tok = send_if(recv_in_tok, output_s, has_value, packet);
-            let storage_valid = update(storage_valid, idx, false);
-
-            State { enabled, storage, storage_valid }
-        } else {
-            State { enabled, ..state }
-        }
+        } else {};
+        State { enabled }
     }
 }
 
-proc ContentBasedArbiterInst {
+proc PeekContentBasedArbiterInst {
     config(
         enable_r: chan<bool> in,
         enable_comp_s: chan<()> out,
         inputs_r: chan<Packet>[3] in,
         output_s: chan<Packet> out
     ) {
-        spawn ContentBasedArbiter<3>(enable_r, enable_comp_s, inputs_r, output_s);
+        spawn PeekContentBasedArbiter<3>(enable_r, enable_comp_s, inputs_r, output_s);
     }
 
     init {  }
@@ -107,7 +108,7 @@ proc ContentBasedArbiterInst {
 }
 
 #[test_proc]
-proc ContentBasedArbiterTest {
+proc PeekContentBasedArbiterTest {
     terminator: chan<bool> out;
     enable_s: chan<bool> out;
     enable_comp_r: chan<()> in;
@@ -120,7 +121,7 @@ proc ContentBasedArbiterTest {
         let (inputs_s, inputs_r) = chan<Packet>[3]("inputs");
         let (output_s, output_r) = chan<Packet>("output");
 
-        spawn ContentBasedArbiter<3>(enable_r, enable_comp_s, inputs_r, output_s);
+        spawn PeekContentBasedArbiter<3>(enable_r, enable_comp_s, inputs_r, output_s);
         (terminator, enable_s, enable_comp_r, inputs_s, output_r)
     }
 
@@ -128,6 +129,9 @@ proc ContentBasedArbiterTest {
 
     next(state: ()) {
         let tok = join();
+
+        let tok = send(tok, enable_s, true);
+        let (tok, _) = recv(tok, enable_comp_r);
 
         // Send input data
 
@@ -144,10 +148,6 @@ proc ContentBasedArbiterTest {
         let tok = send(tok, inputs_s[2], Packet { priority: 0, data: 8 });
 
         // Enable arbiter
-
-        let tok = send(tok, enable_s, true);
-        let (tok, _) = recv(tok, enable_comp_r);
-
         // Collect output
 
         // I0: (p: 3), (p: 5), (p: 7)
