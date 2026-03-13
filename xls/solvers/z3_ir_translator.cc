@@ -374,6 +374,11 @@ absl::Status IrTranslator::HandleBinary(OpT* op, FnT f) {
 absl::Status IrTranslator::HandleAdd(BinOp* add) {
   return HandleBinary(add, Z3_mk_bvadd);
 }
+
+absl::Status IrTranslator::HandleAssert(Assert* assert) {
+  return absl::OkStatus();
+}
+
 absl::Status IrTranslator::HandleSub(BinOp* sub) {
   return HandleBinary(sub, Z3_mk_bvsub);
 }
