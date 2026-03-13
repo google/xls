@@ -115,9 +115,6 @@ class RangeQueryVisitor : public DfsVisitor {
   // What size we should minimize interval sets to by default.
   static constexpr int64_t kDefaultIntervalSize = 16;
 
-  // The maximum number of points covered by an interval set that can be
-  // iterated over in an analysis.
-
   // Wrapper around GetIntervalSetTree for consistency with the
   // SetIntervalSetTree wrapper.
   IntervalSetTree GetIntervalSetTree(Node* node) const {
