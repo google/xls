@@ -350,7 +350,6 @@ class SchedulingOptions {
         constraints_({
             BackedgeConstraint(),
             SendThenRecvConstraint(/*minimum_latency=*/1),
-            SameChannelConstraint(/*minimum_latency=*/1),
         }),
         use_fdo_(false),
         fdo_iteration_number_(5),

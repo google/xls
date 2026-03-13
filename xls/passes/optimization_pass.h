@@ -145,6 +145,11 @@ struct OptimizationPassOptions : public PassOptionsBase {
     return std::move(*this);
   }
 
+  // NOTE: This option should be consolidated with
+  //       `SchedulingOptions::mutual_exclusion_z3_rlimit` if
+  //       `ChannelLegalizationPass` is moved from optimization to scheduling.
+  std::optional<int64_t> mutual_exclusion_z3_rlimit = std::nullopt;
+
   const DelayEstimator* delay_estimator = nullptr;
   const AreaEstimator* area_estimator = nullptr;
 

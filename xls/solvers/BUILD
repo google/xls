@@ -191,6 +191,7 @@ cc_library(
         "//xls/ir:abstract_node_evaluator",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:op",
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
