@@ -29,13 +29,13 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "ortools/graph/cliques.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
 #include "xls/passes/visibility_analysis.h"
 #include "ortools/graph/connected_components.h"
-#include "ortools/graph/cliques.h"
 
 namespace xls {
 

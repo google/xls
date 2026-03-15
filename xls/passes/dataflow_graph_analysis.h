@@ -24,10 +24,10 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "ortools/graph/generic_max_flow.h"
 #include "xls/ir/node.h"
 #include "xls/passes/query_engine.h"
 #include "ortools/graph/graph.h"
-#include "ortools/graph/generic_max_flow.h"
 
 namespace xls {
 
