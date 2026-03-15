@@ -8094,6 +8094,247 @@ proc Array {
   ExpectIr(conv.DumpIr());
 }
 
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleReads) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+
+  config() { () }
+
+  init { 0 }
+
+  next(state: u32) {
+      let first = read(state);
+      let second = read(state);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleWrites) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  config() { () }
+
+  init { 0 }
+
+  next(state: u32) {
+      let accum = read(state) + 1;
+      write(state, accum);
+      let accum = accum + 1;
+      write(state, accum);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessWriteBeforeRead) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  config() { () }
+
+  init { 0 }
+
+  next(state: u32) {
+    write(state, u32:1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessConditionalWrite) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  config() { () }
+
+  init { (0, false) }
+
+  next(state: (u32, bool)) {
+    let even_or_odd = read(state);
+    if (even_or_odd.0 % 2 == 0) {
+      write(state, (even_or_odd.0 + 1, true))
+    } else {
+      write(state, (even_or_odd.0 + 1, false))
+    }
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessMatch) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  config() { () }
+  init { 0 }
+  next(state: u32) {
+    let current = read(state);
+    let even_or_odd = current % 2;
+    match even_or_odd {
+      0 => {
+        write(state, current + 1);
+      },
+      1 => {
+        write(state, current * 2);
+      },
+      _ => {
+        write(state, current);
+      }
+    }
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessMatchMultipleWrites) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  config() { () }
+  init { true }
+  next(state: bool) {
+    let val = read(state);
+    match val {
+      true => {
+        write(state, false);
+        write(state, false);
+      },
+      false => {
+        write(state, true);
+        write(state, true);
+      },
+    }
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessLabeledReadAndWrite) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  init { 0 }
+  config() { }
+  next(state: u32) {
+    let x = labeled_read(state, "main_read");
+    let y = x + 1;
+    labeled_write(state, y, "main_write");
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessReadWithLabeledRead) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  init { 0 }
+  config() { }
+  next(state: u32) {
+    let curr = read(state);
+    let x = labeled_read(state, "main_read");
+    let y = x + 1 + curr;
+    labeled_write(state, y, "main_write");
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleStates) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+struct Point {
+  x: u32,
+  y: u32,
+}
+  proc main {
+  init { (Point { x: 0, y: 1 }, (2, 3), 4) }
+  config() { }
+  next(state_0: Point, state_1: (u32, u32), state_2: u32) {
+    let a = read(state_0);
+    let b = read(state_1);
+    let c = read(state_2);
+    let new_a = Point { x: a.x + 1, y: b.1 + c };
+    let new_b = (b.0 + 1, c + 1);
+    write(state_0, new_a);
+    write(state_1, new_b);
+    write(state_2, c + 2);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleStatesMultipleReads) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  init { (0, 1) }
+  config() { }
+  next(state_0: u32, state_1: u32) {
+    let b_0 = read(state_1);
+    let b_1 = read(state_1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleStatesMultipleWrites) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  init { (0, 1) }
+  config() { }
+  next(state_0: u32, state_1: u32) {
+    let a = read(state_0);
+    let b = read(state_1);
+    write(state_1, a + b);
+    write(state_1, a + 1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleStatesWriteBeforeRead) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  init { (0, 1) }
+  config() { }
+  next(state_0: u32, state_1: u32) {
+    let a = read(state_0);
+    write(state_1, a);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ChannelStrictnessAttributeProcScoped) {
   constexpr std::string_view kProgram = R"(
 #![feature(channel_attributes)]
@@ -8180,136 +8421,6 @@ proc p {
   EXPECT_THAT(converted, HasSubstr("strictness=runtime_ordered"));
   EXPECT_THAT(converted,
               Not(HasSubstr("strictness=proven_mutually_exclusive")));
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMultipleReads) {
-  constexpr std::string_view program = R"(#![feature(explicit_state_access)]
-proc main {
-
-  config() { () }
-
-  init { 0 }
-
-  next(state: u32) {
-      let first = read(state);
-      let second = read(state);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMultipleWrites) {
-  constexpr std::string_view program = R"(#![feature(explicit_state_access)]
-proc main {
-  config() { () }
-
-  init { 0 }
-
-  next(state: u32) {
-      let accum = read(state) + 1;
-      write(state, accum);
-      let accum = accum + 1;
-      write(state, accum);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessWriteBeforeRead) {
-  constexpr std::string_view program = R"(#![feature(explicit_state_access)]
-proc main {
-  config() { () }
-
-  init { 0 }
-
-  next(state: u32) {
-    write(state, u32:1);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessConditionalWrite) {
-  constexpr std::string_view program = R"(#![feature(explicit_state_access)]
-proc main {
-  config() { () }
-
-  init { (0, false) }
-
-  next(state: (u32, bool)) {
-    let even_or_odd = read(state);
-    if (even_or_odd.0 % 2 == 0) {
-      write(state, (even_or_odd.0 + 1, true))
-    } else {
-      write(state, (even_or_odd.0 + 1, false))
-    }
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMatch) {
-  constexpr std::string_view program = R"(#![feature(explicit_state_access)]
-proc main {
-  config() { () }
-  init { 0 }
-  next(state: u32) {
-    let current = read(state);
-    let even_or_odd = current % 2;
-    match even_or_odd {
-      0 => {
-        write(state, current + 1);
-      },
-      1 => {
-        write(state, current * 2);
-      },
-      _ => {
-        write(state, current);
-      }
-    }
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMatchMultipleWrites) {
-  constexpr std::string_view program = R"(#![feature(explicit_state_access)]
-proc main {
-  config() { () }
-  init { true }
-  next(state: bool) {
-    let val = read(state);
-    match val {
-      true => {
-        write(state, false);
-        write(state, false);
-      },
-      false => {
-        write(state, true);
-        write(state, true);
-      },
-    }
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
 }
 
 }  // namespace

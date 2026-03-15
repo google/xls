@@ -816,6 +816,12 @@ class Next final : public Node {
   static constexpr int64_t kStateReadOperand = 0;
   static constexpr int64_t kValueOperand = 1;
 
+  Next(const SourceInfo& loc, StateElement* state_element, Node* value,
+       std::optional<Node*> predicate, std::optional<std::string> label,
+       std::string_view name, FunctionBase* function);
+
+  // TODO: nelsonliang - Remove this once all Next nodes use a StateElement
+  // instead of a StateRead.
   Next(const SourceInfo& loc, Node* state_read, Node* value,
        std::optional<Node*> predicate, std::optional<std::string> label,
        std::string_view name, FunctionBase* function);
@@ -869,12 +875,18 @@ class Next final : public Node {
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
   StateElement* state_element() const {
-    return state_read()->As<StateRead>()->state_element();
+    // if (state_element_ != nullptr) {
+    return state_element_;
+    // }
+    // TODO: nelsonliang - Remove this once all Next nodes have a
+    // StateElement.
+    // return state_read()->As<StateRead>()->state_element();
   }
 
  private:
   static constexpr int64_t kPredicateOperand = 2;
 
+  StateElement* state_element_;
   bool has_predicate_;
   std::optional<std::string> label_;
 };

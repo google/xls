@@ -2626,24 +2626,107 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinRead(const Invocation* node) {
-  XLS_RETURN_IF_ERROR(ValidateProcState("read", node));
-  XLS_RET_CHECK_EQ(node->args().size(), 1);
+absl::Status FunctionConverter::HandleBuiltinLabeledRead(
+    const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("labeled_read", node));
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  Expr* source = node->args()[0];
 
   BValue active = implicit_token_data_->create_control_predicate();
-  if (state_read_called_.has_value()) {
+  BValue state_read_called = state_read_map_[source->ToString()];
+  if (options_.emit_assert) {
     // Assert multiple reads don't happen in same activation.
     implicit_token_data_->entry_token = function_builder_->Assert(
         implicit_token_data_->entry_token,
         function_builder_->Or(function_builder_->Not(active),
-                              function_builder_->Not(*state_read_called_)),
+                              function_builder_->Not(state_read_called)),
         "State element read after read in same activation.");
-    state_read_called_ = function_builder_->Or(*state_read_called_, active);
+    implicit_token_data_->control_tokens.push_back(
+        implicit_token_data_->entry_token);
+  }
+  state_read_map_[source->ToString()] =
+      function_builder_->Or(state_read_called, active);
+  XLS_RETURN_IF_ERROR(Visit(source));
+  XLS_ASSIGN_OR_RETURN(BValue state_element, Use(source));
+
+  Expr* label_expr = node->args()[1];
+  XLS_ASSIGN_OR_RETURN(
+      AssertionLabelData label_data,
+      GetAssertionLabel("labeled_read", label_expr, node->span()));
+  state_element.node()->As<StateRead>()->set_label(label_data.label);
+  Def(node, [&](const SourceInfo& loc) {
+    return function_builder_->Identity(state_element, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinLabeledWrite(
+    const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("labeled_write", node));
+  XLS_RET_CHECK_EQ(node->args().size(), 3);
+  Expr* target = node->args()[0];
+
+  BValue active = implicit_token_data_->create_control_predicate();
+  BValue state_read_called = state_read_map_[target->ToString()];
+  BValue state_write_called = state_write_map_[target->ToString()];
+  if (options_.emit_assert) {
+    // Assert write doesn't happen before a read
+    implicit_token_data_->entry_token = function_builder_->Assert(
+        implicit_token_data_->entry_token,
+        function_builder_->Or(function_builder_->Not(active),
+                              state_read_called),
+        "State element written before read in same activation.");
+
+    // Assert multiple writes don't happen in same activation
+    implicit_token_data_->entry_token = function_builder_->Assert(
+        implicit_token_data_->entry_token,
+        function_builder_->Or(function_builder_->Not(active),
+                              function_builder_->Not(state_write_called)),
+        "State element written after write in same activation.");
     implicit_token_data_->control_tokens.push_back(
         implicit_token_data_->entry_token);
   }
 
+  state_write_map_[target->ToString()] =
+      function_builder_->Or(state_write_called, active);
+
+  XLS_RETURN_IF_ERROR(Visit(target));
+  XLS_ASSIGN_OR_RETURN(BValue state_element, Use(target));
+
+  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
+  XLS_ASSIGN_OR_RETURN(BValue update_val, Use(node->args()[1]));
+
+  Expr* label_expr = node->args()[2];
+  XLS_ASSIGN_OR_RETURN(
+      AssertionLabelData label_data,
+      GetAssertionLabel("labeled_write", label_expr, node->span()));
+
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  builder_ptr->Next(state_element, update_val, active, label_data.label);
+  node_to_ir_[node] = function_builder_->Tuple({});
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinRead(const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("read", node));
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
   Expr* source = node->args()[0];
+
+  BValue active = implicit_token_data_->create_control_predicate();
+  BValue state_read_called = state_read_map_[source->ToString()];
+  if (options_.emit_assert) {
+    // Assert multiple reads don't happen in same activation.
+    implicit_token_data_->entry_token = function_builder_->Assert(
+        implicit_token_data_->entry_token,
+        function_builder_->Or(function_builder_->Not(active),
+                              function_builder_->Not(state_read_called)),
+        "State element read after read in same activation.");
+    implicit_token_data_->control_tokens.push_back(
+        implicit_token_data_->entry_token);
+  }
+  state_read_map_[source->ToString()] =
+      function_builder_->Or(state_read_called, active);
   XLS_RETURN_IF_ERROR(Visit(source));
   XLS_ASSIGN_OR_RETURN(BValue state_element, Use(source));
   Def(node, [&](const SourceInfo& loc) {
@@ -2657,29 +2740,31 @@ absl::Status FunctionConverter::HandleBuiltinWrite(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
   XLS_ASSIGN_OR_RETURN(BValue update_val, Use(node->args()[1]));
+  Expr* target = node->args()[0];
 
   BValue active = implicit_token_data_->create_control_predicate();
-  if (state_read_called_.has_value() && state_write_called_.has_value()) {
+  BValue state_read_called = state_read_map_[target->ToString()];
+  BValue state_write_called = state_write_map_[target->ToString()];
+  if (options_.emit_assert) {
     // Assert write doesn't happen before a read
     implicit_token_data_->entry_token = function_builder_->Assert(
         implicit_token_data_->entry_token,
         function_builder_->Or(function_builder_->Not(active),
-                              *state_read_called_),
+                              state_read_called),
         "State element written before read in same activation.");
 
     // Assert multiple writes don't happen in same activation
     implicit_token_data_->entry_token = function_builder_->Assert(
         implicit_token_data_->entry_token,
         function_builder_->Or(function_builder_->Not(active),
-                              function_builder_->Not(*state_write_called_)),
+                              function_builder_->Not(state_write_called)),
         "State element written after write in same activation.");
 
-    state_write_called_ = function_builder_->Or(*state_write_called_, active);
     implicit_token_data_->control_tokens.push_back(
         implicit_token_data_->entry_token);
   }
-
-  Expr* target = node->args()[0];
+  state_write_map_[target->ToString()] =
+      function_builder_->Or(state_write_called, active);
   XLS_RETURN_IF_ERROR(Visit(target));
   XLS_ASSIGN_OR_RETURN(BValue state_element, Use(target));
   ProcBuilder* builder_ptr =
@@ -2749,6 +2834,12 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   }
   if (called_name == "join") {
     return HandleBuiltinJoin(node);
+  }
+  if (called_name == "labeled_read") {
+    return HandleBuiltinLabeledRead(node);
+  }
+  if (called_name == "labeled_write") {
+    return HandleBuiltinLabeledWrite(node);
   }
   if (called_name == "map") {
     return HandleMap(node).status();
@@ -3696,8 +3787,10 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       module_->attributes().contains(ModuleAttribute::kExplicitStateAccess);
   BValue state = builder->StateElement(state_name, initial_element);
   if (explicit_state_access) {
-    state_read_called_ = builder->Literal(UBits(0, 1));
-    state_write_called_ = builder->Literal(UBits(0, 1));
+    for (Param* p : f->params()) {
+      state_read_map_[p->identifier()] = builder->Literal(UBits(0, 1));
+      state_write_map_[p->identifier()] = builder->Literal(UBits(0, 1));
+    }
   }
   tokens_.push_back(implicit_token);
   auto* builder_ptr = builder.get();
@@ -3707,14 +3800,32 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RETURN_IF_ERROR(builder_ptr->SetAsTop());
   }
 
-  // Set the one state element.
+  // Set the state element(s).
   XLS_RET_CHECK(proc_proto_);
-  PackageInterfaceProto::NamedValue* state_proto =
-      proc_proto_.value()->add_state();
-  *state_proto->mutable_name() = state_name;
-  *state_proto->mutable_type() = state.GetType()->ToProto();
-  // State elements aren't emitted in an observable way so no need to track sv
-  // types.
+  if (explicit_state_access) {
+    for (int i = 0; i < f->params().size(); ++i) {
+      Param* p = f->params()[i];
+      PackageInterfaceProto::Proc::StateValue* state_value =
+          proc_proto_.value()->add_state_values();
+      PackageInterfaceProto::NamedValue* state_proto =
+          state_value->mutable_name();
+      state_proto->set_name(p->identifier());
+      XLS_ASSIGN_OR_RETURN(auto type, ResolveTypeToIr(p->type_annotation()));
+      *state_proto->mutable_type() = type->ToProto();
+      Value init = f->params().size() > 1 ? initial_element.elements()[i]
+                                          : initial_element;
+      BValue p_state = builder_ptr->StateElement(p->identifier(), init);
+      SetNodeToIr(p->name_def(), p_state);
+    }
+  } else {
+    PackageInterfaceProto::NamedValue* state_proto =
+        proc_proto_.value()->add_state();
+    *state_proto->mutable_name() = state_name;
+    *state_proto->mutable_type() = state.GetType()->ToProto();
+    // Bind the recurrent state element.
+    XLS_RET_CHECK_EQ(f->params().size(), 1);
+    SetNodeToIr(f->params()[0]->name_def(), state);
+  }
 
   // We make an implicit token in case any downstream functions need it; if it's
   // unused, it'll be optimized out later.
@@ -3724,10 +3835,6 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       .create_control_predicate =
           [this]() { return implicit_token_data_->activated; },
   };
-
-  // Bind the recurrent state element.
-  XLS_RET_CHECK_EQ(f->params().size(), 1);
-  SetNodeToIr(f->params()[0]->name_def(), state);
 
   proc_id_ = proc_id;
 
