@@ -51,6 +51,8 @@ load(
     "IrFileInfo",
     "OptIrArgInfo",
     "SCHEDULING_FIELDS",
+    "XlsOptimizationPassRegistryConfigInfo",
+    "XlsOptimizationPassRegistryInfo",
 )
 load(
     "//xls/build_rules:xls_toolchains.bzl",
@@ -61,6 +63,11 @@ load(
     "bool_type_check",
     "tuple_type_check",
 )
+
+# Work around for the old version of bazel we're using.
+# TODO(allight): Remove once we move to bazel >= 8.
+_BAZEL_HAS_SET_BUILTIN = False
+_bazel_set_builtin = lambda x: None
 
 _DEFAULT_IR_EVAL_TEST_ARGS = {
     "random_inputs": "100",
@@ -234,7 +241,7 @@ def _convert_to_ir(ctx, src):
     )
     return runfiles, ir_file, interface_proto
 
-def _optimize_ir(ctx, src, original_input_files):
+def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = []):
     """Returns the runfiles and a File referencing the optimized IR file.
 
     Creates an action in the context to optimize an IR file.
@@ -243,6 +250,9 @@ def _optimize_ir(ctx, src, original_input_files):
       ctx: The current rule's context object.
       src: The source file.
       original_input_files: All original source files that produced this IR file (used for errors).
+      extra_flags: Extra flags to pass to the optimizer in addition to those passed using the bazel
+                   flag.
+      extra_outs: Extra output files to return (such as those produced by the extra_flags).
     Returns:
       A tuple with the following elements in the order presented:
         1. The runfiles to optimize the IR file.
@@ -285,6 +295,37 @@ def _optimize_ir(ctx, src, original_input_files):
         # Need to handle that some flag values are things like 'true' and
         # 'false' that need to be handled carefully.
         args.add("--{}={}".format(flag, value))
+
+    extra_ins = []
+    if ctx.attr.pass_pipeline != ctx.attr._default_pass_pipeline:
+        if XlsOptimizationPassRegistryConfigInfo in ctx.attr.pass_pipeline:
+            pipeline_cfg = ctx.attr.pass_pipeline[XlsOptimizationPassRegistryConfigInfo]
+        else:
+            reg_info = ctx.attr.pass_pipeline[XlsOptimizationPassRegistryInfo]
+            pipeline_cfg = XlsOptimizationPassRegistryConfigInfo(
+                pipeline_binpb = reg_info.pipeline_binpb,
+                pass_infos = reg_info.pass_infos,
+            )
+
+        # TODO(allight): Remove once we move to bazel >= 8.
+        if _BAZEL_HAS_SET_BUILTIN:
+            # bazel 8 or later.
+            extra_passes = _bazel_set_builtin(pipeline_cfg.pass_infos).difference(
+                _bazel_set_builtin(
+                    ctx.attr._default_pass_pipeline[XlsOptimizationPassRegistryConfigInfo].pass_infos,
+                ),
+            )
+        else:
+            # TODO(allight): Remove once we can drop support for bazel < 8.
+            extra_passes = []
+        if len(extra_passes) > 0:
+            fail(
+                "The 'pass_pipeline' contains passes not linked to the optimizer. " +
+                "You need to create a toolchain with the following additional passes : " +
+                "[" + ", ".join(extra_passes) + "]",
+            )
+        args.add("-pipeline_proto", pipeline_cfg.pipeline_binpb.path)
+        extra_ins.append(pipeline_cfg.pipeline_binpb)
 
     if ctx.attr.ram_rewrites:
         ram_rewrites = []
@@ -331,22 +372,24 @@ def _optimize_ir(ctx, src, original_input_files):
         execution_requirements = None
 
     outs = [opt_ir_file, log_file, opt_options_used_textproto_file]
-    extra_outs = []
+    extra_outs = list(extra_outs)
     if emit_pprof:
         pprof_filename = ctx.attr.name + _PPROF_FILE_EXTENSION
         pprof_file = ctx.actions.declare_file(pprof_filename)
         args.add("--passes_profile", pprof_file)
-        outs.append(pprof_file)
         extra_outs.append(pprof_file)
+    outs.extend(extra_outs)
     runfiles = get_runfiles_for_xls(ctx, [], [src.ir_file] + ram_rewrite_files + debug_src_files + original_input_files)
     for v in fixup_extra_args(ctx.attr._extra_opt_flags[BuildSettingInfo].value):
+        args.add(v)
+    for v in extra_flags:
         args.add(v)
     ctx.actions.run(
         outputs = outs,
         executable = ctx.executable._xls_opt_ir_tool,
         execution_requirements = execution_requirements,
         # The files required for optimizing the IR file.
-        inputs = runfiles.files,
+        inputs = runfiles.files.to_list() + extra_ins,
         arguments = [args],
         mnemonic = "OptimizeIR",
         progress_message = "Optimizing IR %s" % src.ir_file.short_path,
@@ -800,7 +843,7 @@ An IR conversion with a top entity defined.
     ),
 )
 
-def xls_ir_opt_ir_impl(ctx, src, original_input_files):
+def xls_ir_opt_ir_impl(ctx, src, original_input_files, extra_flags = [], extra_outs = []):
     """The implementation of the 'xls_ir_opt_ir' rule.
 
     Optimizes an IR file.
@@ -817,7 +860,7 @@ def xls_ir_opt_ir_impl(ctx, src, original_input_files):
         1. The list of built files.
         1. The runfiles.
     """
-    runfiles, opt_ir_file, extra = _optimize_ir(ctx, src, original_input_files)
+    runfiles, opt_ir_file, extra = _optimize_ir(ctx, src, original_input_files, extra_flags, extra_outs)
     return [
         IrFileInfo(ir_file = opt_ir_file),
         OptIrArgInfo(
@@ -859,6 +902,20 @@ xls_ir_opt_ir_attrs = dicts.add(
             doc = "The filename to write the OptFlagsProto textproto to. If not specified, the " +
                   "name of the target followed by " + _OPT_OPTIONS_USED_FILE_EXTENSION +
                   " is used.",
+        ),
+        "pass_pipeline": attr.label(
+            doc = "The pass pipeline to use.\n" +
+                  "\n" +
+                  "This should generally not be used directly. Prefer using the toolchains to " +
+                  "control what pass pipeline to use. The provided toolchain here must not have " +
+                  "any pass library linked to it that the one configured via toolchains lacks.",
+            default = Label("//xls/passes"),
+            providers = [[XlsOptimizationPassRegistryConfigInfo], [XlsOptimizationPassRegistryInfo]],
+        ),
+        "_default_pass_pipeline": attr.label(
+            doc = "Pass pipeline that opt was actually linked with to check if we have all the required passes.",
+            default = Label("//xls/passes"),
+            providers = [XlsOptimizationPassRegistryConfigInfo],
         ),
         "_profile_opt_passes": attr.label(
             doc = "Generate a pprof of pass executions. Set using --//xls/common/config:profile_opt_passes",

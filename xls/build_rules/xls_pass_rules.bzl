@@ -27,6 +27,7 @@ load(
 load(
     "//xls/build_rules:xls_providers.bzl",
     "XlsOptimizationPassInfo",
+    "XlsOptimizationPassRegistryConfigInfo",
     "XlsOptimizationPassRegistryInfo",
 )
 load(
@@ -354,6 +355,10 @@ def _xls_pass_registry_impl(ctx):
             default_info = default_info,
             pipeline_src = ctx.file.pipeline,
         ),
+        XlsOptimizationPassRegistryConfigInfo(
+            pipeline_binpb = pipeline_binpb,
+            pass_infos = pass_infos,
+        ),
     ]
 
 xls_pass_registry = rule(
@@ -365,7 +370,7 @@ xls_pass_registry = rule(
     TODO(allight): This would be a nice thing to do. Ensuring that overrides
     work reasonably would be required however.
     """,
-    provides = [CcInfo, XlsOptimizationPassRegistryInfo],
+    provides = [CcInfo, XlsOptimizationPassRegistryInfo, XlsOptimizationPassRegistryConfigInfo],
     fragments = ["cpp"],
     toolchains = use_cpp_toolchain(),
     attrs = dicts.add(
@@ -411,11 +416,15 @@ def _xls_default_pass_registry(ctx):
         config.pass_registry,
         config.pass_registry.cc_library,
         config.pass_registry.default_info,
+        XlsOptimizationPassRegistryConfigInfo(
+            pipeline_binpb = config.pass_registry.pipeline_binpb,
+            pass_infos = config.pass_registry.pass_infos,
+        ),
     ]
 
 xls_default_pass_registry = rule(
     implementation = _xls_default_pass_registry,
     doc = """A pass registry with the default pipeline.""",
-    provides = [XlsOptimizationPassRegistryInfo, CcInfo],
+    provides = [XlsOptimizationPassRegistryInfo, XlsOptimizationPassRegistryConfigInfo, CcInfo],
     toolchains = ["//xls/common/toolchains:toolchain_type"],
 )
