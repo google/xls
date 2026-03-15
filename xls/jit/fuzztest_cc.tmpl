@@ -1,0 +1,60 @@
+// Generated File. Do not edit.
+
+#include <array>
+#include <cstdint>
+#include <memory>
+#include <tuple>
+#include <vector>
+
+#include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/value.h"
+#include "{{fuzztest.jit_class_header_filename}}"
+
+namespace {{ fuzztest.namespace }} {
+namespace {
+void {{fuzztest.property_function_name}}({{ fuzztest.params | map("property_param") | join (", ") }}) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<{{fuzztest.jit_classname}}> f,
+                           {{fuzztest.jit_classname}}::Create());
+
+  {% for param in fuzztest.params recursive %}
+    {% if param.parent %}
+  {{param.c_type}} {{param.name}} = std::get<{{param.tuple_index}}>({{param.parent}});
+    {% endif %}
+    {% if param.value_type == "BITS" %}
+  xls::Value {{param.value_name}}(xls::Bits({{param.name}}, {{param.num_bits}}));
+    {% elif param.value_type == "ARRAY" %}
+  std::vector<xls::Value> _{{param.value_name}}_vector;
+  for (auto {{param.children[0].name}} : {{param.name}}) {
+  {{loop(param.children)}}
+    _{{param.value_name}}_vector.push_back({{param.children[0].value_name}});
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value {{param.value_name}}, xls::Value::Array(_{{param.value_name}}_vector));
+    {% elif param.value_type == "TUPLE" %}
+  {% if param.children %}{{loop(param.children)}}{% endif %}
+  xls::Value {{param.value_name}}(xls::Value::TupleOwned({% for child in param.children +%}
+    {{child.value_name}}{% if not loop.last %}, {% endif %}
+    {% endfor %}));
+    {% else %}
+      Invalid type: {{param.value_type}}
+    {% endif %}
+
+  {% endfor %}
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value result, f->Run(
+    {{ fuzztest.params | map(attribute="value_name") | join (", ") }}
+  ));
+
+  {% if fuzztest.return_type %}
+  ASSERT_TRUE(result.IsAllOnes());
+  {% endif %}
+}
+FUZZ_TEST({{fuzztest.fuzztest_name}}, {{fuzztest.property_function_name}})
+  .WithDomains(
+    {{fuzztest.params | map(attribute="domain") | join (",\n    ") }}
+  );
+
+
+}  // namespace
+}  // namespace {{fuzztest.namespace}}
