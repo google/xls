@@ -1,0 +1,14 @@
+module SMod(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  function automatic [31:0] smod_32b (input reg [31:0] lhs, input reg [31:0] rhs);
+    begin
+      smod_32b = rhs == 32'h0000_0000 ? 32'h0000_0000 : $unsigned($signed(lhs) % $signed(rhs));
+    end
+  endfunction
+  wire [31:0] smod_6;
+  assign smod_6 = smod_32b(x, y);
+  assign out = smod_6;
+endmodule
