@@ -40,6 +40,8 @@ struct MCSResult {
 };
 
 // Solve Maximum Common Subgraph problem
+// mcs_cutoff: Stop early when remaining unmatched nodes <= this value
+//             (negative = disabled, runs to completion)
 MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
                    int mcs_cutoff = -1);
 
