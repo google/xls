@@ -188,6 +188,9 @@ class LazyQueryEngine : public internal::CacheableQueryEngine {
   const LazyNodeInfo<Info>& info() const { return qe_info(); }
 
   std::optional<SharedLeafTypeTree<Info>> GetInfo(Node* node) const {
+    if (!IsTracked(node)) {
+      return std::nullopt;
+    }
     return info_.GetInfo(node);
   }
 
