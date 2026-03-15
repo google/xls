@@ -996,6 +996,20 @@ Next::Next(const SourceInfo& loc, Node* state_read, Node* value,
   AddOptionalOperand(predicate);
 }
 
+Next::Next(const SourceInfo& loc, StateElement* state_element, Node* value,
+           std::optional<Node*> predicate, std::optional<std::string> label,
+           std::string_view name, FunctionBase* function)
+    : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
+           function),
+      state_element_(state_element),
+      has_predicate_(predicate.has_value()),
+      label_(std::move(label)) {
+  CHECK(IsOpClass<Next>(op_))
+      << "Op `" << op_ << "` is not a valid op for Node class `Next`.";
+  AddOperand(value);
+  AddOptionalOperand(predicate);
+}
+
 bool Next::IsDefinitelyEqualTo(const Node* other) const {
   if (this == other) {
     return true;
