@@ -15,9 +15,12 @@
 #include "xls/eco/mcs.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -29,81 +32,124 @@ Approach." Proc. ACM Manag. Data 3, 3, Article 160 (2025).
 https://doi.org/10.1145/3725404 */
 
 namespace mcs {
-
-static bool g_stop = false;
-static int g_best_size = 0;
-static int g_mcs_cutoff = -1;
-static int g_total_nodes = 0;
-
 namespace {
+
+struct SearchContext {
+  bool stop = false;
+  int best_size = 0;
+  int mcs_cutoff = -1;
+  int total_nodes = 0;
+  State best_mapping;
+};
+
 inline std::uint64_t EncodePair(int u, int v) {
   return (static_cast<std::uint64_t>(static_cast<unsigned int>(u)) << 32) |
          static_cast<std::uint64_t>(static_cast<unsigned int>(v));
 }
 
-inline bool IsForbidden(int u, int v, const ForbiddenSet& D) {
-  return D.find(EncodePair(u, v)) != D.end();
+inline bool IsForbidden(int u, int v, const ForbiddenSet& forbidden) {
+  return forbidden.find(EncodePair(u, v)) != forbidden.end();
 }
 
-inline int PickBranchVertex(const CandidateSet& C) {
-  if (C.empty()) return -1;
-  int u_pick = -1;
-  size_t best = std::numeric_limits<size_t>::max();
-  for (const auto& kv : C) {
-    if (!kv.second.empty() && kv.second.size() < best) {
-      best = kv.second.size();
-      u_pick = kv.first;
+inline int PickBranchVertex(const CandidateSet& candidates) {
+  if (candidates.empty()) {
+    return -1;
+  }
+
+  int chosen_u = -1;
+  size_t best_size = std::numeric_limits<size_t>::max();
+
+  for (const auto& [u, cand_list] : candidates) {
+    if (!cand_list.empty() && cand_list.size() < best_size) {
+      best_size = cand_list.size();
+      chosen_u = u;
     }
   }
-  if (u_pick == -1) u_pick = C.begin()->first;  // fallback
-  return u_pick;
+
+  if (chosen_u == -1) {
+    chosen_u = candidates.begin()->first;
+  }
+  return chosen_u;
 }
 
-CandidateSet RefineCandidates(const State& S, const CandidateSet& C, int u,
-                              int v, const XLSGraph& Q, const XLSGraph& G) {
-  CandidateSet R;
+inline std::string Indent(int depth) { return std::string(depth * 2, ' '); }
 
-  auto u_out = Q.get_outgoing_neighbors(u);
-  auto u_in = Q.get_incoming_neighbors(u);
-  auto v_out = G.get_outgoing_neighbors(v);
-  auto v_in = G.get_incoming_neighbors(v);
+bool MaybeUpdateBest(const State& current, const XLSGraph& query,
+                     SearchContext& ctx, int depth) {
+  const int current_size = static_cast<int>(current.size());
+  if (current_size <= ctx.best_size) {
+    return false;
+  }
 
-  absl::flat_hash_set<int> u_neighbors(u_out.begin(), u_out.end());
-  u_neighbors.insert(u_in.begin(), u_in.end());
+  ctx.best_mapping = current;
+  ctx.best_size = current_size;
 
-  absl::flat_hash_set<int> v_neighbors(v_out.begin(), v_out.end());
-  v_neighbors.insert(v_in.begin(), v_in.end());
+  VLOG(2) << Indent(depth) << "[best] improved best_size=" << ctx.best_size;
 
-  for (const auto& [x, candidates] : C) {
-    if (x == u) continue;
+  if (ctx.mcs_cutoff >= 0) {
+    const int remaining = ctx.total_nodes - ctx.best_size;
+    if (remaining <= ctx.mcs_cutoff) {
+      ctx.stop = true;
+      VLOG(0) << "[cutoff] MCS cutoff reached: remaining nodes (" << remaining
+              << ") <= cutoff (" << ctx.mcs_cutoff << "), stopping search";
+      return true;
+    }
+  }
+
+  if (ctx.best_size == static_cast<int>(query.nodes.size())) {
+    ctx.stop = true;
+    VLOG(2) << Indent(depth)
+            << "[optimal] found complete mapping, stop flag set";
+  }
+
+  return true;
+}
+
+CandidateSet RefineCandidates(const State& partial_mapping,
+                              const CandidateSet& candidates, int matched_u,
+                              int matched_v, const XLSGraph& query,
+                              const XLSGraph& target) {
+  CandidateSet refined;
+
+  for (const auto& [x, cand_list] : candidates) {
+    if (x == matched_u) {
+      continue;
+    }
+
     std::vector<int> new_candidates;
+    new_candidates.reserve(cand_list.size());
 
-    for (int y : candidates) {
-      if (y == v) continue;
+    for (int y : cand_list) {
+      if (y == matched_v) {
+        continue;
+      }
 
       bool consistent = true;
 
-      // Check edges between u and x vs v and y (Forward u->x vs v->y)
-      auto q_ux = Q.get_edges_between(u, x);
-      auto g_vy = G.get_edges_between(v, y);
+      // Check edges between matched_u and x vs matched_v and y.
+      auto q_ux = query.get_edges_between(matched_u, x);
+      auto g_vy = target.get_edges_between(matched_v, y);
       std::sort(q_ux.begin(), q_ux.end());
       std::sort(g_vy.begin(), g_vy.end());
-      if (q_ux != g_vy) consistent = false;
+      if (q_ux != g_vy) {
+        consistent = false;
+      }
 
-      // Check edges between x and u vs y and v (Backward x->u vs y->v)
+      // Check edges between x and matched_u vs y and matched_v.
       if (consistent) {
-        auto q_xu = Q.get_edges_between(x, u);
-        auto g_yv = G.get_edges_between(y, v);
+        auto q_xu = query.get_edges_between(x, matched_u);
+        auto g_yv = target.get_edges_between(y, matched_v);
         std::sort(q_xu.begin(), q_xu.end());
         std::sort(g_yv.begin(), g_yv.end());
-        if (q_xu != g_yv) consistent = false;
+        if (q_xu != g_yv) {
+          consistent = false;
+        }
       }
 
       if (consistent) {
-        for (auto [u2, v2] : S) {
-          // Check edges between u2 and x vs v2 and y
-          auto q_u2x = Q.get_edges_between(u2, x);
-          auto g_v2y = G.get_edges_between(v2, y);
+        for (const auto& [u2, v2] : partial_mapping) {
+          auto q_u2x = query.get_edges_between(u2, x);
+          auto g_v2y = target.get_edges_between(v2, y);
           std::sort(q_u2x.begin(), q_u2x.end());
           std::sort(g_v2y.begin(), g_v2y.end());
           if (q_u2x != g_v2y) {
@@ -111,9 +157,8 @@ CandidateSet RefineCandidates(const State& S, const CandidateSet& C, int u,
             break;
           }
 
-          // Check edges between x and u2 vs y and v2
-          auto q_xu2 = Q.get_edges_between(x, u2);
-          auto g_yv2 = G.get_edges_between(y, v2);
+          auto q_xu2 = query.get_edges_between(x, u2);
+          auto g_yv2 = target.get_edges_between(y, v2);
           std::sort(q_xu2.begin(), q_xu2.end());
           std::sort(g_yv2.begin(), g_yv2.end());
           if (q_xu2 != g_yv2) {
@@ -123,75 +168,94 @@ CandidateSet RefineCandidates(const State& S, const CandidateSet& C, int u,
         }
       }
 
-      if (consistent) new_candidates.push_back(y);
+      if (consistent) {
+        new_candidates.push_back(y);
+      }
     }
 
-    if (!new_candidates.empty()) R[x] = std::move(new_candidates);
+    if (!new_candidates.empty()) {
+      refined[x] = std::move(new_candidates);
+    }
   }
 
-  return R;
+  return refined;
 }
 
-CandidateSet BuildInitialCandidates(const XLSGraph& Q, const XLSGraph& G) {
-  CandidateSet Psi;
+CandidateSet BuildInitialCandidates(const XLSGraph& query,
+                                    const XLSGraph& target) {
+  CandidateSet initial_candidates;
 
-  for (int u = 0; u < static_cast<int>(Q.nodes.size()); ++u) {
-    const auto& nu = Q.nodes[u];
+  for (int u = 0; u < static_cast<int>(query.nodes.size()); ++u) {
+    const auto& query_node = query.nodes[u];
     std::vector<int> candidates;
 
-    for (int v = 0; v < static_cast<int>(G.nodes.size()); ++v) {
-      const auto& nv = G.nodes[v];
+    for (int v = 0; v < static_cast<int>(target.nodes.size()); ++v) {
+      const auto& target_node = target.nodes[v];
 
-      if (nu.label != nv.label) continue;
-
-      if (nu.signature != nv.signature) continue;
-
-      if (Q.get_incoming_neighbors(u).size() !=
-              G.get_incoming_neighbors(v).size() ||
-          Q.get_outgoing_neighbors(u).size() !=
-              G.get_outgoing_neighbors(v).size())
+      if (query_node.label != target_node.label) {
         continue;
+      }
+      if (query_node.signature != target_node.signature) {
+        continue;
+      }
+
+      if (query.get_incoming_neighbors(u).size() !=
+              target.get_incoming_neighbors(v).size() ||
+          query.get_outgoing_neighbors(u).size() !=
+              target.get_outgoing_neighbors(v).size()) {
+        continue;
+      }
 
       candidates.push_back(v);
     }
 
-    if (!candidates.empty()) Psi[u] = std::move(candidates);
+    if (!candidates.empty()) {
+      initial_candidates[u] = std::move(candidates);
+    }
   }
 
-  return Psi;
+  return initial_candidates;
 }
 
-int UpperBound(const State& S, const CandidateSet& C, const XLSGraph& Q,
-               const XLSGraph& G) {
-  int ub = static_cast<int>(S.size());
+int UpperBound(const State& partial_mapping, const CandidateSet& candidates,
+               const XLSGraph& query, const XLSGraph& target) {
+  int upper_bound = static_cast<int>(partial_mapping.size());
 
-  for (const auto& [u, cand_list] : C) {
-    int consistent = 0;
+  for (const auto& [u, cand_list] : candidates) {
+    int consistent_count = 0;
 
     for (int v : cand_list) {
       bool compatible = true;
 
-      // Check edge multiplicity consistency with all matched pairs
-      for (const auto& [u2, v2] : S) {
-        int q_edges = Q.count_edges(u, u2);
-        int g_edges = G.count_edges(v, v2);
-
+      for (const auto& [u2, v2] : partial_mapping) {
+        const int q_edges = query.count_edges(u, u2);
+        const int g_edges = target.count_edges(v, v2);
         if (q_edges != g_edges) {
           compatible = false;
           break;
         }
       }
 
-      if (compatible) consistent++;
+      if (compatible) {
+        ++consistent_count;
+      }
     }
 
-    ub += std::min(consistent, (int)cand_list.size());
+    upper_bound +=
+        std::min(consistent_count, static_cast<int>(cand_list.size()));
   }
 
-  return ub;
+  return upper_bound;
 }
 
-inline std::string indent(int depth) { return std::string(depth * 2, ' '); }
+bool HasEmptyCandidateList(const CandidateSet& candidates) {
+  for (const auto& [u, cand_list] : candidates) {
+    if (cand_list.empty()) {
+      return true;
+    }
+  }
+  return false;
+}
 
 void PopulateMatchedEdges(const XLSGraph& graph1, const XLSGraph& graph2,
                           const State& mapping, MCSResult& result) {
@@ -213,6 +277,7 @@ void PopulateMatchedEdges(const XLSGraph& graph1, const XLSGraph& graph2,
     const auto& e1 = graph1.edges[e1_idx];
     const int src_g1 = e1.endpoints.first;
     const int dst_g1 = e1.endpoints.second;
+
     if (src_g1 < 0 || src_g1 >= static_cast<int>(g1_to_g2.size()) ||
         dst_g1 < 0 || dst_g1 >= static_cast<int>(g1_to_g2.size())) {
       continue;
@@ -234,6 +299,7 @@ void PopulateMatchedEdges(const XLSGraph& graph1, const XLSGraph& graph2,
           used_g2_edges[e2_idx]) {
         continue;
       }
+
       const auto& e2 = graph2.edges[e2_idx];
       if (e2.endpoints.first == src_g2 && e2.endpoints.second == dst_g2 &&
           e2.index == e1.index) {
@@ -244,87 +310,72 @@ void PopulateMatchedEdges(const XLSGraph& graph1, const XLSGraph& graph2,
     }
   }
 
-  result.edge_size = result.edge_mapping.size();
+  result.edge_size = static_cast<int>(result.edge_mapping.size());
 }
 
-void RRSplitRec(State& S, const CandidateSet& C, const ForbiddenSet& D,
-                const XLSGraph& Q, const XLSGraph& G, State& S_best,
-                int depth) {
-  if (g_stop) return;
-
-  VLOG(3) << indent(depth) << "[enter] depth=" << depth
-          << ", partial_size=" << S.size() << ", best_size=" << g_best_size
-          << ", #vars_with_cands=" << C.size();
-
-  // Update best solution if current is better
-  if ((int)S.size() > g_best_size) {
-    S_best = S;
-    g_best_size = (int)S.size();
-    VLOG(2) << indent(depth) << "[best] improved best_size=" << g_best_size;
-
-    // Check cutoff: stop if remaining unmatched nodes <= cutoff threshold
-    if (g_mcs_cutoff >= 0) {
-      int remaining = g_total_nodes - g_best_size;
-      if (remaining <= g_mcs_cutoff) {
-        g_stop = true;
-        VLOG(0) << "[cutoff] MCS cutoff reached: remaining nodes (" << remaining
-                << ") <= cutoff (" << g_mcs_cutoff << "), stopping search";
-        return;
-      }
-    }
-
-    if (g_best_size == (int)Q.nodes.size()) {
-      g_stop = true;
-      VLOG(2) << indent(depth)
-              << "[optimal] found complete mapping, stop flag set";
-    }
-  }
-
-  if (C.empty()) {
-    VLOG(3) << indent(depth) << "[leaf] no candidate variables remain";
+void RRSplitRec(State& partial_mapping, const CandidateSet& candidates,
+                const ForbiddenSet& forbidden, const XLSGraph& query,
+                const XLSGraph& target, SearchContext& ctx, int depth) {
+  if (ctx.stop) {
     return;
   }
 
-  // Upper bound pruning (Lemma 5)
-  int ub = UpperBound(S, C, Q, G);
-  if (ub <= g_best_size) {
-    VLOG(3) << indent(depth) << "[prune] upper_bound=" << ub
-            << " <= best_size=" << g_best_size;
+  VLOG(3) << Indent(depth) << "[enter] depth=" << depth
+          << ", partial_size=" << partial_mapping.size()
+          << ", best_size=" << ctx.best_size
+          << ", #vars_with_cands=" << candidates.size();
+
+  MaybeUpdateBest(partial_mapping, query, ctx, depth);
+  if (ctx.stop) {
     return;
   }
 
-  // Choose branching variable (fail-first heuristic)
-  int u = PickBranchVertex(C);
+  if (candidates.empty()) {
+    VLOG(3) << Indent(depth) << "[leaf] no candidate variables remain";
+    return;
+  }
+
+  const int ub = UpperBound(partial_mapping, candidates, query, target);
+  if (ub <= ctx.best_size) {
+    VLOG(3) << Indent(depth) << "[prune] upper_bound=" << ub
+            << " <= best_size=" << ctx.best_size;
+    return;
+  }
+
+  const int u = PickBranchVertex(candidates);
   if (u == -1) {
-    VLOG(3) << indent(depth) << "[leaf] no variable to branch on";
+    VLOG(3) << Indent(depth) << "[leaf] no variable to branch on";
     return;
   }
 
   size_t u_cands = 0;
-  if (auto it = C.find(u); it != C.end()) u_cands = it->second.size();
+  if (auto it = candidates.find(u); it != candidates.end()) {
+    u_cands = it->second.size();
+  }
 
-  VLOG(3) << indent(depth) << "[branch] u=" << u << " (" << Q.nodes[u].name
+  VLOG(3) << Indent(depth) << "[branch] u=" << u << " (" << query.nodes[u].name
           << ") with |C(u)|=" << u_cands;
 
-  // Maximality-based reduction (Equation 13 from paper)
+  // Maximality-based reduction.
   if (u_cands > 0) {
-    for (int v_try : C.at(u)) {
-      if (Q.get_incoming_neighbors(u).size() !=
-              G.get_incoming_neighbors(v_try).size() ||
-          Q.get_outgoing_neighbors(u).size() !=
-              G.get_outgoing_neighbors(v_try).size())
+    for (int v_try : candidates.at(u)) {
+      if (query.get_incoming_neighbors(u).size() !=
+              target.get_incoming_neighbors(v_try).size() ||
+          query.get_outgoing_neighbors(u).size() !=
+              target.get_outgoing_neighbors(v_try).size()) {
         continue;
+      }
 
       bool maximal_ok = true;
 
-      for (const auto& [u2, v2] : S) {
-        auto q_fwd = Q.get_edges_between(u, u2);
-        auto g_fwd = G.get_edges_between(v_try, v2);
+      for (const auto& [u2, v2] : partial_mapping) {
+        auto q_fwd = query.get_edges_between(u, u2);
+        auto g_fwd = target.get_edges_between(v_try, v2);
         std::sort(q_fwd.begin(), q_fwd.end());
         std::sort(g_fwd.begin(), g_fwd.end());
 
-        auto q_bwd = Q.get_edges_between(u2, u);
-        auto g_bwd = G.get_edges_between(v2, v_try);
+        auto q_bwd = query.get_edges_between(u2, u);
+        auto g_bwd = target.get_edges_between(v2, v_try);
         std::sort(q_bwd.begin(), q_bwd.end());
         std::sort(g_bwd.begin(), g_bwd.end());
 
@@ -335,62 +386,67 @@ void RRSplitRec(State& S, const CandidateSet& C, const ForbiddenSet& D,
       }
 
       if (maximal_ok) {
-        CandidateSet C2 = RefineCandidates(S, C, u, v_try, Q, G);
+        CandidateSet refined = RefineCandidates(partial_mapping, candidates, u,
+                                                v_try, query, target);
+        if (HasEmptyCandidateList(refined)) {
+          continue;
+        }
 
-        bool empty = false;
-        for (const auto& kv : C2)
-          if (kv.second.empty()) {
-            empty = true;
-            break;
+        ForbiddenSet next_forbidden = forbidden;
+        for (int other_v : candidates.at(u)) {
+          if (other_v != v_try) {
+            next_forbidden.insert(EncodePair(u, other_v));
           }
-        if (empty) continue;
+        }
 
-        ForbiddenSet D2 = D;
-        for (int vy : C.at(u))
-          if (vy != v_try) D2.insert(EncodePair(u, vy));
+        State next_mapping = partial_mapping;
+        next_mapping.emplace_back(u, v_try);
+        RRSplitRec(next_mapping, refined, next_forbidden, query, target, ctx,
+                   depth + 1);
 
-        State S2 = S;
-        S2.emplace_back(u, v_try);
-        RRSplitRec(S2, C2, D2, Q, G, S_best, depth + 1);
-        VLOG(3) << indent(depth) << "[max-red] pruned other candidates for u";
-        return;  // Early exit after maximal match
+        VLOG(3) << Indent(depth) << "[max-red] pruned other candidates for u";
+        return;
       }
     }
   }
 
-  const auto& cand = C.at(u);
+  const auto& cand_list = candidates.at(u);
 
-  for (int v : cand) {
-    if (IsForbidden(u, v, D)) {
-      VLOG(3) << indent(depth) << "  - skip v=" << v << " (" << G.nodes[v].name
-              << ") [forbidden]";
+  for (int v : cand_list) {
+    if (ctx.stop) {
+      return;
+    }
+
+    if (IsForbidden(u, v, forbidden)) {
+      VLOG(3) << Indent(depth) << "  - skip v=" << v << " ("
+              << target.nodes[v].name << ") [forbidden]";
       continue;
     }
 
-    VLOG(3) << indent(depth) << "  - try v=" << v << " (" << G.nodes[v].name
-            << ")";
-    auto C_refined = RefineCandidates(S, C, u, v, Q, G);
-    VLOG(3) << indent(depth) << "    refined: |C'|=" << C_refined.size()
+    VLOG(3) << Indent(depth) << "  - try v=" << v << " ("
+            << target.nodes[v].name << ")";
+
+    CandidateSet refined =
+        RefineCandidates(partial_mapping, candidates, u, v, query, target);
+
+    VLOG(3) << Indent(depth) << "    refined: |C'|=" << refined.size()
             << ", removed u from candidate set";
 
-    bool empty = false;
-    for (const auto& kv : C_refined)
-      if (kv.second.empty()) {
-        empty = true;
-        break;
-      }
-    if (empty) continue;
+    if (HasEmptyCandidateList(refined)) {
+      continue;
+    }
 
-    auto D_next = D;
+    ForbiddenSet next_forbidden = forbidden;
 
-    S.push_back({u, v});
-    RRSplitRec(S, C_refined, D_next, Q, G, S_best, depth + 1);
-    S.pop_back();
+    partial_mapping.push_back({u, v});
+    RRSplitRec(partial_mapping, refined, next_forbidden, query, target, ctx,
+               depth + 1);
+    partial_mapping.pop_back();
 
-    VLOG(3) << indent(depth) << "  - backtrack v=" << v;
+    VLOG(3) << Indent(depth) << "  - backtrack v=" << v;
   }
 
-  VLOG(3) << indent(depth) << "[exit] depth=" << depth;
+  VLOG(3) << Indent(depth) << "[exit] depth=" << depth;
 }
 
 }  // namespace
@@ -403,40 +459,45 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
           << " | G2 nodes=" << graph2.nodes.size()
           << " edges=" << graph2.edges.size() << " | cutoff=" << mcs_cutoff;
 
-  g_stop = false;
-  g_best_size = 0;
-  g_mcs_cutoff = mcs_cutoff;
-  g_total_nodes = graph1.nodes.size();
+  const int total_nodes = static_cast<int>(graph1.nodes.size());
 
   auto initial_candidates = BuildInitialCandidates(graph1, graph2);
   VLOG(1) << "Initial candidate variables=" << initial_candidates.size();
 
-  // Check cutoff condition before starting search
-  int total_nodes = graph1.nodes.size();
   if (mcs_cutoff >= 0 && total_nodes <= mcs_cutoff) {
     VLOG(0) << "MCS cutoff: total nodes (" << total_nodes << ") <= cutoff ("
             << mcs_cutoff << "), skipping MCS (will use GED for all nodes)";
+
     MCSResult empty_result;
     empty_result.size = 0;
+
     for (int i = 0; i < total_nodes; ++i) {
       empty_result.unmatched_g1.push_back(i);
     }
-    for (int j = 0; j < (int)graph2.nodes.size(); ++j) {
+    for (int j = 0; j < static_cast<int>(graph2.nodes.size()); ++j) {
       empty_result.unmatched_g2.push_back(j);
     }
     return empty_result;
   }
 
-  State S, S_best;
-  RRSplitRec(S, initial_candidates, {}, graph1, graph2, S_best, 0);
+  SearchContext ctx{
+      .stop = false,
+      .best_size = 0,
+      .mcs_cutoff = mcs_cutoff,
+      .total_nodes = total_nodes,
+      .best_mapping = {},
+  };
+
+  State partial_mapping;
+  RRSplitRec(partial_mapping, initial_candidates, ForbiddenSet{}, graph1,
+             graph2, ctx, 0);
 
   MCSResult result;
-  result.mapping = S_best;
-  result.size = S_best.size();
-  PopulateMatchedEdges(graph1, graph2, S_best, result);
+  result.mapping = ctx.best_mapping;
+  result.size = static_cast<int>(ctx.best_mapping.size());
+  PopulateMatchedEdges(graph1, graph2, ctx.best_mapping, result);
 
-  // Check if cutoff threshold is met
-  int remaining_nodes = total_nodes - result.size;
+  const int remaining_nodes = total_nodes - result.size;
   if (mcs_cutoff >= 0 && remaining_nodes <= mcs_cutoff) {
     VLOG(0) << "MCS cutoff reached: remaining unmatched nodes ("
             << remaining_nodes << ") <= cutoff (" << mcs_cutoff
@@ -446,22 +507,23 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
   VLOG(1) << "MCS found with " << result.size << " matched nodes";
   VLOG(1) << "MCS matched edges=" << result.edge_size;
 
-  absl::flat_hash_set<int> matched_g1, matched_g2;
-  for (const auto& [u, v] : S_best) {
+  absl::flat_hash_set<int> matched_g1;
+  absl::flat_hash_set<int> matched_g2;
+  for (const auto& [u, v] : ctx.best_mapping) {
     matched_g1.insert(u);
     matched_g2.insert(v);
     VLOG(2) << "  " << graph1.nodes[u].name << " -> " << graph2.nodes[v].name;
   }
 
-  for (int i = 0; i < (int)graph1.nodes.size(); ++i) {
-    if (matched_g1.find(i) == matched_g1.end()) {
+  for (int i = 0; i < static_cast<int>(graph1.nodes.size()); ++i) {
+    if (!matched_g1.contains(i)) {
       result.unmatched_g1.push_back(i);
       VLOG(3) << "  " << graph1.nodes[i].name << " -> unmatched";
     }
   }
 
-  for (int j = 0; j < (int)graph2.nodes.size(); ++j) {
-    if (matched_g2.find(j) == matched_g2.end()) {
+  for (int j = 0; j < static_cast<int>(graph2.nodes.size()); ++j) {
+    if (!matched_g2.contains(j)) {
       result.unmatched_g2.push_back(j);
       VLOG(3) << "  " << graph2.nodes[j].name << " -> unmatched";
     }
@@ -470,6 +532,7 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
   const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                            std::chrono::steady_clock::now() - start)
                            .count();
+
   VLOG(0) << "MCS done: size=" << result.size
           << " unmatched_g1=" << result.unmatched_g1.size()
           << " unmatched_g2=" << result.unmatched_g2.size()
@@ -477,13 +540,17 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
 
   return result;
 }
+
 absl::flat_hash_map<int, int> GetBoundaryNodes(const MCSResult& mcs,
                                                const XLSGraph& graph1,
                                                const XLSGraph& graph2) {
   absl::flat_hash_map<int, int> boundary_nodes;
-  if (mcs.mapping.empty()) return boundary_nodes;
+  if (mcs.mapping.empty()) {
+    return boundary_nodes;
+  }
 
-  absl::flat_hash_set<int> mcs_g1, mcs_g2;
+  absl::flat_hash_set<int> mcs_g1;
+  absl::flat_hash_set<int> mcs_g2;
   for (const auto& [u, v] : mcs.mapping) {
     mcs_g1.insert(u);
     mcs_g2.insert(v);
@@ -493,7 +560,7 @@ absl::flat_hash_map<int, int> GetBoundaryNodes(const MCSResult& mcs,
     bool is_boundary = false;
 
     for (int n1 : graph1.get_neighbors(u)) {
-      if (!mcs_g1.count(n1)) {
+      if (!mcs_g1.contains(n1)) {
         is_boundary = true;
         break;
       }
@@ -501,14 +568,16 @@ absl::flat_hash_map<int, int> GetBoundaryNodes(const MCSResult& mcs,
 
     if (!is_boundary) {
       for (int n2 : graph2.get_neighbors(v)) {
-        if (!mcs_g2.count(n2)) {
+        if (!mcs_g2.contains(n2)) {
           is_boundary = true;
           break;
         }
       }
     }
 
-    if (is_boundary) boundary_nodes[u] = v;
+    if (is_boundary) {
+      boundary_nodes[u] = v;
+    }
   }
 
   VLOG(1) << "Identified " << boundary_nodes.size()
