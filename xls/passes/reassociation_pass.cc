@@ -50,6 +50,7 @@
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
@@ -69,45 +70,6 @@
 namespace xls {
 
 namespace {
-
-// A helper to allow one to treat a node as if it was a zero-ext.
-class ZeroExtLike {
- public:
-  static std::optional<ZeroExtLike> Make(Node* n, const QueryEngine& qe) {
-    if (n->GetType()->GetFlatBitCount() == 0) {
-      return std::nullopt;
-    }
-    switch (n->op()) {
-      case Op::kZeroExt:
-        return ZeroExtLike(n, n->operand(0), /*op_num=*/0);
-      case Op::kSignExt:
-        if (qe.KnownLeadingZeros(n->operand(0)).value_or(0) >= 1) {
-          return ZeroExtLike(n, n->operand(0), /*op_num=*/0);
-        }
-        return std::nullopt;
-      case Op::kConcat:
-        if (absl::c_all_of(n->operands().subspan(0, n->operand_count() - 1),
-                           [&](Node* op) { return qe.IsAllZeros(op); })) {
-          return ZeroExtLike(n, n->operands().back(),
-                             /*op_num=*/n->operand_count() - 1);
-        }
-        return std::nullopt;
-      default:
-        return std::nullopt;
-    }
-  }
-
-  Node* real_node() const { return src_; }
-  Node* to_extend() const { return arg_; }
-  int64_t op_num() const { return op_num_; }
-
- private:
-  ZeroExtLike(Node* src, Node* arg, int64_t op_num)
-      : src_(src), arg_(arg), op_num_(op_num) {}
-  Node* src_;
-  Node* arg_;
-  int64_t op_num_;
-};
 
 // Is this an op we want to reassociate.
 bool IsAssociativeOp(Node* n) {
