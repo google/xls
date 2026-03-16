@@ -43,6 +43,15 @@ compound_passes: [
       "dce",
       "dataflow",
       "dce",
+      # We need to run these to ensure that reassociation will be able to
+      # accurately identify all zero/sign extends that can be reassociated
+      # through.
+      # TODO - https://github.com/google/xls/issues/3952: It would be nice not
+      # to need to run these so many times.
+      "bitslice_simp",
+      "dce",
+      "concat_simp",
+      "dce",
       "reassociation",
       "dce",
       "const_fold",
