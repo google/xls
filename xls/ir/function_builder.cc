@@ -1091,13 +1091,45 @@ BValue BuilderBase::PeekIf(ReceiveChannelRef channel, BValue token, BValue pred,
 BValue BuilderBase::PeekIfNonBlocking(
     ReceiveChannelRef channel, BValue token, BValue pred,
     const SourceInfo& loc, std::string_view name) {
-  return BValue();
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat(
+            "Token operand of peek must be of token type; is: %s",
+            token.GetType()->ToString()),
+        loc);
+  }
+  if (!pred.GetType()->IsBits() ||
+      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(
+        absl::StrFormat("Predicate operand of peek_if must be of bits "
+                        "type of width 1; is: %s",
+                        pred.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Peek>(
+      loc, token.node(), pred.node(), ChannelRefName(channel),
+      /*is_blocking=*/false, ChannelRefType(channel), name);
 }
 
 BValue BuilderBase::PeekNonBlocking(
     ReceiveChannelRef channel, BValue token,
     const SourceInfo& loc, std::string_view name) {
-  return BValue();
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat(
+            "Token operand of peek must be of token type; is: %s",
+            token.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Peek>(loc, token.node(), /*predicate=*/std::nullopt,
+                            ChannelRefName(channel), /*is_blocking=*/false,
+                            ChannelRefType(channel), name);
 }
 
 BValue BuilderBase::Receive(ReceiveChannelRef channel, BValue token,

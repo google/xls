@@ -3101,21 +3101,149 @@ absl::Status FunctionConverter::HandleBuiltinPeek(const Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleBuiltinPeekNonBlocking(
+    const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("peek_non_blocking", node));
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* default_expr = node->args()[2];
+
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+  XLS_RETURN_IF_ERROR(Visit(default_expr));
+
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef channel_ref,
+                       IrValueToReceiveChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_expr));
+
+  BValue recv;
+  if (implicit_token_data_.has_value()) {
+    XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    recv = builder_ptr->PeekIfNonBlocking(
+        channel_ref, token_value,
+        implicit_token_data_->create_control_predicate());
+  } else {
+    recv = builder_ptr->PeekNonBlocking(channel_ref, token_value);
+  }
+  BValue new_token_value = builder_ptr->TupleIndex(recv, 0);
+  BValue received_value = builder_ptr->TupleIndex(recv, 1);
+  BValue receive_activated = builder_ptr->TupleIndex(recv, 2);
+
+  // IR non-blocking receive has a default value of zero. Mux in the
+  // default_value specified in DSLX.
+  BValue value =
+      builder_ptr->Select(receive_activated, {default_value, received_value});
+  BValue repackaged_result =
+      builder_ptr->Tuple({new_token_value, value, receive_activated});
+
+  tokens_.push_back(new_token_value);
+  node_to_ir_[node] = repackaged_result;
+
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleBuiltinPeekIf(const Invocation* node) {
-  return absl::UnimplementedError(
-      absl::StrFormat("IrConversionError: Unhandled peek variant."));
+  XLS_RETURN_IF_ERROR(ValidateProcState("peek_if", node));
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* predicate = node->args()[2];
+  Expr* default_expr = node->args()[3];
+
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+  XLS_RETURN_IF_ERROR(Visit(predicate));
+  XLS_RETURN_IF_ERROR(Visit(default_expr));
+
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef channel_ref,
+                       IrValueToReceiveChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue predicate_value, Use(predicate));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_expr));
+
+  BValue recv;
+  if (implicit_token_data_.has_value()) {
+    XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    recv = builder_ptr->PeekIf(
+        channel_ref, token_value,
+        builder_ptr->And({implicit_token_data_->create_control_predicate(),
+                          predicate_value}));
+  } else {
+    recv = builder_ptr->PeekIf(channel_ref, token_value, predicate_value);
+  }
+  BValue new_token_value = builder_ptr->TupleIndex(recv, 0);
+  BValue received_value = builder_ptr->TupleIndex(recv, 1);
+
+  // IR receive-if has a default value of zero. Mux in the
+  // default_value specified in DSLX.
+  BValue value =
+      builder_ptr->Select(predicate_value, {default_value, received_value});
+  BValue repackaged_result = builder_ptr->Tuple({new_token_value, value});
+
+  tokens_.push_back(new_token_value);
+  node_to_ir_[node] = repackaged_result;
+  return absl::OkStatus();
 }
 
 absl::Status FunctionConverter::HandleBuiltinPeekIfNonBlocking(
     const Invocation* node) {
-  return absl::UnimplementedError(
-      absl::StrFormat("IrConversionError: Unhandled peek variant."));
-}
+  XLS_RETURN_IF_ERROR(ValidateProcState("peek_if_non_blocking", node));
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
 
-absl::Status FunctionConverter::HandleBuiltinPeekNonBlocking(
-    const Invocation* node) {
-  return absl::UnimplementedError(
-      absl::StrFormat("IrConversionError: Unhandled peek variant."));
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* predicate = node->args()[2];
+  Expr* default_expr = node->args()[3];
+
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+  XLS_RETURN_IF_ERROR(Visit(predicate));
+  XLS_RETURN_IF_ERROR(Visit(default_expr));
+
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef channel_ref,
+                       IrValueToReceiveChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue predicate_value, Use(predicate));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_expr));
+
+  BValue recv;
+  if (implicit_token_data_.has_value()) {
+    XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    recv = builder_ptr->PeekIfNonBlocking(
+        channel_ref, token_value,
+        builder_ptr->And({implicit_token_data_->create_control_predicate(),
+                          predicate_value}));
+  } else {
+    recv = builder_ptr->PeekIfNonBlocking(channel_ref, token_value,
+                                          predicate_value);
+  }
+  BValue new_token_value = builder_ptr->TupleIndex(recv, 0);
+  BValue received_value = builder_ptr->TupleIndex(recv, 1);
+  BValue receive_activated = builder_ptr->TupleIndex(recv, 2);
+
+  // IR non-blocking receive-if has a default value of zero. Mux in the
+  // default_value specified in DSLX.
+  BValue value =
+      builder_ptr->Select(receive_activated, {default_value, received_value});
+  BValue repackaged_result =
+      builder_ptr->Tuple({new_token_value, value, receive_activated});
+
+  tokens_.push_back(new_token_value);
+  node_to_ir_[node] = repackaged_result;
+  return absl::OkStatus();
 }
 
 absl::Status FunctionConverter::HandleRange(const Range* node) {
