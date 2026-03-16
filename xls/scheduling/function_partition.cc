@@ -27,10 +27,10 @@
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
 #include "absl/types/span.h"
+#include "ortools/graph/max_flow.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
-#include "ortools/graph/max_flow.h"
 
 namespace xls {
 namespace sched {
