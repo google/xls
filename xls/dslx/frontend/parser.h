@@ -167,6 +167,8 @@ class Parser : public TokenParser {
   absl::Status ParseErrorStatus(const Span& span,
                                 std::string_view message) const;
 
+  absl::StatusOr<std::optional<std::string>> ParseOptionalLabel();
+
  private:
   friend class ParserTest;
   friend class ExpressionDepthGuard;

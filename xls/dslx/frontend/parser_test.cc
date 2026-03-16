@@ -3335,6 +3335,55 @@ TEST_F(ParserTest, BuiltinFailWithLabels) {
   RoundTrip(std::string(kProgram));
 }
 
+TEST_F(ParserTest, LabeledExpr) {
+  Expr* expr = RoundTripExpr("'my_label:foo()", {"foo"});
+  ASSERT_NE(expr, nullptr);
+  EXPECT_TRUE(expr->label().has_value());
+  EXPECT_EQ(expr->label().value(), "my_label");
+}
+
+TEST_F(ParserTest, LabeledExpressions) {
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * e, ParseExpr(R"({
+  let _ = ('foo_label:foo(x)) + ('bar_label:bar(y));
+})",
+                                               {"foo", "x", "bar", "y"}, true));
+  auto* block = dynamic_cast<StatementBlock*>(e);
+  ASSERT_NE(block, nullptr);
+  ASSERT_EQ(block->statements().size(), 1);
+
+  Let* let = std::get<Let*>(block->statements()[0]->wrapped());
+  Binop* binop = dynamic_cast<Binop*>(let->rhs());
+  ASSERT_NE(binop, nullptr);
+  EXPECT_EQ(binop->binop_kind(), BinopKind::kAdd);
+
+  auto* lhs = dynamic_cast<Invocation*>(binop->lhs());
+  ASSERT_NE(lhs, nullptr);
+  ASSERT_TRUE(lhs->label().has_value());
+  EXPECT_EQ(lhs->label().value(), "foo_label");
+
+  auto* rhs = dynamic_cast<Invocation*>(binop->rhs());
+  ASSERT_NE(rhs, nullptr);
+  ASSERT_TRUE(rhs->label().has_value());
+  EXPECT_EQ(rhs->label().value(), "bar_label");
+}
+
+TEST_F(ParserTest, BadLabelNoIdentifier) {
+  constexpr std::string_view kProgram = "'42:foo()";
+  EXPECT_THAT(ParseExpr(kProgram, {"foo"}),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected string identifier following \' for "
+                                 "label definition")));
+}
+
+TEST_F(ParserTest, BadLabelNoColon) {
+  constexpr std::string_view kProgram = "'label foo()";
+  EXPECT_THAT(
+      ParseExpr(kProgram, {"foo"}),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Expected colon following identifier when using "
+                         "\' for label definition")));
+}
+
 TEST_F(ParserTest, ProcWithInit) {
   constexpr std::string_view kProgram = R"(proc foo {
     member: u32;
