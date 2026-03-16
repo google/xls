@@ -982,12 +982,28 @@ bool StateRead::IsDefinitelyEqualTo(const Node* other) const {
   return state_element_ == other->As<StateRead>()->state_element_;
 }
 
+Next::Next(const SourceInfo& loc, StateElement* state_element, Node* value,
+           std::optional<Node*> predicate, std::optional<std::string> label,
+           std::string_view name, FunctionBase* function)
+    : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
+           function),
+      state_element_(state_element),
+      has_predicate_(predicate.has_value()),
+      predicate_operand_index_(1),
+      label_(std::move(label)) {
+  CHECK(IsOpClass<Next>(op_))
+      << "Op `" << op_ << "` is not a valid op for Node class `Next`.";
+  AddOperand(value);
+  AddOptionalOperand(predicate);
+}
+
 Next::Next(const SourceInfo& loc, Node* state_read, Node* value,
            std::optional<Node*> predicate, std::optional<std::string> label,
            std::string_view name, FunctionBase* function)
     : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
            function),
       has_predicate_(predicate.has_value()),
+      predicate_operand_index_(2),
       label_(std::move(label)) {
   CHECK(IsOpClass<Next>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Next`.";
@@ -1450,6 +1466,13 @@ absl::StatusOr<Node*> StateRead::CloneInNewFunction(
 
 absl::StatusOr<Node*> Next::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
+  if (state_element_ != nullptr) {
+    return new_function->MakeNodeWithName<Next>(
+        loc(), state_element_, new_operands[0],
+        new_operands.size() > 1 ? std::make_optional(new_operands[1])
+                                : std::nullopt,
+        label(), GetNameView());
+  }
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Next>(
       loc(), new_operands[0], new_operands[1],

@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -816,6 +817,12 @@ class Next final : public Node {
   static constexpr int64_t kStateReadOperand = 0;
   static constexpr int64_t kValueOperand = 1;
 
+  Next(const SourceInfo& loc, StateElement* state_element, Node* value,
+       std::optional<Node*> predicate, std::optional<std::string> label,
+       std::string_view name, FunctionBase* function);
+
+  // TODO: nelsonliang - Remove this once all Next nodes use a StateElement
+  // instead of a StateRead.
   Next(const SourceInfo& loc, Node* state_read, Node* value,
        std::optional<Node*> predicate, std::optional<std::string> label,
        std::string_view name, FunctionBase* function);
@@ -823,22 +830,32 @@ class Next final : public Node {
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
-  Node* state_read() const { return operand(0); }
+  Node* state_read() const {
+    CHECK(state_element_ == nullptr) << "StateElement is set";
+    return operand(0);
+  }
 
-  Node* value() const { return operand(1); }
+  Node* value() const {
+    if (state_element_ != nullptr) {
+      return operand(0);
+    } else {
+      return operand(1);
+    }
+  }
 
   const std::optional<std::string>& label() const { return label_; }
 
   std::optional<Node*> predicate() const {
-    return has_predicate_ ? std::make_optional(operand(kPredicateOperand))
-                          : std::nullopt;
+    return has_predicate_
+               ? std::make_optional(operand(predicate_operand_index_))
+               : std::nullopt;
   }
 
   absl::StatusOr<int64_t> predicate_operand_number() const {
     if (!has_predicate_) {
       return absl::InternalError("predicate is not present");
     }
-    return kPredicateOperand;
+    return predicate_operand_index_;
   }
 
   absl::Status SetPredicate(Node* predicate) {
@@ -848,7 +865,7 @@ class Next final : public Node {
         GetName());
 
     if (has_predicate_) {
-      return ReplaceOperandNumber(kPredicateOperand, predicate);
+      return ReplaceOperandNumber(predicate_operand_index_, predicate);
     }
 
     AddOptionalOperand(predicate);
@@ -859,7 +876,7 @@ class Next final : public Node {
   absl::Status RemovePredicate() {
     XLS_RET_CHECK(has_predicate_) << absl::StreamFormat(
         "Cannot remove predicate of node `%s` as it has none", GetName());
-    XLS_RETURN_IF_ERROR(RemoveOptionalOperand(kPredicateOperand));
+    XLS_RETURN_IF_ERROR(RemoveOptionalOperand(predicate_operand_index_));
     has_predicate_ = false;
     return absl::OkStatus();
   }
@@ -869,13 +886,16 @@ class Next final : public Node {
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
   StateElement* state_element() const {
+    if (state_element_ != nullptr) {
+      return state_element_;
+    }
     return state_read()->As<StateRead>()->state_element();
   }
 
  private:
-  static constexpr int64_t kPredicateOperand = 2;
-
+  StateElement* state_element_ = nullptr;
   bool has_predicate_;
+  const int64_t predicate_operand_index_;
   std::optional<std::string> label_;
 };
 
