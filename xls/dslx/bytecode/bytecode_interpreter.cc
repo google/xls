@@ -1380,7 +1380,36 @@ absl::Status BytecodeInterpreter::EvalPeek(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalPeekNonBlocking(
     const Bytecode& bytecode) {
-  return absl::UnimplementedError("peek_non_blocking not handled yet");
+  XLS_ASSIGN_OR_RETURN(InterpValue default_value, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue::ChannelReference channel_reference,
+                       channel_value.GetChannelReference());
+  XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+
+  XLS_RET_CHECK(channel_reference.GetChannelId().has_value());
+  int64_t channel_id = channel_reference.GetChannelId().value();
+  XLS_RET_CHECK(channel_manager_.has_value());
+  InterpValueChannel& channel = (*channel_manager_)->GetChannel(channel_id);
+
+  XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
+                       bytecode.channel_data());
+  if (condition.IsTrue() && !channel.IsEmpty()) {
+    InterpValue value = channel.Peek();
+    if (options_.trace_channels() && events_.has_value()) {
+      (*events_)->AddTraceChannelMessage(
+          import_data_->file_table(), bytecode.source_span(),
+          FormatChannelNameForTracing(*channel_data), value,
+          ChannelDirection::kIn, channel_data->value_fmt_desc());
+    }
+    stack_.Push(InterpValue::MakeTuple(
+        {token, std::move(value), InterpValue::MakeBool(true)}));
+  } else {
+    stack_.Push(InterpValue::MakeTuple(
+        {token, default_value, InterpValue::MakeBool(false)}));
+  }
+
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalPop(const Bytecode& bytecode) {

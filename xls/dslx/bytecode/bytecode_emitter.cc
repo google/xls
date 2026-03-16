@@ -559,18 +559,56 @@ absl::Status BytecodeEmitter::HandleBuiltinPeek(const Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleBuiltinPeekNonBlocking(
+    const Invocation* node) {
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* default_value = node->args()[2];
+
+  XLS_RETURN_IF_ERROR(token->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(channel->AcceptExpr(this));
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
+  XLS_RETURN_IF_ERROR(default_value->AcceptExpr(this));
+  XLS_ASSIGN_OR_RETURN(
+      Bytecode::ChannelData channel_data,
+      CreateChannelData(channel, type_info_, options_.format_preference));
+  Add(Bytecode::MakePeekNonBlocking(node->span(), std::move(channel_data)));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleBuiltinPeekIf(const Invocation* node) {
-  return absl::UnimplementedError("peek_if not handled yet");
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* condition = node->args()[2];
+  Expr* default_value = node->args()[3];
+
+  XLS_RETURN_IF_ERROR(token->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(channel->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(condition->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(default_value->AcceptExpr(this));
+  XLS_ASSIGN_OR_RETURN(
+      Bytecode::ChannelData channel_data,
+      CreateChannelData(channel, type_info_, options_.format_preference));
+  Add(Bytecode::MakePeek(node->span(), std::move(channel_data)));
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleBuiltinPeekIfNonBlocking(
     const Invocation* node) {
-  return absl::UnimplementedError("peek_if_non_blocking not handled yet");
-}
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* condition = node->args()[2];
+  Expr* default_value = node->args()[3];
 
-absl::Status BytecodeEmitter::HandleBuiltinPeekNonBlocking(
-    const Invocation* node) {
-  return absl::UnimplementedError("peek_non_blocking not handled yet");
+  XLS_RETURN_IF_ERROR(token->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(channel->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(condition->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(default_value->AcceptExpr(this));
+  XLS_ASSIGN_OR_RETURN(
+      Bytecode::ChannelData channel_data,
+      CreateChannelData(channel, type_info_, options_.format_preference));
+  Add(Bytecode::MakePeekNonBlocking(node->span(), std::move(channel_data)));
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleBuiltinRecv(const Invocation* node) {
