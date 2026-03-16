@@ -6963,6 +6963,21 @@ hardware QoR.
 
 
 
+## to_zero_ext - DebugPass: To ZeroExt Pass {#to_zero_ext}
+
+
+Converts any canonicalized zero-exts back from concat(zero, ...) to zero_ext
+since it generally makes for easier to read/visualize graphs. This pass
+is not meant to be used as an optimization pass at all.
+
+
+[Header](http://github.com/google/xls/tree/main/xls/passes/to_zero_ext_pass.h)
+
+
+
+
+
+
 ## token_dependency - Convert data dependencies between effectful operations into token dependencies {#token_dependency}
 
 

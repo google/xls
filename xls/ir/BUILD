@@ -1408,6 +1408,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/data_structures:inline_bitmap",
         "//xls/data_structures:leaf_type_tree",
+        "//xls/passes:query_engine",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
