@@ -191,6 +191,20 @@ absl::StatusOr<bool> StrengthReduceNode(Node* node,
               .status());
       return true;
     }
+    // (+ A A) -> (concat (bitslice A 0 (- (width A) 1)) 0)
+    if (node->operand(0) == node->operand(1)) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * slice, node->function_base()->MakeNode<BitSlice>(
+                            node->loc(), node->operand(0), /*start=*/0,
+                            /*width=*/node->operand(0)->BitCountOrDie() - 1));
+      XLS_ASSIGN_OR_RETURN(Node * zero,
+                           node->function_base()->MakeNode<Literal>(
+                               node->loc(), Value(UBits(0, 1))));
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<Concat>(absl::MakeConstSpan({slice, zero}))
+              .status());
+      return true;
+    }
   }
 
   // If the LHS of a subtraction is all ones, the answer is the NOT of the RHS.

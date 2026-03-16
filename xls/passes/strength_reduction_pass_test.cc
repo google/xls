@@ -108,6 +108,32 @@ TEST_F(StrengthReductionPassTest, ReducibleAdd) {
                     m::Concat(m::Literal(0), m::Param("y"))));
 }
 
+TEST_F(StrengthReductionPassTest, AddSameArg) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  fb.Add(x, x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(x.node(), /*start=*/0, /*width=*/3),
+                        m::Literal(0)));
+}
+
+TEST_F(StrengthReductionPassTest, AddSameArg1Bit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  fb.Add(x, x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(x.node(), /*start=*/0, /*width=*/0),
+                        m::Literal(0)));
+}
+
 TEST_F(StrengthReductionPassTest, NotReducibleAdd) {
   auto p = CreatePackage();
   // Bit 7 of the add's operands both come from parameter inputs and so cannot
