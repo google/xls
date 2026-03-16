@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 
@@ -254,6 +255,9 @@ bool ContainedWithinFunction(const Invocation& invocation,
 
 // Retrieves the containing function of `node`, if any.
 std::optional<const Function*> GetContainingFunction(const AstNode* node);
+
+// Retrieves the nearest parent that is a top-level module member.
+std::optional<ModuleMember> GetContainingModuleMember(const AstNode* node);
 
 // Organizes a group of ParametricBinding pointers by their identifiers.
 class ParametricBindings {

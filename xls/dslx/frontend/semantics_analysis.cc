@@ -423,6 +423,9 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
 
     // Swap the Lambda in its parent with the attr invocation. After this step,
     // Lambdas should no longer appear in the AST.
+    std::optional<ModuleMember> containing_member =
+        GetContainingModuleMember(node);
+    XLS_RET_CHECK(containing_member.has_value());
     auto* parent_inv = absl::down_cast<Invocation*>(node->parent());
     XLS_RET_CHECK(parent_inv != nullptr);
     if (parent_inv->callee() == node) {
@@ -435,7 +438,8 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
       }
     }
 
-    XLS_RETURN_IF_ERROR(module->InsertTop(full_struct_def));
+    XLS_RETURN_IF_ERROR(module->InsertTopBefore(ToAstNode(*containing_member),
+                                                full_struct_def));
     return module->InsertTopAfter(full_struct_def, impl);
   }
 

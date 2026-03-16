@@ -639,6 +639,19 @@ std::optional<const Function*> GetContainingFunction(const AstNode* node) {
   return std::nullopt;
 }
 
+std::optional<ModuleMember> GetContainingModuleMember(const AstNode* node) {
+  AstNode* parent = node->parent();
+  while (parent != nullptr) {
+    for (ModuleMember module_member : node->owner()->top()) {
+      if (ToAstNode(module_member) == parent) {
+        return module_member;
+      }
+    }
+    parent = parent->parent();
+  }
+  return std::nullopt;
+}
+
 std::vector<ParametricBinding*> GetRequiredParametricBindings(
     const std::vector<ParametricBinding*>& bindings) {
   std::vector<ParametricBinding*> result;
