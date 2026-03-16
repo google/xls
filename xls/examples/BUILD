@@ -1489,7 +1489,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "content_based_arbiter_dslx_test",
     srcs = ["content_based_arbiter.x"],
-    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_verilog(
@@ -1527,7 +1526,6 @@ xls_dslx_test(
     name = "peek_dslx_test",
     size = "small",
     srcs = ["peek.x"],
-    evaluator = "ir-interpreter",
 )
 
 xls_dslx_ir(

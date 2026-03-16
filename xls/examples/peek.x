@@ -14,24 +14,16 @@
 
 #![feature(type_inference_v2)]
 
-type PacketData = uN[1024];
-
 struct Packet {
-    id: u8,
-    data: PacketData
+    id: u32,
+    data: u32,
 }
 
-struct PeekPacketFillerState {
-    current_id: u8
-}
-
-proc PeekPacketFiller {
-    type State = PeekPacketFillerState;
-
+proc Peek {
     req_r: chan<Packet> in;
     resp_s: chan<Packet> out;
 
-    init { zero!<State>() }
+    init {  }
 
     config(
         req_r: chan<Packet> in,
@@ -40,30 +32,16 @@ proc PeekPacketFiller {
         (req_r, resp_s)
     }
 
-    next(state: State) {
+    next(state: ()) {
         let (tok, packet) = peek(join(), req_r);
-        let (packet, next_state) = if state.current_id < packet.id {
-            // we need to generate an artificial packet
-            (
-                Packet { id: state.current_id, data: state.current_id as PacketData },
-                State { current_id: state.current_id + u8:1}
-            )
-        } else {
-            // we can use a packet from the input
-            let (tok, packet) = recv(tok, req_r);
-            (
-                packet,
-                State { current_id: packet.id + u8:1 }
-            )
-        };
-
-        let tok = send(tok, resp_s, packet);
-        next_state
+        let handle_packet = packet.id > u32:4;
+        let (tok, packet) = recv_if(tok, req_r, handle_packet, zero!<Packet>());
+        send(tok, resp_s, packet);
     }
 }
 
 #[test_proc]
-proc Test {
+proc PeekTest {
     req_s: chan<Packet> out;
     resp_r: chan<Packet> in;
     terminator: chan<bool> out;
@@ -71,7 +49,7 @@ proc Test {
     config(terminator: chan<bool> out) {
         let (req_s, req_r) = chan<Packet>("req");
         let (resp_s, resp_r) = chan<Packet>("resp");
-        spawn PeekPacketFiller(req_r, resp_s);
+        spawn Peek(req_r, resp_s);
 
         (req_s, resp_r, terminator)
     }
@@ -80,31 +58,204 @@ proc Test {
 
     next(_: ()) {
         // First packet
-        const FIRST_PACKET_ID = u32:2;
-        const FIRST_PACKET_DATA = PacketData:4;
+        const FIRST_PACKET_ID = u32:5;
+        const FIRST_PACKET_DATA = u32:4;
         let tok = send(join(), req_s, Packet{
-            id: FIRST_PACKET_ID as u8,
+            id: FIRST_PACKET_ID,
             data: FIRST_PACKET_DATA
         });
-        const for (_, _): (u32, ()) in u32:0..FIRST_PACKET_ID {
-            let (tok, packet) = recv(tok, resp_r);
-            trace_fmt!("Artifical packet: {}", packet);
-        }(());
         let (tok, packet) = recv(tok, resp_r);
-        trace_fmt!("Peek packet: {}", packet);
+        trace_fmt!("Received packet: {}", packet);
 
         // Second packet
-        const SECOND_PACKET_ID = u32:4;
-        const SECOND_PACKET_DATA = PacketData:16;
+        const SECOND_PACKET_ID = u32:3;
+        const SECOND_PACKET_DATA = u32:16;
         let tok = send(tok, req_s, Packet{
-            id: SECOND_PACKET_ID as u8,
+            id: SECOND_PACKET_ID,
             data: SECOND_PACKET_DATA
         });
         let (tok, packet) = recv(tok, resp_r);
-        trace_fmt!("Artifical packet: {}", packet);
+        trace_fmt!("Received packet: {}", packet);
 
+        send(tok, terminator, true);
+    }
+}
+
+proc PeekIf {
+    req_r: chan<Packet> in;
+    resp_s: chan<Packet> out;
+    enable_r: chan<bool> in;
+
+    init { false }
+
+    config(
+        req_r: chan<Packet> in,
+        resp_s: chan<Packet> out,
+        enable_r: chan<bool> in,
+    ) {
+        (req_r, resp_s, enable_r)
+    }
+
+    next(state: bool) {
+        let (tok, enabled, valid) = recv_non_blocking(join(), enable_r, state);
+        let state = if valid { enabled } else { state };
+        let (tok, packet) = peek_if(join(), req_r, state, zero!<Packet>());
+        let handle_packet = packet.id > u32:4;
+        let (tok, packet) = recv_if(tok, req_r, state && handle_packet, zero!<Packet>());
+        send_if(tok, resp_s, state && handle_packet, packet);
+        state
+    }
+}
+
+#[test_proc]
+proc PeekIfTest {
+    req_s: chan<Packet> out;
+    resp_r: chan<Packet> in;
+    enable_s: chan<bool> out;
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) {
+        let (req_s, req_r) = chan<Packet>("req");
+        let (resp_s, resp_r) = chan<Packet>("resp");
+        let (enable_s, enable_r) = chan<bool>("enable");
+        spawn PeekIf(req_r, resp_s, enable_r);
+
+        (req_s, resp_r, enable_s, terminator)
+    }
+
+    init {  }
+
+    next(_: ()) {
+        // First packet
+        const FIRST_PACKET_ID = u32:5;
+        const FIRST_PACKET_DATA = u32:4;
+        let tok = send(join(), req_s, Packet{
+            id: FIRST_PACKET_ID,
+            data: FIRST_PACKET_DATA
+        });
+        let tok = send(tok, enable_s, true);
         let (tok, packet) = recv(tok, resp_r);
-        trace_fmt!("Peek packet: {}", packet);
+        trace_fmt!("Received packet: {}", packet);
+
+        send(tok, terminator, true);
+    }
+}
+
+proc PeekNonBlocking {
+    req_r: chan<Packet> in;
+    resp_s: chan<Packet> out;
+
+    init {  }
+
+    config(
+        req_r: chan<Packet> in,
+        resp_s: chan<Packet> out
+    ) {
+        (req_r, resp_s)
+    }
+
+    next(state: ()) {
+        let (tok, packet, valid) = peek_non_blocking(join(), req_r, zero!<Packet>());
+        let (tok, _) = recv_if(tok, req_r, valid, zero!<Packet>());
+        send_if(tok, resp_s, valid, packet);
+    }
+}
+
+#[test_proc]
+proc PeekNonBlockingTest {
+    req_s: chan<Packet> out;
+    resp_r: chan<Packet> in;
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) {
+        let (req_s, req_r) = chan<Packet>("req");
+        let (resp_s, resp_r) = chan<Packet>("resp");
+        spawn PeekNonBlocking(req_r, resp_s);
+
+        (req_s, resp_r, terminator)
+    }
+
+    init {  }
+
+    next(_: ()) {
+        // First packet
+        const FIRST_PACKET_ID = u32:5;
+        const FIRST_PACKET_DATA = u32:4;
+        let tok = send(join(), req_s, Packet{
+            id: FIRST_PACKET_ID,
+            data: FIRST_PACKET_DATA
+        });
+        let (tok, packet) = recv(tok, resp_r);
+        trace_fmt!("Received packet: {}", packet);
+
+        // Second packet
+        const SECOND_PACKET_ID = u32:3;
+        const SECOND_PACKET_DATA = u32:16;
+        let tok = send(tok, req_s, Packet{
+            id: SECOND_PACKET_ID,
+            data: SECOND_PACKET_DATA
+        });
+        let (tok, packet) = recv(tok, resp_r);
+        trace_fmt!("Received packet: {}", packet);
+
+        send(tok, terminator, true);
+    }
+}
+
+proc PeekIfNonBlocking {
+    req_r: chan<Packet> in;
+    resp_s: chan<Packet> out;
+    enable_r: chan<bool> in;
+
+    init { false }
+
+    config(
+        req_r: chan<Packet> in,
+        resp_s: chan<Packet> out,
+        enable_r: chan<bool> in,
+    ) {
+        (req_r, resp_s, enable_r)
+    }
+
+    next(state: bool) {
+        let (tok, enabled, valid) = recv_non_blocking(join(), enable_r, state);
+        let state = if valid { enabled } else { state };
+        let (tok, packet, packet_valid) = peek_if_non_blocking(join(), req_r, state, zero!<Packet>());
+        let (tok, packet) = recv_if(tok, req_r, state && packet_valid, zero!<Packet>());
+        send_if(tok, resp_s, state && packet_valid, packet);
+        state
+    }
+}
+
+#[test_proc]
+proc PeekIfNonBlockingTest {
+    req_s: chan<Packet> out;
+    resp_r: chan<Packet> in;
+    enable_s: chan<bool> out;
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) {
+        let (req_s, req_r) = chan<Packet>("req");
+        let (resp_s, resp_r) = chan<Packet>("resp");
+        let (enable_s, enable_r) = chan<bool>("enable");
+        spawn PeekIfNonBlocking(req_r, resp_s, enable_r);
+
+        (req_s, resp_r, enable_s, terminator)
+    }
+
+    init {  }
+
+    next(_: ()) {
+        // First packet
+        const FIRST_PACKET_ID = u32:5;
+        const FIRST_PACKET_DATA = u32:4;
+        let tok = send(join(), req_s, Packet{
+            id: FIRST_PACKET_ID,
+            data: FIRST_PACKET_DATA
+        });
+        let tok = send(tok, enable_s, true);
+        let (tok, packet) = recv(tok, resp_r);
+        trace_fmt!("Received packet: {}", packet);
 
         send(tok, terminator, true);
     }

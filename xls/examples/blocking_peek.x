@@ -35,56 +35,18 @@ struct Packet {
 // Implementation that uses recv is provided after the commented-out
 // code, so it is possible to verify the expected behaviour of this proc.
 
-
-// struct PeekPacketFillerState {
-//     current_id: u8
-// }
-//
-// proc PeekPacketFiller {
-//     type State = PeekPacketFillerState;
-//
-//     req_r: chan<Packet> in;
-//     resp_s: chan<Packet> out;
-//
-//     init { zero!<State>() }
-//
-//     config(
-//         req_r: chan<Packet> in,
-//         resp_s: chan<Packet> out
-//     ) {
-//         (req_r, resp_s)
-//     }
-//
-//     next(state: State) {
-//         let (tok, packet) = peek(join(), req_r);
-//         let (packet, next_state) = if state.current_id < packet.id {
-//             // we need to generate an artificial packet
-//             (
-//                 Packet { id: state.current_id, ..zero!<Packet>() },
-//                 State { current_id: state.current_id + u8:1}
-//             )
-//         } else {
-//             // we can use a packet from the input
-//             let (tok, packet) = recv(tok, req_r);
-//             (
-//                 packet,
-//                 State { current_id: packet.id + u8:1 }
-//             )
-//         };
-//
-//         let tok = send(tok, resp_s, packet);
-//         next_state
-//     }
-// }
-
 struct PacketFillerState {
     packet: Packet, // this is large
     packet_valid: bool,
     current_id: u8
 }
 
-proc PacketFiller {
-    type State = PacketFillerState;
+struct PeekPacketFillerState {
+    current_id: u8
+}
+
+proc PeekPacketFiller {
+    type State = PeekPacketFillerState;
 
     req_r: chan<Packet> in;
     resp_s: chan<Packet> out;
@@ -99,18 +61,19 @@ proc PacketFiller {
     }
 
     next(state: State) {
-        let (tok, packet) = recv_if(join(), req_r, !state.packet_valid, state.packet);
+        let (tok, packet) = peek(join(), req_r);
         let (packet, next_state) = if state.current_id < packet.id {
             // we need to generate an artificial packet
             (
                 Packet { id: state.current_id, ..zero!<Packet>() },
-                State { current_id: state.current_id + u8:1, packet, packet_valid: true}
+                State { current_id: state.current_id + u8:1}
             )
         } else {
             // we can use a packet from the input
+            let (tok, packet) = recv(tok, req_r);
             (
                 packet,
-                State { current_id: packet.id + u8:1, packet: zero!<Packet>(), packet_valid: false }
+                State { current_id: packet.id + u8:1 }
             )
         };
 
