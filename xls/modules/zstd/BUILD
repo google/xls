@@ -3769,7 +3769,7 @@ xls_dslx_test(
 )
 
 collect_benchmark_reports(
-    name = "all_banchmark_reports",
+    name = "all_benchmark_reports",
     srcs = [
         ":window_buffer_place_and_route",
         ":shift_buffer_aligner_place_and_route",
@@ -3802,4 +3802,5 @@ collect_benchmark_reports(
         ":huffman_ctrl_place_and_route",
         ":huffman_weights_dec_place_and_route",
     ],
+    tags = ["manual"],
 )
