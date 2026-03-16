@@ -1350,7 +1350,6 @@ absl::Status BytecodeInterpreter::EvalPeek(const Bytecode& bytecode) {
 
   if (condition.IsTrue()) {
     if (channel.IsEmpty()) {
-      // Restore the stack!
       stack_.Push(channel_value);
       stack_.Push(condition);
       stack_.Push(default_value);
@@ -1838,8 +1837,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kSend:
     case Builtin::kSendIf:
     case Builtin::kPeek:
-    case Builtin::kPeekIf:
     case Builtin::kPeekNonBlocking:
+    case Builtin::kPeekIf:
     case Builtin::kPeekIfNonBlocking:
     case Builtin::kRecv:
     case Builtin::kRecvIf:

@@ -1218,14 +1218,14 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
     if (name_ref->identifier() == "peek") {
       return HandleBuiltinPeek(node);
     }
+    if (name_ref->identifier() == "peek_non_blocking") {
+      return HandleBuiltinPeekNonBlocking(node);
+    }
     if (name_ref->identifier() == "peek_if") {
       return HandleBuiltinPeekIf(node);
     }
     if (name_ref->identifier() == "peek_if_non_blocking") {
       return HandleBuiltinPeekIfNonBlocking(node);
-    }
-    if (name_ref->identifier() == "peek_non_blocking") {
-      return HandleBuiltinPeekNonBlocking(node);
     }
     if (name_ref->identifier() == "recv") {
       return HandleBuiltinRecv(node);

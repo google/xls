@@ -136,11 +136,22 @@ class Bytecode {
     kPop,
     // Creates an array of values [TOS1, TOS0).
     kRange,
-    // TODO: add description.
+    // Peeks a value from the channel at TOS1 if condition at TOS0 is fulfilled.
+    // If TOS0 is true, then
+    //   peeks a value from the channel or "blocks"
+    //   if empty: terminates execution at the opcode's PC. The interpreter can
+    //    be resumed/retried if/when a value becomes available.
+    // else
+    //   a tuple containing a tuple and zero value is pushed on the stack.
     kPeek,
-    // TODO: add description.
+    // Peeks a value off of the channel at TOS0, but does not block if empty.
+    // A tuple containing
+    //   0. A token.
+    //   1. Peeked value (or a zero value if the channel is empty).
+    //     and
+    //   2. A valid flag (false if the channel is empty).
+    // is pushed on the stack.
     kPeekNonBlocking,
-    // Inserts the value at TOS0 into the channel at TOS1.
     // Pulls TOS0 (a condition) and TOS1 (a channel).
     // If TOS0 is true, then
     //   pulls a value off of the channel or "blocks"

@@ -293,7 +293,7 @@ std::string OpToString(Bytecode::Op op) {
     case Bytecode::Op::kPeek:
       return "peek";
     case Bytecode::Op::kPeekNonBlocking:
-      return "peek_nonblocking";
+      return "peek_non_blocking";
     case Bytecode::Op::kPop:
       return "pop";
     case Bytecode::Op::kRange:
