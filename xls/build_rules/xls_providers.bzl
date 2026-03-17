@@ -296,6 +296,14 @@ XlsOptimizationPassInfo = provider(
     },
 )
 
+XlsOptimizationPassRegistryConfigInfo = provider(
+    doc = "A provider containing the configuration of an optimization pass registry.",
+    fields = {
+        "pipeline_binpb": "File: binary proto of the pass pipeline used for this registry.",
+        "pass_infos": "List of XlsOptimizationPassInfo: The pass-info for each pass.",
+    },
+)
+
 XlsOptimizationPassRegistryInfo = provider(
     doc = "A provider containing a set of passes to add to a registry",
     fields = {
