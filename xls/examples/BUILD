@@ -1530,7 +1530,7 @@ xls_dslx_test(
 
 xls_dslx_ir(
     name = "peek_ir",
-    dslx_top = "PeekPacketFiller",
+    dslx_top = "PeekIfNonBlocking",
     ir_conv_args = {
         "lower_to_proc_scoped_channels": "true"
     },

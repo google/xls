@@ -95,7 +95,7 @@ proc PacketFillerTest {
         let (req_s, req_r) = chan<Packet>("req");
         let (resp_s, resp_r) = chan<Packet>("resp");
 
-        spawn PacketFiller(req_r, resp_s);
+        spawn PeekPacketFiller(req_r, resp_s);
         (terminator, req_s, resp_r)
     }
 

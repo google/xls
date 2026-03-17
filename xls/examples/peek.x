@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Minimal peek examples for development and testing purposes.
+
 #![feature(type_inference_v2)]
 
 struct Packet {
