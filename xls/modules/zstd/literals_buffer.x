@@ -1174,7 +1174,7 @@ proc LiteralsBuffer_test {
     next (state: ()) {
         let tok = join();
         // send literals
-        let tok = for ((i, test_literals_data), tok): ((u32, (LiteralsChannel, LiteralsDataWithSync)), token) in enumerate(TEST_LITERALS_DATA) {
+        let tok = for ((i, test_literals_data), tok): ((u32, (LiteralsChannel, LiteralsDataWithSync)), token) in std::enumerate(TEST_LITERALS_DATA) {
             let literals_channel_s = match test_literals_data.0 {
                 LiteralsChannel::RAW => raw_literals_s,
                 LiteralsChannel::RLE => rle_literals_s,
@@ -1186,14 +1186,14 @@ proc LiteralsBuffer_test {
         }(tok);
 
         // send ctrl
-        let tok = for ((i, test_buf_ctrl), tok): ((u32, LiteralsBufferCtrl), token) in enumerate(TEST_BUFFER_CTRL) {
+        let tok = for ((i, test_buf_ctrl), tok): ((u32, LiteralsBufferCtrl), token) in std::enumerate(TEST_BUFFER_CTRL) {
             let tok = send(tok, literals_buf_ctrl_s, test_buf_ctrl);
             trace_fmt!("Send #{} ctrl {:#x}", i + u32:1, test_buf_ctrl);
             tok
         }(tok);
 
         // receive and check packets
-        let tok = for ((i, test_exp_literals), tok): ((u32, SequenceExecutorPacket<common::SYMBOL_WIDTH>), token) in enumerate(TEST_EXPECTED_PACKETS) {
+        let tok = for ((i, test_exp_literals), tok): ((u32, SequenceExecutorPacket<common::SYMBOL_WIDTH>), token) in std::enumerate(TEST_EXPECTED_PACKETS) {
             let (tok, literals) = recv(tok, literals_r);
             trace_fmt!("Received #{} literals packet {:#x}", i + u32:1, literals);
             assert_eq(test_exp_literals, literals);

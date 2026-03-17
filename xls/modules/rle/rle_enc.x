@@ -195,7 +195,7 @@ proc RunLengthEncoderCountSymbolTest {
     ];
     let tok = for ((counter, symbol), tok):
                   ((u32, CountSymbolTestStimulus) , token)
-                  in enumerate(CountSymbolTestTestStimuli) {
+                  in std::enumerate(CountSymbolTestTestStimuli) {
       let last = counter == (array_size(CountSymbolTestTestStimuli) - u32:1);
       let stimulus = CountSymbolTestEncInData{symbol: symbol, last: last};
       let tok = send(tok, enc_input_s, stimulus);
@@ -210,7 +210,7 @@ proc RunLengthEncoderCountSymbolTest {
     ];
     let tok = for ((counter, (symbol, count)), tok):
         ((u32, (CountSymbolTestSymbol, CountSymbolTestCount)) , token)
-        in enumerate(CountSymbolTestTestOutput) {
+        in std::enumerate(CountSymbolTestTestOutput) {
       let last = counter == (array_size(CountSymbolTestTestOutput) - u32:1);
       let expected = CountSymbolTestEncOutData{
           symbol: symbol, count: count, last: last};
@@ -264,7 +264,7 @@ proc RunLengthEncoderOverflowTest {
     ];
     let tok = for ((counter, symbol), tok):
                   ((u32, OverflowStimulus) , token)
-                  in enumerate(OverflowTestStimuli) {
+                  in std::enumerate(OverflowTestStimuli) {
       let last = counter == (
           array_size(OverflowTestStimuli) - u32:1);
       let stimulus = OverflowEncInData{symbol: symbol, last: last};
@@ -284,7 +284,7 @@ proc RunLengthEncoderOverflowTest {
     ];
     let tok = for ((counter, (symbol, count)), tok):
         ((u32, (OverflowSymbol, OverflowCount)) , token)
-        in enumerate(OverflowTestOutput) {
+        in std::enumerate(OverflowTestOutput) {
       let last = counter == (array_size(OverflowTestOutput) - u32:1);
       let expected = OverflowEncOutData{
           symbol: symbol, count: count, last: last};
@@ -334,7 +334,7 @@ proc RunLengthEncoderLastAfterLastTest {
     ];
     let tok = for ((counter, stimuli), tok):
         ((u32, LastAfterLastStimulus) , token)
-        in enumerate(LastAfterLastTestStimuli) {
+        in std::enumerate(LastAfterLastTestStimuli) {
       let tok = send(tok, enc_input_s, stimuli);
       trace_fmt!("Sent {} transactions, symbol: 0x{:x}, last: {}",
         counter, stimuli.symbol, stimuli.last);
@@ -352,7 +352,7 @@ proc RunLengthEncoderLastAfterLastTest {
     ];
     let tok = for ((counter, expected), tok):
         ((u32, LastAfterLastOutput) , token)
-        in enumerate(LastAfterLastTestOutput) {
+        in std::enumerate(LastAfterLastTestOutput) {
       let (tok, enc_output) = recv(tok, enc_output_r);
       trace_fmt!(
         "Received {} pairs, symbol: 0x{:x}, count: {}, last: {}",
@@ -403,7 +403,7 @@ proc RunLengthEncoderOverflowWithLastTest {
     ];
     let tok = for ((counter, symbol), tok):
                   ((u32, OverflowWithLastStimulus) , token)
-                  in enumerate(OverflowWithLastTestStimuli) {
+                  in std::enumerate(OverflowWithLastTestStimuli) {
       let last = counter == (
           array_size(OverflowWithLastTestStimuli) - u32:1);
       let stimulus = OverflowWithLastEncInData{symbol: symbol, last: last};
@@ -419,7 +419,7 @@ proc RunLengthEncoderOverflowWithLastTest {
     ];
     let tok = for ((counter, (symbol, count)), tok):
         ((u32, (OverflowWithLastSymbol, OverflowWithLastCount)) , token)
-        in enumerate(OverflowWithLastTestOutput) {
+        in std::enumerate(OverflowWithLastTestOutput) {
       let last = counter == (array_size(OverflowWithLastTestOutput) - u32:1);
       let expected = OverflowWithLastEncOutData{
           symbol: symbol, count: count, last: last};

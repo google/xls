@@ -744,7 +744,7 @@ proc HuffmanDecoder_test {
     next (state: ()) {
         let tok = join();
 
-        let (tok, _) = for ((i, start), (tok, codes_idx)): ((u32, Start), (token, u32)) in enumerate(TEST_START) {
+        let (tok, _) = for ((i, start), (tok, codes_idx)): ((u32, Start), (token, u32)) in std::enumerate(TEST_START) {
             // send start
             let tok = send(tok, start_s, start);
             trace_fmt!("Sent #{} start {:#x}", i + u32:1, start);
@@ -767,7 +767,7 @@ proc HuffmanDecoder_test {
             (tok, codes_idx)
         }((tok, u32:0));
 
-        let tok = for ((i, expected_literals), tok): ((u32, common::LiteralsDataWithSync), token) in enumerate(TEST_LITERALS) {
+        let tok = for ((i, expected_literals), tok): ((u32, common::LiteralsDataWithSync), token) in std::enumerate(TEST_LITERALS) {
             // receive literals
             let (tok, literals) = recv(tok, decoded_literals_r);
             trace_fmt!("Received #{} literals {:#x}", i + u32:1, literals);
