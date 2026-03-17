@@ -8312,5 +8312,37 @@ proc main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, PeekChannelOperation) {
+  constexpr std::string_view program = R"(
+struct Packet {
+  id: u32,
+  data: u32,
+}
+proc main {
+  req_r: chan<Packet> in;
+  resp_s: chan<Packet> out;
+
+  init {  }
+
+  config(
+    req_r: chan<Packet> in,
+    resp_s: chan<Packet> out
+  ) {
+    (req_r, resp_s)
+  }
+
+  next(state: ()) {
+    let (tok, packet) = peek(join(), req_r);
+    let handle_packet = packet.id > u32:4;
+    let (tok, packet) = recv_if(tok, req_r, handle_packet, zero!<Packet>());
+    send(tok, resp_s, packet);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 }  // namespace
 }  // namespace xls::dslx

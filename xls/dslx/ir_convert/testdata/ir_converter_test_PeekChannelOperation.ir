@@ -1,0 +1,32 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top proc __test_module__main_0_next<_req_r: (bits[32], bits[32]) in, _resp_s: (bits[32], bits[32]) out>(__state: (), init={()}) {
+  chan_interface _req_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  peek.6: (token, (bits[32], bits[32])) = peek(after_all.5, predicate=literal.3, channel=_req_r, id=6)
+  packet: (bits[32], bits[32]) = tuple_index(peek.6, index=1, id=9)
+  packet_id: bits[32] = tuple_index(packet, index=0, id=10)
+  literal.11: bits[32] = literal(value=4, id=11)
+  handle_packet: bits[1] = ugt(packet_id, literal.11, id=12)
+  tok: token = tuple_index(peek.6, index=0, id=8)
+  and.14: bits[1] = and(literal.3, handle_packet, id=14)
+  receive.15: (token, (bits[32], bits[32])) = receive(tok, predicate=and.14, channel=_req_r, id=15)
+  literal.13: (bits[32], bits[32]) = literal(value=(0, 0), id=13)
+  tuple_index.17: (bits[32], bits[32]) = tuple_index(receive.15, index=1, id=17)
+  tuple_index.16: token = tuple_index(receive.15, index=0, id=16)
+  sel.18: (bits[32], bits[32]) = sel(handle_packet, cases=[literal.13, tuple_index.17], id=18)
+  tuple.19: (token, (bits[32], bits[32])) = tuple(tuple_index.16, sel.18, id=19)
+  tok__1: token = tuple_index(tuple.19, index=0, id=20)
+  packet__1: (bits[32], bits[32]) = tuple_index(tuple.19, index=1, id=21)
+  __state: () = state_read(state_element=__state, id=2)
+  tuple.23: () = tuple(id=23)
+  __token: token = literal(value=token, id=1)
+  tuple.4: () = tuple(id=4)
+  tuple_index.7: token = tuple_index(peek.6, index=0, id=7)
+  send.22: token = send(tok__1, packet__1, predicate=literal.3, channel=_resp_s, id=22)
+  next_value.24: () = next_value(param=__state, value=tuple.23, id=24)
+}
