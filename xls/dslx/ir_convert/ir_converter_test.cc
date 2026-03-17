@@ -227,6 +227,27 @@ TEST_F(IrConverterTest, NamedConstant) {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, TopFunctionParamNameMustBePreserved) {
+  constexpr std::string_view program = R"(fn f(source: u32) -> u32 { source })";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(program, "f"),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Top function parameter name `source` would be "
+                         "changed to `_source` in IR.")));
+}
+
+TEST_F(IrConverterTest, NonTopFunctionParamNameCanStillBeLegalized) {
+  constexpr std::string_view program = R"(
+fn helper(source: u32) -> u32 { source }
+fn top() -> u32 { helper(u32:1) }
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted, ConvertModuleForTest(program));
+  EXPECT_THAT(converted,
+              HasSubstr("fn __test_module__helper(_source: bits[32]"));
+}
+
 TEST_F(IrConverterTest, Concat) {
   constexpr std::string_view program =
       R"(fn f(x: bits[31]) -> u32 {
