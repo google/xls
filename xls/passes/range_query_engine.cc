@@ -256,6 +256,7 @@ class RangeQueryVisitor : public DfsVisitor {
   absl::Status HandleNewChannel(NewChannel* new_channel) override;
   absl::Status HandleRecvChannelEnd(RecvChannelEnd* rce) override;
   absl::Status HandleSendChannelEnd(SendChannelEnd* sce) override;
+  absl::Status HandlePeek(Peek* peek) override;
   absl::Status HandleReceive(Receive* receive) override;
   absl::Status HandleRegisterRead(RegisterRead* reg_read) override;
   absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override;
@@ -1176,6 +1177,11 @@ absl::Status RangeQueryVisitor::HandleRecvChannelEnd(RecvChannelEnd* rce) {
 
 absl::Status RangeQueryVisitor::HandleSendChannelEnd(SendChannelEnd* sce) {
   INITIALIZE_OR_SKIP(sce);
+  return absl::OkStatus();
+}
+
+absl::Status RangeQueryVisitor::HandlePeek(Peek* peek) {
+  INITIALIZE_OR_SKIP(peek);
   return absl::OkStatus();
 }
 

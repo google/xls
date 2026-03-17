@@ -585,6 +585,14 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalOr(bytecode));
       break;
     }
+    case Bytecode::Op::kPeek: {
+      XLS_RETURN_IF_ERROR(EvalPeek(bytecode));
+      break;
+    }
+    case Bytecode::Op::kPeekNonBlocking: {
+      XLS_RETURN_IF_ERROR(EvalPeekNonBlocking(bytecode));
+      break;
+    }
     case Bytecode::Op::kPop: {
       XLS_RETURN_IF_ERROR(EvalPop(bytecode));
       break;
@@ -1326,6 +1334,83 @@ absl::Status BytecodeInterpreter::EvalOr(const Bytecode& bytecode) {
   });
 }
 
+absl::Status BytecodeInterpreter::EvalPeek(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue default_value, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
+  XLS_ASSIGN_OR_RETURN(auto channel_reference,
+                       channel_value.GetChannelReference());
+  XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
+                       bytecode.channel_data());
+
+  XLS_RET_CHECK(channel_reference.GetChannelId().has_value());
+  int64_t channel_id = channel_reference.GetChannelId().value();
+  XLS_RET_CHECK(channel_manager_.has_value());
+  InterpValueChannel& channel = (*channel_manager_)->GetChannel(channel_id);
+
+  if (condition.IsTrue()) {
+    if (channel.IsEmpty()) {
+      stack_.Push(channel_value);
+      stack_.Push(condition);
+      stack_.Push(default_value);
+      blocked_channel_info_ = BlockedChannelInfo{
+          .name = FormatChannelNameForTracing(*channel_data),
+          .span = bytecode.source_span(),
+      };
+      return absl::UnavailableError("Channel is empty.");
+    }
+
+    XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+    InterpValue value = channel.Peek();
+    if (options_.trace_channels() && events_.has_value()) {
+      (*events_)->AddTraceChannelMessage(
+          import_data_->file_table(), bytecode.source_span(),
+          FormatChannelNameForTracing(*channel_data), value,
+          ChannelDirection::kIn, channel_data->value_fmt_desc());
+    }
+    stack_.Push(InterpValue::MakeTuple({token, std::move(value)}));
+  } else {
+    XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+    stack_.Push(InterpValue::MakeTuple({token, default_value}));
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::EvalPeekNonBlocking(
+    const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue default_value, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue::ChannelReference channel_reference,
+                       channel_value.GetChannelReference());
+  XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+
+  XLS_RET_CHECK(channel_reference.GetChannelId().has_value());
+  int64_t channel_id = channel_reference.GetChannelId().value();
+  XLS_RET_CHECK(channel_manager_.has_value());
+  InterpValueChannel& channel = (*channel_manager_)->GetChannel(channel_id);
+
+  XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
+                       bytecode.channel_data());
+  if (condition.IsTrue() && !channel.IsEmpty()) {
+    InterpValue value = channel.Peek();
+    if (options_.trace_channels() && events_.has_value()) {
+      (*events_)->AddTraceChannelMessage(
+          import_data_->file_table(), bytecode.source_span(),
+          FormatChannelNameForTracing(*channel_data), value,
+          ChannelDirection::kIn, channel_data->value_fmt_desc());
+    }
+    stack_.Push(InterpValue::MakeTuple(
+        {token, std::move(value), InterpValue::MakeBool(true)}));
+  } else {
+    stack_.Push(InterpValue::MakeTuple(
+        {token, default_value, InterpValue::MakeBool(false)}));
+  }
+
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::EvalPop(const Bytecode& bytecode) {
   return Pop().status();
 }
@@ -1751,6 +1836,10 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kToken:
     case Builtin::kSend:
     case Builtin::kSendIf:
+    case Builtin::kPeek:
+    case Builtin::kPeekNonBlocking:
+    case Builtin::kPeekIf:
+    case Builtin::kPeekIfNonBlocking:
     case Builtin::kRecv:
     case Builtin::kRecvIf:
     case Builtin::kRecvNonBlocking:

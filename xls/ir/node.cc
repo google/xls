@@ -170,6 +170,10 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kTrace:
       XLS_RETURN_IF_ERROR(visitor->HandleTrace(absl::down_cast<Trace*>(this)));
       break;
+    case Op::kPeek:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandlePeek(absl::down_cast<Peek*>(this)));
+      break;
     case Op::kReceive:
       XLS_RETURN_IF_ERROR(
           visitor->HandleReceive(absl::down_cast<Receive*>(this)));
@@ -735,6 +739,20 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
                                        send->predicate().value()->GetName()));
       }
       args.push_back(absl::StrFormat("channel=%s", send->channel_name()));
+      break;
+    }
+    case Op::kPeek: {
+      const Peek* peek = As<Peek>();
+      if (peek->predicate().has_value()) {
+        args = {operand(0)->GetName()};
+        args.push_back(absl::StrFormat(
+            "predicate=%s", peek->predicate().value()->GetName()));
+      }
+      args.push_back(absl::StrFormat("channel=%s", peek->channel_name()));
+      if (peek->is_blocking() == false) {
+        // Default blocking=true so we only need to push is !is_blocking().
+        args.push_back("blocking=false");
+      }
       break;
     }
     case Op::kReceive: {

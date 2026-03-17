@@ -136,6 +136,22 @@ class Bytecode {
     kPop,
     // Creates an array of values [TOS1, TOS0).
     kRange,
+    // Peeks a value from the channel at TOS1 if condition at TOS0 is fulfilled.
+    // If TOS0 is true, then
+    //   peeks a value from the channel or "blocks"
+    //   if empty: terminates execution at the opcode's PC. The interpreter can
+    //    be resumed/retried if/when a value becomes available.
+    // else
+    //   a tuple containing a tuple and zero value is pushed on the stack.
+    kPeek,
+    // Peeks a value off of the channel at TOS0, but does not block if empty.
+    // A tuple containing
+    //   0. A token.
+    //   1. Peeked value (or a zero value if the channel is empty).
+    //     and
+    //   2. A valid flag (false if the channel is empty).
+    // is pushed on the stack.
+    kPeekNonBlocking,
     // Pulls TOS0 (a condition) and TOS1 (a channel).
     // If TOS0 is true, then
     //   pulls a value off of the channel or "blocks"
@@ -390,6 +406,8 @@ class Bytecode {
   static Bytecode MakeLoad(Span span, SlotIndex slot_index);
   static Bytecode MakeLogicalOr(Span span);
   static Bytecode MakeMatchArm(Span span, MatchArmItem item);
+  static Bytecode MakePeek(Span span, ChannelData channel_data);
+  static Bytecode MakePeekNonBlocking(Span span, ChannelData channel_data);
   static Bytecode MakePop(Span span);
   static Bytecode MakeRecv(Span span, ChannelData channel_data);
   static Bytecode MakeRecvNonBlocking(Span span, ChannelData channel_data);

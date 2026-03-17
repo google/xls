@@ -111,6 +111,10 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           // proc scope.
           {"labeled_read", {}},
           {"labeled_write", {}},
+          {"peek", {}},
+          {"peek_if", {}},
+          {"peek_non_blocking", {}},
+          {"peek_if_non_blocking", {}},
           {"send", {}},
           {"send_if", {}},
           {"recv", {}},

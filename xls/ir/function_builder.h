@@ -653,6 +653,32 @@ class BuilderBase {
   BValue Gate(BValue condition, BValue data,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
+  // Add a peek operation. The type of the peeked data value is
+  // determined by the channel.
+  BValue Peek(ReceiveChannelRef channel, BValue token,
+              const SourceInfo& loc = SourceInfo(),
+              std::string_view name = "");
+
+  // Add a conditional peek operation. The peek execution is determined
+  // by the value of predicate `pred`. The type of the peeked data value is
+  // determined by the channel.
+  BValue PeekIf(ReceiveChannelRef channel, BValue token, BValue pred,
+                const SourceInfo& loc = SourceInfo(),
+                std::string_view name = "");
+
+  // Add a conditional non-blocking peek operation. The peek execution is
+  // determined by the value of predicate `pred`. The type of the peeked data
+  // value is determined by the channel.
+  BValue PeekIfNonBlocking(ReceiveChannelRef channel, BValue token,
+                           BValue pred, const SourceInfo& loc = SourceInfo(),
+                           std::string_view name = "");
+
+  // Add a non-blocking peek operation. The type of the peeked data value is
+  // determined by the channel.
+  BValue PeekNonBlocking(ReceiveChannelRef channel, BValue token,
+                         const SourceInfo& loc = SourceInfo(),
+                         std::string_view name = "");
+
   // Add a receive operation. The type of the data value received is
   // determined by the channel.
   BValue Receive(ReceiveChannelRef channel, BValue token,

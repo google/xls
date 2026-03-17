@@ -467,6 +467,21 @@ absl::StatusOr<ChannelRef> ChannelNode::GetChannelRef() const {
   return package()->GetChannel(channel_name());
 }
 
+absl::StatusOr<ReceiveChannelRef> Peek::GetReceiveChannelRef() const {
+  FunctionBase* fb = this->function_base();
+  if (fb->IsBlock()) {
+    XLS_RET_CHECK(fb->IsScheduled());
+    ScheduledBlock* sb = absl::down_cast<ScheduledBlock*>(fb);
+    XLS_RET_CHECK_NE(sb->source(), nullptr);
+    fb = sb->source();
+  }
+  Proc* proc = fb->AsProcOrDie();
+  if (proc->is_new_style_proc()) {
+    return proc->GetReceiveChannelInterface(channel_name());
+  }
+  return package()->GetChannel(channel_name());
+}
+
 absl::StatusOr<ReceiveChannelRef> Receive::GetReceiveChannelRef() const {
   FunctionBase* fb = this->function_base();
   if (fb->IsBlock()) {
@@ -544,6 +559,32 @@ absl::Status ChannelNode::ReplaceChannel(std::string_view new_channel_name) {
   }
   channel_name_ = new_channel_name;
   return absl::OkStatus();
+}
+
+Peek::Peek(const SourceInfo& loc, Node* token,
+           std::optional<Node*> predicate, std::string_view channel_name,
+           bool is_blocking, Type* payload_type, std::string_view name,
+           FunctionBase* function)
+    : ChannelNode(
+          loc, Op::kPeek,
+          GetReceiveType(function->package(), is_blocking, payload_type),
+          channel_name, ChannelDirection::kReceive, predicate.has_value(), name,
+          function),
+      is_blocking_(is_blocking) {
+  CHECK(IsOpClass<Peek>(op_))
+      << "Op `" << op_ << "` is not a valid op for Node class `Peek`.";
+  AddOperand(token);
+  // Predicate is expected to be the last operand.
+  AddOptionalOperand(predicate);
+}
+
+bool Peek::IsDefinitelyEqualTo(const Node* other) const {
+  if (this == other) {
+    return true;
+  }
+  return Node::IsDefinitelyEqualTo(other) &&
+         channel_name() == other->As<Peek>()->channel_name() &&
+         is_blocking() == other->As<Peek>()->is_blocking();
 }
 
 Receive::Receive(const SourceInfo& loc, Node* token,
@@ -1422,6 +1463,15 @@ absl::StatusOr<Node*> Trace::CloneInNewFunction(
   return new_function->MakeNodeWithName<Trace>(
       loc(), new_operands[0], new_operands[1], new_operands.subspan(2),
       format(), verbosity(), GetNameView());
+}
+
+absl::StatusOr<Node*> Peek::CloneInNewFunction(
+    absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
+  return new_function->MakeNodeWithName<Peek>(
+      loc(), new_operands[0],
+      new_operands.size() > 1 ? std::make_optional(new_operands[1])
+                              : std::nullopt,
+      channel_name(), is_blocking(), GetPayloadType(), GetNameView());
 }
 
 absl::StatusOr<Node*> Receive::CloneInNewFunction(

@@ -1480,3 +1480,47 @@ xls_dslx_verilog(
     library = "const_for_dslx",
     verilog_file = "const_for.sv",
 )
+
+xls_dslx_library(
+    name = "content_based_arbiter_dslx",
+    srcs = ["content_based_arbiter.x"],
+)
+
+xls_dslx_test(
+    name = "content_based_arbiter_dslx_test",
+    srcs = ["content_based_arbiter.x"],
+)
+
+xls_dslx_library(
+    name = "blocking_peek_dslx",
+    srcs = [
+        "blocking_peek.x",
+    ],
+)
+
+xls_dslx_test(
+    name = "blocking_peek_dslx_test",
+    srcs = ["blocking_peek.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_library(
+    name = "peek_dslx",
+    srcs = ["peek.x"],
+)
+
+xls_dslx_test(
+    name = "peek_dslx_test",
+    size = "small",
+    srcs = ["peek.x"],
+)
+
+xls_dslx_ir(
+    name = "peek_ir",
+    dslx_top = "Peek",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true"
+    },
+    ir_file = "peek.ir",
+    library = ":peek_dslx",
+)

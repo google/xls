@@ -146,6 +146,7 @@ class InterpValueChannel {
     queue_.pop_front();
     return result;
   }
+  InterpValue Peek() { return queue_.front(); }
   void Write(InterpValue v) { queue_.push_back(std::move(v)); }
 
  private:
@@ -271,6 +272,8 @@ class BytecodeInterpreter {
   absl::Status EvalNe(const Bytecode& bytecode);
   absl::Status EvalNegate(const Bytecode& bytecode);
   absl::Status EvalOr(const Bytecode& bytecode);
+  absl::Status EvalPeek(const Bytecode& bytecode);
+  absl::Status EvalPeekNonBlocking(const Bytecode& bytecode);
   absl::Status EvalPop(const Bytecode& bytecode);
   absl::Status EvalRange(const Bytecode& bytecode);
   absl::Status EvalRecv(const Bytecode& bytecode);

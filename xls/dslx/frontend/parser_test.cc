@@ -1460,6 +1460,36 @@ proc producer {
   RoundTrip(std::string(kModule));
 }
 
+TEST_F(ParserTest, ParsePeek) {
+  constexpr std::string_view kModule = R"(struct Packet {
+    id: u32,
+    data: u32,
+}
+proc PeekPacketFiller {
+    req_r: chan<Packet> in;
+    resp_s: chan<Packet> out;
+    config(req_r: chan<Packet> in, resp_s: chan<Packet> out) {
+        (req_r, resp_s)
+    }
+    init {
+        u32:0
+    }
+    next(current_id: u32) {
+        let (tok, packet) = peek(join(), req_r);
+        let (packet, next_state) = if current_id < packet.id {
+            (Packet { id: current_id, data: current_id }, current_id + u32:1)
+        } else {
+            let (tok, packet) = recv(tok, req_r);
+            (packet, packet.id + u32:1)
+        };
+        let tok = send(tok, resp_s, packet);
+        next_state
+    }
+})";
+
+  RoundTrip(std::string(kModule));
+}
+
 TEST_F(ParserTest, ParseSendIfAndRecvIf) {
   constexpr std::string_view kModule = R"(proc producer {
     c: chan<u32> in;

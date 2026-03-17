@@ -108,6 +108,14 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_SPLAT_STRUCT_INSTANCE;
     case AstNodeKind::kIndex:
       return AST_NODE_KIND_INDEX;
+    case AstNodeKind::kPeek:
+      return AST_NODE_KIND_PEEK;
+    case AstNodeKind::kPeekIf:
+      return AST_NODE_KIND_PEEK_IF;
+    case AstNodeKind::kPeekIfNonBlocking:
+      return AST_NODE_KIND_PEEK_IF_NON_BLOCKING;
+    case AstNodeKind::kPeekNonBlocking:
+      return AST_NODE_KIND_PEEK_NON_BLOCKING;
     case AstNodeKind::kRange:
       return AST_NODE_KIND_RANGE;
     case AstNodeKind::kRecv:
@@ -722,6 +730,14 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kSplatStructInstance;
     case AST_NODE_KIND_INDEX:
       return AstNodeKind::kIndex;
+    case AST_NODE_KIND_PEEK:
+      return AstNodeKind::kPeek;
+    case AST_NODE_KIND_PEEK_NON_BLOCKING:
+      return AstNodeKind::kPeekNonBlocking;
+    case AST_NODE_KIND_PEEK_IF:
+      return AstNodeKind::kPeekIf;
+    case AST_NODE_KIND_PEEK_IF_NON_BLOCKING:
+      return AstNodeKind::kPeekIfNonBlocking;
     case AST_NODE_KIND_RANGE:
       return AstNodeKind::kRange;
     case AST_NODE_KIND_RECV:

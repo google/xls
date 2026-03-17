@@ -87,6 +87,10 @@ class ChannelQueue {
   // Writes the given value on to the channel.
   absl::Status Write(const Value& value);
 
+  // Peeks and returns a value from the channel without dropping it
+  // from the queue. Returns an std::nullopt if the channel is empty.
+  std::optional<Value> Peek();
+
   // Reads and returns a value from the channel. Returns an std::nullopt if
   // the channel is empty.
   std::optional<Value> Read();
@@ -117,6 +121,8 @@ class ChannelQueue {
 
   virtual int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_);
   virtual void WriteInternal(const Value& value)
+      ABSL_SHARED_LOCKS_REQUIRED(mutex_);
+  virtual std::optional<Value> PeekInternal()
       ABSL_SHARED_LOCKS_REQUIRED(mutex_);
   virtual std::optional<Value> ReadInternal()
       ABSL_SHARED_LOCKS_REQUIRED(mutex_);

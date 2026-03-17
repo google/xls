@@ -290,6 +290,10 @@ std::string OpToString(Bytecode::Op op) {
       return "negate";
     case Bytecode::Op::kOr:
       return "or";
+    case Bytecode::Op::kPeek:
+      return "peek";
+    case Bytecode::Op::kPeekNonBlocking:
+      return "peek_non_blocking";
     case Bytecode::Op::kPop:
       return "pop";
     case Bytecode::Op::kRange:
@@ -500,6 +504,15 @@ DEF_UNARY_BUILDER(Swap);
 
 /* static */ Bytecode Bytecode::MakeMatchArm(Span span, MatchArmItem item) {
   return Bytecode(span, Op::kMatchArm, std::move(item));
+}
+
+/* static */ Bytecode Bytecode::MakePeek(Span span, ChannelData channel_data) {
+  return Bytecode(span, Op::kPeek, std::move(channel_data));
+}
+
+/* static */ Bytecode Bytecode::MakePeekNonBlocking(
+    Span span, ChannelData channel_data) {
+  return Bytecode(span, Op::kPeekNonBlocking, std::move(channel_data));
 }
 
 /* static */ Bytecode Bytecode::MakeRecv(Span span, ChannelData channel_data) {

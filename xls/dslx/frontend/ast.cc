@@ -248,6 +248,14 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "index";
     case AstNodeKind::kRange:
       return "range";
+    case AstNodeKind::kPeek:
+      return "peek";
+    case AstNodeKind::kPeekNonBlocking:
+      return "peek-non-blocking";
+    case AstNodeKind::kPeekIf:
+      return "peek-if";
+    case AstNodeKind::kPeekIfNonBlocking:
+      return "peek-if-non-blocking";
     case AstNodeKind::kRecv:
       return "receive";
     case AstNodeKind::kRecvNonBlocking:
