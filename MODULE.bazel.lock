@@ -889,7 +889,7 @@
     },
     "@@aspect_rules_js~//npm:extensions.bzl%pnpm": {
       "general": {
-        "bzlTransitiveDigest": "K+B/ieLJuYMVh5FwJjhzO9BOd+QQfSvOZNhMBCn+myY=",
+        "bzlTransitiveDigest": "K9JF+Qu6tXUs49tVpKK8Bghc75RY9STeNoKm1EdcB/0=",
         "usagesDigest": "nreWOSoW3keGlKdHpT5drUTOjHwIzGpp1haLECAZ4dM=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -1842,104 +1842,6 @@
           }
         },
         "recordedRepoMappingEntries": []
-      }
-    },
-    "@@rules_perl~//perl:extensions.bzl%perl_repositories": {
-      "general": {
-        "bzlTransitiveDigest": "zKzjvlkMYt5ciDqNdVyTtZfAAPO39SuFy2B+xMqgTss=",
-        "usagesDigest": "tuJgAyNZD8Ewzr/MlAnnittbPMDC60XQF8aGrsjU+nY=",
-        "recordedFileInputs": {
-          "@@or-tools~//bazel/ortools_requirements.txt": "37e22395e78ef3572ab57b7717fd8f54851919bb73ca404f367536dc15a8e3eb",
-          "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_11.txt": "7d1074311e9f32f25ca112fc86fbec98bc024d820a8dc00f94e8679a7e6b480c",
-          "@@rules_python~//tools/publish/requirements_linux.txt": "8175b4c8df50ae2f22d1706961884beeb54e7da27bd2447018314a175981997d",
-          "@@//dependency_support/pip_requirements_lock.txt": "9301da6c6a7b310ba10266bc5e9cc83aa0b693bf8471fba119f34133e0126d46",
-          "@@or-tools~//bazel/notebook_requirements.txt": "ca78fad693f1b35eed8bb7c54e5ddf7ad255c4b9d94ce18efa55859759a8fb70",
-          "@@protoc-gen-validate~//python/requirements.txt": "6a540bc029bbf3a5f78f9f9282bd30e2965c98eeb150f2cfc5facccbd8a98297",
-          "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_10.txt": "afd6f9406f4e80a504f1575121a937f4c15388aec4a17393f0cb1ac9f09d18dd",
-          "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_9.txt": "f3908c1ef1a2947ed92693fb9797ac2050db90a86bd422921c7f226ed650d7ce",
-          "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_12.txt": "7cb4e656a0c88702302bae562670c4dd2bf85e44ff22c4704953b8ff807af7df",
-          "@@grpc~//requirements.bazel.lock": "ff9ad877bc63a73efb72b37635a33d06026c6e9b73f7de85a7da73c91d99a745",
-          "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_9.txt": "8b2739fd19485d1f3ee7e8303d7620fe4d953980d88e2b9edbcf4781f041be48",
-          "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_10.txt": "68e27caaca02d9a3be1e3a3f23e32c8e128508c7600805fb86f9848219e3fe1f",
-          "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_12.txt": "5cedc131b03d5f59c31fd3349ab15ba58d28c383ff189853366722d2226fadbd",
-          "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_11.txt": "9b1a0d8d75f6786b630fec859e7a2c289ec6c3aba8355d7e1d9aa6b473e3bcbc",
-          "@@rules_python~//tools/publish/requirements_windows.txt": "7673adc71dc1a81d3661b90924d7a7c0fc998cd508b3cb4174337cef3f2de556",
-          "@@pybind11_abseil~//pybind11_abseil/requirements/requirements_lock_3_8.txt": "9a29cdc6313dbcebf36742bc88c01a376eb89082d24a64cad883dfa16c2f3a20",
-          "@@pybind11_protobuf~//pybind11_protobuf/requirements/requirements_lock_3_8.txt": "661bd110107e5c236fe9a98a88f68702b89d43ba865bc75e63b7b3bffca7e234",
-          "@@rules_python~//tools/publish/requirements_darwin.txt": "2994136eab7e57b083c3de76faf46f70fad130bc8e7360a7fed2b288b69e79dc"
-        },
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "perl_darwin_arm64": {
-            "bzlFile": "@@rules_perl~//perl:repo.bzl",
-            "ruleClassName": "perl_download",
-            "attributes": {
-              "strip_prefix": "perl-darwin-arm64",
-              "sha256": "285769f3c50c339fb59a3987b216ae3c5c573b95babe6875a1ef56fb178433da",
-              "urls": [
-                "https://github.com/skaji/relocatable-perl/releases/download/5.36.0.1/perl-darwin-arm64.tar.xz"
-              ]
-            }
-          },
-          "perl_darwin_amd64": {
-            "bzlFile": "@@rules_perl~//perl:repo.bzl",
-            "ruleClassName": "perl_download",
-            "attributes": {
-              "strip_prefix": "perl-darwin-amd64",
-              "sha256": "63bc5ee36f5394d71c50cca6cafdd333ee58f9eaa40bca63c85f9bd06f2c1fd6",
-              "urls": [
-                "https://github.com/skaji/relocatable-perl/releases/download/5.36.0.1/perl-darwin-amd64.tar.xz"
-              ]
-            }
-          },
-          "perl_linux_amd64": {
-            "bzlFile": "@@rules_perl~//perl:repo.bzl",
-            "ruleClassName": "perl_download",
-            "attributes": {
-              "strip_prefix": "perl-linux-amd64",
-              "sha256": "3bdffa9d7a3f97c0207314637b260ba5115b1d0829f97e3e2e301191a4d4d076",
-              "urls": [
-                "https://github.com/skaji/relocatable-perl/releases/download/5.36.0.1/perl-linux-amd64.tar.xz"
-              ]
-            }
-          },
-          "perl_linux_arm64": {
-            "bzlFile": "@@rules_perl~//perl:repo.bzl",
-            "ruleClassName": "perl_download",
-            "attributes": {
-              "strip_prefix": "perl-linux-arm64",
-              "sha256": "6fa4ece99e790ecbc2861f6ecb7b52694c01c2eeb215b4370f16a3b12d952117",
-              "urls": [
-                "https://github.com/skaji/relocatable-perl/releases/download/5.36.0.1/perl-linux-arm64.tar.xz"
-              ]
-            }
-          },
-          "perl_windows_x86_64": {
-            "bzlFile": "@@rules_perl~//perl:repo.bzl",
-            "ruleClassName": "perl_download",
-            "attributes": {
-              "strip_prefix": "",
-              "sha256": "aeb973da474f14210d3e1a1f942dcf779e2ae7e71e4c535e6c53ebabe632cc98",
-              "urls": [
-                "https://mirror.bazel.build/strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit.zip",
-                "https://strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit.zip"
-              ]
-            }
-          }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "rules_perl~",
-            "bazel_tools",
-            "bazel_tools"
-          ],
-          [
-            "rules_perl~",
-            "rules_perl",
-            "rules_perl~"
-          ]
-        ]
       }
     },
     "@@rules_python~//python/uv:uv.bzl%uv": {
