@@ -1491,19 +1491,6 @@ xls_dslx_test(
     srcs = ["content_based_arbiter.x"],
 )
 
-xls_dslx_verilog(
-    name = "content_based_arbiter_verilog",
-    codegen_args = {
-        "module_name": "content_based_arbiter",
-        "delay_model": "unit",
-        "pipeline_stages": "4",
-        "reset": "rst",
-    },
-    dslx_top = "ContentBasedArbiterInst",
-    library = "content_based_arbiter_dslx",
-    verilog_file = "content_based_arbiter.sv",
-)
-
 xls_dslx_library(
     name = "blocking_peek_dslx",
     srcs = [
@@ -1530,7 +1517,7 @@ xls_dslx_test(
 
 xls_dslx_ir(
     name = "peek_ir",
-    dslx_top = "PeekIfNonBlocking",
+    dslx_top = "Peek",
     ir_conv_args = {
         "lower_to_proc_scoped_channels": "true"
     },
