@@ -31,6 +31,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -87,7 +88,7 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     old_to_new_[n] = module(n)->Make<Attribute>(*n->GetSpan(), n->GetArgSpan(),
-                                                n->attribute_kind(), n->args());
+                                                n->attribute_data());
     return absl::OkStatus();
   }
 
