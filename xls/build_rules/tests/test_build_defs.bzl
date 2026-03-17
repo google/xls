@@ -43,6 +43,7 @@ def _scheduling_args_proto(ctx):
                 ctx.outputs.scheduling_options_proto.path,
             ),
         ],
+        mnemonic = "GenerateSchedulingOptionsProto",
     )
     return [
         DefaultInfo(files = depset(direct = [ctx.outputs.scheduling_options_proto])),
@@ -119,6 +120,7 @@ def _codegen_args_proto(ctx):
                 ctx.outputs.codegen_options_proto.path,
             ),
         ],
+        mnemonic = "GenerateCodegenOptionsProto",
     )
     return [
         DefaultInfo(files = depset(direct = [ctx.outputs.codegen_options_proto])),
