@@ -20,6 +20,7 @@
 #include <filesystem>
 #include <functional>
 #include <initializer_list>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -32,8 +33,10 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
 #include "llvm/include/llvm/Support/Error.h"
 #include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "xls/common/file/filesystem.h"
@@ -44,6 +47,7 @@
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
+#include "xls/public/c_api_ir_analysis.h"
 #include "xls/public/c_api_ir_builder.h"
 
 namespace {

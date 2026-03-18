@@ -246,9 +246,9 @@ cc_library(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:replace_invocations",
         "//xls/dslx:virtualizable_file_system",
-        "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:function_specializer",
         "//xls/dslx/frontend:module",
@@ -380,6 +380,7 @@ cc_test(
         ":c_api",
         ":c_api_dslx",
         ":c_api_format_preference",
+        ":c_api_ir_analysis",
         ":c_api_ir_builder",
         ":passes_and_estimators",
         "//xls/common:xls_gunit_main",
@@ -395,8 +396,8 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
         "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:OrcShared",
         "@llvm-project//llvm:Support",
-        "@llvm-project//llvm:ir_headers",
     ],
 )
 
