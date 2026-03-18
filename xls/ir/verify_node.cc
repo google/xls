@@ -978,29 +978,40 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleNext(Next* next) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCountRange(next, 2, 3));
-    if (!next->state_read()->Is<StateRead>()) {
-      return absl::InternalError(
-          absl::StrFormat("Next node %s expects a state read for param; is: %v",
-                          next->GetName(), *next->state_read()));
+    if (next->has_state_read_operand()) {
+      XLS_RETURN_IF_ERROR(ExpectOperandCountRange(next, 2, 3));
+      if (!next->state_read()->Is<StateRead>()) {
+        return absl::InternalError(absl::StrFormat(
+            "Next node %s expects a state read for param; is: %v",
+            next->GetName(), *next->state_read()));
+      }
+    } else {
+      XLS_RETURN_IF_ERROR(ExpectOperandCountRange(next, 1, 2));
     }
+
     if (next->predicate().has_value()) {
-      XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(next, /*operand_no=*/2,
+      XLS_ASSIGN_OR_RETURN(int64_t pred_idx, next->predicate_operand_number());
+      XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(next, pred_idx,
                                                    /*expected_bit_count=*/1));
     }
+
     if (!next->function_base()->HasEffectiveProc()) {
       return absl::InternalError(absl::StrFormat(
-          "Next node %s (for param %s) is not in a proc", next->GetName(),
-          next->state_read()->As<StateRead>()->state_element()->name()));
+          "Next node %s (for state element %s) is not in a proc",
+          next->GetName(), next->state_element()->name()));
     }
+
     Proc* proc = next->function_base()->GetEffectiveProcOrDie();
-    XLS_ASSIGN_OR_RETURN(
-        int64_t index,
-        proc->GetStateElementIndex(
-            next->state_read()->As<StateRead>()->state_element()));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasType(next, /*operand_no=*/0,
-                                             proc->GetStateElementType(index)));
-    return ExpectOperandHasType(next, /*operand_no=*/1,  // value is operand 1
+    XLS_ASSIGN_OR_RETURN(int64_t index,
+                         proc->GetStateElementIndex(next->state_element()));
+
+    if (next->has_state_read_operand()) {
+      XLS_RETURN_IF_ERROR(ExpectOperandHasType(
+          next, /*operand_no=*/0, proc->GetStateElementType(index)));
+    }
+
+    int64_t value_idx = next->has_state_read_operand() ? 1 : 0;
+    return ExpectOperandHasType(next, value_idx,
                                 proc->GetStateElementType(index));
   }
 
