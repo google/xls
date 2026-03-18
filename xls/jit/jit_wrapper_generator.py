@@ -20,6 +20,7 @@ import enum
 from typing import Optional
 
 from absl import app
+import jinja2
 
 from xls.ir import xls_ir_interface_pb2 as ir_interface_pb2
 from xls.ir import xls_type_pb2 as type_pb2
@@ -120,23 +121,8 @@ class PropertyFunctionParam:
   """A fuzztest property function parameter. This will be fuzzed by FuzzTest."""
 
   name: str
-  # The "value" name to use, typically name+"_value"
-  value_name: str
-  # One of BITS, ARRAY, TUPLE
-  value_type: str
-  # The C++ type of the parameter, e.g., "uint32_t",
-  # "std::tuple<uint8_t, uint32_t>" or "std::array<uint16_t, 3>"
-  c_type: str
-  # The fuzztest domain to apply for this parameter.
-  domain: str
-  # If BITS, the number of bits.
-  num_bits: Optional[int] = None
-  # If ARRAY or TUPLE, the children are the sub-elements.
-  children: Optional[Sequence["PropertyFunctionParam"]] = None
-  # For TUPLEs, the parent to access
-  parent: Optional[str] = None
-  # The index into the TUPLE to access
-  tuple_index: Optional[int] = None
+  # The index of the parameter in the function signature.
+  index: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -465,110 +451,12 @@ def camelize(name: str) -> str:
   return name.title().replace("_", "")
 
 
-def convert_to_fuzztest_param(
-    name: str, type_proto: type_pb2.TypeProto, is_top_level: bool = False
-) -> PropertyFunctionParam:
-  """Converts an XLS type proto to a FuzzTest property function parameter.
-
-  Recursively walks the given XLS type proto and builds the equivalent parameter
-  for a FuzzTest property function, including its C++ type, value name, and
-  fuzzing domain.
-
-  Args:
-    name: The base name for the parameter.
-    type_proto: The XLS TypeProto to convert.
-    is_top_level: Whether the parameter is a top-level parameter of its
-      function.
-
-  Returns:
-    A PropertyFunctionParam dataclass instance.
-
-  Raises:
-    ValueError: If the type_proto contains an unsupported type.
-  """
-  children = []
-  domain = None
-  if type_proto.type_enum == type_pb2.TypeProto.BITS:
-    value_type = "BITS"
-    c_type = to_c_type(type_proto)
-    if type_proto.bit_count not in (8, 16, 32, 64):
-      domain = f"fuzztest::InRange(0, {(1 << type_proto.bit_count) - 1})"
-  elif type_proto.type_enum == type_pb2.TypeProto.ARRAY:
-    value_type = "ARRAY"
-    c_type = to_c_type(type_proto)
-    child = convert_to_fuzztest_param(
-        f"_{name}_element", type_proto.array_element
-    )
-    children = [
-        PropertyFunctionParam(
-            name=child.name,
-            c_type=child.c_type,
-            value_name=child.value_name,
-            value_type=child.value_type,
-            domain=child.domain,
-            num_bits=child.num_bits,
-            children=child.children,
-        )
-    ]
-    domain = f"fuzztest::ArrayOf<{type_proto.array_size}>({child.domain})"
-  elif type_proto.type_enum == type_pb2.TypeProto.TUPLE:
-    # Convert, recursively.
-    converted_children = [
-        convert_to_fuzztest_param(f"_{name}_{idx}", child)
-        for idx, child in enumerate(type_proto.tuple_elements)
-    ]
-    # Make "real" list of children.
-    children = [
-        PropertyFunctionParam(
-            name=child.name,
-            c_type=child.c_type,
-            value_name=child.value_name,
-            value_type=child.value_type,
-            domain=child.domain,
-            num_bits=child.num_bits,
-            children=child.children,
-            parent=name,
-            tuple_index=idx,
-        )
-        for idx, child in enumerate(converted_children)
-    ]
-    domains = ", ".join([child.domain for child in converted_children])
-
-    value_type = "TUPLE"
-    c_type = to_c_type(type_proto)
-    domain = f"fuzztest::TupleOf({domains})"
-    if is_top_level:
-      # Wrap in another tuple if top level, because otherwise FuzzTest will
-      # try to interpret the tuple as a sequence of separate params instead
-      # of a single tuple param.
-      domain = f"fuzztest::TupleOf({domain})"
-  else:
-    raise ValueError(f"Unsupported type: {type_proto.type_enum}")
-
-  if domain is None:
-    domain = f"fuzztest::Arbitrary<{c_type}>()"
-
-  return PropertyFunctionParam(
-      name=name,
-      c_type=c_type,
-      value_type=value_type,
-      value_name=name + "_value",
-      domain=domain,
-      num_bits=(
-          type_proto.bit_count
-          if type_proto.type_enum == type_pb2.TypeProto.BITS
-          else 0
-      ),
-      children=children,
-  )
-
-
 def wrapped_to_fuzztest(wrapped: WrappedIr) -> PropertyFunction:
   """Converts a WrappedIr object to a dictionary for fuzztest template."""
   params = []
   if wrapped.params:
-    for p in wrapped.params:
-      params.append(convert_to_fuzztest_param(p.name, p.type_proto, True))
+    for idx, p in enumerate(wrapped.params):
+      params.append(PropertyFunctionParam(name=p.name, index=idx))
   return PropertyFunction(
       fuzztest_name=wrapped.function_name + "_fuzztest",
       property_function_name=wrapped.function_name,
@@ -579,3 +467,14 @@ def wrapped_to_fuzztest(wrapped: WrappedIr) -> PropertyFunction:
       params=params,
       return_type=wrapped.result is not None,
   )
+
+
+def render_fuzztest(
+    wrapped: WrappedIr, env: jinja2.Environment, cc_template_content: str
+) -> str:
+  """Renders the fuzztest C++ code."""
+  env.filters["property_param"] = lambda p: "xls::Value " + p.name
+  cc_template = env.from_string(cc_template_content)
+  fuzztest = wrapped_to_fuzztest(wrapped)
+  bindings = {"fuzztest": fuzztest, "len": len}
+  return cc_template.render(bindings)

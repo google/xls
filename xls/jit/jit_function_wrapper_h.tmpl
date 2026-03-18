@@ -1,10 +1,10 @@
-
 #ifndef {{ wrapped.header_guard }}
 #define {{ wrapped.header_guard }}
 #include <memory>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/ir/xls_type.pb.h"
 #include "xls/jit/function_base_jit_wrapper.h"
 #include "xls/public/value.h"
 
@@ -24,6 +24,8 @@ class {{ wrapped.class_name }} final : public xls::BaseFunctionJitWrapper {
   absl::StatusOr<{{wrapped.result.specialized_type}}> Run(
       {{ wrapped.params | map(attribute="specialized_arg") | join(", ") }});
 {% endif %}
+
+  static absl::StatusOr<xls::TypeProto> GetParamType(int64_t index);
 
  private:
   using xls::BaseFunctionJitWrapper::BaseFunctionJitWrapper;

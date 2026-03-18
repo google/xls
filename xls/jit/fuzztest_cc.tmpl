@@ -1,0 +1,35 @@
+#include "xls/common/fuzzing/fuzztest.h"
+#include "xls/common/status/matchers.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/ir/value_test_util.h"
+#include "xls/ir/xls_type.pb.h"
+#include "{{fuzztest.jit_class_header_filename}}"
+
+namespace {{ fuzztest.namespace }} {
+namespace {
+
+void {{fuzztest.property_function_name}}({{ fuzztest.params | map("property_param") | join (", ") }}) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<{{fuzztest.jit_classname}}> f,
+                           {{fuzztest.jit_classname}}::Create());
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value result, f->Run(
+  {% for param in fuzztest.params %}
+  {{param.name}}{% if not loop.last %}, {% endif %}
+  {% endfor %}));
+
+  {% if fuzztest.return_type %}
+  ASSERT_TRUE(result.IsAllOnes());
+  {% endif %}
+}
+
+FUZZ_TEST({{fuzztest.fuzztest_name}}, {{fuzztest.property_function_name}})
+  .WithDomains(
+    {% for param in fuzztest.params %}
+    xls::ArbitraryValue({{fuzztest.jit_classname}}::GetParamType({{param.index}}).value()){% if not loop.last %},
+    {% endif %}
+    {% endfor %}
+  );
+
+}  // namespace
+}  // namespace {{fuzztest.namespace}}
