@@ -35,6 +35,12 @@ package(
 )
 
 cc_library(
+    name = "attribute_data",
+    srcs = ["attribute_data.cc"],
+    hdrs = ["attribute_data.h"],
+)
+
+cc_library(
     name = "timeout_support",
     srcs = ["timeout_support.cc"],
     hdrs = ["timeout_support.h"],

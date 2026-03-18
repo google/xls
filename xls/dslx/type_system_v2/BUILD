@@ -129,6 +129,7 @@ cc_library(
         ":populate_table_visitor",
         ":trait_deriver",
         ":type_system_tracer",
+        "//xls/common:attribute_data",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",

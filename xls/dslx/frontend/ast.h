@@ -38,6 +38,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/attribute_data.h"  // IWYU pragma: keep
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast_node.h"  // IWYU pragma: export
@@ -321,47 +322,25 @@ enum class TypeAnnotationKind : uint8_t {
   kTypeVariable
 };
 
-enum class AttributeKind : uint8_t {
-  kCfg,
-  kDerive,
-  kDslxFormatDisable,
-  kExternVerilog,
-  kSvType,
-  kTest,
-  kTestProc,
-  kQuickcheck,
-  kChannelStrictness
-};
-
-std::string AttributeKindToString(AttributeKind kind);
-
 // One of the `#[foo]`-like nodes preceding some entity.
 class Attribute : public AstNode {
  public:
-  using StringKeyValueArgument = std::pair<std::string, std::string>;
-  using IntKeyValueArgument = std::pair<std::string, int64_t>;
-
-  // Represents a quoted string argument as opposed to a bare identifier-like
-  // string.
-  struct StringLiteralArgument {
-    std::string text;
-  };
-
-  // Note that a std::string argument is the simplest kind and looks like an
-  // unquoted identifier, like `test` in `#[cfg(test)]`.
-  using Argument = std::variant<std::string, StringLiteralArgument,
-                                StringKeyValueArgument, IntKeyValueArgument>;
-
   Attribute(Module* owner, Span span, std::optional<Span> arg_span,
-            AttributeKind kind, std::vector<Argument> args)
+            AttributeData attribute_data)
       : AstNode(owner),
         span_(span),
         arg_span_(arg_span),
-        kind_(kind),
-        args_(std::move(args)) {}
+        attribute_data_(std::move(attribute_data)) {}
+
+  Attribute(Module* owner, Span span, std::optional<Span> arg_span,
+            AttributeKind kind, std::vector<AttributeData::Argument> args)
+      : AstNode(owner),
+        span_(span),
+        arg_span_(arg_span),
+        attribute_data_(kind, std::move(args)) {}
 
   AstNodeKind kind() const override { return AstNodeKind::kAttribute; }
-  AttributeKind attribute_kind() const { return kind_; }
+  AttributeKind attribute_kind() const { return attribute_data_.kind(); }
 
   std::optional<Span> GetSpan() const override { return span_; }
   std::optional<Span> GetArgSpan() const { return arg_span_; }
@@ -371,7 +350,9 @@ class Attribute : public AstNode {
   }
 
   std::string_view GetNodeTypeName() const override { return "Attribute"; }
-  const std::vector<Argument>& args() const { return args_; }
+  const std::vector<AttributeData::Argument>& args() const {
+    return attribute_data_.args();
+  }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {};
@@ -382,8 +363,7 @@ class Attribute : public AstNode {
  private:
   const Span span_;
   const std::optional<Span> arg_span_;
-  const AttributeKind kind_;
-  const std::vector<Argument> args_;
+  const AttributeData attribute_data_;
 };
 
 // Abstract base class for type annotations.

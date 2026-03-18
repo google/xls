@@ -40,6 +40,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "cppitertools/enumerate.hpp"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -465,19 +466,19 @@ DocRef FmtAttribute(const Attribute& attribute, DocArena& arena) {
 
   if (!attribute.args().empty()) {
     pieces.push_back(arena.oparen());
-    for (const Attribute::Argument& arg : attribute.args()) {
+    for (const AttributeData::Argument& arg : attribute.args()) {
       absl::visit(
           Visitor{
               [&](std::string str) { pieces.push_back(arena.MakeText(str)); },
-              [&](Attribute::StringLiteralArgument arg) {
+              [&](AttributeData::StringLiteralArgument arg) {
                 pieces.push_back(
                     arena.MakeText(absl::Substitute("\"$0\"", arg.text)));
               },
-              [&](Attribute::IntKeyValueArgument arg) {
+              [&](AttributeData::IntKeyValueArgument arg) {
                 pieces.push_back(arena.MakeText(
                     absl::Substitute("$0=$1", arg.first, arg.second)));
               },
-              [&](Attribute::StringKeyValueArgument arg) {
+              [&](AttributeData::StringKeyValueArgument arg) {
                 pieces.push_back(arena.MakeText(
                     absl::Substitute("$0=$1", arg.first, arg.second)));
               },
