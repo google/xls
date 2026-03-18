@@ -460,9 +460,6 @@ struct CycleInfo {
 enum class BoundType { kLower, kUpper };
 
 absl::Status TightenBound(int64_t& bound, int64_t value) {
-  if (bound > value) {
-    std::cerr << "bad";
-  }
   XLS_RET_CHECK_LE(bound, value)
       << "Bound " << bound << " is already greater than " << value;
   bound = value;
