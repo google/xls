@@ -24,10 +24,8 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -50,25 +48,6 @@ namespace xls {
 class BaseFunctionJitWrapper {
  public:
   FunctionJit* jit() { return jit_.get(); }
-
-  static absl::StatusOr<xls::TypeProto> GetParamTypeFor(
-      absl::Span<uint8_t const> aot_entrypoints_proto_bin, int64_t index) {
-    xls::AotPackageEntrypointsProto proto;
-    CHECK(proto.ParseFromArray(aot_entrypoints_proto_bin.data(),
-                               aot_entrypoints_proto_bin.size()));
-    if (index < 0 || index >= proto.entrypoint(0)
-                                  .function_metadata()
-                                  .function_interface()
-                                  .parameters_size()) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("Index ", index, " out of bounds"));
-    }
-    return proto.entrypoint(0)
-        .function_metadata()
-        .function_interface()
-        .parameters(index)
-        .type();
-  }
 
  protected:
   BaseFunctionJitWrapper(std::unique_ptr<FunctionJit> jit,

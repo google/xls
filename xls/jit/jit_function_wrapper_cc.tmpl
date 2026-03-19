@@ -5,7 +5,6 @@
 #include <string_view>
 
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/xls_type.pb.h"
 #include "xls/jit/function_base_jit_wrapper.h"
 
 extern "C" {
@@ -92,10 +91,5 @@ absl::StatusOr<{{wrapped.result.specialized_type}}>
   return result;
 }
 {% endif %}
-
-
-absl::StatusOr<xls::TypeProto> {{ wrapped.class_name }}::GetParamType(int64_t index) {
-  return xls::BaseFunctionJitWrapper::GetParamTypeFor(kAotEntrypointsProtoBin, index);
-}
 
 }  // namespace {{ wrapped.namespace }}

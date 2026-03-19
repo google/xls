@@ -304,10 +304,8 @@ cc_library(
         "//xls/ir:xls_ir_interface_cc_proto",
         "//xls/ir:xls_type_cc_proto",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -376,7 +374,6 @@ pytype_strict_library(
         "//xls/ir:xls_ir_interface_py_pb2",
         "//xls/ir:xls_type_py_pb2",
         "@abseil-py//absl:app",
-        "@xls_pip_deps//jinja2",
     ],
 )
 
@@ -384,7 +381,6 @@ pytype_strict_binary(
     name = "jit_wrapper_generator_main",
     srcs = ["jit_wrapper_generator_main.py"],
     data = [
-        ":fuzztest_cc.tmpl",
         ":jit_block_wrapper_cc.tmpl",
         ":jit_block_wrapper_h.tmpl",
         ":jit_function_wrapper_cc.tmpl",
@@ -408,13 +404,11 @@ pytype_strict_binary(
 pytype_strict_contrib_test(
     name = "jit_wrapper_generator_test",
     srcs = ["jit_wrapper_generator_test.py"],
-    data = [":fuzztest_cc.tmpl"],
     deps = [
         ":jit_wrapper_generator",
-        "//xls/common:runfiles",
+        "//xls/common:test_base",
         "//xls/ir:xls_type_py_pb2",
         "@abseil-py//absl/testing:absltest",
-        "@xls_pip_deps//jinja2",
     ],
 )
 

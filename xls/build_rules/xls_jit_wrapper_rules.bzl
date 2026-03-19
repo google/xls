@@ -330,10 +330,7 @@ PROC_WRAPPER_TYPE = "PROC"
 BLOCK_WRAPPER_TYPE = "BLOCK"
 
 _BASE_JIT_WRAPPER_DEPS = {
-    FUNCTION_WRAPPER_TYPE: [
-        "//xls/jit:function_base_jit_wrapper",
-        "//xls/ir:xls_type_cc_proto",
-    ],
+    FUNCTION_WRAPPER_TYPE: ["//xls/jit:function_base_jit_wrapper"],
     PROC_WRAPPER_TYPE: [
         "//xls/jit:proc_base_jit_wrapper",
         "@com_google_absl//absl/container:flat_hash_map",

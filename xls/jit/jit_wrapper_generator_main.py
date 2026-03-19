@@ -38,7 +38,7 @@ _FUNCTION_TYPE = flags.DEFINE_string(
     required=False,
     help=(
         "If set require a specific type of function. Options are [FUNCTION,"
-        " PROC, BLOCK, FUZZTEST]."
+        " PROC, BLOCK]."
     ),
 )
 _CLASS_NAME = flags.DEFINE_string(
@@ -154,7 +154,7 @@ def interpret_interface(
       .upper()
   )
   header_filename = f"{_OUTPUT_DIR.value}/{output_name}.h"
-  if _FUNCTION_TYPE.value in (None, "FUNCTION", "FUZZTEST"):
+  if _FUNCTION_TYPE.value in (None, "FUNCTION"):
     func_ir = find_named_entry(
         interface.functions,
         function_name,
@@ -225,9 +225,6 @@ _CC_TEMPLATES = {
     jit_wrapper_generator.JitType.BLOCK: runfiles.get_contents_as_text(
         "xls/jit/jit_block_wrapper_cc.tmpl"
     ),
-    jit_wrapper_generator.JitType.FUZZTEST: runfiles.get_contents_as_text(
-        "xls/jit/fuzztest_cc.tmpl"
-    ),
 }
 
 _H_TEMPLATES = {
@@ -246,16 +243,9 @@ _H_TEMPLATES = {
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError("Incorrect arguments")
-  if _FUNCTION_TYPE.value not in (
-      None,
-      "FUNCTION",
-      "PROC",
-      "BLOCK",
-      "FUZZTEST",
-  ):
+  if _FUNCTION_TYPE.value not in (None, "FUNCTION", "PROC", "BLOCK"):
     raise app.UsageError(
-        "Unknown --function_type. Requires none or FUNCTION, FUZZTEST, BLOCK,"
-        " or PROC"
+        "Unknown --function_type. Requires none or FUNCTION, BLOCK, or PROC"
     )
   with open(_AOT_INFO.value, "rb") as aot_info_file:
     aot_info = aot_entrypoint_pb2.AotPackageEntrypointsProto.FromString(
@@ -287,34 +277,22 @@ def main(argv: Sequence[str]) -> None:
   )
 
   # Create the JINJA env and add an append filter.
-  env = jinja2.Environment(
-      undefined=jinja2.StrictUndefined, lstrip_blocks=True, trim_blocks=True
-  )
+  env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+  env.filters["append_each"] = lambda vs, suffix: [v + suffix for v in vs]
+  env.filters["prefix_each"] = lambda vs, prefix: [prefix + v for v in vs]
+  env.filters["to_char_ints"] = lambda v: [x for x in v]
+  bindings = {"wrapped": wrapped, "len": len, "str": str}
 
-  if _FUNCTION_TYPE.value == "FUZZTEST":
-    rendered = jit_wrapper_generator.render_fuzztest(
-        wrapped, env, _CC_TEMPLATES[jit_wrapper_generator.JitType.FUZZTEST]
-    )
-    with open(f"{_OUTPUT_DIR.value}/{output_name}.cc", "wt") as cc_file:
-      cc_file.write("// Generated File. Do not edit.\n")
-      cc_file.write(rendered)
-    with open(f"{_OUTPUT_DIR.value}/{output_name}.h", "wt") as h_file:
-      h_file.write("// Generated File. Do not edit.\n")
-  else:
-    env.filters["append_each"] = lambda vs, suffix: [v + suffix for v in vs]
-    env.filters["prefix_each"] = lambda vs, prefix: [prefix + v for v in vs]
-    env.filters["to_char_ints"] = lambda v: [x for x in v]
-    bindings = {"wrapped": wrapped, "len": len, "str": str}
-    with open(f"{_OUTPUT_DIR.value}/{output_name}.cc", "wt") as cc_file:
-      cc_template = env.from_string(_CC_TEMPLATES[wrapped.jit_type])
-      cc_file.write("// Generated File. Do not edit.\n")
-      cc_file.write(cc_template.render(bindings))
-      cc_file.write("\n")
-    with open(f"{_OUTPUT_DIR.value}/{output_name}.h", "wt") as h_file:
-      h_template = env.from_string(_H_TEMPLATES[wrapped.jit_type])
-      h_file.write("// Generated File. Do not edit.\n")
-      h_file.write(h_template.render(bindings))
-      h_file.write("\n")
+  with open(f"{_OUTPUT_DIR.value}/{output_name}.cc", "wt") as cc_file:
+    cc_template = env.from_string(_CC_TEMPLATES[wrapped.jit_type])
+    cc_file.write("// Generated File. Do not edit.\n")
+    cc_file.write(cc_template.render(bindings))
+    cc_file.write("\n")
+  with open(f"{_OUTPUT_DIR.value}/{output_name}.h", "wt") as h_file:
+    h_template = env.from_string(_H_TEMPLATES[wrapped.jit_type])
+    h_file.write("// Generated File. Do not edit.\n")
+    h_file.write(h_template.render(bindings))
+    h_file.write("\n")
 
 
 if __name__ == "__main__":
