@@ -1405,6 +1405,17 @@ xls_dslx_library(
     srcs = ["const_if.x"],
 )
 
+# This is an example that passes DSLX test but can't be converted to IR,
+# so early IR conversion feedback is disabled ('lower_to_ir' flag).
+xls_dslx_test(
+    name = "cannot_lower_to_ir_test",
+    srcs = ["cannot_lower_to_ir.x"],
+    dslx_test_args = {
+        "lower_to_ir": "false",
+        "convert_tests": "true",
+    },
+)
+
 xls_dslx_ir(
     name = "const_if_ir",
     dslx_top = "Main",
