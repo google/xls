@@ -1542,15 +1542,18 @@ py_proto_library(
 proto_library(
     name = "xls_type_proto",
     srcs = ["xls_type.proto"],
+    visibility = ["//xls:xls_users"],
 )
 
 cc_proto_library(
     name = "xls_type_cc_proto",
+    visibility = ["//xls:xls_users"],
     deps = [":xls_type_proto"],
 )
 
 py_proto_library(
     name = "xls_type_py_pb2",
+    visibility = ["//xls:xls_users"],
     deps = [":xls_type_proto"],
 )
 
