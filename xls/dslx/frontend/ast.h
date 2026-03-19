@@ -3526,6 +3526,15 @@ class Lambda : public Expr {
 
   Function* function() const { return function_; }
 
+  bool ExplicitReturn() const {
+    if (!return_type()->IsAnnotation<TypeVariableTypeAnnotation>()) {
+      return true;
+    }
+    return !return_type()
+                ->AsAnnotation<TypeVariableTypeAnnotation>()
+                ->internal();
+  }
+
  private:
   Function* function_;
 

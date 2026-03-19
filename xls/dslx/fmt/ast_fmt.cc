@@ -310,17 +310,17 @@ DocRef Fmt(const Lambda& n, Comments& comments, DocArena& arena) {
       },
       comments, arena);
 
-  return ConcatNGroup(arena, {
-                                 arena.bar(),
-                                 params,
-                                 arena.bar(),
-                                 arena.space(),
-                                 arena.arrow(),
-                                 arena.space(),
-                                 Fmt(*n.return_type(), comments, arena),
-                                 arena.space(),
-                                 body,
-                             });
+  std::vector<DocRef> pieces = {arena.bar(), params, arena.bar(),
+                                arena.space()};
+  if (n.ExplicitReturn()) {
+    pieces.push_back(arena.arrow());
+    pieces.push_back(arena.space());
+    pieces.push_back(Fmt(*n.return_type(), comments, arena));
+    pieces.push_back(arena.space());
+  }
+  pieces.push_back(body);
+
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const BuiltinTypeAnnotation& n, Comments& comments,

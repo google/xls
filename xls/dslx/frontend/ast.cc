@@ -2443,11 +2443,8 @@ std::string Lambda::ToStringInternal() const {
         absl::StrAppend(out, param->ToString());
       });
 
-  auto* tvta = dynamic_cast<TypeVariableTypeAnnotation*>(return_type());
-  bool has_explicit_return = tvta == nullptr || !tvta->internal();
-  std::string return_str = has_explicit_return
-                               ? absl::StrCat(" -> ", return_type()->ToString())
-                               : "";
+  std::string return_str =
+      ExplicitReturn() ? absl::StrCat(" -> ", return_type()->ToString()) : "";
   std::string body_str =
       body()->size() > 1 ? body()->ToString() : body()->ToInlineString();
 

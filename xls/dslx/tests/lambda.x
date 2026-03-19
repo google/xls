@@ -33,4 +33,8 @@ fn main() -> () {
     // https://github.com/google/xls/issues/3937
     let u = map(u32:0..5, |i| -> mod_u16_type_alias::T { mod_u16_type_alias::T:0 });
     const_assert!(u == zero!<u16[5]>());
+
+    let u = u32:3;
+    let implicit_return = map(u32:0..3, |i| { i + u });
+    const_assert!(implicit_return == [u32:3, 4, 5]);
 }
