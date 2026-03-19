@@ -34,6 +34,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/strong_int.h"
 #include "xls/dslx/frontend/ast.h"
@@ -640,7 +641,8 @@ class Parser : public TokenParser {
 
   absl::StatusOr<ChannelConfig> ParseExprAttribute(Bindings& bindings,
                                                    const Pos& hash_pos);
-  absl::StatusOr<std::vector<Attribute::Argument>> ParseAttributeArguments();
+  absl::StatusOr<std::vector<AttributeData::Argument>>
+  ParseAttributeArguments();
   absl::StatusOr<ModuleMember> ApplyFunctionAttributes(
       Function* fn, std::vector<Attribute*> attributes);
   absl::StatusOr<ModuleMember> ApplyProcAttributes(

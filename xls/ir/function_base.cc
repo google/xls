@@ -375,6 +375,14 @@ std::vector<std::string> FunctionBase::AttributeIrStrings() const {
   return attribute_strings;
 }
 
+std::string FunctionBase::DumpAttributes() const {
+  std::string res;
+  for (const std::string& attr : AttributeIrStrings()) {
+    absl::StrAppend(&res, "#[", attr, "]\n");
+  }
+  return res;
+}
+
 absl::StatusOr<Param*> FunctionBase::GetParamByName(
     std::string_view param_name) const {
   for (Param* param : params()) {

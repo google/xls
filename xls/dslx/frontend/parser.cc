@@ -41,6 +41,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
@@ -221,6 +222,7 @@ absl::StatusOr<AttributeKind> ParseAttributeKind(Token token,
       {"test", AttributeKind::kTest},
       {"test_proc", AttributeKind::kTestProc},
       {"quickcheck", AttributeKind::kQuickcheck},
+      {"fuzztest", AttributeKind::kFuzztest},
       {"channel_strictness", AttributeKind::kChannelStrictness}};
 
   const auto it = map->find(token.GetStringValue());
@@ -806,9 +808,9 @@ absl::StatusOr<ChannelConfig> Parser::ParseExprAttribute(Bindings& bindings,
       absl::StrFormat("Unknown attribute: '%s'", attribute_name));
 }
 
-absl::StatusOr<std::vector<Attribute::Argument>>
+absl::StatusOr<std::vector<AttributeData::Argument>>
 Parser::ParseAttributeArguments() {
-  std::vector<Attribute::Argument> result;
+  std::vector<AttributeData::Argument> result;
   for (;;) {
     XLS_ASSIGN_OR_RETURN(Token lhs, PopToken());
     if (lhs.kind() != TokenKind::kString &&
@@ -820,19 +822,20 @@ Parser::ParseAttributeArguments() {
       XLS_RETURN_IF_ERROR(DropToken());
       XLS_ASSIGN_OR_RETURN(Token rhs, PopToken());
       if (rhs.kind() == TokenKind::kString) {
-        result.push_back(Attribute::StringKeyValueArgument(
+        result.push_back(AttributeData::StringKeyValueArgument(
             lhs.GetStringValue(), rhs.GetStringValue()));
       } else if (rhs.kind() == TokenKind::kNumber) {
         XLS_ASSIGN_OR_RETURN(int64_t int_value, rhs.GetValueAsInt64());
-        result.push_back(
-            Attribute::IntKeyValueArgument(lhs.GetStringValue(), int_value));
+        result.push_back(AttributeData::IntKeyValueArgument(
+            lhs.GetStringValue(), int_value));
       } else {
         return ParseErrorStatus(lhs.span(),
                                 "Expected attribute argument value.");
       }
       XLS_ASSIGN_OR_RETURN(delim, PeekToken());
     } else if (lhs.kind() == TokenKind::kString) {
-      result.push_back(Attribute::StringLiteralArgument(lhs.GetStringValue()));
+      result.push_back(
+          AttributeData::StringLiteralArgument(lhs.GetStringValue()));
     } else {
       result.push_back(lhs.GetStringValue());
     }
@@ -860,7 +863,7 @@ absl::StatusOr<Attribute*> Parser::ParseAttribute(const Pos& hash_pos) {
                       "Expected attribute identifier"));
   XLS_ASSIGN_OR_RETURN(AttributeKind kind,
                        ParseAttributeKind(attribute_tok, file_table()));
-  std::vector<Attribute::Argument> args;
+  std::vector<AttributeData::Argument> args;
   std::optional<Span> arg_span;
 
   XLS_ASSIGN_OR_RETURN(bool has_args, TryDropToken(TokenKind::kOParen));
@@ -878,18 +881,18 @@ absl::StatusOr<Attribute*> Parser::ParseAttribute(const Pos& hash_pos) {
 
 absl::StatusOr<QuickCheckTestCases> Parser::GetQuickCheckTestCases(
     const Attribute& attribute) {
-  const std::vector<Attribute::Argument>& args = attribute.args();
+  const std::vector<AttributeData::Argument>& args = attribute.args();
   if (args.empty()) {
     return QuickCheckTestCases::Counted(std::nullopt);
   }
   if (args.size() == 1) {
-    Attribute::Argument arg = args[0];
+    AttributeData::Argument arg = args[0];
     if (auto value = std::get_if<std::string>(&arg);
         value && *value == "exhaustive") {
       return QuickCheckTestCases::Exhaustive();
     }
 
-    if (auto value = std::get_if<Attribute::IntKeyValueArgument>(&arg);
+    if (auto value = std::get_if<AttributeData::IntKeyValueArgument>(&arg);
         value && value->first == "test_count") {
       return QuickCheckTestCases::Counted(value->second);
     }
@@ -910,6 +913,7 @@ absl::Status Parser::UnsupportedAttributeError(const Attribute& attribute) {
     case AttributeKind::kExternVerilog:
     case AttributeKind::kTest:
     case AttributeKind::kQuickcheck:
+    case AttributeKind::kFuzztest:
       return ParseErrorStatus(
           span,
           absl::StrCat(attribute.ToString(), " is only valid on a function."));
@@ -953,13 +957,13 @@ absl::StatusOr<bool> Parser::IsTestConfig(const Attribute& cfg) {
 absl::Status Parser::ApplyExternVerilogAttribute(Function* fn,
                                                  const Attribute& attr) {
   if (attr.args().size() != 1 ||
-      !std::holds_alternative<Attribute::StringLiteralArgument>(
+      !std::holds_alternative<AttributeData::StringLiteralArgument>(
           attr.args()[0])) {
     return ParseErrorStatus(*attr.GetSpan(),
                             "Expected extern_verilog template.");
   }
   std::string ffi_annotation =
-      std::get<Attribute::StringLiteralArgument>(attr.args()[0]).text;
+      std::get<AttributeData::StringLiteralArgument>(attr.args()[0]).text;
   absl::StatusOr<ForeignFunctionData> parsed_ffi_annotation =
       ForeignFunctionDataCreateFromTemplate(ffi_annotation);
   if (!parsed_ffi_annotation.ok()) {
@@ -979,6 +983,7 @@ absl::Status Parser::ApplyExternVerilogAttribute(Function* fn,
 absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
     Function* fn, std::vector<Attribute*> attributes) {
   bool is_test = false;
+  bool is_fuzztest = false;
   std::optional<QuickCheckTestCases> quickcheck_test_cases;
 
   for (Attribute* next : attributes) {
@@ -1001,6 +1006,9 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
       case AttributeKind::kTest:
         is_test = true;
         break;
+      case AttributeKind::kFuzztest:
+        is_fuzztest = true;
+        break;
 
       case AttributeKind::kQuickcheck: {
         XLS_ASSIGN_OR_RETURN(quickcheck_test_cases,
@@ -1013,10 +1021,28 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
     }
   }
 
-  if (is_test && quickcheck_test_cases.has_value()) {
+  std::vector<std::string_view> conflicting;
+  if (is_test) {
+    conflicting.push_back("#[test]");
+  }
+  if (is_fuzztest) {
+    conflicting.push_back("#[fuzztest]");
+  }
+  if (quickcheck_test_cases.has_value()) {
+    conflicting.push_back("#[quickcheck]");
+  }
+
+  if (conflicting.size() > 1) {
+    std::string names;
+    if (conflicting.size() == 2) {
+      names = absl::StrCat(conflicting[0], " and ", conflicting[1]);
+    } else {
+      names = absl::StrCat(conflicting[0], ", ", conflicting[1], ", and ",
+                           conflicting[2]);
+    }
     return ParseErrorStatus(
         *attributes[0]->GetSpan(),
-        "#[test] and #[quickcheck] cannot both be used on the same function.");
+        absl::StrFormat("%s cannot be combined on the same function.", names));
   }
 
   fn->SetAttributes(attributes);
@@ -1051,7 +1077,7 @@ absl::Status Parser::ApplyTypeAttributes(T* node,
           return ParseErrorStatus(
               *next->GetSpan(), "derive attribute requires a list of traits.");
         }
-        for (const Attribute::Argument& arg : next->args()) {
+        for (const AttributeData::Argument& arg : next->args()) {
           // Note that actual name resolution is deferred until type inference.
           if (!std::holds_alternative<std::string>(arg)) {
             return ParseErrorStatus(
@@ -1065,14 +1091,15 @@ absl::Status Parser::ApplyTypeAttributes(T* node,
 
       case AttributeKind::kSvType: {
         if (next->args().size() != 1 ||
-            !std::holds_alternative<Attribute::StringLiteralArgument>(
+            !std::holds_alternative<AttributeData::StringLiteralArgument>(
                 next->args()[0])) {
           return ParseErrorStatus(
               *next->GetSpan(),
               "sv_type attribute requires a string argument.");
         }
         node->set_extern_type_name(
-            std::get<Attribute::StringLiteralArgument>(next->args()[0]).text);
+            std::get<AttributeData::StringLiteralArgument>(next->args()[0])
+                .text);
         break;
       }
 
@@ -1107,8 +1134,8 @@ absl::StatusOr<ModuleMember> Parser::ApplyProcAttributes(
         if (next->args().empty()) {
           break;
         }
-        auto* arg =
-            std::get_if<Attribute::StringKeyValueArgument>(&next->args()[0]);
+        auto* arg = std::get_if<AttributeData::StringKeyValueArgument>(
+            &next->args()[0]);
         if (!arg || next->args().size() > 1 ||
             arg->first != "expected_fail_label") {
           return ParseErrorStatus(*next->GetSpan(),
@@ -3416,7 +3443,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
             "enable with `#![feature(channel_attributes)]` at module scope");
       }
       if (attr->args().size() != 1 ||
-          !std::holds_alternative<Attribute::StringLiteralArgument>(
+          !std::holds_alternative<AttributeData::StringLiteralArgument>(
               attr->args()[0])) {
         return ParseErrorStatus(
             *attr->GetSpan(),
@@ -3424,7 +3451,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
             "literal argument");
       }
       std::string strictness_str =
-          std::get<Attribute::StringLiteralArgument>(attr->args()[0]).text;
+          std::get<AttributeData::StringLiteralArgument>(attr->args()[0]).text;
       XLS_ASSIGN_OR_RETURN(strictness,
                            ChannelStrictnessFromString(strictness_str));
       XLS_ASSIGN_OR_RETURN(peek, PeekToken());

@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
@@ -617,6 +618,30 @@ TEST_F(ScheduledFunctionTest, CloneScheduledFunction) {
   EXPECT_FALSE(cloned_func->stages()[1].contains(cloned_x));
   EXPECT_FALSE(cloned_func->stages()[1].contains(cloned_y));
   EXPECT_TRUE(cloned_func->stages()[1].contains(cloned_z));
+}
+
+TEST_F(FunctionTest, AttributeDataTest) {
+  auto p = CreatePackage();
+  FunctionBuilder b("f", p.get());
+  b.Param("x", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.BuildWithReturnValue(b.Tuple({})));
+
+  f->AddAttribute(AttributeData(AttributeKind::kFuzztest, {}));
+
+  EXPECT_TRUE(f->HasAttribute(AttributeKind::kFuzztest));
+  EXPECT_FALSE(f->HasAttribute(AttributeKind::kTest));
+  EXPECT_EQ(f->attributes().size(), 1);
+  EXPECT_EQ(f->attributes()[0].kind(), AttributeKind::kFuzztest);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_clone, f->Clone("f_clone"));
+  EXPECT_TRUE(f_clone->HasAttribute(AttributeKind::kFuzztest));
+  EXPECT_EQ(f_clone->attributes().size(), 1);
+
+  EXPECT_THAT(f->DumpIr(), HasSubstr("#[fuzztest]"));
+
+  f->set_non_synth(true);
+  EXPECT_THAT(f->DumpIr(), HasSubstr("#[non_synth]"));
+  EXPECT_THAT(f->DumpIr(), HasSubstr("#[fuzztest]"));
 }
 
 }  // namespace
