@@ -64,12 +64,6 @@ load(
     "tuple_type_check",
 )
 
-# Work around for the old version of bazel we're using.
-# TODO: https://github.com/google/xls/issues/2941 - Remove once we can drop
-# support for bazel < 8.
-_BAZEL_HAS_SET_BUILTIN = False
-_bazel_set_builtin = lambda x: None
-
 _DEFAULT_IR_EVAL_TEST_ARGS = {
     "random_inputs": "100",
     "optimize_ir": "true",
@@ -308,19 +302,17 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
                 pass_infos = reg_info.pass_infos,
             )
 
-        # TODO: https://github.com/google/xls/issues/2941 - Remove once we can
-        # drop support for bazel < 8.
-        if _BAZEL_HAS_SET_BUILTIN:
-            # bazel 8 or later.
-            extra_passes = _bazel_set_builtin(pipeline_cfg.pass_infos).difference(
-                _bazel_set_builtin(
-                    ctx.attr._default_pass_pipeline[XlsOptimizationPassRegistryConfigInfo].pass_infos,
-                ),
-            )
-        else:
-            # TODO: https://github.com/google/xls/issues/2941 - Remove once we
-            # can drop support for bazel < 8.
-            extra_passes = []
+        # TODO: https://github.com/google/xls/issues/2941 - Switch to set once we can drop support
+        # for bazel < 8.
+        default_pass_infos = {
+            p: None
+            for p in ctx.attr._default_pass_pipeline[XlsOptimizationPassRegistryConfigInfo].pass_infos
+        }
+        extra_passes = {
+            p: None
+            for p in pipeline_cfg.pass_infos
+            if p not in default_pass_infos
+        }
         if len(extra_passes) > 0:
             fail(
                 "The 'pass_pipeline' contains passes not linked to the optimizer. " +
