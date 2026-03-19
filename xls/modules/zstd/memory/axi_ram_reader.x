@@ -30,8 +30,7 @@ enum AxiRamReaderStatus: u1 {
     READ_BURST = 1,
 }
 
-// FIXME: add default value for RAM_DATA_W_PLUS1_LOG2 = {std::clog2(AXI_DATA_W + u32:1)} (https://github.com/google/xls/issues/992)
-struct AxiRamReaderSync<AXI_ID_W: u32, RAM_DATA_W: u32, RAM_DATA_W_PLUS1_LOG2: u32> {
+struct AxiRamReaderSync<AXI_ID_W: u32, RAM_DATA_W: u32, RAM_DATA_W_PLUS1_LOG2: u32 = {std::clog2(RAM_DATA_W + u32:1)}> {
     do_recv_ram_resp: bool,
     read_data_size: uN[RAM_DATA_W_PLUS1_LOG2],
     read_data_offset: uN[RAM_DATA_W_PLUS1_LOG2],
@@ -49,8 +48,7 @@ struct AxiRamReaderRequesterState<AXI_ADDR_W: u32, AXI_ID_W: u32> {
     ram_rd_req_idx: u8,
 }
 
-// FIXME: add default value for AXI_DATA_W_PLUS1_LOG2 = {std::clog2(AXI_DATA_W + u32:1)} (https://github.com/google/xls/issues/992)
-struct AxiRamReaderResponderState<AXI_DATA_W: u32, AXI_DATA_W_PLUS1_LOG2:u32> {
+struct AxiRamReaderResponderState<AXI_DATA_W: u32, AXI_DATA_W_PLUS1_LOG2:u32 = {std::clog2(AXI_DATA_W + u32:1)}> {
     data: uN[AXI_DATA_W],
     data_size: uN[AXI_DATA_W_PLUS1_LOG2],
 }
@@ -362,9 +360,7 @@ const INST_RAM_NUM_PARTITIONS = INST_RAM_DATA_W / INST_RAM_WORD_PARTITION_SIZE;
 
 const INST_BASE_ADDR = u32:0x8000;
 
-proc AxiRamReaderInst<
-    FAKE_PARAM: u32 = {u32:0} // FIXME: remove after https://github.com/google/xls/issues/1415 is fixed
-> {
+proc AxiRamReaderInst {
     type AxiAr = axi::AxiAr<INST_AXI_ADDR_W, INST_AXI_ID_W>;
     type AxiR = axi::AxiR<INST_AXI_DATA_W, INST_AXI_ID_W>;
     type ReadReq = ram::ReadReq<INST_RAM_ADDR_W, INST_RAM_NUM_PARTITIONS>;

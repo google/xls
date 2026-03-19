@@ -28,6 +28,7 @@ import xls.modules.zstd.math;
 
 const HUFFMAN_FSE_MAX_ACCURACY_LOG = u32:9;
 const HUFFMAN_FSE_ACCURACY_W = std::clog2(HUFFMAN_FSE_MAX_ACCURACY_LOG + u32:1);
+const BITS_PER_RAW_WEIGHT = u32:4;
 
 struct HuffmanRawWeightsDecoderReq<AXI_ADDR_W: u32> {
     addr: uN[AXI_ADDR_W],
@@ -43,11 +44,12 @@ struct HuffmanRawWeightsDecoderResp {
     status: HuffmanRawWeightsDecoderStatus,
 }
 
-enum HuffmanRawWeightsDecoderFSM : u2 {
+enum HuffmanRawWeightsDecoderFSM : u3 {
     IDLE = 0,
     DECODING = 1,
-    FILL_ZERO = 2,
-    RESP = 3,
+    SENDING_LAST_WEIGHT = 2,
+    FILL_ZERO = 3,
+    RESP = 4,
 }
 
 struct HuffmanRawWeightsDecoderState<
@@ -63,6 +65,7 @@ struct HuffmanRawWeightsDecoderState<
     buffer: uN[BUFF_LEN],
     buffer_len: uN[BUFF_LEN_LOG2],
     ram_wr_resp_to_handle: u4,
+    pending_last_weight: bool,
     sum: u32, // The sum of 2^(weight-1) from HTD
 }
 
@@ -172,45 +175,56 @@ proc HuffmanRawWeightsDecoder<
         let last_weight = (next_power - state.sum) as u4;
 
         // It is required to change the ordering of the weights.
-        // Huffman literals decoder expects the weight of the first symbol
+        // - First symbol is stored in the most significant nibble of given input
+        // byte requiring us to swap each adjecent weights (rfc8878#section-4.2.1.1).
+        // - Huffman literals decoder expects the weight of the first symbol
         // as the most significant nibble at the most significant byte
-        // in the first cell of the WeightsMemory.
+        // in the first cell of the WeightsMemory requiring us to reverse them.
 
-        // Inject the last weight, take into the acount the reverse
-        let weights = if (state.req.n_symbols > u8:0 && (mem_rd_resp_valid && mem_rd_resp.last)) {
-            trace_fmt!("[RAW] The sum of weight's powers of 2's: {}", state.sum);
-            trace_fmt!("[RAW] The last weight: {}", last_weight);
-            trace_fmt!("[RAW] Injected {:#x} into weights[{}]", last_weight, MAX_WEIGHTS_IN_PACKET as u8 - state.req.n_symbols);
-            update(weights, (MAX_WEIGHTS_IN_PACKET as u8 - (state.req.n_symbols % MAX_WEIGHTS_IN_PACKET as u8)), last_weight)
-        } else {
-            weights
-        };
-
-        let reversed_weights = match(AXI_DATA_W) {
+        let weights = match(AXI_DATA_W) {
             u32:32 => (
-                weights[7] ++ weights[6] ++ weights[5] ++ weights[4] ++
-                weights[3] ++ weights[2] ++ weights[1] ++ weights[0]
+                weights[6] ++ weights[7] ++ weights[4] ++ weights[5] ++
+                weights[2] ++ weights[3] ++ weights[0] ++ weights[1]
             ) as uN[AXI_DATA_W],
             u32:64 => (
-                weights[15] ++ weights[14] ++ weights[13] ++ weights[12] ++
-                weights[11] ++ weights[10] ++ weights[9]  ++ weights[8] ++
-                weights[7]  ++ weights[6]  ++ weights[5]  ++ weights[4] ++
-                weights[3]  ++ weights[2]  ++ weights[1]  ++ weights[0]
+                weights[14] ++ weights[15] ++ weights[12] ++ weights[13] ++
+                weights[10] ++ weights[11] ++ weights[8]  ++ weights[9] ++
+                weights[6]  ++ weights[7]  ++ weights[4]  ++ weights[5] ++
+                weights[2]  ++ weights[3]  ++ weights[0]  ++ weights[1]
             ) as uN[AXI_DATA_W],
             _ => fail!("unsupported_axi_data_width", uN[AXI_DATA_W]:0),
+        } as u4[MAX_WEIGHTS_IN_PACKET];
+
+        let received_last_data = mem_rd_resp_valid && mem_rd_resp.last;
+        let last_weight_index = state.req.n_symbols % MAX_WEIGHTS_IN_PACKET as u8;
+        let pending_last_weight = (state.req.n_symbols % (WEIGHTS_RAM_DATA_W / BITS_PER_RAW_WEIGHT) as u8) == u8:0 && received_last_data;
+
+        let weights = if (state.req.n_symbols > u8:0 && received_last_data && last_weight_index > u8:0) || state.pending_last_weight {
+         trace_fmt!("[RAW] The sum of weight's powers of 2's: {}", state.sum);
+         trace_fmt!("[RAW] The last weight: {}", last_weight);
+         trace_fmt!("[RAW] MAX_WEIGHTS: {}", MAX_WEIGHTS_IN_PACKET);
+         trace_fmt!("[RAW] Injected {:#x} into weights[{}]", last_weight, last_weight_index);
+         update(weights, last_weight_index, last_weight)
+        } else {
+            weights
+        } as uN[AXI_DATA_W];
+
+        if do_recv_data && mem_rd_resp_valid || state.pending_last_weight {
+            trace_fmt!("[RAW] Weights: {:#x}", weights);
+        } else {};
+
+        let state = if (pending_last_weight) {
+            State {
+                pending_last_weight,
+                ..state
+            }
+        } else {
+            state
         };
 
-        if do_recv_data && mem_rd_resp_valid {
-            trace_fmt!("[RAW] Weights: {:#x}", weights);
-        } else {};
-
-        if do_recv_data && mem_rd_resp_valid {
-            trace_fmt!("[RAW] Weights: {:#x}", weights);
-        } else {};
-
-        let (buffer, buffer_len) = if do_recv_data && mem_rd_resp_valid {
+        let (buffer, buffer_len) = if (do_recv_data && mem_rd_resp_valid) || state.fsm == FSM::SENDING_LAST_WEIGHT {
             (
-                buffer | ((reversed_weights as uN[BUFF_LEN] << (BUFF_LEN - AXI_DATA_W - buffer_len as u32))),
+                buffer | ((weights as uN[BUFF_LEN] << (BUFF_LEN - AXI_DATA_W - buffer_len as u32))),
                 buffer_len + (AXI_DATA_W as uN[BUFF_LEN_LOG2]),
             )
         } else {
@@ -220,7 +234,7 @@ proc HuffmanRawWeightsDecoder<
             )
         };
         // Send to RAM
-        let do_send_data = state.fsm == FSM::DECODING && buffer_len >= (WEIGHTS_RAM_DATA_W as uN[BUFF_LEN_LOG2]);
+        let do_send_data = (state.fsm == FSM::DECODING || state.fsm == FSM::SENDING_LAST_WEIGHT) && buffer_len >= (WEIGHTS_RAM_DATA_W as uN[BUFF_LEN_LOG2]);
         let weights_ram_wr_req = WeightsRamWrReq {
             addr: state.ram_addr,
             data: buffer[-(WEIGHTS_RAM_DATA_W as s32):] as uN[WEIGHTS_RAM_DATA_W],
@@ -228,6 +242,7 @@ proc HuffmanRawWeightsDecoder<
         };
         let tok = send_if(tok, weights_ram_wr_req_s, do_send_data, weights_ram_wr_req);
         if do_send_data {
+            trace_fmt!("[RAW] Buffer: {}", buffer);
             trace_fmt!("[RAW] Buffer length: {}", buffer_len);
             trace_fmt!("[RAW] Sent RAM write request {:#x}", weights_ram_wr_req);
         } else  {};
@@ -300,10 +315,20 @@ proc HuffmanRawWeightsDecoder<
                     }
                 } else {
                     State {
-                        fsm: FSM::FILL_ZERO,
+                        fsm: if state.pending_last_weight { FSM::SENDING_LAST_WEIGHT } else { FSM::FILL_ZERO },
                         ram_addr: state.ram_addr + (data_decoded / WEIGHTS_RAM_DATA_W as uN[AXI_ADDR_W]) as uN[WEIGHTS_RAM_ADDR_W],
+                        buffer: buffer,
+                        buffer_len: buffer_len,
                         ..state
                     }
+                }
+            },
+            FSM::SENDING_LAST_WEIGHT => {
+                State {
+                    fsm: FSM::FILL_ZERO,
+                    ram_addr: state.ram_addr + uN[WEIGHTS_RAM_ADDR_W]:1,
+                    pending_last_weight: false,
+                    ..state
                 }
             },
             FSM::FILL_ZERO => {
@@ -367,7 +392,7 @@ enum HuffmanFseDecoderFSM : u4 {
     FILL_ZEROS = 13,
     SEND_FINISH = 14,
 }
-struct HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W: u32> {
+struct HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W: u32, REFILLING_SB_LENGTH_W: u32> {
     fsm: HuffmanFseDecoderFSM,
     ctrl: HuffmanFseDecoderCtrl,    // decode request
     even: u8,
@@ -379,7 +404,7 @@ struct HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W: u32> {
     even_state: u16,             // analogous to state1 in educational ZSTD decoder
     odd_state: u16,              // analogous to state1 in educational ZSTD decoder
                                  // https://github.com/facebook/zstd/blob/fe34776c207f3f879f386ed4158a38d927ff6d10/doc/educational_decoder/zstd_decompress.c#L2069
-    read_bits_needed: u7,        // how many bits to request from the ShiftBuffer next
+    read_bits_needed: uN[REFILLING_SB_LENGTH_W],        // how many bits to request from the ShiftBuffer next
     sent_buf_ctrl: bool,         // have we sent request to ShiftBuffer in this FSM state already?
     shift_buffer_error: bool,    // sticky flag, asserted if ShiftBuffer returns error in data
                                  // payload, cleared when going to initial state
@@ -409,7 +434,8 @@ pub proc HuffmanFseDecoder<
     type Ctrl = HuffmanFseDecoderCtrl;
     type Finish = HuffmanFseDecoderFinish;
     type Status = HuffmanFseDecoderStatus;
-    type State = HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W>;
+    type State = HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W, REFILLING_SB_LENGTH_W>;
+    type ShiftBufferLength = uN[REFILLING_SB_LENGTH_W];
     type FSM = HuffmanFseDecoderFSM;
 
     type FseRamRdReq = ram::ReadReq<RAM_ADDR_W, RAM_NUM_PARTITIONS>;
@@ -447,6 +473,7 @@ pub proc HuffmanFseDecoder<
         weights_wr_req_s: chan<WeightsRamWrReq> out,
         weights_wr_resp_r: chan<WeightsRamWrResp> in,
     ) {
+        const_assert!(AXI_DATA_W == REFILLING_SB_DATA_W);
         (
             ctrl_r, finish_s,
             rsb_ctrl_s, rsb_data_r,
@@ -513,12 +540,12 @@ pub proc HuffmanFseDecoder<
         let do_send_buf_ctrl = do_read_bits && !state.sent_buf_ctrl && state.stream_len > u16:0;
 
         let read_length = if state.read_bits_needed as u16 > state.stream_len {
-            state.stream_len as u7
+            state.stream_len as ShiftBufferLength
         } else {
-            state.read_bits_needed
+            state.read_bits_needed as ShiftBufferLength
         };
 
-        let state = if state.read_bits_needed > u7:0 {
+        let state = if state.read_bits_needed > ShiftBufferLength:0 {
             HuffmanFseDecoderState {
                 stream_empty: state.read_bits_needed as u16 > state.stream_len,
                 ..state
@@ -530,7 +557,7 @@ pub proc HuffmanFseDecoder<
         } else {};
 
         send_if(tok, rsb_ctrl_s, do_send_buf_ctrl, RefillingSBCtrl {
-            length: read_length,
+            length: read_length as ShiftBufferLength,
         });
 
         let state = if do_send_buf_ctrl {
@@ -590,7 +617,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::PADDING,
                         ctrl: ctrl,
-                        read_bits_needed: u7:1,
+                        read_bits_needed: ShiftBufferLength:1,
                         ..state
                     }
                 } else { state }
@@ -604,7 +631,7 @@ pub proc HuffmanFseDecoder<
                     if padding_available {
                         State {
                             fsm: FSM::PADDING,
-                            read_bits_needed: u7:1,
+                            read_bits_needed: ShiftBufferLength:1,
                             padding, ..state
                         }
                     } else {
@@ -612,7 +639,7 @@ pub proc HuffmanFseDecoder<
                         trace_fmt!("[HuffmanFseDecoder] padding is: {:#x}", padding);
                         State {
                             fsm: FSM::INIT_EVEN_STATE,
-                            read_bits_needed: state.ctrl.acc_log as u7,
+                            read_bits_needed: state.ctrl.acc_log as ShiftBufferLength,
                             ..state
                         }
                     }
@@ -624,7 +651,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::INIT_ODD_STATE,
                         even_state: buf_data.data as u16,
-                        read_bits_needed: state.ctrl.acc_log as u7,
+                        read_bits_needed: state.ctrl.acc_log as ShiftBufferLength,
                         ..state
                     }
                 } else { state }
@@ -635,7 +662,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::SEND_RAM_EVEN_RD_REQ,
                         odd_state: buf_data.data as u16,
-                        read_bits_needed: u7:0,
+                        read_bits_needed: ShiftBufferLength:0,
                         ..state
                     }
                 } else { state }
@@ -717,7 +744,7 @@ pub proc HuffmanFseDecoder<
                             fsm: FSM::UPDATE_EVEN_STATE,
                             odd: state.odd_table_record.symbol,
                             weights_pow_of_two_sum: state.weights_pow_of_two_sum + pow,
-                            read_bits_needed: state.even_table_record.num_of_bits as u7,
+                            read_bits_needed: state.even_table_record.num_of_bits as ShiftBufferLength,
                             ..state
                         }
                     }
@@ -729,7 +756,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::SEND_WEIGHT,
                         even_state: state.even_table_record.base + buf_data.data as u16,
-                        read_bits_needed: state.odd_table_record.num_of_bits as u7,
+                        read_bits_needed: state.odd_table_record.num_of_bits as ShiftBufferLength,
                         last_weight_is_odd: false,
                         ..state
                     }
@@ -738,7 +765,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::UPDATE_ODD_STATE,
                         even_state: state.even_table_record.base + buf_data.data as u16,
-                        read_bits_needed: state.odd_table_record.num_of_bits as u7,
+                        read_bits_needed: state.odd_table_record.num_of_bits as ShiftBufferLength,
                         ..state
                     }
                 } else { state }
@@ -749,7 +776,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::SEND_WEIGHT,
                         odd_state: state.odd_table_record.base + buf_data.data as u16,
-                        read_bits_needed: u7:0,
+                        read_bits_needed: ShiftBufferLength:0,
                         last_weight_is_odd: true,
                         ..state
                     }
@@ -758,7 +785,7 @@ pub proc HuffmanFseDecoder<
                     State {
                         fsm: FSM::SEND_WEIGHT,
                         odd_state: state.odd_table_record.base + buf_data.data as u16,
-                        read_bits_needed: u7:0,
+                        read_bits_needed: ShiftBufferLength:0,
                         ..state
                     }
                 } else { state }
@@ -804,7 +831,7 @@ pub proc HuffmanFseDecoder<
                             if state.last_weight_is_odd {
                                 FSM::SEND_RAM_EVEN_RD_REQ
                             } else {
-                                FSM::SEND_RAM_ODD_RD_REQ
+                                FSM::DECODE_LAST_WEIGHT
                             }
                         }
                     } else {
@@ -1067,7 +1094,7 @@ proc HuffmanFseWeightsDecoder<
         let tok = send(tok, fld_rsb_start_req_s, fld_rsb_start_req);
         trace_fmt!("[FSE] Sent refilling shift buffer start request {:#x}", fld_rsb_start_req);
 
-        let fld_req = CompLookupDecoderReq {};
+        let fld_req = zero!<CompLookupDecoderReq>();
         let tok = send(tok, fld_req_s, fld_req);
         trace_fmt!("[FSE] Sent FSE lookup decoding request {:#x}", fld_req);
 
@@ -1405,9 +1432,11 @@ pub proc HuffmanWeightsDecoder<
 
         let resp = match weights_type {
             WeightsType::RAW => {
+                // based on https://datatracker.ietf.org/doc/html/rfc8878#section-4.2.1.1
+                let weights_size = (raw_weights_req.n_symbols + u8:1) >> u8:1; // equivalent of ceil(n_symbols/2)
                 Resp {
                     status: raw_status,
-                    tree_description_size: (((header_byte - u8:127) >> u8:1) + u8:1) as uN[AXI_ADDR_W] + uN[AXI_ADDR_W]:1, // include header size
+                    tree_description_size: weights_size as uN[AXI_ADDR_W] + uN[AXI_ADDR_W]:1, // include header size
                 }
             },
             WeightsType::FSE => {
@@ -1598,7 +1627,7 @@ const TEST_AXI_ID_W = u32:8;
 const TEST_RAM_DATA_W = TEST_AXI_DATA_W;
 const TEST_RAM_SIZE = u32:1024;
 const TEST_RAM_ADDR_W = TEST_AXI_ADDR_W;
-const TEST_RAM_PARTITION_SIZE = TEST_RAM_DATA_W / u32:8;
+const TEST_RAM_PARTITION_SIZE = u32:8;
 const TEST_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_RAM_PARTITION_SIZE, TEST_RAM_DATA_W);
 const TEST_RAM_SIMULTANEOUS_RW_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
 const TEST_RAM_INITIALIZED = true;
@@ -1641,20 +1670,8 @@ const TEST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_TMP2_RAM_WORD_PART
 // RAW weights
 const TEST_RAW_INPUT_ADDR = uN[TEST_AXI_ADDR_W]:0x40;
 
-// Weights sum is 1010, so the last one will be 14
-const TEST_RAW_DATA = u8[65]:[
-    // len      x0 x1      x2 x3      x4 x5      x6 x7      x8 x9      xA xB      xC xD      xE xF
-    u8:248, u8:0xB__6, u8:0x8__5, u8:0x6__A, u8:0x9__C, u8:0x0__C, u8:0xA__9, u8:0x0__0, u8:0xD__0, // 0x0x
-            u8:0x6__E, u8:0x3__9, u8:0x8__4, u8:0x7__C, u8:0xC__2, u8:0x4__2, u8:0xB__A, u8:0x4__E, // 0x1x
-            u8:0xF__6, u8:0x2__7, u8:0x9__4, u8:0xD__1, u8:0xD__8, u8:0x2__B, u8:0xE__2, u8:0xD__1, // 0x2x
-            u8:0x8__F, u8:0x2__4, u8:0xD__3, u8:0x0__E, u8:0xF__E, u8:0x1__B, u8:0xF__9, u8:0x8__2, // 0x3x
-            u8:0xC__A, u8:0x6__1, u8:0x0__3, u8:0xD__C, u8:0xF__5, u8:0x1__D, u8:0x7__0, u8:0x1__6, // 0x4x
-            u8:0xA__A, u8:0x3__2, u8:0x8__8, u8:0x0__6, u8:0xE__7, u8:0x6__7, u8:0x8__E, u8:0x6__2, // 0x5x
-            u8:0x1__F, u8:0x3__E, u8:0xF__0, u8:0xC__7, u8:0x4__1, u8:0x7__E, u8:0x8__C, u8:0x8__4, // 0x6x
-            u8:0x3__3, u8:0xA__8, u8:0xE__E, u8:0x4__B, u8:0x0__0, u8:0x0__0, u8:0x0__0, u8:0x0__0, // 0x7x
-];
-
-const TEST_RAW_DATA_LAST_WEIGHT = u8:0xA;
+const_assert!(TEST_WEIGHTS_RAM_DATA_W == u32:32);
+const TEST_RAW_RAM_PACKET_COUNT = TEST_WEIGHTS_RAM_SIZE / TEST_WEIGHTS_RAM_PARTITION_SIZE;
 
 // FSE weights
 const TEST_FSE_INPUT_ADDR = uN[TEST_AXI_ADDR_W]:0x200;
@@ -2126,83 +2143,139 @@ proc HuffmanWeightsDecoder_test {
 
         let tok = join();
 
-        // RAW weights
+        // RAW tests
+        const TEST_MAX_WEIGHTS_STREAM = u32:21;
+        const TEST_NUM_OF_RAW_CASES = u32:3;
+        let raw_tests: (u32, u8[TEST_MAX_WEIGHTS_STREAM], uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT])[TEST_NUM_OF_RAW_CASES] = [
+            (
+                // normal case
+                u32:15, // (header + weight stream)
+                u8[TEST_MAX_WEIGHTS_STREAM]:[
+                    u8:155, // header
+                    // weights stream
+                    u8:0x75, u8:0x66, u8:0x66, u8:0x66,
+                    u8:0x66, u8:0x66, u8:0x55, u8:0x55,
+                    u8:0x44, u8:0x44, u8:0x33, u8:0x31,
+                    u8:0x11, u8:0x00,
+                    // dummy leftover
+                                      u8:0x00, u8:0x00,
+                    u8:0xDE, u8:0xAD, u8:0xBE, u8:0xEF, ...
+                ],
+                uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT]:[
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x75666666,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x66665555,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x44443331,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x11001000,
+                    //                                ^- last weight
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x0, ...
+                ]
+            ),
+            (
+                // case with last weight at modulo index 0
+                u32:17, // (header + weight stream)
+                u8[TEST_MAX_WEIGHTS_STREAM]:[
+                    u8:159, // header
+                    // weights stream
+                    u8:0x75, u8:0x55, u8:0x66, u8:0x66,
+                    u8:0x66, u8:0x66, u8:0x65, u8:0x55,
+                    u8:0x55, u8:0x43, u8:0x33, u8:0x21,
+                    u8:0x21, u8:0x11, u8:0x11, u8:0x01,
+                    // dummy leftover
+                    u8:0xDE, u8:0xAD, u8:0xBE, u8:0xEF, ...
+                ],
+                uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT]:[
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x75556666,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x66666555,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x55433321,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x21111101,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x10000000,
+                    //                            ^- last weight
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x0, ...
+                ]
+            ),
+            (
+                // case with last weight at modulo index 8 (middle position of the received weights packet)
+                u32:13, // (header + weight stream)
+                u8[TEST_MAX_WEIGHTS_STREAM]:[
+                    u8:0x97, // header
+                    // weights stream
+                    u8:0x86, u8:0x66, u8:0x66, u8:0x66,
+                    u8:0x66, u8:0x55, u8:0x55, u8:0x43,
+                    u8:0x43, u8:0x11, u8:0x21, u8:0x11,
+                    // dummy leftover
+                    u8:0xDE, u8:0xAD, u8:0xBE, u8:0xEF, ...
+                ],
+                uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT]:[
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x86666666,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x66555543,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x43112111,
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x10000000,
+                    //                            ^- last weight
+                    uN[TEST_WEIGHTS_RAM_DATA_W]:0x0, ...
+                ]
+            )
+        ];
 
-        // Fill input RAM
-        for (i, tok) in u32:0..(array_size(TEST_RAW_DATA) + TEST_DATA_PER_RAM_WRITE - u32:1) / TEST_DATA_PER_RAM_WRITE {
-            let ram_data = for (j, ram_data) in u32:0..TEST_DATA_PER_RAM_WRITE {
-                let data_idx = i * TEST_DATA_PER_RAM_WRITE + j;
-                if (data_idx < array_size(TEST_RAW_DATA)) {
-                    ram_data | ((TEST_RAW_DATA[data_idx] as uN[TEST_RAM_DATA_W]) << (u32:8 * j))
-                } else {
-                    ram_data
-                }
-            }(uN[TEST_RAM_DATA_W]:0);
+        let tok = for ((_, (data_length, weights_stream, expected)), tok): ((u32, (u32, u8[TEST_MAX_WEIGHTS_STREAM], uN[TEST_WEIGHTS_RAM_DATA_W][TEST_RAW_RAM_PACKET_COUNT])), token) in enumerate(raw_tests) {
+            // Fill input RAM
+            for (i, tok) in u32:0..(array_size(weights_stream) + TEST_DATA_PER_RAM_WRITE - u32:1) / TEST_DATA_PER_RAM_WRITE {
+                let ram_data = for (j, ram_data) in u32:0..TEST_DATA_PER_RAM_WRITE {
+                    let data_idx = i * TEST_DATA_PER_RAM_WRITE + j;
+                    if (data_idx < array_size(weights_stream)) {
+                        ram_data | ((weights_stream[data_idx] as uN[TEST_RAM_DATA_W]) << (u32:8 * j))
+                    } else {
+                        ram_data
+                    }
+                }(uN[TEST_RAM_DATA_W]:0);
 
-            let input_ram_wr_req = InputBufferRamWrReq {
-                addr: (TEST_RAW_INPUT_ADDR / u32:8) + i as uN[TEST_RAM_ADDR_W],
-                data: ram_data,
-                mask: !uN[TEST_RAM_NUM_PARTITIONS]:0,
-            };
+                let input_ram_wr_req = InputBufferRamWrReq {
+                    addr: (TEST_RAW_INPUT_ADDR / u32:8) + i as uN[TEST_RAM_ADDR_W],
+                    data: ram_data,
+                    mask: !uN[TEST_RAM_NUM_PARTITIONS]:0,
+                };
 
-            let tok = unroll_for! (i, tok) in u32:0..TEST_RAM_N {
-                let tok = send(tok, input_ram_wr_req_s[i], input_ram_wr_req);
-                let (tok, _) = recv(tok, input_ram_wr_resp_r[i]);
+                let tok = unroll_for! (i, tok) in u32:0..TEST_RAM_N {
+                    let tok = send(tok, input_ram_wr_req_s[i], input_ram_wr_req);
+                    let (tok, _) = recv(tok, input_ram_wr_resp_r[i]);
+                    tok
+                }(tok);
+
+                trace_fmt!("[TEST] Sent RAM write request to input RAMs {:#x}", input_ram_wr_req);
+
                 tok
             }(tok);
 
-            trace_fmt!("[TEST] Sent RAM write request to input RAMs {:#x}", input_ram_wr_req);
+            // Send decoding request
+            let req = Req {
+                addr: TEST_RAW_INPUT_ADDR,
+            };
+            let tok = send(tok, req_s, req);
+            trace_fmt!("[TEST] Sent request {:#x}", req);
+
+            // Receive response
+            let (tok, resp) = recv(tok, resp_r);
+            trace_fmt!("[TEST] Received respose {:#x}", resp);
+            assert_eq(HuffmanWeightsDecoderStatus::OKAY, resp.status);
+            assert_eq(data_length as uN[TEST_AXI_ADDR_W], resp.tree_description_size);
+
+            // Check output RAM
+            let tok = for (i, tok) in u32:0..array_size(expected) {
+                let expected_value = expected[i];
+                let weights_ram_rd_req = WeightsRamRdReq {
+                    addr: i as uN[TEST_WEIGHTS_RAM_ADDR_W],
+                    mask: !uN[TEST_WEIGHTS_RAM_NUM_PARTITIONS]:0,
+                };
+                let tok = send(tok, weights_ram_rd_req_s, weights_ram_rd_req);
+                let (tok, weights_ram_rd_resp) = recv(tok, weights_ram_rd_resp_r);
+                trace_fmt!("[TEST] Weights RAM content - addr: {:#x} data: expected {:#x}, got {:#x}", i, expected_value, weights_ram_rd_resp.data);
+
+                assert_eq(expected_value, weights_ram_rd_resp.data);
+
+                tok
+            }(tok);
 
             tok
         }(tok);
-
-        // Send decoding request
-        let req = Req {
-            addr: TEST_RAW_INPUT_ADDR,
-        };
-        let tok = send(tok, req_s, req);
-        trace_fmt!("[TEST] Sent request {:#x}", req);
-
-        // Receive response
-        let (tok, resp) = recv(tok, resp_r);
-        trace_fmt!("[TEST] Received respose {:#x}", resp);
-        assert_eq(HuffmanWeightsDecoderStatus::OKAY, resp.status);
-        assert_eq((((TEST_RAW_DATA[0] - u8:127) >> u32:1) + u8:2) as uN[TEST_AXI_ADDR_W], resp.tree_description_size);
-
-        // Insert last weight in test data
-        let last_weight_idx = ((TEST_RAW_DATA[0] as u32 - u32:127) / u32:2) + u32:1;
-        let last_weight_entry = (
-            TEST_RAW_DATA[last_weight_idx] |
-            (TEST_RAW_DATA_LAST_WEIGHT << (u32:4 * (u32:1 - ((TEST_RAW_DATA[0] - u8:127) as u1 as u32))))
-        );
-        let test_data = update(TEST_RAW_DATA, last_weight_idx, last_weight_entry);
-
-        // Check output RAM
-        let tok = for (i, tok) in u32:0..u32:32 {
-            let expected_value = if i < u32:16 {
-                (
-                    (test_data[4*i + u32:1] as u4) ++ ((test_data[4*i + u32:1] >> u32:4) as u4) ++
-                    (test_data[4*i + u32:2] as u4) ++ ((test_data[4*i + u32:2] >> u32:4) as u4) ++
-                    (test_data[4*i + u32:3] as u4) ++ ((test_data[4*i + u32:3] >> u32:4) as u4) ++
-                    (test_data[4*i + u32:4] as u4) ++ ((test_data[4*i + u32:4] >> u32:4) as u4)
-                )
-            } else {
-                u32:0
-            };
-
-            let weights_ram_rd_req = WeightsRamRdReq {
-                addr: i as uN[TEST_WEIGHTS_RAM_ADDR_W],
-                mask: !uN[TEST_WEIGHTS_RAM_NUM_PARTITIONS]:0,
-            };
-            let tok = send(tok, weights_ram_rd_req_s, weights_ram_rd_req);
-            let (tok, weights_ram_rd_resp) = recv(tok, weights_ram_rd_resp_r);
-            trace_fmt!("[TEST] Weights RAM content - addr: {:#x} data: expected {:#x}, got {:#x}", i, expected_value, weights_ram_rd_resp.data);
-
-            assert_eq(expected_value, weights_ram_rd_resp.data);
-
-            tok
-        }(tok);
-
 
         // FSE-encoded weights
         unroll_for! (i, tok) in u32:0..array_size(TESTCASES_FSE) {

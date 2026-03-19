@@ -55,8 +55,7 @@ pub struct MemWriterDataPacket<DATA_W: u32, ADDR_W: u32> {
 enum MemWriterFsm : u2 {
     RECV_REQ = 0,
     SEND_WRITE_REQ = 1,
-    RECV_DATA = 2,
-    SEND_DATA = 3,
+    SEND_DATA = 2,
 }
 
 struct MemWriterState<
@@ -140,10 +139,6 @@ proc MemWriterInternal<
                     ..state
                 }
             },
-            _ => {
-                assert!(false, "Invalid state");
-                state
-            }
         };
 
         let raw_axi_st_frame = match(state.fsm) {

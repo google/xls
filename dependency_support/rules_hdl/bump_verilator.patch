@@ -1,0 +1,65 @@
+--- dependency_support/verilator/verilator.bzl
++++ dependency_support/verilator/verilator.bzl
+@@ -22,7 +22,7 @@
+         http_archive,
+         name = "verilator",
+         build_file = Label("//dependency_support/verilator:verilator.BUILD.bazel"),
+-        urls = ["https://github.com/verilator/verilator/archive/refs/tags/v5.034.tar.gz"],
+-        sha256 = "002da98e316ca6eee40407f5deb7d7c43a0788847d39c90d4d31ddbbc03020e8",
+-        strip_prefix = "verilator-5.034",
++        urls = ["http://github.com/verilator/verilator/archive/435e1149d57b4f204b5dcff6e93135c0f79599fd.tar.gz"], # current as of 2025-10-01
++        sha256 = "1e93d81a12529738b6b329191aaee7f84ef5a9d62237d972c1d2cad0a3ad6bb4",
++        strip_prefix = "verilator-435e1149d57b4f204b5dcff6e93135c0f79599fd",
+     )
+--- dependency_support/verilator/verilator.BUILD.bazel
++++ dependency_support/verilator/verilator.BUILD.bazel
+@@ -90,6 +90,7 @@
+         "src/V3AstNodeDType.h",
+         "src/V3AstNodeExpr.h",
+         "src/V3AstNodeOther.h",
++        "src/V3AstNodeStmt.h",
+         "src/V3DfgVertices.h",
+         "src/Verilator.cpp",
+     ],
+@@ -106,6 +107,7 @@
+         "V3Ast__gen_yystype.h",
+         "V3Dfg__gen_ast_to_dfg.h",
+         "V3Dfg__gen_auto_classes.h",
++        "V3Dfg__gen_clone_cases.h",
+         "V3Dfg__gen_dfg_to_ast.h",
+         "V3Dfg__gen_forward_class_decls.h",
+         "V3Dfg__gen_macros.h",
+@@ -121,6 +123,8 @@
+         "V3AstNodeExpr.h",
+         "--astdef",
+         "V3AstNodeOther.h",
++        "--astdef",
++        "V3AstNodeStmt.h",
+         "--dfgdef",
+         "V3DfgVertices.h",
+         "--classes",
+@@ -135,6 +139,7 @@
+         "src/V3AstNodeDType.h",
+         "src/V3AstNodeExpr.h",
+         "src/V3AstNodeOther.h",
++        "src/V3AstNodeStmt.h",
+         "src/V3Const.cpp",
+         "src/V3DfgVertices.h",
+         "src/Verilator.cpp",
+@@ -149,6 +154,8 @@
+         "V3AstNodeExpr.h",
+         "--astdef",
+         "V3AstNodeOther.h",
++        "--astdef",
++        "V3AstNodeStmt.h",
+         "--dfgdef",
+         "V3DfgVertices.h",
+         "V3Const.cpp",
+@@ -234,6 +241,7 @@
+         ":V3Const__gen.cpp",
+         ":V3Dfg__gen_ast_to_dfg.h",
+         ":V3Dfg__gen_auto_classes.h",
++        ":V3Dfg__gen_clone_cases.h",
+         ":V3Dfg__gen_dfg_to_ast.h",
+         ":V3Dfg__gen_forward_class_decls.h",
+         ":V3Dfg__gen_macros.h",

@@ -152,8 +152,6 @@ pub proc SequenceConfDecoder<AXI_DATA_W: u32, AXI_ADDR_W: u32> {
             // max number of bytes that the header can have, see RFC8878 Section 3.1.1.3.2.1.
             length: uN[AXI_ADDR_W]:4,
         });
-        // TODO: handle multiple receives on mem_rd_resp_r when AXI_DATA_W < 32
-        const_assert!(AXI_DATA_W >= u32:32);
         let (tok, raw) = recv(tok, mem_rd_resp_r);
         let (header, length) = parse_sequence_conf(raw.data[:32]);
         let tok = send(tok, resp_s, Resp {
