@@ -2486,6 +2486,7 @@ enum class FunctionTag : uint8_t {
   kProcConfig,
   kProcNext,
   kProcInit,
+  kGeneratedFromLambda,
 };
 
 std::string_view FunctionTagToString(FunctionTag tag);
@@ -2608,6 +2609,11 @@ class Function : public AstNode {
     return Span(parametric_bindings_.front()->span().start(),
                 parametric_bindings_.back()->span().limit());
   }
+
+  // For a lambda function, returns parametrics that only relate to the return
+  // type.
+  absl::flat_hash_set<const ParametricBinding*> LambdaReturnTypeParametrics()
+      const;
 
  private:
   Span span_;

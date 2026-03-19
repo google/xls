@@ -118,6 +118,8 @@ std::string_view FunctionTagToString(FunctionTag tag) {
       return "proc next";
     case FunctionTag::kProcInit:
       return "proc init";
+    case FunctionTag::kGeneratedFromLambda:
+      return "generated from lambda";
   }
   LOG(FATAL) << "Out-of-range function tag: " << static_cast<int>(tag);
 }
@@ -2399,6 +2401,29 @@ std::vector<std::string> Function::GetFreeParametricKeys() const {
     }
   }
   return results;
+}
+
+absl::flat_hash_set<const ParametricBinding*>
+Function::LambdaReturnTypeParametrics() const {
+  if (tag() != FunctionTag::kGeneratedFromLambda) {
+    return {};
+  }
+  auto parametric_for_return = [&](const ParametricBinding* binding) {
+    if (return_type()->IsAnnotation<TypeVariableTypeAnnotation>()) {
+      const auto* tvta =
+          return_type()->AsAnnotation<TypeVariableTypeAnnotation>();
+      return tvta->type_variable()->identifier() ==
+             binding->name_def()->identifier();
+    }
+    return false;
+  };
+  absl::flat_hash_set<const ParametricBinding*> return_parametrics = {};
+  for (const ParametricBinding* binding : parametric_bindings()) {
+    if (parametric_for_return(binding)) {
+      return_parametrics.insert(binding);
+    }
+  }
+  return return_parametrics;
 }
 
 // -- class TestFunction

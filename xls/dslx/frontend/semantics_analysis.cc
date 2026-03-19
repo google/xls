@@ -413,7 +413,8 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     Function* impl_fn = module->Make<Function>(
         original_fn->span(), original_fn->name_def(),
         original_fn->parametric_bindings(), params, original_fn->return_type(),
-        absl::down_cast<StatementBlock*>(cloned_body), FunctionTag::kNormal,
+        absl::down_cast<StatementBlock*>(cloned_body),
+        FunctionTag::kGeneratedFromLambda,
         /*is_public=*/false, /*is_stub=*/false);
     Impl* impl = module->Make<Impl>(span, struct_type_annotation,
                                     std::vector<ImplMember>{impl_fn},

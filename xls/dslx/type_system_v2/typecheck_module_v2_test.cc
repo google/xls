@@ -9574,6 +9574,62 @@ const_assert!(ARR[1] == u16:2);
               TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][6]")));
 }
 
+TEST(TypecheckV2Test, LambdaWithImplicitReturn) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  let arr = map(u32:0..2, |i| { i });
+  arr[1]
+}
+const_assert!(main() == 1);
+
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithImplicitReturnAndContextCapture) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  let arr = u32:0..2;
+  let x = u32:2;
+  let added = map(arr, |i| { i + x });
+  added[1]
+}
+
+const_assert!(main() == 3);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithImplicitReturnAndParamContextCapture) {
+  EXPECT_THAT(
+      R"(
+fn main(x: u32) -> u32 {
+  let arr = u32:0..2;
+  let added = map(arr, |i| { i + x });
+  added[1]
+}
+
+const_assert!(main(2) == 3);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "(uN[32]) -> uN[32]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithParamContextCapture) {
+  EXPECT_THAT(
+      R"(
+fn main(x: u32) -> u32 {
+  let arr = u32:0..2;
+  let added = map(arr, |i| -> u32 { i + x });
+  added[1]
+}
+
+const_assert!(main(2) == 3);
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "(uN[32]) -> uN[32]")));
+}
+
 TEST(TypecheckV2Test, LambdaWithImplicitParam) {
   EXPECT_THAT(
       R"(

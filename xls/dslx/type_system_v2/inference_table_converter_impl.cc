@@ -788,11 +788,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 *function_and_target_object.target_struct_context));
         value_exprs.merge(parametrics_and_constants);
       }
-      XLS_ASSIGN_OR_RETURN(const TypeAnnotation* parametric_free_type,
-                           GetParametricFreeType(
-                               CreateFunctionTypeAnnotation(module_, *function),
-                               value_exprs, invocation_context->self_type(),
-                               /*clone_if_no_parametrics=*/true));
+      parametric_free_function_type =
+          CreateFunctionTypeAnnotation(module_, *function);
+      const FunctionTypeAnnotation* original_function_type =
+          parametric_free_function_type;
+      XLS_ASSIGN_OR_RETURN(
+          const TypeAnnotation* parametric_free_type,
+          GetParametricFreeType(parametric_free_function_type, value_exprs,
+                                invocation_context->self_type(),
+                                /*clone_if_no_parametrics=*/true));
       table_.SetAnnotationFlag(parametric_free_type,
                                TypeInferenceFlag::kFormalFunctionType);
       XLS_RETURN_IF_ERROR(
@@ -803,6 +807,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           resolver_->ResolveIndirectTypeAnnotations(
               invocation_context, invocation, parametric_free_type,
               TypeAnnotationFilter::None()));
+
+      // In the case of a lambda function with an implicit return, we need to
+      // resolve the return type from the function body before proceeding.
+      if (function->tag() == FunctionTag::kGeneratedFromLambda) {
+        XLS_ASSIGN_OR_RETURN(parametric_free_type,
+                             ResolveImplicitReturnFromBody(
+                                 original_function_type, parametric_free_type,
+                                 caller_or_target_struct_context, function));
+      }
 
       // In a context such as a parametric proc, where parametric-dependent type
       // aliases may be used in a function signature, the resolution of indirect
@@ -1887,7 +1900,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           return ConvertSubtree(actual_arg, context_data.caller,
                                 invocation_context->parent_context(),
                                 /*filter_param_type_annotations=*/true);
-        });
+        },
+        /*ignorable_parametrics=*/
+        context_data.callee->LambdaReturnTypeParametrics());
   }
 
   // Attempts to infer the values of the specified implicit parametrics in an
@@ -1898,6 +1913,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // annotations of the actual arguments from consideration. The
   // `pre_use_actual_arg` callback allows the caller to be notified and do any
   // desired prework before some actual argument gets used to infer parametrics.
+  // `ignorable_parametrics` will be resolved if possible, but if they cannot
+  // be, no error will be produced.
   absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>>
   InferImplicitParametrics(
       const Span& span,
@@ -1909,7 +1926,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       absl::Span<Expr* const> actual_args, TypeInfo* output_ti,
       TypeInfo* actual_arg_ti,
       absl::FunctionRef<absl::Status(const Expr*)> pre_use_actual_arg =
-          [](const Expr*) { return absl::OkStatus(); }) {
+          [](const Expr*) { return absl::OkStatus(); },
+      absl::flat_hash_set<const ParametricBinding*> ignorable_parametrics =
+          {}) {
     TypeSystemTrace trace =
         tracer_->TraceInferImplicitParametrics(implicit_parametrics);
     absl::flat_hash_map<std::string, InterpValue> values;
@@ -2041,6 +2060,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           }
         }
       }
+    }
+    for (const ParametricBinding* binding : ignorable_parametrics) {
+      implicit_parametrics.erase(binding);
     }
     if (!implicit_parametrics.empty()) {
       // Output unresolved parametrics in the order they appear in source code.
@@ -2713,6 +2735,45 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return module_trait_manager_->GetTraitFunction(
         struct_def, concrete_struct_type, parametric_struct_context,
         function_name);
+  }
+
+  // Resolves the implicit return type of `function` from the body and adds it
+  // to the inference table.
+  absl::StatusOr<const FunctionTypeAnnotation*> ResolveImplicitReturnFromBody(
+      const FunctionTypeAnnotation* original_function_type,
+      const TypeAnnotation* parametric_free_type,
+      std::optional<const ParametricContext*> caller_or_target_struct_context,
+      const Function* function) {
+    const FunctionTypeAnnotation* parametric_free_function_type =
+        absl::down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
+    if (!parametric_free_function_type->return_type()
+             ->IsAnnotation<AnyTypeAnnotation>()) {
+      return parametric_free_function_type;
+    }
+    for (int i = 0; i < parametric_free_function_type->param_types().size();
+         i++) {
+      const TypeAnnotation* original_param_type =
+          original_function_type->param_types()[i];
+      if (original_param_type->IsAnnotation<TypeVariableTypeAnnotation>() &&
+          !parametric_free_function_type->param_types()[i]
+               ->IsAnnotation<TypeVariableTypeAnnotation>()) {
+        const auto* tvta =
+            original_param_type->AsAnnotation<TypeVariableTypeAnnotation>();
+        XLS_RETURN_IF_ERROR(
+            table_.AddTypeAnnotationToVariableForParametricContext(
+                caller_or_target_struct_context, tvta->type_variable(),
+                parametric_free_function_type->param_types()[i]));
+      }
+    }
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<const TypeAnnotation*> return_ta,
+        resolver_->ResolveAndUnifyTypeAnnotationsForNode(
+            caller_or_target_struct_context, function->body()));
+    XLS_RET_CHECK(return_ta.has_value());
+
+    return function->owner()->Make<FunctionTypeAnnotation>(
+        parametric_free_function_type->param_types(),
+        const_cast<TypeAnnotation*>(*return_ta));
   }
 
   InferenceTable& table_;
