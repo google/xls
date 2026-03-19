@@ -4115,6 +4115,25 @@ const_assert!(main() == 6);
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, MapLambdaImplicitReturn) {
+  constexpr std::string_view kModule = R"(
+fn add_five(arr: u32[4]) -> u32[4] {
+  let x = u32:5;
+  map(arr, | i | { i + x })
+}
+
+fn main() -> u32 {
+  add_five(u32:0..4)[1]
+}
+
+const_assert!(main() == 6);
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, MapLambdaWithImplicitToken) {
   constexpr std::string_view program =
       R"(
