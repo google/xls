@@ -34,6 +34,7 @@ fine.
 
 def init_printers(debugger):
   """Initalize printers for ir structs."""
+  debugger.Initialize()
   debugger.HandleCommand(
       "type summary add --expand --python-function"
       " lldbprettyprint.xlsir.xls_bvalue_summary xls::BValue"
@@ -94,12 +95,25 @@ def xls_bvalue_summary(valobj, _):
     return node.GetSummary()
 
 
-def _maybe_deref(v):
+def _maybe_addrof(v):
   """Standardize a value to an & ref."""
-  if v.TypeIsPointerType():
-    return v.Dereference()
-  else:
+  if v.GetType().IsPointerType():
     return v
+  else:
+    return v.CreateValueFromExpression("ptr_val", " &" + v.GetName())
+
+
+def _maybe_addrof_name(v):
+  """Standardize a value to an & ref."""
+  if v.GetType().IsPointerType():
+    return v.GetName()
+  else:
+    return "(&%s)" % v.GetName()
+
+
+def _call_fn(obj, fn):
+  ptr = _maybe_addrof_name(obj)
+  return obj.CreateValueFromExpression("res", "%s->%s" % (ptr, fn))
 
 
 def xls_irtype_summary(valobj, _):
@@ -111,15 +125,10 @@ def xls_irtype_summary(valobj, _):
   try:
     if not valobj.IsValid() or not valobj.IsInScope():
       return "<uninitialized>"
-    return (
-        _maybe_deref(valobj)
-        .EvaluateExpression("this.ToString()")
-        .GetSummary()
-        .strip('"')
-    )
+    return _call_fn(valobj, "ToString()").GetSummary().strip('"')
   # pylint: disable-next=broad-exception-caught
-  except Exception:
-    return "<INVALID>"
+  except Exception as e:
+    return f"<INVALID: {e}>"
 
 
 def xls_irnode_summary(valobj, _):
@@ -131,25 +140,20 @@ def xls_irnode_summary(valobj, _):
   try:
     if not valobj.IsValid() or not valobj.IsInScope():
       return "<uninitialized>"
-    return (
-        _maybe_deref(valobj)
-        .EvaluateExpression("this.ToString()")
-        .GetSummary()
-        .strip('"')
-    )
+    return _call_fn(valobj, "ToString()").GetSummary().strip('"')
   # pylint: disable-next=broad-exception-caught
-  except Exception:
-    return "<INVALID>"
+  except Exception as e:
+    return f"<INVALID: {e}>"
 
 
 def xls_value_summary(valobj, _):
   """Summarize xls::Value."""
   # Check for validity (not really needed just cleans up output a bit)
   try:
-    valobj = _maybe_deref(valobj)
-    if not valobj.IsValid() or not valobj.IsInScope():
+    valobj_ref = _maybe_addrof(valobj).Dereference()
+    if not valobj_ref.IsValid() or not valobj_ref.IsInScope():
       return "<uninitialized>"
-    kind = valobj.GetChildMemberWithName("kind_")
+    kind = valobj_ref.GetChildMemberWithName("kind_")
     kind_type = kind.GetType()
     if not any(
         kind.GetValueAsSigned() == m.GetValueAsSigned()
@@ -161,15 +165,13 @@ def xls_value_summary(valobj, _):
     # enough however.
     # TODO(allight): Consider rewriting in python.
     return (
-        valobj.EvaluateExpression(
-            "this.ToString(xls::FormatPreference::kDefault)"
-        )
+        _call_fn(valobj, "ToString(xls::FormatPreference::kDefault)")
         .GetSummary()
         .strip('"')
     )
   # pylint: disable-next=broad-exception-caught
-  except Exception:
-    return "<INVALID>"
+  except Exception as e:
+    return f"<INVALID: {e}>"
 
 
 def xls_bits_summary(valobj, _):
@@ -181,15 +183,10 @@ def xls_bits_summary(valobj, _):
     # to do this stuff is implement it all in python. This seems to be fast
     # enough however.
     # TODO(allight): Consider rewriting in python.
-    return (
-        _maybe_deref(valobj)
-        .EvaluateExpression("this.ToDebugString()")
-        .GetSummary()
-        .strip('"')
-    )
+    return _call_fn(valobj, "ToDebugString()").GetSummary().strip('"')
   # pylint: disable-next=broad-exception-caught
-  except Exception:
-    return "<INVALID>"
+  except Exception as e:
+    return f"<INVALID: {e}>"
 
 
 def xls_interval_summary(valobj, _):
@@ -201,15 +198,10 @@ def xls_interval_summary(valobj, _):
     # to do this stuff is implement it all in python. This seems to be fast
     # enough however.
     # TODO(allight): Consider rewriting in python.
-    return (
-        _maybe_deref(valobj)
-        .EvaluateExpression("this.ToString()")
-        .GetSummary()
-        .strip('"')
-    )
+    return _call_fn(valobj, "ToString()").GetSummary().strip('"')
   # pylint: disable-next=broad-exception-caught
-  except Exception:
-    return "<INVALID>"
+  except Exception as e:
+    return f"<INVALID: {e}>"
 
 
 def xls_interval_set_summary(valobj, _):
@@ -221,15 +213,10 @@ def xls_interval_set_summary(valobj, _):
     # to do this stuff is implement it all in python. This seems to be fast
     # enough however.
     # TODO(allight): Consider rewriting in python.
-    return (
-        _maybe_deref(valobj)
-        .EvaluateExpression("this.ToString()")
-        .GetSummary()
-        .strip('"')
-    )
+    return _call_fn(valobj, "ToString()").GetSummary().strip('"')
   # pylint: disable-next=broad-exception-caught
-  except Exception:
-    return "<INVALID>"
+  except Exception as e:
+    return f"<INVALID: {e}>"
 
 
 def base_type_recognizer_function_generator(base_name):
@@ -258,15 +245,10 @@ def xls_astnode_summary(valobj, _):
     # to do this stuff is implement it all in python. This seems to be fast
     # enough however.
     # TODO(allight): Consider rewriting in python.
-    return (
-        _maybe_deref(valobj)
-        .EvaluateExpression("this.ToString()")
-        .GetSummary()
-        .strip('"')
-    )
+    return _call_fn(valobj, "ToString()").GetSummary().strip('"')
   # pylint: disable-next=broad-exception-caught
-  except Exception:
-    return "<INVALID>"
+  except Exception as e:
+    return f"<INVALID: {e}>"
 
 
 xls_is_dslxtype = base_type_recognizer_function_generator("xls::dslx::Type")
@@ -281,15 +263,10 @@ def xls_dslxtype_summary(valobj, _):
     # to do this stuff is implement it all in python. This seems to be fast
     # enough however.
     # TODO(allight): Consider rewriting in python.
-    return (
-        _maybe_deref(valobj)
-        .EvaluateExpression("this.ToString()")
-        .GetSummary()
-        .strip('"')
-    )
+    return _call_fn(valobj, "ToString()").GetSummary().strip('"')
   # pylint: disable-next=broad-exception-caught
-  except Exception:
-    return "<INVALID>"
+  except Exception as e:
+    return f"<INVALID: {e}>"
 
 
 def xls_interpvalue_summary(valobj, _):
@@ -302,16 +279,15 @@ def xls_interpvalue_summary(valobj, _):
     # enough however.
     # TODO(allight): Consider rewriting in python.
     return (
-        _maybe_deref(valobj)
-        .EvaluateExpression(
-            "this.ToStringInternal(false, xls::FormatPreference::kDefault)"
+        _call_fn(
+            valobj, "ToStringInternal(false, xls::FormatPreference::kDefault)"
         )
         .GetSummary()
         .strip('"')
     )
   # pylint: disable-next=broad-exception-caught
-  except Exception:
-    return "<INVALID>"
+  except Exception as e:
+    return f"<INVALID: {e}>"
 
 
 def xls_parametriccontext_summary(valobj, _):
@@ -323,12 +299,7 @@ def xls_parametriccontext_summary(valobj, _):
     # to do this stuff is implement it all in python. This seems to be fast
     # enough however.
     # TODO(allight): Consider rewriting in python.
-    return (
-        _maybe_deref(valobj)
-        .EvaluateExpression("this.ToString()")
-        .GetSummary()
-        .strip('"')
-    )
+    return _call_fn(valobj, "ToString()").GetSummary().strip('"')
   # pylint: disable-next=broad-exception-caught
-  except Exception:
-    return "<INVALID>"
+  except Exception as e:
+    return f"<INVALID: {e}>"
