@@ -69,10 +69,12 @@ class TestParamCountInfo
     return xls::LeafTypeTree<int64_t>();
   }
   int64_t MergeInfos(
-      const absl::Span<const int64_t>& infos) const override final {
+      absl::Span<const absl::Span<const int64_t>> spans) const override final {
     int64_t result = 0;
-    for (int64_t info : infos) {
-      result += info;
+    for (const auto& span : spans) {
+      for (int64_t info : span) {
+        result += info;
+      }
     }
     return result;
   }
@@ -116,11 +118,13 @@ class TestNodeSourceInfo
     return result;
   }
 
-  NodeSourceSet MergeInfos(
-      const absl::Span<const NodeSourceSet>& infos) const override final {
+  NodeSourceSet MergeInfos(absl::Span<const absl::Span<const NodeSourceSet>>
+                               spans) const override final {
     NodeSourceSet ret;
-    for (const NodeSourceSet& info : infos) {
-      ret.insert(info.begin(), info.end());
+    for (const auto& span : spans) {
+      for (const NodeSourceSet& info : span) {
+        ret.insert(info.begin(), info.end());
+      }
     }
     return ret;
   }

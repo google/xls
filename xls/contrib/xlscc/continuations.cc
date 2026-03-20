@@ -197,10 +197,12 @@ xls::LeafTypeTree<ParamSet> SourcesSetNodeInfo::ComputeInfoTreeForNode(
 }
 
 ParamSet SourcesSetNodeInfo::MergeInfos(
-    const absl::Span<const ParamSet>& infos) const {
+    absl::Span<const absl::Span<const ParamSet>> spans) const {
   ParamSet ret;
-  for (const ParamSet& info : infos) {
-    ret.insert(info.begin(), info.end());
+  for (const auto& span : spans) {
+    for (const ParamSet& info : span) {
+      ret.insert(info.begin(), info.end());
+    }
   }
   return ret;
 }
@@ -239,10 +241,12 @@ xls::LeafTypeTree<NodeSourceSet> SourcesSetTreeNodeInfo::ComputeInfoTreeForNode(
 }
 
 NodeSourceSet SourcesSetTreeNodeInfo::MergeInfos(
-    const absl::Span<const NodeSourceSet>& infos) const {
+    absl::Span<const absl::Span<const NodeSourceSet>> spans) const {
   NodeSourceSet ret;
-  for (const NodeSourceSet& info : infos) {
-    ret.insert(info.begin(), info.end());
+  for (const auto& span : spans) {
+    for (const NodeSourceSet& info : span) {
+      ret.insert(info.begin(), info.end());
+    }
   }
   return ret;
 }
