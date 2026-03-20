@@ -1,0 +1,30 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__lambda_capture_struct_at_test_module.x_4_12_4_36_N___call__16_u32_u16_u16(self: (bits[16]) id=1, i: bits[32] id=2) -> bits[16] {
+  bit_slice.3: bits[16] = bit_slice(i, start=0, width=16, id=3)
+  self_x: bits[16] = tuple_index(self, index=0, id=4)
+  ret add.5: bits[16] = add(bit_slice.3, self_x, id=5)
+}
+
+fn __SYNTHETIC_LOOP_BODY___test_module__add_five__16_CALLING___test_module__lambda_capture_struct_at_test_module.x_4_12_4_36_N___call__16_u32_u16_u16__MAP_0(idx: bits[32] id=10, array_val: bits[16][4] id=11, context_struct: (bits[16]) id=12, input_array: bits[32][4] id=13) -> bits[16][4] {
+  array_index.14: bits[32] = array_index(input_array, indices=[idx], id=14)
+  map_call_call: bits[16] = invoke(context_struct, array_index.14, to_apply=__test_module__lambda_capture_struct_at_test_module.x_4_12_4_36_N___call__16_u32_u16_u16, id=15)
+  ret map_iteration: bits[16][4] = array_update(array_val, map_call_call, indices=[idx], id=16)
+}
+
+fn __test_module__add_five__16(arr: bits[32][4] id=6) -> bits[16][4] {
+  x: bits[16] = literal(value=5, id=8)
+  literal.17: bits[16][4] = literal(value=[0, 0, 0, 0], id=17)
+  tuple.9: (bits[16]) = tuple(x, id=9)
+  N: bits[32] = literal(value=16, id=7)
+  ret map_invocation__call: bits[16][4] = counted_for(literal.17, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___test_module__add_five__16_CALLING___test_module__lambda_capture_struct_at_test_module.x_4_12_4_36_N___call__16_u32_u16_u16__MAP_0, invariant_args=[tuple.9, arr], id=18)
+}
+
+fn __test_module__main() -> bits[16] {
+  literal.19: bits[32][4] = literal(value=[0, 1, 2, 3], id=19)
+  invoke.20: bits[16][4] = invoke(literal.19, to_apply=__test_module__add_five__16, id=20)
+  literal.21: bits[32] = literal(value=1, id=21)
+  ret array_index.22: bits[16] = array_index(invoke.20, indices=[literal.21], id=22)
+}
