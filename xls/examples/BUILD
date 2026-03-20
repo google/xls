@@ -1382,9 +1382,30 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "proc_network_ir",
     dslx_top = "Initiator",
-    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+        "default_fifo_config": "depth: 2, bypass: true, " +
+                               "register_push_outputs: false, register_pop_outputs: false",
+    },
     ir_file = "proc_network.ir",
     library = ":proc_network_dslx",
+)
+
+xls_ir_opt_ir(
+    name = "proc_network_opt_ir",
+    src = "proc_network.ir",
+)
+
+xls_benchmark_ir(
+    name = "proc_network_opt_ir_benchmark",
+    src = ":proc_network_opt_ir",
+    codegen_args = {
+        "module_name": "ProcName",
+        "delay_model": "unit",
+        "pipeline_stages": "2",
+        "reset": "rst",
+    },
+    synthesize = True,
 )
 
 xls_dslx_ir(

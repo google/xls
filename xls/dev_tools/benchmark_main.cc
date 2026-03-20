@@ -416,9 +416,7 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
   return absl::OkStatus();
 }
 
-absl::Status PrintScheduleInfo(FunctionBase* f,
-                               const PackageSchedule& package_schedule,
-                               const BddQueryEngine& bdd_query_engine,
+absl::Status PrintScheduleInfo(const PackageSchedule& package_schedule,
                                const DelayEstimator& delay_estimator,
                                std::optional<int64_t> clock_period_ps) {
   if (package_schedule.GetSchedules().size() == 1) {
@@ -436,9 +434,12 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
   }
   for (auto& [function_base, schedule] : package_schedule.GetSchedules()) {
     std::cout << "\n\nFunction: " << function_base->name() << "\n";
-    XLS_RETURN_IF_ERROR(PrintScheduleInfo(function_base, schedule,
-                                          bdd_query_engine, delay_estimator,
-                                          clock_period_ps));
+    // NB query engines are associated with a specific function, so we need to
+    // create a new one for each function.
+    BddQueryEngine query_engine(BddQueryEngine::kDefaultPathLimit);
+    XLS_RETURN_IF_ERROR(query_engine.Populate(function_base).status());
+    XLS_RETURN_IF_ERROR(PrintScheduleInfo(function_base, schedule, query_engine,
+                                          delay_estimator, clock_period_ps));
   }
   return absl::OkStatus();
 }
@@ -858,7 +859,7 @@ absl::Status RealMain(std::string_view path) {
           synthesizer.get()));
 
       XLS_RETURN_IF_ERROR(PrintScheduleInfo(
-          f, package_schedule, query_engine, defaulted_delay_estimator,
+          package_schedule, defaulted_delay_estimator,
           scheduling_options_flags_proto.has_clock_period_ps()
               ? std::make_optional(
                     scheduling_options_flags_proto.clock_period_ps())

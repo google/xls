@@ -70,6 +70,14 @@ cc_binary(
     ],
 )
 
+sh_test(
+    name = "benchmark_main_test",
+    srcs = ["benchmark_main_test.sh"],
+    data = [
+        "//xls/examples:proc_network_opt_ir_benchmark",
+    ],
+)
+
 pytype_strict_contrib_test(
     name = "tool_timeout_test",
     srcs = ["tool_timeout_test.py"],
