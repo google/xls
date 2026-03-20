@@ -2170,10 +2170,11 @@ std::string Binop::ToStringInternal() const {
 
 StatementBlock::StatementBlock(Module* owner, Span span,
                                std::vector<Statement*> statements,
-                               bool trailing_semi)
+                               bool trailing_semi, bool has_braces)
     : Expr(owner, std::move(span)),
       statements_(std::move(statements)),
-      trailing_semi_(trailing_semi) {
+      trailing_semi_(trailing_semi),
+      has_braces_(has_braces) {
   if (statements_.empty()) {
     CHECK(trailing_semi) << "empty block but trailing_semi is false";
   }
@@ -2191,14 +2192,16 @@ std::string StatementBlock::ToInlineString() const {
   }
 
   std::string s = absl::StrCat(
-      "{ ",
+      has_braces_ ? "{ " : "",
       absl::StrJoin(statements_, "; ", [](std::string* out, Statement* stmt) {
         absl::StrAppend(out, stmt->ToString());
       }));
   if (trailing_semi_) {
     absl::StrAppend(&s, ";");
   }
-  absl::StrAppend(&s, " }");
+  if (has_braces_) {
+    absl::StrAppend(&s, " }");
+  }
   return s;
 }
 

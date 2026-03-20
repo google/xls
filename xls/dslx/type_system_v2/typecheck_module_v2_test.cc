@@ -9587,6 +9587,19 @@ const_assert!(main() == 1);
       TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
 }
 
+TEST(TypecheckV2Test, LambdaWithImplicitReturnNoBraces) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  let arr = map(u32:0..2, |i| i + 3);
+  arr[1]
+}
+const_assert!(main() == 4);
+
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
+}
+
 TEST(TypecheckV2Test, LambdaWithImplicitReturnAndContextCapture) {
   EXPECT_THAT(
       R"(

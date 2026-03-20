@@ -1405,7 +1405,7 @@ class Statement final : public AstNode {
 class StatementBlock : public Expr {
  public:
   StatementBlock(Module* owner, Span span, std::vector<Statement*> statements,
-                 bool trailing_semi);
+                 bool trailing_semi, bool has_braces = true);
 
   ~StatementBlock() override;
 
@@ -1429,6 +1429,7 @@ class StatementBlock : public Expr {
   bool trailing_semi() const { return trailing_semi_; }
   bool empty() const { return statements_.empty(); }
   int64_t size() const { return statements_.size(); }
+  bool has_braces() const { return has_braces_; }
 
  private:
   Precedence GetPrecedenceWithoutParens() const final {
@@ -1439,6 +1440,7 @@ class StatementBlock : public Expr {
 
   std::vector<Statement*> statements_;
   bool trailing_semi_;
+  bool has_braces_;
 };
 
 // Represents a reference to a name (identifier).
