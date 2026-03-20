@@ -1266,7 +1266,7 @@ class SourcesSetNodeInfo
       xls::Node* node) const override final;
 
   ParamSet MergeInfos(
-      const absl::Span<const ParamSet>& infos) const override final;
+      absl::Span<const absl::Span<const ParamSet>> spans) const override final;
 };
 
 typedef absl::flat_hash_set<xls::NodeSource> NodeSourceSet;
@@ -1291,8 +1291,8 @@ class SourcesSetTreeNodeInfo
   xls::LeafTypeTree<NodeSourceSet> ComputeInfoTreeForNode(
       xls::Node* node) const override final;
 
-  NodeSourceSet MergeInfos(
-      const absl::Span<const NodeSourceSet>& infos) const override final;
+  NodeSourceSet MergeInfos(absl::Span<const absl::Span<const NodeSourceSet>>
+                               spans) const override final;
 };
 
 class OptimizationContext {
