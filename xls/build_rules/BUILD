@@ -51,6 +51,7 @@ exports_files(
         "xls_rules_build_defs.bzl",
         "xls_toolchains.bzl",
         "xls_utilities.bzl",
+        "xls_fuzz_rules.bzl",
     ],
     visibility = ["//visibility:private"],
 )
@@ -329,6 +330,17 @@ bzl_library(
     srcs = ["xls_diff_test.bzl"],
     visibility = ["//visibility:private"],
     deps = ["@bazel_skylib//rules:diff_test"],
+)
+
+bzl_library(
+    name = "xls_fuzz_rules_bzl",
+    srcs = ["xls_fuzz_rules.bzl"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":xls_build_defs_bzl",
+        ":xls_macros_bzl",
+        "@rules_cc//cc:core_rules",
+    ],
 )
 
 xls_toolchain(

@@ -70,7 +70,7 @@ _xls_ir_jit_wrapper_attrs = {
     "header_file": attr.output(
         doc = "The filename of the generated header file. The filename must " +
               "have a '" + _H_FILE_EXTENSION + "' extension.",
-        mandatory = True,
+        mandatory = False,
     ),
     "wrapper_type": attr.string(
         doc = "type of function_base we are wrapping.",
@@ -105,6 +105,8 @@ def _xls_ir_jit_wrapper_impl(ctx):
         "class_name",
         "function",
         "namespace",
+        "lib_class_name",
+        "lib_header_path",
     )
 
     if "namespace" not in jit_wrapper_args:
@@ -133,30 +135,33 @@ def _xls_ir_jit_wrapper_impl(ctx):
 
     # Retrieve basename and extension from filename
     source_filename = ctx.outputs.source_file.basename
-    header_filename = ctx.outputs.header_file.basename
     source_basename, source_extension = split_filename(source_filename)
-    header_basename, header_extension = split_filename(header_filename)
 
     # validate filename extension
     if source_extension != _CC_FILE_EXTENSION[1:]:
         fail("Source filename must contain the '%s' extension." %
              _CC_FILE_EXTENSION)
-    if header_extension != _H_FILE_EXTENSION[1:]:
-        fail("Header filename must contain the '%s' extension." %
-             _H_FILE_EXTENSION)
-
     if ctx.attr.top != "":
         jit_wrapper_flags.add("--function", ctx.attr.top)
-
-    # validate basename
-    if source_basename != header_basename:
-        fail("The basename of the source and header files do not match.")
 
     # Append to argument list.
     jit_wrapper_flags.add("--output_name", source_basename)
 
     cc_file = ctx.actions.declare_file(source_filename)
-    h_file = ctx.actions.declare_file(header_filename)
+    my_generated_files = [cc_file]
+    if ctx.outputs.header_file:
+        header_filename = ctx.outputs.header_file.basename
+        header_basename, header_extension = split_filename(header_filename)
+        if header_extension != _H_FILE_EXTENSION[1:]:
+            fail("Header filename must contain the '%s' extension." %
+                 _H_FILE_EXTENSION)
+
+        # validate basename
+        if ctx.outputs.header_file and source_basename != header_basename:
+            fail("The basename of the source and header files do not match.")
+
+        h_file = ctx.actions.declare_file(header_filename)
+        my_generated_files.append(h_file)
 
     # output directory
     jit_wrapper_flags.add("--output_dir", cc_file.dirname)
@@ -170,8 +175,6 @@ def _xls_ir_jit_wrapper_impl(ctx):
     # Aot information
     aot_info_file = ctx.attr.aot_info[AotCompileInfo].proto_file
     jit_wrapper_flags.add("--aot_info", aot_info_file.path)
-
-    my_generated_files = [cc_file, h_file]
 
     # Get runfiles
     jit_wrapper_tool_runfiles = ctx.attr._xls_jit_wrapper_tool[DefaultInfo].default_runfiles
@@ -191,7 +194,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
     return [
         JitWrapperInfo(
             source_file = cc_file,
-            header_file = h_file,
+            header_file = ctx.outputs.header_file,
         ),
         DefaultInfo(
             files = depset(my_generated_files),
@@ -298,7 +301,7 @@ def xls_ir_jit_wrapper_macro(
     string_type_check("src", src)
     string_type_check("top", top)
     string_type_check("source_file", source_file)
-    string_type_check("header_file", header_file)
+    string_type_check("header_file", header_file, can_be_none = True)
     string_type_check("wrapper_type", wrapper_type)
     string_type_check("aot_info", aot_info)
     dictionary_type_check("jit_wrapper_args", jit_wrapper_args)
@@ -314,7 +317,7 @@ def xls_ir_jit_wrapper_macro(
         aot_info = aot_info,
         jit_wrapper_args = jit_wrapper_args,
         wrapper_type = wrapper_type,
-        outs = [source_file, header_file],
+        outs = [source_file] + ([header_file] if header_file else []),
         **kwargs
     )
 
@@ -328,11 +331,22 @@ def xls_ir_jit_wrapper_macro(
 FUNCTION_WRAPPER_TYPE = "FUNCTION"
 PROC_WRAPPER_TYPE = "PROC"
 BLOCK_WRAPPER_TYPE = "BLOCK"
+FUZZTEST_WRAPPER_TYPE = "FUZZTEST"
 
 _BASE_JIT_WRAPPER_DEPS = {
     FUNCTION_WRAPPER_TYPE: [
         "//xls/jit:function_base_jit_wrapper",
         "//xls/ir:xls_type_cc_proto",
+    ],
+    FUZZTEST_WRAPPER_TYPE: [
+        "@googletest//:gtest",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/ir:value",
+        "//xls/ir:xls_type_cc_proto",
+        "//xls/ir:type",
+        "//xls/ir:value_test_util",
+        "//xls/jit:function_base_jit_wrapper",
     ],
     PROC_WRAPPER_TYPE: [
         "//xls/jit:proc_base_jit_wrapper",
@@ -356,6 +370,8 @@ def cc_xls_ir_jit_wrapper(
         tags = [],
         aot_tags = [],
         jobs = 1,
+        alwayslink = False,
+        enable_llvm_coverage = False,
         **kwargs):
     """Invokes the JIT wrapper generator and compiles the result as a cc_library.
 
@@ -379,12 +395,14 @@ def cc_xls_ir_jit_wrapper(
       tags: normal tags to pass to actions.
       aot_tags: Tags to apply to the AOT compiler only.
       jobs: Number of jobs to use for AOT compilation.
+      alwayslink: Whether to always link the generated library.
+      enable_llvm_coverage: Whether to enable LLVM coverage for the AOT compiled code.
       **kwargs: Keyword arguments. Named arguments.
     """
 
     dictionary_type_check("jit_wrapper_args", jit_wrapper_args)
     string_type_check("src", src)
-    string_type_check("top", src)
+    string_type_check("top", top)
 
     # Validate arguments of macro
     if kwargs.get("source_file"):
@@ -394,23 +412,26 @@ def cc_xls_ir_jit_wrapper(
         fail("Cannot set 'header_file' attribute in macro '%s' of type " +
              "'cc_xls_ir_jit_wrapper'." % name)
 
-    if wrapper_type not in (FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, PROC_WRAPPER_TYPE):
+    if wrapper_type not in (FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, PROC_WRAPPER_TYPE, FUZZTEST_WRAPPER_TYPE):
         fail(("Cannot set 'wrapper_type' to %s. It must be one of BLOCK_WRAPPER_TYPE, " +
-              "FUNCTION_WRAPPER_TYPE, or PROC_WRAPPER_TYPE") % wrapper_type)
+              "FUNCTION_WRAPPER_TYPE, FUZZTEST_WRAPPER_TYPE, or PROC_WRAPPER_TYPE") % wrapper_type)
 
+    deps = kwargs.pop("deps", [])
     source_filename = name + _CC_FILE_EXTENSION
-    header_filename = name + _H_FILE_EXTENSION
+    header_filename = name + _H_FILE_EXTENSION if wrapper_type != FUZZTEST_WRAPPER_TYPE else None
     extra_lib_deps = []
+    aot_wrapper_type = wrapper_type if wrapper_type != FUZZTEST_WRAPPER_TYPE else FUNCTION_WRAPPER_TYPE
     xls_aot_generate(
         name = name + "_aot_code_for_wrapper",
         src = src,
         top = top,
         with_msan = XLS_IS_MSAN_BUILD,
         llvm_opt_level = llvm_opt_level,
-        top_type = wrapper_type,
+        top_type = aot_wrapper_type,
         exec_properties = exec_properties,
         tags = tags + aot_tags,
         jobs = jobs,
+        enable_llvm_coverage = enable_llvm_coverage,
         aot_target = select({
             "@platforms//cpu:aarch64": "aarch64",
             "@platforms//cpu:x86_64": "x86_64",
@@ -436,8 +457,9 @@ def cc_xls_ir_jit_wrapper(
     cc_library(
         name = name,
         srcs = [":" + source_filename],
-        hdrs = [":" + header_filename],
+        hdrs = ([":" + header_filename] if header_filename else []),
         exec_properties = exec_properties,
+        alwayslink = alwayslink,
         tags = tags,
         deps = extra_lib_deps +
                _BASE_JIT_WRAPPER_DEPS[wrapper_type] + [
@@ -446,6 +468,6 @@ def cc_xls_ir_jit_wrapper(
             "//xls/common/status:status_macros",
             "//xls/interpreter:evaluator_options",
             "//xls/public:value",
-        ],
+        ] + deps,
         **kwargs
     )
