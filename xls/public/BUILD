@@ -238,6 +238,7 @@ cc_library(
     hdrs = ["c_api_dslx.h"],
     deps = [
         ":c_api_impl_helpers",
+        "//xls/common:attribute_data",
         "//xls/common:visitor",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
@@ -265,7 +266,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
     ],
 )
 
