@@ -75,6 +75,11 @@ bool Scanner::TryDropChar(char target) {
   return false;
 }
 
+bool Scanner::IsCharLiteral() const {
+  return index_ + 1 >= text_.size() || text_[index_ + 1] == '\\' ||
+         index_ + 2 >= text_.size() || text_[index_ + 2] == '\'';
+}
+
 Token Scanner::PopComment(const Pos& start_pos, bool allow_multiline) {
   std::string chars;
   Pos end_pos = GetPos();
@@ -486,7 +491,12 @@ absl::StatusOr<Token> Scanner::Pop() {
       break;
     }
     case '\'': {
-      XLS_ASSIGN_OR_RETURN(result, ScanChar(start_pos));
+      if (IsCharLiteral()) {
+        XLS_ASSIGN_OR_RETURN(result, ScanChar(start_pos));
+      } else {
+        DropChar();
+        result = Token(TokenKind::kApostrophe, mk_span());
+      }
       break;
     }
     case '#':

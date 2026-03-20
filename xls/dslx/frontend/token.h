@@ -63,6 +63,7 @@ namespace xls::dslx {
   X(kCBrack, CBRACK, "]")                                              \
   X(kColon, COLON, ":")                                                \
   X(kComma, COMMA, ",")                                                \
+  X(kApostrophe, APOSTROPHE, "'")                                      \
   X(kDoubleQuote, DOUBLE_QUOTE, "\"")                                  \
   X(kStar, STAR, "*")                                                  \
   X(kSlash, SLASH, "/")                                                \

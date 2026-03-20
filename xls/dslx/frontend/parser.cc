@@ -2782,17 +2782,47 @@ absl::StatusOr<ExpressionDepthGuard> Parser::BumpExpressionDepth() {
   return ExpressionDepthGuard(this);
 }
 
+absl::StatusOr<std::optional<std::string>> Parser::ParseOptionalLabel() {
+  if (!PeekTokenIs(TokenKind::kApostrophe).value_or(false)) {
+    return std::nullopt;
+  }
+  XLS_ASSIGN_OR_RETURN(const Token* identifier, PeekToken(1));
+  if (identifier->kind() != TokenKind::kIdentifier) {
+    return ParseErrorStatus(
+        Span(GetPos(), GetPos()),
+        "Expected string identifier following \' for label definition");
+  }
+  XLS_ASSIGN_OR_RETURN(const Token* colon, PeekToken(2));
+  if (colon->kind() != TokenKind::kColon) {
+    return ParseErrorStatus(Span(GetPos(), GetPos()),
+                            "Expected colon following identifier when using "
+                            "\' for label definition");
+  }
+
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kApostrophe));
+  XLS_ASSIGN_OR_RETURN(Token label_tok, PopToken());
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon));
+  return label_tok.GetStringValue();
+}
+
 absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
                                         ExprRestrictions restrictions) {
   XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth, BumpExpressionDepth());
-
+  XLS_ASSIGN_OR_RETURN(std::optional<std::string> label, ParseOptionalLabel());
   XLS_ASSIGN_OR_RETURN(Expr * lhs, ParseTermLhs(outer_bindings, restrictions));
-
+  bool label_needs_setting = label.has_value();
   while (true) {
     XLS_ASSIGN_OR_RETURN(Expr * new_lhs,
                          ParseTermRhs(lhs, outer_bindings, restrictions));
     if (new_lhs == lhs) {
+      if (label_needs_setting) {
+        lhs->set_label(*label);
+      }
       return lhs;
+    }
+    if (label_needs_setting) {
+      new_lhs->set_label(*label);
+      label_needs_setting = false;
     }
     lhs = new_lhs;
   }

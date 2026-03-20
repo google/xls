@@ -262,6 +262,9 @@ class Scanner {
   // (including if we are at end of file) returns false.
   bool TryDropChar(char target);
 
+  // Returns whether the next token is a character literal.
+  bool IsCharLiteral() const;
+
   // Pops all the characters from the current character cursor to the end of
   // line (or end of file) and returns that. (This is useful presuming a leading
   // EOL-comment-delimiter was observed.) If `allow_multiline`, will look for a
