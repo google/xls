@@ -2090,13 +2090,22 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   if (auto* callee_ref = dynamic_cast<FunctionRef*>(fn_node);
       callee_ref != nullptr) {
     XLS_ASSIGN_OR_RETURN(mapped_fn, current_type_info_->GetCallee(callee_ref));
-    if (mapped_fn->IsMethod()) {
+    if (mapped_fn->impl().has_value()) {
       Impl* impl = *mapped_fn->impl();
       scope = impl->struct_ref()->ToString();
-      auto* attr = dynamic_cast<Attr*>(callee_ref->callee());
-      XLS_RET_CHECK(attr != nullptr);
-      XLS_RETURN_IF_ERROR(Visit(attr->lhs()));
-      self = attr->lhs();
+
+      // If the callee is an Attr, then it is a case like
+      // `map(arr, obj_not_in_arr.foo)` where `foo` takes `self, ArrElementType`
+      // as params. This is how lambdas work internally, and it can also be done
+      // by the user. If the callee is not an Attr, then it is a case like
+      // `map(arr, ArrElementType::foo)` where `foo` just takes `self` and there
+      // is no auxiliary object. We don't need any more special processing for
+      // that.
+      if (callee_ref->callee()->kind() == AstNodeKind::kAttr) {
+        auto* attr = absl::down_cast<Attr*>(callee_ref->callee());
+        XLS_RETURN_IF_ERROR(Visit(attr->lhs()));
+        self = attr->lhs();
+      }
     }
   } else if (auto* name_ref = dynamic_cast<NameRef*>(fn_node)) {
     if (IsBuiltinParametricNameRef(name_ref)) {

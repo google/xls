@@ -64,6 +64,18 @@
 namespace xls::dslx {
 namespace {
 
+// The result of trying to resolve a struct member being referenced by a
+// `ColonRef`.
+struct StructMemberResolutionResult {
+  // Resolution needs to be deferred until the table is converted (it depends on
+  // the parametric context and/or the result of converting other entities).
+  bool deferred = false;
+
+  // The member that was resolved. This is set if `deferred` is false and the
+  // member was a constant or function.
+  std::optional<const AstNode*> member_def;
+};
+
 // A visitor that walks an AST and populates an `InferenceTable` with the
 // encountered info.
 class PopulateInferenceTableVisitor : public PopulateTableVisitor,
@@ -264,9 +276,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                            GetStructOrProcRefForSubject(node, import_data_));
       if (struct_ref.has_value()) {
         XLS_ASSIGN_OR_RETURN(
-            std::optional<const AstNode*> def,
+            StructMemberResolutionResult resolution_result,
             HandleStructAttributeReferenceInternal(
-                node, *struct_ref->def, struct_ref->parametrics, node->attr()));
+                node, struct_ref->def, struct_ref->parametrics, node->attr()));
+        if (resolution_result.deferred) {
+          return absl::OkStatus();
+        }
+
         if (struct_ref->type_ref_type_annotation.has_value()) {
           // In this case we are dealing with S<parametrics>::CONSTANT
           // masquerading behind the superficially simpler TypeAlias::CONSTANT
@@ -277,8 +293,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
               node, module_.Make<MemberTypeAnnotation>(
                         AttrSpan(node), *struct_ref->type_ref_type_annotation,
                         node->attr()));
-        } else if (def.has_value()) {
-          return PropagateDefToRef(*def, node);
+        } else if (resolution_result.member_def.has_value()) {
+          return PropagateDefToRef(*resolution_result.member_def, node);
         }
       }
 
@@ -319,20 +335,22 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                            GetStructOrProcRef(sub_col_ref, import_data_));
       if (struct_ref.has_value()) {
         XLS_ASSIGN_OR_RETURN(
-            std::optional<const AstNode*> ref,
+            StructMemberResolutionResult resolution_result,
             HandleStructAttributeReferenceInternal(
-                node, *struct_ref->def, struct_ref->parametrics, node->attr()));
-        XLS_RET_CHECK(ref.has_value());
-        if (struct_ref->type_ref_type_annotation.has_value()) {
-          // Handle a parametric struct reference with the same kind of indirect
-          // annotation we would use for a local one. Otherwise the parametrics
-          // would not be dealt with properly.
-          return table_.SetTypeAnnotation(
-              node, module_.Make<MemberTypeAnnotation>(
-                        AttrSpan(node), *struct_ref->type_ref_type_annotation,
-                        node->attr()));
+                node, struct_ref->def, struct_ref->parametrics, node->attr()));
+        if (resolution_result.member_def.has_value()) {
+          if (struct_ref->type_ref_type_annotation.has_value()) {
+            // Handle a parametric struct reference with the same kind of
+            // indirect annotation we would use for a local one. Otherwise the
+            // parametrics would not be dealt with properly.
+            return table_.SetTypeAnnotation(
+                node, module_.Make<MemberTypeAnnotation>(
+                          AttrSpan(node), *struct_ref->type_ref_type_annotation,
+                          node->attr()));
+          }
+          return SetCrossModuleTypeAnnotation(node,
+                                              *resolution_result.member_def);
         }
-        return SetCrossModuleTypeAnnotation(node, *ref);
       }
       XLS_ASSIGN_OR_RETURN(ModuleMember member,
                            GetPublicModuleMember((*import_module)->module(),
@@ -351,7 +369,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                            GetStructOrProcRef(annotation, import_data_));
       if (struct_or_proc_ref.has_value()) {
         XLS_RETURN_IF_ERROR(HandleStructAttributeReferenceInternal(
-                                node, *struct_or_proc_ref->def,
+                                node, struct_or_proc_ref->def,
                                 struct_or_proc_ref->parametrics, node->attr())
                                 .status());
       }
@@ -1934,28 +1952,47 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   // referencing a member with the name `attribute` of the given `struct_def`.
   // Associates the target node with the `ColonRef` in the `InferenceTable` for
   // later reference, and returns it.
-  absl::StatusOr<std::optional<const AstNode*>>
+  absl::StatusOr<StructMemberResolutionResult>
   HandleStructAttributeReferenceInternal(
-      const ColonRef* node, const StructDefBase& struct_def,
+      const ColonRef* node, const StructDefBase* struct_def,
       const std::vector<ExprOrType>& parametrics, std::string_view attribute) {
-    if (!struct_def.impl().has_value()) {
+    absl::StatusOr<std::optional<const AstNode*>> result =
+        ResolveStructMember(node, struct_def, parametrics, attribute);
+    if (result.ok()) {
+      return StructMemberResolutionResult{.member_def = *result};
+    }
+    absl::StatusOr<bool> possible_trait_reference =
+        HandlePossibleDerivedTraitReference(node, struct_def, parametrics);
+    if (possible_trait_reference.ok() && *possible_trait_reference) {
+      // A reference that may be to a derived trait is always deferred.
+      return StructMemberResolutionResult{.deferred = true};
+    }
+    return result.status();
+  }
+
+  // Helper that determines the target of the given `ColonRef` without deferring
+  // the resolution, if possible, and errors otherwise.
+  absl::StatusOr<std::optional<const AstNode*>> ResolveStructMember(
+      const ColonRef* node, const StructDefBase* struct_def,
+      const std::vector<ExprOrType>& parametrics, std::string_view attribute) {
+    if (!struct_def->impl().has_value()) {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,
           absl::Substitute("Struct '$0' has no impl defining '$1'",
-                           struct_def.identifier(), attribute),
+                           struct_def->identifier(), attribute),
           file_table_);
     }
     std::optional<ImplMember> member =
-        (*struct_def.impl())->GetMember(attribute);
+        (*struct_def->impl())->GetMember(attribute);
     if (!member.has_value()) {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,
           absl::Substitute(
               "Name '$0' is not defined by the impl for struct '$1'.",
-              attribute, struct_def.identifier()),
+              attribute, struct_def->identifier()),
           file_table_);
     }
-    if (struct_def.IsParametric()) {
+    if (struct_def->IsParametric()) {
       // The type-checking of a `TypeRefTypeAnnotation` containing any
       // parametrics will prove that there aren't too many parametrics given.
       // However, for general validation, a type reference does not need all
@@ -1965,8 +2002,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // bindings; only the bindings for `static_fn` itself, if it has any.
       // Hence all the `S` bindings must be satisfied.
       XLS_RETURN_IF_ERROR(VerifyAllParametricsSatisfied(
-          struct_def.parametric_bindings(), parametrics,
-          struct_def.identifier(), node->span(), file_table_));
+          struct_def->parametric_bindings(), parametrics,
+          struct_def->identifier(), node->span(), file_table_));
     }
     table_.SetColonRefTarget(node, ToAstNode(*member));
     if (std::holds_alternative<ConstantDef*>(*member) ||
@@ -1974,6 +2011,29 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       return ToAstNode(*member);
     }
     return std::nullopt;
+  }
+
+  // For a reference like `SomeStruct::to_bits`, where `to_bits` is a trait
+  // derivation, the reference target won't actually exist until a later stage.
+  // So if the struct derives any traits, defer the resolution.
+  absl::StatusOr<bool> HandlePossibleDerivedTraitReference(
+      const ColonRef* node, const StructDefBase* struct_def,
+      const std::vector<ExprOrType>& parametrics) {
+    if (!GetAttribute(struct_def, AttributeKind::kDerive).has_value()) {
+      return false;
+    }
+    const TypeAnnotation* type_ref_annotation =
+        node->owner()->Make<TypeRefTypeAnnotation>(
+            node->span(),
+            module_.Make<TypeRef>(
+                node->span(),
+                const_cast<StructDef*>(
+                    absl::down_cast<const StructDef*>(struct_def))),
+            parametrics, std::nullopt);
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node, module_.Make<MemberTypeAnnotation>(
+                  AttrSpan(node), type_ref_annotation, node->attr())));
+    return true;
   }
 
   // Helper that creates an internal type variable for a `ConstantDef`, `Param`,

@@ -1,0 +1,23 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__S__plus1(x: bits[32] id=1) -> bits[32] {
+  literal.2: bits[32] = literal(value=1, id=2)
+  ret add.3: bits[32] = add(x, literal.2, id=3)
+}
+
+fn __SYNTHETIC_LOOP_BODY___test_module__main_CALLING___test_module__S__plus1__MAP_0(idx: bits[32] id=8, array_val: bits[32][3] id=9, input_array: bits[32][3] id=10) -> bits[32][3] {
+  array_index.11: bits[32] = array_index(input_array, indices=[idx], id=11)
+  map_plus1_call: bits[32] = invoke(array_index.11, to_apply=__test_module__S__plus1, id=12)
+  ret map_iteration: bits[32][3] = array_update(array_val, map_plus1_call, indices=[idx], id=13)
+}
+
+fn __test_module__main() -> bits[32][3] {
+  literal.4: bits[32] = literal(value=10, id=4)
+  literal.5: bits[32] = literal(value=1, id=5)
+  literal.6: bits[32] = literal(value=5, id=6)
+  literal.14: bits[32][3] = literal(value=[0, 0, 0], id=14)
+  array.7: bits[32][3] = array(literal.4, literal.5, literal.6, id=7)
+  ret map_invocation__plus1: bits[32][3] = counted_for(literal.14, trip_count=3, stride=1, body=__SYNTHETIC_LOOP_BODY___test_module__main_CALLING___test_module__S__plus1__MAP_0, invariant_args=[array.7], id=15)
+}

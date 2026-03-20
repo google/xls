@@ -245,8 +245,10 @@ class FunctionResolverImpl : public FunctionResolver {
     }
     return TypeInferenceErrorStatus(
         callee->span(), nullptr,
-        "An invocation callee must be a function, with a possible scope "
-        "indicated using `::` or `.`",
+        absl::Substitute(
+            "An invocation callee must be a function, with a possible scope "
+            "indicated using `::` or `.` Unexpected callee: `$0`.",
+            callee->ToString()),
         file_table_);
   }
 

@@ -468,5 +468,20 @@ const_assert!(Foo{}.to_bits() == bits[0]:0);
 )"));
 }
 
+TEST(TypecheckV2TraitTest, MapToBits) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+#[derive(ToBits)]
+struct Foo<N: u32> {
+  a: uN[N],
+  b: u32[N]
+}
+
+const F1 = Foo {a: u4:2, b: [1, 2, 3, 4]};
+const F2 = Foo {a: u4:1, b: [0, 1, 1000, 2000]};
+
+const_assert!(map([F1, F2], Foo<4>::to_bits) == [F1.to_bits(), F2.to_bits()]);
+)"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

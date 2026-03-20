@@ -598,10 +598,6 @@ absl::StatusOr<Type*> TypeInfo::GetItemOrError(const AstNode* key) const {
 void TypeInfo::InsertInvocationData(const Invocation& invocation,
                                     std::unique_ptr<InvocationData> data) {
   CHECK(!invocations_.contains(&invocation));
-  if (invocation.callee()->kind() == AstNodeKind::kFunctionRef) {
-    function_refs_.emplace(
-        absl::down_cast<const FunctionRef*>(invocation.callee()), data.get());
-  }
   invocations_.emplace(&invocation, std::move(data));
 }
 
@@ -814,24 +810,27 @@ absl::StatusOr<TypeInfo*> TypeInfo::GetTopLevelProcTypeInfo(const Proc* p) {
   return top_level_proc_type_info_.at(p);
 }
 
+void TypeInfo::SetCallee(const FunctionRef* function_ref,
+                         const Function* callee) {
+  VLOG(6) << "Set callee for " << function_ref->ToString() << " to "
+          << callee->identifier() << " in TI " << name();
+  function_ref_callees_[function_ref] = callee;
+}
+
 absl::StatusOr<const Function*> TypeInfo::GetCallee(
     const FunctionRef* function_ref) const {
-  std::optional<const InvocationData*> invocation_data;
-  auto it = function_refs_.find(function_ref);
-  if (it != function_refs_.end()) {
-    invocation_data = it->second;
-  } else {
-    const TypeInfo* top = GetRoot();
-    it = top->function_refs_.find(function_ref);
-    if (it != top->function_refs_.end()) {
-      invocation_data = it->second;
-    }
+  auto it = function_ref_callees_.find(function_ref);
+  if (it != function_ref_callees_.end()) {
+    return it->second;
   }
-  if (!invocation_data.has_value()) {
+
+  const TypeInfo* top = GetRoot();
+  if (top == this) {
     return absl::NotFoundError(
         absl::StrCat("Could not find function ref ", function_ref->ToString()));
   }
-  return (*invocation_data)->callee();
+
+  return top->GetCallee(function_ref);
 }
 
 absl::StatusOr<const Function*> TypeInfo::GetCallee(

@@ -170,14 +170,20 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
 
       Function* derived = absl::down_cast<Function*>(clones.at(function));
 
+      std::unique_ptr<PopulateTableVisitor> visitor =
+          CreatePopulateTableVisitor(&module_, &table_, &import_data_,
+                                     /*typecheck_imported_module=*/nullptr);
       if (!existed_before) {
         // Put a stub for the derived function in the impl so that things like
         // `TypeAnnotationResolver` can deal with a `MemberTypeAnnotation`
         // referring to it.
+
         XLS_ASSIGN_OR_RETURN(
             AstNode * derived_stub,
             CloneAst(derived, &PreserveTypeDefinitionsReplacer));
         impl.AddMember(absl::down_cast<Function*>(derived_stub));
+        XLS_RETURN_IF_ERROR(visitor->PopulateFromFunction(
+            absl::down_cast<Function*>(derived_stub)));
       }
 
       derived->set_compiler_derived(true);
@@ -189,9 +195,6 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
       derived->set_body(body);
       derived->SetParentage();
 
-      std::unique_ptr<PopulateTableVisitor> visitor =
-          CreatePopulateTableVisitor(&module_, &table_, &import_data_,
-                                     /*typecheck_imported_module=*/nullptr);
       XLS_RETURN_IF_ERROR(visitor->PopulateFromFunction(derived));
 
       VLOG(5) << "Derived function: " << derived->ToString();

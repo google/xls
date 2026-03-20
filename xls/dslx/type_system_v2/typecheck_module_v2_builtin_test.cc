@@ -925,6 +925,62 @@ const_assert!(main() == 7);
       TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32]")));
 }
 
+TEST(TypecheckV2BuiltinTest, MapWithElementInstanceMethod) {
+  EXPECT_THAT(
+      R"(
+struct S {
+  x: u32
+}
+
+impl S {
+  fn plus1(self) -> u32 {
+    self.x + 1
+  }
+}
+
+const Y = map([S { x: 10 }, S { x: 1 }, S { x: 5 }], S::plus1);
+const_assert!(Y == [u32:11, 2, 6]);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapWithStaticImplFunction) {
+  EXPECT_THAT(
+      R"(
+struct S {}
+
+impl S {
+  fn plus1(x: u32) -> u32 {
+    x + 1
+  }
+}
+
+const Y = map([u32: 10, 1, 5], S::plus1);
+const_assert!(Y == [u32:11, 2, 6]);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapWithAuxiliaryObjectMethod) {
+  EXPECT_THAT(
+      R"(
+struct S {
+  x: u32
+}
+
+impl S {
+  fn plus(self, y: u32) -> u32 {
+    self.x + y
+  }
+}
+
+const inst = S { x: 10 };
+const Y = map([u32: 10, 1, 5], inst.plus);
+const_assert!(Y == [u32:20, 11, 15]);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
 TEST(TypecheckV2BuiltinTest, OneHot) {
   EXPECT_THAT(R"(const Y = one_hot(u32:2, true);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[33]")));

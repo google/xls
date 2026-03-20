@@ -266,6 +266,10 @@ class TypeInfo {
   absl::StatusOr<TypeInfo*> GetInvocationTypeInfoOrError(
       const Invocation* invocation, const ParametricEnv& caller) const;
 
+  // Sets the callee referred to by the given `FunctionRef` in the scope of this
+  // `TypeInfo`.
+  void SetCallee(const FunctionRef* function_reF, const Function* callee);
+
   // Retrieves the Function of the given Invocation.
   absl::StatusOr<const Function*> GetCallee(const Invocation* invocation) const;
   // Variation that operates on FunctionRef
@@ -552,11 +556,8 @@ class TypeInfo {
   absl::flat_hash_map<ImportSubject, ImportedInfo> imports_;
   absl::flat_hash_map<const Invocation*, std::unique_ptr<InvocationData>>
       invocations_;
-  // Store invocation data associated with FunctionRefs. FunctionRefs are
-  // currently created as callees of invocations, so the invocation data is
-  // owned by `invocations_` but referenced here so that we can find the data
-  // from the FunctionRef directly.
-  absl::flat_hash_map<const FunctionRef*, InvocationData*> function_refs_;
+  absl::flat_hash_map<const FunctionRef*, const Function*>
+      function_ref_callees_;
   // Non-unique callee data for this function
   absl::flat_hash_map<const Function*, std::vector<InvocationCalleeData>>
       callee_data_;

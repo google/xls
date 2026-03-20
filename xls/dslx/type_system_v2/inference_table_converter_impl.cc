@@ -1613,8 +1613,53 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                              caller_context, array_arg));
     XLS_RET_CHECK(array_type.has_value());
 
+    XLS_ASSIGN_OR_RETURN(
+        Number * index,
+        MakeTypeCheckedNumber(module_, table_, array_arg->span(), 0,
+                              CreateU32Annotation(module_, array_arg->span())));
+    Expr* array_of_0 = module_.Make<Index>(array_arg->span(), array_arg, index);
     Expr* mapper = invocation->args()[1];
-    if (mapper->kind() == AstNodeKind::kAttr) {
+    std::vector<Expr*> mapper_args{array_of_0};
+    FunctionRef* function_ref = nullptr;
+    if (mapper->kind() == AstNodeKind::kColonRef) {
+      // This may be the `map(arr, ArrElementType::instance_method)` scenario
+      // (see the additional check below). If that's the case, the mapper
+      // invocation is `arr[0].instance_method()` and we wrap the ColonRef as a
+      // FunctionRef in the actual map invocation.
+      const auto* colon_ref = absl::down_cast<const ColonRef*>(mapper);
+      std::optional<const TypeAnnotation*> annotation =
+          table_.GetTypeAnnotation(mapper);
+      std::optional<const AstNode*> target =
+          table_.GetColonRefTarget(colon_ref);
+      bool is_real_instance_method =
+          target.has_value() && (*target)->kind() == AstNodeKind::kFunction &&
+          absl::down_cast<const Function*>(*target)->impl().has_value() &&
+          absl::down_cast<const Function*>(*target)->IsMethod();
+      bool is_trait_derived_instance_method =
+          (annotation.has_value() &&
+           (*annotation)->IsAnnotation<MemberTypeAnnotation>());
+      function_ref = module_.Make<FunctionRef>(mapper->span(), mapper,
+                                               std::vector<ExprOrType>{});
+      function_ref->SetParentNonLexical(invocation);
+      invocation->set_arg(1, function_ref);
+
+      // Don't change the format of the fake invocation for `map(arr,
+      // ArrElementType::static_method)`. In that case, the mapper invocation
+      // should just be `ArrElementType::static_method(arr[0])` which is similar
+      // to using a free function.
+      if (is_real_instance_method || is_trait_derived_instance_method) {
+        VLOG(6) << "Replacing ColonRef mapper `" << colon_ref->ToString()
+                << "` with attr in " << invocation->ToString();
+        mapper =
+            module_.Make<Attr>(mapper->span(), array_of_0, colon_ref->attr());
+        mapper_args.clear();
+      }
+    } else if (mapper->kind() == AstNodeKind::kAttr) {
+      // This is the `map(arr, obj_not_in_arr.instance_method)` case, which is
+      // used by lambdas due to internal rewriting. Users may also directly
+      // write things matching this pattern. For this, the mapper invocation
+      // looks like `obj_not_in_arr.instance_method(arr[0])`, and we wrap the
+      // Attr as a FunctionRef in the actual map invocation.
       mapper = module_.Make<FunctionRef>(mapper->span(), mapper,
                                          std::vector<ExprOrType>{});
       invocation->set_arg(1, mapper);
@@ -1625,17 +1670,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       mapper_explicit_parametrics = mapper_fn->explicit_parametrics();
     }
 
-    // Create an invocation of the mapper with array[0], to make the
-    // return type of mapper line up with the return type of `map`.
-    XLS_ASSIGN_OR_RETURN(
-        Number * index,
-        MakeTypeCheckedNumber(module_, table_, array_arg->span(), 0,
-                              CreateU32Annotation(module_, array_arg->span())));
-    Expr* array_of_0 = module_.Make<Index>(array_arg->span(), array_arg, index);
-    Invocation* mapper_invocation = module_.Make<Invocation>(
-        mapper->span(), mapper, std::vector<Expr*>{array_of_0},
-        std::move(mapper_explicit_parametrics), /*in_parens=*/false,
-        invocation);
+    // Above, we have determined the appropriate pieces to put in a "fake"
+    // mapper invocation for arr[0], which we use to infer the type of what it
+    // yields. We put the pieces together and do that inference now.
+    Invocation* mapper_invocation =
+        module_.Make<Invocation>(mapper->span(), mapper, mapper_args,
+                                 std::move(mapper_explicit_parametrics),
+                                 /*in_parens=*/false, invocation);
     if (caller.has_value()) {
       // ConvertInvocation figures out the caller by querying the AST. We need
       // it to believe the fake invocation is in the caller of `map()`, in order
@@ -1663,6 +1704,23 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                          resolver_->ResolveAndUnifyTypeAnnotationsForNode(
                              caller_context, mapper_invocation->callee()));
     XLS_RET_CHECK(mapper_type.has_value());
+
+    // Now that we have run type inference on the fake invocation of the mapper
+    // with arr[0], the relevant TypeInfo can answer `GetCallee(invocation)` for
+    // that fake invocation. But that fake invocation is a hidden artifact in
+    // here that we are now going to basically discard. Downstream things like
+    // IR conversion will not have it at hand to ask what map arg 1 is invoking.
+    // So we now expose the fake invocation callee in TypeInfo as the callee for
+    // the node that stays in the "real" AST.
+    if (invocation->args()[1]->kind() == AstNodeKind::kFunctionRef) {
+      std::optional<const Function*> callee =
+          table_.GetCalleeInCallerContext(mapper_invocation, caller_context);
+      XLS_RET_CHECK(callee.has_value());
+      XLS_ASSIGN_OR_RETURN(
+          TypeInfo * ti, GetTypeInfo(invocation->owner(), invocation_context));
+      ti->SetCallee(absl::down_cast<const FunctionRef*>(invocation->args()[1]),
+                    *callee);
+    }
     return (*mapper_type)->AsAnnotation<FunctionTypeAnnotation>();
   }
 

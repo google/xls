@@ -4172,6 +4172,71 @@ fn main(lst: Foo[u32:6]) -> Bar[u32:6] {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, MapArrayElementInstanceMethod) {
+  constexpr std::string_view program =
+      R"(
+struct S {
+  x: u32
+}
+
+impl S {
+  fn plus1(self) -> u32 {
+    self.x + 1
+  }
+}
+
+fn main() -> u32[3] {
+  map([S { x: 10 }, S { x: 1 }, S { x: 5 }], S::plus1)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MapStaticImplFunction) {
+  constexpr std::string_view program =
+      R"(
+struct S {}
+
+impl S {
+  fn plus1(x: u32) -> u32 {
+    x + 1
+  }
+}
+
+fn main() -> u32[3] {
+  map([u32:10, 1, 5], S::plus1)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MapAuxiliaryObjectFunction) {
+  constexpr std::string_view program =
+      R"(
+struct S {
+  x: u32
+}
+
+impl S {
+  fn plus(self, y: u32) -> u32 {
+    self.x + y
+  }
+}
+
+fn main() -> u32[3] {
+  let inst = S { x: 10 };
+  map([u32:10, 1, 5], inst.plus)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ConvertFilesToPackageFailsTypeCheck) {
   constexpr std::string_view program =
       R"(

@@ -39,6 +39,7 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -336,6 +337,15 @@ class StatefulResolver : public TypeAnnotationResolver {
         !result->IsAnnotation<AnyTypeAnnotation>()) {
       VLOG(6) << "Caching unified type: " << result->ToString()
               << " for variable: " << type_variable->ToString();
+
+      auto desc = CollectUnder(result, true);
+      for (const AstNode* node : *desc) {
+        if (!table_.GetTypeVariable(node).has_value()) {
+          VLOG(5) << "No var for " << node->ToString() << " in "
+                  << result->ToString();
+        }
+      }
+
       table_.SetCachedUnifiedTypeForVariable(parametric_context, type_variable,
                                              variables_traversed, result);
       trace.SetPopulatedCache(true);
