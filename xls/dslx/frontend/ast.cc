@@ -2170,10 +2170,11 @@ std::string Binop::ToStringInternal() const {
 
 StatementBlock::StatementBlock(Module* owner, Span span,
                                std::vector<Statement*> statements,
-                               bool trailing_semi)
+                               bool trailing_semi, bool has_braces)
     : Expr(owner, std::move(span)),
       statements_(std::move(statements)),
-      trailing_semi_(trailing_semi) {
+      trailing_semi_(trailing_semi),
+      has_braces_(has_braces) {
   if (statements_.empty()) {
     CHECK(trailing_semi) << "empty block but trailing_semi is false";
   }
@@ -2191,14 +2192,16 @@ std::string StatementBlock::ToInlineString() const {
   }
 
   std::string s = absl::StrCat(
-      "{ ",
+      has_braces_ ? "{ " : "",
       absl::StrJoin(statements_, "; ", [](std::string* out, Statement* stmt) {
         absl::StrAppend(out, stmt->ToString());
       }));
   if (trailing_semi_) {
     absl::StrAppend(&s, ";");
   }
-  absl::StrAppend(&s, " }");
+  if (has_braces_) {
+    absl::StrAppend(&s, " }");
+  }
   return s;
 }
 
@@ -2404,9 +2407,38 @@ std::vector<std::string> Function::GetFreeParametricKeys() const {
 }
 
 absl::flat_hash_set<const ParametricBinding*>
-Function::LambdaReturnTypeParametrics() const {
+Function::LambdaInferenceIgnorableParametrics() const {
   if (tag() != FunctionTag::kGeneratedFromLambda) {
     return {};
+  }
+  // Any parametric that doesn't relate directly to the parameters is ignorable
+  // for the purposes of implicit inference. This should include any parent
+  // parametrics and return parametrics.
+  auto parametric_for_param = [&](const ParametricBinding* binding) {
+    for (const Param* param : params()) {
+      if (param->type_annotation()
+              ->IsAnnotation<TypeVariableTypeAnnotation>()) {
+        const auto* tvta = param->type_annotation()
+                               ->AsAnnotation<TypeVariableTypeAnnotation>();
+        return tvta->type_variable()->identifier() ==
+               binding->name_def()->identifier();
+      }
+    }
+    return false;
+  };
+  absl::flat_hash_set<const ParametricBinding*> non_param_parametrics = {};
+  for (const ParametricBinding* binding : parametric_bindings()) {
+    if (!parametric_for_param(binding)) {
+      non_param_parametrics.insert(binding);
+    }
+  }
+  return non_param_parametrics;
+}
+
+std::optional<const ParametricBinding*> Function::LambdaReturnTypeParametric()
+    const {
+  if (tag() != FunctionTag::kGeneratedFromLambda) {
+    return std::nullopt;
   }
   auto parametric_for_return = [&](const ParametricBinding* binding) {
     if (return_type()->IsAnnotation<TypeVariableTypeAnnotation>()) {
@@ -2423,7 +2455,10 @@ Function::LambdaReturnTypeParametrics() const {
       return_parametrics.insert(binding);
     }
   }
-  return return_parametrics;
+  if (return_parametrics.size() != 1) {
+    return std::nullopt;
+  }
+  return *return_parametrics.begin();
 }
 
 // -- class TestFunction

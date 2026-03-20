@@ -4030,6 +4030,39 @@ TEST_F(ParserTest, ParseMapWithLambdaNoParamAnnotationMultipleParams) {
       R"(const ARR = map(enumerate(range(0, u16:5)), |i, j| { 2 * i * j });)");
 }
 
+TEST_F(ParserTest, ParseLambdaWithNoBrackets) {
+  RoundTrip(R"(const X = u16:3;
+const ARR = map(range(0, u16:5), |i: u16| X * i);)");
+}
+
+TEST(ParserErrorTest, ParseLambdaWithNoBracketsAndReturnType) {
+  constexpr std::string_view kProgram = R"(const X = u16:3;
+const ARR = map(range(0, u16:5), |i: u16| -> u16 i );)";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(
+      module.status(),
+      IsPosError("ParseError", HasSubstr("Lambda with explicit return type "
+                                         "must use braces on block body")));
+}
+
+TEST(ParserErrorTest, ParseLambdaWithNoBracketsMultipleStatements) {
+  constexpr std::string_view kProgram = R"(const X = u16:3;
+const ARR = map(range(0, u16:5), |i: u16| let re = X * i; re );)";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(
+      module.status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr(
+              "Block expressions with multiple statements must have braces")));
+}
+
 TEST_F(ParserTest, ParseParametricInMapBuiltin) {
   constexpr std::string_view kProgram = R"(
 fn truncate<OUT: u32, IN: u32>(x: bits[IN]) -> bits[OUT] {

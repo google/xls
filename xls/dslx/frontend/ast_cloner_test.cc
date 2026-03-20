@@ -157,6 +157,21 @@ TEST(AstClonerTest, Lambda) {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, LambdaNoBraces) {
+  constexpr std::string_view kProgram = R"(fn main() -> u32[10] {
+    let a = u32:0;
+    let ARR = map(range(0, 10), |i: u32| a * i);
+    ARR
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, NameRefParens) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
     let a = u32:0;

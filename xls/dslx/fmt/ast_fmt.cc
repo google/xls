@@ -987,7 +987,7 @@ DocRef FmtBlock(const StatementBlock& n, Comments& comments, DocArena& arena,
 }
 
 DocRef Fmt(const StatementBlock& n, Comments& comments, DocArena& arena) {
-  return FmtBlock(n, comments, arena, /*add_curls=*/true);
+  return FmtBlock(n, comments, arena, /*add_curls=*/n.has_braces());
 }
 
 DocRef Fmt(const Cast& n, Comments& comments, DocArena& arena) {
