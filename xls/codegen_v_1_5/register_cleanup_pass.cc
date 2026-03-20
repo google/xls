@@ -21,11 +21,11 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/data_structures/transitive_closure.h"
 #include "xls/ir/block.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -119,7 +119,7 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveUnreadRegisters(
     Block* block, QueryEngine& query_engine) const {
   absl::flat_hash_map<Register*, absl::flat_hash_set<Register*>>
       can_receive_value_from;
-  absl::flat_hash_set<Register*> directly_visible_registers;
+  absl::flat_hash_set<Register*> visible_registers;
   NodeBackwardDependencyAnalysis nda;
   XLS_RETURN_IF_ERROR(nda.Attach(block).status());
   for (Register* reg : block->GetRegisters()) {
@@ -130,25 +130,35 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveUnreadRegisters(
       }
 
       if (user->Is<RegisterWrite>()) {
-        can_receive_value_from[reg].insert(
-            user->As<RegisterWrite>()->GetRegister());
+        can_receive_value_from[user->As<RegisterWrite>()->GetRegister()].insert(
+            reg);
       } else if (OpIsSideEffecting(user->op())) {
-        directly_visible_registers.insert(reg);
+        visible_registers.insert(reg);
       }
     }
   }
 
-  absl::flat_hash_map<Register*, absl::flat_hash_set<Register*>>
-      transitive_receivers = TransitiveClosure(can_receive_value_from);
+  std::vector<Register*> worklist(visible_registers.begin(),
+                                  visible_registers.end());
+  while (!worklist.empty()) {
+    Register* current = worklist.back();
+    worklist.pop_back();
+
+    for (Register* source : can_receive_value_from[current]) {
+      if (visible_registers.insert(source).second) {
+        worklist.push_back(source);
+      }
+    }
+  }
+
   std::vector<Register*> unread_registers;
   for (Register* reg : block->GetRegisters()) {
-    if (!directly_visible_registers.contains(reg) &&
-        absl::c_none_of(transitive_receivers[reg], [&](Register* user) {
-          return directly_visible_registers.contains(user);
-        })) {
+    if (!visible_registers.contains(reg)) {
       unread_registers.push_back(reg);
     }
   }
+  VLOG(2) << "Removing " << unread_registers.size()
+          << " unread registers from block " << block->name();
 
   for (Register* reg : unread_registers) {
     XLS_ASSIGN_OR_RETURN(RegisterRead * read, block->GetRegisterRead(reg));
