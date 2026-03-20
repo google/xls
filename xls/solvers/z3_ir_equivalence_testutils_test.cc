@@ -14,43 +14,17 @@
 
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 
-#include <utility>
-
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
-#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
-#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
-#include "xls/solvers/z3_ir_translator.h"
 
 namespace xls::solvers::z3 {
 namespace {
 
-using ::absl_testing::IsOkAndHolds;
-using ::testing::AllOf;
-using ::testing::ContainsRegex;
 class Z3IrEquivalenceTestutilsTest : public IrTestBase {};
-
-TEST_F(Z3IrEquivalenceTestutilsTest, DumpWithNodeValues) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x = fb.Param("x", p->GetBitsType(32));
-  BValue y = fb.Param("y", p->GetBitsType(32));
-  fb.Tuple({fb.Add(x, y), fb.UMul(x, y)});
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  absl::flat_hash_map<const Param*, Value> counterexample{
-      {x.node()->As<Param>(), Value(UBits(1, 32))}};
-  EXPECT_THAT(
-      DumpWithNodeValues(
-          f, ProvenFalse{.counterexample = std::move(counterexample)}),
-      IsOkAndHolds(AllOf(ContainsRegex("x: bits\\[32\\] id=[0-9]+ \\(1\\)"),
-                         ContainsRegex("y: bits\\[32\\] id=[0-9]+ \\(0\\)"))));
-}
 
 TEST_F(Z3IrEquivalenceTestutilsTest, EquivWithAssert) {
   auto p = CreatePackage();

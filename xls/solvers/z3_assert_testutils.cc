@@ -88,9 +88,9 @@ bool DoIsAssertClean(FunctionBase* fb, std::optional<int64_t> activations,
       absl_testing::IsOkAndHolds(IsProvenTrue()), result, result_listener);
   if (!matches && result.ok() && fb->IsFunction()) {
     testing::Test::RecordProperty(
-        "failing_example", DumpWithNodeValues(arg->AsFunctionOrDie(),
-                                              std::get<ProvenFalse>(*result))
-                               .value_or(arg->DumpIr()));
+        "failing_example",
+        arg->AsFunctionOrDie()->DumpIr(
+            CounterExampleAnnotator(std::get<ProvenFalse>(*result))));
   }
   return matches;
 }

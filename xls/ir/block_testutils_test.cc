@@ -93,13 +93,11 @@ TEST_F(UnrollBlockTest, BasicBlockEquivalence) {
   EXPECT_THAT(equiv, IsOkAndHolds(IsProvenTrue()));
   if (equiv.ok() && std::holds_alternative<solvers::z3::ProvenFalse>(*equiv)) {
     RecordProperty("counterexample",
-                   DumpWithNodeValues(
-                       converted, std::get<solvers::z3::ProvenFalse>(*equiv))
-                       .value_or(converted->DumpIr()));
-    RecordProperty(
-        "counterexample_func",
-        DumpWithNodeValues(f, std::get<solvers::z3::ProvenFalse>(*equiv))
-            .value_or(f->DumpIr()));
+                   converted->DumpIr(solvers::z3::CounterExampleAnnotator(
+                       std::get<solvers::z3::ProvenFalse>(*equiv))));
+    RecordProperty("counterexample_func",
+                   f->DumpIr(solvers::z3::CounterExampleAnnotator(
+                       std::get<solvers::z3::ProvenFalse>(*equiv))));
   }
 }
 
@@ -165,13 +163,11 @@ TEST_F(UnrollBlockTest, BasicBlockEquivalenceWithState) {
   EXPECT_THAT(equiv, IsOkAndHolds(IsProvenTrue()));
   if (equiv.ok() && std::holds_alternative<solvers::z3::ProvenFalse>(*equiv)) {
     RecordProperty("counterexample",
-                   DumpWithNodeValues(
-                       converted, std::get<solvers::z3::ProvenFalse>(*equiv))
-                       .value_or(converted->DumpIr()));
-    RecordProperty(
-        "counterexample_func",
-        DumpWithNodeValues(f, std::get<solvers::z3::ProvenFalse>(*equiv))
-            .value_or(f->DumpIr()));
+                   converted->DumpIr(solvers::z3::CounterExampleAnnotator(
+                       std::get<solvers::z3::ProvenFalse>(*equiv))));
+    RecordProperty("counterexample_func",
+                   f->DumpIr(solvers::z3::CounterExampleAnnotator(
+                       std::get<solvers::z3::ProvenFalse>(*equiv))));
   }
 }
 

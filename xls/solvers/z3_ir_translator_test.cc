@@ -26,6 +26,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/substitute.h"
@@ -44,6 +45,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
 #include "xls/solvers/z3_utils.h"
@@ -62,6 +64,8 @@ using ::xls::solvers::z3::PredicateOfNode;
 using ::xls::solvers::z3::ProverResult;
 using ::xls::solvers::z3::TryProve;
 
+using ::testing::AllOf;
+using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 using ::xls::solvers::z3::IsProvenFalse;
 using ::xls::solvers::z3::IsProvenTrue;
@@ -2737,6 +2741,21 @@ TEST_F(Z3IrTranslatorTest, EmitFunctionAsSmtLibParseable) {
   ASSERT_NE(vec, nullptr);
 
   EXPECT_EQ(Z3_ast_vector_size(ctx, vec), 1);
+}
+
+TEST_F(Z3IrTranslatorTest, DumpWithNodeValues) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  fb.Tuple({fb.Add(x, y), fb.UMul(x, y)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  absl::flat_hash_map<const Param*, Value> counterexample{
+      {x.node()->As<Param>(), Value(UBits(1, 32))}};
+  solvers::z3::ProvenFalse proven_false{.counterexample = counterexample};
+  EXPECT_THAT(f->DumpIr(solvers::z3::CounterExampleAnnotator(proven_false)),
+              AllOf(ContainsRegex("x: bits\\[32\\] id=[0-9]+ \\(1\\)"),
+                    ContainsRegex("y: bits\\[32\\] id=[0-9]+ \\(0\\)")));
 }
 
 }  // namespace

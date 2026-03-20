@@ -42,14 +42,18 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -1921,6 +1925,47 @@ absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function) {
   // helper has no lifetime/ownership complications and does not leak.
   const char* smt_cstr = Z3_solver_to_string(ctx, solver);
   return std::string(smt_cstr);
+}
+
+std::optional<std::vector<Node*>> CounterExampleAnnotator::NodeOrder(
+    FunctionBase* fb) const {
+  return TopoSort(fb);
+}
+
+std::optional<Value> CounterExampleAnnotator::CounterExampleValue(
+    Node* node) const {
+  if (node->Is<Param>()) {
+    auto it = absl::c_find_if(*fail_.counterexample, [&](const auto& pair) {
+      const Node* counter_node = pair.first;
+      return node->GetName() == counter_node->GetName();
+    });
+    if (it == fail_.counterexample->end()) {
+      VLOG(1) << "No counterexample found for param: " << node->GetName();
+      return ZeroOfType(node->GetType());
+    }
+    return it->second;
+  }
+  return std::nullopt;
+}
+
+Annotation CounterExampleAnnotator::NodeAnnotation(Node* node) const {
+  if (!CanAnnotate(node) || !fail_.counterexample.ok()) {
+    return {};
+  }
+  auto paren = [](std::string_view sv) -> std::string {
+    return absl::StrCat("(", sv, ")");
+  };
+  if (auto counter = CounterExampleValue(node); counter.has_value()) {
+    counterexamples_[node] = *counter;
+    return Annotation{.suffix = paren(counter->ToHumanString(format_))};
+  }
+  InterpreterEvents events;
+  IrInterpreter interpreter(&counterexamples_, &events);
+  if (!node->VisitSingleNode(&interpreter).ok()) {
+    return {};
+  }
+  return Annotation{
+      .suffix = paren(interpreter.ResolveAsValue(node).ToHumanString(format_))};
 }
 
 }  // namespace z3

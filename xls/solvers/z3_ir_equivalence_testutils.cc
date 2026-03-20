@@ -24,7 +24,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status_matchers.h"
@@ -34,9 +33,6 @@
 #include "absl/time/time.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_macros.h"
-#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_testutils.h"
 #include "xls/ir/function.h"
@@ -45,8 +41,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_testutils.h"
-#include "xls/ir/value.h"
-#include "xls/ir/value_utils.h"
 #include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
@@ -61,47 +55,7 @@ static constexpr bool kHasMsan =
 #else
     false;
 #endif
-
-class FuncInterpreter final : public IrInterpreter {
- public:
-  explicit FuncInterpreter(
-      const absl::flat_hash_map<std::string_view, Value>& param_vals)
-      : param_vals_(param_vals) {}
-
-  absl::Status HandleParam(Param* param) override {
-    XLS_RET_CHECK(param_vals_.contains(param->name()));
-    return IrInterpreter::SetValueResult(param, param_vals_.at(param->name()));
-  }
-
- private:
-  const absl::flat_hash_map<std::string_view, Value>& param_vals_;
-};
 }  // namespace
-
-absl::StatusOr<std::string> DumpWithNodeValues(Function* func,
-                                               const ProvenFalse& fail) {
-  XLS_ASSIGN_OR_RETURN(
-      (absl::flat_hash_map<const Param*, Value> param_counterexample),
-      fail.counterexample);
-  absl::flat_hash_map<std::string_view, Value> name_counterexample;
-  name_counterexample.reserve(param_counterexample.size());
-  for (const auto& [param, val] : param_counterexample) {
-    name_counterexample[param->name()] = val;
-  }
-  // Ensure everything has a type.
-  for (Param* p : func->params()) {
-    if (!name_counterexample.contains(p->name())) {
-      name_counterexample[p->name()] = ZeroOfType(p->GetType());
-    }
-  }
-  FuncInterpreter interp(name_counterexample);
-  XLS_RETURN_IF_ERROR(func->Accept(&interp));
-
-  return func->DumpIrWithAnnotations(
-      [&](Node* n) -> std::optional<std::string> {
-        return interp.ResolveAsValue(n).ToHumanString();
-      });
-}
 
 using ::absl_testing::IsOkAndHolds;
 
@@ -137,13 +91,12 @@ ScopedVerifyEquivalence::~ScopedVerifyEquivalence() {
         TryProveEquivalence(original_f_, f_, ignore_asserts_, timeout_);
     EXPECT_THAT(result, IsOkAndHolds(VariantWith<ProvenTrue>(_)));
     if (result.ok() && std::holds_alternative<ProvenFalse>(*result)) {
+      testing::Test::RecordProperty("original",
+                                    original_f_->DumpIr(CounterExampleAnnotator(
+                                        std::get<ProvenFalse>(*result))));
       testing::Test::RecordProperty(
-          "original",
-          DumpWithNodeValues(original_f_, std::get<ProvenFalse>(*result))
-              .value_or(original_f_->DumpIr()));
-      testing::Test::RecordProperty(
-          "final", DumpWithNodeValues(f_, std::get<ProvenFalse>(*result))
-                       .value_or(f_->DumpIr()));
+          "final",
+          f_->DumpIr(CounterExampleAnnotator(std::get<ProvenFalse>(*result))));
     } else if (testing::Test::HasFailure()) {
       testing::Test::RecordProperty("original", original_f_->DumpIr());
       testing::Test::RecordProperty("final", f_->DumpIr());
@@ -250,14 +203,12 @@ void ScopedVerifyBlockEquivalence::RunBlockVerification() {
     testing::Test::RecordProperty("original", original_b_->DumpIr());
     testing::Test::RecordProperty("final", final_b_cloned->DumpIr());
     if (equiv.ok()) {
-      testing::Test::RecordProperty(
-          "original_unrolled_annotated",
-          DumpWithNodeValues(original_f, std::get<ProvenFalse>(*equiv))
-              .value_or("<FAILED TO DUMP>"));
+      testing::Test::RecordProperty("original_unrolled_annotated",
+                                    original_f->DumpIr(CounterExampleAnnotator(
+                                        std::get<ProvenFalse>(*equiv))));
       testing::Test::RecordProperty(
           "final_unrolled_annotated",
-          DumpWithNodeValues(f, std::get<ProvenFalse>(*equiv))
-              .value_or("<FAILED TO DUMP>"));
+          f->DumpIr(CounterExampleAnnotator(std::get<ProvenFalse>(*equiv))));
     }
   }
 }

@@ -197,11 +197,6 @@ class ScopedVerifyBlockEquivalence {
   Block* original_b_;
 };
 
-// Print a function with each node annotated with its value in the given
-// counterexample.
-absl::StatusOr<std::string> DumpWithNodeValues(Function* func,
-                                               const ProvenFalse& fail);
-
 }  // namespace xls::solvers::z3
 
 #endif  // XLS_SOLVERS_Z3_IR_EQUIVALENCE_TESTUTILS_H_

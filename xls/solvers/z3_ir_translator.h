@@ -37,7 +37,9 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
@@ -456,6 +458,36 @@ absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
 // The helper keeps Z3 headers out of call-sites by handling translation and
 // printing internally.
 absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function);
+
+// Function annotator that adds counter example values to nodes in a function
+// ir. NB only works for functions. Non-functions are ignored.
+class CounterExampleAnnotator : public IrAnnotator {
+ public:
+  explicit CounterExampleAnnotator(
+      const ProvenFalse& fail,
+      FormatPreference format = FormatPreference::kDefault)
+      : fail_(fail), format_(format) {}
+
+  std::optional<std::vector<Node*>> NodeOrder(FunctionBase* fb) const final;
+  Annotation NodeAnnotation(Node* node) const final;
+
+  // Takes a node and if there is an explicit counter example value for it,
+  // returns that value. By default returns nullopt for everything except Param
+  // nodes where it returns the counterexample value of any param with the same
+  // name or ZeroOfType if not available.
+  // TODO(allight): With this it should be possible to get a block/proc
+  // annotator too.
+  virtual std::optional<Value> CounterExampleValue(Node* node) const;
+  virtual bool CanAnnotate(Node* node) const {
+    // TODO(allight): It would be nice to handle procs etc.
+    return node->function_base()->IsFunction();
+  }
+
+ private:
+  const ProvenFalse& fail_;
+  FormatPreference format_;
+  mutable absl::flat_hash_map<Node*, Value> counterexamples_;
+};
 
 }  // namespace z3
 }  // namespace solvers
