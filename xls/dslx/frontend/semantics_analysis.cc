@@ -410,12 +410,22 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     for (auto* param : original_fn->params()) {
       params.push_back(param);
     }
-    Function* impl_fn = module->Make<Function>(
-        original_fn->span(), original_fn->name_def(),
-        original_fn->parametric_bindings(), params, original_fn->return_type(),
-        absl::down_cast<StatementBlock*>(cloned_body),
-        FunctionTag::kGeneratedFromLambda,
-        /*is_public=*/false, /*is_stub=*/false);
+    // The lambda function should inherit the containing function parametrics.
+    std::optional<const Function*> containing_fn = GetContainingFunction(node);
+    std::vector<ParametricBinding*> bindings(
+        original_fn->parametric_bindings());
+    if (containing_fn.has_value()) {
+      for (ParametricBinding* parametric_binding :
+           (*containing_fn)->parametric_bindings()) {
+        bindings.push_back(parametric_binding);
+      }
+    }
+    Function* impl_fn =
+        module->Make<Function>(original_fn->span(), original_fn->name_def(),
+                               bindings, params, original_fn->return_type(),
+                               absl::down_cast<StatementBlock*>(cloned_body),
+                               FunctionTag::kGeneratedFromLambda,
+                               /*is_public=*/false, /*is_stub=*/false);
     Impl* impl = module->Make<Impl>(span, struct_type_annotation,
                                     std::vector<ImplMember>{impl_fn},
                                     /*is_public=*/false);

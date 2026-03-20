@@ -1902,7 +1902,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                 /*filter_param_type_annotations=*/true);
         },
         /*ignorable_parametrics=*/
-        context_data.callee->LambdaReturnTypeParametrics());
+        context_data.callee->LambdaInferenceIgnorableParametrics());
   }
 
   // Attempts to infer the values of the specified implicit parametrics in an
@@ -2770,12 +2770,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         resolver_->ResolveAndUnifyTypeAnnotationsForNode(
             caller_or_target_struct_context, function->body()));
     XLS_RET_CHECK(return_ta.has_value());
-    absl::flat_hash_set<const ParametricBinding*> return_parametrics =
-        function->LambdaReturnTypeParametrics();
-    XLS_RET_CHECK(return_parametrics.size() == 1);
+    std::optional<const ParametricBinding*> return_parametric =
+        function->LambdaReturnTypeParametric();
+    XLS_RET_CHECK(return_parametric.has_value());
     absl::flat_hash_map<std::string, InterpValue> env_values =
         table_.GetParametricEnv(invocation_context).ToMap();
-    env_values.emplace((*return_parametrics.begin())->identifier(),
+    env_values.emplace((*return_parametric)->identifier(),
                        InterpValue::MakeTypeReference(*return_ta));
     table_.SetParametricEnv(invocation_context, ParametricEnv(env_values));
 

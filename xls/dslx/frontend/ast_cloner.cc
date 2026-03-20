@@ -147,8 +147,9 @@ class AstCloner : public AstNodeVisitor {
         new_statements.push_back(absl::down_cast<Statement*>(new_stmt));
       }
     }
-    old_to_new_[n] = module(n)->Make<StatementBlock>(
-        n->span(), std::move(new_statements), n->trailing_semi());
+    old_to_new_[n] =
+        module(n)->Make<StatementBlock>(n->span(), std::move(new_statements),
+                                        n->trailing_semi(), n->has_braces());
     return absl::OkStatus();
   }
 

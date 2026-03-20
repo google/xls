@@ -1376,6 +1376,16 @@ TEST_F(FunctionFmtTest, LambdaWithImplicitReturn) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, LambdaWithNoBraces) {
+  const std::string_view original =
+      R"(fn f() -> u32 {
+    let arr = map(u32:0..5, |i| i - u32:3);
+    arr[0]
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"map"}));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 class ModuleFmtTest : public testing::Test {

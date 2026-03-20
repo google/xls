@@ -326,14 +326,24 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
 
   XLS_ASSIGN_OR_RETURN(bool dropped_arrow, TryDropToken(TokenKind::kArrow));
   TypeAnnotation* return_type = nullptr;
+  bool has_return_type = true;
   if (dropped_arrow) {
     XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
   } else {
+    has_return_type = false;
     XLS_ASSIGN_OR_RETURN(
         return_type, missing_annotation_generator(Span(start_pos, GetPos())));
   }
 
-  XLS_ASSIGN_OR_RETURN(StatementBlock * body, ParseBlockExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(bool peek_is_brace, PeekTokenIs(TokenKind::kOBrace));
+  if (!peek_is_brace && has_return_type) {
+    return ParseErrorStatus(
+        return_type->span(),
+        "Lambda with explicit return type must use braces on block body.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(StatementBlock * body,
+                       ParseBlockExpression(bindings, peek_is_brace));
   Span sp = Span(start_pos, GetPos());
   NameDef* fn_name_def =
       module_->Make<NameDef>(sp, std::string(Lambda::kCallLambdaFn), nullptr);
@@ -4309,11 +4319,13 @@ absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,
   return module_->Make<NameDefTree>(span, std::move(members));
 }
 
-absl::StatusOr<StatementBlock*> Parser::ParseBlockExpression(
-    Bindings& bindings) {
+absl::StatusOr<StatementBlock*> Parser::ParseBlockExpression(Bindings& bindings,
+                                                             bool has_braces) {
   Bindings block_bindings(&bindings);
   Pos start_pos = GetPos();
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+  if (has_braces) {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+  }
   // For empty block we consider that it had a trailing semi and return unit
   // from it.
   bool last_expr_had_trailing_semi = true;
@@ -4363,13 +4375,20 @@ absl::StatusOr<StatementBlock*> Parser::ParseBlockExpression(
       XLS_ASSIGN_OR_RETURN(bool dropped_semi, TryDropToken(TokenKind::kSemi));
       last_expr_had_trailing_semi = dropped_semi;
       if (!dropped_semi) {
-        XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
+        if (has_braces) {
+          XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
+        }
         break;
       }
     }
   }
+  if (!has_braces && stmts.size() > 1) {
+    return ParseErrorStatus(
+        Span(start_pos, GetPos()),
+        "Block expressions with multiple statements must have braces");
+  }
   return module_->Make<StatementBlock>(Span(start_pos, GetPos()), stmts,
-                                       last_expr_had_trailing_semi);
+                                       last_expr_had_trailing_semi, has_braces);
 }
 
 absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(

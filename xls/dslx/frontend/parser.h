@@ -149,7 +149,11 @@ class Parser : public TokenParser {
   // returned.
   //
   // Takes an optional `prologue` of statements to prepend to the block.
-  absl::StatusOr<StatementBlock*> ParseBlockExpression(Bindings& bindings);
+  //
+  // If has_braces is false, the expression block will be parsed without braces,
+  // but must be limited to a single statement.
+  absl::StatusOr<StatementBlock*> ParseBlockExpression(Bindings& bindings,
+                                                       bool has_braces = true);
 
   absl::StatusOr<TypeAlias*> ParseTypeAlias(const Pos& start_pos,
                                             bool is_public, Bindings& bindings);
