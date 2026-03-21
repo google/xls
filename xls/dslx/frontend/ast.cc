@@ -43,6 +43,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -639,36 +640,13 @@ std::string BinopKindToString(BinopKind kind) {
   return absl::StrFormat("<invalid BinopKind(%d)>", static_cast<int>(kind));
 }
 
-std::string AttributeKindToString(AttributeKind kind) {
-  switch (kind) {
-    case AttributeKind::kCfg:
-      return "cfg";
-    case AttributeKind::kDerive:
-      return "derive";
-    case AttributeKind::kDslxFormatDisable:
-      return "dslx_format_disable";
-    case AttributeKind::kExternVerilog:
-      return "extern_verilog";
-    case AttributeKind::kSvType:
-      return "sv_type";
-    case AttributeKind::kTest:
-      return "test";
-    case AttributeKind::kTestProc:
-      return "test_proc";
-    case AttributeKind::kQuickcheck:
-      return "quickcheck";
-    case AttributeKind::kChannelStrictness:
-      return "channel_strictness";
-  }
-}
-
 // -- class Attribute
 
 std::string Attribute::ToString() const {
   std::string args;
-  if (!args_.empty()) {
+  if (!attribute_data_.args().empty()) {
     absl::StrAppend(&args, "(");
-    for (Argument next : args_) {
+    for (const AttributeData::Argument& next : attribute_data_.args()) {
       absl::StrAppend(
           &args,
           absl::visit(Visitor{
@@ -676,14 +654,17 @@ std::string Attribute::ToString() const {
                             return absl::Substitute("$0 = $1", arg.first,
                                                     arg.second);
                           },
-                          [](StringLiteralArgument arg) { return arg.text; },
-                          [](std::string arg) { return arg; },
+                          [](const AttributeData::StringLiteralArgument& arg) {
+                            return arg.text;
+                          },
+                          [](const std::string& arg) { return arg; },
                       },
                       next));
     }
     absl::StrAppend(&args, ")");
   }
-  return absl::Substitute("#[$0$1]", AttributeKindToString(kind_), args);
+  return absl::Substitute("#[$0$1]",
+                          AttributeKindToString(attribute_data_.kind()), args);
 }
 
 // -- class NameDef

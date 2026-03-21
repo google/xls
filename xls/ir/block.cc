@@ -292,7 +292,8 @@ std::string Block::DumpIr(const IrAnnotator& annotate) const {
           std::get<OutputPort*>(port)->operand(0)->GetType()->ToString())));
     }
   }
-  absl::StrAppendFormat(&res, "%sblock %s(%s) {\n",
+  absl::StrAppendFormat(&res, "%s%s%sblock %s(%s) {\n", DumpAttributes(),
+                        IsTop() ? "top " : "",
                         (IsScheduled() ? "scheduled_" : ""), name(),
                         absl::StrJoin(port_strings, ", "));
 

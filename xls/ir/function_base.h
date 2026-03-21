@@ -448,6 +448,9 @@ class FunctionBase {
     return foreign_function_;
   }
 
+  // Returns a string containing the attributes formatted as `#[attr]\n`.
+  std::string DumpAttributes() const;
+
   absl::Span<ChangeListener* const> ChangeListeners() const {
     return change_listeners_;
   }

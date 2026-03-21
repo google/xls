@@ -32,6 +32,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
@@ -4394,6 +4395,85 @@ proc p {
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("must be specified via `#[channel_strictness(...)]`")));
+}
+
+TEST_F(ParserTest, ConflictingFunctionAttributes) {
+  EXPECT_THAT(Parse(R"(#[test] #[fuzztest] fn f() {})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("#[test] and #[fuzztest] cannot be combined "
+                                 "on the same function.")));
+
+  EXPECT_THAT(Parse(R"(#[test] #[quickcheck] fn f() {})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("#[test] and #[quickcheck] cannot be combined "
+                                 "on the same function.")));
+
+  EXPECT_THAT(Parse(R"(#[fuzztest] #[quickcheck] fn f() {})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("#[fuzztest] and #[quickcheck] cannot be "
+                                 "combined on the same function.")));
+
+  EXPECT_THAT(Parse(R"(#[test] #[fuzztest] #[quickcheck] fn f() {})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("#[test], #[fuzztest], and #[quickcheck] "
+                                 "cannot be combined on the same function.")));
+}
+
+TEST_F(ParserTest, FuzztestAttributeSuccess) {
+  constexpr std::string_view kProgram = R"(
+#[fuzztest]
+fn f(x: u32) -> u32 {
+  x
+})";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  ModuleMember* member = module->FindMemberWithName("f").value();
+  Function* f = std::get<Function*>(*member);
+  ASSERT_EQ(f->attributes().size(), 1);
+  EXPECT_EQ(f->attributes()[0]->attribute_kind(),
+            xls::AttributeKind::kFuzztest);
+}
+
+TEST_F(ParserTest, FuzztestAttributeWithOtherAttributesSuccess) {
+  constexpr std::string_view kProgram = R"(
+#[extern_verilog("my_module")]
+#[fuzztest]
+fn f(x: u32) -> u32 {
+  x
+})";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  ModuleMember* member = module->FindMemberWithName("f").value();
+  Function* f = std::get<Function*>(*member);
+  ASSERT_EQ(f->attributes().size(), 2);
+  EXPECT_EQ(f->attributes()[0]->attribute_kind(),
+            xls::AttributeKind::kExternVerilog);
+  EXPECT_EQ(f->attributes()[1]->attribute_kind(),
+            xls::AttributeKind::kFuzztest);
+}
+
+TEST_F(ParserTest, FuzztestAttributeOnProcFailure) {
+  constexpr std::string_view kProgram = R"(
+#[fuzztest]
+proc p {
+  config() { () }
+  init { () }
+  next(tok: token) { tok }
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("#[fuzztest] is only valid on a function.")));
+}
+
+TEST_F(ParserTest, FuzztestAttributeOnStructFailure) {
+  constexpr std::string_view kProgram = R"(
+#[fuzztest]
+struct S {
+  x: u32,
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("#[fuzztest] is only valid on a function.")));
 }
 
 }  // namespace xls::dslx

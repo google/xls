@@ -58,8 +58,9 @@
 namespace xls {
 
 std::string Proc::DumpIr(const IrAnnotator& annotate) const {
-  std::string res =
-      absl::StrFormat("%sproc %s", IsScheduled() ? "scheduled_" : "", name());
+  std::string res = DumpAttributes();
+  absl::StrAppendFormat(&res, "%s%sproc %s", IsTop() ? "top " : "",
+                        IsScheduled() ? "scheduled_" : "", name());
   if (is_new_style_proc()) {
     absl::StrAppendFormat(
         &res, "<%s>",
