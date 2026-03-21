@@ -33,7 +33,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
@@ -612,7 +612,6 @@ struct xls_dslx_function* xls_dslx_module_member_get_function(
   return nullptr;
 }
 
-
 struct xls_dslx_module_member* xls_dslx_module_member_from_constant_def(
     struct xls_dslx_constant_def* constant_def) {
   auto* cpp_constant_def =
@@ -739,19 +738,19 @@ xls_dslx_attribute_kind xls_dslx_attribute_get_kind(
     struct xls_dslx_attribute* attribute) {
   auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
   switch (cpp_attribute->attribute_kind()) {
-    case xls::dslx::AttributeKind::kCfg:
+    case xls::AttributeKind::kCfg:
       return xls_dslx_attribute_kind_cfg;
-    case xls::dslx::AttributeKind::kDslxFormatDisable:
+    case xls::AttributeKind::kDslxFormatDisable:
       return xls_dslx_attribute_kind_dslx_format_disable;
-    case xls::dslx::AttributeKind::kExternVerilog:
+    case xls::AttributeKind::kExternVerilog:
       return xls_dslx_attribute_kind_extern_verilog;
-    case xls::dslx::AttributeKind::kSvType:
+    case xls::AttributeKind::kSvType:
       return xls_dslx_attribute_kind_sv_type;
-    case xls::dslx::AttributeKind::kTest:
+    case xls::AttributeKind::kTest:
       return xls_dslx_attribute_kind_test;
-    case xls::dslx::AttributeKind::kTestProc:
+    case xls::AttributeKind::kTestProc:
       return xls_dslx_attribute_kind_test_proc;
-    case xls::dslx::AttributeKind::kQuickcheck:
+    case xls::AttributeKind::kQuickcheck:
       return xls_dslx_attribute_kind_quickcheck;
     default:
       CHECK(false) << "Unhandled attribute kind";
@@ -768,20 +767,20 @@ int64_t xls_dslx_attribute_get_argument_count(
 xls_dslx_attribute_argument_kind xls_dslx_attribute_get_argument_kind(
     struct xls_dslx_attribute* attribute, int64_t index) {
   auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
-  const xls::dslx::Attribute::Argument& argument =
+  const xls::AttributeData::Argument& argument =
       cpp_attribute->args().at(index);
   if (std::holds_alternative<std::string>(argument)) {
     return xls_dslx_attribute_argument_kind_string;
   }
-  if (std::holds_alternative<xls::dslx::Attribute::StringKeyValueArgument>(
+  if (std::holds_alternative<xls::AttributeData::StringKeyValueArgument>(
           argument)) {
     return xls_dslx_attribute_argument_kind_string_key_value;
   }
-  if (std::holds_alternative<xls::dslx::Attribute::IntKeyValueArgument>(
+  if (std::holds_alternative<xls::AttributeData::IntKeyValueArgument>(
           argument)) {
     return xls_dslx_attribute_argument_kind_int_key_value;
   }
-  if (std::holds_alternative<xls::dslx::Attribute::StringLiteralArgument>(
+  if (std::holds_alternative<xls::AttributeData::StringLiteralArgument>(
           argument)) {
     return xls_dslx_attribute_argument_kind_string_literal;
   }
@@ -792,7 +791,7 @@ xls_dslx_attribute_argument_kind xls_dslx_attribute_get_argument_kind(
 char* xls_dslx_attribute_get_string_argument(
     struct xls_dslx_attribute* attribute, int64_t index) {
   auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
-  const xls::dslx::Attribute::Argument& argument =
+  const xls::AttributeData::Argument& argument =
       cpp_attribute->args().at(index);
   const std::string* value = std::get_if<std::string>(&argument);
   CHECK_NE(value, nullptr) << "Attribute argument is not a string";
@@ -802,10 +801,10 @@ char* xls_dslx_attribute_get_string_argument(
 char* xls_dslx_attribute_get_string_literal_argument(
     struct xls_dslx_attribute* attribute, int64_t index) {
   auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
-  const xls::dslx::Attribute::Argument& argument =
+  const xls::AttributeData::Argument& argument =
       cpp_attribute->args().at(index);
-  const xls::dslx::Attribute::StringLiteralArgument* value =
-      std::get_if<xls::dslx::Attribute::StringLiteralArgument>(&argument);
+  const xls::AttributeData::StringLiteralArgument* value =
+      std::get_if<xls::AttributeData::StringLiteralArgument>(&argument);
   CHECK_NE(value, nullptr) << "Attribute argument is not a string literal";
   return xls::ToOwnedCString(value->text);
 }
@@ -813,15 +812,14 @@ char* xls_dslx_attribute_get_string_literal_argument(
 char* xls_dslx_attribute_get_key_value_argument_key(
     struct xls_dslx_attribute* attribute, int64_t index) {
   auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
-  const xls::dslx::Attribute::Argument& argument =
+  const xls::AttributeData::Argument& argument =
       cpp_attribute->args().at(index);
   if (const auto* kv =
-          std::get_if<xls::dslx::Attribute::StringKeyValueArgument>(
-              &argument)) {
+          std::get_if<xls::AttributeData::StringKeyValueArgument>(&argument)) {
     return xls::ToOwnedCString(kv->first);
   }
   if (const auto* kv =
-          std::get_if<xls::dslx::Attribute::IntKeyValueArgument>(&argument)) {
+          std::get_if<xls::AttributeData::IntKeyValueArgument>(&argument)) {
     return xls::ToOwnedCString(kv->first);
   }
   CHECK(false) << "Attribute argument is not key/value";
@@ -831,10 +829,10 @@ char* xls_dslx_attribute_get_key_value_argument_key(
 char* xls_dslx_attribute_get_key_value_string_argument_value(
     struct xls_dslx_attribute* attribute, int64_t index) {
   auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
-  const xls::dslx::Attribute::Argument& argument =
+  const xls::AttributeData::Argument& argument =
       cpp_attribute->args().at(index);
   const auto* kv =
-      std::get_if<xls::dslx::Attribute::StringKeyValueArgument>(&argument);
+      std::get_if<xls::AttributeData::StringKeyValueArgument>(&argument);
   CHECK_NE(kv, nullptr)
       << "Attribute argument is not a string key/value argument";
   return xls::ToOwnedCString(kv->second);
@@ -843,10 +841,10 @@ char* xls_dslx_attribute_get_key_value_string_argument_value(
 int64_t xls_dslx_attribute_get_key_value_int_argument_value(
     struct xls_dslx_attribute* attribute, int64_t index) {
   auto* cpp_attribute = reinterpret_cast<xls::dslx::Attribute*>(attribute);
-  const xls::dslx::Attribute::Argument& argument =
+  const xls::AttributeData::Argument& argument =
       cpp_attribute->args().at(index);
   const auto* kv =
-      std::get_if<xls::dslx::Attribute::IntKeyValueArgument>(&argument);
+      std::get_if<xls::AttributeData::IntKeyValueArgument>(&argument);
   CHECK_NE(kv, nullptr)
       << "Attribute argument is not an int key/value argument";
   return kv->second;
