@@ -35,8 +35,8 @@
 // Use absl::SourceLocation
 namespace xabsl {
 using SourceLocation = absl::SourceLocation;
-#define XABSL_LOC ABSL_LOC
-#define XABSL_LOC_CURRENT_DEFAULT_ARG ABSL_LOC_CURRENT_DEFAULT_ARG
+#define XABSL_LOC ::absl::SourceLocation::current()
+#define XABSL_LOC_CURRENT_DEFAULT_ARG = ::absl::SourceLocation::current()
 }  // namespace xabsl
 
 #else
