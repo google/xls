@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system_v2/decorate_error.h"
 
 #include <optional>
+#include <variant>
 
 #include "absl/base/casts.h"
 #include "absl/status/status.h"
@@ -25,6 +26,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/status_payload_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_inference_error_handler.h"
 
@@ -77,6 +79,41 @@ std::optional<const ParametricBinding*> GetParametricBindingWithContainingExpr(
   }
 
   return std::nullopt;
+}
+
+bool IsBuiltinSendVariantInvocation(const Invocation* invocation) {
+  if (invocation->callee()->kind() != AstNodeKind::kNameRef) {
+    return false;
+  }
+
+  const NameRef* name_ref =
+      absl::down_cast<const NameRef*>(invocation->callee());
+  if (!std::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
+    return false;
+  }
+
+  return name_ref->identifier() == "send" ||
+         name_ref->identifier() == "send_if";
+}
+
+bool IsInNameDefTreePosition(const AstNode* node, int index) {
+  if (node->parent() == nullptr ||
+      node->parent()->kind() != AstNodeKind::kNameDefTree) {
+    return false;
+  }
+
+  const AstNode* parent = node->parent();
+  if (parent->parent() == nullptr ||
+      parent->parent()->kind() != AstNodeKind::kNameDefTree) {
+    return false;
+  }
+
+  const auto* tree = absl::down_cast<const NameDefTree*>(parent->parent());
+  if (tree->is_leaf() || tree->nodes().size() <= index) {
+    return false;
+  }
+  return tree->nodes().at(index)->is_leaf() &&
+         ToAstNode(tree->nodes().at(index)->leaf()) == node;
 }
 
 }  // namespace
@@ -137,6 +174,47 @@ absl::StatusOr<const TypeAnnotation*> DecorateError(
                            "must have the same type as the parametric.",
                            error.message(), (*binding)->identifier()),
           file_table);
+    }
+  }
+
+  // Call to send(), or a variant of it, with the data first rather than the
+  // token.
+  if (node->parent() != nullptr &&
+      node->parent()->kind() == AstNodeKind::kInvocation &&
+      node->kind() == AstNodeKind::kNameRef) {
+    const auto* arg_as_name_ref = absl::down_cast<const NameRef*>(node);
+    const auto* invocation = absl::down_cast<const Invocation*>(node->parent());
+    if (!invocation->args().empty() && node == invocation->args()[0] &&
+        IsBuiltinSendVariantInvocation(invocation)) {
+      absl::Status new_error = absl::OkStatus();
+      if (IsInNameDefTreePosition(ToAstNode(arg_as_name_ref->name_def()), 1)) {
+        // The root cause is probably a `let (data, tok) = recv(...)` or
+        // similar. Because we don't actually check what is on the right-hand
+        // side of the let tuple, the error message is not worded with 100%
+        // confidence.
+        new_error = TypeInferenceErrorStatus(
+            *node->GetSpan(), nullptr,
+            absl::Substitute(
+                "$0. The first argument to $1() is not a token. The "
+                "definition of `$2` may be in the wrong `let` tuple position.",
+                error.message(), invocation->callee()->ToString(),
+                arg_as_name_ref->identifier()),
+            file_table);
+      } else {
+        // In this case we don't know the root cause.
+        new_error = TypeInferenceErrorStatus(
+            *node->GetSpan(), nullptr,
+            absl::Substitute("$0. The first argument to $1() is not a token.",
+                             error.message(), invocation->callee()->ToString()),
+            file_table);
+      }
+
+      AddSpanToStatusPayload(new_error, *node->GetSpan(),
+                             const_cast<FileTable&>(file_table));
+      AddSpanToStatusPayload(new_error,
+                             *ToAstNode(arg_as_name_ref->name_def())->GetSpan(),
+                             const_cast<FileTable&>(file_table));
+      return new_error;
     }
   }
 

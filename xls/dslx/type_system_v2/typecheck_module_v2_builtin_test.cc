@@ -1622,7 +1622,8 @@ proc P {
 }
 
 TEST(TypecheckV2Test, SendWithWrongArgumentOrder) {
-  EXPECT_THAT(R"(
+  EXPECT_THAT(
+      R"(
 struct S {
   x: u32
 }
@@ -1645,10 +1646,49 @@ proc Rep {
   }
 }
 )",
-              TypecheckFailsWithPayload(HasTypeMismatch("S", "token"),
-                                        // The span of the `tok` argument in the
-                                        // `send` call should be one of them.
-                                        HasSpan(21, 19, 21, 22)));
+      TypecheckFailsWithPayload(
+          AllOf(
+              HasTypeMismatch("S", "token"),
+              HasSubstr(
+                  "The first argument to send() is not a token. The definition "
+                  "of `tok` may be in the wrong `let` tuple position.")),
+          // The spans of the `tok` definition and use should be in the error.
+          AllOf(HasSpan(20, 15, 20, 18), HasSpan(21, 19, 21, 22))));
+}
+
+TEST(TypecheckV2Test, SendWithWrongArgumentOrderWithLessSpecificError) {
+  EXPECT_THAT(
+      R"(
+struct S {
+  x: u32
+}
+
+type Foo = S;
+
+proc Rep {
+  input: chan<Foo> in;
+  output: chan<Foo> out;
+
+  init { () }
+
+  config(input: chan<Foo> in, output: chan<Foo> out) {
+    (input, output)
+  }
+
+  next(a: ()) {
+    let (data, tok) = recv(join(), input);
+    let t = tok;
+    let tok = send(t, output, data);
+  }
+}
+)",
+      TypecheckFailsWithPayload(
+          AllOf(HasTypeMismatch("S", "token"),
+                HasSubstr("The first argument to send() is not a token.")),
+          // The span of the `t` argument in the `send` call should be one of
+          // them. It's not going to bother trying to trace the indirection with
+          // the intermediate `t` declaration in this case.
+          HasSpan(22, 19, 22, 20)));
 }
 
 TEST(TypecheckV2BuiltinTest, Recv) {

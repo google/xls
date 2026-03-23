@@ -2094,6 +2094,30 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             actual_arg_context, direct_actual_arg_type, direct_formal_arg_type);
         AddSpanToStatusPayload(error, actual_args[i]->span(),
                                const_cast<FileTable&>(file_table_));
+
+        if (error_handler_) {
+          // Allow the error handler to produce a more descriptive error.
+          ResolverErrorHandler resolver_error_handler(
+              MakeResolverErrorHandler(error_handler_));
+          std::vector<const TypeAnnotation*> annotations{actual_arg_type,
+                                                         formal_types[i]};
+          absl::StatusOr<const TypeAnnotation*> handler_result =
+              resolver_error_handler(actual_arg_context, error, actual_args[i],
+                                     absl::MakeSpan(annotations));
+
+          // We don't currently support the handler fixing the problem here. It
+          // would complicate the logic, and we don't know of a use case that
+          // would want this. Note that the normal configuration has a handler
+          // that never fixes errors.
+          XLS_RET_CHECK(!handler_result.ok());
+
+          // Yield the better error if the handler produced one; otherwise the
+          // one from before we considered the error handler.
+          return absl::IsUnimplemented(handler_result.status())
+                     ? error
+                     : handler_result.status();
+        }
+
         return error;
       }
       for (auto& [binding, value_or_type] : *resolved) {
