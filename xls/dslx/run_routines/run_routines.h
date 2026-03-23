@@ -56,6 +56,12 @@
 
 namespace xls::dslx {
 
+enum class EvaluatorType : uint8_t {
+  kDslxInterpreter,
+  kIrInterpreter,
+  kIrJit,
+};
+
 // Abstract API used for comparing DSLX-interpreter results to executed IR
 // results. This is a virtual API to help decouple from implementation details
 // like whether the JIT is available or only interpretation, or whether we
@@ -112,6 +118,7 @@ struct ParseAndTestOptions {
   bool trace_calls = false;
   std::optional<int64_t> max_ticks;
   std::optional<int64_t> max_trace_verbosity;
+  std::optional<EvaluatorType> evaluator;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
 
