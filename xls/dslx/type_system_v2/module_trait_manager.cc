@@ -33,6 +33,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
@@ -276,7 +277,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
 
     // Derive the traits for the struct.
     Span attribute_span = *(*attribute)->GetSpan();
-    for (Attribute::Argument arg : (*attribute)->args()) {
+    for (AttributeData::Argument arg : (*attribute)->args()) {
       // This should already have been checked by the parser.
       XLS_RET_CHECK(std::holds_alternative<std::string>(arg));
       XLS_ASSIGN_OR_RETURN(

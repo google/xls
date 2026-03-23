@@ -87,7 +87,7 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     old_to_new_[n] = module(n)->Make<Attribute>(*n->GetSpan(), n->GetArgSpan(),
-                                                n->attribute_kind(), n->args());
+                                                n->attribute_data());
     return absl::OkStatus();
   }
 

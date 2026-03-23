@@ -65,6 +65,7 @@ cc_library(
         ":comments",
         ":format_disabler",
         ":pretty_print",
+        "//xls/common:attribute_data",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
