@@ -66,6 +66,8 @@ ABSL_FLAG(std::string, default_driver_cell, "",
           "The default driver cell to use during synthesis.");
 ABSL_FLAG(std::string, default_load, "",
           "The default load cell to use during synthesis.");
+ABSL_FLAG(bool, use_system_verilog, false,
+          "Whether the input is in Verilog or SystemVerilog.");
 
 namespace xls {
 namespace synthesis {
@@ -113,7 +115,8 @@ void RealMain() {
       yosys_path, nextpnr_path, synthesis_target, sta_path, synthesis_libraries,
       sta_libraries, absl::GetFlag(FLAGS_default_driver_cell),
       absl::GetFlag(FLAGS_default_load), absl::GetFlag(FLAGS_save_temps),
-      absl::GetFlag(FLAGS_return_netlist), synthesis_only);
+      absl::GetFlag(FLAGS_return_netlist), synthesis_only,
+      absl::GetFlag(FLAGS_use_system_verilog));
 
   ::grpc::ServerBuilder builder;
   std::shared_ptr<::grpc::ServerCredentials> creds = GetServerCredentials();

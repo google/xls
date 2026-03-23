@@ -45,7 +45,8 @@ class YosysSynthesizer : public Synthesizer {
                  sta_path, synthesis_libraries, synthesis_libraries,
                  default_driver_cell, default_load,
                  /*save_temps=*/false, /*return_netlist=*/false,
-                 /*synthesis_only=*/false) {}
+                 /*synthesis_only=*/false,
+                 /*use_system_verilog=*/false) {}
 
   absl::StatusOr<int64_t> SynthesizeVerilogAndGetDelay(
       std::string_view verilog_text,
@@ -92,9 +93,9 @@ class YosysSynthesizerFactory : public SynthesizerFactory {
   explicit YosysSynthesizerFactory() : SynthesizerFactory("yosys") {}
   ~YosysSynthesizerFactory() override = default;
   absl::StatusOr<std::unique_ptr<Synthesizer>> CreateSynthesizer(
-      const SynthesizerParameters &parameters) override;
+      const SynthesizerParameters& parameters) override;
   absl::StatusOr<std::unique_ptr<Synthesizer>> CreateSynthesizer(
-      const SchedulingOptions &scheduling_options) override;
+      const SchedulingOptions& scheduling_options) override;
 };
 
 }  // namespace synthesis

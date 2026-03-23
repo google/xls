@@ -39,7 +39,8 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
       std::string_view synthesis_target, std::string_view sta_path,
       std::string_view synthesis_libraries, std::string_view sta_libraries,
       std::string_view default_driver_cell, std::string_view default_load,
-      bool save_temps, bool return_netlist, bool synthesis_only)
+      bool save_temps, bool return_netlist, bool synthesis_only,
+      bool use_system_verilog)
       : yosys_path_(yosys_path),
         nextpnr_path_(nextpnr_path),
         synthesis_target_(synthesis_target),
@@ -50,7 +51,8 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
         default_load_(default_load),
         save_temps_(save_temps),
         return_netlist_(return_netlist),
-        synthesis_only_(synthesis_only) {}
+        synthesis_only_(synthesis_only),
+        use_system_verilog_(use_system_verilog) {}
 
   ::grpc::Status Compile(::grpc::ServerContext* server_context,
                          const CompileRequest* request,
@@ -104,6 +106,7 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
   bool save_temps_;
   bool return_netlist_;
   bool synthesis_only_;
+  bool use_system_verilog_;
 };
 
 }  // namespace synthesis
