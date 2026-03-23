@@ -32,9 +32,11 @@ enum class AttributeKind : uint8_t {
   kTest,
   kTestProc,
   kQuickcheck,
-  kChannelStrictness
+  kChannelStrictness,
+  kFuzzTest,
 };
 
+// Converts an AttributeKind to a string, e.g., "fuzz_test"
 std::string AttributeKindToString(AttributeKind kind);
 
 class AttributeData {

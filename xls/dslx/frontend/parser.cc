@@ -222,6 +222,7 @@ absl::StatusOr<AttributeKind> ParseAttributeKind(Token token,
       {"test", AttributeKind::kTest},
       {"test_proc", AttributeKind::kTestProc},
       {"quickcheck", AttributeKind::kQuickcheck},
+      {"fuzz_test", AttributeKind::kFuzzTest},
       {"channel_strictness", AttributeKind::kChannelStrictness}};
 
   const auto it = map->find(token.GetStringValue());
@@ -922,6 +923,7 @@ absl::Status Parser::UnsupportedAttributeError(const Attribute& attribute) {
     case AttributeKind::kExternVerilog:
     case AttributeKind::kTest:
     case AttributeKind::kQuickcheck:
+    case AttributeKind::kFuzzTest:
       return ParseErrorStatus(
           span,
           absl::StrCat(attribute.ToString(), " is only valid on a function."));
@@ -992,6 +994,7 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
     Function* fn, std::vector<Attribute*> attributes) {
   bool is_test = false;
   std::optional<QuickCheckTestCases> quickcheck_test_cases;
+  std::vector<std::string> test_attributes;
 
   for (Attribute* next : attributes) {
     switch (next->attribute_kind()) {
@@ -1011,10 +1014,15 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
         XLS_RETURN_IF_ERROR(ApplyExternVerilogAttribute(fn, *next));
         break;
       case AttributeKind::kTest:
+        test_attributes.push_back(next->ToString());
         is_test = true;
+        break;
+      case AttributeKind::kFuzzTest:
+        test_attributes.push_back(next->ToString());
         break;
 
       case AttributeKind::kQuickcheck: {
+        test_attributes.push_back(next->ToString());
         XLS_ASSIGN_OR_RETURN(quickcheck_test_cases,
                              GetQuickCheckTestCases(*next));
         break;
@@ -1025,10 +1033,17 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
     }
   }
 
-  if (is_test && quickcheck_test_cases.has_value()) {
+  if (test_attributes.size() > 1) {
+    std::string names;
+    if (test_attributes.size() == 2) {
+      names = absl::StrCat(test_attributes[0], " and ", test_attributes[1]);
+    } else {
+      names = absl::StrCat(test_attributes[0], ", ", test_attributes[1],
+                           ", and ", test_attributes[2]);
+    }
     return ParseErrorStatus(
         *attributes[0]->GetSpan(),
-        "#[test] and #[quickcheck] cannot both be used on the same function.");
+        absl::StrFormat("%s cannot be combined on the same function.", names));
   }
 
   fn->SetAttributes(attributes);

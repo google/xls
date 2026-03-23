@@ -38,6 +38,8 @@ std::string AttributeKindToString(AttributeKind kind) {
       return "quickcheck";
     case AttributeKind::kChannelStrictness:
       return "channel_strictness";
+    case AttributeKind::kFuzzTest:
+      return "fuzz_test";
   }
 }
 

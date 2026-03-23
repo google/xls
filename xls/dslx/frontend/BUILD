@@ -206,6 +206,7 @@ cc_test(
         ":parser",
         ":pos",
         ":scanner",
+        "//xls/common:attribute_data",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
