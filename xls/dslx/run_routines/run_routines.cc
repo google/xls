@@ -1059,6 +1059,26 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
       *result_proto->mutable_events() = test_events.AsProto();
     }
 
+    // Display vtrace messages according to the value of the
+    // `max_trace_verbosity` flag for other evaluators than the DSLX
+    // interpreter, because we don't want to duplicate logs
+    if (options.evaluator != EvaluatorType::kDslxInterpreter) {
+      for (const auto& msg : test_events.AsProto().trace_msgs()) {
+        int64_t verbosity =
+            msg.has_statement() ? msg.statement().verbosity() : 0;
+        if (verbosity <= options.max_trace_verbosity) {
+          std::string message = msg.message();
+          if (msg.has_location()) {
+            message = absl::StrFormat(
+                "[%s:%d:%d] %s",
+                std::filesystem::path(msg.location().filename()).filename(),
+                msg.location().line(), msg.location().column(), msg.message());
+          }
+          std::cout << message << '\n';
+        }
+      }
+    }
+
     if (out.result.ok()) {
       // Add to the tracking data.
       result.AddTestCase(test_xml::TestCase{

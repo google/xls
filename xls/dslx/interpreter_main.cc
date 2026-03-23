@@ -119,11 +119,6 @@ enum class CompareFlag : uint8_t {
   kJit,
   kInterpreter,
 };
-enum class EvaluatorType : uint8_t {
-  kDslxInterpreter,
-  kIrInterpreter,
-  kIrJit,
-};
 
 absl::StatusOr<EvaluatorType> GetEvaluatorType(std::string_view text) {
   if (text == "interpreter" || text == "dslx-interpreter") {
@@ -257,6 +252,7 @@ absl::StatusOr<TestResult> RealMain(
       .trace_calls = trace_calls,
       .max_ticks = max_ticks,
       .max_trace_verbosity = max_trace_verbosity,
+      .evaluator = evaluator,
   };
 
   // Create a results proto if requested and plumb it through options.
