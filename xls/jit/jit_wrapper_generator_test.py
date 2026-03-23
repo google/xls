@@ -171,11 +171,13 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
             specialized_type=None,
         ),
     )
-    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(wrapped_ir)
+    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(
+        wrapped_ir, 'xls::test::MyFuncJit', 'my_func_jit.h'
+    )
     self.assertEqual(prop_func.fuzztest_name, 'my_func_fuzztest')
     self.assertEqual(prop_func.property_function_name, 'my_func')
-    self.assertEqual(prop_func.jit_classname, 'xls::test::MyFuncJit')
-    self.assertEqual(prop_func.jit_class_header_filename, 'my_func_jit.h')
+    self.assertEqual(prop_func.lib_class_name, 'xls::test::MyFuncJit')
+    self.assertEqual(prop_func.lib_header_path, 'my_func_jit.h')
     self.assertEqual(prop_func.namespace, 'xls::test')
     self.assertTrue(prop_func.return_type)
     self.assertLen(prop_func.params, 2)
@@ -215,9 +217,11 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
             specialized_type=None,
         ),
     )
-    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(wrapped_ir)
+    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(
+        wrapped_ir, 'xls::ArrayFuncJit', 'array_func_jit.h'
+    )
     self.assertEqual(prop_func.fuzztest_name, 'array_func_fuzztest')
-    self.assertEqual(prop_func.jit_classname, 'xls::ArrayFuncJit')
+    self.assertEqual(prop_func.lib_class_name, 'xls::ArrayFuncJit')
     self.assertTrue(prop_func.return_type)
     self.assertLen(prop_func.params, 1)
     self.assertEqual(prop_func.params[0].name, 'x')
@@ -258,7 +262,9 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
             specialized_type=None,
         ),
     )
-    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(wrapped_ir)
+    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(
+        wrapped_ir, 'xls::ArrayTupleFuncJit', 'array_tuple_func_jit.h'
+    )
     self.assertLen(prop_func.params, 1)
     param = prop_func.params[0]
     self.assertEqual(param.name, 'x')
@@ -296,7 +302,9 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
             specialized_type=None,
         ),
     )
-    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(wrapped_ir)
+    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(
+        wrapped_ir, 'xls::TupleFuncJit', 'tuple_func_jit.h'
+    )
     self.assertEqual(prop_func.fuzztest_name, 'tuple_func_fuzztest')
     self.assertTrue(prop_func.return_type)
     self.assertLen(prop_func.params, 1)
@@ -325,7 +333,9 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
         ],
         result=None,
     )
-    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(wrapped_ir)
+    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(
+        wrapped_ir, 'xls::NoResJit', 'no_res_jit.h'
+    )
     self.assertEqual(prop_func.fuzztest_name, 'no_res_fuzztest')
     self.assertFalse(prop_func.return_type)
     self.assertLen(prop_func.params, 1)
@@ -378,7 +388,11 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         ),
     )
     rendered_code = jit_wrapper_generator.render_fuzztest(
-        wrapped_ir, self.env, self.template
+        wrapped_ir,
+        self.env,
+        self.template,
+        'xls::test::MyFuncJit',
+        'my_func_jit.h',
     )
     self.assertIn('void my_func(xls::Value a, xls::Value b)', rendered_code)
     self.assertIn(
@@ -419,7 +433,11 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         result=None,
     )
     rendered_code = jit_wrapper_generator.render_fuzztest(
-        wrapped_ir, self.env, self.template
+        wrapped_ir,
+        self.env,
+        self.template,
+        'xls::test::ArrayIntFuncJit',
+        'array_int_func_jit.h',
     )
     self.assertIn('void array_int_func(xls::Value x)', rendered_code)
     self.assertIn(
@@ -457,7 +475,11 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         result=None,
     )
     rendered_code = jit_wrapper_generator.render_fuzztest(
-        wrapped_ir, self.env, self.template
+        wrapped_ir,
+        self.env,
+        self.template,
+        'xls::test::ArrayTupleFuncJit',
+        'array_tuple_func_jit.h',
     )
     self.assertIn('void array_tuple_func(xls::Value y)', rendered_code)
     self.assertIn(
@@ -494,7 +516,11 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         result=None,
     )
     rendered_code = jit_wrapper_generator.render_fuzztest(
-        wrapped_ir, self.env, self.template
+        wrapped_ir,
+        self.env,
+        self.template,
+        'xls::test::TupleIntFuncJit',
+        'tuple_int_func_jit.h',
     )
     self.assertIn('void tuple_int_func(xls::Value t)', rendered_code)
     self.assertIn(
@@ -535,7 +561,11 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         result=None,
     )
     rendered_code = jit_wrapper_generator.render_fuzztest(
-        wrapped_ir, self.env, self.template
+        wrapped_ir,
+        self.env,
+        self.template,
+        'xls::test::TupleMixedFuncJit',
+        'tuple_mixed_func_jit.h',
     )
     self.assertIn('void tuple_mixed_func(xls::Value m)', rendered_code)
     self.assertIn(

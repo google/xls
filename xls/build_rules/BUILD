@@ -41,6 +41,7 @@ exports_files(
         "xls_common_rules.bzl",
         "xls_config_rules.bzl",
         "xls_dslx_rules.bzl",
+        "xls_fuzz_rules.bzl",
         "xls_ir_rules.bzl",
         "xls_ir_macros.bzl",
         "xls_jit_wrapper_rules.bzl",
@@ -257,6 +258,7 @@ bzl_library(
         ":xls_config_rules_bzl",
         ":xls_diff_test_bzl",
         ":xls_dslx_rules_bzl",
+        ":xls_fuzz_rules_bzl",
         ":xls_ir_macros_bzl",
         ":xls_ir_rules_bzl",
         ":xls_jit_wrapper_rules_bzl",
@@ -329,6 +331,18 @@ bzl_library(
     srcs = ["xls_diff_test.bzl"],
     visibility = ["//visibility:private"],
     deps = ["@bazel_skylib//rules:diff_test"],
+)
+
+bzl_library(
+    name = "xls_fuzz_rules_bzl",
+    srcs = ["xls_fuzz_rules.bzl"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":xls_ir_macros_bzl",
+        ":xls_jit_wrapper_rules_bzl",
+        ":xls_macros_bzl",
+        "@rules_cc//cc:core_rules",
+    ],
 )
 
 xls_toolchain(

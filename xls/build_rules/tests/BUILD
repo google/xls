@@ -19,6 +19,7 @@ load(
     "cc_xls_ir_jit_wrapper",
     "check_sha256sum_frozen",
     "check_sha256sum_test",
+    "dslx_fuzz_test",
     "get_mangled_ir_symbol",
     "xls_benchmark_ir",
     "xls_dslx_cpp_type_library",
@@ -940,4 +941,22 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "@googletest//:gtest",
     ],
+)
+
+xls_dslx_library(
+    name = "fuzz_test_example_dslx",
+    srcs = ["fuzz_test_example.x"],
+)
+
+dslx_fuzz_test(
+    name = "fuzz_test_example_fuzz_test",
+    library = ":fuzz_test_example_dslx",
+    test_function = "my_fuzz_property",
+)
+
+dslx_fuzz_test(
+    name = "fuzz_test_example_opt_fuzz_test",
+    library = ":fuzz_test_example_dslx",
+    opt_ir = True,
+    test_function = "my_fuzz_property",
 )

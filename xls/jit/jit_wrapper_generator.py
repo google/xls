@@ -131,8 +131,8 @@ class PropertyFunction:
 
   fuzztest_name: str
   property_function_name: str
-  jit_class_header_filename: str
-  jit_classname: str
+  lib_header_path: str
+  lib_class_name: str
   namespace: str
   # Function params and result.
   params: Sequence[PropertyFunctionParam]
@@ -451,7 +451,9 @@ def camelize(name: str) -> str:
   return name.title().replace("_", "")
 
 
-def wrapped_to_fuzztest(wrapped: WrappedIr) -> PropertyFunction:
+def wrapped_to_fuzztest(
+    wrapped: WrappedIr, lib_class_name: str, lib_header_path: str
+) -> PropertyFunction:
   """Converts a WrappedIr object to a dictionary for fuzztest template."""
   params = []
   if wrapped.params:
@@ -460,8 +462,8 @@ def wrapped_to_fuzztest(wrapped: WrappedIr) -> PropertyFunction:
   return PropertyFunction(
       fuzztest_name=wrapped.function_name + "_fuzztest",
       property_function_name=wrapped.function_name,
-      jit_classname=wrapped.namespace + "::" + wrapped.class_name,
-      jit_class_header_filename=wrapped.header_filename,
+      lib_class_name=lib_class_name,
+      lib_header_path=lib_header_path,
       # Everything shares the namespace
       namespace=wrapped.namespace,
       params=params,
@@ -470,11 +472,15 @@ def wrapped_to_fuzztest(wrapped: WrappedIr) -> PropertyFunction:
 
 
 def render_fuzztest(
-    wrapped: WrappedIr, env: jinja2.Environment, cc_template_content: str
+    wrapped: WrappedIr,
+    env: jinja2.Environment,
+    cc_template_content: str,
+    lib_class_name: str,
+    lib_header_path: str,
 ) -> str:
   """Renders the fuzztest C++ code."""
   env.filters["property_param"] = lambda p: "xls::Value " + p.name
   cc_template = env.from_string(cc_template_content)
-  fuzztest = wrapped_to_fuzztest(wrapped)
+  fuzztest = wrapped_to_fuzztest(wrapped, lib_class_name, lib_header_path)
   bindings = {"fuzztest": fuzztest, "len": len}
   return cc_template.render(bindings)

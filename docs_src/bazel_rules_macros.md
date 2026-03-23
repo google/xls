@@ -639,7 +639,8 @@ currently produced should be considered INCOMPLETE.
 load("//xls/build_rules:xls_build_defs.bzl", "cc_xls_ir_jit_wrapper")
 
 cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-name">name</a>, <a href="#cc_xls_ir_jit_wrapper-src">src</a>, <a href="#cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#cc_xls_ir_jit_wrapper-top">top</a>, <a href="#cc_xls_ir_jit_wrapper-llvm_opt_level">llvm_opt_level</a>,
-                      <a href="#cc_xls_ir_jit_wrapper-exec_properties">exec_properties</a>, <a href="#cc_xls_ir_jit_wrapper-tags">tags</a>, <a href="#cc_xls_ir_jit_wrapper-aot_tags">aot_tags</a>, <a href="#cc_xls_ir_jit_wrapper-jobs">jobs</a>, <a href="#cc_xls_ir_jit_wrapper-kwargs">**kwargs</a>)
+                      <a href="#cc_xls_ir_jit_wrapper-exec_properties">exec_properties</a>, <a href="#cc_xls_ir_jit_wrapper-tags">tags</a>, <a href="#cc_xls_ir_jit_wrapper-aot_tags">aot_tags</a>, <a href="#cc_xls_ir_jit_wrapper-jobs">jobs</a>, <a href="#cc_xls_ir_jit_wrapper-alwayslink">alwayslink</a>, <a href="#cc_xls_ir_jit_wrapper-enable_llvm_coverage">enable_llvm_coverage</a>,
+                      <a href="#cc_xls_ir_jit_wrapper-kwargs">**kwargs</a>)
 </pre>
 
 Invokes the JIT wrapper generator and compiles the result as a cc_library.
@@ -664,7 +665,40 @@ identical to this macro.
 | <a id="cc_xls_ir_jit_wrapper-tags"></a>tags |  normal tags to pass to actions.   |  `[]` |
 | <a id="cc_xls_ir_jit_wrapper-aot_tags"></a>aot_tags |  Tags to apply to the AOT compiler only.   |  `[]` |
 | <a id="cc_xls_ir_jit_wrapper-jobs"></a>jobs |  Number of jobs to use for AOT compilation.   |  `1` |
+| <a id="cc_xls_ir_jit_wrapper-alwayslink"></a>alwayslink |  Whether to always link the generated library.   |  `False` |
+| <a id="cc_xls_ir_jit_wrapper-enable_llvm_coverage"></a>enable_llvm_coverage |  Whether to enable LLVM coverage for the AOT compiled code.   |  `False` |
 | <a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
+
+
+<a id="dslx_fuzz_test"></a>
+
+## dslx_fuzz_test
+
+<pre>
+load("//xls/build_rules:xls_build_defs.bzl", "dslx_fuzz_test")
+
+dslx_fuzz_test(<a href="#dslx_fuzz_test-name">name</a>, <a href="#dslx_fuzz_test-library">library</a>, <a href="#dslx_fuzz_test-test_function">test_function</a>, <a href="#dslx_fuzz_test-opt_ir">opt_ir</a>, <a href="#dslx_fuzz_test-jit_namespace">jit_namespace</a>, <a href="#dslx_fuzz_test-tags">tags</a>)
+</pre>
+
+A macro that instantiates a DSLX fuzz test.
+
+The macro instantiates:
+1. An xls_dslx_ir target to generate non-optimized IR.
+2. A cc_xls_ir_jit_wrapper target to generate C++ fuzz test wrapper code.
+3. A cc_test target to run the fuzz test.
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="dslx_fuzz_test-name"></a>name |  The name of the test target.   |  none |
+| <a id="dslx_fuzz_test-library"></a>library |  The xls_dslx_library target containing the DSLX code.   |  none |
+| <a id="dslx_fuzz_test-test_function"></a>test_function |  The name of the top-level DSLX function to be fuzzed.   |  none |
+| <a id="dslx_fuzz_test-opt_ir"></a>opt_ir |  Whether to generate optimized IR or not.   |  `False` |
+| <a id="dslx_fuzz_test-jit_namespace"></a>jit_namespace |  The C++ namespace for the generated JIT wrapper class.   |  `"dslx_fuzztest::impl"` |
+| <a id="dslx_fuzz_test-tags"></a>tags |  Tags to apply to the generated cc_test target.   |  `[]` |
 
 
 <a id="get_mangled_ir_symbol"></a>

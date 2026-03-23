@@ -42,6 +42,10 @@ load(
     _xls_dslx_test = "xls_dslx_test",
 )
 load(
+    "//xls/build_rules:xls_fuzz_rules.bzl",
+    _dslx_fuzz_test = "dslx_fuzz_test",
+)
+load(
     "//xls/build_rules:xls_ir_macros.bzl",
     _xls_dslx_ir_macro = "xls_dslx_ir_macro",
     _xls_ir_cc_library_macro = "xls_ir_cc_library_macro",
@@ -123,3 +127,4 @@ xls_model_generation = _xls_model_generation
 xls_ir_verilog_fdo = _xls_ir_verilog_fdo
 
 xls_diff_test = _xls_diff_test
+dslx_fuzz_test = _dslx_fuzz_test

@@ -105,6 +105,18 @@ _AOT_INFO = flags.DEFINE_string(
         " as a AotPackageEntrypointsProto. Must be a binary proto."
     ),
 )
+_LIB_CLASS_NAME = flags.DEFINE_string(
+    "lib_class_name",
+    default="",
+    required=False,
+    help="Name of the library class being fuzzed.",
+)
+_LIB_HEADER_PATH = flags.DEFINE_string(
+    "lib_header_path",
+    default="",
+    required=False,
+    help="Path to the library header being fuzzed.",
+)
 
 
 _T = TypeVar("_T")
@@ -293,13 +305,16 @@ def main(argv: Sequence[str]) -> None:
 
   if _FUNCTION_TYPE.value == "FUZZTEST":
     rendered = jit_wrapper_generator.render_fuzztest(
-        wrapped, env, _CC_TEMPLATES[jit_wrapper_generator.JitType.FUZZTEST]
+        wrapped,
+        env,
+        _CC_TEMPLATES[jit_wrapper_generator.JitType.FUZZTEST],
+        _LIB_CLASS_NAME.value,
+        _LIB_HEADER_PATH.value,
     )
     with open(f"{_OUTPUT_DIR.value}/{output_name}.cc", "wt") as cc_file:
       cc_file.write("// Generated File. Do not edit.\n")
       cc_file.write(rendered)
-    with open(f"{_OUTPUT_DIR.value}/{output_name}.h", "wt") as h_file:
-      h_file.write("// Generated File. Do not edit.\n")
+      cc_file.write("\n")
   else:
     env.filters["append_each"] = lambda vs, suffix: [v + suffix for v in vs]
     env.filters["prefix_each"] = lambda vs, prefix: [prefix + v for v in vs]
