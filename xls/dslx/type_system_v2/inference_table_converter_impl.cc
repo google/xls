@@ -55,6 +55,7 @@
 #include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/status_payload_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -2089,8 +2090,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             resolver_->ResolveIndirectTypeAnnotations(
                 target_context, actual_args[i], formal_types[i],
                 TypeAnnotationFilter::None()));
-        return TypeMismatchError(actual_arg_context, direct_actual_arg_type,
-                                 direct_formal_arg_type);
+        absl::Status error = TypeMismatchError(
+            actual_arg_context, direct_actual_arg_type, direct_formal_arg_type);
+        AddSpanToStatusPayload(error, actual_args[i]->span(),
+                               const_cast<FileTable&>(file_table_));
+        return error;
       }
       for (auto& [binding, value_or_type] : *resolved) {
         VLOG(5) << "Inferred implicit parametric value: "

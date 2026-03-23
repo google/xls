@@ -1621,6 +1621,36 @@ proc P {
       TypecheckFails(HasTypeMismatch("bool", "u32")));
 }
 
+TEST(TypecheckV2Test, SendWithWrongArgumentOrder) {
+  EXPECT_THAT(R"(
+struct S {
+  x: u32
+}
+
+type Foo = S;
+
+proc Rep {
+  input: chan<Foo> in;
+  output: chan<Foo> out;
+
+  init { () }
+
+  config(input: chan<Foo> in, output: chan<Foo> out) {
+    (input, output)
+  }
+
+  next(a: ()) {
+    let (data, tok) = recv(join(), input);
+    let tok = send(tok, output, data);
+  }
+}
+)",
+              TypecheckFailsWithPayload(HasTypeMismatch("S", "token"),
+                                        // The span of the `tok` argument in the
+                                        // `send` call should be one of them.
+                                        HasSpan(21, 19, 21, 22)));
+}
+
 TEST(TypecheckV2BuiltinTest, Recv) {
   EXPECT_THAT(
       R"(
