@@ -84,14 +84,18 @@ TEST(ScannerTest, IdentifierWithTick) {
   EXPECT_TRUE(tokens[3].IsIdentifier("s'"));
 }
 
-TEST(ScannerTest, TickCannotStartAnIdentifier) {
-  const char* kText = "'state";
-  EXPECT_THAT(
-      ToTokens(kText),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "Expected closing single quote for character literal; got t")));
+TEST(ScannerTest, TickThenIdentifierIsLabel) {
+  const char* kText = "'optional_label:foo()";
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, ToTokens(kText));
+  ASSERT_EQ(tokens.size(), 6);
+  EXPECT_EQ(tokens[0].kind(), TokenKind::kApostrophe);
+  EXPECT_EQ(tokens[1].kind(), TokenKind::kIdentifier);
+  EXPECT_EQ(tokens[1].ToString(), "optional_label");
+  EXPECT_EQ(tokens[2].kind(), TokenKind::kColon);
+  EXPECT_EQ(tokens[3].kind(), TokenKind::kIdentifier);
+  EXPECT_EQ(tokens[3].ToString(), "foo");
+  EXPECT_EQ(tokens[4].kind(), TokenKind::kOParen);
+  EXPECT_EQ(tokens[5].kind(), TokenKind::kCParen);
 }
 
 // Verifies that Scanner::ProcessNextStringChar() correctly handles all

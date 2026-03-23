@@ -1250,6 +1250,9 @@ class Expr : public AstNode {
   bool in_parens() const { return in_parens_; }
   void set_in_parens(bool enabled) { in_parens_ = enabled; }
 
+  const std::optional<std::string>& label() const { return label_; }
+  void set_label(std::optional<std::string> label) { label_ = label; }
+
  protected:
   virtual std::string ToStringInternal() const = 0;
 
@@ -1258,6 +1261,7 @@ class Expr : public AstNode {
  private:
   Span span_;
   bool in_parens_ = false;
+  std::optional<std::string> label_;
 };
 
 // ChannelTypeAnnotation has to be placed after the definition of Expr, so it
@@ -2850,7 +2854,11 @@ class Invocation : public Instantiation {
 
  private:
   std::string ToStringInternal() const final {
-    return absl::StrFormat("%s%s(%s)", callee()->ToString(),
+    std::string prefix;
+    if (label().has_value()) {
+      prefix = absl::StrFormat("'%s:", *label());
+    }
+    return absl::StrFormat("%s%s%s(%s)", prefix, callee()->ToString(),
                            FormatParametrics(), FormatArgs());
   }
 
