@@ -42,8 +42,6 @@ type SequenceData = common::SequenceData;
 const SYMBOL_COUNT_WIDTH = common::FSE_SYMBOL_COUNT_WIDTH;
 const ACCURACY_LOG_WIDTH = common::FSE_ACCURACY_LOG_WIDTH;
 
-pub struct Remainder { value: u1, valid: bool }
-
 pub enum FseProbaFreqDecoderStatus: u1 {
     OK = 0,
     ERROR = 1,
@@ -57,12 +55,15 @@ const MAX_CONSUMED_FSE_BYTES = MAX_CONSUMED_FSE_BITS / u32:8;
 const CONSUMED_FSE_BYTES_WIDTH = std::clog2(MAX_CONSUMED_FSE_BYTES);
 pub type ConsumedFseBytes = uN[CONSUMED_FSE_BYTES_WIDTH];
 
-pub struct FseProbaFreqDecoderReq {}
+pub struct FseProbaFreqDecoderReq {
+    remainder: common::Remainder
+}
 pub struct FseProbaFreqDecoderResp {
     status: FseProbaFreqDecoderStatus,
     accuracy_log: AccuracyLog,
     symbol_count: SymbolCount,
     consumed_bytes: ConsumedFseBytes,
+    remainder: common::Remainder,
 }
 
 enum Fsm : u4 {
@@ -83,7 +84,7 @@ struct State {
     // accuracy log used in the FSE decoding table
     accuracy_log: AccuracyLog,
     // remaining bit that can be a leftover from parsing small probability frequencies
-    remainder: Remainder,
+    remainder: common::Remainder,
     // indicates if one more packet with zero probabilities is expected
     next_recv_zero: bool,
     // information about remaining probability points
@@ -172,7 +173,7 @@ fn get_threshold(bit_width: u16, remaining_proba: u16) -> u16 {
 }
 
 // get the adjusted stream value for calculating probability points
-fn get_adjusted_value(data: u16, remainder: Remainder) -> u16 {
+fn get_adjusted_value(data: u16, remainder: common::Remainder) -> u16 {
     if remainder.valid { (data << u16:1) | (remainder.value as u16) } else { data }
 }
 
@@ -254,7 +255,7 @@ pub proc FseProbaFreqDecoder<
         let do_recv_req = (state.fsm == Fsm::IDLE);
 
         let tok0 = join();
-        let (tok1_0, _) = recv_if(tok0, req_r, do_recv_req, zero!<Req>());
+        let (tok1_0, req) = recv_if(tok0, req_r, do_recv_req, zero!<Req>());
 
         let do_buff_data_recv = match (state.fsm) {
             Fsm::RECV_ACCURACY_LOG => true,
@@ -274,33 +275,47 @@ pub proc FseProbaFreqDecoder<
 
         let tok1 = join(tok1_1, tok1_2);
 
+        trace_fmt!("[FseProbaFreqDec] State: {}", state);
+        trace_fmt!("[FseProbaFreqDec] Read bits {}", read_bits);
+        trace_fmt!("[FseProbaFreqDec] Read bits mod 8 {}", read_bits_mod8);
+
         let (buffer_ctrl_option, ram_option, resp_option, new_state) = match state.fsm {
             Fsm::IDLE => {
+                trace_fmt!("[FseProbaFreqDec] Req: {}", req);
                 (
                     (false, zero!<BufferCtrl>()),
                     (false, zero!<RamWriteReq>()),
                     (false, zero!<Resp>()),
-                    State { fsm: Fsm::SEND_ACCURACY_LOG_REQ, ..state },
+                    State {
+                        fsm: Fsm::SEND_ACCURACY_LOG_REQ,
+                        remainder: req.remainder,
+                        read_bits: req.remainder.valid as ConsumedFseBits,
+                        read_bits_mod8: req.remainder.valid as u3,
+                        ..state
+                    },
                 )
             },
             Fsm::SEND_ACCURACY_LOG_REQ => {
                 (
-                    (true, BufferCtrl { length: ACCURACY_LOG_WIDTH as Length }),
+                    (true, BufferCtrl { length: ACCURACY_LOG_WIDTH as Length - state.read_bits as Length }),
                     (false, zero!<RamWriteReq>()),
                     (false, zero!<Resp>()),
-                    State { fsm: Fsm::RECV_ACCURACY_LOG, written_symbol_count, ..state },
+                    State {
+                        fsm: Fsm::RECV_ACCURACY_LOG,
+                        written_symbol_count,
+                        ..state },
                 )
             },
             Fsm::RECV_ACCURACY_LOG => {
-                let accuracy_log = AccuracyLog:5 + out_data.data as AccuracyLog;
+                let accuracy_log = AccuracyLog:5 + get_adjusted_value(out_data.data as u16, state.remainder) as AccuracyLog;
                 let remaining_proba = RemainingProba:1 << accuracy_log;
-
                 (
                     (false, zero!<BufferCtrl>()),
                     (false, zero!<RamWriteReq>()),
                     (false, zero!<Resp>()),
                     State {
                         fsm: Fsm::SEND_SYMBOL_REQ,
+                        remainder: zero!<common::Remainder>(),
                         accuracy_log,
                         remaining_proba,
                         written_symbol_count,
@@ -330,17 +345,15 @@ pub proc FseProbaFreqDecoder<
                 let lower_mask = get_lower_mask(bit_width);
                 let threshold = get_threshold(bit_width, state.remaining_proba as u16);
 
-                let mask = (u16:1 << out_data.length) - u16:1;
                 let data = out_data.data as u16;
-                assert!(data & mask == data, "data should not contain additional bits");
 
                 let value = get_adjusted_value(data, state.remainder);
                 let (remainder, value) = if (value & lower_mask) < threshold {
-                    (Remainder { value: value[bit_width - u16:1+:u1], valid: true }, value & lower_mask)
+                    (common::Remainder { value: value[bit_width - u16:1+:u1], valid: true }, value & lower_mask)
                 } else if value > lower_mask {
-                    (zero!<Remainder>(), value - threshold)
+                    (zero!<common::Remainder>(), value - threshold)
                 } else {
-                    (zero!<Remainder>(), value)
+                    (zero!<common::Remainder>(), value)
                 };
 
                 let proba = value as s16 - s16:1;
@@ -451,7 +464,7 @@ pub proc FseProbaFreqDecoder<
                         (false, zero!<Resp>()),
                         State {
                             fsm: new_fsm,
-                            remainder: zero!<Remainder>(),
+                            remainder: zero!<common::Remainder>(),
                             written_symbol_count,
                             data_invalid,
                             read_bits,
@@ -468,7 +481,7 @@ pub proc FseProbaFreqDecoder<
                         (false, zero!<Resp>()),
                         State {
                             fsm: Fsm::WRITE_ZERO_PROBA,
-                            remainder: zero!<Remainder>(),
+                            remainder: zero!<common::Remainder>(),
                             written_symbol_count,
                             zero_proba_count,
                             next_recv_zero,
@@ -541,9 +554,15 @@ pub proc FseProbaFreqDecoder<
             },
             Fsm::WAIT_FOR_COMPLETION => {
                 if written_symbol_count == state.symbol_count {
+                    let leave_remainder = state.read_bits_mod8 == u3:1 && state.remainder.valid;
+                    let shift_bits = if leave_remainder {
+                        u3:0
+                    } else {
+                        state.read_bits_mod8
+                    };
                     (
-                        if state.read_bits_mod8 != u3:0 {
-                            (true, BufferCtrl { length: Length:8 - state.read_bits_mod8 as Length })
+                        if shift_bits != u3:0 {
+                            (true, BufferCtrl { length: Length:8 - shift_bits as Length })
                         } else {
                             (false, zero!<BufferCtrl>())
                         },
@@ -552,7 +571,8 @@ pub proc FseProbaFreqDecoder<
                         State {
                             fsm: Fsm::CONSUME_PADDING,
                             read_bits,
-                            read_bits_mod8,
+                            read_bits_mod8: if leave_remainder { u3:0 } else { read_bits_mod8 },
+                            remainder: if leave_remainder { state.remainder } else { zero!<common::Remainder>() },
                         ..state
                         }
                     )
@@ -576,8 +596,9 @@ pub proc FseProbaFreqDecoder<
                         accuracy_log: state.accuracy_log,
                         symbol_count: state.symbol_count,
                         consumed_bytes: checked_cast<ConsumedFseBytes>(read_bits >> 3),
+                        remainder: state.remainder
                      }),
-                     zero!<State>()
+                     zero!<State>(),
                 )
             },
             _ => {
@@ -744,11 +765,12 @@ proc FseProbaFreqDecoderTest {
             accuracy_log: AccuracyLog:8,
             symbol_count: SymbolCount:12,
             consumed_bytes: ConsumedFseBytes:6,
+            remainder: zero!<common::Remainder>(),
         });
 
         // check that the proc consumed the padding by sending request
         // and checking over 100 cycles that it won't be served
-        let tok = send(tok, buff_in_ctrl_s, BufferCtrl { length: u7:0x1 });
+        let tok = send(tok, buff_in_ctrl_s, BufferCtrl { length: uN[TEST_LENGTH_WIDTH]:0x1 });
         let tok = for (_, tok): (u32, token) in u32:0..u32:100 {
             let (tok, _, valid) = recv_non_blocking(tok, buff_out_data_r, zero!<BufferOutput>());
             assert_eq(valid, false);
@@ -797,6 +819,7 @@ proc FseProbaFreqDecoderTest {
             accuracy_log: AccuracyLog:9,
             symbol_count: SymbolCount:2,
             consumed_bytes: ConsumedFseBytes:2,
+            remainder: zero!<common::Remainder>(),
         });
 
         for ((i, exp_val), tok): ((u32, RamData), token) in enumerate(EXPECTED_RAM_CONTENTS) {
@@ -834,6 +857,7 @@ proc FseProbaFreqDecoderTest {
             accuracy_log: AccuracyLog:9,
             symbol_count: SymbolCount:2,
             consumed_bytes: ConsumedFseBytes:2,
+            remainder: zero!<common::Remainder>(),
         });
 
         for ((i, exp_val), tok): ((u32, RamData), token) in enumerate(EXPECTED_RAM_CONTENTS) {
@@ -846,9 +870,6 @@ proc FseProbaFreqDecoderTest {
             assert_eq(recv_data.data, exp_val);
             tok
         }((tok));
-
-        // FIXME: test error path: error propagated from ShiftBuffer and assigning more
-        // probability points than available
 
         let tok = send(tok, terminator, true);
     }

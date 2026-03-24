@@ -245,7 +245,11 @@ pub proc HuffmanLiteralsDecoder<
             weights_fse_rd_req_s, weights_fse_rd_resp_r, weights_fse_wr_req_s, weights_fse_wr_resp_r,
         );
 
-        spawn prescan::WeightPreScan(
+        spawn prescan::WeightPreScan<
+            hcommon::MAX_SYMBOL_COUNT,
+            hcommon::PARALLEL_ACCESS_WIDTH,
+            hcommon::MAX_WEIGHT,
+        >(
             prescan_start_r,
             weights_ram_rd_req_s,
             weights_ram_rd_resp_r,
@@ -256,7 +260,10 @@ pub proc HuffmanLiteralsDecoder<
             prescan_ram_wr_resp_r,
         );
 
-        spawn code_builder::WeightCodeBuilder(
+        spawn code_builder::WeightCodeBuilder<
+            hcommon::MAX_SYMBOL_COUNT,
+            hcommon::PARALLEL_ACCESS_WIDTH,
+        >(
             code_builder_start_r,
             prescan_response_r,
             code_builder_codes_s,
@@ -588,12 +595,12 @@ const TEST_MEMORY: TestAxiRamWrReq[7] = [
     // HTD Header: 0x84 (Direct representation, HTD length: 3)
     // Huffman Tree Description
     // code         symbol  length  weight
-    // N/A          0x03    0       0
+    // N/A          0x02    0       0
     // 0b0000       0x04    4       1
     // 0b0001       0x05    4       1      // last weight implicit
-    // 0b001        0x02    3       2
-    // 0b01         0x01    2       3
-    // 0b1          0x00    1       4
+    // 0b001        0x03    3       2
+    // 0b01         0x00    2       3
+    // 0b1          0x01    1       4
     // 0b00001      padding
 
     TestAxiRamWrReq { addr: TestAxiRamAddr:0x0, data: (u16:0b00001_1_01_0000_0001 ++ u24:0x100234 ++ u8:0x84) as TestAxiRamData, mask: TestAxiRamMask:0xFF },
@@ -615,12 +622,12 @@ const TEST_MEMORY: TestAxiRamWrReq[7] = [
     // Jump Table: 0x0002_0002_0002 (Stream1: 2 bytes; Stream2: 2 bytes; Stream3: 2 bytes)
     // Huffman Tree Description
     // code         symbol  length  weight
-    // N/A          0x03    0       0
+    // N/A          0x02    0       0
     // 0b0000       0x04    4       1
     // 0b0001       0x05    4       1      // last weight implicit
-    // 0b001        0x02    3       2
-    // 0b01         0x01    2       3
-    // 0b1          0x00    1       4
+    // 0b001        0x03    3       2
+    // 0b01         0x00    2       3
+    // 0b1          0x01    1       4
     // 0b00001      padding
     TestAxiRamWrReq { addr: TestAxiRamAddr:0x40, data: (u32:0x0002_0002 ++ u24:0x100234 ++ u8:0x84) as TestAxiRamData, mask: TestAxiRamMask:0xFF },
     //                           AXI addr: 0x200                      ^               ^          ^
@@ -689,7 +696,7 @@ const TEST_CTRL: TestCtrl[4] = [
 const TEST_DECODED_LITERALS = common::LiteralsDataWithSync[10]:[
     // Literals #0
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: true,
         id: u32:0,
@@ -697,7 +704,7 @@ const TEST_DECODED_LITERALS = common::LiteralsDataWithSync[10]:[
     },
     // Literals #1
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0001_0405,
+        data: common::LitData:0x0100_0405,
         length: common::LitLength:4,
         last: true,
         id: u32:1,
@@ -705,28 +712,28 @@ const TEST_DECODED_LITERALS = common::LiteralsDataWithSync[10]:[
     },
     // Literals #2
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:2,
         literals_last: false,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:2,
         literals_last: false,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:2,
         literals_last: false,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: true,
         id: u32:2,
@@ -734,28 +741,28 @@ const TEST_DECODED_LITERALS = common::LiteralsDataWithSync[10]:[
     },
     // Literals #3
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:3,
         literals_last: true,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:3,
         literals_last: true,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: false,
         id: u32:3,
         literals_last: true,
     },
     common::LiteralsDataWithSync {
-        data: common::LitData:0x0504_0100,
+        data: common::LitData:0x0504_0001,
         length: common::LitLength:4,
         last: true,
         id: u32:3,
@@ -1116,116 +1123,3 @@ proc HuffmanLiteralsDecoder_test {
         send(tok, terminator, true);
     }
 }
-
-// TODO: implement tests with the following Huffman Tree
-//const TEST_DATA_LEN_0 = u32:64;
-//const TEST_DATA_0 = (
-//    u8:0b001_1_010_0 ++  // 0x34 <- last byte in the memory
-//    u8:0b11_1_1_0001 ++  // 0xF1
-//    u8:0b01_010_000 ++   // 0x50
-//    u8:0b001_010_1_0 ++  // 0x2A
-//    u8:0b11_010_1_00 ++  // 0xD4
-//    u8:0b0100_001_0 ++   // 0x42
-//    u8:0b01_010_1_01 ++  // 0x55
-//    u8:0b1_001_010_1     // 0x95 <- first byte in the memory
-//);
-//
-//// code         symbol  length  weight
-//// 0b1          0x47    1       9
-//// 0b001        0x41    3       7
-//// 0b010        0x8A    3       7
-//// 0b011        0xD2    3       7
-//// 0b000001     0x45    6       4
-//// 0b000010     0x7A    6       4
-//// 0b000011     0x89    6       4
-//// 0b000100     0x8D    6       4
-//// 0b000101     0xD1    6       4
-//// 0b000110     0xD3    6       4
-//// 0b000111     0xDA    6       4
-//// 0b000000000  0x12    9       1
-//// 0b000000001  0x8F    9       1
-//// 0b000000010  0xAC    9       1
-//// 0b000000011  0xD4    9       1
-//// 0b000000100  0xD7    9       1
-//// 0b000000101  0xDB    9       1
-//// 0b000000110  0xDE    9       1
-//// 0b000000111  0xFE    9       1
-//
-//const TEST_WEIGHT_MEMORY_0 = TestRamEntry[32]:[
-//    //             x0 x1 x2 x3 x4 x5 x6 x7                 x8 x9 xA xB xC xD xE xF
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0x0x
-//    TestRamEntry:0x_0__0__1__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0x1x
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0x2x
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0x3x
-//    TestRamEntry:0x_0__7__0__0__0__4__0__9, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0x4x
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0x5x
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0x6x
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__4__0__0__0__0__0, // 0x7x
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__4__7__0__0__4__0__1, // 0x8x
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0x9x
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__1__0__0__0, // 0xAx
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0xBx
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0xCx
-//    TestRamEntry:0x_0__4__7__4__1__0__0__1, TestRamEntry:0x_0__0__4__1__0__0__1__0, // 0xDx
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__0__0, // 0xEx
-//    TestRamEntry:0x_0__0__0__0__0__0__0__0, TestRamEntry:0x_0__0__0__0__0__0__1__0, // 0xFx
-//];
-//
-//const TEST_DECODED_LITERALS_0 = common::LiteralsDataWithSync[3]:[
-//    common::LiteralsDataWithSync {
-//        data: common::LitData:0x458A_D147_47D2_8A47,
-//        length: common::LitLength:8,
-//        last: false,
-//        id: u32:0,
-//        literals_last: false,
-//    },
-//    common::LiteralsDataWithSync {
-//        data: common::LitData:0x4141_8D47_8AD2_478A,
-//        length: common::LitLength:8,
-//        last: false,
-//        id: u32:0,
-//        literals_last: false,
-//    },
-//    common::LiteralsDataWithSync {
-//        data: common::LitData:0x478A_41D2_478A,
-//        length: common::LitLength:6,
-//        last: true,
-//        id: u32:0,
-//        literals_last: false,
-//    },
-//];
-//
-//// data for test case #1 (same config)
-//const TEST_CTRL_1 = TestCtrl {
-//    base_addr: uN[TEST_AXI_RAM_ADDR_W]:0x20,
-//    len: uN[TEST_AXI_RAM_ADDR_W]:0x4,
-//    new_config: false,
-//    multi_stream: false,
-//    id: u32:1,
-//    literals_last: true,
-//};
-//
-//const TEST_DATA_LEN_1 = u32:32;
-//const TEST_DATA_1 = (
-//    u8:0b001_011_1_1 ++ // 0x2F <- last byte in the memory
-//    u8:0b1_1_000000 ++  // 0xC0
-//    u8:0b000_0_000 ++   // 0x00
-//    u8:0b0010_1_010     // 0x2A <- first byte in the memory
-//);
-//
-//const TEST_DECODED_LITERALS_1 = common::LiteralsDataWithSync[2]:[
-//    common::LiteralsDataWithSync {
-//        data: common::LitData:0x47AC_1247_4747_47D2,
-//        length: common::LitLength:8,
-//        last: false,
-//        id: u32:1,
-//        literals_last: true,
-//    },
-//    common::LiteralsDataWithSync {
-//        data: common::LitData:0x8A,
-//        length: common::LitLength:1,
-//        last: true,
-//        id: u32:1,
-//        literals_last: true,
-//    },
-//];

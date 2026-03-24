@@ -79,7 +79,7 @@ proc RefillingShiftBufferInternal<
     DATA_W: u32, ADDR_W: u32, BACKWARDS: bool = {false}, INSTANCE: u32 = {u32:0},
     LENGTH_W: u32 = {length_width(DATA_W)},
     DATA_W_DIV8: u32 = {DATA_W / u32:8},
-    BUFFER_W: u32 = {DATA_W * u32:2},             // TODO: fix implementation detail of ShiftBuffer leaking here
+    BUFFER_W: u32 = {DATA_W * u32:2},
     BUFFER_W_CLOG2: u32 = {std::clog2(BUFFER_W) + u32:1},
 >{
     type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
@@ -175,7 +175,7 @@ proc RefillingShiftBufferInternal<
         // on send to buffer_data_in_s if the proc sending control requests isn't
         // receiving the data on the output channel fast enough, but this is true
         // of any proc that uses MemReader and we don't consider this an issue
-        let buf_will_have_enough_space = state.future_buf_occupancy <= DATA_W as BufferSize;    // TODO: fix implementation detail of ShiftBuffer leaking here
+        let buf_will_have_enough_space = state.future_buf_occupancy <= DATA_W as BufferSize;
         let do_refill_cycle = state.fsm == Fsm::REFILLING && buf_will_have_enough_space;
         // send request to memory for more data under the assumption
         // that there's enough space in the ShiftBuffer to fit it
@@ -265,7 +265,7 @@ proc RefillingShiftBufferInternal<
         let forward_snooped_data = snoop_data_valid && !flushing;
         let tok = send_if(tok, buffer_data_out_s, forward_snooped_data, RSBOutput {
             data: if BACKWARDS {
-                rev(snoop_data.data) >> (u32:64 - snoop_data.length as u32)
+                rev(snoop_data.data) >> (DATA_W - snoop_data.length as u32)
             } else {
                 snoop_data.data
             },
@@ -442,7 +442,7 @@ const TEST_DATA_W = u32:64;
 const TEST_ADDR_W = u32:32;
 const TEST_LENGTH_W = length_width(TEST_DATA_W);
 const TEST_DATA_W_DIV8 = TEST_DATA_W / u32:8;
-const TEST_BUFFER_W = TEST_DATA_W * u32:2;             // TODO: fix implementation detail of ShiftBuffer leaking here
+const TEST_BUFFER_W = TEST_DATA_W * u32:2;
 const TEST_BUFFER_W_CLOG2 = std::clog2(TEST_BUFFER_W);
 
 proc RefillingShiftBufferTest<BACKWARDS: bool> {

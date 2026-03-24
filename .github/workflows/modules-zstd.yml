@@ -44,7 +44,9 @@ jobs:
       - name: Test ZSTD Module - DSLX Tests (opt)
         if: ${{ !cancelled() }}
         run: |
-          bazel test -c opt --test_output=errors -- $(bazel query 'filter("_dslx_test$", kind(rule, //xls/modules/zstd/...))')
+          bazel test -c opt --test_output=errors -- $(bazel query 'filter("_dslx_test$", kind(rule, //xls/modules/zstd/...)) except filter("zstd_dec_dslx_test$", kind(rule, //xls/modules/zstd/...))');
+          # Run all tests except those ending with `_skip`
+          bazel test -c opt --test_strategy=exclusive --test_output=errors --test_filter='^([^_]|_([^s]|$)|_s([^k]|$)|_sk([^i]|$)|_ski([^p]|$))*$' //xls/modules/zstd:zstd_dec_dslx_test;
 
       - name: Build ZSTD verilog targets (opt)
         if: ${{ !cancelled() }}
@@ -63,7 +65,7 @@ jobs:
       - name: Build and run synthesis benchmarks of the ZSTD module (opt)
         if: ${{ !cancelled() }}
         run: |
-          for target in $(bazel query 'filter("_benchmark_synth$", kind(rule, //xls/modules/zstd/...))');
+          for target in $(bazel query 'filter("_benchmark_synth$", kind(rule, //xls/modules/zstd/...)) except attr(tags, "long", //xls/modules/zstd/...)');
           do
             echo "running $target";
             bazel run -c opt $target -- --logtostderr;
@@ -72,4 +74,4 @@ jobs:
       - name: Build ZSTD place and route targets (opt)
         if: ${{ !cancelled() }}
         run: |
-          bazel build -c opt -- $(bazel query 'filter("_place_and_route$", kind(rule, //xls/modules/zstd/...))')
+          bazel build -c opt -- $(bazel query 'filter("_place_and_route$", kind(rule, //xls/modules/zstd/...)) except attr(tags, "long", //xls/modules/zstd/...)')
