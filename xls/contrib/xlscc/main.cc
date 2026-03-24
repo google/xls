@@ -25,6 +25,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
+#include "absl/log/flags.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
@@ -43,6 +44,7 @@
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/translator_types.h"
+#include "xls/dev_tools/tool_timeout.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
@@ -157,6 +159,7 @@ ABSL_FLAG(
 namespace xlscc {
 
 static absl::Status Run(std::string_view cpp_path) {
+  auto timeout = ::xls::StartTimeoutTimer();
   // Warnings should print by default
   absl::SetFlag(&FLAGS_logtostderr, true);
 
