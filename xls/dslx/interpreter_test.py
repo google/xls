@@ -471,6 +471,42 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('MyEnum::TWO', stderr)
     self.assertIn('0x2a', stderr)
 
+  def test_vtrace_fmt_ir_interpreter(self):
+    """Checks whether vtrace logs are displayed according to the selected level of verbosity."""
+    program = """
+    const VERBOSITY_LEV_0 = u32:0;
+    const VERBOSITY_LEV_1 = u32:8;
+    const VERBOSITY_LEV_2 = u32:16;
+
+    fn vtrace_fmt_example(a: u32, b: u32) -> u32 {
+      vtrace_fmt!(VERBOSITY_LEV_0, "Verbosity level: {:d}", VERBOSITY_LEV_0);
+      vtrace_fmt!(VERBOSITY_LEV_1, "Verbosity level: {:d}", VERBOSITY_LEV_1);
+      vtrace_fmt!(VERBOSITY_LEV_2, "Verbosity level: {:d}", VERBOSITY_LEV_2);
+      trace_fmt!("Trace verification.");
+      a + b
+    }
+
+    #[test]
+    fn vtrace_test() {
+      assert_eq(vtrace_fmt_example(u32:1, u32:2), u32:3);
+    }
+    """
+    stderr = self._parse_and_test(
+        program,
+        want_error=False,
+        alsologtostderr=True,
+        extra_flags=(
+          '--log_prefix=false',
+          '--compare=none',
+          '--max_trace_verbosity=10',
+          '--evaluator=ir-interpreter',
+         ),
+    )
+    self.assertIn('Verbosity level: 0', stderr)
+    self.assertIn('Verbosity level: 8', stderr)
+    self.assertNotIn('Verbosity level: 16', stderr)
+    self.assertIn('Trace verification.', stderr)
+
   def test_trace_calls(self):
     """Tests that --trace_calls emits call traces with args and return values.
 
