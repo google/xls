@@ -972,14 +972,20 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
                                nt.old_next->GetName()));
     to_replace.push_back({nt.old_next, nxt});
     // Identity-ify the old next.
-    XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(
-        Next::kValueOperand, nt.old_next->state_read()));
+    if (nt.old_next->has_state_read_operand()) {
+      XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(
+          Next::kValueOperand, nt.old_next->state_read()));
+    } else {
+      XLS_RETURN_IF_ERROR(
+          nt.old_next->ReplaceOperandNumber(/*operand_no=*/0, old_state_read));
+    }
   }
   for (const auto& [old_n, new_n] : to_replace) {
     XLS_RETURN_IF_ERROR(old_n->ReplaceUsesWith(
         new_n,
         [&](Node* n) {
-          if (n->Is<Next>() && n->As<Next>()->state_read() == old_n) {
+          if (n->Is<Next>() && n->As<Next>()->has_state_read_operand() &&
+              n->As<Next>()->state_read() == old_n) {
             return false;
           }
           return true;
@@ -993,7 +999,7 @@ absl::Status Proc::InternalRebuildSideTables() {
   XLS_RET_CHECK(params_.empty());
   // Why is next-values in base but not elements?
   next_values_.clear();
-  next_values_by_state_read_.clear();
+  next_values_by_state_element_.clear();
   state_reads_.clear();
   for (Node* n : nodes()) {
     if (n->Is<StateRead>()) {
@@ -1003,8 +1009,8 @@ absl::Status Proc::InternalRebuildSideTables() {
       state_reads_[n->As<StateRead>()->state_element()] = n->As<StateRead>();
     } else if (n->Is<Next>()) {
       next_values_.push_back(n->As<Next>());
-      next_values_by_state_read_[n->As<Next>()->state_read()->As<StateRead>()]
-          .insert(n->As<Next>());
+      next_values_by_state_element_[n->As<Next>()->state_element()].insert(
+          n->As<Next>());
     }
   }
   // TODO(allight): We should make it so we can recover channel/proc-inst things
