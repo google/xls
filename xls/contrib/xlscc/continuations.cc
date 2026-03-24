@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <initializer_list>
 #include <list>
 #include <memory>
 #include <optional>
@@ -228,24 +229,23 @@ NodeSourceSet SourcesSetTreeNodeInfo::ComputeInfoForNode(
 
 xls::LeafTypeTree<NodeSourceSet> SourcesSetTreeNodeInfo::ComputeInfoTreeForNode(
     xls::Node* node) const {
-  xls::LeafTypeTree<NodeSourceSet> result(node->GetType());
-  CHECK_OK(xls::leaf_type_tree::ForEachIndex(
-      result.AsMutableView(),
-      [&](xls::Type* element_type, NodeSourceSet& element,
-          absl::Span<const int64_t> index) {
-        element = {
-            xls::NodeSource(node, std::vector(index.begin(), index.end()))};
-        return absl::OkStatus();
-      }));
-  return result;
+  auto result = xls::LeafTypeTree<NodeSourceSet>::CreateFromFunction(
+      node->GetType(),
+      [&](xls::Type* element_type, absl::Span<const int64_t> index) {
+        return std::make_shared<const absl::flat_hash_set<xls::NodeSource>>(
+            std::initializer_list<xls::NodeSource>{
+                {node, std::vector(index.begin(), index.end())}});
+      });
+  CHECK_OK(result.status());
+  return *std::move(result);
 }
 
 NodeSourceSet SourcesSetTreeNodeInfo::MergeInfos(
     absl::Span<const absl::Span<const NodeSourceSet>> spans) const {
-  NodeSourceSet ret;
+  auto ret = std::make_shared<absl::flat_hash_set<xls::NodeSource>>();
   for (const auto& span : spans) {
     for (const NodeSourceSet& info : span) {
-      ret.insert(info.begin(), info.end());
+      ret->insert(info->begin(), info->end());
     }
   }
   return ret;
@@ -1368,7 +1368,7 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
           sources.AsView(),
           [&](xls::Type* element_type, const NodeSourceSet& source_set,
               absl::Span<const int64_t> tree_index) -> absl::Status {
-            for (const xls::NodeSource& source : source_set) {
+            for (const xls::NodeSource& source : *source_set) {
               xls::Node* source_node = source.node();
 
               if (source.tree_index() != tree_index) {
@@ -1410,7 +1410,7 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
             for (xls::Param* allowed_source : allowed_sources) {
               std::vector<int64_t> tree_index_vec(tree_index.begin(),
                                                   tree_index.end());
-              if (!source_set.contains(
+              if (!source_set->contains(
                       xls::NodeSource(allowed_source, tree_index_vec))) {
                 disallowed = true;
                 break;

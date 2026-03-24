@@ -32,6 +32,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "clang/include/clang/AST/ASTContext.h"
 #include "clang/include/clang/AST/ComputeDependence.h"
 #include "clang/include/clang/AST/Decl.h"
@@ -43,6 +44,8 @@
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/node_manipulation.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
+#include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -1269,7 +1272,8 @@ class SourcesSetNodeInfo
       absl::Span<const absl::Span<const ParamSet>> spans) const override final;
 };
 
-typedef absl::flat_hash_set<xls::NodeSource> NodeSourceSet;
+typedef std::shared_ptr<const absl::flat_hash_set<xls::NodeSource>>
+    NodeSourceSet;
 
 // This class sees through compound type operations, ie on tuples,
 // but it does not see through other operations, ie add.
