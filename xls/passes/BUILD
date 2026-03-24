@@ -2207,6 +2207,7 @@ xls_pass(
         ":lazy_dag_cache",
         ":lazy_node_info",
         ":lazy_ternary_query_engine",
+        ":node_fingerprint_analysis",
         ":optimization_pass",
         ":pass_base",
         ":query_engine",
@@ -3558,6 +3559,7 @@ cc_test(
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
+        "//xls/dev_tools:remove_identifiers",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_test_library",
         "//xls/ir",
@@ -4806,6 +4808,24 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "node_fingerprint_analysis",
+    srcs = ["node_fingerprint_analysis.cc"],
+    hdrs = ["node_fingerprint_analysis.h"],
+    deps = [
+        ":lazy_dag_cache",
+        ":lazy_node_data",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "@com_google_absl//absl/hash",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 cc_test(
     name = "visibility_expr_builder_test",
     srcs = ["visibility_expr_builder_test.cc"],
@@ -4868,6 +4888,23 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "node_fingerprint_analysis_test",
+    srcs = ["node_fingerprint_analysis_test.cc"],
+    deps = [
+        ":node_fingerprint_analysis",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
