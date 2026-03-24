@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/estimators/area_model/area_estimator.h"
@@ -252,10 +253,18 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   // negatives. In other words, some mutually-exclusive pairs of instructions
   // might not be detected by this analysis. Hence, this analysis can be
   // improved in the future.
+  //
+  // Args:
+  //   f: The function to analyze for mutual exclusivity.
+  //   context: The optimization context.
+  //   should_target: A function that returns true if a Node should be
+  //     considered for the mutual exclusivity analysis.
+  //   visibility: Contains precomputed visibility analyses used to determine
+  //     mutual exclusivity.
   static absl::StatusOr<absl::flat_hash_set<MutuallyExclPair>>
   ComputeMutualExclusionAnalysis(FunctionBase* f, OptimizationContext& context,
-                                 const VisibilityAnalyses& visibility,
-                                 const Config& config);
+                                 absl::FunctionRef<bool(Node*)> should_target,
+                                 const VisibilityAnalyses& visibility);
 
   // This function returns all possible folding actions that we can legally
   // perform.

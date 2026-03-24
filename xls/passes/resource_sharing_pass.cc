@@ -31,6 +31,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
@@ -255,32 +256,18 @@ bool ShouldTarget(Node* n) {
   return true;
 }
 
-// Check if we are currently capable to potentially handle the node given as
-// input for folding.
-bool CanTarget(Node* n, Node* selector,
-               const NodeForwardDependencyAnalysis& nda) {
-  // We currently handle only multiplications
-  if (!CanTarget(n)) {
-    return false;
-  }
-
-  // Check if @n reaches the selector.
-  // In this case, @n cannot be considered for this select
-  return !nda.IsDependent(n, selector);
-}
-
 absl::StatusOr<absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>>
 ResourceSharingPass::ComputeMutualExclusionAnalysis(
     FunctionBase* f, OptimizationContext& context,
-    const VisibilityAnalyses& visibility,
-    const ResourceSharingPass::Config& config) {
+    absl::FunctionRef<bool(Node*)> should_target,
+    const VisibilityAnalyses& visibility) {
   absl::flat_hash_set<MutuallyExclPair> mutual_exclusivity;
 
   std::vector<Node*> relevant_nodes;
-  // Relatively few nodes are expected to satisfy CanTarget and ShouldTarget
+  // Relatively few nodes are expected to satisfy the target criteria.
   relevant_nodes.reserve(f->node_count() / 10);
   for (Node* node : f->nodes()) {
-    if (CanTarget(node) && ShouldTarget(node)) {
+    if (CanTarget(node) && should_target(node)) {
       relevant_nodes.push_back(node);
     }
   }
@@ -382,14 +369,17 @@ ResourceSharingPass::ComputeFoldableActions(
   }
 
   // Print the folding actions found
-  absl::flat_hash_set<Node*> foldables;
-  foldables.reserve(foldable_actions.size() * 2);
-  for (const std::unique_ptr<BinaryFoldingAction>& folding : foldable_actions) {
-    foldables.insert(folding->GetFrom());
-    foldables.insert(folding->GetTo());
-  }
-  VLOG(1) << "Instructions that can be folded: " << foldables.size();
   VLOG(1) << "Possible folding actions: " << foldable_actions.size();
+  if (VLOG_IS_ON(1)) {
+    absl::flat_hash_set<Node*> foldables;
+    foldables.reserve(foldable_actions.size() * 2);
+    for (const std::unique_ptr<BinaryFoldingAction>& folding :
+         foldable_actions) {
+      foldables.insert(folding->GetFrom());
+      foldables.insert(folding->GetTo());
+    }
+    VLOG(1) << "Instructions that can be folded: " << foldables.size();
+  }
   if (VLOG_IS_ON(3)) {
     for (const std::unique_ptr<BinaryFoldingAction>& folding :
          foldable_actions) {
@@ -2041,10 +2031,11 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   next_node_id++;
 
   // Compute the mutually exclusive binary relation between IR instructions
+  auto target_nodes = [](Node* n) { return ShouldTarget(n); };
   absl::flat_hash_set<MutuallyExclPair> mutual_exclusivity;
   XLS_ASSIGN_OR_RETURN(
       mutual_exclusivity,
-      ComputeMutualExclusionAnalysis(f, context, visibilities, config_));
+      ComputeMutualExclusionAnalysis(f, context, target_nodes, visibilities));
 
   BitProvenanceAnalysis bpa;
   VisibilityEstimator visibility_estimator(next_node_id - 1, bdd_engine.get(),
