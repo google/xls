@@ -2671,9 +2671,12 @@ absl::Status FunctionConverter::HandleBuiltinRead(const Invocation* node) {
 
   Expr* source = node->args()[0];
   XLS_RETURN_IF_ERROR(Visit(source));
-  XLS_ASSIGN_OR_RETURN(BValue state_element, Use(source));
+  XLS_ASSIGN_OR_RETURN(BValue state_read, Use(source));
+  if (node->label().has_value()) {
+    state_read.node()->As<StateRead>()->set_label(*node->label());
+  }
   Def(node, [&](const SourceInfo& loc) {
-    return function_builder_->Identity(state_element, loc);
+    return function_builder_->Identity(state_read, loc);
   });
   return absl::OkStatus();
 }
@@ -2707,10 +2710,10 @@ absl::Status FunctionConverter::HandleBuiltinWrite(const Invocation* node) {
 
   Expr* target = node->args()[0];
   XLS_RETURN_IF_ERROR(Visit(target));
-  XLS_ASSIGN_OR_RETURN(BValue state_element, Use(target));
+  XLS_ASSIGN_OR_RETURN(BValue state_read, Use(target));
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  builder_ptr->Next(state_element, update_val, active);
+  builder_ptr->Next(state_read, update_val, active, node->label());
   node_to_ir_[node] = function_builder_->Tuple({});
   return absl::OkStatus();
 }

@@ -495,6 +495,8 @@ class FunctionConverter {
   absl::Status HandleBuiltinEnumerate(const Invocation* node);
   absl::Status HandleBuiltinGate(const Invocation* node);
   absl::Status HandleBuiltinJoin(const Invocation* node);
+  absl::Status HandleBuiltinLabeledRead(const Invocation* node);
+  absl::Status HandleBuiltinLabeledWrite(const Invocation* node);
   absl::Status HandleBuiltinOneHot(const Invocation* node);
   absl::Status HandleBuiltinOneHotSel(const Invocation* node);
   absl::Status HandleBuiltinOrReduce(const Invocation* node);

@@ -194,6 +194,7 @@ TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessMultipleReads) {
 // Negative test - can we handle explicit state access multiple writes
 TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessMultipleWrites) {
   XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
+
   EXPECT_THAT(
       interpreter->Tick(),
       absl_testing::StatusIs(
@@ -205,6 +206,7 @@ TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessMultipleWrites) {
 // Negative test - can we handle explicit state access write before read
 TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessWriteBeforeRead) {
   XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
+
   EXPECT_THAT(
       interpreter->Tick(),
       absl_testing::StatusIs(
@@ -221,12 +223,29 @@ TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessMatch) {
 // Negative test - can we handle explicit state access match multiple writes
 TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessMatchMultipleWrites) {
   XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
+
   EXPECT_THAT(
       interpreter->Tick(),
       absl_testing::StatusIs(
           absl::StatusCode::kAborted,
           ::testing::HasSubstr(
               "State element written after write in same activation.")));
+}
+
+TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessLabeledReadAndWrite) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
+  EXPECT_THAT(interpreter->Tick(), absl_testing::IsOk());
+}
+
+// Negative test - can we handle explicit state access read with labeled read
+TEST_F(ExplicitStateRuntimeTest, ExplicitStateAccessReadWithLabeledRead) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter, CreateRuntime(GetTestDataPath()));
+
+  EXPECT_THAT(interpreter->Tick(),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kAborted,
+                  ::testing::HasSubstr(
+                      "State element read after read in same activation.")));
 }
 
 // Instantiate and run all the tests in proc_runtime_test_base.cc using
