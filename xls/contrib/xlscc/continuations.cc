@@ -209,27 +209,27 @@ ParamSet SourcesSetNodeInfo::MergeInfos(
 }
 
 SourcesSetTreeNodeInfo::SourcesSetTreeNodeInfo()
-    : xls::DataFlowLazyNodeInfo<SourcesSetTreeNodeInfo, NodeSourceSet>(
+    : xls::DataFlowLazyNodeInfo<SourcesSetTreeNodeInfo, NodeSourceSetPtr>(
           /*compute_tree_for_source=*/true, /*default_info_source=*/true,
           /*include_selectors=*/false) {}
 
-NodeSourceSet SourcesSetTreeNodeInfo::ComputeInfoForBitsLiteral(
+NodeSourceSetPtr SourcesSetTreeNodeInfo::ComputeInfoForBitsLiteral(
     const xls::Bits& literal) const {
   LOG(FATAL) << "ComputeInfoForBitsLiteral should be unused for "
                 "SourcesSetTreeNodeInfo";
-  return NodeSourceSet();
+  return NodeSourceSetPtr();
 }
 
-NodeSourceSet SourcesSetTreeNodeInfo::ComputeInfoForNode(
+NodeSourceSetPtr SourcesSetTreeNodeInfo::ComputeInfoForNode(
     xls::Node* node) const {
   LOG(FATAL)
       << "ComputeInfoForNode should be unused for SourcesSetTreeNodeInfo";
-  return NodeSourceSet();
+  return NodeSourceSetPtr();
 }
 
-xls::LeafTypeTree<NodeSourceSet> SourcesSetTreeNodeInfo::ComputeInfoTreeForNode(
-    xls::Node* node) const {
-  auto result = xls::LeafTypeTree<NodeSourceSet>::CreateFromFunction(
+xls::LeafTypeTree<NodeSourceSetPtr>
+SourcesSetTreeNodeInfo::ComputeInfoTreeForNode(xls::Node* node) const {
+  auto result = xls::LeafTypeTree<NodeSourceSetPtr>::CreateFromFunction(
       node->GetType(),
       [&](xls::Type* element_type, absl::Span<const int64_t> index) {
         return std::make_shared<const absl::flat_hash_set<xls::NodeSource>>(
@@ -240,13 +240,55 @@ xls::LeafTypeTree<NodeSourceSet> SourcesSetTreeNodeInfo::ComputeInfoTreeForNode(
   return *std::move(result);
 }
 
-NodeSourceSet SourcesSetTreeNodeInfo::MergeInfos(
-    absl::Span<const absl::Span<const NodeSourceSet>> spans) const {
-  auto ret = std::make_shared<absl::flat_hash_set<xls::NodeSource>>();
+NodeSourceSetPtr SourcesSetTreeNodeInfo::MergeTwo(NodeSourceSetPtr a,
+                                                  NodeSourceSetPtr b) const {
+  if (a == nullptr || a->empty()) {
+    return b;
+  }
+  if (a == b || b == nullptr || b->empty()) {
+    return a;
+  }
+
+  // Make sure the key doesn't depend on the input order.
+  auto key = a > b ? std::make_pair(b, a) : std::make_pair(a, b);
+
+  auto [it, inserted] = merge_cache_.try_emplace(key, nullptr);
+  if (!inserted) {
+    return it->second;
+  }
+
+  NodeSourceSetPtr large = a;
+  NodeSourceSetPtr small = b;
+  if (large->size() < small->size()) {
+    std::swap(large, small);
+  }
+
+  auto merged_set =
+      std::make_shared<absl::flat_hash_set<xls::NodeSource>>(*large);
+  merged_set->insert(small->begin(), small->end());
+
+  if (merged_set->size() == large->size()) {
+    // The small set was a subset of the large set.
+    it->second = large;
+    return large;
+  }
+
+  it->second = merged_set;
+  return merged_set;
+}
+
+NodeSourceSetPtr SourcesSetTreeNodeInfo::MergeInfos(
+    absl::Span<const absl::Span<const NodeSourceSetPtr>> spans) const {
+  NodeSourceSetPtr ret = nullptr;
   for (const auto& span : spans) {
-    for (const NodeSourceSet& info : span) {
-      ret->insert(info->begin(), info->end());
+    for (const NodeSourceSetPtr& info : span) {
+      ret = MergeTwo(ret, info);
     }
+  }
+  if (ret == nullptr) {
+    static const auto empty_set =
+        std::make_shared<const absl::flat_hash_set<xls::NodeSource>>();
+    return empty_set;
   }
   return ret;
 }
@@ -1357,7 +1399,7 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
     for (ContinuationValue& continuation_out : slice.continuations_out) {
       CHECK(continuation_out.output_node->op() == xls::Op::kIdentity);
 
-      const xls::SharedLeafTypeTree<NodeSourceSet>& sources =
+      const xls::SharedLeafTypeTree<NodeSourceSetPtr>& sources =
           node_sources_info->GetInfo(continuation_out.output_node);
 
       // First find all the continuation params
@@ -1366,7 +1408,7 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
       bool disallowed = false;
       XLS_RETURN_IF_ERROR(xls::leaf_type_tree::ForEachIndex(
           sources.AsView(),
-          [&](xls::Type* element_type, const NodeSourceSet& source_set,
+          [&](xls::Type* element_type, const NodeSourceSetPtr& source_set,
               absl::Span<const int64_t> tree_index) -> absl::Status {
             for (const xls::NodeSource& source : *source_set) {
               xls::Node* source_node = source.node();
@@ -1405,7 +1447,7 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
           source_type_trees;
       XLS_RETURN_IF_ERROR(xls::leaf_type_tree::ForEachIndex(
           sources.AsView(),
-          [&](xls::Type* element_type, const NodeSourceSet& source_set,
+          [&](xls::Type* element_type, const NodeSourceSetPtr& source_set,
               absl::Span<const int64_t> tree_index) -> absl::Status {
             for (xls::Param* allowed_source : allowed_sources) {
               std::vector<int64_t> tree_index_vec(tree_index.begin(),

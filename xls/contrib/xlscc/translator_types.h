@@ -1273,7 +1273,7 @@ class SourcesSetNodeInfo
 };
 
 typedef std::shared_ptr<const absl::flat_hash_set<xls::NodeSource>>
-    NodeSourceSet;
+    NodeSourceSetPtr;
 
 // This class sees through compound type operations, ie on tuples,
 // but it does not see through other operations, ie add.
@@ -1283,20 +1283,31 @@ typedef std::shared_ptr<const absl::flat_hash_set<xls::NodeSource>>
 // It returns a set of nodes, as some sources will be of the unsupported types,
 // ie the aforementioned add.
 class SourcesSetTreeNodeInfo
-    : public xls::DataFlowLazyNodeInfo<SourcesSetTreeNodeInfo, NodeSourceSet> {
+    : public xls::DataFlowLazyNodeInfo<SourcesSetTreeNodeInfo,
+                                       NodeSourceSetPtr> {
  public:
   SourcesSetTreeNodeInfo();
 
-  NodeSourceSet ComputeInfoForBitsLiteral(
+  NodeSourceSetPtr ComputeInfoForBitsLiteral(
       const xls::Bits& literal) const override final;
 
-  NodeSourceSet ComputeInfoForNode(xls::Node* node) const override final;
+  NodeSourceSetPtr ComputeInfoForNode(xls::Node* node) const override final;
 
-  xls::LeafTypeTree<NodeSourceSet> ComputeInfoTreeForNode(
+  xls::LeafTypeTree<NodeSourceSetPtr> ComputeInfoTreeForNode(
       xls::Node* node) const override final;
 
-  NodeSourceSet MergeInfos(absl::Span<const absl::Span<const NodeSourceSet>>
-                               spans) const override final;
+  NodeSourceSetPtr MergeInfos(
+      absl::Span<const absl::Span<const NodeSourceSetPtr>> spans)
+      const override final;
+
+ private:
+  NodeSourceSetPtr MergeTwo(NodeSourceSetPtr a, NodeSourceSetPtr b) const;
+
+  // NOTE: Grows without bound until the SourcesSetTreeNodeInfo is destroyed.
+  //       Seems okay so far, but we should watch for any OOM issues.
+  mutable absl::flat_hash_map<std::pair<NodeSourceSetPtr, NodeSourceSetPtr>,
+                              NodeSourceSetPtr>
+      merge_cache_;
 };
 
 class OptimizationContext {
