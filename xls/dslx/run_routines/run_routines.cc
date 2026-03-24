@@ -1131,7 +1131,7 @@ absl::StatusOr<ParseAndTestResult> AbstractTestRunner::ParseAndTest(
                 std::filesystem::path(msg.location().filename()).filename(),
                 msg.location().line(), msg.location().column(), msg.message());
           }
-          std::cout << message << '\n';
+          std::cerr << message << '\n';
         }
       }
     }
