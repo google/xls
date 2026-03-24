@@ -1,9 +1,54 @@
-# Interpreters
+# Simulation and Execution
 
-XLS provides a several interpreters to assist in design validation across our
-functional stack, from input DSLX down to the netlist level.
+
+XLS provides multiple simulation and execution mechanisms (including interpreters and JIT compilation) to validate designs across different abstraction levels, from input DSLX down to the netlist level.
 
 [TOC]
+
+## Execution / Simulation Flow Overview
+
+XLS Intermediate Representation (IR) serves as the central abstraction for modeling computations in the XLS compiler. It represents programs as a directed graph of operations, where each node corresponds to a computation such as arithmetic, bitwise logic, or data movement.
+
+Once DSLX code is lowered into IR, it can be executed or transformed through multiple pathways depending on the use case.
+
+### Execution Modes
+
+XLS supports multiple execution and validation mechanisms across different abstraction levels:
+
+- **DSLX Interpreter**
+  - Executes high-level DSLX code directly
+  - Useful for early-stage validation and unit testing
+
+- **IR Interpreter**
+  - Executes XLS IR without compilation
+  - Useful for debugging and correctness checking
+
+- **IR JIT (LLVM-based)**
+  - Compiles IR into native machine code
+  - Provides faster execution for performance evaluation
+
+- **Code Generation (Hardware Path)**
+  - Converts XLS IR into Verilog/SystemVerilog
+  - Enables synthesis of hardware designs
+  - Supports both combinational and pipelined circuit generation
+
+- **Netlist Simulation**
+  - Evaluates synthesized netlists using cell libraries
+  - Used for post-synthesis validation
+
+### Complete Execution Flow
+
+DSLX → IR → (Interpret / JIT) → Codegen → Verilog → Netlist → Simulation
+
+### Why this matters
+
+Understanding these execution paths enables developers to:
+
+- Validate correctness at multiple abstraction levels
+- Compare performance between execution strategies
+- Bridge the gap between software-style execution and hardware realization
+
+This is particularly important for contributors working on compiler optimizations and hardware-aware transformations.
 
 ## DSLX
 
