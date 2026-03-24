@@ -81,7 +81,8 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
   // Only used if compute_tree_for_source = true.
   virtual xls::LeafTypeTree<Info> ComputeInfoTreeForNode(Node* node) const = 0;
 
-  virtual Info MergeInfos(const absl::Span<const Info>& infos) const = 0;
+  virtual Info MergeInfos(
+      absl::Span<const absl::Span<const Info>> spans) const = 0;
 
   explicit DataFlowLazyNodeInfo(bool compute_tree_for_source,
                                 bool default_info_source,
@@ -115,7 +116,7 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
 
   Info GetSingleInfoForNode(Node* node) {
     SharedLeafTypeTree<Info> info = LazyNodeInfo<Info>::GetInfo(node);
-    return MergeInfos(info.elements());
+    return MergeInfos({info.elements()});
   }
 
  private:
@@ -128,27 +129,6 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
     if (value.IsTuple() || value.IsArray()) {
       for (const xls::Value& element : value.elements()) {
         GetValueInfos(element, infos);
-      }
-      return;
-    }
-    LOG(FATAL) << "Unsupported value type";
-  }
-
-  static void DuplicateInfo(xls::Type* type, const Info& info,
-                            absl::InlinedVector<Info, 1>& infos) {
-    if (type->IsBits()) {
-      infos.push_back(info);
-      return;
-    }
-    if (type->IsTuple()) {
-      for (xls::Type* element_type : type->AsTupleOrDie()->element_types()) {
-        DuplicateInfo(element_type, info, infos);
-      }
-      return;
-    }
-    if (type->IsArray()) {
-      for (int64_t e = 0; e < type->AsArrayOrDie()->size(); ++e) {
-        DuplicateInfo(type->AsArrayOrDie()->element_type(), info, infos);
       }
       return;
     }
@@ -377,11 +357,8 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
                 continue;
               }
               CHECK_EQ(operand_infos.at(op)->elements().size(), 1);
-              absl::InlinedVector<Info, 1> infos;
-              DuplicateInfo(node->GetType(),
-                            operand_infos.at(op)->elements().at(0), infos);
-              selector_tree = LeafTypeTree<Info>::CreateFromVector(
-                  node->GetType(), std::move(infos));
+              selector_tree = LeafTypeTree<Info>(
+                  node->GetType(), operand_infos.at(op)->elements().at(0));
               operand_infos_out.push_back(&selector_tree);
               continue;
             }
@@ -409,21 +386,18 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
       ret = ComputeInfoForNode(node);
     } else {
       // Merge all operand infos
-      absl::InlinedVector<Info, 1> infos_in;
+      absl::InlinedVector<absl::Span<const Info>, 1> spans;
+      spans.reserve(operand_infos_out.size());
       for (int64_t op = 0; op < operand_infos_out.size(); ++op) {
-        for (int64_t i = 0; i < operand_infos_out[op]->elements().size(); ++i) {
-          infos_in.push_back(operand_infos_out[op]->elements()[i]);
-        }
+        spans.push_back(operand_infos_out[op]->elements());
       }
 
-      CHECK(!infos_in.empty());
+      CHECK(!spans.empty());
 
-      ret = MergeInfos(infos_in);
+      ret = MergeInfos(spans);
     }
 
-    absl::InlinedVector<Info, 1> infos;
-    DuplicateInfo(ret_type, ret, infos);
-    return LeafTypeTree<Info>::CreateFromVector(ret_type, std::move(infos));
+    return LeafTypeTree<Info>(ret_type, ret);
   }
 
   absl::Status MergeWithGiven(Info& info, const Info& given) const final {
@@ -528,12 +502,15 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
     }
 
     absl::InlinedVector<Info, 1> infos_out;
+    absl::InlinedVector<absl::Span<const Info>, 1> spans_this_elem;
+    spans_this_elem.reserve(operand_infos.size());
     for (int64_t e = 0; e < first_info->elements().size(); ++e) {
-      absl::InlinedVector<Info, 1> infos_this_elem;
+      spans_this_elem.clear();
       for (int64_t op = 0; op < operand_infos.size(); ++op) {
-        infos_this_elem.push_back(operand_infos.at(op)->elements().at(e));
+        spans_this_elem.push_back(
+            operand_infos.at(op)->elements().subspan(e, 1));
       }
-      infos_out.push_back(MergeInfos(infos_this_elem));
+      infos_out.push_back(MergeInfos(spans_this_elem));
     }
     return LeafTypeTree<Info>::CreateFromVector(first_info->type(),
                                                 std::move(infos_out));
