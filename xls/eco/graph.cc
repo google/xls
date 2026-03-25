@@ -256,6 +256,10 @@ void XLSGraph::populate_node_signatures() {
                 }
                 return a.neighbor_index < b.neighbor_index;
               });
+    // TODO(xls-eco): For commutative ops such as add/and/or/xor, consider
+    // canonicalizing equivalent operand permutations here before hashing.
+    // Today the signature remains operand-order-sensitive on incoming edges,
+    // which makes the MCS compatibility key stricter than semantic equality.
     std::vector<std::size_t> labels;
     labels.reserve(ordered.size());
     for (const NeighborInfo& info : ordered) {

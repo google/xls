@@ -66,6 +66,10 @@ def _dslx_ir_diff_impl(ctx):
         ged_args.append("--use_mcs=false")
     if ctx.attr.mcs_cutoff >= 0:
         ged_args.append("--mcs_cutoff=" + str(ctx.attr.mcs_cutoff))
+    if ctx.attr.mcs_optimal == False:
+        ged_args.append("--mcs_optimal=false")
+    if ctx.attr.mcs_timeout >= 0:
+        ged_args.append("--mcs_timeout=" + str(ctx.attr.mcs_timeout))
     ged_args.append("--report=" + report_out.path)
 
     ged_runfiles = ctx.attr.ged_main[DefaultInfo].default_runfiles.files.to_list()
@@ -138,10 +142,18 @@ xls_dslx_ir_diff_rule = rule(
             default = -1,
             doc = "Stop MCS when remaining nodes <= this value; negative means run to completion.",
         ),
+        "mcs_optimal": attr.bool(
+            default = True,
+            doc = "Require optimal MCS preprocessing; false enables heuristic early stop on long plateaus.",
+        ),
+        "mcs_timeout": attr.int(
+            default = -1,
+            doc = "Optional MCS timeout in seconds; negative means omit flag.",
+        ),
     },
 )
 
-def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutoff = None):
+def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutoff = None, mcs_optimal = None, mcs_timeout = None):
     """Builds opt IRs for two DSLX sources and emits a patch between them.
 
     Args:
@@ -151,6 +163,8 @@ def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutof
       timeout: Optional GED timeout (seconds). None or negative => omit flag.
       mcs: Optional boolean. If false, pass --use_mcs=false to GED; true leaves default.
       mcs_cutoff: Optional int. Stop MCS when remaining nodes <= this value; negative => run to completion.
+      mcs_optimal: Optional boolean. False enables heuristic MCS early stop.
+      mcs_timeout: Optional int. Timeout in seconds for MCS preprocessing.
     """
     if len(srcs) != 2:
         fail("xls_dslx_ir_diff.srcs must have length 2")
@@ -187,6 +201,10 @@ def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutof
         xls_dslx_ir_diff_rule_kwargs["mcs"] = mcs
     if mcs_cutoff != None:
         xls_dslx_ir_diff_rule_kwargs["mcs_cutoff"] = mcs_cutoff
+    if mcs_optimal != None:
+        xls_dslx_ir_diff_rule_kwargs["mcs_optimal"] = mcs_optimal
+    if mcs_timeout != None:
+        xls_dslx_ir_diff_rule_kwargs["mcs_timeout"] = mcs_timeout
 
     xls_dslx_ir_diff_rule(**xls_dslx_ir_diff_rule_kwargs)
 
