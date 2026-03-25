@@ -1045,12 +1045,6 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             DefineAndSetTypeVariable(actual_expr, "actual_expr"));
         XLS_RETURN_IF_ERROR(
             table_.SetTypeAnnotation(actual_expr, binding->type_annotation()));
-      } else if (binding->expr() == nullptr) {
-        return ArgCountMismatchErrorStatus(
-            node->span(),
-            absl::Substitute("No parametric value provided for `$0` in `$1`",
-                             binding->identifier(), struct_def->identifier()),
-            file_table_);
       }
     }
     return DefaultHandler(node);
