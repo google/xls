@@ -124,7 +124,12 @@ struct InstanceContextVTable {
 // execution-relevant information and function pointers. Used for JITted procs.
 struct InstanceContext {
  public:
-  static InstanceContext CreateForFunc() { return InstanceContext(); }
+  static InstanceContext CreateForFunc(
+      std::optional<int64_t> max_trace_verbosity = 0) {
+    InstanceContext ctx;
+    ctx.max_trace_verbosity_ = max_trace_verbosity.value_or(0);
+    return ctx;
+  }
   static InstanceContext CreateForBlock() { return InstanceContext(); }
   static InstanceContext CreateForProc(ProcInstance* inst,
                                        std::vector<JitChannelQueue*> queues) {
@@ -197,6 +202,7 @@ struct InstanceContext {
   std::unique_ptr<TypeManager> type_manager = std::make_unique<TypeManager>();
 
   RuntimeObserver* observer = nullptr;
+  int64_t max_trace_verbosity_ = 0;
 };
 
 static_assert(offsetof(InstanceContext, vtable) == 0);

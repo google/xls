@@ -421,7 +421,9 @@ absl::StatusOr<std::vector<Value>> Eval(
                  JitEvaluatorOptions()
                      .set_opt_level(absl::GetFlag(FLAGS_llvm_opt_level))
                      .set_include_observer_callbacks(eval_observer.has_value())
-                     .set_jit_observer(&observer)));
+                     .set_jit_observer(&observer)
+                     .set_max_trace_verbosity(
+                         absl::GetFlag(FLAGS_max_trace_verbosity))));
   }
 
   std::vector<Value> results;
