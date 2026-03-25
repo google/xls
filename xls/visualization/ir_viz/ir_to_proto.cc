@@ -425,14 +425,19 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
     // Match node definitions:
     //
     //   bar: bits[32] = op(x, y, ...) {
+    //   return_this_later: bits[32] = op(...) {
+    //   ret foo: bits[32] = op(a, ...) {
     //
     // =>
     //
     //   <span>bar</span>: bits[32] = op(<span>x</span>, <span>y</span>, ...)
+    //   <span>return_this_later</span>: bits[32] = op(...)
+    //   ret <span>foo</span>: bits[32] = op(<span>a</span>, ...)
     std::string node_name;
-    if (RE2::PartialMatch(line, R"(^\s*(?:ret)?\s*([_a-zA-Z0-9.]+)\s*:)",
+    if (RE2::PartialMatch(line, R"(^\s*(?:ret )?\s*([_a-zA-Z0-9.]+)\s*:)",
                           &node_name)) {
-      XLS_ASSIGN_OR_RETURN(Node * node, current_function->GetNode(node_name));
+      XLS_ASSIGN_OR_RETURN(Node * node, current_function->GetNode(node_name),
+                           _ << "in line '" << line << "'");
       XLS_RETURN_IF_ERROR(WrapNodeDefInSpan(node, function_ids, &line));
 
       // Wrap the operands in spans.
