@@ -49,11 +49,18 @@ class EvaluatorOptions {
   }
   bool trace_calls() const { return trace_calls_; }
 
+  EvaluatorOptions& set_max_trace_verbosity(int64_t value) {
+    max_trace_verbosity_ = value;
+    return *this;
+  }
+  int64_t max_trace_verbosity() const { return max_trace_verbosity_; }
+
  private:
   bool trace_channels_ = false;
   FormatPreference format_preference_ = FormatPreference::kDefault;
   bool support_observers_ = false;
   bool trace_calls_ = false;
+  int64_t max_trace_verbosity_ = 0;
 };
 
 }  // namespace xls
