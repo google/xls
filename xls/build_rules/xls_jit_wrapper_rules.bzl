@@ -459,7 +459,7 @@ def cc_xls_ir_jit_wrapper(
         srcs = [":" + source_filename],
         hdrs = ([":" + header_filename] if header_filename else []),
         exec_properties = exec_properties,
-        alwayslink = alwayslink,
+        alwayslink = alwayslink or wrapper_type == FUZZTEST_WRAPPER_TYPE,
         tags = tags,
         deps = extra_lib_deps +
                _BASE_JIT_WRAPPER_DEPS[wrapper_type] + [
