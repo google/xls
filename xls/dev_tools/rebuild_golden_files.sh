@@ -40,4 +40,8 @@ bazel test -c opt \
   --nocache_test_results \
   --test_output=errors || /bin/true
 
-bazel run -c opt ${RUN_TARGETS[@]}
+# bazel run can't run multiple targets
+# TODO(allight): It would be nice to run these all in parallel.
+for target in "${RUN_TARGETS[@]}"; do
+  bazel run -c opt "$target"
+done
