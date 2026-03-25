@@ -23,7 +23,6 @@ xls_dslx_ir_diff(
         ":crc32.rev.x",
     ],
     dslx_top = "main",
-    mcs = False,
 )
 
 xls_dslx_ir_diff(
@@ -53,7 +52,7 @@ xls_dslx_ir_diff(
         ":riscv_simple.rev.x",
     ],
     dslx_top = "run_instruction",
-    mcs = False,
+    mcs = True,
 )
 
 xls_dslx_ir_diff(
@@ -73,7 +72,7 @@ xls_dslx_ir_diff(
         ":vector_core.rev.x",
     ],
     dslx_top = "vector_core",
-    mcs = False,
+    mcs = True,
 )
 
 xls_dslx_ir_diff(
@@ -84,7 +83,7 @@ xls_dslx_ir_diff(
     ],
     dslx_top = "main",
     mcs = True,
-    mcs_cutoff = 1500,
+    mcs_optimal = False,  #Plateaus after finding 3699 mappings and is probably the optimal mapping but due to large difference  between input node counts the recursion is taking a long time to find the optimal mapping, so we set it to false for now to get the results faster.
 )
 
 xls_dslx_ir_diff(
@@ -106,7 +105,7 @@ xls_patch_ir(
 # 1. replace the header channel defs  in the patched ir with the after ir ones.
 # 2. replace top receive nodes with the after ir ones while keeping their ids
 # 3. run lec manually and it should pass.
-# 4. TODO: Treat channles as nodes and automatically re-generate channels if needed.
+# 4. TODO: Treat channels as nodes and automatically re-generate channels if needed.
 #
 # xls_patch_ir(
 #     name = "apfloat_patched_opt_ir",
@@ -125,7 +124,6 @@ xls_patch_ir(
     ir_diff = ":histogram_diff",
 )
 
-# TODO: Find the sweet spot to hand-off MCS to GED to minimize the runtime.
 xls_patch_ir(
     name = "vector_core_patched_opt_ir",
     ir_diff = ":vector_core_diff",
