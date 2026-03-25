@@ -332,6 +332,8 @@ absl::Status EvaluateProcs(
   std::optional<JitRuntime*> jit;
   EvaluatorOptions evaluator_options;
   evaluator_options.set_trace_channels(absl::GetFlag(FLAGS_trace_channels));
+  evaluator_options.set_max_trace_verbosity(
+      absl::GetFlag(FLAGS_max_trace_verbosity));
   bool uses_observers = !options.observer.empty();
   if (options.top) {
     XLS_ASSIGN_OR_RETURN(Proc * proc, package->GetProc(*options.top));
