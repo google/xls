@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
@@ -322,6 +323,17 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
+    ],
+)
+
+cc_test(
+    name = "mcs_test",
+    size = "small",
+    srcs = ["mcs_test.cc"],
+    deps = [
+        ":mcs",
+        "//xls/common:xls_gunit_main",
+        "@googletest//:gtest",
     ],
 )
 
