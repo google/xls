@@ -51,6 +51,7 @@ bzl_library(
         "//xls/build_rules:xls_toolchains_bzl",
         "//xls/build_rules:xls_type_check_utils_bzl",
         "@bazel_skylib//lib:dicts",
+        "@bazel_skylib//rules:common_settings",
     ],
 )
 

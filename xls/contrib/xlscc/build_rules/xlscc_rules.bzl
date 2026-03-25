@@ -15,6 +15,7 @@
 """Build rules to compile with xlscc"""
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "append_xls_ir_verilog_generated_files",
@@ -25,7 +26,7 @@ load(
 load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_default_to_args",
-    "args_to_string",
+    "fixup_extra_args",
     "get_output_filename_value",
     "is_args_valid",
 )
@@ -242,45 +243,52 @@ def _xls_cc_ir_impl(ctx):
         "__AC_OVERRIDE_OVF_UPDATE_BODY=,__AC_OVERRIDE_OVF_UPDATE2_BODY="
     )
 
-    is_args_valid(xlscc_args, XLSCC_FLAGS)
-    my_args = args_to_string(xlscc_args)
-
     ir_filename = get_output_filename_value(
         ctx,
         "ir_file",
         ctx.attr.name + _IR_FILE_EXTENSION,
     )
+
+    args = ctx.actions.args()
+
+    # The actual source file to convert.
+    args.add(ctx.file.src.path)
+
     ir_file = ctx.actions.declare_file(ir_filename)
     outputs = [ir_file]
     block_pb_out_filename = getattr(ctx.attr, "block_pb_out")
     block_from_class_name = getattr(ctx.attr, "block_from_class")
-    block_from_class_flag = ""
+
     if block_from_class_name:
         block_pb_file = ctx.actions.declare_file(block_pb_out_filename.name)
         outputs.append(block_pb_file)
-        block_pb = block_pb_file.path
-        block_from_class_flag = "--block_from_class {}".format(block_from_class_name)
+        args.add("-block_pb", block_pb_file.path)
+        args.add("-block_from_class", block_from_class_name)
     else:
-        block_pb = ctx.file.block.path
+        args.add("-block_pb", ctx.file.block.path)
 
-    meta_out_flag = ""
     metadata_out_filename = getattr(ctx.attr, "metadata_out")
     if metadata_out_filename:
         meta_pb_file = ctx.actions.declare_file(metadata_out_filename.name)
         outputs.append(meta_pb_file)
-        meta_out_flag = "--meta_out " + meta_pb_file.path
+        args.add("-meta_out", meta_pb_file.path)
 
-    meta_out_text_flag = ""
     metadata_out_text = getattr(ctx.attr, "meta_out_text")
     if metadata_out_text:
-        meta_out_text_flag = "--meta_out_text"
+        args.add("--meta_out_text")
 
-    function_slice_graph_out_flag = ""
     debug_write_function_slice_graph_filename = getattr(ctx.attr, "debug_write_function_slice_graph_path")
     if debug_write_function_slice_graph_filename:
         function_slice_graph_file = ctx.actions.declare_file(debug_write_function_slice_graph_filename.name)
         outputs.append(function_slice_graph_file)
-        function_slice_graph_out_flag = "--debug_write_function_slice_graph_path " + function_slice_graph_file.path
+        args.add("-debug_write_function_slice_graph_path", function_slice_graph_file.path)
+
+    is_args_valid(xlscc_args, XLSCC_FLAGS)
+    for key, value in xlscc_args.items():
+        args.add("--{}={}".format(key, value))
+
+    for v in fixup_extra_args(ctx.attr._extra_xls_cc_flags[BuildSettingInfo].value):
+        args.add(v)
 
     # Get runfiles
     runfiles = _get_runfiles_for_xls_cc_ir(ctx)
@@ -301,18 +309,12 @@ def _xls_cc_ir_impl(ctx):
         tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
         inputs = runfiles.files,
-        command = "set -o pipefail; {} {} --block_pb {} {} {} {} {} {} 2>&1 >{} | tee {}".format(
+        command = "set -o pipefail; {} $@ 2>&1 >{} | tee {}".format(
             ctx.executable._xlscc_tool.path,
-            ctx.file.src.path,
-            block_pb,
-            block_from_class_flag,
-            meta_out_flag,
-            meta_out_text_flag,
-            function_slice_graph_out_flag,
-            my_args,
             ir_file.path,
             log_file.path,
         ),
+        arguments = [args],
         mnemonic = "CompileXLSCC",
         progress_message = "Converting %s" % ir_file.short_path,
     )
@@ -325,6 +327,10 @@ def _xls_cc_ir_impl(ctx):
     ]
 
 _xls_cc_ir_attrs = {
+    "_extra_xls_cc_flags": attr.label(
+        doc = "Extra flags to pass to the XLS[cc] converter tool.",
+        default = Label("//xls/contrib/xlscc/config:extra_xls_cc_args"),
+    ),
     "src": attr.label(
         doc = "The C/C++ source file containing the top level block. A " +
               "single source file must be provided. The file must have a '" +
