@@ -74,8 +74,6 @@ struct EquivalenceInfo {
 };
 
 // Testing-facing hooks for the paper-specific pieces of RRSplit:
-// candidate partition construction/refinement, node-equivalence reductions,
-// maximality reduction, and the tighter upper bound.
 EquivalenceInfo ComputeStructuralEquivalenceForTesting(const XLSGraph& query);
 CandidatePartition RefineCandidatePartitionForTesting(
     const CandidatePartition& candidates, int u, int v, const XLSGraph& query,
