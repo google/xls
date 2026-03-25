@@ -24,14 +24,20 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/passes/query_engine.h"
+#include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/z3_ir_translator_matchers.h"
+
+namespace m = xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -375,6 +381,40 @@ fn __sample__main(x: bits[60]) -> bits[35] {
                            specialized_node->GetType(), intervals)}}});
   XLS_ASSERT_OK_AND_ASSIGN(Node * target, f->GetNode("z"));
   EXPECT_EQ(specialized->KnownValueAsBits(target), std::nullopt);
+}
+
+TEST_F(BddQueryEngineTest, DetectKeepLsbsLeavesHighBitsZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("x", p->GetBitsType(4));
+  BValue ext = fb.ZeroExtend(a, 64, {}, "ext");
+  BValue lead_zero = fb.Clz(ext, {}, "lead_zero");
+  Node* lz_one_hot = lead_zero.node()->operand(0)->operand(0);
+  ASSERT_THAT(lz_one_hot, m::OneHot());
+  BValue rev_lz_one_hot =
+      fb.Reverse(BValue(lz_one_hot, &fb), {}, "rev_lz_one_hot");
+  BValue to_keep = fb.Subtract(fb.Literal(UBits(64, 7)),
+                               fb.BitSlice(lead_zero, 0, 7), {}, "to_keep");
+  BValue res = fb.And(fb.Param("inp", p->GetBitsType(64)),
+                      fb.Not(fb.Shll(fb.Literal(Bits::AllOnes(64)), to_keep)));
+  BValue top_zeros = fb.BitSlice(res, 4, 60);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  BddQueryEngine query_engine(1024);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto z3_result,
+      solvers::z3::TryProve(f, top_zeros.node(),
+                            solvers::z3::Predicate::EqualToZero(), -1));
+  EXPECT_THAT(z3_result, solvers::z3::IsProvenTrue())
+      << f->DumpIr(solvers::z3::CounterExampleAnnotator(
+             std::get<solvers::z3::ProvenFalse>(z3_result),
+             FormatPreference::kZeroPaddedHex));
+  XLS_ASSERT_OK(query_engine.Populate(f).status());
+  EXPECT_THAT(query_engine.KnownLeadingZeros(rev_lz_one_hot.node()),
+              testing::Optional(60))
+      << query_engine.GetTernary(lz_one_hot)->Get({});
+  EXPECT_THAT(query_engine.ExactlyOneBitTrue(lz_one_hot), true);
+  EXPECT_THAT(query_engine.KnownLeadingZeros(res.node()),
+              testing::Optional(60));
 }
 
 }  // namespace

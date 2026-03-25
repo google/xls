@@ -15,6 +15,7 @@
 #include "xls/passes/bdd_query_engine.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <iterator>
@@ -66,178 +67,59 @@ namespace xls {
 namespace {
 
 // Returns whether the given op should be included in BDD computations.
-bool ShouldEvaluate(Node* node) {
-  const int64_t kMaxWidth = 64;
-  auto is_wide = [](Node* n) {
-    return n->GetType()->GetFlatBitCount() > kMaxWidth;
-  };
-
+bool ShouldEvaluate(const Node* node) {
   if (!node->GetType()->IsBits()) {
     return false;
   }
-  switch (node->op()) {
-    // Logical ops.
-    case Op::kAnd:
-    case Op::kNand:
-    case Op::kNor:
-    case Op::kNot:
-    case Op::kOr:
-    case Op::kXor:
-      return true;
-
-    // Extension ops.
-    case Op::kSignExt:
-    case Op::kZeroExt:
-      return true;
-
-    case Op::kLiteral:
-      return true;
-
-    // Bit moving ops.
-    case Op::kBitSlice:
-    case Op::kConcat:
-    case Op::kReverse:
-    case Op::kIdentity:
-      return true;
-    case Op::kDynamicBitSlice:
-      return !is_wide(node);
-
-    case Op::kOneHot:
-      return !is_wide(node);
-
-    // Select operations.
-    case Op::kOneHotSel:
-    case Op::kPrioritySel:
-    case Op::kSel:
-      return true;
-
-    // Encode/decode operations:
-    case Op::kDecode:
-    case Op::kEncode:
-      return true;
-
-    // Comparison operation are only expressed if at least one of the operands
-    // is a literal. This avoids the potential exponential explosion of BDD
-    // nodes which can occur with pathological variable ordering.
-    case Op::kUGe:
-    case Op::kUGt:
-    case Op::kULe:
-    case Op::kULt:
-    case Op::kEq:
-    case Op::kNe:
-      return node->operand(0)->Is<Literal>() || node->operand(1)->Is<Literal>();
-
-    // Arithmetic ops
-    case Op::kAdd:
-    case Op::kSMul:
-    case Op::kUMul:
-    case Op::kSMulp:
-    case Op::kUMulp:
-    case Op::kNeg:
-    case Op::kSDiv:
-    case Op::kSub:
-    case Op::kUDiv:
-    case Op::kSMod:
-    case Op::kUMod:
-      return false;
-
-    // Reduction ops.
-    case Op::kAndReduce:
-    case Op::kOrReduce:
-    case Op::kXorReduce:
-      return true;
-
-    // Weirdo ops.
-    case Op::kAfterAll:
-    case Op::kMinDelay:
-    case Op::kArray:
-    case Op::kArrayConcat:
-    case Op::kArrayIndex:
-    case Op::kArraySlice:
-    case Op::kArrayUpdate:
-    case Op::kAssert:
-    case Op::kCountedFor:
-    case Op::kCover:
-    case Op::kDynamicCountedFor:
-    case Op::kGate:
-    case Op::kInputPort:
-    case Op::kInstantiationInput:
-    case Op::kInstantiationOutput:
-    case Op::kInvoke:
-    case Op::kMap:
-    case Op::kNewChannel:
-    case Op::kOutputPort:
-    case Op::kParam:
-    case Op::kStateRead:
-    case Op::kNext:
-    case Op::kReceive:
-    case Op::kRecvChannelEnd:
-    case Op::kRegisterRead:
-    case Op::kRegisterWrite:
-    case Op::kSend:
-    case Op::kSendChannelEnd:
-    case Op::kTrace:
-    case Op::kTuple:
-    case Op::kTupleIndex:
-      return false;
-
-    // Unsupported comparison operations.
-    case Op::kSGt:
-    case Op::kSGe:
-    case Op::kSLe:
-    case Op::kSLt:
-      return false;
-
-    // Shift operations and related ops.
-    // Shifts are very intensive to compute because they decompose into many,
-    // many gates and they don't seem to provide much benefit. Turn-off for now.
-    // TODO(meheff): Consider enabling shifts.
-    case Op::kShll:
-    case Op::kShra:
-    case Op::kShrl:
-    case Op::kBitSliceUpdate:
-      return false;
-  }
-  LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
+  // Ops which don't really have any reasonable BDD interpretation or which we
+  // otherwise wish to ignore (eg Gate, Map etc).
+  static constexpr auto kNonAnalyzableOps = std::to_array<Op>({
+      Op::kAfterAll,
+      Op::kMinDelay,
+      Op::kArray,
+      Op::kArrayConcat,
+      Op::kArrayIndex,
+      Op::kArraySlice,
+      Op::kArrayUpdate,
+      Op::kAssert,
+      Op::kCountedFor,
+      Op::kCover,
+      Op::kDynamicCountedFor,
+      Op::kGate,
+      Op::kInputPort,
+      Op::kInstantiationInput,
+      Op::kInstantiationOutput,
+      Op::kInvoke,
+      Op::kMap,
+      Op::kNewChannel,
+      Op::kOutputPort,
+      Op::kParam,
+      Op::kStateRead,
+      Op::kNext,
+      Op::kReceive,
+      Op::kRecvChannelEnd,
+      Op::kRegisterRead,
+      Op::kRegisterWrite,
+      Op::kSend,
+      Op::kSendChannelEnd,
+      Op::kTrace,
+      Op::kTuple,
+      Op::kTupleIndex,
+  });
+  constexpr static auto kMultiplicationOps = std::to_array<Op>({
+      Op::kSMul,
+      Op::kUMul,
+      Op::kSMulp,
+      Op::kUMulp,
+      Op::kSDiv,
+      Op::kUDiv,
+      Op::kSMod,
+      Op::kUMod,
+  });
+  return !(node->OpIn(kNonAnalyzableOps) || node->OpIn(kMultiplicationOps));
 }
 
 }  // namespace
-
-bool IsCheapForBdds(const Node* node) {
-  // The expense of evaluating a node using a BDD can depend strongly on the
-  // width of the inputs or outputs. The nodes are roughly classified into
-  // different groups based on their expense with width thresholds set for each
-  // group. These values are picked empirically based on benchmark results.
-  constexpr int64_t kWideThreshold = 256;
-  constexpr int64_t kNarrowThreshold = 16;
-  constexpr int64_t kVeryNarrowThreshold = 4;
-
-  auto is_always_cheap = [](const Node* node) {
-    return node->Is<ExtendOp>() || node->Is<NaryOp>() || node->Is<BitSlice>() ||
-           node->Is<Concat>() || node->Is<Literal>();
-  };
-
-  auto is_cheap_when_not_wide = [](const Node* node) {
-    return IsBinarySelectTwoCases(const_cast<Node*>(node)) ||
-           node->Is<UnOp>() || node->Is<BitwiseReductionOp>() ||
-           node->Is<OneHot>() || node->op() == Op::kEq || node->op() == Op::kNe;
-  };
-
-  auto is_cheap_when_narrow = [](const Node* node) {
-    return node->Is<CompareOp>() || node->Is<OneHot>() ||
-           node->Is<OneHotSelect>() || node->Is<PrioritySelect>();
-  };
-
-  int64_t width = node->GetType()->GetFlatBitCount();
-  for (Node* operand : node->operands()) {
-    width = std::max(operand->GetType()->GetFlatBitCount(), width);
-  }
-
-  return is_always_cheap(node) ||
-         (is_cheap_when_not_wide(node) && width <= kWideThreshold) ||
-         (is_cheap_when_narrow(node) && width <= kNarrowThreshold) ||
-         width <= kVeryNarrowThreshold;
-}
 
 class BddQueryEngine::AssumingQueryEngine final : public QueryEngine {
  public:

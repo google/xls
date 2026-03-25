@@ -584,7 +584,7 @@ TEST_F(VisibilityAnalysisTest, VisibilityFallbackToPruningExpensiveEdges) {
   // Enough to saturate the many selects on x, but not 'simple'
   int64_t path_limit = 4;
   std::unique_ptr<BddQueryEngine> bdd_engine =
-      std::make_unique<BddQueryEngine>(path_limit, IsCheapForBdds);
+      std::make_unique<BddQueryEngine>(path_limit);
   XLS_ASSERT_OK(bdd_engine->Populate(f));
   BinaryDecisionDiagram& bdd = bdd_engine->bdd();
 
@@ -638,8 +638,7 @@ TEST_F(VisibilityAnalysisTest, VisibilityFallbackToPostDominatorIfManyEdges) {
   XLS_ASSERT_OK(post_dom.Attach(f));
 
   std::unique_ptr<BddQueryEngine> bdd_engine_large =
-      std::make_unique<BddQueryEngine>(bdd_can_path_remaining_edges,
-                                       IsCheapForBdds);
+      std::make_unique<BddQueryEngine>(bdd_can_path_remaining_edges);
   XLS_ASSERT_OK(bdd_engine_large->Populate(f));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto operand_visibility_large,
@@ -673,8 +672,7 @@ TEST_F(VisibilityAnalysisTest, VisibilityFallbackToPostDominatorIfManyEdges) {
       *visibility_large->GetInfo(x.node())));
 
   std::unique_ptr<BddQueryEngine> bdd_engine_small =
-      std::make_unique<BddQueryEngine>(bdd_cannot_path_remaining_edges,
-                                       IsCheapForBdds);
+      std::make_unique<BddQueryEngine>(bdd_cannot_path_remaining_edges);
   XLS_ASSERT_OK(bdd_engine_small->Populate(f));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto operand_visibility_small,

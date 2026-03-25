@@ -1999,8 +1999,8 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(post_dom.Attach(f).status());
 
   // Run the BDD analysis
-  std::unique_ptr<BddQueryEngine> bdd_engine = std::make_unique<BddQueryEngine>(
-      config_.max_path_count_for_bdd_engine, IsCheapForBdds);
+  std::unique_ptr<BddQueryEngine> bdd_engine =
+      std::make_unique<BddQueryEngine>(config_.max_path_count_for_bdd_engine);
   XLS_RETURN_IF_ERROR(bdd_engine->Populate(f).status());
 
   XLS_ASSIGN_OR_RETURN(

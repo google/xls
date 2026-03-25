@@ -41,11 +41,6 @@
 
 namespace xls {
 
-// Returns true if the given node is very cheap to evaluate using a
-// BDD. Typically single-bit and logical operations are considered cheap as well
-// as "free" operations like bitslice and concat.
-bool IsCheapForBdds(const Node* node);
-
 // A query engine which uses binary decision diagrams (BDDs) to analyze an XLS
 // function. BDDs provide sharp analysis of bits values and relationships
 // between bit values in the function (relative to ternary abstract evaluation).
@@ -78,7 +73,7 @@ class BddQueryEngine
   // kDefaultPathLimit and filtering to operate only on nodes that satisfy
   // IsCheapForBdds.
   static std::unique_ptr<BddQueryEngine> MakeDefault() {
-    return std::make_unique<BddQueryEngine>(kDefaultPathLimit, IsCheapForBdds);
+    return std::make_unique<BddQueryEngine>(kDefaultPathLimit);
   }
 
   // `path_limit` is the maximum number of paths from the BDD node to the
