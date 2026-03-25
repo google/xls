@@ -229,7 +229,7 @@ absl::Status FlattenState(Proc* proc) {
 
     // Construct NextValues for each next value & component of the flattened
     // state element.
-    for (Next* next : proc->next_values(state_read)) {
+    for (Next* next : proc->next_values(state_element)) {
       XLS_ASSIGN_OR_RETURN(std::vector<Node*> value_components,
                            DecomposeNode(next->value()));
       XLS_RET_CHECK_EQ(value_components.size(), num_components);
@@ -270,7 +270,7 @@ absl::Status FlattenState(Proc* proc) {
 
     // Remove the next_value nodes for the old state param
     absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
-        proc->next_values(state_read);
+        proc->next_values(state_element);
     for (Next* next : next_values) {
       XLS_RETURN_IF_ERROR(
           next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());

@@ -55,7 +55,7 @@ absl::StatusOr<bool> LegalizeStateReadPredicate(
     const SchedulingPassOptions& options) {
   StateRead* state_read = proc->GetStateRead(state_element);
   const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
-      proc->next_values(state_read);
+      proc->next_values(state_element);
   if (!state_read->predicate().has_value() || next_values.empty()) {
     // Already unconditional, or no explicit `next_value`s; nothing to do.
     return false;
@@ -137,7 +137,7 @@ absl::StatusOr<bool> AddMutualExclusionAssert(
     Proc* proc, StateElement* state_element,
     const SchedulingPassOptions& options) {
   const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
-      proc->next_values(proc->GetStateRead(state_element));
+      proc->next_values(state_element);
   if (next_values.size() < 2) {
     return false;
   }
@@ -221,7 +221,7 @@ absl::StatusOr<bool> AddWriteWithoutReadAsserts(
   }
 
   const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
-      proc->next_values(proc->GetStateRead(state_element));
+      proc->next_values(state_element);
   if (next_values.empty()) {
     return false;
   }
@@ -292,7 +292,7 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
                                          const SchedulingPassOptions& options) {
   absl::btree_set<Node*, Node::NodeIdLessThan> predicates;
   StateRead* state_read = proc->GetStateRead(state_element);
-  for (Next* next : proc->next_values(state_read)) {
+  for (Next* next : proc->next_values(state_element)) {
     if (next->predicate().has_value()) {
       predicates.insert(*next->predicate());
     } else {
@@ -316,7 +316,7 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
 
   // Check if we already have an explicit "if nothing else fires" `next_value`
   // node, which keeps things cleaner and makes sure this pass is idempotent.
-  for (Next* next : proc->next_values(state_read)) {
+  for (Next* next : proc->next_values(state_element)) {
     Node* predicate = *next->predicate();
 
     absl::btree_set<Node*, Node::NodeIdLessThan> other_conditions = predicates;

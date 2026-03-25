@@ -702,10 +702,9 @@ void SDCSchedulingModel::SetObjective(std::optional<double> throughput_weight) {
         it != unwanted_inverse_throughput_var_.end() &&
         throughput_weight.value_or(0.0) != 0.0) {
       CHECK(node->Is<Next>());
-      int64_t num_paths =
-          node->function_base()
-              ->next_values(node->As<Next>()->state_read()->As<StateRead>())
-              .size();
+      int64_t num_paths = node->function_base()
+                              ->next_values(node->As<Next>()->state_element())
+                              .size();
       objective += (kObjectiveScaling * *throughput_weight / num_paths) *
                    unwanted_inverse_throughput_var_.at(node);
     }

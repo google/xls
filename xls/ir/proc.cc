@@ -932,7 +932,7 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
     std::optional<Node*> new_predicate;
   };
   std::vector<NextTransformation> transforms;
-  for (Next* nxt : next_values(old_state_read)) {
+  for (Next* nxt : next_values(old_state_element)) {
     NextTransformation& new_next = transforms.emplace_back();
     new_next.old_next = nxt;
     XLS_ASSIGN_OR_RETURN(new_next.new_value, transform.TransformNextValue(
@@ -994,7 +994,7 @@ absl::Status Proc::InternalRebuildSideTables() {
   XLS_RET_CHECK(params_.empty());
   // Why is next-values in base but not elements?
   next_values_.clear();
-  next_values_by_state_read_.clear();
+  next_values_by_state_element_.clear();
   state_reads_.clear();
   for (Node* n : nodes()) {
     if (n->Is<StateRead>()) {
@@ -1004,8 +1004,8 @@ absl::Status Proc::InternalRebuildSideTables() {
       state_reads_[n->As<StateRead>()->state_element()] = n->As<StateRead>();
     } else if (n->Is<Next>()) {
       next_values_.push_back(n->As<Next>());
-      next_values_by_state_read_[n->As<Next>()->state_read()->As<StateRead>()]
-          .insert(n->As<Next>());
+      next_values_by_state_element_[n->As<Next>()->state_element()].insert(
+          n->As<Next>());
     }
   }
   // TODO(allight): We should make it so we can recover channel/proc-inst things

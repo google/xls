@@ -252,7 +252,7 @@ absl::StatusOr<std::vector<BValue>> GetStateValuesBeforeActivation(
     } else {
       std::vector<BValue> cases;
       std::vector<BValue> selectors;
-      for (Next* nxt : p->next_values(state_read)) {
+      for (Next* nxt : p->next_values(state_element)) {
         if (nxt->predicate()) {
           selectors.push_back(
               values[{nxt->predicate().value(), activation - 1}]);
