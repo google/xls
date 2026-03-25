@@ -172,7 +172,8 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
   return std::unique_ptr<FunctionJit>(new FunctionJit(
       std::move(metadata), std::move(orc_jit), std::move(function_base),
       jit_options.include_observer_callbacks(),
-      std::make_unique<JitRuntime>(data_layout)));
+      std::make_unique<JitRuntime>(data_layout),
+      jit_options.max_trace_verbosity()));
 }
 
 absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
