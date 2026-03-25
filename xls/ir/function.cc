@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/change_listener.h"
@@ -91,12 +92,9 @@ std::string Function::DumpIrWithAnnotations(
 }
 
 std::string Function::DumpIr(const IrAnnotator& annotate) const {
-  std::string res;
-  if (non_synth()) {
-    res = "#[non_synth]\n";
-  }
-  absl::StrAppendFormat(&res, "%sfn %s(", IsScheduled() ? "scheduled_" : "",
-                        name());
+  std::string res = DumpAttributes();
+  absl::StrAppendFormat(&res, "%s%sfn %s(", IsTop() ? "top " : "",
+                        IsScheduled() ? "scheduled_" : "", name());
   absl::StrAppend(
       &res,
       absl::StrJoin(params_, ", ", [&](std::string* s, Param* const param) {
@@ -172,6 +170,9 @@ absl::StatusOr<Function*> Function::Clone(
           ? std::make_unique<ScheduledFunction>(new_name, target_package)
           : std::make_unique<Function>(new_name, target_package));
   cloned_function->SetForeignFunctionData(foreign_function_);
+  for (const AttributeData& attr : attributes_) {
+    cloned_function->AddAttribute(attr);
+  }
 
   // Clone parameters over first to maintain order.
   for (Param* param : (const_cast<Function*>(this))->params()) {
@@ -336,6 +337,19 @@ absl::Status Function::InternalRebuildSideTables() {
         << "param from different function: " << p;
   }
   return absl::OkStatus();
+}
+
+std::vector<std::string> Function::AttributeIrStrings() const {
+  std::vector<std::string> attribute_strings =
+      FunctionBase::AttributeIrStrings();
+  if (non_synth()) {
+    attribute_strings.push_back("non_synth");
+  }
+  for (const auto& attr : attributes_) {
+    // TODO - davidplass: Properly serialize AttributeData arguments.
+    attribute_strings.push_back(AttributeKindToString(attr.kind()));
+  }
+  return attribute_strings;
 }
 
 }  // namespace xls

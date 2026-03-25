@@ -270,7 +270,6 @@ std::vector<std::string> Block::AttributeIrStrings() const {
 }
 
 std::string Block::DumpIr(const IrAnnotator& annotate) const {
-  std::string res;
   std::vector<std::string> port_strings;
   for (const Port& port : GetPorts()) {
     if (std::holds_alternative<ClockPort*>(port)) {
@@ -292,9 +291,10 @@ std::string Block::DumpIr(const IrAnnotator& annotate) const {
           std::get<OutputPort*>(port)->operand(0)->GetType()->ToString())));
     }
   }
-  absl::StrAppendFormat(&res, "%sblock %s(%s) {\n",
-                        (IsScheduled() ? "scheduled_" : ""), name(),
-                        absl::StrJoin(port_strings, ", "));
+  std::string res = absl::StrFormat("%s%s%sblock %s(%s) {\n", DumpAttributes(),
+                                    IsTop() ? "top " : "",
+                                    (IsScheduled() ? "scheduled_" : ""), name(),
+                                    absl::StrJoin(port_strings, ", "));
 
   if (provenance_.has_value()) {
     absl::StrAppendFormat(&res, "  #![%v]\n", *provenance_);

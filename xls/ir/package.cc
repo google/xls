@@ -592,21 +592,8 @@ std::string Package::DumpIr() const {
     }
     absl::StrAppend(&out, "\n");
   }
-  std::optional<FunctionBase*> top = GetTop();
-  auto append_ir_with_attributes = [&top, &out](FunctionBase* fb) {
-    std::vector<std::string> attribute_strings = fb->AttributeIrStrings();
-    std::string attributes;
-    if (!attribute_strings.empty()) {
-      for (const std::string& attribute : attribute_strings) {
-        absl::StrAppend(&attributes, "#[", attribute, "]\n");
-      }
-    }
-    std::string_view top_prefix;
-    if (top.has_value() && top.value() == fb) {
-      top_prefix = "top ";
-    }
-
-    absl::StrAppend(&out, attributes, top_prefix, fb->DumpIr(), "\n");
+  auto append_ir_with_attributes = [&out](FunctionBase* fb) {
+    absl::StrAppend(&out, fb->DumpIr(), "\n");
   };
   // Our parser relies on everything being in post-order. Ensure that here.
   for (FunctionBase* fb : FunctionsInPostOrder(this)) {

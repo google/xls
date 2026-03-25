@@ -21,11 +21,15 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_annotator.h"
@@ -80,6 +84,21 @@ class Function : public FunctionBase {
     return FunctionBase::Kind::kFunction;
   }
 
+  std::vector<std::string> AttributeIrStrings() const override;
+
+  void AddAttribute(AttributeData attr) {
+    attributes_.push_back(std::move(attr));
+  }
+  absl::Span<const AttributeData> attributes() const { return attributes_; }
+  bool HasAttribute(AttributeKind kind) const {
+    for (const auto& attr : attributes_) {
+      if (attr.kind() == kind) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   using FunctionBase::DumpIr;
   std::string DumpIr(const IrAnnotator& annotate) const override;
 
@@ -116,6 +135,8 @@ class Function : public FunctionBase {
   // If true this is a non-synth function. It must have an empty-tuple return
   // type.
   bool non_synth_ = false;
+
+  std::vector<AttributeData> attributes_;
 };
 
 // A function which has been scheduled and contains information about which
