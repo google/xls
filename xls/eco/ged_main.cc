@@ -127,6 +127,11 @@ ABSL_FLAG(bool, use_mcs, true,
 ABSL_FLAG(int, mcs_cutoff, -1,
           "Stop MCS early when remaining unmatched nodes <= this value; "
           "negative disables (runs MCS to completion).");
+ABSL_FLAG(bool, mcs_optimal, true,
+          "Require optimal MCS preprocessing. If false, MCS may stop early "
+          "after a no-improvement plateau.");
+ABSL_FLAG(int, mcs_timeout, -1,
+          "Timeout in seconds for MCS preprocessing; negative disables it.");
 ABSL_FLAG(int, timeout, -1,
           "Timeout in seconds for the GED search (0 = Return the initial "
           "solution immediately).");
@@ -160,7 +165,9 @@ void AnnotateMcsMappings(
 
 absl::Status RealMain(const std::vector<std::string_view>& positional_args,
                       std::string before_ir, std::string after_ir,
-                      bool use_mcs, int mcs_cutoff, double timeout,
+                      bool use_mcs, int mcs_cutoff, bool mcs_optimal,
+                      int mcs_timeout,
+                      double timeout,
                       bool optimal, std::string patch_path,
                       std::string report_path) {
   if (before_ir.empty() && !positional_args.empty()) {
@@ -179,6 +186,10 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
 
   VLOG(0) << "Starting GED run: file1=" << before_ir << " file2=" << after_ir
           << " use_mcs=" << (use_mcs ? 1 : 0) << " mcs_cutoff=" << mcs_cutoff
+          << " mcs_optimal=" << (mcs_optimal ? 1 : 0)
+          << (mcs_timeout >= 0
+                  ? absl::StrCat(" mcs_timeout=", mcs_timeout)
+                  : "")
           << " timeout=" << timeout << " optimal=" << optimal;
 
   XLSGraph graph1 = parse_gxl(before_ir);
@@ -198,7 +209,8 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
   if (use_mcs) {
     VLOG(0) << "MCS preprocessing enabled";
     auto t_mcs_start = std::chrono::high_resolution_clock::now();
-    mcs::MCSResult mcs = mcs::SolveMCS(graph1, graph2, mcs_cutoff);
+    mcs::MCSResult mcs =
+        mcs::SolveMCS(graph1, graph2, mcs_cutoff, mcs_optimal, mcs_timeout);
     auto t_mcs_end = std::chrono::high_resolution_clock::now();
     stats.mcs_runtime_sec =
         std::chrono::duration<double>(t_mcs_end - t_mcs_start).count();
@@ -433,12 +445,15 @@ int main(int argc, char* argv[]) {
   std::string after_ir = absl::GetFlag(FLAGS_after_ir);
   bool use_mcs = absl::GetFlag(FLAGS_use_mcs);
   int mcs_cutoff = absl::GetFlag(FLAGS_mcs_cutoff);
+  bool mcs_optimal = absl::GetFlag(FLAGS_mcs_optimal);
+  int mcs_timeout = absl::GetFlag(FLAGS_mcs_timeout);
   double timeout = absl::GetFlag(FLAGS_timeout);
   bool optimal = absl::GetFlag(FLAGS_optimal);
   std::string patch_path = absl::GetFlag(FLAGS_patch);
   std::string report_path = absl::GetFlag(FLAGS_report);
   return xls::ExitStatus(RealMain(positional, std::move(before_ir),
                                   std::move(after_ir), use_mcs, mcs_cutoff,
-                                  timeout, optimal, std::move(patch_path),
+                                  mcs_optimal, mcs_timeout, timeout, optimal,
+                                  std::move(patch_path),
                                   std::move(report_path)));
 }
