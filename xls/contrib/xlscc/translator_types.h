@@ -1062,6 +1062,56 @@ struct ContinuationValue {
   bool direct_in = false;
 };
 
+// Parallels JumpInfo structure in generate_fsm.h; used only in optimization.
+struct JumpId {
+  int64_t from_slice_index = -1;
+  int64_t count = -1;
+
+  bool operator==(const JumpId& other) const {
+    return from_slice_index == other.from_slice_index && count == other.count;
+  }
+
+  bool operator<(const JumpId& other) const {
+    if (from_slice_index == other.from_slice_index) {
+      return count < other.count;
+    }
+    return from_slice_index < other.from_slice_index;
+  }
+};
+
+// Parallels NewFSMState structure in generate_fsm.h; used only in optimization.
+struct StateId {
+  int64_t slice_index = -1;
+  absl::btree_set<JumpId> from_jump_slice_indices;
+
+  std::string ToString() const {
+    std::string jumps_str = "";
+    if (!from_jump_slice_indices.empty()) {
+      jumps_str =
+          ": " + absl::StrJoin(from_jump_slice_indices, ", ",
+                               [](std::string* out, const JumpId& jump_id) {
+                                 absl::StrAppendFormat(out, "{%li,c = %li}",
+                                                       jump_id.from_slice_index,
+                                                       jump_id.count);
+                               });
+    }
+    return absl::StrFormat("%li%s", slice_index, jumps_str);
+  }
+
+  bool operator==(const StateId& other) const {
+    return slice_index == other.slice_index &&
+           from_jump_slice_indices == other.from_jump_slice_indices;
+  }
+  bool operator!=(const StateId& other) const { return !(*this == other); }
+
+  bool operator<(const StateId& other) const {
+    if (slice_index == other.slice_index) {
+      return from_jump_slice_indices < other.from_jump_slice_indices;
+    }
+    return slice_index < other.slice_index;
+  }
+};
+
 // A value inputted to a function slice, continuing a TrackedBValue from
 // a previous slice.
 //
@@ -1071,6 +1121,8 @@ struct ContinuationValue {
 struct ContinuationInput {
   ContinuationValue* continuation_out = nullptr;
   xls::Param* input_node = nullptr;
+
+  absl::btree_set<StateId> choose_in_states;
 
   // name, decls are for test/debug only
   std::string name;
@@ -1092,6 +1144,7 @@ struct GeneratedFunctionSlice {
 
   // Saved parameter order
   std::list<SideEffectingParameter> side_effecting_parameters;
+  absl::btree_set<int64_t> jump_from_slice_indices_scoped;
 
   // Temporaries used during slice generation only, not optimization
   absl::flat_hash_map<const clang::NamedDecl*, ContinuationValue*>

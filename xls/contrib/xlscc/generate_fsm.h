@@ -62,6 +62,19 @@ struct NewFSMState {
   // Values used after this state. Ordered for determinism.
   absl::btree_set<const ContinuationValue*, ContinuationValuePointerComparator>
       values_to_save;
+
+  StateId GetStateId() const {
+    StateId state_id = {
+        .slice_index = slice_index,
+    };
+    for (const JumpInfo& jump_info : jumped_from_slice_indices) {
+      state_id.from_jump_slice_indices.insert(JumpId{
+          .from_slice_index = jump_info.from_slice,
+          .count = jump_info.count,
+      });
+    }
+    return state_id;
+  }
 };
 
 struct NewFSMActivationTransition {
@@ -119,6 +132,14 @@ class NewFSMGenerator : public GeneratorBase {
           state_element_for_static,
       const xls::SourceInfo& body_loc);
 
+  absl::Status LayoutNewFSMNoStateElements(
+      NewFSMLayout& layout, const std::list<GeneratedFunctionSlice>& slices,
+      const xls::SourceInfo& body_loc);
+
+  absl::Status ValidateStateInputs(const GeneratedFunction& func,
+                                   const NewFSMLayout& layout,
+                                   const xls::SourceInfo& body_loc) const;
+
   // Generate the XLS IR implementation of the FSM for a translated function.
   absl::StatusOr<GenerateFSMInvocationReturn> GenerateNewFSMInvocation(
       const GeneratedFunction* xls_func,
@@ -131,14 +152,25 @@ class NewFSMGenerator : public GeneratorBase {
           return_index_for_static,
       xls::ProcBuilder& pb, const xls::SourceInfo& body_loc);
 
+  void PrintNewFSMStates(const NewFSMLayout& layout);
+
  protected:
-  absl::Status LayoutNewFSMStates(NewFSMLayout& layout,
-                                  const GeneratedFunction& func,
-                                  const xls::SourceInfo& body_loc);
+  absl::Status LayoutNewFSMTransitions(
+      NewFSMLayout& layout, const std::list<GeneratedFunctionSlice>& slices,
+      const xls::SourceInfo& body_loc);
+
+  absl::Status LayoutNewFSMStates(
+      NewFSMLayout& layout, const std::list<GeneratedFunctionSlice>& slices,
+      const xls::SourceInfo& body_loc);
+
+  absl::Status LayoutNewFSMStateElements(
+      NewFSMLayout& layout, const GeneratedFunction& func,
+      const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
+          state_element_for_static,
+      const xls::SourceInfo& body_loc);
 
   absl::Status LayoutValuesToSaveForNewFSMStates(
-      NewFSMLayout& layout, const GeneratedFunction& func,
-      const xls::SourceInfo& body_loc);
+      NewFSMLayout& layout, const xls::SourceInfo& body_loc);
 
   struct PhiElement {
     TrackedBValue condition;
@@ -179,11 +211,10 @@ class NewFSMGenerator : public GeneratorBase {
       TrackedBValue slice_is_current, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
 
-  absl::Status SetupNewFSMGenerationContext(const GeneratedFunction& func,
-                                            NewFSMLayout& layout,
-                                            const xls::SourceInfo& body_loc);
+  absl::Status SetupNewFSMGenerationContext(
+      const std::list<GeneratedFunctionSlice>& slices, NewFSMLayout& layout,
+      const xls::SourceInfo& body_loc);
 
-  void PrintNewFSMStates(const NewFSMLayout& layout);
   std::string GetStateName(const NewFSMState& state);
   std::string GetIRStateName(const NewFSMState& state);
 

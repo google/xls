@@ -1113,6 +1113,8 @@ class Translator final : public GeneratorBase,
   absl::Status DecomposeContinuationValues(GeneratedFunction& func,
                                            bool& changed,
                                            const xls::SourceInfo& loc);
+  absl::Status SubstituteLiterals(GeneratedFunction& func, bool& changed,
+                                  const xls::SourceInfo& loc);
   absl::Status OptimizeContinuations(GeneratedFunction& func,
                                      OptimizationContext& context,
                                      const xls::SourceInfo& loc);
@@ -1427,6 +1429,7 @@ class Translator final : public GeneratorBase,
   absl::StatusOr<int64_t> EvaluateBValInt64(TrackedBValue bval,
                                             const xls::SourceInfo& loc,
                                             bool do_check = true);
+
   absl::StatusOr<Z3_lbool> CheckAssumptions(
       absl::Span<xls::Node*> positive_nodes,
       absl::Span<xls::Node*> negative_nodes, Z3_solver& solver,

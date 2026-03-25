@@ -10453,10 +10453,11 @@ TEST_P(TranslatorProcTest, PassthroughCrossingFeedback) {
           int value = in.read();
 
           #pragma hls_pipeline_init_interval 1
-          for(int i=0;i<6;++i) {
+          for(short i=0;i<6;++i) {
             const int prev_value = value;
             value++;
-            __xlscc_trace("Another slice");
+            __xlscc_trace("Another A prev_value {:d}", prev_value);
+            __xlscc_trace("Another B prev_value {:d}", prev_value);
             out.write(prev_value);
           }
         }
@@ -10748,7 +10749,7 @@ TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOps) {
   EXPECT_EQ(receive_count, 1);
 }
 
-TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOpsInLoop3) {
+TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOpsInLoop) {
   const std::string content = R"(
 
        class Block {
@@ -10772,6 +10773,106 @@ TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOpsInLoop3) {
               }
 
               if (!control) {
+                x = data_in_a.read();
+              }
+            }
+         }
+
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in_a") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOpsInLoop2) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<bool, __xls_channel_dir_In>& control_in;
+         __xls_channel<int, __xls_channel_dir_In>& data_in_a;
+         __xls_channel<int, __xls_channel_dir_In>& data_in_b;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+            int x = 0;
+            const bool control = control_in.read();
+            if (x == 0) {
+              if (control) {
+                [[hls_pipeline_init_interval(1)]]
+                for (int i=0;i<4;++i) {
+                  x = data_in_a.read();
+                }
+              } else {
+                x = data_in_a.read();
+              }
+            }
+         }
+
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in_a") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOpsInLoop3) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<bool, __xls_channel_dir_In>& control_in;
+         __xls_channel<int, __xls_channel_dir_In>& data_in_a;
+         __xls_channel<int, __xls_channel_dir_In>& data_in_b;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+            int x = 0;
+            const bool control = control_in.read();
+            if (x == 0) {
+              if (control) {
+                [[hls_pipeline_init_interval(1)]]
+                for (int i=0;i<4;++i) {
+                  [[hls_pipeline_init_interval(1)]]
+                  for (int j=0;j<4;++j) {
+                    // if (control)
+                      x = data_in_a.read();
+                  }
+                }
+              } else {
                 x = data_in_a.read();
               }
             }
