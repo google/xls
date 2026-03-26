@@ -625,6 +625,8 @@ bool ModuleBuilder::CanEmitAsInlineExpression(Node* node) {
     case Op::kUMulp:
     case Op::kSDiv:
     case Op::kUDiv:
+    case Op::kSMod:
+    case Op::kUMod:
       return false;
     default:
       break;
@@ -1469,6 +1471,8 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
     case Op::kBitSliceUpdate:
     case Op::kSDiv:
     case Op::kUDiv:
+    case Op::kSMod:
+    case Op::kUMod:
     case Op::kShra:
       return true;
     case Op::kPrioritySel:
@@ -1508,6 +1512,8 @@ absl::StatusOr<std::string> ModuleBuilder::VerilogFunctionName(Node* node) {
     }
     case Op::kSDiv:
     case Op::kUDiv:
+    case Op::kSMod:
+    case Op::kUMod:
       CHECK_EQ(node->BitCountOrDie(), node->operand(0)->BitCountOrDie());
       CHECK_EQ(node->BitCountOrDie(), node->operand(1)->BitCountOrDie());
       return absl::StrFormat("%s_%db", OpToString(node->op()),
@@ -1957,6 +1963,73 @@ VerilogFunction* DefineSDivFunction(Node* node, std::string_view function_name,
   return func;
 }
 
+// Defines and returns a function which implements the given UMod node.
+VerilogFunction* DefineUModFunction(Node* node, std::string_view function_name,
+                                    ModuleSection* section) {
+  CHECK_EQ(node->op(), Op::kUMod);
+  VerilogFile* file = section->file();
+
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      node->loc(), function_name,
+      file->BitVectorType(node->BitCountOrDie(), node->loc()));
+  CHECK_EQ(node->operand_count(), 2);
+  Expression* lhs = func->AddArgument(
+      "lhs",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
+      node->loc());
+  Expression* rhs = func->AddArgument(
+      "rhs",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc()),
+      node->loc());
+  Expression* rhs_is_zero = file->Equals(
+      rhs,
+      file->Literal(UBits(0, node->operand(1)->BitCountOrDie()), node->loc()),
+      node->loc());
+  Expression* zero =
+      file->Literal(UBits(0, node->BitCountOrDie()), node->loc());
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), func->return_value_ref(),
+      file->Ternary(rhs_is_zero, zero, file->Mod(lhs, rhs, node->loc()),
+                    node->loc()));
+  return func;
+}
+
+// Defines and returns a function which implements the given SMod node.
+VerilogFunction* DefineSModFunction(Node* node, std::string_view function_name,
+                                    ModuleSection* section) {
+  CHECK_EQ(node->op(), Op::kSMod);
+  VerilogFile* file = section->file();
+
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      node->loc(), function_name,
+      file->BitVectorType(node->BitCountOrDie(), node->loc()));
+  CHECK_EQ(node->operand_count(), 2);
+  Expression* lhs = func->AddArgument(
+      "lhs",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
+      node->loc());
+  Expression* rhs = func->AddArgument(
+      "rhs",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc()),
+      node->loc());
+  Expression* rhs_is_zero = file->Equals(
+      rhs,
+      file->Literal(UBits(0, node->operand(1)->BitCountOrDie()), node->loc()),
+      node->loc());
+  Expression* zero =
+      file->Literal(UBits(0, node->BitCountOrDie()), node->loc());
+
+  // Wrap the expression in $unsigned to prevent signedness from leaking out.
+  Expression* modulo = file->Make<UnsignedCast>(
+      node->loc(),
+      file->Mod(file->Make<SignedCast>(node->loc(), lhs),
+                file->Make<SignedCast>(node->loc(), rhs), node->loc()));
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), func->return_value_ref(),
+      file->Ternary(rhs_is_zero, zero, modulo, node->loc()));
+  return func;
+}
+
 VerilogFunction* DefineShraFunction(Node* node, std::string_view function_name,
                                     ModuleSection* section) {
   CHECK_EQ(node->op(), Op::kShra);
@@ -2067,6 +2140,12 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
       break;
     case Op::kSDiv:
       func = DefineSDivFunction(node, function_name, functions_section_);
+      break;
+    case Op::kUMod:
+      func = DefineUModFunction(node, function_name, functions_section_);
+      break;
+    case Op::kSMod:
+      func = DefineSModFunction(node, function_name, functions_section_);
       break;
     case Op::kShra:
       func = DefineShraFunction(node, function_name, functions_section_);

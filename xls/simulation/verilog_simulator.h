@@ -87,6 +87,12 @@ class VerilogSimulator {
   virtual bool DoesSupportSystemVerilog() const = 0;
   virtual bool DoesSupportAssertions() const = 0;
 
+  // Signals for potential bugs in simulators.
+
+  // Whether the simulator correctly handles overflowing signed mod operations
+  // (e.g., min_signed % -1).
+  virtual bool SupportsOverflowingSignedModulo() const { return true; }
+
   // Simulation runner harness: runs the given Verilog text using the verilog
   // simulator infrastructure and returns observations of data values that arose
   // during simulation.

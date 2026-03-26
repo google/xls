@@ -49,6 +49,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 
 constexpr char kTestName[] = "combinational_generator_test";
@@ -2098,6 +2099,12 @@ TEST_P(CombinationalGeneratorTest, SDiv) {
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", SBits(-10, 32)}, {"y", SBits(7, 32)}}),
               IsOkAndHolds(SBits(-1, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(10, 32)}, {"y", SBits(-7, 32)}}),
+              IsOkAndHolds(SBits(-1, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(-10, 32)}, {"y", SBits(-7, 32)}}),
+              IsOkAndHolds(SBits(1, 32)));
 
   // Test overflow condition.
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
@@ -2114,6 +2121,116 @@ TEST_P(CombinationalGeneratorTest, SDiv) {
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", SBits(-12345, 32)}, {"y", SBits(0, 32)}}),
               IsOkAndHolds(Bits::MinSigned(32)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CombinationalGeneratorTest, UMod) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue x = fb.Param("x", package.GetBitsType(32));
+  BValue y = fb.Param("y", package.GetBitsType(32));
+  fb.UMod(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(42, 32)}, {"y", UBits(7, 32)}}),
+              IsOkAndHolds(UBits(0, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(10, 32)}, {"y", UBits(7, 32)}}),
+              IsOkAndHolds(UBits(3, 32)));
+  // Mod by zero should return zero.
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(0, 32)}, {"y", UBits(0, 32)}}),
+              IsOkAndHolds(UBits(0, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(12345, 32)}, {"y", UBits(0, 32)}}),
+              IsOkAndHolds(UBits(0, 32)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CombinationalGeneratorTest, SMod) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue x = fb.Param("x", package.GetBitsType(32));
+  BValue y = fb.Param("y", package.GetBitsType(32));
+  fb.SMod(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(42, 32)}, {"y", SBits(7, 32)}}),
+              IsOkAndHolds(SBits(0, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(-10, 32)}, {"y", SBits(7, 32)}}),
+              IsOkAndHolds(SBits(-3, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(10, 32)}, {"y", SBits(-7, 32)}}),
+              IsOkAndHolds(SBits(3, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(100, 32)}, {"y", SBits(-7, 32)}}),
+              IsOkAndHolds(SBits(2, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(-100, 32)}, {"y", SBits(-7, 32)}}),
+              IsOkAndHolds(SBits(-2, 32)));
+  if (GetSimulator()->SupportsOverflowingSignedModulo()) {
+    EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                    {{"x", Bits::MinSigned(32)}, {"y", SBits(-1, 32)}}),
+                IsOkAndHolds(SBits(0, 32)));
+  } else {
+    EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                    {{"x", Bits::MinSigned(32)}, {"y", SBits(-1, 32)}}),
+                testing::Not(IsOk()));
+  }
+  // Mod by zero should return zero.
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(0, 32)}, {"y", SBits(0, 32)}}),
+              IsOkAndHolds(SBits(0, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(12345, 32)}, {"y", SBits(0, 32)}}),
+              IsOkAndHolds(SBits(0, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(-12345, 32)}, {"y", SBits(0, 32)}}),
+              IsOkAndHolds(SBits(0, 32)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CombinationalGeneratorTest, SModSmallWidthNegativeDivisor) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue x = fb.Param("x", package.GetBitsType(4));
+  BValue y = fb.Param("y", package.GetBitsType(4));
+  fb.SMod(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(3, 4)}, {"y", SBits(-2, 4)}}),
+              IsOkAndHolds(SBits(1, 4)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(-3, 4)}, {"y", SBits(-2, 4)}}),
+              IsOkAndHolds(SBits(-1, 4)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", Bits::MinSigned(4)}, {"y", SBits(-1, 4)}}),
+              IsOkAndHolds(SBits(0, 4)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(-3, 4)}, {"y", SBits(0, 4)}}),
+              IsOkAndHolds(Bits(4)));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
