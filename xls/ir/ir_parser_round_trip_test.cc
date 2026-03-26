@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "xls/common/file/filesystem.h"
@@ -27,9 +28,11 @@
 #include "xls/common/golden_files.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/verifier.h"
 
 namespace xls {
 
@@ -461,5 +464,16 @@ TEST(IrParserRoundTripTest, BlockWithSvTypes) {
 TEST(IrParserRoundTripTest, NonSynthFunctionTest) {
   ParsePackageAndCheckDump(TestName());
 }
+
+void RoundtripIrFuzz(std::shared_ptr<Package> original) {
+  std::string ir_text = original->DumpIr();
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> parsed,
+                           Parser::ParsePackage(ir_text));
+
+  EXPECT_EQ(ir_text, parsed->DumpIr())
+      << "Mismatch between original and roundtripped IR";
+}
+FUZZ_TEST(IrParserRoundTripTest, RoundtripIrFuzz).WithDomains(IrFuzzDomain());
 
 }  // namespace xls
