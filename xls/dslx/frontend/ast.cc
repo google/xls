@@ -2330,6 +2330,18 @@ std::vector<AstNode*> Function::GetChildren(bool want_types) const {
   return results;
 }
 
+bool Function::is_test_utility() const {
+  for (Attribute* attr : attributes()) {
+    if (attr->attribute_kind() == AttributeKind::kCfg &&
+        attr->args().size() == 1 &&
+        std::holds_alternative<std::string>(attr->args()[0]) &&
+        std::get<std::string>(attr->args()[0]) == "test") {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::string Function::ToString() const {
   std::string parametric_str;
   if (!parametric_bindings().empty()) {

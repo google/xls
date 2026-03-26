@@ -1003,10 +1003,7 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
         break;
 
       case AttributeKind::kCfg: {
-        XLS_ASSIGN_OR_RETURN(bool test_utility, IsTestConfig(*next));
-        if (test_utility) {
-          fn->set_test_utility(true);
-        }
+        XLS_RETURN_IF_ERROR(IsTestConfig(*next).status());
         break;
       }
 
@@ -1123,9 +1120,14 @@ absl::StatusOr<ModuleMember> Parser::ApplyProcAttributes(
       case AttributeKind::kCfg: {
         XLS_ASSIGN_OR_RETURN(bool test_utility, IsTestConfig(*next));
         if (test_utility) {
-          p->init().set_test_utility(true);
-          p->config().set_test_utility(true);
-          p->next().set_test_utility(true);
+          auto add_test_attr = [&](Function& f) {
+            std::vector<Attribute*> attrs = f.attributes();
+            attrs.push_back(next);
+            f.SetAttributes(std::move(attrs));
+          };
+          add_test_attr(p->init());
+          add_test_attr(p->config());
+          add_test_attr(p->next());
         }
         break;
       }
