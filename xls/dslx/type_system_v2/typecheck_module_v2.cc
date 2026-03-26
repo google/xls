@@ -151,7 +151,8 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
                                                   std::move(converter));
   if (auto* semantics_analysis =
           module_info->inference_table_converter()->GetSemanticsAnalysis()) {
-    XLS_RETURN_IF_ERROR(semantics_analysis->RunPostTypeCheckPass(*warnings));
+    XLS_RETURN_IF_ERROR(semantics_analysis->RunPostTypeCheckPass(
+        module_info->module(), *warnings, import_data->file_table()));
   }
   return module_info;
 }

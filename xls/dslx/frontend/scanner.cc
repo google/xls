@@ -451,6 +451,30 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
                std::string(1, c));
 }
 
+absl::StatusOr<Token> Scanner::ScanBacktickString(const Pos& start_pos) {
+  DropChar();
+  std::string s;
+  while (!AtCharEof() && PeekChar() != '`') {
+    XLS_ASSIGN_OR_RETURN(std::string next, ProcessNextStringChar());
+    absl::StrAppend(&s, next);
+  }
+
+  if (AtEof()) {
+    return ScanErrorStatus(
+        Span(GetPos(), GetPos()),
+        "Reached end of file without finding a closing backtick.");
+  }
+
+  if (!TryDropChar('`')) {
+    return ScanErrorStatus(Span(start_pos, GetPos()),
+                           "Expected close backtick character to terminate "
+                           "open backtick character.");
+  }
+
+  return Token(TokenKind::kBacktickString, Span(start_pos, GetPos()),
+               std::move(s));
+}
+
 absl::StatusOr<Token> Scanner::Pop() {
   if (include_whitespace_and_comments_) {
     XLS_ASSIGN_OR_RETURN(std::optional<Token> tok, TryPopWhitespaceOrComment());
@@ -488,6 +512,10 @@ absl::StatusOr<Token> Scanner::Pop() {
   switch (startc) {
     case '"': {
       XLS_ASSIGN_OR_RETURN(result, ScanString(start_pos));
+      break;
+    }
+    case '`': {
+      XLS_ASSIGN_OR_RETURN(result, ScanBacktickString(start_pos));
       break;
     }
     case '\'': {

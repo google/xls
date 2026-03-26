@@ -31,6 +31,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
@@ -455,6 +456,50 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
   const FileTable& file_table_;
 };
 
+class FuzzTestTypecheckPass : public AstNodeVisitorWithDefault {
+ public:
+  explicit FuzzTestTypecheckPass(const FileTable& file_table)
+      : file_table_(file_table) {}
+
+  absl::Status HandleFunction(const Function* node) override {
+    for (const Attribute* attr : node->attributes()) {
+      if (attr->attribute_kind() == AttributeKind::kFuzzTest) {
+        if (node->params().empty()) {
+          return xls::dslx::ParseErrorStatus(
+              *attr->GetSpan(),
+              absl::StrFormat("fuzz_test attribute is only valid for functions "
+                              "with at least 1 parameter; function `%s` has 0",
+                              node->identifier()),
+              file_table_);
+        }
+        if (!attr->args().empty() &&
+            attr->args().size() != node->params().size()) {
+          return xls::dslx::ParseErrorStatus(
+              *attr->GetSpan(),
+              absl::StrFormat(
+                  "fuzz_test attribute has %d domain argument%s, but function "
+                  "`%s` has %d parameter%s",
+                  attr->args().size(), attr->args().size() == 1 ? "" : "s",
+                  node->identifier(), node->params().size(),
+                  node->params().size() == 1 ? "" : "s"),
+              file_table_);
+        }
+      }
+    }
+    return DefaultHandler(node);
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  const FileTable& file_table_;
+};
+
 class PreTypecheckPass : public AstNodeVisitorWithDefault {
  public:
   PreTypecheckPass(WarningCollector& warning_collector,
@@ -770,7 +815,11 @@ void SemanticsAnalysis::SetNameDefType(const NameDef* def, const Type* type) {
 }
 
 absl::Status SemanticsAnalysis::RunPostTypeCheckPass(
-    WarningCollector& warning_collector) {
+    Module& module, WarningCollector& warning_collector,
+    const FileTable& file_table) {
+  FuzzTestTypecheckPass fuzz_test_pass(file_table);
+  XLS_RETURN_IF_ERROR(module.Accept(&fuzz_test_pass));
+
   // Report unused defs.
   for (auto& [f, unused_defs] : maybe_unreferenced_defs) {
     // Sort them for reporting stability.
