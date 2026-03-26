@@ -22,10 +22,12 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -123,14 +125,21 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
           // We can remove the receive if this is not the last receive left on
           // the channel.
           channel_maps.to_receive.at(channel_ref).erase(receive);
+          std::vector<Node*> tuple_operands;
+          tuple_operands.push_back(receive->token());
           XLS_ASSIGN_OR_RETURN(
-              Literal * zero,
+              Literal * zero_data,
               proc->MakeNode<Literal>(node->loc(),
-                                      ZeroOfType(ChannelRefType(channel_ref))));
+                                      ZeroOfType(receive->GetPayloadType())));
+          tuple_operands.push_back(zero_data);
+          if (!receive->is_blocking()) {
+            XLS_ASSIGN_OR_RETURN(
+                Literal * zero_valid,
+                proc->MakeNode<Literal>(node->loc(), Value(UBits(0, 1))));
+            tuple_operands.push_back(zero_valid);
+          }
           XLS_ASSIGN_OR_RETURN(
-              replacement,
-              proc->MakeNode<Tuple>(
-                  node->loc(), std::vector<Node*>{receive->token(), zero}));
+              replacement, proc->MakeNode<Tuple>(node->loc(), tuple_operands));
         } else if (query_engine.IsAllOnes(predicate)) {
           XLS_ASSIGN_OR_RETURN(
               replacement,

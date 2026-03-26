@@ -156,6 +156,37 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlyReceive) {
   EXPECT_EQ(proc->node_count(), original_node_count);
 }
 
+TEST_F(UselessIORemovalPassTest, RemoveReceiveNonBlockingIfLiteralFalse) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * channel,
+      p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("tkn", Value::Token());
+  pb.StateElement("state", Value(UBits(0, 32)));
+  pb.StateElement("state_valid", Value(UBits(0, 1)));
+  token = pb.TupleIndex(pb.Receive(channel, token), 0);
+  BValue token_and_result_and_valid =
+      pb.ReceiveIfNonBlocking(channel, token, pb.Literal(UBits(0, 1)));
+  token = pb.TupleIndex(token_and_result_and_valid, 0);
+  BValue result = pb.TupleIndex(token_and_result_and_valid, 1);
+  BValue result_valid = pb.TupleIndex(token_and_result_and_valid, 2);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build({token, result, result_valid}));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  auto tuple = m::Tuple(
+      m::TupleIndex(m::Receive(m::StateRead("tkn"), m::Channel("test_channel")),
+                    0),
+      m::Literal(0), m::Literal(0));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
+                                  m::TupleIndex(tuple, 0))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(1)),
+      ElementsAre(m::Next(proc->GetStateRead(1), m::TupleIndex(tuple, 1))));
+}
+
 TEST_F(UselessIORemovalPassTest, RemoveReceiveIfLiteralFalse) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
