@@ -1444,6 +1444,29 @@ top fn FuzzTest(p0: bits[4] id=1) -> bits[4] {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
+// Discovered by the DSLX fuzzer 2026-03-23 (id: fdf9f7a9).
+//
+// Previously reassociated the expression from form A to B and then back,
+// resulting in an infinite loop when run to fixed point.
+TEST_F(ReassociationPassTest, InfiniteLoopRegression) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(R"ir(package sample
+
+top fn __sample__main_0_next(__state: bits[29] id=1) -> bits[29] {
+  literal.7: bits[27] = literal(value=0, id=7)
+  bit_slice.8: bits[2] = bit_slice(__state, start=0, width=2, id=8)
+  bit_slice.9: bits[1] = bit_slice(__state, start=0, width=1, id=9)
+  concat.10: bits[29] = concat(literal.7, bit_slice.8, id=10)
+  sign_ext.11: bits[29] = sign_ext(bit_slice.9, new_bit_count=29, id=11)
+  literal.12: bits[29] = literal(value=0, id=12)
+  x25_associative_element: bits[29] = add(__state, concat.10, id=13)
+  x25_associative_element__3: bits[29] = sub(sign_ext.11, __state, id=14)
+  x25_associative_element__4: bits[29] = sub(literal.12, x25_associative_element, id=15)
+  ret x25: bits[29] = add(x25_associative_element__3, x25_associative_element__4, id=16)
+}
+)ir"));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 void IrFuzzReassociation(FuzzPackageWithArgs fuzz_package_with_args) {
   ReassociationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

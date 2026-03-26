@@ -41,7 +41,6 @@
 #include "cppitertools/chunked.hpp"
 #include "cppitertools/filter.hpp"
 #include "cppitertools/sliding_window.hpp"
-#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -936,38 +935,13 @@ class Reassociation {
           continue;
         }
 
-        auto is_eligible =
-            [&](const AssociativeElements& elements) -> absl::StatusOr<bool> {
-          VLOG(4) << "    - elements (" << elements.element_count()
-                  << "): " << elements.ElementsToString();
-          VLOG(4) << "    - depth: " << elements.depth();
-          if (elements.is_leaf()) {
-            VLOG(4) << "    - " << elements.node()
-                    << " not eligible due to being a leaf";
-            return false;
-          }
-          XLS_RET_CHECK_GE(
-              elements.depth(),
-              CeilOfLog2(elements.ElementCountWithMaxOneConstant()))
-              << elements << " counted depth is smaller than minimum depth of "
-              << CeilOfLog2(elements.ElementCountWithMaxOneConstant());
-          if (elements.depth() ==
-                  CeilOfLog2(elements.ElementCountWithMaxOneConstant()) &&
-              elements.constants().size() <= 1) {
-            VLOG(4) << "    - " << elements.node()
-                    << " not eligible current depth being same as minimum and "
-                       "only a single/zero constants";
-            // We are at the exact min depth and we can't combine any constants.
-            return false;
-          }
-          return true;
-        };
         VLOG(4) << "  - Checking eligibility of signed transform:";
         XLS_ASSIGN_OR_RETURN(bool signed_eligible,
-                             is_eligible(signed_elements));
+                             IsEligible(signed_elements, /*is_signed=*/true));
         VLOG(4) << "  - Checking eligibility of unsigned transform:";
-        XLS_ASSIGN_OR_RETURN(bool unsigned_eligible,
-                             is_eligible(unsigned_elements));
+        XLS_ASSIGN_OR_RETURN(
+            bool unsigned_eligible,
+            IsEligible(unsigned_elements, /*is_signed=*/false));
         VLOG(4) << "    - For node " << node
                 << " can perform signed: " << std::boolalpha << signed_eligible
                 << ", unsigned: " << unsigned_eligible;
@@ -1348,6 +1322,74 @@ class Reassociation {
       return replacement;
     }
     return std::nullopt;
+  }
+
+  // Calculates the minimum achievable depth for a balanced tree of the given
+  // associative elements, accounting for the existing depth of each leaf node.
+  //
+  // This is used to determine if a reassociation transformation will be able to
+  // reduce tree depth, pairing nodes iteratively until a single root remains,
+  // mirroring the balance-biased tree construction in `CreateTreeSum`.
+  int64_t CalculateMinAchievableDepth(const AssociativeElements& elements,
+                                      bool is_signed) const {
+    // Start with the depths of all variable elements. Since the choice of
+    // signed/unsigned can affect how deep a node looks (e.g. through sign/zero
+    // extends), we must use the depths from the corresponding analysis.
+    std::vector<int64_t> cur;
+    for (const auto& nd : elements.variables()) {
+      cur.push_back(
+          is_signed ? cache_.GetInfo(nd.node).Get({})->signed_values.depth()
+                    : cache_.GetInfo(nd.node).Get({})->unsigned_values.depth());
+    }
+
+    // Constants are effectively depth-0. All constants will be combined into a
+    // single literal.
+    if (!elements.constants().empty()) {
+      cur.push_back(0);
+    }
+
+    if (cur.empty()) {
+      return 0;
+    }
+
+    // Pair elements to simulate building a balanced tree. In each pass, we pair
+    // off adjacent elements (A, B) into a new node with depth 1 + max(depth(A),
+    // depth(B)).
+    std::vector<int64_t> prev;
+    while (cur.size() > 1) {
+      std::swap(prev, cur);
+      cur.clear();
+      for (int i = 0; i < prev.size(); i += 2) {
+        if (i + 1 < prev.size()) {
+          cur.push_back(1 + std::max(prev[i], prev[i + 1]));
+        } else {
+          // Odd element out is just moved to the next level.
+          cur.push_back(prev[i]);
+        }
+      }
+    }
+    return cur[0];
+  }
+
+  absl::StatusOr<bool> IsEligible(const AssociativeElements& elements,
+                                  bool is_signed) const {
+    VLOG(4) << "    - elements (" << elements.element_count()
+            << "): " << elements.ElementsToString();
+    VLOG(4) << "    - depth: " << elements.depth();
+    if (elements.is_leaf()) {
+      VLOG(4) << "    - " << elements.node()
+              << " not eligible due to being a leaf";
+      return false;
+    }
+    int64_t min_depth = CalculateMinAchievableDepth(elements, is_signed);
+    VLOG(4) << "    - min achievable depth: " << min_depth;
+    if (elements.depth() <= min_depth && elements.constants().size() <= 1) {
+      VLOG(4) << "    - " << elements.node()
+              << " not eligible current depth same as minimum with <= 1 "
+                 "constants";
+      return false;
+    }
+    return true;
   }
   FunctionBase* fb_;
   ReassociationCache cache_;
