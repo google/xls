@@ -161,6 +161,9 @@ class TokenStreamMatcher {
       case xls::dslx::TokenKind::kString:
         return MatchTokenWithDelimiter<'\"'>(expected, token, file_table,
                                              listener);
+      case xls::dslx::TokenKind::kBacktickString:
+        return MatchTokenWithDelimiter<'`'>(expected, token, file_table,
+                                            listener);
       default: {
         std::string token_str = token.ToString();
         std::string_view token_str_view = token_str;
@@ -280,6 +283,16 @@ TEST(ScanFuzzTest, ScanningGivesErrorOrConvertsToOriginalRegressionNLQuoteNL) {
 TEST(ScanFuzzTest,
      ScanningGivesErrorOrConvertsToOriginalRegressionNewlineLitWithWhitespace) {
   ScanningGivesErrorOrConvertsToOriginal("\t\t\"\n\"");
+}
+
+TEST(ScanFuzzTest,
+     ScanningGivesErrorOrConvertsToOriginalRegressionBacktickStringLiteral) {
+  ScanningGivesErrorOrConvertsToOriginal("`\232`");
+}
+
+TEST(ScanFuzzTest,
+     ScanningGivesErrorOrConvertsToOriginalRegressionBacktickString) {
+  ScanningGivesErrorOrConvertsToOriginal("`hi`");
 }
 
 }  // namespace

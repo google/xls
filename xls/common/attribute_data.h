@@ -41,7 +41,15 @@ std::string AttributeKindToString(AttributeKind kind);
 
 class AttributeData {
  public:
-  using StringKeyValueArgument = std::pair<std::string, std::string>;
+  // Represents a key (first)-value (second) pair to an attribute where both
+  // key and value are strings. The value string is either back-ticked
+  // or quoted, indicated by the is_backticked field.
+  struct StringKeyValueArgument {
+    std::string first;
+    std::string second;
+    bool is_backticked;
+  };
+
   using IntKeyValueArgument = std::pair<std::string, int64_t>;
 
   // Represents a quoted string argument as opposed to a bare identifier-like

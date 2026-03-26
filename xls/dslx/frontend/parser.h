@@ -665,6 +665,8 @@ class Parser : public TokenParser {
   absl::StatusOr<QuickCheckTestCases> GetQuickCheckTestCases(
       const Attribute& attribute);
 
+  absl::Status ValidateFuzzTestAttribute(const Attribute& attribute);
+
   // Parses a "spawn" statement, which creates & initializes a proc.
   absl::StatusOr<Spawn*> ParseSpawn(Bindings& bindings);
 

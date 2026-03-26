@@ -9812,5 +9812,52 @@ proc Counter {
               TypecheckFails(HasSubstr("State {} Binary operations can only be "
                                        "applied to bits-typed operands.")));
 }
+
+TEST(TypecheckV2Test, FuzzTestAttributeArgumentSuccess) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`u32:0..1`)]
+fn f(x: u32) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestAttributeArgumentCountMismatch) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u32:0..1, u32:0..2`)]
+fn f(x: u32) {}
+)",
+      TypecheckFails(HasSubstr("fuzz_test attribute has 2 domain arguments, "
+                               "but function `f` has 1 parameter")));
+}
+
+TEST(TypecheckV2Test, FuzzTestAttributeArgumentCountMismatchSingleArgument) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u32:0..1`)]
+fn g(x: u32, y: u32) {}
+)",
+      TypecheckFails(HasSubstr("fuzz_test attribute has 1 domain argument, "
+                               "but function `g` has 2 parameters")));
+}
+
+TEST(TypecheckV2Test, FuzzTestAttributeNoParametersFailure) {
+  EXPECT_THAT(R"(
+#[fuzz_test]
+fn f() {}
+)",
+              TypecheckFails(
+                  HasSubstr("fuzz_test attribute is only valid for functions "
+                            "with at least 1 parameter; function `f` has 0")));
+}
+
+TEST(TypecheckV2Test, FuzzTestAttributeZeroArguments) {
+  EXPECT_THAT(R"(
+#[fuzz_test]
+fn f(x: u32) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
 }  // namespace
 }  // namespace xls::dslx
