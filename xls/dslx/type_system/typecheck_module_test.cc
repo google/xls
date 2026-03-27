@@ -1540,7 +1540,7 @@ fn Foo() {
 )"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("No parametric value provided for `B` in `StructFoo`")));
+          HasSubstr("Could not infer parametric(s): B of struct `StructFoo`")));
 }
 
 TEST_F(TypecheckV2Test, DerivedParametricStructNoParametrics) {

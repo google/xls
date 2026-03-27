@@ -301,16 +301,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     VLOG(5) << "Callee env: " << callee_env.ToString();
     CHECK_NE(invocation, nullptr);
 
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * parent_ti,
-        GetTypeInfo(invocation->owner(), parametric_context->parent_context()));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * root_ti,
+                         import_data_.GetRootTypeInfo(invocation->owner()));
+
     std::optional<const StructDefBase*> target_struct = std::nullopt;
     if (target_struct_context.has_value()) {
       target_struct =
           std::get<ParametricStructDetails>((*target_struct_context)->details())
               .struct_or_proc_def;
     }
-    XLS_RETURN_IF_ERROR(parent_ti->AddInvocationTypeInfo(
+    XLS_RETURN_IF_ERROR(root_ti->AddInvocationTypeInfo(
         *invocation, data.callee,
         data.caller.has_value() ? *data.caller : nullptr, parent_env,
         callee_env, target_struct,
@@ -840,7 +840,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
-        caller_context, callee_variable, parametric_free_function_type));
+        caller_or_target_struct_context, callee_variable,
+        parametric_free_function_type));
     XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
         caller_context, *table_.GetTypeVariable(invocation),
         parametric_free_function_type->return_type()));
