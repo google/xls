@@ -52,8 +52,8 @@ namespace xls {
 
 namespace {
 
-using DelayMap = absl::flat_hash_map<Node *, int64_t>;
-using NodeSet = absl::flat_hash_set<Node *>;
+using DelayMap = absl::flat_hash_map<Node*, int64_t>;
+using NodeSet = absl::flat_hash_set<Node*>;
 
 namespace math_opt = ::operations_research::math_opt;
 
@@ -65,12 +65,12 @@ namespace math_opt = ::operations_research::math_opt;
 //     E
 // Cut {A, B, D} rooted at E is the cut of path C-E. Note that here we demands
 // the given path not beginning with Param operation.
-NodeCut GetPathCut(const std::vector<Node *> &full_path) {
-  absl::flat_hash_set<Node *> leaves;
+NodeCut GetPathCut(const std::vector<Node*>& full_path) {
+  absl::flat_hash_set<Node*> leaves;
   for (int64_t i = 0; i < full_path.size(); ++i) {
-    Node *node = full_path[i];
-    Node *critical_operand = i == 0 ? nullptr : full_path[i - 1];
-    for (Node *operand : node->operands()) {
+    Node* node = full_path[i];
+    Node* critical_operand = i == 0 ? nullptr : full_path[i - 1];
+    for (Node* operand : node->operands()) {
       if (operand != critical_operand) {
         leaves.insert(operand);
       }
@@ -81,12 +81,12 @@ NodeCut GetPathCut(const std::vector<Node *> &full_path) {
 
 // Gets the critical path (path with the longest delay) given the source and
 // target nodes in PathInfo.
-absl::Status GetFullPaths(const std::vector<PathInfo> &paths,
-                          const DelayManager &delay_manager,
-                          std::vector<NodeSet> &full_paths,
-                          absl::flat_hash_set<NodeCut> &evaluated_cuts) {
+absl::Status GetFullPaths(const std::vector<PathInfo>& paths,
+                          const DelayManager& delay_manager,
+                          std::vector<NodeSet>& full_paths,
+                          absl::flat_hash_set<NodeCut>& evaluated_cuts) {
   for (auto [delay, source, target] : paths) {
-    XLS_ASSIGN_OR_RETURN(std::vector<Node *> full_path,
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> full_path,
                          delay_manager.GetFullCriticalPath(source, target));
     full_paths.emplace_back(NodeSet(full_path.begin(), full_path.end()));
     evaluated_cuts.emplace(GetPathCut(full_path));
@@ -96,14 +96,14 @@ absl::Status GetFullPaths(const std::vector<PathInfo> &paths,
 
 // Expands all the given paths to maximum cones and return. The mapping from
 // root node to maximum cuts must have already been stored in "max_cut_map".
-absl::Status GetMaxCones(const std::vector<PathInfo> &paths,
-                         const NodeCutMap &max_cut_map,
-                         std::vector<NodeSet> &max_cones,
-                         absl::flat_hash_set<NodeCut> &evaluated_cuts) {
+absl::Status GetMaxCones(const std::vector<PathInfo>& paths,
+                         const NodeCutMap& max_cut_map,
+                         std::vector<NodeSet>& max_cones,
+                         absl::flat_hash_set<NodeCut>& evaluated_cuts) {
   for (auto [delay, source, target] : paths) {
     XLS_RET_CHECK(max_cut_map.contains(target));
-    const NodeCut &cut = max_cut_map.at(target);
-    const NodeSet &cone = cut.GetNodeCone();
+    const NodeCut& cut = max_cut_map.at(target);
+    const NodeSet& cone = cut.GetNodeCone();
     XLS_RET_CHECK(cone.contains(source));
     max_cones.emplace_back(cone);
     evaluated_cuts.emplace(cut);
@@ -117,33 +117,33 @@ absl::Status GetMaxCones(const std::vector<PathInfo> &paths,
 // Implementation note: We first expand each path to their maximum cones. Then,
 // we traverse each cone and if the leaves of the current cone is a subset of an
 // exist cone/window (or vice versa), they are merged into a new window.
-absl::Status GetMergedWindows(const std::vector<PathInfo> &paths,
-                              const NodeCutMap &max_cut_map,
-                              std::vector<NodeSet> &merged_windows,
-                              absl::flat_hash_set<NodeCut> &evaluated_cuts) {
+absl::Status GetMergedWindows(const std::vector<PathInfo>& paths,
+                              const NodeCutMap& max_cut_map,
+                              std::vector<NodeSet>& merged_windows,
+                              absl::flat_hash_set<NodeCut>& evaluated_cuts) {
   std::vector<NodeSet> leaves_list;
   for (auto [delay, source, target] : paths) {
     XLS_RET_CHECK(max_cut_map.contains(target));
-    const NodeCut &cut = max_cut_map.at(target);
-    const NodeSet &cone = cut.GetNodeCone();
+    const NodeCut& cut = max_cut_map.at(target);
+    const NodeSet& cone = cut.GetNodeCone();
     XLS_RET_CHECK(cone.contains(source));
     evaluated_cuts.emplace(cut);
 
     bool merge_flag = false;
     for (int64_t i = 0; i < merged_windows.size(); ++i) {
-      NodeSet &exist_leaves = leaves_list[i];
-      NodeSet &exist_window = merged_windows[i];
+      NodeSet& exist_leaves = leaves_list[i];
+      NodeSet& exist_window = merged_windows[i];
 
       // Merge the cone into the window if one of them is a subset of
       // another.
       if (std::all_of(
               exist_leaves.begin(), exist_leaves.end(),
-              [&](Node *node) { return cut.leaves().contains(node); })) {
+              [&](Node* node) { return cut.leaves().contains(node); })) {
         exist_leaves = cut.leaves();
         merge_flag = true;
       } else if (std::all_of(
                      cut.leaves().begin(), cut.leaves().end(),
-                     [&](Node *node) { return exist_leaves.contains(node); })) {
+                     [&](Node* node) { return exist_leaves.contains(node); })) {
         merge_flag = true;
       }
       // TODO(hanchenye): 2023-08-14 The third case is they have overlap by more
@@ -173,17 +173,17 @@ absl::Status GetMergedWindows(const std::vector<PathInfo> &paths,
 // subgraphs. The evaluated subgraphs are recorded in "evaluated_cuts" to avoid
 // duplicated evaluation.
 absl::Status RefineDelayEstimations(
-    FunctionBase *f, const ScheduleCycleMap &cycle_map,
-    DelayManager &delay_manager, absl::flat_hash_set<NodeCut> &evaluated_cuts,
-    int64_t min_pipeline_length, const IterativeSDCSchedulingOptions &options,
+    FunctionBase* f, const ScheduleCycleMap& cycle_map,
+    DelayManager& delay_manager, absl::flat_hash_set<NodeCut>& evaluated_cuts,
+    int64_t min_pipeline_length, const IterativeSDCSchedulingOptions& options,
     absl::BitGenRef bit_gen) {
   XLS_ASSIGN_OR_RETURN(
       NodeCutMap cut_map,
       EnumerateMaxCutInSchedule(f, min_pipeline_length, cycle_map));
 
-  auto except_evaluated_cuts = [&](Node *source, Node *target) {
+  auto except_evaluated_cuts = [&](Node* source, Node* target) {
     if (options.path_evaluate_strategy == PathEvaluateStrategy::PATH) {
-      absl::StatusOr<std::vector<Node *>> path =
+      absl::StatusOr<std::vector<Node*>> path =
           delay_manager.GetFullCriticalPath(source, target);
       CHECK_OK(path);
       return evaluated_cuts.contains(GetPathCut(*path));
@@ -192,7 +192,7 @@ absl::Status RefineDelayEstimations(
     return evaluated_cuts.contains(cut_map.at(target));
   };
 
-  auto get_normalized_fanout = [](Node *source, Node *target) {
+  auto get_normalized_fanout = [](Node* source, Node* target) {
     return static_cast<float>(target->GetType()->GetFlatBitCount()) /
            std::max(static_cast<float>(0.00001),
                     static_cast<float>(target->users().size()));
@@ -212,7 +212,7 @@ absl::Status RefineDelayEstimations(
 
   // Extract fan-out driven paths.
   XLS_ASSIGN_OR_RETURN(
-      const std::vector<PathInfo> &fanout_driven_paths,
+      const std::vector<PathInfo>& fanout_driven_paths,
       delay_manager.GetTopNPathsStochastically(
           options.fanout_driven_path_number, options.stochastic_ratio,
           path_extract_options, bit_gen, /*except=*/except_evaluated_cuts,
@@ -248,18 +248,18 @@ absl::Status RefineDelayEstimations(
 
   VLOG(1) << "Number of modules generated is " << nodes_list.size();
   for (int64_t j = 0; j < delay_list.size(); ++j) {
-    const NodeSet &nodes = nodes_list[j];
+    const NodeSet& nodes = nodes_list[j];
     int64_t delay = delay_list[j];
     LOG(INFO) << "(Updated delay: " << delay << "ps) Nodes: "
-              << absl::StrJoin(nodes, ", ", [](std::string *out, Node *n) {
+              << absl::StrJoin(nodes, ", ", [](std::string* out, Node* n) {
                    absl::StrAppend(out, n->GetName());
                    absl::StrAppend(out, "-->");
                    absl::StrAppend(out, n->GetUsersString());
                  });
 
     // Update delays in the delay manager with the synthesis results.
-    for (Node *source : nodes) {
-      for (Node *target : nodes) {
+    for (Node* source : nodes) {
+      for (Node* target : nodes) {
         XLS_RET_CHECK_OK(delay_manager.SetCriticalPathDelay(
             source, target, delay, /*if_shorter=*/true, /*if_exist=*/true));
       }
@@ -269,8 +269,8 @@ absl::Status RefineDelayEstimations(
   return absl::OkStatus();
 }
 
-absl::Status BuildError(IterativeSDCSchedulingModel &model,
-                        const math_opt::SolveResult &result,
+absl::Status BuildError(IterativeSDCSchedulingModel& model,
+                        const math_opt::SolveResult& result,
                         SchedulingFailureBehavior failure_behavior) {
   CHECK_NE(result.termination.reason, math_opt::TerminationReason::kOptimal);
 
@@ -306,16 +306,16 @@ absl::Status BuildError(IterativeSDCSchedulingModel &model,
 
 absl::Status IterativeSDCSchedulingModel::AddTimingConstraints(
     int64_t clock_period_ps) {
-  absl::flat_hash_map<Node *, std::vector<Node *>> delay_constraints =
+  absl::flat_hash_map<Node*, std::vector<Node*>> delay_constraints =
       delay_manager_.GetPathsOverDelayThreshold(clock_period_ps);
 
   int64_t number_constraints = 0;
-  for (const auto &p : delay_constraints) {
-    Node *source = p.first;
+  for (const auto& p : delay_constraints) {
+    Node* source = p.first;
     if (IsUntimed(p.first)) {
       continue;
     }
-    for (Node *target : p.second) {
+    for (Node* target : p.second) {
       if (IsUntimed(target)) {
         continue;
       }
@@ -330,9 +330,9 @@ absl::Status IterativeSDCSchedulingModel::AddTimingConstraints(
   return absl::OkStatus();
 }
 
-static absl::Status UpdateStats(const ScheduleCycleMap &prev_cycle_map,
-                                const ScheduleCycleMap &cycle_map,
-                                FunctionBase *f, int64_t iter) {
+static absl::Status UpdateStats(const ScheduleCycleMap& prev_cycle_map,
+                                const ScheduleCycleMap& cycle_map,
+                                FunctionBase* f, int64_t iter) {
   // Suppress output when rerunning scheduling
   // See https://github.com/google/xls/issues/1107
   static int64_t previous_iter = -1;
@@ -353,12 +353,12 @@ static absl::Status UpdateStats(const ScheduleCycleMap &prev_cycle_map,
 
   // Display cycle_map histogram (nodes per cycle)
   std::map<int64_t, int64_t> histo;
-  for (auto &[node, cycle] : cycle_map) {
+  for (auto& [node, cycle] : cycle_map) {
     if (!node->Is<Param>() && !node->Is<Literal>()) {
       ++histo[cycle];
     }
   }
-  for (auto &[cycle, node_count] : histo) {
+  for (auto& [cycle, node_count] : histo) {
     LOG(INFO) << "Stage " << cycle << ": " << node_count << " nodes";
   }
 
@@ -368,7 +368,7 @@ static absl::Status UpdateStats(const ScheduleCycleMap &prev_cycle_map,
     auto users = node->users();
     int64_t next_cycle = cycle + 1;
     if (std::any_of(users.cbegin(), users.cend(),
-                    [next_cycle, &cycle_map](Node *n) {
+                    [next_cycle, &cycle_map](Node* n) {
                       return cycle_map.at(n) >= next_cycle;
                     })) {
       crossing_bits += node->GetType()->GetFlatBitCount();
@@ -380,10 +380,10 @@ static absl::Status UpdateStats(const ScheduleCycleMap &prev_cycle_map,
 }
 
 absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
-    FunctionBase *f, std::optional<int64_t> pipeline_stages,
-    int64_t clock_period_ps, DelayManager &delay_manager,
+    FunctionBase* f, std::optional<int64_t> pipeline_stages,
+    int64_t clock_period_ps, DelayManager& delay_manager,
     absl::Span<const SchedulingConstraint> constraints,
-    const IterativeSDCSchedulingOptions &options,
+    const IterativeSDCSchedulingOptions& options,
     const SchedulingFailureBehavior failure_behavior) {
   VLOG(3) << "SDCScheduler()";
   VLOG(3) << "  pipeline stages = "
@@ -407,13 +407,13 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
   ScheduleCycleMap cycle_map;
   absl::flat_hash_set<NodeCut> evaluated_cuts;
   std::mt19937_64 bit_gen;
-  absl::flat_hash_set<Node *> dead_after_synthesis =
+  absl::flat_hash_set<Node*> dead_after_synthesis =
       GetDeadAfterSynthesisNodes(f);
   ScheduleGraph graph = ScheduleGraph::Create(f, dead_after_synthesis);
   for (int64_t i = 0; i < options.iteration_number; ++i) {
     IterativeSDCSchedulingModel model(graph, delay_manager);
 
-    for (const SchedulingConstraint &constraint : constraints) {
+    for (const SchedulingConstraint& constraint : constraints) {
       XLS_RETURN_IF_ERROR(model.AddSchedulingConstraint(constraint));
     }
 
