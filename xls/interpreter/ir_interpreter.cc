@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <variant>
@@ -44,6 +45,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -562,8 +564,7 @@ absl::Status IrInterpreter::HandleTrace(Trace* trace_op) {
 }
 
 absl::Status IrInterpreter::HandleCover(Cover* cover) {
-  // TODO(rspringer): 2021-05-25: Implement.
-  return absl::OkStatus();
+  return SetValueResult(cover, Value::Tuple({}));
 }
 
 absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {

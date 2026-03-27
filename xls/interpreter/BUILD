@@ -58,6 +58,7 @@ cc_library(
         "//xls/ir:keyword_args",
         "//xls/ir:op",
         "//xls/ir:register",
+        "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",

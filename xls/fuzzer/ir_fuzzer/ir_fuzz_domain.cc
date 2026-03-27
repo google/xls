@@ -168,6 +168,8 @@ auto RestrictOpsRecursive(auto&& domain, absl::Span<Op const> ops) {
         return std::move(domain).WithFieldUnset("gate");
       case Op::kInvoke:
         return std::move(domain).WithFieldUnset("invoke");
+      case Op::kCover:
+        return std::move(domain).WithFieldUnset("cover");
       default:
         // Do nothing for ops not in FuzzOpProto.
         return std::move(domain);
@@ -221,6 +223,7 @@ std::vector<Op> GetRestrictedSet(absl::Span<Op const> ops, bool only_bits) {
       case Op::kArrayUpdate:
       case Op::kTuple:
       case Op::kTupleIndex:
+      case Op::kCover:
         return true;
       default:
         return false;

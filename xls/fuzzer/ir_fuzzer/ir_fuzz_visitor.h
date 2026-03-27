@@ -95,10 +95,10 @@ class IrFuzzVisitor {
   virtual void HandleDefineFunction(
       const FuzzDefineFunctionProto& define_function) = 0;
   virtual void HandleInvoke(const FuzzInvokeProto& invoke) = 0;
+  virtual void HandleCover(const FuzzCoverProto& cover) = 0;
 
   void VisitFuzzOp(const FuzzOpProto& fuzz_op);
 };
 
 }  // namespace xls
-
 #endif  // XLS_FUZZER_IR_FUZZER_IR_FUZZ_VISITOR_H_

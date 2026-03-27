@@ -240,6 +240,7 @@ message FuzzOpProto {
     FuzzGateProto gate = 61;
     FuzzDefineFunctionProto define_function = 62;
     FuzzInvokeProto invoke = 63;
+    FuzzCoverProto cover = 64;
   }
 }
 
@@ -621,4 +622,10 @@ message FuzzInvokeProto {
   int64 function_index = 1;
   repeated OperandIdxProto args_idxs = 2;
   repeated CoercionMethodProto args_coercion_methods = 3;
+}
+
+message FuzzCoverProto {
+  optional BitsOperandIdxProto condition_idx = 1;
+  optional string label = 2;
+  optional BitsCoercionMethodProto condition_coercion_method = 3;
 }

@@ -117,6 +117,7 @@ class GenIrNodesPass : public IrFuzzVisitor {
   void HandleDefineFunction(
       const FuzzDefineFunctionProto& define_function) override;
   void HandleInvoke(const FuzzInvokeProto& invoke) override;
+  void HandleCover(const FuzzCoverProto& cover) override;
 
  private:
   class FunctionState {

@@ -211,6 +211,9 @@ void IrFuzzVisitor::VisitFuzzOp(const FuzzOpProto& fuzz_op) {
     case FuzzOpProto::kInvoke:
       HandleInvoke(fuzz_op.invoke());
       break;
+    case FuzzOpProto::kCover:
+      HandleCover(fuzz_op.cover());
+      break;
     case FuzzOpProto::FUZZ_OP_NOT_SET:
       break;
   }

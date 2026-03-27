@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
@@ -37,6 +38,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_flattening.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 
@@ -715,6 +717,18 @@ void GenIrNodesPass::HandleDecode(const FuzzDecodeProto& decode) {
       helpers_.BoundedWidth(decode.bit_width(), /*left_bound=*/1, right_bound);
   state().context_list().AppendElement(
       state().fb()->Decode(operand, bit_width));
+}
+
+void GenIrNodesPass::HandleCover(const FuzzCoverProto& cover) {
+  BValue condition = GetBitsFittedOperand(cover.condition_idx(),
+                                          cover.condition_coercion_method(),
+                                          /*bit_width=*/1);
+  std::string label = cover.label();
+  if (label.empty()) {
+    label = absl::StrCat("cover_label_", state().context_list().GetListSize());
+  }
+  BValue cover_node = state().fb()->Cover(condition, label);
+  state().context_list().AppendElement(cover_node);
 }
 
 void GenIrNodesPass::HandleGate(const FuzzGateProto& gate) {
