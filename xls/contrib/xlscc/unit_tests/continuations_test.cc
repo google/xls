@@ -1491,7 +1491,7 @@ TEST_F(ContinuationsTest, PipelinedLoopNested) {
   EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "ctrl"), 1);
   EXPECT_TRUE(SliceInputsDecl(fourth_slice, "ctrl", /*direct_in=*/false,
                               /*is_feedback=*/false, /*func=*/func));
-  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "a"), 3);
+  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "a"), 2);
   EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "j"), 2);
   EXPECT_EQ(SliceOutputsDeclCount(fourth_slice, "a"), 1);
   EXPECT_EQ(SliceOutputsDeclCount(fourth_slice, "j"), 1);
@@ -1500,8 +1500,6 @@ TEST_F(ContinuationsTest, PipelinedLoopNested) {
   EXPECT_TRUE(SliceInputsDecl(fifth_slice, "ctrl", /*direct_in=*/false,
                               /*is_feedback=*/false, /*func=*/func));
   EXPECT_EQ(SliceInputsDeclCount(fifth_slice, "i"), 1);
-  EXPECT_EQ(SliceOutputsDeclCount(fifth_slice, "a"), 1);
-  EXPECT_EQ(SliceInputsDeclCount(fifth_slice, "a"), 1);
   EXPECT_EQ(SliceOutputsDeclCount(fifth_slice, "i"), 1);
   EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "j"));
 
@@ -2242,16 +2240,12 @@ TEST_F(ContinuationsTest, PipelinedLoopSimpleFeedback) {
   ++slice_it;
   const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
   ++slice_it;
-  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
-  ++slice_it;
 
   EXPECT_TRUE(SliceOutputsDecl(first_slice, "sum"));
   EXPECT_EQ(SliceInputsDeclCount(third_slice, "sum"), 2);
   EXPECT_TRUE(SliceInputsDecl(third_slice, "sum", /*direct_in=*/false,
                               /*is_feedback=*/true, /*func=*/func));
-  EXPECT_TRUE(SliceOutputsDecl(third_slice, "sum"));
-  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "sum"), 1);
-  EXPECT_TRUE(SliceOutputsDecl(fourth_slice, "sum"));
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "sum"));
 }
 
 TEST_F(ContinuationsTest, PipelinedLoopSimpleNoFeedback) {
@@ -2348,7 +2342,7 @@ TEST_F(ContinuationsTest, PassthroughFeedbackOrder) {
       inputs_sorted_by_slice_index.back().continuation_out->decls;
   EXPECT_TRUE(std::any_of(last_decls.begin(), last_decls.end(),
                           [](const DeclLeaf& decl) {
-                            return decl.decl->getNameAsString() == "set_it";
+                            return decl.decl->getNameAsString() == "value";
                           }));
 }
 

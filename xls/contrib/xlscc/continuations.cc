@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <initializer_list>
+#include <iterator>
 #include <list>
 #include <memory>
 #include <optional>
@@ -26,18 +27,21 @@
 #include <vector>
 
 #include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/generate_fsm.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/translator_types.h"
@@ -138,12 +142,35 @@ absl::Status ValidateContinuations(GeneratedFunction& func,
       slice_index_by_continuation_out[&continuation_out] = slice_index;
     }
   }
+  {
+    absl::flat_hash_map<const xls::Param*, absl::btree_set<StateId>>
+        state_ids_by_param;
 
+    for (GeneratedFunctionSlice& slice : func.slices) {
+      for (const ContinuationInput& continuation_in : slice.continuations_in) {
+        for (const StateId& state_id : continuation_in.choose_in_states) {
+          if (state_ids_by_param.contains(continuation_in.input_node) &&
+              state_ids_by_param.at(continuation_in.input_node)
+                  .contains(state_id)) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "Param %s to slice[%li] has multiple inputs for state %s\n",
+                continuation_in.input_node->name(),
+                slice_index_by_slice.at(&slice), state_id.ToString()));
+          }
+          state_ids_by_param[continuation_in.input_node].insert(state_id);
+        }
+      }
+    }
+  }
   for (GeneratedFunctionSlice& slice : func.slices) {
     const int64_t slice_index = slice_index_by_slice.at(&slice);
 
     absl::flat_hash_map<const xls::Param*, int64_t>
         num_upstream_inputs_by_param;
+
+    absl::flat_hash_map<const xls::Param*,
+                        absl::flat_hash_set<ContinuationValue*>>
+        values_inputted_by_param;
 
     for (const ContinuationInput& continuation_in : slice.continuations_in) {
       const int64_t upstream_slice_index =
@@ -156,6 +183,17 @@ absl::Status ValidateContinuations(GeneratedFunction& func,
       if (!is_feedback) {
         ++num_upstream_inputs_for_param;
       }
+
+      if (values_inputted_by_param[continuation_in.input_node].contains(
+              continuation_in.continuation_out)) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Param %s to slice[%li] %s has multiple inputs for value %s\n",
+            continuation_in.input_node->name(), slice_index,
+            slice.function->name(), continuation_in.continuation_out->name));
+      }
+
+      values_inputted_by_param[continuation_in.input_node].insert(
+          continuation_in.continuation_out);
     }
 
     for (const auto& [param, num_upstream_inputs] :
@@ -168,6 +206,48 @@ absl::Status ValidateContinuations(GeneratedFunction& func,
       }
     }
   }
+  return absl::OkStatus();
+}
+
+absl::Status GenerateLayoutAndInsertChooseInStates(GeneratedFunction& func,
+                                                   NewFSMGenerator& generator,
+                                                   const xls::SourceInfo& loc) {
+  NewFSMLayout layout_ref;
+
+  XLS_RETURN_IF_ERROR(
+      generator.LayoutNewFSMNoStateElements(layout_ref, func.slices, loc));
+
+  absl::flat_hash_map<std::tuple<const xls::Param*, const ContinuationValue*>,
+                      ContinuationInput*>
+      continuation_in_by_param_and_continuation_out;
+
+  for (GeneratedFunctionSlice& slice : func.slices) {
+    for (ContinuationInput& continuation_in : slice.continuations_in) {
+      continuation_in_by_param_and_continuation_out[std::make_tuple(
+          continuation_in.input_node, continuation_in.continuation_out)] =
+          &continuation_in;
+      continuation_in.choose_in_states.clear();
+    }
+  }
+  for (const NewFSMState& state : layout_ref.states) {
+    StateId state_id = {
+        .slice_index = state.slice_index,
+    };
+    for (const JumpInfo& jump_info : state.jumped_from_slice_indices) {
+      state_id.from_jump_slice_indices.insert(JumpId{
+          .from_slice_index = jump_info.from_slice, .count = jump_info.count});
+    }
+
+    for (const auto& [param, continuation_out] :
+         state.current_inputs_by_input_param) {
+      ContinuationInput* continuation_in =
+          continuation_in_by_param_and_continuation_out.at(
+              std::make_tuple(param, continuation_out));
+
+      continuation_in->choose_in_states.insert(state_id);
+    }
+  }
+
   return absl::OkStatus();
 }
 
@@ -1237,6 +1317,13 @@ absl::Status Translator::FinishLastSlice(TrackedBValue return_bval,
   OptimizationContext optimization_context;
   XLS_RETURN_IF_ERROR(MarkDirectIns(*context().sf, optimization_context, loc));
 
+  // Set ContinuationInput::choose_in_states from
+  // NewFSMState::current_inputs_by_input_param. This allows phi selection order
+  // to be preserved through optimization.
+  NewFSMGenerator generator(*this, *this, DebugIrTraceFlags_None);
+  XLS_RETURN_IF_ERROR(
+      GenerateLayoutAndInsertChooseInStates(*context().sf, generator, loc));
+
   XLS_RETURN_IF_ERROR(
       OptimizeContinuations(*context().sf, optimization_context, loc));
 
@@ -1320,10 +1407,10 @@ absl::Status RemoveUnusedContinuationOutputs(GeneratedFunction& func,
   return absl::OkStatus();
 }
 
-absl::Status RemoveUnusedContinuationInputs(GeneratedFunction& func,
-                                            OptimizationContext& context,
-                                            bool& changed,
-                                            const xls::SourceInfo& loc) {
+absl::Status RemoveUnusedContinuationInputParams(GeneratedFunction& func,
+                                                 OptimizationContext& context,
+                                                 bool& changed,
+                                                 const xls::SourceInfo& loc) {
   // Multiple inputs can share a parameter in the case of a phi /
   // feedback, so the already deleted parameters are tracked to remove
   // all of the inputs for an unused parameter.
@@ -1348,6 +1435,7 @@ absl::Status RemoveUnusedContinuationInputs(GeneratedFunction& func,
       }
 
       CHECK_EQ(continuation_in.input_node->function_base(), slice.function);
+      // The parameter is in use, so skip this input.
       if (return_value_from_params.contains(continuation_in.input_node)) {
         ++cont_in_it;
         continue;
@@ -1364,7 +1452,6 @@ absl::Status RemoveUnusedContinuationInputs(GeneratedFunction& func,
           slice.function->RemoveNode(continuation_in.input_node));
 
       deleted_params.insert(continuation_in.input_node);
-
       cont_in_it = slice.continuations_in.erase(cont_in_it);
       changed = true;
     }
@@ -1385,7 +1472,6 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
   absl::flat_hash_map<const ContinuationValue*,
                       absl::flat_hash_set<const xls::Param*>>
       ret;
-
   for (GeneratedFunctionSlice& slice : func.slices) {
     XLS_ASSIGN_OR_RETURN(
         SourcesSetTreeNodeInfo * node_sources_info,
@@ -1486,13 +1572,14 @@ FindPassThroughs(GeneratedFunction& func, OptimizationContext& context) {
 
 absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
                                 OptimizationContext& context,
-                                const xls::SourceInfo& loc) {
+                                const xls::SourceInfo& loc,
+                                xls::Package* package,
+                                xls::OptimizationContext& xls_opt_context) {
   // This pass doesn't actually change the function, so we can calculate this
   // once here
   absl::flat_hash_map<const ContinuationValue*,
                       absl::flat_hash_set<const xls::Param*>>
       pass_throughs;
-  XLS_ASSIGN_OR_RETURN(pass_throughs, FindPassThroughs(func, context));
 
   absl::flat_hash_map<const xls::Param*, std::vector<ContinuationInput*>>
       continuation_inputs_by_input_node;
@@ -1500,30 +1587,30 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
       continuation_inputs_by_output_node;
   absl::flat_hash_map<ContinuationInput*, GeneratedFunctionSlice*>
       slice_by_continuation_input;
+  absl::flat_hash_map<ContinuationValue*, GeneratedFunctionSlice*>
+      slice_by_continuation_output;
   absl::flat_hash_map<GeneratedFunctionSlice*, int64_t> slice_indices;
 
-  // Initialize the maps. They will be updated as we go.
+  XLS_ASSIGN_OR_RETURN(pass_throughs, FindPassThroughs(func, context));
+
   for (GeneratedFunctionSlice& slice : func.slices) {
     slice_indices[&slice] = slice_indices.size();
+
     for (ContinuationInput& continuation_in : slice.continuations_in) {
-      continuation_inputs_by_input_node[continuation_in.input_node].push_back(
-          &continuation_in);
       slice_by_continuation_input[&continuation_in] = &slice;
       continuation_inputs_by_output_node[continuation_in.continuation_out
                                              ->output_node]
           .push_back(&continuation_in);
+      continuation_inputs_by_input_node[continuation_in.input_node].push_back(
+          &continuation_in);
+    }
+    for (ContinuationValue& continuation_out : slice.continuations_out) {
+      slice_by_continuation_output[&continuation_out] = &slice;
     }
   }
 
-  auto remove_input_from_vector = [](std::vector<ContinuationInput*>& vec,
-                                     ContinuationInput* input) {
-    auto it = std::find(vec.begin(), vec.end(), input);
-    CHECK(it != vec.end());
-    vec.erase(it);
-  };
-
   for (GeneratedFunctionSlice& slice : func.slices) {
-    for (ContinuationValue& continuation_out : slice.continuations_out) {
+    for (const ContinuationValue& continuation_out : slice.continuations_out) {
       CHECK(continuation_out.output_node->op() == xls::Op::kIdentity);
 
       CHECK_GT(continuation_out.output_node->GetType()->GetFlatBitCount(), 0);
@@ -1548,40 +1635,22 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
       // Output will get removed by other pass if it is now unused.
       // Input will get removed by other pass now that it is unused.
 
-      CHECK(continuation_inputs_by_output_node.contains(
-          continuation_out.output_node));
+      // No downstream inputs
+      if (!continuation_inputs_by_output_node.contains(
+              continuation_out.output_node)) {
+        continue;
+      }
       // Copy this so that we can mutate the maps
       std::vector<ContinuationInput*> pass_through_to_inputs =
           continuation_inputs_by_output_node.at(continuation_out.output_node);
+
       CHECK_GE(pass_through_to_inputs.size(), 1);
 
-      // Don't remove pass-throughs if it would change the origin of a feedback.
-      // The slice index the feedback originates from is important for
-      // sequencing.
-      // TODO(seanhaskell): Re-order passes in future to enable this
-      // b/466385359.
       const int64_t current_slice_index = slice_indices.at(&slice);
 
-      bool any_feedback_outputs = false;
-
-      for (ContinuationInput* downstream_input : pass_through_to_inputs) {
-        const int64_t downstream_slice_index =
-            slice_indices.at(slice_by_continuation_input.at(downstream_input));
-
-        const bool is_feedback = current_slice_index >= downstream_slice_index;
-
-        if (is_feedback) {
-          any_feedback_outputs = true;
-          break;
-        }
-      }
-
-      if (any_feedback_outputs) {
-        continue;
-      }
-
       // In the case of phis, optimization can end up with a slice passing
-      // through to itself, need to break the cycle by deleting this
+      // through to itself. Leave these alone.
+      bool self_feedback = false;
       for (ContinuationInput* pass_through_to_input : pass_through_to_inputs) {
         GeneratedFunctionSlice* downstream_slice =
             slice_by_continuation_input.at(pass_through_to_input);
@@ -1590,98 +1659,285 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
           continue;
         }
 
-        for (auto it = slice.continuations_in.begin();
-             it != slice.continuations_in.end(); ++it) {
-          ContinuationInput& input = *it;
-          if (&input == pass_through_to_input) {
-            slice_by_continuation_input.erase(&input);
-            remove_input_from_vector(
-                continuation_inputs_by_input_node.at(input.input_node), &input);
-            remove_input_from_vector(continuation_inputs_by_output_node.at(
-                                         input.continuation_out->output_node),
-                                     &input);
-            slice.continuations_in.erase(it);
-            break;
-          }
-        }
-        changed = true;
+        self_feedback = true;
+        break;
       }
-
-      if (!continuation_inputs_by_output_node.contains(
-              continuation_out.output_node)) {
-        CHECK(!continuation_inputs_by_output_node.contains(
-            continuation_out.output_node));
+      if (self_feedback) {
         continue;
       }
 
       pass_through_to_inputs =
           continuation_inputs_by_output_node.at(continuation_out.output_node);
 
-      // Each downstream input now needs to become N inputs, where N is the
-      // number of upstream inputs for the pass-through output
-      for (ContinuationInput* pass_through_to_input : pass_through_to_inputs) {
+      // Get all the inputs that use this parameter
+      // Copy this so that we can mutate the maps
+      const std::vector<ContinuationInput*> this_slice_inputs =
+          continuation_inputs_by_input_node.at(pass_in_param);
+
+      CHECK(!this_slice_inputs.empty());
+
+      // Skip if there are multiple upstream inputs currently (let other
+      // optimizations apply)
+      int64_t num_upstream_inputs_this_param = 0;
+      for (const ContinuationInput* this_slice_input : this_slice_inputs) {
+        const GeneratedFunctionSlice* upstream_slice =
+            slice_by_continuation_output.at(this_slice_input->continuation_out);
+        const int64_t upstream_slice_index = slice_indices.at(upstream_slice);
+        if (upstream_slice_index < current_slice_index) {
+          ++num_upstream_inputs_this_param;
+        }
+      }
+      if (num_upstream_inputs_this_param > 1) {
+        continue;
+      }
+
+      struct UpstreamInput {
+        const ContinuationInput* upstream_input = nullptr;
+        bool do_insert_downstream = false;
+        absl::btree_set<StateId> choose_in_states;
+      };
+
+      // Slice indices will vary, jump states matter
+      auto only_jump_states = [](const absl::btree_set<StateId>& states) {
+        absl::btree_set<StateId> ret;
+        for (const StateId& state : states) {
+          ret.insert(StateId{
+              .slice_index = -1,
+              .from_jump_slice_indices = state.from_jump_slice_indices});
+        }
+        return ret;
+      };
+
+      absl::flat_hash_map<const ContinuationInput*, std::vector<UpstreamInput>>
+          upstream_inputs_by_downstream_input;
+      absl::flat_hash_map<const ContinuationInput*, absl::btree_set<StateId>>
+          missing_states_by_downstream_input;
+
+      // Filter downstream inputs
+      for (ContinuationInput* pass_through_to_input_ptr :
+           pass_through_to_inputs) {
+        absl::btree_set<StateId> all_upstream_jump_states;
+
+        const GeneratedFunctionSlice* pass_through_to_slice =
+            slice_by_continuation_input.at(pass_through_to_input_ptr);
+        const int64_t pass_through_to_slice_index =
+            slice_indices.at(pass_through_to_slice);
+
+        absl::btree_set<StateId> downstream_jump_states =
+            only_jump_states(pass_through_to_input_ptr->choose_in_states);
+
+        bool disallow_due_to_feedback = false;
+
+        for (const ContinuationInput* this_slice_input : this_slice_inputs) {
+          absl::btree_set<StateId> upstream_jump_states =
+              only_jump_states(this_slice_input->choose_in_states);
+
+          const GeneratedFunctionSlice* upstream_slice =
+              slice_by_continuation_output.at(
+                  this_slice_input->continuation_out);
+          const int64_t upstream_slice_index = slice_indices.at(upstream_slice);
+
+          all_upstream_jump_states.insert(upstream_jump_states.begin(),
+                                          upstream_jump_states.end());
+
+          // Check feedbacks
+
+          const bool is_feedback =
+              current_slice_index >= pass_through_to_slice_index ||
+              upstream_slice_index >= current_slice_index;
+
+          const bool will_be_feedback =
+              upstream_slice_index >= pass_through_to_slice_index;
+
+          // If it contained a feedback, then it must be a feedback after change
+          // This is due to a limitation in the expressiveness of the FSM
+          // data flow graphs. Feedback values are seen in the next activation,
+          // not the current one. When a feedback becomes a non-feedback,
+          // its next value can be seen within the same activation as it was
+          // produced, which is incorrect.
+          if (is_feedback && !will_be_feedback) {
+            disallow_due_to_feedback = true;
+            break;
+          }
+        }
+
+        if (disallow_due_to_feedback) {
+          continue;
+        }
+
+        // Add choose in states from existing downstream inputs sharing the same
+        // parameter. The pass through input may not be the only one on this
+        // parameter. Avoids duplicate choose in states
+        for (const ContinuationInput& pass_through_to_slice_input :
+             pass_through_to_slice->continuations_in) {
+          if (pass_through_to_slice_input.input_node !=
+                  pass_through_to_input_ptr->input_node ||
+              &pass_through_to_slice_input == pass_through_to_input_ptr) {
+            continue;
+          }
+          absl::btree_set<StateId> jump_states =
+              only_jump_states(pass_through_to_slice_input.choose_in_states);
+          all_upstream_jump_states.insert(jump_states.begin(),
+                                          jump_states.end());
+        }
+
+        absl::btree_set<StateId> missing_states;
+        // Missing states are present downstream but not upstream
+        for (const StateId& downstream_jump_state : downstream_jump_states) {
+          if (!all_upstream_jump_states.contains(downstream_jump_state)) {
+            missing_states.insert(downstream_jump_state);
+          }
+        }
+
+        // If there is no upstream input, then there's no input to which to
+        // assign missing states.
+        CHECK_EQ(num_upstream_inputs_this_param, 1);
+
+        missing_states_by_downstream_input[pass_through_to_input_ptr] =
+            missing_states;
+
+        for (const ContinuationInput* this_slice_input : this_slice_inputs) {
+          upstream_inputs_by_downstream_input[pass_through_to_input_ptr]
+              .push_back(UpstreamInput{.upstream_input = this_slice_input});
+        }
+      }
+
+      // Nothing to do, all downstreams disqualified
+      if (upstream_inputs_by_downstream_input.empty()) {
+        continue;
+      }
+
+      absl::flat_hash_set<const ContinuationInput*>
+          pass_through_inputs_found_upstream_input;
+
+      // Filter upstream inputs
+      for (auto& [pass_through_to_input, upstream_inputs] :
+           upstream_inputs_by_downstream_input) {
+        for (UpstreamInput& upstream_input : upstream_inputs) {
+          upstream_input.do_insert_downstream = true;
+
+          absl::btree_set<StateId> upstream_jump_states =
+              only_jump_states(upstream_input.upstream_input->choose_in_states);
+          const absl::btree_set<StateId> pass_through_jump_states =
+              only_jump_states(pass_through_to_input->choose_in_states);
+
+          // Assign missing states to upstream input
+          const int64_t upstream_slice_index =
+              slice_indices.at(slice_by_continuation_output.at(
+                  upstream_input.upstream_input->continuation_out));
+
+          if (upstream_slice_index < current_slice_index) {
+            CHECK(!pass_through_inputs_found_upstream_input.contains(
+                pass_through_to_input));
+            pass_through_inputs_found_upstream_input.insert(
+                pass_through_to_input);
+            const absl::btree_set<StateId>& missing_states =
+                missing_states_by_downstream_input.at(pass_through_to_input);
+            upstream_jump_states.insert(missing_states.begin(),
+                                        missing_states.end());
+          }
+
+          // Filter upstream inputs by the set of states for the downstream
+          // input.
+          absl::btree_set<StateId> state_intersection;
+          std::set_intersection(
+              upstream_jump_states.begin(), upstream_jump_states.end(),
+              pass_through_jump_states.begin(), pass_through_jump_states.end(),
+              std::inserter(state_intersection, state_intersection.begin()));
+
+          // Preserve upstream states in new downstream inputs
+          // But update target slice index
+          const int64_t pass_through_to_slice_index = slice_indices.at(
+              slice_by_continuation_input.at(pass_through_to_input));
+
+          upstream_input.choose_in_states.clear();
+          for (const StateId& state : state_intersection) {
+            upstream_input.choose_in_states.insert(StateId{
+                .slice_index = pass_through_to_slice_index,
+                .from_jump_slice_indices = state.from_jump_slice_indices,
+            });
+          }
+        }
+      }
+
+      // For each downstream input, delete the current downstream input,
+      // and replace (in the same place in the list) with new downstream inputs
+      // based on the upstream inputs.
+      for (auto& [pass_through_to_input_ptr, upstream_inputs] :
+           upstream_inputs_by_downstream_input) {
+        const bool insert_any_downstream =
+            std::any_of(upstream_inputs.begin(), upstream_inputs.end(),
+                        [](const UpstreamInput& upstream_input) {
+                          return upstream_input.do_insert_downstream;
+                        });
+        CHECK(insert_any_downstream);
+
         GeneratedFunctionSlice* downstream_slice =
-            slice_by_continuation_input.at(pass_through_to_input);
+            slice_by_continuation_input.at(pass_through_to_input_ptr);
 
         const ContinuationInput pass_through_to_input_org =
-            *pass_through_to_input;
+            *pass_through_to_input_ptr;
 
-        // Get all the inputs that use this parameter
-        // Copy this so that we can mutate the maps
-        const std::vector<ContinuationInput*> this_slice_inputs =
-            continuation_inputs_by_input_node.at(pass_in_param);
+        auto insert_it = downstream_slice->continuations_in.begin();
 
-        CHECK(!this_slice_inputs.empty());
+        // Delete the original downstream input
+        bool erased = false;
+        for (; insert_it != downstream_slice->continuations_in.end();
+             ++insert_it) {
+          if (&*insert_it == pass_through_to_input_ptr) {
+            auto n_erased =
+                std::erase(continuation_inputs_by_input_node.at(
+                               pass_through_to_input_ptr->input_node),
+                           pass_through_to_input_ptr);
+            CHECK_EQ(n_erased, 1);
 
-        // The first input can simply be forwarded without creating new
-        // downstream inputs
-        auto this_slice_inputs_it = this_slice_inputs.begin();
-        const ContinuationInput* first_this_slice_input = *this_slice_inputs_it;
+            n_erased = std::erase(
+                continuation_inputs_by_output_node.at(
+                    pass_through_to_input_ptr->continuation_out->output_node),
+                pass_through_to_input_ptr);
+            CHECK_EQ(n_erased, 1);
 
-        CHECK_NE(pass_through_to_input->input_node, pass_in_param);
-        CHECK_NE(first_this_slice_input->continuation_out, &continuation_out);
+            slice_by_continuation_input.erase(pass_through_to_input_ptr);
 
-        CHECK(pass_through_to_input->input_node->GetType()->IsEqualTo(
-            first_this_slice_input->continuation_out->output_node->GetType()));
+            insert_it = downstream_slice->continuations_in.erase(insert_it);
+            erased = true;
+            break;
+          }
+        }
 
-        CHECK(pass_through_to_input->continuation_out->output_node->GetType()
-                  ->IsEqualTo(first_this_slice_input->continuation_out
-                                  ->output_node->GetType()));
-
-        std::vector<ContinuationInput*>& pass_through_to_inputs_for_output =
-            continuation_inputs_by_output_node.at(
-                pass_through_to_input->continuation_out->output_node);
-        std::vector<ContinuationInput*>& first_this_slice_inputs_for_output =
-            continuation_inputs_by_output_node.at(
-                first_this_slice_input->continuation_out->output_node);
-
-        const auto n_erased = std::erase(pass_through_to_inputs_for_output,
-                                         pass_through_to_input);
-        CHECK_EQ(n_erased, 1);
-
-        pass_through_to_input->continuation_out =
-            first_this_slice_input->continuation_out;
-
-        first_this_slice_inputs_for_output.push_back(pass_through_to_input);
+        CHECK(erased);
 
         changed = true;
 
-        for (++this_slice_inputs_it;
-             this_slice_inputs_it != this_slice_inputs.end();
-             ++this_slice_inputs_it) {
-          const ContinuationInput* this_slice_input = *this_slice_inputs_it;
+        // The first input can simply be forwarded without creating new
+        // downstream inputs
+        for (const UpstreamInput& upstream_input : upstream_inputs) {
+          if (!upstream_input.do_insert_downstream) {
+            continue;
+          }
+
+          const ContinuationInput* this_slice_input =
+              upstream_input.upstream_input;
           CHECK(slice_by_continuation_input.contains(this_slice_input));
 
-          CHECK_NE(pass_through_to_input->input_node, pass_in_param);
+          CHECK_NE(pass_through_to_input_org.input_node, pass_in_param);
           CHECK_NE(this_slice_input->continuation_out, &continuation_out);
 
           ContinuationInput new_input = pass_through_to_input_org;
 
           new_input.continuation_out = this_slice_input->continuation_out;
 
-          downstream_slice->continuations_in.push_back(new_input);
-          ContinuationInput* new_input_ptr =
-              &downstream_slice->continuations_in.back();
+          new_input.choose_in_states = upstream_input.choose_in_states;
+
+          CHECK(new_input.continuation_out->output_node->GetType()->IsEqualTo(
+              new_input.input_node->GetType()));
+
+          // Update iterator position for this downstream input
+          insert_it =
+              downstream_slice->continuations_in.insert(insert_it, new_input);
+
+          ContinuationInput* new_input_ptr = &*insert_it;
+
           slice_by_continuation_input[new_input_ptr] = downstream_slice;
           continuation_inputs_by_input_node[new_input_ptr->input_node]
               .push_back(new_input_ptr);
@@ -1691,10 +1947,8 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
           changed = true;
         }
       }
-
-      continuation_inputs_by_output_node.erase(continuation_out.output_node);
-    }
-  }
+    }  // slice.continuations_out
+  }  // func.slices
 
   return absl::OkStatus();
 }
@@ -1732,24 +1986,42 @@ absl::Status RemoveDuplicateInputs(GeneratedFunction& func, bool& changed,
   };
 
   for (GeneratedFunctionSlice& slice : func.slices) {
-    absl::btree_map<InputKey,
-                    std::vector<std::list<ContinuationInput>::iterator>>
-        inputs_by_key;
+    struct InputSet {
+      absl::InlinedVector<std::list<ContinuationInput>::iterator, 2>
+          input_iterators;
+    };
+
+    absl::btree_map<InputKey, InputSet> inputs_by_key;
 
     for (auto cont_in_it = slice.continuations_in.begin();
          cont_in_it != slice.continuations_in.end(); ++cont_in_it) {
       const ContinuationInput& continuation_in = *cont_in_it;
       InputKey key = {continuation_in.input_node,
                       continuation_in.continuation_out};
-      inputs_by_key[key].push_back(cont_in_it);
+      inputs_by_key[key].input_iterators.push_back(cont_in_it);
     }
 
     // Delete all but the first
-    for (auto& [_, inputs] : inputs_by_key) {
+    for (auto& [key, input_set] : inputs_by_key) {
+      CHECK_GT(input_set.input_iterators.size(), 0L);
+      // Skip extra work if there's already only one input
+      if (input_set.input_iterators.size() == 1) {
+        continue;
+      }
+      absl::btree_set<StateId> all_choose_in_states;
+      for (std::list<ContinuationInput>::iterator input_it :
+           input_set.input_iterators) {
+        all_choose_in_states.insert(input_it->choose_in_states.begin(),
+                                    input_it->choose_in_states.end());
+      }
+
+      CHECK_GT(input_set.input_iterators.size(), 1L);
+
       bool first = true;
-      for (auto input_it : inputs) {
+      for (auto input_it : input_set.input_iterators) {
         if (first) {
           first = false;
+          input_it->choose_in_states = all_choose_in_states;
           continue;
         }
         slice.continuations_in.erase(input_it);
@@ -1763,8 +2035,8 @@ absl::Status RemoveDuplicateInputs(GeneratedFunction& func, bool& changed,
 
 struct ParamInputs {
   bool multiple_upstream_inputs = false;
-  const ContinuationInput* upstream_input = nullptr;
-  absl::InlinedVector<const ContinuationInput*, 1> all_inputs = {};
+  ContinuationInput* upstream_input = nullptr;
+  absl::InlinedVector<ContinuationInput*, 1> all_inputs = {};
 };
 
 // May include value in the output if it's not a pass-through.
@@ -1805,9 +2077,6 @@ void GetNonPassthroughUpstreamValuesForValue(
 //
 // It is not safe to remove one feedback if another provides a different value,
 // as this can change the sequence of values seen by the input parameter.
-//
-// TODO(seanhaskell): Move virtual unrolling before optimization to avoid the
-// need for this.
 absl::Status RemovePassthroughFeedbacks(GeneratedFunction& func, bool& changed,
                                         OptimizationContext& context,
                                         const xls::SourceInfo& loc) {
@@ -1842,7 +2111,7 @@ absl::Status RemovePassthroughFeedbacks(GeneratedFunction& func, bool& changed,
     params_per_slice[&slice] = {};
     const int64_t slice_index = slice_index_by_slice.at(&slice);
 
-    for (const ContinuationInput& continuation_in : slice.continuations_in) {
+    for (ContinuationInput& continuation_in : slice.continuations_in) {
       params_per_slice[&slice].insert(continuation_in.input_node);
 
       ParamInputs& param_inputs =
@@ -1902,14 +2171,24 @@ absl::Status RemovePassthroughFeedbacks(GeneratedFunction& func, bool& changed,
         continue;
       }
 
+      absl::btree_set<StateId> pass_thru_choose_in_states;
+
       for (const ContinuationInput* input : param_inputs.all_inputs) {
         if (input == param_inputs.upstream_input) {
           continue;
         }
+
+        for (const StateId& state_id : input->choose_in_states) {
+          pass_thru_choose_in_states.insert(state_id);
+        }
+
         inputs_to_remove.insert(input);
       }
 
       param_inputs.all_inputs = {param_inputs.upstream_input};
+
+      param_inputs.upstream_input->choose_in_states.insert(
+          pass_thru_choose_in_states.begin(), pass_thru_choose_in_states.end());
     }
 
     const int64_t num_inputs_before = slice.continuations_in.size();
@@ -1936,16 +2215,18 @@ absl::Status RemovePassthroughFeedbacks(GeneratedFunction& func, bool& changed,
 
 absl::Status RemoveDuplicateParams(GeneratedFunction& func, bool& changed,
                                    const xls::SourceInfo& loc) {
+  typedef std::tuple<const ContinuationValue*, absl::btree_set<StateId>>
+      InputTuple;
+
   for (GeneratedFunctionSlice& slice : func.slices) {
-    absl::flat_hash_map<xls::Param*,
-                        absl::flat_hash_set<const ContinuationValue*>>
+    absl::flat_hash_map<xls::Param*, absl::btree_set<InputTuple>>
         upstream_values_by_param;
 
     absl::flat_hash_map<xls::Param*, std::vector<ContinuationInput*>>
         continuation_inputs_by_param;
 
-    absl::flat_hash_map<absl::flat_hash_set<const ContinuationValue*>,
-                        absl::flat_hash_set<xls::Param*>>
+    absl::btree_map<absl::btree_set<InputTuple>,
+                    absl::flat_hash_set<xls::Param*>>
         params_by_upstream_values;
 
     auto update_maps = [&]() {
@@ -1954,8 +2235,9 @@ absl::Status RemoveDuplicateParams(GeneratedFunction& func, bool& changed,
       params_by_upstream_values.clear();
 
       for (ContinuationInput& continuation_in : slice.continuations_in) {
-        upstream_values_by_param[continuation_in.input_node].insert(
-            continuation_in.continuation_out);
+        InputTuple new_tuple(continuation_in.continuation_out,
+                             continuation_in.choose_in_states);
+        upstream_values_by_param[continuation_in.input_node].insert(new_tuple);
         continuation_inputs_by_param[continuation_in.input_node].push_back(
             &continuation_in);
       }
@@ -1971,12 +2253,14 @@ absl::Status RemoveDuplicateParams(GeneratedFunction& func, bool& changed,
     absl::flat_hash_set<xls::Param*> params_processed;
 
     for (ContinuationInput& continuation_in : slice.continuations_in) {
+      bool changed_this_input = false;
+
       xls::Param* this_param = continuation_in.input_node;
       if (params_processed.contains(this_param)) {
         continue;
       }
-      const absl::flat_hash_set<const ContinuationValue*>&
-          this_param_upstream_values = upstream_values_by_param.at(this_param);
+      const absl::btree_set<InputTuple>& this_param_upstream_values =
+          upstream_values_by_param.at(this_param);
       const absl::flat_hash_set<xls::Param*>& params_for_upstream_values =
           params_by_upstream_values.at(this_param_upstream_values);
 
@@ -2002,6 +2286,8 @@ absl::Status RemoveDuplicateParams(GeneratedFunction& func, bool& changed,
           other_continuation_in->input_node = this_param;
           continuation_in.decls.insert(other_continuation_in->decls.begin(),
                                        other_continuation_in->decls.end());
+
+          changed_this_input = true;
         }
       }
 
@@ -2020,21 +2306,28 @@ absl::Status RemoveDuplicateParams(GeneratedFunction& func, bool& changed,
             other_param->function_base()->RemoveNode(other_param));
 
         params_processed.insert(other_param);
+        changed_this_input = true;
       }
 
-      changed = true;
-      update_maps();
+      if (changed_this_input) {
+        update_maps();
+      }
+
+      changed = changed || changed_this_input;
     }
   }
 
   return absl::OkStatus();
 }
 
+}  // namespace
+
 // Note that literals are also propagated as continuations are created
 // but none are propagated into pipelined loops, as it isn't known until
 // all slices are generated whether or not a phi will be at a given input.
-absl::Status SubstituteLiterals(GeneratedFunction& func, bool& changed,
-                                const xls::SourceInfo& loc) {
+absl::Status Translator::SubstituteLiterals(GeneratedFunction& func,
+                                            bool& changed,
+                                            const xls::SourceInfo& loc) {
   for (GeneratedFunctionSlice& slice : func.slices) {
     absl::flat_hash_map<const xls::Param*, int64_t> input_counts_for_param;
     for (const ContinuationInput& continuation_in : slice.continuations_in) {
@@ -2044,6 +2337,7 @@ absl::Status SubstituteLiterals(GeneratedFunction& func, bool& changed,
       if (!continuation_in.continuation_out->literal.has_value()) {
         continue;
       }
+
       // Can't propagate literals across phis
       if (input_counts_for_param.at(continuation_in.input_node) > 1) {
         continue;
@@ -2062,23 +2356,20 @@ absl::Status SubstituteLiterals(GeneratedFunction& func, bool& changed,
   return absl::OkStatus();
 }
 
-}  // namespace
-
 absl::Status Translator::OptimizeContinuations(GeneratedFunction& func,
                                                OptimizationContext& context,
                                                const xls::SourceInfo& loc) {
   bool changed = true;
   xls::OptimizationContext xls_opt_context;
 
-  XLS_RETURN_IF_ERROR(ValidateContinuations(func, loc));
-
   do {
     do {
       changed = false;
       XLS_RETURN_IF_ERROR(
-          RemoveUnusedContinuationInputs(func, context, changed, loc));
+          RemoveUnusedContinuationInputParams(func, context, changed, loc));
       XLS_RETURN_IF_ERROR(RemoveUnusedContinuationOutputs(func, changed, loc));
-      XLS_RETURN_IF_ERROR(RemovePassThroughs(func, changed, context, loc));
+      XLS_RETURN_IF_ERROR(RemovePassThroughs(func, changed, context, loc,
+                                             package_, xls_opt_context));
       XLS_RETURN_IF_ERROR(
           RemoveDeadCode(func, changed, package_, xls_opt_context, loc));
       XLS_RETURN_IF_ERROR(RemoveDuplicateInputs(func, changed, loc));
@@ -2187,6 +2478,19 @@ absl::Status Translator::MarkDirectIns(GeneratedFunction& func,
 }
 
 std::string Debug_GenerateSliceGraph(const GeneratedFunction& func) {
+  const bool show_choose_in_states = false;
+  const bool show_input_debug_info = false;
+
+  // Safe because params aren't changed/removed, nor are continuation outputs
+  absl::flat_hash_map<const ContinuationValue*,
+                      absl::flat_hash_set<const xls::Param*>>
+      pass_throughs;
+  OptimizationContext context;
+  auto pass_through_ret =
+      FindPassThroughs(const_cast<GeneratedFunction&>(func), context);
+  CHECK_OK(pass_through_ret);
+  pass_throughs = *pass_through_ret;
+
   // Pointers are used as names, as labels are not always unique
   std::vector<std::string> node_names;
   std::vector<std::string> rank_orders;
@@ -2252,10 +2556,17 @@ std::string Debug_GenerateSliceGraph(const GeneratedFunction& func) {
       const std::string type_str = Debug_GenerateReadableTypeName(
           continuation_out.output_node->GetType());
 
-      node_names.push_back(
-          absl::StrFormat("  %s [label=%s];", output_name,
-                          GraphvizEscape(absl::StrFormat(
-                              "%s : %s", continuation_out.name, type_str))));
+      std::string label = "";
+      if (show_input_debug_info) {
+        label = absl::StrFormat("%s : %s d %i p %i l %i", continuation_out.name,
+                                type_str, (int)continuation_out.direct_in,
+                                (int)pass_throughs.contains(&continuation_out),
+                                (int)continuation_out.literal.has_value());
+      } else {
+        label = absl::StrFormat("%s : %s", continuation_out.name, type_str);
+      }
+      node_names.push_back(absl::StrFormat("  %s [label=%s];", output_name,
+                                           GraphvizEscape(label)));
 
       nodes_in_output_rank.push_back(output_name);
     }
@@ -2281,10 +2592,16 @@ std::string Debug_GenerateSliceGraph(const GeneratedFunction& func) {
     }
     for (const ContinuationInput& continuation_in : slice.continuations_in) {
       nodes_with_edges.push_back(absl::StrFormat(
-          "  %s -> %s",
+          "  %s -> %s [label=\"%s\"]",
           GraphvizEscape(
               absl::StrFormat("%p", continuation_in.continuation_out)),
-          GraphvizEscape(absl::StrFormat("%p", continuation_in.input_node))));
+          GraphvizEscape(absl::StrFormat("%p", continuation_in.input_node)),
+          show_choose_in_states
+              ? absl::StrJoin(continuation_in.choose_in_states, "; ",
+                              [](std::string* out, const StateId& t) {
+                                absl::StrAppend(out, t.ToString());
+                              })
+              : ""));
     }
 
     nodes_in_ranks.push_back(absl::StrFormat(
