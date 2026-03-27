@@ -87,19 +87,20 @@ TEST_F(ProcTest, MutateProc) {
   BValue after_all = pb.AfterAll({tkn});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({after_all, add}));
 
-  ASSERT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+  ASSERT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
               ElementsAre(m::Next(m::StateRead("tkn"),
                                   m::AfterAll(m::StateRead("tkn")))));
-  Next* next_tkn = *proc->next_values(proc->GetStateRead(int64_t{0})).begin();
+  Next* next_tkn =
+      *proc->next_values(proc->GetStateElement(int64_t{0})).begin();
   XLS_ASSERT_OK(proc->RemoveNode(next_tkn));
   XLS_ASSERT_OK(proc->RemoveNode(after_all.node()));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})), IsEmpty());
 
-  ASSERT_THAT(proc->next_values(proc->GetStateRead(1)),
+  ASSERT_THAT(proc->next_values(proc->GetStateElement(int64_t{1})),
               ElementsAre(m::Next(m::StateRead("st"), m::Add())));
-  Next* next_st = *proc->next_values(proc->GetStateRead(1)).begin();
+  Next* next_st = *proc->next_values(proc->GetStateElement(int64_t{1})).begin();
   XLS_ASSERT_OK(proc->RemoveNode(next_st));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{1})), IsEmpty());
 }
 
 TEST_F(ProcTest, AddAndRemoveState) {
@@ -145,12 +146,12 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(2)->initial_value(), Value(UBits(100, 32)));
   EXPECT_EQ(proc->GetStateElement(3)->initial_value(), Value(UBits(123, 32)));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateRead(int64_t{0})),
+      proc->next_values(proc->GetStateElement(int64_t{0})),
       ElementsAre(m::Next(m::StateRead("tkn"), m::Name("my_after_all"))));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{1})),
               ElementsAre(m::Next(m::StateRead("x"), m::Name("my_add"))));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(2)), IsEmpty());
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(3)),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{2})), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{3})),
               ElementsAre(m::Next(m::StateRead("z"), m::Literal(0))));
 
   XLS_ASSERT_OK(proc->RemoveStateElement(2));
@@ -178,20 +179,20 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(3)->name(), "z");
   EXPECT_EQ(proc->GetStateElement(4)->name(), "bar");
 
-  XLS_ASSERT_OK(
-      proc->RemoveNode(*proc->next_values(proc->GetStateRead(3)).begin()));
+  XLS_ASSERT_OK(proc->RemoveNode(
+      *proc->next_values(proc->GetStateElement(int64_t{3})).begin()));
   EXPECT_THAT(
       proc->DumpIr(),
       HasSubstr("proc p(foo: bits[32], tkn: token, x: bits[32], z: "
                 "bits[32], bar: bits[64], init={123, token, 42, 123, 1}"));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})), IsEmpty());
   EXPECT_THAT(
-      proc->next_values(proc->GetStateRead(1)),
+      proc->next_values(proc->GetStateElement(int64_t{1})),
       ElementsAre(m::Next(m::StateRead("tkn"), m::Name("my_after_all"))));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(2)),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{2})),
               ElementsAre(m::Next(m::StateRead("x"), m::Name("my_add"))));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(3)), IsEmpty());
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(4)), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{3})), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{4})), IsEmpty());
 }
 
 TEST_F(ProcTest, StatelessProc) {

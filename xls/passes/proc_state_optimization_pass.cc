@@ -80,8 +80,8 @@ absl::StatusOr<bool> RemoveZeroWidthStateElements(Proc* proc) {
     VLOG(2) << "Removing zero-width state element: "
             << proc->GetStateElement(i)->name();
     StateRead* state_read = proc->GetStateRead(state_element);
-    std::vector<Next*> next_values(proc->next_values(state_read).begin(),
-                                   proc->next_values(state_read).end());
+    std::vector<Next*> next_values(proc->next_values(state_element).begin(),
+                                   proc->next_values(state_element).end());
     for (Next* next : next_values) {
       XLS_RETURN_IF_ERROR(
           next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
@@ -106,7 +106,7 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
     const Value& initial_value = state_element->initial_value();
 
     bool never_changes = true;
-    for (Next* next : proc->next_values(state_read)) {
+    for (Next* next : proc->next_values(state_element)) {
       if (next->value() == state_read) {
         continue;
       }
@@ -129,8 +129,8 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
     VLOG(2) << "Removing constant state element: " << state_element->name()
             << " (value: " << value.ToString() << ")";
     StateRead* state_read = proc->GetStateRead(state_element);
-    std::vector<Next*> next_values(proc->next_values(state_read).begin(),
-                                   proc->next_values(state_read).end());
+    std::vector<Next*> next_values(proc->next_values(state_element).begin(),
+                                   proc->next_values(state_element).end());
     for (Next* next : next_values) {
       XLS_RETURN_IF_ERROR(
           next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
@@ -281,7 +281,7 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(
       InlineBitmap(proc->GetStateElementCount()));
   for (auto [elem, adj] :
        iter::zip(proc->StateElements(), state_dependencies_matrix)) {
-    for (Next* next : proc->next_values(proc->GetStateRead(elem))) {
+    for (Next* next : proc->next_values(elem)) {
       adj.Union(state_dependencies.at(next->value()));
       if (next->predicate().has_value()) {
         adj.Union(state_dependencies.at(*next->predicate()));
@@ -338,7 +338,7 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(
   for (int64_t i : to_remove) {
     StateRead* state_read = proc->GetStateRead(i);
     absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
-        proc->next_values(state_read);
+        proc->next_values(proc->GetStateElement(i));
     for (Next* next : next_values) {
       XLS_RETURN_IF_ERROR(
           next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
@@ -431,9 +431,9 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
     initial_state_literals.push_back(init);
   }
 
-  CHECK_EQ(proc->next_values(proc->GetStateRead(chain.front())).size(), 1);
+  CHECK_EQ(proc->next_values(proc->GetStateElement(chain.front())).size(), 1);
   Next* next_value =
-      *proc->next_values(proc->GetStateRead(chain.front())).begin();
+      *proc->next_values(proc->GetStateElement(chain.front())).begin();
   CHECK(next_value->predicate() == std::nullopt &&
         query_engine.IsFullyKnown(next_value->value()));
   Node* chain_constant = next_value->value();
@@ -451,7 +451,7 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
     cases.resize(chain_index + 1);
     std::reverse(cases.begin(), cases.end());
     absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
-        proc->next_values(proc->GetStateRead(state_index));
+        proc->next_values(proc->GetStateElement(state_index));
     for (Next* next : next_values) {
       XLS_RETURN_IF_ERROR(
           next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
@@ -483,7 +483,7 @@ absl::StatusOr<bool> ConvertConstantChainsToStateMachines(
   bool changed = false;
   for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
     const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
-        proc->next_values(proc->GetStateRead(i));
+        proc->next_values(proc->GetStateElement(i));
     if (next_values.size() != 1) {
       continue;
     }

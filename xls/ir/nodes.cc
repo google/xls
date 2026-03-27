@@ -1012,6 +1012,7 @@ Next::Next(const SourceInfo& loc, Node* state_read, Node* value,
            std::string_view name, FunctionBase* function)
     : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
            function),
+      state_element_(state_read->As<StateRead>()->state_element()),
       has_predicate_(predicate.has_value()),
       predicate_operand_index_(2),
       label_(std::move(label)) {
@@ -1476,7 +1477,7 @@ absl::StatusOr<Node*> StateRead::CloneInNewFunction(
 
 absl::StatusOr<Node*> Next::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
-  if (state_element_ != nullptr) {
+  if (predicate_operand_index_ == 1) {
     return new_function->MakeNodeWithName<Next>(
         loc(), state_element_, new_operands[0],
         new_operands.size() > 1 ? std::make_optional(new_operands[1])

@@ -330,7 +330,7 @@ absl::Status Function::InternalRebuildSideTables() {
   // only held in the side table. We can still check for correctness at least.
   // TODO(allight): We should ideally be able to do this.
   XLS_RET_CHECK(next_values_.empty());
-  XLS_RET_CHECK(next_values_by_state_read_.empty());
+  XLS_RET_CHECK(next_values_by_state_element_.empty());
 
   for (Param* p : params_) {
     XLS_RET_CHECK(p->function_base() == this)

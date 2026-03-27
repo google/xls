@@ -1106,7 +1106,7 @@ TEST_F(ConditionalSpecializationPassTest, NextValueChange) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * f, p->GetProc("Delay_proc"));
-  EXPECT_THAT(f->next_values(f->GetStateRead(int64_t{0})),
+  EXPECT_THAT(f->next_values(f->GetStateElement(int64_t{0})),
               ElementsAre(m::Next(m::StateRead("value1"),
                                   m::StateRead("value2"), m::Eq())));
 }

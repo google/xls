@@ -199,7 +199,7 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
                                    BitProvenanceAnalysis& provenance) {
   Bits unchanged_bits = Bits::AllOnes(initial_bits.bit_count());
   StateRead* state_read = proc->GetStateRead(state_element);
-  for (Next* next : proc->next_values(state_read)) {
+  for (Next* next : proc->next_values(state_element)) {
     if (next->value() == state_read) {
       // Pass-through nexts are trivially unaffecting.
       continue;

@@ -768,9 +768,8 @@ absl::Status CloneNodesIntoBlockHandler::HandleNextValue(Node* node,
                ? std::make_optional(node_map_.at(next->predicate().value()))
                : std::nullopt});
 
-  bool last_next_value = absl::c_all_of(
-      proc->next_values(proc->GetStateRead(state_element)),
-      [&](Next* next_value) {
+  bool last_next_value =
+      absl::c_all_of(proc->next_values(state_element), [&](Next* next_value) {
         return next_value == next || node_map_.contains(next_value);
       });
   if (!last_next_value) {

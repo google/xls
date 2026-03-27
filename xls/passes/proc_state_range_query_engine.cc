@@ -181,8 +181,8 @@ class SegmentRangeData : public RangeDataProvider {
       const NodeForwardDependencyAnalysis& nda,
       const absl::flat_hash_map<StateElement*, RangeData>& ground_truth,
       StateRead* data_source, absl::Span<Node* const> topo_sort) {
-    auto nexts =
-        data_source->function_base()->AsProcOrDie()->next_values(data_source);
+    Proc* proc = data_source->function_base()->AsProcOrDie();
+    auto nexts = proc->next_values(data_source->state_element());
     absl::flat_hash_set<Node*> dependencies;
     int64_t max_size = 0;
     for (Next* n : nexts) {
@@ -483,14 +483,13 @@ absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
   absl::flat_hash_set<Node*> next_deps;
   absl::flat_hash_set<Node*> visited_next_values;
   XLS_RET_CHECK(orig_state_element->type()->IsBits());
-  StateRead* orig_state_read = proc->GetStateRead(orig_state_element);
   int64_t max_size = 0;
-  for (Next* n : proc->next_values(orig_state_read)) {
+  for (Next* n : proc->next_values(orig_state_element)) {
     max_size += nda.GetInfo(n)->size();
   }
   next_deps.reserve(max_size);
-  visited_next_values.reserve(proc->next_values(orig_state_read).size());
-  for (Next* n : proc->next_values(orig_state_read)) {
+  visited_next_values.reserve(proc->next_values(orig_state_element).size());
+  for (Next* n : proc->next_values(orig_state_element)) {
     if (auto [it, inserted] = visited_next_values.insert(n->value());
         !inserted) {
       continue;
@@ -507,7 +506,7 @@ absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
   absl::flat_hash_set<Bits> param_values;
   param_values.insert(orig_state_element->initial_value().bits());
   visited_next_values.clear();
-  for (Next* n : proc->next_values(orig_state_read)) {
+  for (Next* n : proc->next_values(orig_state_element)) {
     if (auto [it, inserted] = visited_next_values.insert(n->value());
         !inserted) {
       continue;
@@ -601,8 +600,8 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
     // Get what this says all ranges are.
     IntervalSet run_intervals = active_intervals;
     absl::flat_hash_set<Node*> visited_next_values;
-    visited_next_values.reserve(proc->next_values(state_read).size());
-    for (Next* n : proc->next_values(state_read)) {
+    visited_next_values.reserve(proc->next_values(state_element).size());
+    for (Next* n : proc->next_values(state_element)) {
       // Nexts which don't update anything (either due to just being passthrough
       // or having a known-false predicate) don't need to be taken into account.
       if (n->value() == n->state_read() ||
@@ -667,8 +666,7 @@ FindContextualRanges(Proc* proc, const QueryEngine& qe,
       continue;
     }
     std::vector<Next*>& nexts = modifying_nexts_for_state[state_element];
-    StateRead* state_read = proc->GetStateRead(state_element);
-    for (Next* n : proc->next_values(state_read)) {
+    for (Next* n : proc->next_values(state_element)) {
       // TODO(allight): We might want to use data-flow to better track whether
       // things have changed. This should probably be good enough in practice
       // however.

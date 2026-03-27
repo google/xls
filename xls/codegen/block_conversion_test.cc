@@ -5638,12 +5638,8 @@ proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1],
                         Value(UBits(5, 32)), only_on_1)
                     .status());
 
-  ASSERT_THAT(
-      proc->next_values(proc->GetStateRead(*proc->GetStateElement("counter0"))),
-      SizeIs(1));
-  ASSERT_THAT(
-      proc->next_values(proc->GetStateRead(*proc->GetStateElement("counter1"))),
-      SizeIs(1));
+  ASSERT_THAT(proc->next_values(*proc->GetStateElement("counter0")), SizeIs(1));
+  ASSERT_THAT(proc->next_values(*proc->GetStateElement("counter1")), SizeIs(1));
   SchedulingOptions scheduling_options =
       SchedulingOptions()
           .pipeline_stages(3)
@@ -5651,14 +5647,10 @@ proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1],
           .add_constraint(
               NodeInCycleConstraint(*proc->GetNode("selected_counter"), 0))
           .add_constraint(NodeInCycleConstraint(
-              *proc->next_values(
-                       proc->GetStateRead(*proc->GetStateElement("counter0")))
-                   .begin(),
+              *proc->next_values(*proc->GetStateElement("counter0")).begin(),
               1))
           .add_constraint(NodeInCycleConstraint(
-              *proc->next_values(
-                       proc->GetStateRead(*proc->GetStateElement("counter1")))
-                   .begin(),
+              *proc->next_values(*proc->GetStateElement("counter1")).begin(),
               1));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -5764,14 +5756,10 @@ proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1],
           .add_constraint(
               NodeInCycleConstraint(*proc->GetNode("selected_counter"), 0))
           .add_constraint(NodeInCycleConstraint(
-              *proc->next_values(
-                       proc->GetStateRead(*proc->GetStateElement("counter0")))
-                   .begin(),
+              *proc->next_values(*proc->GetStateElement("counter0")).begin(),
               2))
           .add_constraint(NodeInCycleConstraint(
-              *proc->next_values(
-                       proc->GetStateRead(*proc->GetStateElement("counter1")))
-                   .begin(),
+              *proc->next_values(*proc->GetStateElement("counter1")).begin(),
               1));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,

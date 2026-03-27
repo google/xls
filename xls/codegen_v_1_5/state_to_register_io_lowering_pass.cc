@@ -344,8 +344,7 @@ absl::StatusOr<bool> LowerStateIoForBlock(ScheduledBlock* block) {
         state_reads[state_read->state_element()].push_back(state_read);
       } else if (node->Is<Next>()) {
         Next* next = node->As<Next>();
-        next_values[next->state_read()->As<StateRead>()->state_element()]
-            .push_back(next);
+        next_values[next->state_element()].push_back(next);
       }
     }
   }

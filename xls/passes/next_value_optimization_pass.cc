@@ -284,8 +284,7 @@ struct StateElementInfo {
   static StateElementInfo Create(Proc* p, StateElement* st) {
     StateElementInfo si;
     si.initial_value = st->initial_value();
-    StateRead* rd = p->GetStateRead(st);
-    for (Next* n : iter::sorted(p->next_values(rd), [](Node* l, Node* r) {
+    for (Next* n : iter::sorted(p->next_values(st), [](Node* l, Node* r) {
            return l->id() < r->id();
          })) {
       si.values.push_back(n->value());
@@ -390,17 +389,16 @@ absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
   }
   std::deque<IdenticalNexts> worklist;
   for (const auto& [elem, non_synth] : synth_nonsynth_pairs) {
-    StateRead* read = proc->GetStateRead(elem);
     if (!non_synth) {
-      for (Next* next : proc->next_values(read)) {
+      for (Next* next : proc->next_values(elem)) {
         worklist.push_back({.main = next});
       }
     } else {
       absl::flat_hash_map<absl::Span<Node* const>, Next*> nonsynth_nexts;
-      for (Next* next : proc->next_values(proc->GetStateRead(*non_synth))) {
+      for (Next* next : proc->next_values(*non_synth)) {
         nonsynth_nexts[next->operands().subspan(1)] = next;
       }
-      for (Next* next : proc->next_values(read)) {
+      for (Next* next : proc->next_values(elem)) {
         auto it = nonsynth_nexts.find(next->operands().subspan(1));
         XLS_RET_CHECK(it != nonsynth_nexts.end())
             << "Unable to find corresponding non-synth next for " << next;

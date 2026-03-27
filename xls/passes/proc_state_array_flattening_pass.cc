@@ -127,7 +127,6 @@ absl::StatusOr<bool> SimplifyProcState(Proc* proc,
   }
   XLS_ASSIGN_OR_RETURN(int64_t old_state_index,
                        proc->GetStateElementIndex(state_element));
-  StateRead* old_state_read = proc->GetStateRead(state_element);
   const Value& old_init_value = state_element->initial_value();
   Value new_init_value = Value::Tuple(old_init_value.elements());
 
@@ -137,8 +136,8 @@ absl::StatusOr<bool> SimplifyProcState(Proc* proc,
                                   new_init_value, transformer)
           .status());
 
-  std::vector<Next*> old_next_values(proc->next_values(old_state_read).begin(),
-                                     proc->next_values(old_state_read).end());
+  std::vector<Next*> old_next_values(proc->next_values(state_element).begin(),
+                                     proc->next_values(state_element).end());
   for (Next* old_next_value : old_next_values) {
     XLS_RETURN_IF_ERROR(proc->RemoveNode(old_next_value));
   }

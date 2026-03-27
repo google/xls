@@ -67,7 +67,7 @@ TEST_F(TokenSimplificationPassTest, SingleArgument) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
               ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
                                   m::StateRead("tok"))));
 }
@@ -84,7 +84,7 @@ TEST_F(TokenSimplificationPassTest, DuplicatedArgument) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
               ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
                                   m::StateRead("tok"))));
 }
@@ -102,7 +102,7 @@ TEST_F(TokenSimplificationPassTest, NestedAfterAll) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
               ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
                                   m::StateRead("tok"))));
 }
@@ -119,7 +119,7 @@ TEST_F(TokenSimplificationPassTest, DelayZero) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
               ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
                                   m::StateRead("tok"))));
 }
@@ -138,7 +138,7 @@ TEST_F(TokenSimplificationPassTest, NestedDelay) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateRead(int64_t{0})),
+      proc->next_values(proc->GetStateElement(int64_t{0})),
       ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
                           m::MinDelay(m::StateRead("tok"), /*delay=*/3))));
 }
@@ -159,7 +159,7 @@ TEST_F(TokenSimplificationPassTest, AfterAllWithCommonDelay) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateRead(int64_t{0})),
+      proc->next_values(proc->GetStateElement(int64_t{0})),
       ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
                           m::MinDelay(m::StateRead("tok"), /*delay=*/6))));
 }
@@ -185,7 +185,7 @@ TEST_F(TokenSimplificationPassTest, DuplicatedArgument2) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateRead(int64_t{0})),
+      proc->next_values(proc->GetStateElement(int64_t{0})),
       ElementsAre(m::Next(
           proc->GetStateRead(int64_t{0}),
           m::AfterAll(
@@ -213,7 +213,7 @@ TEST_F(TokenSimplificationPassTest, UnrelatedArguments) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
               ElementsAre(m::Next(
                   proc->GetStateRead(int64_t{0}),
                   m::AfterAll(m::Send(m::StateRead("tok"), m::Literal()),
@@ -240,7 +240,7 @@ TEST_F(TokenSimplificationPassTest, ArgumentsWithDependencies) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
               ElementsAre(m::Next(proc->GetStateRead(int64_t{0}), m::Send())));
 }
 
@@ -269,7 +269,7 @@ TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateRead(int64_t{0})),
+      proc->next_values(proc->GetStateElement(int64_t{0})),
       ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
                           m::AfterAll(m::Send(), m::Send(), m::Invoke()))));
 }
