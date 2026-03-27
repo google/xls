@@ -59,6 +59,7 @@
 #include "xls/passes/lazy_dag_cache.h"
 #include "xls/passes/lazy_node_info.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
+#include "xls/passes/node_fingerprint_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
@@ -1079,22 +1080,32 @@ class Reassociation {
     XLS_RET_CHECK(elements.op())
         << "not associative operation" << elements.node();
     VLOG(2) << "Reassociating operation " << elements.node()
-            << " with elements: [" << elements.ElementsToString() << "]";
+            << " with elements: [" << elements.ElementsToString() << "] as "
+            << (is_signed ? "signed" : "unsigned");
     std::vector<NodeData> variable_elements(elements.variables().begin(),
                                             elements.variables().end());
     // Make sure that variable elements are sorted consistently to ensure that
     // CSE will be able to merge them. Sort by bit-count, non-reassociativity,
-    // negatedness then id.
+    // negatedness, fingerprint, name, then id.
+    XLS_ASSIGN_OR_RETURN(NodeFingerprintAnalysis * fingerprint,
+                         context_.SharedNodeData<NodeFingerprintAnalysis>(fb_));
     auto is_basic_candidate = [&](Node* n) -> bool {
       auto elem = cache_.GetInfo(n).Get({});
       return elem && (!elem->signed_values.is_leaf() ||
                       !elem->unsigned_values.is_leaf());
     };
     auto elements_cmp = [&](const NodeData& a, const NodeData& b) {
+      if (a.node == b.node) {
+        // If the nodes are the same, sort by negatedness; everything else we
+        // might check will be equal.
+        return (a.needs_negate != b.needs_negate) ? a.needs_negate : false;
+      }
+
       auto bit_count_comp = a.node->BitCountOrDie() <=> b.node->BitCountOrDie();
       if (bit_count_comp != std::strong_ordering::equal) {
         return bit_count_comp == std::strong_ordering::less;
       }
+
       // Try to push nodes which we can feasibly reassociate again to the right
       // since we build the tree left biased further right can be at lower
       // depths which is good if we end up being able to reassociate again.
@@ -1103,11 +1114,64 @@ class Reassociation {
       if (lhs_is_reassoc_candidate != rhs_is_reassoc_candidate) {
         return !lhs_is_reassoc_candidate;
       }
-      auto id_cmp = a.node->id() <=> b.node->id();
-      if (id_cmp != std::strong_ordering::equal) {
-        return id_cmp == std::strong_ordering::less;
+
+      // Try to push things into the order: params, operations, literals.
+      bool a_is_param = a.node->Is<Param>();
+      bool b_is_param = b.node->Is<Param>();
+      if (a_is_param && b_is_param) {
+        absl::StatusOr<int64_t> a_param_index =
+            a.node->function_base()->GetParamIndex(a.node->As<Param>());
+        absl::StatusOr<int64_t> b_param_index =
+            b.node->function_base()->GetParamIndex(b.node->As<Param>());
+        CHECK_OK(a_param_index);
+        CHECK_OK(b_param_index);
+        auto param_index_cmp = *a_param_index <=> *b_param_index;
+        if (param_index_cmp != std::strong_ordering::equal) {
+          return param_index_cmp == std::strong_ordering::less;
+        }
+      } else if (a_is_param) {
+        return true;
+      } else if (b_is_param) {
+        return false;
       }
-      return (a.needs_negate != b.needs_negate) ? a.needs_negate : false;
+
+      bool a_is_literal = a.node->Is<Literal>();
+      bool b_is_literal = b.node->Is<Literal>();
+      if (a_is_literal != b_is_literal) {
+        return !a_is_literal;
+      }
+
+      // All else being equal, push negations to the right.
+      if (a.needs_negate != b.needs_negate) {
+        return a.needs_negate;
+      }
+
+      // We're out of meaningful ways to sort - so we have to resort to
+      // arbitrary ordering to keep our results consistent/deterministic.
+
+      // First, try sorting by structural fingerprint; this will be stable even
+      // as name and ID change.
+      auto fingerprint_cmp = fingerprint->GetFingerprint(a.node) <=>
+                             fingerprint->GetFingerprint(b.node);
+      if (fingerprint_cmp != std::strong_ordering::equal) {
+        return fingerprint_cmp == std::strong_ordering::less;
+      }
+
+      // Try sorting by name, since names change less often than IDs; if only
+      // one node has a name, push the named one to the left.
+      if (a.node->HasAssignedName() && b.node->HasAssignedName()) {
+        auto name_cmp = a.node->GetNameView() <=> b.node->GetNameView();
+        if (name_cmp != std::strong_ordering::equal) {
+          return name_cmp == std::strong_ordering::greater;
+        }
+      } else if (a.node->HasAssignedName()) {
+        return false;
+      } else if (b.node->HasAssignedName()) {
+        return true;
+      }
+
+      // If we have no other options, sort by ID.
+      return (a.node->id() <=> b.node->id()) == std::strong_ordering::less;
     };
     absl::c_sort(variable_elements, elements_cmp);
     std::string associative_sum_name =

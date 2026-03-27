@@ -30,6 +30,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/remove_identifiers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
@@ -81,6 +82,8 @@ class ReassociationPassTest : public IrTestBase {
     OptimizationCompoundPass pass("TestPass", TestName());
     bool run_result = false;
     pass.Add<RecordIfPassChanged<ReassociationPass>>(&run_result);
+    pass.Add<DeadCodeEliminationPass>();
+    pass.Add<ConstantFoldingPass>();
     pass.Add<DeadCodeEliminationPass>();
     XLS_ASSIGN_OR_RETURN(
         bool compound_result,
@@ -219,7 +222,7 @@ TEST_F(ReassociationPassTest, ZeroPlusConstant) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Sub(m::Literal(), m::Literal()));
+  EXPECT_THAT(f->return_value(), m::Literal(8));
 }
 
 TEST_F(ReassociationPassTest, ChainOfConstants) {
@@ -749,9 +752,7 @@ TEST_F(ReassociationPassTest, ReassociateMultipleLiterals) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Add(m::Add(m::Param("a"), m::Param("b")),
-                     m::Add(m::Param("c"),
-                            m::Add(m::Add(m::Literal(42), m::Literal(123)),
-                                   m::Literal(10)))));
+                     m::Add(m::Param("c"), m::Literal(175))));
 }
 
 TEST_F(ReassociationPassTest, SingleLiteralNoReassociate) {
@@ -909,9 +910,9 @@ TEST_F(ReassociationPassTest, BalanceEarlyUseIsNotDuplicated) {
   EXPECT_THAT(
       f->return_value(),
       m::Tuple(lhs.node(),
-               m::Add(m::Add(m::Add(lhs.node(), m::Param("a")),
-                             m::Add(m::Param("rhs0"), m::Param("rhs1"))),
-                      m::Add(m::Param("rhs2"), m::Param("rhs3")))));
+               m::Add(m::Add(m::Add(m::Param("a"), m::Param("rhs0")),
+                             m::Add(m::Param("rhs1"), m::Param("rhs2"))),
+                      m::Add(m::Param("rhs3"), lhs.node()))));
 }
 
 TEST_F(ReassociationPassTest, DoubleUseBalanceDoesntChange) {
@@ -1026,8 +1027,7 @@ TEST_F(ReassociationPassTest, SubUnderflowZeroExtend5) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Sub(m::Param("param"), m::ZeroExt(lit_sub.node())));
+  EXPECT_THAT(f->return_value(), m::Sub(m::Param("param"), m::Literal(16)));
 }
 
 TEST_F(ReassociationPassTest, ConcatMultipleValues) {
