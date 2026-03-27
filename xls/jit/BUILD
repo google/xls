@@ -1415,6 +1415,23 @@ xls_ir_opt_ir(
     src = ":multi_function_with_trace",
 )
 
+xls_dslx_library(
+    name = "multi_function_with_vtrace_dslx",
+    srcs = ["multi_func_with_vtrace.x"],
+)
+
+xls_dslx_ir(
+    name = "multi_function_with_vtrace",
+    dslx_top = "multi_function_one",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    library = ":multi_function_with_vtrace_dslx",
+)
+
+xls_ir_opt_ir(
+    name = "multi_function_with_vtrace_opt_ir",
+    src = ":multi_function_with_vtrace",
+)
+
 # Codegen settings produce registers for this block. We rely on this in a jit_wrapper_test.
 xls_ir_verilog(
     name = "multi_function_with_trace_sv",
