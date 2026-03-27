@@ -336,8 +336,8 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
   std::vector<int64_t> flops_per_stage(schedule.length());
   std::vector<int64_t> duplicates_per_stage(schedule.length());
   std::vector<int64_t> constants_per_stage(schedule.length());
-  absl::flat_hash_set<Node*> dead_after_synthesis =
-      GetDeadAfterSynthesisNodes(f);
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                       GetDeadAfterSynthesisNodes(f));
   for (int64_t i = 0; i < schedule.length(); ++i) {
     absl::flat_hash_map<BddNodeIndex, std::pair<Node*, int64_t>> bdd_nodes;
     for (Node* node : schedule.GetLiveOutOfCycle(i)) {

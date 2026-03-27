@@ -35,7 +35,7 @@ class NodeForwardDependencyAnalysis
     return GetInfo(to)->contains(from);
   }
 
-  absl::flat_hash_set<Node*> NodesDependedOnBy(Node* to) const {
+  const absl::flat_hash_set<Node*>& NodesDependedOnBy(Node* to) const {
     return *GetInfo(to);
   }
 
@@ -61,7 +61,7 @@ class NodeBackwardDependencyAnalysis
     return GetInfo(from)->contains(to);
   }
 
-  absl::flat_hash_set<Node*> NodesDependingOn(Node* from) const {
+  const absl::flat_hash_set<Node*>& NodesDependingOn(Node* from) const {
     return *GetInfo(from);
   }
 

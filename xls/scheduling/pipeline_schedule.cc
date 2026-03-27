@@ -254,7 +254,8 @@ absl::Status PipelineSchedule::Verify() const {
       if (IsUntimed(operand)) {
         continue;
       }
-      XLS_RET_CHECK_LE(cycle(operand), cycle(node));
+      XLS_RET_CHECK_LE(cycle(operand), cycle(node))
+          << "Operand " << operand << " scheduled after user " << node;
 
       if (node->Is<MinDelay>()) {
         XLS_RET_CHECK_LE(cycle(operand),
@@ -269,11 +270,15 @@ absl::Status PipelineSchedule::Verify() const {
       for (Next* next : proc->next_values()) {
         Node* state_read = next->state_read();
         // Verify that no write happens before the corresponding read.
-        XLS_RET_CHECK_LE(cycle(state_read), cycle(next));
+        XLS_RET_CHECK_LE(cycle(state_read), cycle(next))
+            << "Next node " << next << " scheduled before state read "
+            << state_read;
         // Verify that we determine the new state within II cycles of accessing
         // the current param.
-        XLS_RET_CHECK_LT(cycle(next),
-                         cycle(state_read) + worst_case_throughput);
+        XLS_RET_CHECK_LT(cycle(next), cycle(state_read) + worst_case_throughput)
+            << "Next node " << next << " scheduled too late after "
+            << state_read << " (stage " << cycle(next) << " is not less than "
+            << cycle(state_read) << " + WCT " << worst_case_throughput << ")";
       }
     }
   }
@@ -284,8 +289,8 @@ absl::Status PipelineSchedule::Verify() const {
 absl::Status PipelineSchedule::VerifyTiming(
     int64_t clock_period_ps, const DelayEstimator& delay_estimator) const {
   // The set of nodes that cannot affect anything that will be synthesized.
-  const absl::flat_hash_set<Node*> dead_after_synthesis =
-      GetDeadAfterSynthesisNodes(function_base_);
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                       GetDeadAfterSynthesisNodes(function_base_));
 
   // Critical path from start of the cycle that a node is scheduled through the
   // node itself. If the schedule meets timing, then this value should be less
@@ -351,8 +356,8 @@ absl::Status PipelineSchedule::VerifyTiming(
 
 absl::Status PipelineSchedule::VerifyTiming(
     int64_t clock_period_ps, const DelayManager& delay_manager) const {
-  const absl::flat_hash_set<Node*> dead_after_synthesis =
-      GetDeadAfterSynthesisNodes(function_base_);
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                       GetDeadAfterSynthesisNodes(function_base_));
 
   PathExtractOptions options;
   options.cycle_map = &cycle_map_;

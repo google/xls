@@ -149,7 +149,9 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
 }
 absl::StatusOr<int64_t> ComputeCriticalPath(
     FunctionBase* f, const DelayEstimator& delay_estimator) {
-  return ComputeCriticalPath(TopoSort(f), GetDeadAfterSynthesisNodes(f),
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                       GetDeadAfterSynthesisNodes(f));
+  return ComputeCriticalPath(TopoSort(f), dead_after_synthesis,
                              delay_estimator);
 }
 
@@ -340,12 +342,14 @@ absl::Status GenerateHelpfulAsapError(absl::Status&& orig_status,
   xabsl::StatusBuilder status(std::move(orig_status));
   // Try to figure out what the actual required stages are.
   if (options.pipeline_stages().has_value()) {
+    XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<xls::Node*> dead_after_synthesis,
+                         GetDeadAfterSynthesisNodes(f));
     XLS_ASSIGN_OR_RETURN(
         auto bounds,
         sched::ScheduleBounds::Create(
-            ScheduleGraph::Create(f, GetDeadAfterSynthesisNodes(f)),
-            clock_period_ps, delay_estimator,
-            f->GetInitiationInterval().value_or(1), options.constraints()),
+            ScheduleGraph::Create(f, dead_after_synthesis), clock_period_ps,
+            delay_estimator, f->GetInitiationInterval().value_or(1),
+            options.constraints()),
         std::move(status)
             << "(Failed to create schedule bounds for error message creation)");
     // Add first and last stage constraints.
@@ -712,12 +716,14 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     // Run an initial ASAP/ALAP scheduling pass, which we'll refine with the
     // chosen scheduler.
     // First get the basic bounds.
+    XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                         GetDeadAfterSynthesisNodes(f));
     XLS_ASSIGN_OR_RETURN(
         auto bounds,
         sched::ScheduleBounds::Create(
-            ScheduleGraph::Create(f, GetDeadAfterSynthesisNodes(f)),
-            clock_period_ps, io_delay_added,
-            f->GetInitiationInterval().value_or(1), options.constraints()));
+            ScheduleGraph::Create(f, dead_after_synthesis), clock_period_ps,
+            io_delay_added, f->GetInitiationInterval().value_or(1),
+            options.constraints()));
     // Add first and last stage constraints.
     using LastStageConstraint =
         sched::ScheduleBounds::NodeSchedulingConstraint::LastStageConstraint;

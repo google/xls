@@ -749,6 +749,8 @@ class NaryOp final : public Node {
       FunctionBase* new_function) const final;
 };
 
+class Next;
+
 class StateRead final : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kStateRead};
@@ -802,6 +804,8 @@ class StateRead final : public Node {
       FunctionBase* new_function) const final;
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
+
+  std::vector<Next*> GetNextValues() const;
 
  private:
   static constexpr int64_t kPredicateOperand = 0;

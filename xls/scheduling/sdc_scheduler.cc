@@ -50,6 +50,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
+#include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -727,12 +728,12 @@ void SDCSchedulingModel::RemoveObjective() { model_.Minimize(0.0); }
 absl::StatusOr<ScheduleCycleMap> SDCSchedulingModel::ExtractResult(
     const math_opt::VariableMap<double>& variable_values) const {
   ScheduleCycleMap cycle_map;
+  // First extract the cycle for each node.
   for (const ScheduleNode& schedule_node : graph_.nodes()) {
     Node* node = schedule_node.node;
     if (IsUntimed(node)) {
       continue;
     }
-    int64_t cycle;
     if (!schedule_node.is_dead_after_synthesis) {
       // The constraint solver found the cycle for this node.
       double dcycle = variable_values.at(cycle_var_.at(node));
@@ -741,10 +742,34 @@ absl::StatusOr<ScheduleCycleMap> SDCSchedulingModel::ExtractResult(
             "The scheduling result is expected to be integer (got %f)",
             dcycle));
       }
-      cycle = std::round(dcycle);
-    } else {
-      // Dead-after-synthesis nodes can be trivially placed after all of their
-      // operands.
+      cycle_map[node] = std::round(dcycle);
+    }
+  }
+  // Next use ASAP scheduler to place the dead-after-synthesis nodes.
+  // NB This is needed to ensure that non-synth states respect the II (since
+  // despite not being synthesized they are still simulated so we need to keep
+  // the interval in mind).
+  XLS_RETURN_IF_ERROR(ScheduleDeadAfterSynthesisNodes(cycle_map));
+  return cycle_map;
+}
+
+absl::Status SDCSchedulingModel::ScheduleDeadAfterSynthesisNodes(
+    ScheduleCycleMap& cycle_map) const {
+  if (!initiation_interval_.has_value() ||
+      absl::c_none_of(graph_.nodes(), [](const ScheduleNode& nd) {
+        return nd.is_dead_after_synthesis && nd.node->Is<Next>();
+      })) {
+    VLOG(2) << "No initiation-interval or no dead-after-synthesis next nodes. "
+               "Using simple post-operand scheduling for dead-after-synthesis "
+               "nodes.";
+    // Dead-after-synthesis nodes can be trivially placed after all of their
+    // operands since we don't need to respect any particular II which is
+    // the only constraint that could force them to be scheduled later.
+    for (const ScheduleNode& schedule_node : graph_.nodes()) {
+      Node* node = schedule_node.node;
+      if (IsUntimed(node) || !schedule_node.is_dead_after_synthesis) {
+        continue;
+      }
       auto to_cycle = [&](Node* operand) {
         CHECK(IsUntimed(operand) || cycle_map.contains(operand))
             << operand->ToString() << " not found for "
@@ -755,15 +780,69 @@ absl::StatusOr<ScheduleCycleMap> SDCSchedulingModel::ExtractResult(
         return to_cycle(operand) < to_cycle(operand2);
       };
       absl::Span<Node* const> operands = schedule_node.node->operands();
-      if (operands.empty()) {
-        cycle = 0;
-      } else {
-        cycle = to_cycle(*absl::c_max_element(operands, cmp));
-      }
+      XLS_RET_CHECK(!cycle_map.contains(node))
+          << "Node " << node << " already has a cycle assigned.";
+      cycle_map[node] =
+          operands.empty() ? 0 : to_cycle(*absl::c_max_element(operands, cmp));
+      VLOG(3) << "  Dead after synth: " << node->ToString() << " at cycle "
+              << cycle_map[node];
     }
-    cycle_map[node] = cycle;
+    return absl::OkStatus();
   }
-  return cycle_map;
+  VLOG(2)
+      << "Using ASAP scheduler for dead-after-synthesis nodes to respect II of "
+      << initiation_interval_.value();
+  class ZeroDelayEstimator : public DelayEstimator {
+   public:
+    using DelayEstimator::DelayEstimator;
+    absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
+      return 0;
+    }
+  };
+  ZeroDelayEstimator zero_delay_estimator("dead_after_synthesis_delay");
+  using NodeSchedulingConstraint =
+      sched::ScheduleBounds::NodeSchedulingConstraint;
+  using NodeDifferenceConstraint =
+      NodeSchedulingConstraint::NodeDifferenceConstraint;
+  std::vector<NodeSchedulingConstraint> constraints;
+  constraints.reserve(graph_.nodes().size());
+  for (const auto& [node, cycle] : cycle_map) {
+    constraints.emplace_back(NodeInCycleConstraint(node, cycle));
+  }
+  for (const ScheduleNode& schedule_node : graph_.nodes()) {
+    Node* node = schedule_node.node;
+    if (!schedule_node.is_dead_after_synthesis || !node->Is<StateRead>()) {
+      continue;
+    }
+    StateRead* read = node->As<StateRead>();
+    for (Next* next : read->GetNextValues()) {
+      constraints.emplace_back(NodeDifferenceConstraint{
+          .anchor = read,
+          .subject = next,
+          .min_after = 0,
+          .max_after = std::max<int64_t>(0, initiation_interval_.value() - 1),
+      });
+    }
+  }
+  XLS_ASSIGN_OR_RETURN(
+      sched::ScheduleBounds asap_sched,
+      sched::ScheduleBounds::Create(graph_, /*clock_period_ps=*/1,
+                                    zero_delay_estimator, constraints));
+  // This should not be possible to fail because by definition any non-synth
+  // state read cannot be observable by normal IO so it must be free to be
+  // placed as late as it wants.
+  XLS_RETURN_IF_ERROR(asap_sched.PropagateBounds())
+      << "Failed to find feasible schedule for dead-after-synthesis nodes.";
+  for (const ScheduleNode& schedule_node : graph_.nodes()) {
+    Node* node = schedule_node.node;
+    if (IsUntimed(node) || !schedule_node.is_dead_after_synthesis) {
+      continue;
+    }
+    VLOG(3) << "  Dead after synth: " << node->ToString() << " at cycle "
+            << asap_sched.lb(node);
+    cycle_map[node] = asap_sched.lb(node);
+  }
+  return absl::OkStatus();
 }
 
 void SDCSchedulingModel::SetClockPeriod(int64_t clock_period_ps) {
@@ -797,7 +876,8 @@ void SDCSchedulingModel::SetClockPeriod(int64_t clock_period_ps) {
       }
     }
 
-    // Add all new constraints, avoiding duplicates for any that already exist.
+    // Add all new constraints, avoiding duplicates for any that already
+    // exist.
     for (Node* target : delay_constraints_.at(source)) {
       auto key = std::make_pair(source, target);
       if (timing_constraint_.contains(key)) {
@@ -871,21 +951,23 @@ absl::Status SDCSchedulingModel::AddSlackVariables(
   }
   // Add slack variables to all relevant constraints.
 
-  // Remove any pre-existing objective, and declare that we'll be minimizing our
-  // new objective.
+  // Remove any pre-existing objective, and declare that we'll be minimizing
+  // our new objective.
   model_.Minimize(0);
 
-  // First, try to minimize the depth of the pipeline. We assume users are most
-  // willing to relax this; i.e., they care about throughput more than latency.
+  // First, try to minimize the depth of the pipeline. We assume users are
+  // most willing to relax this; i.e., they care about throughput more than
+  // latency.
   if (last_stage_.upper_bound() < kInfinity) {
     auto [last_stage_slack, last_stage_ub] = AddUpperBoundSlack(last_stage_);
     model_.AddToObjective(last_stage_slack);
     last_stage_slack_ = last_stage_slack;
   }
 
-  // Next, relax the state back-edge length restriction (if present). We assume
-  // users are reasonably willing to relax this; i.e., they care about
-  // throughput, but they care more about the I/O constraints they've specified.
+  // Next, relax the state back-edge length restriction (if present). We
+  // assume users are reasonably willing to relax this; i.e., they care about
+  // throughput, but they care more about the I/O constraints they've
+  // specified.
   if (!backedge_constraint_.empty()) {
     double backedge_slack_objective_scale = static_cast<double>(1 << 10);
     shared_backedge_slack_ = model_.AddVariable(
@@ -1158,8 +1240,17 @@ SDCSchedulingModel::AddLowerBoundSlack(
 absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options) {
-  absl::flat_hash_set<Node*> dead_after_synthesis =
-      GetDeadAfterSynthesisNodes(f);
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                       GetDeadAfterSynthesisNodes(f));
+  VLOG(4) << "dead_after_synthesis: (size: " << dead_after_synthesis.size()
+          << ") ["
+          << absl::StrJoin(dead_after_synthesis, ", ",
+                           [](std::string* out, Node* node) {
+                             absl::StrAppendFormat(out, "%s(%s)",
+                                                   node->GetName(),
+                                                   OpToString(node->op()));
+                           })
+          << "]";
   ScheduleGraph graph = ScheduleGraph::Create(f, dead_after_synthesis);
   XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
                        ComputeNodeDelays(graph, delay_estimator));

@@ -161,6 +161,13 @@ class SDCSchedulingModel {
                      std::optional<operations_research::math_opt::Variable>
                          slack = std::nullopt);
 
+  // Place all dead-after-synthesis nodes into cycles as appropriate. We place
+  // these nodes using an ASAP scheduler to ensure that we can respect the II
+  // with any dead-after-synthesis states (since these still need to be
+  // simulated which requires they finish in the appropriate number of stages).
+  absl::Status ScheduleDeadAfterSynthesisNodes(
+      ScheduleCycleMap& cycle_map) const;
+
   ScheduleGraph graph_;
 
   operations_research::math_opt::Model model_;

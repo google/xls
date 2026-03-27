@@ -16,6 +16,7 @@
 #define XLS_SCHEDULING_SCHEDULE_UTIL_H_
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 
@@ -24,7 +25,8 @@ namespace xls {
 // Returns the set of nodes in `f` that will have no use when the entity is
 // synthesized; that is, the only effect of these nodes is to compute a value
 // that is only used pre-synthesis (e.g., asserts, covers, & traces).
-absl::flat_hash_set<Node*> GetDeadAfterSynthesisNodes(FunctionBase* f);
+absl::StatusOr<absl::flat_hash_set<Node*>> GetDeadAfterSynthesisNodes(
+    FunctionBase* f);
 
 }  // namespace xls
 

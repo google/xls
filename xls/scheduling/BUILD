@@ -168,6 +168,7 @@ cc_library(
     srcs = ["sdc_scheduler.cc"],
     hdrs = ["sdc_scheduler.h"],
     deps = [
+        ":schedule_bounds",
         ":schedule_graph",
         ":schedule_util",
         ":scheduling_options",
@@ -202,10 +203,34 @@ cc_library(
     srcs = ["schedule_util.cc"],
     hdrs = ["schedule_util.h"],
     deps = [
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
-        "@com_google_absl//absl/algorithm:container",
+        "//xls/passes:node_dependency_analysis",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:vlog_is_on",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "schedule_util_test",
+    srcs = ["schedule_util_test.cc"],
+    deps = [
+        ":schedule_util",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:scoped_vlog_level",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@googletest//:gtest",
     ],
 )
 

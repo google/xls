@@ -407,8 +407,8 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
   ScheduleCycleMap cycle_map;
   absl::flat_hash_set<NodeCut> evaluated_cuts;
   std::mt19937_64 bit_gen;
-  absl::flat_hash_set<Node*> dead_after_synthesis =
-      GetDeadAfterSynthesisNodes(f);
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                       GetDeadAfterSynthesisNodes(f));
   ScheduleGraph graph = ScheduleGraph::Create(f, dead_after_synthesis);
   for (int64_t i = 0; i < options.iteration_number; ++i) {
     IterativeSDCSchedulingModel model(graph, delay_manager);

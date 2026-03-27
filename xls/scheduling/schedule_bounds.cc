@@ -963,11 +963,13 @@ ScheduleBounds::ComputeAsapAndAlapBounds(
     absl::Span<const SchedulingConstraint> constraints,
     int64_t max_upper_bound) {
   VLOG(4) << "ComputeAsapAndAlapBounds()";
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                       GetDeadAfterSynthesisNodes(f));
   XLS_ASSIGN_OR_RETURN(
       auto bounds,
-      ScheduleBounds::Create(
-          ScheduleGraph::Create(f, GetDeadAfterSynthesisNodes(f)),
-          clock_period_ps, delay_estimator, ii, constraints, max_upper_bound));
+      ScheduleBounds::Create(ScheduleGraph::Create(f, dead_after_synthesis),
+                             clock_period_ps, delay_estimator, ii, constraints,
+                             max_upper_bound));
   XLS_RETURN_IF_ERROR(PropagateBasicAsapAndAlapBounds(bounds));
   return bounds;
 }
@@ -979,11 +981,13 @@ ScheduleBounds::ComputeAsapAndAlapBounds(
     absl::Span<NodeSchedulingConstraint const> constraints,
     int64_t max_upper_bound) {
   VLOG(4) << "ComputeAsapAndAlapBoundsDirect()";
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                       GetDeadAfterSynthesisNodes(f));
   XLS_ASSIGN_OR_RETURN(
       auto bounds,
-      ScheduleBounds::Create(
-          ScheduleGraph::Create(f, GetDeadAfterSynthesisNodes(f)),
-          clock_period_ps, delay_estimator, constraints, max_upper_bound));
+      ScheduleBounds::Create(ScheduleGraph::Create(f, dead_after_synthesis),
+                             clock_period_ps, delay_estimator, constraints,
+                             max_upper_bound));
   XLS_RETURN_IF_ERROR(PropagateBasicAsapAndAlapBounds(bounds));
   return bounds;
 }

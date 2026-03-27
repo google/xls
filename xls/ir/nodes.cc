@@ -982,6 +982,16 @@ bool StateRead::IsDefinitelyEqualTo(const Node* other) const {
   return state_element_ == other->As<StateRead>()->state_element_;
 }
 
+std::vector<Next*> StateRead::GetNextValues() const {
+  std::vector<Next*> next_values;
+  for (Node* user : users()) {
+    if (user->Is<Next>() && user->As<Next>()->state_read() == this) {
+      next_values.push_back(user->As<Next>());
+    }
+  }
+  return next_values;
+}
+
 Next::Next(const SourceInfo& loc, StateElement* state_element, Node* value,
            std::optional<Node*> predicate, std::optional<std::string> label,
            std::string_view name, FunctionBase* function)
