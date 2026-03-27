@@ -29,6 +29,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -245,7 +246,8 @@ void FunctionBase::TakeOwnershipOfNode(std::unique_ptr<Node>&& node) {
   FunctionBase* old_owner = node->function_base();
 
   if (node->Is<StateRead>()) {
-    old_owner->next_values_by_state_read_.erase(node->As<StateRead>());
+    old_owner->next_values_by_state_element_.erase(
+        node->As<StateRead>()->state_element());
   }
 
   old_owner->node_iterators_.erase(node.get());
@@ -450,6 +452,34 @@ absl::StatusOr<Node*> FunctionBase::GetNode(
       absl::StrFormat("GetNode(%s) failed.", standard_node_name));
 }
 
+const absl::btree_set<Next*, Node::NodeIdLessThan>& FunctionBase::next_values(
+    StateRead* state_read) const {
+  return next_values(state_read->state_element());
+}
+
+const absl::btree_set<Next*, Node::NodeIdLessThan>& FunctionBase::next_values(
+    StateElement* state_element) const {
+  if (!next_values_by_state_element_.contains(state_element)) {
+    static const absl::NoDestructor<
+        absl::btree_set<Next*, Node::NodeIdLessThan>>
+        kEmptySet;
+    // This should be pretty rare. Basically this should only happen in the
+    // short time before the non-updated state element is replaced. Just
+    // returning what is actually there is nicer than crashing however. Do
+    // check that this is not just some sort of weird corruption however.
+    CHECK(absl::c_none_of(nodes(),
+                          [state_element](Node* n) {
+                            return n->Is<Next>() &&
+                                   n->As<Next>()->state_element() ==
+                                       state_element;
+                          }))
+        << "Invalid side table for next values. Missing " << state_element
+        << " in " << this;
+    return *kEmptySet;
+  }
+  return next_values_by_state_element_.at(state_element);
+}
+
 absl::Status FunctionBase::RemoveNode(Node* node) {
   XLS_RET_CHECK(node->users().empty()) << node->GetName();
   XLS_RET_CHECK(!HasImplicitUse(node)) << node->GetName();
@@ -470,13 +500,12 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
                   params_.end());
   }
   if (node->Is<StateRead>()) {
-    next_values_by_state_read_.erase(node->As<StateRead>());
+    next_values_by_state_element_.erase(node->As<StateRead>()->state_element());
   }
   if (node->Is<Next>()) {
     Next* next = node->As<Next>();
-    if (next->state_read()->Is<StateRead>()) {  // Could've been replaced.
-      StateRead* state_read = next->state_read()->As<StateRead>();
-      next_values_by_state_read_.at(state_read).erase(next);
+    if (next_values_by_state_element_.contains(next->state_element())) {
+      next_values_by_state_element_.at(next->state_element()).erase(next);
     }
     std::erase(next_values_, next);
   }
@@ -567,13 +596,12 @@ Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
     params_.push_back(node->As<Param>());
   }
   if (node->Is<StateRead>()) {
-    next_values_by_state_read_[node->As<StateRead>()];
+    next_values_by_state_element_[node->As<StateRead>()->state_element()];
   }
   if (node->Is<Next>()) {
     Next* next = node->As<Next>();
-    StateRead* state_read = next->state_read()->As<StateRead>();
-    next_values_.push_back(node->As<Next>());
-    next_values_by_state_read_[state_read].insert(next);
+    next_values_.push_back(next);
+    next_values_by_state_element_[next->state_element()].insert(next);
   }
   Node* ptr = node.get();
   node_iterators_[ptr] = nodes_.insert(nodes_.end(), std::move(node));
@@ -691,7 +719,7 @@ absl::Status FunctionBase::RebuildSideTables() {
   // TODO(allight): The fact that there is so much crap in the function_base
   // itself is a problem. Having next's and params' in the function base doesn't
   // make a ton of sense.
-  // NB Because of above the next-values/next_values_by_state_read_ and params
+  // NB Because of above the next-values/next_values_by_state_element_ and
   // lists are updated in proc and function respectively.
   // NB We assume that node_iterators_ never gets invalidated.
   XLS_RETURN_IF_ERROR(InternalRebuildSideTables());

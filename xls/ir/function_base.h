@@ -26,8 +26,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
-#include "absl/base/no_destructor.h"
 #include "absl/base/optimization.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -249,26 +247,10 @@ class FunctionBase {
   absl::Span<Next* const> next_values() const { return next_values_; }
 
   const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values(
-      StateRead* state_read) const {
-    if (!next_values_by_state_read_.contains(state_read)) {
-      // This should be pretty rare. Basically this should only happen in the
-      // short time before the non-updated state element is replaced. Just
-      // returning what is actually there is nicer than crashing however. Do
-      // check that this is not just some sort of weird corruption however.
-      static const absl::NoDestructor<
-          absl::btree_set<Next*, Node::NodeIdLessThan>>
-          kEmptySet;
-      CHECK(absl::c_none_of(nodes(),
-                            [state_read](Node* n) {
-                              return n->Is<Next>() &&
-                                     n->As<Next>()->state_read() == state_read;
-                            }))
-          << "Invalid side table for next values. Missing " << state_read
-          << " in " << this;
-      return *kEmptySet;
-    }
-    return next_values_by_state_read_.at(state_read);
-  }
+      StateRead* state_read) const;
+
+  const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values(
+      StateElement* state_element) const;
 
   // Moves the given param to the given index in the parameter list.
   absl::Status MoveParamToIndex(Param* param, int64_t index);
@@ -500,7 +482,7 @@ class FunctionBase {
       // together.
       return !n->Is<Param>() && !n->Is<StateRead>();
     });
-    other.next_values_by_state_read_.clear();
+    other.next_values_by_state_element_.clear();
     other.next_values_.clear();
   }
 
@@ -556,8 +538,9 @@ class FunctionBase {
 
   std::vector<Param*> params_;
   std::vector<Next*> next_values_;
-  absl::flat_hash_map<StateRead*, absl::btree_set<Next*, Node::NodeIdLessThan>>
-      next_values_by_state_read_;
+  absl::flat_hash_map<StateElement*,
+                      absl::btree_set<Next*, Node::NodeIdLessThan>>
+      next_values_by_state_element_;
 
   NameUniquer node_name_uniquer_ =
       NameUniquer(/*separator=*/"__", GetIrReservedWords());
