@@ -72,6 +72,13 @@ dslx_lang_test(
 dslx_lang_test(name = "builtin_zip")
 
 dslx_lang_test(
+    name = "fuzz_test_sample",
+    convert_to_ir = False,
+    # TODO: davidplass - Re-enable once fixed.
+    test_autofmt = False,
+)
+
+dslx_lang_test(
     name = "simple_mod",
     # Some delay models do not characterize mod.
     benchmark_ir = False,

@@ -598,6 +598,7 @@ cc_test(
         ":ast_test_utils",
         ":module",
         ":pos",
+        "//xls/common:attribute_data",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status",

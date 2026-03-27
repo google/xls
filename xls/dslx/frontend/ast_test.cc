@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast_test_utils.h"
 #include "xls/dslx/frontend/module.h"
@@ -361,6 +362,93 @@ TEST(AstTest, IsConstantEmptyArray) {
   Array* array = m.Make<Array>(fake_span, std::vector<Expr*>{}, false);
 
   EXPECT_TRUE(IsConstant(array));
+}
+
+TEST(AstTest, AttributeToStringFuzzTestNoArgs) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  const Span fake_span;
+
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, std::nullopt, AttributeData(AttributeKind::kFuzzTest, {}));
+  EXPECT_EQ(attr->ToString(), "#[fuzz_test]");
+}
+
+TEST(AstTest, AttributeToStringFuzzTestSingleArg) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  const Span fake_span;
+
+  Attribute* attr =
+      m.Make<Attribute>(fake_span, fake_span,
+                        AttributeData(AttributeKind::kFuzzTest, {"u32:0..1"}));
+  EXPECT_EQ(attr->ToString(), "#[fuzz_test(`u32:0..1`)]");
+}
+
+TEST(AstTest, AttributeToStringFuzzTestMultipleArgs) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  const Span fake_span;
+
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, fake_span,
+      AttributeData(AttributeKind::kFuzzTest, {"u32:0..1", "u32:10..20"}));
+  EXPECT_EQ(attr->ToString(), "#[fuzz_test(`u32:0..1`, `u32:10..20`)]");
+}
+
+TEST(AstTest, AttributeToStringGenericArg) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  const Span fake_span;
+
+  Attribute* attr =
+      m.Make<Attribute>(fake_span, fake_span,
+                        AttributeData(AttributeKind::kTest, {"some_string"}));
+  EXPECT_EQ(attr->ToString(), "#[test(some_string)]");
+}
+
+TEST(AstTest, AttributeToStringQuickcheckNoArgs) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  const Span fake_span;
+
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, std::nullopt, AttributeData(AttributeKind::kQuickcheck, {}));
+  EXPECT_EQ(attr->ToString(), "#[quickcheck]");
+}
+
+TEST(AstTest, AttributeToStringQuickcheckExhaustive) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  const Span fake_span;
+
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, fake_span,
+      AttributeData(AttributeKind::kQuickcheck, {std::string("exhaustive")}));
+  EXPECT_EQ(attr->ToString(), "#[quickcheck(exhaustive)]");
+}
+
+TEST(AstTest, AttributeToStringQuickcheckTestCount) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  const Span fake_span;
+
+  AttributeData::IntKeyValueArgument arg("test_count", 1000);
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, fake_span, AttributeData(AttributeKind::kQuickcheck, {arg}));
+  EXPECT_EQ(attr->ToString(), "#[quickcheck(test_count = 1000)]");
+}
+
+TEST(AstTest, AttributeToStringExternVerilogStringLiteral) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  const Span fake_span;
+
+  AttributeData::StringLiteralArgument arg{"my_module"};
+  Attribute* attr =
+      m.Make<Attribute>(fake_span, fake_span,
+                        AttributeData(AttributeKind::kExternVerilog, {arg}));
+  EXPECT_EQ(attr->ToString(), "#[extern_verilog(\"my_module\")]");
 }
 
 }  // namespace
