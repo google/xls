@@ -23,9 +23,11 @@ XLS supports multiple execution and validation mechanisms across different abstr
   - Executes XLS IR without compilation
   - Useful for debugging and correctness checking
 
-- **IR JIT (LLVM-based)**
-  - Compiles IR into native machine code
-  - Provides faster execution for performance evaluation
+- **IR-level Simulation**
+  - Supports LLVM-based JIT compilation as well as Ahead-of-Time (AOT) compilation
+  - Includes an interpreter for functional validation of IR
+  - Enables cycle-accurate simulation using XLS Block IR after code generation
+  - JIT/AOT options compile to native machine code for high-performance simulation.
 
 - **Code Generation (Hardware Path)**
   - Converts XLS IR into Verilog/SystemVerilog
@@ -36,11 +38,8 @@ XLS supports multiple execution and validation mechanisms across different abstr
   - Evaluates synthesized netlists using cell libraries
   - Used for post-synthesis validation
 
-### Complete Execution Flow
 
-DSLX → IR → (Interpret / JIT) → Codegen → Verilog → Netlist → Simulation
-
-### Why this matters
+### Why this matters ?
 
 Understanding these execution paths enables developers to:
 
