@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast_test_utils.h"
 #include "xls/dslx/frontend/module.h"
@@ -36,10 +37,14 @@ using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
-TEST(AstTest, ModuleWithConstant) {
+class AstTest : public testing::Test {
+ public:
   FileTable file_table;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  Module m{"test", /*fs_path=*/std::nullopt, file_table};
   const Span fake_span;
+};
+
+TEST_F(AstTest, ModuleWithConstant) {
   Number* number = m.Make<Number>(fake_span, std::string("42"),
                                   NumberKind::kOther, /*type=*/nullptr);
   NameDef* name_def = m.Make<NameDef>(fake_span, std::string("MOL"), nullptr);
@@ -52,16 +57,13 @@ TEST(AstTest, ModuleWithConstant) {
   EXPECT_EQ(m.ToString(), "const MOL = 42;");
 }
 
-TEST(AstTest, ModuleWithStructAndImpl) {
-  FileTable file_table;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-  const Span fake_span;
+TEST_F(AstTest, ModuleWithStructAndImpl) {
   const std::vector<ParametricBinding*> empty_binding;
 
   // One member var: `member_var: bool`.
   BuiltinType bool_type = BuiltinTypeFromString("bool").value();
   TypeAnnotation* bool_type_annot = m.Make<BuiltinTypeAnnotation>(
-      Span::Fake(), bool_type, m.GetOrCreateBuiltinNameDef(bool_type));
+      fake_span, bool_type, m.GetOrCreateBuiltinNameDef(bool_type));
   NameDef* field_name_def =
       m.Make<NameDef>(fake_span, std::string("member_var"), nullptr);
   std::vector<StructMemberNode*> members{m.Make<StructMemberNode>(
@@ -92,7 +94,7 @@ impl MyStruct {
   EXPECT_EQ(m.ToString(), kExpected);
 }
 
-TEST(AstTest, GetNumberAsInt64) {
+TEST_F(AstTest, GetNumberAsInt64) {
   struct Example {
     std::string text;
     uint64_t want;
@@ -112,10 +114,7 @@ TEST(AstTest, GetNumberAsInt64) {
        .want = static_cast<uint64_t>(-1)},
       {.text = "-1", .want = static_cast<uint64_t>(-1)},
   };
-  FileTable file_table;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-  auto make_num = [&m](std::string text) {
-    const Span fake_span;
+  auto make_num = [this](std::string text) {
     return m.Make<Number>(fake_span, text, NumberKind::kOther,
                           /*type=*/nullptr);
   };
@@ -129,7 +128,7 @@ TEST(AstTest, GetNumberAsInt64) {
                        HasSubstr("Could not convert 0b to a number")));
 }
 
-TEST(AstTest, CharacterNumberToStringTest) {
+TEST_F(AstTest, CharacterNumberToStringTest) {
   struct Example {
     std::string text;
     std::string want;
@@ -139,10 +138,7 @@ TEST(AstTest, CharacterNumberToStringTest) {
       {.text = R"(S)", .want = R"('S')"},  {.text = R"(")", .want = R"('"')"},
       {.text = R"(')", .want = R"('\'')"}, {.text = R"(\)", .want = R"('\\')"},
   };
-  FileTable file_table;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-  auto make_char_num = [&m](std::string text) {
-    const Span fake_span;
+  auto make_char_num = [this](std::string text) {
     return m.Make<Number>(fake_span, text, NumberKind::kCharacter,
                           /*type=*/nullptr);
   };
@@ -151,7 +147,7 @@ TEST(AstTest, CharacterNumberToStringTest) {
   }
 }
 
-TEST(AstTest, GetBuiltinTypeSignedness) {
+TEST_F(AstTest, GetBuiltinTypeSignedness) {
   XLS_ASSERT_OK_AND_ASSIGN(bool is_signed,
                            GetBuiltinTypeSignedness(BuiltinType::kBool));
   EXPECT_FALSE(is_signed);
@@ -177,7 +173,7 @@ TEST(AstTest, GetBuiltinTypeSignedness) {
                        HasSubstr("Type \"token\" has no defined signedness.")));
 }
 
-TEST(AstTest, GetBuiltinTypeBitCount) {
+TEST_F(AstTest, GetBuiltinTypeBitCount) {
   int64_t bit_count = GetBuiltinTypeBitCount(BuiltinType::kBool);
   EXPECT_EQ(bit_count, 1);
   bit_count = GetBuiltinTypeBitCount(BuiltinType::kS1);
@@ -200,19 +196,15 @@ TEST(AstTest, GetBuiltinTypeBitCount) {
 
 // See comment on `MakeCastWithinLtComparison()` -- we need to insert parens
 // appropriately here.
-TEST(AstTest, ToStringCastWithinLtComparison) {
+TEST_F(AstTest, ToStringCastWithinLtComparison) {
   auto [file_table, module, lt] = MakeCastWithinLtComparison();
 
   EXPECT_EQ(lt->ToString(), "(x as t) < x");
 }
 
-TEST(AstTest, GetFuncParam) {
+TEST_F(AstTest, GetFuncParam) {
   // Create an empty function
   //  fn f(p: u32) -> u32 {}
-
-  FileTable file_table;
-  const Span fake_span;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
 
   BuiltinNameDef* builtin_name_def = m.GetOrCreateBuiltinNameDef("u32");
   BuiltinTypeAnnotation* u32_type_annotation = m.Make<BuiltinTypeAnnotation>(
@@ -243,11 +235,7 @@ TEST(AstTest, GetFuncParam) {
                        HasSubstr("Param 'not_a_param' not a parameter")));
 }
 
-TEST(AstTest, IsConstantNameRef) {
-  FileTable file_table;
-  const Span fake_span;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-
+TEST_F(AstTest, IsConstantNameRef) {
   NameDef* name_def =
       m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
   NameRef* name_ref = m.Make<NameRef>(fake_span, "name", name_def);
@@ -255,41 +243,29 @@ TEST(AstTest, IsConstantNameRef) {
   EXPECT_FALSE(IsConstant(name_ref));
 }
 
-TEST(AstTest, IsConstantBinopOfNameRefs) {
-  FileTable file_table;
-  const Span fake_span;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-
+TEST_F(AstTest, IsConstantBinopOfNameRefs) {
   NameDef* name_def =
       m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
   NameRef* left = m.Make<NameRef>(fake_span, "name", name_def);
   NameRef* right = m.Make<NameRef>(fake_span, "name", name_def);
   Binop* binop =
-      m.Make<Binop>(fake_span, BinopKind::kAdd, left, right, Span::Fake());
+      m.Make<Binop>(fake_span, BinopKind::kAdd, left, right, fake_span);
 
   EXPECT_FALSE(IsConstant(binop));
 }
 
-TEST(AstTest, IsConstantBinopOfNumbers) {
-  FileTable file_table;
-  const Span fake_span;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-
+TEST_F(AstTest, IsConstantBinopOfNumbers) {
   Number* left = m.Make<Number>(fake_span, std::string("41"),
                                 NumberKind::kOther, /*type=*/nullptr);
   Number* right = m.Make<Number>(fake_span, std::string("42"),
                                  NumberKind::kOther, /*type=*/nullptr);
   Binop* binop =
-      m.Make<Binop>(fake_span, BinopKind::kAdd, left, right, Span::Fake());
+      m.Make<Binop>(fake_span, BinopKind::kAdd, left, right, fake_span);
 
   EXPECT_TRUE(IsConstant(binop));
 }
 
-TEST(AstTest, IsConstantUnopOfNameRefs) {
-  FileTable file_table;
-  const Span fake_span;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-
+TEST_F(AstTest, IsConstantUnopOfNameRefs) {
   NameDef* name_def =
       m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
   NameRef* operand = m.Make<NameRef>(fake_span, "name", name_def);
@@ -298,11 +274,7 @@ TEST(AstTest, IsConstantUnopOfNameRefs) {
   EXPECT_FALSE(IsConstant(unop));
 }
 
-TEST(AstTest, IsConstantUnopOfNumbers) {
-  FileTable file_table;
-  const Span fake_span;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-
+TEST_F(AstTest, IsConstantUnopOfNumbers) {
   Number* operand = m.Make<Number>(fake_span, std::string("41"),
                                    NumberKind::kOther, /*type=*/nullptr);
   Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, operand, fake_span);
@@ -310,11 +282,7 @@ TEST(AstTest, IsConstantUnopOfNumbers) {
   EXPECT_TRUE(IsConstant(unop));
 }
 
-TEST(AstTest, IsConstantNumber) {
-  FileTable file_table;
-  const Span fake_span;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-
+TEST_F(AstTest, IsConstantNumber) {
   Number* number = m.Make<Number>(fake_span, std::string("42"),
                                   NumberKind::kOther, /*type=*/nullptr);
 
@@ -324,11 +292,7 @@ TEST(AstTest, IsConstantNumber) {
 // Tests the IsConstant predicate on an array with a single `name` reference.
 //
 // Since the name reference is not constant, the array is not constant.
-TEST(AstTest, IsConstantArrayOfNameRefs) {
-  FileTable file_table;
-  const Span fake_span;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-
+TEST_F(AstTest, IsConstantArrayOfNameRefs) {
   NameDef* name_def =
       m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
   NameRef* operand = m.Make<NameRef>(fake_span, "name", name_def);
@@ -339,11 +303,7 @@ TEST(AstTest, IsConstantArrayOfNameRefs) {
 
 // Tests the IsConstant predicate on an array with a single `number` literal.
 // Since the number literal is constant, the array is constant.
-TEST(AstTest, IsConstantArrayOfNumbers) {
-  FileTable file_table;
-  const Span fake_span;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-
+TEST_F(AstTest, IsConstantArrayOfNumbers) {
   Number* operand = m.Make<Number>(fake_span, std::string("41"),
                                    NumberKind::kOther, /*type=*/nullptr);
   Array* array = m.Make<Array>(fake_span, std::vector<Expr*>{operand}, false);
@@ -353,14 +313,65 @@ TEST(AstTest, IsConstantArrayOfNumbers) {
 
 // Tests the IsConstant predicate on an empty array.
 // Since there are no members, the array is constant.
-TEST(AstTest, IsConstantEmptyArray) {
-  FileTable file_table;
-  const Span fake_span;
-  Module m("test", /*fs_path=*/std::nullopt, file_table);
-
+TEST_F(AstTest, IsConstantEmptyArray) {
   Array* array = m.Make<Array>(fake_span, std::vector<Expr*>{}, false);
 
   EXPECT_TRUE(IsConstant(array));
+}
+
+TEST_F(AstTest, AttributeToStringFuzzTestNoArgs) {
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, std::nullopt, AttributeData(AttributeKind::kFuzzTest, {}));
+  EXPECT_EQ(attr->ToString(), "#[fuzz_test]");
+}
+
+TEST_F(AstTest, AttributeToStringFuzzTestSingleArg) {
+  Attribute* attr =
+      m.Make<Attribute>(fake_span, fake_span,
+                        AttributeData(AttributeKind::kFuzzTest, {"u32:0..1"}));
+  EXPECT_EQ(attr->ToString(), "#[fuzz_test(`u32:0..1`)]");
+}
+
+TEST_F(AstTest, AttributeToStringFuzzTestMultipleArgs) {
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, fake_span,
+      AttributeData(AttributeKind::kFuzzTest, {"u32:0..1", "u32:10..20"}));
+  EXPECT_EQ(attr->ToString(), "#[fuzz_test(`u32:0..1`, `u32:10..20`)]");
+}
+
+TEST_F(AstTest, AttributeToStringGenericArg) {
+  Attribute* attr =
+      m.Make<Attribute>(fake_span, fake_span,
+                        AttributeData(AttributeKind::kTest, {"some_string"}));
+  EXPECT_EQ(attr->ToString(), "#[test(some_string)]");
+}
+
+TEST_F(AstTest, AttributeToStringQuickcheckNoArgs) {
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, std::nullopt, AttributeData(AttributeKind::kQuickcheck, {}));
+  EXPECT_EQ(attr->ToString(), "#[quickcheck]");
+}
+
+TEST_F(AstTest, AttributeToStringQuickcheckExhaustive) {
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, fake_span,
+      AttributeData(AttributeKind::kQuickcheck, {std::string("exhaustive")}));
+  EXPECT_EQ(attr->ToString(), "#[quickcheck(exhaustive)]");
+}
+
+TEST_F(AstTest, AttributeToStringQuickcheckTestCount) {
+  AttributeData::IntKeyValueArgument arg("test_count", 1000);
+  Attribute* attr = m.Make<Attribute>(
+      fake_span, fake_span, AttributeData(AttributeKind::kQuickcheck, {arg}));
+  EXPECT_EQ(attr->ToString(), "#[quickcheck(test_count = 1000)]");
+}
+
+TEST_F(AstTest, AttributeToStringExternVerilogStringLiteral) {
+  AttributeData::StringLiteralArgument arg{"my_module"};
+  Attribute* attr =
+      m.Make<Attribute>(fake_span, fake_span,
+                        AttributeData(AttributeKind::kExternVerilog, {arg}));
+  EXPECT_EQ(attr->ToString(), "#[extern_verilog(\"my_module\")]");
 }
 
 }  // namespace

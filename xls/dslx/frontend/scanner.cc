@@ -451,6 +451,27 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
                std::string(1, c));
 }
 
+absl::StatusOr<Token> Scanner::ScanBacktickString(const Pos& start_pos) {
+  XLS_RET_CHECK(PeekChar() == '`');
+  DropChar();
+  std::string s;
+  while (!AtCharEof() && PeekChar() != '`') {
+    s.push_back(PopChar());
+  }
+
+  if (AtCharEof()) {
+    return ScanErrorStatus(
+        Span(GetPos(), GetPos()),
+        "Expected closing '`' for backtick-quoted string; found EOF.");
+  }
+
+  XLS_RET_CHECK(PeekChar() == '`');
+  DropChar();
+
+  return Token(TokenKind::kBacktickString, Span(start_pos, GetPos()),
+               std::move(s));
+}
+
 absl::StatusOr<Token> Scanner::Pop() {
   if (include_whitespace_and_comments_) {
     XLS_ASSIGN_OR_RETURN(std::optional<Token> tok, TryPopWhitespaceOrComment());
@@ -488,6 +509,10 @@ absl::StatusOr<Token> Scanner::Pop() {
   switch (startc) {
     case '"': {
       XLS_ASSIGN_OR_RETURN(result, ScanString(start_pos));
+      break;
+    }
+    case '`': {
+      XLS_ASSIGN_OR_RETURN(result, ScanBacktickString(start_pos));
       break;
     }
     case '\'': {
