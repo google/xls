@@ -85,7 +85,7 @@ use_repo(perfetto_ext, "perfetto_cfg")
 bazel_dep(name = "rules_android", version = "0.6.0")
 
 # Pin this as otherwise we encounter some bazel analysis failure.
-bazel_dep(name = "rules_jvm_external", version = "6.8")
+bazel_dep(name = "rules_jvm_external", version = "6.10")
 
 # Pinning some maven versions seems necessary to make things resolve correctly.
 # As of 2025-11-07, this seems necessary. If unspecified, junit and mockito have
