@@ -5,8 +5,12 @@
 #include "absl/status/statusor.h"
 #include "xls/common/module_initializer.h"
 #include "xls/estimators/area_model/area_estimator.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
+
 
 namespace xls {
 
@@ -32,6 +36,35 @@ class AreaEstimatorModel{{camel_case_name}} : public AreaEstimator {
         area_status = {{area_model.op_model(op).cpp_estimation_function_name()}}(node);
         break;
   {%- endfor %}
+  {% if "kInvoke" not in area_model.ops() %}
+      case Op::kInvoke: {
+        Function* to_apply = node->As<Invoke>()->to_apply();
+        area_status = GetFunctionBaseAreaInSquareMicrons(to_apply);
+        break;
+      }
+  {% endif %}
+  {% if "kCountedFor" not in area_model.ops() %}
+      case Op::kCountedFor: {
+        CountedFor* counted_for = node->As<CountedFor>();
+        Function* body = counted_for->body();
+        XLS_ASSIGN_OR_RETURN(double body_area,
+                             GetFunctionBaseAreaInSquareMicrons(body));
+        area_status = body_area * counted_for->trip_count();
+        break;
+      }
+  {% endif %}
+  {% if "kDynamicCountedFor" not in area_model.ops() %}
+      case Op::kDynamicCountedFor: {
+        DynamicCountedFor* dynamic_counted_for = node->As<DynamicCountedFor>();
+        Function* body = dynamic_counted_for->body();
+        XLS_ASSIGN_OR_RETURN(double body_area,
+                             GetFunctionBaseAreaInSquareMicrons(body));
+        // Trip count is dynamic. As a best effort, we estimate the area as the
+        // body area (corresponding to a trip count of 1).
+        area_status = body_area;
+        break;
+      }
+  {% endif %}
       default:
         return absl::UnimplementedError(
           "Unhandled node for area estimation in area model '{{name}}': "
