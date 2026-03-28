@@ -214,19 +214,19 @@ pub proc FseLookupCtrl {
                 _    => trace_fmt!("Impossible case"),
             };
 
-            let accuracy_log = if do_set {
+            let (tok, accuracy_log) = if do_set {
                 let tok = send(tok, flci_req_s, FseLookupCtrlInternalReq {
                     cnt: state.cnt,
                     is_rle: is_rle
                  });
                 let (tok, accuracy_log) = recv(tok, flci_resp_r);
-                accuracy_log
+                (tok, accuracy_log)
             } else if is_predefined {
-                PREDEFINED_ACURACY_LOG[state.cnt]
+                (tok, PREDEFINED_ACURACY_LOG[state.cnt])
             } else if is_repeated {
-                state.accuracy_logs[state.cnt]
+                (tok, state.accuracy_logs[state.cnt])
             } else {
-                fail!("impossible_case", u7:0)
+                fail!("impossible_case", (join(), u7:0))
             };
 
             let accuracy_logs = update(state.accuracy_logs, state.cnt, accuracy_log);

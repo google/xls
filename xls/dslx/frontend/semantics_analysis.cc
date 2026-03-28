@@ -27,6 +27,7 @@
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
@@ -718,7 +719,190 @@ class NextParamStateVisitor : public AstNodeVisitorWithDefault {
   absl::flat_hash_set<const Function*> processed_fns_;
 };
 
+// A visitor which collects referenced token or data nodes name definitions.
+class NodeDependencyCollector : public AstNodeVisitorWithDefault {
+ public:
+  NodeDependencyCollector(
+      absl::flat_hash_set<const AstNode*>& node_dependencies)
+    : node_dependencies_(node_dependencies) {}
+
+  absl::Status HandleNameRef(const NameRef* name_ref) override {
+    VLOG(5) << absl::StreamFormat("HandleNameRef: %s", name_ref->ToString());
+    if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+      const NameDef* name_def = std::get<const NameDef*>(name_ref->name_def());
+      node_dependencies_.insert(name_def);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleNameDef(const NameDef* name_def) override {
+    VLOG(5) << absl::StreamFormat("HandleNameDef: %s", name_def->ToString());
+    node_dependencies_.insert(name_def);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleInvocation(const Invocation* invocation) override {
+    VLOG(5) << absl::StreamFormat("HandleInvocation: %s",
+                                  invocation->ToString());
+    static const absl::flat_hash_set<std::string> io_functions = {
+        "recv",
+        "recv_if",
+        "recv_non_blocking",
+        "recv_if_non_blocking",
+        "send",
+        "send_if",
+    };
+    // If an invocation is a channel operation, then we care only about
+    // token dependencies, as data dependencies are collected by handling
+    // data argument separately due to need of having token
+    // and data dependencies separated.
+    if (std::string called_name = invocation->callee()->ToString();
+        io_functions.contains(called_name)) {
+      const std::span<Expr* const> args = invocation->args();
+      return args[0]->Accept(this);
+    }
+    return DefaultHandler(invocation);
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    for (auto child : node->GetChildren(false)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  absl::flat_hash_set<const AstNode*>& node_dependencies_;
+};
+
 }  // namespace
+
+absl::Status DependencyOrderCollector::HandleLet(const Let* let) {
+  VLOG(5) << absl::StreamFormat("HandleLet: %s", let->ToString());
+
+  const NameDefTree* lhs = let->name_def_tree();
+  const Expr* rhs = let->rhs();
+  const std::vector<NameDef*> lhs_nodes = lhs->GetNameDefs();
+
+  absl::flat_hash_set<const AstNode*> rhs_dependencies;
+  NodeDependencyCollector dependency_collector(rhs_dependencies);
+  XLS_RETURN_IF_ERROR(rhs->Accept(&dependency_collector));
+
+  // Check if the RHS is not an IO function. In this case treat LHS as
+  // having an equal dependency level.
+  if (!io_nodes_.contains(rhs)) {
+    for (const NameDef* lhs_node : lhs_nodes) {
+      AddNodeAlias(lhs_node, rhs_dependencies);
+    }
+    return absl::OkStatus();
+  }
+
+  for (const NameDef* lhs_node : lhs_nodes) {
+    AddNodeDependency(lhs_node, rhs_dependencies);
+  }
+  return absl::OkStatus();
+}
+
+absl::Status DependencyOrderCollector::HandleSend(const Invocation* invocation) {
+  VLOG(5) << absl::StreamFormat("HandleSend: %s", invocation->ToString());
+
+  const std::span<Expr* const> args = invocation->args();
+
+  absl::flat_hash_set<const AstNode*> token_nodes;
+  NodeDependencyCollector token_collector(token_nodes);
+  // Token are always passed as the first argument of an IO function.
+  const Expr* const tokens_arg = args[0];
+  XLS_RETURN_IF_ERROR(tokens_arg->Accept(&token_collector));
+  std::vector<const AstNode*> token_dependencies = {};
+  token_dependencies.reserve(token_nodes.size());
+  for (const AstNode* dependency : token_nodes) {
+    token_dependencies.push_back(dependency);
+  }
+
+  absl::flat_hash_set<const AstNode*> data_nodes;
+  NodeDependencyCollector data_collector(data_nodes);
+  auto* callee_name_ref = dynamic_cast<NameRef*>(invocation->callee());
+  std::string_view called_name = callee_name_ref->identifier();
+  // Adjust data dependencies argument index to the `send` type.
+  // `*_if` IO functions have send/recv condition as the third argument.
+  if (called_name == "send") {
+    XLS_RETURN_IF_ERROR(args[2]->Accept(&data_collector));
+  } else if (called_name == "send_if") {
+    XLS_RETURN_IF_ERROR(args[3]->Accept(&data_collector));
+  } else {
+    return absl::UnimplementedError(
+        absl::StrFormat("Unhandled `send` variant: %s", called_name));
+  }
+  std::vector<const AstNode*> data_dependencies = {};
+  data_dependencies.reserve(data_nodes.size());
+  for (const AstNode* dependency : data_nodes) {
+    data_dependencies.push_back(dependency);
+  }
+  io_ordering_check_items_.push_back({
+      std::move(data_dependencies),
+      std::move(token_dependencies),
+      invocation});
+  return absl::OkStatus();
+}
+
+absl::Status DependencyOrderCollector::HandleInvocation(
+    const Invocation* invocation) {
+  VLOG(5) << absl::StreamFormat("HandleInvocation: %s", invocation->ToString());
+
+  bool is_builtin = false;
+  const Expr* callee = invocation->callee();
+  if (callee->kind() == AstNodeKind::kNameRef) {
+    const NameRef* name_ref = absl::down_cast<const NameRef*>(callee);
+    is_builtin = name_ref->IsBuiltin();
+  }
+
+  if (is_builtin) {
+    static const absl::flat_hash_set<std::string> io_functions = {
+        "join",
+        "recv",
+        "recv_if",
+        "recv_non_blocking",
+        "recv_if_non_blocking",
+        "send",
+        "send_if",
+    };
+    std::string called_name = callee->ToString();
+
+    // Collect invocations which increment dependency level of a node.
+    // Other functions are treated as being data aliasing/combining.
+    if (io_functions.contains(called_name)) {
+      io_nodes_.insert(invocation);
+    }
+
+    // Collect IO ordering check from the `send` node.
+    if (called_name == "send" || called_name == "send_if") {
+      return HandleSend(invocation);
+    }
+  }
+
+  return absl::OkStatus();
+}
+
+void DependencyOrderCollector::AddNodeDependency(
+    const AstNode* node,
+    const absl::flat_hash_set<const AstNode*>& dependencies) {
+  unsigned int& node_dependency_level = node_dependencies_[node];
+  node_dependency_level = std::max(node_dependency_level, 1u);
+  for (const auto& dependency : dependencies) {
+    node_dependency_level = std::max(
+        node_dependency_level, node_dependencies_[dependency] + 1u);
+  }
+}
+
+void DependencyOrderCollector::AddNodeAlias(
+    const AstNode* alias,
+    const absl::flat_hash_set<const AstNode*>& aliased) {
+  unsigned int& alias_dependency_level = node_dependencies_[alias];
+  for (const auto& node : aliased) {
+    alias_dependency_level = std::max(
+        alias_dependency_level, node_dependencies_[node]);
+  }
+}
 
 absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
     Module& module, WarningCollector& warning_collector,
@@ -769,6 +953,10 @@ void SemanticsAnalysis::SetNameDefType(const NameDef* def, const Type* type) {
   }
 }
 
+absl::Status SemanticsAnalysis::TrackIODependency(const AstNode* node) {
+  return node->Accept(&dependency_order_collector_);
+}
+
 absl::Status SemanticsAnalysis::RunPostTypeCheckPass(
     WarningCollector& warning_collector) {
   // Report unused defs.
@@ -794,6 +982,32 @@ absl::Status SemanticsAnalysis::RunPostTypeCheckPass(
     }
   }
 
+  return RunIOOrderingAnalysis(warning_collector);
+}
+
+absl::Status SemanticsAnalysis::RunIOOrderingAnalysis(
+    WarningCollector& warning_collector) {
+  for (auto& [data_nodes, token_nodes, operation] :
+       dependency_order_collector_.io_ordering_check_items()) {
+    unsigned int data_nodes_level = 0;
+    for (const auto& data_node : data_nodes) {
+      data_nodes_level = std::max(
+          data_nodes_level,
+          dependency_order_collector_.GetNodeDependencyLevel(data_node));
+    }
+    unsigned int op_tokens_level = 0;
+    for (const auto& op_token : token_nodes) {
+      op_tokens_level = std::max(
+          op_tokens_level,
+          dependency_order_collector_.GetNodeDependencyLevel(op_token));
+    }
+    if (data_nodes_level > op_tokens_level) {
+      warning_collector.Add(
+          operation->GetSpan().value(), WarningKind::kIOOrderingMismatch,
+          absl::StrFormat("Operation `%s` has an IO token ordering mismatch",
+                          operation->ToString()));
+    }
+  }
   return absl::OkStatus();
 }
 
