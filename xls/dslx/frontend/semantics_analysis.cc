@@ -257,18 +257,54 @@ class SideEffectExpressionFinder : public AstNodeVisitorWithDefault {
 class CollectNameRefs : public AstNodeVisitorWithDefault {
  public:
   absl::Status HandleNameRef(const NameRef* node) override {
-    if (node->GetDefiner()->kind() != AstNodeKind::kFunction &&
-        node->GetDefiner()->kind() != AstNodeKind::kImport) {
+    if (node->IsBuiltin()) {
+      return DefaultHandler(node);
+    }
+    if (node->GetDefiner() == nullptr ||
+        (node->GetDefiner()->kind() != AstNodeKind::kFunction &&
+         node->GetDefiner()->kind() != AstNodeKind::kImport)) {
       name_refs_.insert(node);
+      if (node->GetDefiner() != nullptr) {
+        XLS_RETURN_IF_ERROR(HandleNode(node->GetDefiner()));
+        XLS_RETURN_IF_ERROR(DefaultHandler(node->GetDefiner()));
+      }
+    }
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleTypeAnnotation(const AstNode* node) {
+    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+      if (child->kind() == AstNodeKind::kNameRef) {
+        auto* name_ref = absl::down_cast<const NameRef*>(child);
+        type_annotation_name_refs_.emplace(name_ref->identifier(), name_ref);
+      } else {
+        XLS_RETURN_IF_ERROR(HandleNode(child));
+      }
     }
     return absl::OkStatus();
   }
 
+  absl::Status HandleNode(const AstNode* node) {
+    if (node->kind() == AstNodeKind::kTypeAnnotation) {
+      return HandleTypeAnnotation(node);
+    }
+    return node->Accept(this);
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
-    for (const AstNode* child : node->GetChildren(/*want_types=*/false)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
+    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+      XLS_RETURN_IF_ERROR(HandleNode(child));
     }
     return absl::OkStatus();
+  }
+
+  std::optional<const NameRef*> TypeAnnotationNameRef(
+      std::string_view identifier) {
+    auto it = type_annotation_name_refs_.find(identifier);
+    if (it == type_annotation_name_refs_.end()) {
+      return std::nullopt;
+    }
+    return it->second;
   }
 
   const absl::flat_hash_set<const NameRef*>& name_refs() const {
@@ -277,6 +313,8 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
 
  private:
   absl::flat_hash_set<const NameRef*> name_refs_;
+  absl::flat_hash_map<std::string_view, const NameRef*>
+      type_annotation_name_refs_;
 };
 
 class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
@@ -304,6 +342,7 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
   //     map(arr, lambda_capture{x: x}.call)
   //   }
   absl::Status HandleLambda(const Lambda* node) override {
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
     Module* module = node->owner();
     Function* original_fn = node->function();
     Span span = node->span();
@@ -316,12 +355,42 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     std::vector<ParametricBinding*> struct_parametrics;
     std::vector<StructMemberNode*> struct_members;
     std::vector<std::pair<std::string, Expr*>> struct_instance_members;
+
+    // The lambda struct should capture any necessary parametric bindings from
+    // the containing function.
+    std::optional<const Function*> containing_fn = GetContainingFunction(node);
+    std::vector<ExprOrType> containing_fn_parametric_vals;
+    absl::flat_hash_set<const NameRef*> parametric_nrs;
+
+    if (containing_fn.has_value()) {
+      for (ParametricBinding* parametric_binding :
+           (*containing_fn)->parametric_bindings()) {
+        std::optional<const NameRef*> type_annotation_nr =
+            collect_nr.TypeAnnotationNameRef(parametric_binding->identifier());
+        if (!type_annotation_nr.has_value()) {
+          continue;
+        }
+        NameDef* nd = module->Make<NameDef>(
+            parametric_binding->span(), parametric_binding->identifier(),
+            parametric_binding->name_def()->definer());
+        ParametricBinding* binding = module->Make<ParametricBinding>(
+            nd, parametric_binding->type_annotation(),
+            parametric_binding->expr());
+        struct_parametrics.push_back(binding);
+        NameRef* parametric_nr = module->Make<NameRef>(
+            parametric_binding->span(), parametric_binding->identifier(),
+            parametric_binding->name_def());
+        containing_fn_parametric_vals.push_back(parametric_nr);
+        parametric_nrs.insert(*type_annotation_nr);
+      }
+    }
     for (const NameRef* name_ref : collect_nr.name_refs()) {
       if (const NameDef* original_name_def =
               std::get<const NameDef*>(name_ref->name_def());
           original_name_def != nullptr &&
           original_name_def->span().start() < span.start() &&
-          !seen.contains(original_name_def)) {
+          !seen.contains(original_name_def) &&
+          !parametric_nrs.contains(name_ref)) {
         // Create parametric binding with generic type to use for the context
         // variable type.
         GenericTypeAnnotation* gta =
@@ -368,7 +437,7 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     TypeRefTypeAnnotation* struct_type_annotation =
         module->Make<TypeRefTypeAnnotation>(
             span, module->Make<TypeRef>(span, full_struct_def),
-            /*parametric=*/std::vector<ExprOrType>());
+            containing_fn_parametric_vals);
     struct_nd->set_definer(full_struct_def);
 
     StructInstance* struct_instance = module->Make<StructInstance>(
@@ -388,6 +457,9 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
         -> std::optional<AstNode*> {
       if (node->kind() == AstNodeKind::kNameRef) {
         const NameRef* name_ref = absl::down_cast<const NameRef*>(node);
+        if (name_ref->IsBuiltin()) {
+          return std::nullopt;
+        }
         const auto* name_def = std::get<const NameDef*>(name_ref->name_def());
         if (name_def != nullptr && seen.contains(name_def)) {
           NameRef* self_nr = node->owner()->Make<NameRef>(

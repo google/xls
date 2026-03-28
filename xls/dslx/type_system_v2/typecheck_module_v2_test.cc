@@ -1623,8 +1623,7 @@ const X = S<16, 8>{};
 }
 
 TEST(TypecheckV2Test,
-     ParametricStructWithInsufficientExplicitParametricsFails) {
-  // In this case, N is inferrable, but we choose not to infer it.
+     ParametricStructWithInsufficientExplicitParametricsInfersParametrics) {
   EXPECT_THAT(
       R"(
 struct S<M: u32, N: u32> {
@@ -1633,7 +1632,7 @@ struct S<M: u32, N: u32> {
 }
 const X = S<32>{x: u32:4, y: u32:5};
 )",
-      TypecheckFails(HasSubstr("No parametric value provided for `N` in `S`")));
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[32], y: uN[32] }")));
 }
 
 TEST(TypecheckV2Test,
@@ -9565,6 +9564,112 @@ const F = Foo { a: C };
                                         HasSpan(8, 19, 8, 20)));
 }
 
+TEST(TypecheckV2Test, LambdaUsesParentFunctionParametricInReturn) {
+  EXPECT_THAT(R"(
+fn my_conversion<N: u32>(arr: u32[3]) -> uN[N][3] {
+  map(arr, |x| -> uN[N] { x as uN[N] })
+}
+
+const M = u32:0..3;
+const ARR = my_conversion<16>(M);
+const_assert!(ARR[1] == u16:1);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
+}
+
+TEST(TypecheckV2Test, LambdaUsesParentFunctionParametricAndContextCapture) {
+  EXPECT_THAT(R"(
+fn my_conversion<N: u32>(arr: u32[3]) -> uN[N][3] {
+  let delta = uN[N]:5;
+  map(arr, |x| -> uN[N] { x as uN[N] + delta })
+}
+
+const M = u32:0..3;
+const ARR = my_conversion<16>(M);
+const_assert!(ARR[1] == u16:6);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
+}
+
+TEST(TypecheckV2Test, LambdaUsesParentFunctionParametricInBody) {
+  EXPECT_THAT(R"(
+fn add_N<N: u32>(arr: u32[3]) -> u32[3] {
+  map(arr, |x| { x + N })
+}
+
+const M = u32:0..3;
+const ARR = add_N<16>(M);
+const_assert!(ARR[1] == 17);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][3]")));
+}
+
+TEST(TypecheckV2Test, LambdaUsesParentFunctionParametricInMacro) {
+  EXPECT_THAT(R"(
+fn zeros<N: u32>(arr: u32[3]) -> uN[N][3] {
+  map(arr, |x| { zero!<uN[N]>() })
+}
+
+const M = u32:0..3;
+const ARR = zeros<16>(M);
+const_assert!(ARR[1] == 0);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
+}
+
+TEST(TypecheckV2Test, LambdaUsesParentFunctionParametricNoTypeInference) {
+  EXPECT_THAT(R"(
+fn add_N<N: u32>(arr: u32[3]) -> u32[3] {
+  map(arr, |x| { let y: u32 = x + N; y })
+}
+
+const M = u32:0..3;
+const ARR = add_N<16>(M);
+const_assert!(ARR[1] == 17);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][3]")));
+}
+
+TEST(TypecheckV2Test, LambdaUnusedParentFunctionParametric) {
+  EXPECT_THAT(R"(
+fn my_conversion<N: u32, M: u32>(arr: u32[M]) -> uN[N][M] {
+  map(arr, |x| -> uN[N] { x as uN[N] })
+}
+
+const IN = u32:0..3;
+const ARR = my_conversion<16, 3>(IN);
+const_assert!(ARR[1] == u16:1);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
+}
+
+TEST(TypecheckV2Test, LambdaImplicitReturnAndParentFunctionParametric) {
+  EXPECT_THAT(R"(
+fn my_conversion<N: u32, M: u32>(arr: u32[M]) -> uN[N][M] {
+  map(arr, |x| { x as uN[N] })
+}
+
+const IN = u32:0..3;
+const ARR = my_conversion<16, 3>(IN);
+const_assert!(ARR[1] == u16:1);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
+}
+
+TEST(TypecheckV2Test, LambdaWithTypeFromContext) {
+  EXPECT_THAT(R"(
+fn my_conversion(arr: u32[3]) -> uN[16][3] {
+  let N = 16;
+  map(arr, |x| -> uN[N] { x as uN[N] })
+}
+
+const M = u32:0..3;
+const ARR = my_conversion(M);
+const_assert!(ARR[1] == u16:1);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
+}
+
 TEST(TypecheckV2Test, LambdaWithExplicitTypes) {
   EXPECT_THAT(R"(
 const M = u16:0..6;
@@ -9572,6 +9677,31 @@ const ARR = map(M, | i: u16 | -> u16 { u16:2 * i });
 const_assert!(ARR[1] == u16:2);
 )",
               TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][6]")));
+}
+
+TEST(TypecheckV2Test, NestedLambdas) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32[4][5] {
+  let z = zero!<u32[4][5]>();
+  map(enumerate(z), | tup | {
+    let i = tup.0;
+    let arr = tup.1;
+    map(enumerate(arr), | tup2 | {
+      let j = tup2.0;
+      i + j
+    })
+  })
+}
+
+const_assert!(main() == [[u32:0, 1, 2, 3],
+        [u32:1, 2, 3, 4],
+        [u32:2, 3, 4, 5],
+        [u32:3, 4, 5, 6],
+        [u32:4, 5, 6, 7]]);
+
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32][4][5]")));
 }
 
 TEST(TypecheckV2Test, LambdaWithImplicitReturn) {
