@@ -879,7 +879,22 @@ absl::StatusOr<Attribute*> Parser::ParseAttribute(const Pos& hash_pos) {
   XLS_ASSIGN_OR_RETURN(bool has_args, TryDropToken(TokenKind::kOParen));
   if (has_args) {
     Pos arg_start = GetPos();
-    XLS_ASSIGN_OR_RETURN(args, ParseAttributeArguments());
+    if (kind == AttributeKind::kFuzzTest) {
+      for (;;) {
+        XLS_ASSIGN_OR_RETURN(
+            Token arg, PopTokenOrError(TokenKind::kBacktickString, nullptr,
+                                       "Expected backtick-quoted string "
+                                       "argument for fuzz_test."));
+        args.push_back(arg.GetStringValue());
+        XLS_ASSIGN_OR_RETURN(const Token* next, PeekToken());
+        if (next->kind() == TokenKind::kCParen) {
+          break;
+        }
+        XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
+      }
+    } else {
+      XLS_ASSIGN_OR_RETURN(args, ParseAttributeArguments());
+    }
     arg_span = Span(arg_start, GetPos());
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
   }

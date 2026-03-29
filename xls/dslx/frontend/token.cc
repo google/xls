@@ -111,6 +111,9 @@ std::string Token::ToString() const {
     return absl::StrCat("\"", absl::Utf8SafeCHexEscape(GetValue().value()),
                         "\"");
   }
+  if (kind() == TokenKind::kBacktickString) {
+    return absl::StrCat("`", absl::Utf8SafeCHexEscape(GetValue().value()), "`");
+  }
   if (GetValue().has_value()) {
     return GetValue().value();
   }
