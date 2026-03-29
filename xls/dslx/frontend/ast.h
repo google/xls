@@ -2524,8 +2524,7 @@ class Function : public AstNode {
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
-  bool is_test_utility() const { return is_test_utility_; }
-  void set_test_utility(bool value) { is_test_utility_ = value; }
+  bool is_test_utility() const;
   void set_compiler_derived(bool value) { is_compiler_derived_ = value; }
   bool IsMethod() const;
   bool IsMethodOnParametricStruct() const;
@@ -2608,7 +2607,6 @@ class Function : public AstNode {
   std::optional<Impl*> impl_;
 
   const bool is_public_;
-  bool is_test_utility_ = false;  // Set by the parser on applying attributes.
   bool is_compiler_derived_ = false;  // Set by type inference upon deriving.
   bool is_stub_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
