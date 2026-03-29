@@ -466,10 +466,18 @@ DocRef FmtAttribute(const Attribute& attribute, DocArena& arena) {
 
   if (!attribute.args().empty()) {
     pieces.push_back(arena.oparen());
-    for (const AttributeData::Argument& arg : attribute.args()) {
+    const std::vector<AttributeData::Argument>& args = attribute.args();
+    for (size_t i = 0; i < args.size(); ++i) {
+      const AttributeData::Argument& arg = args[i];
       absl::visit(
           Visitor{
-              [&](std::string str) { pieces.push_back(arena.MakeText(str)); },
+              [&](std::string str) {
+                if (attribute.attribute_kind() == AttributeKind::kFuzzTest) {
+                  pieces.push_back(arena.MakeText(absl::StrCat("`", str, "`")));
+                } else {
+                  pieces.push_back(arena.MakeText(str));
+                }
+              },
               [&](AttributeData::StringLiteralArgument arg) {
                 pieces.push_back(
                     arena.MakeText(absl::Substitute("\"$0\"", arg.text)));
@@ -484,6 +492,10 @@ DocRef FmtAttribute(const Attribute& attribute, DocArena& arena) {
               },
           },
           arg);
+      if (i < args.size() - 1) {
+        pieces.push_back(arena.comma());
+        pieces.push_back(arena.space());
+      }
     }
     pieces.push_back(arena.cparen());
   }
@@ -2212,6 +2224,17 @@ DocRef Formatter::Format(const ParametricBinding* n) {
 
 DocRef Formatter::Format(const Function& n, bool is_test) {
   std::vector<DocRef> signature_pieces;
+
+  for (const Attribute* attribute : n.attributes()) {
+    AttributeKind kind = attribute->attribute_kind();
+    if (kind == AttributeKind::kTest || kind == AttributeKind::kExternVerilog ||
+        kind == AttributeKind::kQuickcheck ||
+        kind == AttributeKind::kDslxFormatDisable ||
+        kind == AttributeKind::kCfg) {
+      continue;
+    }
+    signature_pieces.push_back(FmtAttribute(*attribute, arena_));
+  }
 
   // Note that the functions in a trait are implicitly public.
   if (n.is_public() && (!n.IsStub() || n.parent() == nullptr ||

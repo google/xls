@@ -176,6 +176,10 @@ class Scanner {
   // be over the opening quote character.
   absl::StatusOr<Token> ScanString(const Pos& start_pos);
 
+  // Scans a backtick-quoted string out of the character stream -- character
+  // cursor should be over the opening backtick character.
+  absl::StatusOr<Token> ScanBacktickString(const Pos& start_pos);
+
   // Scans a character literal from the character stream as a character token.
   //
   // Precondition: The character stream must be positioned at an open quote.

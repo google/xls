@@ -2712,6 +2712,39 @@ proc tester {
 )");
 }
 
+TEST_F(ModuleFmtTest, FuzzTestAttributeNoArgs) {
+  DoFmt(R"(#[fuzz_test]
+fn f(x: u32) {
+    ()
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, FuzzTestAttributeSingleArg) {
+  DoFmt(R"(#[fuzz_test(`u32:0..1`)]
+fn f(x: u32) {
+    ()
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, FuzzTestAttributeMultipleArgs) {
+  DoFmt(R"(#[fuzz_test(`u32:0..1`, `[u32:0, u32:10]`)]
+fn f(x: u32, y: u32[2]) {
+    ()
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, FuzzTestAttributeLong) {
+  DoFmt(
+      R"(#[fuzz_test(`u32:0..1`, `[u32:0, u32:10]`, `u32:42`, `u32:100..200`, `u32:300..400`)]
+fn f(a: u32, b: u32[2], c: u32, d: u32, e: u32) {
+    ()
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleTestUtilityProc) {
   DoFmt(
       R"(#[cfg(test)]
