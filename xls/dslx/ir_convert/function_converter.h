@@ -668,8 +668,8 @@ class FunctionConverter {
   // A predicate for whether any code path leading to a state read or write has
   // been taken each proc activation. This gets updated to accumulate terms
   // every time we emit a state read/write.
-  std::optional<BValue> state_read_called_;
-  std::optional<BValue> state_write_called_;
+  absl::flat_hash_map<std::string, BValue> state_read_called_by_state_name_;
+  absl::flat_hash_map<std::string, BValue> state_write_called_by_state_name_;
 };
 
 }  // namespace xls::dslx

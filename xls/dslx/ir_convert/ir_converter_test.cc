@@ -8506,5 +8506,82 @@ proc main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleStates) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+struct Point {
+  x: u32,
+  y: u32,
+}
+
+proc main {
+  init { (Point { x: 0, y: 1 }, (2, 3), 4) }
+  config() { }
+  next(state_0: Point, state_1: (u32, u32), state_2: u32) {
+    let a = read(state_0);
+    let b = read(state_1);
+    let c = read(state_2);
+    let new_a = Point { x: a.x + 1, y: b.1 + c };
+    let new_b = (b.0 + 1, c + 1);
+    write(state_0, new_a);
+    write(state_1, new_b);
+    write(state_2, c + 2);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleStatesMultipleReads) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  init { (0, 1) }
+  config() { }
+  next(state_0: u32, state_1: u32) {
+    let b_0 = read(state_1);
+    let b_1 = read(state_1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleStatesMultipleWrites) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  init { (0, 1) }
+  config() { }
+  next(state_0: u32, state_1: u32) {
+    let a = read(state_0);
+    let b = read(state_1);
+    write(state_1, a + b);
+    write(state_1, a + 1);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleStatesWriteBeforeRead) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  init { (0, 1) }
+  config() { }
+  next(state_0: u32, state_1: u32) {
+    let a = read(state_0);
+    write(state_1, a);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
 }  // namespace
 }  // namespace xls::dslx
