@@ -1,5 +1,5 @@
 <!-- Generated file. Do not edit. -->
-<!-- To regenerate build `xls/passes/tools:rebuild_documentation` -->
+<!-- To regenerate build `//xls/passes/tools:rebuild_documentation` -->
 # Optimization Passes List
 
 <!-- Don't bother formatting this. -->
@@ -8,6 +8,9 @@
 This is an automatically generated list of all optimization passes available
 with the default `opt_main`. This is generated automatically based on comments
 in the header files.
+
+Note: Additional development passes are available listed
+[here](https://google.github.io/xls/dev_passes_list/).
 
 If the opt level is set below 'Min opt level' the pass will act as a no-op.
 
@@ -6957,21 +6960,6 @@ hardware QoR.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/table_switch_pass.h)
-
-
-
-
-
-
-## to_zero_ext - DebugPass: To ZeroExt Pass {#to_zero_ext}
-
-
-Converts any canonicalized zero-exts back from concat(zero, ...) to zero_ext
-since it generally makes for easier to read/visualize graphs. This pass
-is not meant to be used as an optimization pass at all.
-
-
-[Header](http://github.com/google/xls/tree/main/xls/passes/to_zero_ext_pass.h)
 
 
 

@@ -32,6 +32,12 @@ _MD_JINJA_TEMPLATE = flags.DEFINE_string(
 )
 # TODO(allight): This should be configurable.
 _DEFAULT_PIPELINE_TXTPB = "/xls/passes/optimization_pass_pipeline.txtpb"
+_TARGET = flags.DEFINE_string(
+    name="target",
+    default=None,
+    help="Target to rebuild this file.",
+    required=True,
+)
 _PIPELINE_TXTPB = flags.DEFINE_string(
     name="pipeline_txtpb_file",
     default=_DEFAULT_PIPELINE_TXTPB,
@@ -51,7 +57,7 @@ _PASSES = flags.DEFINE_multi_string(
 _PIPELINE_PROTO = flags.DEFINE_string(
     name="pipeline",
     default=None,
-    required=True,
+    required=False,
     help="OptimizationPassPipelineProto for the default pipeline.",
 )
 _LINK_FORMAT = flags.DEFINE_string(
@@ -93,12 +99,15 @@ def _header_linkify(name):
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError("Too many command-line arguments.")
-  with open(_PIPELINE_PROTO.value, "rb") as pipeline_file:
-    pipeline = (
-        optimization_pass_pipeline_pb2.OptimizationPipelineProto.FromString(
-            pipeline_file.read()
-        )
-    )
+  if _PIPELINE_PROTO.value:
+    with open(_PIPELINE_PROTO.value, "rb") as pipeline_file:
+      pipeline = (
+          optimization_pass_pipeline_pb2.OptimizationPipelineProto.FromString(
+              pipeline_file.read()
+          )
+      )
+  else:
+    pipeline = optimization_pass_pipeline_pb2.OptimizationPipelineProto()
   protos = []
   for f in _PASSES.value:
     protos.extend(
@@ -145,24 +154,26 @@ def main(argv: Sequence[str]) -> None:
         )
     )
   infos.sort(key=lambda v: v.short_name)
-  infos.insert(
-      0,
-      PassInfo(
-          short_name="default_pipeline",
-          long_name="The default pipeline.",
-          header_link_text="Text-proto",
-          # TODO(allight): We could probably collect the line numbers easily
-          # enough to make this link better.
-          header_link=_LINK_FORMAT.value % _strip_prefix(_PIPELINE_TXTPB.value),
-          has_min_opt_level=False,
-          min_opt_level=0,
-          has_max_opt_level=False,
-          max_opt_level=0,
-          compound=pipeline.default_pipeline,
-          fixedpoint=False,
-          description="",
-      ),
-  )
+  if _PIPELINE_PROTO.value:
+    header_link = _LINK_FORMAT.value % _strip_prefix(_PIPELINE_TXTPB.value)
+    infos.insert(
+        0,
+        PassInfo(
+            short_name="default_pipeline",
+            long_name="The default pipeline.",
+            header_link_text="Text-proto",
+            # TODO(allight): We could probably collect the line numbers easily
+            # enough to make this link better.
+            header_link=header_link,
+            has_min_opt_level=False,
+            min_opt_level=0,
+            has_max_opt_level=False,
+            max_opt_level=0,
+            compound=pipeline.default_pipeline,
+            fixedpoint=False,
+            description="",
+        ),
+    )
   env = jinja2.Environment(undefined=jinja2.StrictUndefined)
   bindings = {
       "passes": infos,
@@ -170,10 +181,7 @@ def main(argv: Sequence[str]) -> None:
   }
   with open(_OUTPUT.value, "wt") as md_file:
     md_file.write("<!-- Generated file. Do not edit. -->\n")
-    md_file.write(
-        "<!-- To regenerate build `xls/passes/tools:rebuild_documentation`"
-        " -->\n"
-    )
+    md_file.write(f"<!-- To regenerate build `{_TARGET.value}` -->\n")
     with open(_MD_JINJA_TEMPLATE.value, "rt") as jinja_file:
       md_file.write(env.from_string(jinja_file.read()).render(bindings))
 

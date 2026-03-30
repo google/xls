@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/passes/to_zero_ext_pass.h"
+#include "xls/dev_tools/dev_passes/to_zero_ext_pass.h"
 
 #include <memory>
 

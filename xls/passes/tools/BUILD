@@ -14,12 +14,12 @@
 
 # cc_proto_library is used in this file
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 # Load proto_library
+load("//xls/build_rules:xls_build_defs.bzl", "xls_diff_test")
 load(
     "//xls/passes/tools:generate_documentation_rule.bzl",
     "xls_generate_documentation",
@@ -71,48 +71,18 @@ xls_generate_documentation(
     template = "passes.md.tmpl",
 )
 
-_DOC_PREFIX = ""
-
-_DOC_PATH = "docs_src/passes_list.md"
-
-_BUILD_CMD = "bazelisk"
-
-_BUILD_BIN = "bazel-bin"
-
-_TARGET = "//xls/passes/tools:rebuild_documentation"
-
-_GOLD_PATH = "xls/passes/tools/passes_documentation.rebuild_documentation.md"
-
-_FAILURE_MESSAGE = """Documentation passes_list.md is out of date. Please update it.
-
-
-To Update run:
-
-```
-$ {BUILD_CMD} build {TARGET}
-$ cp {BUILD_BIN}/{GOLD_PATH} {DOC_PREFIX}{DOC_PATH}
-```
-
-And update the CL.
-""".format(
-    BUILD_BIN = _BUILD_BIN,
-    BUILD_CMD = _BUILD_CMD,
-    DOC_PATH = _DOC_PATH,
-    DOC_PREFIX = _DOC_PREFIX,
-    GOLD_PATH = _GOLD_PATH,
-    TARGET = _TARGET,
-)
-
-# TODO(allight): Running this automatically would be nice.
 # TODO(allight): Making this runnable with asan/msan would be nice but not particularly important.
-diff_test(
+xls_diff_test(
     name = "passes_md_up_to_date_test",
-    failure_message = _FAILURE_MESSAGE,
-    file1 = ":rebuild_documentation",
-    file2 = "//docs_src:passes_list.md",
+    failure_message = """Documentation passes_list.md is out of date.
+
+Please update it using dev_tools/rebuild_golden_files.sh.""",
+    file = ":rebuild_documentation",
+    golden = "//docs_src:passes_list.md",
     # Requirements on libcxx being explicit in include path.
     tags = [
         "manual",
+        "no_update_golden",
         "noasan",
         "nomsan",
     ],

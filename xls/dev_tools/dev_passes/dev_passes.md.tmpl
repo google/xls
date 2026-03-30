@@ -1,14 +1,17 @@
-# Optimization Passes List
+# Development Optimization Passes List
 
 <!-- Don't bother formatting this. -->
 <!-- mdformat global-off -->
 
-This is an automatically generated list of all optimization passes available
-with the default `opt_main`. This is generated automatically based on comments
-in the header files.
+This is an automatically generated list of all internal xls developtment
+optimization passes available with the default `opt_main`. Normal optimization
+passes may be found
+[here](https://google.github.io/xls/passes_list/).
+This is generated automatically based on comments in the header files.
 
-Note: Additional development passes are available listed
-[here](https://google.github.io/xls/dev_passes_list/).
+Warning: These passes are mostly intended for debugging and development use
+cases by the XLS development team and allow for the manipulation of ir files in
+ways that may not be desirable for general optimization use.
 
 If the opt level is set below 'Min opt level' the pass will act as a no-op.
 

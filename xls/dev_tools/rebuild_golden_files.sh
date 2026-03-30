@@ -17,7 +17,7 @@ then
 else
   # Keep-going and ignore failures as the query hits irrelevant errors in OSS.
   TEST_TARGETS=($(bazel query "kind(cc_test, rdeps($XLS_TARGET_PATTERN,//xls/common:golden_files) except ($XLS_TARGET_EXCLUDE))" --keep_going || /bin/true))
-  RUN_TARGETS=($(bazel query "kind(_xls_update_golden, $XLS_TARGET_PATTERN) except ($XLS_TARGET_EXCLUDE)" --keep_going || /bin/true))
+  RUN_TARGETS=($(bazel query "kind(_xls_update_golden, $XLS_TARGET_PATTERN) except (attr(tags, \"no_update_golden\", $XLS_TARGET_PATTERN) + $XLS_TARGET_EXCLUDE)" --keep_going || /bin/true))
 fi
 
 if [[ ! -f "$(pwd)/WORKSPACE" ]]

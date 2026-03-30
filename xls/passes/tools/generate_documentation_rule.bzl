@@ -106,8 +106,12 @@ def _generate_documentation_impl(ctx):
 
     mdfile = ctx.actions.declare_file("passes_documentation." + ctx.attr.name + ".md")
     args = ctx.actions.args()
-    args.add("-pipeline", ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_binpb.path)
-    args.add("-pipeline_txtpb_file", ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_src.path)
+    args.add("-target", "//" + ctx.label.package + ":" + ctx.label.name)
+    pipeline = []
+    if ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_binpb != None:
+        args.add("-pipeline", ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_binpb.path)
+        args.add("-pipeline_txtpb_file", ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_src.path)
+        pipeline = [ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_binpb]
     args.add("-output", mdfile.path)
     if ctx.attr.strip_prefix:
         args.add("-strip_prefix", ctx.attr.strip_prefix)
@@ -118,7 +122,7 @@ def _generate_documentation_impl(ctx):
     ctx.actions.run(
         outputs = [mdfile],
         executable = ctx.executable._generate_documentation_md,
-        inputs = protos + [ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_binpb, ctx.file.template],
+        inputs = protos + pipeline + [ctx.file.template],
         arguments = [args],
         mnemonic = "GenerateMarkdownPasses",
         progress_message = "Generating pass list markdown",

@@ -484,6 +484,7 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:proc_testutils",
         "//xls/ir:value",
+        "//xls/passes",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",

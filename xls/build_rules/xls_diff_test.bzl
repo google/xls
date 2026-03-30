@@ -29,7 +29,7 @@ DST="$BUILD_WORKING_DIRECTORY/{gold}"
 cp $SRC $DST
 """.format(
             file = ctx.file.new_golden.path[len(ctx.file.new_golden.root.path) + 1:],
-            gold = ctx.label.workspace_root + "/" + ctx.label.package + "/" + ctx.attr.golden,
+            gold = ctx.file.golden.path,
         ),
         is_executable = True,
     )
@@ -47,8 +47,9 @@ _xls_update_golden = rule(
             allow_single_file = True,
             mandatory = True,
         ),
-        "golden": attr.string(
-            doc = "File where the golden file is. Must be relative to the rule's directory",
+        "golden": attr.label(
+            allow_single_file = True,
+            doc = "File where the golden file is.",
             mandatory = True,
         ),
     },

@@ -450,6 +450,7 @@ cc_binary(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dev_tools:tool_timeout",
+        "//xls/dev_tools/dev_passes",
         "//xls/estimators",
         "//xls/passes",
         "//xls/passes:optimization_pass_pipeline",
