@@ -452,7 +452,7 @@ absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
       Value init_value = invariant->initial_value();
       Node* state_read = p->GetStateRead(invariant);
       absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
-          p->next_values(p->GetStateRead(invariant));
+          p->next_values(invariant);
       for (Next* next : next_values) {
         XLS_RETURN_IF_ERROR(p->RemoveNode(next));
       }

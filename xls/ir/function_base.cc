@@ -244,10 +244,6 @@ void FunctionBase::MoveFrom(FunctionBase& other,
 void FunctionBase::TakeOwnershipOfNode(std::unique_ptr<Node>&& node) {
   FunctionBase* old_owner = node->function_base();
 
-  if (node->Is<StateRead>()) {
-    old_owner->next_values_by_state_read_.erase(node->As<StateRead>());
-  }
-
   old_owner->node_iterators_.erase(node.get());
 
   if (auto it = old_owner->node_to_stage_.find(node.get());
@@ -469,15 +465,10 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
     params_.erase(std::remove(params_.begin(), params_.end(), node),
                   params_.end());
   }
-  if (node->Is<StateRead>()) {
-    next_values_by_state_read_.erase(node->As<StateRead>());
-  }
+
   if (node->Is<Next>()) {
     Next* next = node->As<Next>();
-    if (next->state_read()->Is<StateRead>()) {  // Could've been replaced.
-      StateRead* state_read = next->state_read()->As<StateRead>();
-      next_values_by_state_read_.at(state_read).erase(next);
-    }
+    next_values_by_state_element_.at(next->state_element()).erase(next);
     std::erase(next_values_, next);
   }
   for (ChangeListener* listener : change_listeners_) {
@@ -566,14 +557,11 @@ Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
   if (node->Is<Param>()) {
     params_.push_back(node->As<Param>());
   }
-  if (node->Is<StateRead>()) {
-    next_values_by_state_read_[node->As<StateRead>()];
-  }
+
   if (node->Is<Next>()) {
     Next* next = node->As<Next>();
-    StateRead* state_read = next->state_read()->As<StateRead>();
-    next_values_.push_back(node->As<Next>());
-    next_values_by_state_read_[state_read].insert(next);
+    next_values_.push_back(next);
+    next_values_by_state_element_[next->state_element()].insert(next);
   }
   Node* ptr = node.get();
   node_iterators_[ptr] = nodes_.insert(nodes_.end(), std::move(node));

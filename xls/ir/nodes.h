@@ -835,12 +835,13 @@ class Next final : public Node {
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
   Node* state_read() const {
-    CHECK(state_element_ == nullptr) << "StateElement is set";
-    return operand(0);
+    CHECK(state_read_ != nullptr)
+        << "state_read() called on a Next node with only StateElement set";
+    return state_read_;
   }
 
   Node* value() const {
-    if (state_element_ != nullptr) {
+    if (state_read_ == nullptr) {
       return operand(0);
     } else {
       return operand(1);
@@ -893,11 +894,12 @@ class Next final : public Node {
     if (state_element_ != nullptr) {
       return state_element_;
     }
-    return state_read()->As<StateRead>()->state_element();
+    return state_read_->As<StateRead>()->state_element();
   }
 
  private:
   StateElement* state_element_ = nullptr;
+  Node* state_read_ = nullptr;
   bool has_predicate_;
   const int64_t predicate_operand_index_;
   std::optional<std::string> label_;

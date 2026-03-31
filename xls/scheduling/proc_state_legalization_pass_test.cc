@@ -392,7 +392,7 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
           m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
           m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)))));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateRead(*proc->GetStateElement("y"))),
+      proc->next_values(*proc->GetStateElement("y")),
       UnorderedElementsAre(
           m::Next(
               m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
@@ -451,7 +451,7 @@ TEST_P(ProcStateLegalizationPassTest,
               m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
               m::Literal(1)))));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateRead(*proc->GetStateElement("y"))),
+      proc->next_values(*proc->GetStateElement("y")),
       UnorderedElementsAre(
           m::Next(m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
                   m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
@@ -515,7 +515,7 @@ TEST_P(ProcStateLegalizationPassTest,
   EXPECT_THAT(proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
               Optional(expected_read_predicate));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateRead(*proc->GetStateElement("y"))),
+      proc->next_values(*proc->GetStateElement("y")),
       UnorderedElementsAre(
           m::Next(
               m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
