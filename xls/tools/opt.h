@@ -18,6 +18,7 @@
 #define XLS_TOOLS_OPT_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -32,7 +33,19 @@
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/tools/opt_flags.pb.h"
 
+namespace xls {
+class OptimizationPassRegistry;
+}  // namespace xls
 namespace xls::tools {
+
+class PassRegistryDecorator {
+ public:
+  virtual ~PassRegistryDecorator() = default;
+  // Return a new pass registry based on the one passed in that has been
+  // modified as required by this decorator.
+  virtual absl::StatusOr<std::unique_ptr<OptimizationPassRegistry>> Decorate(
+      const OptimizationPassRegistry& registry) = 0;
+};
 
 // Various optimizer options (that generally funnel from the `opt_main` tool to
 // this consolidated library).
@@ -52,6 +65,9 @@ struct OptOptions {
   std::string area_model = "asap7";
   // Custom registry to use to get default pipeline and compound passes.
   std::optional<OptimizationPipelineProto> custom_registry = std::nullopt;
+  // Decorator to modify the registry before use. Must live for the duration of
+  // the optimization.
+  std::optional<PassRegistryDecorator*> registry_decorator = std::nullopt;
   std::optional<PassPipelineProto> pass_pipeline = std::nullopt;
   std::optional<int64_t> bisect_limit;
   bool debug_optimizations = false;

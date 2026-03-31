@@ -140,6 +140,14 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
   }
   const OptimizationPassRegistry& chosen_registry =
       registry.value_or(GetOptimizationRegistry());
+  std::optional<std::unique_ptr<OptimizationPassRegistry>> decorated_registry;
+  if (options.registry_decorator.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        decorated_registry,
+        (*options.registry_decorator)->Decorate(chosen_registry));
+  }
+  const OptimizationPassRegistry& final_registry =
+      decorated_registry ? **decorated_registry : chosen_registry;
 
   std::unique_ptr<OptimizationPass> pipeline;
   if (options.pass_pipeline.has_value()) {
@@ -147,7 +155,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
         << "Skipping/restricting passes while running a custom "
            "pipeline is probably not something you want to do.";
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<OptimizationCompoundPass> res,
-                         GetOptimizationPipelineGenerator(chosen_registry)
+                         GetOptimizationPipelineGenerator(final_registry)
                              .GeneratePipeline(*options.pass_pipeline));
     if (options.debug_optimizations) {
       res->AddInvariantChecker<VerifierChecker>();
@@ -159,7 +167,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
   } else {
     XLS_ASSIGN_OR_RETURN(
         pipeline, TryCreateOptimizationPassPipeline(options.debug_optimizations,
-                                                    chosen_registry));
+                                                    final_registry));
   }
 
   // Since we are running during an opt the passes might be in states which the

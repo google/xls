@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_diff_test")
 load(
@@ -160,7 +161,45 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
-        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "pass_overrides",
+    srcs = ["pass_overrides.cc"],
+    hdrs = ["pass_overrides.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:optimization_pass_registry",
+        "//xls/tools:opt",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "pass_overrides_test",
+    srcs = ["pass_overrides_test.cc"],
+    deps = [
+        ":pass_overrides",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:optimization_pass_pipeline",
+        "//xls/passes:optimization_pass_registry",
+        "//xls/passes:pass_base",
+        "//xls/tools:opt",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
