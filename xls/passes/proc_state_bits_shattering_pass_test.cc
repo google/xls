@@ -83,7 +83,8 @@ TEST_F(ProcStateBitsShatteringPassTest, SimpleSplitStateElement) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true));
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * new_x, proc->GetStateElement("x"));
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * new_x,
+                           proc->GetStateElementByName("x"));
   EXPECT_THAT(new_x->type(), m::Type("(bits[6], bits[1], bits[9])"));
   EXPECT_THAT(send_x.node(),
               m::Send(m::Literal(Value::Token()),

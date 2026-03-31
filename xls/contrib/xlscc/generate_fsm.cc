@@ -766,8 +766,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       xls_state_element = pb.StateElement(
           state_element.name, xls::ZeroOfType(state_element.type), body_loc);
     } else {
-      xls::StateRead* state_read =
-          pb.proc()->GetStateRead(state_element.existing_state_element);
+      xls::StateRead* state_read = pb.proc()->GetStateReadByStateElement(
+          state_element.existing_state_element);
       xls_state_element = TrackedBValue(state_read, &pb);
     }
 

@@ -1897,7 +1897,7 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
         for (StateElement* element : source_proc->StateElements()) {
           name_to_value->emplace(
               element->name(),
-              bb->SourceNode(source_proc->GetStateRead(element)));
+              bb->SourceNode(source_proc->GetStateReadByStateElement(element)));
         }
       } else {
         return absl::InvalidArgumentError(absl::StrFormat(

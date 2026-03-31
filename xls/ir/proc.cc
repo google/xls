@@ -161,9 +161,10 @@ int64_t Proc::GetStateFlatBitCount() const {
   return total;
 }
 
-absl::StatusOr<StateElement*> Proc::GetStateElement(
+absl::StatusOr<StateElement*> Proc::GetStateElementByName(
     std::string_view name) const {
-  if (std::optional<StateElement*> state_element = MaybeGetStateElement(name);
+  if (std::optional<StateElement*> state_element =
+          MaybeGetStateElementByName(name);
       state_element.has_value()) {
     return *state_element;
   }
@@ -171,7 +172,7 @@ absl::StatusOr<StateElement*> Proc::GetStateElement(
       "Proc %s has no state element named %s", this->name(), name));
 }
 
-std::optional<StateElement*> Proc::MaybeGetStateElement(
+std::optional<StateElement*> Proc::MaybeGetStateElementByName(
     std::string_view name) const {
   auto it = state_elements_.find(name);
   if (it == state_elements_.end()) {

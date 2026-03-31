@@ -196,7 +196,7 @@ absl::Status FlattenState(Proc* proc) {
   for (int64_t state_index = 0; state_index < proc->GetStateElementCount();
        ++state_index) {
     StateElement* state_element = proc->GetStateElement(state_index);
-    StateRead* state_read = proc->GetStateRead(state_element);
+    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
 
     // Gather the flattened initial values and next state elements.
     std::vector<Value> init_values =

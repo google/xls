@@ -195,15 +195,15 @@ TEST_P(ProcStateFlatteningPassTest, EmptyTupleAndBitsState) {
 
   // The name uniquer is told the names "y" and "q" are already released. So the
   // new state params get the same name.
-  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "y");
+  EXPECT_EQ(proc->GetStateRead(0)->GetName(), "y");
   EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(0, 32)));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
               ElementsAre(m::Next(m::StateRead("y"), m::StateRead("y"))));
 
   EXPECT_EQ(proc->GetStateRead(1)->GetName(), "q");
   EXPECT_EQ(proc->GetStateElement(1)->initial_value(), Value(UBits(0, 64)));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{1})),
+      proc->next_values(proc->GetStateElement(1)),
       ElementsAre(m::Next(m::StateRead("q"),
                           m::Add(m::StateRead("q"), m::StateRead("q")))));
 }
@@ -220,10 +220,10 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleState) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
-  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "x");
+  EXPECT_EQ(proc->GetStateRead(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(42, 32)));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{0})),
+      proc->next_values(proc->GetStateElement(0)),
       UnorderedElementsAre(m::Next(m::StateRead("x"), m::StateRead("x"))));
 }
 
@@ -240,9 +240,9 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleStateWithNextExpression) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
-  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "x");
+  EXPECT_EQ(proc->GetStateRead(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(42, 32)));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
               UnorderedElementsAre(
                   m::Next(m::StateRead("x"), m::Not(m::StateRead("x")))));
 }
@@ -270,34 +270,34 @@ TEST_P(ProcStateFlatteningPassTest, ComplicatedState) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 6);
 
-  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "a_0");
+  EXPECT_EQ(proc->GetStateRead(0)->GetName(), "a_0");
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{0})),
+      proc->next_values(proc->GetStateElement(0)),
       UnorderedElementsAre(m::Next(m::StateRead("a_0"), m::StateRead("b"))));
 
   EXPECT_EQ(proc->GetStateRead(1)->GetName(), "a_1");
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{1})),
+      proc->next_values(proc->GetStateElement(1)),
       UnorderedElementsAre(m::Next(m::StateRead("a_1"), m::StateRead("c_0"))));
 
   EXPECT_EQ(proc->GetStateRead(2)->GetName(), "a_2");
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{2})),
+      proc->next_values(proc->GetStateElement(2)),
       UnorderedElementsAre(m::Next(m::StateRead("a_2"), m::StateRead("c_1"))));
 
   EXPECT_EQ(proc->GetStateRead(3)->GetName(), "b");
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{3})),
+      proc->next_values(proc->GetStateElement(3)),
       UnorderedElementsAre(m::Next(m::StateRead("b"), m::StateRead("a_0"))));
 
   EXPECT_EQ(proc->GetStateRead(4)->GetName(), "c_0");
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{4})),
+      proc->next_values(proc->GetStateElement(4)),
       UnorderedElementsAre(m::Next(m::StateRead("c_0"), m::StateRead("a_1"))));
 
   EXPECT_EQ(proc->GetStateRead(5)->GetName(), "c_1");
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{5})),
+      proc->next_values(proc->GetStateElement(5)),
       UnorderedElementsAre(m::Next(m::StateRead("c_1"), m::StateRead("a_2"))));
 }
 
@@ -366,16 +366,16 @@ TEST_P(ProcStateFlatteningPassTest, NextValueDependsOnLaterState) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 4);
 
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
               ElementsAre(m::Next(m::StateRead("a"), m::StateRead("b"))));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{1})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
               ElementsAre(m::Next(m::StateRead("b"), m::Literal(0))));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{2})),
+      proc->next_values(proc->GetStateElement(2)),
       ElementsAre(m::Next(m::StateRead("c_0"),
                           m::TupleIndex(m::Literal(zero_tuple_value), 0))));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{3})),
+      proc->next_values(proc->GetStateElement(3)),
       ElementsAre(m::Next(m::StateRead("c_1"),
                           m::TupleIndex(m::Literal(zero_tuple_value), 1))));
 }

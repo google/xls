@@ -79,7 +79,7 @@ absl::StatusOr<bool> RemoveZeroWidthStateElements(Proc* proc) {
     StateElement* state_element = proc->GetStateElement(i);
     VLOG(2) << "Removing zero-width state element: "
             << proc->GetStateElement(i)->name();
-    StateRead* state_read = proc->GetStateRead(state_element);
+    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
     std::vector<Next*> next_values(proc->next_values(state_element).begin(),
                                    proc->next_values(state_element).end());
     for (Next* next : next_values) {
@@ -102,7 +102,7 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
   std::vector<int64_t> to_remove;
   for (int64_t i = proc->GetStateElementCount() - 1; i >= 0; --i) {
     StateElement* state_element = proc->GetStateElement(i);
-    StateRead* state_read = proc->GetStateRead(state_element);
+    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
     const Value& initial_value = state_element->initial_value();
 
     bool never_changes = true;
@@ -128,7 +128,7 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
     Value value = state_element->initial_value();
     VLOG(2) << "Removing constant state element: " << state_element->name()
             << " (value: " << value.ToString() << ")";
-    StateRead* state_read = proc->GetStateRead(state_element);
+    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
     std::vector<Next*> next_values(proc->next_values(state_element).begin(),
                                    proc->next_values(state_element).end());
     for (Next* next : next_values) {

@@ -244,7 +244,7 @@ absl::StatusOr<std::vector<BValue>> GetStateValuesBeforeActivation(
     absl::flat_hash_map<NodeActivation, BValue>& values) {
   std::vector<BValue> states;
   for (StateElement* state_element : p->StateElements()) {
-    StateRead* state_read = p->GetStateRead(state_element);
+    StateRead* state_read = p->GetStateReadByStateElement(state_element);
     if (activation == 0) {
       values[{state_read, 0}] =
           fb.Literal(state_element->initial_value(), SourceInfo(),

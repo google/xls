@@ -911,11 +911,11 @@ XlsccTestBase::GetStatesByIONodeForFSMProc(std::string_view func_name) {
   const std::string st_param_name =
       absl::StrFormat("__fsm_%s_state", func_name);
   XLS_ASSIGN_OR_RETURN(xls::StateElement * state_element,
-                       proc->GetStateElement(st_param_name));
+                       proc->GetStateElementByName(st_param_name));
 
   CHECK_EQ(found_proc_with_fsm, nullptr);
   found_proc_with_fsm = proc.get();
-  fsm_state_read = proc->GetStateRead(state_element);
+  fsm_state_read = proc->GetStateReadByStateElement(state_element);
 
   CHECK_NE(found_proc_with_fsm, nullptr);
   CHECK_NE(fsm_state_read, nullptr);
