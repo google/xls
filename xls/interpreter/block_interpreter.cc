@@ -1089,11 +1089,16 @@ class StatelessBlockContinuation final : public BlockContinuation {
   }
   void ClearObserver() override { observer_.reset(); }
 
+  void SetMaxTraceVerbosity(int64_t value) override {
+    max_trace_verbosity_ = value;
+  }
+
  private:
   BlockElaboration elaboration_;
   BlockRunResult last_result_;
   std::optional<EvaluationObserver*> observer_;
   BlockEvaluator::OutputPortSampleTime sample_time_;
+  int64_t max_trace_verbosity_ = 0;
 };
 
 }  // namespace

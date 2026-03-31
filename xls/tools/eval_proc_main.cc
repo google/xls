@@ -903,6 +903,7 @@ absl::Status EvaluateBlock(
     CHECK_NE(eval_observer, nullptr);
     XLS_RETURN_IF_ERROR(continuation->SetObserver(eval_observer));
   }
+  continuation->SetMaxTraceVerbosity(absl::GetFlag(FLAGS_max_trace_verbosity));
 
   int64_t last_output_cycle = 0;
   int64_t matched_outputs = 0;
