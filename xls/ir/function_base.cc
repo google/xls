@@ -400,6 +400,10 @@ absl::StatusOr<int64_t> FunctionBase::GetParamIndex(Param* param) const {
   return std::distance(params_.begin(), it);
 }
 
+std::string FunctionBase::debug_identifier() const {
+  return absl::StrFormat("%v %s.%s", kind(), package_->name(), name_);
+}
+
 absl::Status FunctionBase::MoveParamToIndex(Param* param, int64_t index) {
   XLS_RET_CHECK_LT(index, params_.size());
   auto it = std::find(params_.begin(), params_.end(), param);

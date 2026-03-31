@@ -209,6 +209,9 @@ class FunctionBase {
 
   Package* package() const { return package_; }
   const std::string& name() const { return name_; }
+  // Returns an identifier that can be used in the debugger to identify this
+  // function base.
+  std::string debug_identifier() const;
   void SetName(std::string_view name) { name_ = name; }
   std::string qualified_name() const {
     return absl::StrCat(package_->name(), "::", name_);

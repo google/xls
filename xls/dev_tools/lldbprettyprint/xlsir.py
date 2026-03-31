@@ -65,6 +65,10 @@ def init_printers(debugger):
   )
   debugger.HandleCommand(
       "type summary add --expand --python-function"
+      " lldbprettyprint.xlsir.xls_function_base_name_summary xls::FunctionBase"
+  )
+  debugger.HandleCommand(
+      "type summary add --expand --python-function"
       " lldbprettyprint.xlsir.xls_astnode_summary --recognizer-function"
       " lldbprettyprint.xlsir.xls_is_astnode"
   )
@@ -104,16 +108,38 @@ def _maybe_addrof(v):
 
 
 def _maybe_addrof_name(v):
-  """Standardize a value to an & ref."""
+  """Standardize a value to an & ref.
+
+  By explicitly making this a casted pointer value the rest of the code works
+  more consistently.
+
+  Args:
+    v: The LLDB value object to get the address of.
+
+  Returns:
+    A string which can be used in an expression position which results in the
+    address of v.
+  """
   if v.GetType().IsPointerType():
-    return v.GetName()
+    return f"(({v.GetTypeName()})0x{v.GetValueAsAddress():x})"
   else:
-    return "(&%s)" % v.GetName()
+    return _maybe_addrof_name(v.address_of)
 
 
 def _call_fn(obj, fn):
   ptr = _maybe_addrof_name(obj)
   return obj.CreateValueFromExpression("res", "%s->%s" % (ptr, fn))
+
+
+def xls_function_base_name_summary(valobj, _):
+  """Summarize xls::FunctionBase."""
+  try:
+    if not valobj.IsValid() or not valobj.IsInScope():
+      return "<uninitialized>"
+    return _call_fn(valobj, "debug_identifier()").GetSummary().strip('"')
+  # pylint: disable-next=broad-exception-caught
+  except Exception as e:
+    return f"<INVALID: {e}>"
 
 
 def xls_irtype_summary(valobj, _):
