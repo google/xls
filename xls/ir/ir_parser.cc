@@ -33,6 +33,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -427,7 +428,12 @@ absl::StatusOr<std::string> Parser::ParseQuotedString(TokenPos* pos) {
   if (pos != nullptr) {
     *pos = token.pos();
   }
-  return token.value();
+  std::string unescaped;
+  if (!absl::CUnescape(token.value(), &unescaped)) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Invalid escaped string @ %s", token.pos().ToHumanString()));
+  }
+  return unescaped;
 }
 
 absl::StatusOr<BValue> Parser::ParseAndResolveIdentifier(

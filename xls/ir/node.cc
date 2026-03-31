@@ -634,7 +634,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
                                        (*state_read->predicate())->GetName()));
       }
       if (state_read->label()) {
-        args.push_back(absl::StrFormat("label=\"%s\"", *state_read->label()));
+        args.push_back(absl::StrFormat("label=\"%s\"",
+                                       absl::CEscape(*state_read->label())));
       }
       break;
     }
@@ -648,7 +649,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
             absl::StrFormat("predicate=%s", (*predicate)->GetName()));
       }
       if (next->label()) {
-        args.push_back(absl::StrFormat("label=\"%s\"", *next->label()));
+        args.push_back(
+            absl::StrFormat("label=\"%s\"", absl::CEscape(*next->label())));
       }
       break;
     }
@@ -792,8 +794,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args.push_back(
           absl::StrFormat("message=\"%s\"", As<Assert>()->message()));
       if (As<Assert>()->label().has_value()) {
-        args.push_back(
-            absl::StrFormat("label=\"%s\"", As<Assert>()->label().value()));
+        args.push_back(absl::StrFormat("label=\"%s\"",
+                                       absl::CEscape(*As<Assert>()->label())));
       }
       break;
     case Op::kTrace: {
@@ -810,7 +812,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       break;
     }
     case Op::kCover:
-      args.push_back(absl::StrFormat("label=\"%s\"", As<Cover>()->label()));
+      args.push_back(
+          absl::StrFormat("label=\"%s\"", absl::CEscape(As<Cover>()->label())));
       break;
     case Op::kInputPort:
     case Op::kOutputPort: {

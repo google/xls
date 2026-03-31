@@ -19,8 +19,11 @@
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "xls/common/file/filesystem.h"
@@ -35,6 +38,10 @@
 #include "xls/ir/verifier.h"
 
 namespace xls {
+namespace {
+
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 
 constexpr char kTestName[] = "ir_parser_round_trip_test";
 constexpr char kTestdataPath[] = "xls/ir/testdata";
@@ -476,4 +483,19 @@ void RoundtripIrFuzz(std::shared_ptr<Package> original) {
 }
 FUZZ_TEST(IrParserRoundTripTest, RoundtripIrFuzz).WithDomains(IrFuzzDomain());
 
+TEST(IrParserRoundTripTest, RoundtripIrFuzzRegression) {
+  absl::StatusOr<std::unique_ptr<Package>> package =
+      Parser::ParsePackage(R"xls_ir(package FuzzTest
+
+top fn FuzzTest() -> bits[1] {
+  literal.1: bits[1] = literal(value=0, id=1)
+  cover.3: () = cover(literal.1, label=""", id=3)
+  ret literal.1
+}
+)xls_ir");
+  ASSERT_THAT(package, StatusIs(absl::StatusCode::kInvalidArgument,
+                                HasSubstr("Unterminated quoted string")));
+}
+
+}  // namespace
 }  // namespace xls
