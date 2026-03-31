@@ -679,7 +679,10 @@ class FixedPointCompoundPassBase
     VLOG(1) << absl::StreamFormat(
         "Fixed point compound pass %s iterated %d times.", this->long_name(),
         results->current_invocation().fixed_point_iterations());
-    return results->current_invocation().fixed_point_iterations() > 1;
+    // Still want to return true even if passes_bisect_limit breaks the loop on
+    // the first iteration.
+    return results->current_invocation().fixed_point_iterations() > 1 ||
+           local_changed;
   }
 };
 

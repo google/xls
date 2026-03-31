@@ -280,6 +280,31 @@ TEST_F(PassBaseTest, DetectEasyIncorrectReturnInCompound) {
                       "changed: \\[Before\\] 1 nodes != \\[after\\] 6 nodes")));
 }
 
+TEST_F(PassBaseTest, BisectLimitDoesNotCauseErrors) {
+  for (int64_t i = 1; i < 15; ++i) {
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    fb.Literal(UBits(0, 16));
+    XLS_ASSERT_OK(fb.Build().status());
+    OptimizationCompoundPass opt("opt", "opt");
+    opt.Add<LevelUpPass>();
+    opt.Add<DeadCodeEliminationPass>();
+    auto inner =
+        std::make_unique<OptimizationFixedPointCompoundPass>("inner", "inner");
+    inner->Add<LevelUpPass>();
+    inner->Add<DeadCodeEliminationPass>();
+    opt.AddOwned(std::move(inner));
+    PassResults results;
+    OptimizationContext context;
+    EXPECT_THAT(
+        opt.Run(p.get(),
+                OptimizationPassOptions(PassOptionsBase{.bisect_limit = i}),
+                &results, context),
+        IsOk())
+        << "iteration: " << i;
+  }
+}
+
 TEST_F(PassBaseTest, BisectLimitMid) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
