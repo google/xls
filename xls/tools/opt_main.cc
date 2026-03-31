@@ -15,6 +15,7 @@
 // Takes in an IR file and produces an IR file that has been run through the
 // standard optimization pipeline.
 
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -41,9 +42,13 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/dev_passes/pass_overrides.h"
 #include "xls/dev_tools/tool_timeout.h"
+#include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/optimization_pass_registry.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/tools/opt.h"
 #include "xls/tools/opt_flags.h"
@@ -71,6 +76,17 @@ ABSL_FLAG(std::optional<std::string>, alsologto, std::nullopt,
 
 ABSL_FLAG(bool, list_passes, false,
           "If passed list the names of all passes and exit.");
+
+// Flags for injecting additional passes into the pipeline for
+// bisect/investigation.
+ABSL_FLAG(std::optional<std::string>, bisect_inject_passes, std::nullopt,
+          "If passed, inject these passes into the pipeline immediately before "
+          "the --bisect_inject_passes_count pass runs. This flag takes options "
+          "in the same format as the --passes flag. It can use compound passes "
+          "defined in the --pipeline_proto flag.");
+ABSL_FLAG(std::optional<int64_t>, bisect_inject_passes_count, std::nullopt,
+          "If passed, inject passes from --bisect_inject_passes after this "
+          "many passes have run.");
 
 namespace xls::tools {
 namespace {
@@ -110,6 +126,74 @@ std::optional<T> NegativeIsNullopt(std::optional<T> v) {
   return v;
 }
 
+class BisectInjectPasses : public OptimizationPassOverrides {
+ public:
+  explicit BisectInjectPasses(std::string_view passes, int64_t after)
+      : passes_(passes), after_(after) {}
+
+  class InjectPass : public OptimizationWrapperPass {
+   public:
+    explicit InjectPass(std::unique_ptr<OptimizationPass>&& base,
+                        BisectInjectPasses* overrides,
+                        const OptimizationPassRegistry& base_registry)
+        : OptimizationWrapperPass(std::move(base)),
+          overrides_(overrides),
+          base_registry_(base_registry) {}
+
+   protected:
+    absl::StatusOr<bool> RunInternal(
+        Package* ir, const OptimizationPassOptions& options,
+        PassResults* results, OptimizationContext& context) const override {
+      XLS_ASSIGN_OR_RETURN(
+          bool force, overrides_->MaybeRunOverride(base_registry_, ir, options,
+                                                   results, context));
+      XLS_ASSIGN_OR_RETURN(bool normal, OptimizationWrapperPass::RunInternal(
+                                            ir, options, results, context));
+      return force || normal;
+    }
+
+   private:
+    BisectInjectPasses* overrides_;
+    const OptimizationPassRegistry& base_registry_;
+  };
+
+  absl::StatusOr<std::unique_ptr<OptimizationPass>> OverridePass(
+      const OptimizationPassGenerator& generator,
+      const OptimizationPassRegistry& base_registry) override {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<OptimizationPass> real,
+                         generator.Generate());
+    return std::make_unique<InjectPass>(std::move(real), this, base_registry);
+  }
+
+  absl::StatusOr<bool> MaybeRunOverride(
+      const OptimizationPassRegistry& base_registry, Package* ir,
+      const OptimizationPassOptions& options, PassResults* results,
+      OptimizationContext& context) {
+    // NB We might miss the exact goal if we are in a fixedpoint and the bisect
+    // point is at the end of the loop.
+    if (done_ || results->current_invocation().pass_number() < after_) {
+      return false;
+    }
+    // Only run once.
+    done_ = true;
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<OptimizationPass> injected,
+        OptimizationPassPipelineGenerator(/*short_name=*/"bisect_inject_passes",
+                                          /*long_name=*/"bisect_inject_passes",
+                                          base_registry)
+            .GeneratePipeline(passes_),
+        _ << "Unable to generate injected pipeline of passes: " << passes_);
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         injected->Run(ir, options, results, context));
+    return changed;
+  }
+
+ private:
+  std::string passes_;
+  int64_t after_;
+  mutable bool done_ = false;
+};
+
 absl::Status RealMain(std::string_view input_path) {
   auto timeout = StartTimeoutTimer();
   if (input_path == "-") {
@@ -134,6 +218,13 @@ absl::Status RealMain(std::string_view input_path) {
   XLS_ASSIGN_OR_RETURN(OptOptions options, OptOptionsFromFlagsProto(opt_flags));
 
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
+
+  BisectInjectPasses bisect_inject_passes(
+      absl::GetFlag(FLAGS_bisect_inject_passes).value_or(""),
+      absl::GetFlag(FLAGS_bisect_inject_passes_count).value_or(-1));
+  if (absl::GetFlag(FLAGS_bisect_inject_passes).has_value()) {
+    options.registry_decorator = &bisect_inject_passes.decorator();
+  }
 
   OptMetadata metadata;
   XLS_ASSIGN_OR_RETURN(std::string optimized_ir,
@@ -188,6 +279,11 @@ int main(int argc, char** argv) {
     }
     std::cout << generator->GetAvailablePassesStr();
     return 0;
+  }
+  if (absl::GetFlag(FLAGS_bisect_inject_passes).has_value() !=
+      absl::GetFlag(FLAGS_bisect_inject_passes_count).has_value()) {
+    LOG(QFATAL) << "Must set both --bisect_inject_passes and "
+                   "--bisect_inject_passes_count or neither.";
   }
   if (positional_arguments.empty()) {
     LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <path>",
