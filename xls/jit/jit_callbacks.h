@@ -65,7 +65,7 @@ struct InstanceContextVTable {
   // event.
   const RecordTraceFn record_trace;
 
-  using CreateTraceBufferFn = std::string* (*)(InstanceContext * thiz);
+  using CreateTraceBufferFn = std::string* (*)(InstanceContext* thiz);
   // This is a shim to let JIT code create a buffer for accumulating trace
   // fragments.
   const CreateTraceBufferFn create_trace_buffer;
@@ -101,7 +101,7 @@ struct InstanceContextVTable {
   // information for the node.
   const RecordNodeResultFn record_node_result;
 
-  using AllocateBufferFn = void* (*)(InstanceContext * thiz, int64_t byte_size,
+  using AllocateBufferFn = void* (*)(InstanceContext* thiz, int64_t byte_size,
                                      int64_t alignment);
   // This is a shim to let the JIT allocate a large buffer on the heap for cases
   // where its required to avoid blowing out the stack.
@@ -130,12 +130,19 @@ struct InstanceContext {
     ctx.max_trace_verbosity_ = max_trace_verbosity.value_or(0);
     return ctx;
   }
-  static InstanceContext CreateForBlock() { return InstanceContext(); }
-  static InstanceContext CreateForProc(ProcInstance* inst,
-                                       std::vector<JitChannelQueue*> queues) {
+  static InstanceContext CreateForBlock(
+      std::optional<int64_t> max_trace_verbosity = 0) {
+    InstanceContext ctx;
+    ctx.max_trace_verbosity_ = max_trace_verbosity.value_or(0);
+    return ctx;
+  }
+  static InstanceContext CreateForProc(
+      ProcInstance* inst, std::vector<JitChannelQueue*> queues,
+      std::optional<int64_t> max_trace_verbosity = 0) {
     InstanceContext ret;
     ret.instance = inst;
     ret.channel_queues = std::move(queues);
+    ret.max_trace_verbosity_ = max_trace_verbosity.value_or(0);
     return ret;
   }
 
