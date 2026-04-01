@@ -680,6 +680,36 @@
         ]
       }
     },
+    "//dependency_support/z3:extension.bzl%z3_extension": {
+      "general": {
+        "bzlTransitiveDigest": "ev0Svk5FRbK4xmoAVCf8nmfu7z782cfMHlnUCnUPzRc=",
+        "usagesDigest": "XcncKIruPVMT5X2Sp9nI7oqBWy3LWGhmI4tkEc5ADjo=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "z3": {
+            "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
+            "ruleClassName": "http_archive",
+            "attributes": {
+              "urls": [
+                "https://github.com/Z3Prover/z3/archive/z3-4.14.1.tar.gz"
+              ],
+              "integrity": "sha256-gaAsLGTGTWw98jP1kYa5VieZCtoMTC/JAcnCWnByZyo=",
+              "strip_prefix": "z3-z3-4.14.1",
+              "build_file": "@@//dependency_support/z3:bundled.BUILD.bazel"
+            }
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "",
+            "bazel_tools",
+            "bazel_tools"
+          ]
+        ]
+      }
+    },
     "@@apple_rules_lint~//lint:extensions.bzl%linter": {
       "general": {
         "bzlTransitiveDigest": "g7izj5kLCmsajh8IospHh4ZQ35dyM0FIrA8D4HapAsM=",

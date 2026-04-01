@@ -76,6 +76,9 @@ bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "verible", version = "0.0.3933")
 
+z3_ext = use_extension("//dependency_support/z3:extension.bzl", "z3_extension")
+use_repo(z3_ext, "z3")
+
 # TODO: bazelbuild/bazel-central-registry#1020 - revisit when perfetto is in BCR.
 perfetto_ext = use_extension("//dependency_support/perfetto:extension.bzl", "perfetto_extension")
 use_repo(perfetto_ext, "perfetto")

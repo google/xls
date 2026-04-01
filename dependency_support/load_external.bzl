@@ -42,14 +42,6 @@ def load_external_repositories():
     repo_rules_hdl()
     repo_rules_pprof()
 
-    http_archive(
-        name = "z3",
-        urls = ["https://github.com/Z3Prover/z3/archive/z3-4.14.1.tar.gz"],
-        integrity = "sha256-gaAsLGTGTWw98jP1kYa5VieZCtoMTC/JAcnCWnByZyo=",
-        strip_prefix = "z3-z3-4.14.1",
-        build_file = Label("//dependency_support/z3:bundled.BUILD.bazel"),
-    )
-
     # Used by xlscc. Tagged 2024-02-16 (note: release is lagging tag), current as of 2024-06-26
     http_archive(
         name = "com_github_hlslibs_ac_types",

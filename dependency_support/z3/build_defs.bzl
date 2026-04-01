@@ -75,8 +75,8 @@ def gen_srcs():
     """Runs provided Python scripts for source generation."""
     copy_cmds = []
     for out in MK_MAKE_SRCS + MK_MAKE_HDRS:
-        copy_cmds.append("cp external/z3/" + out + " $(@D)/$$(dirname " + out + ")")
-    copy_cmds = ";\n".join(copy_cmds) + ";\n"
+        copy_cmds.append("cp tmp_z3/" + out + " $(@D)/" + out)
+    copy_cmds = " && ".join(copy_cmds)
 
     native.genrule(
         name = "gen_srcs",
@@ -86,12 +86,16 @@ def gen_srcs():
         ] + native.glob(["src/**", "examples/**"], exclude = GEN_HDRS + GEN_SRCS),
         tools = ["scripts/mk_make.py"],
         outs = MK_MAKE_SRCS + MK_MAKE_HDRS,
-        # We can't use $(location) here, since the bundled script internally
+        # We can't use $(location) for all files here, since the bundled script internally
         # makes assumptions about where files are located.
-        cmd = "python3=`realpath $(PYTHON3)`; " +
-              "cd external/z3; " +
+        # We copy all sources to a temporary directory so mk_make.py can write to them.
+        cmd = "python3=$$(realpath $(PYTHON3)); " +
+              "Z3_ROOT=$$(dirname $$(dirname $$(realpath $(location scripts/mk_make.py)))); " +
+              "mkdir -p tmp_z3 && cp -R $${Z3_ROOT}/* tmp_z3/; " +
+              "CUR_DIR=$$(pwd); " +
+              "cd tmp_z3; " +
               "$$python3 scripts/mk_make.py; " +
-              "cd ../..;" +
+              "cd $${CUR_DIR}; " +
               copy_cmds,
         toolchains = ["@rules_python//python:current_py_toolchain"],
     )
