@@ -206,7 +206,7 @@ top fn main(op1: bits[17], op2: bits[3]) -> bits[17][4] {
         'add_module', ir_text
     ).verilog_text
     self.assertIn('module add_module', verilog_text)
-    self.assertIn('p0_op0 + p0_op1', verilog_text)
+    self.assertIn('op0__input_flop + op1__input_flop', verilog_text)
 
   def test_parallel_add_verilog(self):
     add8_ir = opgen.generate_ir_package(
