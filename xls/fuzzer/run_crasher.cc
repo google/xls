@@ -46,6 +46,13 @@ ABSL_FLAG(bool, only_check_config, false,
 namespace xls {
 namespace {
 
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER)
+constexpr bool kCanRunIverilogSimulator = false;
+#else
+constexpr bool kCanRunIverilogSimulator = true;
+#endif
+
 // Runs the sample in the given run directory.
 absl::Status RealMain(const std::filesystem::path& crasher_path,
                       const std::filesystem::path& run_dir,
@@ -61,6 +68,14 @@ absl::Status RealMain(const std::filesystem::path& crasher_path,
   if (simulator.has_value()) {
     SampleOptions options = crasher.options();
     options.set_simulator(*simulator);
+    crasher = Sample(crasher.input_text(), options, crasher.testvector());
+  } else if (!kCanRunIverilogSimulator &&
+             crasher.options().simulator() == "iverilog" &&
+             crasher.options().simulate()) {
+    LOG(INFO)
+        << "Skipping iverilog simulator because MSAN/ASAN/TSAN is enabled.";
+    SampleOptions options = crasher.options();
+    options.set_simulate(false);
     crasher = Sample(crasher.input_text(), options, crasher.testvector());
   }
 
