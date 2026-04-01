@@ -81,6 +81,9 @@ message NodeAttributes {
   optional string ranges = 32;
   // If present the number of known leading sign bits.
   optional int64 leading_signs = 34;
+  // If true then the node is dead-after-synthesis or dominated by non-synth
+  // nodes.
+  optional bool dead_after_synthesis = 35;
 }
 
 message SourceLocation {

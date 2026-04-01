@@ -51,7 +51,9 @@
 #include "xls/passes/query_engine.h"
 #include "xls/passes/token_provenance_analysis.h"
 #include "xls/passes/union_query_engine.h"
+#include "xls/public/status_macros.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/schedule_util.h"
 #include "xls/visualization/ir_viz/node_attribute_visitor.h"
 #include "xls/visualization/ir_viz/visualization.pb.h"
 
@@ -103,11 +105,12 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
     Node* node,
     const absl::flat_hash_map<Node*, CriticalPathEntry>& critical_path_map,
     const QueryEngine& query_engine, const PipelineSchedule* schedule,
-    const DelayEstimator& delay_estimator,
-    const AreaEstimator& area_estimator) {
+    const DelayEstimator& delay_estimator, const AreaEstimator& area_estimator,
+    bool dead_after_synth) {
   AttributeVisitor visitor;
   XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
   viz::NodeAttributes attributes = visitor.attributes();
+  attributes.set_dead_after_synthesis(dead_after_synth);
   auto it = critical_path_map.find(node);
   if (it != critical_path_map.end()) {
     attributes.set_on_critical_path(true);
@@ -207,6 +210,8 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
                            PartialInfoQueryEngine(),
                            ProcStateRangeQueryEngine(), BitCountQueryEngine());
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synth,
+                       GetDeadAfterSynthesisNodes(function));
 
   using NodeDAG =
       absl::flat_hash_map<xls::Node*, absl::flat_hash_set<xls::Node*>>;
@@ -249,7 +254,8 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     XLS_ASSIGN_OR_RETURN(
         *graph_node->mutable_attributes(),
         NodeAttributes(node, node_to_critical_path_entry, query_engine,
-                       schedule, delay_estimator, area_estimator));
+                       schedule, delay_estimator, area_estimator,
+                       dead_after_synth.contains(node)));
   }
   viz::Node* implicit_sink = nullptr;
   auto get_implicit_sink = [&]() {
