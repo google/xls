@@ -483,7 +483,7 @@ void RoundtripIrFuzz(std::shared_ptr<Package> original) {
 }
 FUZZ_TEST(IrParserRoundTripTest, RoundtripIrFuzz).WithDomains(IrFuzzDomain());
 
-TEST(IrParserRoundTripTest, RoundtripIrFuzzRegression) {
+TEST(IrParserRoundTripTest, ParseCoverWithIllegalLabelRegression) {
   absl::StatusOr<std::unique_ptr<Package>> package =
       Parser::ParsePackage(R"xls_ir(package FuzzTest
 
