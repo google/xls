@@ -13,14 +13,8 @@
 // limitations under the License.
 // BEGIN_CONFIG
 // # proto-message: xls.fuzzer.CrasherConfigurationProto
-// exception: "SampleError: Result miscompare for sample 0:\nargs: (bits[4]:0x5,
-// bits[42]:0x1c2_fde8_8ba1); bits[36]:0xf778_7496; (bits[53]:0x0, bits[36]:0xa_aaaa_aaaa,
-// bits[3]:0x4); bits[53]:0x1_eef0_e92f_ffff; bits[28]:0xfff_ffff\nevaluated opt IR (JIT), evaluated
-// opt IR (interpreter), simulated =\n   (bits[53]:0x1_eef0_e92f_fffe, bits[31]:0x0,
-// bits[90]:0x3d_de1d_25ff_ffc0_0000_00fd, bits[19]:0x7_7d51, bits[19]:0x7_7d51)\nevaluated unopt IR
-// (JIT), evaluated unopt IR (interpreter), interpreted DSLX =\n   (bits[53]:0x1_eef0_e92f_fffe,
-// bits[31]:0x0, bits[90]:0x3d_de1d_25ff_ffdf_ffff_fffd, bits[19]:0x7_7d51, bits[19]:0x7_7d51)"
-// issue: https://github.com/google/xls/issues/4023
+// exception: "SampleError: Result miscompare for sample 0:\nargs: (bits[4]:0x5, bits[42]:0x1c2_fde8_8ba1); bits[36]:0xf778_7496; (bits[53]:0x0, bits[36]:0xa_aaaa_aaaa, bits[3]:0x4); bits[53]:0x1_eef0_e92f_ffff; bits[28]:0xfff_ffff\nevaluated opt IR (JIT), evaluated opt IR (interpreter), simulated =\n   (bits[53]:0x1_eef0_e92f_fffe, bits[31]:0x0, bits[90]:0x3d_de1d_25ff_ffc0_0000_00fd, bits[19]:0x7_7d51, bits[19]:0x7_7d51)\nevaluated unopt IR (JIT), evaluated unopt IR (interpreter), interpreted DSLX =\n   (bits[53]:0x1_eef0_e92f_fffe, bits[31]:0x0, bits[90]:0x3d_de1d_25ff_ffdf_ffff_fffd, bits[19]:0x7_7d51, bits[19]:0x7_7d51)"
+// issue: "https://github.com/google/xls/issues/4023"
 // sample_options {
 //   input_is_dslx: true
 //   sample_type: SAMPLE_TYPE_FUNCTION

@@ -69,6 +69,20 @@ def generate_crasher_regression_tests(name, srcs, prefix, failing = None, no_uno
             tags = tags.get(f, []) + (["broken", "manual"] if broken else []),
         )
 
+        # Run a test that just tries to parse the config even if the tested code
+        # is failing. This ensures that failures remain at least somewhat
+        # runnable.
+        sh_test(
+            name = test_name + "_check_config_valid",
+            srcs = ["//xls/fuzzer:run_crasher_sh"],
+            args = [fullpath] + ["--only_check_config"],
+            data = [
+                "//xls/fuzzer:run_crasher",
+                f,
+            ],
+            tags = tags.get(f, []),
+        )
+
     native.test_suite(
         name = "failing_{}".format(name),
         tags = ["broken", "manual"],

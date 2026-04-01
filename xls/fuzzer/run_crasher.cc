@@ -40,6 +40,8 @@ ABSL_FLAG(std::optional<std::string>, simulator, std::nullopt,
           "location, the default simulator is used.");
 ABSL_FLAG(bool, unopt_interpreter, true,
           "Should the interpreter be run on unopt-ir");
+ABSL_FLAG(bool, only_check_config, false,
+          "Only check config parses and do not run the sample.");
 
 namespace xls {
 namespace {
@@ -52,6 +54,10 @@ absl::Status RealMain(const std::filesystem::path& crasher_path,
                        GetFileContents(crasher_path));
 
   XLS_ASSIGN_OR_RETURN(Sample crasher, Sample::Deserialize(serialized_crasher));
+  if (absl::GetFlag(FLAGS_only_check_config)) {
+    // We didn't return an error from Deserialize, so config is valid.
+    return absl::OkStatus();
+  }
   if (simulator.has_value()) {
     SampleOptions options = crasher.options();
     options.set_simulator(*simulator);
