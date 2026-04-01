@@ -171,10 +171,14 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
   proto.set_id(function_ids.at(function));
 
   absl::flat_hash_map<Node*, CriticalPathEntry> node_to_critical_path_entry;
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synth,
+                       GetDeadAfterSynthesisNodes(function));
+  auto is_live = [&](Node* node) { return !dead_after_synth.contains(node); };
   if (schedule == nullptr) {
     absl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
         AnalyzeCriticalPath(function, /*clock_period_ps=*/std::nullopt,
-                            delay_estimator);
+                            delay_estimator, /*source_filter=*/is_live,
+                            /*sink_filter=*/is_live);
     if (critical_path.ok()) {
       for (CriticalPathEntry& entry : critical_path.value()) {
         node_to_critical_path_entry[entry.node] = entry;
@@ -188,7 +192,8 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     // a whole.
     for (int64_t stage = 0; stage < schedule->length(); ++stage) {
       auto is_in_stage = [&](Node* node) {
-        return schedule->IsScheduled(node) && schedule->cycle(node) == stage;
+        return schedule->IsScheduled(node) && schedule->cycle(node) == stage &&
+               is_live(node);
       };
       absl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
           AnalyzeCriticalPath(
@@ -210,8 +215,6 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
                            PartialInfoQueryEngine(),
                            ProcStateRangeQueryEngine(), BitCountQueryEngine());
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
-  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synth,
-                       GetDeadAfterSynthesisNodes(function));
 
   using NodeDAG =
       absl::flat_hash_map<xls::Node*, absl::flat_hash_set<xls::Node*>>;
