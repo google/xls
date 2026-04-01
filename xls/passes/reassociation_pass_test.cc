@@ -34,6 +34,7 @@
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
@@ -1465,6 +1466,25 @@ top fn __sample__main_0_next(__state: bits[29] id=1) -> bits[29] {
 }
 )ir"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+// Found by DSLX fuzzer 03/31/2026 (https://github.com/google/xls/issues/4023)
+//
+// Modified to be a bit clearer.
+TEST_F(ReassociationPassTest, NegateAdds) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x1 = fb.Param("x1", p->GetBitsType(8));
+  BValue x2 = fb.Param("x2", p->GetBitsType(8));
+  fb.Negate(fb.Add(fb.Add(fb.ZeroExtend(x1, 32), fb.Literal(UBits(1, 32))),
+                   fb.Add(fb.ZeroExtend(x2, 32), fb.Literal(UBits(1, 32)))));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Neg(m::Add(m::Add(m::ZeroExt(m::Param()), m::ZeroExt(m::Param())),
+                    m::Add(m::Literal(), m::Literal()))));
 }
 
 void IrFuzzReassociation(FuzzPackageWithArgs fuzz_package_with_args) {

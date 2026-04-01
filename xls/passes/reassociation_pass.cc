@@ -605,7 +605,25 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
     if (base_unsigned.op() == Op::kSMul) {
       unsigned_result_ = AssociativeElements::MakeLeaf(op);
     } else {
-      unsigned_result_ = base_unsigned.Negative().WithOverflow().WithOwner(op);
+      // We need to be sure that no extends occur for this to be safe in the
+      // unsigned domain since otherwise we'd need to ensure those extends are
+      // sign-extends. Since we can't annotate that in the associative elements
+      // representation we need to pessimize when this happens.
+      //
+      // NB If we did reassociation in conjunction with narrowing then we could
+      // reassociate the neg here anyway but that's not really possible. The
+      // fixedpoint should ensure we get all the way down eventually though.
+      bool multi_bit_width = !base_unsigned.is_leaf() && [&]() -> bool {
+        Type* first_ty = base_unsigned.all_elements().begin()->node->GetType();
+        return absl::c_any_of(base_unsigned.all_elements(),
+                              [&](const AssociativeElements::NodeData& data) {
+                                return data.node->GetType() != first_ty;
+                              });
+      }();
+      unsigned_result_ =
+          multi_bit_width
+              ? AssociativeElements::MakeLeaf(op)
+              : base_unsigned.Negative().WithOverflow().WithOwner(op);
     }
     return absl::OkStatus();
   }
