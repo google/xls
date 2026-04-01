@@ -643,6 +643,36 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//dependency_support/com_github_facebook_zstd:extension.bzl%zstd_extension": {
+      "general": {
+        "bzlTransitiveDigest": "gfWEICtwPC+L5Th6oqNr0HIGt1SGYQDkU7TeuZzv8sU=",
+        "usagesDigest": "K7D/yPEHbS6yg/V6dsKqRGpudP+bpgnIp3bS/hnxtpU=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "zstd": {
+            "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
+            "ruleClassName": "http_archive",
+            "attributes": {
+              "sha256": "9ace5a1b3c477048c6e034fe88d2abb5d1402ced199cae8e9eef32fdc32204df",
+              "strip_prefix": "zstd-fdfb2aff39dc498372d8c9e5f2330b692fea9794",
+              "urls": [
+                "https://github.com/facebook/zstd/archive/fdfb2aff39dc498372d8c9e5f2330b692fea9794.zip"
+              ],
+              "build_file": "@@//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel"
+            }
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "",
+            "bazel_tools",
+            "bazel_tools"
+          ]
+        ]
+      }
+    },
     "//dependency_support/perfetto:extension.bzl%perfetto_extension": {
       "general": {
         "bzlTransitiveDigest": "i+jcE80IxzB7GMTOJpFurg90VC0aB2tAsoiBP3mnHcM=",

@@ -50,16 +50,3 @@ def load_external_repositories():
         strip_prefix = "ac_types-4.8.0",
         build_file = Label("//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel"),
     )
-
-    # Used in C++ tests of the ZSTD Module
-    # Version fdfb2aff released on 2024-07-31
-    # https://github.com/facebook/zstd/commit/fdfb2aff39dc498372d8c9e5f2330b692fea9794
-    # Updated 2024-08-08
-    # Note: this exists in BCR, but TODO: include :decodecorpus
-    http_archive(
-        name = "zstd",
-        sha256 = "9ace5a1b3c477048c6e034fe88d2abb5d1402ced199cae8e9eef32fdc32204df",
-        strip_prefix = "zstd-fdfb2aff39dc498372d8c9e5f2330b692fea9794",
-        urls = ["https://github.com/facebook/zstd/archive/fdfb2aff39dc498372d8c9e5f2330b692fea9794.zip"],
-        build_file = Label("//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel"),
-    )
