@@ -95,12 +95,34 @@ class Proc : public FunctionBase {
     return state_elements_.contains(name);
   }
 
+  // Remove legacy getters after all downstream passes migrate logic.
   StateRead* GetStateRead(int64_t index) const {
+    return GetStateReads(index).front();
+  }
+
+  StateRead* GetStateReadByStateElement(StateElement* state_element) const {
+    return GetStateReadsByStateElement(state_element).front();
+  }
+
+  // Get state reads for a state element at the given index.
+  absl::Span<StateRead* const> GetStateReads(int64_t index) const {
     return state_reads_.at(GetStateElement(index));
   }
-  StateRead* GetStateReadByStateElement(StateElement* state_element) const {
+
+  // Get state reads for a state element.
+  absl::Span<StateRead* const> GetStateReadsByStateElement(
+      StateElement* state_element) const {
     return state_reads_.at(state_element);
   }
+
+  // Remove a StateRead node from the list of StateReads for the given state
+  // element.
+  absl::Status RemoveStateRead(StateRead* state_read);
+
+  // Create a new StateRead node for the given state element and add it to the
+  // list of StateReads for that state element.
+  absl::StatusOr<StateRead*> MakeStateRead(StateElement* state_element,
+                                           std::optional<Node*> predicate);
 
   // Returns the index of the given state element in the vector of state
   // elements.
@@ -403,8 +425,8 @@ class Proc : public FunctionBase {
   absl::flat_hash_map<std::string, std::unique_ptr<StateElement>>
       state_elements_;
 
-  // Map of the unique StateRead node for each state element.
-  absl::flat_hash_map<StateElement*, StateRead*> state_reads_;
+  // Map of StateRead nodes for each state element.
+  absl::flat_hash_map<StateElement*, std::vector<StateRead*>> state_reads_;
 
   // Vector of state element pointers. Kept in sync with the state_elements_
   // map. Enables easy, stable iteration over state elements. With this vector,
