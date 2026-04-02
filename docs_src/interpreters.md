@@ -25,18 +25,19 @@ XLS supports multiple execution and validation mechanisms across different abstr
 
 - **IR-level Simulation**
   - Supports LLVM-based JIT compilation as well as Ahead-of-Time (AOT) compilation
-  - Includes an interpreter for functional validation of IR
   - Enables cycle-accurate simulation using XLS Block IR after code generation
   - JIT/AOT options compile to native machine code for high-performance simulation.
 
 - **Code Generation (Hardware Path)**
-  - Converts XLS IR into Verilog/SystemVerilog
-  - Enables synthesis of hardware designs
-  - Supports both combinational and pipelined circuit generation
 
-- **Netlist Simulation**
-  - Evaluates synthesized netlists using cell libraries
-  - Used for post-synthesis validation
+  - Converts XLS IR into Verilog/SystemVerilog
+  -  Enables generation of synthesizable hardware designs
+  -  Supports both combinational and pipelined circuit generation
+
+- **Simulation and Validation**
+
+  -  Generated Verilog can be simulated using external simulators (e.g., Verilator)
+  -  Supports validation at both RTL and post-synthesis (netlist) levels
 
 
 ### Why this matters ?
