@@ -646,22 +646,27 @@ std::string Attribute::ToString() const {
   std::string args;
   if (!attribute_data_.args().empty()) {
     absl::StrAppend(&args, "(");
+    std::vector<std::string> pieces;
     for (const AttributeData::Argument& next : attribute_data_.args()) {
-      absl::StrAppend(
-          &args,
-          absl::visit(Visitor{
-                          [](auto arg) {
-                            return absl::Substitute("$0 = $1", arg.first,
-                                                    arg.second);
-                          },
-                          [](const AttributeData::StringLiteralArgument& arg) {
-                            return arg.text;
-                          },
-                          [](const std::string& arg) { return arg; },
-                      },
-                      next));
+      pieces.push_back(absl::visit(
+          Visitor{
+              [&](const AttributeData::StringKeyValueArgument& arg) {
+                if (arg.is_backticked) {
+                  return absl::Substitute("$0 = `$1`", arg.first, arg.second);
+                }
+                return absl::Substitute("$0 = \"$1\"", arg.first, arg.second);
+              },
+              [](const AttributeData::IntKeyValueArgument& arg) {
+                return absl::Substitute("$0 = $1", arg.first, arg.second);
+              },
+              [](const AttributeData::StringLiteralArgument& arg) {
+                return absl::Substitute("\"$0\"", arg.text);
+              },
+              [](const std::string& arg) { return arg; },
+          },
+          next));
     }
-    absl::StrAppend(&args, ")");
+    absl::StrAppend(&args, absl::StrJoin(pieces, ", "), ")");
   }
   return absl::Substitute("#[$0$1]",
                           AttributeKindToString(attribute_data_.kind()), args);

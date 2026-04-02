@@ -831,9 +831,11 @@ Parser::ParseAttributeArguments() {
     if (delim->kind() == TokenKind::kEquals) {
       XLS_RETURN_IF_ERROR(DropToken());
       XLS_ASSIGN_OR_RETURN(Token rhs, PopToken());
-      if (rhs.kind() == TokenKind::kString) {
+      if (rhs.kind() == TokenKind::kString ||
+          rhs.kind() == TokenKind::kBacktickString) {
         result.push_back(AttributeData::StringKeyValueArgument(
-            lhs.GetStringValue(), rhs.GetStringValue()));
+            lhs.GetStringValue(), rhs.GetStringValue(),
+            rhs.kind() == TokenKind::kBacktickString));
       } else if (rhs.kind() == TokenKind::kNumber) {
         XLS_ASSIGN_OR_RETURN(int64_t int_value, rhs.GetValueAsInt64());
         result.push_back(AttributeData::IntKeyValueArgument(
@@ -910,6 +912,21 @@ absl::StatusOr<QuickCheckTestCases> Parser::GetQuickCheckTestCases(
   return ParseErrorStatus(
       *attribute.GetSpan(),
       "Expected 'exhaustive' or 'test_count' in quickcheck attribute");
+}
+
+absl::Status Parser::ValidateFuzzTestAttribute(const Attribute& attribute) {
+  for (const AttributeData::Argument& arg : attribute.args()) {
+    if (auto* kv = std::get_if<AttributeData::StringKeyValueArgument>(&arg)) {
+      if (kv->first == "domains" && kv->is_backticked) {
+        continue;
+      }
+    }
+    return ParseErrorStatus(
+        *attribute.GetSpan(),
+        "The 'fuzz_test' attribute requires a 'domains' argument that is a "
+        "backtick-quoted DSLX string.");
+  }
+  return absl::OkStatus();
 }
 
 absl::Status Parser::UnsupportedAttributeError(const Attribute& attribute) {
@@ -1018,6 +1035,7 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
         is_test = true;
         break;
       case AttributeKind::kFuzzTest:
+        XLS_RETURN_IF_ERROR(ValidateFuzzTestAttribute(*next));
         test_attributes.push_back(next->ToString());
         break;
 

@@ -513,4 +513,24 @@ bar  // another thing
   }
 }
 
+TEST(ScannerTest, BacktickStrings) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
+                           ToTokens("`u32:0..1` `` `[u32:0, u32:10]`"));
+  ASSERT_EQ(3, tokens.size());
+  EXPECT_EQ(tokens[0].kind(), TokenKind::kBacktickString);
+  EXPECT_EQ(*tokens[0].GetValue(), "u32:0..1");
+  EXPECT_EQ(tokens[1].kind(), TokenKind::kBacktickString);
+  EXPECT_EQ(*tokens[1].GetValue(), "");
+  EXPECT_EQ(tokens[2].kind(), TokenKind::kBacktickString);
+  EXPECT_EQ(*tokens[2].GetValue(), "[u32:0, u32:10]");
+}
+
+TEST(ScannerTest, UnterminatedBacktickString) {
+  EXPECT_THAT(
+      ToTokens("`unterminated"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "Reached end of file without finding a closing backtick.")));
+}
+
 }  // namespace xls::dslx

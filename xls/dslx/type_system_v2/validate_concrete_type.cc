@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
@@ -28,6 +29,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
 #include "re2/re2.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -38,7 +40,11 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_utils.h"
@@ -296,6 +302,54 @@ class TypeValidator : public AstNodeVisitorWithDefault {
           file_table_);
     }
     return DefaultHandler(cast);
+  }
+
+  absl::Status HandleFunction(const Function* node) override {
+    std::optional<const Attribute*> fuzz_test_attr =
+        GetAttribute(node, AttributeKind::kFuzzTest);
+    if (!fuzz_test_attr.has_value()) {
+      return DefaultHandler(node);
+    }
+
+    if (node->params().empty()) {
+      return TypeInferenceErrorStatus(
+          fuzz_test_attr.value()->GetSpan().value(), nullptr,
+          absl::StrFormat("fuzz_test attribute is only valid for functions "
+                          "with at least 1 parameter; function `%s` has 0",
+                          node->identifier()),
+          file_table_);
+    }
+
+    for (const AttributeData::Argument& arg : fuzz_test_attr.value()->args()) {
+      if (auto* kv = std::get_if<AttributeData::StringKeyValueArgument>(&arg)) {
+        if (kv->first == "domains" && kv->is_backticked) {
+          // Force it to be interpreted as a tuple.
+          std::string wrapped_domains = absl::StrCat("(", kv->second, ")");
+          Scanner scanner(*node->owner()->file_table(),
+                          node->span().start().fileno(), wrapped_domains);
+          Parser parser(node->owner()->name(), &scanner);
+          Bindings bindings;
+          XLS_ASSIGN_OR_RETURN(Expr * domains_expr,
+                               parser.ParseExpression(bindings));
+          int64_t domain_count = 1;
+          if (const auto* tuple = dynamic_cast<const XlsTuple*>(domains_expr)) {
+            domain_count = tuple->members().size();
+          }
+          if (domain_count != node->params().size()) {
+            return TypeInferenceErrorStatus(
+                fuzz_test_attr.value()->GetSpan().value(), nullptr,
+                absl::StrFormat(
+                    "fuzz_test attribute has %d domain argument%s, but "
+                    "function `%s` has %d parameter%s",
+                    domain_count, domain_count == 1 ? "" : "s",
+                    node->identifier(), node->params().size(),
+                    node->params().size() == 1 ? "" : "s"),
+                file_table_);
+          }
+        }
+      }
+    }
+    return DefaultHandler(node);
   }
 
   // TODO: In type_annotation_resolver.cc ResolveElementType, if the container
