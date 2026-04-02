@@ -257,6 +257,9 @@ class SideEffectExpressionFinder : public AstNodeVisitorWithDefault {
 class CollectNameRefs : public AstNodeVisitorWithDefault {
  public:
   absl::Status HandleNameRef(const NameRef* node) override {
+    if (node->IsBuiltin()) {
+      return DefaultHandler(node);
+    }
     if (node->GetDefiner() == nullptr ||
         (node->GetDefiner()->kind() != AstNodeKind::kFunction &&
          node->GetDefiner()->kind() != AstNodeKind::kImport)) {
@@ -352,6 +355,7 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
   //     map(arr, lambda_capture{x: x}.call)
   //   }
   absl::Status HandleLambda(const Lambda* node) override {
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
     Module* module = node->owner();
     Function* original_fn = node->function();
     Span span = node->span();
@@ -471,6 +475,9 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
         -> std::optional<AstNode*> {
       if (node->kind() == AstNodeKind::kNameRef) {
         const NameRef* name_ref = absl::down_cast<const NameRef*>(node);
+        if (name_ref->IsBuiltin()) {
+          return std::nullopt;
+        }
         const auto* name_def = std::get<const NameDef*>(name_ref->name_def());
         if (name_def != nullptr && seen.contains(name_def)) {
           NameRef* self_nr = node->owner()->Make<NameRef>(

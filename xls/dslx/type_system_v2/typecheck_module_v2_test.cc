@@ -9679,6 +9679,31 @@ const_assert!(ARR[1] == u16:2);
               TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][6]")));
 }
 
+TEST(TypecheckV2Test, NestedLambdas) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32[4][5] {
+  let z = zero!<u32[4][5]>();
+  map(enumerate(z), | tup | {
+    let i = tup.0;
+    let arr = tup.1;
+    map(enumerate(arr), | tup2 | {
+      let j = tup2.0;
+      i + j
+    })
+  })
+}
+
+const_assert!(main() == [[u32:0, 1, 2, 3],
+        [u32:1, 2, 3, 4],
+        [u32:2, 3, 4, 5],
+        [u32:3, 4, 5, 6],
+        [u32:4, 5, 6, 7]]);
+
+)",
+      TypecheckSucceeds(HasNodeWithType("main", "() -> uN[32][4][5]")));
+}
+
 TEST(TypecheckV2Test, LambdaWithImplicitReturn) {
   EXPECT_THAT(
       R"(
