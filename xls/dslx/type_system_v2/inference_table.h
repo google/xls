@@ -163,6 +163,7 @@ struct ParametricInvocationDetails {
   const Function* callee;
   std::optional<const Function*> caller;
   const FunctionTypeAnnotation* parametric_free_function_type = nullptr;
+  std::optional<const StructDefBase*> target_struct_or_proc_def = std::nullopt;
 };
 
 // The details for a `ParametricContext` that is for a struct.
@@ -295,6 +296,14 @@ class ParametricContext {
     return std::nullopt;
   }
 
+  std::optional<const StructDefBase*> target_struct() const {
+    if (std::holds_alternative<ParametricStructDetails>(details_)) {
+      return std::get<ParametricStructDetails>(details_).struct_or_proc_def;
+    }
+    return std::get<ParametricInvocationDetails>(details_)
+        .target_struct_or_proc_def;
+  }
+
  private:
   static std::string DetailsToString(const Details& details) {
     return absl::visit(
@@ -420,7 +429,8 @@ class InferenceTable {
       std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
       std::optional<const TypeAnnotation*> self_type,
-      TypeInfo* invocation_type_info) = 0;
+      TypeInfo* invocation_type_info,
+      std::optional<const StructDefBase*> target_struct = std::nullopt) = 0;
 
   virtual absl::StatusOr<ParametricContext*> AddProcAliasParametricContext(
       const ProcAlias& alias, const ParametricEnv& env,
