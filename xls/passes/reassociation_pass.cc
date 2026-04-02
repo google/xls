@@ -614,8 +614,13 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
       // reassociate the neg here anyway but that's not really possible. The
       // fixedpoint should ensure we get all the way down eventually though.
       bool multi_bit_width = !base_unsigned.is_leaf() && [&]() -> bool {
-        Type* first_ty = base_unsigned.all_elements().begin()->node->GetType();
-        return absl::c_any_of(base_unsigned.all_elements(),
+        auto elements = base_unsigned.all_elements();
+        auto it = elements.begin();
+        if (it == elements.end()) {
+          return false;
+        }
+        Type* first_ty = it->node->GetType();
+        return absl::c_any_of(elements,
                               [&](const AssociativeElements::NodeData& data) {
                                 return data.node->GetType() != first_ty;
                               });
