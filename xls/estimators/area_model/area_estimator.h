@@ -41,6 +41,11 @@ class AreaEstimator {
   virtual absl::StatusOr<double> GetOperationAreaInSquareMicrons(
       Node* node) const = 0;
 
+  // Returns the estimated area of the given function base in square
+  // micrometers.
+  virtual absl::StatusOr<double> GetFunctionBaseAreaInSquareMicrons(
+      FunctionBase* fb) const;
+
   // Returns the estimated area of n-bit register
   absl::StatusOr<double> GetRegisterAreaInSquareMicrons(
       const uint64_t& register_width) const;

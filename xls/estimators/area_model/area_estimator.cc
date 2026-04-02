@@ -27,8 +27,21 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 
 namespace xls {
+
+absl::StatusOr<double> AreaEstimator::GetFunctionBaseAreaInSquareMicrons(
+    FunctionBase* fb) const {
+  double total_area_um2 = 0.0;
+
+  for (Node* node : fb->nodes()) {
+    XLS_ASSIGN_OR_RETURN(double area, GetOperationAreaInSquareMicrons(node));
+    total_area_um2 += area;
+  }
+  return total_area_um2;
+}
 
 absl::StatusOr<double> AreaEstimator::GetRegisterAreaInSquareMicrons(
     const uint64_t& register_width) const {

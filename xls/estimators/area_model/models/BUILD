@@ -40,6 +40,7 @@ estimator_model_group(
         ":area_model_asap7",
         ":area_model_sky130",
         ":area_model_unit",
+        ":area_model_unit_with_default_recursive_op_handling",
     ],
 )
 
@@ -59,4 +60,10 @@ area_model(
     name = "area_model_unit",
     srcs = ["unit.textproto"],
     model_name = "unit",
+)
+
+area_model(
+    name = "area_model_unit_with_default_recursive_op_handling",
+    srcs = ["unit_with_default_recursive_op_handling.textproto"],
+    model_name = "unit_with_default_recursive_op_handling",
 )
