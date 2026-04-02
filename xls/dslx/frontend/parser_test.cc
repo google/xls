@@ -4523,4 +4523,101 @@ struct S {
                        HasSubstr("#[fuzz_test] is only valid on a function.")));
 }
 
+TEST_F(ParserTest, FuzzTestAttributeSingleArg) {
+  const char* kProgram = R"(
+#[fuzz_test(domains=`u32:0..1`)]
+fn f(x: u32) {}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_EQ(f->attributes().size(), 1);
+  EXPECT_EQ(f->attributes()[0]->attribute_kind(), AttributeKind::kFuzzTest);
+  ASSERT_EQ(f->attributes()[0]->args().size(), 1);
+  auto arg = std::get<AttributeData::StringKeyValueArgument>(
+      f->attributes()[0]->args()[0]);
+  EXPECT_EQ(arg.first, "domains");
+  EXPECT_EQ(arg.second, "u32:0..1");
+  EXPECT_EQ(f->attributes()[0]->ToString(),
+            "#[fuzz_test(domains = `u32:0..1`)]");
+}
+
+TEST_F(ParserTest, FuzzTestAttributeComplexArgs) {
+  const char* kProgram = R"(
+enum Op : u32 { Add = 0, Sub = 1 }
+#[fuzz_test(domains=`[u32:0, u32:10], [Op::Add, Op::Sub]`)]
+fn f(x: u32[2], op: Op[2]) {}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  ASSERT_EQ(f->attributes().size(), 1);
+  EXPECT_EQ(f->attributes()[0]->attribute_kind(), AttributeKind::kFuzzTest);
+  ASSERT_EQ(f->attributes()[0]->args().size(), 1);
+  auto arg = std::get<AttributeData::StringKeyValueArgument>(
+      f->attributes()[0]->args()[0]);
+  EXPECT_EQ(arg.first, "domains");
+  EXPECT_EQ(arg.second, "[u32:0, u32:10], [Op::Add, Op::Sub]");
+}
+
+TEST_F(ParserTest, FuzzTestAttributeInvalidNoDomains) {
+  const char* kProgram = R"(
+#[fuzz_test(`u32:0..1`)]
+fn f(x: u32) {}
+)";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected attribute argument.")));
+}
+
+TEST_F(ParserTest, FuzzTestAttributeInvalidNoList) {
+  const char* kProgram = R"(
+#[fuzz_test()]
+fn f(x: u32) {}
+)";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected attribute argument.")));
+}
+
+TEST_F(ParserTest, FuzzTestAttributeInvalidInteger) {
+  const char* kProgram = R"(
+#[fuzz_test(domains=1)]
+fn f(x: u32) {}
+)";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("that is a backtick-quoted DSLX string")));
+}
+
+TEST_F(ParserTest, FuzzTestInvalidArgInvalidInteger) {
+  const char* kProgram = R"(
+#[fuzz_test(foo=1)]
+fn f(x: u32) {}
+)";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("that is a backtick-quoted DSLX string")));
+}
+
+TEST_F(ParserTest, FuzzTestAttributeNoDomainInteger) {
+  const char* kProgram = R"(
+#[fuzz_test(1)]
+fn f(x: u32) {}
+)";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected attribute argument")));
+}
+
+TEST_F(ParserTest, FuzzTestAttributeInvalidArgName) {
+  const char* kProgram = R"(
+#[fuzz_test(foo=`u32:0..1`)]
+fn f(x: u32) {}
+)";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("that is a backtick-quoted DSLX string")));
+}
+
 }  // namespace xls::dslx
