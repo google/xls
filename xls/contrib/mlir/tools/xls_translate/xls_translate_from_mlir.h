@@ -115,7 +115,8 @@ LogicalResult MlirXlsToXlsTranslate(
     Operation* op, llvm::raw_ostream& output,
     MlirXlsToXlsTranslateOptions options = {},
     MetricsReporter metrics_reporter = nullptr,
-    SchedulingMetricsReporter scheduling_metrics_reporter = nullptr);
+    SchedulingMetricsReporter scheduling_metrics_reporter = nullptr,
+    std::unique_ptr<::xls::Package>* xls_package = nullptr);
 
 // Translates an operation with XLS dialect to XLS IR.
 FailureOr<std::unique_ptr<::xls::Package>> mlirXlsToXls(

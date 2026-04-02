@@ -1741,7 +1741,8 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
 LogicalResult MlirXlsToXlsTranslate(
     Operation* op, llvm::raw_ostream& output,
     MlirXlsToXlsTranslateOptions options, MetricsReporter metrics_reporter,
-    SchedulingMetricsReporter scheduling_metrics_reporter) {
+    SchedulingMetricsReporter scheduling_metrics_reporter,
+    std::unique_ptr<Package>* xls_package) {
   // It is important to ensure the XlsDialect is loaded, because it registers
   // the XlsRegionOpInterface external model for FuncOp.
   op->getContext()->getOrLoadDialect<XlsDialect>();
@@ -1784,6 +1785,9 @@ LogicalResult MlirXlsToXlsTranslate(
   if (!options.generate_verilog) {
     std::string out = (*package)->DumpIr();
     output << out;
+    if (xls_package != nullptr) {
+      *xls_package = std::move(*package);
+    }
     return success();
   }
 
@@ -1813,6 +1817,9 @@ LogicalResult MlirXlsToXlsTranslate(
   }
 
   output << xls_codegen_results->codegen_result.verilog_text;
+  if (xls_package != nullptr) {
+    *xls_package = std::move(*package);
+  }
   return success();
 }
 

@@ -33,6 +33,7 @@ cc_library(
     name = "area_estimator",
     srcs = ["area_estimator.cc"],
     hdrs = ["area_estimator.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -68,6 +69,7 @@ cc_library(
     name = "area_estimators",
     srcs = ["area_estimators.cc"],
     hdrs = ["area_estimators.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":area_estimator",
         "//xls/ir",
