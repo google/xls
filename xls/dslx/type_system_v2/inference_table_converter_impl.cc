@@ -840,7 +840,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
-        caller_context, callee_variable, parametric_free_function_type));
+        caller_or_target_struct_context, callee_variable,
+        parametric_free_function_type));
     XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
         caller_context, *table_.GetTypeVariable(invocation),
         parametric_free_function_type->return_type()));
