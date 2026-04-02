@@ -4115,6 +4115,25 @@ const_assert!(main() == 6);
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, MapLambdaWithParentParametric) {
+  constexpr std::string_view kModule = R"(
+fn add_five<N: u32>(arr: u32[4]) -> uN[N][4] {
+  let x = uN[N]:5;
+  map(arr, | i | { i as uN[N] + x })
+}
+
+fn main() -> u16 {
+  add_five<16>(u32:0..4)[1]
+}
+
+const_assert!(main() == 6);
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, MapLambdaImplicitReturn) {
   constexpr std::string_view kModule = R"(
 fn add_five(arr: u32[4]) -> u32[4] {
@@ -4124,6 +4143,29 @@ fn add_five(arr: u32[4]) -> u32[4] {
 
 fn main() -> u32 {
   add_five(u32:0..4)[1]
+}
+
+const_assert!(main() == 6);
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MapLambdaWithParentParametricCallsFn) {
+  constexpr std::string_view kModule = R"(
+fn add<N: u32>(val: u32, delta: uN[N]) -> uN[N] {
+  val as uN[N] + delta
+}
+
+fn use_lambda<N: u32>(arr: u32[4]) -> uN[N][4] {
+  let x = uN[N]:5;
+  map(arr, | i | -> uN[N] { add<N>(i, x) })
+}
+
+fn main() -> u16 {
+  use_lambda<16>(u32:0..4)[1]
 }
 
 const_assert!(main() == 6);

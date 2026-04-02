@@ -334,14 +334,17 @@ class InferenceTableImpl : public InferenceTable {
       std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
       std::optional<const TypeAnnotation*> self_type,
-      TypeInfo* invocation_type_info) override {
+      TypeInfo* invocation_type_info,
+      std::optional<const StructDefBase*> target_struct) override {
     VLOG(5) << "Add parametric invocation: " << node.ToString()
             << " from parent context: "
             << ::xls::dslx::ToString(parent_context);
     auto context = std::make_unique<ParametricContext>(
         parametric_contexts_.size(), &node,
-        ParametricInvocationDetails{&callee, caller}, invocation_type_info,
-        parent_context, self_type);
+        ParametricInvocationDetails{&callee, caller,
+                                    /*parametric_free_function_type=*/nullptr,
+                                    target_struct},
+        invocation_type_info, parent_context, self_type);
     const std::vector<ParametricBinding*>& bindings =
         callee.parametric_bindings();
     const std::vector<ExprOrType>& explicit_parametrics =

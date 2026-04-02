@@ -355,9 +355,7 @@ class FunctionConverter {
   std::optional<const ParametricEnv*> GetInvocationCalleeBindings(
       const Invocation* invocation) const {
     ParametricEnv key = GetParametricEnv();
-    return import_data_->GetRootTypeInfo(invocation->owner())
-        .value()
-        ->GetInvocationCalleeBindings(invocation, key);
+    return current_type_info_->GetInvocationCalleeBindings(invocation, key);
   }
 
   // Helpers for HandleBinop().
