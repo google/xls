@@ -16,6 +16,7 @@
 #define XLS_DATA_STRUCTURES_TRANSITIVE_CLOSURE_H_
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -24,6 +25,51 @@
 #include "xls/data_structures/inline_bitmap.h"
 
 namespace xls {
+
+// Compute the set of nodes reachable from a set of `starting_nodes` in a
+// directed graph where `adj[i].contains(j)` means there is an edge i -> j.
+template <typename V>
+absl::flat_hash_set<V> ReachableFrom(
+    absl::flat_hash_set<V> starting_nodes,
+    const absl::flat_hash_map<V, absl::flat_hash_set<V>>& adj) {
+  absl::flat_hash_set<V> reached = std::move(starting_nodes);
+  std::vector<V> worklist(reached.begin(), reached.end());
+  while (!worklist.empty()) {
+    V current = worklist.back();
+    worklist.pop_back();
+    auto it = adj.find(current);
+    if (it != adj.end()) {
+      for (const V& neighbor : it->second) {
+        if (reached.insert(neighbor).second) {
+          worklist.push_back(neighbor);
+        }
+      }
+    }
+  }
+  return reached;
+}
+
+// Compute the set of nodes reachable from a set of `starting_nodes` in a
+// directed graph where `adj[i].Get(j)` means there is an edge i -> j. `adj`
+// must be square, i.e. `adj.size()` must be equal to the bit-count of each
+// bitmap in `adj`.
+//
+// Use this overload when you have the set of starting nodes as a list or set of
+// indices.
+InlineBitmap ReachableFrom(absl::Span<const int64_t> starting_nodes,
+                           absl::Span<const InlineBitmap> adj);
+InlineBitmap ReachableFrom(const absl::flat_hash_set<int64_t>& starting_nodes,
+                           absl::Span<const InlineBitmap> adj);
+
+// Compute the set of nodes reachable from a set of `starting_nodes` in a
+// directed graph where `adj[i].Get(j)` means there is an edge i -> j. `adj`
+// must be square, i.e. `adj.size()` must be equal to the bit-count of each
+// bitmap in `adj`.
+//
+// Use this overload when you have the set of starting nodes already represented
+// as an `InlineBitmap` (of the same size as `adj`).
+InlineBitmap ReachableFrom(const InlineBitmap& starting_nodes,
+                           absl::Span<const InlineBitmap> adj);
 
 namespace internal {
 // Compute the transitive closure of a relation.

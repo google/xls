@@ -123,6 +123,7 @@ cc_library(
     deps = [
         ":block_conversion_pass",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:transitive_closure",
         "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:register",

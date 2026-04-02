@@ -274,11 +274,8 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(
                        ComputeStateDependencies(proc, context));
 
   // Compute an adjacency matrix for which state elements affect each other.
-  //
-  // The last element is the side-effecting nodes (all merged together).
   std::vector<InlineBitmap> state_dependencies_matrix(
-      proc->GetStateElementCount() + 1,
-      InlineBitmap(proc->GetStateElementCount()));
+      proc->GetStateElementCount(), InlineBitmap(proc->GetStateElementCount()));
   for (auto [elem, adj] :
        iter::zip(proc->StateElements(), state_dependencies_matrix)) {
     for (Next* next : proc->next_values(elem)) {
@@ -287,13 +284,11 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(
         adj.Union(state_dependencies.at(*next->predicate()));
       }
     }
-    // Avoid a copy of each state element's bitmap by extending after doing all
-    // the unions.
-    adj = std::move(adj).WithSize(proc->GetStateElementCount() + 1);
   }
 
-  // Add all the side-effecting nodes as additional edges which depend on their
-  // living state elements.
+  // Union all the side-effecting node dependencies to find the starting state
+  // elements.
+  InlineBitmap side_effecting_deps(proc->GetStateElementCount());
   for (Node* node : proc->nodes()) {
     if (!IsSideEffectingOrInvoke(node) ||
         node->OpIn({Op::kStateRead, Op::kNext, Op::kGate})) {
@@ -302,18 +297,14 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(
     if (node->op() == Op::kInvoke) {
       VLOG(4) << "Unioning " << node;
     }
-    state_dependencies_matrix.back().Union(state_dependencies.at(node));
+    side_effecting_deps.Union(state_dependencies.at(node));
   }
-  state_dependencies_matrix.back() =
-      std::move(state_dependencies_matrix.back())
-          .WithSize(proc->GetStateElementCount() + 1);
 
-  // Set of state elements which each state element affects.
-  state_dependencies_matrix =
-      TransitiveClosure(std::move(state_dependencies_matrix));
+  // Figure out which state elements are observable, by computing the set of
+  // nodes reachable from side-effecting nodes in the state-dependency graph.
+  const InlineBitmap observed =
+      ReachableFrom(side_effecting_deps, state_dependencies_matrix);
 
-  // Figure out which state elements are observable.
-  const InlineBitmap& observed = state_dependencies_matrix.back();
   // Gather unobservable state element indices into `to_remove`.
   std::vector<int64_t> to_remove;
   to_remove.reserve(proc->GetStateElementCount());

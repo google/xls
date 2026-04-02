@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -26,6 +27,7 @@
 #include "absl/types/span.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/transitive_closure.h"
 #include "xls/ir/block.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -138,18 +140,8 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveUnreadRegisters(
     }
   }
 
-  std::vector<Register*> worklist(visible_registers.begin(),
-                                  visible_registers.end());
-  while (!worklist.empty()) {
-    Register* current = worklist.back();
-    worklist.pop_back();
-
-    for (Register* source : can_receive_value_from[current]) {
-      if (visible_registers.insert(source).second) {
-        worklist.push_back(source);
-      }
-    }
-  }
+  visible_registers =
+      ReachableFrom(std::move(visible_registers), can_receive_value_from);
 
   std::vector<Register*> unread_registers;
   for (Register* reg : block->GetRegisters()) {

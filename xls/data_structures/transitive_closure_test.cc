@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <random>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "benchmark/benchmark.h"
@@ -39,6 +40,80 @@ using ::testing::ElementsAre;
 using ::testing::UnorderedElementsAre;
 
 using V = std::string;
+
+TEST(ReachableFromTest, Simple) {
+  HashRelation<V> rel;
+  rel["foo"].insert("bar");
+  rel["bar"].insert("baz");
+  rel["bar"].insert("qux");
+  rel["baz"].insert("qux");
+  rel["foo2"].insert("baz");
+
+  absl::flat_hash_set<V> starting_nodes;
+  starting_nodes.insert("foo");
+  absl::flat_hash_set<V> result =
+      ReachableFrom<V>(std::move(starting_nodes), rel);
+  EXPECT_THAT(result, UnorderedElementsAre("foo", "bar", "baz", "qux"));
+
+  starting_nodes.clear();
+  starting_nodes.insert("foo2");
+  result = ReachableFrom<V>(std::move(starting_nodes), rel);
+  EXPECT_THAT(result, UnorderedElementsAre("foo2", "baz", "qux"));
+}
+
+TEST(ReachableFromTest, SimpleDenseIndices) {
+  std::vector<InlineBitmap> rel{
+      InlineBitmap::FromBitsLsbIs0({false, false, true, false, false}),
+      InlineBitmap::FromBitsLsbIs0({false, false, false, false, false}),
+      InlineBitmap::FromBitsLsbIs0({false, true, false, false, false}),
+      InlineBitmap::FromBitsLsbIs0({true, false, false, false, false}),
+      InlineBitmap::FromBitsLsbIs0({false, true, false, false, true}),
+  };
+
+  InlineBitmap result =
+      ReachableFrom(absl::MakeConstSpan({int64_t{0}}), absl::MakeSpan(rel));
+  EXPECT_TRUE(result.Get(0));
+  EXPECT_TRUE(result.Get(1));
+  EXPECT_TRUE(result.Get(2));
+  EXPECT_FALSE(result.Get(3));
+  EXPECT_FALSE(result.Get(4));
+
+  result =
+      ReachableFrom(absl::flat_hash_set<int64_t>({3}), absl::MakeSpan(rel));
+  EXPECT_TRUE(result.Get(3));
+  EXPECT_TRUE(result.Get(0));
+  EXPECT_TRUE(result.Get(1));
+  EXPECT_TRUE(result.Get(2));
+  EXPECT_FALSE(result.Get(4));
+}
+
+TEST(ReachableFromTest, SimpleDenseBitmap) {
+  std::vector<InlineBitmap> rel{
+      InlineBitmap::FromBitsLsbIs0({false, false, true, false, false}),
+      InlineBitmap::FromBitsLsbIs0({false, false, false, false, false}),
+      InlineBitmap::FromBitsLsbIs0({false, true, false, false, false}),
+      InlineBitmap::FromBitsLsbIs0({true, false, false, false, false}),
+      InlineBitmap::FromBitsLsbIs0({false, true, false, false, true}),
+  };
+
+  InlineBitmap reached(5, false);
+  reached.Set(0, true);
+  InlineBitmap result = ReachableFrom(reached, absl::MakeSpan(rel));
+  EXPECT_TRUE(result.Get(0));
+  EXPECT_TRUE(result.Get(1));
+  EXPECT_TRUE(result.Get(2));
+  EXPECT_FALSE(result.Get(3));
+  EXPECT_FALSE(result.Get(4));
+
+  reached.SetAllBitsToFalse();
+  reached.Set(3, true);
+  result = ReachableFrom(reached, absl::MakeSpan(rel));
+  EXPECT_TRUE(result.Get(3));
+  EXPECT_TRUE(result.Get(0));
+  EXPECT_TRUE(result.Get(1));
+  EXPECT_TRUE(result.Get(2));
+  EXPECT_FALSE(result.Get(4));
+}
 
 TEST(TransitiveClosureTest, Simple) {
   HashRelation<V> rel;
