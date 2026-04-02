@@ -51,6 +51,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -466,7 +467,9 @@ DocRef FmtAttribute(const Attribute& attribute, DocArena& arena) {
 
   if (!attribute.args().empty()) {
     pieces.push_back(arena.oparen());
-    for (const AttributeData::Argument& arg : attribute.args()) {
+    const std::vector<AttributeData::Argument>& args = attribute.args();
+    for (size_t i = 0; i < args.size(); ++i) {
+      const AttributeData::Argument& arg = args[i];
       absl::visit(
           Visitor{
               [&](std::string str) { pieces.push_back(arena.MakeText(str)); },
@@ -479,11 +482,20 @@ DocRef FmtAttribute(const Attribute& attribute, DocArena& arena) {
                     absl::Substitute("$0=$1", arg.first, arg.second)));
               },
               [&](AttributeData::StringKeyValueArgument arg) {
-                pieces.push_back(arena.MakeText(
-                    absl::Substitute("$0=$1", arg.first, arg.second)));
+                if (arg.is_backticked) {
+                  pieces.push_back(arena.MakeText(
+                      absl::Substitute("$0=`$1`", arg.first, arg.second)));
+                } else {
+                  pieces.push_back(arena.MakeText(
+                      absl::Substitute("$0=$1", arg.first, arg.second)));
+                }
               },
           },
           arg);
+      if (i < args.size() - 1) {
+        pieces.push_back(arena.comma());
+        pieces.push_back(arena.space());
+      }
     }
     pieces.push_back(arena.cparen());
   }
@@ -2286,6 +2298,12 @@ DocRef Formatter::Format(const Function& n, bool is_test) {
   }
 
   std::vector<DocRef> fn_pieces;
+  std::optional<const Attribute*> fuzz_test_attr =
+      GetAttribute(&n, AttributeKind::kFuzzTest);
+  if (fuzz_test_attr.has_value()) {
+    fn_pieces.push_back(FmtAttribute(**fuzz_test_attr, arena_));
+  }
+
   if (n.extern_verilog_module().has_value()) {
     auto code_template = (*n.extern_verilog_module()).code_template();
     fn_pieces.push_back(
