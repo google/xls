@@ -643,6 +643,24 @@ xls_dslx_test(
     library = ":memory_proc_dslx",
 )
 
+xls_dslx_library(
+    name = "proc_vtrace_dslx",
+    srcs = ["proc_vtrace.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "proc_vtrace_fmt_test",
+    src = "proc_vtrace.x",
+)
+
+xls_dslx_test(
+    name = "proc_vtrace_dslx_test",
+    library = ":proc_vtrace_dslx",
+    dslx_test_args = {
+        "max_trace_verbosity": "10",
+    },
+)
+
 # -- tiny_adder sample
 
 xls_dslx_library(
