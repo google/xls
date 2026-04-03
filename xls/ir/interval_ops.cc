@@ -584,7 +584,7 @@ IntervalSet PerformVariadicOp(Calculate calc,
   }
 
   result_intervals.Normalize();
-  return MinimizeIntervals(result_intervals, /*size=*/16);
+  return MinimizeIntervals(result_intervals, /*size=*/kMaxExactCalculations);
 }
 
 template <typename Calculate>
@@ -1116,6 +1116,63 @@ IntervalSet Truncate(const IntervalSet& a, int64_t width) {
 }
 IntervalSet BitSlice(const IntervalSet& a, int64_t start, int64_t width) {
   return Truncate(Shrl(a, IntervalSet::Precise(UBits(start, 64))), width);
+}
+
+IntervalSet DynamicBitSlice(const IntervalSet& to_slice,
+                            const IntervalSet& start, int64_t width) {
+  if (to_slice.IsEmpty() || start.IsEmpty()) {
+    return IntervalSet(width);
+  }
+  CHECK(to_slice.IsNormalized());
+  CHECK(start.IsNormalized());
+
+  const int64_t input_width = to_slice.BitCount();
+
+  // Fast path: if the start index is precise, we can compute the result
+  // directly.
+  if (start.IsPrecise()) {
+    const int64_t shift_amount =
+        bits_ops::UnsignedBitsToSaturatedInt64(*start.GetPreciseValue());
+    if (shift_amount >= input_width) {
+      return IntervalSet::Precise(UBits(0, width));
+    }
+    return BitSlice(to_slice, shift_amount, width);
+  }
+
+  // Exact path: enumerate possible start indices when the set is small enough.
+  if (std::optional<int64_t> sz = start.Size();
+      sz.has_value() && *sz <= kMaxExactCalculations) {
+    IntervalSet result(width);
+    for (const Bits& s : start.Values()) {
+      const int64_t shift_amount = bits_ops::UnsignedBitsToSaturatedInt64(s);
+      IntervalSet sliced = (shift_amount >= input_width)
+                               ? IntervalSet::Precise(UBits(0, width))
+                               : BitSlice(to_slice, shift_amount, width);
+      result = IntervalSet::Combine(result, sliced);
+      result.Normalize();
+      if (result.IsMaximal()) {
+        return result;
+      }
+    }
+    result.Normalize();
+    // Avoid unbounded growth if the union gets too large.
+    if (result.NumberOfIntervals() > kMaxExactCalculations) {
+      result = MinimizeIntervals(std::move(result),
+                                 /*size=*/kMaxExactCalculations);
+    }
+    return result;
+  }
+
+  // If the start is always large enough to overshift, the result is always 0.
+  if (std::optional<Bits> start_lb = start.LowerBound(); start_lb.has_value()) {
+    const int64_t min_shift = bits_ops::UnsignedBitsToSaturatedInt64(*start_lb);
+    if (min_shift >= input_width) {
+      return IntervalSet::Precise(UBits(0, width));
+    }
+  }
+
+  // Conservative fallback: if the start set is large, avoid enumeration.
+  return IntervalSet::Maximal(width);
 }
 
 IntervalSet Concat(absl::Span<IntervalSet const> sets) {
