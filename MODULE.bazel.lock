@@ -702,7 +702,7 @@
     },
     "//dependency_support/com_github_hlslibs_ac_types:extension.bzl%ac_types_extension": {
       "general": {
-        "bzlTransitiveDigest": "F083Kz+mzoag29Er7fykGXJJXK+Tsz/pymcYrC26gqM=",
+        "bzlTransitiveDigest": "QsS0JOD53I4x6O0PykZPjF27qKKI0g9jbZGl13DCLdM=",
         "usagesDigest": "6pIV8RCBMeAmswP91GVqOQMbPw3Kaj1ZZT1vOGfjyDE=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
