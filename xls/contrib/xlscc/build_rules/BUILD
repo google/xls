@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -37,6 +38,11 @@ exports_files(
     visibility = ["//xls:xls_users"],
 )
 
+cc_library(
+    name = "empty_reference",
+    visibility = ["//xls:xls_users"],
+)
+
 bzl_library(
     name = "xlscc_rules_bzl",
     srcs = ["xlscc_rules.bzl"],
@@ -52,6 +58,7 @@ bzl_library(
         "//xls/build_rules:xls_type_check_utils_bzl",
         "@bazel_skylib//lib:dicts",
         "@bazel_skylib//rules:common_settings",
+        "@rules_cc//cc/common",
     ],
 )
 

@@ -18,7 +18,6 @@
 # somewhat dependent on what becomes available in https://registry.bazel.build/.
 # Eventual goal that none of this is needed anymore and the file can be removed.
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//dependency_support/llvm:workspace.bzl", repo_llvm = "repo")
 load("//dependency_support/pprof:workspace.bzl", repo_rules_pprof = "repo")
 load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
@@ -41,12 +40,3 @@ def load_external_repositories():
     repo_llvm()
     repo_rules_hdl()
     repo_rules_pprof()
-
-    # Used by xlscc. Tagged 2024-02-16 (note: release is lagging tag), current as of 2024-06-26
-    http_archive(
-        name = "com_github_hlslibs_ac_types",
-        urls = ["https://github.com/hlslibs/ac_types/archive/refs/tags/4.8.0.tar.gz"],
-        sha256 = "238197203f8c6254a1d6ac6884e89e6f4c060bffb7473d336df4a1fb53ba7fab",
-        strip_prefix = "ac_types-4.8.0",
-        build_file = Label("//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel"),
-    )

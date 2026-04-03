@@ -49,8 +49,8 @@ def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test
             name = "{}_{}".format(name, seed),
             srcs = [srcfile],
             deps = [
-                "@com_github_hlslibs_ac_types//:ac_int",
-                "@com_github_hlslibs_ac_types//:ac_fixed",
+                "@ac_datatypes//:ac_int",
+                "@ac_datatypes//:ac_fixed",
             ],
         )
         test_outputs.append("{}_{}".format(name, seed))
@@ -64,7 +64,7 @@ def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test
         test_outputs.extend([
             "//xls/contrib/xlscc:synth_only_headers",
             "//xls/contrib/xlscc:xlscc",
-            "@com_github_hlslibs_ac_types//:ac_types_as_data",
+            "@ac_datatypes//:ac_types_as_data",
         ])
         cc_test(
             name = "{}_{}_test".format(name, seed),

@@ -16,6 +16,8 @@
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "append_xls_ir_verilog_generated_files",
@@ -101,13 +103,22 @@ def _get_xls_cc_ir_generated_files(args):
     return [args.get("ir_file")]
 
 def _get_xls_cc_ir_source_files(ctx):
+    cc_infos = [dep[CcInfo] for dep in ctx.attr.src_deps if CcInfo in dep]
+    for default_cc_header_target in ctx.attr._default_cc_header_targets:
+        if CcInfo in default_cc_header_target:
+            cc_infos.append(default_cc_header_target[CcInfo])
+    if CcInfo in ctx.attr._default_synthesis_header_target:
+        cc_infos.append(ctx.attr._default_synthesis_header_target[CcInfo])
+
+    transitive_headers = [info.compilation_context.headers for info in cc_infos]
+
     files = ([ctx.file.src] +
-             ctx.files._default_cc_header_files +
-             ctx.files._default_synthesis_header_files +
+             ctx.files._default_cc_header_targets +
+             ctx.files._default_synthesis_header_target +
              ctx.files.src_deps)
     if ctx.file.block:
         files.append(ctx.file.block)
-    return files
+    return depset(direct = files, transitive = transitive_headers).to_list()
 
 def _get_runfiles_for_xls_cc_ir(ctx):
     """Returns the runfiles from a 'xls_cc_ir' ctx.
@@ -118,33 +129,20 @@ def _get_runfiles_for_xls_cc_ir(ctx):
     Returns:
       The runfiles from a 'xls_cc_ir' ctx.
     """
-    transitive_runfiles = []
-
     files = _get_xls_cc_ir_source_files(ctx)
     runfiles = ctx.runfiles(files = files)
-    transitive_runfiles.append(ctx.attr
-        ._xlscc_tool[DefaultInfo].default_runfiles)
-    transitive_runfiles.append(ctx.attr
-        ._default_cc_header_files[DefaultInfo].default_runfiles)
-    transitive_runfiles.append(ctx.attr
-        ._default_synthesis_header_files[DefaultInfo].default_runfiles)
+
+    transitive_runfiles = []
+    transitive_runfiles.append(ctx.attr._xlscc_tool[DefaultInfo].default_runfiles)
+    for default_cc_header_target in ctx.attr._default_cc_header_targets:
+        transitive_runfiles.append(default_cc_header_target[DefaultInfo].default_runfiles)
+    transitive_runfiles.append(
+        ctx.attr._default_synthesis_header_target[DefaultInfo].default_runfiles,
+    )
     for dep in ctx.attr.src_deps:
         transitive_runfiles.append(dep[DefaultInfo].default_runfiles)
 
-    runfiles = runfiles.merge_all(transitive_runfiles)
-    return runfiles
-
-def _get_headers_for_xls_cc_ir(ctx):
-    transitive_runfiles = []
-    files = (ctx.files._default_cc_header_files +
-             ctx.files._default_synthesis_header_files +
-             ctx.files.src_deps)
-    runfiles = ctx.runfiles(files = files)
-    for dep in ctx.attr.src_deps:
-        if XlsccInfo in dep:
-            transitive_runfiles.append(dep[XlsccInfo].cc_headers)
-    runfiles = runfiles.merge_all(transitive_runfiles)
-    return runfiles
+    return runfiles.merge_all(transitive_runfiles)
 
 def _get_transitive_built_files_for_xls_cc_ir(ctx):
     """Returns the transitive built files from a 'xls_cc_ir' ctx.
@@ -161,10 +159,9 @@ def _get_transitive_built_files_for_xls_cc_ir(ctx):
     if ctx.attr.block:
         transitive_built_files.append(ctx.attr.block[DefaultInfo].files)
     transitive_built_files.append(ctx.attr._xlscc_tool[DefaultInfo].files)
-    transitive_built_files.append(ctx.attr
-        ._default_cc_header_files[DefaultInfo].files)
-    transitive_built_files.append(ctx.attr
-        ._default_synthesis_header_files[DefaultInfo].files)
+    for default_cc_header_target in ctx.attr._default_cc_header_targets:
+        transitive_built_files.append(default_cc_header_target[DefaultInfo].files)
+    transitive_built_files.append(ctx.attr._default_synthesis_header_target[DefaultInfo].files)
 
     for dep in ctx.attr.src_deps:
         transitive_built_files.append(dep[DefaultInfo].files)
@@ -222,26 +219,77 @@ def _xls_cc_ir_impl(ctx):
         _DEFAULT_XLSCC_ARGS,
     )
 
-    include_dirs = depset(transitive = [
+    xlscc_include_dirs = depset(transitive = [
         dep[XlsccIncludeInfo].include_dir
         for dep in ctx.attr.src_deps
         if XlsccIncludeInfo in dep
     ])
 
-    # Append to user paths.
-    xlscc_args["include_dirs"] = (
-        xlscc_args.get("include_dirs", "") + "," + ",".join(include_dirs.to_list()) + ",${PWD},./," +
-        ctx.genfiles_dir.path + "," + ctx.bin_dir.path + "," +
-        "xls/contrib/xlscc/synth_only," +
-        "xls/contrib/xlscc/synth_only/ac_compat," +
-        ctx.attr._default_cc_header_files.label.workspace_root  # This must the last directory in the list.
-    )
+    cc_infos = []
+    cc_infos.extend([dep[CcInfo] for dep in ctx.attr.src_deps if CcInfo in dep])
+    if CcInfo in ctx.attr._default_synthesis_header_target:
+        cc_infos.append(ctx.attr._default_synthesis_header_target[CcInfo])
+    for default_cc_header_target in ctx.attr._default_cc_header_targets:
+        if CcInfo in default_cc_header_target:
+            cc_infos.append(default_cc_header_target[CcInfo])
+
+    merged_compilation_context = cc_common.merge_cc_infos(cc_infos = cc_infos).compilation_context
+
+    user_includes = []
+    if "include_dirs" in xlscc_args:
+        user_includes = [d for d in xlscc_args["include_dirs"].split(",") if d]
+
+    transitive_includes = depset(
+        transitive = [
+            xlscc_include_dirs,
+            merged_compilation_context.includes,
+            merged_compilation_context.quote_includes,
+            merged_compilation_context.system_includes,
+        ],
+        order = "preorder",
+    ).to_list()
+
+    # Get the standard library includes from the toolchain and empty reference.
+    cc_toolchain = ctx.attr._cc_toolchain[cc_common.CcToolchainInfo]
+    toolchain_includes = []
+    if hasattr(cc_toolchain, "built_in_include_directories"):
+        toolchain_includes = cc_toolchain.built_in_include_directories
+    standard_compilation_context = ctx.attr._empty_reference[CcInfo].compilation_context
+    standard_includes = depset(transitive = [
+        standard_compilation_context.includes,
+        standard_compilation_context.quote_includes,
+        standard_compilation_context.system_includes,
+    ]).to_list()
+
+    # Filter out paths coming from the toolchain or pointing to the real standard library, unless
+    # provided explicitly by the user.
+    transitive_includes = [
+        d
+        for d in transitive_includes
+        if d not in toolchain_includes and d not in standard_includes
+    ]
+
+    # Priority: user includes, transitive includes, current directory, genfiles, bin
+    all_include_dirs = user_includes + transitive_includes + [
+        ".",
+        ctx.genfiles_dir.path,
+        ctx.bin_dir.path,
+        "${PWD}",
+        "./",
+    ]
+
+    xlscc_args["include_dirs"] = ",".join([d for d in all_include_dirs if d])
 
     # Append to user defines.
-    xlscc_args["defines"] = (
-        xlscc_args.get("defines", "") + "__SYNTHESIS__,__xlscc__," +
-        "__AC_OVERRIDE_OVF_UPDATE_BODY=,__AC_OVERRIDE_OVF_UPDATE2_BODY="
-    )
+    user_defines = []
+    if "defines" in xlscc_args:
+        user_defines = [d for d in xlscc_args["defines"].split(",") if d]
+    xlscc_args["defines"] = ",".join(user_defines + [
+        "__SYNTHESIS__",
+        "__xlscc__",
+        "__AC_OVERRIDE_OVF_UPDATE_BODY=",
+        "__AC_OVERRIDE_OVF_UPDATE2_BODY=",
+    ])
 
     ir_filename = get_output_filename_value(
         ctx,
@@ -293,7 +341,7 @@ def _xls_cc_ir_impl(ctx):
     # Get runfiles
     runfiles = _get_runfiles_for_xls_cc_ir(ctx)
 
-    cc_headers = _get_headers_for_xls_cc_ir(ctx)
+    cc_headers = merged_compilation_context.headers
 
     xlscc_log_filename = get_output_filename_value(
         ctx,
@@ -308,7 +356,12 @@ def _xls_cc_ir_impl(ctx):
         # The IR converter executable is a tool needed by the action.
         tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
-        inputs = runfiles.files,
+        inputs = depset(
+            direct = _get_xls_cc_ir_source_files(ctx),
+            transitive = [
+                runfiles.files,
+            ],
+        ),
         command = "set -o pipefail; {} $@ 2>&1 >{} | tee {}".format(
             ctx.executable._xlscc_tool.path,
             ir_file.path,
@@ -327,6 +380,12 @@ def _xls_cc_ir_impl(ctx):
     ]
 
 _xls_cc_ir_attrs = {
+    "_cc_toolchain": attr.label(
+        default = Label("@bazel_tools//tools/cpp:current_cc_toolchain"),
+    ),
+    "_empty_reference": attr.label(
+        default = Label("//xls/contrib/xlscc/build_rules:empty_reference"),
+    ),
     "_extra_xls_cc_flags": attr.label(
         doc = "Extra flags to pass to the XLS[cc] converter tool.",
         default = Label("//xls/contrib/xlscc/config:extra_xls_cc_args"),
@@ -405,14 +464,22 @@ _xls_cc_ir_attrs = {
         executable = True,
         cfg = "exec",
     ),
-    "_default_cc_header_files": attr.label(
-        doc = "Default C/C++ header files for xlscc.",
-        default = Label("@com_github_hlslibs_ac_types//:ac_types_as_data"),
+    "_default_cc_header_targets": attr.label_list(
+        doc = "Default C/C++ header targets for xlscc.",
+        default = [
+            Label("@ac_datatypes//:ac_channel"),
+            Label("@ac_datatypes//:ac_complex"),
+            Label("@ac_datatypes//:ac_fixed"),
+            Label("@ac_datatypes//:ac_float"),
+            Label("@ac_datatypes//:ac_int"),
+            Label("@ac_datatypes//:ac_std_float"),
+            Label("@ac_datatypes//:ac_sync"),
+        ],
         cfg = "target",
     ),
-    "_default_synthesis_header_files": attr.label(
-        doc = "Default synthesis header files for xlscc.",
-        default = Label("//xls/contrib/xlscc:synth_only_headers"),
+    "_default_synthesis_header_target": attr.label(
+        doc = "Default synthesis header target for xlscc.",
+        default = Label("//xls/contrib/xlscc:synth_only"),
         cfg = "target",
     ),
     "xlscc_log_file": attr.output(

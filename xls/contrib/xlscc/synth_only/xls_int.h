@@ -22,7 +22,7 @@
 #include "/xls_builtin.h"
 
 #define __AC_NAMESPACE ac_datatypes
-#include "external/com_github_hlslibs_ac_types/include/ac_int.h"
+#include "ac_datatypes/include/ac_int.h"
 
 #ifndef __SYNTHESIS__
 static_assert(false, "This header is only for synthesis");

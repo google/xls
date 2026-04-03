@@ -153,27 +153,50 @@ void XlsccTestBase::RunAcDatatypeTest(
   Run(args, expected, cpp_source, loc, clang_argv);
 }
 
+absl::StatusOr<std::string> XlsccTestBase::CreateAcDatatypesIncludeDir() const {
+  if (!temp_dir_.has_value()) {
+    XLS_ASSIGN_OR_RETURN(xls::TempDirectory temp_dir,
+                         xls::TempDirectory::Create());
+    temp_dir_ = std::move(temp_dir);
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::string ac_int_path,
+                       xls::GetXlsRunfilePath("include/ac_int.h",
+                                              /*package=*/"ac_datatypes"));
+
+  std::filesystem::path ac_datatypes_src =
+      std::filesystem::path(ac_int_path).parent_path().parent_path();
+
+  std::filesystem::path include_dir = temp_dir_->path();
+  std::filesystem::path ac_datatypes_symlink = include_dir / "ac_datatypes";
+
+  if (!std::filesystem::exists(ac_datatypes_symlink)) {
+    std::error_code ec;
+    std::filesystem::create_directory_symlink(ac_datatypes_src,
+                                              ac_datatypes_symlink, ec);
+    if (ec) {
+      return absl::InternalError(
+          absl::StrCat("Failed to create symlink: ", ec.message()));
+    }
+  }
+
+  return include_dir.string();
+}
+
 absl::StatusOr<std::vector<std::string>> XlsccTestBase::GetClangArgForIntTest()
     const {
-  XLS_ASSIGN_OR_RETURN(std::string ac_int_path,
-                       xls::GetXlsRunfilePath(
-                           "include/ac_int.h",
-                           /*package=*/"external/com_github_hlslibs_ac_types"));
   XLS_ASSIGN_OR_RETURN(
       std::string xls_int_path,
       xls::GetXlsRunfilePath("xls/contrib/xlscc/synth_only/xls_int.h"));
 
-  // Get the path that includes the ac_datatypes folder, so that the
-  //  ac_datatypes headers can be included with the form:
-  // #include "ac_datatypes/include/foo.h"
-  auto ac_int_dir = std::filesystem::path(ac_int_path);
-  ac_int_dir = ac_int_dir.parent_path().parent_path();
-
   auto xls_int_dir = std::filesystem::path(xls_int_path).parent_path();
+
+  XLS_ASSIGN_OR_RETURN(std::string ac_include_dir,
+                       CreateAcDatatypesIncludeDir());
 
   std::vector<std::string> argv;
   argv.push_back(std::string("-I") + xls_int_dir.string());
-  argv.push_back(std::string("-I") + ac_int_dir.string());
+  argv.push_back(std::string("-I") + ac_include_dir);
   argv.push_back("-D__SYNTHESIS__");
   return argv;
 }

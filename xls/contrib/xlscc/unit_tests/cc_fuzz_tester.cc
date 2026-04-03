@@ -168,11 +168,6 @@ class GeneratedTester : public XlsccTestBase {
       const xls::Value& expected, std::string_view cpp_source,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
     XLS_ASSIGN_OR_RETURN(
-        std::string ac_int_path,
-        xls::GetXlsRunfilePath(
-            "include/ac_int.h",
-            /*package=*/"external/com_github_hlslibs_ac_types"));
-    XLS_ASSIGN_OR_RETURN(
         std::string xls_int_path,
         xls::GetXlsRunfilePath("xls/contrib/xlscc/synth_only/xls_int.h"));
     XLS_ASSIGN_OR_RETURN(
@@ -180,12 +175,9 @@ class GeneratedTester : public XlsccTestBase {
         xls::GetXlsRunfilePath(
             "xls/contrib/xlscc/synth_only/ac_compat/ac_int.h"));
 
-    // Get the path that includes the ac_datatypes folder, so that the
-    //  ac_datatypes headers can be included with the form:
-    // #include "ac_datatypes/include/include/foo.h"
-    auto ac_int_dir = std::filesystem::path(ac_int_path);
-    ac_int_dir = ac_int_dir.parent_path().parent_path();
-    std::string ac_include = std::string("-I") + ac_int_dir.string();
+    XLS_ASSIGN_OR_RETURN(std::string ac_include_dir,
+                         CreateAcDatatypesIncludeDir());
+    std::string ac_include = std::string("-I") + ac_include_dir;
 
     std::string xls_int_dir = std::filesystem::path(xls_int_path).parent_path();
     std::string xls_include = std::string("-I") + xls_int_dir;

@@ -36,6 +36,7 @@ cc_library(
         "//xls/codegen:module_signature_cc_proto",
         "//xls/common:source_location",
         "//xls/common/file:get_runfile_path",
+        "//xls/common/file:temp_directory",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -293,7 +294,7 @@ cc_test(
     srcs = ["translator_metadata_test.cc"],
     data = [
         "//xls/contrib/xlscc:synth_only_headers",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
+        "@ac_datatypes//:ac_types_as_data",
     ],
     deps = [
         ":unit_test",
@@ -398,7 +399,7 @@ cc_test(
     srcs = ["synth_only_test.cc"],
     data = [
         "//xls/contrib/xlscc:synth_only_headers",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
+        "@ac_datatypes//:ac_types_as_data",
     ],
     shard_count = 10,
     tags = [
@@ -422,7 +423,7 @@ cc_test(
     srcs = ["xls_int_test.cc"],
     data = [
         "//xls/contrib/xlscc:synth_only_headers",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
+        "@ac_datatypes//:ac_types_as_data",
     ],
     shard_count = 10,
     tags = [
@@ -433,7 +434,7 @@ cc_test(
         ":unit_test",
         "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
-        "@com_github_hlslibs_ac_types//:ac_int",
+        "@ac_datatypes//:ac_int",
         "@googletest//:gtest",
     ],
 )
@@ -443,7 +444,7 @@ cc_test(
     srcs = ["xls_intrinsics_test.cc"],
     data = [
         "//xls/contrib/xlscc:synth_only_headers",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
+        "@ac_datatypes//:ac_types_as_data",
     ],
     tags = [
         "noasan",
@@ -462,7 +463,7 @@ cc_test(
     srcs = ["xls_fixed_test.cc"],
     data = [
         "//xls/contrib/xlscc:synth_only_headers",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
+        "@ac_datatypes//:ac_types_as_data",
     ],
     shard_count = 10,
     tags = [
@@ -473,7 +474,7 @@ cc_test(
         ":unit_test",
         "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
-        "@com_github_hlslibs_ac_types//:ac_fixed",
+        "@ac_datatypes//:ac_fixed",
         "@googletest//:gtest",
     ],
 )
@@ -495,7 +496,7 @@ cc_binary(
     data = [
         "//xls/contrib/xlscc",
         "//xls/contrib/xlscc:synth_only_headers",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
+        "@ac_datatypes//:ac_types_as_data",
     ],
     deps = [
         ":cc_generator",

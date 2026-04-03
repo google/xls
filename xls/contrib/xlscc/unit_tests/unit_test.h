@@ -33,6 +33,7 @@
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/Stmt.h"
+#include "xls/common/file/temp_directory.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/source_location.h"
 #include "xls/contrib/xlscc/cc_parser.h"
@@ -84,6 +85,12 @@ class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
            int64_t max_unroll_iters = 0);
 
   absl::StatusOr<std::vector<std::string>> GetClangArgForIntTest() const;
+
+  // Creates a temporary directory containing a symlink:
+  // ac_datatypes -> [actual_runfiles_path_for_ac_datatypes]
+  // Returns the path to the temporary directory, which can be used as an
+  // include path.
+  absl::StatusOr<std::string> CreateAcDatatypesIncludeDir() const;
 
   void RunAcDatatypeTest(
       const absl::flat_hash_map<std::string, uint64_t>& args, uint64_t expected,
@@ -231,6 +238,7 @@ class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
 
  protected:
   std::vector<CapturedLogEntry> log_entries_;
+  mutable std::optional<xls::TempDirectory> temp_dir_;
 };
 
 template <typename ClangT>

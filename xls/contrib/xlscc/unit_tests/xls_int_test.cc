@@ -17,7 +17,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
-#include "external/com_github_hlslibs_ac_types/include/ac_int.h"
+#include "ac_datatypes/include/ac_int.h"
 #include "xls/common/source_location.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 

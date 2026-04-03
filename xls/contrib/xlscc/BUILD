@@ -374,6 +374,16 @@ filegroup(
     visibility = ["//xls:xls_users"],
 )
 
+cc_library(
+    name = "synth_only",
+    includes = [
+        "synth_only",
+        "synth_only/ac_compat",
+    ],
+    textual_hdrs = [":synth_only_headers"],
+    visibility = ["//xls:xls_users"],
+)
+
 cc_binary(
     name = "xlscc",
     srcs = [

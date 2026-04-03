@@ -14,6 +14,8 @@
 
 # This package contains Mentor Graphics AC Datatypes headers.
 
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
@@ -29,18 +31,21 @@ cc_library(
     # Don't pollute the global namespace with uint1, uint2, ... uint32 from
     # ac_int.h. Those typedefs don't play nicely with ABSL among other things.
     defines = ["AC_NOT_USING_INTN"],
+    include_prefix = "ac_datatypes",
     includes = ["include"],
 )
 
 cc_library(
     name = "ac_channel",
     hdrs = ["include/ac_channel.h"],
+    include_prefix = "ac_datatypes",
     includes = ["include"],
 )
 
 cc_library(
     name = "ac_sync",
     hdrs = ["include/ac_sync.h"],
+    include_prefix = "ac_datatypes",
     includes = ["include"],
     deps = [":ac_channel"],
 )
@@ -48,6 +53,7 @@ cc_library(
 cc_library(
     name = "ac_fixed",
     hdrs = ["include/ac_fixed.h"],
+    include_prefix = "ac_datatypes",
     includes = ["include"],
     deps = [":ac_int"],
 )
@@ -55,6 +61,7 @@ cc_library(
 cc_library(
     name = "ac_float",
     hdrs = ["include/ac_float.h"],
+    include_prefix = "ac_datatypes",
     includes = ["include"],
     deps = [
         ":ac_fixed",
@@ -64,6 +71,7 @@ cc_library(
 cc_library(
     name = "ac_std_float",
     hdrs = ["include/ac_std_float.h"],
+    include_prefix = "ac_datatypes",
     includes = ["include"],
     deps = [
         ":ac_float",
@@ -73,6 +81,7 @@ cc_library(
 cc_library(
     name = "ac_complex",
     hdrs = ["include/ac_complex.h"],
+    include_prefix = "ac_datatypes",
     includes = ["include"],
     deps = [
         ":ac_float",

@@ -17,7 +17,7 @@
 XlsccInfo = provider(
     doc = "A provider containing transitive XLScc source deps",
     fields = {
-        "cc_headers": "The runfiles object with XLScc header files",
+        "cc_headers": "The depset with XLScc header files",
     },
 )
 

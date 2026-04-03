@@ -673,6 +673,36 @@
         ]
       }
     },
+    "//dependency_support/com_github_hlslibs_ac_types:extension.bzl%ac_types_extension": {
+      "general": {
+        "bzlTransitiveDigest": "F083Kz+mzoag29Er7fykGXJJXK+Tsz/pymcYrC26gqM=",
+        "usagesDigest": "6pIV8RCBMeAmswP91GVqOQMbPw3Kaj1ZZT1vOGfjyDE=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "ac_datatypes": {
+            "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
+            "ruleClassName": "http_archive",
+            "attributes": {
+              "urls": [
+                "https://github.com/hlslibs/ac_types/archive/refs/tags/4.8.0.tar.gz"
+              ],
+              "sha256": "238197203f8c6254a1d6ac6884e89e6f4c060bffb7473d336df4a1fb53ba7fab",
+              "strip_prefix": "ac_types-4.8.0",
+              "build_file": "@@//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel"
+            }
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "",
+            "bazel_tools",
+            "bazel_tools"
+          ]
+        ]
+      }
+    },
     "//dependency_support/perfetto:extension.bzl%perfetto_extension": {
       "general": {
         "bzlTransitiveDigest": "i+jcE80IxzB7GMTOJpFurg90VC0aB2tAsoiBP3mnHcM=",

@@ -739,6 +739,7 @@ cc_test(
 cc_test(
     name = "proc_lowering_block_eval_test",
     srcs = ["proc_lowering_block_eval_test.cc"],
+    shard_count = 10,
     deps = [
         ":block_conversion_pass",
         ":channel_to_port_io_lowering_pass",
