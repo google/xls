@@ -45,6 +45,12 @@
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
+ABSL_FLAG(std::string, input_schedule_path, "",
+          "Path to the IR file to patch.");  // NOLINT
+namespace {
+
+using namespace xls;
+
 static constexpr std::string_view kUsage = R"(
 Generates Verilog RTL from a given IR file and a schedule proto. Writes a Verilog file and a module
 signature describing the module interface to a specified location. Example
@@ -60,10 +66,7 @@ Emit a feed-forward pipelined module:
        --input_schedule_path=SCHEDULE_FILE \
        IR_FILE
 )";
-ABSL_FLAG(std::string, input_schedule_path, "",
-          "Path to the IR file to patch.");  // NOLINT
-namespace xls {
-namespace {
+
 absl::Status RealMain(std::string_view ir_path) {
   auto timeout = StartTimeoutTimer();
   if (ir_path == "-") {
@@ -152,7 +155,6 @@ absl::Status RealMain(std::string_view ir_path) {
 }
 
 }  // namespace
-}  // namespace xls
 
 int main(int argc, char** argv) {
   std::vector<std::string_view> positional_arguments =
@@ -163,5 +165,5 @@ int main(int argc, char** argv) {
                                       argv[0]);
   }
   std::string_view ir_path = positional_arguments[0];
-  return xls::ExitStatus(xls::RealMain(ir_path));
+  return xls::ExitStatus(RealMain(ir_path));
 }
