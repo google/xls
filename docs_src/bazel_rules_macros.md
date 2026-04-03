@@ -745,7 +745,7 @@ The "mangled" symbol string.
 load("//xls/build_rules:xls_build_defs.bzl", "xls_benchmark_ir")
 
 xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-synthesize">synthesize</a>, <a href="#xls_benchmark_ir-codegen_args">codegen_args</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-standard_cells">standard_cells</a>, <a href="#xls_benchmark_ir-tags">tags</a>,
-                 <a href="#xls_benchmark_ir-ir_tags">ir_tags</a>, <a href="#xls_benchmark_ir-synth_tags">synth_tags</a>, <a href="#xls_benchmark_ir-kwargs">**kwargs</a>)
+                 <a href="#xls_benchmark_ir-ir_tags">ir_tags</a>, <a href="#xls_benchmark_ir-synth_tags">synth_tags</a>, <a href="#xls_benchmark_ir-verilog_deps">verilog_deps</a>, <a href="#xls_benchmark_ir-kwargs">**kwargs</a>)
 </pre>
 
 Executes the benchmark tool on an IR file.
@@ -792,6 +792,7 @@ Examples:
         tags: Tags for IR and synthesis benchmark targets.
         ir_tags: Tags for the IR benchmark target only.
         synth_tags: Tags for the synthesis and synthesis benchmark targets. Unused if synthesize == False.
+        verilog_deps: Verilog dependencies for the synthesis benchmark target.
         **kwargs: Keyword arguments for the IR benchmark target only.
 
 **PARAMETERS**
@@ -808,6 +809,7 @@ Examples:
 | <a id="xls_benchmark_ir-tags"></a>tags |  <p align="center"> - </p>   |  `None` |
 | <a id="xls_benchmark_ir-ir_tags"></a>ir_tags |  <p align="center"> - </p>   |  `None` |
 | <a id="xls_benchmark_ir-synth_tags"></a>synth_tags |  <p align="center"> - </p>   |  `None` |
+| <a id="xls_benchmark_ir-verilog_deps"></a>verilog_deps |  <p align="center"> - </p>   |  `[]` |
 | <a id="xls_benchmark_ir-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
