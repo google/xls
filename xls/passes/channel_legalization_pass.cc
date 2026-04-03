@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -566,6 +567,12 @@ absl::Status CheckMutualExclusion(Proc* proc,
 }
 
 }  // namespace
+
+std::optional<std::string> ChannelLegalizationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
     Package* p, const OptimizationPassOptions& options, PassResults* results,

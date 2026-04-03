@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <iterator>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -250,6 +251,12 @@ absl::StatusOr<bool> MergeNode(Node* node) {
   }
 
   return false;
+}
+
+std::optional<std::string> SelectMergingPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
 }
 
 absl::StatusOr<bool> SelectMergingPass::RunOnFunctionBaseInternal(

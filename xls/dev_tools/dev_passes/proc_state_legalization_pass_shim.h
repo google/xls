@@ -15,6 +15,8 @@
 #ifndef XLS_DEV_TOOLS_DEV_PASSES_PROC_STATE_LEGALIZATION_PASS_SHIM_H_
 #define XLS_DEV_TOOLS_DEV_PASSES_PROC_STATE_LEGALIZATION_PASS_SHIM_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -22,6 +24,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/proc_state_legalization_pass.h"
+
 namespace xls {
 
 // Compatibility shim to use the scheduling pass 'ProcStateLegalizationPass' in
@@ -31,6 +34,11 @@ class ProcStateLegalizationPassShim : public OptimizationPass {
   static constexpr std::string_view kName = "proc_state_legalization_shim";
   ProcStateLegalizationPassShim()
       : OptimizationPass(kName, "Proc State Legalization Pass") {}
+  ~ProcStateLegalizationPassShim() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,

@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_REASSOCIATION_PASS_H_
 #define XLS_PASSES_REASSOCIATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -183,6 +185,10 @@ class ReassociationPass : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "reassociation";
   ReassociationPass() : OptimizationFunctionBasePass(kName, "Reassociation") {}
   ~ReassociationPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

@@ -89,6 +89,12 @@ absl::StatusOr<bool> RecoverLabels(FunctionBase* f) {
 
 }  // namespace
 
+std::optional<std::string> LabelRecoveryPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
+
 absl::StatusOr<bool> LabelRecoveryPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {

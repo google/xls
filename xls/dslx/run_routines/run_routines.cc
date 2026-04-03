@@ -243,6 +243,12 @@ class QuickCheckProveAssertsNotFiredPass final
                                      "add asserts to quickcheck goal") {}
   ~QuickCheckProveAssertsNotFiredPass() final = default;
 
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return std::string(short_name());
+  }
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* fb, const OptimizationPassOptions& options,

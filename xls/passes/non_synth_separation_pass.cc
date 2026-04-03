@@ -354,6 +354,12 @@ bool IsNonSynthNode(Node* node) {
 
 }  // namespace
 
+std::optional<std::string> NonSynthSeparationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
+
 absl::StatusOr<bool> NonSynthSeparationPass::RunInternal(
     Package* p, const OptimizationPassOptions& options, PassResults* results,
     OptimizationContext& context) const {

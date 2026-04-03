@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_CSE_PASS_H_
 #define XLS_PASSES_CSE_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/container/flat_hash_map.h"
@@ -172,6 +174,10 @@ class CsePass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "Common subexpression elimination"),
         common_literals_(common_literals) {}
   ~CsePass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

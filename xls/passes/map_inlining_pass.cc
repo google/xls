@@ -14,6 +14,8 @@
 
 #include "xls/passes/map_inlining_pass.h"
 
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -32,6 +34,12 @@ namespace xls {
 MapInliningPass::MapInliningPass()
     : OptimizationFunctionBasePass(MapInliningPass::kName,
                                    "Inline map operations") {}
+
+std::optional<std::string> MapInliningPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> MapInliningPass::RunOnFunctionBaseInternal(
     FunctionBase* function, const OptimizationPassOptions& options,

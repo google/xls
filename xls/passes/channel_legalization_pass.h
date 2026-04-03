@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_CHANNEL_LEGALIZATION_PASS_H_
 #define XLS_PASSES_CHANNEL_LEGALIZATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -184,6 +186,10 @@ class ChannelLegalizationPass : public OptimizationPass {
   ChannelLegalizationPass()
       : OptimizationPass(kName, "Legalize multiple send/recvs per channel") {}
   ~ChannelLegalizationPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,

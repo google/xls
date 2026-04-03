@@ -15,6 +15,7 @@
 #include "xls/passes/receive_default_value_simplification_pass.h"
 
 #include <optional>
+#include <string>
 
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
@@ -127,6 +128,13 @@ std::optional<ReceiveData> MatchUselessSelectAfterReceive(
 }
 
 }  // namespace
+
+std::optional<std::string>
+ReceiveDefaultValueSimplificationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> ReceiveDefaultValueSimplificationPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,

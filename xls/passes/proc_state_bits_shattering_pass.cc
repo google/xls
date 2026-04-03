@@ -18,12 +18,14 @@
 #include <cstdint>
 #include <iterator>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/reversed.hpp"
 #include "xls/common/status/status_macros.h"
@@ -200,6 +202,13 @@ absl::StatusOr<bool> MaybeSplitStateElements(
 }
 
 }  // namespace
+
+std::optional<std::string> ProcStateBitsShatteringPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return absl::StrFormat("%s(split_selects=%d)", short_name(),
+                         options.split_next_value_selects.value_or(0));
+}
 
 absl::StatusOr<bool> ProcStateBitsShatteringPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,

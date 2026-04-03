@@ -23,12 +23,16 @@
 #include <utility>
 #include <vector>
 
+#include "google/protobuf/duration.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
@@ -61,7 +65,10 @@ using ::absl_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Field;
+using ::testing::Ge;
 using ::testing::IsEmpty;
+using ::testing::Not;
+using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 
 class PassBaseTest : public IrTestBase {};
@@ -844,6 +851,126 @@ TEST_F(PassBaseTest, MetricsTest) {
                     }
                   }
                 }
+              )pb")));
+}
+
+class MutatingIdempotentPass : public OptimizationFunctionBasePass {
+ public:
+  explicit MutatingIdempotentPass(int64_t nodes_to_add)
+      : OptimizationFunctionBasePass("mutating_idempotent",
+                                     "Mutating Idempotent Pass"),
+        nodes_to_add_(nodes_to_add) {}
+  ~MutatingIdempotentPass() override = default;
+
+  bool IsIdempotent() const override { return true; }
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return absl::StrCat(short_name(), "(", nodes_to_add_, ")");
+  }
+
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const OptimizationPassOptions& options,
+      PassResults* results, OptimizationContext& context) const override {
+    bool changed = false;
+    for (int64_t i = 0; i < nodes_to_add_; ++i) {
+      std::string node_name = absl::StrCat("added_node_", i);
+      if (f->HasNode(node_name)) {
+        continue;
+      }
+      XLS_RETURN_IF_ERROR(f->MakeNodeWithName<Literal>(
+                               SourceInfo(), Value(UBits(0, 32)), node_name)
+                              .status());
+      changed = true;
+    }
+    absl::SleepFor(absl::Milliseconds(1));
+    return changed;
+  }
+
+  int64_t nodes_to_add_;
+};
+
+TEST_F(PassBaseTest, IdempotentPassTracking) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK(fb.Build());
+
+  OptimizationCompoundPass opt("opt", "opt");
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/1);
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/1);
+  opt.Add<NodeAdderPass>(/*nodes_to_add=*/1);
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/1);
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/1);
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/0);
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/2);
+
+  PassResults results;
+  OptimizationContext context;
+  OptimizationPassOptions options;
+  EXPECT_THAT(opt.Run(p.get(), options, &results, context), IsOkAndHolds(true));
+
+  PassPipelineMetricsProto metrics_proto = results.ToProto();
+  EXPECT_THAT(metrics_proto,
+              proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+                total_passes: 8
+                pass_metrics {
+                  pass_name: "opt"
+                  changed: 1
+                  pass_numbers: 0
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 1
+                    pass_numbers: 1
+                  }
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 0
+                    duration { seconds: 0 nanos: 0 }  # Skipped
+                    pass_numbers: 2
+                  }
+                  nested_results {
+                    pass_name: "node_adder_1"
+                    changed: 1
+                    pass_numbers: 3
+                  }
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 0
+                    pass_numbers: 4
+                  }
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 0
+                    duration { seconds: 0 nanos: 0 }  # Skipped
+                    pass_numbers: 5
+                  }
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 0  # This version hasn't run, so we don't skip it -
+                                # but it won't mutate the IR.
+                    pass_numbers: 6
+                  }
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 1  # This version will actually mutate the IR.
+                    pass_numbers: 7
+                  }
+                }
+              )pb")));
+  // Make sure that passes #3 and #6 actually ran, even though they didn't
+  // change anything.
+  ASSERT_THAT(metrics_proto.pass_metrics().nested_results(), SizeIs(Ge(3)));
+  EXPECT_THAT(metrics_proto.pass_metrics().nested_results(2).duration(),
+              Not(proto_testing::EqualsProto(R"pb(
+                seconds: 0 nanos: 0
+              )pb")));
+  ASSERT_THAT(metrics_proto.pass_metrics().nested_results(), SizeIs(Ge(6)));
+  EXPECT_THAT(metrics_proto.pass_metrics().nested_results(5).duration(),
+              Not(proto_testing::EqualsProto(R"pb(
+                seconds: 0 nanos: 0
               )pb")));
 }
 

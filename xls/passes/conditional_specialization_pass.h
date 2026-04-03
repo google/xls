@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_CONDITIONAL_SPECIALIZATION_PASS_H_
 #define XLS_PASSES_CONDITIONAL_SPECIALIZATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -64,6 +66,11 @@ class ConditionalSpecializationPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(ConfiguredName(use_bdd),
                                      "Conditional specialization"),
         use_bdd_(use_bdd) {}
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
   ~ConditionalSpecializationPass() override = default;
 
  protected:

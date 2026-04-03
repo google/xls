@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_USELESS_ASSERT_REMOVAL_PASS_H_
 #define XLS_PASSES_USELESS_ASSERT_REMOVAL_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -33,6 +35,12 @@ class UselessAssertRemovalPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName,
                                      "Remove useless (always true) asserts") {}
   ~UselessAssertRemovalPass() override = default;
+
+  bool IsIdempotent() const override { return true; }
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

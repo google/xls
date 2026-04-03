@@ -495,6 +495,12 @@ absl::StatusOr<bool> ConvertConstantChainsToStateMachines(
 
 }  // namespace
 
+std::optional<std::string> ProcStateOptimizationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
+
 absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,
     OptimizationContext& context) const {

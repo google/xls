@@ -17,6 +17,8 @@
 #ifndef XLS_PASSES_DFE_PASS_H_
 #define XLS_PASSES_DFE_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -100,6 +102,12 @@ class DeadFunctionEliminationPass : public OptimizationPass {
   explicit DeadFunctionEliminationPass()
       : OptimizationPass(kName, "Dead Function Elimination") {}
   ~DeadFunctionEliminationPass() override = default;
+
+  bool IsIdempotent() const override { return true; }
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   // Iterate all nodes and mark and eliminate unreachable functions.

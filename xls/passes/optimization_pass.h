@@ -38,6 +38,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -552,6 +553,13 @@ class DynamicCapOptLevel : public FilterOptimizationPass<InnerPass> {
     return res;
   }
 
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return this->inner_pass()->GetInvocationSignature(
+        options.WithOptLevel(std::min(level_, options.opt_level)), context);
+  }
+
   // Override name functions for better logging to include the capped level
   std::string short_name() const override {
     return absl::StrCat(FilterOptimizationPass<InnerPass>::short_name(),
@@ -587,7 +595,12 @@ class DynamicIfOptLevelAtLeast : public FilterOptimizationPass<InnerPass> {
   template <typename... Args>
   explicit DynamicIfOptLevelAtLeast(int64_t level, Args... args)
       : FilterOptimizationPass<InnerPass>(std::forward<Args>(args)...),
-        level_(level) {}
+        level_(level) {
+    this->short_name_ = absl::StrFormat(
+        "%s(opt_level>=%d)", this->inner_pass()->short_name(), level);
+    this->long_name_ = absl::StrFormat("%s when opt_level >= %d",
+                                       this->inner_pass()->long_name(), level);
+  }
 
   absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
     XLS_ASSIGN_OR_RETURN(
@@ -682,7 +695,12 @@ class IfResourceSharingEnabled
   template <typename... Args>
   explicit IfResourceSharingEnabled(Args... args)
       : internal::FilterOptimizationPass<InnerPass>(
-            std::forward<Args>(args)...) {}
+            std::forward<Args>(args)...) {
+    this->short_name_ = absl::StrFormat("%s(enable_resource_sharing)",
+                                        this->inner_pass()->short_name());
+    this->long_name_ = absl::StrFormat("%s when resource sharing is enabled",
+                                       this->inner_pass()->long_name());
+  }
 
   absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
     XLS_ASSIGN_OR_RETURN(

@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 #include <queue>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -37,6 +38,7 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/combinations.hpp"
 #include "cppitertools/zip.hpp"
@@ -1958,6 +1960,16 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
   return modified;
 }
 
+std::optional<std::string> ResourceSharingPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  if (!options.enable_resource_sharing) {
+    return absl::StrFormat("%s(disabled)", short_name());
+  }
+  return absl::StrFormat("%s(%v,%v)", short_name(),
+                         RealProfitabilityGuard(options), config_);
+}
+
 // This function computes the resource sharing optimization for multiplication
 // instructions. In more detail, this function folds a multiplication
 // instruction into another multiplication instruction that has the same
@@ -2052,8 +2064,7 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
 
   // Select the folding actions to perform
   ResourceSharingPass::ProfitabilityGuard selection_heuristic =
-      options.force_resource_sharing ? ProfitabilityGuard::kAlways
-                                     : profitability_guard_;
+      RealProfitabilityGuard(options);
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<NaryFoldingAction>>
           folding_actions_to_perform,

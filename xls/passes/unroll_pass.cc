@@ -15,6 +15,8 @@
 #include "xls/passes/unroll_pass.h"
 
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -72,6 +74,12 @@ absl::Status UnrollCountedFor(CountedFor* loop) {
 }
 
 }  // namespace
+
+std::optional<std::string> UnrollPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> UnrollPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

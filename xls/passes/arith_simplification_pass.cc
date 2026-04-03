@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <limits>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -2021,6 +2022,12 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
 }
 
 }  // namespace
+
+std::optional<std::string> ArithSimplificationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return absl::StrFormat("%s(O%d)", short_name(), options.opt_level);
+}
 
 absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

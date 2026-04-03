@@ -18,6 +18,7 @@
 #include <iterator>
 #include <limits>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -412,6 +413,12 @@ absl::StatusOr<std::optional<Value>> LinksToTable(
 }
 
 }  // namespace
+
+std::optional<std::string> TableSwitchPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

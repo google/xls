@@ -17,6 +17,7 @@
 #include <deque>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -157,6 +158,12 @@ absl::StatusOr<FunctionBaseLiveness> ProcLiveness(Proc* top) {
 }
 
 }  // namespace
+
+std::optional<std::string> DeadFunctionEliminationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 // Starting from the return_value(s), DFS over all nodes. Unvisited
 // nodes, or parameters, are dead.

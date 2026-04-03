@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_SPARSIFY_SELECT_PASS_H_
 #define XLS_PASSES_SPARSIFY_SELECT_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -144,6 +146,10 @@ class SparsifySelectPass : public OptimizationFunctionBasePass {
   SparsifySelectPass()
       : OptimizationFunctionBasePass(kName, "Sparsify Select") {}
   ~SparsifySelectPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   // Sparsify selects using range analysis.

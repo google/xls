@@ -14,6 +14,10 @@
 
 #include "xls/dev_tools/dev_passes/proc_state_legalization_pass_shim.h"
 
+#include <optional>
+#include <string>
+#include <utility>
+
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
@@ -22,6 +26,14 @@
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
+
+std::optional<std::string>
+ProcStateLegalizationPassShim::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
+
 absl::StatusOr<bool> ProcStateLegalizationPassShim::RunInternal(
     Package* p, const OptimizationPassOptions& options,
     PassResults* pass_results, OptimizationContext& context) const {

@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_RECEIVE_DEFAULT_VALUE_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_RECEIVE_DEFAULT_VALUE_SIMPLIFICATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -116,6 +118,10 @@ class ReceiveDefaultValueSimplificationPass : public OptimizationProcPass {
   ReceiveDefaultValueSimplificationPass()
       : OptimizationProcPass(kName, "Receive default value simplification") {}
   ~ReceiveDefaultValueSimplificationPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(

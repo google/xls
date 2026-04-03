@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_PROC_STATE_BITS_SHATTERING_PASS_H_
 #define XLS_PASSES_PROC_STATE_BITS_SHATTERING_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -147,6 +149,10 @@ class ProcStateBitsShatteringPass : public OptimizationProcPass {
   ProcStateBitsShatteringPass()
       : OptimizationProcPass(kName, "Proc State Bits Shattering") {}
   ~ProcStateBitsShatteringPass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(

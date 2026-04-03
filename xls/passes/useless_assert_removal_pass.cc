@@ -15,6 +15,7 @@
 #include "xls/passes/useless_assert_removal_pass.h"
 
 #include <optional>
+#include <string>
 
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
@@ -27,6 +28,12 @@
 #include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
+
+std::optional<std::string> UselessAssertRemovalPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> UselessAssertRemovalPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

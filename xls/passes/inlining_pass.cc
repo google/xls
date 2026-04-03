@@ -255,6 +255,12 @@ std::vector<FunctionBase*> GetFunctionsToInlineByLeaf(Package* p,
 
 }  // namespace
 
+std::optional<std::string> InliningPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(ConfiguredName(depth_));
+}
+
 absl::Status InliningPass::InlineOneInvoke(Invoke* invoke) {
   OptimizationContext context;
   return InlineInvoke</*kCheckNoSubInvokes=*/false>(invoke, context,

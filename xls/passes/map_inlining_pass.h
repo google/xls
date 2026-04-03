@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_MAP_INLINING_PASS_H_
 #define XLS_PASSES_MAP_INLINING_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/status.h"
@@ -108,6 +110,10 @@ class MapInliningPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "map_inlining";
   MapInliningPass();
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
   // Inline a single Map instruction. Provided for test and utility
   // (ir_minimizer) use.

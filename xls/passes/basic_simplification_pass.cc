@@ -15,6 +15,8 @@
 
 #include <algorithm>
 #include <functional>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -777,6 +779,12 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
 }
 
 }  // namespace
+
+std::optional<std::string> BasicSimplificationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> BasicSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

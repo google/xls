@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_BDD_CSE_PASS_H_
 #define XLS_PASSES_BDD_CSE_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -138,6 +140,10 @@ class BddCsePass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(
             kName, "BDD-based Common Subexpression Elimination") {}
   ~BddCsePass() override = default;
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_ARITH_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_ARITH_SIMPLIFICATION_PASS_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -168,6 +170,12 @@ class ArithSimplificationPass : public OptimizationFunctionBasePass {
   explicit ArithSimplificationPass()
       : OptimizationFunctionBasePass(kName, "Arithmetic Simplifications") {}
   ~ArithSimplificationPass() override = default;
+
+  bool IsIdempotent() const override { return true; }
+
+  std::optional<std::string> GetInvocationSignature(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

@@ -15,6 +15,8 @@
 #include "xls/passes/proc_state_array_flattening_pass.h"
 
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -146,6 +148,12 @@ absl::StatusOr<bool> SimplifyProcState(Proc* proc,
 }
 
 }  // namespace
+
+std::optional<std::string> ProcStateArrayFlatteningPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> ProcStateArrayFlatteningPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,

@@ -16,6 +16,8 @@
 
 #include <cstdint>
 #include <deque>
+#include <optional>
+#include <string>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -29,6 +31,13 @@
 #include "xls/passes/pass_base.h"
 
 namespace xls {
+
+std::optional<std::string> DeadCodeEliminationPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  // DCE is not affected by the options; it's the same pass every time.
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

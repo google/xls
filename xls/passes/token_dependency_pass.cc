@@ -14,6 +14,7 @@
 
 #include "xls/passes/token_dependency_pass.h"
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -38,6 +39,12 @@
 #include "xls/passes/token_provenance_analysis.h"
 
 namespace xls {
+
+std::optional<std::string> TokenDependencyPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

@@ -14,6 +14,8 @@
 
 #include "xls/dev_tools/dev_passes/remove_assert_and_cover_pass.h"
 
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -26,6 +28,12 @@
 #include "xls/passes/pass_base.h"
 
 namespace xls {
+
+std::optional<std::string> AssertAndCoverRemovalPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return std::string(short_name());
+}
 
 absl::StatusOr<bool> AssertAndCoverRemovalPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

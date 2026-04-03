@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -30,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -958,6 +960,28 @@ Type* GetMaskType(Package* package, std::optional<int64_t> mask_width) {
     return package->GetBitsType(mask_width.value());
   }
   return package->GetTupleType({});
+}
+
+std::optional<std::string> RamRewritePass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  std::vector<std::string> rewrite_strs;
+  rewrite_strs.reserve(options.ram_rewrites.size());
+  for (const RamRewrite& rw : options.ram_rewrites) {
+    std::string channel_remap =
+        absl::StrJoin(rw.from_channels_logical_to_physical, ",",
+                      [](std::string* out, const auto& pair) {
+                        absl::StrAppend(out, pair.first, ":", pair.second);
+                      });
+    if (rw.proc_name.has_value()) {
+      rewrite_strs.push_back(
+          absl::StrCat("[proc=", *rw.proc_name, ",", channel_remap, "]"));
+    } else {
+      rewrite_strs.push_back(absl::StrCat("[", channel_remap, "]"));
+    }
+  }
+  return absl::StrFormat("%s(%s)", short_name(),
+                         absl::StrJoin(rewrite_strs, ","));
 }
 
 absl::StatusOr<bool> RamRewritePass::RunInternal(

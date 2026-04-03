@@ -2252,6 +2252,19 @@ absl::StatusOr<AliasingQueryEngine> GetQueryEngine(
 
 }  // namespace
 
+std::optional<std::string> NarrowingPass::GetInvocationSignature(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  if (options.convert_array_index_to_select.has_value() &&
+      options.convert_array_index_to_select.value() > 0) {
+    return absl::StrFormat("%s(%v,O%d,small_index=%d)", short_name(),
+                           RealAnalysis(options), options.opt_level,
+                           options.convert_array_index_to_select.value());
+  }
+  return absl::StrFormat("%s(%v,O%d)", short_name(), RealAnalysis(options),
+                         options.opt_level);
+}
+
 absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
