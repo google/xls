@@ -17,12 +17,14 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <list>
 #include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -59,10 +61,10 @@ NewFSMGenerator::NewFSMGenerator(TranslatorTypeInterface& translator_types,
       debug_ir_trace_flags_(debug_ir_trace_flags) {}
 
 absl::Status NewFSMGenerator::SetupNewFSMGenerationContext(
-    const GeneratedFunction& func, NewFSMLayout& layout,
+    const std::list<GeneratedFunctionSlice>& slices, NewFSMLayout& layout,
     const xls::SourceInfo& body_loc) {
   int64_t slice_index = 0;
-  for (const GeneratedFunctionSlice& slice : func.slices) {
+  for (const GeneratedFunctionSlice& slice : slices) {
     layout.slice_by_index[slice_index] = &slice;
     layout.index_by_slice[&slice] = slice_index;
 
@@ -79,119 +81,18 @@ absl::Status NewFSMGenerator::SetupNewFSMGenerationContext(
   return absl::OkStatus();
 }
 
-absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
-    const GeneratedFunction& func,
-    const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
-        state_element_for_static,
+absl::Status NewFSMGenerator::LayoutNewFSMNoStateElements(
+    NewFSMLayout& layout, const std::list<GeneratedFunctionSlice>& slices,
     const xls::SourceInfo& body_loc) {
-  NewFSMLayout ret;
-
-  XLS_RETURN_IF_ERROR(SetupNewFSMGenerationContext(func, ret, body_loc));
-
-  absl::flat_hash_set<const IOChannel*> channels_used_this_activation;
-
-  auto insert_transition_safely =
-      [&](const NewFSMActivationTransition& transition,
-          const xls::SourceInfo& body_loc) -> void {
-    XLSCC_CHECK(
-        !ret.transition_by_slice_from_index.contains(transition.from_slice),
-        body_loc);
-    ret.transition_by_slice_from_index[transition.from_slice] = transition;
-  };
+  XLS_RETURN_IF_ERROR(SetupNewFSMGenerationContext(slices, layout, body_loc));
 
   // Record transitions across activations
-  // TODO(seanhaskell): Add transition from last to first for statics.
-
-  bool first_slice = true;
-  for (const GeneratedFunctionSlice& slice : func.slices) {
-    if (first_slice) {
-      first_slice = false;
-      continue;
-    }
-    if (slice.is_slice_before) {
-      const int64_t before_io_slice_index = ret.index_by_slice.at(&slice);
-      const int64_t after_io_slice_index = before_io_slice_index + 1;
-      const IOOp* op_after = nullptr;
-
-      // This is the "before" slice that can be transitioned to in an IO
-      // activation transition.
-      const GeneratedFunctionSlice* after_io_slice =
-          ret.slice_by_index.at(after_io_slice_index);
-      op_after = after_io_slice->after_op;
-
-      XLSCC_CHECK_NE(op_after, nullptr, body_loc);
-
-      if (!channels_used_this_activation.contains(op_after->channel)) {
-        channels_used_this_activation.insert(op_after->channel);
-        continue;
-      }
-
-      XLSCC_CHECK_GT(before_io_slice_index, 0, body_loc);
-      NewFSMActivationTransition transition = {
-          .from_slice = before_io_slice_index - 1,
-          .to_slice = before_io_slice_index,
-          .conditional = false,
-          .forward = true,
-      };
-      insert_transition_safely(transition, body_loc);
-      ret.state_transitions.push_back(transition);
-      ret.all_jump_from_slice_indices.push_back(transition.from_slice);
-      // All channels are cleared after the transition
-      channels_used_this_activation.clear();
-      // The barrier is before this op, so this channel must be added
-      channels_used_this_activation.insert(op_after->channel);
-      continue;
-    }
-
-    const IOOp* after_op = slice.after_op;
-    XLSCC_CHECK_NE(after_op, nullptr, body_loc);
-
-    if (after_op->op == OpType::kActivationBarrier) {
-      const int64_t before_io_slice_index = ret.index_by_slice.at(&slice);
-
-      // Barriers at the beginning/end guard nothing and just reduce throughput.
-      if (before_io_slice_index == 1 ||
-          before_io_slice_index == func.slices.size() - 1) {
-        continue;
-      }
-
-      NewFSMActivationTransition transition = {
-          .from_slice = before_io_slice_index - 1,
-          .to_slice = before_io_slice_index,
-          .conditional = after_op->activation_barrier_conditional,
-          .forward = true,
-      };
-      insert_transition_safely(transition, body_loc);
-      ret.state_transitions.push_back(transition);
-      ret.all_jump_from_slice_indices.push_back(transition.from_slice);
-      continue;
-    }
-    // This is optional, so doesn't reset channels_used_this_activation
-    if (after_op->op == OpType::kLoopEndJump) {
-      const int64_t end_jump_slice_index = ret.index_by_slice.at(&slice);
-      XLSCC_CHECK_GE(end_jump_slice_index, 1, body_loc);
-      const IOOp* const loop_begin_op = after_op->loop_op_paired;
-      XLSCC_CHECK_NE(loop_begin_op, nullptr, body_loc);
-      const int64_t begin_slice_index =
-          ret.slice_index_by_after_op.at(loop_begin_op);
-
-      // Feedback is from the slice after begin to the slice before end jump
-      NewFSMActivationTransition transition = {
-          .from_slice = end_jump_slice_index - 1,
-          .to_slice = begin_slice_index,
-          .conditional = true,
-          .forward = false,
-      };
-      insert_transition_safely(transition, body_loc);
-      ret.state_transitions.push_back(transition);
-      ret.all_jump_from_slice_indices.push_back(transition.from_slice);
-      continue;
-    }
-  }
+  XLS_RETURN_IF_ERROR(LayoutNewFSMTransitions(layout, slices, body_loc));
 
   if (debug_ir_trace_flags_ & DebugIrTraceFlags_FSMStates) {
     LOG(INFO) << "FSM transitions:";
-    for (const NewFSMActivationTransition& transition : ret.state_transitions) {
+    for (const NewFSMActivationTransition& transition :
+         layout.state_transitions) {
       LOG(INFO) << absl::StrFormat("  %li -> %li (conditional? %i forward? %i)",
                                    transition.from_slice, transition.to_slice,
                                    (int)transition.conditional,
@@ -199,135 +100,87 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
     }
   }
 
-  XLS_RETURN_IF_ERROR(LayoutNewFSMStates(ret, func, body_loc));
+  XLS_RETURN_IF_ERROR(LayoutNewFSMStates(layout, slices, body_loc));
 
-  XLS_RETURN_IF_ERROR(LayoutValuesToSaveForNewFSMStates(ret, func, body_loc));
+  return absl::OkStatus();
+}
+
+absl::Status NewFSMGenerator::ValidateStateInputs(
+    const GeneratedFunction& func, const NewFSMLayout& layout,
+    const xls::SourceInfo& body_loc) const {
+  absl::flat_hash_map<int64_t, const GeneratedFunctionSlice*> slice_by_index;
+  {
+    int64_t slice_index = 0;
+    for (const GeneratedFunctionSlice& slice : func.slices) {
+      slice_by_index[slice_index] = &slice;
+      ++slice_index;
+    }
+  }
+  // Check that there's an input for each slice param
+  for (const NewFSMState& state : layout.states) {
+    const GeneratedFunctionSlice* slice = slice_by_index.at(state.slice_index);
+    for (const ContinuationInput& continuation_in : slice->continuations_in) {
+      const xls::Param* param = continuation_in.input_node;
+      if (!state.current_inputs_by_input_param.contains(param)) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "State %s has no input for param %p/%s",
+            state.GetStateId().ToString(), param, param->name()));
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
+    const GeneratedFunction& func,
+    const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
+        state_element_for_static,
+    const xls::SourceInfo& body_loc) {
+  NewFSMLayout ret;
+
+  XLS_RETURN_IF_ERROR(LayoutNewFSMNoStateElements(ret, func.slices, body_loc));
+
+  XLS_RETURN_IF_ERROR(ValidateStateInputs(func, ret, body_loc));
+
+  // Set NewFSMState::current_inputs_by_input_param from
+  // ContinuationInput::choose_in_states. This allows phi selection order to be
+  // preserved through optimization.
+  absl::btree_map<StateId, NewFSMState*> state_by_state_id;
+  for (NewFSMState& state : ret.states) {
+    state.current_inputs_by_input_param.clear();
+    const StateId state_id = state.GetStateId();
+    XLSCC_CHECK(!state_by_state_id.contains(state_id), body_loc);
+    state_by_state_id[state_id] = &state;
+  }
+
+  for (const GeneratedFunctionSlice& slice : func.slices) {
+    for (const ContinuationInput& continuation_in : slice.continuations_in) {
+      for (const StateId& state_id : continuation_in.choose_in_states) {
+        XLSCC_CHECK(state_by_state_id.contains(state_id), body_loc);
+        NewFSMState* state = state_by_state_id.at(state_id);
+        XLSCC_CHECK(!state->current_inputs_by_input_param.contains(
+                        continuation_in.input_node),
+                    body_loc);
+        state->current_inputs_by_input_param[continuation_in.input_node] =
+            continuation_in.continuation_out;
+      }
+    }
+  }
+
+  XLS_RETURN_IF_ERROR(ValidateStateInputs(func, ret, body_loc));
+
+  XLS_RETURN_IF_ERROR(LayoutValuesToSaveForNewFSMStates(ret, body_loc));
 
   // Remove unused states
-  std::vector<NewFSMState> all_states = std::move(ret.states);
-  ret.states.clear();
-  for (NewFSMState& state : all_states) {
-    bool ignore_state = false;
-    for (const JumpInfo& jump_info : state.jumped_from_slice_indices) {
-      if (jump_info.count < 2) {
-        ignore_state = true;
-        continue;
-      }
-    }
+  std::erase_if(ret.states, [](const NewFSMState& state) {
+    const bool ignore_state = absl::c_any_of(
+        state.jumped_from_slice_indices,
+        [](const JumpInfo& jump_info) { return jump_info.count < 2; });
+    return ignore_state;
+  });
 
-    if (ignore_state) {
-      continue;
-    }
-
-    ret.states.push_back(std::move(state));
-  }
-
-  // Plan the state elements
-  //
-  // State elements may be shared by multiple continuation values if the values
-  // have the same type and are not saved in the same state (slice + jump flags)
-  //
-  // For optimization purposes, such as narrowing, it is better that the values
-  // saved in a state element share semantics. Therefore, Clang NamedDecls are
-  // used to identify values that may share a state element.
-  absl::flat_hash_map<DeclLeaf, std::vector<int64_t>>
-      state_element_indices_by_decl;
-
-  // Inject statics: this enables state element sharing with statics
-  for (const auto& [decl_leaf, existing_state_element] :
-       state_element_for_static) {
-    NewFSMStateElement state_element = {
-        .name = existing_state_element->name(),
-        .type = existing_state_element->type(),
-        .existing_state_element = existing_state_element,
-    };
-    ret.state_elements.push_back(state_element);
-    state_element_indices_by_decl[decl_leaf].push_back(
-        ret.state_elements.size() - 1);
-  }
-
-  for (const NewFSMState& state : ret.states) {
-    // Only need to save continuation values on activation transitions
-    if (!ret.transition_by_slice_from_index.contains(state.slice_index)) {
-      continue;
-    }
-
-    // A state element can only be used once in a given transition
-    absl::flat_hash_set<int64_t> used_state_element_indices;
-
-    // Mark reserved elements
-    for (const ContinuationValue* value : state.values_to_save) {
-      if (!ret.state_element_by_continuation_value.contains(value)) {
-        continue;
-      }
-      used_state_element_indices.insert(
-          ret.state_element_by_continuation_value.at(value));
-    }
-
-    for (const ContinuationValue* value : state.values_to_save) {
-      if (ret.state_element_by_continuation_value.contains(value)) {
-        continue;
-      }
-      // This value has not already been assigned a state element
-      // Try to find state elements to share by decl
-      std::optional<int64_t> found_element_by_decl = std::nullopt;
-      std::vector<DeclLeaf> decls;
-
-      for (const DeclLeaf& decl : value->decls) {
-        decls.push_back(decl);
-      }
-      func.SortNamesDeterministically(decls);
-
-      for (const DeclLeaf& decl : decls) {
-        if (!state_element_indices_by_decl.contains(decl)) {
-          continue;
-        }
-        const std::vector<int64_t>& elements_for_this_decl =
-            state_element_indices_by_decl.at(decl);
-
-        for (const int64_t element_for_decl_index : elements_for_this_decl) {
-          if (used_state_element_indices.contains(element_for_decl_index)) {
-            continue;
-          }
-
-          if (!ret.state_elements.at(element_for_decl_index)
-                   .type->IsEqualTo(value->output_node->GetType())) {
-            continue;
-          }
-
-          found_element_by_decl = element_for_decl_index;
-          break;
-        }
-        if (found_element_by_decl.has_value()) {
-          break;
-        }
-      }
-      int64_t element_index = found_element_by_decl.value_or(-1);
-
-      // Create a new state element if none were found to share
-      if (!found_element_by_decl.has_value()) {
-        std::string elem_name = value->name;
-        if (element_index >= 0) {
-          elem_name = absl::StrFormat("%s_el%li", elem_name, element_index);
-        }
-        NewFSMStateElement state_element = {
-            .name = absl::StrFormat("%s_slc%li", elem_name, state.slice_index),
-            .type = value->output_node->GetType(),
-        };
-        ret.state_elements.push_back(state_element);
-        element_index = ret.state_elements.size() - 1;
-      }
-
-      // Mark element used for this value in this transition
-      XLSCC_CHECK_GE(element_index, 0, body_loc);
-      XLSCC_CHECK_LT(element_index, ret.state_elements.size(), body_loc);
-      ret.state_element_by_continuation_value[value] = element_index;
-      used_state_element_indices.insert(element_index);
-      for (const DeclLeaf& decl : decls) {
-        state_element_indices_by_decl[decl].push_back(element_index);
-      }
-    }
-  }
+  XLS_RETURN_IF_ERROR(
+      LayoutNewFSMStateElements(ret, func, state_element_for_static, body_loc));
 
   if (debug_ir_trace_flags_ & DebugIrTraceFlags_FSMStates) {
     LOG(INFO) << "FSM states after state element allocation:";
@@ -339,7 +192,8 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
     for (const NewFSMStateElement& elem : ret.state_elements) {
       total_bits += elem.type->GetFlatBitCount();
     }
-    LOG(INFO) << "State elements allocated, total " << total_bits << " bits:";
+    LOG(INFO) << "State elements allocated: " << ret.state_elements.size()
+              << ", total " << total_bits << " bits:";
     for (int64_t elem_idx = 0; elem_idx < ret.state_elements.size();
          ++elem_idx) {
       const NewFSMStateElement& elem = ret.state_elements.at(elem_idx);
@@ -363,8 +217,114 @@ absl::StatusOr<NewFSMLayout> NewFSMGenerator::LayoutNewFSM(
   return ret;
 }
 
+absl::Status NewFSMGenerator::LayoutNewFSMTransitions(
+    NewFSMLayout& layout, const std::list<GeneratedFunctionSlice>& slices,
+    const xls::SourceInfo& body_loc) {
+  // TODO(seanhaskell): Add transition from last to first for statics.
+
+  absl::flat_hash_set<const IOChannel*> channels_used_this_activation;
+
+  auto insert_transition_safely =
+      [&](const NewFSMActivationTransition& transition,
+          const xls::SourceInfo& body_loc) -> void {
+    XLSCC_CHECK(
+        !layout.transition_by_slice_from_index.contains(transition.from_slice),
+        body_loc);
+    layout.transition_by_slice_from_index[transition.from_slice] = transition;
+  };
+
+  bool first_slice = true;
+  for (const GeneratedFunctionSlice& slice : slices) {
+    if (first_slice) {
+      first_slice = false;
+      continue;
+    }
+    if (slice.is_slice_before) {
+      const int64_t before_io_slice_index = layout.index_by_slice.at(&slice);
+      const int64_t after_io_slice_index = before_io_slice_index + 1;
+      const IOOp* op_after = nullptr;
+
+      // This is the "before" slice that can be transitioned to in an IO
+      // activation transition.
+      const GeneratedFunctionSlice* after_io_slice =
+          layout.slice_by_index.at(after_io_slice_index);
+      op_after = after_io_slice->after_op;
+
+      XLSCC_CHECK_NE(op_after, nullptr, body_loc);
+
+      if (!channels_used_this_activation.contains(op_after->channel)) {
+        channels_used_this_activation.insert(op_after->channel);
+        continue;
+      }
+
+      XLSCC_CHECK_GT(before_io_slice_index, 0, body_loc);
+      NewFSMActivationTransition transition = {
+          .from_slice = before_io_slice_index - 1,
+          .to_slice = before_io_slice_index,
+          .conditional = false,
+          .forward = true,
+      };
+      insert_transition_safely(transition, body_loc);
+      layout.state_transitions.push_back(transition);
+      layout.all_jump_from_slice_indices.push_back(transition.from_slice);
+      // All channels are cleared after the transition
+      channels_used_this_activation.clear();
+      // The barrier is before this op, so this channel must be added
+      channels_used_this_activation.insert(op_after->channel);
+      continue;
+    }
+
+    const IOOp* after_op = slice.after_op;
+    XLSCC_CHECK_NE(after_op, nullptr, body_loc);
+
+    if (after_op->op == OpType::kActivationBarrier) {
+      const int64_t before_io_slice_index = layout.index_by_slice.at(&slice);
+
+      // Barriers at the beginning/end guard nothing and just reduce throughput.
+      if (before_io_slice_index == 1 ||
+          before_io_slice_index == slices.size() - 1) {
+        continue;
+      }
+
+      NewFSMActivationTransition transition = {
+          .from_slice = before_io_slice_index - 1,
+          .to_slice = before_io_slice_index,
+          .conditional = after_op->activation_barrier_conditional,
+          .forward = true,
+      };
+      insert_transition_safely(transition, body_loc);
+      layout.state_transitions.push_back(transition);
+      layout.all_jump_from_slice_indices.push_back(transition.from_slice);
+      continue;
+    }
+    // This is optional, so doesn't reset channels_used_this_activation
+    if (after_op->op == OpType::kLoopEndJump) {
+      const int64_t end_jump_slice_index = layout.index_by_slice.at(&slice);
+      XLSCC_CHECK_GE(end_jump_slice_index, 1, body_loc);
+      const IOOp* const loop_begin_op = after_op->loop_op_paired;
+      XLSCC_CHECK_NE(loop_begin_op, nullptr, body_loc);
+      const int64_t begin_slice_index =
+          layout.slice_index_by_after_op.at(loop_begin_op);
+
+      // Feedback is from the slice after begin to the slice before end jump
+      NewFSMActivationTransition transition = {
+          .from_slice = end_jump_slice_index - 1,
+          .to_slice = begin_slice_index,
+          .conditional = true,
+          .forward = false,
+      };
+      insert_transition_safely(transition, body_loc);
+      layout.state_transitions.push_back(transition);
+      layout.all_jump_from_slice_indices.push_back(transition.from_slice);
+      continue;
+    }
+  }
+
+  return absl::OkStatus();
+}
+
 absl::Status NewFSMGenerator::LayoutNewFSMStates(
-    NewFSMLayout& layout, const GeneratedFunction& func,
+    NewFSMLayout& layout, const std::list<GeneratedFunctionSlice>& slices,
     const xls::SourceInfo& body_loc) {
   // Get inputs for each state, resolving phis
   // Elaborates 3 iterations of each loop by taking each jump twice
@@ -378,7 +338,7 @@ absl::Status NewFSMGenerator::LayoutNewFSMStates(
 
   int64_t step = 0;
 
-  for (int64_t slice_index = 0; slice_index < func.slices.size(); ++step) {
+  for (int64_t slice_index = 0; slice_index < slices.size(); ++step) {
     NewFSMState& new_state =
         layout.states.emplace_back(NewFSMState{.slice_index = slice_index});
 
@@ -417,7 +377,6 @@ absl::Status NewFSMGenerator::LayoutNewFSMStates(
         }
         const int64_t step_produced =
             step_produced_by_value.at(continuation_out);
-        XLSCC_CHECK_NE(latest_step_produced, step_produced, body_loc);
         if (step_produced > latest_step_produced) {
           latest_step_produced = step_produced;
           latest_continuation_in = continuation_in;
@@ -485,9 +444,123 @@ absl::Status NewFSMGenerator::LayoutNewFSMStates(
   return absl::OkStatus();
 }
 
-absl::Status NewFSMGenerator::LayoutValuesToSaveForNewFSMStates(
+absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
     NewFSMLayout& layout, const GeneratedFunction& func,
+    const absl::flat_hash_map<DeclLeaf, xls::StateElement*>&
+        state_element_for_static,
     const xls::SourceInfo& body_loc) {
+  // Plan the state elements
+  //
+  // State elements may be shared by multiple continuation values if the values
+  // have the same type and are not saved in the same state (slice + jump flags)
+  //
+  // For optimization purposes, such as narrowing, it is better that the values
+  // saved in a state element share semantics. Therefore, Clang NamedDecls are
+  // used to identify values that may share a state element.
+  absl::flat_hash_map<DeclLeaf, std::vector<int64_t>>
+      state_element_indices_by_decl;
+
+  // Inject statics: this enables state element sharing with statics
+  for (const auto& [decl_leaf, existing_state_element] :
+       state_element_for_static) {
+    NewFSMStateElement state_element = {
+        .name = existing_state_element->name(),
+        .type = existing_state_element->type(),
+        .existing_state_element = existing_state_element,
+    };
+    layout.state_elements.push_back(state_element);
+    state_element_indices_by_decl[decl_leaf].push_back(
+        layout.state_elements.size() - 1);
+  }
+
+  for (const NewFSMState& state : layout.states) {
+    // Only need to save continuation values on activation transitions
+    if (!layout.transition_by_slice_from_index.contains(state.slice_index)) {
+      continue;
+    }
+
+    // A state element can only be used once in a given transition
+    absl::flat_hash_set<int64_t> used_state_element_indices;
+
+    // Mark reserved elements
+    for (const ContinuationValue* value : state.values_to_save) {
+      if (!layout.state_element_by_continuation_value.contains(value)) {
+        continue;
+      }
+      used_state_element_indices.insert(
+          layout.state_element_by_continuation_value.at(value));
+    }
+
+    for (const ContinuationValue* value : state.values_to_save) {
+      if (layout.state_element_by_continuation_value.contains(value)) {
+        continue;
+      }
+      // This value has not already been assigned a state element
+      // Try to find state elements to share by decl
+      std::optional<int64_t> found_element_by_decl = std::nullopt;
+      std::vector<DeclLeaf> decls;
+
+      for (const DeclLeaf& decl : value->decls) {
+        decls.push_back(decl);
+      }
+      func.SortNamesDeterministically(decls);
+
+      for (const DeclLeaf& decl : decls) {
+        if (!state_element_indices_by_decl.contains(decl)) {
+          continue;
+        }
+        const std::vector<int64_t>& elements_for_this_decl =
+            state_element_indices_by_decl.at(decl);
+
+        for (const int64_t element_for_decl_index : elements_for_this_decl) {
+          if (used_state_element_indices.contains(element_for_decl_index)) {
+            continue;
+          }
+
+          if (!layout.state_elements.at(element_for_decl_index)
+                   .type->IsEqualTo(value->output_node->GetType())) {
+            continue;
+          }
+
+          found_element_by_decl = element_for_decl_index;
+          break;
+        }
+        if (found_element_by_decl.has_value()) {
+          break;
+        }
+      }
+      int64_t element_index = found_element_by_decl.value_or(-1);
+
+      // Create a new state element if none were found to share
+      if (!found_element_by_decl.has_value()) {
+        std::string elem_name = value->name;
+        if (element_index >= 0) {
+          elem_name = absl::StrFormat("%s_el%li", elem_name, element_index);
+        }
+        NewFSMStateElement state_element = {
+            .name = absl::StrFormat("%s_slc%li", elem_name, state.slice_index),
+            .type = value->output_node->GetType(),
+        };
+        layout.state_elements.push_back(state_element);
+        element_index = layout.state_elements.size() - 1;
+      }
+
+      // Mark element used for this value in this transition
+      XLSCC_CHECK_GE(element_index, 0, body_loc);
+      XLSCC_CHECK_LT(element_index, layout.state_elements.size(), body_loc);
+      layout.state_element_by_continuation_value[value] = element_index;
+      used_state_element_indices.insert(element_index);
+      for (const DeclLeaf& decl : decls) {
+        state_element_indices_by_decl[decl].push_back(element_index);
+      }
+    }
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status NewFSMGenerator::LayoutValuesToSaveForNewFSMStates(
+    NewFSMLayout& layout, const xls::SourceInfo& body_loc) {
   // Fill in values to save after each state, in case of an activation
   // transition.
   //
@@ -596,14 +669,11 @@ absl::Status NewFSMGenerator::LayoutValuesToSaveForNewFSMStates(
 std::string NewFSMGenerator::GetStateName(const NewFSMState& state) {
   auto jump_infos_string =
       [](const std::vector<JumpInfo>& jump_infos) -> std::string {
-    std::vector<std::string> ret;
-    for (const JumpInfo& jump_info : jump_infos) {
-      std::string str;
-      absl::StrAppendFormat(&str, "{%li,c = %li}", jump_info.from_slice,
-                            jump_info.count);
-      ret.push_back(str);
-    }
-    return absl::StrJoin(ret, ",");
+    return absl::StrJoin(
+        jump_infos, ", ", [](std::string* out, const JumpInfo& jump_info) {
+          absl::StrAppendFormat(out, "{%li,c = %li}", jump_info.from_slice,
+                                jump_info.count);
+        });
   };
   return absl::StrFormat("  [slc %li j %s]: ", state.slice_index,
                          jump_infos_string(state.jumped_from_slice_indices));
@@ -632,9 +702,10 @@ void NewFSMGenerator::PrintNewFSMStates(const NewFSMLayout& layout) {
     for (const auto& [input_param, continuation_out] :
          state.current_inputs_by_input_param) {
       LOG(INFO) << absl::StrFormat(
-          "    p %s: slice %li %s", input_param->name().data(),
+          "    p %p/%s: slice %li %p/%s", input_param,
+          input_param->name().data(),
           layout.output_slice_index_by_value.at(continuation_out),
-          continuation_out->name.c_str());
+          continuation_out, continuation_out->name.c_str());
     }
   }
   LOG(INFO) << absl::StrFormat("States %li, values to save:",

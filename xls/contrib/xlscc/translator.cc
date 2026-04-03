@@ -4066,6 +4066,28 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
       std::vector<PhiInputToInsert*> this_slice_phi_inputs_to_insert;
 
+      absl::InlinedVector<const ContinuationInput*, 2>
+          continuation_inputs_ordered_by_param;
+      {
+        absl::flat_hash_map<const xls::Param*, int64_t> param_indices;
+        for (int64_t i = 0; i < callee_slice.function->params().size(); ++i) {
+          param_indices[callee_slice.function->params().at(i)] = i;
+        }
+        continuation_inputs_ordered_by_param.reserve(
+            continuation_inputs_ordered_by_param.size());
+        for (const ContinuationInput& continuation_in :
+             callee_slice.continuations_in) {
+          continuation_inputs_ordered_by_param.push_back(&continuation_in);
+        }
+        std::sort(continuation_inputs_ordered_by_param.begin(),
+                  continuation_inputs_ordered_by_param.end(),
+                  [&param_indices](const ContinuationInput* a,
+                                   const ContinuationInput* b) {
+                    return param_indices.at(a->input_node) <
+                           param_indices.at(b->input_node);
+                  });
+      }
+
       if (add_new_slice) {
         // Prepare slice return values
         GeneratedFunctionSlice* caller_slice = &context().sf->slices.back();
@@ -4093,8 +4115,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
                   &caller_slice->continuations_out.back();
         }
 
-        for (const ContinuationInput& callee_continuation_in :
-             callee_slice.continuations_in) {
+        for (const ContinuationInput* callee_continuation_in_ptr :
+             continuation_inputs_ordered_by_param) {
+          const ContinuationInput& callee_continuation_in =
+              *callee_continuation_in_ptr;
           phi_inputs_to_insert.push_back(PhiInputToInsert{
               .callee_continuation_in = &callee_continuation_in,
           });
@@ -4119,8 +4143,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         absl::flat_hash_set<const xls::Param*> all_cont_params;
         absl::flat_hash_set<const xls::Param*> params_added;
 
-        for (const ContinuationInput& callee_continuation_in :
-             callee_slice.continuations_in) {
+        for (const ContinuationInput* callee_continuation_in_ptr :
+             continuation_inputs_ordered_by_param) {
+          const ContinuationInput& callee_continuation_in =
+              *callee_continuation_in_ptr;
           const xls::Param* callee_param = callee_continuation_in.input_node;
           all_cont_params.insert(callee_param);
           if (params_added.contains(callee_param)) {
@@ -4232,6 +4258,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     TrackedBValue slice_ret =
         context().fb->Invoke(slice_args, callee_slice.function, loc);
+
     XLSCC_CHECK(slice_ret.valid(), loc);
 
     int64_t output_idx = 0;

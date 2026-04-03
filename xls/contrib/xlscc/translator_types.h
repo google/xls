@@ -22,6 +22,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -1062,6 +1063,47 @@ struct ContinuationValue {
   bool direct_in = false;
 };
 
+// Parallels JumpInfo structure in generate_fsm.h; used only in optimization.
+struct JumpId {
+  int64_t from_slice_index = -1;
+  int64_t count = -1;
+
+  friend bool operator==(const JumpId& lhs, const JumpId& rhs) = default;
+
+  friend auto operator<=>(const JumpId& lhs, const JumpId& rhs) {
+    return std::forward_as_tuple(lhs.from_slice_index, lhs.count) <=>
+           std::forward_as_tuple(rhs.from_slice_index, rhs.count);
+  }
+};
+
+// Parallels NewFSMState structure in generate_fsm.h; used only in optimization.
+struct StateId {
+  int64_t slice_index = -1;
+  absl::btree_set<JumpId> from_jump_slice_indices;
+
+  std::string ToString() const {
+    std::string jumps_str = "";
+    if (!from_jump_slice_indices.empty()) {
+      jumps_str =
+          ": " + absl::StrJoin(from_jump_slice_indices, ", ",
+                               [](std::string* out, const JumpId& jump_id) {
+                                 absl::StrAppendFormat(out, "{%li,c = %li}",
+                                                       jump_id.from_slice_index,
+                                                       jump_id.count);
+                               });
+    }
+    return absl::StrFormat("%li%s", slice_index, jumps_str);
+  }
+
+  friend bool operator==(const StateId& lhs, const StateId& rhs) = default;
+
+  friend auto operator<=>(const StateId& lhs, const StateId& rhs) {
+    return std::forward_as_tuple(lhs.slice_index,
+                                 lhs.from_jump_slice_indices) <=>
+           std::forward_as_tuple(rhs.slice_index, rhs.from_jump_slice_indices);
+  }
+};
+
 // A value inputted to a function slice, continuing a TrackedBValue from
 // a previous slice.
 //
@@ -1071,6 +1113,8 @@ struct ContinuationValue {
 struct ContinuationInput {
   ContinuationValue* continuation_out = nullptr;
   xls::Param* input_node = nullptr;
+
+  absl::btree_set<StateId> choose_in_states;
 
   // name, decls are for test/debug only
   std::string name;
@@ -1092,6 +1136,7 @@ struct GeneratedFunctionSlice {
 
   // Saved parameter order
   std::list<SideEffectingParameter> side_effecting_parameters;
+  absl::btree_set<int64_t> jump_from_slice_indices_scoped;
 
   // Temporaries used during slice generation only, not optimization
   absl::flat_hash_map<const clang::NamedDecl*, ContinuationValue*>
