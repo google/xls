@@ -810,6 +810,9 @@ class NextParamStateVisitor : public AstNodeVisitorWithDefault {
 
 }  // namespace
 
+SemanticsAnalysis::SemanticsAnalysis(bool suppress_warnings)
+    : suppress_warnings_(suppress_warnings) {}
+
 absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
     Module& module, WarningCollector& warning_collector,
     ImportData& import_data) {
@@ -824,6 +827,9 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
   ReplaceLambdaWithInvocation lambda_pass(import_data.file_table());
   XLS_RETURN_IF_ERROR(module.Accept(&lambda_pass));
 
+  if (suppress_warnings_) {
+    return absl::OkStatus();
+  }
   PreTypecheckPass pass(warning_collector, import_data.file_table());
 
   for (const ModuleMember& top : module.top()) {
@@ -861,6 +867,9 @@ void SemanticsAnalysis::SetNameDefType(const NameDef* def, const Type* type) {
 
 absl::Status SemanticsAnalysis::RunPostTypeCheckPass(
     WarningCollector& warning_collector) {
+  if (suppress_warnings_) {
+    return absl::OkStatus();
+  }
   // Report unused defs.
   for (auto& [f, unused_defs] : maybe_unreferenced_defs) {
     // Sort them for reporting stability.

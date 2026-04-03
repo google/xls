@@ -36,6 +36,8 @@ namespace xls::dslx {
 // assist the generation of those warnings.
 class SemanticsAnalysis {
  public:
+  SemanticsAnalysis(bool suppress_warnings = false);
+
   absl::Status RunPreTypeCheckPass(Module& module,
                                    WarningCollector& warning_collector,
                                    ImportData& import_data);
@@ -53,6 +55,7 @@ class SemanticsAnalysis {
   std::vector<std::pair<const Function*, std::vector<const NameDef*>>>
       maybe_unreferenced_defs;
   absl::flat_hash_map<const NameDef*, std::unique_ptr<Type>> def_to_type_;
+  bool suppress_warnings_;
 };
 
 }  // namespace xls::dslx

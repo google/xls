@@ -79,8 +79,10 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
   auto typecheck_imported_module =
       [import_data, warnings, error_handler, trait_deriver](
           std::unique_ptr<Module> module, std::filesystem::path path) {
+        std::unique_ptr<SemanticsAnalysis> semantics_analysis =
+            std::make_unique<SemanticsAnalysis>(/*suppress_warnings=*/true);
         return TypecheckModuleV2(std::move(module), path, import_data, warnings,
-                                 /*semantics_analysis=*/nullptr, error_handler,
+                                 std::move(semantics_analysis), error_handler,
                                  trait_deriver);
       };
   XLS_RETURN_IF_ERROR(PopulateTable(table, module.get(), import_data, warnings,
