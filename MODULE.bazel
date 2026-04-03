@@ -17,14 +17,7 @@ use_repo(llvm, "llvm_toolchain")
 register_toolchains("@llvm_toolchain//:all")
 
 # Python toolchain
-# TODO: https://github.com/google/xls/issues/2941 - revisit versioning once we're on bazel 8.
-# We previously pinned to 1.0.0 until moving to Bazel 8, or else we ran into missing py_library
-# attribute (e.g. pyi_srcs) errors in pip dependencies. More recent versions of rules_python seem
-# to fix this, only to have a new problem in that grpc requires a "preview" release of python 3.14
-# that later rules_python releases dropped. This was fixed in grpc/grpc#41278 but doesn't seem to
-# have made it into the latest release. For now, we stick to the same version of rules_python as
-# grpc.
-bazel_dep(name = "rules_python", version = "1.5.4")
+bazel_dep(name = "rules_python", version = "1.9.0")
 
 PYTHON_VERSION = "3.13"
 
@@ -60,8 +53,25 @@ bazel_dep(name = "bazel_features", version = "1.41.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "boringssl", version = "0.20250114.0")
 bazel_dep(name = "cppitertools", version = "2.2")
-bazel_dep(name = "googleapis", version = "0.0.0-20260109-6145b5ff")
-bazel_dep(name = "grpc", version = "1.78.0")
+
+# TODO: https://github.com/grpc/grpc/issues/41995 - Update to recent version once incompatibility
+# with envoy_api (transitive bazel_dep through gRPC) is fixed.
+# This is pinned to the previous version requested by gRPC (and also the latest version that works).
+bazel_dep(name = "googleapis", version = "0.0.0-20240819-fe8ba054a")
+single_version_override(
+    module_name = "googleapis",
+    version = "0.0.0-20240819-fe8ba054a",
+)
+
+bazel_dep(name = "grpc", version = "1.80.0")
+
+# TODO: https://github.com/grpc/grpc/issues/41998 - remove once this is fixed in the grpc repo.
+single_version_override(
+    module_name = "grpc",
+    patch_strip = 1,
+    patches = ["//dependency_support/grpc:typing_extensions.patch"],
+)
+
 bazel_dep(name = "linenoise", version = "2.0.0")
 bazel_dep(name = "nlohmann_json", version = "3.12.0.bcr.1")
 bazel_dep(name = "or-tools", version = "9.12", repo_name = "com_google_ortools")
@@ -70,6 +80,13 @@ bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf"
 bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "riegeli", version = "0.0.0-20250822-9f2744d")
 bazel_dep(name = "rules_cc", version = "0.2.11")
+
+# TODO: https://github.com/bazelbuild/bazel/issues/27582 - remove once XLS is on Bazel 8.5+.
+single_version_override(
+    module_name = "rules_cc",
+    version = "0.2.11",
+)
+
 bazel_dep(name = "rules_closure", version = "0.15.0")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")

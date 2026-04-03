@@ -1,1 +1,10 @@
-7.4.1
+7.7.1
+# Note, the first line must supply the Bazel versioning requirements.
+# Comments should only appear afterward; see
+# https://github.com/bazelbuild/bazelisk/issues/117
+
+# TODO: https://github.com/google/xls/issues/2941 - Remove since
+# this comment isn't meaningful on Bazel 8.
+# Note that XLS is no longer compatible with Bazel versions < 7.6.0
+# Transitive deps make use of bazel_dep(..., repo_name=None) which was
+# added in Bazel 7.6 (https://github.com/bazelbuild/bazel/pull/25509).
