@@ -76,7 +76,7 @@ bazel_dep(name = "linenoise", version = "2.0.0")
 bazel_dep(name = "nlohmann_json", version = "3.12.0.bcr.1")
 bazel_dep(name = "or-tools", version = "9.12", repo_name = "com_google_ortools")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
+bazel_dep(name = "protobuf", version = "33.0", repo_name = "com_google_protobuf")
 bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "riegeli", version = "0.0.0-20250822-9f2744d")
 bazel_dep(name = "rules_cc", version = "0.2.11")
@@ -168,12 +168,6 @@ single_version_override(
 bazel_dep(name = "fuzztest", version = "20250805.0", dev_dependency = True, repo_name = "com_google_fuzztest")
 bazel_dep(name = "google_benchmark", version = "1.9.5", dev_dependency = True)
 bazel_dep(name = "googletest", version = "1.17.0", dev_dependency = True)
-
-# Repositories we don't really depend on directly, but we need to provide
-# for other dependencies as they are using old versions that are not
-# compatible with current bazel.
-bazel_dep(name = "rules_java", version = "8.14.0")
-bazel_dep(name = "protoc-gen-validate", version = "1.2.1.bcr.1")
 
 # compilation DB; build_cleaner
 bazel_dep(name = "bant", version = "0.2.4", dev_dependency = True)
