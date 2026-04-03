@@ -46,8 +46,9 @@ enum class WarningKind : WarningKindInt {
   kAlreadyExhaustiveMatch = 1 << 12,
   kIllegalPackageName = 1 << 13,
   kWidthSliceOutOfRange = 1 << 14,
+  kKeywordParameterName = 1 << 15,
 };
-constexpr WarningKindInt kWarningKindCount = 15;
+constexpr WarningKindInt kWarningKindCount = 16;
 
 inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kConstexprEvalRollover,
@@ -65,6 +66,7 @@ inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kAlreadyExhaustiveMatch,
     WarningKind::kIllegalPackageName,
     WarningKind::kWidthSliceOutOfRange,
+    WarningKind::kKeywordParameterName,
 };
 
 // Flag set datatype.
@@ -115,9 +117,16 @@ inline bool WarningIsEnabled(WarningKindSet set, WarningKind warning) {
 // propagation time.
 // TODO(cdleary): 2025-02-03 Enable "already exhaustive match" by default after
 // some propagation time.
+//
+// `keyword_parameter_name` is intentionally default-off. It is useful when we
+// want DSLX function interfaces to codegen into matching
+// Verilog/SystemVerilog module interfaces with no additional mangling of
+// keyword parameter names.
 inline constexpr WarningKindSet kDefaultWarningsSet = DisableWarning(
-    DisableWarning(kAllWarningsSet, WarningKind::kShouldUseAssert),
-    WarningKind::kAlreadyExhaustiveMatch);
+    DisableWarning(
+        DisableWarning(kAllWarningsSet, WarningKind::kShouldUseAssert),
+        WarningKind::kAlreadyExhaustiveMatch),
+    WarningKind::kKeywordParameterName);
 
 // Converts a string representation of a warnings to its corresponding enum
 // value.

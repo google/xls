@@ -1,6 +1,4 @@
-#![feature(type_inference_v2)]
-
-// Copyright 2020 The XLS Authors
+// Copyright 2026 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,14 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Performs a table-less crc32 of the input data as in Hacker's Delight:
-// https://www.hackersdelight.org/hdcodetxt/crc.c.txt (roughly flavor b)
+fn f(input: u32) -> u32 { input }
 
-fn crc32_one_byte(b: u8, polynomial: u32, crc: u32) -> u32 {
-  let crc: u32 = crc ^ (b as u32);
-  // 8 rounds of updates.
-  for (_, crc): (u32, u32) in u32:0..u32:8 {
-    let mask: u32 = -(crc & u32:1);
-    (crc >> u32:1) ^ (polynomial & mask)
-  }(crc)
-}
+fn main() -> u32 { f(u32:42) }
