@@ -294,7 +294,7 @@ proc CsrConfig_test {
         let expected_values = zero!<uN[TEST_DATA_W][TEST_REGS_N]>();
 
         // Test Writes through external interface
-        let (tok, expected_values) = for ((i, test_data), (tok, expected_values)): ((u32, TestData), (token, uN[TEST_DATA_W][TEST_REGS_N])) in enumerate(TEST_DATA) {
+        let (tok, expected_values) = for ((i, test_data), (tok, expected_values)): ((u32, TestData), (token, uN[TEST_DATA_W][TEST_REGS_N])) in std::enumerate(TEST_DATA) {
             // write CSR via external interface
             let wr_req = TestCsrWrReq {
                 csr: test_data.csr,
@@ -344,7 +344,7 @@ proc CsrConfig_test {
         }((join(), expected_values));
 
         // Test writes via internal interface
-        let (tok, _) = for ((i, test_data), (tok, expected_values)): ((u32, TestData), (token, uN[TEST_DATA_W][TEST_REGS_N])) in enumerate(TEST_DATA) {
+        let (tok, _) = for ((i, test_data), (tok, expected_values)): ((u32, TestData), (token, uN[TEST_DATA_W][TEST_REGS_N])) in std::enumerate(TEST_DATA) {
             // write CSR via request channel
             let csr_wr_req = TestCsrWrReq {
                 csr: test_data.csr,

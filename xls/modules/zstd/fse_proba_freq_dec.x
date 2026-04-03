@@ -762,7 +762,7 @@ proc FseProbaFreqDecoderTest {
         });
         let (tok, _) = recv(tok, buff_out_data_r);
 
-        for ((i, exp_val), tok): ((u32, RamData), token) in enumerate(EXPECTED_RAM_CONTENTS) {
+        for ((i, exp_val), tok): ((u32, RamData), token) in std::enumerate(EXPECTED_RAM_CONTENTS) {
             let tok = send(tok, rd_req_s, ReadReq {
                 addr: i as RamAddr,
                 mask: std::unsigned_max_value<TEST_RAM_NUM_PARTITIONS>(),
@@ -799,7 +799,7 @@ proc FseProbaFreqDecoderTest {
             consumed_bytes: ConsumedFseBytes:2,
         });
 
-        for ((i, exp_val), tok): ((u32, RamData), token) in enumerate(EXPECTED_RAM_CONTENTS) {
+        for ((i, exp_val), tok): ((u32, RamData), token) in std::enumerate(EXPECTED_RAM_CONTENTS) {
             let tok = send(tok, rd_req_s, ReadReq {
                 addr: i as RamAddr,
                 mask: std::unsigned_max_value<TEST_RAM_NUM_PARTITIONS>(),
@@ -836,7 +836,7 @@ proc FseProbaFreqDecoderTest {
             consumed_bytes: ConsumedFseBytes:2,
         });
 
-        for ((i, exp_val), tok): ((u32, RamData), token) in enumerate(EXPECTED_RAM_CONTENTS) {
+        for ((i, exp_val), tok): ((u32, RamData), token) in std::enumerate(EXPECTED_RAM_CONTENTS) {
             let tok = send(tok, rd_req_s, ReadReq {
                 addr: i as RamAddr,
                 mask: std::unsigned_max_value<TEST_RAM_NUM_PARTITIONS>(),
