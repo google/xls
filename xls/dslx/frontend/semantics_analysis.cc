@@ -27,6 +27,7 @@
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
@@ -857,6 +858,22 @@ void SemanticsAnalysis::SetNameDefType(const NameDef* def, const Type* type) {
       found->second = type->CloneToUnique();
     }
   }
+}
+
+absl::Status SemanticsAnalysis::CheckChannelArrayIndex(
+    const Index* array_index, const TypeInfo* type_info,
+    const FileTable& file_table) {
+  VLOG(5) << absl::StrFormat("CheckChannelArrayIndex: %s",
+                             array_index->ToString());
+  const AstNode* rhs = ToAstNode(array_index->rhs());
+  std::vector<AstNode*> rhs_children = rhs->GetChildren(false);
+  if (!type_info->IsKnownConstExpr(rhs)) {
+    return xls::dslx::ParseErrorStatus(
+        array_index->span(),
+        absl::StrFormat("Non-constexpr value used in channel array indexing"),
+        file_table);
+  }
+  return absl::OkStatus();
 }
 
 absl::Status SemanticsAnalysis::RunPostTypeCheckPass(
