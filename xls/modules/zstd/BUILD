@@ -229,7 +229,6 @@ xls_benchmark_ir(
     name = "shift_buffer_storage_opt_ir_benchmark",
     src = ":shift_buffer_storage_verilog.opt.ir",
     benchmark_ir_args = SHIFT_BUFFER_STORAGE_CODEGEN_ARGS,
-    tags = ["manual"],
 )
 
 verilog_library(
@@ -390,7 +389,7 @@ xls_benchmark_ir(
         "top": "__frame_header_dec__FrameHeaderDecoderInst__FrameHeaderDecoder_0__16_32_30_5_next",
         "pipeline_stages": "10",
     },
-    tags = ["manual"],
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -484,6 +483,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "top": "__block_header_dec__BlockHeaderDecoderInst__BlockHeaderDecoder_0__16_64_next",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -563,6 +563,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "top": "__raw_block_dec__RawBlockDecoderInst__RawBlockDecoder_0__32_32_next",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -641,6 +642,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "top": "__rle_block_dec__RleBlockDecoderInst__RleBlockDecoder_0__64_next",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -717,7 +719,7 @@ xls_benchmark_ir(
     benchmark_ir_args = DEC_MUX_CODEGEN_ARGS | {
         "pipeline_stages": "10",
     },
-    tags = ["manual"],
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -850,6 +852,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
     },
     tags = ["manual"],
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 xls_benchmark_verilog(
@@ -937,6 +940,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "top": "__axi_csr_accessor__AxiCsrAccessorInst__AxiCsrAccessor_0__16_32_4_4_2_4_16_next",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -1014,6 +1018,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "top": "__csr_config__CsrConfigInst__CsrConfig_0__2_32_4_32_2_4_next",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -1092,6 +1097,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "delay_model": "asap7",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -1189,6 +1195,7 @@ xls_benchmark_ir(
         #    wr_resp = "fse_proba_freq_dec__wr_resp_r",
         #),
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 xls_benchmark_verilog(
@@ -1336,6 +1343,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
     },
     codegen_args = REFILLING_SHIFT_BUFFER_CODEGEN_ARGS,
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -1609,6 +1617,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "delay_model": "asap7",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -1688,6 +1697,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "delay_model": "asap7",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 xls_benchmark_verilog(
@@ -2061,6 +2071,7 @@ xls_benchmark_ir(
         "delay_model": "asap7",
         "pipeline_stages": "3",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -2153,6 +2164,7 @@ xls_benchmark_ir(
         "pipeline_stages": "3",
         "worst_case_throughput": "6",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
@@ -2337,6 +2349,7 @@ xls_benchmark_ir(
         "delay_model": "asap7",
         "pipeline_stages": "6",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 xls_dslx_library(
@@ -2555,6 +2568,7 @@ xls_benchmark_ir(
         "pipeline_stages": "6",
         "delay_model": "asap7",
     },
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 xls_benchmark_verilog(
@@ -2725,6 +2739,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
     },
     codegen_args = LITERALS_DECODER_CODEGEN_ARGS,
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 xls_benchmark_verilog(
@@ -2829,6 +2844,7 @@ xls_benchmark_ir(
     name = "huffman_prescan_opt_ir_benchmark",
     src = ":huffman_prescan_verilog.opt.ir",
     benchmark_ir_args = PRESCAN_CODEGEN_ARGS,
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 xls_benchmark_verilog(
@@ -3146,9 +3162,6 @@ xls_benchmark_ir(
     name = "huffman_decoder_opt_ir_benchmark",
     src = ":huffman_decoder_verilog.opt.ir",
     benchmark_ir_args = HUFFMAN_DECODER_CODEGEN_ARGS,
-    # Must remain manual since it's broken:
-    # Pipeline scheduling requires either --pipeline_stages or --clock_period_ps to be specified
-    tags = ["manual"],
 )
 
 verilog_library(
@@ -3408,9 +3421,7 @@ xls_benchmark_ir(
     name = "huffman_literals_dec_opt_ir_benchmark",
     src = ":huffman_literals_dec_verilog.opt.ir",
     benchmark_ir_args = HUFFMAN_LITERALS_DEC_CODEGEN_ARGS,
-    # Must remain manual since it's broken:
-    # Pipeline scheduling requires either --pipeline_stages or --clock_period_ps to be specified
-    tags = ["manual"],
+    verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
 
 verilog_library(
