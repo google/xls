@@ -15,14 +15,13 @@
 # Compiler data structures for converting high level algorithms into Hardware
 # Description Language.
 
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@rules_python//python:proto.bzl", "py_proto_library")
-
-# Load proto_library
 load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
-# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],

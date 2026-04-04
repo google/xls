@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# cc_proto_library is used in this file
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_python//python:proto.bzl", "py_proto_library")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
-
-# Load proto_library
 load("//xls/build_rules:xls_build_defs.bzl", "xls_diff_test")
 load(
     "//xls/passes/tools:generate_documentation_rule.bzl",

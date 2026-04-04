@@ -72,7 +72,7 @@ bzl_library(
     deps = [
         ":xls_common_rules_bzl",
         "@bazel_skylib//lib:dicts",
-        "@rules_proto//proto:defs",
+        "@com_google_protobuf//bazel/common:proto_info_bzl",
     ],
 )
 

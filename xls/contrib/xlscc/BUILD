@@ -18,12 +18,11 @@
 # Email xls-team@ or seanhaskell@ if a dependency is desired.
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-# Load proto_library
-# cc_proto_library is used in this file
-
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_python//python:proto.bzl", "py_proto_library")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 package(

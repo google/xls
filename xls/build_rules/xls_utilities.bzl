@@ -14,7 +14,7 @@
 """This module contains helper rules."""
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-load("@rules_proto//proto:defs.bzl", "ProtoInfo")
+load("@com_google_protobuf//bazel/common:proto_info.bzl", "ProtoInfo")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
     "get_output_filename_value",

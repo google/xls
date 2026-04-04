@@ -13,17 +13,16 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@rules_python//python:proto.bzl", "py_proto_library")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test", "pytype_strict_library")
-
-# Load proto_library
 load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_library")
 load("//xls/dslx:strip_comments.bzl", "dslx_strip_comments")
 load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
-# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
