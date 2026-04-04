@@ -606,8 +606,8 @@ proc foo( x: bits[32], y: (), z: bits[32], init={42, (), 123}) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x, proc->GetStateElement("x"));
-  EXPECT_THAT(proc->GetStateRead(x)->predicate(), std::nullopt);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x, proc->GetStateElementByName("x"));
+  EXPECT_THAT(proc->GetStateReadByStateElement(x)->predicate(), std::nullopt);
 }
 
 TEST(IrParserTest, ProcWithPredicatedStateRead) {
@@ -625,17 +625,18 @@ proc foo( x: bits[32], y: bits[1], z: bits[32], init={42, 1, 123}) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
 
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x, proc->GetStateElement("x"));
-  std::optional<Node*> x_predicate = proc->GetStateRead(x)->predicate();
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x, proc->GetStateElementByName("x"));
+  std::optional<Node*> x_predicate =
+      proc->GetStateReadByStateElement(x)->predicate();
   ASSERT_TRUE(x_predicate.has_value());
   ASSERT_EQ((*x_predicate)->op(), Op::kStateRead);
   EXPECT_EQ((*x_predicate)->As<StateRead>()->state_element()->name(), "y");
 
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * y, proc->GetStateElement("y"));
-  ASSERT_FALSE(proc->GetStateRead(y)->predicate().has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * y, proc->GetStateElementByName("y"));
+  ASSERT_FALSE(proc->GetStateReadByStateElement(y)->predicate().has_value());
 
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * z, proc->GetStateElement("z"));
-  ASSERT_FALSE(proc->GetStateRead(z)->predicate().has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * z, proc->GetStateElementByName("z"));
+  ASSERT_FALSE(proc->GetStateReadByStateElement(z)->predicate().has_value());
 }
 
 TEST(IrParserTest, ParseSendReceiveChannel) {

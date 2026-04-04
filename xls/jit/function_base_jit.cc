@@ -737,8 +737,9 @@ std::vector<Node*> GetJittedFunctionInputs(FunctionBase* function_base) {
   if (function_base->IsProc()) {
     Proc* proc = function_base->AsProcOrDie();
     std::vector<Node*> out;
-    absl::c_transform(proc->StateElements(), std::back_inserter(out),
-                      [&](StateElement* st) { return proc->GetStateRead(st); });
+    absl::c_transform(
+        proc->StateElements(), std::back_inserter(out),
+        [&](StateElement* st) { return proc->GetStateReadByStateElement(st); });
     return out;
   }
   std::vector<Node*> inputs(function_base->params().begin(),
@@ -779,8 +780,9 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
   Proc* proc = function_base->AsProcOrDie();
   std::vector<Node*> outputs;
   outputs.reserve(proc->StateElements().size());
-  absl::c_transform(proc->StateElements(), std::back_inserter(outputs),
-                    [&](StateElement* st) { return proc->GetStateRead(st); });
+  absl::c_transform(
+      proc->StateElements(), std::back_inserter(outputs),
+      [&](StateElement* st) { return proc->GetStateReadByStateElement(st); });
   return outputs;
 }
 

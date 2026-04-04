@@ -384,15 +384,17 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
-  EXPECT_EQ(proc->GetStateRead(*proc->GetStateElement("x"))->predicate(),
+  EXPECT_EQ(proc->GetStateReadByStateElement(*proc->GetStateElementByName("x"))
+                ->predicate(),
             std::nullopt);
   EXPECT_THAT(
-      proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("y"))
+          ->predicate(),
       Optional(m::Or(
           m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
           m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)))));
   EXPECT_THAT(
-      proc->next_values(*proc->GetStateElement("y")),
+      proc->next_values(*proc->GetStateElementByName("y")),
       UnorderedElementsAre(
           m::Next(
               m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
@@ -441,17 +443,19 @@ TEST_P(ProcStateLegalizationPassTest,
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
-  EXPECT_EQ(proc->GetStateRead(*proc->GetStateElement("x"))->predicate(),
+  EXPECT_EQ(proc->GetStateReadByStateElement(*proc->GetStateElementByName("x"))
+                ->predicate(),
             std::nullopt);
   EXPECT_THAT(
-      proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("y"))
+          ->predicate(),
       Optional(m::Or(
           m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
           m::And(
               m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
               m::Literal(1)))));
   EXPECT_THAT(
-      proc->next_values(*proc->GetStateElement("y")),
+      proc->next_values(*proc->GetStateElementByName("y")),
       UnorderedElementsAre(
           m::Next(m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
                   m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
@@ -512,10 +516,12 @@ TEST_P(ProcStateLegalizationPassTest,
   const testing::Matcher<const Node*> expected_read_predicate = m::Or(
       m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
       m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))));
-  EXPECT_THAT(proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
-              Optional(expected_read_predicate));
   EXPECT_THAT(
-      proc->next_values(*proc->GetStateElement("y")),
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("y"))
+          ->predicate(),
+      Optional(expected_read_predicate));
+  EXPECT_THAT(
+      proc->next_values(*proc->GetStateElementByName("y")),
       UnorderedElementsAre(
           m::Next(
               m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),

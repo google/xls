@@ -258,7 +258,8 @@ absl::StatusOr<TrackedBValue> ComposeStaticValueInput(
   if (!generate_new_fsm || !TypeIsDecomposable(xls_type)) {
     xls::StateElement* state_element = state_element_for_static.at(
         DeclLeaf{.decl = namedecl, .leaf_index = -1});
-    return TrackedBValue(pb.proc()->GetStateRead(state_element), &pb);
+    return TrackedBValue(pb.proc()->GetStateReadByStateElement(state_element),
+                         &pb);
   }
   absl::InlinedVector<xls::Type*, 1> decomposed_types =
       DecomposeTupleTypes(xls_type);
@@ -267,7 +268,7 @@ absl::StatusOr<TrackedBValue> ComposeStaticValueInput(
   for (int64_t i = 0; i < decomposed_types.size(); ++i) {
     xls::StateElement* decomposed_element = state_element_for_static.at(
         DeclLeaf{.decl = namedecl, .leaf_index = i});
-    nodes.push_back(pb.proc()->GetStateRead(decomposed_element));
+    nodes.push_back(pb.proc()->GetStateReadByStateElement(decomposed_element));
   }
 
   XLS_ASSIGN_OR_RETURN(xls::Node * node,
@@ -661,7 +662,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
         next_state_value.value = TrackedBValue(decomposed_next_val, &pb);
       } else {
         XLSCC_CHECK_EQ(decomposed_elems.size(), 1, body_loc);
-        xls::StateRead* state_read = pb.proc()->GetStateRead(decomposed_elem);
+        xls::StateRead* state_read =
+            pb.proc()->GetStateReadByStateElement(decomposed_elem);
         TrackedBValue prev_val(state_read, &pb);
         next_state_value.value =
             pb.And(prev_val,
@@ -2266,7 +2268,7 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
       return absl::InternalError(
           absl::StrFormat("No next values for state element %s", elem->name()));
     }
-    xls::StateRead* state_read = pb.proc()->GetStateRead(elem);
+    xls::StateRead* state_read = pb.proc()->GetStateReadByStateElement(elem);
     TrackedBValue read_bval(state_read, &pb);
     if (values_for_elem == 1) {
       const NextStateValue& next_state_value =

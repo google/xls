@@ -198,7 +198,7 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
                                    const QueryEngine& query_engine,
                                    BitProvenanceAnalysis& provenance) {
   Bits unchanged_bits = Bits::AllOnes(initial_bits.bit_count());
-  StateRead* state_read = proc->GetStateRead(state_element);
+  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
   for (Next* next : proc->next_values(state_element)) {
     if (next->value() == state_read) {
       // Pass-through nexts are trivially unaffecting.
@@ -290,10 +290,10 @@ absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
 
   for (auto& [state_element, transform, narrowed_init] : transforms) {
     made_changes = true;
-    XLS_RETURN_IF_ERROR(
-        proc->TransformStateElement(proc->GetStateRead(state_element),
-                                    Value(narrowed_init), transform)
-            .status());
+    XLS_RETURN_IF_ERROR(proc->TransformStateElement(
+                                proc->GetStateReadByStateElement(state_element),
+                                Value(narrowed_init), transform)
+                            .status());
   }
 
   return made_changes;

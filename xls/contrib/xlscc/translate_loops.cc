@@ -1375,7 +1375,7 @@ Translator::GenerateIR_PipelinedLoopContents(
       xls::StateElement* state_elem =
           prepared.state_element_for_variable.at(DeclLeaf{.decl = decl});
       state_reads_by_decl[decl] =
-          TrackedBValue(pb.proc()->GetStateRead(state_elem), &pb);
+          TrackedBValue(pb.proc()->GetStateReadByStateElement(state_elem), &pb);
     }
   }
 

@@ -87,20 +87,19 @@ TEST_F(ProcTest, MutateProc) {
   BValue after_all = pb.AfterAll({tkn});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({after_all, add}));
 
-  ASSERT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})),
+  ASSERT_THAT(proc->next_values(proc->GetStateElement(0)),
               ElementsAre(m::Next(m::StateRead("tkn"),
                                   m::AfterAll(m::StateRead("tkn")))));
-  Next* next_tkn =
-      *proc->next_values(proc->GetStateElement(int64_t{0})).begin();
+  Next* next_tkn = *proc->next_values(proc->GetStateElement(0)).begin();
   XLS_ASSERT_OK(proc->RemoveNode(next_tkn));
   XLS_ASSERT_OK(proc->RemoveNode(after_all.node()));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)), IsEmpty());
 
-  ASSERT_THAT(proc->next_values(proc->GetStateElement(int64_t{1})),
+  ASSERT_THAT(proc->next_values(proc->GetStateElement(1)),
               ElementsAre(m::Next(m::StateRead("st"), m::Add())));
-  Next* next_st = *proc->next_values(proc->GetStateElement(int64_t{1})).begin();
+  Next* next_st = *proc->next_values(proc->GetStateElement(1)).begin();
   XLS_ASSERT_OK(proc->RemoveNode(next_st));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{1})), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(1)), IsEmpty());
 }
 
 TEST_F(ProcTest, AddAndRemoveState) {
@@ -146,12 +145,12 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(2)->initial_value(), Value(UBits(100, 32)));
   EXPECT_EQ(proc->GetStateElement(3)->initial_value(), Value(UBits(123, 32)));
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{0})),
+      proc->next_values(proc->GetStateElement(0)),
       ElementsAre(m::Next(m::StateRead("tkn"), m::Name("my_after_all"))));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{1})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
               ElementsAre(m::Next(m::StateRead("x"), m::Name("my_add"))));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{2})), IsEmpty());
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{3})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(2)), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(3)),
               ElementsAre(m::Next(m::StateRead("z"), m::Literal(0))));
 
   XLS_ASSERT_OK(proc->RemoveStateElement(2));
@@ -179,20 +178,20 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(3)->name(), "z");
   EXPECT_EQ(proc->GetStateElement(4)->name(), "bar");
 
-  XLS_ASSERT_OK(proc->RemoveNode(
-      *proc->next_values(proc->GetStateElement(int64_t{3})).begin()));
+  XLS_ASSERT_OK(
+      proc->RemoveNode(*proc->next_values(proc->GetStateElement(3)).begin()));
   EXPECT_THAT(
       proc->DumpIr(),
       HasSubstr("proc p(foo: bits[32], tkn: token, x: bits[32], z: "
                 "bits[32], bar: bits[64], init={123, token, 42, 123, 1}"));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{0})), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)), IsEmpty());
   EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(int64_t{1})),
+      proc->next_values(proc->GetStateElement(1)),
       ElementsAre(m::Next(m::StateRead("tkn"), m::Name("my_after_all"))));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{2})),
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(2)),
               ElementsAre(m::Next(m::StateRead("x"), m::Name("my_add"))));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{3})), IsEmpty());
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(int64_t{4})), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(3)), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(4)), IsEmpty());
 }
 
 TEST_F(ProcTest, StatelessProc) {
@@ -557,8 +556,7 @@ TEST_F(ScheduledProcTest, StageAddAndClear) {
   proc->ClearStages();
   EXPECT_TRUE(proc->stages().empty());
   // Re-stage the state element to satisfy the verifier.
-  XLS_ASSERT_OK(
-      proc->AddNodeToStage(0, proc->GetStateRead(int64_t{0})).status());
+  XLS_ASSERT_OK(proc->AddNodeToStage(0, proc->GetStateRead(0)).status());
 }
 
 TEST_F(ScheduledProcTest, AddEmptyStages) {
@@ -598,8 +596,7 @@ TEST_F(ScheduledProcTest, GetStageIndex) {
   EXPECT_THAT(proc->GetStageIndex(x), IsOkAndHolds(1));
   EXPECT_THAT(proc->GetStageIndex(y), IsOkAndHolds(2));
   EXPECT_THAT(proc->GetStageIndex(add), StatusIs(absl::StatusCode::kNotFound));
-  EXPECT_THAT(proc->GetStageIndex(proc->GetStateRead(int64_t{0})),
-              IsOkAndHolds(0));
+  EXPECT_THAT(proc->GetStageIndex(proc->GetStateRead(0)), IsOkAndHolds(0));
 
   // The verifier requires that every node be in a stage before we finish.
   ASSERT_THAT(proc->AddNodeToStage(2, add), IsOkAndHolds(true));
