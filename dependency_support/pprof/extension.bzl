@@ -16,7 +16,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-def repo():
+def _pprof_extension_impl(_ctx):
     # Current as of 2025-08-04
     git_hash = "6e76a2b096b5fa52e4bb3f7f7a357bd6e6b3b7b1"
     archive_sha256 = "a539183a563e820ff189dfae8dd3b3690cbb376cf3f297031392307bfe72350b"
@@ -30,3 +30,5 @@ def repo():
             "https://github.com/google/pprof/archive/%s.tar.gz" % git_hash,
         ],
     )
+
+pprof_extension = module_extension(implementation = _pprof_extension_impl)

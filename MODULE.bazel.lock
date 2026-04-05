@@ -766,6 +766,36 @@
         ]
       }
     },
+    "//dependency_support/pprof:extension.bzl%pprof_extension": {
+      "general": {
+        "bzlTransitiveDigest": "kL891zaT20eGiOiquMr2YcPKc1IOphw3UlmmExQYYW4=",
+        "usagesDigest": "btxpwMMFF34W/G2M+VLsAHeK2MtKHf4RooEtMPe38X4=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "pprof": {
+            "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
+            "ruleClassName": "http_archive",
+            "attributes": {
+              "sha256": "a539183a563e820ff189dfae8dd3b3690cbb376cf3f297031392307bfe72350b",
+              "strip_prefix": "pprof-6e76a2b096b5fa52e4bb3f7f7a357bd6e6b3b7b1",
+              "build_file": "@@//dependency_support/pprof:bundled.BUILD.bazel",
+              "urls": [
+                "https://github.com/google/pprof/archive/6e76a2b096b5fa52e4bb3f7f7a357bd6e6b3b7b1.tar.gz"
+              ]
+            }
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "",
+            "bazel_tools",
+            "bazel_tools"
+          ]
+        ]
+      }
+    },
     "//dependency_support/z3:extension.bzl%z3_extension": {
       "general": {
         "bzlTransitiveDigest": "qu/tfQRAZhNUvlq6u2XDvfhIcWFScGpF3KrIx02SlwM=",

@@ -93,6 +93,10 @@ bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "verible", version = "0.0.3933")
 
+# pprof is not in BCR.
+pprof_ext = use_extension("//dependency_support/pprof:extension.bzl", "pprof_extension")
+use_repo(pprof_ext, "pprof")
+
 # Used by XLS[cc]
 ac_types_ext = use_extension("//dependency_support/com_github_hlslibs_ac_types:extension.bzl", "ac_types_extension")
 use_repo(ac_types_ext, "ac_datatypes")
