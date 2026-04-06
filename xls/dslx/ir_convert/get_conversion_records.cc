@@ -181,7 +181,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
     std::vector<InvocationCalleeData> calls =
         type_info_->GetUniqueInvocationCalleeData(f);
-    if (f->IsCompilerDerived() && calls.empty()) {
+    bool is_to_bits = std::string_view(f->identifier()).ends_with("to_bits");
+    if (f->IsCompilerDerived() && calls.empty() && !is_to_bits) {
       VLOG(5) << "No calls to derived function " << f->name_def()->ToString()
               << "; not traversing for dependencies.";
       return absl::OkStatus();
