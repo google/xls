@@ -123,6 +123,32 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
     }
     return expr;
   }
+  if (node->Is<ArraySlice>()) {
+    XLS_RET_CHECK(emit_as_assignment);
+    ArraySlice* slice = node->As<ArraySlice>();
+    const NodeRepresentation& array_repr = node_exprs.at(slice->array());
+    if (!std::holds_alternative<Expression*>(array_repr)) {
+      return absl::UnimplementedError(
+          absl::StrFormat("Unable to generate code for: %s", node->ToString()));
+    }
+
+    std::vector<Expression*> inputs;
+    inputs.push_back(std::get<Expression*>(array_repr));
+
+    const NodeRepresentation& start_repr = node_exprs.at(slice->start());
+    if (std::holds_alternative<Expression*>(start_repr)) {
+      inputs.push_back(std::get<Expression*>(start_repr));
+    } else if (slice->start()->GetType()->GetFlatBitCount() == 0) {
+      // Zero-width start values can only denote index zero; synthesize a
+      // placeholder expression so ArraySlice lowering can normalize it.
+      inputs.push_back(mb->file()->LiteralOrDie(0, 1, node->loc()));
+    } else {
+      return absl::UnimplementedError(
+          absl::StrFormat("Unable to generate code for: %s", node->ToString()));
+    }
+
+    return mb->EmitAsAssignment(name, node, inputs);
+  }
   return absl::UnimplementedError(
       absl::StrFormat("Unable to generate code for: %s", node->ToString()));
 }
