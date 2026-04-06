@@ -31,7 +31,9 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
+#include "xls/passes/critical_path_delay_analysis.h"
 #include "xls/passes/folding_graph.h"
+#include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/visibility_analysis.h"
@@ -351,6 +353,26 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results, OptimizationContext& context) const override;
+
+  explicit ResourceSharingPass(std::string_view pass_name)
+      : OptimizationFunctionBasePass(pass_name, "Resource Sharing"),
+        profitability_guard_(ProfitabilityGuard::kInDegree),
+        config_(kDefaultMinAreaSavings, kDefaultMaxDelaySpreadSquared,
+                kDefaultMaxDelayIncrease, kDefaultMaxDelayIncreasePerFold,
+                kDefaultMaxEdgesToHandle,
+                kDefaultMaxPathCountForEdgeInGeneralVisibilityAnalysis,
+                kDefaultMaxPathCountForBddEngine) {}
+
+  virtual absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
+  SelectFoldingActions(
+      OptimizationContext& context, FoldingGraph* folding_graph,
+      absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+          mutual_exclusivity,
+      const VisibilityAnalyses& visibility,
+      const NodeBackwardDependencyAnalysis& nda,
+      const CriticalPathDelayAnalysis& critical_path_delay,
+      const OptimizationPassOptions& options,
+      VisibilityEstimator* visibility_estimator) const;
 
  private:
   ProfitabilityGuard profitability_guard_;

@@ -1693,6 +1693,33 @@ SelectFoldingActions(OptimizationContext& context, FoldingGraph* folding_graph,
   return folding_actions_to_perform;
 }
 
+absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
+ResourceSharingPass::SelectFoldingActions(
+    OptimizationContext& context, FoldingGraph* folding_graph,
+    absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+        mutual_exclusivity,
+    const VisibilityAnalyses& visibility,
+    const NodeBackwardDependencyAnalysis& nda,
+    const CriticalPathDelayAnalysis& critical_path_delay,
+    const OptimizationPassOptions& options,
+    VisibilityEstimator* visibility_estimator) const {
+  // Pick the heuristic to use
+  ResourceSharingPass::ProfitabilityGuard selection_heuristic =
+      options.force_resource_sharing ? ProfitabilityGuard::kAlways
+                                     : profitability_guard_;
+
+  // Select the folding actions to perform
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::unique_ptr<NaryFoldingAction>>
+          folding_actions_to_perform,
+      ::xls::SelectFoldingActions(context, folding_graph, selection_heuristic,
+                                  mutual_exclusivity, visibility, nda,
+                                  *options.area_estimator, critical_path_delay,
+                                  config_, visibility_estimator));
+
+  return folding_actions_to_perform;
+}
+
 absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     FunctionBase* f, int64_t next_node_id,
     VisibilityBuilder* visibility_builder,
@@ -2051,16 +2078,12 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   FoldingGraph folding_graph{f, std::move(foldable_actions)};
 
   // Select the folding actions to perform
-  ResourceSharingPass::ProfitabilityGuard selection_heuristic =
-      options.force_resource_sharing ? ProfitabilityGuard::kAlways
-                                     : profitability_guard_;
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<NaryFoldingAction>>
           folding_actions_to_perform,
-      SelectFoldingActions(context, &folding_graph, selection_heuristic,
-                           mutual_exclusivity, visibilities, nda_backwards,
-                           *options.area_estimator, *critical_path_delay,
-                           config_, &visibility_estimator));
+      SelectFoldingActions(context, &folding_graph, mutual_exclusivity,
+                           visibilities, nda_backwards, *critical_path_delay,
+                           options, &visibility_estimator));
 
   // Perform the folding
   XLS_ASSIGN_OR_RETURN(
