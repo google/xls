@@ -665,7 +665,7 @@ class EvalProcTest(parameterized.TestCase):
     ] + backends
 
     output = run_command(shared_args)
-    self.assertIn("Cycle[6]: resetting? false", output.stderr)
+    self.assertIn("Cycle[5]: resetting? false", output.stderr)
 
     self.assertNotIn("trace: rst_n 0", output.stderr)
     self.assertNotIn("trace: rst_n 1", output.stderr)
@@ -711,7 +711,7 @@ class EvalProcTest(parameterized.TestCase):
     ] + backends
 
     output = run_command(shared_args)
-    self.assertIn("Cycle[6]: resetting? false", output.stderr)
+    self.assertIn("Cycle[5]: resetting? false", output.stderr)
 
     self.assertIn("trace: rst_n 0", output.stderr)
     self.assertIn("trace: rst_n 1", output.stderr)
@@ -758,11 +758,11 @@ class EvalProcTest(parameterized.TestCase):
     ] + backends
 
     output = run_command(shared_args)
-    self.assertIn("Cycle[6]: resetting? false", output.stderr)
+    self.assertIn("Cycle[5]: resetting? false", output.stderr)
 
     with open(stats_file.full_path, "r") as f:
       stats_content = f.read()
-      self.assertIn("6", stats_content)
+      self.assertIn("5", stats_content)
 
   @parameterized_block_backends
   def test_block_no_output(self, backend):
@@ -895,7 +895,7 @@ class EvalProcTest(parameterized.TestCase):
     ] + backend
 
     output = run_command(shared_args)
-    self.assertIn("Cycle[6]: resetting? false", output.stderr)
+    self.assertIn("Cycle[5]: resetting? false", output.stderr)
 
   def test_output_channels_stdout_display_proc(self):
     input_file = self.create_tempfile(content=textwrap.dedent("""

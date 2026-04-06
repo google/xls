@@ -324,10 +324,20 @@ compound_passes: [
       #
       "useless_assert_remove",
       "useless_io_remove",
+      # Narrow proc elements
+      "proc_state_provenance_narrow",
+      "dce",
+      "proc_state_opt",
+      "dce",
+      #
+      "bdd_simp(3)",
+      "dce",
+      "basic_simp",
+      "dce",
+      "bdd_cse",
+      "dce",
+      "fixedpoint_simp(3)",
       "next_value_opt",
-      # TODO(allight): We might want another proc-narrowing pass here but it's
-      # not clear if it will be likely to find anything and we'd need more
-      # cleanup passes if we did to take advantage of the narrower state.
       "proc_state_opt",
       "dce",
       #
