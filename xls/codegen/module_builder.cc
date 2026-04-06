@@ -834,8 +834,17 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         int64_t min_index_width =
             Bits::MinBitCountUnsigned(input_array_size - 1);
 
-        Expression* start_expr = inputs[1];
         int64_t start_width = slice->start()->BitCountOrDie();
+        Expression* start_expr;
+        if (start_width == 0) {
+          // A zero-width start can only encode index 0. Materialize it as a
+          // non-zero-width literal so the subsequent array-index expressions
+          // remain representable in VAST.
+          start_width = std::max<int64_t>(min_index_width, 1);
+          start_expr = file_->LiteralOrDie(0, start_width, node->loc());
+        } else {
+          start_expr = inputs[1];
+        }
         if (start_width < min_index_width) {
           // Zero-extend start to `min_index_width` bits.
           start_expr =

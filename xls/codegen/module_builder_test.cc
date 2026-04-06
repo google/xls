@@ -564,6 +564,28 @@ TEST_P(ModuleBuilderTest, ArrayIndexAsFunction) {
                                  file.Emit());
 }
 
+TEST_P(ModuleBuilderTest, ArraySliceWithZeroWidthStartUsesConstantZeroIndex) {
+  VerilogFile file = NewVerilogFile();
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  Type* array_type = package.GetArrayType(1, u32);
+  BValue a_param = fb.Param("a", array_type);
+  BValue zero_start = fb.Literal(UBits(0, 0));
+  BValue array_slice = fb.ArraySlice(a_param, zero_start, /*width=*/2);
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * a, mb.AddInputPort("a", array_type));
+  EXPECT_THAT(mb.EmitAsAssignment("array_slice", array_slice.node(),
+                                  {a, file.PlainLiteral(0, SourceInfo())}),
+              IsOk());
+
+  std::string emitted = file.Emit();
+  EXPECT_THAT(emitted, HasSubstr("a_unflattened[1'h0]"));
+  EXPECT_THAT(emitted, Not(HasSubstr("0'h0")));
+}
+
 TEST_P(ModuleBuilderTest, PrioritySelectAsFunction) {
   VerilogFile file = NewVerilogFile();
   Package package(TestBaseName());
