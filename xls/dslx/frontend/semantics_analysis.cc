@@ -284,12 +284,14 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  bool NameDefReferenced(const NameDef* name_def) {
+  const absl::flat_hash_set<const NameRef*>& NameRefsForDef(
+      const NameDef* name_def) {
+    static const absl::flat_hash_set<const NameRef*> empty_set = {};
     auto it = name_ref_info_.find(name_def);
     if (it == name_ref_info_.end()) {
-      return false;
+      return empty_set;
     }
-    return true;
+    return it->second.name_refs;
   }
 
   absl::flat_hash_set<const NameDef*> NameDefsDefinedPrior(
@@ -370,11 +372,13 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     std::optional<const Function*> containing_fn = GetContainingFunction(node);
     std::vector<ExprOrType> containing_fn_parametric_vals;
     absl::flat_hash_set<const NameDef*> parametric_nds;
+    absl::flat_hash_map<const NameRef*, NameRef*> name_ref_replacements;
 
     if (containing_fn.has_value()) {
       for (ParametricBinding* parametric_binding :
            (*containing_fn)->parametric_bindings()) {
-        if (collect_nr.NameDefReferenced(parametric_binding->name_def())) {
+        for (const NameRef* original_name_ref :
+             collect_nr.NameRefsForDef(parametric_binding->name_def())) {
           NameDef* lambda_struct_nd = module->Make<NameDef>(
               parametric_binding->span(), parametric_binding->identifier(),
               /*definer=*/nullptr);
@@ -396,6 +400,7 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
               parametric_binding->name_def());
           containing_fn_parametric_vals.push_back(parametric_nr);
           parametric_nds.insert(parametric_binding->name_def());
+          name_ref_replacements.emplace(original_name_ref, parametric_nr);
         }
       }
     }
@@ -469,7 +474,7 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     NameDef* self_nd = module->Make<NameDef>(
         span, KeywordToString(Keyword::kSelf), /*definer=*/nullptr);
     CloneReplacer insert_self =
-        [self_nd, seen](
+        [self_nd, seen, name_ref_replacements](
             const AstNode* node, const Module* _,
             const absl::flat_hash_map<const AstNode*, AstNode*>& replacements)
         -> std::optional<AstNode*> {
@@ -485,6 +490,8 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
           return node->owner()->Make<Attr>(name_def->span(), self_nr,
                                            name_def->identifier(),
                                            /* in_parens= */ false);
+        } else if (name_ref_replacements.contains(name_ref)) {
+          return name_ref_replacements.at(name_ref);
         }
       }
       return std::nullopt;

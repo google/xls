@@ -4154,6 +4154,29 @@ const_assert!(main() == 6);
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, MapLambdaWithParentParametricCallsFn) {
+  constexpr std::string_view kModule = R"(
+fn add<N: u32>(val: u32, delta: uN[N]) -> uN[N] {
+  val as uN[N] + delta
+}
+
+fn use_lambda<N: u32>(arr: u32[4]) -> uN[N][4] {
+  let x = uN[N]:5;
+  map(arr, | i | -> uN[N] { add<N>(i, x) })
+}
+
+fn main() -> u16 {
+  use_lambda<16>(u32:0..4)[1]
+}
+
+const_assert!(main() == 6);
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, MapLambdaWithImplicitToken) {
   constexpr std::string_view program =
       R"(

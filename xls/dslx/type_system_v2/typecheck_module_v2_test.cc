@@ -9577,6 +9577,48 @@ const_assert!(ARR[1] == u16:1);
               TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
 }
 
+TEST(TypecheckV2Test, LambdaUsesParentFunctionParametricInFnCall) {
+  EXPECT_THAT(R"(
+fn helper<N: u32>() -> uN[N] {
+  uN[N]:1
+}
+
+fn my_conversion<N: u32>(arr: u32[3]) -> uN[N][3] {
+  map(arr, |x: u32| -> uN[N] { helper<N>() })
+}
+
+const M = u32:0..3;
+const ARR = my_conversion<16>(M);
+const_assert!(ARR[1] == u16:1);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
+}
+
+TEST(TypecheckV2Test, ImplFnUsesStructParametricInInvocation) {
+  EXPECT_THAT(R"(
+fn helper<N: u32>() -> uN[N] {
+  uN[N]:1
+}
+
+struct st<N: u32> {}
+
+impl st<N> {
+  fn call(self, i: u32) -> uN[N] {
+    helper<N>()
+  }
+}
+
+fn my_conversion<N: u32>(arr: u32[3]) -> uN[N][3] {
+  map(arr, st<N>{}.call)
+}
+
+const M = u32:0..3;
+const ARR = my_conversion<16>(M);
+const_assert!(ARR[1] == u16:1);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
+}
+
 TEST(TypecheckV2Test, LambdaUsesParentFunctionParametricAndContextCapture) {
   EXPECT_THAT(R"(
 fn my_conversion<N: u32>(arr: u32[3]) -> uN[N][3] {
