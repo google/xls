@@ -1404,6 +1404,7 @@ xls_benchmark_ir(
         "delay_model": "unit",
         "pipeline_stages": "2",
         "reset": "rst",
+        "materialize_internal_fifos": "true",
     },
     synthesize = True,
 )
