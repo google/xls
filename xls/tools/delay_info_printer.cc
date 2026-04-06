@@ -256,7 +256,7 @@ class DelayInfoPrinterImpl : public DelayInfoPrinter {
                 }
                 if (node->Is<Next>()) {
                   return node->As<Next>()->state_read() ==
-                         proc->GetStateRead(state_element);
+                         proc->GetStateReadByStateElement(state_element);
                 }
                 return false;
               }));

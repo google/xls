@@ -83,8 +83,10 @@ absl::StatusOr<absl::flat_hash_set<Node*>> GetDeadAfterSynthesisNodes(
     Proc* proc = f->AsProcOrDie();
     for (StateElement* state_element : proc->StateElements()) {
       VLOG(2) << "Considering state element: " << state_element->name();
-      if (live_after_synthesis.contains(proc->GetStateRead(state_element))) {
-        for (Next* next : proc->GetStateRead(state_element)->GetNextValues()) {
+      if (live_after_synthesis.contains(
+              proc->GetStateReadByStateElement(state_element))) {
+        for (Next* next :
+             proc->GetStateReadByStateElement(state_element)->GetNextValues()) {
           mark_live(next);
         }
       }

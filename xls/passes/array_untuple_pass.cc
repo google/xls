@@ -118,7 +118,8 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindExternalGroups(
     // Don't mess with params that are only used in identity updates. Would
     // infinite loop otherwise since we don't remove these very often.
     for (StateElement* state_element : f->AsProcOrDie()->StateElements()) {
-      StateRead* state_read = f->AsProcOrDie()->GetStateRead(state_element);
+      StateRead* state_read =
+          f->AsProcOrDie()->GetStateReadByStateElement(state_element);
       if (absl::c_all_of(state_read->users(), [&](Node* n) -> bool {
             if (n->Is<Next>()) {
               Next* nxt = n->As<Next>();

@@ -66,7 +66,7 @@ absl::Status RealMain(std::string_view ir_file,
   state_elements_to_extract.reserve(state_elements.size());
   for (const std::string& state_element : state_elements) {
     XLS_ASSIGN_OR_RETURN(std::back_inserter(state_elements_to_extract),
-                         proc->GetStateElement(state_element));
+                         proc->GetStateElementByName(state_element));
   }
   XLS_ASSIGN_OR_RETURN(auto new_package,
                        ExtractStateElementsInNewPackage(

@@ -1279,13 +1279,12 @@ proc foo(my_token: token, my_state: bits[32], init={token, 42}) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->node_count(), 4);
   EXPECT_EQ(proc->StateElements().size(), 2);
-  EXPECT_EQ(proc->GetStateElement(int64_t{0})->initial_value().ToString(),
-            "token");
-  EXPECT_EQ(proc->GetStateElement(int64_t{0})->type()->ToString(), "token");
+  EXPECT_EQ(proc->GetStateElement(0)->initial_value().ToString(), "token");
+  EXPECT_EQ(proc->GetStateElement(0)->type()->ToString(), "token");
   EXPECT_EQ(proc->GetStateElement(1)->initial_value().ToString(),
             "bits[32]:42");
   EXPECT_EQ(proc->GetStateElement(1)->type()->ToString(), "bits[32]");
-  EXPECT_EQ(proc->GetStateElement(int64_t{0})->name(), "my_token");
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "my_token");
   EXPECT_EQ(proc->GetStateElement(1)->name(), "my_state");
 }
 

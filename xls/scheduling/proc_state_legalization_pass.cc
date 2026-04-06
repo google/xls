@@ -53,7 +53,7 @@ namespace {
 absl::StatusOr<bool> LegalizeStateReadPredicate(
     Proc* proc, StateElement* state_element,
     const SchedulingPassOptions& options) {
-  StateRead* state_read = proc->GetStateRead(state_element);
+  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
   const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
       proc->next_values(state_element);
   if (!state_read->predicate().has_value() || next_values.empty()) {
@@ -215,7 +215,7 @@ absl::StatusOr<bool> AddMutualExclusionAsserts(
 absl::StatusOr<bool> AddWriteWithoutReadAsserts(
     Proc* proc, StateElement* state_element,
     const SchedulingPassOptions& options) {
-  StateRead* state_read = proc->GetStateRead(state_element);
+  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
   if (!state_read->predicate().has_value()) {
     return false;
   }
@@ -291,7 +291,7 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
                                          StateElement* state_element,
                                          const SchedulingPassOptions& options) {
   absl::btree_set<Node*, Node::NodeIdLessThan> predicates;
-  StateRead* state_read = proc->GetStateRead(state_element);
+  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
   for (Next* next : proc->next_values(state_element)) {
     if (next->predicate().has_value()) {
       predicates.insert(*next->predicate());

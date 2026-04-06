@@ -116,7 +116,7 @@ absl::StatusOr<bool> MaybeSplitStateElements(
     // to use STL set intersection algorithms.
     std::vector<int64_t> split_ends;
     bool could_benefit_from_splitting = false;
-    StateRead* state_read = proc->GetStateRead(state_element);
+    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
     for (Next* next : proc->next_values(state_element)) {
       if (next->value() == state_read) {
         // This is a no-op next-value; it doesn't affect whether or not it's

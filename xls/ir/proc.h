@@ -85,8 +85,9 @@ class Proc : public FunctionBase {
   StateElement* GetStateElement(int64_t index) const {
     return StateElements().at(index);
   }
-  absl::StatusOr<StateElement*> GetStateElement(std::string_view name) const;
-  std::optional<StateElement*> MaybeGetStateElement(
+  absl::StatusOr<StateElement*> GetStateElementByName(
+      std::string_view name) const;
+  std::optional<StateElement*> MaybeGetStateElementByName(
       std::string_view name) const;
 
   bool HasStateElement(std::string_view name) const {
@@ -96,7 +97,7 @@ class Proc : public FunctionBase {
   StateRead* GetStateRead(int64_t index) const {
     return state_reads_.at(GetStateElement(index));
   }
-  StateRead* GetStateRead(StateElement* state_element) const {
+  StateRead* GetStateReadByStateElement(StateElement* state_element) const {
     return state_reads_.at(state_element);
   }
 

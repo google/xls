@@ -1106,7 +1106,7 @@ TEST_F(ConditionalSpecializationPassTest, NextValueChange) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * f, p->GetProc("Delay_proc"));
-  EXPECT_THAT(f->next_values(f->GetStateElement(int64_t{0})),
+  EXPECT_THAT(f->next_values(f->GetStateElement(0)),
               ElementsAre(m::Next(m::StateRead("value1"),
                                   m::StateRead("value2"), m::Eq())));
 }
@@ -1267,10 +1267,12 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecialization) {
       IsOkAndHolds(true));
 
   EXPECT_THAT(
-      proc->GetStateRead(*proc->GetStateElement("counter0"))->predicate(),
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter0"))
+          ->predicate(),
       Optional(m::Not(m::StateRead("index"))));
   EXPECT_THAT(
-      proc->GetStateRead(*proc->GetStateElement("counter1"))->predicate(),
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter1"))
+          ->predicate(),
       Optional(m::StateRead("index")));
 }
 
@@ -1302,13 +1304,16 @@ TEST_F(ConditionalSpecializationPassTest, HarderStateReadSpecialization) {
       IsOkAndHolds(true));
 
   EXPECT_THAT(
-      proc->GetStateRead(*proc->GetStateElement("counter0"))->predicate(),
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter0"))
+          ->predicate(),
       Optional(m::Eq(m::StateRead("index"), m::Literal(0))));
   EXPECT_THAT(
-      proc->GetStateRead(*proc->GetStateElement("counter1"))->predicate(),
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter1"))
+          ->predicate(),
       Optional(m::Eq(m::StateRead("index"), m::Literal(1))));
   EXPECT_THAT(
-      proc->GetStateRead(*proc->GetStateElement("counter2"))->predicate(),
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter2"))
+          ->predicate(),
       Optional(m::And(
           // High bit of index is set
           m::Eq(m::BitSlice(m::StateRead("index"), 1, 1), m::Literal(1)),
