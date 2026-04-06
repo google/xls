@@ -40,6 +40,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc_instantiation.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -199,12 +200,14 @@ class Proc : public FunctionBase {
   // node. Returns the newly created state read node.
   absl::StatusOr<StateRead*> AppendStateElement(
       std::string_view requested_state_name, const Value& init_value,
-      std::optional<Node*> read_predicate, std::optional<Node*> next_state);
+      std::optional<Node*> read_predicate, std::optional<Node*> next_state,
+      const SourceInfo& loc = SourceInfo());
   absl::StatusOr<StateRead*> AppendStateElement(
-      std::string_view requested_state_name, const Value& init_value) {
+      std::string_view requested_state_name, const Value& init_value,
+      const SourceInfo& loc = SourceInfo()) {
     return AppendStateElement(requested_state_name, init_value,
                               /*read_predicate=*/std::nullopt,
-                              /*next_state=*/std::nullopt);
+                              /*next_state=*/std::nullopt, loc);
   }
 
   // Add a new state element (at index) without any reads or nexts. These must
@@ -213,7 +216,8 @@ class Proc : public FunctionBase {
       int64_t index, std::string_view requested_state_name,
       const Value& init_value);
   absl::StatusOr<StateElement*> AppendUnreadStateElement(
-      std::string_view requested_state_name, const Value& init_value) {
+      std::string_view requested_state_name, const Value& init_value,
+      const SourceInfo& loc = SourceInfo()) {
     return InsertUnreadStateElement(GetStateElementCount(),
                                     requested_state_name, init_value);
   }
@@ -224,13 +228,13 @@ class Proc : public FunctionBase {
   absl::StatusOr<StateRead*> InsertStateElement(
       int64_t index, std::string_view requested_state_name,
       const Value& init_value, std::optional<Node*> read_predicate,
-      std::optional<Node*> next_state);
+      std::optional<Node*> next_state, const SourceInfo& loc = SourceInfo());
   absl::StatusOr<StateRead*> InsertStateElement(
       int64_t index, std::string_view requested_state_name,
-      const Value& init_value) {
+      const Value& init_value, const SourceInfo& loc = SourceInfo()) {
     return InsertStateElement(index, requested_state_name, init_value,
                               /*read_predicate=*/std::nullopt,
-                              /*next_state=*/std::nullopt);
+                              /*next_state=*/std::nullopt, loc);
   }
 
   bool HasImplicitUse(Node* node) const override;

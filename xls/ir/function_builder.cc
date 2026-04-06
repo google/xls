@@ -1466,7 +1466,7 @@ BValue ProcBuilder::StateElement(std::string_view name,
       name, initial_value,
       read_predicate.has_value() ? std::make_optional(read_predicate->node())
                                  : std::nullopt,
-      /*next_state=*/std::nullopt);
+      /*next_state=*/std::nullopt, loc);
   if (!state_read.ok()) {
     return SetError(absl::StrFormat("Unable to add state element: %s",
                                     state_read.status().message()),

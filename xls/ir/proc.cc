@@ -249,9 +249,10 @@ absl::Status Proc::RemoveAllStateElements() {
 
 absl::StatusOr<StateRead*> Proc::AppendStateElement(
     std::string_view requested_state_name, const Value& init_value,
-    std::optional<Node*> read_predicate, std::optional<Node*> next_state) {
+    std::optional<Node*> read_predicate, std::optional<Node*> next_state,
+    const SourceInfo& loc) {
   return InsertStateElement(GetStateElementCount(), requested_state_name,
-                            init_value, read_predicate, next_state);
+                            init_value, read_predicate, next_state, loc);
 }
 
 absl::StatusOr<StateElement*> Proc::InsertUnreadStateElement(
@@ -269,13 +270,13 @@ absl::StatusOr<StateElement*> Proc::InsertUnreadStateElement(
 absl::StatusOr<StateRead*> Proc::InsertStateElement(
     int64_t index, std::string_view requested_state_name,
     const Value& init_value, std::optional<Node*> read_predicate,
-    std::optional<Node*> next_state) {
+    std::optional<Node*> next_state, const SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(
       StateElement * state_element,
       InsertUnreadStateElement(index, requested_state_name, init_value));
   XLS_ASSIGN_OR_RETURN(StateRead * state_read,
                        MakeNodeWithName<StateRead>(
-                           SourceInfo(), state_element, read_predicate,
+                           loc, state_element, read_predicate,
                            /*label=*/std::nullopt, state_element->name()));
   state_reads_[state_element] = state_read;
 
