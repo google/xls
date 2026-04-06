@@ -219,8 +219,9 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
         case_statement->AddCaseArm(label_expression.value());
     block->Add<BlockingAssignment>(loc, func->return_value_ref(), cases[i]);
   }
-  Expression* zero_label = file->Literal(0, selector->BitCountOrDie(), loc,
-                                         FormatPreference::kBinary);
+  XLS_ASSIGN_OR_RETURN(Expression * zero_label,
+                       file->Literal(0, selector->BitCountOrDie(), loc,
+                                     FormatPreference::kBinary));
   Expression* x_literal;
   if (options.use_system_verilog()) {
     // Use 'X when generating SystemVerilog.
@@ -837,15 +838,16 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         int64_t start_width = slice->start()->BitCountOrDie();
         if (start_width < min_index_width) {
           // Zero-extend start to `min_index_width` bits.
-          start_expr = file_->Concat(
-              {file_->Literal(0, min_index_width - start_width, node->loc()),
-               start_expr},
-              node->loc());
+          start_expr =
+              file_->Concat({file_->LiteralOrDie(
+                                 0, min_index_width - start_width, node->loc()),
+                             start_expr},
+                            node->loc());
           start_width = min_index_width;
         }
 
         Expression* max_index_expr =
-            file_->Literal(input_array_size - 1, start_width, node->loc());
+            file_->LiteralOrDie(input_array_size - 1, start_width, node->loc());
         for (int64_t i = 0; i < array_type->size(); i++) {
           // The index for iteration `i` is out of bounds if the following
           // condition is true:
@@ -862,17 +864,17 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
             element = file_->Index(input_array, max_index_expr, node->loc());
           } else {
             // Index might be out of bounds.
-            Expression* oob_condition =
-                file_->GreaterThan(start_expr,
-                                   file_->Literal(input_array_size - 1 - i,
-                                                  start_width, node->loc()),
-                                   node->loc());
+            Expression* oob_condition = file_->GreaterThan(
+                start_expr,
+                file_->LiteralOrDie(input_array_size - 1 - i, start_width,
+                                    node->loc()),
+                node->loc());
             element = file_->Index(
                 input_array,
                 file_->Ternary(
                     oob_condition, max_index_expr,
                     file_->Add(start_expr,
-                               file_->Literal(i, start_width, node->loc()),
+                               file_->LiteralOrDie(i, start_width, node->loc()),
                                node->loc()),
                     node->loc()),
                 node->loc());
@@ -978,7 +980,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               result = file_->Ternary(
                   file_->Equals(
                       selector,
-                      file_->Literal(
+                      file_->LiteralOrDie(
                           i,
                           /*bit_count=*/sel->selector()->BitCountOrDie(),
                           node->loc()),
@@ -1532,9 +1534,9 @@ namespace {
 
 // Defines and returns a function which implements the given DynamicBitSlice
 // node.
-VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
-                                               std::string_view function_name,
-                                               ModuleSection* section) {
+absl::StatusOr<VerilogFunction*> DefineDynamicBitSliceFunction(
+    DynamicBitSlice* slice, std::string_view function_name,
+    ModuleSection* section) {
   VerilogFile* file = section->file();
   VerilogFunction* func = section->Add<VerilogFunction>(
       slice->loc(), function_name,
@@ -1552,7 +1554,8 @@ VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
                       file->BitVectorType(op_width + width, slice->loc()),
                       /*init=*/nullptr);
 
-  Expression* zeros = file->Literal(0, width, slice->loc());
+  XLS_ASSIGN_OR_RETURN(Expression * zeros,
+                       file->Literal(0, width, slice->loc()));
   func->AddStatement<BlockingAssignment>(
       slice->loc(), extended_operand,
       file->Concat({zeros, operand}, slice->loc()));
@@ -1568,9 +1571,11 @@ VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
   } else {
     // If start of slice is greater than or equal to operand width, result is
     // completely out of bounds and set to all zeros.
-    Expression* max_slice_index_plus_one = file->Literal(
-        op_width, Bits::MinBitCountUnsigned(slice->to_slice()->BitCountOrDie()),
-        slice->loc());
+    XLS_ASSIGN_OR_RETURN(Expression * max_slice_index_plus_one,
+                         file->Literal(op_width,
+                                       Bits::MinBitCountUnsigned(
+                                           slice->to_slice()->BitCountOrDie()),
+                                       slice->loc()));
     Expression* out_of_bounds =
         file->GreaterThanEquals(start, max_slice_index_plus_one, slice->loc());
     // Pad with width zeros
@@ -1616,11 +1621,11 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
   } else if (update_value_width < to_update_width) {
     // Update value is the narrower than the value to be updated. Zero-extend
     // update value to match the width.
-    adjusted_update_value =
-        file->Concat({file->Literal(Bits(to_update_width - update_value_width),
-                                    update->loc()),
-                      update_value},
-                     update->loc());
+    adjusted_update_value = file->Concat(
+        {file->LiteralOrDie(Bits(to_update_width - update_value_width),
+                            update->loc()),
+         update_value},
+        update->loc());
   } else {
     // Update value is the same width as the value to be updated.
     adjusted_update_value = update_value;
@@ -1641,9 +1646,10 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
   Bits all_ones = bits_ops::ZeroExtend(
       Bits::AllOnes(std::min(update_value_width, to_update_width)),
       to_update_width);
-  Expression* mask = file->BitwiseNot(
-      file->Shll(file->Literal(all_ones, update->loc()), start, update->loc()),
-      update->loc());
+  Expression* mask =
+      file->BitwiseNot(file->Shll(file->LiteralOrDie(all_ones, update->loc()),
+                                  start, update->loc()),
+                       update->loc());
   Expression* updated_value = file->BitwiseOr(
       file->Shll(adjusted_update_value, start, update->loc()),
       file->BitwiseAnd(mask, to_update, update->loc()), update->loc());
@@ -1659,12 +1665,13 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
     // update if start is greater than or equal to width.
     func->AddStatement<BlockingAssignment>(
         update->loc(), func->return_value_ref(),
-        file->Ternary(file->GreaterThanEquals(
-                          start,
-                          file->Literal(UBits(to_update_width, start_width),
-                                        update->loc()),
-                          update->loc()),
-                      to_update, updated_value, update->loc()));
+        file->Ternary(
+            file->GreaterThanEquals(
+                start,
+                file->LiteralOrDie(UBits(to_update_width, start_width),
+                                   update->loc()),
+                update->loc()),
+            to_update, updated_value, update->loc()));
   }
   return func;
 }
@@ -1811,7 +1818,7 @@ absl::StatusOr<VerilogFunction*> DefineSmulpFunction(
   Bits offset_bits = MulpOffsetForSimulation(
       node->GetType()->AsTupleOrDie()->element_type(0)->GetFlatBitCount(),
       /*shift_size=*/4);
-  Literal* offset = file->Literal(offset_bits, node->loc());
+  Literal* offset = file->LiteralOrDie(offset_bits, node->loc());
 
   LogicRef* offset_result =
       func->AddRegDef(node->loc(), "offset_result",
@@ -1861,7 +1868,7 @@ absl::StatusOr<VerilogFunction*> DefineUmulpFunction(
   Bits offset_bits = MulpOffsetForSimulation(
       node->GetType()->AsTupleOrDie()->element_type(0)->GetFlatBitCount(),
       /*shift_size=*/4);
-  Literal* offset = file->Literal(offset_bits, node->loc());
+  Literal* offset = file->LiteralOrDie(offset_bits, node->loc());
   func->AddStatement<BlockingAssignment>(
       node->loc(), func->return_value_ref(),
       file->Concat({offset, file->Sub(result, offset, node->loc())},
@@ -1890,10 +1897,11 @@ VerilogFunction* DefineUDivFunction(Node* node, std::string_view function_name,
       node->loc());
   Expression* rhs_is_zero = file->Equals(
       rhs,
-      file->Literal(UBits(0, node->operand(1)->BitCountOrDie()), node->loc()),
+      file->LiteralOrDie(UBits(0, node->operand(1)->BitCountOrDie()),
+                         node->loc()),
       node->loc());
   Expression* all_ones =
-      file->Literal(Bits::AllOnes(node->BitCountOrDie()), node->loc());
+      file->LiteralOrDie(Bits::AllOnes(node->BitCountOrDie()), node->loc());
   func->AddStatement<BlockingAssignment>(
       node->loc(), func->return_value_ref(),
       file->Ternary(rhs_is_zero, all_ones, file->Div(lhs, rhs, node->loc()),
@@ -1921,12 +1929,13 @@ VerilogFunction* DefineSDivFunction(Node* node, std::string_view function_name,
       node->loc());
   Expression* rhs_is_zero = file->Equals(
       rhs,
-      file->Literal(UBits(0, node->operand(1)->BitCountOrDie()), node->loc()),
+      file->LiteralOrDie(UBits(0, node->operand(1)->BitCountOrDie()),
+                         node->loc()),
       node->loc());
   Expression* max_positive =
-      file->Literal(Bits::MaxSigned(node->BitCountOrDie()), node->loc());
+      file->LiteralOrDie(Bits::MaxSigned(node->BitCountOrDie()), node->loc());
   Expression* min_negative =
-      file->Literal(Bits::MinSigned(node->BitCountOrDie()), node->loc());
+      file->LiteralOrDie(Bits::MinSigned(node->BitCountOrDie()), node->loc());
   Expression* lhs_is_negative =
       file->Index(lhs, node->operand(0)->BitCountOrDie() - 1, node->loc());
   Expression* div_by_zero_result =
@@ -1943,17 +1952,18 @@ VerilogFunction* DefineSDivFunction(Node* node, std::string_view function_name,
   Expression* overflow_condition = file->LogicalAnd(
       file->Equals(
           lhs,
-          file->Literal(Bits::MinSigned(node->operand(0)->BitCountOrDie()),
-                        node->loc()),
+          file->LiteralOrDie(Bits::MinSigned(node->operand(0)->BitCountOrDie()),
+                             node->loc()),
           node->loc()),
-      file->Equals(rhs,
-                   file->Literal(SBits(-1, node->operand(1)->BitCountOrDie()),
-                                 node->loc()),
-                   node->loc()),
+      file->Equals(
+          rhs,
+          file->LiteralOrDie(SBits(-1, node->operand(1)->BitCountOrDie()),
+                             node->loc()),
+          node->loc()),
       node->loc());
   Expression* overflow_protected_quotient = file->Ternary(
       overflow_condition,
-      file->Literal(Bits::MinSigned(node->BitCountOrDie()), node->loc()),
+      file->LiteralOrDie(Bits::MinSigned(node->BitCountOrDie()), node->loc()),
       quotient, node->loc());
 
   func->AddStatement<BlockingAssignment>(
@@ -1983,10 +1993,11 @@ VerilogFunction* DefineUModFunction(Node* node, std::string_view function_name,
       node->loc());
   Expression* rhs_is_zero = file->Equals(
       rhs,
-      file->Literal(UBits(0, node->operand(1)->BitCountOrDie()), node->loc()),
+      file->LiteralOrDie(UBits(0, node->operand(1)->BitCountOrDie()),
+                         node->loc()),
       node->loc());
   Expression* zero =
-      file->Literal(UBits(0, node->BitCountOrDie()), node->loc());
+      file->LiteralOrDie(UBits(0, node->BitCountOrDie()), node->loc());
   func->AddStatement<BlockingAssignment>(
       node->loc(), func->return_value_ref(),
       file->Ternary(rhs_is_zero, zero, file->Mod(lhs, rhs, node->loc()),
@@ -2014,10 +2025,11 @@ VerilogFunction* DefineSModFunction(Node* node, std::string_view function_name,
       node->loc());
   Expression* rhs_is_zero = file->Equals(
       rhs,
-      file->Literal(UBits(0, node->operand(1)->BitCountOrDie()), node->loc()),
+      file->LiteralOrDie(UBits(0, node->operand(1)->BitCountOrDie()),
+                         node->loc()),
       node->loc());
   Expression* zero =
-      file->Literal(UBits(0, node->BitCountOrDie()), node->loc());
+      file->LiteralOrDie(UBits(0, node->BitCountOrDie()), node->loc());
 
   // Wrap the expression in $unsigned to prevent signedness from leaking out.
   Expression* modulo = file->Make<UnsignedCast>(
@@ -2117,10 +2129,12 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
           func, DefineUmulpFunction(node, function_name, functions_section_));
       break;
     }
-    case Op::kDynamicBitSlice:
-      func = DefineDynamicBitSliceFunction(node->As<DynamicBitSlice>(),
-                                           function_name, functions_section_);
+    case Op::kDynamicBitSlice: {
+      XLS_ASSIGN_OR_RETURN(func, DefineDynamicBitSliceFunction(
+                                     node->As<DynamicBitSlice>(), function_name,
+                                     functions_section_));
       break;
+    }
     case Op::kBitSliceUpdate:
       func = DefineBitSliceUpdateFunction(node->As<BitSliceUpdate>(),
                                           function_name, functions_section_);

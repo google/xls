@@ -156,7 +156,7 @@ TEST_P(ModuleBuilderTest, DifferentResetPassedToAssignRegisters) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register has_reset,
       mb.DeclareRegister("has_reset_reg", u32, x,
-                         file.Literal(UBits(0, 32), SourceInfo())));
+                         file.LiteralOrDie(UBits(0, 32), SourceInfo())));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleBuilder::Register no_reset,
                            mb.DeclareRegister("no_reset_reg", u32, x));
   EXPECT_THAT(
@@ -185,12 +185,12 @@ TEST_P(ModuleBuilderTest, RegisterWithSynchronousReset) {
       ModuleBuilder::Register a,
       mb.DeclareRegister(
           "a", u32, file.Add(x, y, SourceInfo()),
-          /*reset_value=*/file.Literal(UBits(0, 32), SourceInfo())));
+          /*reset_value=*/file.LiteralOrDie(UBits(0, 32), SourceInfo())));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register b,
       mb.DeclareRegister(
           "b", u32, y,
-          /*reset_value=*/file.Literal(UBits(0x42, 32), SourceInfo())));
+          /*reset_value=*/file.LiteralOrDie(UBits(0x42, 32), SourceInfo())));
   XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
   XLS_ASSERT_OK(
@@ -217,12 +217,12 @@ TEST_P(ModuleBuilderTest, RegisterWithAsynchronousActiveLowReset) {
       ModuleBuilder::Register a,
       mb.DeclareRegister(
           "a", u32, file.Add(x, y, SourceInfo()),
-          /*reset_value=*/file.Literal(UBits(0, 32), SourceInfo())));
+          /*reset_value=*/file.LiteralOrDie(UBits(0, 32), SourceInfo())));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register b,
       mb.DeclareRegister(
           "b", u32, y,
-          /*reset_value=*/file.Literal(UBits(0x42, 32), SourceInfo())));
+          /*reset_value=*/file.LiteralOrDie(UBits(0x42, 32), SourceInfo())));
   XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
   XLS_ASSERT_OK(
@@ -276,12 +276,12 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnableAndReset) {
       ModuleBuilder::Register a,
       mb.DeclareRegister(
           "a", u32, file.Add(x, y, SourceInfo()),
-          /*reset_value=*/file.Literal(UBits(0, 32), SourceInfo())));
+          /*reset_value=*/file.LiteralOrDie(UBits(0, 32), SourceInfo())));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register b,
       mb.DeclareRegister(
           "b", u32, y,
-          /*reset_value=*/file.Literal(UBits(0x42, 32), SourceInfo())));
+          /*reset_value=*/file.LiteralOrDie(UBits(0x42, 32), SourceInfo())));
   a.load_enable = load_enable;
   b.load_enable = load_enable;
 
@@ -1008,9 +1008,9 @@ TEST_P(ModuleBuilderTest, NameCollisionsBetweenRegAndPortRegDeclaredFirst) {
   Type* u32 = p.GetBitsType(32);
   ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
                    /*clk_name=*/"clk");
-  XLS_ASSERT_OK(
-      mb.DeclareRegister("x", u32, file.Literal(UBits(0, 32), SourceInfo()))
-          .status());
+  XLS_ASSERT_OK(mb.DeclareRegister(
+                      "x", u32, file.LiteralOrDie(UBits(0, 32), SourceInfo()))
+                    .status());
   EXPECT_THAT(mb.AddInputPort("x", u32),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Unable to name input port `x` on module")));
@@ -1027,9 +1027,9 @@ TEST_P(ModuleBuilderTest, NameCollisionsBetweenRegAndPortRegDeclaredSecond) {
   // because the reg has some flexibility when named (it can have a uniquifying
   // suffix);
   XLS_ASSERT_OK(mb.AddInputPort("x", u32).status());
-  XLS_ASSERT_OK(
-      mb.DeclareRegister("x", u32, file.Literal(UBits(0, 32), SourceInfo()))
-          .status());
+  XLS_ASSERT_OK(mb.DeclareRegister(
+                      "x", u32, file.LiteralOrDie(UBits(0, 32), SourceInfo()))
+                    .status());
 }
 
 TEST_P(ModuleBuilderTest, PortNamedWithVerilogKeyword) {
@@ -1052,9 +1052,10 @@ TEST_P(ModuleBuilderTest, RegNamedWithVerilogKeyword) {
                    /*clk_name=*/"clk");
   // Reg names have some flexibility when named (it can have a
   // uniquifying/sanitizing suffix);
-  XLS_ASSERT_OK(mb.DeclareRegister("module", u32,
-                                   file.Literal(UBits(0, 32), SourceInfo()))
-                    .status());
+  XLS_ASSERT_OK(
+      mb.DeclareRegister("module", u32,
+                         file.LiteralOrDie(UBits(0, 32), SourceInfo()))
+          .status());
 }
 
 TEST_P(ModuleBuilderTest, PortCollidesWithClockName) {
