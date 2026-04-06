@@ -532,6 +532,7 @@ def xls_full_benchmark_ir_macro(
         tags = None,
         ir_tags = None,
         synth_tags = None,
+        verilog_deps = [],
         **kwargs):
     """Executes the benchmark tool on an IR file.
 
@@ -577,6 +578,7 @@ Examples:
         tags: Tags for IR and synthesis benchmark targets.
         ir_tags: Tags for the IR benchmark target only.
         synth_tags: Tags for the synthesis and synthesis benchmark targets. Unused if synthesize == False.
+        verilog_deps: Verilog dependencies for the synthesis benchmark target.
         **kwargs: Keyword arguments for the IR benchmark target only.
     """
 
@@ -638,7 +640,7 @@ Examples:
     }
     full_codegen_args.update(benchmark_ir_codegen_args)
     full_codegen_args.update(codegen_args)
-    if "clock_period_ps" in full_codegen_args:
+    if "clock_period_ps" in full_codegen_args and full_codegen_args["clock_period_ps"] != "0":
         full_codegen_args.pop("pipeline_stages")
     codegen_args = full_codegen_args
 
@@ -701,7 +703,7 @@ Examples:
         top_module = codegen_args["module_name"],
         deps = [
             ":" + verilog_target,
-        ],
+        ] + verilog_deps,
         tags = synth_tags + tags,
     )
     benchmark_synth(
