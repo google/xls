@@ -9878,6 +9878,35 @@ const_assert!(main() == 6);
       TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][5]")));
 }
 
+TEST(TypecheckV2Test, LambdaUsesMapResult) {
+  EXPECT_THAT(R"(
+fn is_odd(i: u32) -> bool {
+  i % 2 == 1
+}
+
+fn add_two<N: u32>() -> u32[N] {
+  let odd_map = map(0..N, is_odd);
+  map(
+    0..N,
+    |i| -> u32 {
+      if odd_map[i] {
+        i + 2
+      } else {
+        i
+      }
+    }
+  )
+}
+
+const RES = add_two<5>();
+const_assert!(RES == [u32:0, 3, 2, 5, 4]);
+const RES2 = add_two<3>();
+const_assert!(RES2 == [u32:0, 3, 2]);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("RES", "uN[32][5]"),
+                                      HasNodeWithType("RES2", "uN[32][3]"))));
+}
+
 TEST(TypecheckV2Test, LambdaCallsImportedFunction) {
   constexpr std::string_view kImported = R"(
 pub fn add_two(x: u32) -> u32 {

@@ -467,6 +467,7 @@ class InferenceTableImpl : public InferenceTable {
   absl::StatusOr<StructContextResult> GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
       ParametricEnv parametric_env, const TypeAnnotation* self_type,
+      std::optional<const ParametricContext*> parent_context,
       absl::FunctionRef<absl::StatusOr<TypeInfo*>()> type_info_factory)
       override {
     std::optional<StructContextResult> cached_result =
@@ -478,7 +479,7 @@ class InferenceTableImpl : public InferenceTable {
     auto context = std::make_unique<ParametricContext>(
         parametric_contexts_.size(), node,
         ParametricStructDetails{struct_def, parametric_env}, type_info,
-        /*parent_context=*/std::nullopt, self_type);
+        parent_context, self_type);
     const ParametricContext* result = context.get();
     parametric_contexts_.push_back(std::move(context));
     auto& contexts = parametric_struct_contexts_[struct_def];
@@ -636,6 +637,28 @@ class InferenceTableImpl : public InferenceTable {
         parametric_context, std::get<const NameDef*>(ref->name_def()));
   }
 
+  std::vector<const TypeAnnotation*>
+  GetTypeAnnotationsForInferenceVariableAndContext(
+      const ParametricContext* parametric_context,
+      const InferenceVariable* variable) const {
+    std::vector<const TypeAnnotation*> result;
+    const auto& invocation_specific_annotations =
+        mutable_parametric_context_data_.at(parametric_context)
+            .type_annotations_per_type_variable;
+    const auto invocation_specific_it =
+        invocation_specific_annotations.find(variable);
+    if (invocation_specific_it != invocation_specific_annotations.end()) {
+      result = invocation_specific_it->second;
+    }
+    if (parametric_context->parent_context().has_value()) {
+      const auto parent_annotations =
+          GetTypeAnnotationsForInferenceVariableAndContext(
+              *parametric_context->parent_context(), variable);
+      absl::c_copy(parent_annotations, std::back_inserter(result));
+    }
+    return result;
+  }
+
   absl::StatusOr<std::vector<const TypeAnnotation*>>
   GetTypeAnnotationsForTypeVariable(
       std::optional<const ParametricContext*> parametric_context,
@@ -647,15 +670,9 @@ class InferenceTableImpl : public InferenceTable {
             ? std::vector<const TypeAnnotation*>()
             : it->second;
     if (parametric_context.has_value()) {
-      const auto& invocation_specific_annotations =
-          mutable_parametric_context_data_.at(*parametric_context)
-              .type_annotations_per_type_variable;
-      const auto invocation_specific_it =
-          invocation_specific_annotations.find(variable);
-      if (invocation_specific_it != invocation_specific_annotations.end()) {
-        absl::c_copy(invocation_specific_it->second,
-                     std::back_inserter(result));
-      }
+      absl::c_copy(GetTypeAnnotationsForInferenceVariableAndContext(
+                       *parametric_context, variable),
+                   std::back_inserter(result));
     }
     return result;
   }

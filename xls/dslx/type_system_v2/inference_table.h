@@ -475,6 +475,7 @@ class InferenceTable {
   GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
       ParametricEnv parametric_env, const TypeAnnotation* self_type,
+      std::optional<const ParametricContext*> parent_context,
       absl::FunctionRef<absl::StatusOr<TypeInfo*>()> type_info_factory) = 0;
 
   // Returns the expression for the value of the given parametric in the given
