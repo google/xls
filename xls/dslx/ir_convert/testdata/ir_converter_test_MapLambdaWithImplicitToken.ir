@@ -18,7 +18,7 @@ fn __itok__test_module__f(__token: token id=1, __activated: bits[1] id=2, x: bit
   ret tuple.16: (token, bits[64]) = tuple(after_all.15, concat.14, id=16)
 }
 
-fn __itok__test_module__lambda_capture_struct_at_test_module.x_8_30_8_49__call__u32(__token: token id=17, __activated: bits[1] id=18, self: () id=19, i: bits[32] id=20) -> (token, bits[64]) {
+fn __itok__test_module__lambda_capture_struct_at_test_module_x_8_30_8_49__call__u32(__token: token id=17, __activated: bits[1] id=18, self: () id=19, i: bits[32] id=20) -> (token, bits[64]) {
   invoke.21: (token, bits[64]) = invoke(__token, __activated, i, to_apply=__itok__test_module__f, id=21)
   tuple_index.22: token = tuple_index(invoke.21, index=0, id=22)
   after_all.24: token = after_all(tuple_index.22, id=24)
@@ -26,10 +26,10 @@ fn __itok__test_module__lambda_capture_struct_at_test_module.x_8_30_8_49__call__
   ret tuple.25: (token, bits[64]) = tuple(after_all.24, tuple_index.23, id=25)
 }
 
-fn __SYNTHETIC_LOOP_BODY___itok__test_module__main_CALLING___itok__test_module__lambda_capture_struct_at_test_module.x_8_30_8_49__call__u32__MAP_0(idx: bits[32] id=34, token_and_array: (token, bits[64][4]) id=35, activated: bits[1] id=36, context_struct: () id=37, input_array: bits[32][4] id=38) -> (token, bits[64][4]) {
+fn __SYNTHETIC_LOOP_BODY___itok__test_module__main_CALLING___itok__test_module__lambda_capture_struct_at_test_module_x_8_30_8_49__call__u32__MAP_0(idx: bits[32] id=34, token_and_array: (token, bits[64][4]) id=35, activated: bits[1] id=36, context_struct: () id=37, input_array: bits[32][4] id=38) -> (token, bits[64][4]) {
   token_value: token = tuple_index(token_and_array, index=0, id=40)
   input_value: bits[32] = array_index(input_array, indices=[idx], id=41)
-  map_call_call: (token, bits[64]) = invoke(token_value, activated, context_struct, input_value, to_apply=__itok__test_module__lambda_capture_struct_at_test_module.x_8_30_8_49__call__u32, id=42)
+  map_call_call: (token, bits[64]) = invoke(token_value, activated, context_struct, input_value, to_apply=__itok__test_module__lambda_capture_struct_at_test_module_x_8_30_8_49__call__u32, id=42)
   out_array_value: bits[64][4] = tuple_index(token_and_array, index=1, id=39)
   tuple_index.44: bits[64] = tuple_index(map_call_call, index=1, id=44)
   tuple_index.43: token = tuple_index(map_call_call, index=0, id=43)
@@ -46,7 +46,7 @@ fn __itok__test_module__main(__token: token id=26, __activated: bits[1] id=27) -
   tuple.48: (token, bits[64][4]) = tuple(__token, literal.47, id=48)
   tuple.33: () = tuple(id=33)
   array.32: bits[32][4] = array(literal.28, literal.29, literal.30, literal.31, id=32)
-  map_invocation__call: (token, bits[64][4]) = counted_for(tuple.48, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___itok__test_module__main_CALLING___itok__test_module__lambda_capture_struct_at_test_module.x_8_30_8_49__call__u32__MAP_0, invariant_args=[__activated, tuple.33, array.32], id=49)
+  map_invocation__call: (token, bits[64][4]) = counted_for(tuple.48, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___itok__test_module__main_CALLING___itok__test_module__lambda_capture_struct_at_test_module_x_8_30_8_49__call__u32__MAP_0, invariant_args=[__activated, tuple.33, array.32], id=49)
   tuple_index.50: token = tuple_index(map_invocation__call, index=0, id=50)
   after_all.52: token = after_all(tuple_index.50, id=52)
   tuple_index.51: bits[64][4] = tuple_index(map_invocation__call, index=1, id=51)

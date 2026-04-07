@@ -50,6 +50,14 @@ TEST(MangleTest, ModuleFunctionWithScope) {
               IsOkAndHolds("__itok__my_mod__scope__f"));
 }
 
+TEST(MangleTest, ModuleFunctionWithScopeContainingRange) {
+  EXPECT_THAT(
+      MangleDslxName("my_mod", "f", CallingConvention::kTypical, {}, nullptr,
+                     "lambda_capture_struct_at_test_module.x:8:30-8:49"),
+      IsOkAndHolds(
+          "__my_mod__lambda_capture_struct_at_test_module_x_8_30_8_49__f"));
+}
+
 TEST(MangleTest, SingleFreeKey) {
   std::vector<std::pair<std::string, InterpValue>> bindings = {
       {"x", InterpValue::MakeU32(42)}};

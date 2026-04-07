@@ -8,14 +8,14 @@ fn __test_module__add__16(val: bits[32] id=1, delta: bits[16] id=2) -> bits[16] 
   ret add.5: bits[16] = add(bit_slice.4, delta, id=5)
 }
 
-fn __test_module__lambda_capture_struct_at_test_module.x_8_12_8_43_N___call__16_u32_u16(self: (bits[16]) id=6, i: bits[32] id=7) -> bits[16] {
+fn __test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N___call__16_u32_u16(self: (bits[16]) id=6, i: bits[32] id=7) -> bits[16] {
   self_x: bits[16] = tuple_index(self, index=0, id=8)
   ret invoke.9: bits[16] = invoke(i, self_x, to_apply=__test_module__add__16, id=9)
 }
 
-fn __SYNTHETIC_LOOP_BODY___test_module__use_lambda__16_CALLING___test_module__lambda_capture_struct_at_test_module.x_8_12_8_43_N___call__16_u32_u16__MAP_0(idx: bits[32] id=14, array_val: bits[16][4] id=15, context_struct: (bits[16]) id=16, input_array: bits[32][4] id=17) -> bits[16][4] {
+fn __SYNTHETIC_LOOP_BODY___test_module__use_lambda__16_CALLING___test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N___call__16_u32_u16__MAP_0(idx: bits[32] id=14, array_val: bits[16][4] id=15, context_struct: (bits[16]) id=16, input_array: bits[32][4] id=17) -> bits[16][4] {
   array_index.18: bits[32] = array_index(input_array, indices=[idx], id=18)
-  map_call_call: bits[16] = invoke(context_struct, array_index.18, to_apply=__test_module__lambda_capture_struct_at_test_module.x_8_12_8_43_N___call__16_u32_u16, id=19)
+  map_call_call: bits[16] = invoke(context_struct, array_index.18, to_apply=__test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N___call__16_u32_u16, id=19)
   ret map_iteration: bits[16][4] = array_update(array_val, map_call_call, indices=[idx], id=20)
 }
 
@@ -24,7 +24,7 @@ fn __test_module__use_lambda__16(arr: bits[32][4] id=10) -> bits[16][4] {
   literal.21: bits[16][4] = literal(value=[0, 0, 0, 0], id=21)
   tuple.13: (bits[16]) = tuple(x, id=13)
   N: bits[32] = literal(value=16, id=11)
-  ret map_invocation__call: bits[16][4] = counted_for(literal.21, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___test_module__use_lambda__16_CALLING___test_module__lambda_capture_struct_at_test_module.x_8_12_8_43_N___call__16_u32_u16__MAP_0, invariant_args=[tuple.13, arr], id=22)
+  ret map_invocation__call: bits[16][4] = counted_for(literal.21, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___test_module__use_lambda__16_CALLING___test_module__lambda_capture_struct_at_test_module_x_8_12_8_43_N___call__16_u32_u16__MAP_0, invariant_args=[tuple.13, arr], id=22)
 }
 
 fn __test_module__main() -> bits[16] {
