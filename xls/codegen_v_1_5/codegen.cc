@@ -156,6 +156,44 @@ absl::StatusOr<verilog::CodegenResult> ConvertToVerilog(
 
 }  // namespace
 
+absl::StatusOr<verilog::CodegenResult> ConvertBlockToVerilog(
+    Package* package, const verilog::CodegenOptions& options,
+    const DelayEstimator* delay_estimator, OptimizationContext* opt_context,
+    PassResults* pass_results) {
+  std::optional<OptimizationContext> local_opt_context;
+  if (opt_context == nullptr) {
+    local_opt_context.emplace();
+  }
+  OptimizationContext& active_opt_context =
+      (opt_context != nullptr) ? *opt_context : *local_opt_context;
+
+  std::optional<PassResults> local_pass_results;
+  if (pass_results == nullptr) {
+    local_pass_results.emplace();
+  }
+  PassResults& active_pass_results =
+      (pass_results != nullptr) ? *pass_results : *local_pass_results;
+
+  XLS_RET_CHECK(package->GetTop().has_value() && package->GetTop() != nullptr);
+  XLS_ASSIGN_OR_RETURN(Block * top_block, package->GetTopAsBlock());
+
+  verilog::CodegenContext compatibility_context(top_block);
+  for (const std::unique_ptr<Block>& block : package->blocks()) {
+    compatibility_context.metadata().insert(
+        {block.get(), verilog::CodegenMetadata{}});
+  }
+  verilog::CodegenPassOptions pass_options{
+      .codegen_options = options,
+  };
+  XLS_RETURN_IF_ERROR(CreatePostBlockConversionPipeline(active_opt_context)
+                          ->Run(package, pass_options, &active_pass_results,
+                                compatibility_context)
+                          .status());
+
+  return ConvertToVerilog(top_block, options, delay_estimator,
+                          active_pass_results.ToProto());
+}
+
 absl::StatusOr<verilog::CodegenResult> Codegen(
     Package* package, const verilog::CodegenOptions& codegen_options,
     const SchedulingOptions& scheduling_options,
@@ -174,26 +212,8 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
                                      delay_estimator, &opt_context,
                                      &pass_results, schedule));
 
-  // Now that we've finished block conversion for the package, we can run the
-  // remaining passes required before Verilog conversion.
-  XLS_RET_CHECK(package->GetTop().has_value() && package->GetTop() != nullptr);
-  XLS_ASSIGN_OR_RETURN(Block * top_block, package->GetTopAsBlock());
-  verilog::CodegenContext compatibility_context(top_block);
-  for (const std::unique_ptr<Block>& block : package->blocks()) {
-    compatibility_context.metadata().insert(
-        {block.get(), verilog::CodegenMetadata{}});
-  }
-  verilog::CodegenPassOptions pass_options{
-      .codegen_options = options,
-  };
-  XLS_RETURN_IF_ERROR(
-      CreatePostBlockConversionPipeline(opt_context)
-          ->Run(package, pass_options, &pass_results, compatibility_context)
-          .status());
-
-  // Finally, we convert the block to Verilog.
-  return ConvertToVerilog(top_block, options, delay_estimator,
-                          pass_results.ToProto());
+  return ConvertBlockToVerilog(package, options, delay_estimator, &opt_context,
+                               &pass_results);
 }
 
 }  // namespace xls::codegen

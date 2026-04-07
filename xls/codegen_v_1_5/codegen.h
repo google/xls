@@ -22,6 +22,8 @@
 #include "xls/codegen/codegen_result.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
 
@@ -32,6 +34,15 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
     const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator,
     std::optional<PackageScheduleProto> schedule = std::nullopt);
+
+// Runs the post-block-conversion pipeline and converts the block IR to Verilog.
+// If `opt_context` or `pass_results` are provided, they are used (and updated)
+// by the pipeline. If not, local instances are used.
+absl::StatusOr<verilog::CodegenResult> ConvertBlockToVerilog(
+    Package* package, const verilog::CodegenOptions& options,
+    const DelayEstimator* delay_estimator,
+    OptimizationContext* opt_context = nullptr,
+    PassResults* pass_results = nullptr);
 
 }  // namespace xls::codegen
 
