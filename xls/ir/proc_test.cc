@@ -567,6 +567,75 @@ TEST_F(ProcTest, TransformStateElement) {
   EXPECT_THAT(user.node(), m::Tuple(m::Neg(new_st)));
 }
 
+TEST_F(ProcTest, TransformStateElementMultipleReads) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  auto st = pb.StateElement("st", UBits(0b1010, 4));
+  auto cond = pb.StateElement("cond", UBits(0, 1));
+  auto add_st = pb.Next(st, pb.Add(st, pb.Literal(UBits(1, 4))), cond);
+  pb.Next(cond, pb.Not(cond));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  // Manually add a second read for 'st'
+  StateElement* st_elem = proc->GetStateElement(0);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateRead * st_read2,
+      proc->MakeNodeWithName<StateRead>(SourceInfo(), st_elem,
+                                        /*predicate=*/std::nullopt,
+                                        /*label=*/std::nullopt, "st_read2"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * lit_sub,
+      proc->MakeNode<Literal>(SourceInfo(), Value(UBits(2, 4))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * sub_st2,
+      proc->MakeNode<BinOp>(SourceInfo(), st_read2, lit_sub, Op::kSub));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Next * next_st2,
+      proc->MakeNodeWithName<Next>(SourceInfo(), st_read2, sub_st2,
+                                   /*predicate=*/std::nullopt,
+                                   /*label=*/std::nullopt, "next_st2"));
+  XLS_ASSERT_OK(proc->RebuildSideTables());
+
+  // Verify side tables
+  EXPECT_EQ(proc->GetStateReadsByStateElement(st_elem).size(), 2);
+
+  // Test transformer (invert param)
+  struct TestTransformer : public Proc::StateElementTransformer {
+   public:
+    absl::StatusOr<Node*> TransformStateRead(
+        Proc* proc, StateRead* new_state_read,
+        StateRead* old_state_read) override {
+      return proc->MakeNode<UnOp>(new_state_read->loc(), new_state_read,
+                                  Op::kNeg);
+    }
+    absl::StatusOr<Node*> TransformNextValue(Proc* proc,
+                                             StateRead* new_state_read,
+                                             Next* old_next) override {
+      return proc->MakeNode<UnOp>(old_next->value()->loc(), old_next->value(),
+                                  Op::kNeg);
+    }
+  };
+  TestTransformer tt;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateRead * new_st,
+      proc->TransformStateElement(st.node()->As<StateRead>(),
+                                  Value(UBits(0b0101, 4)), tt));
+
+  // Verify the first read and its next were transformed
+  EXPECT_THAT(new_st, m::StateRead("st"));
+  EXPECT_THAT(add_st.node(), m::Next(st.node(), st.node(), cond.node()));
+
+  // Verify the second read and its next were transformed
+  Node* new_st_read2 = FindNode("st_read2", proc);
+  ASSERT_NE(new_st_read2, nullptr);
+  EXPECT_NE(new_st_read2, new_st);
+  EXPECT_THAT(new_st_read2->As<StateRead>()->state_element(),
+              new_st->state_element());
+
+  EXPECT_THAT(next_st2, m::Next(st_read2, st_read2));
+}
+
 class ScheduledProcTest : public IrTestBase {
  protected:
   absl::StatusOr<ScheduledProc*> CreateScheduledProc(Package* p) {

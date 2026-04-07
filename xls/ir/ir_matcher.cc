@@ -628,6 +628,11 @@ bool StateReadMatcher::MatchAndExplain(
     *listener << " has incorrect label";
     return false;
   }
+  if (predicate_.has_value() &&
+      !predicate_->MatchAndExplain(node->As<xls::StateRead>()->predicate(),
+                                   listener)) {
+    return false;
+  }
   return true;
 }
 
@@ -644,6 +649,12 @@ void StateReadMatcher::DescribeTo(::std::ostream* os) const {
     std::stringstream ss;
     ss << "label=";
     label_->DescribeTo(&ss);
+    additional_fields.push_back(ss.str());
+  }
+  if (predicate_.has_value()) {
+    std::stringstream ss;
+    ss << "predicate=";
+    predicate_->DescribeTo(&ss);
     additional_fields.push_back(ss.str());
   }
   DescribeToHelper(os, additional_fields);
