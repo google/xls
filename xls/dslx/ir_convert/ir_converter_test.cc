@@ -8626,5 +8626,24 @@ proc main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, DerivedToBitsNestedStructs) {
+  constexpr std::string_view kDslxProgram = R"(
+#[derive(ToBits)]
+pub struct A { x: u32 }
+
+#[derive(ToBits)]
+pub struct B { a: A }
+
+#[derive(ToBits)]
+pub struct C { b: B }
+
+pub fn main(c: C) -> bits[32] {
+  c.to_bits()
+}
+)";
+
+  XLS_ASSERT_OK(ConvertModuleForTest(kDslxProgram));
+}
+
 }  // namespace
 }  // namespace xls::dslx

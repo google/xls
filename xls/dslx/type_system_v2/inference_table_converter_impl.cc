@@ -683,8 +683,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * invocation_type_info,
         import_data_.type_info_owner().New(
-            function->owner(),
-            absl::StrCat("invocation_of_", function->identifier()),
+            function->owner(), CreateInvocationTypeInfoName(function),
             base_type_info));
 
     std::optional<const StructDefBase*> target_struct = std::nullopt;
@@ -911,6 +910,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           init_value));
     }
     return absl::OkStatus();
+  }
+
+  // Generates a name for a `TypeInfo` object to be used for an invocation of
+  // `f`.
+  std::string CreateInvocationTypeInfoName(const Function* f) {
+    if (f->impl().has_value()) {
+      return absl::Substitute("invocation_of_$0::$1",
+                              (*f->impl())->struct_ref()->ToString(),
+                              f->identifier());
+    }
+    return absl::StrCat("invocation_of_", f->identifier());
   }
 
   // Gets the output `TypeInfo` corresponding to the given

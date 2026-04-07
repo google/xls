@@ -14,9 +14,11 @@
 
 #include "xls/dslx/ir_convert/get_conversion_records.h"
 
+#include <cstdint>
 #include <ios>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -26,6 +28,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -160,7 +163,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    return HandleFunctionInternal(f, ParametricEnv{});
+    return HandleFunctionInternal(f, ParametricEnv{},
+                                  /*handle_for_invocation=*/false);
   }
 
   // Handles all non-proc functions. For parametric functions, we only get here
@@ -169,7 +173,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   // non-parametric, standalone functions, the `env` should be empty and the
   // `type_info_` on the visitor can be the root one.
   absl::Status HandleFunctionInternal(const Function* f,
-                                      const ParametricEnv& env) {
+                                      const ParametricEnv& env,
+                                      bool handle_for_invocation) {
     XLS_RET_CHECK(module_ == f->owner());
     XLS_RET_CHECK(!f->IsInProc());
     if (f->IsParametric() || f->IsMethodOnParametricStruct()) {
@@ -181,9 +186,14 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
     std::vector<InvocationCalleeData> calls =
         type_info_->GetUniqueInvocationCalleeData(f);
-    if (f->IsCompilerDerived() && calls.empty()) {
-      VLOG(5) << "No calls to derived function " << f->name_def()->ToString()
-              << "; not traversing for dependencies.";
+    if (f->IsCompilerDerived() && calls.empty() && !handle_for_invocation) {
+      std::string f_name = f->identifier();
+      if (f->impl().has_value()) {
+        f_name =
+            absl::StrCat((*f->impl())->struct_ref()->ToString(), "::", f_name);
+      }
+      VLOG(5) << "No calls to derived function " << f_name << " in TI "
+              << type_info_->name() << "; not traversing for dependencies.";
       return absl::OkStatus();
     }
 
@@ -247,8 +257,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
           proc_id_factory_, top_, resolved_proc_alias_, records_,
           processed_invocations_);
 
-      XLS_RETURN_IF_ERROR(
-          visitor.HandleFunctionInternal(call.callee, call.callee_bindings));
+      XLS_RETURN_IF_ERROR(visitor.HandleFunctionInternal(
+          call.callee, call.callee_bindings, /*handle_for_invocation=*/true));
 
       VLOG(5) << "Processing invocation " << invocation->ToString();
       XLS_ASSIGN_OR_RETURN(
