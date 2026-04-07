@@ -1266,14 +1266,16 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecialization) {
       Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/true),
       IsOkAndHolds(true));
 
-  EXPECT_THAT(
-      proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter0"))
-          ->predicate(),
-      Optional(m::Not(m::StateRead("index"))));
-  EXPECT_THAT(
-      proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter1"))
-          ->predicate(),
-      Optional(m::StateRead("index")));
+  EXPECT_THAT(proc->GetStateReadsByStateElement(
+                      *proc->GetStateElementByName("counter0"))
+                  .front()
+                  ->predicate(),
+              Optional(m::Not(m::StateRead("index"))));
+  EXPECT_THAT(proc->GetStateReadsByStateElement(
+                      *proc->GetStateElementByName("counter1"))
+                  .front()
+                  ->predicate(),
+              Optional(m::StateRead("index")));
 }
 
 TEST_F(ConditionalSpecializationPassTest, HarderStateReadSpecialization) {
@@ -1303,16 +1305,20 @@ TEST_F(ConditionalSpecializationPassTest, HarderStateReadSpecialization) {
       Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/true),
       IsOkAndHolds(true));
 
+  EXPECT_THAT(proc->GetStateReadsByStateElement(
+                      *proc->GetStateElementByName("counter0"))
+                  .front()
+                  ->predicate(),
+              Optional(m::Eq(m::StateRead("index"), m::Literal(0))));
+  EXPECT_THAT(proc->GetStateReadsByStateElement(
+                      *proc->GetStateElementByName("counter1"))
+                  .front()
+                  ->predicate(),
+              Optional(m::Eq(m::StateRead("index"), m::Literal(1))));
   EXPECT_THAT(
-      proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter0"))
-          ->predicate(),
-      Optional(m::Eq(m::StateRead("index"), m::Literal(0))));
-  EXPECT_THAT(
-      proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter1"))
-          ->predicate(),
-      Optional(m::Eq(m::StateRead("index"), m::Literal(1))));
-  EXPECT_THAT(
-      proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter2"))
+      proc->GetStateReadsByStateElement(
+              *proc->GetStateElementByName("counter2"))
+          .front()
           ->predicate(),
       Optional(m::And(
           // High bit of index is set

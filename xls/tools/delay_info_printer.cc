@@ -29,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/analyze_critical_path.h"
@@ -255,8 +256,14 @@ class DelayInfoPrinterImpl : public DelayInfoPrinter {
                   return true;
                 }
                 if (node->Is<Next>()) {
-                  return node->As<Next>()->state_read() ==
-                         proc->GetStateReadByStateElement(state_element);
+                  Node* next_sr = node->As<Next>()->state_read();
+                  for (StateRead* sr :
+                       proc->GetStateReadsByStateElement(state_element)) {
+                    if (next_sr == sr) {
+                      return true;
+                    }
+                  }
+                  return false;
                 }
                 return false;
               }));

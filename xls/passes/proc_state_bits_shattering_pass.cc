@@ -116,7 +116,15 @@ absl::StatusOr<bool> MaybeSplitStateElements(
     // to use STL set intersection algorithms.
     std::vector<int64_t> split_ends;
     bool could_benefit_from_splitting = false;
-    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
+    absl::Span<StateRead* const> state_reads =
+        proc->GetStateReadsByStateElement(state_element);
+    XLS_RET_CHECK_LE(state_reads.size(), 1)
+        << "ProcStateBitsShatteringPass only supports at most one StateRead "
+           "per StateElement for now.";
+    if (state_reads.empty()) {
+      continue;
+    }
+    StateRead* state_read = state_reads[0];
     for (Next* next : proc->next_values(state_element)) {
       if (next->value() == state_read) {
         // This is a no-op next-value; it doesn't affect whether or not it's
