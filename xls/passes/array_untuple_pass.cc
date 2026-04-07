@@ -118,17 +118,26 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindExternalGroups(
     // Don't mess with params that are only used in identity updates. Would
     // infinite loop otherwise since we don't remove these very often.
     for (StateElement* state_element : f->AsProcOrDie()->StateElements()) {
-      StateRead* state_read =
-          f->AsProcOrDie()->GetStateReadByStateElement(state_element);
-      if (absl::c_all_of(state_read->users(), [&](Node* n) -> bool {
-            if (n->Is<Next>()) {
-              Next* nxt = n->As<Next>();
-              return nxt->state_read() == nxt->value() &&
-                     nxt->state_read() == state_read;
-            }
-            return false;
-          })) {
-        excluded.insert(groups.Find(state_read));
+      absl::Span<StateRead* const> state_reads =
+          f->AsProcOrDie()->GetStateReadsByStateElement(state_element);
+      bool all_reads_identity = true;
+      for (StateRead* state_read : state_reads) {
+        if (!absl::c_all_of(state_read->users(), [&](Node* n) -> bool {
+              if (n->Is<Next>()) {
+                Next* nxt = n->As<Next>();
+                return nxt->state_read() == nxt->value() &&
+                       nxt->state_read() == state_read;
+              }
+              return false;
+            })) {
+          all_reads_identity = false;
+          break;
+        }
+      }
+      if (all_reads_identity) {
+        for (StateRead* state_read : state_reads) {
+          excluded.insert(groups.Find(state_read));
+        }
       }
     }
   }
