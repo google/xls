@@ -297,10 +297,11 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   LegalizeSequenceOfFolding(
       absl::Span<const std::unique_ptr<NaryFoldingAction>>
           potential_folding_actions_to_perform,
-      absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+      const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
           mutual_exclusivity,
       const NodeBackwardDependencyAnalysis& nda,
-      std::optional<const AreaEstimator*> area_estimator, const Config& config);
+      std::optional<const AreaEstimator*> area_estimator,
+      const ResourceSharingPass::Config& config);
 
   // This function performs the folding actions specified in its input following
   // the order specified.
@@ -366,7 +367,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   virtual absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
   SelectFoldingActions(
       OptimizationContext& context, FoldingGraph* folding_graph,
-      absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+      const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
           mutual_exclusivity,
       const VisibilityAnalyses& visibility,
       const NodeBackwardDependencyAnalysis& nda,

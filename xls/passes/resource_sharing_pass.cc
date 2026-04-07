@@ -577,9 +577,10 @@ absl::StatusOr<double> EstimateAreaForNegatingNode(Node* n,
 // into a single n-ary folding on the same destination. Note that binary
 // foldings are sorted by benefit (e.g maximizing area savings) in descending
 // order, meaning 'previous' is more important than 'next'.
-bool CanFoldTogether(absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
-                         mutual_exclusivity,
-                     BinaryFoldingAction* next, BinaryFoldingAction* previous) {
+bool CanFoldTogether(
+    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+        mutual_exclusivity,
+    BinaryFoldingAction* next, BinaryFoldingAction* previous) {
   if (previous->GetTo() != next->GetTo()) {
     return false;
   }
@@ -726,7 +727,7 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 ListOfAllFoldingActionsWithDestination(
     Node* n, FoldingGraph* folding_graph,
-    absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
     const AreaEstimator& area_estimator,
@@ -818,7 +819,7 @@ ListOfAllFoldingActionsWithDestination(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 ListOfFoldingActionsWithDestination(
     Node* n, FoldingGraph* folding_graph,
-    absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
     const AreaEstimator& area_estimator,
@@ -975,7 +976,7 @@ absl::StatusOr<std::pair<std::vector<std::unique_ptr<NaryFoldingAction>>, bool>>
 ResourceSharingPass::LegalizeSequenceOfFolding(
     absl::Span<const std::unique_ptr<NaryFoldingAction>>
         potential_folding_actions_to_perform,
-    absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const NodeBackwardDependencyAnalysis& nda,
     std::optional<const AreaEstimator*> area_estimator,
@@ -1339,7 +1340,7 @@ void SortNodesInDescendingOrderOfTheirInDegree(std::vector<Node*>& nodes,
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectFoldingActionsBasedOnInDegree(
     OptimizationContext& context, FoldingGraph* folding_graph,
-    absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
     const NodeBackwardDependencyAnalysis& nda,
@@ -1457,7 +1458,7 @@ SelectFoldingActionsBasedOnInDegree(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectAllFoldingActions(
     OptimizationContext& context, FoldingGraph* folding_graph,
-    absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
     const NodeBackwardDependencyAnalysis& nda,
@@ -1540,7 +1541,7 @@ SelectAllFoldingActions(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectRandomlyFoldingActions(
     FoldingGraph* folding_graph,
-    absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::Config& config,
     const ResourceSharingPass::VisibilityAnalyses& visibility) {
@@ -1606,16 +1607,17 @@ SelectRandomlyFoldingActions(
 // their total order to perform them.
 // This is part of the profitability guard of the resource sharing pass.
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
-SelectFoldingActions(OptimizationContext& context, FoldingGraph* folding_graph,
-                     ResourceSharingPass::ProfitabilityGuard heuristics,
-                     absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
-                         mutual_exclusivity,
-                     const ResourceSharingPass::VisibilityAnalyses& visibility,
-                     const NodeBackwardDependencyAnalysis& nda,
-                     const AreaEstimator& area_estimator,
-                     const CriticalPathDelayAnalysis& critical_path_delay,
-                     const ResourceSharingPass::Config& config,
-                     VisibilityEstimator* visibility_estimator) {
+SelectFoldingActions(
+    OptimizationContext& context, FoldingGraph* folding_graph,
+    ResourceSharingPass::ProfitabilityGuard heuristics,
+    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+        mutual_exclusivity,
+    const ResourceSharingPass::VisibilityAnalyses& visibility,
+    const NodeBackwardDependencyAnalysis& nda,
+    const AreaEstimator& area_estimator,
+    const CriticalPathDelayAnalysis& critical_path_delay,
+    const ResourceSharingPass::Config& config,
+    VisibilityEstimator* visibility_estimator) {
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
   VLOG(3) << "Choosing the best folding actions";
 
@@ -1696,7 +1698,7 @@ SelectFoldingActions(OptimizationContext& context, FoldingGraph* folding_graph,
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 ResourceSharingPass::SelectFoldingActions(
     OptimizationContext& context, FoldingGraph* folding_graph,
-    absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const VisibilityAnalyses& visibility,
     const NodeBackwardDependencyAnalysis& nda,
