@@ -587,7 +587,17 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
   CHECK(remaining_intervals.contains(Interval::Precise(init_value.bits())))
       << "Initial value not included in constant values.";
   remaining_intervals.erase(Interval::Precise(init_value.bits()));
-  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
+  absl::Span<StateRead* const> state_reads =
+      proc->GetStateReadsByStateElement(state_element);
+  XLS_RET_CHECK_LE(state_reads.size(), 1)
+      << "ProcStateRangeQueryEngine only supports at most one StateRead per "
+         "StateElement for now.";
+  if (state_reads.empty()) {
+    VLOG(3) << "Cannot narrow proc state with no reads: "
+            << state_element->ToString();
+    return std::nullopt;
+  }
+  StateRead* state_read = state_reads[0];
   XLS_ASSIGN_OR_RETURN(
       SegmentRangeData limiter,
       SegmentRangeData::Create(nda, ground_truth, state_read, topo_sort));
@@ -854,8 +864,12 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine ::Populate(
   absl::flat_hash_map<Node*, IntervalSet> state_read_intervals;
   state_read_intervals.reserve(final_range_data.size());
   for (const auto& [state_element, range] : final_range_data) {
-    state_read_intervals[proc->GetStateReadByStateElement(state_element)] =
-        range.interval_set.Get({});
+    absl::Span<StateRead* const> state_reads =
+        proc->GetStateReadsByStateElement(state_element);
+    XLS_RET_CHECK_LE(state_reads.size(), 1);
+    if (!state_reads.empty()) {
+      state_read_intervals[state_reads[0]] = range.interval_set.Get({});
+    }
   }
   ProcStateGivens givens(proc, std::move(state_read_intervals));
   XLS_RETURN_IF_ERROR(spec_ternary.PopulateWithGivens(proc, givens).status());
