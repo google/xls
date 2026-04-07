@@ -348,10 +348,11 @@ TEST_F(CanonicalizePassTest, StateReadWithAlwaysTruePredicate) {
                              /*read_predicate=*/pb.Literal(UBits(1, 1)));
   pb.Next(x, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-  EXPECT_THAT(proc->GetStateRead(0)->predicate(), Optional(m::Literal(1)));
+  EXPECT_THAT(proc->GetStateReads(0).front()->predicate(),
+              Optional(m::Literal(1)));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(proc->GetStateRead(0)->predicate(), std::nullopt);
+  EXPECT_EQ(proc->GetStateReads(0).front()->predicate(), std::nullopt);
 }
 
 void IrFuzzCanonicalization(FuzzPackageWithArgs fuzz_package_with_args) {

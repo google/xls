@@ -1895,9 +1895,11 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
             Proc * source_proc,
             ParseProc(package, /*outer_attributes=*/{}, &source));
         for (StateElement* element : source_proc->StateElements()) {
-          name_to_value->emplace(
-              element->name(),
-              bb->SourceNode(source_proc->GetStateReadByStateElement(element)));
+          absl::Span<StateRead* const> reads =
+              source_proc->GetStateReadsByStateElement(element);
+          XLS_RET_CHECK_EQ(reads.size(), 1);
+          name_to_value->emplace(element->name(),
+                                 bb->SourceNode(reads.front()));
         }
       } else {
         return absl::InvalidArgumentError(absl::StrFormat(
