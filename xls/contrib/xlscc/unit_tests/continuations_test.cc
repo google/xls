@@ -76,8 +76,8 @@ class ContinuationsTest : public XlsccTestBase {
     LOG(INFO) << package_->DumpIr();
 
     LogContinuations(*func);
-    testing::Test::RecordProperty("GraphViz file",
-                                  Debug_GenerateSliceGraph(*func));
+    testing::Test::RecordProperty(
+        "GraphViz file", Debug_GenerateSliceGraph(*func, package_.get()));
 
     return func;
   }

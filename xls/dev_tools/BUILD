@@ -976,3 +976,16 @@ pytype_strict_contrib_test(
         "@abseil-py//absl/testing:absltest",
     ],
 )
+
+cc_library(
+    name = "link_to_source",
+    srcs = [
+        "link_to_source.cc",
+    ],
+    hdrs = ["link_to_source.h"],
+    deps = [
+        "//xls/ir",
+        "//xls/ir:source_location",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)

@@ -48,6 +48,7 @@
 #include "xls/contrib/xlscc/translator_types.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/dev_tools/link_to_source.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/nodes.h"
@@ -2466,7 +2467,21 @@ absl::Status Translator::MarkDirectIns(GeneratedFunction& func,
   return absl::OkStatus();
 }
 
-std::string Debug_GenerateSliceGraph(const GeneratedFunction& func) {
+namespace {
+std::string LinkifyLocation(const IOOp* op, const xls::Package* package) {
+  if (!op || op->op_location.locations.empty() || package == nullptr) {
+    return "";
+  }
+  auto link = LinkToSource(op->op_location.locations.back(), package);
+  if (!link) {
+    return "";
+  }
+  return absl::StrFormat("href=\"%s\"", *link);
+}
+}  // namespace
+
+std::string Debug_GenerateSliceGraph(const GeneratedFunction& func,
+                                     const xls::Package* package) {
   const bool show_choose_in_states = false;
   const bool show_input_debug_info = false;
 
@@ -2513,26 +2528,31 @@ std::string Debug_GenerateSliceGraph(const GeneratedFunction& func) {
       }
     }
 
+    const std::string rank_full_name =
+        GraphvizEscape(absl::StrFormat("%p_rank", &slice));
     const std::string rank_input_name =
-        GraphvizEscape(absl::StrFormat("%p_inputs", &slice));
+        absl::StrFormat("%s:input", rank_full_name);
     const std::string rank_output_name =
-        GraphvizEscape(absl::StrFormat("%p_outputs", &slice));
-
-    rank_orders.push_back(
-        absl::StrFormat("  %s -> %s", rank_input_name, rank_output_name));
+        absl::StrFormat("%s:output", rank_full_name);
+    const std::string link =
+        slice_index != 0 ? LinkifyLocation(slice.after_op, package) : "";
+    const std::string link_label =
+        link.empty()
+            ? ""
+            : absl::StrFormat(" [line:%d] [link]",
+                              slice.after_op->op_location.locations.back()
+                                  .lineno()
+                                  .value());
+    const std::string rank_label = absl::StrFormat(
+        "{ <input> inputs | <id> [%d] %s%s | "
+        "<output> outputs }",
+        slice_index, new_rank, link_label);
+    node_names.push_back(absl::StrFormat("  %s [shape=record label=\"%s\" %s];",
+                                         rank_full_name, rank_label, link));
     if (!last_rank_name.empty()) {
       rank_orders.push_back(
           absl::StrFormat("  %s -> %s", last_rank_name, rank_input_name));
     }
-
-    node_names.push_back(
-        absl::StrFormat("  %s [label=%s style=rounded];", rank_input_name,
-                        GraphvizEscape(absl::StrFormat(
-                            "[%i] %s inputs", slice_index, new_rank))));
-    node_names.push_back(
-        absl::StrFormat("  %s [label=%s];", rank_output_name,
-                        GraphvizEscape(absl::StrFormat(
-                            "[%i] %s outputs", slice_index, new_rank))));
 
     last_rank_name = rank_output_name;
 

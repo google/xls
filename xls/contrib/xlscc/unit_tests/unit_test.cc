@@ -387,8 +387,8 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
                          translator_->GenerateIR_Top_Function(
                              package_.get(), top_channel_injections));
 
-    testing::Test::RecordProperty("GraphViz file",
-                                  Debug_GenerateSliceGraph(*func));
+    testing::Test::RecordProperty(
+        "GraphViz file", Debug_GenerateSliceGraph(*func, package_.get()));
 
     XLS_RETURN_IF_ERROR(package_->SetTopByName(func->xls_func->name()));
     if (pfunc != nullptr) {
@@ -484,8 +484,8 @@ void XlsccTestBase::BuildTestIR(
   const xlscc::GeneratedFunction* top_func =
       translator_->GetGeneratedFunction(top_decl);
 
-  testing::Test::RecordProperty("GraphViz file",
-                                Debug_GenerateSliceGraph(*top_func));
+  testing::Test::RecordProperty(
+      "GraphViz file", Debug_GenerateSliceGraph(*top_func, package_.get()));
 
   for (const xlscc::HLSChannel& ch : block_spec_.channels()) {
     if (ch.type() == xlscc::CHANNEL_TYPE_DIRECT_IN) {
@@ -1022,8 +1022,8 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
   const xlscc::GeneratedFunction* top_func =
       translator_->GetGeneratedFunction(top_decl);
 
-  testing::Test::RecordProperty("GraphViz file",
-                                Debug_GenerateSliceGraph(*top_func));
+  testing::Test::RecordProperty(
+      "GraphViz file", Debug_GenerateSliceGraph(*top_func, package_.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
 

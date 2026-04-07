@@ -282,16 +282,17 @@ static absl::Status Run(std::string_view cpp_path) {
   std::filesystem::path debug_write_function_slice_graph_path(
       absl::GetFlag(FLAGS_debug_write_function_slice_graph_path));
 
-  auto write_to_output =
-      [&](std::string_view output,
-          const GeneratedFunction* top_function) -> absl::Status {
+  auto write_to_output = [&](std::string_view output,
+                             const GeneratedFunction* top_function,
+                             const xls::Package* package) -> absl::Status {
     if (output_file.empty()) {
       std::cout << output;
     } else {
       XLS_RETURN_IF_ERROR(xls::SetFileContents(output_file, output));
     }
     if (!debug_write_function_slice_graph_path.empty()) {
-      const std::string graph = Debug_GenerateSliceGraph(*top_function);
+      const std::string graph =
+          Debug_GenerateSliceGraph(*top_function, package);
       XLS_RETURN_IF_ERROR(
           xls::SetFileContents(debug_write_function_slice_graph_path, graph));
     }
@@ -311,8 +312,8 @@ static absl::Status Run(std::string_view cpp_path) {
     translator.AddSourceInfoToPackage(package);
 
     std::cerr << "Saving Package IR..." << '\n';
-    XLS_RETURN_IF_ERROR(
-        write_to_output(absl::StrCat(package.DumpIr(), "\n"), top_function));
+    XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(package.DumpIr(), "\n"),
+                                        top_function, &package));
   } else {
     xls::Proc* proc = nullptr;
 
@@ -342,8 +343,8 @@ static absl::Status Run(std::string_view cpp_path) {
     const GeneratedFunction* top_function =
         translator.GetGeneratedFunction(top_function_decl);
 
-    XLS_RETURN_IF_ERROR(
-        write_to_output(absl::StrCat(package.DumpIr(), "\n"), top_function));
+    XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(package.DumpIr(), "\n"),
+                                        top_function, &package));
   }
 
   const std::string metadata_out_path = absl::GetFlag(FLAGS_meta_out);

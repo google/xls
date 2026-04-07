@@ -85,7 +85,8 @@ class Translator;
 class NewFSMGenerator;
 
 std::string Debug_GenerateReadableTypeName(xls::Type* type);
-std::string Debug_GenerateSliceGraph(const GeneratedFunction& func);
+std::string Debug_GenerateSliceGraph(const GeneratedFunction& func,
+                                     const xls::Package* package);
 
 struct TranslationContext;
 
