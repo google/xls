@@ -244,11 +244,14 @@ absl::StatusOr<std::vector<BValue>> GetStateValuesBeforeActivation(
     absl::flat_hash_map<NodeActivation, BValue>& values) {
   std::vector<BValue> states;
   for (StateElement* state_element : p->StateElements()) {
-    StateRead* state_read = p->GetStateReadByStateElement(state_element);
+    absl::Span<StateRead* const> reads =
+        p->GetStateReadsByStateElement(state_element);
+    XLS_RET_CHECK(!reads.empty()) << "No reads for " << state_element;
+
+    BValue state_val;
     if (activation == 0) {
-      values[{state_read, 0}] =
-          fb.Literal(state_element->initial_value(), SourceInfo(),
-                     absl::StrFormat("%s_initial_value", p->name()));
+      state_val = fb.Literal(state_element->initial_value(), SourceInfo(),
+                             absl::StrFormat("%s_initial_value", p->name()));
     } else {
       std::vector<BValue> cases;
       std::vector<BValue> selectors;
@@ -261,23 +264,26 @@ absl::StatusOr<std::vector<BValue>> GetStateValuesBeforeActivation(
       }
       if (selectors.empty()) {
         XLS_RET_CHECK_EQ(cases.size(), 1) << "no cases for " << state_element;
-        values[{state_read, activation}] = cases.front();
+        state_val = cases.front();
       } else if (cases.front().GetType()->IsBits() &&
                  cases.front().GetType()->GetFlatBitCount() == 0) {
         // Special case to avoid creating non-trivial uses of zero-len bit
         // vectors.
-        values[{state_read, activation}] = fb.Literal(UBits(0, 0));
+        state_val = fb.Literal(UBits(0, 0));
       } else {
         XLS_RET_CHECK_EQ(cases.size(), selectors.size());
         // materialize the next values into a select.
         // Need to reverse to keep the LSB is case 0 etc.
         absl::c_reverse(selectors);
-        values[{state_read, activation}] = fb.PrioritySelect(
+        state_val = fb.PrioritySelect(
             fb.Concat(selectors), cases,
-            /*default_value=*/values[{state_read, activation - 1}]);
+            /*default_value=*/values[{reads.front(), activation - 1}]);
       }
     }
-    states.push_back(values[{state_read, activation}]);
+    for (StateRead* read : reads) {
+      values[{read, activation}] = state_val;
+    }
+    states.push_back(state_val);
   }
   return states;
 }
