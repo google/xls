@@ -205,6 +205,43 @@ TEST_F(ProcTest, StatelessProc) {
   EXPECT_EQ(proc->DumpIr(), "proc p() {\n}\n");
 }
 
+TEST_F(ProcTest, MultipleStateReads) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue tkn = pb.StateElement("tkn", Value::Token());
+  BValue state = pb.StateElement("x", Value(UBits(42, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({tkn, state}));
+
+  StateElement* state_elem = proc->GetStateElement(1);
+
+  EXPECT_EQ(proc->GetStateReads(1).size(), 1);
+  StateRead* read1 = proc->GetStateReads(1).front();
+
+  // Second Read
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateRead * read2,
+      proc->MakeNodeWithName<StateRead>(SourceInfo(), state_elem,
+                                        /*predicate=*/std::nullopt,
+                                        /*label=*/std::nullopt, "x_read2"));
+  XLS_ASSERT_OK(proc->RebuildSideTables());
+
+  EXPECT_EQ(proc->GetStateReads(1).size(), 2);
+  EXPECT_THAT(proc->GetStateReads(1), ElementsAre(read1, read2));
+
+  EXPECT_EQ(proc->GetStateReadsByStateElement(state_elem).size(), 2);
+  EXPECT_THAT(proc->GetStateReadsByStateElement(state_elem),
+              ElementsAre(read1, read2));
+
+  // Remove the second read.
+  std::string read2_name = read2->GetName();
+  XLS_ASSERT_OK(proc->RemoveNode(read2));
+  XLS_ASSERT_OK(proc->RebuildSideTables());
+
+  // Now we should have 1 read again.
+  EXPECT_EQ(proc->GetStateReads(1).size(), 1);
+  EXPECT_EQ(proc->GetStateReads(1).front(), read1);
+}
+
 TEST_F(ProcTest, RemoveStateThatStillHasUse) {
   // Don't call CreatePackage which creates a VerifiedPackage because we
   // intentionally create a malformed proc.
@@ -254,10 +291,10 @@ TEST_F(ProcTest, Clone) {
   EXPECT_EQ(clone->DumpIr(),
             R"(proc cloned(tkn: token, state: bits[32], init={token, 42}) {
   tkn: token = state_read(state_element=tkn, id=12)
-  literal.14: bits[32] = literal(value=1, id=14)
-  state: bits[32] = state_read(state_element=state, id=13)
+  literal.13: bits[32] = literal(value=1, id=13)
+  state: bits[32] = state_read(state_element=state, id=14)
   receive_3: (token, bits[32]) = receive(tkn, channel=cloned_chan, id=15)
-  add.16: bits[32] = add(literal.14, state, id=16)
+  add.16: bits[32] = add(literal.13, state, id=16)
   tuple_index.17: bits[32] = tuple_index(receive_3, index=1, id=17)
   tuple_index.18: token = tuple_index(receive_3, index=0, id=18)
   add.19: bits[32] = add(add.16, tuple_index.17, id=19)
@@ -304,10 +341,10 @@ proc cloned<input_chan: bits[32] in, chan: bits[32] out>(tkn: token, state: bits
   chan_interface input_chan(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface chan(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   tkn: token = state_read(state_element=tkn, id=1)
-  literal.3: bits[32] = literal(value=1, id=3)
-  state: bits[32] = state_read(state_element=state, id=2)
+  literal.2: bits[32] = literal(value=1, id=2)
+  state: bits[32] = state_read(state_element=state, id=3)
   receive_3: (token, bits[32]) = receive(tkn, channel=input_chan, id=4)
-  add.5: bits[32] = add(literal.3, state, id=5)
+  add.5: bits[32] = add(literal.2, state, id=5)
   tuple_index.6: bits[32] = tuple_index(receive_3, index=1, id=6)
   tuple_index.7: token = tuple_index(receive_3, index=0, id=7)
   add.8: bits[32] = add(add.5, tuple_index.6, id=8)
@@ -355,15 +392,15 @@ TEST_F(ProcTest, CloneNewStyle) {
   chan baz(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
   chan_interface baz(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
   chan_interface baz(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  tkn: token = literal(value=token, id=14)
-  receive_3: (token, bits[32]) = receive(tkn, channel=foo, id=15)
-  tuple_index.16: token = tuple_index(receive_3, index=0, id=16)
-  receive_6: (token, bits[32]) = receive(tuple_index.16, channel=baz, id=17)
-  tuple_index.18: token = tuple_index(receive_6, index=0, id=18)
-  state: bits[32] = state_read(state_element=state, id=13)
+  tkn: token = literal(value=token, id=13)
+  receive_3: (token, bits[32]) = receive(tkn, channel=foo, id=14)
+  tuple_index.15: token = tuple_index(receive_3, index=0, id=15)
+  receive_6: (token, bits[32]) = receive(tuple_index.15, channel=baz, id=16)
+  tuple_index.17: token = tuple_index(receive_6, index=0, id=17)
+  state: bits[32] = state_read(state_element=state, id=18)
   tuple_index.19: bits[32] = tuple_index(receive_3, index=1, id=19)
   tuple_index.20: bits[32] = tuple_index(receive_6, index=1, id=20)
-  send_9: token = send(tuple_index.18, state, channel=bar, id=21)
+  send_9: token = send(tuple_index.17, state, channel=bar, id=21)
   add.22: bits[32] = add(tuple_index.19, tuple_index.20, id=22)
   send_10: token = send(send_9, state, channel=baz, id=23)
   next_value.24: () = next_value(param=state, value=add.22, id=24)
@@ -556,7 +593,8 @@ TEST_F(ScheduledProcTest, StageAddAndClear) {
   proc->ClearStages();
   EXPECT_TRUE(proc->stages().empty());
   // Re-stage the state element to satisfy the verifier.
-  XLS_ASSERT_OK(proc->AddNodeToStage(0, proc->GetStateRead(0)).status());
+  XLS_ASSERT_OK(
+      proc->AddNodeToStage(0, proc->GetStateReads(0).front()).status());
 }
 
 TEST_F(ScheduledProcTest, AddEmptyStages) {
@@ -596,7 +634,8 @@ TEST_F(ScheduledProcTest, GetStageIndex) {
   EXPECT_THAT(proc->GetStageIndex(x), IsOkAndHolds(1));
   EXPECT_THAT(proc->GetStageIndex(y), IsOkAndHolds(2));
   EXPECT_THAT(proc->GetStageIndex(add), StatusIs(absl::StatusCode::kNotFound));
-  EXPECT_THAT(proc->GetStageIndex(proc->GetStateRead(0)), IsOkAndHolds(0));
+  EXPECT_THAT(proc->GetStageIndex(proc->GetStateReads(0).front()),
+              IsOkAndHolds(0));
 
   // The verifier requires that every node be in a stage before we finish.
   ASSERT_THAT(proc->AddNodeToStage(2, add), IsOkAndHolds(true));

@@ -35,6 +35,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "clang/include/clang/AST/Attr.h"
 #include "clang/include/clang/AST/Attrs.inc"
 #include "clang/include/clang/AST/Decl.h"
@@ -258,8 +259,11 @@ absl::StatusOr<TrackedBValue> ComposeStaticValueInput(
   if (!generate_new_fsm || !TypeIsDecomposable(xls_type)) {
     xls::StateElement* state_element = state_element_for_static.at(
         DeclLeaf{.decl = namedecl, .leaf_index = -1});
-    return TrackedBValue(pb.proc()->GetStateReadByStateElement(state_element),
-                         &pb);
+    absl::Span<xls::StateRead* const> reads =
+        pb.proc()->GetStateReadsByStateElement(state_element);
+    CHECK(!reads.empty());
+    CHECK_LE(reads.size(), 1);
+    return TrackedBValue(reads.front(), &pb);
   }
   absl::InlinedVector<xls::Type*, 1> decomposed_types =
       DecomposeTupleTypes(xls_type);
@@ -268,7 +272,11 @@ absl::StatusOr<TrackedBValue> ComposeStaticValueInput(
   for (int64_t i = 0; i < decomposed_types.size(); ++i) {
     xls::StateElement* decomposed_element = state_element_for_static.at(
         DeclLeaf{.decl = namedecl, .leaf_index = i});
-    nodes.push_back(pb.proc()->GetStateReadByStateElement(decomposed_element));
+    absl::Span<xls::StateRead* const> reads =
+        pb.proc()->GetStateReadsByStateElement(decomposed_element);
+    CHECK(!reads.empty());
+    CHECK_LE(reads.size(), 1);
+    nodes.push_back(reads.front());
   }
 
   XLS_ASSIGN_OR_RETURN(xls::Node * node,
@@ -662,8 +670,11 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
         next_state_value.value = TrackedBValue(decomposed_next_val, &pb);
       } else {
         XLSCC_CHECK_EQ(decomposed_elems.size(), 1, body_loc);
-        xls::StateRead* state_read =
-            pb.proc()->GetStateReadByStateElement(decomposed_elem);
+        absl::Span<xls::StateRead* const> reads =
+            pb.proc()->GetStateReadsByStateElement(decomposed_elem);
+        XLSCC_CHECK(!reads.empty(), body_loc);
+        XLSCC_CHECK_LE(reads.size(), 1, body_loc);
+        xls::StateRead* state_read = reads.front();
         TrackedBValue prev_val(state_read, &pb);
         next_state_value.value =
             pb.And(prev_val,
@@ -2268,7 +2279,11 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
       return absl::InternalError(
           absl::StrFormat("No next values for state element %s", elem->name()));
     }
-    xls::StateRead* state_read = pb.proc()->GetStateReadByStateElement(elem);
+    absl::Span<xls::StateRead* const> reads =
+        pb.proc()->GetStateReadsByStateElement(elem);
+    XLSCC_CHECK(!reads.empty(), loc);
+    XLSCC_CHECK_LE(reads.size(), 1, loc);
+    xls::StateRead* state_read = reads.front();
     TrackedBValue read_bval(state_read, &pb);
     if (values_for_elem == 1) {
       const NextStateValue& next_state_value =

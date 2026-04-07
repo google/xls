@@ -450,14 +450,16 @@ absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
       // Replace all uses of invariant state elements (i.e.: ones where
       // next[i] == param[i]) with a literal of the initial value.
       Value init_value = invariant->initial_value();
-      Node* state_read = p->GetStateReadByStateElement(invariant);
       absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
           p->next_values(invariant);
       for (Next* next : next_values) {
         XLS_RETURN_IF_ERROR(p->RemoveNode(next));
       }
-      XLS_RETURN_IF_ERROR(
-          state_read->ReplaceUsesWithNew<Literal>(init_value).status());
+      for (xls::StateRead* state_read :
+           p->GetStateReadsByStateElement(invariant)) {
+        XLS_RETURN_IF_ERROR(
+            state_read->ReplaceUsesWithNew<xls::Literal>(init_value).status());
+      }
       dead_state_elements.insert(invariant);
     }
 
