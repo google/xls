@@ -2556,6 +2556,7 @@ xls_pass(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -2567,6 +2568,7 @@ xls_pass(
     deps = [
         ":optimization_pass",
         ":pass_base",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
