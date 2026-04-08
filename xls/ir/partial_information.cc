@@ -204,6 +204,45 @@ int64_t PartialInformation::KnownLeadingSignBits() const {
   return 1 + bit_count_ - interval_ops::MinimumSignedBitCount(*range_);
 }
 
+int64_t PartialInformation::MaxPopCount() const {
+  if (IsImpossible()) {
+    return 0;
+  }
+  if (IsUnconstrained()) {
+    return bit_count_;
+  }
+  int64_t tern_count = 0;
+  if (ternary_) {
+    tern_count = absl::c_count_if(*ternary_, [](TernaryValue v) {
+      return v != TernaryValue::kKnownZero;
+    });
+  }
+  int64_t range_count = 0;
+  if (range_) {
+    range_count = interval_ops::MaxPopCount(*range_);
+  }
+  return std::min(range_count, tern_count);
+}
+
+int64_t PartialInformation::MinPopCount() const {
+  if (IsImpossible()) {
+    return 0;
+  }
+  if (IsUnconstrained()) {
+    return 0;
+  }
+  int64_t tern_count = 0;
+  if (ternary_) {
+    tern_count = absl::c_count_if(
+        *ternary_, [](TernaryValue v) { return v != TernaryValue::kKnownOne; });
+  }
+  int64_t range_count = 0;
+  if (range_) {
+    range_count = interval_ops::MinPopCount(*range_);
+  }
+  return std::max(range_count, tern_count);
+}
+
 std::string PartialInformation::ToDebugString() const {
   if (IsUnconstrained()) {
     return "unconstrained";
