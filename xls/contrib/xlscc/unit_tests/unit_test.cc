@@ -938,7 +938,11 @@ XlsccTestBase::GetStatesByIONodeForFSMProc(std::string_view func_name) {
 
   CHECK_EQ(found_proc_with_fsm, nullptr);
   found_proc_with_fsm = proc.get();
-  fsm_state_read = proc->GetStateReadByStateElement(state_element);
+  absl::Span<xls::StateRead* const> reads =
+      proc->GetStateReadsByStateElement(state_element);
+  CHECK(!reads.empty());
+  CHECK_LE(reads.size(), 1);
+  fsm_state_read = reads.front();
 
   CHECK_NE(found_proc_with_fsm, nullptr);
   CHECK_NE(fsm_state_read, nullptr);

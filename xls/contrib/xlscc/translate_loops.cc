@@ -32,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "clang/include/clang/AST/Attr.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/Expr.h"
@@ -1374,8 +1375,11 @@ Translator::GenerateIR_PipelinedLoopContents(
     } else {
       xls::StateElement* state_elem =
           prepared.state_element_for_variable.at(DeclLeaf{.decl = decl});
-      state_reads_by_decl[decl] =
-          TrackedBValue(pb.proc()->GetStateReadByStateElement(state_elem), &pb);
+      absl::Span<xls::StateRead* const> reads =
+          pb.proc()->GetStateReadsByStateElement(state_elem);
+      XLSCC_CHECK(!reads.empty(), loc);
+      XLSCC_CHECK_LE(reads.size(), 1, loc);
+      state_reads_by_decl[decl] = TrackedBValue(reads.front(), &pb);
     }
   }
 

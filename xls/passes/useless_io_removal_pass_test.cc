@@ -111,10 +111,10 @@ TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalse) {
   int64_t original_node_count = proc->node_count();
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), original_node_count - 3);
-  EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::Next(proc->GetStateRead(0),
-                          m::Send(proc->GetStateRead(0), m::Literal(1)))));
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
+              ElementsAre(m::Next(
+                  proc->GetStateReads(0).front(),
+                  m::Send(proc->GetStateReads(0).front(), m::Literal(1)))));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalseNewStyle) {
@@ -179,12 +179,12 @@ TEST_F(UselessIORemovalPassTest, RemoveReceiveNonBlockingIfLiteralFalse) {
       m::TupleIndex(m::Receive(m::StateRead("tkn"), m::Channel("test_channel")),
                     0),
       m::Literal(0), m::Literal(0));
-  EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::Next(proc->GetStateRead(0), m::TupleIndex(tuple, 0))));
-  EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(1)),
-      ElementsAre(m::Next(proc->GetStateRead(1), m::TupleIndex(tuple, 1))));
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
+              ElementsAre(m::Next(proc->GetStateReads(0).front(),
+                                  m::TupleIndex(tuple, 0))));
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
+              ElementsAre(m::Next(proc->GetStateReads(1).front(),
+                                  m::TupleIndex(tuple, 1))));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveReceiveIfLiteralFalse) {
@@ -209,12 +209,12 @@ TEST_F(UselessIORemovalPassTest, RemoveReceiveIfLiteralFalse) {
       m::TupleIndex(m::Receive(m::StateRead("tkn"), m::Channel("test_channel")),
                     0),
       m::Literal(0));
-  EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::Next(proc->GetStateRead(0), m::TupleIndex(tuple, 0))));
-  EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(1)),
-      ElementsAre(m::Next(proc->GetStateRead(1), m::TupleIndex(tuple, 1))));
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
+              ElementsAre(m::Next(proc->GetStateReads(0).front(),
+                                  m::TupleIndex(tuple, 0))));
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
+              ElementsAre(m::Next(proc->GetStateReads(1).front(),
+                                  m::TupleIndex(tuple, 1))));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveSendPredIfLiteralTrue) {
@@ -235,10 +235,11 @@ TEST_F(UselessIORemovalPassTest, RemoveSendPredIfLiteralTrue) {
   EXPECT_EQ(proc->node_count(), original_node_count - 1);
   EXPECT_THAT(
       proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::Next(proc->GetStateRead(0),
+      ElementsAre(m::Next(proc->GetStateReads(0).front(),
                           m::Send(m::StateRead("tkn"), m::Literal(1)))));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::Next(proc->GetStateRead(1), m::Literal(0))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(1)),
+      ElementsAre(m::Next(proc->GetStateReads(1).front(), m::Literal(0))));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
@@ -259,12 +260,12 @@ TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), original_node_count - 1);
   auto tuple = m::Receive(m::StateRead("tkn"), m::Channel("test_channel"));
-  EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::Next(proc->GetStateRead(0), m::TupleIndex(tuple, 0))));
-  EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(1)),
-      ElementsAre(m::Next(proc->GetStateRead(1), m::TupleIndex(tuple, 1))));
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
+              ElementsAre(m::Next(proc->GetStateReads(0).front(),
+                                  m::TupleIndex(tuple, 0))));
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
+              ElementsAre(m::Next(proc->GetStateReads(1).front(),
+                                  m::TupleIndex(tuple, 1))));
 }
 
 TEST_F(UselessIORemovalPassTest, DontRemoveLastSendIfOnSendOnlyChannel) {

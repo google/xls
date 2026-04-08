@@ -837,8 +837,12 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       xls_state_element = pb.StateElement(
           state_element.name, xls::ZeroOfType(state_element.type), body_loc);
     } else {
-      xls::StateRead* state_read = pb.proc()->GetStateReadByStateElement(
-          state_element.existing_state_element);
+      absl::Span<xls::StateRead* const> reads =
+          pb.proc()->GetStateReadsByStateElement(
+              state_element.existing_state_element);
+      XLSCC_CHECK(!reads.empty(), body_loc);
+      XLSCC_CHECK_LE(reads.size(), 1, body_loc);
+      xls::StateRead* state_read = reads.front();
       xls_state_element = TrackedBValue(state_read, &pb);
     }
 
