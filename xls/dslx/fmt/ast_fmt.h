@@ -60,6 +60,7 @@ class Formatter {
   DocRef Format(const ConstantDef& n);
   DocRef Format(const EnumDef& n);
   DocRef Format(const EnumMember& n);
+  DocRef Format(const FuzzTestFunction& n);
   DocRef Format(const Impl& n);
   DocRef Format(const ImplMember& n);
   DocRef Format(const Import& n);

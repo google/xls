@@ -22,7 +22,6 @@
 #include <string_view>
 #include <tuple>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/base/optimization.h"
@@ -33,7 +32,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
@@ -124,6 +122,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_SEND_IF;
     case AstNodeKind::kTestFunction:
       return AST_NODE_KIND_TEST_FUNCTION;
+    case AstNodeKind::kFuzzTestFunction:
+      return AST_NODE_KIND_FUZZ_TEST_FUNCTION;
     case AstNodeKind::kTestProc:
       return AST_NODE_KIND_TEST_PROC;
     case AstNodeKind::kWildcardPattern:
@@ -738,6 +738,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kSendIf;
     case AST_NODE_KIND_TEST_FUNCTION:
       return AstNodeKind::kTestFunction;
+    case AST_NODE_KIND_FUZZ_TEST_FUNCTION:
+      return AstNodeKind::kFuzzTestFunction;
     case AST_NODE_KIND_TEST_PROC:
       return AstNodeKind::kTestProc;
     case AST_NODE_KIND_WILDCARD_PATTERN:

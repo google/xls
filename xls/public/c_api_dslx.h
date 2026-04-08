@@ -60,6 +60,7 @@ enum {
   xls_dslx_module_member_kind_verbatim_node,
   xls_dslx_module_member_kind_use,
   xls_dslx_module_member_kind_proc_alias,
+  xls_dslx_module_member_kind_fuzz_test_function,
 };
 
 typedef int32_t xls_dslx_attribute_kind;

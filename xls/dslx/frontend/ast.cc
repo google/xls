@@ -311,6 +311,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "for";
     case AstNodeKind::kFunctionRef:
       return "function-ref";
+    case AstNodeKind::kFuzzTestFunction:
+      return "fuzz test function";
     case AstNodeKind::kStatementBlock:
       return "statement-block";
     case AstNodeKind::kTrait:
@@ -2418,6 +2420,25 @@ Function::LambdaReturnTypeParametrics() const {
 // -- class TestFunction
 
 TestFunction::~TestFunction() = default;
+
+// -- class FuzzTestFunction
+
+FuzzTestFunction::~FuzzTestFunction() = default;
+
+std::string FuzzTestFunction::ToString() const {
+  if (domains_.has_value()) {
+    return absl::StrFormat("#[fuzz_test(domains=`%s`)]\n%s",
+                           (*domains_)->ToString(), fn_.ToString());
+  }
+  return absl::StrFormat("#[fuzz_test]\n%s", fn_.ToString());
+}
+
+std::vector<AstNode*> FuzzTestFunction::GetChildren(bool want_types) const {
+  if (domains_.has_value()) {
+    return {&fn_, *domains_};
+  }
+  return {&fn_};
+}
 
 // -- class Lambda
 

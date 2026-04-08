@@ -399,6 +399,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // keep-sorted start
   INVALID(Attribute)
   INVALID(FunctionRef)
+  INVALID(FuzzTestFunction)
   INVALID(MatchArm)
   INVALID(NameDef)
   INVALID(NameDefTree)

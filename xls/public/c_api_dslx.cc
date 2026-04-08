@@ -33,6 +33,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/create_import_data.h"
@@ -561,6 +562,9 @@ xls_dslx_module_member_kind xls_dslx_module_member_get_kind(
           },
           [](xls::dslx::VerbatimNode*&) -> xls_dslx_module_member_kind {
             return xls_dslx_module_member_kind_verbatim_node;
+          },
+          [](xls::dslx::FuzzTestFunction*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_fuzz_test_function;
           },
       },
       cpp_member_ref);

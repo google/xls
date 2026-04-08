@@ -47,7 +47,7 @@ using ModuleMember =
     std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
                  TypeAlias*, StructDef*, ProcAlias*, ProcDef*, ConstantDef*,
                  EnumDef*, Import*, Use*, ConstAssert*, Impl*, Trait*,
-                 VerbatimNode*>;
+                 VerbatimNode*, FuzzTestFunction*>;
 
 // Returns all the NameDefs defined by the given module member.
 //

@@ -97,6 +97,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_PROC_ALIAS = 72;
   AST_NODE_KIND_TRAIT = 73;
   AST_NODE_KIND_ATTRIBUTE = 74;
+  AST_NODE_KIND_FUZZ_TEST_FUNCTION = 75;
 }
 
 message BitsValueProto {
