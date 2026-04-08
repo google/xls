@@ -1380,12 +1380,36 @@ xls_aot_generate(
     with_msan = XLS_IS_MSAN_BUILD,
 )
 
+xls_dslx_library(
+    name = "coverage_test_dslx",
+    srcs = ["coverage_test.x"],
+)
+
+xls_dslx_ir(
+    name = "coverage_test_ir",
+    dslx_top = "run_coverage",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    library = ":coverage_test_dslx",
+)
+
+xls_aot_generate(
+    name = "coverage_test_aot",
+    testonly = True,
+    src = ":coverage_test_ir",
+    enable_llvm_coverage = True,
+    salt_symbols = False,
+    top = "run_coverage",
+    top_type = "FUNCTION",
+    with_msan = XLS_IS_MSAN_BUILD,
+)
+
 # Tests that the coverage instrumentation can be enabled.
 build_test(
     name = "jit_build_test",
     targets = [
         ":multi_function_aot_coverage",
         ":multi_function_aot_coverage_jobs",
+        ":coverage_test_aot",
     ],
 )
 
