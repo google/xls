@@ -375,6 +375,8 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
       const OptimizationPassOptions& options,
       VisibilityEstimator* visibility_estimator) const;
 
+  virtual bool ShouldTargetNodeForMutualExclusion(Node* node) const;
+
  private:
   ProfitabilityGuard profitability_guard_;
   Config config_;

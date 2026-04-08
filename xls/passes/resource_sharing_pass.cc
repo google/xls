@@ -231,31 +231,6 @@ bool CanTarget(Node* n) {
   return false;
 }
 
-// Check if we should consider the node given as input for folding.
-// This is part of the profitability guard of the resource sharing pass.
-bool ShouldTarget(Node* n) {
-  // Additions are not always worth folding
-  if (n->OpIn({Op::kAdd})) {
-    // They are worth folding only if their bit-width is big enough
-    if (n->BitCountOrDie() >= 18) {
-      return true;
-    }
-    return false;
-  }
-
-  // Subtractions are not always worth folding
-  if (n->OpIn({Op::kSub})) {
-    // They are worth folding only if their bit-width is big enough
-    if (n->BitCountOrDie() >= 33) {
-      return true;
-    }
-    return false;
-  }
-
-  // Default: we consider folding a node potentially profitable.
-  return true;
-}
-
 absl::StatusOr<absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>>
 ResourceSharingPass::ComputeMutualExclusionAnalysis(
     FunctionBase* f, OptimizationContext& context,
@@ -1987,6 +1962,31 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
   return modified;
 }
 
+// Check if we should consider the node given as input for folding.
+// This is part of the profitability guard of the resource sharing pass.
+bool ResourceSharingPass::ShouldTargetNodeForMutualExclusion(Node* node) const {
+  // Additions are not always worth folding
+  if (node->OpIn({Op::kAdd})) {
+    // They are worth folding only if their bit-width is big enough
+    if (node->BitCountOrDie() >= 18) {
+      return true;
+    }
+    return false;
+  }
+
+  // Subtractions are not always worth folding
+  if (node->OpIn({Op::kSub})) {
+    // They are worth folding only if their bit-width is big enough
+    if (node->BitCountOrDie() >= 33) {
+      return true;
+    }
+    return false;
+  }
+
+  // Default: we consider folding a node potentially profitable.
+  return true;
+}
+
 // This function computes the resource sharing optimization for multiplication
 // instructions. In more detail, this function folds a multiplication
 // instruction into another multiplication instruction that has the same
@@ -2059,12 +2059,13 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   }
   next_node_id++;
 
-  // Compute the mutually exclusive binary relation between IR instructions
-  auto target_nodes = [](Node* n) { return ShouldTarget(n); };
   absl::flat_hash_set<MutuallyExclPair> mutual_exclusivity;
   XLS_ASSIGN_OR_RETURN(
       mutual_exclusivity,
-      ComputeMutualExclusionAnalysis(f, context, target_nodes, visibilities));
+      ComputeMutualExclusionAnalysis(
+          f, context,
+          [this](Node* n) { return ShouldTargetNodeForMutualExclusion(n); },
+          visibilities));
 
   BitProvenanceAnalysis bpa;
   VisibilityEstimator visibility_estimator(next_node_id - 1, bdd_engine.get(),
