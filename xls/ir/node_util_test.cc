@@ -244,6 +244,40 @@ TEST_F(NodeUtilTest, MatchBinarySelectLikeNonMatch) {
   EXPECT_FALSE(arms.has_value());
 }
 
+TEST_F(NodeUtilTest, MatchNodesInAnyOrder) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue sum = fb.Add(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sum));
+
+  const auto pred_x = [](Node* n) { return n->GetName() == "x"; };
+  const auto pred_y = [](Node* n) { return n->GetName() == "y"; };
+
+  // Already in order.
+  Node* matched_a = nullptr;
+  Node* matched_b = nullptr;
+  EXPECT_TRUE(MatchNodesInAnyOrder(f->param(0), f->param(1), pred_x, pred_y,
+                                   [&](Node* a, Node* b) {
+                                     matched_a = a;
+                                     matched_b = b;
+                                   }));
+  EXPECT_EQ(matched_a, f->param(0));
+  EXPECT_EQ(matched_b, f->param(1));
+
+  // Swapped order.
+  matched_a = nullptr;
+  matched_b = nullptr;
+  EXPECT_TRUE(MatchNodesInAnyOrder(f->param(0), f->param(1), pred_y, pred_x,
+                                   [&](Node* a, Node* b) {
+                                     matched_a = a;
+                                     matched_b = b;
+                                   }));
+  EXPECT_EQ(matched_a, f->param(1));
+  EXPECT_EQ(matched_b, f->param(0));
+}
+
 TEST_F(NodeUtilTest, GatherTreeBits) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
