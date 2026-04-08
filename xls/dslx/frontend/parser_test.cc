@@ -4478,7 +4478,9 @@ fn f(x: u32) -> u32 {
   std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
   ASSERT_NE(module, nullptr);
   ModuleMember* member = module->FindMemberWithName("f").value();
-  Function* f = std::get<Function*>(*member);
+  FuzzTestFunction* ftf = std::get<FuzzTestFunction*>(*member);
+  EXPECT_FALSE(ftf->domains().has_value());
+  Function* f = &ftf->fn();
   ASSERT_EQ(f->attributes().size(), 1);
   EXPECT_EQ(f->attributes()[0]->attribute_kind(), AttributeKind::kFuzzTest);
 }
@@ -4493,7 +4495,9 @@ fn f(x: u32) -> u32 {
   std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
   ASSERT_NE(module, nullptr);
   ModuleMember* member = module->FindMemberWithName("f").value();
-  Function* f = std::get<Function*>(*member);
+  FuzzTestFunction* ftf = std::get<FuzzTestFunction*>(*member);
+  EXPECT_FALSE(ftf->domains().has_value());
+  Function* f = &ftf->fn();
   ASSERT_EQ(f->attributes().size(), 2);
   EXPECT_EQ(f->attributes()[0]->attribute_kind(),
             AttributeKind::kExternVerilog);
@@ -4530,8 +4534,24 @@ TEST_F(ParserTest, FuzzTestAttributeSingleArg) {
 fn f(x: u32) {}
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           module->GetMemberOrError<Function>("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ftf,
+                           module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_TRUE(ftf->domains().has_value());
+  {
+    const XlsTuple* tuple =
+        dynamic_cast<const XlsTuple*>(ftf->domains().value());
+    ASSERT_NE(tuple, nullptr);
+    ASSERT_EQ(tuple->members().size(), 1);
+    const Range* range = dynamic_cast<const Range*>(tuple->members()[0]);
+    ASSERT_NE(range, nullptr);
+    const Number* start = dynamic_cast<const Number*>(range->start());
+    ASSERT_NE(start, nullptr);
+    EXPECT_EQ(start->ToString(), "u32:0");
+    const Number* stop = dynamic_cast<const Number*>(range->end());
+    ASSERT_NE(stop, nullptr);
+    EXPECT_EQ(stop->ToString(), "1");
+  }
+  Function* f = &ftf->fn();
   ASSERT_EQ(f->attributes().size(), 1);
   EXPECT_EQ(f->attributes()[0]->attribute_kind(), AttributeKind::kFuzzTest);
   ASSERT_EQ(f->attributes()[0]->args().size(), 1);
@@ -4547,11 +4567,12 @@ TEST_F(ParserTest, FuzzTestAttributeComplexArgs) {
   const char* kProgram = R"(
 enum Op : u32 { Add = 0, Sub = 1 }
 #[fuzz_test(domains=`[u32:0, u32:10], [Op::Add, Op::Sub]`)]
-fn f(x: u32[2], op: Op[2]) {}
+fn f(x: u32, op: Op) {}
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           module->GetMemberOrError<Function>("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ftf,
+                           module->GetMemberOrError<FuzzTestFunction>("f"));
+  Function* f = &ftf->fn();
   ASSERT_EQ(f->attributes().size(), 1);
   EXPECT_EQ(f->attributes()[0]->attribute_kind(), AttributeKind::kFuzzTest);
   ASSERT_EQ(f->attributes()[0]->args().size(), 1);
@@ -4559,6 +4580,33 @@ fn f(x: u32[2], op: Op[2]) {}
       f->attributes()[0]->args()[0]);
   EXPECT_EQ(arg.first, "domains");
   EXPECT_EQ(arg.second, "[u32:0, u32:10], [Op::Add, Op::Sub]");
+
+  ASSERT_TRUE(ftf->domains().has_value());
+  {
+    const Expr* domains_expr = ftf->domains().value();
+    const XlsTuple* tuple = dynamic_cast<const XlsTuple*>(domains_expr);
+    ASSERT_NE(tuple, nullptr);
+    ASSERT_EQ(tuple->members().size(), 2);
+
+    // First member is an Array: [u32:0, u32:10]
+    const Array* array1 = dynamic_cast<const Array*>(tuple->members()[0]);
+    ASSERT_NE(array1, nullptr);
+    ASSERT_EQ(array1->members().size(), 2);
+    EXPECT_EQ(array1->members()[0]->ToString(), "u32:0");
+    EXPECT_EQ(array1->members()[1]->ToString(), "u32:10");
+
+    // Second member is an Array: [Op::Add, Op::Sub]
+    const Array* array2 = dynamic_cast<const Array*>(tuple->members()[1]);
+    ASSERT_NE(array2, nullptr);
+    ASSERT_EQ(array2->members().size(), 2);
+    const ColonRef* cref1 = dynamic_cast<const ColonRef*>(array2->members()[0]);
+    ASSERT_NE(cref1, nullptr);
+    EXPECT_EQ(cref1->attr(), "Add");
+
+    const ColonRef* cref2 = dynamic_cast<const ColonRef*>(array2->members()[1]);
+    ASSERT_NE(cref2, nullptr);
+    EXPECT_EQ(cref2->attr(), "Sub");
+  }
 }
 
 TEST_F(ParserTest, FuzzTestAttributeInvalidNoDomains) {

@@ -1053,10 +1053,11 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(&n->fn()));
     XLS_ASSIGN_OR_RETURN(Function * new_fn, CastIfNotVerbatim<Function*>(
                                                 old_to_new_.at(&n->fn())));
-    std::optional<Expr*> new_domains =
-        n->domains().has_value() ? std::make_optional(absl::down_cast<Expr*>(
-                                       old_to_new_.at(n->domains().value())))
-                                 : std::nullopt;
+    std::optional<XlsTuple*> new_domains =
+        n->domains().has_value()
+            ? std::make_optional(absl::down_cast<XlsTuple*>(
+                  old_to_new_.at(n->domains().value())))
+            : std::nullopt;
     old_to_new_[n] =
         module(n)->Make<FuzzTestFunction>(n->span(), *new_fn, new_domains);
     return absl::OkStatus();

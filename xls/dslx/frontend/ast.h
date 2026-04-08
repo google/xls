@@ -3904,7 +3904,7 @@ class FuzzTestFunction : public AstNode {
   static std::string_view GetDebugTypeName() { return "fuzz test function"; }
 
   FuzzTestFunction(Module* owner, Span span, Function& fn,
-                   std::optional<Expr*> domains)
+                   std::optional<XlsTuple*> domains)
       : AstNode(owner),
         span_(std::move(span)),
         fn_(fn),
@@ -3919,20 +3919,12 @@ class FuzzTestFunction : public AstNode {
     return v->HandleFuzzTestFunction(this);
   }
 
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {&fn_};
-  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string_view GetNodeTypeName() const override {
     return "FuzzTestFunction";
   }
-  std::string ToString() const override {
-    if (domains_.has_value()) {
-      return absl::StrFormat("#[fuzz_test(domains=`%s`)]\n%s",
-                             (*domains_)->ToString(), fn_.ToString());
-    }
-    return absl::StrFormat("#[fuzz_test]\n%s", fn_.ToString());
-  }
+  std::string ToString() const override;
 
   Function& fn() const { return fn_; }
   std::optional<Span> GetSpan() const override { return span(); }
@@ -3940,12 +3932,12 @@ class FuzzTestFunction : public AstNode {
 
   const std::string& identifier() const { return fn_.name_def()->identifier(); }
 
-  const std::optional<Expr*>& domains() const { return domains_; }
+  const std::optional<XlsTuple*>& domains() const { return domains_; }
 
  private:
   const Span span_;
   Function& fn_;
-  const std::optional<Expr*> domains_;
+  const std::optional<XlsTuple*> domains_;
 };
 
 enum class QuickCheckTestCasesTag {
