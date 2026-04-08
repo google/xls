@@ -591,7 +591,11 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
     if (node->Is<Next>()) {
       // next_value nodes store their output in the state-read's location, and
       // return nothing themselves.
-      StateRead* state_read = node->As<Next>()->state_read()->As<StateRead>();
+      Proc* proc = node->function_base()->AsProcOrDie();
+      StateElement* state_element = node->As<Next>()->state_element();
+      StateRead* state_read =
+          proc->GetStateReadsByStateElement(state_element).front();
+
       XLS_RET_CHECK(allocator.GetAllocationKind(state_read) ==
                     AllocationKind::kNone);
       output_buffers = wrapper.GetOutputBuffers(state_read, b);
@@ -737,9 +741,13 @@ std::vector<Node*> GetJittedFunctionInputs(FunctionBase* function_base) {
   if (function_base->IsProc()) {
     Proc* proc = function_base->AsProcOrDie();
     std::vector<Node*> out;
-    absl::c_transform(
-        proc->StateElements(), std::back_inserter(out),
-        [&](StateElement* st) { return proc->GetStateReadByStateElement(st); });
+    out.reserve(proc->StateElements().size());
+    for (StateElement* st : proc->StateElements()) {
+      absl::Span<StateRead* const> reads =
+          proc->GetStateReadsByStateElement(st);
+      CHECK(!reads.empty());
+      out.push_back(reads.front());
+    }
     return out;
   }
   std::vector<Node*> inputs(function_base->params().begin(),
@@ -780,9 +788,11 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
   Proc* proc = function_base->AsProcOrDie();
   std::vector<Node*> outputs;
   outputs.reserve(proc->StateElements().size());
-  absl::c_transform(
-      proc->StateElements(), std::back_inserter(outputs),
-      [&](StateElement* st) { return proc->GetStateReadByStateElement(st); });
+  for (StateElement* st : proc->StateElements()) {
+    absl::Span<StateRead* const> reads = proc->GetStateReadsByStateElement(st);
+    CHECK(!reads.empty());
+    outputs.push_back(reads[0]);
+  }
   return outputs;
 }
 
