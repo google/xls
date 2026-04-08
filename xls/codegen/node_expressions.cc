@@ -164,13 +164,13 @@ absl::StatusOr<Expression*> EmitSel(Select* sel, Expression* selector,
     return file->Ternary(selector, rhs, cases[caseno], sel->loc());
   }
 
-  return file->Ternary(
-      file->Equals(selector,
-                   file->Literal(caseno,
-                                 /*bit_count=*/sel->selector()->BitCountOrDie(),
-                                 sel->loc()),
-                   sel->loc()),
-      cases[caseno], rhs, sel->loc());
+  XLS_ASSIGN_OR_RETURN(
+      Expression * case_index,
+      file->Literal(caseno,
+                    /*bit_count=*/sel->selector()->BitCountOrDie(),
+                    sel->loc()));
+  return file->Ternary(file->Equals(selector, case_index, sel->loc()),
+                       cases[caseno], rhs, sel->loc());
 }
 
 absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
@@ -205,10 +205,11 @@ absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
       higher_priority_bits_zero =
           file->LogicalNot(do_index_input(0), one_hot->loc());
     } else {
+      XLS_ASSIGN_OR_RETURN(
+          Expression * zero_bits,
+          file->Literal(UBits(0, /*bit_count=*/i), one_hot->loc()));
       higher_priority_bits_zero =
-          file->Equals(do_slice_input(i - 1),
-                       file->Literal(UBits(0, /*bit_count=*/i), one_hot->loc()),
-                       one_hot->loc());
+          file->Equals(do_slice_input(i - 1), zero_bits, one_hot->loc());
     }
 
     if (i < output_width - 1) {
@@ -329,8 +330,10 @@ absl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
     return shifted_operand;
   }
 
-  Expression* width_expr = file->Literal(
-      width, /*bit_count=*/shift->operand(1)->BitCountOrDie(), shift->loc());
+  XLS_ASSIGN_OR_RETURN(
+      Expression * width_expr,
+      file->Literal(width, /*bit_count=*/shift->operand(1)->BitCountOrDie(),
+                    shift->loc()));
   Expression* overshift_value;
   if (shift->op() == Op::kShra) {
     // Shrl: overshift value is all sign bits.
@@ -341,7 +344,9 @@ absl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
         shift->loc());
   } else {
     // Shll or shrl: overshift value is zero.
-    overshift_value = file->Literal(0, shift->BitCountOrDie(), shift->loc());
+    XLS_ASSIGN_OR_RETURN(
+        overshift_value,
+        file->Literal(0, shift->BitCountOrDie(), shift->loc()));
   }
   return file->Ternary(
       file->GreaterThanEquals(shift_amount, width_expr, shift->loc()),
@@ -351,9 +356,10 @@ absl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
 // Emits a decode instruction.
 absl::StatusOr<Expression*> EmitDecode(Decode* decode, Expression* operand,
                                        VerilogFile* file) {
-  Expression* result =
-      file->Shll(file->Literal(1, decode->BitCountOrDie(), decode->loc()),
-                 operand, decode->loc());
+  XLS_ASSIGN_OR_RETURN(
+      Expression * one,
+      file->Literal(1, decode->BitCountOrDie(), decode->loc()));
+  Expression* result = file->Shll(one, operand, decode->loc());
   if (Bits::MinBitCountUnsigned(decode->BitCountOrDie()) >
       decode->operand(0)->BitCountOrDie()) {
     // Output is wide enough to accommodate every possible input value. No need
@@ -362,19 +368,18 @@ absl::StatusOr<Expression*> EmitDecode(Decode* decode, Expression* operand,
   }
   // If operand value is greater than the width of the output, zero should be
   // emitted.
+  XLS_ASSIGN_OR_RETURN(
+      Expression * decode_width,
+      file->Literal(/*value=*/decode->BitCountOrDie(),
+                    /*bit_count=*/decode->operand(0)->BitCountOrDie(),
+                    decode->loc()));
+  XLS_ASSIGN_OR_RETURN(
+      Expression * zero,
+      file->Literal(/*value=*/0,
+                    /*bit_count=*/decode->BitCountOrDie(), decode->loc()));
   return file->Ternary(
-      file->GreaterThanEquals(
-          operand,
-          file->Literal(/*value=*/decode->BitCountOrDie(),
-                        /*bit_count=*/decode->operand(0)->BitCountOrDie(),
-                        decode->loc()),
-          decode->loc()),
-
-      file->Literal(/*value=*/0, /*bit_count=*/decode->BitCountOrDie(),
-                    decode->loc()),
-      file->Shll(file->Literal(1, decode->BitCountOrDie(), decode->loc()),
-                 operand, decode->loc()),
-      decode->loc());
+      file->GreaterThanEquals(operand, decode_width, decode->loc()), zero,
+      file->Shll(one, operand, decode->loc()), decode->loc());
 }
 
 // Emits an multiply with potentially mixed bit-widths.
@@ -712,8 +717,9 @@ absl::StatusOr<Expression*> NodeToExpression(
       int64_t bits_added =
           node->BitCountOrDie() - node->operand(0)->BitCountOrDie();
 
-      return file->Concat(
-          {file->Literal(0, bits_added, node->loc()), inputs[0]}, node->loc());
+      XLS_ASSIGN_OR_RETURN(Expression * zero_bits,
+                           file->Literal(0, bits_added, node->loc()));
+      return file->Concat({zero_bits, inputs[0]}, node->loc());
     }
     case Op::kGate:
     case Op::kInputPort:
@@ -768,14 +774,16 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
         clamped_index = index;
       } else {
         XLS_RET_CHECK(index->AsLiteralOrDie()->bits().FitsInUint64());
-        clamped_index =
+        XLS_ASSIGN_OR_RETURN(
+            clamped_index,
             file->Literal(*index->AsLiteralOrDie()->bits().ToUint64(),
-                          short_index_width, array_index->loc());
+                          short_index_width, array_index->loc()));
       }
     } else {
-      Expression* max_index =
+      XLS_ASSIGN_OR_RETURN(
+          Expression * max_index,
           file->Literal(UBits(array_type->size() - 1, index_type->bit_count()),
-                        array_index->loc());
+                        array_index->loc()));
 
       Expression* short_index = index;
       Expression* short_max_index = max_index;
@@ -791,9 +799,10 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
         }
         short_index = file->Slice(index->AsIndexableExpressionOrDie(),
                                   short_index_width - 1, 0, array_index->loc());
-        short_max_index =
+        XLS_ASSIGN_OR_RETURN(
+            short_max_index,
             file->Literal(UBits(array_type->size() - 1, short_index_width),
-                          array_index->loc());
+                          array_index->loc()));
       }
 
       clamped_index =

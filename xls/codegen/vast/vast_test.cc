@@ -373,7 +373,7 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * s_init,
       module->AddReg("s_init", f.BitVectorType(42, SourceInfo()), SourceInfo(),
-                     f.Literal(123, 42, SourceInfo())));
+                     f.LiteralOrDie(123, 42, SourceInfo())));
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * t,
       module->AddReg(
@@ -558,8 +558,8 @@ TEST_P(VastTest, ModuleWithUserDataTypes) {
       LogicRef * out_ref,
       module->AddOutput("out", f.Make<ExternType>(SourceInfo(), "foobar"),
                         SourceInfo()));
-  module->Add<ContinuousAssignment>(SourceInfo(), out_ref,
-                                    f.Literal(UBits(32, 64), SourceInfo()));
+  module->Add<ContinuousAssignment>(
+      SourceInfo(), out_ref, f.LiteralOrDie(UBits(32, 64), SourceInfo()));
   if (UseSystemVerilog()) {
     EXPECT_EQ(module->Emit(nullptr),
               R"(module my_module(
@@ -579,27 +579,27 @@ endmodule)");
 
 TEST_P(VastTest, Literals) {
   VerilogFile f(GetFileType());
-  EXPECT_EQ("32'd44", f.Literal(UBits(44, 32), SourceInfo(),
-                                FormatPreference::kUnsignedDecimal)
+  EXPECT_EQ("32'd44", f.LiteralOrDie(UBits(44, 32), SourceInfo(),
+                                     FormatPreference::kUnsignedDecimal)
                           ->Emit(nullptr));
   EXPECT_EQ("1'b1",
-            f.Literal(UBits(1, 1), SourceInfo(), FormatPreference::kBinary)
+            f.LiteralOrDie(UBits(1, 1), SourceInfo(), FormatPreference::kBinary)
                 ->Emit(nullptr));
-  EXPECT_EQ("4'b1010",
-            f.Literal(UBits(10, 4), SourceInfo(), FormatPreference::kBinary)
-                ->Emit(nullptr));
-  EXPECT_EQ("42'h000_0000_3039",
-            f.Literal(UBits(12345, 42), SourceInfo(), FormatPreference::kHex)
-                ->Emit(nullptr));
-  EXPECT_EQ("1025'b0",
-            f.Literal(UBits(0, 1025), SourceInfo(), FormatPreference::kBinary)
-                ->Emit(nullptr));
+  EXPECT_EQ("4'b1010", f.LiteralOrDie(UBits(10, 4), SourceInfo(),
+                                      FormatPreference::kBinary)
+                           ->Emit(nullptr));
+  EXPECT_EQ("42'h000_0000_3039", f.LiteralOrDie(UBits(12345, 42), SourceInfo(),
+                                                FormatPreference::kHex)
+                                     ->Emit(nullptr));
+  EXPECT_EQ("1025'b0", f.LiteralOrDie(UBits(0, 1025), SourceInfo(),
+                                      FormatPreference::kBinary)
+                           ->Emit(nullptr));
   EXPECT_EQ("1025'h0",
-            f.Literal(UBits(0, 1025), SourceInfo(), FormatPreference::kHex)
+            f.LiteralOrDie(UBits(0, 1025), SourceInfo(), FormatPreference::kHex)
                 ->Emit(nullptr));
-  EXPECT_EQ("1025'd0",
-            f.Literal(UBits(0, 1025), SourceInfo(), FormatPreference::kDefault)
-                ->Emit(nullptr));
+  EXPECT_EQ("1025'd0", f.LiteralOrDie(UBits(0, 1025), SourceInfo(),
+                                      FormatPreference::kDefault)
+                           ->Emit(nullptr));
 
   EXPECT_EQ("13579", f.PlainLiteral(13579, SourceInfo())->Emit(nullptr));
 
@@ -611,40 +611,42 @@ TEST_P(VastTest, Literals) {
       Bits huge,
       ParseNumber("0xabcd_000_0000_1234_4321_0000_aaaa_bbbb_cccc_dddd_eeee"));
 
-  EXPECT_EQ(f.Literal(b0, SourceInfo(), FormatPreference::kUnsignedDecimal)
+  EXPECT_EQ(f.LiteralOrDie(b0, SourceInfo(), FormatPreference::kUnsignedDecimal)
                 ->Emit(nullptr),
             "1'd0");
 
-  EXPECT_EQ(f.Literal(b2, SourceInfo(), FormatPreference::kHex)->Emit(nullptr),
-            "3'h2");
   EXPECT_EQ(
-      f.Literal(b2, SourceInfo(), FormatPreference::kBinary)->Emit(nullptr),
-      "3'b010");
-
-  EXPECT_EQ(
-      f.Literal(b55, SourceInfo(), FormatPreference::kDefault)->Emit(nullptr),
-      "55");
-  EXPECT_EQ(
-      f.Literal(b55, SourceInfo(), FormatPreference::kBinary)->Emit(nullptr),
-      "32'b0000_0000_0000_0000_0000_0000_0011_0111");
-  EXPECT_TRUE(f.Literal(b55, SourceInfo())->IsLiteralWithValue(55));
-
-  EXPECT_EQ(
-      f.Literal(b1234, SourceInfo(), FormatPreference::kHex)->Emit(nullptr),
-      "55'h00_0000_0000_04d2");
-  EXPECT_EQ(f.Literal(b1234, SourceInfo(), FormatPreference::kUnsignedDecimal)
+      f.LiteralOrDie(b2, SourceInfo(), FormatPreference::kHex)->Emit(nullptr),
+      "3'h2");
+  EXPECT_EQ(f.LiteralOrDie(b2, SourceInfo(), FormatPreference::kBinary)
                 ->Emit(nullptr),
-            "55'd1234");
+            "3'b010");
+
+  EXPECT_EQ(f.LiteralOrDie(b55, SourceInfo(), FormatPreference::kDefault)
+                ->Emit(nullptr),
+            "55");
+  EXPECT_EQ(f.LiteralOrDie(b55, SourceInfo(), FormatPreference::kBinary)
+                ->Emit(nullptr),
+            "32'b0000_0000_0000_0000_0000_0000_0011_0111");
+  EXPECT_TRUE(f.LiteralOrDie(b55, SourceInfo())->IsLiteralWithValue(55));
+
+  EXPECT_EQ(f.LiteralOrDie(b1234, SourceInfo(), FormatPreference::kHex)
+                ->Emit(nullptr),
+            "55'h00_0000_0000_04d2");
   EXPECT_EQ(
-      f.Literal(b1234, SourceInfo(), FormatPreference::kBinary)->Emit(nullptr),
-      "55'b000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0100_"
-      "1101_0010");
-  EXPECT_TRUE(f.Literal(b1234, SourceInfo())->IsLiteralWithValue(1234));
+      f.LiteralOrDie(b1234, SourceInfo(), FormatPreference::kUnsignedDecimal)
+          ->Emit(nullptr),
+      "55'd1234");
+  EXPECT_EQ(f.LiteralOrDie(b1234, SourceInfo(), FormatPreference::kBinary)
+                ->Emit(nullptr),
+            "55'b000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0100_"
+            "1101_0010");
+  EXPECT_TRUE(f.LiteralOrDie(b1234, SourceInfo())->IsLiteralWithValue(1234));
 
-  EXPECT_TRUE(f.Literal(huge, SourceInfo())->IsLiteral());
-  EXPECT_FALSE(f.Literal(huge, SourceInfo())->IsLiteralWithValue(42));
+  EXPECT_TRUE(f.LiteralOrDie(huge, SourceInfo())->IsLiteral());
+  EXPECT_FALSE(f.LiteralOrDie(huge, SourceInfo())->IsLiteralWithValue(42));
 
-  Literal* zero = f.Literal(UBits(0, 32), SourceInfo());
+  Literal* zero = f.LiteralOrDie(UBits(0, 32), SourceInfo());
   EXPECT_TRUE(zero->IsLiteral());
   EXPECT_TRUE(zero->IsLiteralWithValue(0));
   EXPECT_FALSE(zero->IsLiteralWithValue(1));
@@ -654,17 +656,17 @@ TEST_P(VastTest, Literals) {
   EXPECT_TRUE(plain_zero->IsLiteralWithValue(0));
   EXPECT_FALSE(plain_zero->IsLiteralWithValue(1));
 
-  Literal* forty_two = f.Literal(UBits(42, 32), SourceInfo());
+  Literal* forty_two = f.LiteralOrDie(UBits(42, 32), SourceInfo());
   EXPECT_TRUE(forty_two->IsLiteral());
   EXPECT_FALSE(forty_two->IsLiteralWithValue(0));
   EXPECT_TRUE(forty_two->IsLiteralWithValue(42));
 
-  Literal* wide_forty_two = f.Literal(UBits(42, 123456), SourceInfo());
+  Literal* wide_forty_two = f.LiteralOrDie(UBits(42, 123456), SourceInfo());
   EXPECT_TRUE(wide_forty_two->IsLiteral());
   EXPECT_FALSE(wide_forty_two->IsLiteralWithValue(0));
   EXPECT_TRUE(wide_forty_two->IsLiteralWithValue(42));
 
-  Literal* all_ones = f.Literal(UBits(15, 4), SourceInfo());
+  Literal* all_ones = f.LiteralOrDie(UBits(15, 4), SourceInfo());
   EXPECT_TRUE(all_ones->IsLiteral());
   EXPECT_FALSE(all_ones->IsLiteralWithValue(0));
   EXPECT_TRUE(all_ones->IsLiteralWithValue(15));
@@ -701,6 +703,22 @@ TEST_P(VastTest, Literals) {
 
   EXPECT_TRUE(f.PlainLiteral(3, SourceInfo())->is_declared_as_signed());
   EXPECT_FALSE(f.PlainLiteral(3, SourceInfo())->should_emit_bit_count());
+}
+
+TEST_P(VastTest, ZeroBitLiteralReturnsError) {
+  VerilogFile f(GetFileType());
+  EXPECT_THAT(
+      f.Literal(UBits(0, 0), SourceInfo()),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("zero-bit")));
+  EXPECT_THAT(
+      f.Literal(0, 0, SourceInfo()),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("zero-bit")));
+}
+
+TEST_P(VastTest, ZeroBitLiteralOrDieFailsFast) {
+  VerilogFile f(GetFileType());
+  EXPECT_DEATH_IF_SUPPORTED((void)f.LiteralOrDie(UBits(0, 0), SourceInfo()),
+                            "zero-bit");
 }
 
 TEST_P(VastTest, Precedence) {
@@ -823,7 +841,7 @@ TEST_P(VastTest, Case) {
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
   Case* case_statement = ac->statements()->Add<Case>(SourceInfo(), my_state);
   StatementBlock* one_block =
-      case_statement->AddCaseArm(f.Literal(1, 2, SourceInfo()));
+      case_statement->AddCaseArm(f.LiteralOrDie(1, 2, SourceInfo()));
   one_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
   StatementBlock* default_block = case_statement->AddCaseArm(DefaultSentinel());
   default_block->Add<BlockingAssignment>(SourceInfo(), thing_next,
@@ -856,7 +874,7 @@ TEST_P(VastTest, Casez) {
   Case* case_statement = ac->statements()->Add<Case>(
       SourceInfo(), my_state, CaseType(CaseKeyword::kCasez));
   StatementBlock* one_block =
-      case_statement->AddCaseArm(f.Literal(1, 2, SourceInfo()));
+      case_statement->AddCaseArm(f.LiteralOrDie(1, 2, SourceInfo()));
   one_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
   StatementBlock* default_block = case_statement->AddCaseArm(DefaultSentinel());
   default_block->Add<BlockingAssignment>(SourceInfo(), thing_next,
@@ -1066,7 +1084,7 @@ TEST_P(VastTest, ModuleIfdefWithElsif) {
   ModuleConditionalDirective* ifdef = m->Add<ModuleConditionalDirective>(
       SourceInfo(), ConditionalDirectiveKind::kIfdef, "SYNTHESIS");
   ifdef->consequent()->Add<ContinuousAssignment>(
-      SourceInfo(), thing, f.Literal(UBits(0, 1), SourceInfo()));
+      SourceInfo(), thing, f.LiteralOrDie(UBits(0, 1), SourceInfo()));
   ModuleSection* elsif_block = ifdef->AddAlternate("SYNTHESIS2");
   elsif_block->Add<ContinuousAssignment>(SourceInfo(), thing,
                                          f.Make<XSentinel>(SourceInfo(), 1));
@@ -1092,7 +1110,7 @@ TEST_P(VastTest, ModuleIfdefWithElse) {
   ModuleConditionalDirective* ifdef = m->Add<ModuleConditionalDirective>(
       SourceInfo(), ConditionalDirectiveKind::kIfdef, "SYNTHESIS");
   ifdef->consequent()->Add<ContinuousAssignment>(
-      SourceInfo(), thing, f.Literal(UBits(0, 1), SourceInfo()));
+      SourceInfo(), thing, f.LiteralOrDie(UBits(0, 1), SourceInfo()));
   ModuleSection* else_block = ifdef->AddAlternate();
   else_block->Add<ContinuousAssignment>(SourceInfo(), thing,
                                         f.Make<XSentinel>(SourceInfo(), 1));
@@ -1170,7 +1188,7 @@ TEST_P(VastTest, AlwaysFlopTestSyncReset) {
       SourceInfo(), clk,
       Reset{.signal = rst, .asynchronous = false, .active_low = false});
   af->AddRegister(a, a_next, SourceInfo(),
-                  /*reset_value=*/f.Literal(42, 8, SourceInfo()));
+                  /*reset_value=*/f.LiteralOrDie(42, 8, SourceInfo()));
   af->AddRegister(b, b_next, SourceInfo());
 
   EXPECT_EQ(af->Emit(nullptr),
@@ -1219,7 +1237,7 @@ TEST_P(VastTest, CommentAnnotations) {
       Reset{.signal = rst, .asynchronous = false, .active_low = false});
   af->AddRegister(a, a_next,
                   SourceInfo(SourceLocation(Fileno(0), Lineno(6), Colno(5))),
-                  /*reset_value=*/f.Literal(42, 8, SourceInfo()));
+                  /*reset_value=*/f.LiteralOrDie(42, 8, SourceInfo()));
   af->AddRegister(b, b_next,
                   SourceInfo(SourceLocation(Fileno(0), Lineno(7), Colno(8))));
 
@@ -1287,7 +1305,7 @@ TEST_P(VastTest, DirectiveAnnotations) {
       Reset{.signal = rst, .asynchronous = false, .active_low = false});
   af->AddRegister(a, a_next,
                   SourceInfo(SourceLocation(Fileno(0), Lineno(6), Colno(5))),
-                  /*reset_value=*/f.Literal(42, 8, SourceInfo()));
+                  /*reset_value=*/f.LiteralOrDie(42, 8, SourceInfo()));
   af->AddRegister(b, b_next,
                   SourceInfo(SourceLocation(Fileno(0), Lineno(7), Colno(8))));
 
@@ -1347,7 +1365,7 @@ TEST_P(VastTest, AlwaysFlopTestAsyncResetActiveLow) {
       SourceInfo(), clk,
       Reset{.signal = rst, .asynchronous = true, .active_low = true});
   af->AddRegister(a, a_next, SourceInfo(),
-                  /*reset_value=*/f.Literal(42, 8, SourceInfo()));
+                  /*reset_value=*/f.LiteralOrDie(42, 8, SourceInfo()));
   af->AddRegister(b, b_next, SourceInfo());
 
   EXPECT_EQ(af->Emit(nullptr),
@@ -1646,13 +1664,14 @@ TEST_P(VastTest, ParameterAndLocalParam) {
   m->AddParameter("FooParam", f.PlainLiteral(42, SourceInfo()), SourceInfo());
   LocalParam* p = m->Add<LocalParam>(SourceInfo());
   LocalParamItemRef* idle =
-      p->AddItem("StateIdle", f.Literal(0, 2, SourceInfo()), SourceInfo());
-  p->AddItem("StateGotByte", f.Literal(1, 2, SourceInfo()), SourceInfo());
-  p->AddItem("StateError", f.Literal(2, 2, SourceInfo()), SourceInfo());
+      p->AddItem("StateIdle", f.LiteralOrDie(0, 2, SourceInfo()), SourceInfo());
+  p->AddItem("StateGotByte", f.LiteralOrDie(1, 2, SourceInfo()), SourceInfo());
+  p->AddItem("StateError", f.LiteralOrDie(2, 2, SourceInfo()), SourceInfo());
 
   LocalParamItemRef* state_bits =
       m->Add<LocalParam>(SourceInfo())
-          ->AddItem("StateBits", f.Literal(2, 2, SourceInfo()), SourceInfo());
+          ->AddItem("StateBits", f.LiteralOrDie(2, 2, SourceInfo()),
+                    SourceInfo());
   m->Add<LocalParam>(SourceInfo())
       ->AddItem(f.Make<IntDef>(SourceInfo(), "Foo"),
                 f.PlainLiteral(42, SourceInfo()), SourceInfo());
@@ -1662,7 +1681,7 @@ TEST_P(VastTest, ParameterAndLocalParam) {
   m->Add<LocalParam>(SourceInfo())
       ->AddItem(f.Make<LogicDef>(SourceInfo(), "Baz",
                                  f.BitVectorType(4, SourceInfo())),
-                f.Literal(4, 4, SourceInfo()), SourceInfo());
+                f.LiteralOrDie(4, 4, SourceInfo()), SourceInfo());
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * state,
       m->AddReg(
@@ -1699,16 +1718,16 @@ TEST_P(VastTest, LocalparamPlainBaseLiterals) {
 
   // localparam PlainHex = 'h42;
   m->Add<LocalParam>(SourceInfo())
-      ->AddItem(
-          "PlainHex",
-          f.Literal(UBits(0x42, 32), SourceInfo(), FormatPreference::kPlainHex),
-          SourceInfo());
+      ->AddItem("PlainHex",
+                f.LiteralOrDie(UBits(0x42, 32), SourceInfo(),
+                               FormatPreference::kPlainHex),
+                SourceInfo());
 
   // localparam PlainBinary = 'b1010;
   m->Add<LocalParam>(SourceInfo())
       ->AddItem("PlainBinary",
-                f.Literal(UBits(0b1010, 32), SourceInfo(),
-                          FormatPreference::kPlainBinary),
+                f.LiteralOrDie(UBits(0b1010, 32), SourceInfo(),
+                               FormatPreference::kPlainBinary),
                 SourceInfo());
 
   EXPECT_EQ(m->Emit(nullptr),
@@ -1732,7 +1751,7 @@ TEST_P(VastTest, SimpleConditional) {
   Conditional* if_statement =
       ac->statements()->Add<Conditional>(SourceInfo(), input);
   if_statement->consequent()->Add<BlockingAssignment>(
-      SourceInfo(), output, f.Literal(1, 1, SourceInfo()));
+      SourceInfo(), output, f.LiteralOrDie(1, 1, SourceInfo()));
   EXPECT_EQ(if_statement->Emit(nullptr),
             R"(if (input) begin
   output = 1'h1;
@@ -1795,7 +1814,7 @@ TEST_P(VastTest, WidthCastEmission) {
 
   Expression* complex_width = f.Add(width_param, f.PlainLiteral(4, si), si);
   Expression* complex_value =
-      f.BitwiseXor(a, f.Concat({b, f.Literal(3, 2, si)}, si), si);
+      f.BitwiseXor(a, f.Concat({b, f.LiteralOrDie(3, 2, si)}, si), si);
   m->Add<ContinuousAssignment>(
       si, out_expr, f.Make<WidthCast>(si, complex_width, complex_value));
 
@@ -1869,22 +1888,22 @@ TEST_P(VastTest, ComplexConditional) {
   Conditional* conditional =
       ac->statements()->Add<Conditional>(SourceInfo(), input1);
   conditional->consequent()->Add<BlockingAssignment>(
-      SourceInfo(), output1, f.Literal(1, 1, SourceInfo()));
+      SourceInfo(), output1, f.LiteralOrDie(1, 1, SourceInfo()));
 
   StatementBlock* alternate1 =
       conditional->AddAlternate(f.BitwiseAnd(input1, input2, SourceInfo()));
   alternate1->Add<BlockingAssignment>(SourceInfo(), output1,
-                                      f.Literal(0, 1, SourceInfo()));
+                                      f.LiteralOrDie(0, 1, SourceInfo()));
 
   StatementBlock* alternate2 = conditional->AddAlternate(input2);
   alternate2->Add<BlockingAssignment>(SourceInfo(), output1,
-                                      f.Literal(1, 1, SourceInfo()));
+                                      f.LiteralOrDie(1, 1, SourceInfo()));
 
   StatementBlock* alternate3 = conditional->AddAlternate();
   alternate3->Add<BlockingAssignment>(SourceInfo(), output1,
-                                      f.Literal(0, 1, SourceInfo()));
+                                      f.LiteralOrDie(0, 1, SourceInfo()));
   alternate3->Add<BlockingAssignment>(SourceInfo(), output2,
-                                      f.Literal(1, 1, SourceInfo()));
+                                      f.LiteralOrDie(1, 1, SourceInfo()));
 
   EXPECT_EQ(conditional->Emit(nullptr),
             R"(if (input1) begin
@@ -1919,19 +1938,19 @@ TEST_P(VastTest, NestedConditional) {
   Conditional* conditional =
       ac->statements()->Add<Conditional>(SourceInfo(), input1);
   conditional->consequent()->Add<BlockingAssignment>(
-      SourceInfo(), output1, f.Literal(1, 1, SourceInfo()));
+      SourceInfo(), output1, f.LiteralOrDie(1, 1, SourceInfo()));
 
   StatementBlock* alternate = conditional->AddAlternate();
 
   Conditional* nested_conditional =
       alternate->Add<Conditional>(SourceInfo(), input2);
   nested_conditional->consequent()->Add<BlockingAssignment>(
-      SourceInfo(), output2, f.Literal(1, 1, SourceInfo()));
+      SourceInfo(), output2, f.LiteralOrDie(1, 1, SourceInfo()));
   StatementBlock* nested_alternate = nested_conditional->AddAlternate();
   nested_alternate->Add<BlockingAssignment>(SourceInfo(), output1,
-                                            f.Literal(0, 1, SourceInfo()));
+                                            f.LiteralOrDie(0, 1, SourceInfo()));
   nested_alternate->Add<BlockingAssignment>(SourceInfo(), output2,
-                                            f.Literal(1, 1, SourceInfo()));
+                                            f.LiteralOrDie(1, 1, SourceInfo()));
 
   EXPECT_EQ(m->Emit(nullptr),
             R"(module top(
@@ -2049,9 +2068,9 @@ endmodule
 TEST_P(VastTest, Concat) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("Concat", SourceInfo());
-  EXPECT_EQ(
-      "{32'h0000_002a}",
-      f.Concat({f.Literal(42, 32, SourceInfo())}, SourceInfo())->Emit(nullptr));
+  EXPECT_EQ("{32'h0000_002a}",
+            f.Concat({f.LiteralOrDie(42, 32, SourceInfo())}, SourceInfo())
+                ->Emit(nullptr));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * a,
@@ -2060,11 +2079,11 @@ TEST_P(VastTest, Concat) {
       LogicRef * b,
       m->AddReg("b", f.BitVectorType(1, SourceInfo()), SourceInfo()));
   EXPECT_EQ("{a, 8'h7b, b}",
-            f.Concat({a, f.Literal(123, 8, SourceInfo()), b}, SourceInfo())
+            f.Concat({a, f.LiteralOrDie(123, 8, SourceInfo()), b}, SourceInfo())
                 ->Emit(nullptr));
   EXPECT_EQ("{42{a, 8'h7b, b}}",
             f.Concat(/*replication=*/42,
-                     {a, f.Literal(123, 8, SourceInfo()), b}, SourceInfo())
+                     {a, f.LiteralOrDie(123, 8, SourceInfo()), b}, SourceInfo())
                 ->Emit(nullptr));
 }
 
@@ -2078,24 +2097,24 @@ TEST_P(VastTest, PartSelect) {
       LogicRef * b,
       m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo()));
   EXPECT_EQ("a[4'h3 +: 16'h0006]",
-            f.PartSelect(a, f.Literal(3, 4, SourceInfo()),
-                         f.Literal(6, 16, SourceInfo()), SourceInfo())
+            f.PartSelect(a, f.LiteralOrDie(3, 4, SourceInfo()),
+                         f.LiteralOrDie(6, 16, SourceInfo()), SourceInfo())
                 ->Emit(nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * c,
       m->AddReg("c", f.BitVectorType(1, SourceInfo()), SourceInfo()));
   PartSelect* part_select =
-      f.PartSelect(b, c, f.Literal(18, 16, SourceInfo()), SourceInfo());
+      f.PartSelect(b, c, f.LiteralOrDie(18, 16, SourceInfo()), SourceInfo());
   EXPECT_EQ("b[c +: 16'h0012]", part_select->Emit(nullptr));
 }
 
 TEST_P(VastTest, ArrayAssignmentPattern) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("ArrayAssignmentPattern", SourceInfo());
-  EXPECT_EQ(
-      "'{32'h0000_002a}",
-      f.ArrayAssignmentPattern({f.Literal(42, 32, SourceInfo())}, SourceInfo())
-          ->Emit(nullptr));
+  EXPECT_EQ("'{32'h0000_002a}",
+            f.ArrayAssignmentPattern({f.LiteralOrDie(42, 32, SourceInfo())},
+                                     SourceInfo())
+                ->Emit(nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * a,
       m->AddReg("a", f.BitVectorType(32, SourceInfo()), SourceInfo()));
@@ -2103,8 +2122,8 @@ TEST_P(VastTest, ArrayAssignmentPattern) {
       LogicRef * b,
       m->AddReg("b", f.BitVectorType(32, SourceInfo()), SourceInfo()));
   EXPECT_EQ("'{a, 32'h0000_007b, b}",
-            f.ArrayAssignmentPattern({a, f.Literal(123, 32, SourceInfo()), b},
-                                     SourceInfo())
+            f.ArrayAssignmentPattern(
+                 {a, f.LiteralOrDie(123, 32, SourceInfo()), b}, SourceInfo())
                 ->Emit(nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * foo,
@@ -2148,10 +2167,11 @@ TEST_P(VastTest, ArrayParameters) {
   Def* p2_def =
       f.Make<Def>(si, "P2", DataKind::kLogic,
                   f.UnpackedArrayType(/*element_bit_count=*/8, {2}, si));
-  m->AddParameter(p2_def,
-                  f.ArrayAssignmentPattern(
-                      {f.Literal(0x42, 8, si), f.Literal(0x43, 8, si)}, si),
-                  si);
+  m->AddParameter(
+      p2_def,
+      f.ArrayAssignmentPattern(
+          {f.LiteralOrDie(0x42, 8, si), f.LiteralOrDie(0x43, 8, si)}, si),
+      si);
   Expression* p4_row0 = f.ArrayAssignmentPattern(
       {f.PlainLiteral(1, si), f.PlainLiteral(2, si), f.PlainLiteral(3, si)},
       si);
@@ -2163,10 +2183,12 @@ TEST_P(VastTest, ArrayParameters) {
                   f.UnpackedArrayType(/*element_bit_count=*/1, {2, 3}, si));
   m->AddParameter(p4_def, f.ArrayAssignmentPattern({p4_row0, p4_row1}, si), si);
   Expression* p5_row0 = f.ArrayAssignmentPattern(
-      {f.Literal(0x42, 8, si), f.Literal(0x43, 8, si), f.Literal(0x44, 8, si)},
+      {f.LiteralOrDie(0x42, 8, si), f.LiteralOrDie(0x43, 8, si),
+       f.LiteralOrDie(0x44, 8, si)},
       si);
   Expression* p5_row1 = f.ArrayAssignmentPattern(
-      {f.Literal(0x45, 8, si), f.Literal(0x46, 8, si), f.Literal(0x47, 8, si)},
+      {f.LiteralOrDie(0x45, 8, si), f.LiteralOrDie(0x46, 8, si),
+       f.LiteralOrDie(0x47, 8, si)},
       si);
   Def* p5_def =
       f.Make<Def>(si, "P5", DataKind::kLogic,
@@ -2264,8 +2286,8 @@ end)");
       SourceInfo(), qux,
       f.Make<VerilogFunctionCall>(
           SourceInfo(), func,
-          std::vector<Expression*>{f.Literal(UBits(12, 32), SourceInfo()),
-                                   f.Literal(UBits(2, 3), SourceInfo())}));
+          std::vector<Expression*>{f.LiteralOrDie(UBits(12, 32), SourceInfo()),
+                                   f.LiteralOrDie(UBits(2, 3), SourceInfo())}));
   EXPECT_EQ(m->Emit(nullptr),
             R"(module top;
   function automatic [41:0] func (input reg [31:0] foo, input reg [2:0] bar, input integer baz);
@@ -2285,7 +2307,7 @@ TEST_P(VastTest, VerilogFunctionNoArguments) {
       SourceInfo(), "func", f.BitVectorType(42, SourceInfo()));
   func->AddStatement<BlockingAssignment>(
       SourceInfo(), func->return_value_ref(),
-      f.Literal(UBits(0x42, 42), SourceInfo()));
+      f.LiteralOrDie(UBits(0x42, 42), SourceInfo()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * qux,
@@ -2316,7 +2338,7 @@ TEST_P(VastTest, VerilogFunctionWithRegDefs) {
   LogicRef* bar =
       func->AddRegDef(SourceInfo(), "bar", f.BitVectorType(42, SourceInfo()));
   func->AddStatement<BlockingAssignment>(
-      SourceInfo(), foo, f.Literal(UBits(0x42, 42), SourceInfo()));
+      SourceInfo(), foo, f.LiteralOrDie(UBits(0x42, 42), SourceInfo()));
   func->AddStatement<BlockingAssignment>(SourceInfo(), bar, foo);
   func->AddStatement<BlockingAssignment>(SourceInfo(), func->return_value_ref(),
                                          bar);
@@ -2389,18 +2411,20 @@ TEST_P(VastTest, DeferredImmediateAssertionTest) {
       m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
 
   m->Add<DeferredImmediateAssertion>(
-      SourceInfo(), f.Equals(a, f.Literal(0, 8, SourceInfo()), SourceInfo()),
+      SourceInfo(),
+      f.Equals(a, f.LiteralOrDie(0, 8, SourceInfo()), SourceInfo()),
       /*disable_iff=*/std::nullopt,
       /*label=*/"",
       /*error_message=*/"");
   m->Add<DeferredImmediateAssertion>(
-      SourceInfo(), f.Equals(a, f.Literal(0x9, 8, SourceInfo()), SourceInfo()),
+      SourceInfo(),
+      f.Equals(a, f.LiteralOrDie(0x9, 8, SourceInfo()), SourceInfo()),
       /*disable_iff=*/rst_asserted,
       /*label=*/"my_label",
       /*error_message=*/"");
   m->Add<DeferredImmediateAssertion>(
       SourceInfo(),
-      f.CaseEquals(a, f.Literal(0x42, 8, SourceInfo()), SourceInfo()),
+      f.CaseEquals(a, f.LiteralOrDie(0x42, 8, SourceInfo()), SourceInfo()),
       /*disable_iff=*/rst_asserted,
       /*label=*/"",
       /*error_message=*/"a does not equal 0x42");
@@ -2435,20 +2459,23 @@ TEST_P(VastTest, ConcurrentAssertionTest) {
       m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
 
   m->Add<ConcurrentAssertion>(
-      SourceInfo(), f.Equals(a, f.Literal(0, 8, SourceInfo()), SourceInfo()),
+      SourceInfo(),
+      f.Equals(a, f.LiteralOrDie(0, 8, SourceInfo()), SourceInfo()),
       /*clocking_event=*/f.Make<PosEdge>(SourceInfo(), clk),
       /*disable_iff=*/std::nullopt,
       /*label=*/"",
       /*error_message=*/"");
   m->Add<ConcurrentAssertion>(
-      SourceInfo(), f.Equals(a, f.Literal(0x9, 8, SourceInfo()), SourceInfo()),
+      SourceInfo(),
+      f.Equals(a, f.LiteralOrDie(0x9, 8, SourceInfo()), SourceInfo()),
       /*clocking_event=*/f.Make<PosEdge>(SourceInfo(), clk),
       /*disable_iff=*/
       f.CaseNotEquals(rst, f.Literal1(0, SourceInfo()), SourceInfo()),
       /*label=*/"my_label",
       /*error_message=*/"");
   m->Add<ConcurrentAssertion>(
-      SourceInfo(), f.Equals(a, f.Literal(0x42, 8, SourceInfo()), SourceInfo()),
+      SourceInfo(),
+      f.Equals(a, f.LiteralOrDie(0x42, 8, SourceInfo()), SourceInfo()),
       /*clocking_event=*/f.Make<PosEdge>(SourceInfo(), clk),
       /*disable_iff=*/
       f.CaseNotEquals(rst, f.Literal1(0, SourceInfo()), SourceInfo()),
@@ -2567,7 +2594,8 @@ TEST_P(VastTest, RegAndWireDefWithInit) {
       m->AddWire("b", bar_type, f.PlainLiteral(0, SourceInfo()), SourceInfo()));
   XLS_ASSERT_OK_AND_ASSIGN(
       LogicRef * c,
-      m->AddWire("c", baz_type, f.Literal(0, 33, SourceInfo()), SourceInfo()));
+      m->AddWire("c", baz_type, f.LiteralOrDie(0, 33, SourceInfo()),
+                 SourceInfo()));
 
   VerilogFunctionCall* func_call = f.Make<VerilogFunctionCall>(
       SourceInfo(), func, std::vector<Expression*>{a, b, c});
@@ -2961,9 +2989,9 @@ TEST_P(VastTest, ModuleScopeConditionalBasedOnParameterEquality) {
 
   // Generate-style conditional at module scope based on (A == B) / (A != B).
   Conditional* c = m->Add<Conditional>(si, f.Equals(A, B, si));
-  c->consequent()->Add<ContinuousAssignment>(si, out, f.Literal(1, 1, si));
+  c->consequent()->Add<ContinuousAssignment>(si, out, f.LiteralOrDie(1, 1, si));
   StatementBlock* else_block = c->AddAlternate(/*condition=*/nullptr);
-  else_block->Add<ContinuousAssignment>(si, out, f.Literal(0, 1, si));
+  else_block->Add<ContinuousAssignment>(si, out, f.LiteralOrDie(0, 1, si));
 
   EXPECT_EQ(m->Emit(nullptr),
             R"(module top;
@@ -2998,11 +3026,11 @@ TEST_P(VastTest, GenerateLoopConditionalOnGenvarWithFallthrough) {
   Conditional* c =
       loop->Add<Conditional>(si, f.Equals(i, f.PlainLiteral(0, si), si));
   c->consequent()->Add<ContinuousAssignment>(si, f.Make<Index>(si, out, i),
-                                             f.Literal(0, 1, si));
+                                             f.LiteralOrDie(0, 1, si));
   StatementBlock* else_if =
       c->AddAlternate(f.Equals(i, f.PlainLiteral(1, si), si));
   else_if->Add<ContinuousAssignment>(si, f.Make<Index>(si, out, i),
-                                     f.Literal(1, 1, si));
+                                     f.LiteralOrDie(1, 1, si));
   StatementBlock* else_block = c->AddAlternate(/*condition=*/nullptr);
   else_block->Add<ContinuousAssignment>(si, f.Make<Index>(si, out, i),
                                         f.Make<XSentinel>(si, 1));

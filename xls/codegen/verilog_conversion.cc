@@ -123,6 +123,32 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
     }
     return expr;
   }
+  if (node->Is<ArraySlice>()) {
+    XLS_RET_CHECK(emit_as_assignment);
+    ArraySlice* slice = node->As<ArraySlice>();
+    const NodeRepresentation& array_repr = node_exprs.at(slice->array());
+    if (!std::holds_alternative<Expression*>(array_repr)) {
+      return absl::UnimplementedError(
+          absl::StrFormat("Unable to generate code for: %s", node->ToString()));
+    }
+
+    std::vector<Expression*> inputs;
+    inputs.push_back(std::get<Expression*>(array_repr));
+
+    const NodeRepresentation& start_repr = node_exprs.at(slice->start());
+    if (std::holds_alternative<Expression*>(start_repr)) {
+      inputs.push_back(std::get<Expression*>(start_repr));
+    } else if (slice->start()->GetType()->GetFlatBitCount() == 0) {
+      // Zero-width start values can only denote index zero; synthesize a
+      // placeholder expression so ArraySlice lowering can normalize it.
+      inputs.push_back(mb->file()->LiteralOrDie(0, 1, node->loc()));
+    } else {
+      return absl::UnimplementedError(
+          absl::StrFormat("Unable to generate code for: %s", node->ToString()));
+    }
+
+    return mb->EmitAsAssignment(name, node, inputs);
+  }
   return absl::UnimplementedError(
       absl::StrFormat("Unable to generate code for: %s", node->ToString()));
 }
@@ -891,7 +917,9 @@ class BlockGenerator {
         // If the value is a bits type it can be emitted inline. Otherwise emit
         // as a module constant.
         if (reset_value.IsBits()) {
-          reset_expr = mb_.file()->Literal(reset_value.bits(), SourceInfo());
+          XLS_ASSIGN_OR_RETURN(
+              reset_expr,
+              mb_.file()->Literal(reset_value.bits(), SourceInfo()));
         } else {
           XLS_ASSIGN_OR_RETURN(
               reset_expr, mb_.DeclareModuleConstant(
@@ -1070,7 +1098,7 @@ class BlockGenerator {
         if (have_data) {
           parameters.push_back(Connection{
               .port_name = "Width",
-              .expression = mb_.file()->Literal(
+              .expression = mb_.file()->LiteralOrDie(
                   UBits(fifo_instantiation->data_type()->GetFlatBitCount(), 32),
                   SourceInfo(),
                   /*format=*/FormatPreference::kUnsignedDecimal)});
@@ -1081,20 +1109,20 @@ class BlockGenerator {
             {
                 Connection{
                     .port_name = "Depth",
-                    .expression = mb_.file()->Literal(
+                    .expression = mb_.file()->LiteralOrDie(
                         UBits(fifo_instantiation->fifo_config().depth(), 32),
                         SourceInfo(),
                         /*format=*/FormatPreference::kUnsignedDecimal)},
                 Connection{
                     .port_name = "EnableBypass",
-                    .expression = mb_.file()->Literal(
+                    .expression = mb_.file()->LiteralOrDie(
                         UBits(
                             fifo_instantiation->fifo_config().bypass() ? 1 : 0,
                             1),
                         SourceInfo(),
                         /*format=*/FormatPreference::kUnsignedDecimal)},
                 Connection{.port_name = "RegisterPushOutputs",
-                           .expression = mb_.file()->Literal(
+                           .expression = mb_.file()->LiteralOrDie(
                                UBits(fifo_instantiation->fifo_config()
                                              .register_push_outputs()
                                          ? 1
@@ -1103,7 +1131,7 @@ class BlockGenerator {
                                SourceInfo(),
                                /*format=*/FormatPreference::kUnsignedDecimal)},
                 Connection{.port_name = "RegisterPopOutputs",
-                           .expression = mb_.file()->Literal(
+                           .expression = mb_.file()->LiteralOrDie(
                                UBits(fifo_instantiation->fifo_config()
                                              .register_pop_outputs()
                                          ? 1

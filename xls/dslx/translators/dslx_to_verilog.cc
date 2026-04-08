@@ -379,8 +379,9 @@ DslxTypeToVerilogManager::TypeDefinitionToVastType(
 
                   XLS_ASSIGN_OR_RETURN(Bits member_val_as_bits,
                                        member_val.GetBits());
-                  verilog::Literal* vast_literal =
-                      file_->Literal(member_val_as_bits, SourceInfo());
+                  XLS_ASSIGN_OR_RETURN(
+                      verilog::Literal * vast_literal,
+                      file_->Literal(member_val_as_bits, SourceInfo()));
                   vast_enum_def->AddMember(member_name, vast_literal,
                                            SourceInfo());
                 }

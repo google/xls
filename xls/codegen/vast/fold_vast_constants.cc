@@ -106,12 +106,12 @@ class ConstantFoldingContext {
       XLS_ASSIGN_OR_RETURN(effective_size, it->second->FlatBitCountAsInt64());
       is_signed = it->second->is_signed();
     }
-    return original->file()->Make<Literal>(
-        original->loc(),
+    return original->file()->Literal(
         is_signed ? SBits(value, effective_size)
                   : UBits(static_cast<uint64_t>(value), effective_size),
+        original->loc(),
         value < 0 ? FormatPreference::kHex : FormatPreference::kUnsignedDecimal,
-        /*effective_bit_count=*/effective_size,
+        /*declared_bit_count=*/effective_size,
         /*emit_bit_count=*/effective_size != 32,
         /*declared_as_signed=*/is_signed);
   }

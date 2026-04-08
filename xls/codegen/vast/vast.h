@@ -2861,17 +2861,66 @@ class VerilogFile {
     return Make<verilog::UnsizedZeroLiteral>(loc);
   }
 
-  // Creates an literal with the given value and bit_count.
-  verilog::Literal* Literal(uint64_t value, int64_t bit_count,
-                            const SourceInfo& loc,
-                            FormatPreference format = FormatPreference::kHex) {
-    return Make<verilog::Literal>(loc, UBits(value, bit_count), format);
+  // Creates a literal with the given value and bit_count.
+  absl::StatusOr<verilog::Literal*> Literal(
+      uint64_t value, int64_t bit_count, const SourceInfo& loc,
+      FormatPreference format = FormatPreference::kHex);
+
+  // Convenience wrapper for callers that cannot easily propagate StatusOr.
+  // CHECK-fails if literal construction is invalid, e.g. zero-bit literals.
+  verilog::Literal* LiteralOrDie(
+      uint64_t value, int64_t bit_count, const SourceInfo& loc,
+      FormatPreference format = FormatPreference::kHex) {
+    absl::StatusOr<verilog::Literal*> literal =
+        Literal(value, bit_count, loc, format);
+    CHECK_OK(literal.status());
+    return literal.value();
   }
 
-  // Creates an literal whose value and width is given by a Bits object.
-  verilog::Literal* Literal(const Bits& bits, const SourceInfo& loc,
-                            FormatPreference format = FormatPreference::kHex) {
-    return Make<verilog::Literal>(loc, bits, format);
+  // Creates a literal whose value and width is given by a Bits object. This
+  // overload enables arbitrary-width literals without first squeezing the
+  // value through a uint64_t.
+  absl::StatusOr<verilog::Literal*> Literal(
+      const Bits& bits, const SourceInfo& loc,
+      FormatPreference format = FormatPreference::kHex);
+
+  // Convenience wrapper for callers that cannot easily propagate StatusOr.
+  // CHECK-fails if literal construction is invalid, e.g. zero-bit literals.
+  verilog::Literal* LiteralOrDie(
+      const Bits& bits, const SourceInfo& loc,
+      FormatPreference format = FormatPreference::kHex) {
+    absl::StatusOr<verilog::Literal*> literal = Literal(bits, loc, format);
+    CHECK_OK(literal.status());
+    return literal.value();
+  }
+
+  // Creates a literal with explicitly controlled bit-count emission.
+  absl::StatusOr<verilog::Literal*> Literal(const Bits& bits,
+                                            const SourceInfo& loc,
+                                            FormatPreference format,
+                                            bool emit_bit_count);
+  verilog::Literal* LiteralOrDie(const Bits& bits, const SourceInfo& loc,
+                                 FormatPreference format, bool emit_bit_count) {
+    absl::StatusOr<verilog::Literal*> literal =
+        Literal(bits, loc, format, emit_bit_count);
+    CHECK_OK(literal.status());
+    return literal.value();
+  }
+
+  // Creates a literal with a declared width/sign, matching source decorated
+  // literals such as "32'shbeef".
+  absl::StatusOr<verilog::Literal*> Literal(
+      const Bits& bits, const SourceInfo& loc, FormatPreference format,
+      int64_t declared_bit_count, bool emit_bit_count, bool declared_as_signed);
+  verilog::Literal* LiteralOrDie(const Bits& bits, const SourceInfo& loc,
+                                 FormatPreference format,
+                                 int64_t declared_bit_count,
+                                 bool emit_bit_count, bool declared_as_signed) {
+    absl::StatusOr<verilog::Literal*> literal =
+        Literal(bits, loc, format, declared_bit_count, emit_bit_count,
+                declared_as_signed);
+    CHECK_OK(literal.status());
+    return literal.value();
   }
 
   // Creates a one-bit literal.
@@ -2967,7 +3016,7 @@ class VerilogFile {
     return (value >= std::numeric_limits<int32_t>::min() &&
             value <= std::numeric_limits<int32_t>::max())
                ? PlainLiteral(value, loc)
-               : Literal(SBits(value, 64), loc);
+               : LiteralOrDie(SBits(value, 64), loc);
   }
   FileType file_type_;
   AnnotationType annotation_type_;
