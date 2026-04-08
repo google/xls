@@ -1350,6 +1350,20 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
     )
     self.assertIn('Match is already exhaustive', stderr)
 
+  def test_keyword_parameter_name_warning_default_off(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/warning_on_keyword_parameter_name.x',
+        want_err_retcode=False,
+    )
+    self.assertNotIn('Verilog/SystemVerilog keyword', stderr)
+
+    stderr = self._run(
+        'xls/dslx/tests/errors/warning_on_keyword_parameter_name.x',
+        enable_warnings={'keyword_parameter_name'},
+        want_err_retcode=True,
+    )
+    self.assertIn('Verilog/SystemVerilog keyword', stderr)
+
   def test_logical_and_on_functions(self):
     stderr = self._run(
         'xls/dslx/tests/errors/logical_and_on_functions.x',
