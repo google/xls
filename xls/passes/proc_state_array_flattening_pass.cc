@@ -20,6 +20,7 @@
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -131,10 +132,19 @@ absl::StatusOr<bool> SimplifyProcState(Proc* proc,
   Value new_init_value = Value::Tuple(old_init_value.elements());
 
   ArrayToTupleStateTransformer transformer;
-  XLS_RETURN_IF_ERROR(proc->TransformStateElement(
-                              proc->GetStateReadByStateElement(state_element),
-                              new_init_value, transformer)
-                          .status());
+  absl::Span<StateRead* const> state_reads =
+      proc->GetStateReadsByStateElement(state_element);
+  XLS_RET_CHECK_LE(state_reads.size(), 1)
+      << "ProcStateArrayFlatteningPass only supports at most one StateRead per "
+         "StateElement for now.";
+  if (state_reads.empty()) {
+    VLOG(3) << "Not flattening proc state with no reads: "
+            << state_element->ToString();
+    return false;
+  }
+  XLS_RETURN_IF_ERROR(
+      proc->TransformStateElement(state_reads[0], new_init_value, transformer)
+          .status());
 
   std::vector<Next*> old_next_values(proc->next_values(state_element).begin(),
                                      proc->next_values(state_element).end());

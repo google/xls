@@ -178,13 +178,30 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
   // Returns whether `node` is one of the nodes whose value is passed in via the
   // `inputs` function argument.
   bool IsInputNode(Node* node) const final {
-    return input_indices_.contains(node);
+    if (input_indices_.contains(node)) {
+      return true;
+    }
+    if (node->Is<StateRead>()) {
+      return state_element_input_indices_.contains(
+          node->As<StateRead>()->state_element());
+    }
+    return false;
   }
 
   // Returns the index within the array passed into the `input` function
   // argument corresponding to `node`. CHECK fails if `node` is not an input
   // node.
-  int64_t GetInputArgIndex(Node* node) const { return input_indices_.at(node); }
+  int64_t GetInputArgIndex(Node* node) const {
+    auto it = input_indices_.find(node);
+    if (it != input_indices_.end()) {
+      return it->second;
+    }
+    if (node->Is<StateRead>()) {
+      return state_element_input_indices_.at(
+          node->As<StateRead>()->state_element());
+    }
+    LOG(FATAL) << "Node is not an input node: " << node->ToString();
+  }
 
   // Returns the input buffer for `node` by loading the pointer from the
   // `inputs` argument. `node` must be an input node.
@@ -269,6 +286,11 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
     for (int64_t i = 0; i < input_args.size(); ++i) {
       CHECK(!input_indices_.contains(input_args[i]));
       input_indices_[input_args[i]] = i;
+      Node* node = input_args[i];
+      if (node->Is<StateRead>()) {
+        state_element_input_indices_[node->As<StateRead>()->state_element()] =
+            i;
+      }
     }
     for (int64_t i = 0; i < output_args.size(); ++i) {
       output_indices_[output_args[i]].push_back(i);
@@ -282,6 +304,7 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
   std::vector<Node*> input_args_;
   std::vector<Node*> output_args_;
   absl::flat_hash_map<Node*, int64_t> input_indices_;
+  absl::flat_hash_map<StateElement*, int64_t> state_element_input_indices_;
   absl::flat_hash_map<Node*, std::vector<int64_t>> output_indices_;
 };
 
@@ -591,7 +614,11 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
     if (node->Is<Next>()) {
       // next_value nodes store their output in the state-read's location, and
       // return nothing themselves.
-      StateRead* state_read = node->As<Next>()->state_read()->As<StateRead>();
+      Proc* proc = node->function_base()->AsProcOrDie();
+      StateElement* state_element = node->As<Next>()->state_element();
+      StateRead* state_read =
+          proc->GetStateReadsByStateElement(state_element).front();
+
       XLS_RET_CHECK(allocator.GetAllocationKind(state_read) ==
                     AllocationKind::kNone);
       output_buffers = wrapper.GetOutputBuffers(state_read, b);
@@ -737,9 +764,13 @@ std::vector<Node*> GetJittedFunctionInputs(FunctionBase* function_base) {
   if (function_base->IsProc()) {
     Proc* proc = function_base->AsProcOrDie();
     std::vector<Node*> out;
-    absl::c_transform(
-        proc->StateElements(), std::back_inserter(out),
-        [&](StateElement* st) { return proc->GetStateReadByStateElement(st); });
+    out.reserve(proc->StateElements().size());
+    for (StateElement* st : proc->StateElements()) {
+      absl::Span<StateRead* const> reads =
+          proc->GetStateReadsByStateElement(st);
+      CHECK(!reads.empty());
+      out.push_back(reads.front());
+    }
     return out;
   }
   std::vector<Node*> inputs(function_base->params().begin(),
@@ -780,9 +811,11 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
   Proc* proc = function_base->AsProcOrDie();
   std::vector<Node*> outputs;
   outputs.reserve(proc->StateElements().size());
-  absl::c_transform(
-      proc->StateElements(), std::back_inserter(outputs),
-      [&](StateElement* st) { return proc->GetStateReadByStateElement(st); });
+  for (StateElement* st : proc->StateElements()) {
+    absl::Span<StateRead* const> reads = proc->GetStateReadsByStateElement(st);
+    CHECK(!reads.empty());
+    outputs.push_back(reads.front());
+  }
   return outputs;
 }
 
