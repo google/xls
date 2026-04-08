@@ -2822,5 +2822,74 @@ fn main() -> bits[bit_count<Foo>()] {
   EXPECT_EQ(bits, UBits(0x5a4ad1, 24));
 }
 
+TEST_F(BytecodeInterpreterTest, MapArrayElementInstanceMethod) {
+  constexpr std::string_view kProgram =
+      R"(
+struct S {
+  x: u32
+}
+
+impl S {
+  fn plus1(self) -> u32 {
+    self.x + 1
+  }
+}
+
+fn main() -> u32[3] {
+  map([S { x: 10 }, S { x: 1 }, S { x: 5 }], S::plus1)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, *InterpValue::MakeArray({InterpValue::MakeU32(11),
+                                            InterpValue::MakeU32(2),
+                                            InterpValue::MakeU32(6)}));
+}
+
+TEST_F(BytecodeInterpreterTest, MapStaticImplFunction) {
+  constexpr std::string_view kProgram =
+      R"(
+struct S {}
+
+impl S {
+  fn plus1(x: u32) -> u32 {
+    x + 1
+  }
+}
+
+fn main() -> u32[3] {
+  map([u32:10, 1, 5], S::plus1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, *InterpValue::MakeArray({InterpValue::MakeU32(11),
+                                            InterpValue::MakeU32(2),
+                                            InterpValue::MakeU32(6)}));
+}
+
+TEST_F(BytecodeInterpreterTest, MapAuxiliaryObjectFunction) {
+  constexpr std::string_view kProgram =
+      R"(
+struct S {
+  x: u32
+}
+
+impl S {
+  fn plus(self, y: u32) -> u32 {
+    self.x + y
+  }
+}
+
+fn main() -> u32[3] {
+  let inst = S { x: 10 };
+  map([u32:10, 1, 5], inst.plus)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, *InterpValue::MakeArray({InterpValue::MakeU32(20),
+                                            InterpValue::MakeU32(11),
+                                            InterpValue::MakeU32(15)}));
+}
+
 }  // namespace
 }  // namespace xls::dslx
