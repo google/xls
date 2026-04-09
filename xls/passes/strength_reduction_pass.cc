@@ -194,8 +194,12 @@ absl::StatusOr<bool> StrengthReduceNode(Node* node,
     auto select_it = absl::c_find_if(
         operands, is_select_with_known_branches_unknown_selector);
     if (select_it != operands.end()) {
-      return MaybeSinkOperationIntoSelect(node, query_engine,
-                                          (*select_it)->As<Select>());
+      XLS_ASSIGN_OR_RETURN(
+          bool sunk, MaybeSinkOperationIntoSelect(node, query_engine,
+                                                  (*select_it)->As<Select>()));
+      if (sunk) {
+        return true;
+      }
     }
   }
 
