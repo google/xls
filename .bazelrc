@@ -1,4 +1,12 @@
-common --enable_bzlmod
+# We're still using workspace, so make sure we're forward compatible with future
+# bazel versions. This also acts as a TODO to eventually remove WORKSPACE :)
+common --enable_workspace
+
+# There are some places that use glob() in BUILD rules but that return no
+# results. This will be an error in future bazel versions unless explicitly
+# allowed. Allow here; also this acts as a TODO reminder to clean these up.
+common --incompatible_disallow_empty_glob=false
+
 common --enable_platform_specific_config
 
 # By default, Bazel compiles *.cc files for tests with -fPIC and for binaries
@@ -27,6 +35,10 @@ build --incompatible_default_to_explicit_init_py=true
 # https://github.com/abseil/abseil-cpp/commit/512af68a1d397cd2cfa1ac9c6eca7694bf75f2b0.
 build:macos --host_macos_minimum_os=10.13
 build:macos --macos_minimum_os=10.13
+
+# Minimum c++ standard used. We set it in the llvm toolchain, but
+# we also need to specify it here when it is not possible to use that toolchain.
+build --cxxopt "-std=c++20"            --host_cxxopt "-std=c++20"
 
 # Depending on the installation, clang or clang-tidy need to be told that
 # a c++ file is, indeed, containing c++ (bazel just invokes clang, not clang++)
