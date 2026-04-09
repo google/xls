@@ -34,7 +34,7 @@ BAZEL_OPTS="-c opt --remote_download_outputs=all"
 # the needed files to avoid triggering an unnecessarily large build.
 "${BAZEL}" build -k ${BAZEL_OPTS} \
   @linenoise @nlohmann_json//:singleheader-json \
-  @zstd @eigen//:all @at_clifford_yosys//:json11 @com_github_hlslibs_ac_types//:ac_int \
+  @zstd @eigen//:all @at_clifford_yosys//:json11 \
   @verible//verible/common/lsp:lsp-protocol.h \
   @llvm-project//mlir:{{ControlFlow,Function,Cast,Vector}Interfaces,InferTypeOpInterface,{Arith,Func,SCF,Math,Shape}Dialect} \
   @llvm-project//clang:ast @llvm-project//clang:include/clang/StaticAnalyzer/Checkers/Checkers.inc \
