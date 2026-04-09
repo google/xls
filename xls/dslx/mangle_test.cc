@@ -58,6 +58,15 @@ TEST(MangleTest, ModuleFunctionWithScopeContainingRange) {
           "__my_mod__lambda_capture_struct_at_test_module_x_8_30_8_49__f"));
 }
 
+TEST(MangleTest, ModuleFunctionWithScopeContainingCommaAndSpac) {
+  EXPECT_THAT(
+      MangleDslxName(
+          "my_mod", "f", CallingConvention::kTypical, {}, nullptr,
+          "lambda_capture_struct_at_test_module.x:8:30-8:49_48_BITS, ELEMS"),
+      IsOkAndHolds("__my_mod__lambda_capture_struct_at_test_module_x_8_30_8_49_"
+                   "48_BITS__ELEMS__f"));
+}
+
 TEST(MangleTest, SingleFreeKey) {
   std::vector<std::pair<std::string, InterpValue>> bindings = {
       {"x", InterpValue::MakeU32(42)}};
