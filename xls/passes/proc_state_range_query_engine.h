@@ -118,6 +118,16 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
     return range_->GetIntervalSetTreeView(node);
   }
 
+  bool AtMostOneBitTrue(Node* node) const override {
+    return inner_.AtMostOneBitTrue(node);
+  }
+  bool AtLeastOneBitTrue(Node* node) const override {
+    return inner_.AtLeastOneBitTrue(node);
+  }
+  bool ExactlyOneBitTrue(Node* node) const override {
+    return inner_.ExactlyOneBitTrue(node);
+  }
+
   bool Covers(Node* n, const Bits& value) const override {
     return inner_.Covers(n, value);
   }

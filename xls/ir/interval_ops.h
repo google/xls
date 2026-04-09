@@ -55,6 +55,14 @@ TernaryVector ExtractTernaryVector(const IntervalSet& intervals,
 bool CoversTernary(const Interval& interval, TernarySpan ternary);
 bool CoversTernary(const IntervalSet& intervals, TernarySpan ternary);
 
+// Returns the maximum popcount of any value in the given `intervals`.
+int64_t MaxPopCount(const Interval& interval);
+int64_t MaxPopCount(const IntervalSet& intervals);
+
+// Returns the minimum popcount of any value in the given `intervals`.
+int64_t MinPopCount(const Interval& interval);
+int64_t MinPopCount(const IntervalSet& intervals);
+
 struct KnownBits {
   Bits known_bits;
   Bits known_bit_values;

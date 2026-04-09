@@ -235,6 +235,12 @@ class RangeQueryEngine : public QueryEngine {
   // This must be called before `SetIntervalSetTree`.
   void InitializeNode(Node* node);
 
+  // Returns true if at most/at least/exactly one of the bits in 'node' is true.
+  // 'node' must be bits-typed.
+  bool AtMostOneBitTrue(Node* node) const override;
+  bool AtLeastOneBitTrue(Node* node) const override;
+  bool ExactlyOneBitTrue(Node* node) const override;
+
   bool Covers(Node* node, const Bits& value) const override;
 
   Bits MaxUnsignedValue(Node* n) const override;
