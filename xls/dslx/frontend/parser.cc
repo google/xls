@@ -535,8 +535,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(Function * fn,
                              ParseFunction(*module_member_start_pos, is_public,
                                            *bindings, &name_to_fn));
-        XLS_ASSIGN_OR_RETURN(ModuleMember fn_or_wrapper,
-                             ApplyFunctionAttributes(fn, pending_attributes));
+        XLS_ASSIGN_OR_RETURN(
+            ModuleMember fn_or_wrapper,
+            ApplyFunctionAttributes(fn, pending_attributes, *bindings));
         XLS_RETURN_IF_ERROR(
             module_->AddTop(fn_or_wrapper, make_collision_error));
         break;
@@ -653,11 +654,11 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   // post-condition.
   XLS_RET_CHECK(AtEof());
 
-  XLS_RETURN_IF_ERROR(VerifyParentage(module_.get()));
+  XLS_RETURN_IF_ERROR(VerifyParentage(module_));
 
   module_->set_span(Span(module_start_pos, GetPos()));
 
-  auto result = std::move(module_);
+  auto result = std::move(owned_module_);
   module_ = nullptr;
   return result;
 }
@@ -1008,8 +1009,10 @@ absl::Status Parser::ApplyExternVerilogAttribute(Function* fn,
 }
 
 absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
-    Function* fn, std::vector<Attribute*> attributes) {
+    Function* fn, std::vector<Attribute*> attributes, Bindings& bindings) {
   bool is_test = false;
+  bool is_fuzz_test = false;
+  Attribute* fuzz_test_attribute = nullptr;
   std::optional<QuickCheckTestCases> quickcheck_test_cases;
   std::vector<std::string> test_attributes;
 
@@ -1035,7 +1038,9 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
         is_test = true;
         break;
       case AttributeKind::kFuzzTest:
+        is_fuzz_test = true;
         XLS_RETURN_IF_ERROR(ValidateFuzzTestAttribute(*next));
+        fuzz_test_attribute = next;
         test_attributes.push_back(next->ToString());
         break;
 
@@ -1072,6 +1077,22 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
     tf->SetParentage();  // Ensure the function has its parent marked.
     return tf;
   }
+  if (is_fuzz_test) {
+    Span ft_span(fuzz_test_attribute->GetSpan()->start(), fn->span().limit());
+    std::optional<XlsTuple*> domains = std::nullopt;
+    for (const AttributeData::Argument& arg : fuzz_test_attribute->args()) {
+      if (auto* kv = std::get_if<AttributeData::StringKeyValueArgument>(&arg)) {
+        if (kv->first == "domains" && kv->is_backticked) {
+          XLS_ASSIGN_OR_RETURN(domains, ParseDomains(kv->second, bindings));
+          break;
+        }
+      }
+    }
+    FuzzTestFunction* ft =
+        module_->Make<FuzzTestFunction>(ft_span, *fn, domains);
+    ft->SetParentage();  // Ensure the function has its parent marked.
+    return ft;
+  }
 
   if (quickcheck_test_cases.has_value()) {
     const Span quickcheck_span(attributes[0]->GetSpan()->start(),
@@ -1081,6 +1102,22 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
   }
 
   return fn;
+}
+
+absl::StatusOr<XlsTuple*> Parser::ParseDomains(std::string_view domains_str,
+                                               Bindings& bindings) {
+  std::string wrapped = absl::StrCat("(", domains_str, ")");
+  Scanner domain_scanner(file_table(), scanner().fileno(), wrapped);
+  Parser sub_parser(module_, &domain_scanner, parse_fn_stubs_);
+
+  XLS_ASSIGN_OR_RETURN(Expr * parsed, sub_parser.ParseExpression(bindings));
+
+  if (parsed->kind() == AstNodeKind::kXlsTuple) {
+    return dynamic_cast<XlsTuple*>(parsed);
+  }
+  // If it's not already a tuple, wrap it in one.
+  return module_->Make<XlsTuple>(parsed->span(), std::vector<Expr*>{parsed},
+                                 /*has_trailing_comma=*/false);
 }
 
 template <typename T>
@@ -3105,12 +3142,12 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
                                 absl::StrCat(colon_ref->attr(), ".config"));
 
     ColonRef::Subject clone_subject =
-        CloneSubject(module_.get(), colon_ref->subject());
+        CloneSubject(module_, colon_ref->subject());
     next_ref =
         module_->Make<ColonRef>(colon_ref->span(), clone_subject,
                                 absl::StrCat(colon_ref->attr(), ".next"));
 
-    clone_subject = CloneSubject(module_.get(), colon_ref->subject());
+    clone_subject = CloneSubject(module_, colon_ref->subject());
     init_ref =
         module_->Make<ColonRef>(colon_ref->span(), clone_subject,
                                 absl::StrCat(colon_ref->attr(), ".init"));
@@ -3693,11 +3730,10 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
           "Impl-style procs must use commas to separate members.");
     }
     // Assume this is an impl-style proc and return a `ProcDef` for it.
-    ProcDef* proc_def =
-        module_->Make<ProcDef>(span, name_def, std::move(parametric_bindings),
-                               ConvertProcMembersToStructMembers(
-                                   module_.get(), proc_like_body.members),
-                               is_public);
+    ProcDef* proc_def = module_->Make<ProcDef>(
+        span, name_def, std::move(parametric_bindings),
+        ConvertProcMembersToStructMembers(module_, proc_like_body.members),
+        is_public);
     outer_bindings.Add(name_def->identifier(), proc_def);
     return proc_def;
   }

@@ -3064,32 +3064,36 @@ DocRef Formatter::Format(const ProcAlias& n) {
 }
 
 DocRef Formatter::Format(const ModuleMember& n) {
-  return absl::visit(Visitor{
-                         [&](const Function* n) { return Format(*n); },
-                         [&](const Proc* n) { return Format(*n); },
-                         [&](const TestFunction* n) { return Format(*n); },
-                         [&](const TestProc* n) { return Format(*n); },
-                         [&](const QuickCheck* n) { return Format(*n); },
-                         [&](const TypeAlias* n) {
-                           return arena_.MakeConcat(Format(*n), arena_.semi());
-                         },
-                         [&](const ProcAlias* n) {
-                           return arena_.MakeConcat(Format(*n), arena_.semi());
-                         },
-                         [&](const StructDef* n) { return Format(*n); },
-                         [&](const ProcDef* n) { return Format(*n); },
-                         [&](const Impl* n) { return Format(*n); },
-                         [&](const Trait* n) { return Format(*n); },
-                         [&](const ConstantDef* n) { return Format(*n); },
-                         [&](const EnumDef* n) { return Format(*n); },
-                         [&](const Import* n) { return Format(*n); },
-                         [&](const Use* n) { return Format(*n); },
-                         [&](const ConstAssert* n) {
-                           return arena_.MakeConcat(Format(*n), arena_.semi());
-                         },
-                         [&](const VerbatimNode* n) { return Format(*n); },
-                     },
-                     n);
+  return absl::visit(
+      Visitor{
+          [&](const Function* n) { return Format(*n); },
+          [&](const Proc* n) { return Format(*n); },
+          [&](const TestFunction* n) { return Format(*n); },
+          // Formatting the function takes care of the attributes so we don't
+          // need a special formatting function for FuzzTestFunction.
+          [&](const FuzzTestFunction* n) { return Format(n->fn()); },
+          [&](const TestProc* n) { return Format(*n); },
+          [&](const QuickCheck* n) { return Format(*n); },
+          [&](const TypeAlias* n) {
+            return arena_.MakeConcat(Format(*n), arena_.semi());
+          },
+          [&](const ProcAlias* n) {
+            return arena_.MakeConcat(Format(*n), arena_.semi());
+          },
+          [&](const StructDef* n) { return Format(*n); },
+          [&](const ProcDef* n) { return Format(*n); },
+          [&](const Impl* n) { return Format(*n); },
+          [&](const Trait* n) { return Format(*n); },
+          [&](const ConstantDef* n) { return Format(*n); },
+          [&](const EnumDef* n) { return Format(*n); },
+          [&](const Import* n) { return Format(*n); },
+          [&](const Use* n) { return Format(*n); },
+          [&](const ConstAssert* n) {
+            return arena_.MakeConcat(Format(*n), arena_.semi());
+          },
+          [&](const VerbatimNode* n) { return Format(*n); },
+      },
+      n);
 }
 
 // Returns whether the given members are of the given "MemberT" and "grouped" --

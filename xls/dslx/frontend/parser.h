@@ -114,8 +114,14 @@ class Parser : public TokenParser {
  public:
   Parser(std::string module_name, Scanner* scanner, bool parse_fn_stubs = false)
       : TokenParser(scanner),
-        module_(new Module(std::move(module_name), scanner->filename(),
-                           scanner->file_table())),
+        owned_module_(new Module(std::move(module_name), scanner->filename(),
+                                 scanner->file_table())),
+        module_(owned_module_.get()),
+        parse_fn_stubs_(parse_fn_stubs) {}
+
+  Parser(Module* module, Scanner* scanner, bool parse_fn_stubs = false)
+      : TokenParser(scanner),
+        module_(module),
         parse_fn_stubs_(parse_fn_stubs) {}
 
   const FileTable& file_table() const { return scanner().file_table(); }
@@ -650,7 +656,9 @@ class Parser : public TokenParser {
   absl::StatusOr<std::vector<AttributeData::Argument>>
   ParseAttributeArguments();
   absl::StatusOr<ModuleMember> ApplyFunctionAttributes(
-      Function* fn, std::vector<Attribute*> attributes);
+      Function* fn, std::vector<Attribute*> attributes, Bindings& bindings);
+  absl::StatusOr<XlsTuple*> ParseDomains(std::string_view domains_str,
+                                         Bindings& bindings);
   absl::StatusOr<ModuleMember> ApplyProcAttributes(
       Proc* p, std::vector<Attribute*> attributes);
   absl::Status ApplyExternVerilogAttribute(Function* fn, const Attribute& attr);
@@ -735,7 +743,8 @@ class Parser : public TokenParser {
   // during fuzzing.
   absl::StatusOr<ExpressionDepthGuard> BumpExpressionDepth();
 
-  std::unique_ptr<Module> module_;
+  std::unique_ptr<Module> owned_module_;
+  Module* module_;
 
   // `Let` nodes are created _after_ those that use their namedefs (due to the
   // chaining of the `body` member variable. We need to know, though, if a

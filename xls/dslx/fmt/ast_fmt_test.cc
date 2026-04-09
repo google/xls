@@ -2729,7 +2729,6 @@ fn f(x: u32) {
 }
 
 TEST_F(ModuleFmtTest, FuzzTestAttributeMultipleArgs) {
-  // Intentionally omitted the space between the two domains.
   DoFmt(R"(#[fuzz_test(domains=`u32:0..1,[u32:0, u32:10]`)]
 fn f(x: u32, y: u32[2]) {
     ()

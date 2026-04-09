@@ -761,6 +761,13 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
               }
               return handle_function(&test->fn());
             },
+            [&](FuzzTestFunction* test) {
+              if (!include_tests) {
+                // Nothing to do.
+                return absl::OkStatus();
+              }
+              return handle_function(&test->fn());
+            },
             [](TypeAlias*) { return absl::OkStatus(); },
             [](StructDef*) { return absl::OkStatus(); },
             [](ProcDef*) { return absl::OkStatus(); },
