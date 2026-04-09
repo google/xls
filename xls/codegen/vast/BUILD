@@ -218,6 +218,7 @@ cc_library(
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
+        "//xls/dslx/frontend:semantics_analysis",
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system_v2:type_inference_error_handler",

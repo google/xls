@@ -52,6 +52,7 @@
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/frontend/semantics_analysis.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
@@ -488,9 +489,12 @@ absl::StatusOr<dslx::Import*> DslxBuilder::GetOrImportModule(
                          dslx::DoImport(
                              [this](std::unique_ptr<dslx::Module> module,
                                     std::filesystem::path path) {
+                               auto semantics_analysis =
+                                   std::make_unique<dslx::SemanticsAnalysis>(
+                                       /*suppress_warnings=*/true);
                                return dslx::TypecheckModuleV2(
                                    std::move(module), path, &import_data_,
-                                   &warnings_, /*semantics_analysis=*/nullptr,
+                                   &warnings_, std::move(semantics_analysis),
                                    /*error_handler=*/nullptr,
                                    /*trait_deriver=*/nullptr);
                              },
