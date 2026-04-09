@@ -94,6 +94,7 @@
   X(ConstantDef)                    \
   X(EnumDef)                        \
   X(Function)                       \
+  X(FuzzTestFunction)               \
   X(Impl)                           \
   X(Import)                         \
   X(Let)                            \
@@ -3843,6 +3844,8 @@ class Range : public Expr {
 // #[test]
 // fn test_foo() { ... }
 // ```
+// TODO: davidplass - Add an optional parameter Expr to allow re-using as a
+// FuzzTestFunction or QuickCheck.
 class TestFunction : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "test function"; }
@@ -3877,6 +3880,73 @@ class TestFunction : public AstNode {
  private:
   const Span span_;
   Function& fn_;
+};
+
+// Represents a fuzz test construct.
+//
+// These are specified with an annotation as follows:
+//
+// ```dslx
+// #[fuzz_test]
+// fn test_foo() { ... }
+// ```
+//
+// or with a domains argument:
+//
+// ```dslx
+// #[fuzz_test(domains=`...`)]
+// fn test_foo() { ... }
+// ```
+// TODO: davidplass - Migrate this into TestFunction, after adding an optional
+// parameter to TestFunction to capture the domain tuple.
+// TODO: davidplass - make this a ModuleMember.
+class FuzzTestFunction : public AstNode {
+ public:
+  static std::string_view GetDebugTypeName() { return "fuzz test function"; }
+
+  FuzzTestFunction(Module* owner, Span span, Function& fn,
+                   std::optional<Expr*> domains)
+      : AstNode(owner),
+        span_(std::move(span)),
+        fn_(fn),
+        domains_(std::move(domains)) {}
+
+  ~FuzzTestFunction() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kFuzzTestFunction; }
+  NameDef* name_def() const { return fn_.name_def(); }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleFuzzTestFunction(this);
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {&fn_};
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "FuzzTestFunction";
+  }
+  std::string ToString() const override {
+    if (domains_.has_value()) {
+      return absl::StrFormat("#[fuzz_test(domains=`%s`)]\n%s",
+                             (*domains_)->ToString(), fn_.ToString());
+    }
+    return absl::StrFormat("#[fuzz_test]\n%s", fn_.ToString());
+  }
+
+  Function& fn() const { return fn_; }
+  std::optional<Span> GetSpan() const override { return span(); }
+  const Span& span() const { return span_; }
+
+  const std::string& identifier() const { return fn_.name_def()->identifier(); }
+
+  const std::optional<Expr*>& domains() const { return domains_; }
+
+ private:
+  const Span span_;
+  Function& fn_;
+  const std::optional<Expr*> domains_;
 };
 
 enum class QuickCheckTestCasesTag {
@@ -3914,6 +3984,8 @@ class QuickCheckTestCases {
 };
 
 // Represents a function to be quick-check'd.
+// TODO: davidplass - Migrate this into TestFunction, since QuickCheck is an
+// attribute which can capture the quick check test cases.
 class QuickCheck : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "quickcheck"; }

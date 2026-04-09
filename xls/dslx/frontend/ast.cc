@@ -311,6 +311,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "for";
     case AstNodeKind::kFunctionRef:
       return "function-ref";
+    case AstNodeKind::kFuzzTestFunction:
+      return "fuzz test function";
     case AstNodeKind::kStatementBlock:
       return "statement-block";
     case AstNodeKind::kTrait:
@@ -2418,6 +2420,10 @@ Function::LambdaReturnTypeParametrics() const {
 // -- class TestFunction
 
 TestFunction::~TestFunction() = default;
+
+// -- class FuzzTestFunction
+
+FuzzTestFunction::~FuzzTestFunction() = default;
 
 // -- class Lambda
 

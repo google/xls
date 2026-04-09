@@ -52,6 +52,7 @@ enum class AstNodeKind : uint8_t {
   kFormatMacro,
   kFunction,
   kFunctionRef,
+  kFuzzTestFunction,
   kImpl,
   kImport,
   kIndex,
