@@ -381,6 +381,29 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   ProfitabilityGuard profitability_guard_;
   Config config_;
 };
+
+// Evaluates the timing impact of proposed resource sharing transformations
+// (folding actions). It computes metrics such as delay increase and delay
+// spread, which are used to guide profitability heuristics.
+class TimingAnalysis {
+ public:
+  TimingAnalysis(
+      const std::vector<std::unique_ptr<NaryFoldingAction>>& folding_actions,
+      const CriticalPathDelayAnalysis& node_delay);
+
+  // Returns the maximum delay increase across all nodes involved in the
+  // folding action.
+  int64_t GetDelayIncrease(NaryFoldingAction* folding_action) const;
+
+  // Returns the "delay spread" of the folding action, which is a measure of
+  // how much the delays of the "from" nodes differ from the "to" node's delay.
+  double GetDelaySpread(NaryFoldingAction* folding_action) const;
+
+ private:
+  absl::flat_hash_map<NaryFoldingAction*, int64_t> delay_increase_;
+  absl::flat_hash_map<NaryFoldingAction*, double> delay_spread_;
+};
+
 }  // namespace xls
 
 #endif  // XLS_PASSES_RESOURCE_SHARING_PASS_H_

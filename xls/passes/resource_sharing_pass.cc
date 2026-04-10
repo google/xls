@@ -64,21 +64,6 @@
 
 namespace xls {
 
-class TimingAnalysis {
- public:
-  TimingAnalysis(
-      const std::vector<std::unique_ptr<NaryFoldingAction>>& folding_actions,
-      const CriticalPathDelayAnalysis& node_delay);
-
-  int64_t GetDelayIncrease(NaryFoldingAction* folding_action) const;
-
-  double GetDelaySpread(NaryFoldingAction* folding_action) const;
-
- private:
-  absl::flat_hash_map<NaryFoldingAction*, int64_t> delay_increase_;
-  absl::flat_hash_map<NaryFoldingAction*, double> delay_spread_;
-};
-
 // GetDelayIncrease computes the maximum difference in delay between any pair
 // of folded nodes, used to determine whether @next_folding_action should be
 // merged into the group of @current_folding_actions.
