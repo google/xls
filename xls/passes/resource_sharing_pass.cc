@@ -538,12 +538,12 @@ absl::StatusOr<double> EstimateAreaForNegatingNode(Node* n,
 bool CanFoldTogether(
     const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
-    BinaryFoldingAction* next, BinaryFoldingAction* previous) {
-  if (previous->GetTo() != next->GetTo()) {
+    const BinaryFoldingAction& next, const BinaryFoldingAction& previous) {
+  if (previous.GetTo() != next.GetTo()) {
     return false;
   }
-  Node* prev_node = previous->GetFrom();
-  Node* next_node = next->GetFrom();
+  Node* prev_node = previous.GetFrom();
+  Node* next_node = next.GetFrom();
   if (mutual_exclusivity.contains(
           ResourceSharingPass::MutuallyExclPair(prev_node, next_node))) {
     return true;
@@ -736,7 +736,7 @@ ListOfAllFoldingActionsWithDestination(
              "folding";
   for (BinaryFoldingAction* a : edges_to_n) {
     auto can_fold_together = [&](BinaryFoldingAction* b) {
-      return CanFoldTogether(mutual_exclusivity, a, b);
+      return CanFoldTogether(mutual_exclusivity, *a, *b);
     };
     // Check if @a_source is mutually-exclusive with all other nodes already
     // confirmed (i.e., the sources of @subset_of_edges_to_n)
@@ -830,8 +830,8 @@ ListOfFoldingActionsWithDestination(
         continue;
       }
       bool all_can_fold = true;
-      for (auto other_fold : batch) {
-        if (!CanFoldTogether(mutual_exclusivity, fold, other_fold)) {
+      for (auto* other_fold : batch) {
+        if (!CanFoldTogether(mutual_exclusivity, *fold, *other_fold)) {
           all_can_fold = false;
           break;
         }
@@ -1230,10 +1230,10 @@ void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
       // than delay-based metrics.
       return f0_id > f1_id;
     }
-    uint64_t f0_delay_delta = ta.GetDelayIncrease(f0.get());
-    uint64_t f1_delay_delta = ta.GetDelayIncrease(f1.get());
-    double f0_delay_spread = ta.GetDelaySpread(f0.get());
-    double f1_delay_spread = ta.GetDelaySpread(f1.get());
+    uint64_t f0_delay_delta = ta.GetDelayIncrease(*f0);
+    uint64_t f1_delay_delta = ta.GetDelayIncrease(*f1);
+    double f0_delay_spread = ta.GetDelaySpread(*f0);
+    double f1_delay_spread = ta.GetDelaySpread(*f1);
     const double kDelayDeltaWeight =
         1.01;  // We care more about the delay
                // increase to the destination of the
@@ -1356,7 +1356,7 @@ SelectFoldingActionsBasedOnInDegree(
       potential_folding_actions_to_perform.size());
   for (std::unique_ptr<NaryFoldingAction>& folding :
        potential_folding_actions_to_perform) {
-    if (ta.GetDelaySpread(folding.get()) <= config.max_delay_spread_squared) {
+    if (ta.GetDelaySpread(*folding) <= config.max_delay_spread_squared) {
       potential_folding_actions_to_perform_without_timing_problems.push_back(
           std::move(folding));
     }
@@ -1380,8 +1380,8 @@ SelectFoldingActionsBasedOnInDegree(
                 << from_node->ToString();
       }
       VLOG(5) << "      Area savings = " << folding->area_saved();
-      VLOG(5) << "      Time analysis = " << ta.GetDelaySpread(folding.get())
-              << "," << ta.GetDelayIncrease(folding.get());
+      VLOG(5) << "      Time analysis = " << ta.GetDelaySpread(*folding) << ","
+              << ta.GetDelayIncrease(*folding);
     }
   }
 
@@ -1539,8 +1539,9 @@ SelectRandomlyFoldingActions(
     for (uint64_t index : indexes) {
       // Fetch the edge
       BinaryFoldingAction* edge = edges[index];
-      if (!absl::c_all_of(folds, std::bind(CanFoldTogether, mutual_exclusivity,
-                                           edge, std::placeholders::_1))) {
+      if (!absl::c_all_of(folds, [&](auto* fold) {
+            return CanFoldTogether(mutual_exclusivity, *edge, *fold);
+          })) {
         continue;
       }
       folds.push_back(edge);
@@ -1622,7 +1623,7 @@ SelectFoldingActions(
       foldings_within_delay_increase;
   uint64_t total_delay_increase = 0;
   for (auto& folding : folding_actions_to_perform) {
-    uint64_t delay_increase = ta.GetDelayIncrease(folding.get());
+    uint64_t delay_increase = ta.GetDelayIncrease(*folding);
     if (total_delay_increase + delay_increase > config.max_delay_increase) {
       continue;
     }
@@ -1645,8 +1646,8 @@ SelectFoldingActions(
       if (area_saved.has_value()) {
         VLOG(2) << "      Area saved (estimate): " << *area_saved;
       }
-      VLOG(2) << "      Time analysis = " << ta.GetDelaySpread(folding.get())
-              << "," << ta.GetDelayIncrease(folding.get());
+      VLOG(2) << "      Time analysis = " << ta.GetDelaySpread(*folding) << ","
+              << ta.GetDelayIncrease(*folding);
     }
   }
 
@@ -2126,13 +2127,18 @@ TimingAnalysis::TimingAnalysis(
   }
 }
 
-double TimingAnalysis::GetDelaySpread(NaryFoldingAction* folding_action) const {
-  return delay_spread_.at(folding_action);
+double TimingAnalysis::GetDelaySpread(
+    const NaryFoldingAction& folding_action) const {
+  auto it = delay_spread_.find(&folding_action);
+  CHECK_NE(it, delay_spread_.end());
+  return it->second;
 }
 
 int64_t TimingAnalysis::GetDelayIncrease(
-    NaryFoldingAction* folding_action) const {
-  return delay_increase_.at(folding_action);
+    const NaryFoldingAction& folding_action) const {
+  auto it = delay_increase_.find(&folding_action);
+  CHECK_NE(it, delay_increase_.end());
+  return it->second;
 }
 
 }  // namespace xls
