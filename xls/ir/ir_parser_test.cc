@@ -27,6 +27,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -607,7 +608,9 @@ proc foo( x: bits[32], y: (), z: bits[32], init={42, (), 123}) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * x, proc->GetStateElementByName("x"));
-  EXPECT_THAT(proc->GetStateReadByStateElement(x)->predicate(), std::nullopt);
+  absl::Span<StateRead* const> reads = proc->GetStateReadsByStateElement(x);
+  ASSERT_EQ(reads.size(), 1);
+  EXPECT_THAT(reads.front()->predicate(), std::nullopt);
 }
 
 TEST(IrParserTest, ProcWithPredicatedStateRead) {
@@ -626,17 +629,22 @@ proc foo( x: bits[32], y: bits[1], z: bits[32], init={42, 1, 123}) {
   EXPECT_EQ(proc->GetStateElementCount(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * x, proc->GetStateElementByName("x"));
-  std::optional<Node*> x_predicate =
-      proc->GetStateReadByStateElement(x)->predicate();
+  absl::Span<StateRead* const> reads_x = proc->GetStateReadsByStateElement(x);
+  ASSERT_EQ(reads_x.size(), 1);
+  std::optional<Node*> x_predicate = reads_x.front()->predicate();
   ASSERT_TRUE(x_predicate.has_value());
   ASSERT_EQ((*x_predicate)->op(), Op::kStateRead);
   EXPECT_EQ((*x_predicate)->As<StateRead>()->state_element()->name(), "y");
 
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * y, proc->GetStateElementByName("y"));
-  ASSERT_FALSE(proc->GetStateReadByStateElement(y)->predicate().has_value());
+  absl::Span<StateRead* const> reads_y = proc->GetStateReadsByStateElement(y);
+  ASSERT_EQ(reads_y.size(), 1);
+  ASSERT_FALSE(reads_y.front()->predicate().has_value());
 
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * z, proc->GetStateElementByName("z"));
-  ASSERT_FALSE(proc->GetStateReadByStateElement(z)->predicate().has_value());
+  absl::Span<StateRead* const> reads_z = proc->GetStateReadsByStateElement(z);
+  ASSERT_EQ(reads_z.size(), 1);
+  ASSERT_FALSE(reads_z.front()->predicate().has_value());
 }
 
 TEST(IrParserTest, ParseSendReceiveChannel) {

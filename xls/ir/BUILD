@@ -931,6 +931,7 @@ cc_test(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
     ],
 )

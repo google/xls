@@ -193,12 +193,12 @@ class NarrowTransform final : public Proc::StateElementTransformer {
   std::vector<BitSegment> segments_;
 };
 
-absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
+absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateRead* state_read,
                                    const Bits& initial_bits,
                                    const QueryEngine& query_engine,
                                    BitProvenanceAnalysis& provenance) {
+  StateElement* state_element = state_read->state_element();
   Bits unchanged_bits = Bits::AllOnes(initial_bits.bit_count());
-  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
   for (Next* next : proc->next_values(state_element)) {
     if (next->value() == state_read) {
       // Pass-through nexts are trivially unaffecting.
@@ -256,7 +256,7 @@ absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
   BitProvenanceAnalysis provenance;
   bool made_changes = false;
 
-  std::vector<std::tuple<StateElement*, NarrowTransform, Bits>> transforms;
+  std::vector<std::tuple<StateRead*, NarrowTransform, Bits>> transforms;
 
   for (StateElement* state_element : proc->StateElements()) {
     if (!state_element->type()->IsBits()) {
@@ -264,12 +264,18 @@ absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
       // worthwhile.
       continue;
     }
+    absl::Span<StateRead* const> state_reads =
+        proc->GetStateReadsByStateElement(state_element);
+    XLS_RET_CHECK_LE(state_reads.size(), 1)
+        << "ProcStateProvenanceNarrowingPass only supports at most one "
+           "StateRead per StateElement for now.";
+    StateRead* state_read = state_reads.front();
     Value init = state_element->initial_value();
     XLS_RET_CHECK(init.IsBits());
     const Bits& initial_bits = init.bits();
     XLS_ASSIGN_OR_RETURN(
         Bits unchanged_bits,
-        UnchangedBits(proc, state_element, initial_bits, *qe, provenance));
+        UnchangedBits(proc, state_read, initial_bits, *qe, provenance));
     // Do the actual splitting
     if (unchanged_bits.IsZero()) {
       VLOG(3) << "Unable to narrow " << state_element->name()
@@ -285,15 +291,14 @@ absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
             << (unchanged_bits.bit_count() - unchanged_bits.PopCount());
     Bits narrowed_init = NarrowValue(initial_bits, segments);
     transforms.push_back(
-        {state_element, NarrowTransform(std::move(segments)), narrowed_init});
+        {state_read, NarrowTransform(std::move(segments)), narrowed_init});
   }
 
-  for (auto& [state_element, transform, narrowed_init] : transforms) {
+  for (auto& [state_read, transform, narrowed_init] : transforms) {
     made_changes = true;
-    XLS_RETURN_IF_ERROR(proc->TransformStateElement(
-                                proc->GetStateReadByStateElement(state_element),
-                                Value(narrowed_init), transform)
-                            .status());
+    XLS_RETURN_IF_ERROR(
+        proc->TransformStateElement(state_read, Value(narrowed_init), transform)
+            .status());
   }
 
   return made_changes;
