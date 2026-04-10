@@ -10900,6 +10900,53 @@ TEST_F(TranslatorProcTest_NewFSM_Mutex, MergeMutuallyExclusiveOpsInLoop3) {
   EXPECT_EQ(receive_count, 1);
 }
 
+TEST_P(TranslatorProcTest, PipelinedLoopOuterExit) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int , __xls_channel_dir_In>& in;
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          bool exit_function = false;
+
+          [[hls_pipeline_init_interval(1)]]
+          for (int d = 0; d < 2; d++) {
+            [[hls_pipeline_init_interval(1)]]
+            for (int c = 0; c < 3; c++) {
+              int x = in.read();
+              out.write(d*100 + c);
+              if (x > 10) {
+                if (x == 55) {
+                  exit_function = true;
+                  break;
+                }
+                break;
+              }
+            }
+            if (exit_function) {
+              break;
+            }
+          }
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32)),
+                  xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(55, 32)),
+                  xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {
+      xls::Value(xls::SBits(0, 64)), xls::Value(xls::SBits(1, 64)),
+      xls::Value(xls::SBits(2, 64)), xls::Value(xls::SBits(100, 64)),
+      xls::Value(xls::SBits(0, 64)), xls::Value(xls::SBits(1, 64)),
+  };
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 3);
+}
+
 }  // namespace
 
 }  // namespace xlscc

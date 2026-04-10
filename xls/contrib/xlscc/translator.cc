@@ -6018,8 +6018,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
   } else if (clang::isa<clang::ContinueStmt>(stmt)) {
     // Continue should be used inside of for loop bodies only
     XLSCC_CHECK(context().in_for_body, loc);
-    context().relative_continue_condition =
-        context().relative_condition_bval(loc);
+    context().or_condition_util(context().relative_condition_bval(loc),
+                                context().relative_continue_condition, loc);
     // Make the rest of the block no-op
     XLS_RETURN_IF_ERROR(
         and_condition(context().fb->Literal(xls::UBits(0, 1), loc), loc));
@@ -6027,8 +6027,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     if (context().in_for_body) {
       // We are in a for body
       XLSCC_CHECK(!context().in_switch_body, loc);
-      context().relative_break_condition =
-          context().relative_condition_bval(loc);
+      context().or_condition_util(context().relative_condition_bval(loc),
+                                  context().relative_break_condition, loc);
 
       // Make the rest of the block no-op
       XLS_RETURN_IF_ERROR(
@@ -6044,8 +6044,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
               context().full_switch_cond.node())) {
         context().hit_break = true;
       } else {
-        context().relative_break_condition =
-            context().relative_condition_bval(loc);
+        context().or_condition_util(context().relative_condition_bval(loc),
+                                    context().relative_break_condition, loc);
 
         // Make the rest of the block no-op
         XLS_RETURN_IF_ERROR(
