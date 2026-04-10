@@ -2425,6 +2425,21 @@ TestFunction::~TestFunction() = default;
 
 FuzzTestFunction::~FuzzTestFunction() = default;
 
+std::string FuzzTestFunction::ToString() const {
+  if (domains_.has_value()) {
+    return absl::StrFormat("#[fuzz_test(domains=`%s`)]\n%s",
+                           (*domains_)->ToString(), fn_.ToString());
+  }
+  return absl::StrFormat("#[fuzz_test]\n%s", fn_.ToString());
+}
+
+std::vector<AstNode*> FuzzTestFunction::GetChildren(bool want_types) const {
+  if (domains_.has_value()) {
+    return {&fn_, *domains_};
+  }
+  return {&fn_};
+}
+
 // -- class Lambda
 
 Lambda::Lambda(Module* owner, Span span, Function* function, bool in_parens)
