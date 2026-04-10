@@ -54,14 +54,9 @@ class TypeInfoToProtoWithBothTypecheckVersionsTest : public ::testing::Test {
         ParseAndTypecheck(program, "fake.x", "fake", import_data, nullptr));
 
     XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
-
-    std::string nodes_text = absl::StrJoin(
-        tip.nodes(), "\n",
-        [&](std::string* out, const AstNodeTypeInfoProto& node) {
-          absl::StrAppend(
-              out, ToHumanString(node, *import_data, import_data->file_table())
-                       .value());
-        });
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::string nodes_text,
+        ToHumanString(tip, *import_data, import_data->file_table()));
 
     std::string test_name(TestName());
     // Remove parametric test suite suffix.
@@ -169,6 +164,33 @@ fn test_simple_nondistinct() {
 }
 )";
   DoRun(program);
+}
+
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
+       SkipsSyntheticNoFileEntriesInHumanizedOutput) {
+  std::string program = R"(
+fn bool_update() -> bool[1] {
+  update(bool[1]:[false], u1:0, true)
+}
+
+fn bit_update() -> u8 {
+  bit_slice_update(u8:0, u3:0, true)
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "fake.x", "fake", &import_data, nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string nodes_text,
+      ToHumanString(tip, import_data, import_data.file_table()));
+
+  EXPECT_THAT(nodes_text,
+              ::testing::HasSubstr("update(bool[1]:[false], u1:0, true)"));
+  EXPECT_THAT(nodes_text,
+              ::testing::HasSubstr("bit_slice_update(u8:0, u3:0, true)"));
+  EXPECT_THAT(nodes_text, ::testing::Not(::testing::HasSubstr("<no-file>")));
 }
 
 }  // namespace

@@ -882,9 +882,19 @@ absl::StatusOr<std::string> ToHumanString(const TypeInfoProto& tip,
                                           FileTable& file_table) {
   std::vector<std::string> lines;
   for (int64_t i = 0; i < tip.nodes_size(); ++i) {
+    const AstNodeTypeInfoProto& node = tip.nodes(static_cast<int32_t>(i));
+    if (!node.has_span()) {
+      continue;
+    }
+    Span span = FromProto(node.span(), file_table);
+    // TIv2 can synthesize internal bookkeeping nodes with a `<no-file>` span.
+    // Keep them in the serialized proto, but omit them from the humanized text
+    // form because they cannot be resolved back to a source-backed AST node.
+    if (span.GetFilename(file_table) == kNoFilePath) {
+      continue;
+    }
     XLS_ASSIGN_OR_RETURN(std::string node_str,
-                         ToHumanString(tip.nodes(static_cast<int32_t>(i)),
-                                       import_data, file_table));
+                         ToHumanString(node, import_data, file_table));
     lines.push_back(std::move(node_str));
   }
   return absl::StrJoin(lines, "\n");
