@@ -480,6 +480,16 @@ class ProxyContextQueryEngine final : public QueryEngine {
     return a_value != b_value;
   }
 
+  bool AtMostOneBitTrue(Node* node) const override {
+    return MostSpecific(node).AtMostOneBitTrue(node);
+  }
+  bool AtLeastOneBitTrue(Node* node) const override {
+    return MostSpecific(node).AtLeastOneBitTrue(node);
+  }
+  bool ExactlyOneBitTrue(Node* node) const override {
+    return MostSpecific(node).ExactlyOneBitTrue(node);
+  }
+
   bool Covers(Node* node, const Bits& value) const override {
     return MostSpecific(node).Covers(node, value);
   }
@@ -656,6 +666,28 @@ ContextSensitiveRangeQueryEngine::GetTernary(Node* node) const {
   return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
              node->GetType(), *select_ranges_.at(node).ternary)
       .AsShared();
+}
+bool ContextSensitiveRangeQueryEngine::AtMostOneBitTrue(Node* node) const {
+  if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {
+    return base_case_ranges_.AtMostOneBitTrue(node);
+  }
+  return interval_ops::MaxPopCount(
+             select_ranges_.at(node).interval_set.Get({})) <= 1;
+}
+bool ContextSensitiveRangeQueryEngine::AtLeastOneBitTrue(Node* node) const {
+  if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {
+    return base_case_ranges_.AtLeastOneBitTrue(node);
+  }
+  return interval_ops::MinPopCount(
+             select_ranges_.at(node).interval_set.Get({})) >= 1;
+}
+bool ContextSensitiveRangeQueryEngine::ExactlyOneBitTrue(Node* node) const {
+  if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {
+    return base_case_ranges_.ExactlyOneBitTrue(node);
+  }
+  IntervalSet interval_set = select_ranges_.at(node).interval_set.Get({});
+  return interval_ops::MinPopCount(interval_set) == 1 &&
+         interval_ops::MaxPopCount(interval_set) == 1;
 }
 bool ContextSensitiveRangeQueryEngine::Covers(Node* node,
                                               const Bits& value) const {

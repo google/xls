@@ -2458,6 +2458,7 @@ cc_test(
         ":interval_set_test_utils",
         ":number_parser",
         ":partial_info",
+        ":partial_information_test_utils",
         ":ternary",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",

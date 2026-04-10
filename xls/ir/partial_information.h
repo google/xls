@@ -140,6 +140,14 @@ class PartialInformation {
   // Gets the number of leading sign bits known.
   int64_t KnownLeadingSignBits() const;
 
+  // Returns an upper bound on the popcount of any value that can satisfy this
+  // PartialInformation.
+  int64_t MaxPopCount() const;
+
+  // Returns a lower bound on the popcount of any value that can satisfy this
+  // PartialInformation.
+  int64_t MinPopCount() const;
+
   std::string ToString() const;
   std::string ToDebugString() const;
 

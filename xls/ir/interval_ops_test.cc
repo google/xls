@@ -1129,6 +1129,20 @@ TEST(IntervalOpsTest, MinimumSignedBitCount) {
             7);
 }
 
+TEST(IntervalOpsTest, MaxPopCount) {
+  EXPECT_EQ(MaxPopCount(Interval::Precise(UBits(0, 8))), 0);
+  EXPECT_EQ(MaxPopCount(Interval::Precise(UBits(255, 8))), 8);
+  EXPECT_EQ(MaxPopCount(Interval::Closed(UBits(2, 8), UBits(4, 8))), 2);
+  EXPECT_EQ(MaxPopCount(Interval::Closed(UBits(7, 8), UBits(11, 8))), 3);
+}
+
+TEST(IntervalOpsTest, MinPopCount) {
+  EXPECT_EQ(MinPopCount(Interval::Precise(UBits(0, 8))), 0);
+  EXPECT_EQ(MinPopCount(Interval::Precise(UBits(255, 8))), 8);
+  EXPECT_EQ(MinPopCount(Interval::Closed(UBits(2, 8), UBits(4, 8))), 1);
+  EXPECT_EQ(MinPopCount(Interval::Closed(UBits(7, 8), UBits(11, 8))), 1);
+}
+
 TEST(MinimizeIntervalsTest, PrefersEarlyIntervals) {
   // All 32 6-bit [0, 63] even numbers.
   IntervalSet even_numbers =

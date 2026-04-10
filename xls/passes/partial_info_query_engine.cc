@@ -851,6 +851,46 @@ bool PartialInfoQueryEngine::Covers(Node* node, const Bits& value) const {
   return info_tree->Get({}).IsCompatibleWith(value);
 }
 
+bool PartialInfoQueryEngine::AtMostOneBitTrue(Node* node) const {
+  CHECK(node->GetType()->IsBits());
+  if (node->GetType()->GetFlatBitCount() <= 1) {
+    return true;
+  }
+  std::optional<SharedLeafTypeTree<PartialInformation>> info_tree =
+      GetInfo(node);
+  if (!info_tree.has_value()) {
+    return false;
+  }
+  return info_tree->Get({}).MaxPopCount() <= 1;
+}
+
+bool PartialInfoQueryEngine::AtLeastOneBitTrue(Node* node) const {
+  CHECK(node->GetType()->IsBits());
+  if (node->GetType()->GetFlatBitCount() < 1) {
+    return false;
+  }
+  std::optional<SharedLeafTypeTree<PartialInformation>> info_tree =
+      GetInfo(node);
+  if (!info_tree.has_value()) {
+    return false;
+  }
+  return info_tree->Get({}).MinPopCount() >= 1;
+}
+
+bool PartialInfoQueryEngine::ExactlyOneBitTrue(Node* node) const {
+  CHECK(node->GetType()->IsBits());
+  if (node->GetType()->GetFlatBitCount() < 1) {
+    return false;
+  }
+  std::optional<SharedLeafTypeTree<PartialInformation>> info_tree =
+      GetInfo(node);
+  if (!info_tree.has_value()) {
+    return false;
+  }
+  const PartialInformation& info = info_tree->Get({});
+  return info.MinPopCount() == 1 && info.MaxPopCount() == 1;
+}
+
 std::optional<int64_t> PartialInfoQueryEngine::KnownLeadingOnes(Node* n) const {
   if (!n->GetType()->IsBits()) {
     return std::nullopt;

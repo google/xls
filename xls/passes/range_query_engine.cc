@@ -1495,6 +1495,43 @@ static void IntervalSetTreeToStream(const IntervalSetTree& tree, Type* type,
   }
 }
 
+bool RangeQueryEngine::AtMostOneBitTrue(Node* node) const {
+  CHECK(node->GetType()->IsBits());
+  if (node->GetType()->GetFlatBitCount() <= 1) {
+    return true;
+  }
+  if (!HasExplicitIntervals(node)) {
+    return false;
+  }
+  IntervalSetTreeView view = *GetIntervalSetTreeView(node);
+  return interval_ops::MaxPopCount(view.Get({})) <= 1;
+}
+
+bool RangeQueryEngine::AtLeastOneBitTrue(Node* node) const {
+  CHECK(node->GetType()->IsBits());
+  if (node->GetType()->GetFlatBitCount() < 1) {
+    return false;
+  }
+  if (!HasExplicitIntervals(node)) {
+    return false;
+  }
+  IntervalSetTreeView view = *GetIntervalSetTreeView(node);
+  return interval_ops::MinPopCount(view.Get({})) >= 1;
+}
+
+bool RangeQueryEngine::ExactlyOneBitTrue(Node* node) const {
+  CHECK(node->GetType()->IsBits());
+  if (node->GetType()->GetFlatBitCount() < 1) {
+    return false;
+  }
+  if (!HasExplicitIntervals(node)) {
+    return false;
+  }
+  IntervalSetTreeView view = *GetIntervalSetTreeView(node);
+  return interval_ops::MinPopCount(view.Get({})) == 1 &&
+         interval_ops::MaxPopCount(view.Get({})) == 1;
+}
+
 bool RangeQueryEngine::Covers(Node* node, const Bits& value) const {
   if (!node->GetType()->IsBits() ||
       node->BitCountOrDie() != value.bit_count()) {

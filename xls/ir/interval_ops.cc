@@ -58,6 +58,34 @@ TernaryVector ExtractTernaryInterval(const Interval& interval) {
   }
   return result;
 }
+
+// Returns the maximum popcount of any value less than or equal to `limit`.
+int64_t MaxPopCountLessThanOrEqualTo(const Bits& limit) {
+  if (limit.IsZero()) {
+    return 0;
+  }
+  if (limit.IsAllOnes()) {
+    return limit.bit_count();
+  }
+
+  // Compute the number of bits in the `limit` that aren't its leading zeros.
+  // The numbers we're considering are all representable in `significant_bits`
+  // bits, so the popcount is never more than this.
+  int64_t significant_bits = limit.bit_count() - limit.CountLeadingZeros();
+
+  // If the limit is of the form 2^significant_bits - 1 (i.e. all bits up to
+  // the highest set bit are 1), then the limit itself is the maximum.
+  if (limit.Slice(0, significant_bits).IsAllOnes()) {
+    return significant_bits;
+  }
+
+  // Regardless, since `limit` has the `significant_bits` bit set, we know that
+  // `01...1` (with `significant_bits - 1` ones) is less than `limit`. This has
+  // a popcount of `significant_bits - 1`, and we already know we can't just set
+  // all the significant bits to 1, so this is the best we can do.
+  return significant_bits - 1;
+}
+
 }  // namespace
 
 TernaryVector ExtractTernaryVector(const IntervalSet& intervals,
@@ -257,6 +285,92 @@ bool CoversTernary(const IntervalSet& intervals, TernarySpan ternary) {
                         [&ternary](const Interval& interval) {
                           return CoversTernary(interval, ternary);
                         });
+}
+
+int64_t MaxPopCount(const Interval& interval) {
+  if (interval.IsPrecise()) {
+    return interval.LowerBound().PopCount();
+  }
+  Bits lower = interval.LowerBound();
+  Bits upper = interval.UpperBound();
+
+  // Find the longest common prefix shared by both bounds (from MSB).
+  Bits prefix = bits_ops::LongestCommonPrefixMSB({lower, upper});
+  int64_t prefix_pop = prefix.PopCount();
+
+  // The first bit where they differ is just below the common prefix.
+  int64_t divergence_bit_index = lower.bit_count() - 1 - prefix.bit_count();
+
+  // We split the interval into two branches at divergence_bit_index:
+  // Branch 1: The bit at divergence_bit_index is 0.
+  // Branch 2: The bit at divergence_bit_index is 1.
+
+  // Branch 1: The divergence bit is 0.
+  // We can set all bits strictly below the divergence bit to 1 without
+  // exceeding `upper`.
+  int64_t candidate_lower_branch_pop = prefix_pop + divergence_bit_index;
+
+  // Branch 2: The divergence bit is 1.
+  // We must ensure the number remains <= upper. This reduces to finding the
+  // maximum popcount of a number <= upper_remainder (the lower
+  // 'divergence_bit_index' bits of 'upper').
+  int64_t candidate_upper_branch_pop = 0;
+  if (divergence_bit_index == 0) {
+    candidate_upper_branch_pop =
+        prefix_pop + 1;  // Divergence is at bit 0, no remainder.
+  } else {
+    Bits upper_remainder = upper.Slice(0, divergence_bit_index);
+    candidate_upper_branch_pop =
+        prefix_pop + 1 + MaxPopCountLessThanOrEqualTo(upper_remainder);
+  }
+
+  return std::max(candidate_lower_branch_pop, candidate_upper_branch_pop);
+}
+
+int64_t MaxPopCount(const IntervalSet& intervals) {
+  int64_t max_pop_count = 0;
+  for (const Interval& interval : intervals.Intervals()) {
+    max_pop_count = std::max(max_pop_count, MaxPopCount(interval));
+  }
+  return max_pop_count;
+}
+
+int64_t MinPopCount(const Interval& interval) {
+  if (interval.IsPrecise()) {
+    return interval.LowerBound().PopCount();
+  }
+  Bits lower = interval.LowerBound();
+  Bits upper = interval.UpperBound();
+
+  // Find the longest common prefix shared by both bounds (from MSB).
+  Bits prefix = bits_ops::LongestCommonPrefixMSB({lower, upper});
+
+  // The first bit where they differ is just below the common prefix.
+  int64_t divergence_bit_index = lower.bit_count() - 1 - prefix.bit_count();
+
+  // If there are no bits below the divergence bit, or if the lower bits of
+  // `lower` below the divergence bit are all zero, we can just use the prefix
+  // padded with zeros.
+  if (divergence_bit_index == 0 ||
+      lower.Slice(0, divergence_bit_index).IsZero()) {
+    return prefix.PopCount();
+  }
+
+  // Otherwise, we can achieve `prefix.PopCount() + 1` by setting the divergence
+  // bit to 1 and all lower bits to 0. This value is guaranteed to be in the
+  // interval.
+  return prefix.PopCount() + 1;
+}
+
+int64_t MinPopCount(const IntervalSet& intervals) {
+  if (intervals.IsEmpty()) {
+    return 0;
+  }
+  int64_t min_pop_count = intervals.BitCount();
+  for (const Interval& interval : intervals.Intervals()) {
+    min_pop_count = std::min(min_pop_count, MinPopCount(interval));
+  }
+  return min_pop_count;
 }
 
 namespace {

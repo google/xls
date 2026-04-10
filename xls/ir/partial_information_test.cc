@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <ostream>
 #include <tuple>
 #include <utility>
 
@@ -33,6 +32,7 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/interval_set_test_utils.h"
 #include "xls/ir/number_parser.h"
+#include "xls/ir/partial_information_test_utils.h"
 #include "xls/ir/ternary.h"
 
 namespace xls {
@@ -292,6 +292,71 @@ TEST(PartialInformationTest, LeadingSign) {
   EXPECT_EQ(x.KnownLeadingZeros(), 0);
   EXPECT_EQ(x.KnownLeadingOnes(), 0);
 }
+
+TEST(PartialInformationTest, PopCountUnconstrained) {
+  PartialInformation info = PartialInformation::Unconstrained(4);
+  EXPECT_EQ(info.MinPopCount(), 0);
+  EXPECT_EQ(info.MaxPopCount(), 4);
+}
+
+TEST(PartialInformationTest, PopCountPrecise) {
+  PartialInformation info = PartialInformation::Precise(UBits(0b1010, 4));
+  EXPECT_EQ(info.MinPopCount(), 2);
+  EXPECT_EQ(info.MaxPopCount(), 2);
+}
+
+TEST(PartialInformationTest, PopCountTernaryOnly) {
+  PartialInformation info(*StringToTernaryVector("0b1X0X"));
+  EXPECT_EQ(info.MinPopCount(), 1);
+  EXPECT_EQ(info.MaxPopCount(), 3);
+}
+
+TEST(PartialInformationTest, PopCountRangeOnly) {
+  PartialInformation info(
+      IntervalSet::Of({Interval(UBits(2, 4), UBits(5, 4))}));
+  EXPECT_EQ(info.MinPopCount(), 1);
+  EXPECT_EQ(info.MaxPopCount(), 2);
+}
+
+TEST(PartialInformationTest, PopCountMixed) {
+  PartialInformation info(
+      *StringToTernaryVector("0b1XX0"),
+      IntervalSet::Of({Interval(UBits(9, 4), UBits(13, 4))}));
+  EXPECT_EQ(info.MinPopCount(), 2);
+  EXPECT_EQ(info.MaxPopCount(), 2);
+}
+
+void PopCountBoundsConsistent(std::tuple<std::optional<TernaryVector>,
+                                         std::optional<IntervalSet>, int64_t>
+                                  inputs) {
+  const auto& [ternary, range, bit_count] = inputs;
+  PartialInformation info(bit_count, ternary, range);
+  if (info.IsImpossible()) {
+    EXPECT_EQ(info.MinPopCount(), 0);
+    EXPECT_EQ(info.MaxPopCount(), 0);
+  } else {
+    EXPECT_LE(info.MinPopCount(), info.MaxPopCount())
+        << "for " << info.ToDebugString();
+    if (info.IsPrecise()) {
+      EXPECT_EQ(info.MinPopCount(), info.MaxPopCount())
+          << "for " << info.ToDebugString();
+    }
+  }
+}
+FUZZ_TEST(PartialInformationFuzzTest, PopCountBoundsConsistent)
+    .WithDomains(ArbitraryTernaryAndNormalizedIntervalSet());
+
+void PopCountCompatibleWithValue(const PartiallyDescribedBits& p) {
+  int64_t pop = p.bits.PopCount();
+  EXPECT_LE(p.partial.MinPopCount(), pop)
+      << "Value: " << BitsToString(p.bits) << " in "
+      << p.partial.ToDebugString();
+  EXPECT_GE(p.partial.MaxPopCount(), pop)
+      << "Value: " << BitsToString(p.bits) << " in "
+      << p.partial.ToDebugString();
+}
+FUZZ_TEST(PartialInformationFuzzTest, PopCountCompatibleWithValue)
+    .WithDomains(ArbitraryPartiallyDescribedBits(8));
 
 }  // namespace
 }  // namespace xls
