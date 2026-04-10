@@ -421,6 +421,7 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](Function*) { return "function"; },
                          [](Proc*) { return "proc"; },
                          [](TestFunction*) { return "test-function"; },
+                         [](FuzzTestFunction*) { return "fuzz-test-function"; },
                          [](TestProc*) { return "test-proc"; },
                          [](QuickCheck*) { return "quick-check"; },
                          [](TypeAlias*) { return "type-alias"; },
@@ -443,6 +444,7 @@ bool IsPublic(const ModuleMember& member) {
   return absl::visit(Visitor{
                          [](const auto* m) { return m->is_public(); },
                          [](const TestFunction* m) { return false; },
+                         [](const FuzzTestFunction* m) { return false; },
                          [](const TestProc* m) { return false; },
                          [](const QuickCheck* m) { return false; },
                          [](const Import* m) { return false; },

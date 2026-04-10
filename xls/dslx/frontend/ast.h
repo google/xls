@@ -3899,7 +3899,6 @@ class TestFunction : public AstNode {
 // ```
 // TODO: davidplass - Migrate this into TestFunction, after adding an optional
 // parameter to TestFunction to capture the domain tuple.
-// TODO: davidplass - make this a ModuleMember.
 class FuzzTestFunction : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "fuzz test function"; }
