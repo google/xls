@@ -214,13 +214,15 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
   StateElement* old_state_element = GetStateElement(index);
   auto old_state_read_it = state_reads_.find(old_state_element);
   XLS_RET_CHECK(old_state_read_it != state_reads_.end());
-  if (!old_state_read_it->second->users().empty()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Cannot remove state element %d of proc %s, existing "
-        "state read %s has uses",
-        index, name(), old_state_read_it->second->GetNameView()));
+  for (StateRead* read : old_state_read_it->second) {
+    if (!read->users().empty()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Cannot remove state element %d of proc %s, existing "
+                          "state read %s has uses",
+                          index, name(), read->GetNameView()));
+    }
+    XLS_RETURN_IF_ERROR(RemoveNode(read));
   }
-  XLS_RETURN_IF_ERROR(RemoveNode(old_state_read_it->second));
   // TODO(allight): This should ideally not need to be done manually.
   state_reads_.erase(old_state_read_it);
 
@@ -232,11 +234,14 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
 absl::Status Proc::RemoveAllStateElements() {
   // TODO(allight): This relies on side tables being valid. For now just let it
   // go.
-  for (const auto& [elem, read] : state_reads_) {
-    if (read != nullptr) {
-      XLS_RETURN_IF_ERROR(RemoveNode(read))
-          << "Cannot remove " << elem->ToString() << " of proc " << name()
-          << " because read '" << read->ToString() << "' could not be removed.";
+  for (const auto& [elem, reads] : state_reads_) {
+    for (StateRead* read : reads) {
+      if (read != nullptr) {
+        XLS_RETURN_IF_ERROR(RemoveNode(read))
+            << "Cannot remove " << elem->ToString() << " of proc " << name()
+            << " because read '" << read->ToString()
+            << "' could not be removed.";
+      }
     }
     XLS_RETURN_IF_ERROR(state_name_uniquer_.ReleaseIdentifier(elem->name()))
         << "Cannot release name of " << elem->ToString();
@@ -278,7 +283,7 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
                        MakeNodeWithName<StateRead>(
                            loc, state_element, read_predicate,
                            /*label=*/std::nullopt, state_element->name()));
-  state_reads_[state_element] = state_read;
+  state_reads_[state_element].push_back(state_read);
 
   if (next_state.has_value()) {
     if (!ValueConformsToType(init_value, next_state.value()->GetType())) {
@@ -351,14 +356,13 @@ absl::StatusOr<Proc*> Proc::Clone(
     return mapping.at(orig);
   };
   for (StateElement* state_element : StateElements()) {
-    StateRead* state_read = state_reads_.at(state_element);
-    XLS_ASSIGN_OR_RETURN(
-        StateRead * cloned_state_read,
-        cloned_proc->AppendStateElement(
-            remap_name(state_name_remapping, state_element->name()),
-            state_element->initial_value(), state_read->predicate(),
-            /*next_state=*/std::nullopt));
-    original_to_clone[state_read] = cloned_state_read;
+    XLS_RETURN_IF_ERROR(
+        cloned_proc
+            ->InsertUnreadStateElement(
+                cloned_proc->GetStateElementCount(),
+                remap_name(state_name_remapping, state_element->name()),
+                state_element->initial_value())
+            .status());
   }
   if (is_new_style_proc()) {
     absl::flat_hash_map<ChannelInterface*, ChannelInterface*> channel_map;
@@ -445,7 +449,23 @@ absl::StatusOr<Proc*> Proc::Clone(
 
     switch (node->op()) {
       case Op::kStateRead: {
-        continue;
+        StateRead* src = node->As<StateRead>();
+        StateElement* src_elem = src->state_element();
+        XLS_ASSIGN_OR_RETURN(int64_t idx, GetStateElementIndex(src_elem));
+        StateElement* cloned_elem = cloned_proc->GetStateElement(idx);
+
+        std::optional<Node*> cloned_predicate;
+        if (src->predicate().has_value()) {
+          cloned_predicate = original_to_clone.at(src->predicate().value());
+        }
+
+        XLS_ASSIGN_OR_RETURN(StateRead * cloned_state_read,
+                             cloned_proc->MakeNodeWithName<StateRead>(
+                                 src->loc(), cloned_elem, cloned_predicate,
+                                 src->label(), cloned_elem->name()));
+        cloned_proc->state_reads_[cloned_elem].push_back(cloned_state_read);
+        original_to_clone[node] = cloned_state_read;
+        break;
       }
       case Op::kReceive: {
         Receive* src = node->As<Receive>();
@@ -1000,10 +1020,8 @@ absl::Status Proc::InternalRebuildSideTables() {
   state_reads_.clear();
   for (Node* n : nodes()) {
     if (n->Is<StateRead>()) {
-      XLS_RET_CHECK(!state_reads_.contains(n->As<StateRead>()->state_element()))
-          << "Duplicate state element read: "
-          << n->As<StateRead>()->state_element();
-      state_reads_[n->As<StateRead>()->state_element()] = n->As<StateRead>();
+      state_reads_[n->As<StateRead>()->state_element()].push_back(
+          n->As<StateRead>());
     } else if (n->Is<Next>()) {
       next_values_.push_back(n->As<Next>());
       next_values_by_state_element_[n->As<Next>()->state_element()].insert(
