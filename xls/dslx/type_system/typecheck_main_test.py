@@ -27,6 +27,16 @@ _TYPECHECK_MAIN_PATH = runfiles.get_path('xls/dslx/type_system/typecheck_main')
 
 class TypecheckMainTest(absltest.TestCase):
 
+  def _run_typecheck_main(self, content: str) -> subp.CompletedProcess[str]:
+    f = self.create_tempfile(content=content)
+    return subp.run(
+        [_TYPECHECK_MAIN_PATH, f.full_path],
+        encoding='utf-8',
+        check=True,
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+    )
+
   def test_module_with_import(self):
     mod_path = runfiles.get_path('xls/dslx/tests/mod_const_enum_importer.x')
     basedir = mod_path
@@ -42,16 +52,27 @@ class TypecheckMainTest(absltest.TestCase):
     content = """fn f(x: u8) -> u9 {
   one_hot(x, false)
 }"""
-    f = self.create_tempfile(content=content)
-    p = subp.run(
-        [_TYPECHECK_MAIN_PATH, f.full_path],
-        encoding='utf-8',
-        check=True,
-        stdout=subp.PIPE,
-        stderr=subp.PIPE,
-    )
+    p = self._run_typecheck_main(content)
     self.assertEqual(p.returncode, 0)
     self.assertNotIn('Could not find node with kind', p.stderr)
+
+  def test_bool_update_does_not_crash_pretty_print(self):
+    p = self._run_typecheck_main("""fn f() -> bool[1] {
+  update(bool[1]:[false], u1:0, true)
+}""")
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('update(bool[1]:[false], u1:0, true)', p.stdout)
+    self.assertNotIn('<no-file>', p.stdout)
+    self.assertNotIn('Could not find module: <no-file>', p.stderr)
+
+  def test_bit_slice_update_does_not_crash_pretty_print(self):
+    p = self._run_typecheck_main("""fn f() -> u8 {
+  bit_slice_update(u8:0, u3:0, true)
+}""")
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('bit_slice_update(u8:0, u3:0, true)', p.stdout)
+    self.assertNotIn('<no-file>', p.stdout)
+    self.assertNotIn('Could not find module: <no-file>', p.stderr)
 
   def test_disable_warnings_as_errors(self):
     content = 'fn f() { let x = u32:42; }'
