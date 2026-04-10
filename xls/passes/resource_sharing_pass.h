@@ -405,6 +405,15 @@ class TimingAnalysis {
   absl::flat_hash_map<NaryFoldingAction*, double> delay_spread_;
 };
 
+// Estimates the area of a single input selection (multiplexing) logic required
+// for resource sharing.
+absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
+    Node* destination, const AreaEstimator& ae);
+
+// Estimates the area of a negation operation for a node, typically used when
+// mapping between addition and subtraction during resource sharing.
+absl::StatusOr<double> EstimateAreaForNegatingNode(Node* n,
+                                                   const AreaEstimator& ae);
 }  // namespace xls
 
 #endif  // XLS_PASSES_RESOURCE_SHARING_PASS_H_

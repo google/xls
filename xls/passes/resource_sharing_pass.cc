@@ -487,10 +487,7 @@ SelectFoldingActionsBasedOnCliques(
 }
 
 absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
-    BinaryFoldingAction* folding, const AreaEstimator& ae) {
-  // Get the required information from the folding action
-  Node* destination = folding->GetTo();
-
+    Node* destination, const AreaEstimator& ae) {
   // Get the type of the input that will need to be forwarded.
   //
   // Notice that we need to use the type of the operand of the destination of
@@ -594,7 +591,7 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
     // @from) to the destination of the folding.
     XLS_ASSIGN_OR_RETURN(
         double area_select,
-        EstimateAreaForSelectingASingleInput(folding, area_estimator));
+        EstimateAreaForSelectingASingleInput(folding->GetTo(), area_estimator));
     VLOG(4) << "          Area of selecting a single input " << area_select;
 
     // Estimate the area the selector takes up: all instructions that did not
