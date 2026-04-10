@@ -579,11 +579,7 @@ fn convert_to_bits_msb0_test() {
 //
 // This variant puts the LSb (least significant bit) of the word at index 0 in
 // the resulting array.
-pub fn convert_to_bools_lsb0<N: u32>(x: uN[N]) -> bool[N] {
-    for (idx, partial): (u32, bool[N]) in 0..N {
-        update(partial, idx, x[idx+:bool])
-    }([false, ...])
-}
+pub fn convert_to_bools_lsb0<N: u32>(x: uN[N]) -> bool[N] { map(0..N, |idx| x[idx+:bool]) }
 
 #[test]
 fn convert_to_bools_lsb0_test() {
@@ -613,11 +609,8 @@ fn convert_to_from_bools(x: u4) -> bool {
 // ultimately discarded from the unselected match arm.
 pub fn find_index<BITS: u32, ELEMS: u32>(array: uN[BITS][ELEMS], x: uN[BITS]) -> (bool, u32) {
     // Compute all the positions that are equal to our target.
-    let bools: bool[ELEMS] = for (i, accum) in 0..ELEMS {
-        update(accum, i, array[i] == x)
-    }([false, ...]);
-
-    let x: uN[ELEMS] = convert_to_bits_msb0(bools);
+    let bools = map(0..ELEMS, |i| array[i] == x);
+    let x = convert_to_bits_msb0(bools);
     let index = clz(x);
     let found: bool = or_reduce(x);
     (found, if found { index as u32 } else { 0 })
