@@ -37,6 +37,7 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/combinations.hpp"
 #include "cppitertools/zip.hpp"
@@ -1685,6 +1686,7 @@ ResourceSharingPass::SelectFoldingActions(
 absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     FunctionBase* f, int64_t next_node_id,
     VisibilityBuilder* visibility_builder,
+    const NodeBackwardDependencyAnalysis& nda,
     const std::vector<std::unique_ptr<NaryFoldingAction>>&
         folding_actions_to_perform) {
   bool modified = !folding_actions_to_perform.empty();
@@ -1902,6 +1904,26 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     }
     XLS_RET_CHECK_EQ(new_operands.size(), 2);
 
+    // Ensure the priority selects do not depend on any of the folded nodes.
+    // This is to avoid creating a cycle and producing an unrecoverable error.
+    for (Node* new_operand : new_operands) {
+      auto make_error = [&](Node* folded_node, Node* select) {
+        return absl::InternalError(absl::StrFormat(
+            "Folding action input selection would create a cycle with node "
+            "because selection depends on it: %s -> ... -> %s; there is a bug "
+            "in the legalization of folding actions or in visibility analysis",
+            folded_node->ToString(), select->ToString()));
+      };
+      for (const auto& [from_node, _] : froms_to_use) {
+        if (nda.IsDependent(from_node, new_operand)) {
+          return make_error(from_node, new_operand);
+        }
+      }
+      if (nda.IsDependent(to_node, new_operand)) {
+        return make_error(to_node, new_operand);
+      }
+    }
+
     // - Step 2: Replace the operands of the @to_node to use the results of the
     //           new selectors computed at Step 1.
     VLOG(3) << "      Step 2: update the target of the folding transformation";
@@ -2075,8 +2097,9 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
 
   // Perform the folding
   XLS_ASSIGN_OR_RETURN(
-      modified, PerformFoldingActions(f, next_node_id, &visibility_estimator,
-                                      folding_actions_to_perform));
+      modified,
+      PerformFoldingActions(f, next_node_id, &visibility_estimator,
+                            nda_backwards, folding_actions_to_perform));
 
   return modified;
 }

@@ -310,6 +310,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   static absl::StatusOr<bool> PerformFoldingActions(
       FunctionBase* f, int64_t next_node_id,
       VisibilityBuilder* visibility_builder,
+      const NodeBackwardDependencyAnalysis& nda,
       const std::vector<std::unique_ptr<NaryFoldingAction>>&
           folding_actions_to_perform);
 

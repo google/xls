@@ -20,7 +20,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
@@ -43,8 +45,14 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
+#include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/bit_provenance_analysis.h"
+#include "xls/passes/folding_graph.h"
+#include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/visibility_analysis.h"
+#include "xls/passes/visibility_expr_builder.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace xls {
@@ -52,6 +60,8 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 class ResourceSharingPassTest : public IrTestBase {
@@ -1406,6 +1416,43 @@ TEST_F(ResourceSharingPassTest, PreventCyclesInFoldingChainsIndirect) {
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfMultiplications(f), 1);
   EXPECT_EQ(NumberOfShifts(f), 3);
+}
+
+using VisibilityEdges =
+    absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>;
+
+TEST_F(ResourceSharingPassTest, CatchesCyclesBeforeTransforming) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u8 = p->GetBitsType(8);
+  BValue i = fb.Param("i", u8);
+  BValue X = fb.UMul(i, i, 8, SourceInfo(), "X");
+  BValue Y = fb.UMul(X, i, 8, SourceInfo(), "D");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(Y));
+  int64_t next_node_id = 10;
+
+  BddQueryEngine bdd_engine;
+  XLS_ASSERT_OK(bdd_engine.Populate(f));
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK(bpa.Populate(f));
+  VisibilityBuilder visibility_builder(next_node_id, &bdd_engine, nda, bpa);
+
+  std::vector<std::pair<Node*, VisibilityEdges>> from_X = {
+      std::make_pair(X.node(), VisibilityEdges{})};
+  auto fold_X_into_Y = std::make_unique<NaryFoldingAction>(
+      std::move(from_X), Y.node(), VisibilityEdges{});
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
+  folding_actions_to_perform.push_back(std::move(fold_X_into_Y));
+
+  NodeBackwardDependencyAnalysis nda_backwards;
+  XLS_ASSERT_OK(nda_backwards.Attach(f));
+  EXPECT_THAT(
+      ResourceSharingPass::PerformFoldingActions(
+          f, next_node_id, &visibility_builder, nda_backwards,
+          folding_actions_to_perform),
+      StatusIs(absl::StatusCode::kInternal, HasSubstr("would create a cycle")));
 }
 
 }  // namespace
