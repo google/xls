@@ -500,6 +500,19 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
       decls_by_bval_top_context[&cval.rvalue()] = decl;
     }
 
+    absl::flat_hash_map<const TrackedBValue*, const clang::NamedDecl*>
+        decls_by_bval_all_contexts;
+
+    for (const TranslationContext& context : context_stack_) {
+      for (const auto& [decl, cval] : context.variables) {
+        // TODO(seanhaskell): RValues in LValues in feedbacks
+        if (!cval.rvalue().valid()) {
+          continue;
+        }
+        decls_by_bval_all_contexts[&cval.rvalue()] = decl;
+      }
+    }
+
     for (xls::Node* node : tracked_nodes_in_order) {
       std::vector<TrackedBValue*>& bvals = tracked_bvalues_by_node.at(node);
       ContinuationValue continuation_out;
@@ -524,9 +537,9 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
       for (TrackedBValue* bval : bvals) {
         CHECK(!continuation_outputs_by_bval.contains(bval));
         continuation_outputs_by_bval[bval] = &new_continuation;
-        if (decls_by_bval_top_context.contains(bval)) {
+        if (decls_by_bval_all_contexts.contains(bval)) {
           new_continuation.decls.insert(
-              DeclLeaf{.decl = decls_by_bval_top_context.at(bval)});
+              DeclLeaf{.decl = decls_by_bval_all_contexts.at(bval)});
         }
       }
     }

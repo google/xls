@@ -2702,5 +2702,37 @@ TEST_F(ContinuationsTest, ConditionContinuedByName) {
   EXPECT_TRUE(found_condition);
 }
 
+TEST_F(ContinuationsTest, AvoidDuplicateValuesFromPhis) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int c = in.read();
+      int x = 0;
+
+      if (c == 1) {
+        x = in.read();
+      } else if (c == 2) {
+        x = 3 * in.read();
+      } else if (c == 5) {
+        x = 5 * in.read();
+      } else if (c == 8) {
+        x = 7 * in.read();
+      }
+      out.write(x);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 7);
+
+  auto slice_it = func->slices.rbegin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_last_slice = *slice_it;
+  EXPECT_EQ(SliceInputsDeclCount(second_last_slice, "x"), 3);
+  ;
+}
+
 }  // namespace
 }  // namespace xlscc
