@@ -487,12 +487,18 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
       if (!layout.state_element_by_continuation_value.contains(value)) {
         continue;
       }
-      used_state_element_indices.insert(
-          layout.state_element_by_continuation_value.at(value));
+      const int64_t element_index =
+          layout.state_element_by_continuation_value.at(value);
+      if (used_state_element_indices.contains(element_index)) {
+        layout.state_element_by_continuation_value.erase(value);
+        continue;
+      }
+      used_state_element_indices.insert(element_index);
     }
 
     for (const ContinuationValue* value : state.values_to_save) {
       if (layout.state_element_by_continuation_value.contains(value)) {
+        // Already in used_state_element_indices
         continue;
       }
       // This value has not already been assigned a state element
@@ -553,6 +559,24 @@ absl::Status NewFSMGenerator::LayoutNewFSMStateElements(
       for (const DeclLeaf& decl : decls) {
         state_element_indices_by_decl[decl].push_back(element_index);
       }
+    }
+  }
+
+  // Verify
+  for (const NewFSMState& state : layout.states) {
+    // Only need to save continuation values on activation transitions
+    if (!layout.transition_by_slice_from_index.contains(state.slice_index)) {
+      continue;
+    }
+    absl::flat_hash_set<int64_t> state_element_indices;
+    for (const ContinuationValue* value : state.values_to_save) {
+      auto found_elem = layout.state_element_by_continuation_value.find(value);
+      if (found_elem == layout.state_element_by_continuation_value.end()) {
+        continue;
+      }
+      const int64_t element_index = found_elem->second;
+      XLSCC_CHECK(!state_element_indices.contains(element_index), body_loc);
+      state_element_indices.insert(element_index);
     }
   }
 

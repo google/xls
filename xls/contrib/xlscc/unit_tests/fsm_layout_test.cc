@@ -989,5 +989,42 @@ TEST_F(FSMLayoutTest, MergeStatesBarrierBeforeLoop) {
                         /*conditional=*/true, /*forward=*/false);
 }
 
+TEST_F(FSMLayoutTest, AvoidInvalidStateElementReuse) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int c = in.read();
+      int x = 0;
+
+      [[hls_pipeline_init_interval(1)]]
+      for (int i = 0; i < 4; i++) {
+        if (c == 5) {
+          for (int j = 0; j < 4; j++) {
+            x += j * c;
+          }
+        }
+      }
+      out.write(x + c);
+    })";
+  split_states_on_channel_ops_ = false;
+  merge_states_ = false;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  for (const NewFSMState& state : layout.states) {
+    absl::flat_hash_set<int64_t> state_element_indices;
+    for (const ContinuationValue* value : state.values_to_save) {
+      auto found_elem = layout.state_element_by_continuation_value.find(value);
+      if (found_elem == layout.state_element_by_continuation_value.end()) {
+        continue;
+      }
+      const int64_t element_index = found_elem->second;
+      EXPECT_FALSE(state_element_indices.contains(element_index));
+      state_element_indices.insert(element_index);
+    }
+  }
+}
+
 }  // namespace
 }  // namespace xlscc
