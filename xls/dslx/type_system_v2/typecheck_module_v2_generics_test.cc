@@ -172,6 +172,44 @@ const_assert!(D == 4);
 )"));
 }
 
+TEST(TypecheckV2GenericsTest, ResolveAnnotationFromSeparateImplInvocation) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S1 {}
+
+impl S1 {
+  fn call<t0: type>(self, i: t0) -> bool {
+    i % 2 == 1
+  }
+}
+
+struct S2<N: u32, odd_map_type: type> {
+  odd_map: odd_map_type,
+}
+
+impl S2<N> {
+  fn call<t0: type>(self, i: t0) -> u32 {
+    if self.odd_map[i] {
+      i + 2
+    } else {
+      i
+    }
+  }
+}
+
+fn add_two<N: u32>() -> u32[N] {
+  let odd_map = map(0..N, S1{}.call);
+  map(0..N, S2<N>{odd_map: odd_map}.call)
+}
+
+const RES = add_two<5>();
+const_assert!(RES == [u32:0, 3, 2, 5, 4]);
+)",
+      TypecheckSucceeds(HasNodeWithType("RES", "uN[32][5]")));
+}
+
 TEST(TypecheckV2GenericsTest, GenericConstantAccess) {
   EXPECT_THAT(
       R"(

@@ -1194,7 +1194,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         InferenceTable::StructContextResult lookup_result,
         table_.GetOrCreateParametricStructContext(
             ref.def, node, parametric_env, CreateStructAnnotation(module_, ref),
-            type_info_factory));
+            parent_context, type_info_factory));
     const ParametricContext* struct_context = lookup_result.context;
     if (!lookup_result.created_new) {
       return struct_context;
