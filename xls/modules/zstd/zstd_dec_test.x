@@ -789,7 +789,7 @@ proc ZstdDecoderTest {
                 let tok = send(tok, fh_ram_wr_req_s, req);
                 let tok = send(tok, bh_ram_wr_req_s, req);
                 let tok = send(tok, raw_ram_wr_req_s, req);
-                for (i, tok): (u32, token) in u32:0..AXI_CHAN_N {
+                const for (i, tok): (u32, token) in u32:0..AXI_CHAN_N {
                     send(tok, comp_ram_wr_req_s[i], req)
                 }(tok)
             }(tok);
