@@ -518,24 +518,6 @@ absl::Status RunBuiltinCtz(const Bytecode& bytecode, InterpreterStack& stack) {
   return absl::OkStatus();
 }
 
-absl::Status RunBuiltinEnumerate(const Bytecode& bytecode,
-                                 InterpreterStack& stack) {
-  XLS_RET_CHECK(!stack.empty());
-  XLS_ASSIGN_OR_RETURN(InterpValue input, stack.Pop());
-  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* values,
-                       input.GetValues());
-
-  std::vector<InterpValue> elements;
-  elements.reserve(values->size());
-  for (int32_t i = 0; i < values->size(); i++) {
-    elements.push_back(
-        InterpValue::MakeTuple({InterpValue::MakeU32(i), values->at(i)}));
-  }
-  XLS_ASSIGN_OR_RETURN(InterpValue result, InterpValue::MakeArray(elements));
-  stack.Push(result);
-  return absl::OkStatus();
-}
-
 absl::Status RunBuiltinOrReduce(const Bytecode& bytecode,
                                 InterpreterStack& stack) {
   VLOG(3) << "Executing builtin OrReduce.";
