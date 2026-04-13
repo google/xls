@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/eco/ged_cost_functions.h"
+#include "xls/contrib/eco/ged_cost_functions.h"
 
 #include <cstdint>
 

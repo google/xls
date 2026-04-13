@@ -17,7 +17,7 @@
 # - 10-100x faster graph edit distance computation
 # - MCS preprocessing optimization
 # - Direct GXL file parsing without NetworkX dependency
-# Please use //xls/eco:ged_main instead.
+# Please use //xls/contrib/eco:ged_main instead.
 
 """The main routine for the python-side of the ECO flow."""
 
@@ -29,10 +29,10 @@ from typing import Sequence
 from absl import app
 from absl import flags
 
-from xls.eco import ir_diff
-from xls.eco import ir_diff_utils
-from xls.eco import ir_patch_gen
-from xls.eco import xls_ir_to_networkx
+from xls.contrib.eco import ir_diff
+from xls.contrib.eco import ir_diff_utils
+from xls.contrib.eco import ir_patch_gen
+from xls.contrib.eco import xls_ir_to_networkx
 
 
 _BEFORE_IR_PATH = flags.DEFINE_string(

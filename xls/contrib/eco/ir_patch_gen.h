@@ -15,9 +15,9 @@
 #ifndef XLS_ECO_IR_PATCH_GEN_H_
 #define XLS_ECO_IR_PATCH_GEN_H_
 
-#include "xls/eco/ged.h"
-#include "xls/eco/graph.h"
-#include "xls/eco/ir_patch.pb.h"
+#include "xls/contrib/eco/ged.h"
+#include "xls/contrib/eco/graph.h"
+#include "xls/contrib/eco/ir_patch.pb.h"
 
 xls_eco::IrPatchProto GenerateIrPatchProto(const XLSGraph& original_graph,
                                            const XLSGraph& modified_graph,
