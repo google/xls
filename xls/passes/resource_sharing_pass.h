@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/statusor.h"
@@ -394,11 +395,11 @@ class TimingAnalysis {
 
   // Returns the maximum delay increase across all nodes involved in the
   // folding action.
-  int64_t GetDelayIncrease(NaryFoldingAction* folding_action) const;
+  int64_t GetDelayIncrease(const NaryFoldingAction& folding_action) const;
 
   // Returns the "delay spread" of the folding action, which is a measure of
   // how much the delays of the "from" nodes differ from the "to" node's delay.
-  double GetDelaySpread(NaryFoldingAction* folding_action) const;
+  double GetDelaySpread(const NaryFoldingAction& folding_action) const;
 
  private:
   absl::flat_hash_map<NaryFoldingAction*, int64_t> delay_increase_;
@@ -414,6 +415,15 @@ absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
 // mapping between addition and subtraction during resource sharing.
 absl::StatusOr<double> EstimateAreaForNegatingNode(Node* n,
                                                    const AreaEstimator& ae);
+
+// CanFoldTogether evaluates whether two binary foldings can be grouped together
+// into a single n-ary folding on the same destination. Note that binary
+// foldings are sorted by benefit (e.g maximizing area savings) in descending
+// order, meaning 'previous' is more important than 'next'.
+bool CanFoldTogether(
+    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+        mutual_exclusivity,
+    const BinaryFoldingAction& next, const BinaryFoldingAction& previous);
 }  // namespace xls
 
 #endif  // XLS_PASSES_RESOURCE_SHARING_PASS_H_
