@@ -19,7 +19,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "xls/eco/graph.h"
+#include "xls/contrib/eco/graph.h"
 
 namespace mcs {
 

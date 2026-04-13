@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/eco/mcs.h"
+#include "xls/contrib/eco/mcs.h"
 
 #include <string>
 #include <tuple>

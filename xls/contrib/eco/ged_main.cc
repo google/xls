@@ -31,11 +31,11 @@
 #include "absl/strings/str_cat.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/eco/ged.h"
-#include "xls/eco/ged_cost_functions.h"
-#include "xls/eco/gxl_parser.h"
-#include "xls/eco/ir_patch_gen.h"
-#include "xls/eco/mcs.h"
+#include "xls/contrib/eco/ged.h"
+#include "xls/contrib/eco/ged_cost_functions.h"
+#include "xls/contrib/eco/gxl_parser.h"
+#include "xls/contrib/eco/ir_patch_gen.h"
+#include "xls/contrib/eco/mcs.h"
 
 namespace {
 
