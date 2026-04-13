@@ -978,6 +978,105 @@ TEST_F(ArithSimplificationPassTest, SModOf0) {
   EXPECT_THAT(f->return_value(), m::Literal(0));
 }
 
+TEST_F(ArithSimplificationPassTest, UDivByVariablePowerOfTwo) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue k = fb.Param("k", p->GetBitsType(8));
+  BValue one = fb.Literal(UBits(1, 8));
+  BValue divisor = fb.Shll(one, k);
+  fb.UDiv(x, divisor);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::UGe(),
+                        {m::Shrl(m::Param("x"), m::Param("k")), m::Literal()}));
+}
+
+TEST_F(ArithSimplificationPassTest, UDivByShiftedVariablePowerOfTwo) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue k = fb.Param("k", p->GetBitsType(8));
+  BValue four = fb.Literal(UBits(4, 8));
+  BValue divisor = fb.Shll(four, k);
+  fb.UDiv(x, divisor);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::UGe(),
+                {m::Shrl(m::Concat(m::Literal(0),
+                                   m::BitSlice(m::Param("x"), /*start=*/2,
+                                               /*width=*/6)),
+                         m::Param("k")),
+                 m::Literal(Bits::AllOnes(8))}));
+}
+
+TEST_F(ArithSimplificationPassTest, SDivByVariablePowerOfTwo) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue k = fb.Param("k", p->GetBitsType(8));
+  BValue one = fb.Literal(UBits(1, 8));
+  BValue divisor = fb.Shll(one, k);
+  fb.SDiv(x, divisor);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::PrioritySelect());
+}
+
+TEST_F(ArithSimplificationPassTest, SDivByShiftedVariablePowerOfTwo) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue k = fb.Param("k", p->GetBitsType(8));
+  BValue four = fb.Literal(UBits(4, 8));
+  BValue divisor = fb.Shll(four, k);
+  fb.SDiv(x, divisor);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::PrioritySelect());
+}
+
+TEST_F(ArithSimplificationPassTest, UDivByDecode) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue k = fb.Param("k", p->GetBitsType(8));
+  BValue divisor = fb.Decode(k, /*width=*/8);
+  fb.UDiv(x, divisor);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::UGe(),
+                        {m::Shrl(m::Param("x"), m::Param("k")), m::Literal()}));
+}
+
+TEST_F(ArithSimplificationPassTest, SDivByDecode) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue k = fb.Param("k", p->GetBitsType(8));
+  BValue divisor = fb.Decode(k, /*width=*/8);
+  fb.SDiv(x, divisor);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::PrioritySelect());
+}
+
 TEST_F(ArithSimplificationPassTest, UDivBy4) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
