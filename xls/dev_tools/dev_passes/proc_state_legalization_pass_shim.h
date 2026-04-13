@@ -22,6 +22,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/proc_state_legalization_pass.h"
+
 namespace xls {
 
 // Compatibility shim to use the scheduling pass 'ProcStateLegalizationPass' in
@@ -31,6 +32,13 @@ class ProcStateLegalizationPassShim : public OptimizationPass {
   static constexpr std::string_view kName = "proc_state_legalization_shim";
   ProcStateLegalizationPassShim()
       : OptimizationPass(kName, "Proc State Legalization Pass") {}
+  ~ProcStateLegalizationPassShim() override = default;
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,

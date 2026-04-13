@@ -195,11 +195,33 @@ class NarrowingPass : public OptimizationFunctionBasePass {
     // Use the select context controlled by the optimization options.
     kRangeWithOptionalContext,
   };
+  template <typename Sink>
+  void AbslStringify(Sink& sink, AnalysisType e) {
+    switch (e) {
+      case AnalysisType::kTernary:
+        sink.Append("Ternary");
+        break;
+      case AnalysisType::kRange:
+        sink.Append("Range");
+        break;
+      case AnalysisType::kRangeWithContext:
+        sink.Append("Context");
+        break;
+      case AnalysisType::kRangeWithOptionalContext:
+        sink.Append("OptionalContext");
+        break;
+    }
+  }
+
   static constexpr std::string_view kName = "narrow";
   explicit NarrowingPass(AnalysisType analysis = AnalysisType::kRange)
       : OptimizationFunctionBasePass(ConfiguredName(analysis), "Narrowing"),
         analysis_(analysis) {}
   ~NarrowingPass() override = default;
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   AnalysisType analysis_;

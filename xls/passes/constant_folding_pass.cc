@@ -35,6 +35,7 @@
 namespace xls {
 
 namespace {
+
 // Check if we can do constant folding on this node.
 bool NodeIsConstantFoldable(Node* node, QueryEngine& query_engine) {
   if (node->users().empty() && !node->function_base()->HasImplicitUse(node)) {
@@ -58,6 +59,7 @@ bool NodeIsConstantFoldable(Node* node, QueryEngine& query_engine) {
     return query_engine.IsFullyKnown(operand);
   });
 }
+
 }  // namespace
 
 absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(

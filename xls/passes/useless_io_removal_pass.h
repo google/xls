@@ -79,6 +79,12 @@ class UselessIORemovalPass : public OptimizationPass {
       : OptimizationPass(kName, "Remove useless send/receive") {}
   ~UselessIORemovalPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,

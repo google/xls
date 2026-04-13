@@ -116,7 +116,12 @@ class ConstantFoldingPass : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "const_fold";
   ConstantFoldingPass()
       : OptimizationFunctionBasePass(kName, "Constant folding") {}
-  ~ConstantFoldingPass() override = default;
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

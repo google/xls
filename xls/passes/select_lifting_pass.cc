@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -28,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -1087,6 +1089,15 @@ absl::StatusOr<TransformationResult> LiftSelects(
 }
 
 }  // namespace
+
+RedundancyGuard SelectLiftingPass::GetRedundancyGuard(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return RedundancyGuard::CanSkip(
+      absl::StrFormat("O%d,delay_%s", options.opt_level,
+                      options.delay_estimator ? options.delay_estimator->name()
+                                              : "not_estimated"));
+}
 
 absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,

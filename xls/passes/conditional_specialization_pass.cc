@@ -932,6 +932,16 @@ static constexpr int64_t kBddGcThreshold = 5'000'000'000;  // 5GB
 
 }  // namespace
 
+RedundancyGuard ConditionalSpecializationPass::GetRedundancyGuard(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return RedundancyGuard::CanSkip(absl::StrFormat(
+      "%s,%s,%s", use_bdd_ ? "bdd" : "no_bdd",
+      options.eliminate_noop_next ? "drop_noop_next" : "keep_noop_next",
+      options.optimize_for_best_case_throughput ? "opt_throughput"
+                                                : "opt_area"));
+}
+
 absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {

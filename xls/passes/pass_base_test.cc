@@ -23,11 +23,13 @@
 #include <utility>
 #include <vector>
 
+#include "google/protobuf/duration.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
@@ -58,9 +60,6 @@ namespace {
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
-using ::testing::ElementsAre;
-using ::testing::Eq;
-using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
@@ -842,6 +841,116 @@ TEST_F(PassBaseTest, MetricsTest) {
                       operands_replaced: 0
                       operands_removed: 0
                     }
+                  }
+                }
+              )pb")));
+}
+
+class MutatingIdempotentPass : public OptimizationFunctionBasePass {
+ public:
+  explicit MutatingIdempotentPass(int64_t nodes_to_add)
+      : OptimizationFunctionBasePass("mutating_idempotent",
+                                     "Mutating Idempotent Pass"),
+        nodes_to_add_(nodes_to_add) {}
+  ~MutatingIdempotentPass() override = default;
+
+  bool IsIdempotent() const override { return true; }
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip(
+        absl::StrCat("nodes_to_add=", nodes_to_add_));
+  }
+
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const OptimizationPassOptions& options,
+      PassResults* results, OptimizationContext& context) const override {
+    bool changed = false;
+    for (int64_t i = 0; i < nodes_to_add_; ++i) {
+      std::string node_name = absl::StrCat("added_node_", i);
+      if (f->HasNode(node_name)) {
+        continue;
+      }
+      XLS_RETURN_IF_ERROR(f->MakeNodeWithName<Literal>(
+                               SourceInfo(), Value(UBits(0, 32)), node_name)
+                              .status());
+      changed = true;
+    }
+    return changed;
+  }
+
+  int64_t nodes_to_add_;
+};
+
+TEST_F(PassBaseTest, IdempotentPassTracking) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK(fb.Build());
+
+  OptimizationCompoundPass opt("opt", "opt");
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/1);
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/1);
+  opt.Add<NodeAdderPass>(/*nodes_to_add=*/1);
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/1);
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/1);
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/0);
+  opt.Add<MutatingIdempotentPass>(/*nodes_to_add=*/2);
+
+  PassResults results;
+  OptimizationContext context;
+  OptimizationPassOptions options;
+  EXPECT_THAT(opt.Run(p.get(), options, &results, context), IsOkAndHolds(true));
+
+  PassPipelineMetricsProto metrics_proto = results.ToProto();
+  EXPECT_THAT(metrics_proto,
+              proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+                total_passes: 8
+                pass_metrics {
+                  pass_name: "opt"
+                  changed: 1
+                  pass_numbers: 0
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 1
+                    pass_numbers: 1
+                  }
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 0
+                    pass_numbers: 2
+                    skip_reason: SKIP_REASON_KNOWN_REDUNDANT
+                  }
+                  nested_results {
+                    pass_name: "node_adder_1"
+                    changed: 1
+                    pass_numbers: 3
+                  }
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 0
+                    pass_numbers: 4
+                    skip_reason: SKIP_REASON_NOT_SKIPPED
+                  }
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 0
+                    pass_numbers: 5
+                    skip_reason: SKIP_REASON_KNOWN_REDUNDANT
+                  }
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 0  # This version hasn't run, so we don't skip it -
+                                # but it won't mutate the IR.
+                    pass_numbers: 6
+                    skip_reason: SKIP_REASON_NOT_SKIPPED
+                  }
+                  nested_results {
+                    pass_name: "mutating_idempotent"
+                    changed: 1  # This version will actually mutate the IR.
+                    pass_numbers: 7
                   }
                 }
               )pb")));

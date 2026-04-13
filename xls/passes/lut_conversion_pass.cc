@@ -352,6 +352,12 @@ absl::StatusOr<bool> SimplifyNode(
 
 }  // namespace
 
+RedundancyGuard LutConversionPass::GetRedundancyGuard(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return RedundancyGuard::CanSkip(absl::StrFormat("O%d", options.opt_level));
+}
+
 absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {

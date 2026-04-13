@@ -145,6 +145,12 @@ class SparsifySelectPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "Sparsify Select") {}
   ~SparsifySelectPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   // Sparsify selects using range analysis.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

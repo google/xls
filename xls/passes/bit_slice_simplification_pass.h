@@ -156,6 +156,10 @@ class BitSliceSimplificationPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "Bit-slice simplification") {}
   ~BitSliceSimplificationPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

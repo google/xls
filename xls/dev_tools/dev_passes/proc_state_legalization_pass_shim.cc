@@ -22,6 +22,7 @@
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
+
 absl::StatusOr<bool> ProcStateLegalizationPassShim::RunInternal(
     Package* p, const OptimizationPassOptions& options,
     PassResults* pass_results, OptimizationContext& context) const {

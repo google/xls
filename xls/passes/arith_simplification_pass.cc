@@ -2263,6 +2263,12 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
 
 }  // namespace
 
+RedundancyGuard ArithSimplificationPass::GetRedundancyGuard(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return RedundancyGuard::CanSkip(absl::StrFormat("O%d", options.opt_level));
+}
+
 absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {

@@ -21,6 +21,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+
 namespace xls {
 
 class LiteralizeZeroBits final : public OptimizationFunctionBasePass {
@@ -28,6 +29,13 @@ class LiteralizeZeroBits final : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "literalize_zero_bits";
   LiteralizeZeroBits()
       : OptimizationFunctionBasePass(kName, "Literalize zero bits") {}
+  ~LiteralizeZeroBits() override = default;
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

@@ -2252,6 +2252,21 @@ absl::StatusOr<AliasingQueryEngine> GetQueryEngine(
 
 }  // namespace
 
+RedundancyGuard NarrowingPass::GetRedundancyGuard(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  std::vector<std::string> config_parts;
+  config_parts.reserve(3);
+  config_parts.push_back(absl::StrFormat("%v", RealAnalysis(options)));
+  config_parts.push_back(absl::StrFormat("O%d", options.opt_level));
+  if (options.convert_array_index_to_select.has_value() &&
+      options.convert_array_index_to_select.value() > 0) {
+    config_parts.push_back(absl::StrFormat(
+        "small_index=%d", options.convert_array_index_to_select.value()));
+  }
+  return RedundancyGuard::CanSkip(absl::StrJoin(config_parts, ","));
+}
+
 absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {

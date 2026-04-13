@@ -27,6 +27,7 @@
 #include "xls/passes/pass_base.h"
 
 namespace xls {
+
 absl::StatusOr<bool> LiteralizeZeroBits::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {

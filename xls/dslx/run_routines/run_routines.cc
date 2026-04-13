@@ -243,6 +243,12 @@ class QuickCheckProveAssertsNotFiredPass final
                                      "add asserts to quickcheck goal") {}
   ~QuickCheckProveAssertsNotFiredPass() final = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* fb, const OptimizationPassOptions& options,

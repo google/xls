@@ -175,6 +175,12 @@ class ProcStateProvenanceNarrowingPass : public OptimizationProcPass {
       : OptimizationProcPass(kName, "Proc State Provenance Narrowing") {}
   ~ProcStateProvenanceNarrowingPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   absl::StatusOr<bool> RunOnProcInternal(
       Proc* proc, const OptimizationPassOptions& options, PassResults* results,

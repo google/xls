@@ -184,6 +184,12 @@ class ReassociationPass : public OptimizationFunctionBasePass {
   ReassociationPass() : OptimizationFunctionBasePass(kName, "Reassociation") {}
   ~ReassociationPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

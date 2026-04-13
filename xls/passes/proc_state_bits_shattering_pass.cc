@@ -24,6 +24,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/reversed.hpp"
 #include "xls/common/status/status_macros.h"
@@ -200,6 +201,13 @@ absl::StatusOr<bool> MaybeSplitStateElements(
 }
 
 }  // namespace
+
+RedundancyGuard ProcStateBitsShatteringPass::GetRedundancyGuard(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return RedundancyGuard::CanSkip(absl::StrFormat(
+      "split_selects=%d", options.split_next_value_selects.value_or(0)));
+}
 
 absl::StatusOr<bool> ProcStateBitsShatteringPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,

@@ -144,7 +144,14 @@ class DataflowSimplificationPass : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "dataflow";
   explicit DataflowSimplificationPass()
       : OptimizationFunctionBasePass(kName, "Dataflow Optimization") {}
+
   ~DataflowSimplificationPass() override = default;
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

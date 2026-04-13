@@ -173,6 +173,10 @@ class CsePass : public OptimizationFunctionBasePass {
         common_literals_(common_literals) {}
   ~CsePass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

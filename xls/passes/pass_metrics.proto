@@ -19,6 +19,14 @@ package xls;
 import "google/protobuf/duration.proto";
 import "xls/ir/transform_metrics.proto";
 
+// Why a pass was skipped.
+enum PassSkipReasonProto {
+  SKIP_REASON_NOT_SKIPPED = 0;
+  SKIP_REASON_KNOWN_REDUNDANT = 1;
+  SKIP_REASON_BISECT_LIMIT = 2;
+  SKIP_REASON_SKIP_PASSES = 3;
+}
+
 // Metrics for a single pass.
 message PassMetricsProto {
   // The short name of the pass (without configuration information).
@@ -38,6 +46,9 @@ message PassMetricsProto {
   // What pass number this was run at. Fixedpoint will have one for each time it
   // restarts.
   repeated int64 pass_numbers = 7;
+
+  // Why the pass was skipped, if it was.
+  optional PassSkipReasonProto skip_reason = 8;
 }
 
 // Overall metrics for a pass pipeline.

@@ -24,8 +24,10 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -76,6 +78,12 @@ struct PassOptionsBase {
 
 class PassResults;
 
+enum class SkipReason {
+  kKnownRedundant,
+  kBisectLimit,
+  kSkipPasses,
+};
+
 // An object containing information about the invocation of a pass (single call
 // to PassBase::Run).
 class PassInvocation {
@@ -95,11 +103,13 @@ class PassInvocation {
   absl::Duration& run_duration() { return run_duration_; }
   std::string_view pass_name() const { return pass_name_; }
   bool ir_changed() const { return ir_changed_; }
+  std::optional<SkipReason> skip_reason() const { return skip_reason_; }
   int64_t fixed_point_iterations() const { return fixed_point_iterations_; }
   absl::Span<int64_t const> all_pass_numbers() const { return pass_numbers_; }
   // The initial pass number.
   int64_t pass_number() const { return pass_numbers_.front(); }
   void set_ir_changed(bool ir_changed) { ir_changed_ = ir_changed; }
+  void set_skipped(SkipReason reason) { skip_reason_ = reason; }
   void IncrementFixedPointIterations() { fixed_point_iterations_++; }
   PassInvocation& parent() {
     CHECK(!is_root()) << "Attempting to get parent of root invocation.";
@@ -119,6 +129,9 @@ class PassInvocation {
 
   // Whether the IR was changed by the pass.
   bool ir_changed_ = false;
+
+  // Whether the pass was skipped.
+  std::optional<SkipReason> skip_reason_ = std::nullopt;
 
   // The run duration of the pass.
   absl::Duration run_duration_;
@@ -189,6 +202,14 @@ class PassResults {
   int64_t total_invocations() const { return total_invocations_; }
   int64_t finished_invocations() const { return finished_invocations_; }
 
+  bool IsKnownRedundant(std::string_view pass_signature) {
+    return known_redundant_passes_.contains(pass_signature);
+  }
+  void AddKnownRedundantPass(std::string pass_signature) {
+    known_redundant_passes_.insert(std::move(pass_signature));
+  }
+  void ClearKnownRedundantPasses() { known_redundant_passes_.clear(); }
+
  private:
   // This vector contains and entry for each invocation of each pass.
   std::unique_ptr<PassInvocation> root_invocation_;
@@ -204,19 +225,65 @@ class PassResults {
   // numbering scheme of --ir_dump_path since it doesn't match with what
   // --passes_bisect_limit and other logging says the pass numbering is.
   int64_t finished_invocations_ = 0;
+
+  // Set of invocation signatures for passes that have been run and are known
+  // to not change the IR since the last time the IR was changed.
+  absl::flat_hash_set<std::string> known_redundant_passes_;
+};
+
+template <typename OptionsT, typename... ContextT>
+class PassBase;
+
+// Defines if a pass can be skipped if it's shown to not transform IR.
+class RedundancyGuard {
+ public:
+  // Never skip this pass due to redundancy.
+  static RedundancyGuard Never() { return RedundancyGuard(NeverSkipT{}); }
+
+  // If IR is unchanged from the previous run of this pass that made no change,
+  // then skip this pass. Full signature is just pass name.
+  static RedundancyGuard CanSkip() { return RedundancyGuard(CanSkipT{}); }
+
+  // If IR is unchanged from the previous run of this pass with the same
+  // `config` that made no change, then skip this pass. Full signature is
+  // 'pass_name<config>'.
+  static RedundancyGuard CanSkip(std::string config) {
+    return RedundancyGuard(CanSkipT{.config = std::move(config)});
+  }
+
+  // Get the signature to use for redundancy tracking.
+  template <typename OptionsT, typename... ContextT>
+  std::optional<std::string> GetSignature(
+      const PassBase<OptionsT, ContextT...>* pass) const;
+
+ private:
+  struct NeverSkipT : public std::monostate {};
+  struct CanSkipT {
+    std::optional<std::string> config;
+  };
+  using Condition = std::variant<NeverSkipT, CanSkipT>;
+  explicit RedundancyGuard(Condition condition)
+      : condition_(std::move(condition)) {}
+  Condition condition_;
+};
+
+struct PassInfo {
+  std::string_view name;
+  std::optional<std::string> redundancy_signature;
+  bool is_idempotent = false;
 };
 
 // RAII helper for holding pass invocation information. It holds and tracks pass
 // results and also sets the various pprof tags for the pass.
 class ScopedPassInvocation {
  public:
-  ScopedPassInvocation(PassResults* results, std::string_view pass_name,
-                       Package* ir)
+  ScopedPassInvocation(PassResults* results, PassInfo pass_info, Package* ir)
       : results_(results),
-        invocation_(results->PushInvocation(pass_name)),
+        invocation_(results->PushInvocation(pass_info.name)),
+        pass_info_(std::move(pass_info)),
         ir_(ir),
         before_metrics_(ir->transform_metrics()) {
-    RecordPassEntry(pass_name);
+    RecordPassEntry(pass_info_.name);
     RecordPassAnnotation(pass_profile::kNodeCountBefore, ir->GetNodeCount());
   }
   ~ScopedPassInvocation() {
@@ -229,6 +296,15 @@ class ScopedPassInvocation {
     if (invocation_.ir_changed()) {
       VLOG(1) << absl::StrFormat("Metrics: %s",
                                  invocation_.metrics().ToString());
+      results_->ClearKnownRedundantPasses();
+      if (pass_info_.is_idempotent &&
+          pass_info_.redundancy_signature.has_value()) {
+        results_->AddKnownRedundantPass(*pass_info_.redundancy_signature);
+      }
+    } else {
+      if (pass_info_.redundancy_signature.has_value()) {
+        results_->AddKnownRedundantPass(*pass_info_.redundancy_signature);
+      }
     }
     RecordPassAnnotation(pass_profile::kNodeCountAfter, ir_->GetNodeCount());
     ExitPass(changed_);
@@ -243,6 +319,7 @@ class ScopedPassInvocation {
     changed_ = changed;
     invocation_.set_ir_changed(changed);
   }
+  void set_skipped(SkipReason reason) { invocation_.set_skipped(reason); }
   class ChangedRef {
    public:
     ChangedRef(ScopedPassInvocation& invocation, bool& changed)
@@ -263,6 +340,7 @@ class ScopedPassInvocation {
  private:
   PassResults* results_;
   PassInvocation& invocation_;
+  PassInfo pass_info_;
   Package* ir_;
   bool changed_ = false;
   TransformMetrics before_metrics_;
@@ -353,7 +431,17 @@ class PassBase {
       return false;
     }
 
-    ScopedPassInvocation invocation(results, base_short_name, ir);
+    std::optional<std::string> redundancy_signature =
+        GetRedundancyGuard(options, context...).GetSignature(this);
+
+    ScopedPassInvocation invocation(
+        results,
+        PassInfo{
+            .name = base_short_name,
+            .redundancy_signature = redundancy_signature,
+            .is_idempotent = IsIdempotent(),
+        },
+        ir);
     VLOG(2) << absl::StreamFormat("Running %s [pass #%d]", long_name(),
                                   invocation->pass_number());
     VLOG(3) << "Before:";
@@ -365,10 +453,17 @@ class PassBase {
     // do not check it in optimized builds.
     std::string ir_before = ir->DumpIr();
 #endif
-    XLS_ASSIGN_OR_RETURN(
-        invocation.changed(), RunInternal(ir, options, results, context...),
-        _ << "Running pass #" << invocation->pass_number() << ": "
-          << long_name() << " [short: " << short_name() << "]");
+    if (redundancy_signature.has_value() &&
+        results->IsKnownRedundant(*redundancy_signature)) {
+      VLOG(1) << "Skipping known-redundant pass: " << short_name();
+      invocation.set_ir_changed(false);
+      invocation.set_skipped(SkipReason::kKnownRedundant);
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          invocation.changed(), RunInternal(ir, options, results, context...),
+          _ << "Running pass #" << invocation->pass_number() << ": "
+            << long_name() << " [short: " << short_name() << "]");
+    }
     VLOG(3) << absl::StreamFormat("After [changed = %d]:",
                                   invocation.changed());
     XLS_VLOG_LINES(3, ir->DumpIr());
@@ -407,6 +502,22 @@ class PassBase {
           FormatDuration(invariant_checker_stopwatch.GetElapsedTime()));
     }
 #ifdef DEBUG
+    if (invocation.skip_reason() == SkipReason::kKnownRedundant) {
+      // The pass was skipped because it was known to be redundant - so to
+      // verify this, we should actually run the pass and make sure nothing
+      // changed.
+      XLS_ASSIGN_OR_RETURN(
+          bool real_pass_changed, RunInternal(ir, options, results, context...),
+          _ << "Verifying pass #" << invocation->pass_number() << " unchanged: "
+            << long_name() << " [short: " << short_name() << "]");
+      if (real_pass_changed) {
+        return absl::InternalError(
+            absl::StrFormat("Pass %s appeared redundant, but IR is "
+                            "changed:\n\n[Before]\n%s  !=\n[after]\n%s",
+                            short_name(), ir_before, ir->DumpIr()));
+      }
+    }
+
     std::string ir_after = ir->DumpIr();
     if (changed) {
       if (ir_before == ir_after) {
@@ -423,11 +534,24 @@ class PassBase {
       }
     }
 #endif
+
     return invocation.changed();
   }
 
   // Returns true if this is a compound pass.
   virtual bool IsCompound() const { return false; }
+
+  // Returns true if this pass is idempotent (i.e., if it is run twice in a
+  // row without the IR changing in between, the second run will not change the
+  // IR).
+  virtual bool IsIdempotent() const { return false; }
+
+  // Returns a RedundancyGuard describing if this pass can be skipped if the IR
+  // is unchanged.
+  virtual RedundancyGuard GetRedundancyGuard(const OptionsT& options,
+                                             ContextT&... context) const {
+    return RedundancyGuard::Never();
+  }
 
   // Adds an invariant checker to the pass. The invariant checker is
   // run after the pass if it changed anything. For compound passes they are
@@ -477,6 +601,20 @@ class PassBase {
 
   friend class WrapperPassBase<OptionsT, ContextT...>;
 };
+
+template <typename OptionsT, typename... ContextT>
+std::optional<std::string> RedundancyGuard::GetSignature(
+    const PassBase<OptionsT, ContextT...>* pass) const {
+  if (std::holds_alternative<NeverSkipT>(condition_)) {
+    return std::nullopt;
+  }
+  CHECK(std::holds_alternative<CanSkipT>(condition_));
+  if (!std::get<CanSkipT>(condition_).config.has_value()) {
+    return absl::StrCat(pass->short_name());
+  }
+  return absl::StrCat(pass->short_name(), "<",
+                      *std::get<CanSkipT>(condition_).config, ">");
+}
 
 template <typename OptionsT, typename... ContextT>
 class WrapperPassBase : public PassBase<OptionsT, ContextT...> {
@@ -605,6 +743,21 @@ class CompoundPassBase : public PassBase<OptionsT, ContextT...> {
 
   bool IsCompound() const override { return true; }
 
+  RedundancyGuard GetRedundancyGuard(const OptionsT& options,
+                                     ContextT&... context) const override {
+    std::string config;
+    for (const auto& pass : passes_) {
+      std::optional<std::string> child_sig =
+          pass->GetRedundancyGuard(options, context...)
+              .GetSignature(pass.get());
+      if (!child_sig.has_value()) {
+        return RedundancyGuard::Never();
+      }
+      absl::StrAppend(&config, *child_sig, ",");
+    }
+    return RedundancyGuard::CanSkip(std::move(config));
+  }
+
  protected:
   // Internal implementation of Run for compound passes. Invoked when a compound
   // pass is nested within another compound pass. Enables passing of invariant
@@ -639,6 +792,8 @@ class FixedPointCompoundPassBase
     *res.mutable_fixedpoint()->mutable_long_name() = this->long_name();
     return res;
   }
+
+  bool IsIdempotent() const override { return true; }
 
   absl::StatusOr<bool> RunNested(Package* ir, const OptionsT& options,
                                  PassResults* results,

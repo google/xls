@@ -146,6 +146,14 @@ class DeadCodeEliminationPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "Dead Code Elimination") {}
   ~DeadCodeEliminationPass() override = default;
 
+  bool IsIdempotent() const override { return true; }
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   // Iterate all nodes, mark and eliminate the unvisited nodes.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

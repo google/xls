@@ -191,6 +191,12 @@ class ProcStateOptimizationPass : public OptimizationProcPass {
       : OptimizationProcPass(kName, "Proc State Optimization") {}
   ~ProcStateOptimizationPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   absl::StatusOr<bool> RunOnProcInternal(
       Proc* proc, const OptimizationPassOptions& options, PassResults* results,

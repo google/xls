@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 #include <queue>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -1666,8 +1667,7 @@ ResourceSharingPass::SelectFoldingActions(
     VisibilityEstimator* visibility_estimator) const {
   // Pick the heuristic to use
   ResourceSharingPass::ProfitabilityGuard selection_heuristic =
-      options.force_resource_sharing ? ProfitabilityGuard::kAlways
-                                     : profitability_guard_;
+      RealProfitabilityGuard(options);
 
   // Select the folding actions to perform
   XLS_ASSIGN_OR_RETURN(
@@ -1965,6 +1965,16 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
   }
 
   return modified;
+}
+
+RedundancyGuard ResourceSharingPass::GetRedundancyGuard(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  if (!options.enable_resource_sharing) {
+    return RedundancyGuard::CanSkip("disabled");
+  }
+  return RedundancyGuard::CanSkip(
+      absl::StrFormat("%v,%v", RealProfitabilityGuard(options), config_));
 }
 
 // Check if we should consider the node given as input for folding.

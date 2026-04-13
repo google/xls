@@ -189,6 +189,10 @@ class SelectSimplificationPassBase : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(short_name, name),
         range_analysis_(with_range_analysis) {}
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results, OptimizationContext& context) const override;

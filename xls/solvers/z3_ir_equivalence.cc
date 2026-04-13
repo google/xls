@@ -138,6 +138,14 @@ class RemoveAssertsPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(
             "remove_asserts", "remove asserts for z3 equivalence checking") {}
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
+  bool IsIdempotent() const override { return true; }
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
@@ -153,6 +161,7 @@ class RemoveAssertsPass : public OptimizationFunctionBasePass {
     return changed;
   }
 };
+
 }  // namespace
 absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
                                                  bool ignore_asserts,

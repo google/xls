@@ -167,6 +167,10 @@ class StrengthReductionPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "Strength Reduction") {}
   ~StrengthReductionPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   // Run all registered passes in order of registration.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

@@ -96,6 +96,10 @@ class NextValueOptimizationPass : public OptimizationProcPass {
         max_split_depth_(max_split_depth) {}
   ~NextValueOptimizationPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   const int64_t max_split_depth_;
   absl::StatusOr<bool> RunOnProcInternal(

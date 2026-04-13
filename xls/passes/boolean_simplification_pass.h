@@ -145,6 +145,12 @@ class BooleanSimplificationPass : public OptimizationFunctionBasePass {
   BooleanSimplificationPass()
       : OptimizationFunctionBasePass(kName, "boolean simplification") {}
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

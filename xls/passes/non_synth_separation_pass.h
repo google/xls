@@ -163,6 +163,12 @@ class NonSynthSeparationPass : public OptimizationPass {
       : OptimizationPass(kName, "Non-Synthesizable Separation") {}
   ~NonSynthSeparationPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,

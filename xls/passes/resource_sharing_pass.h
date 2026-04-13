@@ -186,6 +186,22 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
     const int64_t max_path_count_for_edge_in_general_visibility_analysis;
     const int64_t max_path_count_for_bdd_engine;
   };
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const Config& config) {
+    absl::Format(&sink,
+                 "min_area_savings=%f,"
+                 "max_delay_spread_squared=%f,"
+                 "max_delay_increase=%d,"
+                 "max_delay_increase_per_fold=%d,"
+                 "max_edges_to_handle=%d,"
+                 "max_path_count_for_general_visibility_analysis=%d,"
+                 "max_path_count_for_bdd_engine=%d",
+                 config.min_area_savings, config.max_delay_spread_squared,
+                 config.max_delay_increase, config.max_delay_increase_per_fold,
+                 config.max_edges_to_handle,
+                 config.max_path_count_for_edge_in_general_visibility_analysis,
+                 config.max_path_count_for_bdd_engine);
+  }
 
   // TODO: area vs. delay trade-off heuristics in resource sharing should be
   // queried from area/delay models instead of being hard-coded on this pass.
@@ -245,6 +261,23 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
     kAlways,  // This heuristic applies resource sharing whenever possible. This
               // is used for testing only.
   };
+  template <typename Sink>
+  void AbslStringify(Sink& sink, ProfitabilityGuard e) {
+    switch (e) {
+      case ProfitabilityGuard::kInDegree:
+        sink.Append("inDegree");
+        break;
+      case ProfitabilityGuard::kCliques:
+        sink.Append("cliques");
+        break;
+      case ProfitabilityGuard::kRandom:
+        sink.Append("random");
+        break;
+      case ProfitabilityGuard::kAlways:
+        sink.Append("always");
+        break;
+    }
+  }
 
   // This function computes the set of mutual exclusive pairs of instructions.
   // Each pair of instruction is associated with the select (of any kind) that
@@ -352,6 +385,10 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
           ResourceSharingPass::kDefaultMaxPathCountForBddEngine,
   };
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
@@ -380,6 +417,14 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   virtual bool ShouldTargetNodeForMutualExclusion(Node* node) const;
 
  private:
+  ProfitabilityGuard RealProfitabilityGuard(
+      const OptimizationPassOptions& options) const {
+    if (options.force_resource_sharing) {
+      return ProfitabilityGuard::kAlways;
+    }
+    return profitability_guard_;
+  }
+
   ProfitabilityGuard profitability_guard_;
   Config config_;
 };

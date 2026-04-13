@@ -148,6 +148,10 @@ class ProcStateBitsShatteringPass : public OptimizationProcPass {
       : OptimizationProcPass(kName, "Proc State Bits Shattering") {}
   ~ProcStateBitsShatteringPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   absl::StatusOr<bool> RunOnProcInternal(
       Proc* proc, const OptimizationPassOptions& options, PassResults* results,

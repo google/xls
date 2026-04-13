@@ -101,6 +101,14 @@ class DeadFunctionEliminationPass : public OptimizationPass {
       : OptimizationPass(kName, "Dead Function Elimination") {}
   ~DeadFunctionEliminationPass() override = default;
 
+  bool IsIdempotent() const override { return true; }
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   // Iterate all nodes and mark and eliminate unreachable functions.
   absl::StatusOr<bool> RunInternal(Package* p,

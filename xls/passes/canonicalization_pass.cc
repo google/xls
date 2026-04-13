@@ -160,14 +160,12 @@ absl::StatusOr<bool> MaybeCanonicalizeClamp(Node* n,
   return false;
 }
 
-}  // namespace
-
 // CanonicalizeNodes performs simple canonicalization of expressions,
 // such as moving a literal in an associative expression to the right.
 // Being able to rely on the shape of such nodes greatly simplifies
 // the implementation of transformation passes, as only one pattern needs
 // to be matched, instead of two.
-static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
+absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   FunctionBase* f = n->function_base();
   StatelessQueryEngine query_engine;
 
@@ -350,6 +348,8 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
 
   return false;
 }
+
+}  // namespace
 
 absl::StatusOr<bool> CanonicalizationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,

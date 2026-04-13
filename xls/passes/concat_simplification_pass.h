@@ -191,6 +191,10 @@ class ConcatSimplificationPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "Concat simplification") {}
   ~ConcatSimplificationPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

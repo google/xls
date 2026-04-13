@@ -169,6 +169,14 @@ class CanonicalizationPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "Canonicalization") {}
   ~CanonicalizationPass() override = default;
 
+  bool IsIdempotent() const override { return true; }
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

@@ -598,6 +598,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
   absl::flat_hash_map<Node*, std::vector<Node*>> components_;
   bool changed_ = false;
 };
+
 }  // namespace
 
 absl::StatusOr<bool> ArrayUntuplePass::RunOnFunctionBaseInternal(

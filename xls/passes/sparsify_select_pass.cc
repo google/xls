@@ -37,10 +37,11 @@
 #include "xls/passes/query_engine.h"
 
 namespace xls {
+namespace {
 
 // Returns a vector of the intervals contained within the given `IntervalSet`,
 // sorted from smallest to largest in terms of number of points covered.
-static std::vector<Interval> IntervalsSortedBySize(IntervalSet set) {
+std::vector<Interval> IntervalsSortedBySize(IntervalSet set) {
   set.Normalize();
   std::vector<Interval> intervals(set.Intervals().begin(),
                                   set.Intervals().end());
@@ -65,8 +66,8 @@ static std::vector<Interval> IntervalsSortedBySize(IntervalSet set) {
 //
 // TODO(taktoa): build a binary search tree based on interval lower bounds
 // rather than a linear chain.
-static absl::Status SparsifySelect(FunctionBase* f, Select* select,
-                                   const IntervalSet& selector_intervals) {
+absl::Status SparsifySelect(FunctionBase* f, Select* select,
+                            const IntervalSet& selector_intervals) {
   // As we build up the select chain, this represents the rest of the chain,
   // i.e.: what we should use when the current select we are adding is false.
   Node* other = nullptr;
@@ -149,6 +150,8 @@ static absl::Status SparsifySelect(FunctionBase* f, Select* select,
 
   return absl::OkStatus();
 }
+
+}  // namespace
 
 absl::StatusOr<bool> SparsifySelectPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,

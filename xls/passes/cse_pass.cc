@@ -23,6 +23,7 @@
 #include <cstring>
 #include <iterator>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -456,6 +457,13 @@ absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext& context,
   }
 
   return true;
+}
+
+RedundancyGuard CsePass::GetRedundancyGuard(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return RedundancyGuard::CanSkip(common_literals_ ? "literals"
+                                                   : "no_literals");
 }
 
 absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(

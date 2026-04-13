@@ -153,6 +153,12 @@ class RamRewritePass : public OptimizationPass {
 
   ~RamRewritePass() override = default;
 
+  bool IsIdempotent() const override { return true; }
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,

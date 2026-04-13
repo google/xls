@@ -157,6 +157,12 @@ class ProcStateArrayFlatteningPass : public OptimizationProcPass {
       : OptimizationProcPass(kName, "Proc State Array Flattening") {}
   ~ProcStateArrayFlatteningPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   absl::StatusOr<bool> RunOnProcInternal(
       Proc* proc, const OptimizationPassOptions& options, PassResults* results,

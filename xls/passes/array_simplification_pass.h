@@ -176,6 +176,12 @@ class ArraySimplificationPass : public OptimizationFunctionBasePass {
   explicit ArraySimplificationPass()
       : OptimizationFunctionBasePass(kName, "Array Simplification") {}
 
+  bool IsIdempotent() const override { return true; }
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

@@ -15,7 +15,6 @@
 #ifndef XLS_PASSES_BDD_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_BDD_SIMPLIFICATION_PASS_H_
 
-#include <string_view>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
@@ -90,6 +89,10 @@ class BddSimplificationPass : public OptimizationFunctionBasePass {
   explicit BddSimplificationPass()
       : OptimizationFunctionBasePass(kName, "BDD-based Simplification") {}
   ~BddSimplificationPass() override = default;
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
 
  protected:
   // Run all registered passes in order of registration.

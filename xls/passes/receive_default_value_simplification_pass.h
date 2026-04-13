@@ -117,6 +117,12 @@ class ReceiveDefaultValueSimplificationPass : public OptimizationProcPass {
       : OptimizationProcPass(kName, "Receive default value simplification") {}
   ~ReceiveDefaultValueSimplificationPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
  protected:
   absl::StatusOr<bool> RunOnProcInternal(
       Proc* proc, const OptimizationPassOptions& options, PassResults* results,

@@ -64,6 +64,11 @@ class ConditionalSpecializationPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(ConfiguredName(use_bdd),
                                      "Conditional specialization"),
         use_bdd_(use_bdd) {}
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
   ~ConditionalSpecializationPass() override = default;
 
  protected:

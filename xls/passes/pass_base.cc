@@ -15,6 +15,7 @@
 #include "xls/passes/pass_base.h"
 
 #include <cstdint>
+#include <optional>
 
 #include "google/protobuf/duration.pb.h"
 #include "absl/time/time.h"
@@ -24,10 +25,25 @@
 namespace xls {
 namespace {
 
+PassSkipReasonProto ToSkipReasonProto(std::optional<SkipReason> skip_reason) {
+  if (!skip_reason.has_value()) {
+    return PassSkipReasonProto::SKIP_REASON_NOT_SKIPPED;
+  }
+  switch (*skip_reason) {
+    case SkipReason::kKnownRedundant:
+      return PassSkipReasonProto::SKIP_REASON_KNOWN_REDUNDANT;
+    case SkipReason::kBisectLimit:
+      return PassSkipReasonProto::SKIP_REASON_BISECT_LIMIT;
+    case SkipReason::kSkipPasses:
+      return PassSkipReasonProto::SKIP_REASON_SKIP_PASSES;
+  }
+}
+
 void InvocationToProto(const PassInvocation& invocation,
                        PassMetricsProto* proto) {
   proto->set_pass_name(invocation.pass_name());
   proto->set_changed(invocation.ir_changed());
+  proto->set_skip_reason(ToSkipReasonProto(invocation.skip_reason()));
   absl::Duration rem;
   int64_t s =
       absl::IDivDuration(invocation.run_duration(), absl::Seconds(1), &rem);

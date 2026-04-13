@@ -156,6 +156,12 @@ class SelectLiftingPass : public OptimizationFunctionBasePass {
 
   ~SelectLiftingPass() override = default;
 
+  bool IsIdempotent() const override { return true; }
+
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

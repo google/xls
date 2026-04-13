@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "cppitertools/sorted.hpp"
 #include "xls/common/status/ret_check.h"
@@ -322,6 +323,21 @@ struct StateElementPair {
 };
 
 }  // namespace
+
+RedundancyGuard NextValueOptimizationPass::GetRedundancyGuard(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  std::vector<std::string> config_parts;
+  config_parts.reserve(3);
+  config_parts.push_back(absl::StrFormat("O%d", options.opt_level));
+  config_parts.push_back(absl::StrFormat("max_depth=%d", max_split_depth_));
+  if (options.split_next_value_selects.has_value() &&
+      *options.split_next_value_selects > 0) {
+    config_parts.push_back(
+        absl::StrFormat("split_selects=%d", *options.split_next_value_selects));
+  }
+  return RedundancyGuard::CanSkip(absl::StrJoin(config_parts, ","));
+}
 
 absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,

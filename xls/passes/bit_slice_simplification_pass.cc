@@ -1056,6 +1056,12 @@ absl::StatusOr<bool> SimplifyBitSliceUpdate(BitSliceUpdate* update,
 
 }  // namespace
 
+RedundancyGuard BitSliceSimplificationPass::GetRedundancyGuard(
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  return RedundancyGuard::CanSkip(absl::StrFormat("O%d", options.opt_level));
+}
+
 absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {

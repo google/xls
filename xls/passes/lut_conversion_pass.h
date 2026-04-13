@@ -162,6 +162,10 @@ class LutConversionPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "LUT Conversion") {}
   ~LutConversionPass() override = default;
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override;
+
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

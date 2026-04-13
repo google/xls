@@ -175,6 +175,12 @@ class InliningPass : public OptimizationPass {
       : OptimizationPass(ConfiguredName(depth), "Inlines invocations"),
         depth_(depth) {}
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
   // Inline a single invoke instruction. Provided for test and utility
   // (ir_minimizer) use.
   // Because this is only for ir-minimizer use it allows the inlined function to

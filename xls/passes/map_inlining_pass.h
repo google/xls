@@ -109,6 +109,12 @@ class MapInliningPass : public OptimizationFunctionBasePass {
   static constexpr std::string_view kName = "map_inlining";
   MapInliningPass();
 
+  RedundancyGuard GetRedundancyGuard(
+      const OptimizationPassOptions& options,
+      OptimizationContext& context) const override {
+    return RedundancyGuard::CanSkip();
+  }
+
   // Inline a single Map instruction. Provided for test and utility
   // (ir_minimizer) use.
   static absl::Status InlineOneMap(Map* map);
