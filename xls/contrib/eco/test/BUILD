@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/eco:eco_build_defs.bzl", "xls_dslx_ir_diff", "xls_patch_ir")
+load("//xls/contrib/eco:eco_build_defs.bzl", "xls_dslx_ir_diff", "xls_patch_ir")
 
 package(default_visibility = ["//xls:xls_internal"])
 

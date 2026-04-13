@@ -15,8 +15,8 @@
 #ifndef XLS_ECO_GED_COST_FUNCTIONS_H_
 #define XLS_ECO_GED_COST_FUNCTIONS_H_
 
-#include "xls/eco/ged.h"
-#include "xls/eco/graph.h"
+#include "xls/contrib/eco/ged.h"
+#include "xls/contrib/eco/graph.h"
 
 int NodeSubstCost(const XLSNode& n1, const XLSNode& n2);
 int NodeInsCost(const XLSNode& node);

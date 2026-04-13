@@ -18,15 +18,15 @@
 # - Better type safety and error handling
 # - Direct integration with XLS IR infrastructure
 # - More efficient patch application
-# Please use //xls/eco:patch_ir_main instead.
+# Please use //xls/contrib/eco:patch_ir_main instead.
 
 
 """A library for constructing proto-based patches from IR edit paths."""
 
 import os
 
-from xls.eco import ir_diff
-from xls.eco import ir_patch_pb2
+from xls.contrib.eco import ir_diff
+from xls.contrib.eco import ir_patch_pb2
 
 
 class IrPatch:

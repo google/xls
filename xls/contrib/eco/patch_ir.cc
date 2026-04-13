@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/eco/patch_ir.h"
+#include "xls/contrib/eco/patch_ir.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -33,7 +33,7 @@
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/eco/ir_patch.pb.h"
+#include "xls/contrib/eco/ir_patch.pb.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/lsb_or_msb.h"
