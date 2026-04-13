@@ -17,7 +17,7 @@
 //   D.F. Crouse, "On implementing 2D rectangular assignment algorithms,"
 //   IEEE Trans. Aerospace and Electronic Systems, 52(4):1679-1696, 2016.
 
-#include "xls/eco/lap_solver.h"
+#include "xls/contrib/eco/lap_solver.h"
 
 #include <algorithm>
 #include <cmath>

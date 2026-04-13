@@ -23,7 +23,7 @@ import abc
 import dataclasses
 import struct
 
-from xls.eco import xls_types
+from xls.contrib.eco import xls_types
 from xls.ir import xls_value_pb2
 
 
