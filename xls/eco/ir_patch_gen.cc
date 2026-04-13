@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -43,9 +44,9 @@ std::optional<xls::TypeProto> ParseTypeProto(absl::string_view type_str) {
   if (type_str.empty()) {
     return std::nullopt;
   }
-  static auto* package = new xls::Package("ir_patch_gen_types");
+  static absl::NoDestructor<xls::Package> package("ir_patch_gen_types");
   absl::StatusOr<xls::Type*> type_or =
-      xls::Parser::ParseType(type_str, package);
+      xls::Parser::ParseType(type_str, package.get());
   if (!type_or.ok()) {
     return std::nullopt;
   }
