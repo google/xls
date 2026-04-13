@@ -79,6 +79,9 @@ nav:
       - Proc-scoped channels: 'design_docs/proc_scoped_channels.md'
       - Synchronous Procs: 'design_docs/synchronous_procs.md'
       - DSLX Pattern Exhaustiveness: 'design_docs/dslx_pattern_exhaustiveness.md'
+      - Optimizations:
+        - Value Set Simplification:
+          - Division: 'design_docs/optimizations/value_set_simp/division_simplification_design.md'
     - Releasing: 'releasing.md'
   - NoC:
     - Overview: 'noc/xls_noc_readme.md'
