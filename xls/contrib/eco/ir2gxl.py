@@ -18,7 +18,7 @@
 # - Bidirectional GXL parsing (not just export)
 # - Better XML handling through tinyxml2
 # - Integration with C++ GED implementation
-# Please migrate to using the C++ GXL tools in //xls/eco.
+# Please migrate to using the C++ GXL tools in //xls/contrib/eco.
 
 import sys
 import os
@@ -41,7 +41,7 @@ the same IR graph construction logic.
 # Add the parent directory to the path so we can import the modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from xls.eco import ir2nx
+from xls.contrib.eco import ir2nx
 
 
 class IrParser:

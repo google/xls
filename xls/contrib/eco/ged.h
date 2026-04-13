@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
-#include "xls/eco/graph.h"
+#include "xls/contrib/eco/graph.h"
 
 namespace ged {
 

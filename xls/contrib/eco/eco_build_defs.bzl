@@ -123,12 +123,12 @@ xls_dslx_ir_diff_rule = rule(
         "ir2gxl": attr.label(
             executable = True,
             cfg = "target",
-            default = Label("//xls/eco:ir2gxl"),
+            default = Label("//xls/contrib/eco:ir2gxl"),
         ),
         "ged_main": attr.label(
             executable = True,
             cfg = "target",
-            default = Label("//xls/eco:ged_main"),
+            default = Label("//xls/contrib/eco:ged_main"),
         ),
         "mcs": attr.bool(
             default = True,
@@ -291,7 +291,7 @@ xls_patch_ir_rule = rule(
         "patch_ir_main": attr.label(
             executable = True,
             cfg = "target",
-            default = Label("//xls/eco:patch_ir_main"),
+            default = Label("//xls/contrib/eco:patch_ir_main"),
             doc = "Binary used to apply the patch.",
         ),
         "check_ir_main": attr.label(

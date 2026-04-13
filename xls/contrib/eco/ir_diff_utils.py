@@ -21,7 +21,7 @@ from typing import Any, Callable, Optional
 import matplotlib.pyplot as plt
 import networkx as nx
 
-from xls.eco import ir_diff
+from xls.contrib.eco import ir_diff
 
 
 def visualize_ir(graph: nx.DiGraph) -> None:
