@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/eco/ged.h"
+#include "xls/contrib/eco/ged.h"
 
 #include <algorithm>
 #include <chrono>
@@ -20,7 +20,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
-#include "xls/eco/lap_solver.h"
+#include "xls/contrib/eco/lap_solver.h"
 
 /* Algorithm based on:
 Zeina Abu-Aisheh, Romain Raveaux, Jean-Yves Ramel, Patrick Martineau.

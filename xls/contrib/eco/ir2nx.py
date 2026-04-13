@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # TODO(eco): Deprecate this Python-based IR parser in favor of
-# xls/eco/xls_ir_to_networkx.py, which already provides networkx conversion via
+# xls/contrib/eco/xls_ir_to_networkx.py, which already provides networkx conversion via
 # the C++ XLS IR tooling. The C++ approach is more robust (uses actual IR APIs
 # vs. regex parsing), faster, and better maintained as part of the core XLS
 # tooling. This script should be migrated to use that implementation.
@@ -22,8 +22,8 @@
 
 import re
 import networkx as nx
-from xls.eco import xls_types
-from xls.eco import xls_values
+from xls.contrib.eco import xls_types
+from xls.contrib.eco import xls_values
 
 
 class IrParser:

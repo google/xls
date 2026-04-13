@@ -24,9 +24,9 @@ from absl.testing import flagsaver
 
 from absl.testing import absltest
 from xls.common import runfiles
-from xls.eco import ir_diff
-from xls.eco import ir_diff_main
-from xls.eco import ir_patch_pb2
+from xls.contrib.eco import ir_diff
+from xls.contrib.eco import ir_diff_main
+from xls.contrib.eco import ir_patch_pb2
 
 _RISCV_SIMPLE_UNOPT_IR_PATH = runfiles.get_path("xls/examples/riscv_simple.ir")
 _RISCV_SIMPLE_OPT_IR_PATH = runfiles.get_path(
