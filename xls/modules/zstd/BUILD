@@ -378,6 +378,9 @@ xls_dslx_verilog(
     name = "frame_header_dec_verilog",
     codegen_args = FRAME_HEADER_DEC_CODEGEN_ARGS,
     dslx_top = "FrameHeaderDecoderInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":frame_header_dec_dslx",
     verilog_file = "frame_header_dec.v",
 )
@@ -386,7 +389,7 @@ xls_benchmark_ir(
     name = "frame_header_dec_opt_ir_benchmark",
     src = ":frame_header_dec_verilog.opt.ir",
     benchmark_ir_args = FRAME_HEADER_DEC_CODEGEN_ARGS | {
-        "top": "__frame_header_dec__FrameHeaderDecoderInst__FrameHeaderDecoder_0__16_32_30_5_next",
+        "top": "__frame_header_dec__FrameHeaderDecoder_0__16_32_30_5_next",
         "pipeline_stages": "10",
     },
     verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
@@ -472,6 +475,9 @@ xls_dslx_verilog(
     name = "block_header_dec_verilog",
     codegen_args = BLOCK_HEADER_DEC_CODEGEN_ARGS,
     dslx_top = "BlockHeaderDecoderInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":block_header_dec_dslx",
     verilog_file = "block_header_dec.v",
 )
@@ -481,7 +487,7 @@ xls_benchmark_ir(
     src = ":block_header_dec_verilog.opt.ir",
     benchmark_ir_args = BLOCK_HEADER_DEC_CODEGEN_ARGS | {
         "pipeline_stages": "10",
-        "top": "__block_header_dec__BlockHeaderDecoderInst__BlockHeaderDecoder_0__16_64_next",
+        "top": "__block_header_dec__BlockHeaderDecoder_0__16_64_next",
     },
     verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
@@ -552,6 +558,9 @@ xls_dslx_verilog(
     name = "raw_block_dec_verilog",
     codegen_args = RAW_BLOCK_DEC_CODEGEN_ARGS,
     dslx_top = "RawBlockDecoderInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":raw_block_dec_dslx",
     verilog_file = "raw_block_dec.v",
 )
@@ -561,7 +570,7 @@ xls_benchmark_ir(
     src = ":raw_block_dec_verilog.opt.ir",
     benchmark_ir_args = RAW_BLOCK_DEC_CODEGEN_ARGS | {
         "pipeline_stages": "10",
-        "top": "__raw_block_dec__RawBlockDecoderInst__RawBlockDecoder_0__32_32_next",
+        "top": "__raw_block_dec__RawBlockDecoder_0__32_32_next",
     },
     verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
@@ -631,6 +640,9 @@ xls_dslx_verilog(
     name = "rle_block_dec_verilog",
     codegen_args = RLE_BLOCK_DEC_CODEGEN_ARGS,
     dslx_top = "RleBlockDecoderInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":rle_block_dec_dslx",
     verilog_file = "rle_block_dec.v",
 )
@@ -640,7 +652,7 @@ xls_benchmark_ir(
     src = ":rle_block_dec_verilog.opt.ir",
     benchmark_ir_args = RLE_BLOCK_DEC_CODEGEN_ARGS | {
         "pipeline_stages": "10",
-        "top": "__rle_block_dec__RleBlockDecoderInst__RleBlockDecoder_0__64_next",
+        "top": "__rle_block_dec__RleBlockDecoder_0__64_next",
     },
     verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
@@ -819,10 +831,10 @@ SEQUENCE_EXECUTOR_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
             latency = 1,
             ram_name = "ram{}".format(num),
-            rd_req = "sequence_executor__rd_req_m{}_s".format(num),
-            rd_resp = "sequence_executor__rd_resp_m{}_r".format(num),
-            wr_req = "sequence_executor__wr_req_m{}_s".format(num),
-            wr_resp = "sequence_executor__wr_resp_m{}_r".format(num),
+            rd_req = "_rd_req_m{}_s".format(num),
+            rd_resp = "_rd_resp_m{}_r".format(num),
+            wr_req = "_wr_req_m{}_s".format(num),
+            wr_resp = "_wr_resp_m{}_r".format(num),
         )
         for num in range(7)
     ]),
@@ -929,6 +941,9 @@ xls_dslx_verilog(
     name = "axi_csr_accessor_verilog",
     codegen_args = AXI_CSR_ACCESSOR_CODEGEN_ARGS,
     dslx_top = "AxiCsrAccessorInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":axi_csr_accessor_dslx",
     verilog_file = "axi_csr_accessor.v",
 )
@@ -938,7 +953,7 @@ xls_benchmark_ir(
     src = ":axi_csr_accessor_verilog.opt.ir",
     benchmark_ir_args = AXI_CSR_ACCESSOR_CODEGEN_ARGS | {
         "pipeline_stages": "10",
-        "top": "__axi_csr_accessor__AxiCsrAccessorInst__AxiCsrAccessor_0__16_32_4_4_2_4_16_next",
+        "top": "__axi_csr_accessor__AxiCsrAccessor_0__16_32_4_4_2_4_16_next",
     },
     verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
@@ -1007,6 +1022,9 @@ xls_dslx_verilog(
     name = "csr_config_verilog",
     codegen_args = CSR_CONFIG_CODEGEN_ARGS,
     dslx_top = "CsrConfigInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":csr_config_dslx",
     verilog_file = "csr_config.v",
 )
@@ -1016,7 +1034,7 @@ xls_benchmark_ir(
     src = ":csr_config_verilog.opt.ir",
     benchmark_ir_args = CSR_CONFIG_CODEGEN_ARGS | {
         "pipeline_stages": "10",
-        "top": "__csr_config__CsrConfigInst__CsrConfig_0__2_32_4_32_2_4_next",
+        "top": "__csr_config__CsrConfig_0__2_32_4_32_2_4_next",
     },
     verilog_deps = ["//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib"],
 )
@@ -1083,9 +1101,12 @@ xls_dslx_verilog(
         "materialize_internal_fifos": "true",
     },
     dslx_top = "RamWrRespHandlerInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":ram_wr_handler_dslx",
     opt_ir_args = {
-        "top": "__ram_wr_handler__RamWrRespHandlerInst__RamWrRespHandler_0__32_next",
+        "top": "__ram_wr_handler__RamWrRespHandler_0__32_next",
     },
     verilog_file = "ram_rw_handler.v",
 )
@@ -1164,10 +1185,10 @@ xls_dslx_verilog(
         # FIXME: update ram rewrite
         #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
         #    latency = 5,
-        #    rd_req = "fse_proba_freq_dec__rd_req_s",
-        #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
-        #    wr_req = "fse_proba_freq_dec__wr_req_s",
-        #    wr_resp = "fse_proba_freq_dec__wr_resp_r",
+        #    rd_req = "_rd_req_s",
+        #    rd_resp = "_rd_resp_r",
+        #    wr_req = "_wr_req_s",
+        #    wr_resp = "_wr_resp_r",
         #),
         "pipeline_stages": "6",
         "reset": "rst",
@@ -1261,6 +1282,9 @@ xls_dslx_verilog(
         "module_name": "LiteralsBlockHeaderDecoder",
     },
     dslx_top = "LiteralsHeaderDecoderInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":literals_block_header_dec_dslx",
     verilog_file = "literals_block_header_dec.v",
 )
@@ -1269,7 +1293,7 @@ xls_benchmark_ir(
     name = "literals_block_header_dec_opt_ir_benchmark",
     src = ":literals_block_header_dec_verilog.opt.ir",
     benchmark_ir_args = {
-        "top": "__literals_block_header_dec__LiteralsHeaderDecoderInst__LiteralsHeaderDecoder_0__16_64_next",
+        "top": "__literals_block_header_dec__LiteralsHeaderDecoder_0__16_64_next",
         "pipeline_stages": "10",
     },
 )
@@ -1295,6 +1319,9 @@ xls_dslx_verilog(
         "module_name": "SequenceConfDecoder",
     },
     dslx_top = "SequenceConfDecoderInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":sequence_conf_dec_dslx",
     verilog_file = "sequence_conf_dec.v",
 )
@@ -1303,7 +1330,7 @@ xls_benchmark_ir(
     name = "sequence_conf_dec_opt_ir_benchmark",
     src = ":sequence_conf_dec_verilog.opt.ir",
     benchmark_ir_args = {
-        "top": "__sequence_conf_dec__SequenceConfDecoderInst__SequenceConfDecoder_0__16_64_next",
+        "top": "__sequence_conf_dec__SequenceConfDecoder_0__16_64_next",
         "pipeline_stages": "10",
     },
 )
@@ -1852,10 +1879,10 @@ RAM_DEMUX_CODEGEN_ARGS = {
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
             latency = 1,
             ram_name = "ram{}".format(num),
-            rd_req = "ram_demux__rd_req{}_s".format(num),
-            rd_resp = "ram_demux__rd_resp{}_r".format(num),
-            wr_req = "ram_demux__wr_req{}_s".format(num),
-            wr_resp = "ram_demux__wr_resp{}_r".format(num),
+            rd_req = "_rd_req{}_s".format(num),
+            rd_resp = "_rd_resp{}_r".format(num),
+            wr_req = "_wr_req{}_s".format(num),
+            wr_resp = "_wr_resp{}_r".format(num),
         )
         for num in range(2)
     ]),
@@ -1869,6 +1896,9 @@ xls_dslx_verilog(
     name = "ram_demux_verilog",
     codegen_args = RAM_DEMUX_CODEGEN_ARGS,
     dslx_top = "RamDemuxWrappedInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":ram_demux_dslx",
     verilog_file = "ram_demux.v",
 )
@@ -1941,6 +1971,9 @@ xls_dslx_verilog(
     name = "ram_demux_naive_verilog",
     codegen_args = ram_demux_naive_codegen_args,
     dslx_top = "RamDemuxNaiveWrappedInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "false",
+    },
     library = ":ram_demux_dslx",
     tags = ["manual"],
     verilog_file = "ram_demux_naive.v",
@@ -2012,10 +2045,10 @@ xls_dslx_verilog(
         "ram_configurations": "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
             latency = 1,
             ram_name = "ram",
-            rd_req = "ram_passthrough__rd_req_s",
-            rd_resp = "ram_passthrough__rd_resp_r",
-            wr_req = "ram_passthrough__wr_req_s",
-            wr_resp = "ram_passthrough__wr_resp_r",
+            rd_req = "_rd_req_s",
+            rd_resp = "_rd_resp_r",
+            wr_req = "_wr_req_s",
+            wr_resp = "_wr_resp_r",
         ),
         "reset": "rst",
         "use_system_verilog": "false",
@@ -2023,6 +2056,9 @@ xls_dslx_verilog(
         "clock_period_ps": "750",
     },
     dslx_top = "RamPassthroughInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":ram_passthrough_dslx",
     verilog_file = "ram_passthrough.v",
 )
@@ -2057,9 +2093,12 @@ xls_dslx_verilog(
         "materialize_internal_fifos": "true",
     },
     dslx_top = "FseDecoderInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":fse_dec_dslx",
     opt_ir_args = {
-        "top": "__fse_dec__FseDecoderInst__FseDecoder_0__64_8_32_4_64_7_next",
+        "top": "__fse_dec__FseDecoder_0__64_8_32_4_64_7_next",
     },
     verilog_file = "fse_dec.v",
 )
@@ -2138,10 +2177,10 @@ xls_dslx_verilog(
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
                 latency = 1,
                 ram_name = "ram{}".format(num),
-                rd_req = "ram_demux3__rd_req{}_s".format(num),
-                rd_resp = "ram_demux3__rd_resp{}_r".format(num),
-                wr_req = "ram_demux3__wr_req{}_s".format(num),
-                wr_resp = "ram_demux3__wr_resp{}_r".format(num),
+                rd_req = "_rd_req{}_s".format(num),
+                rd_resp = "_rd_resp{}_r".format(num),
+                wr_req = "_wr_req{}_s".format(num),
+                wr_resp = "_wr_resp{}_r".format(num),
             )
             for num in range(3)
         ]),
@@ -2152,6 +2191,9 @@ xls_dslx_verilog(
         "materialize_internal_fifos": "true",
     },
     dslx_top = "RamDemux3Inst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":ram_demux3_dslx",
     verilog_file = "ram_demux3.v",
 )
@@ -2239,6 +2281,9 @@ xls_dslx_verilog(
     name = "ram_mux_verilog",
     codegen_args = RAM_MUX_CODEGEN_ARGS,
     dslx_top = "RamMuxWrappedInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "false",
+    },
     library = ":ram_mux_dslx",
     tags = ["manual"],
     verilog_file = "ram_mux.v",
@@ -2335,9 +2380,12 @@ xls_dslx_verilog(
         "materialize_internal_fifos": "true",
     },
     dslx_top = "FseLookupCtrlInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":sequence_dec_dslx",
     opt_ir_args = {
-        "top": "__sequence_dec__FseLookupCtrlInst__FseLookupCtrl_0_next",
+        "top": "__sequence_dec__FseLookupCtrl_0_next",
     },
     verilog_file = "fse_lookup_ctrl.v",
 )
@@ -2454,9 +2502,12 @@ xls_dslx_verilog(
         "materialize_internal_fifos": "true",
     },
     dslx_top = "RawLiteralsDecoderInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":raw_literals_dec_dslx",
     opt_ir_args = {
-        "top": "__raw_literals_dec__RawLiteralsDecoderInst__RawLiteralsDecoder_0__16_64_next",
+        "top": "__raw_literals_dec__RawLiteralsDecoder_0__16_64_next",
     },
     verilog_file = "raw_literals_dec.v",
 )
@@ -2467,7 +2518,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "10",
         "delay_model": "asap7",
-        "top": "__raw_literals_dec__RawLiteralsDecoderInst__RawLiteralsDecoder_0__16_64_next",
+        "top": "__raw_literals_dec__RawLiteralsDecoder_0__16_64_next",
     },
 )
 
@@ -2542,10 +2593,10 @@ xls_dslx_verilog(
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
                 latency = 1,
                 ram_name = "ram{}".format(num),
-                rd_req = "literals_buffer__rd_req_m{}_s".format(num),
-                rd_resp = "literals_buffer__rd_resp_m{}_r".format(num),
-                wr_req = "literals_buffer__wr_req_m{}_s".format(num),
-                wr_resp = "literals_buffer__wr_resp_m{}_r".format(num),
+                rd_req = "_rd_req_m{}_s".format(num),
+                rd_resp = "_rd_resp_m{}_r".format(num),
+                wr_req = "_wr_req_m{}_s".format(num),
+                wr_resp = "_wr_resp_m{}_r".format(num),
             )
             for num in range(7)
         ]),
@@ -2557,6 +2608,9 @@ xls_dslx_verilog(
         "materialize_internal_fifos": "true",
     },
     dslx_top = "LiteralsBufferInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":literals_buffer_dslx",
     verilog_file = "literals_buffer.v",
 )
@@ -2709,10 +2763,10 @@ LITERALS_DECODER_CODEGEN_ARGS = {
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
             latency = 1,
             ram_name = "ram{}".format(num),
-            rd_req = "literals_decoder__rd_req_m{}_s".format(num),
-            rd_resp = "literals_decoder__rd_resp_m{}_r".format(num),
-            wr_req = "literals_decoder__wr_req_m{}_s".format(num),
-            wr_resp = "literals_decoder__wr_resp_m{}_r".format(num),
+            rd_req = "_rd_req_m{}_s".format(num),
+            rd_resp = "_rd_resp_m{}_r".format(num),
+            wr_req = "_wr_req_m{}_s".format(num),
+            wr_resp = "_wr_resp_m{}_r".format(num),
         )
         for num in range(7)
     ]),
@@ -2727,6 +2781,9 @@ xls_dslx_verilog(
     name = "literals_decoder_verilog",
     codegen_args = LITERALS_DECODER_CODEGEN_ARGS,
     dslx_top = "LiteralsDecoderInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":literals_decoder_dslx",
     tags = ["manual"],
     verilog_file = "literals_decoder.v",
@@ -2823,12 +2880,12 @@ PRESCAN_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "pipeline_stages": "16",
     "clock_period_ps": "750",
     "worst_case_throughput": "1",
-    "ram_configurations": "InternalRam:1R1W:huffman_prescan__internal_read_req_s" +
-                          ":huffman_prescan__internal_read_rsp_r:" +
-                          "huffman_prescan__internal_write_req_s:" +
-                          "huffman_prescan__internal_write_rsp_r:1",
-    "io_constraints": "huffman_prescan__read_req_s:send:" +
-                      "huffman_prescan__read_rsp_r:recv:1:1",
+    "ram_configurations": "InternalRam:1R1W:_internal_read_req_s" +
+                          ":_internal_read_rsp_r:" +
+                          "_internal_write_req_s:" +
+                          "_internal_write_rsp_r:1",
+    "io_constraints": "_read_req_s:send:" +
+                      "_read_rsp_r:recv:1:1",
     "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
 }
 
@@ -2836,6 +2893,9 @@ xls_dslx_verilog(
     name = "huffman_prescan_verilog",
     codegen_args = PRESCAN_CODEGEN_ARGS,
     dslx_top = "WeightPreScan",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":huffman_prescan_dslx",
     verilog_file = "huffman_prescan.v",
 )
@@ -3324,9 +3384,12 @@ xls_dslx_verilog(
     name = "huffman_weights_dec_verilog",
     codegen_args = HUFFMAN_WEIGHTS_DEC_CODEGEN_ARGS,
     dslx_top = "HuffmanWeightsDecoderInst",
+    ir_conv_args = {
+        "lower_to_proc_scoped_channels": "true",
+    },
     library = ":huffman_weights_dec_dslx",
     opt_ir_args = {
-        "top": "__huffman_weights_dec__HuffmanWeightsDecoderInst__HuffmanWeightsDecoder_0__32_64_8_8_16_1_8_32_4_9_8_1_8_16_1_6_32_8_next",
+        "top": "__huffman_weights_dec__HuffmanWeightsDecoder_0__32_64_8_8_16_1_8_32_4_9_8_1_8_16_1_6_32_8_next",
     },
     verilog_file = "huffman_weights_dec.v",
 )
