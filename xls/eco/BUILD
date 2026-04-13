@@ -215,6 +215,7 @@ cc_library(
         "//xls/scheduling:scheduling_options",
         "//xls/tools:codegen_flags",
         "//xls/tools:scheduling_options_flags",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -268,6 +269,7 @@ cc_library(
     srcs = ["graph.cc"],
     hdrs = ["graph.h"],
     deps = [
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -319,6 +321,7 @@ cc_library(
     hdrs = ["mcs.h"],
     deps = [
         ":graph",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -349,6 +352,7 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:xls_value_cc_proto",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
