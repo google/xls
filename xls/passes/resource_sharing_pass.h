@@ -416,7 +416,6 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 
   virtual bool ShouldTargetNodeForMutualExclusion(Node* node) const;
 
- private:
   ProfitabilityGuard RealProfitabilityGuard(
       const OptimizationPassOptions& options) const {
     if (options.force_resource_sharing) {
