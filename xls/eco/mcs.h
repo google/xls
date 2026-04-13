@@ -52,7 +52,7 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
 absl::flat_hash_map<int, int> GetBoundaryNodes(const MCSResult& mcs,
                                                const XLSGraph& graph1,
                                                const XLSGraph& graph2);
-
+// Utility functions exposed for testing
 namespace internal {
 
 // Candidate partition P(C) from the paper, represented as disjoint Xi x Yi

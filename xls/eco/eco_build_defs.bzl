@@ -208,10 +208,6 @@ def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutof
 
     xls_dslx_ir_diff_rule(**xls_dslx_ir_diff_rule_kwargs)
 
-# Temporary aliases to ease migration.
-xls_dslx_opt_ir_diff = xls_dslx_ir_diff
-xls_dslx_eco = xls_dslx_ir_diff
-
 def _xls_patch_ir_impl(ctx):
     diff_target = ctx.attr.ir_diff
     if not diff_target:
