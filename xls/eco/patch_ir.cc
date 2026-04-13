@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
@@ -124,11 +125,11 @@ PatchIr::PatchIr(FunctionBase* function_base, xls_eco::IrPatchProto& patch)
     : patch_(patch), function_base_(function_base), schedule_(std::nullopt) {
   std::copy(patch_.edit_paths().begin(), patch_.edit_paths().end(),
             std::back_inserter(sorted_edit_paths_));
-  std::sort(sorted_edit_paths_.begin(), sorted_edit_paths_.end(),
-            [this](const xls_eco::EditPathProto& lhs,
-                   const xls_eco::EditPathProto& rhs) {
-              return this->CompareEditPaths(lhs, rhs);
-            });
+  absl::c_sort(sorted_edit_paths_,
+               [this](const xls_eco::EditPathProto& lhs,
+                      const xls_eco::EditPathProto& rhs) {
+                 return this->CompareEditPaths(lhs, rhs);
+               });
   package_ = function_base_->package();
 }
 absl::StatusOr<std::vector<Node*>> PatchIr::MakeDummyNodes(
@@ -247,7 +248,7 @@ absl::Status PatchIr::ApplyDeletePath(
     XLS_ASSIGN_OR_RETURN(Proc * proc_, package_->GetTopAsProc());
     XLS_ASSIGN_OR_RETURN(
         StateElement * se,
-        proc_->GetStateElement(
+        proc_->GetStateElementByName(
             node_delete.node().unique_args(1).state_element()));
     XLS_ASSIGN_OR_RETURN(int64_t index, proc_->GetStateElementIndex(se));
     XLS_RETURN_IF_ERROR(proc_->RemoveStateElement(index));
@@ -632,7 +633,8 @@ absl::Status PatchIr::ApplyInsertPath(
       }
       XLS_ASSIGN_OR_RETURN(dummy_operands[0],
                            function_base_->MakeNodeWithName<StateRead>(
-                               SourceInfo(), se, std::nullopt, dummy_name));
+                               SourceInfo(), se, std::nullopt,
+                               /*label=*/std::nullopt, dummy_name));
       absl::Span<Node*> all_dummy_operands = absl::MakeSpan(dummy_operands);
       std::optional<Node*> predicate;
       if (patch_node.operand_data_types_size() > 2) {
@@ -640,7 +642,8 @@ absl::Status PatchIr::ApplyInsertPath(
       }
       XLS_ASSIGN_OR_RETURN(
           n, function_base_->MakeNode<Next>(SourceInfo(), dummy_operands[0],
-                                            dummy_operands[1], predicate));
+                                            dummy_operands[1], predicate,
+                                            /*label=*/std::nullopt));
       XLS_RETURN_IF_ERROR(
           UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
       break;
