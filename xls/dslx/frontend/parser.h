@@ -114,8 +114,9 @@ class Parser : public TokenParser {
  public:
   Parser(std::string module_name, Scanner* scanner, bool parse_fn_stubs = false)
       : TokenParser(scanner),
-        module_(new Module(std::move(module_name), scanner->filename(),
-                           scanner->file_table())),
+        owned_module_(new Module(std::move(module_name), scanner->filename(),
+                                 scanner->file_table())),
+        module_(owned_module_.get()),
         parse_fn_stubs_(parse_fn_stubs) {}
 
   const FileTable& file_table() const { return scanner().file_table(); }
@@ -177,6 +178,11 @@ class Parser : public TokenParser {
  private:
   friend class ParserTest;
   friend class ExpressionDepthGuard;
+
+  Parser(Module* module, Scanner* scanner, bool parse_fn_stubs = false)
+      : TokenParser(scanner),
+        module_(module),
+        parse_fn_stubs_(parse_fn_stubs) {}
 
   // Simple helper class to wrap the operations necessary to evaluate [parser]
   // productions as transactions - with "Commit" or "Rollback" operations.
@@ -649,8 +655,10 @@ class Parser : public TokenParser {
                                                    const Pos& hash_pos);
   absl::StatusOr<std::vector<AttributeData::Argument>>
   ParseAttributeArguments();
+  absl::StatusOr<XlsTuple*> ParseFuzzTestDomains(std::string_view domains_str,
+                                                 Bindings& bindings);
   absl::StatusOr<ModuleMember> ApplyFunctionAttributes(
-      Function* fn, std::vector<Attribute*> attributes);
+      Function* fn, std::vector<Attribute*> attributes, Bindings& bindings);
   absl::StatusOr<ModuleMember> ApplyProcAttributes(
       Proc* p, std::vector<Attribute*> attributes);
   absl::Status ApplyExternVerilogAttribute(Function* fn, const Attribute& attr);
@@ -735,7 +743,15 @@ class Parser : public TokenParser {
   // during fuzzing.
   absl::StatusOr<ExpressionDepthGuard> BumpExpressionDepth();
 
-  std::unique_ptr<Module> module_;
+  // Holds ownership of the module if it was created by this parser instance
+  // (e.g., when parsing a complete file). This is null if the parser is
+  // borrowing an existing module (e.g., as a sub-parser).
+  std::unique_ptr<Module> owned_module_;
+
+  // Points to the module being populated with AST nodes. Never null.
+  // In the owning case, this points to `owned_module_`. In the non-owning case
+  // (sub-parser), it points to the borrowed module.
+  Module* const module_;
 
   // `Let` nodes are created _after_ those that use their namedefs (due to the
   // chaining of the `body` member variable. We need to know, though, if a
