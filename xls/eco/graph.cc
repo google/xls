@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <functional>
 
+#include "absl/algorithm/container.h"
 #include "absl/log/log.h"
 
 XLSNode::XLSNode(const std::string& node_name, const std::string& cost_attrs)
@@ -108,10 +109,8 @@ int XLSGraph::add_edge(const XLSEdge& edge) {
   auto sort_by_index = [this](int a, int b) {
     return edges[a].index < edges[b].index;
   };
-  std::sort(node_edges[source_index].begin(), node_edges[source_index].end(),
-            sort_by_index);
-  std::sort(node_edges[sink_index].begin(), node_edges[sink_index].end(),
-            sort_by_index);
+  absl::c_sort(node_edges[source_index], sort_by_index);
+  absl::c_sort(node_edges[sink_index], sort_by_index);
   VLOG(2) << "Added edge: " << nodes[source_index].name << " -> "
           << nodes[sink_index].name << " with index: " << edge.index;
   VLOG(3) << "  Source node attributes: "
@@ -249,13 +248,12 @@ void XLSGraph::populate_node_signatures() {
         ordered.push_back({edge.index, neighbor, nodes[neighbor].label});
       }
     }
-    std::sort(ordered.begin(), ordered.end(),
-              [](const NeighborInfo& a, const NeighborInfo& b) {
-                if (a.edge_index != b.edge_index) {
-                  return a.edge_index < b.edge_index;
-                }
-                return a.neighbor_index < b.neighbor_index;
-              });
+    absl::c_sort(ordered, [](const NeighborInfo& a, const NeighborInfo& b) {
+      if (a.edge_index != b.edge_index) {
+        return a.edge_index < b.edge_index;
+      }
+      return a.neighbor_index < b.neighbor_index;
+    });
     // TODO(xls-eco): For commutative ops such as add/and/or/xor, consider
     // canonicalizing equivalent operand permutations here before hashing.
     // Today the signature remains operand-order-sensitive on incoming edges,
@@ -279,7 +277,7 @@ void XLSGraph::populate_node_signatures() {
         labels.push_back(nodes[neighbor].label);
       }
     }
-    std::sort(labels.begin(), labels.end());
+    absl::c_sort(labels);
     return labels;
   };
 
@@ -397,7 +395,7 @@ void XLSGraph::RefreshAdjacency() {
   }
 
   for (auto& [node_idx, edge_indices] : node_edges) {
-    std::sort(edge_indices.begin(), edge_indices.end(), [this](int a, int b) {
+    absl::c_sort(edge_indices, [this](int a, int b) {
       if (edges[a].index != edges[b].index) {
         return edges[a].index < edges[b].index;
       }

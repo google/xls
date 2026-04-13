@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO(eco): Deprecate this Python-based IR parser in favor of the C++
-# implementation (xls/visualization/ir_viz/xls_ir_to_cytoscape.cc). The C++
-# approach is more robust (uses actual IR APIs vs. regex parsing), faster,
-# and better maintained as part of the core XLS tooling. This script should
-# be migrated to call the C++ tool or rewritten to use Python bindings to
-# the XLS IR library.
+# TODO(eco): Deprecate this Python-based IR parser in favor of
+# xls/eco/xls_ir_to_networkx.py, which already provides networkx conversion via
+# the C++ XLS IR tooling. The C++ approach is more robust (uses actual IR APIs
+# vs. regex parsing), faster, and better maintained as part of the core XLS
+# tooling. This script should be migrated to use that implementation.
 
 """Parses XLS IR into a networkx graph utilizing regexes."""
 

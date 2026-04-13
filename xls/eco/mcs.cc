@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -130,8 +131,8 @@ class RelationProfileCache {
         .forward = graph_.get_edges_between(from, to),
         .backward = graph_.get_edges_between(to, from),
     };
-    std::sort(profile.forward.begin(), profile.forward.end());
-    std::sort(profile.backward.begin(), profile.backward.end());
+    absl::c_sort(profile.forward);
+    absl::c_sort(profile.backward);
     cache_.insert({key, profile});
     return profile;
   }
@@ -179,31 +180,27 @@ std::vector<CompatibilityKey> BuildCompatibilityKeys(const XLSGraph& graph) {
 
 // Canonical ordering for candidate classes so branching and tests are stable.
 void SortCandidatePartition(CandidatePartition& candidates) {
-  std::sort(candidates.begin(), candidates.end(),
-            [](const CandidateClass& lhs, const CandidateClass& rhs) {
-              const int lhs_q = lhs.query_nodes.empty()
-                                    ? std::numeric_limits<int>::max()
-                                    : lhs.query_nodes.front();
-              const int rhs_q = rhs.query_nodes.empty()
-                                    ? std::numeric_limits<int>::max()
-                                    : rhs.query_nodes.front();
-              if (lhs_q != rhs_q) {
-                return lhs_q < rhs_q;
-              }
-              const int lhs_t = lhs.target_nodes.empty()
-                                    ? std::numeric_limits<int>::max()
-                                    : lhs.target_nodes.front();
-              const int rhs_t = rhs.target_nodes.empty()
-                                    ? std::numeric_limits<int>::max()
-                                    : rhs.target_nodes.front();
-              if (lhs_t != rhs_t) {
-                return lhs_t < rhs_t;
-              }
-              if (lhs.query_nodes.size() != rhs.query_nodes.size()) {
-                return lhs.query_nodes.size() < rhs.query_nodes.size();
-              }
-              return lhs.target_nodes.size() < rhs.target_nodes.size();
-            });
+  absl::c_sort(candidates, [](const CandidateClass& lhs,
+                              const CandidateClass& rhs) {
+    const int lhs_q = lhs.query_nodes.empty() ? std::numeric_limits<int>::max()
+                                              : lhs.query_nodes.front();
+    const int rhs_q = rhs.query_nodes.empty() ? std::numeric_limits<int>::max()
+                                              : rhs.query_nodes.front();
+    if (lhs_q != rhs_q) {
+      return lhs_q < rhs_q;
+    }
+    const int lhs_t = lhs.target_nodes.empty() ? std::numeric_limits<int>::max()
+                                               : lhs.target_nodes.front();
+    const int rhs_t = rhs.target_nodes.empty() ? std::numeric_limits<int>::max()
+                                               : rhs.target_nodes.front();
+    if (lhs_t != rhs_t) {
+      return lhs_t < rhs_t;
+    }
+    if (lhs.query_nodes.size() != rhs.query_nodes.size()) {
+      return lhs.query_nodes.size() < rhs.query_nodes.size();
+    }
+    return lhs.target_nodes.size() < rhs.target_nodes.size();
+  });
 }
 
 // Builds the initial candidate partition P(C). The paper starts from V_Q x V_G
@@ -272,7 +269,7 @@ EquivalenceInfo ComputeStructuralEquivalence(const XLSGraph& query) {
   RelationProfileCache query_cache(query);
   for (auto& [key, bucket] : buckets) {
     std::vector<int> representatives;
-    std::sort(bucket.begin(), bucket.end());
+    absl::c_sort(bucket);
     for (int u : bucket) {
       bool assigned = false;
       for (int rep : representatives) {
@@ -730,8 +727,6 @@ void RRSplitRec(State& partial_mapping, const CandidatePartition& candidates,
   VLOG(3) << Indent(depth) << "[exit] depth=" << depth;
 }
 
-// The paper optimizes node-set size. The ECO pipeline also needs a concrete
-// matched-edge set so the later GED/patch stages can preserve edge identities.
 void PopulateMatchedEdges(const XLSGraph& graph1, const XLSGraph& graph2,
                           const State& mapping, MCSResult& result) {
   std::vector<int> g1_to_g2(graph1.nodes.size(), -1);
