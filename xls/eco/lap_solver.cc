@@ -25,6 +25,8 @@
 #include <numeric>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+
 std::pair<std::vector<int>, std::vector<int>> linear_sum_assignment(
     const std::vector<std::vector<double>>& cost_matrix) {
   if (cost_matrix.empty() || cost_matrix[0].empty()) return {{}, {}};
@@ -128,8 +130,7 @@ std::pair<std::vector<int>, std::vector<int>> linear_sum_assignment(
   if (transposed) {
     std::vector<int> order(nr);
     std::iota(order.begin(), order.end(), 0);
-    std::sort(order.begin(), order.end(),
-              [&](int a, int b) { return col4row[a] < col4row[b]; });
+    absl::c_sort(order, [&](int a, int b) { return col4row[a] < col4row[b]; });
     for (int k = 0; k < nr; ++k) {
       row_ind[k] = col4row[order[k]];
       col_ind[k] = order[k];
