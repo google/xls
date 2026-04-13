@@ -441,6 +441,7 @@ static absl::Status SetArrayElement(absl::Span<const Bits> indices,
 absl::Status IrInterpreter::HandleArrayIndex(ArrayIndex* index) {
   const Value* array = &ResolveAsValue(index->array());
   for (Node* index_operand : index->indices()) {
+    XLS_RET_CHECK_GT(array->size(), 0);
     uint64_t idx =
         BitsToBoundedUint64(ResolveAsBits(index_operand), array->size() - 1);
     array = &array->element(idx);
@@ -450,14 +451,15 @@ absl::Status IrInterpreter::HandleArrayIndex(ArrayIndex* index) {
 
 absl::Status IrInterpreter::HandleArraySlice(ArraySlice* slice) {
   const Value& array = ResolveAsValue(slice->array());
+  XLS_RET_CHECK_GT(array.size(), 0);
   uint64_t start = ResolveAsBoundedUint64(slice->start(), array.size() - 1);
   std::vector<Value> sliced;
   sliced.reserve(slice->width());
-  for (int64_t i = start; i < start + slice->width(); i++) {
-    if (i >= array.elements().size()) {
-      sliced.push_back(array.elements().back());
+  for (int64_t i = 0; i < slice->width(); ++i) {
+    if (i + start < array.elements().size()) {
+      sliced.push_back(array.elements()[i + start]);
     } else {
-      sliced.push_back(array.elements()[i]);
+      sliced.push_back(array.elements().back());
     }
   }
   XLS_ASSIGN_OR_RETURN(Value result, Value::Array(sliced));
@@ -785,7 +787,8 @@ absl::Status IrInterpreter::HandleReverse(UnOp* reverse) {
 
 absl::Status IrInterpreter::HandleSel(Select* sel) {
   Bits selector = ResolveAsBits(sel->selector());
-  if (bits_ops::UGreaterThan(
+  if (sel->cases().empty() ||
+      bits_ops::UGreaterThan(
           selector, UBits(sel->cases().size() - 1, selector.bit_count()))) {
     XLS_RET_CHECK(sel->default_value().has_value());
     return SetValueResult(sel, ResolveAsValue(*sel->default_value()));

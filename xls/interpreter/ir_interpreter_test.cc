@@ -270,5 +270,20 @@ fn map_trace() -> bits[32][5]{
               UnorderedElementsAre("f is odd", "d is odd", "b is odd"));
 }
 
+TEST_F(IrInterpreterOnlyTest, HandleSelEmptyCasesWith64BitSelector) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+  auto s = fb.Param("s", p.GetBitsType(64));
+  auto def = fb.Literal(Value(UBits(42, 32)));
+  fb.Select(s, absl::Span<const BValue>(), def);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  // Selector value == -1 (underflowed size - 1)
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpreterResult<Value> result,
+      InterpretFunction(f, {Value(UBits(static_cast<uint64_t>(-1), 64))}));
+  EXPECT_EQ(result.value, Value(UBits(42, 32)));
+}
+
 }  // namespace
 }  // namespace xls
