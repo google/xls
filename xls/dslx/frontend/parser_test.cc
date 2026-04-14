@@ -4669,4 +4669,46 @@ fn f(x: u32) {}
                        HasSubstr("that is a backtick-quoted DSLX string")));
 }
 
+TEST_F(ParserTest, FuzzTestEmptyTupleDomain) {
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(R"(
+#[fuzz_test(domains=`()`)]
+fn f(x: u8) {}
+)");
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * f,
+                           module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_TRUE(f->domains().has_value());
+  Expr* domains_expr = *f->domains();
+  ASSERT_EQ(domains_expr->kind(), AstNodeKind::kXlsTuple);
+  XlsTuple* domains_tuple = dynamic_cast<XlsTuple*>(domains_expr);
+  EXPECT_EQ(domains_tuple->members().size(), 1);
+  Expr* first_member = domains_tuple->members()[0];
+  EXPECT_EQ(first_member->kind(), AstNodeKind::kXlsTuple);
+  XlsTuple* first_member_tuple = dynamic_cast<XlsTuple*>(first_member);
+  EXPECT_TRUE(first_member_tuple->members().empty());
+}
+
+TEST_F(ParserTest, FuzzTestEmptyTupleDomainList) {
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(R"(
+#[fuzz_test(domains=`u32:0..1, ()`)]
+fn f(x: u32, y: u8) {}
+)");
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * f,
+                           module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_TRUE(f->domains().has_value());
+  Expr* domains_expr = *f->domains();
+  ASSERT_EQ(domains_expr->kind(), AstNodeKind::kXlsTuple);
+  XlsTuple* domains_tuple = dynamic_cast<XlsTuple*>(domains_expr);
+  EXPECT_EQ(domains_tuple->members().size(), 2);
+
+  Expr* first_member = domains_tuple->members()[0];
+  EXPECT_EQ(first_member->kind(), AstNodeKind::kRange);
+
+  Expr* second_member = domains_tuple->members()[1];
+  EXPECT_EQ(second_member->kind(), AstNodeKind::kXlsTuple);
+  XlsTuple* second_member_tuple = dynamic_cast<XlsTuple*>(second_member);
+  EXPECT_TRUE(second_member_tuple->members().empty());
+}
+
 }  // namespace xls::dslx

@@ -1110,7 +1110,10 @@ absl::StatusOr<XlsTuple*> Parser::ParseFuzzTestDomains(
   XLS_ASSIGN_OR_RETURN(Expr * parsed, sub_parser.ParseExpression(bindings));
 
   if (parsed->kind() == AstNodeKind::kXlsTuple) {
-    return dynamic_cast<XlsTuple*>(parsed);
+    auto* tuple = dynamic_cast<XlsTuple*>(parsed);
+    if (!tuple->members().empty()) {
+      return tuple;
+    }
   }
   // If it's not already a tuple, wrap it in one.
   return module_->Make<XlsTuple>(parsed->span(), std::vector<Expr*>{parsed},
