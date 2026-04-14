@@ -634,7 +634,8 @@ class MemberTypeAnnotation : public TypeAnnotation {
 
   MemberTypeAnnotation(Module* owner, Span span,
                        const TypeAnnotation* struct_type,
-                       std::string_view member_name);
+                       std::string_view member_name,
+                       bool use_wrapped_type_if_proc_state = true);
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleMemberTypeAnnotation(this);
@@ -647,6 +648,10 @@ class MemberTypeAnnotation : public TypeAnnotation {
   const TypeAnnotation* struct_type() const { return struct_type_; }
   std::string_view member_name() const { return member_name_; }
 
+  bool use_wrapped_type_if_proc_state() const {
+    return use_wrapped_type_if_proc_state_;
+  }
+
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return std::vector<AstNode*>{const_cast<TypeAnnotation*>(struct_type_)};
   }
@@ -655,7 +660,8 @@ class MemberTypeAnnotation : public TypeAnnotation {
 
  private:
   const TypeAnnotation* struct_type_;
-  std::string_view member_name_;
+  const std::string member_name_;
+  const bool use_wrapped_type_if_proc_state_;
 };
 
 // Represents the type of an element of an array or tuple, expressed in terms of
@@ -1803,6 +1809,7 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 class TypeRef : public AstNode {
  public:
   TypeRef(Module* owner, Span span, TypeDefinition type_definition);
+  TypeRef(Module* owner, Span span, StructDefBase* struct_def_base);
 
   ~TypeRef() override;
 
@@ -3216,7 +3223,8 @@ class StructMemberNode : public AstNode {
         span_(std::move(span)),
         name_def_(name_def),
         colon_span_(std::move(colon_span)),
-        type_(type) {}
+        type_(type),
+        non_state_wrapped_type_(type) {}
 
   ~StructMemberNode() override = default;
 
@@ -3238,6 +3246,14 @@ class StructMemberNode : public AstNode {
   NameDef* name_def() const { return name_def_; }
   const std::string& name() const { return name_def_->identifier(); }
   TypeAnnotation* type() const { return type_; }
+  TypeAnnotation* non_state_wrapped_type() const {
+    return non_state_wrapped_type_;
+  }
+
+  void set_type(TypeAnnotation* type) { type_ = type; }
+  void set_non_state_wrapped_type(TypeAnnotation* non_state_wrapped_type) {
+    non_state_wrapped_type_ = non_state_wrapped_type;
+  }
 
   StructMember ToStructMemberStruct() const {
     return StructMember{.name_span = name_def_->span(),
@@ -3251,6 +3267,11 @@ class StructMemberNode : public AstNode {
   // The span of the colon between the name and the type.
   Span colon_span_;
   TypeAnnotation* type_;
+
+  // For procs, this is the user-written type, and `type_` is
+  // `State<non_state_wrapped_type_>`. For regular structs, the two are the
+  // same.
+  TypeAnnotation* non_state_wrapped_type_;
 };
 
 // Base class for a struct-like entity, which has a name and members, along with
@@ -3408,6 +3429,18 @@ inline std::optional<StructDefBase*> TypeDefinitionToStructDefBase(
     TypeDefinition def) {
   auto* result = dynamic_cast<StructDefBase*>(ToAstNode(def));
   return result == nullptr ? std::nullopt : std::make_optional(result);
+}
+
+// Converts the given `StructDefBase` to a `TypeDefinition` variant. Any valid
+// `StructDefBase` is guaranteed to be convertible.
+inline TypeDefinition StructDefBaseToTypeDefinition(
+    StructDefBase* struct_def_base) {
+  CHECK(struct_def_base->kind() == AstNodeKind::kStructDef ||
+        struct_def_base->kind() == AstNodeKind::kProcDef);
+  if (struct_def_base->kind() == AstNodeKind::kStructDef) {
+    return absl::down_cast<StructDef*>(struct_def_base);
+  }
+  return absl::down_cast<ProcDef*>(struct_def_base);
 }
 
 using ImplMember = std::variant<ConstantDef*, Function*, VerbatimNode*>;

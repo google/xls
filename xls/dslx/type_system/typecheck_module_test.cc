@@ -440,10 +440,7 @@ fn foo() -> Foo {
   Foo{}
 }
   )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Impl-style procs are a work in progress and "
-                                 "cannot yet be instantiated.")));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST_F(TypecheckV2Test, ProcWithImplInstantiation) {
@@ -459,10 +456,11 @@ fn foo() -> Foo<u32:8> {
   Foo<u32:8> { foo: u32:5, bar: u8:6 }
 }
   )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Impl-style procs are a work in progress and "
-                                 "cannot yet be instantiated.")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Parametric impl-based procs are not yet supported.")));
 }
 
 TEST_F(TypecheckV2Test, FailsOnProcWithImplZero) {

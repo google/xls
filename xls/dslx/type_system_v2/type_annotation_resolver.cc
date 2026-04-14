@@ -695,17 +695,27 @@ class StatefulResolver : public TypeAnnotationResolver {
                            struct_def->identifier()),
           file_table_);
     }
+
+    const bool unwrap_proc_member =
+        !member_type->use_wrapped_type_if_proc_state() &&
+        struct_def->kind() == AstNodeKind::kProcDef;
+
     // If the simplified member type annotation is known, such as when we
     // process the members of a non-parametric StructDef, use it.
     // Keeping the dummy `parametric_context` argument here in case we support
     // caching parametric MemberTypeAnnotation in the future.
-    if (std::optional<const TypeAnnotation*> cached =
-            simplified_type_annotation_cache_.GetSimplifiedypeAnnotation(
-                parametric_context, *member)) {
-      return *cached;
+    if (!unwrap_proc_member) {
+      if (std::optional<const TypeAnnotation*> cached =
+              simplified_type_annotation_cache_.GetSimplifiedypeAnnotation(
+                  parametric_context, *member)) {
+        return *cached;
+      }
     }
+
     return parametric_struct_instantiator_.GetParametricFreeStructMemberType(
-        parametric_context, *struct_or_proc_ref, (*member)->type());
+        parametric_context, *struct_or_proc_ref,
+        unwrap_proc_member ? (*member)->non_state_wrapped_type()
+                           : (*member)->type());
   }
 
   // Converts `element_type` into a regular `TypeAnnotation` that expresses the

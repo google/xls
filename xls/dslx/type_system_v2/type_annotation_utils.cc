@@ -33,6 +33,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -95,20 +96,19 @@ absl::StatusOr<TypeAnnotation*> CreateBuiltinTypeAnnotation(
   return module.Make<BuiltinTypeAnnotation>(span, builtin_type, name_def);
 }
 
-TypeAnnotation* CreateStructAnnotation(
-    Module& module, StructDef* def, std::vector<ExprOrType> parametrics,
+TypeAnnotation* CreateStructOrProcAnnotation(
+    Module& module, StructDefBase* def, std::vector<ExprOrType> parametrics,
     std::optional<const StructInstanceBase*> instantiator) {
   return module.Make<TypeRefTypeAnnotation>(
       def->span(), module.Make<TypeRef>(def->span(), def),
       std::move(parametrics), instantiator);
 }
 
-TypeAnnotation* CreateStructAnnotation(Module& module,
-                                       const StructOrProcRef& ref) {
-  CHECK(ref.def->kind() == AstNodeKind::kStructDef);
-  return CreateStructAnnotation(
-      module, absl::down_cast<StructDef*>(const_cast<StructDefBase*>(ref.def)),
-      ref.parametrics, std::nullopt);
+TypeAnnotation* CreateStructOrProcAnnotation(Module& module,
+                                             const StructOrProcRef& ref) {
+  return CreateStructOrProcAnnotation(module,
+                                      const_cast<StructDefBase*>(ref.def),
+                                      ref.parametrics, std::nullopt);
 }
 
 ChannelTypeAnnotation* GetChannelArrayElementType(
@@ -479,6 +479,18 @@ std::string GetParametricBindingOwnerDescription(
     default:
       return binding->parent()->ToString();
   }
+}
+
+bool IsChannelOrChannelArrayAnnotation(const TypeAnnotation* annotation) {
+  if (annotation->IsAnnotation<ChannelTypeAnnotation>()) {
+    return true;
+  }
+  if (annotation->IsAnnotation<ArrayTypeAnnotation>()) {
+    return IsChannelOrChannelArrayAnnotation(
+        absl::down_cast<const ArrayTypeAnnotation*>(annotation)
+            ->element_type());
+  }
+  return false;
 }
 
 }  // namespace xls::dslx

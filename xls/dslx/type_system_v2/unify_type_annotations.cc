@@ -203,28 +203,34 @@ class Unifier {
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> first_struct_or_proc,
                          GetStructOrProcRef(annotations[0], import_data_));
     if (first_struct_or_proc.has_value()) {
-      const auto* struct_def =
-          absl::down_cast<const StructDef*>(first_struct_or_proc->def);
+      const StructDefBase* def = first_struct_or_proc->def;
       std::vector<const TypeAnnotation*> annotations_to_unify;
       for (const TypeAnnotation* annotation : annotations) {
         XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> next_struct_or_proc,
                              GetStructOrProcRef(annotation, import_data_));
         if (!next_struct_or_proc.has_value() ||
-            next_struct_or_proc->def != struct_def) {
+            next_struct_or_proc->def != def) {
           return error_generator_.TypeMismatchError(parametric_context_,
                                                     annotations[0], annotation);
         }
-        if (struct_def->IsParametric()) {
+        if (def->IsParametric()) {
           annotations_to_unify.push_back(annotation);
         }
       }
       // A non-parametric struct is trivially unifiable, because nothing can
       // validly vary between the annotations. A parametric struct needs to have
       // its parameters unified.
-      return annotations_to_unify.empty()
-                 ? annotations[0]
-                 : UnifyParametricStructAnnotations(*struct_def,
-                                                    annotations_to_unify);
+      if (annotations_to_unify.empty()) {
+        return annotations[0];
+      }
+
+      if (def->kind() != AstNodeKind::kStructDef) {
+        return absl::UnimplementedError(
+            "Parametric impl-based procs are not yet supported.");
+      }
+
+      return UnifyParametricStructAnnotations(
+          *absl::down_cast<const StructDef*>(def), annotations_to_unify);
     }
     return UnifyBitsLikeTypeAnnotations(annotations, span);
   }

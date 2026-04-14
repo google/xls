@@ -23,6 +23,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
@@ -7769,6 +7770,45 @@ proc Proc {
 
 )",
       TypecheckFails(HasSubstr("Cannot match a 2-element tuple to 1 values.")));
+}
+
+TEST(TypecheckV2Test, ProcWithImpl) {
+  constexpr std::string_view kProcType =
+      "P { input: chan(uN[32], dir=in), output: "
+      "chan(uN[32], dir=out), state: State {} }";
+
+  EXPECT_THAT(
+      R"(
+#![feature(explicit_state_access)]
+
+proc P {
+  input: chan<u32> in,
+  output: chan<u32> out,
+  state: u32,
+}
+
+impl P {
+    fn new(input: chan<u32> in, output: chan<u32> out, init_val: u32) -> Self {
+      P { input, output, state: init_val }
+    }
+
+    fn next(self) {
+      let s = read(self.state);
+      let (tok, val) = recv(join(), self.input);
+      let new_val = val + s;
+      let tok = send(tok, self.output, new_val);
+      write(self.state, new_val);
+    }
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("P", absl::Substitute("typeof($0)", kProcType)),
+          HasNodeWithType(
+              "new",
+              absl::Substitute("(chan(uN[32], dir=in), chan(uN[32], dir=out), "
+                               "uN[32]) -> $0",
+                               kProcType)),
+          HasNodeWithType("next", absl::Substitute("($0) -> ()", kProcType)))));
 }
 
 TEST(TypecheckV2Test, ImportParametricFunctionWithDefaultExpression) {

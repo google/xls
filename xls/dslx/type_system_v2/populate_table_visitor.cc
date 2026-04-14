@@ -220,6 +220,18 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
+  absl::Status HandleImpl(const Impl* node) override {
+    XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> struct_def_base,
+                         GetStructOrProcDef(node->struct_ref(), import_data_));
+    if (struct_def_base.has_value() &&
+        (*struct_def_base)->kind() == AstNodeKind::kProcDef) {
+      handle_proc_functions_ = true;
+    }
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
+    handle_proc_functions_ = false;
+    return absl::OkStatus();
+  }
+
   absl::Status HandleNameRef(const NameRef* node) override {
     VLOG(5) << "HandleNameRef: " << node->ToString();
     return PropagateDefToRef(node);
@@ -1406,8 +1418,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(member, member->type()));
       }
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          node, CreateStructAnnotation(module_, const_cast<StructDef*>(node),
-                                       {}, std::nullopt)));
+          node, CreateStructOrProcAnnotation(
+                    module_, const_cast<StructDef*>(node), {}, std::nullopt)));
     }
     return DefaultHandler(node);
   }
@@ -2225,24 +2237,16 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
               node->struct_ref()->ToString()),
           file_table_);
     }
-    if (struct_or_proc_ref->def->kind() == AstNodeKind::kProcDef) {
-      return TypeInferenceErrorStatusForAnnotation(
-          node->span(), node->struct_ref(),
-          "Impl-style procs are a work in progress and cannot yet be "
-          "instantiated.",
-          file_table_);
-    }
 
-    const StructDef* struct_def =
-        absl::down_cast<const StructDef*>(struct_or_proc_ref->def);
+    const StructDefBase* struct_def = struct_or_proc_ref->def;
     const NameRef* type_variable = *table_.GetTypeVariable(node);
     if (source.has_value()) {
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(*source, type_variable));
     }
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node,
-        CreateStructAnnotation(module_, const_cast<StructDef*>(struct_def),
-                               struct_or_proc_ref->parametrics, node)));
+        node, CreateStructOrProcAnnotation(
+                  module_, const_cast<StructDefBase*>(struct_def),
+                  struct_or_proc_ref->parametrics, node)));
     XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(*node, *struct_def));
 
     absl::flat_hash_map<std::string, const StructMemberNode*> formal_member_map;
@@ -2253,10 +2257,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         module_.Make<TypeVariableTypeAnnotation>(type_variable);
     for (const auto& [name, actual_member] : node->members()) {
       const StructMemberNode* formal_member = formal_member_map.at(name);
+
+      // In the context of instance initialization only, we require the RHS of
+      // proc state assignment to be T rather than State<T>.
       const TypeAnnotation* formal_member_type =
-          module_.Make<MemberTypeAnnotation>(formal_member->name_def()->span(),
-                                             struct_variable_type,
-                                             formal_member->name());
+          module_.Make<MemberTypeAnnotation>(
+              formal_member->name_def()->span(), struct_variable_type,
+              formal_member->name(),
+              /*use_wrapped_type_if_proc_state=*/false);
+
       table_.SetAnnotationFlag(formal_member_type,
                                TypeInferenceFlag::kFormalMemberType);
       XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(

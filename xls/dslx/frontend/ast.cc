@@ -866,6 +866,11 @@ TypeRef::TypeRef(Module* owner, Span span, TypeDefinition type_definition)
       span_(std::move(span)),
       type_definition_(type_definition) {}
 
+TypeRef::TypeRef(Module* owner, Span span, StructDefBase* struct_def_base)
+    : AstNode(owner),
+      span_(std::move(span)),
+      type_definition_(StructDefBaseToTypeDefinition(struct_def_base)) {}
+
 std::string TypeRef::ToString() const {
   return absl::visit(Visitor{
                          [&](ColonRef* n) { return n->ToString(); },
@@ -1163,10 +1168,12 @@ std::string TypeVariableTypeAnnotation::ToString() const {
 
 MemberTypeAnnotation::MemberTypeAnnotation(Module* owner, Span span,
                                            const TypeAnnotation* struct_type,
-                                           std::string_view member_name)
+                                           std::string_view member_name,
+                                           bool use_wrapped_type_if_proc_state)
     : TypeAnnotation(owner, span, kAnnotationKind),
       struct_type_(struct_type),
-      member_name_(member_name) {}
+      member_name_(member_name),
+      use_wrapped_type_if_proc_state_(use_wrapped_type_if_proc_state) {}
 
 std::string MemberTypeAnnotation::ToString() const {
   return absl::Substitute("MemberTypeAnnotation: $0.$1",
@@ -2311,9 +2318,9 @@ bool Function::IsMethodOnParametricStruct() const {
   }
   const auto* struct_ref =
       absl::down_cast<const TypeRefTypeAnnotation*>((*impl())->struct_ref());
-  StructDef* struct_def =
-      std::get<StructDef*>(struct_ref->type_ref()->type_definition());
-  return !struct_def->parametric_bindings().empty();
+  const auto* struct_def_base = absl::ConvertVariantTo<StructDefBase*>(
+      struct_ref->type_ref()->type_definition());
+  return !struct_def_base->parametric_bindings().empty();
 }
 
 std::vector<AstNode*> Function::GetChildren(bool want_types) const {

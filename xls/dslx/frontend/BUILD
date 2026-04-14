@@ -759,6 +759,8 @@ cc_library(
         "//xls/dslx:warning_kind",
         "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system_v2:import_utils",
+        "//xls/dslx/type_system_v2:type_annotation_utils",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

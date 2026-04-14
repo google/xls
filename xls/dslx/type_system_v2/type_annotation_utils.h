@@ -98,13 +98,13 @@ absl::StatusOr<TypeAnnotation*> CreateBuiltinTypeAnnotation(
 
 // Creates an annotation referring to the given struct definition with the given
 // parametric arguments.
-TypeAnnotation* CreateStructAnnotation(
-    Module& module, StructDef* def, std::vector<ExprOrType> parametrics,
+TypeAnnotation* CreateStructOrProcAnnotation(
+    Module& module, StructDefBase* def, std::vector<ExprOrType> parametrics,
     std::optional<const StructInstanceBase*> instantiator);
 
 // Variant that converts a `StructOrProcRef` into an annotation.
-TypeAnnotation* CreateStructAnnotation(Module& module,
-                                       const StructOrProcRef& ref);
+TypeAnnotation* CreateStructOrProcAnnotation(Module& module,
+                                             const StructOrProcRef& ref);
 
 // Returns the element channel type of the given channel array type.
 ChannelTypeAnnotation* GetChannelArrayElementType(
@@ -218,6 +218,10 @@ bool IsBitsLikeFragment(const TypeAnnotation* annotation);
 // user-facing error messages.
 std::string GetParametricBindingOwnerDescription(
     const ParametricBinding* binding);
+
+// Returns true if `annotation` indicates either a channel or channel array
+// type.
+bool IsChannelOrChannelArrayAnnotation(const TypeAnnotation* annotation);
 
 }  // namespace xls::dslx
 

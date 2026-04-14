@@ -1193,8 +1193,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(
         InferenceTable::StructContextResult lookup_result,
         table_.GetOrCreateParametricStructContext(
-            ref.def, node, parametric_env, CreateStructAnnotation(module_, ref),
-            type_info_factory));
+            ref.def, node, parametric_env,
+            CreateStructOrProcAnnotation(module_, ref), type_info_factory));
     const ParametricContext* struct_context = lookup_result.context;
     if (!lookup_result.created_new) {
       return struct_context;
@@ -2398,9 +2398,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       resolved_parametrics_vector.push_back(
           resolved_parametrics.at(binding->identifier()));
     }
-    return CreateStructAnnotation(module_, const_cast<StructDef*>(&struct_def),
-                                  resolved_parametrics_vector,
-                                  instantiator_node);
+    return CreateStructOrProcAnnotation(
+        module_, const_cast<StructDef*>(&struct_def),
+        resolved_parametrics_vector, instantiator_node);
   }
 
   // Creates a member initializer `Expr` for a splatted member of a struct

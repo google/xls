@@ -46,6 +46,8 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -771,11 +773,15 @@ class CollectUseDef : public AstNodeVisitorWithDefault {
   absl::flat_hash_set<const NameDef*> uses_;
 };
 
-// Replaces the type annotation of next() params to State<TheOriginalType>.
-class NextParamStateVisitor : public AstNodeVisitorWithDefault {
+// Replaces the type annotation for proc state members with
+// State<TheOriginalType>. In legacy procs, this affects the next() param nodes.
+// In impl-style procs, it affects the declared state members of the proc.
+class ProcStateVisitor : public AstNodeVisitorWithDefault {
  public:
-  NextParamStateVisitor(StructDef* state_struct_def)
-      : state_struct_def_(state_struct_def) {}
+  // Creates a visitor using `import_data` and the given `StructDef` for the
+  // builtin `State` struct.
+  ProcStateVisitor(ImportData& import_data, StructDef* state_struct_def)
+      : import_data_(import_data), state_struct_def_(state_struct_def) {}
 
   absl::Status HandleFunction(const Function* node) override {
     // Legacy proc has multiple pointers to functions within the AST. This could
@@ -791,14 +797,31 @@ class NextParamStateVisitor : public AstNodeVisitorWithDefault {
         node->parent()->kind() == AstNodeKind::kFunction) {
       const Function* fn = absl::down_cast<const Function*>(node->parent());
       if (fn->tag() == FunctionTag::kProcNext) {
-        TypeRef* state_typeref =
-            node->owner()->Make<TypeRef>(node->span(), state_struct_def_);
-        std::vector<ExprOrType> parametrics = {node->type_annotation()};
-        TypeRefTypeAnnotation* state_type_annotation =
-            node->owner()->Make<TypeRefTypeAnnotation>(
-                node->span(), state_typeref, parametrics);
-        const_cast<Param*>(node)->set_type_annotation(state_type_annotation);
+        const_cast<Param*>(node)->set_type_annotation(
+            CreateStateTypeAnnotation(node->owner(), node->type_annotation(),
+                                      node->type_annotation()->span()));
       }
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleProcDef(const ProcDef* node) override {
+    for (StructMemberNode* member : node->members()) {
+      TypeAnnotation* type = member->type();
+
+      // Don't do the T -> State<T> conversion for channels, channel arrays, or
+      // sub-procs.
+      if (IsChannelOrChannelArrayAnnotation(type)) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
+                           GetStructOrProcDef(type, import_data_));
+      if (def.has_value() && (*def)->kind() == AstNodeKind::kProcDef) {
+        continue;
+      }
+
+      member->set_type(
+          CreateStateTypeAnnotation(node->owner(), type, type->span()));
     }
     return absl::OkStatus();
   }
@@ -811,7 +834,17 @@ class NextParamStateVisitor : public AstNodeVisitorWithDefault {
   }
 
  private:
-  StructDef* state_struct_def_;
+  TypeAnnotation* CreateStateTypeAnnotation(Module* module,
+                                            TypeAnnotation* underlying_type,
+                                            const Span& span) {
+    TypeRef* state_typeref = module->Make<TypeRef>(span, state_struct_def_);
+    std::vector<ExprOrType> parametrics = {underlying_type};
+    return module->Make<TypeRefTypeAnnotation>(span, state_typeref,
+                                               parametrics);
+  }
+
+  ImportData& import_data_;
+  StructDef* const state_struct_def_;
   absl::flat_hash_set<const Function*> processed_fns_;
 };
 
@@ -828,8 +861,8 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
                          import_data.GetBuiltinStubsModule());
     XLS_ASSIGN_OR_RETURN(StructDef * state_struct_def,
                          builtins->GetMemberOrError<StructDef>("State"));
-    NextParamStateVisitor next_param_visitor(state_struct_def);
-    XLS_RETURN_IF_ERROR(module.Accept(&next_param_visitor));
+    ProcStateVisitor state_visitor(import_data, state_struct_def);
+    XLS_RETURN_IF_ERROR(module.Accept(&state_visitor));
   }
   ReplaceLambdaWithInvocation lambda_pass(import_data.file_table());
   XLS_RETURN_IF_ERROR(module.Accept(&lambda_pass));
