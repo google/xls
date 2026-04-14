@@ -179,8 +179,13 @@ class JittedFunctionBase {
   int64_t temp_buffer_size() const { return temp_buffer_size_; }
 
   int64_t temp_buffer_alignment() const { return temp_buffer_alignment_; }
-  int64_t max_trace_verbosity() const { return max_trace_verbosity_; }
-  void set_max_trace_verbosity(int64_t value) { max_trace_verbosity_ = value; }
+
+  std::optional<int64_t> max_trace_verbosity() const {
+    return max_trace_verbosity_;
+  }
+  void set_max_trace_verbosity(std::optional<int64_t> value) {
+    max_trace_verbosity_ = value;
+  }
 
   const absl::flat_hash_map<int64_t, int64_t>& continuation_points() const {
     return continuation_points_;
@@ -253,7 +258,7 @@ class JittedFunctionBase {
   // the instance context.
   absl::btree_map<std::string, int64_t> queue_indices_;
 
-  int64_t max_trace_verbosity_ = 0;
+  std::optional<int64_t> max_trace_verbosity_;
 };
 
 struct FunctionEntrypoint {
