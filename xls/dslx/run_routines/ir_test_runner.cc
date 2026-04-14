@@ -74,6 +74,7 @@ EvaluatorOptions BytecodeInterpreterOptionsToEvaluatorOptions(
   return EvaluatorOptions()
       .set_trace_channels(options.trace_channels())
       .set_trace_calls(options.trace_calls())
+      .set_max_trace_verbosity(options.max_trace_verbosity())
       .set_format_preference(options.format_preference());
 }
 
@@ -97,7 +98,8 @@ class IrRunner : public AbstractParsedTestRunner {
   template <typename ChannelT>
   absl::StatusOr<RunResult> RunTestSingleProc(
       ProcRuntime* rt, ChannelT* terminate,
-      const BytecodeInterpreterOptions& options) {
+      const BytecodeInterpreterOptions& options,
+      DslxInterpreterEvents* events) {
     absl::StatusOr<int64_t> result =
         rt->TickUntilOutput({{terminate, 1}}, options.max_ticks());
     // NB Since the setup is done any failure now is in the tested code. EG
@@ -112,7 +114,11 @@ class IrRunner : public AbstractParsedTestRunner {
           rt->GetInterpreterEvents(instance);
       absl::c_copy(instance_events.GetAssertMessages(),
                    std::back_inserter(asserts));
+      if (events != nullptr) {
+        *events = DslxInterpreterEvents::FromProto(instance_events.AsProto());
+      }
     }
+
     if (asserts.empty()) {
       std::optional<Value> proc_result =
           rt->queue_manager().GetQueue(terminate).Read();
@@ -132,7 +138,8 @@ class IrRunner : public AbstractParsedTestRunner {
   // ir_convert.
   absl::StatusOr<RunResult> RunTestSingleProc(
       xls::Proc* proc, std::string_view terminate_name,
-      const BytecodeInterpreterOptions& options) {
+      const BytecodeInterpreterOptions& options,
+      DslxInterpreterEvents* events) {
     XLS_RET_CHECK(options.post_fn_eval_hook() == nullptr)
         << "hooks not supported using non-dslx interpreters";
     XLS_ASSIGN_OR_RETURN(
@@ -145,18 +152,18 @@ class IrRunner : public AbstractParsedTestRunner {
       XLS_ASSIGN_OR_RETURN(ChannelInstance * terminate,
                            top_instance->GetChannelInstance(terminate_name));
       VLOG(2) << "Running proc " << proc->name() << " waiting on " << terminate;
-      return RunTestSingleProc(rt.get(), terminate, options);
+      return RunTestSingleProc(rt.get(), terminate, options, events);
     } else {
       XLS_ASSIGN_OR_RETURN(Channel * terminate,
                            proc->package()->GetChannel(terminate_name));
       VLOG(2) << "Running proc " << proc->name() << " waiting on " << terminate;
-      return RunTestSingleProc(rt.get(), terminate, options);
+      return RunTestSingleProc(rt.get(), terminate, options, events);
     }
   }
 
   absl::StatusOr<RunResult> RunTestProc(
-      std::string_view name,
-      const BytecodeInterpreterOptions& options) override {
+      std::string_view name, const BytecodeInterpreterOptions& options,
+      DslxInterpreterEvents* events) override {
     if (options.trace_channels()) {
       LOG(WARNING) << "Unable to trace channels with IR testing";
     }
@@ -177,7 +184,7 @@ class IrRunner : public AbstractParsedTestRunner {
     XLS_RETURN_IF_ERROR(dfe.Run(package, {}, &pr, context).status());
     // Get the corresponding entries.
     XLS_ASSIGN_OR_RETURN(auto* top, package->GetTopAsProc());
-    return RunTestSingleProc(top, finish_name, options);
+    return RunTestSingleProc(top, finish_name, options, events);
   }
 
   absl::StatusOr<RunResult> RunTestFunction(
