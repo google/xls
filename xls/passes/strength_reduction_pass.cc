@@ -50,9 +50,10 @@ namespace {
 
 absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
     Node* node, const QueryEngine& query_engine, Select* select_val) {
-  if (OpIsSideEffecting(node->op())) {
+  if (OpIsSideEffecting(node->op()) || node->Is<Invoke>()) {
     // Side-effecting operations are not always safe to duplicate so don't
-    // bother.
+    // bother. Invokes are also excluded because the invoked functions may
+    // contain side-effecting operations.
     return false;
   }
   DCHECK(!query_engine.IsFullyKnown(select_val));
