@@ -246,7 +246,8 @@ class AbstractParsedTestRunner {
  public:
   virtual ~AbstractParsedTestRunner() = default;
   virtual absl::StatusOr<RunResult> RunTestProc(
-      std::string_view name, const BytecodeInterpreterOptions& options) = 0;
+      std::string_view name, const BytecodeInterpreterOptions& options,
+      DslxInterpreterEvents* events) = 0;
   virtual absl::StatusOr<RunResult> RunTestFunction(
       std::string_view name, const BytecodeInterpreterOptions& options,
       std::optional<DslxInterpreterEvents*> events) = 0;
@@ -268,8 +269,8 @@ class DslxInterpreterParsedTestRunner : public AbstractParsedTestRunner {
         entry_module_(entry_module) {}
 
   absl::StatusOr<RunResult> RunTestProc(
-      std::string_view name,
-      const BytecodeInterpreterOptions& options) override;
+      std::string_view name, const BytecodeInterpreterOptions& options,
+      DslxInterpreterEvents* events) override;
   absl::StatusOr<RunResult> RunTestFunction(
       std::string_view name, const BytecodeInterpreterOptions& options,
       std::optional<DslxInterpreterEvents*> events) override;

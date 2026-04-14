@@ -188,7 +188,8 @@ template <typename ProcType>
 absl::Status RunDslxTestProc(ImportData* import_data, const Module* module,
                              ProcType* tp, TypeInfo* ti,
                              std::optional<std::string> expected_fail_label,
-                             const BytecodeInterpreterOptions& options) {
+                             const BytecodeInterpreterOptions& options,
+                             DslxInterpreterEvents* events) {
   auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
 
@@ -301,14 +302,16 @@ absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestFunction(
 }
 
 absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestProc(
-    std::string_view name, const BytecodeInterpreterOptions& options) {
+    std::string_view name, const BytecodeInterpreterOptions& options,
+    DslxInterpreterEvents* events) {
   if (std::optional<TestProc*> tp = entry_module_->GetMember<TestProc>(name);
       tp.has_value()) {
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                          type_info_->GetTopLevelProcTypeInfo((*tp)->proc()));
     return RunResult{
         .result = RunDslxTestProc(import_data_, entry_module_, (*tp)->proc(),
-                                  ti, (*tp)->expected_fail_label(), options)};
+                                  ti, (*tp)->expected_fail_label(), options,
+                                  events)};
   }
 
   XLS_ASSIGN_OR_RETURN(ProcDef * proc_def,
@@ -322,7 +325,8 @@ absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestProc(
   return RunResult{
       .result = RunDslxTestProc(import_data_, entry_module_, proc_def,
                                 initializers[0].next_type_info,
-                                /*expected_fail_label=*/std::nullopt, options)};
+                                /*expected_fail_label=*/std::nullopt, options,
+                                events)};
 }
 
 TestResultData::TestResultData(absl::Time start_time,
@@ -1077,7 +1081,8 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
             "implemented");
       }
       XLS_ASSIGN_OR_RETURN(out,
-                           runner->RunTestProc(test_name, interpreter_options));
+                           runner->RunTestProc(test_name, interpreter_options,
+                                               /*events=*/&test_events));
     }
     auto test_case_end = absl::Now();
 
@@ -1087,23 +1092,18 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
       *result_proto->mutable_events() = test_events.AsProto();
     }
 
-    // Display vtrace messages according to the value of the
-    // `max_trace_verbosity` flag for other evaluators than the DSLX
+    // Display vtrace messages for other evaluators than the DSLX
     // interpreter, because we don't want to duplicate logs
     if (options.evaluator != EvaluatorType::kDslxInterpreter) {
       for (const auto& msg : test_events.AsProto().trace_msgs()) {
-        int64_t verbosity =
-            msg.has_statement() ? msg.statement().verbosity() : 0;
-        if (verbosity <= options.max_trace_verbosity) {
-          std::string message = msg.message();
-          if (msg.has_location()) {
-            message = absl::StrFormat(
-                "[%s:%d:%d] %s",
-                std::filesystem::path(msg.location().filename()).filename(),
-                msg.location().line(), msg.location().column(), msg.message());
-          }
-          std::cerr << message << '\n';
+        std::string message = msg.message();
+        if (msg.has_location()) {
+          message = absl::StrFormat(
+              "[%s:%d:%d] %s",
+              std::filesystem::path(msg.location().filename()).filename(),
+              msg.location().line(), msg.location().column(), msg.message());
         }
+        std::cerr << message << '\n';
       }
     }
 

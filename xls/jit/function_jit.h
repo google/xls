@@ -325,7 +325,7 @@ class FunctionJit {
   const std::optional<int64_t> max_trace_verbosity() const {
     return max_trace_verbosity_;
   }
-  std::optional<int64_t> max_trace_verbosity_ = 0;
+  std::optional<int64_t> max_trace_verbosity_;
 
   // Context callbacks.
   InstanceContext callbacks_ =

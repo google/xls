@@ -39,7 +39,7 @@ INSTANTIATE_TEST_SUITE_P(
                const EvaluatorOptions& options = EvaluatorOptions())
                 -> std::unique_ptr<ProcEvaluator> {
               absl::StatusOr<std::unique_ptr<ProcInterpreter>> interpreter =
-                  ProcInterpreter::Create(proc, queue_manager);
+                  ProcInterpreter::Create(proc, queue_manager, options);
               CHECK_OK(interpreter);
               return std::move(*interpreter);
             },
@@ -52,7 +52,7 @@ INSTANTIATE_TEST_SUITE_P(
                const EvaluatorOptions& options = EvaluatorOptions())
                 -> std::unique_ptr<ProcEvaluator> {
               absl::StatusOr<std::unique_ptr<ProcInterpreter>> interpreter =
-                  ProcInterpreter::Create(proc, queue_manager);
+                  ProcInterpreter::Create(proc, queue_manager, options);
               CHECK_OK(interpreter);
               return std::move(*interpreter);
             },
