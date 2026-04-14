@@ -1895,9 +1895,15 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
             Proc * source_proc,
             ParseProc(package, /*outer_attributes=*/{}, &source));
         for (StateElement* element : source_proc->StateElements()) {
-          name_to_value->emplace(
-              element->name(),
-              bb->SourceNode(source_proc->GetStateReadByStateElement(element)));
+          absl::Span<StateRead* const> reads =
+              source_proc->GetStateReadsByStateElement(element);
+          // TODO: (nelsonliang) Make this work for multiple reads of the same
+          // state element. This will require populating `name_to_value` with
+          // entries for each `StateRead` node (keyed by node name) rather than
+          // one entry per state element (keyed by state element name).
+          XLS_RET_CHECK_EQ(reads.size(), 1);
+          name_to_value->emplace(element->name(),
+                                 bb->SourceNode(reads.front()));
         }
       } else {
         return absl::InvalidArgumentError(absl::StrFormat(
