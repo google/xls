@@ -1329,6 +1329,51 @@ proc main {
   RoundTrip(std::string(kModule));
 }
 
+TEST_F(ParserTest, ParseImplBasedProcNetwork) {
+  std::string_view kModule = R"(#![feature(explicit_state_access)]
+
+proc P {
+    c_out: chan<u32> out,
+    i: u32,
+}
+impl P {
+    fn new(c_out: chan<u32> out) -> Self {
+        P { c_out: c_out, i: 0 }
+    }
+    fn next(self) {
+        let last_i = read(self.i);
+        send(join(), self.c_out, last_i);
+        write(self.i, last_i + 1);
+    }
+}
+proc C {
+    c_in: chan<u32> in,
+    i: u32,
+}
+impl C {
+    fn new(c_in: chan<u32> in) -> Self {
+        C { c_in: c_in, i: 0 }
+    }
+    fn next(self) {
+        let last_i = read(self.i);
+        let (tok1, e) = recv(join(), self.c_in);
+        write(self.i, e + last_i);
+    }
+}
+proc Main {
+}
+impl Main {
+    fn new() -> Self {
+        let (c_out, c_in) = chan<u32>("my_chan");
+        P::new(c_out, 0).spawn();
+        let c = C::new(c_in);
+        c.spawn();
+    }
+})";
+
+  RoundTrip(std::string(kModule));
+}
+
 // Parses the "iota" example with fifo_depth set on the internal channel.
 TEST_F(ParserTest, ParseProcNetworkWithFifoDepthOnInternalChannel) {
   std::string_view kModule = R"(proc producer {

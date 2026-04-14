@@ -34,7 +34,6 @@
   X(kPub, PUB, "pub")                      \
   X(kProc, PROC, "proc")                   \
   X(kSelf, SELF, "self")                   \
-  X(kSpawn, SPAWN, "spawn")                \
   X(kStruct, STRUCT, "struct")             \
   X(kTrait, TRAIT, "trait")                \
   X(kTrue, TRUE, "true")                   \

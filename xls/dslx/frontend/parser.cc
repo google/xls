@@ -74,6 +74,7 @@ constexpr std::string_view kSelfOutsideImplError =
     "Type `Self` cannot be used outside of a `trait` or `impl`";
 constexpr std::string_view kConstAssertIdentifier = "const_assert!";
 constexpr std::string_view kAssertFmtMacroIdentifier = "assert_fmt!";
+constexpr std::string_view kSpawnIdentifier = "spawn";
 
 absl::StatusOr<std::vector<ExprOrType>> CloneParametrics(
     absl::Span<const ExprOrType> eots) {
@@ -1254,7 +1255,7 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
   if (peek->IsKeyword(Keyword::kChan)) {
     return ParseChannelDecl(bindings, channel_config);
   }
-  if (peek->IsKeyword(Keyword::kSpawn)) {
+  if (peek->IsIdentifier(kSpawnIdentifier)) {
     return ParseSpawn(bindings);
   }
   if (peek->kind() == TokenKind::kOBrace) {
@@ -3084,9 +3085,9 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
 }
 
 absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
-  XLS_ASSIGN_OR_RETURN(Token spawn, PopKeywordOrError(Keyword::kSpawn));
+  Span spawn_span;
+  XLS_RETURN_IF_ERROR(PopIdentifierOrError(&spawn_span).status());
   XLS_ASSIGN_OR_RETURN(auto name_or_colon_ref, ParseNameOrColonRef(bindings));
-
   std::vector<ExprOrType> parametrics;
   XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
   if (peek_is_oangle) {
@@ -3181,7 +3182,7 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
       Span(next_start, next_limit), next_ref,
       std::vector<Expr*>({init_invocation}), std::move(next_parametrics));
 
-  return module_->Make<Spawn>(Span(spawn.span().start(), next_limit), spawnee,
+  return module_->Make<Spawn>(Span(spawn_span.start(), next_limit), spawnee,
                               config_invoc, next_invoc, std::move(parametrics));
 }
 

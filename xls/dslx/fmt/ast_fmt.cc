@@ -1391,7 +1391,7 @@ DocRef Fmt(const Match& n, Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Spawn& n, Comments& comments, DocArena& arena) {
-  return ConcatNGroup(arena, {arena.Make(Keyword::kSpawn), arena.space(),
+  return ConcatNGroup(arena, {arena.MakeText("spawn"), arena.space(),
                               Fmt(*n.config(), comments, arena)}
 
   );
