@@ -267,7 +267,8 @@ class DelayInfoPrinterImpl : public DelayInfoPrinter {
 
   absl::Status GenerateNodeDelays() {
     std::cout << "# Delay of all nodes:\n";
-    for (Node* node : TopoSort(top_)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> sorted_nodes, TopoSort(top_));
+    for (Node* node : sorted_nodes) {
       absl::StatusOr<int64_t> delay_status =
           delay_estimator_->GetOperationDelayInPs(node);
       if (delay_status.ok()) {

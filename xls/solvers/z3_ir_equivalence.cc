@@ -151,7 +151,8 @@ class RemoveAssertsPass : public OptimizationFunctionBasePass {
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results, OptimizationContext& ctx) const override {
     bool changed = false;
-    for (Node* n : ctx.TopoSort(f)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, ctx.TopoSort(f));
+    for (Node* n : topo_sort_nodes) {
       if (n->Is<Assert>()) {
         XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
         XLS_RETURN_IF_ERROR(f->RemoveNode(n));
@@ -202,7 +203,8 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
   // semantically equivalent by making a single Z3-AST function and checking a
   // single eq node's value.
   absl::flat_hash_map<Node*, Node*> node_map;
-  for (Node* n : TopoSort(b)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(b));
+  for (Node* n : topo_sort_nodes) {
     if (n->Is<Param>()) {
       XLS_ASSIGN_OR_RETURN(int64_t index, b->GetParamIndex(n->As<Param>()));
       node_map[n] = to_test_func->param(index);

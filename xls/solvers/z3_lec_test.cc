@@ -257,7 +257,9 @@ endmodule
     }
   }
 
-  PipelineSchedule schedule(entry_function, cycle_map, /*length=*/3);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Create(entry_function, cycle_map, /*length=*/3));
 
   for (int i = 0; i < schedule.length(); i++) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Lec> lec,
@@ -346,7 +348,9 @@ endmodule
     }
   }
 
-  PipelineSchedule schedule(entry_function, cycle_map, /*length=*/3);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Create(entry_function, cycle_map, /*length=*/3));
   for (int i = 0; i < schedule.length(); i++) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Lec> lec,
                              Lec::CreateForStage(params, schedule, i));
@@ -499,7 +503,9 @@ endmodule
     }
   }
 
-  PipelineSchedule schedule(entry_function, cycle_map, /*length=*/3);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Create(entry_function, cycle_map, /*length=*/3));
   for (int i = 0; i < schedule.length(); i++) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Lec> lec,
                              Lec::CreateForStage(params, schedule, i));

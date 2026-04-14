@@ -32,7 +32,8 @@ namespace {
 absl::StatusOr<bool> FilterVerboseTraces(Block* block, int64_t verbosity) {
   bool changed = false;
   std::vector<Trace*> filtered_traces;
-  for (Node* node : TopoSort(block)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(block));
+  for (Node* node : topo_sort_nodes) {
     if (!node->Is<Trace>()) {
       continue;
     }

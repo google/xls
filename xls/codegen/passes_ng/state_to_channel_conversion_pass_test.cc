@@ -24,6 +24,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -432,7 +433,10 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(TestParam(
         [](Proc* proc, ChannelQueueManager* queue_manager)
             -> std::unique_ptr<ProcEvaluator> {
-          return std::make_unique<ProcInterpreter>(proc, queue_manager);
+          absl::StatusOr<std::unique_ptr<ProcInterpreter>> interpreter =
+              ProcInterpreter::Create(proc, queue_manager);
+          CHECK_OK(interpreter);
+          return std::move(*interpreter);
         },
         [](Package* package) -> std::unique_ptr<ChannelQueueManager> {
           return ChannelQueueManager::Create(package).value();

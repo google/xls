@@ -53,7 +53,8 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
   Node *sub2 = FindNode("sub.2", function);
   Node *udiv3 = FindNode("udiv.3", function);
 
-  DelayManager dm(function, TestDelayEstimator());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      DelayManager dm, DelayManager::Create(function, TestDelayEstimator()));
 
   XLS_ASSERT_OK_AND_ASSIGN(int64_t i0_delay, dm.GetNodeDelay(i0));
   EXPECT_EQ(i0_delay, 0);
@@ -134,7 +135,7 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
                         PathInfo(3, sub2, udiv3)) != sort_result.end());
 
   XLS_EXPECT_OK(dm.SetCriticalPathDelay(add1, sub2, 1));
-  dm.PropagateDelays();
+  XLS_ASSERT_OK(dm.PropagateDelays());
 
   XLS_ASSERT_OK_AND_ASSIGN(int64_t new_i0_delay, dm.GetNodeDelay(i0));
   EXPECT_EQ(new_i0_delay, 0);

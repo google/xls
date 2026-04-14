@@ -15,6 +15,7 @@
 #include "xls/passes/receive_default_value_simplification_pass.h"
 
 #include <optional>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
@@ -134,7 +135,9 @@ absl::StatusOr<bool> ReceiveDefaultValueSimplificationPass::RunOnProcInternal(
   StatelessQueryEngine query_engine;
 
   bool changed = false;
-  for (Node* node : context.TopoSort(proc)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       context.TopoSort(proc));
+  for (Node* node : topo_sort_nodes) {
     if (!IsBinarySelectOrPrioritySelect(node)) {
       continue;
     }

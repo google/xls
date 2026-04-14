@@ -21,7 +21,6 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/log/log.h"
-#include "absl/log/vlog_is_on.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/block_metrics.h"
@@ -115,9 +114,7 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
     const CodegenOptions& options, const DelayEstimator* delay_estimator) {
   VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, package->DumpIr());
-  if (VLOG_IS_ON(2)) {
-    XLS_VLOG_LINES(2, package_schedule.ToString());
-  }
+  XLS_VLOG_LINES(2, package_schedule.ToString());
 
   // Note: this is mutated below so cannot be const. It would be nice to
   // refactor this so it could be.

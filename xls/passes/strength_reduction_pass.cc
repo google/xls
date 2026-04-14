@@ -813,7 +813,8 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   bool modified = false;
-  for (Node* node : context.TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     XLS_ASSIGN_OR_RETURN(
         bool node_modified,
         StrengthReduceNode(node, query_engine, options.opt_level));

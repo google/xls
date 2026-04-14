@@ -123,7 +123,8 @@ absl::StatusOr<InterProcConnectivityGraph> MakeInterProcConnectivityGraph(
     // remove all other nodes, but we initially keep around the other nodes
     // while building the graph so we can resolve dependencies through
     // intermediate nodes, e.g. after_alls and tuples.
-    for (Node* node : TopoSort(fb)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort, TopoSort(fb));
+    for (Node* node : topo_sort) {
       // This is a btree_set<Node*> w/ the comparison function used in
       // StableEdgeMap.
       StableEdgeMap::value_type::second_type node_predecessors;

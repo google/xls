@@ -764,7 +764,8 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine ::Populate(
   }
   XLS_RET_CHECK(f->IsProc());
   Proc* proc = f->AsProcOrDie();
-  std::vector<Node*> reverse_topo_sort = ReverseTopoSort(proc);
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort,
+                       ReverseTopoSort(proc));
   std::vector<Node*> topo_sort = reverse_topo_sort;
   absl::c_reverse(topo_sort);
   // Get the nodes which actually affect the next-value nodes. We don't really

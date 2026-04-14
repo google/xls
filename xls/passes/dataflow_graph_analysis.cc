@@ -19,6 +19,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -53,9 +54,16 @@ bool IsDataOriginating(Node* node) {
 
 }  // namespace
 
-DataflowGraphAnalysis::DataflowGraphAnalysis(FunctionBase* f,
+absl::StatusOr<DataflowGraphAnalysis> DataflowGraphAnalysis::Create(
+    FunctionBase* f, const QueryEngine* query_engine) {
+  std::vector<Node*> topo_sort_nodes;
+  XLS_ASSIGN_OR_RETURN(topo_sort_nodes, TopoSort(f));
+  return DataflowGraphAnalysis(std::move(topo_sort_nodes), query_engine);
+}
+
+DataflowGraphAnalysis::DataflowGraphAnalysis(std::vector<Node*> topo_sort_nodes,
                                              const QueryEngine* query_engine)
-    : nodes_(TopoSort(f)) {
+    : nodes_(std::move(topo_sort_nodes)) {
   CHECK_LT(
       nodes_.size(),
       static_cast<size_t>((std::numeric_limits<NodeIndex>::max() >> 1) - 1));

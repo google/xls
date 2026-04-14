@@ -199,7 +199,7 @@ class Analysis {
 
   absl::StatusOr<ReachedFixpoint> Execute(FunctionBase* f) {
     // Get the topological sort once so we don't recalculate it each time.
-    topo_sort_ = TopoSort(f);
+    XLS_ASSIGN_OR_RETURN(topo_sort_, TopoSort(f));
     // Get the base case.
     absl::flat_hash_map<Node*, RangeData> empty;
     ContextGivens base_givens(
@@ -585,7 +585,8 @@ absl::StatusOr<ReachedFixpoint> ContextSensitiveRangeQueryEngine::Populate(
   Analysis analysis(base_case_ranges_, arena_, one_hot_ranges_);
   XLS_ASSIGN_OR_RETURN(ReachedFixpoint fixpoint, analysis.Execute(f));
   // Fill in select ranges before any changes occur to the function.
-  for (Node* n : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  for (Node* n : topo_sort_nodes) {
     // TODO(allight): Support priority-select
     if (n->Is<Select>()) {
       std::optional<RangeData> data;

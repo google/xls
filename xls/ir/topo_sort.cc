@@ -29,6 +29,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
@@ -37,8 +38,8 @@
 
 namespace xls {
 
-std::vector<Node*> ReverseTopoSort(FunctionBase* f,
-                                   std::optional<absl::BitGenRef> randomizer) {
+absl::StatusOr<std::vector<Node*>> ReverseTopoSort(
+    FunctionBase* f, std::optional<absl::BitGenRef> randomizer) {
   // We store both the resulting order & the nodes that are ready to be added to
   // the order in the same vector; the initial segment is the
   // finished order (in reverse topo-sort order), and `[num_ordered, end)` is
@@ -196,22 +197,24 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f,
       }
     };
     CycleChecker cycle_checker;
-    CHECK_OK(f->Accept(&cycle_checker));
-    LOG(FATAL) << "Expected to find cycle in function base.";
+    XLS_RETURN_IF_ERROR(f->Accept(&cycle_checker));
+    return absl::InternalError(
+        "Expected CycleChecker to find cycle in function base but it did not.");
   }
 
   return result;
 }
 
-std::vector<Node*> TopoSort(FunctionBase* f,
-                            std::optional<absl::BitGenRef> randomizer) {
-  std::vector<Node*> ordered = ReverseTopoSort(f, randomizer);
+absl::StatusOr<std::vector<Node*>> TopoSort(
+    FunctionBase* f, std::optional<absl::BitGenRef> randomizer) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> ordered,
+                       ReverseTopoSort(f, randomizer));
   std::reverse(ordered.begin(), ordered.end());
   return ordered;
 }
 
-std::vector<Node*> StableTopoSort(FunctionBase* f,
-                                  absl::Span<int64_t const> reference_order) {
+absl::StatusOr<std::vector<Node*>> StableTopoSort(
+    FunctionBase* f, absl::Span<int64_t const> reference_order) {
   std::vector<Node*> result;
   result.reserve(f->node_count());
 
@@ -312,8 +315,9 @@ std::vector<Node*> StableTopoSort(FunctionBase* f,
       }
     };
     CycleChecker cycle_checker;
-    CHECK_OK(f->Accept(&cycle_checker));
-    LOG(FATAL) << "Expected to find cycle in function base.";
+    XLS_RETURN_IF_ERROR(f->Accept(&cycle_checker));
+    return absl::InternalError(
+        "Expected CycleChecker to find cycle in function base but it did not.");
   }
 
   std::reverse(result.begin(), result.end());

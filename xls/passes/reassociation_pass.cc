@@ -882,11 +882,13 @@ class Reassociation {
       first = false;
       // We always need to run through the candidates in topo order to ensure we
       // don't duplicate nodes.
+      XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                           context_.TopoSort(fb_));
       for (Node* node : iter::filter(
                [&](Node* n) -> bool {
                  return was_first || current_worklist.contains(n);
                },
-               context_.TopoSort(fb_))) {
+               topo_sort_nodes)) {
         if (!node->GetType()->IsBits()) {
           VLOG(5) << "Skipping " << node << " due to non-bits types";
           continue;

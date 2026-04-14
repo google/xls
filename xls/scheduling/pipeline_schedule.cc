@@ -68,39 +68,48 @@ int64_t MaximumCycle(const ScheduleCycleMap& cycle_map) {
 
 PipelineSchedule::PipelineSchedule(FunctionBase* function_base,
                                    ScheduleCycleMap cycle_map,
-                                   std::optional<int64_t> length,
                                    std::optional<int64_t> min_clock_period_ps)
     : function_base_(function_base),
       cycle_map_(std::move(cycle_map)),
-      min_clock_period_ps_(min_clock_period_ps) {
+      min_clock_period_ps_(min_clock_period_ps) {}
+
+/* static */ absl::StatusOr<PipelineSchedule> PipelineSchedule::Create(
+    FunctionBase* function_base, ScheduleCycleMap cycle_map,
+    std::optional<int64_t> length, std::optional<int64_t> min_clock_period_ps) {
+  PipelineSchedule schedule(function_base, std::move(cycle_map),
+                            min_clock_period_ps);
+
   // Build the mapping from cycle to the vector of nodes in that cycle.
-  int64_t max_cycle = MaximumCycle(cycle_map_);
+  int64_t max_cycle = MaximumCycle(schedule.cycle_map_);
   if (length.has_value()) {
     CHECK_GT(*length, max_cycle);
     max_cycle = *length - 1;
   }
   // max_cycle is the latest cycle in which any node is scheduled so add one to
   // get the capacity because cycle numbers start at zero.
-  cycle_to_nodes_.resize(max_cycle + 1);
-  for (const auto& pair : cycle_map_) {
+  schedule.cycle_to_nodes_.resize(max_cycle + 1);
+  for (const auto& pair : schedule.cycle_map_) {
     Node* node = pair.first;
     int64_t cycle = pair.second;
-    cycle_to_nodes_[cycle].push_back(node);
+    schedule.cycle_to_nodes_[cycle].push_back(node);
   }
   // The nodes in each cycle held in cycle_to_nodes_ must be in a topological
   // sort order.
   absl::flat_hash_map<Node*, int64_t> node_to_topo_index;
   int64_t i = 0;
-  for (Node* node : TopoSort(function_base)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       TopoSort(function_base));
+  for (Node* node : topo_sort_nodes) {
     node_to_topo_index[node] = i;
     ++i;
   }
-  for (std::vector<Node*>& nodes_in_cycle : cycle_to_nodes_) {
+  for (std::vector<Node*>& nodes_in_cycle : schedule.cycle_to_nodes_) {
     std::sort(nodes_in_cycle.begin(), nodes_in_cycle.end(),
               [&](Node* a, Node* b) {
                 return node_to_topo_index[a] < node_to_topo_index[b];
               });
   }
+  return schedule;
 }
 
 void PipelineSchedule::RemoveNode(Node* node) {
@@ -148,8 +157,9 @@ absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
   if (schedule_it->second.has_min_clock_period_ps()) {
     min_clock_period_ps = schedule_it->second.min_clock_period_ps();
   }
-  return PipelineSchedule(function, std::move(cycle_map),
-                          schedule_it->second.length(), min_clock_period_ps);
+  return PipelineSchedule::Create(function, std::move(cycle_map),
+                                  schedule_it->second.length(),
+                                  min_clock_period_ps);
 }
 
 absl::StatusOr<PipelineSchedule> PipelineSchedule::SingleStage(
@@ -158,7 +168,7 @@ absl::StatusOr<PipelineSchedule> PipelineSchedule::SingleStage(
   for (Node* node : function->nodes()) {
     cycle_map.emplace(node, 0);
   }
-  return PipelineSchedule(function, cycle_map);
+  return PipelineSchedule::Create(function, cycle_map);
 }
 
 absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64_t cycle) const {
@@ -221,7 +231,12 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
 std::string PipelineSchedule::ToString() const {
   absl::flat_hash_map<const Node*, int64_t> topo_pos;
   int64_t pos = 0;
-  for (Node* node : TopoSort(function_base_)) {
+  absl::StatusOr<std::vector<Node*>> topo_sort_nodes = TopoSort(function_base_);
+  if (!topo_sort_nodes.ok()) {
+    return absl::StrFormat("ERROR: could not topo sort: %s",
+                           topo_sort_nodes.status().ToString());
+  }
+  for (Node* node : *topo_sort_nodes) {
     topo_pos[node] = pos;
     pos++;
   }
@@ -303,7 +318,9 @@ absl::Status PipelineSchedule::VerifyTiming(
   // The node with the longest critical path from the start of the stage in the
   // entire schedule.
   Node* max_cp_node = nullptr;
-  for (Node* node : TopoSort(function_base_)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       TopoSort(function_base_));
+  for (Node* node : topo_sort_nodes) {
     // The critical-path delay from the start of the stage to the start of the
     // node.
     int64_t cp_to_node_start = 0;
@@ -390,7 +407,9 @@ absl::Status PipelineSchedule::VerifyConstraints(
   absl::flat_hash_map<Node*, absl::btree_set<Node*>> send_predecessors;
   absl::flat_hash_map<Node*, absl::btree_set<Node*>> io_predecessors;
   int64_t last_cycle = 0;
-  for (Node* node : TopoSort(function_base_)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       TopoSort(function_base_));
+  for (Node* node : topo_sort_nodes) {
     if (node->Is<Receive>() || node->Is<Send>()) {
       channel_to_nodes[node->As<ChannelNode>()->channel_name()].push_back(node);
     }
@@ -614,14 +633,16 @@ absl::Status PipelineSchedule::VerifyConstraints(
   return absl::OkStatus();
 }
 
-PipelineScheduleProto PipelineSchedule::ToProto(
+absl::StatusOr<PipelineScheduleProto> PipelineSchedule::ToProto(
     const DelayEstimator& delay_estimator) const {
   // Compute nodes and paths delays.
   absl::flat_hash_map<Node*, int64_t> node_delays;
   absl::flat_hash_map<Node*, int64_t> node_path_delays;
   node_delays.reserve(function_base_->node_count());
   node_path_delays.reserve(function_base_->node_count());
-  for (Node* node : TopoSort(function_base_)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       TopoSort(function_base_));
+  for (Node* node : topo_sort_nodes) {
     if (IsUntimed(node)) {
       continue;
     }
@@ -719,12 +740,13 @@ int64_t PipelineSchedule::CountFinalInteriorPipelineRegisters() const {
   return package_schedule;
 }
 
-PackageScheduleProto PackageSchedule::ToProto(
+absl::StatusOr<PackageScheduleProto> PackageSchedule::ToProto(
     const DelayEstimator& delay_estimator) const {
   PackageScheduleProto proto;
   for (const auto& [fb, schedule] : schedules_) {
-    proto.mutable_schedules()->insert(
-        {fb->name(), schedule.ToProto(delay_estimator)});
+    XLS_ASSIGN_OR_RETURN(PipelineScheduleProto schedule_proto,
+                         schedule.ToProto(delay_estimator));
+    proto.mutable_schedules()->insert({fb->name(), schedule_proto});
   }
   if (synchronous_offsets_.has_value()) {
     for (const auto& [fb, offset] : *synchronous_offsets_) {
@@ -744,7 +766,10 @@ std::string PackageSchedule::ToString() const {
   std::sort(function_bases.begin(), function_bases.end(),
             FunctionBase::NameLessThan);
   for (FunctionBase* fb : function_bases) {
-    result += schedules_.at(fb).ToString();
+    absl::StatusOr<std::string> schedule_str = schedules_.at(fb).ToString();
+    result += schedule_str.value_or(
+        absl::StrFormat("ERROR: could not topo sort '%s': %s\n", fb->name(),
+                        schedule_str.status().message()));
   }
   if (synchronous_offsets_.has_value()) {
     result += "Synchronous offsets:\n";

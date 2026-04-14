@@ -127,7 +127,9 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
   //                         |
   //                         V
   // TODO(meheff): Also merge OneHotSelects.
-  for (Node* node : context.ReverseTopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                       context.ReverseTopoSort(f));
+  for (Node* node : reverse_topo_sort_nodes) {
     if (!is_binary_select(node) ||
         collapsed_selects.contains(node->As<Select>()) ||
         !node->GetType()->IsBits()) {
@@ -457,7 +459,8 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   bool modified = false;
-  for (Node* node : context.TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     XLS_ASSIGN_OR_RETURN(bool node_modified,
                          SimplifyNode(node, query_engine, options.opt_level));
     modified |= node_modified;

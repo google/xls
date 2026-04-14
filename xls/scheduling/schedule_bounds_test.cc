@@ -41,6 +41,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
+#include "xls/scheduling/schedule_graph.h"
 
 namespace m = xls::op_matchers;
 namespace xls {
@@ -136,11 +137,11 @@ class ScheduleBoundsTest : public IrTestBase {
   absl::StatusOr<ScheduleBounds> CreateBasic(
       Function* f, int64_t clock_period_ps,
       const DelayEstimator& delay_estimator) {
-    XLS_ASSIGN_OR_RETURN(
-        ScheduleBounds bounds,
-        ScheduleBounds::Create(
-            ScheduleGraph::Create(f, /*dead_after_synthesis=*/{}),
-            clock_period_ps, delay_estimator));
+    XLS_ASSIGN_OR_RETURN(ScheduleGraph schedule_graph,
+                         ScheduleGraph::Create(f, /*dead_after_synthesis=*/{}));
+    XLS_ASSIGN_OR_RETURN(ScheduleBounds bounds,
+                         ScheduleBounds::Create(schedule_graph, clock_period_ps,
+                                                delay_estimator));
     return bounds;
   }
 
@@ -682,7 +683,9 @@ TEST_F(ScheduleBoundsTest, ConvertNodeInCycleConstraint) {
   auto add = fb.Add(a, b);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  ScheduleGraph graph = ScheduleGraph::Create(f, /*dead_after_synthesis=*/{});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleGraph graph,
+      ScheduleGraph::Create(f, /*dead_after_synthesis=*/{}));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<ScheduleBounds::NodeSchedulingConstraint> converted,
       ScheduleBounds::ConvertSchedulingConstraints(
@@ -710,8 +713,9 @@ TEST_F(ScheduleBoundsTest, ConvertIOConstraint) {
   BValue send = pb.Send(ch_b, pb.TupleIndex(rcv, 0), pb.TupleIndex(rcv, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  ScheduleGraph graph =
-      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleGraph graph,
+      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{}));
   IOConstraint io_const("a", IODirection::kReceive, "b", IODirection::kSend,
                         /*minimum_latency=*/2, /*maximum_latency=*/4);
 
@@ -744,8 +748,9 @@ TEST_F(ScheduleBoundsTest, ConvertRecvsFirstSendsLastConstraint) {
   BValue send = pb.Send(ch_b, pb.TupleIndex(rcv, 0), pb.TupleIndex(rcv, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  ScheduleGraph graph =
-      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleGraph graph,
+      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<ScheduleBounds::NodeSchedulingConstraint> converted,
@@ -791,8 +796,9 @@ TEST_F(ScheduleBoundsTest, ConvertSendThenRecvConstraint) {
   BValue rcv = pb.Receive(ch_b, send);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  ScheduleGraph graph =
-      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleGraph graph,
+      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<ScheduleBounds::NodeSchedulingConstraint> converted,
@@ -824,8 +830,9 @@ TEST_F(ScheduleBoundsTest, ConvertSameChannelConstraint) {
   BValue send1 = pb.Send(ch_a, send0, pb.Literal(UBits(2, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  ScheduleGraph graph =
-      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleGraph graph,
+      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<ScheduleBounds::NodeSchedulingConstraint> converted,
@@ -849,8 +856,9 @@ TEST_F(ScheduleBoundsTest, ConvertBackedgeConstraint) {
   BValue next_val = pb.Add(st, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({next_val}));
 
-  ScheduleGraph graph =
-      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleGraph graph,
+      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<ScheduleBounds::NodeSchedulingConstraint> converted,
@@ -887,7 +895,9 @@ TEST_F(ScheduleBoundsTest, ConvertDifferenceConstraintUnimplemented) {
   auto b = fb.Param("b", p->GetBitsType(32));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  ScheduleGraph graph = ScheduleGraph::Create(f, /*dead_after_synthesis=*/{});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleGraph graph,
+      ScheduleGraph::Create(f, /*dead_after_synthesis=*/{}));
   EXPECT_THAT(ScheduleBounds::ConvertSchedulingConstraints(
                   graph, {DifferenceConstraint(a.node(), b.node(), 5)},
                   /*ii=*/std::nullopt, /*max_upper_bound=*/100),

@@ -80,7 +80,9 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
   // Replace send_if and recv_if with constant true conditions with unpredicated
   // send and recv.
   for (std::unique_ptr<Proc>& proc : p->procs()) {
-    for (Node* node : context.TopoSort(proc.get())) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(proc.get()));
+    for (Node* node : topo_sort_nodes) {
       Node* replacement = nullptr;
       if (node->Is<Send>()) {
         Send* send = node->As<Send>();

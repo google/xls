@@ -260,7 +260,9 @@ class QuickCheckProveAssertsNotFiredPass final
     XLS_RET_CHECK_EQ(f->return_value()->GetType()->GetFlatBitCount(), 1)
         << "not a qc function";
     std::vector<Node*> ret = {f->return_value()};
-    for (Node* n : context.ReverseTopoSort(f)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                         context.ReverseTopoSort(f));
+    for (Node* n : reverse_topo_sort_nodes) {
       if (n->Is<Assert>()) {
         Assert* a = n->As<Assert>();
         XLS_RETURN_IF_ERROR(a->ReplaceUsesWith(a->token()));

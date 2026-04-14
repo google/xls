@@ -236,7 +236,8 @@ absl::StatusOr<verilog::CodegenResult> CodegenFromMetadata(
       XLS_RET_CHECK(metadata.delay_estimator != nullptr)
           << "Must have a delay estimator when generating non-combinational "
              "circuits.";
-      schedule_proto = package_schedule->ToProto(*metadata.delay_estimator);
+      XLS_ASSIGN_OR_RETURN(
+          schedule_proto, package_schedule->ToProto(*metadata.delay_estimator));
     }
     return codegen::Codegen(p, pass_options, metadata.scheduling_options,
                             metadata.delay_estimator,

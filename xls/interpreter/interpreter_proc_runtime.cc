@@ -42,8 +42,10 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
   // Create a ProcInterpreter for each Proc.
   std::vector<std::unique_ptr<ProcEvaluator>> proc_interpreters;
   for (Proc* proc : queue_manager->elaboration().procs()) {
-    proc_interpreters.push_back(
-        std::make_unique<ProcInterpreter>(proc, queue_manager.get(), options));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<ProcInterpreter> proc_interpreter,
+        ProcInterpreter::Create(proc, queue_manager.get(), options));
+    proc_interpreters.push_back(std::move(proc_interpreter));
   }
 
   // Create a runtime.

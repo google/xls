@@ -17,6 +17,8 @@
 #include <optional>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/topo_sort.h"
@@ -28,7 +30,10 @@ std::optional<std::vector<Node*>> TopoSortAnnotator::NodeOrder(
   if (fb->IsScheduled() || !topo_sort_) {
     return std::nullopt;
   }
-  return TopoSort(fb);
+
+  absl::StatusOr<std::vector<Node*>> topo_sort = TopoSort(fb);
+  CHECK_OK(topo_sort);
+  return *topo_sort;
 }
 
 }  // namespace xls

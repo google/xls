@@ -104,8 +104,9 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateMixedSerialProcRuntime(
                               options.support_observers())));
       proc_evaluators.push_back(std::move(proc_jit));
     } else {
-      proc_evaluators.push_back(
-          std::make_unique<ProcInterpreter>(proc, queue_manager.get()));
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcInterpreter> proc_interpreter,
+                           ProcInterpreter::Create(proc, queue_manager.get()));
+      proc_evaluators.push_back(std::move(proc_interpreter));
     }
     use_jit = !use_jit;
   }

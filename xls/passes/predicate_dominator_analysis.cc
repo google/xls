@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/strong_int.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -101,13 +102,15 @@ class AnalysisHelper {
   AnalysisHelper(FunctionBase* func, OptimizationContext& context)
       : function_(func), context_(context) {}
 
-  absl::flat_hash_map<Node*, PredicateState> Analyze() {
+  absl::StatusOr<absl::flat_hash_map<Node*, PredicateState>> Analyze() {
     CHECK(node_states_.empty());
     CHECK(predicate_stacks_.empty());
     node_states_.reserve(function_->node_count());
     predicate_stacks_.push_back(kRootPredicateStackNode);
     // Run in reverse topo sort order. Handle users before the values they use.
-    for (Node* node : context_.ReverseTopoSort(function_)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                         context_.ReverseTopoSort(function_));
+    for (Node* node : reverse_topo_sort_nodes) {
       HandleNode(node);
     }
 
@@ -269,10 +272,12 @@ class AnalysisHelper {
 };
 }  // namespace
 
-PredicateDominatorAnalysis PredicateDominatorAnalysis::Run(
-    FunctionBase* f, OptimizationContext& context) {
+/* static */ absl::StatusOr<PredicateDominatorAnalysis>
+PredicateDominatorAnalysis::Run(FunctionBase* f, OptimizationContext& context) {
   AnalysisHelper helper(f, context);
-  return PredicateDominatorAnalysis(helper.Analyze());
+  absl::flat_hash_map<Node*, PredicateState> node_states;
+  XLS_ASSIGN_OR_RETURN(node_states, helper.Analyze());
+  return PredicateDominatorAnalysis(node_states);
 }
 
 }  // namespace xls

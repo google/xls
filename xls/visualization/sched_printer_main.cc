@@ -87,7 +87,9 @@ void AllocateDigraphNodeId(
     return sched.cycle(*it);
   };
 
-  for (Node* node : TopoSort(f)) {
+  absl::StatusOr<std::vector<Node*>> topo_sort = TopoSort(f);
+  CHECK_OK(topo_sort);
+  for (Node* node : *topo_sort) {
     (*xls_nodes_id)[node] = next_id++;
     // Supposing `node` is schedule in stage `x`, the latest usage is in stage
     // `y`, `node` should be kept in stage [x, y)'s output pipeline register.
@@ -213,9 +215,11 @@ std::string GenerateDigraphContents(
     const absl::flat_hash_set<Node*>& nodes_on_cp) {
   absl::flat_hash_map<Node*, int64_t> topo_index;
   {
-    std::vector<Node*> topo_sort = TopoSort(sched.function_base());
-    for (int64_t i = 0; i < topo_sort.size(); ++i) {
-      topo_index[topo_sort[i]] = i;
+    absl::StatusOr<std::vector<Node*>> topo_sort =
+        TopoSort(sched.function_base());
+    CHECK_OK(topo_sort);
+    for (int64_t i = 0; i < topo_sort->size(); ++i) {
+      topo_index[(*topo_sort)[i]] = i;
     }
   }
 
@@ -223,7 +227,10 @@ std::string GenerateDigraphContents(
 
   // Add all nodes
   {
-    for (Node* node : TopoSort(sched.function_base())) {
+    absl::StatusOr<std::vector<Node*>> topo_sort =
+        TopoSort(sched.function_base());
+    CHECK_OK(topo_sort);
+    for (Node* node : *topo_sort) {
       AttributeDict xls_node_attrs;
       xls_node_attrs["shape"] = "record";
       xls_node_attrs["style"] = "rounded";
@@ -256,7 +263,10 @@ std::string GenerateDigraphContents(
 
   // Add all edges
   {
-    for (Node* node : TopoSort(sched.function_base())) {
+    absl::StatusOr<std::vector<Node*>> topo_sort =
+        TopoSort(sched.function_base());
+    CHECK_OK(topo_sort);
+    for (Node* node : *topo_sort) {
       for (Node* operand : node->operands()) {
         int64_t operand_id = -1;
         if (sched.cycle(operand) < sched.cycle(node)) {

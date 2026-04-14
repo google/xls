@@ -341,7 +341,9 @@ absl::StatusOr<std::pair<Function*, std::vector<Node*>>> CloneProcAsFunction(
   CloneProcAsFunctionVisitor clone_function_visitor(
       f, /*loc_name=*/absl::StrFormat(
           "<Generated non-synthesizable function for %s>", proc->name()));
-  for (Node* n : context.TopoSort(proc)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       context.TopoSort(proc));
+  for (Node* n : topo_sort_nodes) {
     XLS_RETURN_IF_ERROR(n->VisitSingleNode(&clone_function_visitor));
   }
   return std::make_pair(clone_function_visitor.f(),
@@ -409,12 +411,16 @@ absl::StatusOr<bool> NonSynthSeparationPass::RunInternal(
     // select nodes because gates are special power-optimization nodes that we
     // generally won't remove so we don't want to duplicate them.
     ReplaceGatesWithSelectsVisitor replace_gates_visitor(non_synth_function);
-    for (Node* node : context.TopoSort(non_synth_function)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> non_synth_nodes,
+                         context.TopoSort(non_synth_function));
+    for (Node* node : non_synth_nodes) {
       XLS_RETURN_IF_ERROR(node->VisitSingleNode(&replace_gates_visitor));
     }
     // Remove the non-synthesizable nodes from the original function base.
     RemoveNonSynthNodesVisitor remove_visitor(function_base);
-    for (Node* node : context.TopoSort(function_base)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(function_base));
+    for (Node* node : topo_sort_nodes) {
       XLS_RETURN_IF_ERROR(node->VisitSingleNode(&remove_visitor));
     }
   }

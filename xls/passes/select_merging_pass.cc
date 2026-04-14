@@ -257,7 +257,9 @@ absl::StatusOr<bool> SelectMergingPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   bool changed = false;
 
-  for (Node* node : context.TopoSort(func)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       context.TopoSort(func));
+  for (Node* node : topo_sort_nodes) {
     XLS_ASSIGN_OR_RETURN(bool node_changed, MergeNode(node));
     changed = changed || node_changed;
   }

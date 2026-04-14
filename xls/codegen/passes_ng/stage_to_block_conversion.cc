@@ -213,7 +213,8 @@ class StageToBlockCloner : public ProcToBlockClonerBase {
 
     XLS_RETURN_IF_ERROR(CreateInterfaceChannelRefsForBlock());
 
-    for (const Node* node : TopoSort(proc)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(proc));
+    for (const Node* node : topo_sort_nodes) {
       Node* block_node = nullptr;
 
       if (node->Is<ChannelNode>()) {

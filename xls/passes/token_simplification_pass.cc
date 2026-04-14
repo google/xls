@@ -344,44 +344,60 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
 
   bool changed = false;
 
-  for (Node* node : context.TopoSort(f)) {
-    if (!node->Is<MinDelay>()) {
-      continue;
+  {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(f));
+    for (Node* node : topo_sort_nodes) {
+      if (!node->Is<MinDelay>()) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(bool subpass_changed,
+                           SimplifyTrivialMinDelay(node->As<MinDelay>()));
+      changed = changed || subpass_changed;
     }
-    XLS_ASSIGN_OR_RETURN(bool subpass_changed,
-                         SimplifyTrivialMinDelay(node->As<MinDelay>()));
-    changed = changed || subpass_changed;
-  }
-
-  for (Node* node : context.TopoSort(f)) {
-    if (!node->Is<MinDelay>()) {
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(bool subpass_changed,
-                         CollapseMinDelay(node->As<MinDelay>()));
-    changed = changed || subpass_changed;
-  }
-
-  for (Node* node : context.TopoSort(f)) {
-    if (!node->Is<AfterAll>()) {
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(bool subpass_changed,
-                         PushDownMinDelay(node->As<AfterAll>()));
-    changed = changed || subpass_changed;
-  }
-
-  for (Node* node : context.ReverseTopoSort(f)) {
-    if (!node->Is<AfterAll>()) {
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(bool subpass_changed,
-                         CollapseAfterAll(node->As<AfterAll>()));
-    changed = changed || subpass_changed;
   }
 
   {
-    std::vector<Node*> topo_sort = context.TopoSort(f);
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(f));
+    for (Node* node : topo_sort_nodes) {
+      if (!node->Is<MinDelay>()) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(bool subpass_changed,
+                           CollapseMinDelay(node->As<MinDelay>()));
+      changed = changed || subpass_changed;
+    }
+  }
+
+  {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(f));
+    for (Node* node : topo_sort_nodes) {
+      if (!node->Is<AfterAll>()) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(bool subpass_changed,
+                           PushDownMinDelay(node->As<AfterAll>()));
+      changed = changed || subpass_changed;
+    }
+  }
+
+  {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                         context.ReverseTopoSort(f));
+    for (Node* node : reverse_topo_sort_nodes) {
+      if (!node->Is<AfterAll>()) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(bool subpass_changed,
+                           CollapseAfterAll(node->As<AfterAll>()));
+      changed = changed || subpass_changed;
+    }
+  }
+
+  {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort, context.TopoSort(f));
     absl::flat_hash_map<Node*, int32_t> topo_sort_index;
     topo_sort_index.reserve(topo_sort.size());
     for (int32_t i = 0; i < topo_sort.size(); ++i) {
@@ -397,26 +413,36 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     }
   }
 
-  for (Node* node : context.TopoSort(f)) {
-    if (!node->Is<AfterAll>()) {
-      continue;
+  {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(f));
+    for (Node* node : topo_sort_nodes) {
+      if (!node->Is<AfterAll>()) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(bool subpass_changed,
+                           RemoveDuplicateAfterAll(node->As<AfterAll>()));
+      changed = changed || subpass_changed;
     }
-    XLS_ASSIGN_OR_RETURN(bool subpass_changed,
-                         RemoveDuplicateAfterAll(node->As<AfterAll>()));
-    changed = changed || subpass_changed;
   }
 
-  for (Node* node : context.TopoSort(f)) {
-    if (!node->Is<AfterAll>()) {
-      continue;
+  {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(f));
+    for (Node* node : topo_sort_nodes) {
+      if (!node->Is<AfterAll>()) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(bool subpass_changed,
+                           SimplifyTrivialAfterAll(node->As<AfterAll>()));
+      changed = changed || subpass_changed;
     }
-    XLS_ASSIGN_OR_RETURN(bool subpass_changed,
-                         SimplifyTrivialAfterAll(node->As<AfterAll>()));
-    changed = changed || subpass_changed;
   }
 
   if (changed) {
-    for (Node* node : context.TopoSort(f)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(f));
+    for (Node* node : topo_sort_nodes) {
       if (!node->Is<MinDelay>()) {
         continue;
       }

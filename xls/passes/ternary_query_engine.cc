@@ -316,24 +316,29 @@ absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::PopulateWithGivens(
     FunctionBase* f, const TernaryDataProvider& givens) {
   TernaryEvaluator evaluator;
   TernaryNodeEvaluator ternary_visitor(evaluator);
-  for (Node* n : TopoSort(f)) {
-    std::optional<LeafTypeTree<TernaryVector>> given =
-        givens.GetKnownTernary(n);
-    if (given) {
-      XLS_RETURN_IF_ERROR(ternary_visitor.SetGivenValue(n, *std::move(given)));
-      continue;
+  {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+    for (Node* n : topo_sort_nodes) {
+      std::optional<LeafTypeTree<TernaryVector>> given =
+          givens.GetKnownTernary(n);
+      if (given) {
+        XLS_RETURN_IF_ERROR(
+            ternary_visitor.SetGivenValue(n, *std::move(given)));
+        continue;
+      }
+      if (IsExpensiveToEvaluate(n, ternary_visitor.values())) {
+        XLS_RETURN_IF_ERROR(ternary_visitor.DefaultHandler(n));
+        continue;
+      }
+      XLS_RETURN_IF_ERROR(n->VisitSingleNode(&ternary_visitor));
     }
-    if (IsExpensiveToEvaluate(n, ternary_visitor.values())) {
-      XLS_RETURN_IF_ERROR(ternary_visitor.DefaultHandler(n));
-      continue;
-    }
-    XLS_RETURN_IF_ERROR(n->VisitSingleNode(&ternary_visitor));
   }
 
   absl::flat_hash_map<Node*, SharedLeafTypeTree<TernaryVector>> new_values =
       std::move(ternary_visitor).values();
   ReachedFixpoint rf = ReachedFixpoint::Unchanged;
-  for (Node* node : f->nodes()) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     CHECK(new_values.contains(node));
     if (values_.contains(node) &&
         values_[node].type() == new_values.at(node).type()) {

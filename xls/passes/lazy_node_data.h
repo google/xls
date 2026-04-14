@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -419,7 +420,8 @@ class LazyNodeData : public ChangeListener,
   // measurement.
   absl::Status EagerlyPopulate(FunctionBase* f) {
     XLS_RETURN_IF_ERROR(Attach(f).status());
-    return cache_.EagerlyPopulate(TopoSort(f));
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+    return cache_.EagerlyPopulate(topo_sort_nodes);
   }
 
   // Verifies that the query engine's current state is consistent; e.g., for
@@ -430,7 +432,8 @@ class LazyNodeData : public ChangeListener,
   // Note that Forced values are always considered consistent.
   absl::Status CheckCacheConsistency() const {
     XLS_RET_CHECK(f_ != nullptr) << "Unattached info";
-    return cache_.CheckConsistency(TopoSort(f_));
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f_));
+    return cache_.CheckConsistency(topo_sort_nodes);
   }
 
   // Implementation for LazyDagCache::DagProvider.

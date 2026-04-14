@@ -330,7 +330,9 @@ absl::Status BitProvenanceAnalysis::Populate(FunctionBase* func) {
 }
 absl::Status BitProvenanceAnalysis::Populate(FunctionBase* func,
                                              OptimizationContext& context) {
-  for (Node* node : context.TopoSort(func)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       context.TopoSort(func));
+  for (Node* node : topo_sort_nodes) {
     XLS_RETURN_IF_ERROR(node->VisitSingleNode(visitor_.get()));
     visitor_->MarkVisited(node);
   }

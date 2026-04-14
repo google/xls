@@ -441,7 +441,9 @@ absl::StatusOr<Proc*> Proc::Clone(
     }
   }
 
-  for (Node* node : TopoSort(const_cast<Proc*>(this))) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       TopoSort(const_cast<Proc*>(this)));
+  for (Node* node : topo_sort_nodes) {
     std::vector<Node*> cloned_operands;
     for (Node* operand : node->operands()) {
       cloned_operands.push_back(original_to_clone.at(operand));

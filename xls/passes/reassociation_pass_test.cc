@@ -23,6 +23,7 @@
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -138,7 +139,9 @@ class ReassociationPassTest : public IrTestBase {
   int64_t MaxOpDepth(absl::Span<Op const> ops, Function* f) {
     absl::flat_hash_map<Node*, int64_t> cnts;
     cnts.reserve(f->node_count());
-    for (Node* n : TopoSort(f)) {
+    absl::StatusOr<std::vector<Node*>> topo_sort = TopoSort(f);
+    CHECK_OK(topo_sort);
+    for (Node* n : *topo_sort) {
       if (n->operand_count() == 0) {
         cnts[n] = 0;
         continue;

@@ -357,7 +357,8 @@ absl::StatusOr<int64_t> CachingDelayEstimator::GetOperationDelayInPs(
 absl::StatusOr<DelayAnnotator> DelayAnnotator::Create(
     FunctionBase* f, const DelayEstimator& delay_estimator) {
   absl::flat_hash_map<Node*, Entry> entries;
-  for (Node* node : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     int64_t max_path_delay = 0;
     for (Node* operand : node->operands()) {
       max_path_delay =

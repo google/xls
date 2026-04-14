@@ -241,8 +241,10 @@ absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
   if (options.flop_outputs()) {
     ++cycle_offset;
   }
-  PipelineSchedule result(schedule.function_base(), cycle_map,
-                          schedule.length() + cycle_offset);
+  XLS_ASSIGN_OR_RETURN(
+      PipelineSchedule result,
+      PipelineSchedule::Create(schedule.function_base(), cycle_map,
+                               schedule.length() + cycle_offset));
   return std::move(result);
 }
 
@@ -344,7 +346,8 @@ absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
     Proc* proc, const CodegenOptions& options, Block* block) {
   CloneNodesIntoBlockHandler cloner(proc, /*stage_count=*/0, options, block);
   XLS_RETURN_IF_ERROR(cloner.AddChannelPortsAndFifoInstantiations());
-  XLS_RET_CHECK_OK(cloner.CloneNodes(TopoSort(proc), /*stage=*/0));
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(proc));
+  XLS_RET_CHECK_OK(cloner.CloneNodes(topo_sort_nodes, /*stage=*/0));
   return cloner.GetResult();
 }
 
@@ -770,7 +773,8 @@ absl::StatusOr<CodegenContext> FunctionToCombinationalBlock(
     }
   }
 
-  for (Node* node : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     if (node->Is<Param>()) {
       continue;
     }

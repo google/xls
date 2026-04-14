@@ -199,6 +199,7 @@ cc_test(
         "//xls/ir:proc_elaboration",
         "//xls/ir:value",
         "//xls/passes:pass_base",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",

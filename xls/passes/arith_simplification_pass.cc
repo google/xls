@@ -2277,7 +2277,9 @@ absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
   StatelessQueryEngine query_engine;
   do {
     pass_changed = false;
-    for (Node* n : context.ReverseTopoSort(f)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                         context.ReverseTopoSort(f));
+    for (Node* n : reverse_topo_sort_nodes) {
       if (n->IsDead()) {
         continue;
       }

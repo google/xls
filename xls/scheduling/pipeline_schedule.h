@@ -59,9 +59,10 @@ class PipelineSchedule {
   // Constructs a schedule for the given function with the given cycle map. If
   // length is not given, then the length equal to the largest cycle in cycle
   // map minus one.
-  PipelineSchedule(FunctionBase* function_base, ScheduleCycleMap cycle_map,
-                   std::optional<int64_t> length = std::nullopt,
-                   std::optional<int64_t> min_clock_period_ps = std::nullopt);
+  static absl::StatusOr<PipelineSchedule> Create(
+      FunctionBase* function_base, ScheduleCycleMap cycle_map,
+      std::optional<int64_t> length = std::nullopt,
+      std::optional<int64_t> min_clock_period_ps = std::nullopt);
 
   FunctionBase* function_base() const { return function_base_; }
 
@@ -119,7 +120,8 @@ class PipelineSchedule {
       std::optional<int64_t> worst_case_throughput) const;
 
   // Returns a protobuf holding this object's scheduling info.
-  PipelineScheduleProto ToProto(const DelayEstimator& delay_estimator) const;
+  absl::StatusOr<PipelineScheduleProto> ToProto(
+      const DelayEstimator& delay_estimator) const;
 
   // Returns the number of internal registers in this schedule.
   int64_t CountFinalInteriorPipelineRegisters() const;
@@ -128,6 +130,9 @@ class PipelineSchedule {
   const ScheduleCycleMap& GetCycleMap() const { return cycle_map_; }
 
  private:
+  PipelineSchedule(FunctionBase* function_base, ScheduleCycleMap cycle_map,
+                   std::optional<int64_t> min_clock_period_ps);
+
   FunctionBase* function_base_ = nullptr;
 
   // Map from node to the cycle in which it is scheduled.
@@ -237,7 +242,8 @@ class PackageSchedule {
     synchronous_offsets_.reset();
   }
 
-  PackageScheduleProto ToProto(const DelayEstimator& delay_estimator) const;
+  absl::StatusOr<PackageScheduleProto> ToProto(
+      const DelayEstimator& delay_estimator) const;
   std::string ToString() const;
 
  private:

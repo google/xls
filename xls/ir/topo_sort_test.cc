@@ -64,7 +64,7 @@ TEST(NodeIteratorTest, ReordersViaDependencies) {
 
   // Literal should precede the negation in RPO although we added those nodes in
   // the opposite order.
-  std::vector<Node*> rni = TopoSort(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> rni, TopoSort(&f));
   auto it = rni.begin();
   EXPECT_EQ(*it, literal);
   ++it;
@@ -84,7 +84,7 @@ TEST(NodeIteratorTest, Diamond) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
-  std::vector<Node*> rni = TopoSort(f);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> rni, TopoSort(f));
   auto it = rni.begin();
   EXPECT_EQ((*it)->GetName(), "x");
   ++it;
@@ -118,7 +118,7 @@ TEST(NodeIteratorTest, PostOrderNotPreOrder) {
 
   XLS_ASSERT_OK(f.set_return_value(c));
 
-  std::vector<Node*> rni = TopoSort(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> rni, TopoSort(&f));
   auto it = rni.begin();
   EXPECT_EQ(*it, a);
   ++it;
@@ -152,7 +152,7 @@ TEST(NodeIteratorTest, TwoOfSameOperandLinks) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
-  std::vector<Node*> rni = TopoSort(f);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> rni, TopoSort(f));
   auto it = rni.begin();
   EXPECT_EQ((*it)->GetName(), "a");
   ++it;
@@ -174,7 +174,7 @@ TEST(NodeIteratorTest, UselessParamsUnrelatedReturn) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
-  std::vector<Node*> rni = TopoSort(f);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> rni, TopoSort(f));
   auto it = rni.begin();
   EXPECT_EQ((*it)->GetName(), "a");
   ++it;
@@ -207,7 +207,7 @@ TEST(NodeIteratorTest, ExtendedDiamond) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
-  std::vector<Node*> rni = TopoSort(f);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> rni, TopoSort(f));
   auto it = rni.begin();
   EXPECT_EQ((*it)->GetName(), "a");
   ++it;
@@ -237,8 +237,8 @@ TEST(NodeIteratorTest, ExtendedDiamondReverse) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
   // ReverseTopoSort should produce the same order but in reverse.
-  std::vector<Node*> fwd_it = TopoSort(f);
-  std::vector<Node*> rev_it = ReverseTopoSort(f);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> fwd_it, TopoSort(f));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> rev_it, ReverseTopoSort(f));
   std::vector<Node*> fwd(fwd_it.begin(), fwd_it.end());
   std::vector<Node*> rev(rev_it.begin(), rev_it.end());
   std::reverse(fwd.begin(), fwd.end());
@@ -277,7 +277,7 @@ TEST(NodeIteratorTest, RpoVsTopo) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
-  std::vector<Node*> rni = TopoSort(f);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> rni, TopoSort(f));
   auto it = rni.begin();
   EXPECT_EQ((*it)->GetName(), "a");
   ++it;
@@ -303,7 +303,7 @@ void BM_TopoSortBinaryTree(benchmark::State& state) {
                    /*fan_out=*/2, benchmark_support::strategy::BinaryAdd(),
                    benchmark_support::strategy::DistinctLiteral()));
   for (auto _ : state) {
-    auto v = TopoSort(f);
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> v, TopoSort(f));
     benchmark::DoNotOptimize(v);
   }
 }
@@ -323,7 +323,7 @@ void BM_TopoSortDense(benchmark::State& state) {
                            benchmark_support::GenerateFullyConnectedLayerGraph(
                                p.get(), depth, width, csts, leaf));
   for (auto _ : state) {
-    auto v = TopoSort(f);
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> v, TopoSort(f));
     benchmark::DoNotOptimize(v);
   }
 }
@@ -342,7 +342,7 @@ void BM_TopoSortLadder(benchmark::State& state) {
           p.get(), state.range(0), 2, benchmark_support::strategy::BinaryAdd(),
           benchmark_support::strategy::DistinctLiteral()));
   for (auto _ : state) {
-    auto v = TopoSort(f);
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> v, TopoSort(f));
     benchmark::DoNotOptimize(v);
   }
 }
@@ -380,15 +380,16 @@ TEST(StableTopoSortTest, StableTopoSort) {
     std::vector<int64_t> reference_ids = {get_id("x"), get_id("neg"),
                                           get_id("not"), get_id("unused"),
                                           get_id("retval")};
-    EXPECT_THAT(
-        StableTopoSort(f, reference_ids),
-        testing::ElementsAre(get_node("x"), get_node("neg"), get_node("not"),
-                             get_node("unused"), get_node("retval")));
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> order,
+                             StableTopoSort(f, reference_ids));
+    EXPECT_THAT(order, testing::ElementsAre(get_node("x"), get_node("neg"),
+                                            get_node("not"), get_node("unused"),
+                                            get_node("retval")));
   }
 
   {
     // Empty reference.
-    std::vector<Node*> order = StableTopoSort(f, {});
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> order, StableTopoSort(f, {}));
     EXPECT_EQ(order.front(), f->GetNode("x").value());
     EXPECT_EQ(order.back(), f->return_value());
   }
@@ -398,30 +399,34 @@ TEST(StableTopoSortTest, StableTopoSort) {
     std::vector<int64_t> reference_ids = {get_id("x"), get_id("not"),
                                           get_id("neg"), get_id("retval"),
                                           get_id("unused")};
-    EXPECT_THAT(
-        StableTopoSort(f, reference_ids),
-        testing::ElementsAre(get_node("x"), get_node("not"), get_node("neg"),
-                             get_node("retval"), get_node("unused")));
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> order,
+                             StableTopoSort(f, reference_ids));
+    EXPECT_THAT(order, testing::ElementsAre(get_node("x"), get_node("not"),
+                                            get_node("neg"), get_node("retval"),
+                                            get_node("unused")));
   }
 
   {
     // Partial interior reference: not before neg.
     std::vector<int64_t> reference_ids = {get_id("not"), get_id("neg")};
-    std::vector<Node*> order = StableTopoSort(f, reference_ids);
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> order,
+                             StableTopoSort(f, reference_ids));
     EXPECT_LT(get_index(order, "not"), get_index(order, "neg"));
   }
 
   {
     // Partial interior reference reversed: neg before not.
     std::vector<int64_t> reference_ids = {get_id("neg"), get_id("not")};
-    std::vector<Node*> order = StableTopoSort(f, reference_ids);
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> order,
+                             StableTopoSort(f, reference_ids));
     EXPECT_LT(get_index(order, "neg"), get_index(order, "not"));
   }
 
   {
     // Impossible reference: return value before parameter.
     std::vector<int64_t> reference_ids = {get_id("retval"), get_id("x")};
-    std::vector<Node*> order = StableTopoSort(f, reference_ids);
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> order,
+                             StableTopoSort(f, reference_ids));
     EXPECT_LT(get_index(order, "x"), get_index(order, "retval"));
   }
 }

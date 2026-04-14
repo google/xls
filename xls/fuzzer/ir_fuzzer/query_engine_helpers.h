@@ -85,7 +85,9 @@ void CheckQueryEngineInstanceConsistency(const FuzzPackageWithArgs& fuzz,
   XLS_ASSERT_OK_AND_ASSIGN(auto node_values,
                            internal::SampleValuesWith(the_func, used_values));
   for (auto args : used_values) {
-    for (Node* n : TopoSort(the_func)) {
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> sorted_nodes,
+                             TopoSort(the_func));
+    for (Node* n : sorted_nodes) {
       internal::ScopedCheckTestChange sctc;
       if (!check(qe, n, node_values[n][args]) || sctc.new_failed()) {
         FAIL() << n << " query-engine value '"

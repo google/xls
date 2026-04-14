@@ -40,6 +40,13 @@
 
 namespace xls {
 
+/* static */ absl::StatusOr<DelayManager> DelayManager::Create(
+    FunctionBase* function, const DelayEstimator& delay_estimator) {
+  DelayManager delay_manager(function, delay_estimator);
+  XLS_RETURN_IF_ERROR(delay_manager.PropagateDelays());
+  return delay_manager;
+}
+
 DelayManager::DelayManager(FunctionBase *function,
                            const DelayEstimator &delay_estimator)
     : function_(function),
@@ -63,7 +70,6 @@ DelayManager::DelayManager(FunctionBase *function,
     indices_to_delay_[index][index] = maybe_delay.value();
     index++;
   }
-  PropagateDelays();
 }
 
 absl::StatusOr<int64_t> DelayManager::GetNodeDelay(Node *node) const {
@@ -121,9 +127,12 @@ absl::StatusOr<std::vector<Node *>> DelayManager::GetFullCriticalPath(
   return critical_path;
 }
 
-void DelayManager::PropagateDelays() {
+absl::Status DelayManager::PropagateDelays() {
   // Traverse the function in a reversed topological order.
-  for (Node *node : ReverseTopoSort(function_)) {
+
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort,
+                       ReverseTopoSort(function_));
+  for (Node* node : reverse_topo_sort) {
     int64_t node_index = node_to_index_[node];
     int64_t node_delay = indices_to_delay_[node_index][node_index];
     std::vector<int64_t> new_delays(function_->node_count(), -1);
@@ -155,7 +164,8 @@ void DelayManager::PropagateDelays() {
   }
 
   // Traverse the function in a topological order.
-  for (Node *node : TopoSort(function_)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(function_));
+  for (Node* node : topo_sort_nodes) {
     int64_t node_index = node_to_index_[node];
     int64_t node_delay = indices_to_delay_[node_index][node_index];
     std::vector<int64_t> new_delays(function_->node_count(), -1);
@@ -189,6 +199,7 @@ void DelayManager::PropagateDelays() {
       }
     }
   }
+  return absl::OkStatus();
 }
 
 absl::flat_hash_map<Node *, std::vector<Node *>>

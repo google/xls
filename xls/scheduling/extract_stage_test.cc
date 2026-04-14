@@ -70,7 +70,9 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
   cycle_map[FindNode("or.3", function)] = 2;
   cycle_map[FindNode("and.4", function)] = 3;
 
-  PipelineSchedule schedule(function, cycle_map, cycle_map.size());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Create(function, cycle_map, cycle_map.size()));
   for (int i = 0; i < 4; i++) {
     XLS_ASSERT_OK_AND_ASSIGN(Function * stage_fn,
                              ExtractStage(function, schedule, i));
@@ -136,7 +138,9 @@ fn main(i0: bits[3], i1: bits[1], i2: bits[8], i3: bits[23]) -> (bits[1], bits[8
     cycle_map[node] = stage;
   }
 
-  PipelineSchedule schedule(function, cycle_map, cycle_map.size());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Create(function, cycle_map, cycle_map.size()));
   for (int stage = 0; stage < 2; stage++) {
     XLS_ASSERT_OK_AND_ASSIGN(Function * stage_fn,
                              ExtractStage(function, schedule, stage));

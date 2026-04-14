@@ -783,7 +783,9 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
   // For optimizations which optimize around concats, just iterate through once
   // and find all opportunities.
   if (options.narrowing_enabled()) {
-    for (Node* node : context.TopoSort(f)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(f));
+    for (Node* node : topo_sort_nodes) {
       if (OpIsBitWise(node->op())) {
         XLS_ASSIGN_OR_RETURN(bool bitwise_changed,
                              TryHoistBitWiseOperation(node, query_engine));

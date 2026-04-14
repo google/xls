@@ -1268,6 +1268,7 @@ cc_library(
     hdrs = ["dataflow_dominator_analysis.h"],
     deps = [
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:node_util",
         "//xls/ir:op",
@@ -1349,9 +1350,11 @@ cc_library(
         ":optimization_pass",
         ":predicate_state",
         "//xls/common:strong_int",
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -3227,6 +3230,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/status:statusor",
         "@google_benchmark//:benchmark",
         "@googletest//:gtest",
     ],
@@ -3579,6 +3583,7 @@ cc_test(
         "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

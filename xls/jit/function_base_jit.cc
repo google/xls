@@ -406,7 +406,7 @@ bool ExecutionContinuesAfterNode(Node* node) {
 // sequence of partitions. Each partition then becomes a separate function in
 // the LLVM module.
 // TODO(meheff): 2022/09/09 Tune this algorithm to maximize performance.
-std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
+absl::StatusOr<std::vector<Partition>> PartitionFunctionBase(FunctionBase* f) {
   absl::flat_hash_map<Node*, int64_t> partition_map;
   // Partitions at which execution may resume after an early exit.
   absl::flat_hash_set<int64_t> resume_partitions;
@@ -419,7 +419,8 @@ std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
   // nodes go to partition 0, next N nodes go to partition 1, etc.
   int64_t current_partition = 0;
   int64_t partition_size = 0;
-  for (Node* node : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     if (IsEarlyExitPoint(node)) {
       CHECK(f->IsProc())
           << "Early exit points are only supported in procs in the JIT";
@@ -469,7 +470,8 @@ std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
   // Assemble nodes into partitions. `current_partition` is the maximum number
   // of any partition.
   std::vector<Partition> partitions(current_partition + 1);
-  for (Node* node : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(topo_sort_nodes, TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     int64_t partition = partition_map.at(node);
     partitions.at(partition).nodes.push_back(node);
   }
@@ -832,7 +834,8 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
     JitBuilderContext& jit_context) {
   VLOG(4) << "BuildFunction:";
   VLOG(4) << xls_function->DumpIr();
-  std::vector<Partition> partitions = PartitionFunctionBase(xls_function);
+  XLS_ASSIGN_OR_RETURN(std::vector<Partition> partitions,
+                       PartitionFunctionBase(xls_function));
 
   // For shared compilations (ie AOT proc-networks) we need to have multiple
   // different procs all hitting the same function. The issue is that we

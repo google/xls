@@ -132,18 +132,19 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
   auto nxt = pb.Next(st, mul_2);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
-  PipelineSchedule sched(proc,
-                         {
-                             {tok.node(), 0},
-                             {st.node(), 0},
-                             {lit_1.node(), 4},
-                             {add_1.node(), 4},
-                             {lit_2.node(), 8},
-                             {mul_2.node(), 8},
-                             {send.node(), 10},
-                             {nxt.node(), 12},
-                         },
-                         13);
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule sched,
+                           PipelineSchedule::Create(proc,
+                                                    {
+                                                        {tok.node(), 0},
+                                                        {st.node(), 0},
+                                                        {lit_1.node(), 4},
+                                                        {add_1.node(), 4},
+                                                        {lit_2.node(), 8},
+                                                        {mul_2.node(), 8},
+                                                        {send.node(), 10},
+                                                        {nxt.node(), 12},
+                                                    },
+                                                    13));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto context,
       FunctionBaseToPipelinedBlock(sched,
@@ -217,25 +218,26 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
   auto snd_add = pb.Send(chan_add, add_2);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
-  PipelineSchedule sched(proc,
-                         {
-                             {tok.node(), 0},
-                             {st1.node(), 0},
-                             {lit_1.node(), 3},
-                             {add_1.node(), 3},
-                             {lit_2.node(), 6},
-                             {mul_2.node(), 6},
-                             {snd_mul.node(), 6},
-                             {nxt1.node(), 9},
-                             {st2.node(), 5},
-                             {lit_3.node(), 8},
-                             {mul_1.node(), 8},
-                             {lit_4.node(), 11},
-                             {add_2.node(), 11},
-                             {snd_add.node(), 11},
-                             {nxt2.node(), 14},
-                         },
-                         15);
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule sched,
+                           PipelineSchedule::Create(proc,
+                                                    {
+                                                        {tok.node(), 0},
+                                                        {st1.node(), 0},
+                                                        {lit_1.node(), 3},
+                                                        {add_1.node(), 3},
+                                                        {lit_2.node(), 6},
+                                                        {mul_2.node(), 6},
+                                                        {snd_mul.node(), 6},
+                                                        {nxt1.node(), 9},
+                                                        {st2.node(), 5},
+                                                        {lit_3.node(), 8},
+                                                        {mul_1.node(), 8},
+                                                        {lit_4.node(), 11},
+                                                        {add_2.node(), 11},
+                                                        {snd_add.node(), 11},
+                                                        {nxt2.node(), 14},
+                                                    },
+                                                    15));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto context,
       FunctionBaseToPipelinedBlock(sched,
@@ -319,26 +321,27 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
   auto snd_add = pb.Send(chan_add, add_2);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
-  PipelineSchedule sched(proc,
-                         {
-                             {tok.node(), 0},
-                             {st1.node(), 0},
-                             {lit_1.node(), 3},
-                             {add_1.node(), 3},
-                             {lit_2.node(), 6},
-                             {mul_2.node(), 6},
-                             {snd_mul.node(), 6},
-                             {nxt1.node(), 9},
-                             {st2.node(), 5},
-                             {lit_3.node(), 8},
-                             {mul_1.node(), 8},
-                             {lit_4.node(), 11},
-                             {add_2.node(), 11},
-                             {add_3.node(), 13},
-                             {snd_add.node(), 13},
-                             {nxt2.node(), 15},
-                         },
-                         16);
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule sched,
+                           PipelineSchedule::Create(proc,
+                                                    {
+                                                        {tok.node(), 0},
+                                                        {st1.node(), 0},
+                                                        {lit_1.node(), 3},
+                                                        {add_1.node(), 3},
+                                                        {lit_2.node(), 6},
+                                                        {mul_2.node(), 6},
+                                                        {snd_mul.node(), 6},
+                                                        {nxt1.node(), 9},
+                                                        {st2.node(), 5},
+                                                        {lit_3.node(), 8},
+                                                        {mul_1.node(), 8},
+                                                        {lit_4.node(), 11},
+                                                        {add_2.node(), 11},
+                                                        {add_3.node(), 13},
+                                                        {snd_add.node(), 13},
+                                                        {nxt2.node(), 15},
+                                                    },
+                                                    16));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto context,
       FunctionBaseToPipelinedBlock(sched,
@@ -421,19 +424,20 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
   auto snd_mul = pb.Send(chan_mul, mul_2);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
-  PipelineSchedule sched(proc,
-                         {
-                             {tok.node(), 0},
-                             {st.node(), 0},
-                             {lit_1.node(), 4},
-                             {add_1.node(), 4},
-                             {lit_2.node(), 8},
-                             {mul_2.node(), 8},
-                             {snd_mul.node(), 8},
-                             {nxt_pred.node(), 12},
-                             {nxt.node(), 12},
-                         },
-                         13);
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule sched,
+                           PipelineSchedule::Create(proc,
+                                                    {
+                                                        {tok.node(), 0},
+                                                        {st.node(), 0},
+                                                        {lit_1.node(), 4},
+                                                        {add_1.node(), 4},
+                                                        {lit_2.node(), 8},
+                                                        {mul_2.node(), 8},
+                                                        {snd_mul.node(), 8},
+                                                        {nxt_pred.node(), 12},
+                                                        {nxt.node(), 12},
+                                                    },
+                                                    13));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto context,
       FunctionBaseToPipelinedBlock(sched,
@@ -499,21 +503,23 @@ TEST_F(RegisterCombiningPassTest, DoesntApplyToPredicatedReads) {
   auto nxt = pb.Next(st, mul_2, /*pred=*/always_false_3);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
-  PipelineSchedule sched(proc,
-                         {
-                             {tok.node(), 0},
-                             {always_false.node(), 0},
-                             {st.node(), 0},
-                             {lit_1.node(), 4},
-                             {always_false_2.node(), 4},
-                             {st_v.node(), 4},
-                             {add_1.node(), 4},
-                             {lit_2.node(), 8},
-                             {mul_2.node(), 8},
-                             {always_false_3.node(), 12},
-                             {nxt.node(), 12},
-                         },
-                         13);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule sched,
+      PipelineSchedule::Create(proc,
+                               {
+                                   {tok.node(), 0},
+                                   {always_false.node(), 0},
+                                   {st.node(), 0},
+                                   {lit_1.node(), 4},
+                                   {always_false_2.node(), 4},
+                                   {st_v.node(), 4},
+                                   {add_1.node(), 4},
+                                   {lit_2.node(), 8},
+                                   {mul_2.node(), 8},
+                                   {always_false_3.node(), 12},
+                                   {nxt.node(), 12},
+                               },
+                               13));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto context,
       FunctionBaseToPipelinedBlock(sched,

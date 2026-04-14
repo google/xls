@@ -413,7 +413,8 @@ absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext& context,
   int64_t dead_nodes = 0;
   node_buckets.reserve(f->node_count());
   // Identify all the equivalence groups.
-  for (Node* node : context.TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     // Normally, dead nodes are removed by the DCE pass. However, if the node is
     // (e.g.) an invoke, DCE won't touch it, waiting for inlining to remove
     // it... and if we try to replace it, we'll think we changed the IR when we

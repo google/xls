@@ -42,6 +42,7 @@
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/ValueRange.h"
 #include "mlir/include/mlir/Support/LLVM.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/contrib/mlir/util/conversion_utils.h"
 #include "xls/ir/bits.h"
@@ -1468,7 +1469,9 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
 
   // Function body:
   Value return_value;
-  for (auto* n : TopoSort(&xls_func)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<::xls::Node*> sorted_nodes,
+                       ::xls::TopoSort(&xls_func));
+  for (auto* n : sorted_nodes) {
     builder.setInsertionPointToEnd(body);
     if (n->Is<::xls::Param>()) {
       // Params have already been converted and added to func context.
@@ -1547,7 +1550,9 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
   absl::flat_hash_map<std::string, std::vector<::xls::Next*>> next_value_ops{};
 
   // Proc next:
-  for (auto n : ::xls::TopoSort(&xls_proc)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<::xls::Node*> sorted_nodes,
+                       ::xls::TopoSort(&xls_proc));
+  for (auto n : sorted_nodes) {
     builder.setInsertionPointToEnd(body);
 
     // StateRead nodes give state elements an SSA identifier:

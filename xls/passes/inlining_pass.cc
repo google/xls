@@ -113,7 +113,9 @@ absl::Status InlineInvoke(Invoke* invoke, OptimizationContext& context,
     invoked_node_to_replacement[param] = invoke->operand(i);
   }
 
-  for (Node* node : context.TopoSort(invoked)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       context.TopoSort(invoked));
+  for (Node* node : topo_sort_nodes) {
     if (invoked_node_to_replacement.contains(node)) {
       // Already taken care of (e.g. parameters above).
       continue;

@@ -2486,7 +2486,7 @@ TEST_F(RangeQueryEngineTest, EarlyBailout) {
   engine.SetIntervalSetTree(
       z.node(), BitsLTT(z.node(), {Interval(UBits(1, 10), UBits(5, 10))}));
 
-  std::vector<Node*> sort = TopoSort(f);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> sort, TopoSort(f));
   // Get the topological sort list up to and including xy
   IntervalRangeGivens test_givens(
       absl::MakeSpan(&*sort.begin(), &*(absl::c_find(sort, xy.node()) + 1)));

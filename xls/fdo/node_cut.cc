@@ -116,7 +116,8 @@ absl::StatusOr<NodeCutsMap> EnumerateCutsInSchedule(
   // First, we topologically sort the nodes in every cycle of the schedule.
   std::vector<std::vector<Node *>> cycle_to_sorted_nodes;
   cycle_to_sorted_nodes.resize(pipeline_length);
-  for (Node *node : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     if (IsUntimed(node)) {
       continue;
     }

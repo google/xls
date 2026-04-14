@@ -421,9 +421,8 @@ fn graph(p: bits[42], q: bits[42]) -> bits[42] {
     EXPECT_THAT(std::string(f->Accept(&v).message()),
                 HasSubstr(std::string(
                     "Cycle detected in function `graph`: [b -> a -> b]")));
-    EXPECT_DEATH(
-        TopoSort(f),
-        HasSubstr("Cycle detected in function `graph`: [b -> a -> b]"));
+    EXPECT_THAT(TopoSort(f).status().message(),
+                HasSubstr("Cycle detected in function `graph`: [b -> a -> b]"));
   }
   {
     auto p = std::make_unique<Package>(TestName());
@@ -436,8 +435,8 @@ fn graph(p: bits[42], q: bits[42]) -> bits[42] {
     EXPECT_THAT(std::string(f->Accept(&v).message()),
                 HasSubstr(std::string(
                     "Cycle detected in function `graph`: [a -> b -> d -> a]")));
-    EXPECT_DEATH(
-        TopoSort(f),
+    EXPECT_THAT(
+        TopoSort(f).status().message(),
         HasSubstr("Cycle detected in function `graph`: [a -> b -> d -> a]"));
   }
 
@@ -451,8 +450,8 @@ fn graph(p: bits[42], q: bits[42]) -> bits[42] {
     EXPECT_THAT(
         std::string(f->Accept(&v).message()),
         HasSubstr(std::string("Cycle detected in function `graph`: [a -> a]")));
-    EXPECT_DEATH(TopoSort(f),
-                 HasSubstr("Cycle detected in function `graph`: [a -> a]"));
+    EXPECT_THAT(TopoSort(f).status().message(),
+                HasSubstr("Cycle detected in function `graph`: [a -> a]"));
   }
 
   {
@@ -465,9 +464,8 @@ fn graph(p: bits[42], q: bits[42]) -> bits[42] {
     EXPECT_THAT(std::string(f->Accept(&v).message()),
                 HasSubstr(std::string(
                     "Cycle detected in function `graph`: [a -> c -> a]")));
-    EXPECT_DEATH(
-        TopoSort(f),
-        HasSubstr("Cycle detected in function `graph`: [a -> c -> a]"));
+    EXPECT_THAT(TopoSort(f).status().message(),
+                HasSubstr("Cycle detected in function `graph`: [a -> c -> a]"));
   }
 }
 

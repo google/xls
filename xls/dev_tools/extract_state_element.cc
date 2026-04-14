@@ -56,7 +56,9 @@ class RemoveUnusedReceivesPass : public OptimizationProcPass {
       Proc* proc, const OptimizationPassOptions& opts, PassResults* results,
       OptimizationContext& context) const override {
     bool changed = false;
-    for (Node* n : context.TopoSort(proc)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(proc));
+    for (Node* n : topo_sort_nodes) {
       if (n->Is<Receive>()) {
         if (n->users().empty()) {
           XLS_RETURN_IF_ERROR(proc->RemoveNode(n));
@@ -97,7 +99,9 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
   Package* new_pkg = pb.package();
   absl::flat_hash_map<Node*, Node*> old_to_new;
   old_to_new.reserve(original->node_count());
-  for (Node* n : context.TopoSort(original)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       context.TopoSort(original));
+  for (Node* n : topo_sort_nodes) {
     // Specific node types to handle specially.
     if (n->Is<Invoke>() || n->Is<Map>() || n->Is<CountedFor>() ||
         n->Is<DynamicCountedFor>()) {

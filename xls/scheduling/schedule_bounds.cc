@@ -41,7 +41,6 @@
 #include "xls/common/iterator_range.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/visitor.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/ir_annotator.h"
@@ -433,7 +432,13 @@ void ScheduleBounds::Reset() {
 std::string ScheduleBounds::ToString() const {
   std::string out = "Bounds:\n";
   if (!bounds_.empty()) {
-    for (Node* node : TopoSort(bounds_.begin()->first->function_base())) {
+    absl::StatusOr<std::vector<Node*>> topo_sort_nodes =
+        TopoSort(bounds_.begin()->first->function_base());
+    if (!topo_sort_nodes.ok()) {
+      return absl::StrFormat("ERROR: could not topo sort: %s\n",
+                             topo_sort_nodes.status().message());
+    }
+    for (Node* node : *topo_sort_nodes) {
       if (bounds_.contains(node)) {
         absl::StrAppendFormat(&out, "  %s : [%d, %d]\n", node->GetName(),
                               lb(node), ub(node));
@@ -965,11 +970,11 @@ ScheduleBounds::ComputeAsapAndAlapBounds(
   VLOG(4) << "ComputeAsapAndAlapBounds()";
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
                        GetDeadAfterSynthesisNodes(f));
-  XLS_ASSIGN_OR_RETURN(
-      auto bounds,
-      ScheduleBounds::Create(ScheduleGraph::Create(f, dead_after_synthesis),
-                             clock_period_ps, delay_estimator, ii, constraints,
-                             max_upper_bound));
+  XLS_ASSIGN_OR_RETURN(ScheduleGraph graph,
+                       ScheduleGraph::Create(f, dead_after_synthesis));
+  XLS_ASSIGN_OR_RETURN(auto bounds, ScheduleBounds::Create(
+                                        graph, clock_period_ps, delay_estimator,
+                                        ii, constraints, max_upper_bound));
   XLS_RETURN_IF_ERROR(PropagateBasicAsapAndAlapBounds(bounds));
   return bounds;
 }
@@ -983,11 +988,11 @@ ScheduleBounds::ComputeAsapAndAlapBounds(
   VLOG(4) << "ComputeAsapAndAlapBoundsDirect()";
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
                        GetDeadAfterSynthesisNodes(f));
-  XLS_ASSIGN_OR_RETURN(
-      auto bounds,
-      ScheduleBounds::Create(ScheduleGraph::Create(f, dead_after_synthesis),
-                             clock_period_ps, delay_estimator, constraints,
-                             max_upper_bound));
+  XLS_ASSIGN_OR_RETURN(ScheduleGraph graph,
+                       ScheduleGraph::Create(f, dead_after_synthesis));
+  XLS_ASSIGN_OR_RETURN(auto bounds, ScheduleBounds::Create(
+                                        graph, clock_period_ps, delay_estimator,
+                                        constraints, max_upper_bound));
   XLS_RETURN_IF_ERROR(PropagateBasicAsapAndAlapBounds(bounds));
   return bounds;
 }

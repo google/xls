@@ -290,11 +290,12 @@ class OptimizationContext {
     reverse_topo_sort_.erase(f);
   }
 
-  std::vector<Node*> ReverseTopoSort(FunctionBase* f);
-  std::vector<Node*> TopoSort(FunctionBase* f);
+  absl::StatusOr<std::vector<Node*>> ReverseTopoSort(FunctionBase* f);
+  absl::StatusOr<std::vector<Node*>> TopoSort(FunctionBase* f);
 
  private:
-  const std::vector<Node*>& ReverseTopoSortReference(FunctionBase* f);
+  absl::StatusOr<const std::vector<Node*>&> ReverseTopoSortReference(
+      FunctionBase* f);
 
   class InvalidatingVector : public ChangeListener {
    public:

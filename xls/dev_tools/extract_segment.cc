@@ -84,7 +84,8 @@ absl::StatusOr<BValue> ExtractSegmentInto(
     old_to_new_map = &old_to_new_local;
   }
   absl::flat_hash_map<Node*, Node*>& old_to_new = *old_to_new_map;
-  for (Node* n : TopoSort(full)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> sorted, TopoSort(full));
+  for (Node* n : sorted) {
     if (!is_dep(n)) {
       if (is_used_by_dep(n)) {
         // Add a param/literal

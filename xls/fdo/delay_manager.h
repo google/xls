@@ -74,8 +74,8 @@ struct PathExtractOptions {
 // than a threshold, extract top-N longest paths, etc.
 class DelayManager {
  public:
-  explicit DelayManager(FunctionBase *function,
-                        const DelayEstimator &delay_estimator);
+  static absl::StatusOr<DelayManager> Create(
+      FunctionBase* function, const DelayEstimator& delay_estimator);
 
   absl::StatusOr<int64_t> GetNodeDelay(Node *node) const;
 
@@ -101,7 +101,7 @@ class DelayManager {
   // topological order once. Note that this method is not optimal - it cannot
   // find the best combination of partial paths as Floyd–Warshall but it's
   // complexity is in O(n^2).
-  void PropagateDelays();
+  absl::Status PropagateDelays();
 
   // Get all the paths whose delay is longer than the given delay threshold.
   absl::flat_hash_map<Node *, std::vector<Node *>> GetPathsOverDelayThreshold(
@@ -130,6 +130,9 @@ class DelayManager {
       absl::FunctionRef<bool(Node *, Node *)> except = GetFalse) const;
 
  private:
+  explicit DelayManager(FunctionBase* function,
+                        const DelayEstimator& delay_estimator);
+
   static float GetZeroScore(Node *from, Node *to) { return 0.0; }
   static bool GetFalse(Node *from, Node *to) { return false; }
 

@@ -161,7 +161,9 @@ absl::StatusOr<bool> ClampArrayIndexIndices(FunctionBase* func,
                                             OptimizationContext& context,
                                             const QueryEngine& query_engine) {
   bool changed = false;
-  for (Node* node : context.TopoSort(func)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       context.TopoSort(func));
+  for (Node* node : topo_sort_nodes) {
     if (node->Is<ArrayIndex>()) {
       ArrayIndex* array_index = node->As<ArrayIndex>();
       Type* subtype = array_index->array()->GetType();
@@ -1276,7 +1278,9 @@ absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func,
   // Perform this optimization in reverse topo sort order because we are looking
   // for a sequence of array update operations and the search progress upwards
   // (toward parameters).
-  for (Node* node : context.ReverseTopoSort(func)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                       context.ReverseTopoSort(func));
+  for (Node* node : reverse_topo_sort_nodes) {
     if (!node->Is<ArrayUpdate>()) {
       continue;
     }
@@ -1760,7 +1764,9 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   // PrioritySelect operations. By favoring reverse-topo-sort order, we give
   // ourselves the best chance of collapsing (e.g.) array updates written as
   // separate updates for each dimension.
-  for (Node* node : context.ReverseTopoSort(func)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                       context.ReverseTopoSort(func));
+  for (Node* node : reverse_topo_sort_nodes) {
     if (!node->IsDead() &&
         node->OpIn({Op::kArray, Op::kArrayIndex, Op::kArrayUpdate, Op::kSel,
                     Op::kPrioritySel, Op::kArraySlice})) {

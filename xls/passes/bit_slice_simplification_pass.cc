@@ -1075,7 +1075,9 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
   //
   // Also, since these simplifications never generate more nodes of the same
   // type, we don't need to worry about running them to fixed-point.
-  for (Node* node : context.ReverseTopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                       context.ReverseTopoSort(f));
+  for (Node* node : reverse_topo_sort_nodes) {
     bool node_changed = false;
     if (node->Is<DynamicBitSlice>()) {
       XLS_ASSIGN_OR_RETURN(

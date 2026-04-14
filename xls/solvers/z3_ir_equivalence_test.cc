@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest-spi.h"
@@ -96,7 +97,9 @@ TEST_F(EquivalenceTest, EquivalentTransformIsEquivalent) {
       TryProveEquivalence(f,
                           [](Package* p, Function* f) -> absl::Status {
                             // Reverse all the binary operations
-                            for (Node* n : TopoSort(f)) {
+                            XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort,
+                                                 TopoSort(f));
+                            for (Node* n : topo_sort) {
                               if (n->Is<BinOp>()) {
                                 XLS_RETURN_IF_ERROR(
                                     n->ReplaceUsesWithNew<BinOp>(
@@ -118,7 +121,8 @@ TEST_F(EquivalenceTest, ScopedEquivalentTransformIsEquivalent) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   ScopedVerifyEquivalence check_equivalence(f);
-  for (Node* n : TopoSort(f)) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> topo_sort, TopoSort(f));
+  for (Node* n : topo_sort) {
     if (n->Is<BinOp>()) {
       XLS_ASSERT_OK(
           n->ReplaceUsesWithNew<BinOp>(n->operand(1), n->operand(0), n->op())
@@ -138,7 +142,9 @@ TEST_F(EquivalenceTest, EquivalentArrayTransformIsEquivalent) {
       TryProveEquivalence(f,
                           [](Package* p, Function* f) -> absl::Status {
                             // Reverse all the binary operations
-                            for (Node* n : TopoSort(f)) {
+                            XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort,
+                                                 TopoSort(f));
+                            for (Node* n : topo_sort) {
                               if (n->Is<BinOp>()) {
                                 XLS_RETURN_IF_ERROR(
                                     n->ReplaceUsesWithNew<BinOp>(
@@ -161,7 +167,8 @@ TEST_F(EquivalenceTest, ScopedEquivalentArrayTransformIsEquivalent) {
 
   ScopedVerifyEquivalence check_equivalence(f);
   // Reverse all the binary operations
-  for (Node* n : TopoSort(f)) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> topo_sort, TopoSort(f));
+  for (Node* n : topo_sort) {
     if (n->Is<BinOp>()) {
       XLS_ASSERT_OK(
           n->ReplaceUsesWithNew<BinOp>(n->operand(1), n->operand(0), n->op())
@@ -181,7 +188,9 @@ TEST_F(EquivalenceTest, EquivalentBitsTransformIsEquivalent) {
       TryProveEquivalence(f,
                           [](Package* p, Function* f) -> absl::Status {
                             // Reverse all the binary operations
-                            for (Node* n : TopoSort(f)) {
+                            XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort,
+                                                 TopoSort(f));
+                            for (Node* n : topo_sort) {
                               if (n->Is<BinOp>()) {
                                 XLS_RETURN_IF_ERROR(
                                     n->ReplaceUsesWithNew<BinOp>(
@@ -204,7 +213,8 @@ TEST_F(EquivalenceTest, ScopedEquivalentBitsTransformIsEquivalent) {
 
   ScopedVerifyEquivalence check_equivalence(f);
   // Reverse all the binary operations
-  for (Node* n : TopoSort(f)) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> topo_sort, TopoSort(f));
+  for (Node* n : topo_sort) {
     if (n->Is<BinOp>()) {
       XLS_ASSERT_OK(
           n->ReplaceUsesWithNew<BinOp>(n->operand(1), n->operand(0), n->op())
@@ -224,7 +234,9 @@ TEST_F(EquivalenceTest, DetectsNonEquivalentTransform) {
       TryProveEquivalence(f,
                           [](Package* p, Function* f) -> absl::Status {
                             // Reverse all the binary operations
-                            for (Node* n : TopoSort(f)) {
+                            XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort,
+                                                 TopoSort(f));
+                            for (Node* n : topo_sort) {
                               if (n->Is<BinOp>()) {
                                 XLS_RETURN_IF_ERROR(
                                     n->ReplaceUsesWithNew<BinOp>(
@@ -241,7 +253,8 @@ constexpr int64_t kScopedNonEquivalentTransformCheckLine = __LINE__ + 2;
 void ScopedNonEquivalentTransform(Function* f) {
   ScopedVerifyEquivalence check_equivalence(f);
   // Reverse all the binary operations
-  for (Node* n : TopoSort(f)) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> topo_sort, TopoSort(f));
+  for (Node* n : topo_sort) {
     if (n->Is<BinOp>()) {
       XLS_EXPECT_OK(
           n->ReplaceUsesWithNew<BinOp>(n->operand(1), n->operand(0), n->op())

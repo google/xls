@@ -83,7 +83,8 @@ TEST_F(IrToJsonTest, SimpleFunctionWithSchedule) {
   cycle_map[y.node()] = 0;
   cycle_map[add.node()] = 1;
   cycle_map[negate.node()] = 2;
-  PipelineSchedule schedule(f, cycle_map);
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
+                           PipelineSchedule::Create(f, cycle_map));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
                            GetDelayEstimator("unit"));
 

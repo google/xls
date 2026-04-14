@@ -2273,13 +2273,15 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(AliasingQueryEngine query_engine,
                        GetQueryEngine(f, RealAnalysis(options), context));
 
-  PredicateDominatorAnalysis pda = PredicateDominatorAnalysis::Run(f, context);
+  XLS_ASSIGN_OR_RETURN(PredicateDominatorAnalysis pda,
+                       PredicateDominatorAnalysis::Run(f, context));
   SpecializedQueryEngines sqe(RealAnalysis(options), pda, query_engine);
 
   NarrowVisitor narrower(sqe, RealAnalysis(options), options,
                          options.splits_enabled());
 
-  for (Node* node : context.TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     // We specifically want gate ops to be eligible for being reduced to a
     // constant since there entire purpose is for preventing power consumption
     // and literals are basically free.

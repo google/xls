@@ -37,7 +37,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/math_util.h"
@@ -151,7 +150,8 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
     FunctionBase* f, const DelayEstimator& delay_estimator) {
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
                        GetDeadAfterSynthesisNodes(f));
-  return ComputeCriticalPath(TopoSort(f), dead_after_synthesis,
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  return ComputeCriticalPath(topo_sort_nodes, dead_after_synthesis,
                              delay_estimator);
 }
 
@@ -344,12 +344,13 @@ absl::Status GenerateHelpfulAsapError(absl::Status&& orig_status,
   if (options.pipeline_stages().has_value()) {
     XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<xls::Node*> dead_after_synthesis,
                          GetDeadAfterSynthesisNodes(f));
+    XLS_ASSIGN_OR_RETURN(ScheduleGraph graph,
+                         ScheduleGraph::Create(f, dead_after_synthesis));
     XLS_ASSIGN_OR_RETURN(
         auto bounds,
-        sched::ScheduleBounds::Create(
-            ScheduleGraph::Create(f, dead_after_synthesis), clock_period_ps,
-            delay_estimator, f->GetInitiationInterval().value_or(1),
-            options.constraints()),
+        sched::ScheduleBounds::Create(graph, clock_period_ps, delay_estimator,
+                                      f->GetInitiationInterval().value_or(1),
+                                      options.constraints()),
         std::move(status)
             << "(Failed to create schedule bounds for error message creation)");
     // Add first and last stage constraints.
@@ -459,13 +460,15 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     // No scheduling to be done, and there's no way to violate timing; just
     // schedule everything (other than literals) in the first cycle.
     ScheduleCycleMap cycle_map;
-    for (Node* node : TopoSort(f)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+    for (Node* node : topo_sort_nodes) {
       if (!IsUntimed(node)) {
         cycle_map[node] = 0;
       }
     }
-    PipelineSchedule schedule =
-        PipelineSchedule(f, std::move(cycle_map), options.pipeline_stages());
+    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
+                         PipelineSchedule::Create(f, std::move(cycle_map),
+                                                  options.pipeline_stages()));
     XLS_RETURN_IF_ERROR(schedule.Verify());
     XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
                                                    f->GetInitiationInterval()));
@@ -601,7 +604,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
       isdc_options.path_evaluate_strategy =
           options.fdo_path_evaluate_strategy();
 
-      DelayManager delay_manager(f, delay_estimator);
+      XLS_ASSIGN_OR_RETURN(DelayManager delay_manager,
+                           DelayManager::Create(f, delay_estimator));
       XLS_ASSIGN_OR_RETURN(
           cycle_map,
           ScheduleByIterativeSDC(f, options.pipeline_stages(), clock_period_ps,
@@ -609,7 +613,9 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
                                  isdc_options, options.failure_behavior()));
 
       // Use delay manager for scheduling timing verification.
-      auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages());
+      XLS_ASSIGN_OR_RETURN(
+          PipelineSchedule schedule,
+          PipelineSchedule::Create(f, cycle_map, options.pipeline_stages()));
       XLS_RETURN_IF_ERROR(schedule.Verify());
       XLS_RETURN_IF_ERROR(
           schedule.VerifyTiming(clock_period_ps, delay_manager));
@@ -718,12 +724,13 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     // First get the basic bounds.
     XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
                          GetDeadAfterSynthesisNodes(f));
+    XLS_ASSIGN_OR_RETURN(ScheduleGraph graph,
+                         ScheduleGraph::Create(f, dead_after_synthesis));
     XLS_ASSIGN_OR_RETURN(
         auto bounds,
-        sched::ScheduleBounds::Create(
-            ScheduleGraph::Create(f, dead_after_synthesis), clock_period_ps,
-            io_delay_added, f->GetInitiationInterval().value_or(1),
-            options.constraints()));
+        sched::ScheduleBounds::Create(graph, clock_period_ps, io_delay_added,
+                                      f->GetInitiationInterval().value_or(1),
+                                      options.constraints()));
     // Add first and last stage constraints.
     using LastStageConstraint =
         sched::ScheduleBounds::NodeSchedulingConstraint::LastStageConstraint;
@@ -751,7 +758,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
       std::mt19937_64 gen(options.seed().value_or(0));
 
       cycle_map = ScheduleCycleMap();
-      for (Node* node : TopoSort(f)) {
+      XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+      for (Node* node : topo_sort_nodes) {
         if (IsUntimed(node)) {
           continue;
         }
@@ -781,8 +789,10 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     }
   }
 
-  auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages(),
-                                   min_clock_period_ps_for_tracing);
+  XLS_ASSIGN_OR_RETURN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Create(f, cycle_map, options.pipeline_stages(),
+                               min_clock_period_ps_for_tracing));
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, io_delay_added));
   XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
@@ -899,8 +909,8 @@ absl::StatusOr<PackageSchedule> RunSynchronousPipelineSchedule(
       }
       proc_cycle_map[node] = cycle_map.at(node) - synchronous_offsets.at(proc);
     }
-    PipelineSchedule schedule(proc, proc_cycle_map);
-    schedule_map[proc] = PipelineSchedule(proc, proc_cycle_map);
+    XLS_ASSIGN_OR_RETURN(schedule_map[proc],
+                         PipelineSchedule::Create(proc, proc_cycle_map));
   }
 
   PackageSchedule package_schedule(package, std::move(schedule_map),

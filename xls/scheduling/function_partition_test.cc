@@ -178,7 +178,7 @@ TEST_F(FunctionPartitionTest, BenchmarkTest) {
       continue;
     }
     Function* f = f_status.value();
-    auto topo_sort_it = TopoSort(f);
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> topo_sort_it, TopoSort(f));
     std::vector<Node*> topo_sort(topo_sort_it.begin(), topo_sort_it.end());
 
     // Create a subspan of the given span with the given start and end indices

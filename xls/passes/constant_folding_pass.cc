@@ -68,7 +68,8 @@ absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(
   StatelessQueryEngine query_engine;
 
   bool changed = false;
-  for (Node* node : context.TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     // Fold any non-side-effecting op with constant parameters. Avoid any types
     // with tokens because literal tokens are not allowed.
     // TODO(meheff): 2019/6/26 Consider not folding loops with large trip counts

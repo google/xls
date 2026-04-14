@@ -18,6 +18,7 @@
 
 #include "benchmark/benchmark.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/benchmark_support.h"
 #include "xls/ir/bits.h"
@@ -34,7 +35,7 @@ namespace xls {
 namespace {
 class PredicateDominatorAnalysisTest : public IrTestBase {
  public:
-  PredicateDominatorAnalysis RunAnalysis(FunctionBase* f) {
+  absl::StatusOr<PredicateDominatorAnalysis> RunAnalysis(FunctionBase* f) {
     OptimizationContext context;
     return PredicateDominatorAnalysis::Run(f, context);
   }
@@ -51,7 +52,7 @@ TEST_F(PredicateDominatorAnalysisTest, NoPredicates) {
   BValue wxyz = fb.Add(fb.Add(w, x), fb.Add(y, z));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = RunAnalysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis, RunAnalysis(f));
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(w.node()), PredicateState());
   EXPECT_EQ(analysis.GetSingleNearestPredicate(x.node()), PredicateState());
@@ -93,7 +94,7 @@ TEST_F(PredicateDominatorAnalysisTest, Simple) {
   BValue nwxyz = fb.Not(wxyz);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = RunAnalysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis, RunAnalysis(f));
 
   auto* select = wxyz.node()->As<Select>();
   // condition
@@ -140,7 +141,7 @@ TEST_F(PredicateDominatorAnalysisTest, ValueInSelectorAndArm) {
   BValue v2 = fb.Select(s, {v1, c});
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = RunAnalysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis, RunAnalysis(f));
 
   auto s_v1 = v1.node()->As<Select>();
   auto s_v2 = v2.node()->As<Select>();
@@ -174,7 +175,7 @@ TEST_F(PredicateDominatorAnalysisTest, ValueInSelectorAndDefaultArm) {
   BValue v2 = fb.Select(s, {v1, c});
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = RunAnalysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis, RunAnalysis(f));
 
   auto s_v1 = v1.node()->As<Select>();
   auto s_v2 = v2.node()->As<Select>();
@@ -213,7 +214,7 @@ TEST_F(PredicateDominatorAnalysisTest, MultipleIndependentSelects) {
   auto s_yz = yz.node()->As<Select>();
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = RunAnalysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis, RunAnalysis(f));
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s1.node()), PredicateState());
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s2.node()), PredicateState());
@@ -254,7 +255,7 @@ TEST_F(PredicateDominatorAnalysisTest, NestedSelects) {
   auto* s_wxyz = wxyz.node()->As<Select>();
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = RunAnalysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis, RunAnalysis(f));
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s1.node()),
             PredicateState(s_wxy, 0));
@@ -287,7 +288,7 @@ TEST_F(PredicateDominatorAnalysisTest, SimpleCovering) {
   BValue xyx = fb.Add(x, yx);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = RunAnalysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis, RunAnalysis(f));
 
   auto* select = yx.node()->As<Select>();
   // condition
@@ -324,7 +325,7 @@ TEST_F(PredicateDominatorAnalysisTest, DisjointCovering) {
   auto* s_xyt = xyt.node()->As<Select>();
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = RunAnalysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis, RunAnalysis(f));
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s1.node()), PredicateState());
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s2.node()), PredicateState());
@@ -372,7 +373,7 @@ TEST_F(PredicateDominatorAnalysisTest, NestedCovering) {
   auto* s_wxtyzt = wxtyzt.node()->As<Select>();
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = RunAnalysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis, RunAnalysis(f));
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s1.node()),
             PredicateState(s_wxty, 0));
@@ -428,7 +429,7 @@ TEST_F(PredicateDominatorAnalysisTest, NestedPartialDisjointCovering) {
   auto* s_xatbt = xatbt.node()->As<Select>();
 
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
-  auto analysis = RunAnalysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis, RunAnalysis(f));
 
   EXPECT_EQ(analysis.GetSingleNearestPredicate(s1.node()),
             PredicateState(s_atbt, 0));
@@ -467,7 +468,8 @@ void BM_NoShareBalancedTreeShareContext(benchmark::State& state) {
                                         /*fan_out=*/2, csts, leaf));
   OptimizationContext context;
   // Run once outside benchmark loop to warm up context.
-  PredicateDominatorAnalysis::Run(f, context);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis,
+                           PredicateDominatorAnalysis::Run(f, context));
   for (auto _ : state) {
     auto v = PredicateDominatorAnalysis::Run(f, context);
     benchmark::DoNotOptimize(v);
@@ -488,7 +490,8 @@ void BM_ShareSelectorBalancedTreeShareContext(benchmark::State& state) {
                                         /*fan_out=*/2, csts, leaf));
   OptimizationContext context;
   // Run once outside benchmark loop to warm up context.
-  PredicateDominatorAnalysis::Run(f, context);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis,
+                           PredicateDominatorAnalysis::Run(f, context));
   for (auto _ : state) {
     auto v = PredicateDominatorAnalysis::Run(f, context);
     benchmark::DoNotOptimize(v);
@@ -509,7 +512,8 @@ void BM_ShareReturnBalancedTreeShareContext(benchmark::State& state) {
                                         /*fan_out=*/2, csts, leaf));
   OptimizationContext context;
   // Run once outside benchmark loop to warm up context.
-  PredicateDominatorAnalysis::Run(f, context);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis,
+                           PredicateDominatorAnalysis::Run(f, context));
   for (auto _ : state) {
     auto v = PredicateDominatorAnalysis::Run(f, context);
     benchmark::DoNotOptimize(v);
@@ -530,7 +534,8 @@ void BM_ShareAllBalancedTreeShareContext(benchmark::State& state) {
                                         /*fan_out=*/2, csts, leaf));
   OptimizationContext context;
   // Run once outside benchmark loop to warm up context.
-  PredicateDominatorAnalysis::Run(f, context);
+  XLS_ASSERT_OK_AND_ASSIGN(PredicateDominatorAnalysis analysis,
+                           PredicateDominatorAnalysis::Run(f, context));
   for (auto _ : state) {
     auto v = PredicateDominatorAnalysis::Run(f, context);
     benchmark::DoNotOptimize(v);

@@ -309,7 +309,9 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedDAG(
     }
     // Keep track of prev_node which will be used if we choose a stricter order.
     std::optional<Node*> prev_node = std::nullopt;
-    for (Node* node : context.TopoSort(fb)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(fb));
+    for (Node* node : topo_sort_nodes) {
       NodeAndPredecessors::PredecessorSet resolved_predecessors;
       absl::flat_hash_set<Node*> unique_operands(node->operands().begin(),
                                                  node->operands().end());

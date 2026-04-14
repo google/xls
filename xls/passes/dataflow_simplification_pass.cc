@@ -87,7 +87,9 @@ absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   NodeSourceDataflowVisitor visitor;
   visitor.ReserveNodes(func->node_count());
-  for (Node* node : context.TopoSort(func)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       context.TopoSort(func));
+  for (Node* node : topo_sort_nodes) {
     XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
   }
   bool changed = false;
@@ -95,7 +97,7 @@ absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
   // the same LTT<NodeSource> they are necessarily equivalent.
   absl::flat_hash_map<LeafTypeTreeView<NodeSource>, Node*> source_map;
   source_map.reserve(func->node_count());
-  for (Node* node : context.TopoSort(func)) {
+  for (Node* node : topo_sort_nodes) {
     LeafTypeTreeView<NodeSource> source = visitor.GetValue(node);
     VLOG(3) << absl::StrFormat("Considering `%s`: %s", node->GetName(),
                                source.ToString());

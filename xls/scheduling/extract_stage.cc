@@ -42,7 +42,8 @@ absl::StatusOr<Function*> ExtractStage(FunctionBase* src,
       absl::StrFormat("%s_stage_%d", src->name(), stage), package);
   absl::flat_hash_map<Node*, Node*> node_map;
   std::vector<Node*> live_out;
-  for (Node* node : TopoSort(src)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> sorted_nodes, TopoSort(src));
+  for (Node* node : sorted_nodes) {
     if (IsUntimed(node)) {
       continue;
     }

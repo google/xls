@@ -98,7 +98,8 @@ absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
       }
     }
 
-    for (Node* node : TopoSort(f)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+    for (Node* node : topo_sort_nodes) {
       if (node->Is<Param>()) {
         continue;
       }

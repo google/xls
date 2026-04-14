@@ -234,7 +234,9 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(
   // Move non-register nodes to the latest possible stage given their user
   // constraints. This is primarily to push nodes such as literals into the
   // stage of their user rather than all being placed in stage 0.
-  for (Node* node : ReverseTopoSort(block)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                       ReverseTopoSort(block));
+  for (Node* node : reverse_topo_sort_nodes) {
     if (node->users().empty() || node->Is<RegisterRead>() ||
         node->Is<RegisterWrite>()) {
       continue;
@@ -259,7 +261,9 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(
 
   // Gather the nodes in a vector of stages.
   std::vector<Stage> stages(max_stage + 1);
-  for (Node* node : TopoSort(block, rng)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       TopoSort(block, rng));
+  for (Node* node : topo_sort_nodes) {
     if (node->Is<InputPort>() || node->Is<OutputPort>()) {
       continue;
     }
@@ -405,7 +409,7 @@ class BlockGenerator {
             block_->name(), *options_.residual_data());
         if (!ref_ids.empty()) {
           has_reference_order = true;
-          global_order = StableTopoSort(block_, ref_ids);
+          XLS_ASSIGN_OR_RETURN(global_order, StableTopoSort(block_, ref_ids));
         }
       }
       auto get_stage_node_order = [&](absl::Span<Node* const> stage_nodes) {
@@ -469,11 +473,11 @@ class BlockGenerator {
         std::vector<int64_t> ref_ids = NodeIdOrderFromResidualData(
             block_->name(), *options_.residual_data());
         if (!ref_ids.empty()) {
-          order = StableTopoSort(block_, ref_ids);
+          XLS_ASSIGN_OR_RETURN(order, StableTopoSort(block_, ref_ids));
         }
       }
       if (order.empty()) {
-        order = TopoSort(block_, rng_);
+        XLS_ASSIGN_OR_RETURN(order, TopoSort(block_, rng_));
       }
       XLS_RETURN_IF_ERROR(EmitLogic(order));
       XLS_RETURN_IF_ERROR(AssignRegisters(registers));

@@ -121,7 +121,9 @@ class LevelUpPass : public OptimizationFunctionBasePass {
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results, OptimizationContext& context) const override {
     bool changed = false;
-    for (Node* n : context.TopoSort(f)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(f));
+    for (Node* n : topo_sort_nodes) {
       if (n->Is<Literal>() && n->GetType()->IsBits() &&
           !IsTooBig(n->As<Literal>()->value().bits())) {
         changed = true;

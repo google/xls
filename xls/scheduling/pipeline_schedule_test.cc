@@ -374,7 +374,8 @@ TEST_F(PipelineScheduleTest, TestVerifyTiming) {
               "Schedule does not meet timing (1ps). Longest failing path "
               "(3ps): add.3 (1ps) -> neg.4 (1ps) -> sub.5 (1ps)")));
 
-  DelayManager delay_manager(func, TestDelayEstimator());
+  XLS_ASSERT_OK_AND_ASSIGN(DelayManager delay_manager,
+                           DelayManager::Create(func, TestDelayEstimator()));
   XLS_EXPECT_OK(schedule.VerifyTiming(/*clock_period_ps=*/5, delay_manager));
   EXPECT_THAT(
       schedule.VerifyTiming(/*clock_period_ps=*/1, delay_manager),
@@ -598,7 +599,8 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
                           SchedulingOptions().pipeline_stages(3)));
 
   ASSERT_TRUE(schedule.min_clock_period_ps().has_value());
-  PipelineScheduleProto proto = schedule.ToProto(TestDelayEstimator());
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineScheduleProto proto,
+                           schedule.ToProto(TestDelayEstimator()));
   PackageScheduleProto package_schedule_proto;
   package_schedule_proto.mutable_schedules()->emplace(func->name(),
                                                       std::move(proto));
@@ -626,7 +628,8 @@ TEST_F(PipelineScheduleTest, NodeDelayInScheduleProto) {
       RunPipelineSchedule(func, TestDelayEstimator(),
                           SchedulingOptions().pipeline_stages(3)));
 
-  PipelineScheduleProto proto = schedule.ToProto(TestDelayEstimator());
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineScheduleProto proto,
+                           schedule.ToProto(TestDelayEstimator()));
   for (const auto& stage : proto.stages()) {
     int64_t path_delay = 0;
     for (const TimedNodeProto& node : stage.timed_nodes()) {
@@ -2050,7 +2053,8 @@ TEST_F(PipelineScheduleTest, PackageScheduleProtoSerializeAndDeserialize) {
   PackageSchedule package_schedule(p.get(),
                                    {{func0, schedule0}, {func1, schedule1}});
 
-  PackageScheduleProto proto = package_schedule.ToProto(TestDelayEstimator());
+  XLS_ASSERT_OK_AND_ASSIGN(PackageScheduleProto proto,
+                           package_schedule.ToProto(TestDelayEstimator()));
   XLS_ASSERT_OK_AND_ASSIGN(PackageSchedule clone,
                            PackageSchedule::FromProto(p.get(), proto));
   ASSERT_THAT(package_schedule.GetSchedules(),
@@ -2100,10 +2104,10 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserializeWithSynchronousSchedule) {
   EXPECT_EQ(package_schedule.GetSynchronousCycle(add1.node()), 0);
   EXPECT_EQ(package_schedule.GetSynchronousCycle(add2.node()), 42);
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      PackageSchedule clone,
-      PackageSchedule::FromProto(
-          p.get(), package_schedule.ToProto(TestDelayEstimator())));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageScheduleProto proto,
+                           package_schedule.ToProto(TestDelayEstimator()));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageSchedule clone,
+                           PackageSchedule::FromProto(p.get(), proto));
 
   EXPECT_TRUE(clone.IsSynchronousSchedule());
   EXPECT_THAT(clone.GetSchedules().at(proc1).GetCycleMap(),

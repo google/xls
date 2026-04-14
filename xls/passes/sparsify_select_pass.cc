@@ -161,7 +161,8 @@ absl::StatusOr<bool> SparsifySelectPass::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(engine->Populate(f).status());
 
   bool changed = false;
-  for (Node* node : context.TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     if (node->Is<Select>()) {
       Select* select = node->As<Select>();
       Node* selector = select->selector();

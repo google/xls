@@ -261,11 +261,21 @@ class ProcIrInterpreter : public IrInterpreter {
 
 }  // namespace
 
+/* static */ absl::StatusOr<std::unique_ptr<ProcInterpreter>>
+ProcInterpreter::Create(Proc* proc, ChannelQueueManager* queue_manager,
+                        const EvaluatorOptions& options) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> execution_order, TopoSort(proc));
+  auto interpreter = std::make_unique<ProcInterpreter>(
+      proc, queue_manager, execution_order, options);
+  return interpreter;
+}
+
 ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager,
+                                 std::vector<Node*> execution_order,
                                  const EvaluatorOptions& options)
     : ProcEvaluator(proc, options),
       queue_manager_(queue_manager),
-      execution_order_(TopoSort(proc)) {}
+      execution_order_(std::move(execution_order)) {}
 
 std::unique_ptr<ProcContinuation> ProcInterpreter::NewContinuation(
     ProcInstance* proc_instance) const {

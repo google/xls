@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <functional>
-#include <iostream>
 #include <optional>
 #include <string>
 #include <utility>
@@ -74,7 +73,8 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
   // The node with the greatest critical path delay.
   std::optional<NodeEntry> latest_entry;
 
-  for (Node* node : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> sorted_nodes, TopoSort(f));
+  for (Node* node : sorted_nodes) {
     if (!source_filter(node) &&
         !absl::c_any_of(node->operands(), [&](Node* operand) {
           return node_entries.contains(operand);

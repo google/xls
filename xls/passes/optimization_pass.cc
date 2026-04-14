@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/math_util.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/function_base.h"
@@ -136,28 +137,33 @@ absl::Status OptimizationContext::CollectGarbage() {
   return absl::OkStatus();
 }
 
-const std::vector<Node*>& OptimizationContext::ReverseTopoSortReference(
-    FunctionBase* f) {
+absl::StatusOr<const std::vector<Node*>&>
+OptimizationContext::ReverseTopoSortReference(FunctionBase* f) {
   auto it = reverse_topo_sort_.find(f);
   if (it == reverse_topo_sort_.end()) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> sorted, xls::ReverseTopoSort(f));
     bool inserted = false;
-    std::tie(it, inserted) = reverse_topo_sort_.emplace(
-        f, InvalidatingVector(f, xls::ReverseTopoSort(f)));
-    CHECK(inserted);
+    std::tie(it, inserted) =
+        reverse_topo_sort_.emplace(f, InvalidatingVector(f, sorted));
+    XLS_RET_CHECK(inserted);
   }
   if (it->second->empty() && f->node_count() > 0) {
-    *it->second = xls::ReverseTopoSort(f);
+    XLS_ASSIGN_OR_RETURN(*it->second, xls::ReverseTopoSort(f));
   }
   return *it->second;
 }
 
-std::vector<Node*> OptimizationContext::ReverseTopoSort(FunctionBase* f) {
+absl::StatusOr<std::vector<Node*>> OptimizationContext::ReverseTopoSort(
+    FunctionBase* f) {
   return ReverseTopoSortReference(f);
 }
-std::vector<Node*> OptimizationContext::TopoSort(FunctionBase* f) {
+absl::StatusOr<std::vector<Node*>> OptimizationContext::TopoSort(
+    FunctionBase* f) {
   std::vector<Node*> result;
   result.reserve(f->node_count());
-  absl::c_reverse_copy(ReverseTopoSortReference(f), std::back_inserter(result));
+  XLS_ASSIGN_OR_RETURN(const std::vector<Node*>& sorted,
+                       ReverseTopoSortReference(f));
+  absl::c_reverse_copy(sorted, std::back_inserter(result));
   return result;
 }
 

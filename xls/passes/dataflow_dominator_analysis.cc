@@ -25,6 +25,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
@@ -89,7 +90,7 @@ DataflowDominatorAnalysis::Run(FunctionBase* f) {
   DataflowDominatorAnalysis analysis;
 
   // A topological sort of the function nodes.
-  std::vector<Node*> toposort = TopoSort(f);
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> toposort, TopoSort(f));
 
   // Construct the dominators for each node. Dominators are gathered as a sorted
   // vector containing the node indices (in a toposort) of the dominator nodes;

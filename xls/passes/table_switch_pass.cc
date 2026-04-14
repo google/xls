@@ -420,7 +420,9 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
 
   bool changed = false;
   absl::flat_hash_set<Node*> transformed;
-  for (Node* node : context.ReverseTopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                       context.ReverseTopoSort(f));
+  for (Node* node : reverse_topo_sort_nodes) {
     VLOG(3) << "Considering node: " << node->ToString();
     if (transformed.contains(node)) {
       VLOG(3) << absl::StreamFormat("Already transformed %s", node->GetName());

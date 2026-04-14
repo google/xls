@@ -179,7 +179,9 @@ absl::StatusOr<Function*> Function::Clone(
     XLS_ASSIGN_OR_RETURN(original_to_clone[param],
                          param->CloneInNewFunction({}, cloned_function));
   }
-  for (Node* node : TopoSort(const_cast<Function*>(this))) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       TopoSort(const_cast<Function*>(this)));
+  for (Node* node : topo_sort_nodes) {
     if (node->Is<Param>()) {  // Params were already copied.
       continue;
     }

@@ -537,6 +537,7 @@ cc_library(
         "//xls/codegen/vast",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
+        "//xls/common/status:status_macros",
         "//xls/estimators",
         "//xls/ir",
         "//xls/ir:bits",

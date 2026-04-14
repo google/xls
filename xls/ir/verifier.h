@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/block.h"
 #include "xls/ir/topo_sort.h"
 
@@ -40,11 +41,11 @@ struct VerifyOptions {
 // error status if a violation is found.
 absl::Status VerifyPackage(
     Package* package, const VerifyOptions& options,
-    std::function<std::vector<Node*>(FunctionBase*)> topo_sort =
+    std::function<absl::StatusOr<std::vector<Node*>>(FunctionBase*)> topo_sort =
         [](FunctionBase* fb) { return TopoSort(fb); });
 inline absl::Status VerifyPackage(
     Package* package, bool codegen = false,
-    std::function<std::vector<Node*>(FunctionBase*)> topo_sort =
+    std::function<absl::StatusOr<std::vector<Node*>>(FunctionBase*)> topo_sort =
         [](FunctionBase* fb) { return TopoSort(fb); }) {
   return VerifyPackage(package, {.codegen = codegen}, topo_sort);
 }

@@ -161,9 +161,11 @@ TEST_F(DelayHeapTest, BenchmarkTest) {
   for (Direction direction :
        {Direction::kGrowsTowardUsers, Direction::kGrowsTowardOperands}) {
     DelayHeap heap(direction, *delay_estimator_);
-    for (Node* node : direction == Direction::kGrowsTowardUsers
-                          ? TopoSort(f)
-                          : ReverseTopoSort(f)) {
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<Node*> sorted_nodes,
+                             direction == Direction::kGrowsTowardUsers
+                                 ? TopoSort(f)
+                                 : ReverseTopoSort(f));
+    for (Node* node : sorted_nodes) {
       XLS_ASSERT_OK(heap.Add(node));
       EXPECT_FALSE(heap.frontier().empty());
       XLS_ASSERT_OK(VerifyFrontier(heap));

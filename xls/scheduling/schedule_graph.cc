@@ -128,12 +128,13 @@ std::string ScheduleGraph::ToString() const {
   return absl::StrJoin(lines, "\n");
 }
 
-ScheduleGraph ScheduleGraph::Create(
+/* static */ absl::StatusOr<ScheduleGraph> ScheduleGraph::Create(
     FunctionBase* f, const absl::flat_hash_set<Node*>& dead_after_synthesis) {
   std::vector<ScheduleBackedge> backedges;
   std::vector<ScheduleNode> nodes;
   nodes.reserve(f->node_count());
-  for (Node* node : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     nodes.push_back(ScheduleNode{
         .node = node,
         .predecessors = std::vector<Node*>(node->operands().begin(),

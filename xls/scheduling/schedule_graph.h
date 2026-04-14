@@ -101,7 +101,7 @@ class ScheduleGraph {
  public:
   // Return a ScheduleGraph representing a single FunctionBase (Function or
   // Proc).
-  static ScheduleGraph Create(
+  static absl::StatusOr<ScheduleGraph> Create(
       FunctionBase* f, const absl::flat_hash_set<Node*>& dead_after_synthesis);
 
   // Return a ScheduleGraph representing the procs in `elab` which can be used

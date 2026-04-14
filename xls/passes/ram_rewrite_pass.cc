@@ -843,7 +843,9 @@ absl::Status ReplaceChannelReferences(Package* p, OptimizationContext& context,
 
   if (metadata.proc_scope.has_value()) {
     XLS_RET_CHECK(p->ChannelsAreProcScoped());
-    for (Node* node : context.TopoSort(metadata.proc_scope.value())) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(metadata.proc_scope.value()));
+    for (Node* node : topo_sort_nodes) {
       if (node->Is<Send>()) {
         XLS_RETURN_IF_ERROR(
             handle_send(node->As<Send>(), metadata.proc_scope.value()));
@@ -855,7 +857,9 @@ absl::Status ReplaceChannelReferences(Package* p, OptimizationContext& context,
   } else {
     XLS_RET_CHECK(!p->ChannelsAreProcScoped());
     for (auto& proc : p->procs()) {
-      for (Node* node : context.TopoSort(proc.get())) {
+      XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                           context.TopoSort(proc.get()));
+      for (Node* node : topo_sort_nodes) {
         if (node->Is<Send>()) {
           XLS_RETURN_IF_ERROR(
               handle_send(node->As<Send>(), /*proc_scope=*/std::nullopt));

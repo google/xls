@@ -745,17 +745,19 @@ TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
   BValue next_q = b.Next(/*state_read=*/q, /*value=*/received_data);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build());
 
-  PipelineSchedule schedule(proc,
-                            ScheduleCycleMap({{tkn.node(), 0},
-                                              {received_pair.node(), 0},
-                                              {received_token.node(), 0},
-                                              {received_data.node(), 0},
-                                              {send_received.node(), 0},
-                                              {q.node(), 1},
-                                              {min_delay.node(), 1},
-                                              {send_q.node(), 1},
-                                              {next_q.node(), 1}}),
-                            /*length=*/3);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Create(proc,
+                               ScheduleCycleMap({{tkn.node(), 0},
+                                                 {received_pair.node(), 0},
+                                                 {received_token.node(), 0},
+                                                 {received_data.node(), 0},
+                                                 {send_received.node(), 0},
+                                                 {q.node(), 1},
+                                                 {min_delay.node(), 1},
+                                                 {send_q.node(), 1},
+                                                 {next_q.node(), 1}}),
+                               /*length=*/3));
 
   // Verify that we really did schedule the param after the next-state node.
   ASSERT_GT(schedule.cycle(q.node()), schedule.cycle(received_data.node()));
@@ -5857,20 +5859,21 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveRegions) {
   auto nxt_c = pb.Next(c, nc);
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
-  PipelineSchedule ps(proc,
-                      {{tok.node(), 0},
-                       {a.node(), 0},
-                       {b.node(), 0},
-                       {c.node(), 0},
-                       {sv.node(), 1},
-                       {send.node(), 1},
-                       {na.node(), 2},
-                       {nb.node(), 2},
-                       {nc.node(), 2},
-                       {nxt_a.node(), 2},
-                       {nxt_b.node(), 2},
-                       {nxt_c.node(), 2}},
-                      3);
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule ps,
+                           PipelineSchedule::Create(proc,
+                                                    {{tok.node(), 0},
+                                                     {a.node(), 0},
+                                                     {b.node(), 0},
+                                                     {c.node(), 0},
+                                                     {sv.node(), 1},
+                                                     {send.node(), 1},
+                                                     {na.node(), 2},
+                                                     {nb.node(), 2},
+                                                     {nc.node(), 2},
+                                                     {nxt_a.node(), 2},
+                                                     {nxt_b.node(), 2},
+                                                     {nxt_c.node(), 2}},
+                                                    3));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -5895,12 +5898,15 @@ TEST_F(BlockConversionTest, NodeToStageMapSimple) {
   auto nxt_a = pb.Next(a, na);
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
-  PipelineSchedule ps(proc,
-                      {{pb.InitialToken().node(), 0},
-                       {a.node(), 0},
-                       {na.node(), 1},
-                       {nxt_a.node(), 1}},  // stage 0 can activate again
-                      2);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule ps,
+      PipelineSchedule::Create(
+          proc,
+          {{pb.InitialToken().node(), 0},
+           {a.node(), 0},
+           {na.node(), 1},
+           {nxt_a.node(), 1}},  // stage 0 can activate again
+          2));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -5946,20 +5952,23 @@ TEST_F(BlockConversionTest, NodeToStageMapMulti) {
   auto send = pb.Send(chan_out, tok, sv, SourceInfo(), "send_inst");
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
-  PipelineSchedule ps(proc,
-                      {{tok.node(), 0},
-                       {a.node(), 0},
-                       {na.node(), 1},
-                       {nxt_a.node(), 1},  // stage 0 can activate again
-                       {b.node(), 1},
-                       {nb.node(), 2},
-                       {nxt_b.node(), 2},  // stage 1 can activate again
-                       {c.node(), 2},
-                       {nc.node(), 3},
-                       {nxt_c.node(), 3},  // stage 2 can activate again
-                       {sv.node(), 4},
-                       {send.node(), 4}},
-                      5);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule ps,
+      PipelineSchedule::Create(
+          proc,
+          {{tok.node(), 0},
+           {a.node(), 0},
+           {na.node(), 1},
+           {nxt_a.node(), 1},  // stage 0 can activate again
+           {b.node(), 1},
+           {nb.node(), 2},
+           {nxt_b.node(), 2},  // stage 1 can activate again
+           {c.node(), 2},
+           {nc.node(), 3},
+           {nxt_c.node(), 3},  // stage 2 can activate again
+           {sv.node(), 4},
+           {send.node(), 4}},
+          5));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -6008,20 +6017,21 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveAndConcurrentRegions) {
   auto nxt_c = pb.Next(c, nc);
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
-  PipelineSchedule ps(proc,
-                      {{tok.node(), 0},
-                       {a.node(), 0},
-                       {b.node(), 0},
-                       {c.node(), 0},
-                       {na.node(), 1},
-                       {nb.node(), 1},
-                       {nc.node(), 1},
-                       {nxt_a.node(), 1},
-                       {nxt_b.node(), 1},
-                       {nxt_c.node(), 1},
-                       {sv.node(), 2},
-                       {send.node(), 2}},
-                      3);
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule ps,
+                           PipelineSchedule::Create(proc,
+                                                    {{tok.node(), 0},
+                                                     {a.node(), 0},
+                                                     {b.node(), 0},
+                                                     {c.node(), 0},
+                                                     {na.node(), 1},
+                                                     {nb.node(), 1},
+                                                     {nc.node(), 1},
+                                                     {nxt_a.node(), 1},
+                                                     {nxt_b.node(), 1},
+                                                     {nxt_c.node(), 1},
+                                                     {sv.node(), 2},
+                                                     {send.node(), 2}},
+                                                    3));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -6059,20 +6069,21 @@ TEST_F(BlockConversionTest, SimpleConcurrentRegions) {
   auto nxt_c = pb.Next(c, nc);
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
-  PipelineSchedule ps(proc,
-                      {{tok.node(), 0},
-                       {a.node(), 0},
-                       {b.node(), 0},
-                       {c.node(), 0},
-                       {na.node(), 0},
-                       {nb.node(), 0},
-                       {nc.node(), 0},
-                       {nxt_a.node(), 0},
-                       {nxt_b.node(), 0},
-                       {nxt_c.node(), 0},
-                       {sv.node(), 1},
-                       {send.node(), 2}},
-                      3);
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule ps,
+                           PipelineSchedule::Create(proc,
+                                                    {{tok.node(), 0},
+                                                     {a.node(), 0},
+                                                     {b.node(), 0},
+                                                     {c.node(), 0},
+                                                     {na.node(), 0},
+                                                     {nb.node(), 0},
+                                                     {nc.node(), 0},
+                                                     {nxt_a.node(), 0},
+                                                     {nxt_b.node(), 0},
+                                                     {nxt_c.node(), 0},
+                                                     {sv.node(), 1},
+                                                     {send.node(), 2}},
+                                                    3));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -6110,20 +6121,23 @@ TEST_F(BlockConversionTest, MultipleConcurrentRegions) {
   auto nxt_c = pb.Next(c, nc);
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
-  PipelineSchedule ps(proc,
-                      {{tok.node(), 0},
-                       {a.node(), 0},
-                       {na.node(), 1},
-                       {nxt_a.node(), 1},  // stage 0 can activate again
-                       {b.node(), 1},
-                       {nb.node(), 2},
-                       {nxt_b.node(), 2},  // stage 1 can activate again
-                       {c.node(), 2},
-                       {nc.node(), 3},
-                       {nxt_c.node(), 3},  // stage 2 can activate again
-                       {sv.node(), 4},
-                       {send.node(), 4}},
-                      5);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule ps,
+      PipelineSchedule::Create(
+          proc,
+          {{tok.node(), 0},
+           {a.node(), 0},
+           {na.node(), 1},
+           {nxt_a.node(), 1},  // stage 0 can activate again
+           {b.node(), 1},
+           {nb.node(), 2},
+           {nxt_b.node(), 2},  // stage 1 can activate again
+           {c.node(), 2},
+           {nc.node(), 3},
+           {nxt_c.node(), 3},  // stage 2 can activate again
+           {sv.node(), 4},
+           {send.node(), 4}},
+          5));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -6185,20 +6199,21 @@ TEST_F(BlockConversionTest, CoveringRegions) {
   // A is live [0, 3]
   // B is live [2, 3]
   // C is live [1, 2]
-  PipelineSchedule ps(proc,
-                      {{tok.node(), 0},
-                       {a.node(), 0},
-                       {na.node(), 3},
-                       {nxt_a.node(), 3},
-                       {b.node(), 2},
-                       {nb.node(), 3},
-                       {nxt_b.node(), 3},
-                       {c.node(), 1},
-                       {nc.node(), 2},
-                       {nxt_c.node(), 2},
-                       {sv.node(), 4},
-                       {send.node(), 4}},
-                      5);
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule ps,
+                           PipelineSchedule::Create(proc,
+                                                    {{tok.node(), 0},
+                                                     {a.node(), 0},
+                                                     {na.node(), 3},
+                                                     {nxt_a.node(), 3},
+                                                     {b.node(), 2},
+                                                     {nb.node(), 3},
+                                                     {nxt_b.node(), 3},
+                                                     {c.node(), 1},
+                                                     {nc.node(), 2},
+                                                     {nxt_c.node(), 2},
+                                                     {sv.node(), 4},
+                                                     {send.node(), 4}},
+                                                    5));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -6248,13 +6263,15 @@ TEST_F(BlockConversionTest, PipelineRegisterStagesKnown) {
   auto send = pb.Send(x_out, na_plus_one);
   auto next = pb.Next(a, na);
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
-  PipelineSchedule ps(proc, {{pb.InitialToken().node(), 0},
-                             {a.node(), 0},
-                             {na.node(), 1},
-                             {lit_one.node(), 2},
-                             {na_plus_one.node(), 2},
-                             {next.node(), 5},
-                             {send.node(), 6}});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule ps,
+      PipelineSchedule::Create(proc, {{pb.InitialToken().node(), 0},
+                                      {a.node(), 0},
+                                      {na.node(), 1},
+                                      {lit_one.node(), 2},
+                                      {na_plus_one.node(), 2},
+                                      {next.node(), 5},
+                                      {send.node(), 6}}));
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
       FunctionBaseToPipelinedBlock(

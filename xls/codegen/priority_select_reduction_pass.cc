@@ -50,7 +50,9 @@ absl::StatusOr<bool> PrioritySelectReductionPass::RunInternal(
 
     BddQueryEngine query_engine(BddQueryEngine::kDefaultPathLimit);
     XLS_RETURN_IF_ERROR(query_engine.Populate(block.get()).status());
-    for (Node* node : ReverseTopoSort(block.get())) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                         ReverseTopoSort(block.get()));
+    for (Node* node : reverse_topo_sort_nodes) {
       if (!node->Is<PrioritySelect>()) {
         continue;
       }

@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -77,10 +78,11 @@ absl::StatusOr<SchedulingResult> RunSchedulingPipeline(
     return scheduling_status;
   }
   XLS_RET_CHECK(scheduling_context.package_schedule().HasSchedule(main));
-  return SchedulingResult{
-      .package_schedule =
-          scheduling_context.package_schedule().ToProto(*delay_estimator),
-      .pass_pipeline_metrics = results.ToProto()};
+  XLS_ASSIGN_OR_RETURN(
+      PackageScheduleProto package_schedule_proto,
+      scheduling_context.package_schedule().ToProto(*delay_estimator));
+  return SchedulingResult{.package_schedule = std::move(package_schedule_proto),
+                          .pass_pipeline_metrics = results.ToProto()};
 }
 
 }  // namespace

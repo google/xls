@@ -53,10 +53,11 @@ int64_t GenerateFlopCount(Block* block) {
 
 // Returns true if there is a combinational feedthrough path from an input port
 // to an output port.
-bool HasFeedthroughPass(Block* block) {
+absl::StatusOr<bool> HasFeedthroughPass(Block* block) {
   // Nodes which have a combinational path from an input port.
   absl::flat_hash_set<Node*> input_path_nodes;
-  for (Node* node : TopoSort(block)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(block));
+  for (Node* node : topo_sort_nodes) {
     if (node->Is<InputPort>()) {
       input_path_nodes.insert(node);
       continue;
@@ -89,7 +90,8 @@ absl::Status SetDelayFields(Block* block, const DelayEstimator& delay_estimator,
   std::optional<int64_t> max_reg_to_output_delay;
   std::optional<int64_t> max_feedthrough_path_delay;
 
-  for (Node* node : TopoSort(block)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(block));
+  for (Node* node : topo_sort_nodes) {
     if (node->Is<InputPort>()) {
       input_delay_map[node] = 0;
       continue;
@@ -357,7 +359,8 @@ absl::StatusOr<BlockMetricsProto> GenerateBlockMetrics(
     Block* block, const DelayEstimator* delay_estimator) {
   BlockMetricsProto proto;
   proto.set_flop_count(GenerateFlopCount(block));
-  proto.set_feedthrough_path_exists(HasFeedthroughPass(block));
+  XLS_ASSIGN_OR_RETURN(bool has_feedthrough_path, HasFeedthroughPass(block));
+  proto.set_feedthrough_path_exists(has_feedthrough_path);
 
   if (delay_estimator != nullptr) {
     proto.set_delay_model(delay_estimator->name());

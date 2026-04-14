@@ -173,7 +173,8 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
 // Verify various invariants about the channels owned by the given package.
 absl::Status VerifyChannels(
     Package* package, const VerifyOptions& options,
-    std::function<std::vector<Node*>(FunctionBase*)> topo_sort) {
+    std::function<absl::StatusOr<std::vector<Node*>>(FunctionBase*)>
+        topo_sort) {
   // All channels must be proc-scoped or no channels should be proc scoped.
   bool has_global_channels = !package->channels().empty();
   bool has_new_style_procs = false;
@@ -226,7 +227,9 @@ absl::Status VerifyChannels(
     if (proc->is_new_style_proc()) {
       continue;
     }
-    for (Node* node : topo_sort(proc.get())) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         topo_sort(proc.get()));
+    for (Node* node : topo_sort_nodes) {
       if (node->Is<Send>() || node->Is<Receive>()) {
         all_proc_io_nodes.push_back(node);
       }
@@ -242,7 +245,9 @@ absl::Status VerifyChannels(
         source->AsProcOrDie()->is_new_style_proc()) {
       continue;
     }
-    for (Node* node : topo_sort(block.get())) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         topo_sort(block.get()));
+    for (Node* node : topo_sort_nodes) {
       if (node->Is<Send>() || node->Is<Receive>()) {
         all_proc_io_nodes.push_back(node);
       }
@@ -530,7 +535,8 @@ absl::Status VerifyBlockProvenance(Package* package) {
 
 absl::Status VerifyPackage(
     Package* package, const VerifyOptions& options,
-    std::function<std::vector<Node*>(FunctionBase*)> topo_sort) {
+    std::function<absl::StatusOr<std::vector<Node*>>(FunctionBase*)>
+        topo_sort) {
   VLOG(4) << absl::StreamFormat("Verifying package %s:\n", package->name());
   XLS_VLOG_LINES(4, package->DumpIr());
 

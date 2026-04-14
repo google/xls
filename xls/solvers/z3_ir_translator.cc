@@ -1929,7 +1929,9 @@ absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function) {
 
 std::optional<std::vector<Node*>> CounterExampleAnnotator::NodeOrder(
     FunctionBase* fb) const {
-  return TopoSort(fb);
+  absl::StatusOr<std::vector<Node*>> topo_sort_nodes = TopoSort(fb);
+  CHECK_OK(topo_sort_nodes);
+  return *topo_sort_nodes;
 }
 
 std::optional<Value> CounterExampleAnnotator::CounterExampleValue(

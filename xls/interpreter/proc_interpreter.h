@@ -33,8 +33,14 @@ namespace xls {
 // are thread-safe if called with different continuations.
 class ProcInterpreter : public ProcEvaluator {
  public:
-  ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager,
-                  const EvaluatorOptions& options = EvaluatorOptions());
+  static absl::StatusOr<std::unique_ptr<ProcInterpreter>> Create(
+      Proc* proc, ChannelQueueManager* queue_manager,
+      const EvaluatorOptions& options = EvaluatorOptions());
+
+  explicit ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager,
+                           std::vector<Node*> execution_order,
+                           const EvaluatorOptions& options);
+
   ProcInterpreter(const ProcInterpreter&) = delete;
   ProcInterpreter operator=(const ProcInterpreter&) = delete;
 

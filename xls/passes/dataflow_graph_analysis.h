@@ -39,8 +39,8 @@ namespace xls {
 // terms of the nodes emitting them) that fully determine the value of the node.
 class DataflowGraphAnalysis {
  public:
-  explicit DataflowGraphAnalysis(FunctionBase* f,
-                                 const QueryEngine* query_engine = nullptr);
+  static absl::StatusOr<DataflowGraphAnalysis> Create(
+      FunctionBase* f, const QueryEngine* query_engine = nullptr);
 
   absl::StatusOr<std::vector<Node*>> GetMinCutFor(
       Node* node, std::optional<int64_t> max_unknown_bits = std::nullopt,
@@ -49,6 +49,9 @@ class DataflowGraphAnalysis {
   absl::StatusOr<int64_t> GetUnknownBitsFor(Node* node);
 
  private:
+  explicit DataflowGraphAnalysis(std::vector<Node*> topo_sort_nodes,
+                                 const QueryEngine* query_engine = nullptr);
+
   using ArcIndex = int32_t;
   using NodeIndex = int32_t;
 

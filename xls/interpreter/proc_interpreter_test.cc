@@ -15,6 +15,7 @@
 #include "xls/interpreter/proc_interpreter.h"
 
 #include <memory>
+#include <utility>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
@@ -36,7 +37,10 @@ INSTANTIATE_TEST_SUITE_P(
         ProcEvaluatorTestParam(
             [](Proc* proc, ChannelQueueManager* queue_manager)
                 -> std::unique_ptr<ProcEvaluator> {
-              return std::make_unique<ProcInterpreter>(proc, queue_manager);
+              absl::StatusOr<std::unique_ptr<ProcInterpreter>> interpreter =
+                  ProcInterpreter::Create(proc, queue_manager);
+              CHECK_OK(interpreter);
+              return std::move(*interpreter);
             },
             [](Package* package) -> std::unique_ptr<ChannelQueueManager> {
               return ChannelQueueManager::Create(package).value();
@@ -45,7 +49,10 @@ INSTANTIATE_TEST_SUITE_P(
         ProcEvaluatorTestParam(
             [](Proc* proc, ChannelQueueManager* queue_manager)
                 -> std::unique_ptr<ProcEvaluator> {
-              return std::make_unique<ProcInterpreter>(proc, queue_manager);
+              absl::StatusOr<std::unique_ptr<ProcInterpreter>> interpreter =
+                  ProcInterpreter::Create(proc, queue_manager);
+              CHECK_OK(interpreter);
+              return std::move(*interpreter);
             },
             [](Package* package) -> std::unique_ptr<ChannelQueueManager> {
               CHECK(!package->ChannelsAreProcScoped())

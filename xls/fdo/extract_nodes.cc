@@ -48,7 +48,8 @@ absl::StatusOr<std::unique_ptr<Package>> ExtractNodes(
   absl::flat_hash_set<Node*> filtered_nodes;
   topo_sorted_nodes.reserve(nodes.size());
 
-  for (Node* node : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     if (nodes.contains(node)) {
       Type* ntype = node->GetType();
       if (ntype->GetFlatBitCount() > 0) {

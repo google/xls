@@ -246,7 +246,9 @@ ComputeStateDependencies(Proc* proc, OptimizationContext& context) {
   }
   if (VLOG_IS_ON(5)) {
     VLOG(5) << "State dependencies (** side-effecting operation):";
-    for (Node* node : context.TopoSort(proc)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                         context.TopoSort(proc));
+    for (Node* node : topo_sort_nodes) {
       std::vector<std::string> dependent_elements;
       for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
         if (state_dependencies.at(node).Get(i)) {

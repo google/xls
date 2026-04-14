@@ -47,7 +47,8 @@ TEST_F(DataflowGraphAnalysisTest, Simple) {
   BValue z = fb.Not(y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  DataflowGraphAnalysis analysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(f));
 
   EXPECT_THAT(analysis.GetMinCutFor(x.node()), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(analysis.GetMinCutFor(y.node()),
@@ -65,7 +66,8 @@ TEST_F(DataflowGraphAnalysisTest, SimpleWithLiteral) {
   BValue z = fb.Xor(y, one);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  DataflowGraphAnalysis analysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(f));
 
   EXPECT_THAT(analysis.GetMinCutFor(x.node()), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(analysis.GetMinCutFor(y.node()),
@@ -82,7 +84,8 @@ TEST_F(DataflowGraphAnalysisTest, VShape) {
   BValue and_op = fb.And(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  DataflowGraphAnalysis analysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(f));
 
   EXPECT_THAT(analysis.GetMinCutFor(x.node()), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(analysis.GetMinCutFor(y.node()), IsOkAndHolds(IsEmpty()));
@@ -108,7 +111,8 @@ TEST_F(DataflowGraphAnalysisTest, VShapeWithReceive) {
   pb.Next(x, and_op);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * f, pb.Build());
-  DataflowGraphAnalysis analysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(f));
 
   EXPECT_THAT(analysis.GetMinCutFor(x.node()), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(analysis.GetMinCutFor(y.node()),
@@ -128,7 +132,8 @@ TEST_F(DataflowGraphAnalysisTest, AShape) {
   BValue x2 = fb.Identity(x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  DataflowGraphAnalysis analysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(f));
 
   EXPECT_THAT(analysis.GetMinCutFor(x.node()), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(analysis.GetMinCutFor(x1.node()),
@@ -146,7 +151,8 @@ TEST_F(DataflowGraphAnalysisTest, DiamondShape) {
   BValue and_op = fb.And(a, b);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  DataflowGraphAnalysis analysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(f));
 
   EXPECT_THAT(analysis.GetMinCutFor(x.node()), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(analysis.GetMinCutFor(a.node()),
@@ -167,7 +173,8 @@ TEST_F(DataflowGraphAnalysisTest, DoubleDiamondShape) {
   BValue or_op = fb.Or(a, and_op);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  DataflowGraphAnalysis analysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(f));
 
   EXPECT_THAT(analysis.GetMinCutFor(x.node()), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(analysis.GetMinCutFor(a.node()),
@@ -189,7 +196,8 @@ TEST_F(DataflowGraphAnalysisTest, DanglingNode) {
   BValue z = fb.Not(x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  DataflowGraphAnalysis analysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(f));
 
   EXPECT_THAT(analysis.GetMinCutFor(x.node()), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(analysis.GetMinCutFor(dangling_intermediate.node()),
@@ -208,7 +216,8 @@ TEST_F(DataflowGraphAnalysisTest, DisconnectedNode) {
   BValue z = fb.Not(x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  DataflowGraphAnalysis analysis(f);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(f));
 
   EXPECT_THAT(analysis.GetMinCutFor(x.node()), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(analysis.GetMinCutFor(y.node()), IsOkAndHolds(IsEmpty()));
@@ -224,7 +233,8 @@ TEST_F(DataflowGraphAnalysisTest, MultipleOutputs) {
   BValue z = pb.And(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({x, z}));
-  DataflowGraphAnalysis analysis(proc);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(proc));
 
   EXPECT_THAT(analysis.GetMinCutFor(x.node()), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(analysis.GetMinCutFor(y.node()), IsOkAndHolds(IsEmpty()));
@@ -250,7 +260,8 @@ TEST_F(DataflowGraphAnalysisTest, ComplexDataflowExample) {
 
   TernaryQueryEngine query_engine;
   XLS_ASSERT_OK(query_engine.Populate(f));
-  DataflowGraphAnalysis analysis(f, &query_engine);
+  XLS_ASSERT_OK_AND_ASSIGN(DataflowGraphAnalysis analysis,
+                           DataflowGraphAnalysis::Create(f, &query_engine));
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * sel_6, f->GetNode("sel.6"));
   EXPECT_THAT(analysis.GetMinCutFor(sel_6),

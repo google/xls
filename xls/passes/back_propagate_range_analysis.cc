@@ -607,8 +607,10 @@ PropagateGivensBackwards(
     std::optional<absl::Span<Node* const>> reverse_topo_sort) {
   XLS_RET_CHECK(!givens.empty());
   BackPropagate prop(engine, std::move(givens));
-  std::vector<Node*> nodes_mem =
-      reverse_topo_sort ? std::vector<Node*>{} : ReverseTopoSort(function);
+  std::vector<Node*> nodes_mem;
+  if (!reverse_topo_sort.has_value()) {
+    XLS_ASSIGN_OR_RETURN(nodes_mem, ReverseTopoSort(function));
+  }
   absl::Span<Node* const> nodes =
       reverse_topo_sort.value_or(absl::MakeConstSpan(nodes_mem));
   for (Node* n : nodes) {

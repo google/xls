@@ -69,7 +69,8 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f,
         GetStandardDelayEstimator().GetOperationDelayInPs(n);
     return delay_status.ok() ? delay_status.value() : 0;
   };
-  for (Node* node : context.TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     topo_index[node] = i;
     int64_t node_start = 0;
     for (Node* operand : node->operands()) {

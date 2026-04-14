@@ -1250,7 +1250,8 @@ absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
                                                    OpToString(node->op()));
                            })
           << "]";
-  ScheduleGraph graph = ScheduleGraph::Create(f, dead_after_synthesis);
+  XLS_ASSIGN_OR_RETURN(ScheduleGraph graph,
+                       ScheduleGraph::Create(f, dead_after_synthesis));
   XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
                        ComputeNodeDelays(graph, delay_estimator));
   std::optional<int64_t> initiation_interval =

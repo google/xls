@@ -302,7 +302,8 @@ absl::StatusOr<std::vector<int64_t>> GetDelayPerStageInPs(
   std::vector<int64_t> delay_per_stage(schedule.length() + 1);
   // The delay from the beginning of the stage at which each node completes.
   absl::flat_hash_map<Node*, int64_t> completion_time;
-  for (Node* node : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> sorted_nodes, TopoSort(f));
+  for (Node* node : sorted_nodes) {
     if (IsUntimed(node)) {
       completion_time[node] = 0;
       continue;

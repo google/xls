@@ -133,7 +133,10 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelects(
 
   // Initialize the graph analysis if not done already.
   if (!dataflow_graph_analysis.has_value()) {
-    dataflow_graph_analysis.emplace(selector->function_base(), &query_engine);
+    XLS_ASSIGN_OR_RETURN(DataflowGraphAnalysis dataflow_analysis,
+                         DataflowGraphAnalysis::Create(
+                             selector->function_base(), &query_engine));
+    dataflow_graph_analysis.emplace(std::move(dataflow_analysis));
   }
 
   VLOG(3) << "Finding min cut for " << selector->GetName() << " ("
@@ -375,7 +378,9 @@ absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
   bool changed = false;
   // By running in reverse topological order, the analyses will stay valid for
   // all nodes we're considering through the full pass.
-  for (Node* node : context.ReverseTopoSort(func)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                       context.ReverseTopoSort(func));
+  for (Node* node : reverse_topo_sort_nodes) {
     if (node->IsDead()) {
       continue;
     }

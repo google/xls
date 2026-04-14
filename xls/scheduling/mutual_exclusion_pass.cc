@@ -328,7 +328,9 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
 
   NodeRelation result;
   NodeRelation transitive_closure = TransitiveClosure<Node*>(token_dag);
-  for (Node* node : ReverseTopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                       ReverseTopoSort(f));
+  for (Node* node : reverse_topo_sort_nodes) {
     if (node->Is<Send>() || node->Is<Receive>()) {
       std::string_view channel_name = GetChannelName(node);
       if (!multi_op_channels.contains(channel_name)) {
@@ -394,7 +396,8 @@ absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
   std::vector<Node*> ordered_nodes;
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> neighborhoods;
 
-  for (Node* node : TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  for (Node* node : topo_sort_nodes) {
     if (IsHeavyOp(node->op())) {
       nodes.insert(node);
       neighborhoods[node];

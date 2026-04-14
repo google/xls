@@ -2413,7 +2413,9 @@ absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
       BitProvenanceAnalysis::CreatePrepopulated(func, context));
 
   bool changed = false;
-  for (Node* node : context.TopoSort(func)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
+                       context.TopoSort(func));
+  for (Node* node : topo_sort_nodes) {
     XLS_ASSIGN_OR_RETURN(bool node_changed,
                          SimplifyNode(node, query_engine, provenance,
                                       options.opt_level, range_analysis_));

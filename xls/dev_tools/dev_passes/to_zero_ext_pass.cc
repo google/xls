@@ -15,6 +15,7 @@
 #include "xls/dev_tools/dev_passes/to_zero_ext_pass.h"
 
 #include <optional>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
@@ -34,7 +35,8 @@ absl::StatusOr<bool> ToZeroExtPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   const auto* qe = context.SharedQueryEngine<PartialInfoQueryEngine>(f);
   bool changed = false;
-  for (Node* n : context.TopoSort(f)) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, context.TopoSort(f));
+  for (Node* n : topo_sort_nodes) {
     if (!n->Is<Concat>()) {
       continue;
     }
