@@ -17,7 +17,6 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(
     default_applicable_licenses = ["//:license"],
-    default_visibility = ["//xls:xls_internal"],
     features = [
         "layering_check",
         "parse_headers",
