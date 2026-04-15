@@ -3069,7 +3069,8 @@ DocRef Formatter::Format(const ModuleMember& n) {
           [&](const Function* n) { return Format(*n); },
           [&](const Proc* n) { return Format(*n); },
           [&](const TestFunction* n) { return Format(*n); },
-          // TODO: davidplass - Add formatting for FuzzTestFunction.
+          // Formatting the function takes care of the attributes so we don't
+          // need a special formatting function for FuzzTestFunction.
           [&](const FuzzTestFunction* n) { return Format(n->fn()); },
           [&](const TestProc* n) { return Format(*n); },
           [&](const QuickCheck* n) { return Format(*n); },
