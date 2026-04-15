@@ -661,6 +661,35 @@ xls_dslx_test(
     },
 )
 
+xls_dslx_ir(
+    name = "proc_vtrace_ir",
+    dslx_top = "Vprinter",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    ir_file = "proc_vtrace.ir",
+    library = ":proc_vtrace_dslx",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "proc_vtrace_jit_wrapper",
+    src = ":proc_vtrace.ir",
+    jit_wrapper_args = {
+        "class_name": "ProcVtrace",
+        "namespace": "xls::examples",
+    },
+    wrapper_type = "PROC",
+)
+
+cc_test(
+    name = "proc_vtrace_jit_test",
+    srcs = ["proc_vtrace_jit_test.cc"],
+    deps = [
+        ":proc_vtrace_jit_wrapper",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@googletest//:gtest",
+    ],
+)
+
 # -- tiny_adder sample
 
 xls_dslx_library(
