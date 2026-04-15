@@ -349,6 +349,10 @@ class Attribute : public AstNode {
     return attribute_data_.args();
   }
 
+  void AddArgument(AttributeData::Argument arg) {
+    attribute_data_.AddArgument(std::move(arg));
+  }
+
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {};
   };
@@ -358,7 +362,7 @@ class Attribute : public AstNode {
  private:
   const Span span_;
   const std::optional<Span> arg_span_;
-  const AttributeData attribute_data_;
+  AttributeData attribute_data_;
 };
 
 // Abstract base class for type annotations.

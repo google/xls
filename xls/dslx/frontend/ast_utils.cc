@@ -663,8 +663,8 @@ std::vector<ParametricBinding*> GetRequiredParametricBindings(
   return result;
 }
 
-std::optional<const Attribute*> GetAttribute(const AstNode* node,
-                                             AttributeKind kind) {
+std::optional<Attribute*> GetAttribute(const AstNode* node,
+                                       AttributeKind kind) {
   for (Attribute* next : node->attributes()) {
     if (next->attribute_kind() == kind) {
       return next;

@@ -184,6 +184,9 @@ class AstNode {
   void SetAttributes(std::vector<Attribute*> attributes) {
     attributes_ = std::move(attributes);
   }
+
+  void AddAttribute(Attribute* attribute) { attributes_.push_back(attribute); }
+
   const std::vector<Attribute*>& attributes() const { return attributes_; }
 
  private:

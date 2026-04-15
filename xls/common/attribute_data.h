@@ -70,10 +70,11 @@ class AttributeData {
 
   AttributeKind kind() const { return kind_; }
   const std::vector<Argument>& args() const { return args_; }
+  void AddArgument(Argument arg) { args_.push_back(std::move(arg)); }
 
  private:
   const AttributeKind kind_;
-  const std::vector<Argument> args_;
+  std::vector<Argument> args_;
 };
 
 }  // namespace xls
