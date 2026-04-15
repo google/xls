@@ -334,6 +334,8 @@ absl::Status InitializeChannelQueues(
   XLS_ASSIGN_OR_RETURN(
       jit->jitted_function_base_,
       JittedFunctionBase::BuildFromAot(entrypoint, unpacked, packed));
+  jit->jitted_function_base_.set_max_trace_verbosity(
+      options.max_trace_verbosity());
   XLS_RET_CHECK(jit->jitted_function_base_.InputsAndOutputsAreEquivalent());
   XLS_RETURN_IF_ERROR(InitializeChannelQueues(
       proc, queue_mgr, jit->jitted_function_base_, jit->channel_queues_));
