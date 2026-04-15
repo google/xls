@@ -127,7 +127,8 @@ FunctionJit::CreateFromAot(const AotEntrypointProto& entrypoint,
   // around some extra .so's isn't a huge deal.
   return std::unique_ptr<FunctionJit>(new FunctionJit(
       std::move(metadata), std::unique_ptr<OrcJit>(nullptr), std::move(jfb),
-      /*has_observer_callbacks=*/false, std::make_unique<JitRuntime>(*layout)));
+      /*has_observer_callbacks=*/false, std::make_unique<JitRuntime>(*layout),
+      options.max_trace_verbosity()));
 }
 
 absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(

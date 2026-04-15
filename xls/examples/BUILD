@@ -1624,3 +1624,32 @@ xls_dslx_verilog(
     tags = ["manual"],
     verilog_file = "vtrace_fmt.sv",
 )
+
+xls_dslx_ir(
+    name = "vtrace_fmt_ir",
+    dslx_top = "vtrace_fmt_example",
+    ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
+    ir_file = "vtrace_fmt.ir",
+    library = ":vtrace_fmt_dslx",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "vtrace_fmt_jit_wrapper",
+    src = ":vtrace_fmt.ir",
+    jit_wrapper_args = {
+        "class_name": "VtraceFmt",
+        "function": "vtrace_fmt_example",
+        "namespace": "xls::examples",
+    },
+)
+
+cc_test(
+    name = "vtrace_fmt_jit_test",
+    srcs = ["vtrace_fmt_jit_test.cc"],
+    deps = [
+        ":vtrace_fmt_jit_wrapper",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@googletest//:gtest",
+    ],
+)
