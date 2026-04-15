@@ -41,8 +41,8 @@ namespace {
 class HasNonzeroFooFieldDeriver : public TraitDeriver {
  public:
   absl::StatusOr<StatementBlock*> DeriveFunctionBody(
-      Module& module, const Trait& trait, const StructDef& struct_def,
-      const StructType&, const Function& function) override {
+      Module& module, const Trait& trait, const StructDefBase& struct_def,
+      const StructTypeBase&, const Function& function) override {
     Param* self_param = function.params()[0];
     Expr* self = module.Make<NameRef>(Span::None(), self_param->identifier(),
                                       self_param->name_def());
@@ -61,8 +61,8 @@ class HasNonzeroFooFieldDeriver : public TraitDeriver {
 class ContainsDeriver : public TraitDeriver {
  public:
   absl::StatusOr<StatementBlock*> DeriveFunctionBody(
-      Module& module, const Trait& trait, const StructDef& struct_def,
-      const StructType&, const Function& function) override {
+      Module& module, const Trait& trait, const StructDefBase& struct_def,
+      const StructTypeBase&, const Function& function) override {
     std::optional<Expr*> expr;
     if (struct_def.members().empty()) {
       expr = module.Make<Number>(Span::None(), "false", NumberKind::kBool,
@@ -97,8 +97,8 @@ class ContainsDeriver : public TraitDeriver {
 class HasArrayOfSize3Deriver : public TraitDeriver {
  public:
   absl::StatusOr<StatementBlock*> DeriveFunctionBody(
-      Module& module, const Trait& trait, const StructDef& struct_def,
-      const StructType& struct_type, const Function& function) override {
+      Module& module, const Trait& trait, const StructDefBase& struct_def,
+      const StructTypeBase& struct_type, const Function& function) override {
     Expr* result = nullptr;
     for (const std::unique_ptr<Type>& member : struct_type.members()) {
       if (member->IsArray()) {
@@ -481,6 +481,42 @@ const F2 = Foo {a: u4:1, b: [0, 1, 1000, 2000]};
 
 const_assert!(map([F1, F2], Foo<4>::to_bits) == [F1.to_bits(), F2.to_bits()]);
 )"));
+}
+
+TEST(TypecheckV2TraitTest, SpawnOnStructFails) {
+  EXPECT_THAT(TypecheckV2(R"(
+#[derive(Spawn)]
+struct Foo {
+  a: u32,
+}
+
+fn main() {
+  Foo { a: 0 }.spawn();
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Trait `Spawn` is only supported on procs, "
+                                 "but struct `Foo` attempted to derive it")));
+}
+
+TEST(TypecheckV2TraitTest, ToBitsOnProcFails) {
+  EXPECT_THAT(TypecheckV2(R"(
+#[derive(ToBits)]
+proc Foo {}
+
+impl Foo {
+  fn new() -> Self {
+    Foo {}
+  }
+}
+
+fn main() {
+  Foo::new().to_bits();
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Trait `ToBits` is only supported on structs, "
+                                 "but proc `Foo` attempted to derive it")));
 }
 
 }  // namespace

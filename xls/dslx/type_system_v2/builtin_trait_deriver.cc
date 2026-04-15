@@ -39,14 +39,44 @@
 namespace xls::dslx {
 namespace {
 
+class SpawnDeriver : public TraitDeriver {
+ public:
+  absl::StatusOr<StatementBlock*> DeriveFunctionBody(Module& module,
+                                                     const Trait& trait,
+                                                     const StructDefBase& def,
+                                                     const StructTypeBase&,
+                                                     const Function&) {
+    if (def.kind() != AstNodeKind::kProcDef) {
+      return TypeInferenceErrorStatus(
+          def.span(), /*type=*/nullptr,
+          absl::Substitute("Trait `$0` is only supported on procs, but struct "
+                           "`$1` attempted to derive it.",
+                           trait.identifier(), def.identifier()),
+          *module.file_table());
+    }
+
+    return module.Make<StatementBlock>(Span::None(), std::vector<Statement*>{},
+                                       /*trailing_semi=*/true);
+  }
+};
+
 class ToBitsDeriver : public TraitDeriver {
  public:
   absl::StatusOr<StatementBlock*> DeriveFunctionBody(
-      Module& module, const Trait& trait, const StructDef& struct_def,
-      const StructType& concrete_struct_type, const Function& function) final {
+      Module& module, const Trait& trait, const StructDefBase& def,
+      const StructTypeBase& concrete_type, const Function& function) final {
+    if (def.kind() != AstNodeKind::kStructDef) {
+      return TypeInferenceErrorStatus(
+          def.span(), /*type=*/nullptr,
+          absl::Substitute("Trait `$0` is only supported on structs, but proc "
+                           "`$1` attempted to derive it.",
+                           trait.identifier(), def.identifier()),
+          *module.file_table());
+    }
+
     XLS_RET_CHECK(!function.params().empty());
     Param* self_param = function.params()[0];
-    std::vector<StructMemberNode*> members = struct_def.members();
+    std::vector<StructMemberNode*> members = def.members();
 
     Expr* result = nullptr;
     if (members.empty()) {
@@ -67,17 +97,16 @@ class ToBitsDeriver : public TraitDeriver {
       XLS_ASSIGN_OR_RETURN(
           result,
           Concat(
-              module, absl::MakeSpan(member_exprs),
-              concrete_struct_type.members(),
+              module, absl::MakeSpan(member_exprs), concrete_type.members(),
               /*invalid_element_handler=*/
               [&](const Expr* expr, const Type& type) -> absl::Status {
                 return TypeInferenceErrorStatus(
-                    struct_def.span(), /*type=*/nullptr,
+                    def.span(), /*type=*/nullptr,
                     absl::Substitute(
                         "Derivation of `$0` for `$1` encountered element "
                         "that cannot be converted to bits: `$2` of type `$3`.",
-                        trait.identifier(), struct_def.identifier(),
-                        expr->ToString(), type.ToString()),
+                        trait.identifier(), def.identifier(), expr->ToString(),
+                        type.ToString()),
                     *module.file_table());
               }));
     }
@@ -184,6 +213,7 @@ class ToBitsDeriver : public TraitDeriver {
 
 std::unique_ptr<TraitDeriver> CreateBuiltinTraitDeriver() {
   auto result = std::make_unique<TraitDeriverDispatcher>();
+  result->SetHandler("Spawn", "spawn", std::make_unique<SpawnDeriver>());
   result->SetHandler("ToBits", "to_bits", std::make_unique<ToBitsDeriver>());
   return result;
 }

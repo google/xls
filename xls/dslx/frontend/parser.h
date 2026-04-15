@@ -661,6 +661,8 @@ class Parser : public TokenParser {
       Function* fn, std::vector<Attribute*> attributes, Bindings& bindings);
   absl::StatusOr<ModuleMember> ApplyProcAttributes(
       Proc* p, std::vector<Attribute*> attributes);
+  absl::Status ApplyProcDefAttributes(ProcDef* p,
+                                      std::vector<Attribute*> attributes);
   absl::Status ApplyExternVerilogAttribute(Function* fn, const Attribute& attr);
   absl::StatusOr<bool> IsTestConfig(const Attribute& cfg);
   absl::Status UnsupportedAttributeError(const Attribute& attribute);

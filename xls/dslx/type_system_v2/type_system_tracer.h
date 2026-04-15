@@ -116,9 +116,9 @@ class TypeSystemTracer {
       std::optional<const ParametricContext*> context, const AstNode* node) = 0;
   virtual TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) = 0;
   virtual TypeSystemTrace TraceUnroll(const AstNode* node) = 0;
-  virtual TypeSystemTrace TraceDeriveTrait(const Trait* trait,
-                                           const StructDef* struct_def,
-                                           const StructType& struct_type) = 0;
+  virtual TypeSystemTrace TraceDeriveTrait(
+      const Trait* trait, const StructDefBase* struct_or_proc_def,
+      const StructTypeBase& concrete_type) = 0;
 
   virtual std::string ConvertTracesToString() const = 0;
   virtual std::string ConvertStatsToString(

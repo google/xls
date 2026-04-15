@@ -2822,11 +2822,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   }
 
   absl::StatusOr<std::optional<Function*>> GetTraitFunction(
-      StructDef& struct_def, const StructType& concrete_struct_type,
+      StructDefBase& struct_or_proc_def,
+      const StructTypeBase& concrete_struct_type,
       std::optional<const ParametricContext*> parametric_struct_context,
       std::string_view function_name) override {
     return module_trait_manager_->GetTraitFunction(
-        struct_def, concrete_struct_type, parametric_struct_context,
+        struct_or_proc_def, concrete_struct_type, parametric_struct_context,
         function_name);
   }
 

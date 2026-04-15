@@ -65,22 +65,22 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
         tracer_(tracer) {}
 
   absl::StatusOr<std::optional<Function*>> GetTraitFunction(
-      StructDef& struct_def, const StructType& concrete_struct_type,
+      StructDefBase& struct_or_proc_def, const StructTypeBase& concrete_type,
       std::optional<const ParametricContext*> parametric_struct_context,
       std::string_view function_name) final {
-    XLS_RET_CHECK(struct_def.owner() == &module_)
-        << "Expected the struct def `" << struct_def.identifier()
+    XLS_RET_CHECK(struct_or_proc_def.owner() == &module_)
+        << "Expected the struct def `" << struct_or_proc_def.identifier()
         << "` to be in module `" << module_.name() << "` but it is in `"
-        << struct_def.owner()->name() << "`.";
+        << struct_or_proc_def.owner()->name() << "`.";
 
-    // Derive the traits for the struct in the effective parametric struct
+    // Derive the traits for the struct/proc in the effective parametric
     // context. This is a no-op if already done.
-    XLS_RETURN_IF_ERROR(DeriveTraits(parametric_struct_context, struct_def,
-                                     concrete_struct_type));
+    XLS_RETURN_IF_ERROR(DeriveTraits(parametric_struct_context,
+                                     struct_or_proc_def, concrete_type));
 
     // Now check if the function we are looking for is derived from a trait.
     const auto providing_trait_it = providing_trait_.find(
-        StructFunctionKey{.struct_def = &struct_def,
+        StructFunctionKey{.struct_or_proc_def = &struct_or_proc_def,
                           .function_name = std::string(function_name)});
     if (providing_trait_it != providing_trait_.end() &&
         providing_trait_it->second.has_value()) {
@@ -88,7 +88,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
               << (*providing_trait_it->second)->identifier();
       return derived_functions_.at(TraitFunctionKey{
           .trait = *providing_trait_it->second,
-          .struct_def = &struct_def,
+          .struct_or_proc_def = &struct_or_proc_def,
           .parametric_struct_context = parametric_struct_context,
           .function_name = std::string(function_name)});
     }
@@ -114,18 +114,19 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
 
   absl::Status DeriveTrait(
       std::optional<const ParametricContext*> parametric_context,
-      const Span& attribute_span, StructDef& struct_def, Impl& impl,
-      TypeAnnotation* actual_self_type, const StructType& struct_type,
+      const Span& attribute_span, StructDefBase& struct_or_proc_def, Impl& impl,
+      TypeAnnotation* actual_self_type, const StructTypeBase& struct_type,
       const Trait& trait) {
     VLOG(5) << "Deriving trait `" << trait.identifier() << "` for struct `"
-            << struct_def.identifier() << "`";
+            << struct_or_proc_def.identifier() << "`";
     TypeSystemTrace trace =
-        tracer_.TraceDeriveTrait(&trait, &struct_def, struct_type);
+        tracer_.TraceDeriveTrait(&trait, &struct_or_proc_def, struct_type);
     for (Function* function : trait.members()) {
       VLOG(5) << "Deriving trait member `" << function->identifier() << "`";
 
       StructFunctionKey struct_function_key{
-          .struct_def = &struct_def, .function_name = function->identifier()};
+          .struct_or_proc_def = &struct_or_proc_def,
+          .function_name = function->identifier()};
       const auto providing_trait_it =
           providing_trait_.find(struct_function_key);
       bool existed_before = providing_trait_it != providing_trait_.end();
@@ -137,7 +138,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
                 "Attempting to derive conflicting function `$0` from trait "
                 "`$1`. Struct $2 already has a function by this name from $3.",
                 function->identifier(), trait.identifier(),
-                struct_def.identifier(),
+                struct_or_proc_def.identifier(),
                 providing_trait_it->second.has_value()
                     ? absl::StrCat("trait: ",
                                    (*providing_trait_it->second)->identifier())
@@ -189,10 +190,11 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
 
       derived->set_compiler_derived(true);
       derived->set_impl(&impl);
-      XLS_ASSIGN_OR_RETURN(StatementBlock * body,
-                           (*trait_deriver_)
-                               ->DeriveFunctionBody(module_, trait, struct_def,
-                                                    struct_type, *derived));
+      XLS_ASSIGN_OR_RETURN(
+          StatementBlock * body,
+          (*trait_deriver_)
+              ->DeriveFunctionBody(module_, trait, struct_or_proc_def,
+                                   struct_type, *derived));
       derived->set_body(body);
       derived->SetParentage();
 
@@ -201,7 +203,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
       VLOG(5) << "Derived function: " << derived->ToString();
       derived_functions_[TraitFunctionKey{
           .trait = &trait,
-          .struct_def = &struct_def,
+          .struct_or_proc_def = &struct_or_proc_def,
           .parametric_struct_context = parametric_context,
           .function_name = function->identifier()}] = derived;
     }
@@ -210,15 +212,15 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
 
   absl::Status DeriveTraits(
       std::optional<const ParametricContext*> parametric_context,
-      StructDef& struct_def, const StructType& struct_type) {
-    if (!parametric_contexts_with_completed_derivation_[&struct_def]
+      StructDefBase& struct_or_proc_def, const StructTypeBase& struct_type) {
+    if (!parametric_contexts_with_completed_derivation_[&struct_or_proc_def]
              .insert(parametric_context)
              .second) {
       return absl::OkStatus();
     }
 
     std::optional<const Attribute*> attribute =
-        GetAttribute(&struct_def, AttributeKind::kDerive);
+        GetAttribute(&struct_or_proc_def, AttributeKind::kDerive);
     if (!attribute.has_value()) {
       return absl::OkStatus();
     }
@@ -232,27 +234,28 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
     // If it doesn't, we fabricate an impl. In standard Rust usage, there can
     // be separate per-trait impls, but to keep things simple we don't
     // currently support that.
-    std::optional<Impl*> impl = struct_def.impl();
+    std::optional<Impl*> impl = struct_or_proc_def.impl();
     if (impl.has_value()) {
       // Record which functions are provided by the user-written impl.
-      for (const ImplMember& member : (*struct_def.impl())->members()) {
+      for (const ImplMember& member : (*struct_or_proc_def.impl())->members()) {
         if (const auto* fn = std::get_if<Function*>(&member);
             fn && !(*fn)->IsStub()) {
           providing_trait_[StructFunctionKey{
-              .struct_def = &struct_def,
+              .struct_or_proc_def = &struct_or_proc_def,
               .function_name = (*fn)->identifier()}] = std::nullopt;
         }
       }
     } else {
       // Create a synthetic impl if there isn't one.
       TypeAnnotation* struct_ref = module_.Make<TypeRefTypeAnnotation>(
-          Span::None(), module_.Make<TypeRef>(Span::None(), &struct_def),
+          Span::None(),
+          module_.Make<TypeRef>(Span::None(), &struct_or_proc_def),
           std::vector<ExprOrType>(), std::nullopt);
 
-      impl =
-          module_.Make<Impl>(Span::None(), struct_ref,
-                             std::vector<ImplMember>{}, struct_def.is_public());
-      struct_def.set_impl(*impl);
+      impl = module_.Make<Impl>(Span::None(), struct_ref,
+                                std::vector<ImplMember>{},
+                                struct_or_proc_def.is_public());
+      struct_or_proc_def.set_impl(*impl);
     }
 
     std::vector<ExprOrType> parametrics;
@@ -262,7 +265,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
           table_.GetParametricValueExprs(*parametric_context));
       parametrics.reserve(parametric_map.size());
       for (const ParametricBinding* binding :
-           struct_def.parametric_bindings()) {
+           struct_or_proc_def.parametric_bindings()) {
         const auto it = parametric_map.find(binding->name_def());
         if (it == parametric_map.end()) {
           break;
@@ -272,10 +275,10 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
     }
 
     TypeAnnotation* actual_self_type = module_.Make<TypeRefTypeAnnotation>(
-        Span::None(), module_.Make<TypeRef>(Span::None(), &struct_def),
+        Span::None(), module_.Make<TypeRef>(Span::None(), &struct_or_proc_def),
         parametrics, std::nullopt);
 
-    // Derive the traits for the struct.
+    // Derive the traits for the struct/proc.
     Span attribute_span = *(*attribute)->GetSpan();
     for (AttributeData::Argument arg : (*attribute)->args()) {
       // This should already have been checked by the parser.
@@ -284,20 +287,21 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
           const Trait* trait,
           ResolveTrait(attribute_span, std::get<std::string>(arg)));
       XLS_RETURN_IF_ERROR(DeriveTrait(parametric_context, attribute_span,
-                                      struct_def, **impl, actual_self_type,
-                                      struct_type, *trait));
+                                      struct_or_proc_def, **impl,
+                                      actual_self_type, struct_type, *trait));
     }
 
     return absl::OkStatus();
   }
 
   struct StructFunctionKey {
-    const StructDef* struct_def;
+    const StructDefBase* struct_or_proc_def;
     std::string function_name;
 
     template <typename H>
     friend H AbslHashValue(H h, const StructFunctionKey& key) {
-      return H::combine(std::move(h), key.struct_def, key.function_name);
+      return H::combine(std::move(h), key.struct_or_proc_def,
+                        key.function_name);
     }
 
     bool operator==(const StructFunctionKey& other) const = default;
@@ -306,13 +310,13 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
 
   struct TraitFunctionKey {
     const Trait* trait;
-    const StructDef* struct_def;
+    const StructDefBase* struct_or_proc_def;
     std::optional<const ParametricContext*> parametric_struct_context;
     std::string function_name;
 
     template <typename H>
     friend H AbslHashValue(H h, const TraitFunctionKey& key) {
-      return H::combine(std::move(h), key.trait, key.struct_def,
+      return H::combine(std::move(h), key.trait, key.struct_or_proc_def,
                         key.parametric_struct_context, key.function_name);
     }
 
@@ -327,7 +331,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
   std::optional<TraitDeriver*> trait_deriver_;
 
   absl::flat_hash_map<
-      const StructDef*,
+      const StructDefBase*,
       absl::flat_hash_set<std::optional<const ParametricContext*>>>
       parametric_contexts_with_completed_derivation_;
 

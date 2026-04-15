@@ -7812,6 +7812,62 @@ impl P {
           HasNodeWithType("next", absl::Substitute("($0) -> ()", kProcType)))));
 }
 
+TEST(TypecheckV2Test, SpawnProcWithImpl) {
+  std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+// The derive attribute here is unnecessary, but having it proves it does no
+// harm.
+#[derive(Spawn)]
+proc P {
+    c_out: chan<u32> out,
+    i: u32,
+}
+
+impl P {
+    fn new(c_out: chan<u32> out) -> Self {
+        P { c_out: c_out, i: 0 }
+    }
+
+    fn next(self) {
+        let last_i = read(self.i);
+        send(join(), self.c_out, last_i);
+        write(self.i, last_i + 1);
+    }
+}
+
+proc C {
+    c_in: chan<u32> in,
+    i: u32,
+}
+
+impl C {
+    fn new(c_in: chan<u32> in) -> Self {
+        C { c_in: c_in, i: 0 }
+    }
+    fn next(self) {
+        let last_i = read(self.i);
+        let (tok1, e) = recv(join(), self.c_in);
+        write(self.i, e + last_i);
+    }
+}
+
+proc Main {}
+
+impl Main {
+    fn new() -> Self {
+        let (c_out, c_in) = chan<u32>("my_chan");
+        P::new(c_out).spawn();
+        let c = C::new(c_in);
+        c.spawn();
+        Main {}
+    }
+}
+)";
+
+  XLS_EXPECT_OK(TypecheckV2(kProgram));
+}
+
 TEST(TypecheckV2Test, ImportParametricFunctionWithDefaultExpression) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32, M: u32 = {N + 1}>() -> uN[M] { uN[M]:0 }

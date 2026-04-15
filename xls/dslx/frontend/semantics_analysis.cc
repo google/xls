@@ -32,6 +32,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
@@ -556,6 +557,48 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
   const FileTable& file_table_;
 };
 
+// An impl-style proc automatically derives the `Spawn` attribute whether the
+// user says this or not. This visitor adds it to the `derive` list for each
+// proc where not present, creating the whole `derive` attribute if necessary to
+// achieve this.
+class AddSpawnTraitToProcDefs : public AstNodeVisitorWithDefault {
+ public:
+  absl::Status HandleProcDef(const ProcDef* node) override {
+    std::optional<Attribute*> existing_attribute =
+        GetAttribute(node, AttributeKind::kDerive);
+    if (existing_attribute.has_value()) {
+      for (const AttributeData::Argument& argument :
+           (*existing_attribute)->args()) {
+        if (std::holds_alternative<std::string>(argument) &&
+            std::get<std::string>(argument) == kSpawnTraitName) {
+          return absl::OkStatus();
+        }
+      }
+
+      (*existing_attribute)->AddArgument(std::string(kSpawnTraitName));
+      return absl::OkStatus();
+    }
+
+    Attribute* new_attribute = node->owner()->Make<Attribute>(
+        Span::None(), Span::None(),
+        AttributeData(AttributeKind::kDerive,
+                      std::vector<AttributeData::Argument>{
+                          std::string(kSpawnTraitName)}));
+    const_cast<ProcDef*>(node)->AddAttribute(new_attribute);
+    return absl::OkStatus();
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  static constexpr std::string_view kSpawnTraitName = "Spawn";
+};
+
 class PreTypecheckPass : public AstNodeVisitorWithDefault {
  public:
   PreTypecheckPass(WarningCollector& warning_collector,
@@ -904,6 +947,9 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
   }
   ReplaceLambdaWithInvocation lambda_pass(import_data.file_table());
   XLS_RETURN_IF_ERROR(module.Accept(&lambda_pass));
+
+  AddSpawnTraitToProcDefs add_spawn_trait;
+  XLS_RETURN_IF_ERROR(module.Accept(&add_spawn_trait));
 
   if (suppress_warnings_) {
     return absl::OkStatus();

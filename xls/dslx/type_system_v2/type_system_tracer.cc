@@ -317,15 +317,15 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
                                      .node = node});
   }
 
-  TypeSystemTrace TraceDeriveTrait(const Trait* trait,
-                                   const StructDef* struct_def,
-                                   const StructType& struct_type) override {
-    return Trace(
-        TypeSystemTraceImpl{.parent = stack_.top(),
-                            .kind = TraceKind::kDeriveTrait,
-                            .node = struct_def,
-                            .trait = trait,
-                            .trait_struct_type = struct_type.CloneToUnique()});
+  TypeSystemTrace TraceDeriveTrait(
+      const Trait* trait, const StructDefBase* struct_or_proc_def,
+      const StructTypeBase& concrete_type) override {
+    return Trace(TypeSystemTraceImpl{
+        .parent = stack_.top(),
+        .kind = TraceKind::kDeriveTrait,
+        .node = struct_or_proc_def,
+        .trait = trait,
+        .trait_struct_type = concrete_type.CloneToUnique()});
   }
 
   std::string ConvertTracesToString() const override {
@@ -504,9 +504,8 @@ class NoopTracer final : public TypeSystemTracer {
 
   TypeSystemTrace TraceUnroll(const AstNode* node) final { return Noop(); }
 
-  TypeSystemTrace TraceDeriveTrait(const Trait* trait,
-                                   const StructDef* struct_def,
-                                   const StructType& struct_type) final {
+  TypeSystemTrace TraceDeriveTrait(const Trait*, const StructDefBase*,
+                                   const StructTypeBase&) final {
     return Noop();
   }
 

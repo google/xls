@@ -35,8 +35,9 @@ namespace xls::dslx {
 class TraitDeriverDispatcher : public TraitDeriver {
  public:
   absl::StatusOr<StatementBlock*> DeriveFunctionBody(
-      Module& module, const Trait& trait, const StructDef& actual_struct_def,
-      const StructType& concrete_struct_type, const Function& function) final {
+      Module& module, const Trait& trait,
+      const StructDefBase& actual_struct_or_proc_def,
+      const StructTypeBase& concrete_type, const Function& function) final {
     const auto it = handlers_.find(
         std::make_pair(trait.identifier(), function.identifier()));
     if (it == handlers_.end()) {
@@ -44,8 +45,8 @@ class TraitDeriverDispatcher : public TraitDeriver {
           absl::Substitute("No handler set for function `$0` of trait `$1`.",
                            function.identifier(), trait.identifier()));
     }
-    return it->second->DeriveFunctionBody(module, trait, actual_struct_def,
-                                          concrete_struct_type, function);
+    return it->second->DeriveFunctionBody(
+        module, trait, actual_struct_or_proc_def, concrete_type, function);
   }
 
   void SetHandler(std::string_view trait_name, std::string_view function_name,

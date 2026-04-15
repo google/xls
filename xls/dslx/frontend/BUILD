@@ -752,6 +752,7 @@ cc_library(
         ":pos",
         ":token",
         ":token_utils",
+        "//xls/common:attribute_data",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",

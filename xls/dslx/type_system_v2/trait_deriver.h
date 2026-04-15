@@ -27,10 +27,12 @@ class TraitDeriver {
  public:
   virtual ~TraitDeriver() = default;
 
-  // Generates a body of `function` from `trait` for the given `struct_def`.
+  // Generates a body of `function` from `trait` for the given
+  // `struct_or_proc_def`.
   virtual absl::StatusOr<StatementBlock*> DeriveFunctionBody(
-      Module& module, const Trait& trait, const StructDef& struct_def,
-      const StructType& struct_type, const Function& function) = 0;
+      Module& module, const Trait& trait,
+      const StructDefBase& struct_or_proc_def,
+      const StructTypeBase& concrete_type, const Function& function) = 0;
 };
 
 }  // namespace xls::dslx

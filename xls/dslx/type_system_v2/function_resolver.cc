@@ -175,28 +175,27 @@ class FunctionResolverImpl : public FunctionResolver {
                 caller_context, *struct_or_proc_ref, callee));
       }
 
-      // For a struct, the function may be in a derived trait.
+      // The function may be in a derived trait.
       std::string function_name(attr->attr());
-      if (struct_or_proc_ref->def->kind() == AstNodeKind::kStructDef) {
-        XLS_ASSIGN_OR_RETURN(
-            TypeInfo * ti,
-            converter_.GetTypeInfo((*target_object)->owner(), caller_context));
-        std::optional<Type*> struct_type = ti->GetItem(*target_object);
-        XLS_RET_CHECK(struct_type.has_value());
-        XLS_RET_CHECK((*struct_type)->IsStruct());
-        StructDef* struct_def = const_cast<StructDef*>(
-            absl::down_cast<const StructDef*>(struct_or_proc_ref->def));
+      XLS_ASSIGN_OR_RETURN(
+          TypeInfo * ti,
+          converter_.GetTypeInfo((*target_object)->owner(), caller_context));
+      std::optional<Type*> struct_type = ti->GetItem(*target_object);
+      XLS_RET_CHECK(struct_type.has_value());
+      XLS_RET_CHECK((*struct_type)->IsStruct() || (*struct_type)->IsProc());
+      StructDefBase* struct_or_proc_def =
+          const_cast<StructDefBase*>(struct_or_proc_ref->def);
 
-        XLS_ASSIGN_OR_RETURN(
-            InferenceTableConverter * struct_def_owner_converter,
-            import_data_.GetInferenceTableConverter(struct_def->owner()));
-        XLS_ASSIGN_OR_RETURN(std::optional<Function*> trait_function,
-                             struct_def_owner_converter->GetTraitFunction(
-                                 *struct_def, (*struct_type)->AsStruct(),
-                                 target_struct_context, function_name));
-        if (trait_function.has_value()) {
-          function_node = *trait_function;
-        }
+      XLS_ASSIGN_OR_RETURN(
+          InferenceTableConverter * struct_def_owner_converter,
+          import_data_.GetInferenceTableConverter(struct_or_proc_def->owner()));
+      XLS_ASSIGN_OR_RETURN(std::optional<Function*> trait_function,
+                           struct_def_owner_converter->GetTraitFunction(
+                               *struct_or_proc_def,
+                               *absl::down_cast<StructTypeBase*>(*struct_type),
+                               target_struct_context, function_name));
+      if (trait_function.has_value()) {
+        function_node = *trait_function;
       }
 
       // Non-trait impl function case.

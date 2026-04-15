@@ -38,10 +38,10 @@ class ModuleTraitManager {
  public:
   virtual ~ModuleTraitManager() = default;
 
-  // Obtains the derived trait function of the given name for the given struct.
-  // This generates the function if it has not been requested before.
+  // Obtains the derived trait function of the given name for the given struct
+  // or proc. This generates the function if it has not been requested before.
   virtual absl::StatusOr<std::optional<Function*>> GetTraitFunction(
-      StructDef& struct_def, const StructType& concrete_struct_type,
+      StructDefBase& struct_or_proc_def, const StructTypeBase& concrete_type,
       std::optional<const ParametricContext*> parametric_struct_context,
       std::string_view function_name) = 0;
 };

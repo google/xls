@@ -547,20 +547,21 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(
             ModuleMember proc_or_proc_def,
             ParseProc(*module_member_start_pos, is_public, *bindings));
+
+        // Note: the possibilities here are legacy `Proc`, impl-style `ProcDef`,
+        // or legacy `ProcAlias`. For the latter there is nothing special to do.
         if (std::holds_alternative<Proc*>(proc_or_proc_def)) {
           XLS_ASSIGN_OR_RETURN(
-              ModuleMember proc_or_wrapper,
+              proc_or_proc_def,
               ApplyProcAttributes(std::get<Proc*>(proc_or_proc_def),
                                   pending_attributes));
-          XLS_RETURN_IF_ERROR(
-              module_->AddTop(proc_or_wrapper, make_collision_error));
-        } else {
-          // impl-style ProcDef case. These are a WIP and don't support any
-          // attributes yet.
-          XLS_RETURN_IF_ERROR(verify_no_attributes());
-          XLS_RETURN_IF_ERROR(
-              module_->AddTop(proc_or_proc_def, make_collision_error));
+        } else if (std::holds_alternative<ProcDef*>(proc_or_proc_def)) {
+          XLS_RETURN_IF_ERROR(ApplyProcDefAttributes(
+              std::get<ProcDef*>(proc_or_proc_def), pending_attributes));
         }
+
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(proc_or_proc_def, make_collision_error));
         break;
       }
       case Keyword::kImport: {
@@ -1218,6 +1219,18 @@ absl::StatusOr<ModuleMember> Parser::ApplyProcAttributes(
   }
 
   return p;
+}
+
+absl::Status Parser::ApplyProcDefAttributes(
+    ProcDef* p, std::vector<Attribute*> attributes) {
+  for (Attribute* next : attributes) {
+    if (next->attribute_kind() != AttributeKind::kDerive) {
+      return UnsupportedAttributeError(*next);
+    }
+  }
+
+  p->SetAttributes(attributes);
+  return absl::OkStatus();
 }
 
 absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
@@ -3735,6 +3748,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
         span, name_def, std::move(parametric_bindings),
         ConvertProcMembersToStructMembers(module_, proc_like_body.members),
         is_public);
+    name_def->set_definer(proc_def);
     outer_bindings.Add(name_def->identifier(), proc_def);
     return proc_def;
   }
