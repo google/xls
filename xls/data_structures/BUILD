@@ -136,12 +136,12 @@ cc_library(
     deps = [
         "//xls/common:bits_util",
         "//xls/common:math_util",
-        "//xls/common:test_macros",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@googletest//:gtest_prod",
     ],
 )
 

@@ -66,12 +66,12 @@ in the XLS project, with the relevant Google style guides
     the slash counts as internal spacing and therefore the capitalization we use
     is `IO`, as in `WrapIO` or `StreamingIOReader`.
 
--   Prefer to use the `XLS_FRIEND_TEST` macro vs friending manually-mangled test
+-   Prefer to use the `FRIEND_TEST` macro vs friending manually-mangled test
     names.
 
     At times it can be useful to test unit test a private/protected member of a
-    class, and the `XLS_FRIEND_TEST` macro makes this possible. Note that the
-    test case must live outside an unnamed namespace in the test file for the
+    class, and the `FRIEND_TEST` macro makes this possible. Note that the test
+    case must live outside an unnamed namespace in the test file for the
     "friending" to work properly.
 
 -   For simple const accessors, for the sake of consistency in the code base,

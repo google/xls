@@ -23,13 +23,13 @@
 #include <utility>
 #include <vector>
 
+#include "gtest/gtest_prod.h"
 #include "absl/base/attributes.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/test_macros.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token.h"
@@ -146,13 +146,13 @@ class Scanner {
 
  private:
   // These tests generally use the private ScanUntilDoubleQuote() helper.
-  XLS_FRIEND_TEST(ScannerTest, RecognizesEscapes);
-  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeBadStartChar);
-  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeBadTerminator);
-  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeEscapeEmpty);
-  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeEscapeNonHexDigit);
-  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeInvalidSequence);
-  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeMoreThanSixDigits);
+  FRIEND_TEST(ScannerTest, RecognizesEscapes);
+  FRIEND_TEST(ScannerTest, StringCharUnicodeBadStartChar);
+  FRIEND_TEST(ScannerTest, StringCharUnicodeBadTerminator);
+  FRIEND_TEST(ScannerTest, StringCharUnicodeEscapeEmpty);
+  FRIEND_TEST(ScannerTest, StringCharUnicodeEscapeNonHexDigit);
+  FRIEND_TEST(ScannerTest, StringCharUnicodeInvalidSequence);
+  FRIEND_TEST(ScannerTest, StringCharUnicodeMoreThanSixDigits);
 
   // Determines whether string "s" matches a keyword -- if so, returns the
   // keyword enum that it corresponds to. Otherwise, typically the caller will

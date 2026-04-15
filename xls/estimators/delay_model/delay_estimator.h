@@ -24,13 +24,13 @@
 #include <utility>
 #include <vector>
 
+#include "gtest/gtest_prod.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
-#include "xls/common/test_macros.h"
 #include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
@@ -122,7 +122,7 @@ class CachingDelayEstimator : public DelayEstimator {
     cache_.emplace(node, delay);
   }
 
-  XLS_FRIEND_TEST(DelayEstimatorTest, CachingDelayEstimator);
+  FRIEND_TEST(DelayEstimatorTest, CachingDelayEstimator);
 
   const DelayEstimator& cached_;
   mutable absl::Mutex cache_mutex_;

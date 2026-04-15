@@ -20,11 +20,11 @@
 #include <string>
 #include <string_view>
 
+#include "gtest/gtest_prod.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/test_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/run_routines/run_routines.h"
@@ -73,11 +73,11 @@ class RunComparator : public AbstractRunComparator {
       std::string_view ir_name, xls::Function* ir_function);
 
  private:
-  XLS_FRIEND_TEST(RunRoutinesTest, TestInvokedFunctionDoesJit);
-  XLS_FRIEND_TEST(RunRoutinesTest, QuickcheckInvokedFunctionDoesJit);
-  XLS_FRIEND_TEST(RunRoutinesTest, QuickcheckExhaustive);
-  XLS_FRIEND_TEST(RunRoutinesTest, NoSeedStillQuickChecks);
-  XLS_FRIEND_TEST(RunRoutinesTest, QuickcheckExhaustiveEnumWithFail);
+  FRIEND_TEST(RunRoutinesTest, TestInvokedFunctionDoesJit);
+  FRIEND_TEST(RunRoutinesTest, QuickcheckInvokedFunctionDoesJit);
+  FRIEND_TEST(RunRoutinesTest, QuickcheckExhaustive);
+  FRIEND_TEST(RunRoutinesTest, NoSeedStillQuickChecks);
+  FRIEND_TEST(RunRoutinesTest, QuickcheckExhaustiveEnumWithFail);
 
   absl::flat_hash_map<std::string, std::unique_ptr<FunctionJit>> jit_cache_;
   CompareMode mode_;

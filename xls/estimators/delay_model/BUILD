@@ -38,7 +38,6 @@ cc_library(
     hdrs = ["delay_estimator.h"],
     deps = [
         "//xls/common:math_util",
-        "//xls/common:test_macros",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
@@ -54,6 +53,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
+        "@googletest//:gtest_prod",
     ],
 )
 

@@ -25,6 +25,7 @@
 #include <string_view>
 #include <utility>
 
+#include "gtest/gtest_prod.h"
 #include "absl/base/casts.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
@@ -32,7 +33,6 @@
 #include "absl/types/span.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/math_util.h"
-#include "xls/common/test_macros.h"
 
 namespace xls {
 
@@ -359,7 +359,7 @@ class InlineBitmap {
                  int64_t r_offset = 0);
 
  private:
-  XLS_FRIEND_TEST(InlineBitmapTest, MaskForWord);
+  FRIEND_TEST(InlineBitmapTest, MaskForWord);
   friend uint64_t GetWordBitsAtForTest(const InlineBitmap& ib,
                                        int64_t bit_offset);
 

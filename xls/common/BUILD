@@ -513,11 +513,6 @@ cc_library(
     hdrs = ["iterator_range.h"],
 )
 
-cc_library(
-    name = "test_macros",
-    hdrs = ["test_macros.h"],
-)
-
 pytype_strict_library(
     name = "runfiles",
     srcs = ["runfiles.py"],

@@ -689,7 +689,6 @@ cc_library(
         "//xls/common:math_util",
         "//xls/common:random_util",
         "//xls/common:symbolized_stacktrace",
-        "//xls/common:test_macros",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
@@ -718,6 +717,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@googletest//:gtest_prod",
     ],
 )
 

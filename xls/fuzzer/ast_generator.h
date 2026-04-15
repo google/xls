@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "gtest/gtest_prod.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -35,7 +36,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "xls/common/test_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -177,8 +177,8 @@ class AstGenerator {
     return lower_limit + absl::Poisson<int64_t>(bit_gen_, mean);
   }
 
-  XLS_FRIEND_TEST(AstGeneratorTest, GeneratesParametricBindings);
-  XLS_FRIEND_TEST(AstGeneratorTest, BitsTypeGetMetadata);
+  FRIEND_TEST(AstGeneratorTest, GeneratesParametricBindings);
+  FRIEND_TEST(AstGeneratorTest, BitsTypeGetMetadata);
 
   // Note: we use a btree for a stable iteration order; i.e. so we can stably
   // select a random value from the environment across something like different

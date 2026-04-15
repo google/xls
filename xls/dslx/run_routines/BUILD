@@ -157,7 +157,6 @@ cc_library(
     hdrs = ["run_comparator.h"],
     deps = [
         ":run_routines",
-        "//xls/common:test_macros",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
@@ -176,6 +175,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@googletest//:gtest_prod",
     ],
 )
 
