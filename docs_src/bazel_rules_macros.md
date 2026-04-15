@@ -845,7 +845,7 @@ xls_diff_test(<a href="#xls_diff_test-name">name</a>, <a href="#xls_diff_test-fi
 <pre>
 load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_cpp_type_library")
 
-xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>, <a href="#xls_dslx_cpp_type_library-deps">deps</a>, <a href="#xls_dslx_cpp_type_library-cpp_deps">cpp_deps</a>, <a href="#xls_dslx_cpp_type_library-namespace">namespace</a>)
+xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>, <a href="#xls_dslx_cpp_type_library-deps">deps</a>, <a href="#xls_dslx_cpp_type_library-library">library</a>, <a href="#xls_dslx_cpp_type_library-cpp_deps">cpp_deps</a>, <a href="#xls_dslx_cpp_type_library-namespace">namespace</a>)
 </pre>
 
 Creates a cc_library target for transpiled DSLX types.
@@ -887,8 +887,9 @@ xls_dslx_cpp_type_library(
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_cpp_type_library-name"></a>name |  The name of the eventual cc_library.   |  none |
-| <a id="xls_dslx_cpp_type_library-src"></a>src |  The DSLX file whose types to compile as C++.   |  none |
+| <a id="xls_dslx_cpp_type_library-src"></a>src |  The DSLX file whose types to compile as C++.   |  `None` |
 | <a id="xls_dslx_cpp_type_library-deps"></a>deps |  dslx_library dependencies imported by src.   |  `[]` |
+| <a id="xls_dslx_cpp_type_library-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'src' and 'deps' arguments.   |  `None` |
 | <a id="xls_dslx_cpp_type_library-cpp_deps"></a>cpp_deps |  direct cc_library dependencies that should be included in the generated C++ files.   |  `[]` |
 | <a id="xls_dslx_cpp_type_library-namespace"></a>namespace |  The C++ namespace to generate the code in (e.g., `foo::bar`). Use of this arg is strongly encouraged to avoid polluting top-level namespaces per https://google.github.io/styleguide/cppguide.html#Namespace_Names.   |  `None` |
 

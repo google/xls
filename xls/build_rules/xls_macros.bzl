@@ -381,8 +381,9 @@ def xls_dslx_opt_ir_macro(
 
 def xls_dslx_cpp_type_library(
         name,
-        src,
+        src = None,
         deps = [],
+        library = None,
         cpp_deps = [],
         namespace = None):
     """Creates a cc_library target for transpiled DSLX types.
@@ -421,6 +422,9 @@ def xls_dslx_cpp_type_library(
       name: The name of the eventual cc_library.
       src: The DSLX file whose types to compile as C++.
       deps: dslx_library dependencies imported by src.
+      library: A DSLX library target where the direct (non-transitive)
+        files of the target are tested. This argument is mutually
+        exclusive with the 'src' and 'deps' arguments.
       cpp_deps: direct cc_library dependencies that should be included in the generated C++ files.
       namespace: The C++ namespace to generate the code in (e.g., `foo::bar`). Use of this arg is
         strongly encouraged to avoid polluting top-level namespaces per
@@ -429,10 +433,11 @@ def xls_dslx_cpp_type_library(
     generated_sources_name = "_gen_" + name
     xls_dslx_generate_cpp_type_files(
         name = generated_sources_name,
-        srcs = [src],
+        srcs = [src] if src else [],
         header_file = name + ".h",
         cpp_deps = cpp_deps,
         deps = deps,
+        library = library,
         namespace = namespace,
     )
     cc_library(
