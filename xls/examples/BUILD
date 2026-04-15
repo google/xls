@@ -1615,7 +1615,7 @@ xls_dslx_verilog(
     name = "vtrace_fmt_verilog",
     codegen_args = {
         "delay_model": "asap7",
-        "max_trace_verbosity": "2",
+        "max_trace_verbosity": "20",
         "pipeline_stages": "2",
         "reset": "rst",
     },
@@ -1641,6 +1641,7 @@ cc_xls_ir_jit_wrapper(
         "function": "vtrace_fmt_example",
         "namespace": "xls::examples",
     },
+    wrapper_type = "FUNCTION",
 )
 
 cc_test(
@@ -1648,6 +1649,28 @@ cc_test(
     srcs = ["vtrace_fmt_jit_test.cc"],
     deps = [
         ":vtrace_fmt_jit_wrapper",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "vtrace_fmt_block_jit_wrapper",
+    src = ":vtrace_fmt.block.ir",
+    jit_wrapper_args = {
+        "class_name": "VtraceFmtBlock",
+        "namespace": "xls::examples",
+    },
+    top = "vtrace_fmt_example",
+    wrapper_type = "BLOCK",
+)
+
+cc_test(
+    name = "vtrace_fmt_block_jit_test",
+    srcs = ["vtrace_fmt_block_jit_test.cc"],
+    deps = [
+        ":vtrace_fmt_block_jit_wrapper",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@googletest//:gtest",
