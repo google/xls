@@ -2442,7 +2442,7 @@ std::string FuzzTestFunction::ToString() const {
 
 std::vector<AstNode*> FuzzTestFunction::GetChildren(bool want_types) const {
   if (domains_.has_value()) {
-    return {&fn_, *domains_};
+    return {*domains_, &fn_};
   }
   return {&fn_};
 }

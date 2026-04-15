@@ -298,6 +298,23 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(cast);
   }
 
+  absl::Status HandleFunction(const Function* node) override {
+    AstNode* parent = node->parent();
+    if (parent == nullptr || parent->kind() != AstNodeKind::kFuzzTestFunction) {
+      return DefaultHandler(node);
+    }
+    const FuzzTestFunction* ftf =
+        absl::down_cast<const FuzzTestFunction*>(parent);
+    if (!ftf->domains().has_value()) {
+      return DefaultHandler(node);
+    }
+
+    // TODO: davidplass - Compare domains to params as appropriate, e.g.,
+    // an int parameter should be fuzzed using an int range domain.
+
+    return DefaultHandler(node);
+  }
+
   // TODO: In type_annotation_resolver.cc ResolveElementType, if the container
   // type of ElementTypeNotation is not a subscriptable type, it just returns
   // the container type without reporting an error, so it must be checked here.

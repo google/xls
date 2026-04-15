@@ -35,6 +35,7 @@
 namespace xls::dslx {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
@@ -10024,5 +10025,109 @@ proc Counter {
               TypecheckFails(HasSubstr("State {} Binary operations can only be "
                                        "applied to bits-typed operands.")));
 }
+
+TEST(TypecheckV2Test, FuzzTestDomainsSuccess) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`u32:0..1`)]
+fn f(x: u32) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestBadRange) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`u32:0..u64:1`)]
+fn f(x: u32) {}
+)",
+              TypecheckFails(HasSizeMismatch("u32", "u64")));
+}
+
+TEST(TypecheckV2Test, FuzzTestConstRange) {
+  EXPECT_THAT(R"(
+const C = u32:0..1;
+#[fuzz_test(domains=`C`)]
+fn f(x: u32) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestEnum) {
+  EXPECT_THAT(R"(
+enum E {
+  E0 = 0,
+  E1 = 1,
+}
+#[fuzz_test(domains=`[E::E0, E::E1]`)]
+fn f(x: E) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestImportedEnum) {
+  constexpr std::string_view kImported = R"(
+pub enum E {
+  E0 = 0,
+  E1 = 1,
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+#[fuzz_test(domains=`[imported::E::E0, imported::E::E1]`)]
+fn f(x: imported::E) {}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data), IsOk());
+}
+
+TEST(TypecheckV2Test, FuzzTestCountMismatchTooMany) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u32:0..1, u32:0..2`)]
+fn f(x: u32) {}
+)",
+      TypecheckFails(HasSubstr("fuzz_test attribute has 2 domain arguments, "
+                               "but function `f` has 1 parameter")));
+}
+
+TEST(TypecheckV2Test, FuzzTestCountMismatchTooFew) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u32:0..1`)]
+fn g(x: u32, y: u32) {}
+)",
+      TypecheckFails(HasSubstr("fuzz_test attribute has 1 domain argument, "
+                               "but function `g` has 2 parameters")));
+}
+
+TEST(TypecheckV2Test, FuzzTestNoParameters) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test]
+fn f() {}
+)",
+      TypecheckFails(HasSubstr("Can only fuzz test functions with at least 1 "
+                               "parameter; function `f` has 0")));
+}
+
+TEST(TypecheckV2Test, FuzzTestParametric) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u32:0..1`)]
+fn f<N: u32>(x: uN[N]) {
+   x+uN[N]:1
+}
+)",
+      TypecheckFails(HasSubstr("Cannot fuzz test parametric function `f`")));
+}
+
+TEST(TypecheckV2Test, FuzzTestAttributeWithZeroArguments) {
+  EXPECT_THAT(R"(
+#[fuzz_test]
+fn f(x: u32) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
 }  // namespace
 }  // namespace xls::dslx

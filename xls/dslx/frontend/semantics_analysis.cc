@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -33,6 +34,7 @@
 #include "absl/strings/substitute.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -600,6 +602,42 @@ class PreTypecheckPass : public AstNodeVisitorWithDefault {
 
   absl::Status HandleConditional(const Conditional* node) override {
     WarnOnConditionalContainingJustFailStatement(*node, warning_collector_);
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleFuzzTestFunction(const FuzzTestFunction* node) override {
+    const Function& f = node->fn();
+    if (f.IsParametric()) {
+      return TypeInferenceErrorStatus(
+          f.GetSpan().value(), nullptr,
+          absl::StrFormat("Cannot fuzz test parametric function `%s`",
+                          f.identifier()),
+          file_table_);
+    }
+    if (f.params().empty()) {
+      return TypeInferenceErrorStatus(
+          f.GetSpan().value(), nullptr,
+          absl::StrFormat("Can only fuzz test functions with at least 1 "
+                          "parameter; function `%s` has 0",
+                          node->identifier()),
+          file_table_);
+    }
+    if (!node->domains().has_value()) {
+      return DefaultHandler(node);
+    }
+
+    const XlsTuple* domains = *node->domains();
+    int64_t domain_count = domain_count = domains->members().size();
+    if (domain_count != f.params().size()) {
+      return TypeInferenceErrorStatus(
+          node->GetSpan().value(), nullptr,
+          absl::StrFormat("fuzz_test attribute has %d domain argument%s, but "
+                          "function `%s` has %d parameter%s",
+                          domain_count, domain_count == 1 ? "" : "s",
+                          f.identifier(), f.params().size(),
+                          f.params().size() == 1 ? "" : "s"),
+          file_table_);
+    }
     return DefaultHandler(node);
   }
 
