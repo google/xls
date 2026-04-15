@@ -155,8 +155,9 @@ class BaseBlockJitWrapper {
     XLS_RET_CHECK_EQ(proto.entrypoint_size(), 1)
         << "Wrapper should only have a single XLS block compiled.";
     XLS_ASSIGN_OR_RETURN(
-        auto jit, BlockJit::CreateFromAot(proto.entrypoint(0),
-                                          proto.data_layout(), entrypoint));
+        auto jit, BlockJit::CreateFromAot(
+                      proto.entrypoint(0), proto.data_layout(), entrypoint,
+                      options.max_trace_verbosity().value_or(0)));
 
     auto res = std::unique_ptr<RealType>(new RealType(std ::move(jit)));
     res->aot_entrypoints_proto_ = std::move(proto);
