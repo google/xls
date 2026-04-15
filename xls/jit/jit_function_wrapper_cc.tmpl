@@ -47,12 +47,13 @@ static constexpr std::array<uint8_t, {{len(wrapped.aot_entrypoint.SerializeToStr
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
-{{ wrapped.class_name }}::Create() {
+{{ wrapped.class_name }}::Create(const xls::EvaluatorOptions& options) {
   return xls::BaseFunctionJitWrapper::Create<{{wrapped.class_name}}>(
             kFunctionName,
             kAotEntrypointsProtoBin,
             {{wrapped.aot_entrypoint.entrypoint[0].function_symbol}},
-            {{wrapped.aot_entrypoint.entrypoint[0].packed_function_symbol}});
+            {{wrapped.aot_entrypoint.entrypoint[0].packed_function_symbol}},
+            options);
 }
 
 absl::StatusOr<xls::Value> {{ wrapped.class_name }}::Run(
