@@ -1269,16 +1269,20 @@ inline ::testing::Matcher<const ::xls::Node*> OutputPort(
 //   EXPECT_THAT(x, m::StateRead());
 //   EXPECT_THAT(x, m::StateRead("x"));
 //   EXPECT_THAT(x, m::StateRead(HasSubstr("substr")));
+//   EXPECT_THAT(x, m::StateRead("x", /*predicate=*/m::Param("pred")));
 //
 class StateReadMatcher : public NodeMatcher {
  public:
   explicit StateReadMatcher(
       std::optional<::testing::Matcher<const std::string>> state_element_name,
       std::optional<::testing::Matcher<const std::optional<std::string>&>>
-          label = std::nullopt)
+          label = std::nullopt,
+      std::optional<::testing::Matcher<std::optional<Node*>>> predicate =
+          std::nullopt)
       : NodeMatcher(Op::kStateRead, /*operands=*/{}),
         state_element_name_(std::move(state_element_name)),
-        label_(std::move(label)) {}
+        label_(std::move(label)),
+        predicate_(std::move(predicate)) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -1287,6 +1291,7 @@ class StateReadMatcher : public NodeMatcher {
  private:
   std::optional<::testing::Matcher<const std::string>> state_element_name_;
   std::optional<::testing::Matcher<const std::optional<std::string>&>> label_;
+  std::optional<::testing::Matcher<std::optional<Node*>>> predicate_;
 };
 
 template <typename T>
@@ -1322,6 +1327,14 @@ inline ::testing::Matcher<const ::xls::Node*> StateRead(
 
 inline ::testing::Matcher<const ::xls::Node*> StateRead() {
   return ::xls::op_matchers::StateReadMatcher(std::nullopt, std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> StateRead(
+    ::testing::Matcher<const std::string> name,
+    ::testing::Matcher<const std::optional<std::string>&> label,
+    ::testing::Matcher<std::optional<Node*>> predicate) {
+  return ::xls::op_matchers::StateReadMatcher(std::move(name), std::move(label),
+                                              std::move(predicate));
 }
 
 // Next matcher. Supported forms:

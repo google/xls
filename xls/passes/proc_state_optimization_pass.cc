@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -79,7 +80,6 @@ absl::StatusOr<bool> RemoveZeroWidthStateElements(Proc* proc) {
     StateElement* state_element = proc->GetStateElement(i);
     VLOG(2) << "Removing zero-width state element: "
             << proc->GetStateElement(i)->name();
-    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
     std::vector<Next*> next_values(proc->next_values(state_element).begin(),
                                    proc->next_values(state_element).end());
     for (Next* next : next_values) {
@@ -87,9 +87,13 @@ absl::StatusOr<bool> RemoveZeroWidthStateElements(Proc* proc) {
           next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
       XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
     }
-    XLS_RETURN_IF_ERROR(
-        state_read->ReplaceUsesWithNew<Literal>(state_element->initial_value())
-            .status());
+    for (StateRead* state_read :
+         proc->GetStateReadsByStateElement(state_element)) {
+      XLS_RETURN_IF_ERROR(
+          state_read
+              ->ReplaceUsesWithNew<Literal>(state_element->initial_value())
+              .status());
+    }
     VLOG(4) << "Removing state element " << proc->StateElements()[i]
             << " for being zero width.";
     XLS_RETURN_IF_ERROR(proc->RemoveStateElement(i));
@@ -102,12 +106,14 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
   std::vector<int64_t> to_remove;
   for (int64_t i = proc->GetStateElementCount() - 1; i >= 0; --i) {
     StateElement* state_element = proc->GetStateElement(i);
-    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
+    absl::Span<StateRead* const> reads =
+        proc->GetStateReadsByStateElement(state_element);
     const Value& initial_value = state_element->initial_value();
 
     bool never_changes = true;
     for (Next* next : proc->next_values(state_element)) {
-      if (next->value() == state_read) {
+      if (absl::c_any_of(
+              reads, [&](StateRead* read) { return next->value() == read; })) {
         continue;
       }
       std::optional<Value> next_value = query_engine.KnownValue(next->value());
@@ -128,7 +134,6 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
     Value value = state_element->initial_value();
     VLOG(2) << "Removing constant state element: " << state_element->name()
             << " (value: " << value.ToString() << ")";
-    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
     std::vector<Next*> next_values(proc->next_values(state_element).begin(),
                                    proc->next_values(state_element).end());
     for (Next* next : next_values) {
@@ -136,8 +141,11 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
           next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
       XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
     }
-    XLS_RETURN_IF_ERROR(
-        state_read->ReplaceUsesWithNew<Literal>(value).status());
+    for (StateRead* state_read :
+         proc->GetStateReadsByStateElement(state_element)) {
+      XLS_RETURN_IF_ERROR(
+          state_read->ReplaceUsesWithNew<Literal>(value).status());
+    }
     VLOG(4) << "Removing state element " << proc->StateElements()[i]
             << " for being constant.";
     XLS_RETURN_IF_ERROR(proc->RemoveStateElement(i));
@@ -252,7 +260,7 @@ ComputeStateDependencies(Proc* proc, OptimizationContext& context) {
       std::vector<std::string> dependent_elements;
       for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
         if (state_dependencies.at(node).Get(i)) {
-          dependent_elements.push_back(proc->GetStateRead(i)->GetName());
+          dependent_elements.push_back(proc->GetStateElement(i)->name());
         }
       }
       VLOG(5) << absl::StrFormat("  %s : {%s}%s", node->GetName(),
@@ -450,10 +458,12 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
           next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
       XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
     }
-    XLS_RETURN_IF_ERROR(proc->GetStateRead(state_index)
-                            ->ReplaceUsesWithNew<Select>(state_machine_read,
-                                                         cases, chain_literal)
-                            .status());
+    for (StateRead* state_read : proc->GetStateReads(state_index)) {
+      XLS_RETURN_IF_ERROR(state_read
+                              ->ReplaceUsesWithNew<Select>(state_machine_read,
+                                                           cases, chain_literal)
+                              .status());
+    }
     indices_to_remove.insert(state_index);
   }
   for (int64_t state_index : indices_to_remove) {

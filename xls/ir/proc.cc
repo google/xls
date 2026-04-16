@@ -930,26 +930,46 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
     Proc::StateElementTransformer& transform) {
   StateElement* old_state_element = old_state_read->state_element();
   std::string orig_name(old_state_element->name());
-  std::string orig_read_name(old_state_read->GetNameView());
-  XLS_ASSIGN_OR_RETURN(std::optional<Node*> read_predicate,
-                       transform.TransformReadPredicate(this, old_state_read));
-  XLS_ASSIGN_OR_RETURN(
-      StateRead * new_state_read,
-      AppendStateElement(absl::StrFormat("TEMP_NAME__%s__", orig_name),
-                         init_value, read_predicate,
-                         /*next_state=*/std::nullopt));
-  new_state_read->SetLoc(old_state_read->loc());
-  if (old_state_read->state_element()->non_synthesizable()) {
-    new_state_read->state_element()->SetNonSynthesizable();
+
+  absl::Span<StateRead* const> all_old_reads =
+      GetStateReadsByStateElement(old_state_element);
+  absl::flat_hash_map<StateRead*, std::string> orig_read_names;
+  for (StateRead* old_read : all_old_reads) {
+    orig_read_names[old_read] = std::string(old_read->GetNameView());
   }
-  StateElement* new_state_element = new_state_read->state_element();
-  std::string temp_name = new_state_element->name();
 
   XLS_ASSIGN_OR_RETURN(
-      Node * new_state_value,
-      transform.TransformStateRead(this, new_state_read, old_state_read));
-  std::vector<std::pair<Node*, Node*>> to_replace{
-      {old_state_read, new_state_value}};
+      StateElement * new_state_element,
+      AppendUnreadStateElement(absl::StrFormat("TEMP_NAME__%s__", orig_name),
+                               init_value, old_state_read->loc()));
+  if (old_state_element->non_synthesizable()) {
+    new_state_element->SetNonSynthesizable();
+  }
+  std::string temp_name = new_state_element->name();
+
+  absl::flat_hash_map<StateRead*, StateRead*> old_to_new_read;
+  StateRead* return_state_read = nullptr;
+  std::vector<std::pair<Node*, Node*>> to_replace;
+
+  for (StateRead* old_read : all_old_reads) {
+    XLS_ASSIGN_OR_RETURN(std::optional<Node*> read_predicate,
+                         transform.TransformReadPredicate(this, old_read));
+    XLS_ASSIGN_OR_RETURN(StateRead * new_read,
+                         MakeNodeWithName<StateRead>(
+                             old_read->loc(), new_state_element, read_predicate,
+                             old_read->label(), temp_name));
+    state_reads_[new_state_element].push_back(new_read);
+    old_to_new_read[old_read] = new_read;
+
+    if (old_read == old_state_read) {
+      return_state_read = new_read;
+    }
+
+    XLS_ASSIGN_OR_RETURN(Node * new_state_value, transform.TransformStateRead(
+                                                     this, new_read, old_read));
+    to_replace.push_back({old_read, new_state_value});
+  }
+
   struct NextTransformation {
     Next* old_next;
     Node* new_value;
@@ -959,14 +979,18 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
   for (Next* nxt : next_values(old_state_element)) {
     NextTransformation& new_next = transforms.emplace_back();
     new_next.old_next = nxt;
-    XLS_ASSIGN_OR_RETURN(new_next.new_value, transform.TransformNextValue(
-                                                 this, new_state_read, nxt));
-    XLS_RET_CHECK(new_next.new_value->GetType() == new_state_read->GetType())
+    StateRead* corresponding_new_read =
+        old_to_new_read.at(nxt->state_read()->As<StateRead>());
+    XLS_ASSIGN_OR_RETURN(
+        new_next.new_value,
+        transform.TransformNextValue(this, corresponding_new_read, nxt));
+    XLS_RET_CHECK(new_next.new_value->GetType() ==
+                  corresponding_new_read->GetType())
         << "New value is not compatible type. Expected: "
-        << new_state_read->GetType() << " got " << new_next.new_value;
+        << corresponding_new_read->GetType() << " got " << new_next.new_value;
     XLS_ASSIGN_OR_RETURN(
         new_next.new_predicate,
-        transform.TransformNextPredicate(this, new_state_read, nxt));
+        transform.TransformNextPredicate(this, corresponding_new_read, nxt));
   }
 
   // We've transformed all the graph elements. Start replacing them.
@@ -977,24 +1001,30 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
   auto orig_storage = state_elements_.extract(orig_name);
   orig_storage.key() = to_remove_name;
   old_state_element->SetName(to_remove_name);
-  old_state_read->SetName(to_remove_name);
+  for (StateRead* old_read : all_old_reads) {
+    old_read->SetName(to_remove_name);
+  }
   CHECK(state_elements_.insert(std::move(orig_storage)).inserted);
 
   // Take over the old state element & read names.
   auto new_storage = state_elements_.extract(temp_name);
   new_storage.key() = orig_name;
   new_state_element->SetName(orig_name);
-  new_state_read->SetNameDirectly(orig_read_name);
+  for (auto& [old_read, new_read] : old_to_new_read) {
+    new_read->SetNameDirectly(orig_read_names.at(old_read));
+  }
   CHECK(state_elements_.insert(std::move(new_storage)).inserted);
 
   // Identity-ify the old next nodes and create new ones.
   for (const NextTransformation& nt : transforms) {
     // Make the next
+    StateRead* corresponding_new_read =
+        old_to_new_read.at(nt.old_next->state_read()->As<StateRead>());
     XLS_ASSIGN_OR_RETURN(
         Next * nxt,
-        MakeNodeWithName<Next>(nt.old_next->loc(), new_state_read, nt.new_value,
-                               nt.new_predicate, nt.old_next->label(),
-                               nt.old_next->GetName()));
+        MakeNodeWithName<Next>(nt.old_next->loc(), corresponding_new_read,
+                               nt.new_value, nt.new_predicate,
+                               nt.old_next->label(), nt.old_next->GetName()));
     to_replace.push_back({nt.old_next, nxt});
     // Identity-ify the old next.
     XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(
@@ -1011,7 +1041,7 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
         },
         /*replace_implicit_uses=*/false));
   }
-  return new_state_read;
+  return return_state_read;
 }
 
 absl::Status Proc::InternalRebuildSideTables() {

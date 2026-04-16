@@ -458,6 +458,59 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayImplicitNext) {
                             m::StateElement(_, m::Type("bits[3][4]"))}));
 }
 
+TEST_F(ArrayUntuplePassTest, ProcStateArrayActiveMultiReadOptimization) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_resp, p->CreateStreamingChannel("resp", ChannelOps::kSendOnly,
+                                                p->GetBitsType(3)));
+  ProcBuilder pb(TestName(), p.get());
+  BValue state = pb.StateElement(
+      "foo", ValueBuilder::ArrayB({
+                 ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0, 1)),
+                                      ValueBuilder::Bits(UBits(1, 3))}),
+             }));
+
+  // Read #1: Extract the inner tuple value out of the array
+  BValue extracted_tuple = pb.ArrayIndex(state, {pb.Literal(UBits(0, 1))});
+  BValue extracted_data = pb.TupleIndex(extracted_tuple, 1);
+
+  // Send required by equivalence checker to observe proc mutations
+  pb.Send(chan_resp, pb.Literal(Value::Token()), extracted_data);
+
+  // Read #2: Perform an independent update on the state
+  BValue updated_tuple = pb.Tuple({pb.Literal(UBits(1, 1)), extracted_data});
+  BValue next_state =
+      pb.ArrayUpdate(state, updated_tuple, {pb.Literal(UBits(0, 1))});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build({next_state}));
+  solvers::z3::ScopedVerifyProcEquivalence svpe(pr, /*activation_count=*/2,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(pr->StateElements(),
+              IsSupersetOf({m::StateElement(_, m::Type("bits[1][1]")),
+                            m::StateElement(_, m::Type("bits[3][1]"))}));
+}
+
+TEST_F(ArrayUntuplePassTest, ProcStateArrayIdentityUpdateOnly) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  BValue state = pb.StateElement(
+      "foo", ValueBuilder::ArrayB({
+                 ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0, 1)),
+                                      ValueBuilder::Bits((UBits(1, 3)))}),
+             }));
+  pb.Next(state, state);
+
+  XLS_ASSERT_OK(pb.Build().status());
+  ScopedRecordIr sri(p.get());
+
+  ArrayUntuplePass pass;
+  PassResults res;
+  OptimizationContext ctx;
+  ASSERT_THAT(pass.Run(p.get(), {}, &res, ctx), IsOkAndHolds(false));
+}
+
 void IrFuzzArrayUntuple(FuzzPackageWithArgs fuzz_package_with_args) {
   ArrayUntuplePass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

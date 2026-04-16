@@ -14,7 +14,6 @@
 
 #include "xls/passes/token_simplification_pass.h"
 
-#include <cstdint>
 #include <memory>
 #include <utility>
 
@@ -68,7 +67,8 @@ TEST_F(TokenSimplificationPassTest, SingleArgument) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(proc->GetStateRead(0), m::StateRead("tok"))));
+              ElementsAre(m::Next(proc->GetStateReads(0).front(),
+                                  m::StateRead("tok"))));
 }
 
 TEST_F(TokenSimplificationPassTest, DuplicatedArgument) {
@@ -84,7 +84,8 @@ TEST_F(TokenSimplificationPassTest, DuplicatedArgument) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(proc->GetStateRead(0), m::StateRead("tok"))));
+              ElementsAre(m::Next(proc->GetStateReads(0).front(),
+                                  m::StateRead("tok"))));
 }
 
 TEST_F(TokenSimplificationPassTest, NestedAfterAll) {
@@ -101,7 +102,8 @@ TEST_F(TokenSimplificationPassTest, NestedAfterAll) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(proc->GetStateRead(0), m::StateRead("tok"))));
+              ElementsAre(m::Next(proc->GetStateReads(0).front(),
+                                  m::StateRead("tok"))));
 }
 
 TEST_F(TokenSimplificationPassTest, DelayZero) {
@@ -117,7 +119,8 @@ TEST_F(TokenSimplificationPassTest, DelayZero) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(proc->GetStateRead(0), m::StateRead("tok"))));
+              ElementsAre(m::Next(proc->GetStateReads(0).front(),
+                                  m::StateRead("tok"))));
 }
 
 TEST_F(TokenSimplificationPassTest, NestedDelay) {
@@ -135,7 +138,7 @@ TEST_F(TokenSimplificationPassTest, NestedDelay) {
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::Next(proc->GetStateRead(0),
+      ElementsAre(m::Next(proc->GetStateReads(0).front(),
                           m::MinDelay(m::StateRead("tok"), /*delay=*/3))));
 }
 
@@ -156,7 +159,7 @@ TEST_F(TokenSimplificationPassTest, AfterAllWithCommonDelay) {
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::Next(proc->GetStateRead(0),
+      ElementsAre(m::Next(proc->GetStateReads(0).front(),
                           m::MinDelay(m::StateRead("tok"), /*delay=*/6))));
 }
 
@@ -183,7 +186,7 @@ TEST_F(TokenSimplificationPassTest, DuplicatedArgument2) {
   EXPECT_THAT(
       proc->next_values(proc->GetStateElement(0)),
       ElementsAre(m::Next(
-          proc->GetStateRead(0),
+          proc->GetStateReads(0).front(),
           m::AfterAll(
               m::Send(m::Send(m::StateRead("tok"), m::Literal()), m::Literal()),
               m::Send(m::StateRead("tok"), m::Literal())))));
@@ -211,7 +214,7 @@ TEST_F(TokenSimplificationPassTest, UnrelatedArguments) {
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
               ElementsAre(m::Next(
-                  proc->GetStateRead(0),
+                  proc->GetStateReads(0).front(),
                   m::AfterAll(m::Send(m::StateRead("tok"), m::Literal()),
                               m::Send(m::StateRead("tok"), m::Literal()),
                               m::Send(m::StateRead("tok"), m::Literal())))));
@@ -237,7 +240,7 @@ TEST_F(TokenSimplificationPassTest, ArgumentsWithDependencies) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(proc->GetStateRead(0), m::Send())));
+              ElementsAre(m::Next(proc->GetStateReads(0).front(), m::Send())));
 }
 
 TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
@@ -266,7 +269,7 @@ TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::Next(proc->GetStateRead(0),
+      ElementsAre(m::Next(proc->GetStateReads(0).front(),
                           m::AfterAll(m::Send(), m::Send(), m::Invoke()))));
 }
 
