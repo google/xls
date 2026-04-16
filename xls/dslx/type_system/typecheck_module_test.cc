@@ -4876,5 +4876,104 @@ TEST_F(TypecheckV2Test, AssertFmtArgCountMismatch) {
                          "but has 1 argument(s)")));
 }
 
+TEST_F(TypecheckV2Test, DynamicChannelArrayIndexing) {
+  constexpr std::string_view kProgram = R"(
+proc Test {
+  sel_r: chan<u32> in;
+  array_r: chan<u32>[10] in;
+  data_s: chan<u32> out;
+
+  init { }
+
+  config(
+     sel_r: chan<u32> in,
+     array_r: chan<u32>[10] in,
+     data_s: chan<u32> out
+  ) { (sel_r, array_r, data_s) }
+
+  next(state: ()) {
+    let (tok, sel) = recv(join(), sel_r);
+    let (tok, result) = recv(tok, array_r[sel]);
+    let tok = send(tok, data_s, result);
+  }
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Non-constexpr value used in channel array indexing")));
+}
+
+TEST_F(TypecheckV2Test, ProcMemberInDynamicLoop) {
+  constexpr std::string_view kProgram = R"(
+proc Proc {
+  inputs: chan<s32>[2] in;
+  outputs: chan<s32>[2] out;
+  config() {
+    let (a, b) = chan<s32>[2]("c");
+    (b, a)
+  }
+
+  init {  }
+
+  next(state: ()) {
+    let tok = join();
+    for (i, _) in u32:0..u32:2 {
+        recv(tok, inputs[i]);
+        send(tok, outputs[i], s32:1);
+    } (());
+  }
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Non-constexpr value used in channel array indexing")));
+}
+
+TEST_F(TypecheckV2Test, ProcMemberInUnrollFor) {
+  XLS_EXPECT_OK(Typecheck(R"(
+proc Proc {
+  inputs: chan<s32>[2] in;
+  outputs: chan<s32>[2] out;
+  config() {
+    let (a, b) = chan<s32>[2]("c");
+    (b, a)
+  }
+
+  init {  }
+
+  next(state: ()) {
+    let tok = join();
+    unroll_for! (i, _) in u32:0..u32:2 {
+        recv(tok, inputs[i]);
+        send(tok, outputs[i], s32:1);
+    } (());
+  }
+})"));
+}
+
+TEST_F(TypecheckV2Test, ProcMemberInConstFor) {
+  XLS_EXPECT_OK(Typecheck(R"(
+proc Proc {
+  inputs: chan<s32>[2] in;
+  outputs: chan<s32>[2] out;
+  config() {
+    let (a, b) = chan<s32>[2]("c");
+    (b, a)
+  }
+
+  init {  }
+
+  next(state: ()) {
+    let tok = join();
+    const for (i, _) in u32:0..u32:2 {
+        recv(tok, inputs[i]);
+        send(tok, outputs[i], s32:1);
+    } (());
+  }
+})"));
+}
+
 }  // namespace
 }  // namespace xls::dslx
