@@ -10161,6 +10161,62 @@ fn f(x: u32) {}
               TypecheckFails(HasSizeMismatch("u32", "u64")));
 }
 
+TEST(TypecheckV2Test, FuzzTestDomainRangeBitSizeMismatch) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u32:0..16384, u32:0..u32:16284`)]
+fn f(x: u8, y:u32) {}
+)",
+      TypecheckFails(HasSubstr("Fuzz test domain `u32:0..16384` is not "
+                               "compatible with parameter `x: u8`")));
+}
+
+TEST(TypecheckV2Test, FuzzTestDomainBitSizeMismatchAlias) {
+  EXPECT_THAT(
+      R"(
+type u8_alias = u8;
+#[fuzz_test(domains=`u32:0..16384`)]
+fn f(x: u8_alias) {}
+)",
+      TypecheckFails(HasSubstr("Fuzz test domain `u32:0..16384` is not "
+                               "compatible with parameter `x: u8_alias`")));
+}
+
+TEST(TypecheckV2Test, FuzzTestDomainArrayMismatch) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`[u32:0, 16384]`)]
+fn f(x: u8) {}
+)",
+      TypecheckFails(HasSubstr("Fuzz test domain `[u32:0, 16384]` is not "
+                               "compatible with parameter `x: u8`")));
+}
+
+TEST(TypecheckV2Test, FuzzTestDomainNotSupported) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u8:0`)]
+fn f(x: u8) {}
+)",
+      TypecheckFails(HasSubstr("Unsupported fuzz test domain `u8:0`")));
+}
+
+TEST(TypecheckV2Test, FuzzTestDomainsEmptyTupleAlwaysMatches) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`()`)]
+fn f(x: u8) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestEmptyTupleDomainAlwaysMatchesMultipleParams) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`u32:0..1, ()`)]
+fn f(x: u32, y: u8) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
 TEST(TypecheckV2Test, FuzzTestConstRange) {
   EXPECT_THAT(R"(
 const C = u32:0..1;
@@ -10168,6 +10224,16 @@ const C = u32:0..1;
 fn f(x: u32) {}
 )",
               TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestConstRangeMismatch) {
+  EXPECT_THAT(R"(
+const C = u32:0..1;
+#[fuzz_test(domains=`C`)]
+fn f(x: u8) {}
+)",
+              TypecheckFails(HasSubstr("Fuzz test domain `C` is not "
+                                       "compatible with parameter `x: u8`")));
 }
 
 TEST(TypecheckV2Test, FuzzTestEnum) {

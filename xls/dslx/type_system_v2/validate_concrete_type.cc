@@ -316,8 +316,15 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       return DefaultHandler(node);
     }
 
-    // TODO: davidplass - Compare domains to params as appropriate, e.g.,
-    // an int parameter should be fuzzed using an int range domain.
+    const XlsTuple* tuple = *ftf->domains();
+    int64_t domain_count = tuple->members().size();
+    // Compare domains to params as appropriate, e.g., a u32 parameter
+    // should be fuzzed using a u32 range domain or array domain.
+    for (int i = 0; i < domain_count; ++i) {
+      const Expr* domain = tuple->members()[i];
+      const Param* param = node->params()[i];
+      XLS_RETURN_IF_ERROR(ValidateFuzzTestDomain(domain, param));
+    }
 
     return DefaultHandler(node);
   }
@@ -447,6 +454,52 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
  private:
+  // Validates that a fuzz test domain is compatible with the corresponding
+  // function parameter. Returns an error if not compatible.
+  absl::Status ValidateFuzzTestDomain(const Expr* domain, const Param* param) {
+    std::optional<Type*> maybe_param_type = ti_.GetItem(param);
+    XLS_RET_CHECK(maybe_param_type.has_value());
+    const Type* param_type = *maybe_param_type;
+
+    std::optional<Type*> maybe_domain_type = ti_.GetItem(domain);
+    XLS_RET_CHECK(maybe_domain_type.has_value());
+    const Type* domain_type = *maybe_domain_type;
+
+    if (domain_type->IsTuple()) {
+      const TupleType& tuple_type = domain_type->AsTuple();
+      if (tuple_type.empty()) {
+        // Empty domain for this parameter; this is considered an "Arbitrary"
+        // domain and always matches.
+        return absl::OkStatus();
+      }
+      // TODO: davidplass - this domain is a tuple, presumably including other
+      // domains. It should be matched against the param as a tuple,
+      // recursively.
+      return absl::OkStatus();
+    }
+
+    if (domain_type->IsArray()) {
+      // Represents DSLX arrays and ranges
+      const ArrayType& array_type = domain_type->AsArray();
+      const Type& element_type = array_type.element_type();
+      if (!param_type->CompatibleWith(element_type)) {
+        return TypeInferenceErrorStatus(
+            domain->span(), param_type,
+            absl::Substitute("Fuzz test domain `$0` is not compatible with "
+                             "parameter `$1`.",
+                             domain->ToString(), param->ToString()),
+            file_table_);
+      }
+      return absl::OkStatus();
+    }
+
+    return TypeInferenceErrorStatus(
+        domain->span(), param_type,
+        absl::Substitute("Unsupported fuzz test domain `$0` of type `$1`.",
+                         domain->ToString(), domain_type->ToString()),
+        file_table_);
+  }
+
   absl::Status ValidateBinopShift(const Binop& binop) {
     XLS_ASSIGN_OR_RETURN(Type * rhs_type, ti_.GetItemOrError(binop.rhs()));
     XLS_ASSIGN_OR_RETURN(

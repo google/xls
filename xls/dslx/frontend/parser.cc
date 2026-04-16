@@ -1117,6 +1117,10 @@ absl::StatusOr<XlsTuple*> Parser::ParseFuzzTestDomains(
       return tuple;
     }
   }
+  if (parsed->in_parens()) {
+    // We don't need the parens anymore, because it's already parsed.
+    parsed->set_in_parens(false);
+  }
   // If it's not already a tuple, wrap it in one.
   return module_->Make<XlsTuple>(parsed->span(), std::vector<Expr*>{parsed},
                                  /*has_trailing_comma=*/false);

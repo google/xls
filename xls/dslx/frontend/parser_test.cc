@@ -4587,6 +4587,7 @@ fn f(x: u32) {}
         dynamic_cast<const XlsTuple*>(ftf->domains().value());
     ASSERT_NE(tuple, nullptr);
     ASSERT_EQ(tuple->members().size(), 1);
+    ASSERT_EQ(tuple->members()[0]->ToString(), "u32:0..1");
     const Range* range = dynamic_cast<const Range*>(tuple->members()[0]);
     ASSERT_NE(range, nullptr);
     const Number* start = dynamic_cast<const Number*>(range->start());
@@ -4637,12 +4638,14 @@ fn f(x: u32, op: Op) {}
     const Array* array1 = dynamic_cast<const Array*>(tuple->members()[0]);
     ASSERT_NE(array1, nullptr);
     ASSERT_EQ(array1->members().size(), 2);
+    ASSERT_FALSE(array1->in_parens());
     EXPECT_EQ(array1->members()[0]->ToString(), "u32:0");
     EXPECT_EQ(array1->members()[1]->ToString(), "u32:10");
 
     // Second member is an Array: [Op::Add, Op::Sub]
     const Array* array2 = dynamic_cast<const Array*>(tuple->members()[1]);
     ASSERT_NE(array2, nullptr);
+    ASSERT_FALSE(array2->in_parens());
     ASSERT_EQ(array2->members().size(), 2);
     const ColonRef* cref1 = dynamic_cast<const ColonRef*>(array2->members()[0]);
     ASSERT_NE(cref1, nullptr);
