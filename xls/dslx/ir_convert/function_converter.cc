@@ -2596,17 +2596,21 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
     }
     verbosity = *verbosity_value;
   }
-  XLS_ASSIGN_OR_RETURN(
-      BValue trace_result_token,
-      ConvertFormatMacro(*node, implicit_token_data_->entry_token,
-                         control_predicate, args, verbosity,
-                         *current_type_info_, *function_builder_));
+  return DefWithStatus(node,
+                       [&](const SourceInfo& loc) -> absl::StatusOr<BValue> {
+                         XLS_ASSIGN_OR_RETURN(
+                             BValue trace_result_token,
+                             ConvertFormatMacro(
+                                 *node, implicit_token_data_->entry_token,
+                                 control_predicate, args, verbosity,
+                                 *current_type_info_, *function_builder_, loc));
 
-  implicit_token_data_->control_tokens.push_back(trace_result_token);
-
-  // The result of the trace is the output token, so pass it along.
-  Def(node, [&](const SourceInfo& loc) { return trace_result_token; });
-  tokens_.push_back(trace_result_token);
+                         implicit_token_data_->control_tokens.push_back(
+                             trace_result_token);
+                         tokens_.push_back(trace_result_token);
+                         return trace_result_token;
+                       })
+      .status();
   return absl::OkStatus();
 }
 

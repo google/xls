@@ -1044,6 +1044,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
         .trace_channels(options.trace_channels)
         .trace_calls(options.trace_calls)
         .max_ticks(options.max_ticks)
+        .max_trace_verbosity(options.max_trace_verbosity)
         .format_preference(options.format_preference);
     if (std::holds_alternative<TestFunction*>(*member)) {
       XLS_ASSIGN_OR_RETURN(
@@ -1064,6 +1065,26 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
     // test invocation.
     if (result_proto != nullptr) {
       *result_proto->mutable_events() = test_events.AsProto();
+    }
+
+    // Display vtrace messages according to the value of the
+    // `max_trace_verbosity` flag for other evaluators than the DSLX
+    // interpreter, because we don't want to duplicate logs
+    if (options.evaluator != EvaluatorType::kDslxInterpreter) {
+      for (const auto& msg : test_events.AsProto().trace_msgs()) {
+        int64_t verbosity =
+            msg.has_statement() ? msg.statement().verbosity() : 0;
+        if (verbosity <= options.max_trace_verbosity) {
+          std::string message = msg.message();
+          if (msg.has_location()) {
+            message = absl::StrFormat(
+                "[%s:%d:%d] %s",
+                std::filesystem::path(msg.location().filename()).filename(),
+                msg.location().line(), msg.location().column(), msg.message());
+          }
+          std::cerr << message << '\n';
+        }
+      }
     }
 
     if (out.result.ok()) {

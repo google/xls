@@ -223,6 +223,25 @@ fn main() -> () {
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
+TEST_F(BytecodeInterpreterTest, VtraceFmtBitsValueDefaultFormat) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  vtrace_fmt!(u32:2, "{}", u32:2);
+  vtrace_fmt!(u32:6, "{}", u32:6);
+  vtrace_fmt!(u32:10, "{}", u32:10);
+  vtrace_fmt!(u32:16, "{}", u32:16);
+}
+)";
+  DslxInterpreterEvents events;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{},
+                BytecodeInterpreterOptions().max_trace_verbosity(8), nullptr,
+                &events));
+  EXPECT_THAT(events.GetTraceMessageStrings(), testing::ElementsAre("2", "6"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
 TEST_F(BytecodeInterpreterTest, TraceFmtBitsValueHexFormat) {
   constexpr std::string_view kProgram = R"(
 fn main() -> () {

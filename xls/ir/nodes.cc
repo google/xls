@@ -390,6 +390,11 @@ Trace::Trace(const SourceInfo& loc, Node* token, Node* condition,
   AddOperand(token);
   AddOperand(condition);
   AddOperands(args);
+
+  if (!loc.Empty()) {
+    filename_ =
+        function->package()->GetFilename(loc.locations.front().fileno());
+  }
 }
 
 bool Trace::IsDefinitelyEqualTo(const Node* other) const {
