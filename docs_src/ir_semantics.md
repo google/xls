@@ -947,7 +947,7 @@ Value     | Type
 `operand` | `bits[N]`
 `result`  | `bits[M]`
 
-The result width `M` must be equal to $$\\lceil \\log\_{2} N \\rceil$$.
+The result width `M` must be equal to $\lceil \log_2 N \rceil$.
 
 `encode` converts the one-hot operand value into a binary-encoded value of the
 "hot" bit of the input. If the `n`-th bit and only the `n`-th bit of the operand
