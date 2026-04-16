@@ -188,6 +188,22 @@ TEST(ChannelTest, StreamingChannelWithFifoConfigSerializesFifoConfigCorrectly) {
                     HasSubstr("register_pop_outputs=true")));
 }
 
+TEST(ChannelTest, StreamingChannelWithFifoWrapper) {
+  Package p("my_package");
+  StreamingChannel ch(
+      "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32), {},
+      ChannelConfig(FifoConfig(/*depth=*/123, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false,
+                               /*fifo_wrapper=*/"custom_fifo")),
+      FlowControl::kNone, ChannelStrictness::kProvenMutuallyExclusive);
+
+  EXPECT_EQ(ch.name(), "my_channel");
+  EXPECT_EQ(ch.GetFifoDepth(), 123);
+  ASSERT_TRUE(ch.channel_config().fifo_config().has_value());
+  EXPECT_EQ(ch.channel_config().fifo_config()->fifo_wrapper(), "custom_fifo");
+}
+
 TEST(ChannelTest, StreamingToStringParses) {
   Package p("my_package");
   std::vector<Value> initial_values = {

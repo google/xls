@@ -687,6 +687,7 @@ absl::StatusOr<ChannelConfig> Parser::ParseExprAttribute(Bindings& bindings,
     std::optional<bool> register_pop_outputs;
     std::optional<FlopKind> input_flop_kind;
     std::optional<FlopKind> output_flop_kind;
+    std::optional<std::string> fifo_wrapper;
     auto parse_kv_pair = [&]() -> absl::StatusOr<std::monostate> {
       XLS_ASSIGN_OR_RETURN(Token key_tok,
                            PopTokenOrError(TokenKind::kIdentifier));
@@ -778,6 +779,10 @@ absl::StatusOr<ChannelConfig> Parser::ParseExprAttribute(Bindings& bindings,
                               flop_kind.status().message(), value));
         }
         output_flop_kind.emplace(*flop_kind);
+      } else if (key == "fifo_wrapper") {
+        XLS_ASSIGN_OR_RETURN(Token value_tok,
+                             PopTokenOrError(TokenKind::kString));
+        fifo_wrapper.emplace(value_tok.GetStringValue());
       } else if (key == "strictness") {
         return ParseErrorStatus(key_tok.span(),
                                 "Channel strictness must be specified via "
@@ -797,13 +802,14 @@ absl::StatusOr<ChannelConfig> Parser::ParseExprAttribute(Bindings& bindings,
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     std::optional<FifoConfig> fifo_config;
     if (depth.has_value() || bypass.has_value() ||
-        register_push_outputs.has_value() || register_pop_outputs.has_value()) {
+        register_push_outputs.has_value() || register_pop_outputs.has_value() ||
+        fifo_wrapper.has_value()) {
       depth = depth.value_or(1);
       bypass = bypass.value_or(*depth == 0 ? true : false);
       register_push_outputs = register_push_outputs.value_or(false);
       register_pop_outputs = register_pop_outputs.value_or(false);
       fifo_config.emplace(*depth, *bypass, *register_push_outputs,
-                          *register_pop_outputs);
+                          *register_pop_outputs, fifo_wrapper);
     }
     ChannelConfig channel_config;
     if (fifo_config.has_value() || input_flop_kind.has_value() ||

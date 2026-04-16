@@ -1676,6 +1676,14 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
     return absl::OkStatus();
   };
 
+  std::optional<std::string> fifo_wrapper;
+  handlers["fifo_wrapper"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token wrapper_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    fifo_wrapper = wrapper_token.value();
+    return absl::OkStatus();
+  };
+
   XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers,
                                             /*mandatory_keywords=*/{"kind"}));
 
@@ -1752,7 +1760,8 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
         FifoConfig(/*depth=*/*depth,
                    /*bypass=*/*bypass,
                    /*register_push_outputs=*/*register_push_outputs,
-                   /*register_pop_outputs=*/*register_pop_outputs),
+                   /*register_pop_outputs=*/*register_pop_outputs,
+                   /*fifo_wrapper=*/fifo_wrapper),
         *data_type, channel);
   }
 

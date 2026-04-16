@@ -1147,8 +1147,13 @@ class BlockGenerator {
           return a.port_name < b.port_name;
         });
 
-        std::string_view wrapper_name =
-            have_data ? options_.fifo_module() : options_.nodata_fifo_module();
+        std::string wrapper_name;
+        if (fifo_instantiation->fifo_config().fifo_wrapper().has_value()) {
+          wrapper_name = *fifo_instantiation->fifo_config().fifo_wrapper();
+        } else {
+          wrapper_name = have_data ? options_.fifo_module()
+                                   : options_.nodata_fifo_module();
+        }
         if (wrapper_name.empty()) {
           return absl::InvalidArgumentError(absl::StrFormat(
               "No FIFO module specified, but %sFIFO instantiation required.",
