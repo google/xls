@@ -27,7 +27,6 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
-#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -204,6 +203,15 @@ absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
   return ref.has_value() ? std::make_optional(ref->def) : std::nullopt;
 }
 
+absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
+    const Function* f, const ImportData& import_data) {
+  if (!f->impl().has_value()) {
+    return std::nullopt;
+  }
+
+  return GetStructOrProcDef((*f->impl())->struct_ref(), import_data);
+}
+
 absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
   if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
@@ -222,6 +230,21 @@ bool IsImport(const ColonRef* colon_ref) {
     return IsImport(std::get<ColonRef*>(colon_ref->subject()));
   }
   return false;
+}
+
+absl::StatusOr<bool> IsProcDefNextFunction(const Function* f,
+                                           const ImportData& import_data) {
+  if (f->identifier() != "next") {
+    return false;
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
+                       GetStructOrProcDef(f, import_data));
+  if (!def.has_value()) {
+    return false;
+  }
+
+  return (*def)->kind() == AstNodeKind::kProcDef;
 }
 
 }  // namespace xls::dslx

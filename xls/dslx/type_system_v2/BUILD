@@ -693,7 +693,6 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
-        "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/base",
@@ -751,6 +750,7 @@ cc_library(
     srcs = ["validate_concrete_type.cc"],
     hdrs = ["validate_concrete_type.h"],
     deps = [
+        ":import_utils",
         ":inference_table",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",

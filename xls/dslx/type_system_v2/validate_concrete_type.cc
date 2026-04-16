@@ -46,6 +46,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
@@ -299,6 +300,12 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleFunction(const Function* node) override {
+    XLS_ASSIGN_OR_RETURN(bool is_proc_def_next,
+                         IsProcDefNextFunction(node, import_data_));
+    if (is_proc_def_next) {
+      return ValidateProcDefNextFunction(node);
+    }
+
     AstNode* parent = node->parent();
     if (parent == nullptr || parent->kind() != AstNodeKind::kFuzzTestFunction) {
       return DefaultHandler(node);
@@ -560,6 +567,35 @@ class TypeValidator : public AstNodeVisitorWithDefault {
             "either both-arrays or both-bits; got lhs: `%s`; rhs: `%s`",
             lhs->ToString(), rhs->ToString()),
         file_table_);
+  }
+
+  absl::Status ValidateProcDefNextFunction(const Function* f) {
+    XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> proc,
+                         GetStructOrProcDef(f, import_data_));
+    XLS_RET_CHECK(proc.has_value());
+
+    const FunctionType& type = type_->AsFunction();
+    if (!type.return_type().IsUnit()) {
+      return TypeInferenceErrorStatus(f->return_type()->span(), nullptr,
+                                      "The next() function of a `proc` with an "
+                                      "`impl` must not return anything.",
+                                      file_table_);
+    }
+
+    if (type.params().size() != 1 || !type.params()[0]->IsProc() ||
+        &type.params()[0]->AsProc().struct_def_base() != *proc) {
+      Span span = type.params().empty()
+                      ? f->name_def()->span()
+                      : Span(f->params().front()->span().start(),
+                             f->params().back()->span().limit());
+      return TypeInferenceErrorStatus(
+          span, nullptr,
+          "The next() function of a `proc` with an `impl` must have a single "
+          "parameter, which is the `proc` instance, typically named 'self'.",
+          file_table_);
+    }
+
+    return absl::OkStatus();
   }
 
   absl::Status ValidateSliceLhs(const Index* index) {

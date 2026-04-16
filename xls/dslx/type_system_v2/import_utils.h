@@ -48,6 +48,11 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
     const TypeAnnotation* annotation, const ImportData& import_data);
 
+// If `f` is in an impl, returns the struct or proc def that the impl belongs
+// to; otherwise returns `nullopt`.
+absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
+    const Function* f, const ImportData& import_data);
+
 // Finds and returns a public module member for the given `ColonRef`. Returns
 // an error if it doesn't exist or isn't public.
 absl::StatusOr<ModuleMember> GetPublicModuleMember(const Module& module,
@@ -61,6 +66,10 @@ absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
 // Gets the enum definition for the enum type referred to by `annotation`.
 absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
     const TypeAnnotation* annotation, const ImportData& import_data);
+
+// Returns whether `f` is a `next` function in an impl-style proc.
+absl::StatusOr<bool> IsProcDefNextFunction(const Function* f,
+                                           const ImportData& import_data);
 
 // Returns whether `colon_ref` is imported from a different module.
 bool IsImport(const ColonRef* colon_ref);

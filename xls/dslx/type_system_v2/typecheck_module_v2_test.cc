@@ -7812,6 +7812,69 @@ impl P {
           HasNodeWithType("next", absl::Substitute("($0) -> ()", kProcType)))));
 }
 
+TEST(TypecheckV2Test, ProcWithImplNextWithExtraParamFails) {
+  EXPECT_THAT(
+      R"(
+#![feature(explicit_state_access)]
+
+proc P {
+  state: u32,
+}
+
+impl P {
+    fn new(init_val: u32) -> Self {
+      P { state: init_val }
+    }
+
+    fn next(self, a: u32) {}
+}
+)",
+      TypecheckFails(HasSubstr("The next() function of a `proc` with an `impl` "
+                               "must have a single parameter")));
+}
+
+TEST(TypecheckV2Test, ProcWithImplNextWithNoParamsFails) {
+  EXPECT_THAT(
+      R"(
+#![feature(explicit_state_access)]
+
+proc P {
+  state: u32,
+}
+
+impl P {
+    fn new(init_val: u32) -> Self {
+      P { state: init_val }
+    }
+
+    fn next() {}
+}
+)",
+      TypecheckFails(HasSubstr("The next() function of a `proc` with an `impl` "
+                               "must have a single parameter")));
+}
+
+TEST(TypecheckV2Test, ProcWithImplNextWithReturnTypeFails) {
+  EXPECT_THAT(
+      R"(
+#![feature(explicit_state_access)]
+
+proc P {
+  state: u32,
+}
+
+impl P {
+    fn new(init_val: u32) -> Self {
+      P { state: init_val }
+    }
+
+    fn next() -> u32 { 0 }
+}
+)",
+      TypecheckFails(HasSubstr("The next() function of a `proc` with an `impl` "
+                               "must not return anything")));
+}
+
 TEST(TypecheckV2Test, SpawnProcWithImpl) {
   std::string_view kProgram = R"(
 #![feature(explicit_state_access)]
