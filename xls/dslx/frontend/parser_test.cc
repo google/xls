@@ -4380,6 +4380,22 @@ proc AProc {
 })");
 }
 
+TEST_F(ParserTest, ChannelAttributeFifoWrapper) {
+  RoundTrip(R"(#![feature(channel_attributes)]
+
+proc AProc {
+    a: chan<u32> out;
+    b: chan<u32> in;
+    config() {
+        let (a, b) =
+        #[channel(depth=1, bypass=false, register_push_outputs=false, register_pop_outputs=false, fifo_wrapper="custom_fifo")]
+        chan<u32>("foo");
+    }
+    init {}
+    next(_: ()) {}
+})");
+}
+
 TEST_F(ParserTest, CannotUseOldDepthSyntaxWithChannelAttributes) {
   constexpr std::string_view kProgram = (R"(#![feature(channel_attributes)]
 

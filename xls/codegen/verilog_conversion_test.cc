@@ -1992,6 +1992,18 @@ TEST_P(VerilogConversionTest, MultiProcWithInternalNoDataFifo) {
               absl_testing::IsOkAndHolds(output_values));
 }
 
+TEST_P(VerilogConversionTest, MultiProcWithCustomFifoWrapper) {
+  FifoConfig fifo_config(/*depth=*/1, /*bypass=*/false,
+                         /*register_push_outputs=*/false,
+                         /*register_pop_outputs=*/false,
+                         /*fifo_wrapper=*/"my_custom_fifo");
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
+                           MakeMultiProc(fifo_config,
+                                         /*data_width=*/32));
+
+  EXPECT_THAT(result.verilog_text, ::testing::HasSubstr("my_custom_fifo"));
+}
+
 TEST_P(VerilogConversionTest, MultiProcDirectConnect) {
   XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
                            MakeMultiProc(kDepth0Fifo.config,

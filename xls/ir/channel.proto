@@ -22,6 +22,7 @@ message FifoConfigProto {
   optional bool bypass = 3;
   optional bool register_push_outputs = 4;
   optional bool register_pop_outputs = 5;
+  optional string fifo_wrapper = 6;
 }
 
 // The kinds of flops a channels input/output may have.

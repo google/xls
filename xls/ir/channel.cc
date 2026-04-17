@@ -47,9 +47,13 @@ namespace xls {
   if (!proto.has_depth()) {
     return absl::InvalidArgumentError("FifoConfigProto.depth is required.");
   }
+  std::optional<std::string> fifo_wrapper;
+  if (proto.has_fifo_wrapper()) {
+    fifo_wrapper = proto.fifo_wrapper();
+  }
   return FifoConfig(proto.depth(), proto.bypass(),
-                    proto.register_push_outputs(),
-                    proto.register_pop_outputs());
+                    proto.register_push_outputs(), proto.register_pop_outputs(),
+                    fifo_wrapper);
 }
 FifoConfigProto FifoConfig::ToProto(int64_t width) const {
   FifoConfigProto proto;
@@ -58,6 +62,9 @@ FifoConfigProto FifoConfig::ToProto(int64_t width) const {
   proto.set_bypass(bypass_);
   proto.set_register_push_outputs(register_push_outputs_);
   proto.set_register_pop_outputs(register_pop_outputs_);
+  if (fifo_wrapper_.has_value()) {
+    proto.set_fifo_wrapper(*fifo_wrapper_);
+  }
   return proto;
 }
 
@@ -106,6 +113,10 @@ std::vector<std::pair<std::string, std::string>> FifoConfig::GetDslxKwargs()
       {"register_push_outputs", register_push_outputs_ ? "true" : "false"});
   kwargs.push_back(
       {"register_pop_outputs", register_pop_outputs_ ? "true" : "false"});
+  if (fifo_wrapper_.has_value()) {
+    kwargs.push_back(
+        {"fifo_wrapper", absl::StrCat("\"", *fifo_wrapper_, "\"")});
+  }
   return kwargs;
 }
 

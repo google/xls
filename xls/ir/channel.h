@@ -54,16 +54,19 @@ enum class ChannelKind : uint8_t {
 class FifoConfig {
  public:
   constexpr FifoConfig(int64_t depth, bool bypass, bool register_push_outputs,
-                       bool register_pop_outputs)
+                       bool register_pop_outputs,
+                       std::optional<std::string> fifo_wrapper = std::nullopt)
       : depth_(depth),
         bypass_(bypass),
         register_push_outputs_(register_push_outputs),
-        register_pop_outputs_(register_pop_outputs) {}
+        register_pop_outputs_(register_pop_outputs),
+        fifo_wrapper_(std::move(fifo_wrapper)) {}
 
   int64_t depth() const { return depth_; }
   bool bypass() const { return bypass_; }
   bool register_push_outputs() const { return register_push_outputs_; }
   bool register_pop_outputs() const { return register_pop_outputs_; }
+  std::optional<std::string> fifo_wrapper() const { return fifo_wrapper_; }
   absl::Status Validate() const;
 
   bool operator==(const FifoConfig& other) const = default;
@@ -84,7 +87,7 @@ class FifoConfig {
   friend H AbslHashValue(H h, const FifoConfig& config) {
     return H::combine(std::move(h), config.depth_, config.bypass_,
                       config.register_push_outputs_,
-                      config.register_pop_outputs_);
+                      config.register_pop_outputs_, config.fifo_wrapper_);
   }
 
  private:
@@ -92,6 +95,7 @@ class FifoConfig {
   bool bypass_;
   bool register_push_outputs_;
   bool register_pop_outputs_;
+  std::optional<std::string> fifo_wrapper_;
 };
 
 enum class FlopKind : int8_t {

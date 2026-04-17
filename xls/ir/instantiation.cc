@@ -365,18 +365,29 @@ absl::StatusOr<InstantiationPort> FifoInstantiation::GetOutputPort(
 }
 
 std::string FifoInstantiation::ToString() const {
-  std::string channel_str;
-  if (channel_name_.has_value()) {
-    channel_str = absl::StrFormat("channel=%s, ", *channel_name_);
-  }
+  std::vector<std::string> args;
+  args.push_back(absl::StrFormat("data_type=%s", data_type_->ToString()));
+  args.push_back(absl::StrFormat("depth=%d", fifo_config_.depth()));
+  args.push_back(
+      absl::StrFormat("bypass=%s", fifo_config_.bypass() ? "true" : "false"));
+  args.push_back(
+      absl::StrFormat("register_push_outputs=%s",
+                      fifo_config_.register_push_outputs() ? "true" : "false"));
+  args.push_back(
+      absl::StrFormat("register_pop_outputs=%s",
+                      fifo_config_.register_pop_outputs() ? "true" : "false"));
 
-  return absl::StrFormat(
-      "instantiation %s(data_type=%s, depth=%d, bypass=%s, "
-      "register_push_outputs=%s, register_pop_outputs=%s, %skind=fifo)",
-      name(), data_type_->ToString(), fifo_config_.depth(),
-      fifo_config_.bypass() ? "true" : "false",
-      fifo_config_.register_push_outputs() ? "true" : "false",
-      fifo_config_.register_pop_outputs() ? "true" : "false", channel_str);
+  if (fifo_config_.fifo_wrapper().has_value()) {
+    args.push_back(
+        absl::StrFormat("fifo_wrapper=%s", *fifo_config_.fifo_wrapper()));
+  }
+  if (channel_name_.has_value()) {
+    args.push_back(absl::StrFormat("channel=%s", *channel_name_));
+  }
+  args.push_back("kind=fifo");
+
+  return absl::StrFormat("instantiation %s(%s)", name(),
+                         absl::StrJoin(args, ", "));
 }
 
 DelayLineInstantiation::DelayLineInstantiation(
