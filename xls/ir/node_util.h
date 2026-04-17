@@ -23,6 +23,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -31,6 +33,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/visitor.h"
@@ -790,6 +793,144 @@ class ZeroExtLike {
   Node* arg_;
   int64_t op_num_;
 };
+
+namespace format_internal {
+// A helper for providing a default name for a node. If the node has a name,
+// that is returned, otherwise the default name is returned.
+struct NodeNameOr {
+  Node* node;
+  std::string_view default_name;
+};
+inline std::optional<std::string> NodeToName(Node const* const node) {
+  if (node->HasAssignedName()) {
+    return node->GetName();
+  }
+  if (node->Is<Literal>()) {
+    Literal const* lit = node->As<Literal>();
+    if (lit->value().IsBits() && lit->value().bits().FitsInUint64()) {
+      return absl::StrCat("lit_", lit->value().bits().ToUint64().value());
+    }
+  }
+  return std::nullopt;
+}
+template <typename Sink>
+void AbslStringify(Sink& s, const NodeNameOr& node) {
+  absl::Format(&s, "%s",
+               NodeToName(node.node).value_or(std::string(node.default_name)));
+}
+template <typename T>
+struct TransformNodeArgs {
+  using type = T;
+};
+template <typename T>
+  requires(std::is_convertible_v<std::remove_const_t<T>*, Node*>)
+struct TransformNodeArgs<T*> {
+  using type = std::string;
+};
+inline std::optional<std::tuple<>> TransformOpNameArgs() {
+  return std::tuple<>{};
+}
+template <typename T>
+std::optional<typename TransformNodeArgs<T>::type> TransformOneArg(T t) {
+  if constexpr (std::is_convertible_v<T, Node const* const>) {
+    return NodeToName(static_cast<Node const* const>(t));
+  } else {
+    return std::forward<T>(t);
+  }
+}
+template <typename First, typename... T>
+std::optional<std::tuple<typename TransformNodeArgs<First>::type,
+                         typename TransformNodeArgs<T>::type...>>
+TransformOpNameArgs(First first, T... args) {
+  auto transformed = TransformOneArg(std::forward<First>(first));
+  if (!transformed) {
+    return std::nullopt;
+  }
+  auto rest = TransformOpNameArgs(std::forward<T>(args)...);
+  if (!rest) {
+    return std::nullopt;
+  }
+  return std::tuple_cat(std::make_tuple(*std::move(transformed)),
+                        *std::move(rest));
+}
+template <typename First>
+std::optional<std::tuple<typename TransformNodeArgs<First>::type>>
+TransformOpNameArgs(First first) {
+  auto transformed = TransformOneArg(std::forward<First>(first));
+  if (!transformed) {
+    return std::nullopt;
+  }
+  return std::make_tuple(*std::move(transformed));
+}
+
+template <typename... T>
+std::optional<std::string> OpNameFormatExp(
+    const absl::FormatSpec<typename TransformNodeArgs<T>::type...>& format,
+    T... rest) {
+  auto transformed = TransformOpNameArgs(std::forward<T>(rest)...);
+  if (!transformed) {
+    return std::nullopt;
+  }
+  return std::apply(
+      [&](const auto&... args) -> std::string {
+        return absl::StrFormat(format, args...);
+      },
+      *transformed);
+}
+
+inline std::optional<std::string> OpNameConcatExp() { return ""; }
+template <typename... T>
+std::optional<std::string> OpNameConcatExp(T... rest) {
+  auto transformed = TransformOpNameArgs(std::forward<T>(rest)...);
+  if (!transformed) {
+    return std::nullopt;
+  }
+  return std::apply(
+      [](const auto&... args) -> std::string { return absl::StrCat(args...); },
+      *transformed);
+}
+}  // namespace format_internal
+
+// A helper for providing a default name for a node. If the node has a name,
+// that is returned, otherwise the default name is returned.
+using NodeNameOr = format_internal::NodeNameOr;
+
+// A version of absl::StrCat specialized for use in creating node names.
+//
+// This version of `absl::StrCat` has special support for nodes. It
+// automatically extracts the name of nodes if they have been assigned using
+// `Node::SetName` or inferrs a name for `Literal` nodes. If a name cannot be
+// extracted for *any* Node* argument, returns an empty string, ignoring all
+// other parameters. This is useful since an empty string is used to declare an
+// anonymous node.
+//
+// This can be useful for creating names for nodes derived from other ones
+// during optimization.
+template <typename... T>
+std::string NodeNameConcat(T... rest) {
+  return format_internal::OpNameConcatExp(std::forward<T>(rest)...)
+      .value_or("");
+}
+
+// A version of absl::StrFormat specialized for use in creating node names.
+//
+// This version of `absl::StrFormat` has special support for nodes. It
+// automatically extracts the name of nodes if they have been assigned using
+// `Node::SetName` or inferrs a name for `Literal` nodes. If a name cannot be
+// extracted for *any* Node* argument, returns an empty string, ignoring all
+// other parameters. This is useful since an empty string is used to declare an
+// anonymous node.
+//
+// This can be useful for creating names for nodes derived from other ones
+// during optimization.
+template <typename... T>
+std::string NodeNameFormat(
+    absl::FormatSpec<typename format_internal::TransformNodeArgs<T>::type...>
+        format,
+    T... rest) {
+  return format_internal::OpNameFormatExp(format, std::forward<T>(rest)...)
+      .value_or("");
+}
 
 }  // namespace xls
 

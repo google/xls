@@ -1270,5 +1270,47 @@ TEST_F(NodeUtilTest, GenericSelectOneHotSelect) {
   RecordProperty("ir", f->DumpIr());
 }
 
+TEST_F(NodeUtilTest, NodeNameConcat) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue c = fb.Literal(UBits(42, 32));
+  BValue sum = fb.Add(a, a, SourceInfo(), "sum");
+
+  EXPECT_EQ(NodeNameConcat("foo", "bar"), "foobar");
+  EXPECT_EQ(NodeNameConcat("prefix_", sum.node()), "prefix_sum");
+  EXPECT_EQ(NodeNameConcat(sum.node(), "_suffix"), "sum_suffix");
+  EXPECT_EQ(NodeNameConcat("something_", c.node()), "something_lit_42");
+
+  // Node without assigned name
+  BValue anon = fb.Not(a);
+  EXPECT_EQ(NodeNameConcat("anon_", anon.node()), "");
+}
+
+TEST_F(NodeUtilTest, NodeNameFormat) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(32));
+  BValue sum = fb.Add(a, a, SourceInfo(), "the_sum");
+  BValue c = fb.Literal(UBits(42, 32));
+  BValue anon = fb.Not(a);
+
+  EXPECT_EQ(NodeNameFormat("name: %s", sum.node()), "name: the_sum");
+  EXPECT_EQ(NodeNameFormat("%s_%d_%v", sum.node(), 32, Value(UBits(123, 32))),
+            "the_sum_32_bits[32]:123");
+  EXPECT_EQ(NodeNameFormat("nodes: %s, %s", sum.node(), "extra"),
+            "nodes: the_sum, extra");
+
+  // NodeNameOr
+  EXPECT_EQ(NodeNameFormat("maybe: %v", NodeNameOr{sum.node(), "default"}),
+            "maybe: the_sum");
+  EXPECT_EQ(NodeNameFormat("maybe: %v", NodeNameOr{anon.node(), "default"}),
+            "maybe: default");
+
+  // If node has no name and no NodeNameOr is used, NodeNameFormat returns ""
+  EXPECT_EQ(NodeNameFormat("anon: %s", anon.node()), "");
+  EXPECT_EQ(NodeNameFormat("lit: %s", c.node()), "lit: lit_42");
+}
+
 }  // namespace
 }  // namespace xls
