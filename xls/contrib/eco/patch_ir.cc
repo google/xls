@@ -1,0 +1,911 @@
+// Copyright 2020 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "xls/contrib/eco/patch_ir.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/algorithm/container.h"
+#include "absl/base/attributes.h"
+#include "absl/flags/flag.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/contrib/eco/ir_patch.pb.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
+#include "xls/ir/xls_type.pb.h"
+#include "xls/ir/xls_value.pb.h"
+#include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
+#include "xls/tools/codegen_flags.h"
+#include "xls/tools/scheduling_options_flags.h"
+
+namespace xls {
+
+namespace {
+
+const absl::flat_hash_map<std::string, Op>& PatchToIrOpMap() {
+  static const auto* kMap = new absl::flat_hash_map<std::string, Op>{
+      {"literal", Op::kLiteral},
+      {"param", Op::kParam},
+      {"sub", Op::kSub},
+      {"add", Op::kAdd},
+      {"and_reduce", Op::kAndReduce},
+      {"one_hot", Op::kOneHot},
+      {"shrl", Op::kShrl},
+      {"shll", Op::kShll},
+      {"neg", Op::kNeg},
+      {"eq", Op::kEq},
+      {"ne", Op::kNe},
+      {"ugt", Op::kUGt},
+      {"ult", Op::kULt},
+      {"ule", Op::kULe},
+      {"sle", Op::kSLe},
+      {"umul", Op::kUMul},
+      {"smul", Op::kSMul},
+      {"udiv", Op::kUDiv},
+      {"sdiv", Op::kSDiv},
+      {"concat", Op::kConcat},
+      {"bit_slice", Op::kBitSlice},
+      {"one_hot_sel", Op::kOneHotSel},
+      {"or", Op::kOr},
+      {"and", Op::kAnd},
+      {"xor", Op::kXor},
+      {"nand", Op::kNand},
+      {"nor", Op::kNor},
+      {"not", Op::kNot},
+      {"sel", Op::kSel},
+      {"priority_sel", Op::kPrioritySel},
+      {"or_reduce", Op::kOrReduce},
+      {"tuple", Op::kTuple},
+      {"tuple_index", Op::kTupleIndex},
+      {"array_index", Op::kArrayIndex},
+      {"array_update", Op::kArrayUpdate},
+      {"sign_ext", Op::kSignExt},
+      {"state_read", Op::kStateRead},
+      {"receive", Op::kReceive},
+      {"send", Op::kSend},
+      {"next_value", Op::kNext},
+  };
+  return *kMap;
+}
+
+const absl::flat_hash_map<std::pair<bool, xls_eco::Operation>,
+                          PatchIr::EditPathPriority>&
+EditPathPriorityMap() {
+  static const auto* kMap =
+      new absl::flat_hash_map<std::pair<bool, xls_eco::Operation>,
+                              PatchIr::EditPathPriority>{
+          {{true, xls_eco::UPDATE}, PatchIr::EditPathPriority::kNodeUpdate},
+          {{true, xls_eco::INSERT}, PatchIr::EditPathPriority::kNodeInsert},
+          {{true, xls_eco::DELETE}, PatchIr::EditPathPriority::kNodeDelete},
+          {{false, xls_eco::UPDATE}, PatchIr::EditPathPriority::kEdgeUpdate},
+          {{false, xls_eco::INSERT}, PatchIr::EditPathPriority::kEdgeInsert},
+          {{false, xls_eco::DELETE}, PatchIr::EditPathPriority::kEdgeDelete},
+      };
+  return *kMap;
+}
+
+}  // namespace
+
+PatchIr::PatchIr(FunctionBase* function_base, xls_eco::IrPatchProto& patch)
+    : patch_(patch), function_base_(function_base), schedule_(std::nullopt) {
+  std::copy(patch_.edit_paths().begin(), patch_.edit_paths().end(),
+            std::back_inserter(sorted_edit_paths_));
+  absl::c_sort(sorted_edit_paths_,
+               [this](const xls_eco::EditPathProto& lhs,
+                      const xls_eco::EditPathProto& rhs) {
+                 return this->CompareEditPaths(lhs, rhs);
+               });
+  package_ = function_base_->package();
+}
+absl::StatusOr<std::vector<Node*>> PatchIr::MakeDummyNodes(
+    absl::Span<Type*> types) {
+  std::vector<Node*> dummy_nodes;
+  for (Type* type : types) {
+    XLS_ASSIGN_OR_RETURN(Node * dummy_node, MakeDummyNode(type));
+    dummy_nodes.push_back(dummy_node);
+  }
+  return dummy_nodes;
+}
+absl::StatusOr<Node*> PatchIr::MakeDummyNode(Type* type) {
+  XLS_ASSIGN_OR_RETURN(Node * dummy_node,
+                       function_base_->MakeNodeWithName<Literal>(
+                           SourceInfo(), ZeroOfType(type), "Dummy"));
+  return dummy_node;
+}
+absl::Status PatchIr::UpdateNodeMaps(Node* n, absl::Span<Node*> dummy_operands,
+                                     std::string_view node_name) {
+  auto& dummy_nodes = dummy_nodes_map_[n];
+  dummy_nodes.insert(dummy_nodes.begin(), dummy_operands.begin(),
+                     dummy_operands.end());
+  patch_to_ir_node_map_[node_name] = n->GetName();
+  if (OpIsCommutative(n->op())) {
+    commutative_free_slots_[n] = static_cast<int64_t>(dummy_nodes.size());
+  }
+  return absl::OkStatus();
+}
+absl::Status PatchIr::CleanupDummyNodes(Node* node) {
+  auto& dummy_nodes = dummy_nodes_map_[node];
+  for (auto it = dummy_nodes.begin(); it != dummy_nodes.end();) {
+    Node* dummy_node = *it;
+    XLS_RETURN_IF_ERROR(function_base_->RemoveNode(dummy_node));
+    it = dummy_nodes.erase(it);
+  }
+  if (commutative_free_slots_.contains(node)) {
+    commutative_free_slots_.erase(node);
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<int64_t> PatchIr::GetProtoBitCount(const TypeProto& type) {
+  XLS_ASSIGN_OR_RETURN(Type * t, package_->GetTypeFromProto(type));
+  XLS_ASSIGN_OR_RETURN(BitsType * b, t->AsBits());
+  return b->bit_count();
+}
+
+absl::StatusOr<Node*> PatchIr::ResolveNodeByPatchName(
+    std::string_view patch_name) {
+  auto it = patch_to_ir_node_map_.find(patch_name);
+  if (it != patch_to_ir_node_map_.end()) {
+    return function_base_->GetNode(it->second);
+  }
+  XLS_ASSIGN_OR_RETURN(Node * n, function_base_->GetNode(patch_name));
+  return n;
+}
+
+absl::Status PatchIr::PatchContainsNode(std::string_view node_name) {
+  if (patch_to_ir_node_map_.find(node_name) != patch_to_ir_node_map_.end()) {
+    return absl::OkStatus();
+  }
+  return absl::NotFoundError("Patch does not contain the node.");
+}
+
+absl::Status PatchIr::ApplyPatch() {
+  for (const xls_eco::EditPathProto& edit_path : sorted_edit_paths_) {
+    XLS_RETURN_IF_ERROR(ApplyPath(edit_path));
+  }
+  if (function_base_->IsFunction() && dummy_return_node_ != nullptr) {
+    XLS_RETURN_IF_ERROR(RestoreReturnNode());
+  }
+  XLS_RETURN_IF_ERROR(ValidatePatch());
+  return absl::OkStatus();
+}
+
+absl::Status PatchIr::ApplyPath(const xls_eco::EditPathProto& edit_path) {
+  switch (edit_path.operation()) {
+    case xls_eco::Operation::DELETE:
+      XLS_RETURN_IF_ERROR(edit_path.has_node_edit_path()
+                              ? ApplyDeletePath(edit_path.node_edit_path())
+                              : ApplyDeletePath(edit_path.edge_edit_path()));
+      break;
+    case xls_eco::Operation::INSERT:
+      XLS_RETURN_IF_ERROR(edit_path.has_node_edit_path()
+                              ? ApplyInsertPath(edit_path.node_edit_path())
+                              : ApplyInsertPath(edit_path.edge_edit_path()));
+      break;
+    case xls_eco::Operation::UPDATE:
+      XLS_RETURN_IF_ERROR(edit_path.has_node_edit_path()
+                              ? ApplyUpdatePath(edit_path.node_edit_path())
+                              : ApplyUpdatePath(edit_path.edge_edit_path()));
+      break;
+    default:
+      return absl::InvalidArgumentError("Invalid operation");
+  }
+  return absl::OkStatus();
+}
+absl::Status PatchIr::ApplyDeletePath(
+    const xls_eco::NodeEditPathProto& node_delete) {
+  XLS_ASSIGN_OR_RETURN(Node * n,
+                       function_base_->GetNode(node_delete.node().name()));
+  if (function_base_->IsFunction() && function_base_->HasImplicitUse(n)) {
+    XLS_RETURN_IF_ERROR(IsolateReturnNode());
+  }
+  // Clear commutative bookkeeping so slots/index remaps do not linger.
+  commutative_free_slots_.erase(n);
+  for (auto it = commutative_edge_index_map_.begin();
+       it != commutative_edge_index_map_.end();) {
+    if (it->first.first == n) {
+      commutative_edge_index_map_.erase(it++);
+    } else {
+      ++it;
+    }
+  }
+  if (n->Is<StateRead>()) {
+    XLS_ASSIGN_OR_RETURN(Proc * proc_, package_->GetTopAsProc());
+    XLS_ASSIGN_OR_RETURN(
+        StateElement * se,
+        proc_->GetStateElementByName(
+            node_delete.node().unique_args(1).state_element()));
+    XLS_ASSIGN_OR_RETURN(int64_t index, proc_->GetStateElementIndex(se));
+    XLS_RETURN_IF_ERROR(proc_->RemoveStateElement(index));
+  } else {
+    // TODO(eco): Remove this loop once ir2nx.py / ir2gxl.py are deprecated in
+    // favour of the C++ GXL toolchain.  When that happens, the C++ parser will
+    // export assert/trace nodes into the GXL graph so the GED will generate
+    // proper edge-deletions for them, making this clean-up unnecessary.
+    //
+    // Background: ir2nx.py's _parse_dbg_node silently skips 'assert' and
+    // 'trace' nodes (software-only, no hardware representation), so the GED
+    // never sees edges to/from those nodes and never generates edge-deletions
+    // for them.  We must therefore disconnect any remaining debug-node users
+    // ourselves before calling RemoveNode.
+    for (Node* user : n->users()) {
+      if (user->op() != Op::kAssert && user->op() != Op::kTrace) {
+        return absl::InternalError(absl::StrFormat(
+            "Unexpected non-debug remaining user '%s' (op=%s) "
+            "of node '%s' to be deleted",
+            user->GetName(), OpToString(user->op()), n->GetName()));
+      }
+    }
+    while (!n->users().empty()) {
+      Node* user = *n->users().begin();
+      for (int64_t i = 0; i < user->operand_count(); ++i) {
+        if (user->operand(i) == n) {
+          XLS_ASSIGN_OR_RETURN(Node * dummy, MakeDummyNode(n->GetType()));
+          dummy_nodes_map_[user].push_back(dummy);
+          XLS_RETURN_IF_ERROR(user->ReplaceOperandNumber(i, dummy, false));
+        }
+      }
+    }
+    XLS_RETURN_IF_ERROR(function_base_->RemoveNode(n));
+    XLS_RETURN_IF_ERROR(CleanupDummyNodes(n));
+  }
+  return absl::OkStatus();
+}
+absl::Status PatchIr::ApplyDeletePath(
+    const xls_eco::EdgeEditPathProto& edge_delete) {
+  XLS_ASSIGN_OR_RETURN(Node * from_node,
+                       function_base_->GetNode(edge_delete.edge().from_node()));
+  XLS_ASSIGN_OR_RETURN(Node * to_node,
+                       function_base_->GetNode(edge_delete.edge().to_node()));
+  XLS_ASSIGN_OR_RETURN(Node * dummy_node, MakeDummyNode(from_node->GetType()));
+  dummy_nodes_map_[to_node].push_back(dummy_node);
+  if (OpIsCommutative(to_node->op())) {
+    commutative_free_slots_[to_node]++;
+  }
+  XLS_RETURN_IF_ERROR(to_node->ReplaceOperandNumber(edge_delete.edge().index(),
+                                                    dummy_node, false));
+  return absl::OkStatus();
+}
+absl::Status PatchIr::ApplyInsertPath(
+    const xls_eco::NodeEditPathProto& node_insert) {
+  const xls_eco::NodeProto& patch_node = node_insert.node();
+  const auto& op_map = PatchToIrOpMap();
+  if (op_map.find(patch_node.op()) == op_map.end()) {
+    std::cerr << "Error! Unsupported operation: " << patch_node.op() << '\n';
+    return absl::InvalidArgumentError("Unsupported operation");
+  }
+  const Op op = op_map.at(patch_node.op());
+  std::vector<Type*> operand_types = {};
+  if (patch_node.operand_data_types_size() > 0) {
+    std::transform(patch_node.operand_data_types().begin(),
+                   patch_node.operand_data_types().end(),
+                   std::back_inserter(operand_types),
+                   [&](const TypeProto& type) {
+                     return package_->GetTypeFromProto(type).value();
+                   });
+  }
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> dummy_operands,
+                       MakeDummyNodes(absl::MakeSpan(operand_types)));
+  Node* n = nullptr;
+  switch (op) {
+    case (Op::kLiteral): {
+      XLS_ASSIGN_OR_RETURN(Value v,
+                           Value::FromProto(patch_node.unique_args(0).value()));
+      XLS_ASSIGN_OR_RETURN(n,
+                           function_base_->MakeNode<Literal>(SourceInfo(), v));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kSignExt): {
+      XLS_ASSIGN_OR_RETURN(n,
+                           function_base_->MakeNode<ExtendOp>(
+                               SourceInfo(), dummy_operands[0],
+                               patch_node.unique_args(0).new_bit_count(), op));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kBitSlice): {
+      XLS_ASSIGN_OR_RETURN(int64_t width,
+                           GetProtoBitCount(patch_node.data_type()));
+      XLS_ASSIGN_OR_RETURN(n, function_base_->MakeNode<BitSlice>(
+                                  SourceInfo(), dummy_operands[0],
+                                  patch_node.unique_args(0).start(), width));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kTuple): {
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<Tuple>(SourceInfo(),
+                                             absl::MakeSpan(dummy_operands)));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kTupleIndex): {
+      XLS_ASSIGN_OR_RETURN(n, function_base_->MakeNode<TupleIndex>(
+                                  SourceInfo(), dummy_operands[0],
+                                  patch_node.unique_args(0).index()));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kArrayIndex): {
+      XLS_ASSIGN_OR_RETURN(
+          n, patch_node.unique_args_size() > 0 &&
+                     patch_node.unique_args(0).has_assumed_in_bounds()
+                 ? function_base_->MakeNode<ArrayIndex>(
+                       SourceInfo(), dummy_operands[0],
+                       absl::MakeConstSpan(dummy_operands).subspan(1),
+                       patch_node.unique_args(0).assumed_in_bounds())
+                 : function_base_->MakeNode<ArrayIndex>(
+                       SourceInfo(), dummy_operands[0],
+                       absl::MakeConstSpan(dummy_operands).subspan(1)));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+
+    case (Op::kArrayUpdate): {
+      bool assumed_in_bounds = false;
+      if (patch_node.unique_args_size() > 0 &&
+          patch_node.unique_args(0).has_assumed_in_bounds()) {
+        assumed_in_bounds = patch_node.unique_args(0).assumed_in_bounds();
+      }
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<ArrayUpdate>(
+                 SourceInfo(), dummy_operands[0], dummy_operands[1],
+                 absl::MakeConstSpan(dummy_operands).subspan(2),
+                 assumed_in_bounds));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+
+    case (Op::kSMul):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kUMul): {
+      XLS_ASSIGN_OR_RETURN(int64_t width,
+                           GetProtoBitCount(patch_node.data_type()));
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<ArithOp>(SourceInfo(), dummy_operands[0],
+                                               dummy_operands[1], width, op));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kSLe):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kSGe):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kSLt):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kSGt):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kNe):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kUGt):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kULt):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kEq): {
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<CompareOp>(
+                 SourceInfo(), dummy_operands[0], dummy_operands[1], op));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kAdd):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kSub):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kUDiv):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kSDiv):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kULe):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kShrl):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kShll): {
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<BinOp>(SourceInfo(), dummy_operands[0],
+                                             dummy_operands[1], op));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kConcat): {
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<Concat>(SourceInfo(),
+                                              absl::MakeSpan(dummy_operands)));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kOneHot): {
+      LsbOrMsb priority = patch_node.unique_args(0).lsb_prio() == true
+                              ? LsbOrMsb::kLsb
+                              : LsbOrMsb::kMsb;
+      XLS_ASSIGN_OR_RETURN(n, function_base_->MakeNode<OneHot>(
+                                  SourceInfo(), dummy_operands[0], priority));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kOrReduce): {
+      XLS_ASSIGN_OR_RETURN(n, function_base_->MakeNode<BitwiseReductionOp>(
+                                  SourceInfo(), dummy_operands[0], op));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kAndReduce): {
+      XLS_ASSIGN_OR_RETURN(n, function_base_->MakeNode<BitwiseReductionOp>(
+                                  SourceInfo(), dummy_operands[0], op));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kNeg):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kNot): {
+      XLS_ASSIGN_OR_RETURN(n, function_base_->MakeNode<UnOp>(
+                                  SourceInfo(), dummy_operands[0], op));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kOr):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kNor):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kNand):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kXor):
+      ABSL_FALLTHROUGH_INTENDED;
+    case (Op::kAnd): {
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<NaryOp>(
+                 SourceInfo(), absl::MakeSpan(dummy_operands), op));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kStateRead): {
+      absl::Span<Node*> all_dummy_operands = absl::MakeSpan(dummy_operands);
+      std::optional<Node*> predicate;
+      if (patch_node.operand_data_types_size() > 2) {
+        predicate = dummy_operands.back();
+        dummy_operands.pop_back();
+      }
+      XLS_ASSIGN_OR_RETURN(Proc * proc_, package_->GetTopAsProc());
+      ;
+      XLS_ASSIGN_OR_RETURN(Value v,
+                           Value::FromProto(patch_node.unique_args(2).init()));
+      XLS_ASSIGN_OR_RETURN(n, proc_->InsertStateElement(
+                                  patch_node.unique_args(0).index(),
+                                  patch_node.unique_args(1).state_element(), v,
+                                  predicate, std::nullopt));
+      proc_->StateElements()[patch_node.unique_args(0).index()]->SetName(
+          patch_node.unique_args(1).state_element());
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
+      break;
+    }
+    case (Op::kPrioritySel): {
+      absl::Span<Node*> all_dummy_operands = absl::MakeSpan(dummy_operands);
+      Node* default_value = dummy_operands.back();
+      dummy_operands.pop_back();
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<PrioritySelect>(
+                 SourceInfo(), dummy_operands[0],
+                 absl::MakeSpan(dummy_operands).subspan(1), default_value));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
+      break;
+    }
+    case (Op::kSel): {
+      std::optional<Node*> default_value;
+      absl::Span<Node*> all_dummy_operands = absl::MakeSpan(dummy_operands);
+      if (patch_node.unique_args(0).has_default_value()) {
+        default_value = dummy_operands.back();
+        dummy_operands.pop_back();
+      }
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<Select>(
+                 SourceInfo(), dummy_operands[0],
+                 absl::MakeSpan(dummy_operands).subspan(1), default_value));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
+      break;
+    }
+    case (Op::kOneHotSel): {
+      std::vector<Node*> cases;
+      for (auto it = dummy_operands.begin() + 1; it != dummy_operands.end();
+           ++it) {
+        cases.push_back(*it);
+      }
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<OneHotSelect>(
+                 SourceInfo(), dummy_operands[0], absl::MakeSpan(cases)));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kParam): {
+      XLS_ASSIGN_OR_RETURN(int64_t bit_count,
+                           GetProtoBitCount(patch_node.data_type()));
+      XLS_ASSIGN_OR_RETURN(
+          n,
+          function_base_->MakeNodeWithName<Param>(
+              SourceInfo(), function_base_->package()->GetBitsType(bit_count),
+              patch_node.name()));
+      patch_to_ir_node_map_[patch_node.name()] = n->GetName();
+      break;
+    }
+    case (Op::kSend): {
+      absl::Span<Node*> all_dummy_operands = absl::MakeSpan(dummy_operands);
+      std::optional<Node*> predicate;
+      if (patch_node.operand_data_types_size() > 2) {
+        predicate = dummy_operands.back();
+        dummy_operands.pop_back();
+      }
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<Send>(
+                 SourceInfo(), dummy_operands[0], dummy_operands[1], predicate,
+                 patch_node.unique_args(0).channel()));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
+      break;
+    }
+    case (Op::kReceive): {
+      absl::Span<Node*> all_dummy_operands = absl::MakeSpan(dummy_operands);
+      std::optional<Node*> predicate;
+      if (patch_node.operand_data_types_size() > 1) {
+        predicate = dummy_operands.back();
+        dummy_operands.pop_back();
+      }
+      // Get the payload type from the Receive node's tuple return type
+      // Receive returns a tuple (token, payload), so we need element 1
+      XLS_ASSIGN_OR_RETURN(Type * node_type,
+                           package_->GetTypeFromProto(patch_node.data_type()));
+      TupleType* tuple_type = node_type->AsTupleOrDie();
+      Type* payload_type = tuple_type->element_type(1);
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<Receive>(
+                 SourceInfo(), dummy_operands[0], predicate,
+                 patch_node.unique_args(0).channel(),
+                 patch_node.unique_args(1).blocking(), payload_type));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
+      break;
+    }
+    case (Op::kNext): {
+      XLS_ASSIGN_OR_RETURN(Proc * proc_, package_->GetTopAsProc());
+      std::string dummy_name = dummy_operands[0]->GetName();
+      Type* t = dummy_operands[0]->GetType();
+      StateElement* se = nullptr;
+      XLS_RETURN_IF_ERROR(function_base_->RemoveNode(dummy_operands[0]));
+      for (auto* state_element : proc_->StateElements()) {
+        if (state_element->type() == t) {
+          se = state_element;
+          break;
+        }
+      }
+      XLS_ASSIGN_OR_RETURN(dummy_operands[0],
+                           function_base_->MakeNodeWithName<StateRead>(
+                               SourceInfo(), se, std::nullopt,
+                               /*label=*/std::nullopt, dummy_name));
+      absl::Span<Node*> all_dummy_operands = absl::MakeSpan(dummy_operands);
+      std::optional<Node*> predicate;
+      if (patch_node.operand_data_types_size() > 2) {
+        predicate = dummy_operands.back();
+      }
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<Next>(SourceInfo(), dummy_operands[0],
+                                            dummy_operands[1], predicate,
+                                            /*label=*/std::nullopt));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
+      break;
+    }
+    default:
+      return absl::InvalidArgumentError("Invalid operation");
+  }
+  inserted_node_names_.insert(n->GetName());
+  return absl::OkStatus();
+}
+absl::Status PatchIr::ApplyInsertPath(
+    const xls_eco::EdgeEditPathProto& edge_insert) {
+  const xls_eco::EdgeProto& patch_edge = edge_insert.edge();
+  XLS_ASSIGN_OR_RETURN(Node * from_node,
+                       PatchContainsNode(patch_edge.from_node()).ok()
+                           ? function_base_->GetNode(
+                                 patch_to_ir_node_map_[patch_edge.from_node()])
+                           : function_base_->GetNode(patch_edge.from_node()));
+  XLS_ASSIGN_OR_RETURN(
+      Node * to_node,
+      PatchContainsNode(patch_edge.to_node()).ok()
+          ? function_base_->GetNode(patch_to_ir_node_map_[patch_edge.to_node()])
+          : function_base_->GetNode(patch_edge.to_node()));
+  const bool is_commutative = OpIsCommutative(to_node->op());
+  uint position = patch_edge.index();
+  if (!is_commutative) {
+    auto map_it =
+        commutative_edge_index_map_.find({to_node, patch_edge.index()});
+    if (map_it != commutative_edge_index_map_.end()) {
+      position = map_it->second;
+    }
+  }
+
+  if (is_commutative) {
+    const int64_t free_slots = commutative_free_slots_.contains(to_node)
+                                   ? commutative_free_slots_[to_node]
+                                   : 0;
+    if (free_slots <= 0) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "No available operand slots on commutative node ", to_node->GetName(),
+          " for insertion at index ", patch_edge.index(),
+          "; operand_count=", to_node->operand_count()));
+    }
+    bool found_dummy = false;
+    for (int64_t i = 0; i < to_node->operand_count(); ++i) {
+      Node* existing_operand = to_node->operand(i);
+      auto it_dummy =
+          std::find(dummy_nodes_map_[to_node].begin(),
+                    dummy_nodes_map_[to_node].end(), existing_operand);
+      if (it_dummy != dummy_nodes_map_[to_node].end()) {
+        position = static_cast<uint>(i);
+        found_dummy = true;
+        break;
+      }
+    }
+    if (!found_dummy) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Expected a dummy slot on commutative node ", to_node->GetName(),
+          " but none were found; free_slots=", free_slots));
+    }
+  } else {
+    while (position < to_node->operands().size()) {
+      Node* existing_operand = to_node->operands()[position];
+      auto it_dummy =
+          std::find(dummy_nodes_map_[to_node].begin(),
+                    dummy_nodes_map_[to_node].end(), existing_operand);
+      if (it_dummy == dummy_nodes_map_[to_node].end()) {
+        position++;
+      } else {
+        break;
+      }
+    }
+    if (position >= to_node->operand_count()) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Insert edge target index out of range for node ", to_node->GetName(),
+          ": requested ", patch_edge.index(), " (remapped to ", position,
+          "), operand_count=", to_node->operand_count()));
+    }
+  }
+  Node* node_to_remove = nullptr;
+  if (position < to_node->operands().size()) {
+    node_to_remove = to_node->operands()[position];
+  }
+
+  XLS_RETURN_IF_ERROR(
+      to_node->ReplaceOperandNumber(position, from_node, false));
+
+  if (node_to_remove != nullptr) {
+    bool was_dummy =
+        std::find(dummy_nodes_map_[to_node].begin(),
+                  dummy_nodes_map_[to_node].end(),
+                  node_to_remove) != dummy_nodes_map_[to_node].end();
+    XLS_RETURN_IF_ERROR(function_base_->RemoveNode(node_to_remove));
+    auto it = std::remove(dummy_nodes_map_[to_node].begin(),
+                          dummy_nodes_map_[to_node].end(), node_to_remove);
+    dummy_nodes_map_[to_node].erase(it, dummy_nodes_map_[to_node].end());
+    if (is_commutative && commutative_free_slots_.contains(to_node)) {
+      if (was_dummy && commutative_free_slots_[to_node] > 0) {
+        // We consumed one available slot.
+        commutative_free_slots_[to_node]--;
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status PatchIr::ApplyUpdatePath(
+    const xls_eco::NodeEditPathProto& node_update) {
+  patch_to_ir_node_map_[node_update.updated_node().name()] =
+      node_update.node().name();
+  XLS_ASSIGN_OR_RETURN(Node * n,
+                       function_base_->GetNode(node_update.node().name()));
+  if (function_base_->IsFunction() && function_base_->HasImplicitUse(n)) {
+    XLS_RETURN_IF_ERROR(IsolateReturnNode());
+  }
+  return absl::OkStatus();
+}
+absl::Status PatchIr::ApplyUpdatePath(
+    const xls_eco::EdgeEditPathProto& edge_update) {
+  if (edge_update.edge().index() != edge_update.updated_edge().index()) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * n, ResolveNodeByPatchName(edge_update.updated_edge().to_node()));
+    if (OpIsCommutative(n->op())) {
+      // Ignore index reorders on commutative ops.
+      return absl::OkStatus();
+    }
+    commutative_edge_index_map_[{n, edge_update.edge().index()}] =
+        edge_update.updated_edge().index();
+  }
+
+  return absl::OkStatus();
+}
+absl::Status PatchIr::IsolateReturnNode() {
+  for (Node* n : function_base_->nodes()) {
+    if (function_base_->HasImplicitUse(n)) {
+      XLS_ASSIGN_OR_RETURN(dummy_return_node_,
+                           function_base_->MakeNode<Literal>(
+                               SourceInfo(), Value(ZeroOfType(n->GetType()))));
+      XLS_ASSIGN_OR_RETURN(bool changed,
+                           n->ReplaceImplicitUsesWith(dummy_return_node_));
+      if (!changed) {
+        return absl::InternalError("Failed to replace implicit uses");
+      }
+      return absl::OkStatus();
+    }
+  }
+  return absl::InternalError("No return node found");
+}
+
+absl::Status PatchIr::RestoreReturnNode() {
+  XLS_ASSIGN_OR_RETURN(Node * return_node,
+                       ResolveNodeByPatchName(patch_.return_node().name()));
+  XLS_ASSIGN_OR_RETURN(
+      bool _, dummy_return_node_->ReplaceImplicitUsesWith(return_node));
+  XLS_RETURN_IF_ERROR(function_base_->RemoveNode(dummy_return_node_));
+  return absl::OkStatus();
+}
+absl::Status PatchIr::ValidatePatch() {
+  for (const auto& key : dummy_nodes_map_) {
+    Node* n = key.first;
+    const std::vector<Node*>& d = key.second;
+    if (!d.empty()) {
+      std::cout << "Warning! Dummy nodes in IR -> " << n->GetName()
+                << " -> Related nodes: \n";
+      for (Node* node : d) {
+        std::cout << node->GetName() << "\n";
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status PatchIr::PatchSchedule(const PipelineSchedule& schedule) {
+  XLS_ASSIGN_OR_RETURN(
+      SchedulingOptionsFlagsProto scheduling_options_flags_proto,
+      GetSchedulingOptionsFlagsProto());
+  XLS_ASSIGN_OR_RETURN(
+      SchedulingOptions scheduling_options,
+      SetUpSchedulingOptions(scheduling_options_flags_proto, package_));
+  SchedulingOptions tmp_scheduling_options = scheduling_options;
+  XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
+                       SetUpDelayEstimator(scheduling_options_flags_proto));
+  decltype(package_->GetNodeCount()) constraint_count = 0;
+  for (const auto& [node, cycle] : schedule.GetCycleMap()) {
+    if (inserted_node_names_.contains(node->GetName())) {
+      std::cout << "Skipping constraint for node: " << node->GetName()
+                << " due to node being newly inserted.\n";
+      continue;
+    }
+    if (std::find(function_base_->nodes().begin(),
+                  function_base_->nodes().end(),
+                  node) == function_base_->nodes().end()) {
+      std::cout << "Skipping constraint for node: " << node->GetName()
+                << " due to node not found in IR.\n";
+      continue;
+    }
+    if (node->op() == Op::kLiteral) {
+      std::cout << "Skipping constraint for node: " << node->GetName()
+                << " due to node being a literal.\n";
+      continue;
+    }
+    tmp_scheduling_options.add_constraint(NodeInCycleConstraint(node, cycle));
+    // check if schedule is feasible; if not, then we need remove the
+    // constraint
+    if (!RunPipelineSchedule(function_base_, *delay_estimator,
+                             tmp_scheduling_options)
+             .ok()) {
+      tmp_scheduling_options.clear_constraints();
+      std::cout << "Skipping constraint for node: " << node->GetName()
+                << " due to schedule infeasibility.\n";
+    } else {
+      scheduling_options = tmp_scheduling_options;
+      constraint_count++;
+    }
+    tmp_scheduling_options = scheduling_options;
+    XLS_ASSIGN_OR_RETURN(schedule_,
+                         RunPipelineSchedule(function_base_, *delay_estimator,
+                                             scheduling_options));
+  }
+  XLS_RETURN_IF_ERROR(schedule_->Verify());
+  std::cout << "Total nodes: " << package_->GetNodeCount();
+  std::cout << "constrained nodes count: " << constraint_count;
+  return absl::OkStatus();
+}
+
+absl::StatusOr<PipelineSchedule> PatchIr::GetPatchedSchedule() {
+  if (schedule_.has_value()) {
+    return schedule_.value();
+  }
+  return absl::InternalError("No schedule found");
+}
+
+absl::Status PatchIr::ExportIr(const std::string& export_path) const {
+  std::string ir_data = package_->DumpIr();
+  std::ofstream out_file(export_path);
+  if (out_file.is_open()) {
+    out_file << ir_data;
+    out_file.close();
+    return absl::OkStatus();
+  }
+  return absl::InternalError("Failed to open file: " + export_path);
+}
+absl::Status PatchIr::ExportScheduleProto() {
+  XLS_ASSIGN_OR_RETURN(
+      SchedulingOptionsFlagsProto scheduling_options_flags_proto,
+      GetSchedulingOptionsFlagsProto());
+  XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
+                       SetUpDelayEstimator(scheduling_options_flags_proto));
+  XLS_RETURN_IF_ERROR(
+      SetTextProtoFile(absl::GetFlag(FLAGS_output_schedule_path),
+                       schedule_->ToProto(*delay_estimator)));
+  return absl::OkStatus();
+}
+bool PatchIr::CompareEditPaths(const xls_eco::EditPathProto& lhs,
+                               const xls_eco::EditPathProto& rhs) {
+  EditPathPriority lhs_priority =
+      EditPathPriorityMap().at({lhs.has_node_edit_path(), lhs.operation()});
+  EditPathPriority rhs_priority =
+      EditPathPriorityMap().at({rhs.has_node_edit_path(), rhs.operation()});
+  if (lhs_priority == rhs_priority) {
+    return lhs.id() < rhs.id();
+  }
+  return lhs_priority < rhs_priority;
+}
+}  // namespace xls
