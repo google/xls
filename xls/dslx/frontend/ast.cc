@@ -1956,9 +1956,10 @@ StructInstanceBase::StructInstanceBase(
       members_(std::move(members)) {}
 
 std::vector<std::pair<std::string, Expr*>>
-StructInstanceBase::GetOrderedMembers(const StructDef* struct_def) const {
+StructInstanceBase::GetOrderedMembers(
+    const StructDefBase* struct_or_proc_def) const {
   std::vector<std::pair<std::string, Expr*>> result;
-  for (const std::string& name : struct_def->GetMemberNames()) {
+  for (const std::string& name : struct_or_proc_def->GetMemberNames()) {
     absl::StatusOr<Expr*> expr = GetExpr(name);
     if (absl::IsNotFound(expr.status()) && !requires_all_members()) {
       continue;

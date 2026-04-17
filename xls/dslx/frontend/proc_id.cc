@@ -23,6 +23,12 @@
 
 namespace xls::dslx {
 
+ProcId ProcIdFactory::CreateProcId(const ProcDef* proc_def) {
+  int instance_count = ++proc_def_instance_counts_[proc_def];
+  has_multiple_instances_of_any_proc_ |= instance_count > 1;
+  return ProcId{.proc_def = proc_def, .proc_def_instance = instance_count - 1};
+}
+
 ProcId ProcIdFactory::CreateProcId(const std::optional<ProcId>& parent,
                                    Proc* spawnee, bool count_as_new_instance) {
   ProcId parent_or_empty =

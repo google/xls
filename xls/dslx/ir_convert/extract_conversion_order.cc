@@ -819,7 +819,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
 }
 
 absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
-    std::variant<Function*, Proc*> entry, TypeInfo* type_info,
+    std::variant<Function*, Proc*, ProcDef*> entry, TypeInfo* type_info,
     std::optional<ResolvedProcAlias> resolved_proc_alias) {
   std::vector<ConversionRecord> ready;
   if (std::holds_alternative<Function*>(entry)) {
@@ -833,6 +833,11 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
                                    /*is_top=*/true));
     RemoveFunctionDuplicates(&ready);
     return ready;
+  }
+
+  if (std::holds_alternative<ProcDef*>(entry)) {
+    return absl::UnimplementedError(
+        "Impl-style procs can only be compiled with proc-scoped channels.");
   }
 
   Proc* p = std::get<Proc*>(entry);

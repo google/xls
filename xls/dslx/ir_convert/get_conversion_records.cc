@@ -40,6 +40,7 @@
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/conversion_record.h"
+#include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/public/status_macros.h"
@@ -339,6 +340,30 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(qc);
   }
 
+  absl::Status HandleProcDef(const ProcDef* p) override {
+    VLOG(5) << "HandleProcDef " << p->ToString();
+
+    XLS_ASSIGN_OR_RETURN(Function * constructor,
+                         GetTopProcConstructor(p, type_info_));
+    XLS_ASSIGN_OR_RETURN(InterpValue initial_state,
+                         type_info_->GetConstExpr(constructor->body()));
+
+    VLOG(5) << "Initial state: " << initial_state.ToHumanString();
+
+    std::optional<Function*> next_fn = GetProcNextFunction(p);
+    XLS_RET_CHECK(next_fn.has_value());
+
+    XLS_ASSIGN_OR_RETURN(
+        ConversionRecord cr,
+        MakeConversionRecord(*next_fn, p->owner(), type_info_,
+                             /*bindings=*/ParametricEnv(),
+                             /*proc_id=*/proc_id_factory_.CreateProcId(p),
+                             /*is_top=*/top_ == next_fn,
+                             /*config_record=*/nullptr, initial_state));
+    records_.push_back(std::move(cr));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleProc(const Proc* p) override {
     VLOG(5) << "HandleProc " << p->ToString();
     const Function* next_fn = &p->next();
@@ -456,7 +481,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   OK_HANDLER(ConstAssert)
   OK_HANDLER(EnumDef)
   OK_HANDLER(ParametricBinding)
-  OK_HANDLER(ProcDef)
   OK_HANDLER(StructDef)
   OK_HANDLER(TypeAlias)
   // keep-sorted end
@@ -536,38 +560,45 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
 }
 
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
-    std::variant<Proc*, Function*> entry, TypeInfo* type_info,
+    std::variant<Proc*, Function*, ProcDef*> entry, TypeInfo* type_info,
     std::optional<ResolvedProcAlias> resolved_proc_alias) {
   ProcIdFactory proc_id_factory;
-  if (std::holds_alternative<Function*>(entry)) {
-    XLS_RET_CHECK(!resolved_proc_alias.has_value());
-    Function* f = std::get<Function*>(entry);
-    Module* m = f->owner();
-    std::vector<ConversionRecord> records;
-    absl::flat_hash_set<const Invocation*> processed_invocations;
-    // We are only ever called for tests, so we set include_tests to
-    // true, and make sure that this function is top.
-    ConversionRecordVisitor visitor(
-        m, type_info, /*include_tests=*/true, proc_id_factory, f,
-        /*resolved_proc_alias=*/std::nullopt, records, processed_invocations);
-    XLS_RETURN_IF_ERROR(f->Accept(&visitor));
-
-    return RemoveFunctionDuplicates(records);
-  }
-
-  Proc* p = std::get<Proc*>(entry);
-  Module* m = p->owner();
-  XLS_ASSIGN_OR_RETURN(TypeInfo * new_ti,
-                       type_info->GetTopLevelProcTypeInfo(p));
   std::vector<ConversionRecord> records;
   absl::flat_hash_set<const Invocation*> processed_invocations;
+  Module* m = ToAstNode(entry)->owner();
+  Function* top_fn = nullptr;
+  AstNode* visit_target = ToAstNode(entry);
+  TypeInfo* visitor_ti = type_info;
+
+  if (std::holds_alternative<Function*>(entry)) {
+    XLS_RET_CHECK(!resolved_proc_alias.has_value());
+    top_fn = std::get<Function*>(entry);
+  } else if (std::holds_alternative<Proc*>(entry)) {
+    Proc* p = std::get<Proc*>(entry);
+    XLS_ASSIGN_OR_RETURN(TypeInfo * new_ti,
+                         type_info->GetTopLevelProcTypeInfo(p));
+    visitor_ti = new_ti;
+    top_fn = &p->next();
+    visit_target = p;
+  } else {
+    XLS_RET_CHECK(!resolved_proc_alias.has_value());
+    ProcDef* p = std::get<ProcDef*>(entry);
+    std::optional<Function*> next_fn = GetProcNextFunction(p);
+    if (!next_fn.has_value()) {
+      return absl::InvalidArgumentError(
+          "A proc with no 'next' function cannot be top.");
+    }
+
+    top_fn = *next_fn;
+    visit_target = p;
+  }
+
   // We are only ever called for tests, so we set include_tests to true,
   // and make sure that this proc's next function is top.
-  ConversionRecordVisitor visitor(
-      m, new_ti, /*include_tests=*/true, proc_id_factory, &p->next(),
-      resolved_proc_alias, records, processed_invocations);
-  XLS_RETURN_IF_ERROR(p->Accept(&visitor));
-
+  ConversionRecordVisitor visitor(m, visitor_ti, /*include_tests=*/true,
+                                  proc_id_factory, top_fn, resolved_proc_alias,
+                                  records, processed_invocations);
+  XLS_RETURN_IF_ERROR(visit_target->Accept(&visitor));
   return RemoveFunctionDuplicates(records);
 }
 }  // namespace xls::dslx

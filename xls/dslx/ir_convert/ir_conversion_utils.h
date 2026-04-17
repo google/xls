@@ -18,10 +18,14 @@
 // tree traversal (which is the main concern of ir_converter.h/cc.
 
 #include <cstdint>
+#include <optional>
+#include <vector>
 
 #include "absl/status/statusor.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
@@ -38,6 +42,20 @@ absl::StatusOr<int64_t> ResolveDimToInt(const TypeDim& dim,
 // case, and if so, remove the argument.
 absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
                                     const ParametricEnv& bindings);
+
+// Returns the `next` function of the given proc, if it has one.
+std::optional<Function*> GetProcNextFunction(const ProcDef* proc);
+
+// Returns all functions in `proc` that are constructors by signature, i.e.
+// static functions returning `Self`.
+absl::StatusOr<std::vector<Function*>> GetProcConstructors(const ProcDef* proc,
+                                                           const TypeInfo* ti);
+
+// Returns the one function in `proc` that is a constructor by signature. This
+// errors unless there is one and only one constructor, because currently there
+// is no option or attribute to select one of many.
+absl::StatusOr<Function*> GetTopProcConstructor(const ProcDef* proc,
+                                                const TypeInfo* ti);
 
 }  // namespace xls::dslx
 

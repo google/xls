@@ -30,6 +30,8 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
@@ -245,6 +247,30 @@ absl::StatusOr<bool> IsProcDefNextFunction(const Function* f,
   }
 
   return (*def)->kind() == AstNodeKind::kProcDef;
+}
+
+bool IsProcDefStateType(const Type& type, const ImportData& import_data) {
+  if (!type.IsStruct()) {
+    return false;
+  }
+
+  Module* builtin_stubs = *import_data.GetBuiltinStubsModule();
+  const StructDef* state_struct_def =
+      *builtin_stubs->GetMember<StructDef>("State");
+  return &type.AsStruct().struct_def_base() == state_struct_def;
+}
+
+absl::StatusOr<std::vector<StructMemberNode*>> GetProcDefStateMembers(
+    const ProcDef* proc_def, const ImportData& import_data,
+    const TypeInfo& type_info) {
+  std::vector<StructMemberNode*> result;
+  for (StructMemberNode* member : proc_def->members()) {
+    XLS_ASSIGN_OR_RETURN(const Type* type, type_info.GetItemOrError(member));
+    if (IsProcDefStateType(*type, import_data)) {
+      result.push_back(member);
+    }
+  }
+  return result;
 }
 
 }  // namespace xls::dslx
