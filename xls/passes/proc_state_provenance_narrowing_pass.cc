@@ -292,8 +292,7 @@ absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
   for (auto& [state_element, transform, narrowed_init] : transforms) {
     made_changes = true;
     XLS_RETURN_IF_ERROR(proc->TransformStateElement(
-                                proc->GetStateReadByStateElement(state_element),
-                                Value(narrowed_init), transform)
+                                state_element, Value(narrowed_init), transform)
                             .status());
   }
 

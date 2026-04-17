@@ -538,9 +538,10 @@ TEST_F(ProcTest, TransformStateElement) {
   TestTransformer tt;
   ScopedRecordIr sri(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      StateRead * new_st,
-      proc->TransformStateElement(st.node()->As<StateRead>(),
+      StateElement * new_st_element,
+      proc->TransformStateElement(st.node()->As<StateRead>()->state_element(),
                                   Value(UBits(0b0101, 4)), tt));
+  StateRead* new_st = proc->GetStateReadByStateElement(new_st_element);
 
   // Make sure the st nexts has been identity-ified
   EXPECT_THAT(st.node(), m::StateRead(testing::Not("st")));

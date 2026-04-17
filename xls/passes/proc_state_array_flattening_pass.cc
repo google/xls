@@ -131,10 +131,9 @@ absl::StatusOr<bool> SimplifyProcState(Proc* proc,
   Value new_init_value = Value::Tuple(old_init_value.elements());
 
   ArrayToTupleStateTransformer transformer;
-  XLS_RETURN_IF_ERROR(proc->TransformStateElement(
-                              proc->GetStateReadByStateElement(state_element),
-                              new_init_value, transformer)
-                          .status());
+  XLS_RETURN_IF_ERROR(
+      proc->TransformStateElement(state_element, new_init_value, transformer)
+          .status());
 
   std::vector<Next*> old_next_values(proc->next_values(state_element).begin(),
                                      proc->next_values(state_element).end());

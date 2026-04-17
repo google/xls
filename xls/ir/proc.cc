@@ -925,10 +925,10 @@ absl::Status Proc::ConvertToNewStyle() {
   return absl::OkStatus();
 }
 
-absl::StatusOr<StateRead*> Proc::TransformStateElement(
-    StateRead* old_state_read, const Value& init_value,
+absl::StatusOr<StateElement*> Proc::TransformStateElement(
+    StateElement* old_state_element, const Value& init_value,
     Proc::StateElementTransformer& transform) {
-  StateElement* old_state_element = old_state_read->state_element();
+  StateRead* old_state_read = GetStateReadByStateElement(old_state_element);
   std::string orig_name(old_state_element->name());
   std::string orig_read_name(old_state_read->GetNameView());
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> read_predicate,
@@ -1011,7 +1011,7 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
         },
         /*replace_implicit_uses=*/false));
   }
-  return new_state_read;
+  return new_state_element;
 }
 
 absl::Status Proc::InternalRebuildSideTables() {

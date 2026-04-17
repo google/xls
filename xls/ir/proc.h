@@ -200,8 +200,8 @@ class Proc : public FunctionBase {
   // NextValueOptimizationPass.
   //
   // The proc must only use 'next' nodes to call this function.
-  absl::StatusOr<StateRead*> TransformStateElement(
-      StateRead* old_state_read, const Value& init_value,
+  absl::StatusOr<StateElement*> TransformStateElement(
+      StateElement* old_state_element, const Value& init_value,
       StateElementTransformer& transform);
 
   // Remove the state element at the given index. All state elements higher than

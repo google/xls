@@ -5862,13 +5862,11 @@ proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1],
   AddPredicate only_on_0(*proc->GetNode("index_is_0"));
   AddPredicate only_on_1(*proc->GetNode("index_is_1"));
   XLS_ASSERT_OK(
-      proc->TransformStateElement(proc->GetStateReadByStateElement(
-                                      *proc->GetStateElementByName("counter0")),
+      proc->TransformStateElement(*proc->GetStateElementByName("counter0"),
                                   Value(UBits(0, 32)), only_on_0)
           .status());
   XLS_ASSERT_OK(
-      proc->TransformStateElement(proc->GetStateReadByStateElement(
-                                      *proc->GetStateElementByName("counter1")),
+      proc->TransformStateElement(*proc->GetStateElementByName("counter1"),
                                   Value(UBits(5, 32)), only_on_1)
           .status());
 
@@ -5975,13 +5973,11 @@ proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1],
   AddPredicate only_on_0(*proc->GetNode("index_is_0"));
   AddPredicate only_on_1(*proc->GetNode("index_is_1"));
   XLS_ASSERT_OK(
-      proc->TransformStateElement(proc->GetStateReadByStateElement(
-                                      *proc->GetStateElementByName("counter0")),
+      proc->TransformStateElement(*proc->GetStateElementByName("counter0"),
                                   Value(UBits(0, 32)), only_on_0)
           .status());
   XLS_ASSERT_OK(
-      proc->TransformStateElement(proc->GetStateReadByStateElement(
-                                      *proc->GetStateElementByName("counter1")),
+      proc->TransformStateElement(*proc->GetStateElementByName("counter1"),
                                   Value(UBits(5, 32)), only_on_1)
           .status());
 

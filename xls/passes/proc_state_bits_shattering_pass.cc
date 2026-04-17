@@ -189,7 +189,7 @@ absl::StatusOr<bool> MaybeSplitStateElements(
 
     TuplifyFlatStateElement transformer(std::move(split_ends));
     XLS_RETURN_IF_ERROR(
-        proc->TransformStateElement(state_read, initial_value, transformer)
+        proc->TransformStateElement(state_element, initial_value, transformer)
             .status());
     changed = true;
     XLS_ASSIGN_OR_RETURN(int64_t state_index,
