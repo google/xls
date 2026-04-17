@@ -228,6 +228,13 @@ class Proc : public FunctionBase {
                               /*next_state=*/std::nullopt, loc);
   }
 
+  // Adds a state read node for an existing state element.
+  absl::StatusOr<StateRead*> AddStateRead(
+      StateElement* state_element,
+      std::optional<Node*> predicate = std::nullopt,
+      std::optional<std::string> label = std::nullopt,
+      const SourceInfo& loc = SourceInfo());
+
   // Add a new state element (at index) without any reads or nexts. These must
   // be added separately before verification.
   absl::StatusOr<StateElement*> InsertUnreadStateElement(
