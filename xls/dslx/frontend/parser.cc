@@ -1105,25 +1105,23 @@ absl::StatusOr<ModuleMember> Parser::ApplyFunctionAttributes(
 
 absl::StatusOr<XlsTuple*> Parser::ParseFuzzTestDomains(
     std::string_view domains_str, Bindings& bindings) {
-  std::string wrapped = absl::StrCat("(", domains_str, ")");
+  // Force it to be a tuple via the trailing comma. Otherwise, if the user
+  // writes `#[fuzz_test(domains="(u32:1, u32:2)")]` the parser will fail to
+  // parse the domain as a 1-element tuple (containing a 2-element tuple).
+  std::string wrapped = absl::StrCat("(", domains_str, ",)");
   Scanner domain_scanner(file_table(), scanner().fileno(), wrapped);
   Parser sub_parser(module_, &domain_scanner, parse_fn_stubs_);
 
   XLS_ASSIGN_OR_RETURN(Expr * parsed, sub_parser.ParseExpression(bindings));
 
-  if (parsed->kind() == AstNodeKind::kXlsTuple) {
-    auto* tuple = dynamic_cast<XlsTuple*>(parsed);
-    if (!tuple->members().empty()) {
-      return tuple;
-    }
-  }
   if (parsed->in_parens()) {
     // We don't need the parens anymore, because it's already parsed.
     parsed->set_in_parens(false);
   }
-  // If it's not already a tuple, wrap it in one.
-  return module_->Make<XlsTuple>(parsed->span(), std::vector<Expr*>{parsed},
-                                 /*has_trailing_comma=*/false);
+  // We know it must be a tuple because of the parens and trailing comma we
+  // added.
+  XLS_RET_CHECK_EQ(parsed->kind(), AstNodeKind::kXlsTuple);
+  return dynamic_cast<XlsTuple*>(parsed);
 }
 
 template <typename T>

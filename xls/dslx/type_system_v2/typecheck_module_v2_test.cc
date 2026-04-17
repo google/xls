@@ -10265,6 +10265,90 @@ fn f(x: imported::E) {}
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data), IsOk());
 }
 
+TEST(TypecheckV2Test, FuzzTestTupleDomainSuccess) {
+  EXPECT_THAT(R"(
+const D = (u32:0..1, u8:0..2);
+#[fuzz_test(domains=`D`)]
+fn f(x: (u32, u8)) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestTupleDomainWithAliasSuccess) {
+  EXPECT_THAT(R"(
+type my_tuple = (u32, u8);
+const D = (u32:0..1, u8:0..2);
+#[fuzz_test(domains=`D`)]
+fn f(x: my_tuple) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestTupleDomainNestedSuccess) {
+  EXPECT_THAT(R"(
+const D = ((u32:0..1, u8:0..2), u16:0..3);
+#[fuzz_test(domains=`D`)]
+fn f(x: ((u32, u8), u16)) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestTupleDomainSizeMismatch) {
+  EXPECT_THAT(R"(
+const D = (u32:0..1, u8:0..2, u16:0..3);
+#[fuzz_test(domains=`D`)]
+fn f(x: (u32, u8)) {}
+)",
+              TypecheckFails(HasSubstr("Fuzz test domain tuple size (3) does "
+                                       "not match parameter tuple size (2)")));
+}
+
+TEST(TypecheckV2Test, FuzzTestTupleDomainTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+const D = (u32:0..1, u16:0..2);
+#[fuzz_test(domains=`D`)]
+fn f(x: (u32, u8)) {}
+)",
+      TypecheckFails(HasSubstr("is not compatible with parameter")));
+}
+
+TEST(TypecheckV2Test, FuzzTestTupleDomainNotATuple) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`u32:0..1`)]
+fn f(x: (u32, u8)) {}
+)",
+              TypecheckFails(HasSubstr("is not compatible with parameter")));
+}
+
+TEST(TypecheckV2Test, FuzzTestTupleDomainParamNotATuple) {
+  EXPECT_THAT(R"(
+const D = (u32:0..1, u32:0..2);
+#[fuzz_test(domains=`D`)]
+fn f(x: u32) {}
+)",
+              TypecheckFails(HasSubstr("Fuzz test domain implies a tuple type, "
+                                       "but parameter is not a tuple")));
+}
+
+TEST(TypecheckV2Test, FuzzTestTupleDomainDirectSuccess) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`(u32:0..1, u8:0..2)`)]
+fn f(x: (u32, u8)) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestTupleDomainMismatch) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`u32:0..1, u8:0..2`)]
+fn f(x: (u32, u8)) {}
+)",
+      TypecheckFails(HasSubstr("fuzz_test attribute has 2 domain arguments, "
+                               "but function `f` has 1 parameter")));
+}
+
 TEST(TypecheckV2Test, FuzzTestCountMismatchTooMany) {
   EXPECT_THAT(
       R"(

@@ -454,6 +454,67 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
  private:
+  // Validates that a fuzz test domain type is compatible with the corresponding
+  // parameter type, recursively for tuples.
+  absl::Status ValidateFuzzTestDomainType(const Type* domain_type,
+                                          const Type* param_type,
+                                          const Span& span,
+                                          std::string_view domain_str,
+                                          std::string_view param_str) {
+    if (domain_type->IsTuple()) {
+      const TupleType& domain_tuple = domain_type->AsTuple();
+      if (domain_tuple.empty()) {
+        // Empty domain for this parameter; this is considered an "Arbitrary"
+        // domain and always matches.
+        return absl::OkStatus();
+      }
+      if (!param_type->IsTuple()) {
+        return TypeInferenceErrorStatus(
+            span, param_type,
+            "Fuzz test domain implies a tuple type, but parameter is not a "
+            "tuple.",
+            file_table_);
+      }
+      const TupleType& param_tuple = param_type->AsTuple();
+      if (domain_tuple.size() != param_tuple.size()) {
+        return TypeInferenceErrorStatus(
+            span, param_type,
+            absl::Substitute("Fuzz test domain tuple size ($0) does not match "
+                             "parameter tuple size ($1).",
+                             domain_tuple.size(), param_tuple.size()),
+            file_table_);
+      }
+      for (int i = 0; i < domain_tuple.size(); ++i) {
+        const Type& domain_member = domain_tuple.GetMemberType(i);
+        const Type& param_member = param_tuple.GetMemberType(i);
+        XLS_RETURN_IF_ERROR(ValidateFuzzTestDomainType(
+            &domain_member, &param_member, span, domain_member.ToString(),
+            param_member.ToString()));
+      }
+      return absl::OkStatus();
+    }
+
+    if (domain_type->IsArray()) {
+      const ArrayType& array_type = domain_type->AsArray();
+      const Type& element_type = array_type.element_type();
+      if (!param_type->CompatibleWith(element_type)) {
+        return TypeInferenceErrorStatus(
+            span, param_type,
+            absl::Substitute("Fuzz test domain `$0` is not compatible with "
+                             "parameter `$1`.",
+                             domain_str, param_str),
+            file_table_);
+      }
+      return absl::OkStatus();
+    }
+
+    return TypeInferenceErrorStatus(
+        span, param_type,
+        absl::Substitute("Unsupported fuzz test domain `$0` of type `$1`.",
+                         domain_str, domain_type->ToString()),
+        file_table_);
+  }
+
   // Validates that a fuzz test domain is compatible with the corresponding
   // function parameter. Returns an error if not compatible.
   absl::Status ValidateFuzzTestDomain(const Expr* domain, const Param* param) {
@@ -465,39 +526,8 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     XLS_RET_CHECK(maybe_domain_type.has_value());
     const Type* domain_type = *maybe_domain_type;
 
-    if (domain_type->IsTuple()) {
-      const TupleType& tuple_type = domain_type->AsTuple();
-      if (tuple_type.empty()) {
-        // Empty domain for this parameter; this is considered an "Arbitrary"
-        // domain and always matches.
-        return absl::OkStatus();
-      }
-      // TODO: davidplass - this domain is a tuple, presumably including other
-      // domains. It should be matched against the param as a tuple,
-      // recursively.
-      return absl::OkStatus();
-    }
-
-    if (domain_type->IsArray()) {
-      // Represents DSLX arrays and ranges
-      const ArrayType& array_type = domain_type->AsArray();
-      const Type& element_type = array_type.element_type();
-      if (!param_type->CompatibleWith(element_type)) {
-        return TypeInferenceErrorStatus(
-            domain->span(), param_type,
-            absl::Substitute("Fuzz test domain `$0` is not compatible with "
-                             "parameter `$1`.",
-                             domain->ToString(), param->ToString()),
-            file_table_);
-      }
-      return absl::OkStatus();
-    }
-
-    return TypeInferenceErrorStatus(
-        domain->span(), param_type,
-        absl::Substitute("Unsupported fuzz test domain `$0` of type `$1`.",
-                         domain->ToString(), domain_type->ToString()),
-        file_table_);
+    return ValidateFuzzTestDomainType(domain_type, param_type, domain->span(),
+                                      domain->ToString(), param->ToString());
   }
 
   absl::Status ValidateBinopShift(const Binop& binop) {
