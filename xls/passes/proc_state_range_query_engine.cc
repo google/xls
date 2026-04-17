@@ -459,7 +459,7 @@ class ConstantValueIrInterpreter
       return true;
     }
     return absl::c_any_of(index, [&](const Bits& possibility) {
-      return DataflowVisitor::IndexMightBeEquivalent(
+      return DataflowVisitor::IndexMightBeEquivalentToValue(
           possibility, concrete_index, bound, index_clamped);
     });
   }
@@ -468,8 +468,8 @@ class ConstantValueIrInterpreter
                          int64_t concrete_index, int64_t bound,
                          bool index_clamped) const override {
     return index.size() == 1 &&
-           DataflowVisitor::IndexIsEquivalent(*index.begin(), concrete_index,
-                                              bound, index_clamped);
+           DataflowVisitor::IndexIsEquivalentToValue(
+               *index.begin(), concrete_index, bound, index_clamped);
   }
 };
 
@@ -754,7 +754,7 @@ FindContextualRanges(Proc* proc, const QueryEngine& qe,
 // results. It's not clear how much we'd gain there though. For now we will
 // just run it once assuming that params are relatively independent of one
 // another/additional information won't reveal more opportunities.
-absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine ::Populate(
+absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine::Populate(
     FunctionBase* f) {
   // Start with a basic range and ternary analysis to get base cases.
   XLS_ASSIGN_OR_RETURN(ReachedFixpoint fixpoint, inner_.Populate(f));

@@ -192,8 +192,8 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     std::vector<LeafTypeTree<LeafT>> possible_slices;
     possible_slices.reserve(array_size);
     for (int64_t start = 0; start < array_size; ++start) {
-      if (IndexMightBeEquivalent(array_slice->start(), start, array_size,
-                                 /*indices_clamped=*/true)) {
+      if (IndexMightBeEquivalentToNode(array_slice->start(), start, array_size,
+                                       /*indices_clamped=*/true)) {
         XLS_ASSIGN_OR_RETURN(
             LeafTypeTree<LeafT> possible_slice,
             leaf_type_tree::SliceArray(array_slice->GetType()->AsArrayOrDie(),
@@ -412,8 +412,8 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   // Returns true if `index` is definitely equivalent to `concrete_index`. If
   // `index_clamped` is true then the value of `index` is clamped when it
   // equals or exceeds `bound`.
-  bool IndexIsEquivalent(const Bits& bits_index, int64_t concrete_index,
-                         int64_t bound, bool index_clamped) const {
+  bool IndexIsEquivalentToValue(const Bits& bits_index, int64_t concrete_index,
+                                int64_t bound, bool index_clamped) const {
     CHECK_LT(concrete_index, bound);
     if (index_clamped && concrete_index == (bound - 1)) {
       return bits_ops::UGreaterThanOrEqual(bits_index, concrete_index);
@@ -427,13 +427,13 @@ class DataflowVisitor : public DfsVisitorWithDefault {
                                  int64_t bound, bool index_clamped) const {
     return false;
   }
-  bool IndexIsEquivalent(Node* index, int64_t concrete_index, int64_t bound,
-                         bool index_clamped) const {
+  bool IndexIsEquivalentToNode(Node* index, int64_t concrete_index,
+                               int64_t bound, bool index_clamped) const {
     CHECK(IsLeafType(index->GetType()));
     if (std::optional<Bits> known_value = query_engine_.KnownValueAsBits(index);
         known_value.has_value()) {
-      return IndexIsEquivalent(*known_value, concrete_index, bound,
-                               index_clamped);
+      return IndexIsEquivalentToValue(*known_value, concrete_index, bound,
+                                      index_clamped);
     }
     return IndexIsEquivalent(GetValue(index).Get({}), concrete_index, bound,
                              index_clamped);
@@ -442,9 +442,11 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   // Returns true if `index` could be equivalent to `concrete_index`. If
   // `index_clamped` is true then the value of `index` is clamped when it
   // equals or exceeds `bound`.
-  bool IndexMightBeEquivalent(const Bits& bits_index, int64_t concrete_index,
-                              int64_t bound, bool index_clamped) const {
-    return IndexIsEquivalent(bits_index, concrete_index, bound, index_clamped);
+  bool IndexMightBeEquivalentToValue(const Bits& bits_index,
+                                     int64_t concrete_index, int64_t bound,
+                                     bool index_clamped) const {
+    return IndexIsEquivalentToValue(bits_index, concrete_index, bound,
+                                    index_clamped);
   }
   // Customizable index equivalence for leaf types. Note that equality must be
   // a sub-relation of equivalence - indices being equal implies that they are
@@ -454,13 +456,13 @@ class DataflowVisitor : public DfsVisitorWithDefault {
                                       bool index_clamped) const {
     return true;
   }
-  bool IndexMightBeEquivalent(Node* index, int64_t concrete_index,
-                              int64_t bound, bool index_clamped) const {
+  bool IndexMightBeEquivalentToNode(Node* index, int64_t concrete_index,
+                                    int64_t bound, bool index_clamped) const {
     CHECK(IsLeafType(index->GetType()));
     if (std::optional<Bits> known_value = query_engine_.KnownValueAsBits(index);
         known_value.has_value()) {
-      return IndexMightBeEquivalent(*known_value, concrete_index, bound,
-                                    index_clamped);
+      return IndexMightBeEquivalentToValue(*known_value, concrete_index, bound,
+                                           index_clamped);
     }
     return IndexMightBeEquivalent(GetValue(index).Get({}), concrete_index,
                                   bound, index_clamped);
@@ -476,8 +478,8 @@ class DataflowVisitor : public DfsVisitorWithDefault {
                                 bool indices_clamped) const {
     CHECK_EQ(indices.size(), concrete_indices.size());
     for (int64_t i = 0; i < indices.size(); ++i) {
-      if (!IndexMightBeEquivalent(indices[i], concrete_indices[i], bounds[i],
-                                  indices_clamped)) {
+      if (!IndexMightBeEquivalentToNode(indices[i], concrete_indices[i],
+                                        bounds[i], indices_clamped)) {
         return false;
       }
     }
@@ -493,8 +495,8 @@ class DataflowVisitor : public DfsVisitorWithDefault {
                             bool indices_clamped) const {
     CHECK_EQ(indices.size(), concrete_indices.size());
     for (int64_t i = 0; i < indices.size(); ++i) {
-      if (!IndexIsEquivalent(indices[i], concrete_indices[i], bounds[i],
-                             indices_clamped)) {
+      if (!IndexIsEquivalentToNode(indices[i], concrete_indices[i], bounds[i],
+                                   indices_clamped)) {
         return false;
       }
     }
