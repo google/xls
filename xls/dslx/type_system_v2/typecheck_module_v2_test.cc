@@ -7789,8 +7789,8 @@ proc P {
 }
 
 impl P {
-    fn new(input: chan<u32> in, output: chan<u32> out, init_val: u32) -> Self {
-      P { input, output, state: init_val }
+    fn new(input: chan<u32> in, output: chan<u32> out) -> Self {
+      P { input, output, state: 5 }
     }
 
     fn next(self) {
@@ -7805,10 +7805,9 @@ impl P {
       TypecheckSucceeds(AllOf(
           HasNodeWithType("P", absl::Substitute("typeof($0)", kProcType)),
           HasNodeWithType(
-              "new",
-              absl::Substitute("(chan(uN[32], dir=in), chan(uN[32], dir=out), "
-                               "uN[32]) -> $0",
-                               kProcType)),
+              "new", absl::Substitute(
+                         "(chan(uN[32], dir=in), chan(uN[32], dir=out)) -> $0",
+                         kProcType)),
           HasNodeWithType("next", absl::Substitute("($0) -> ()", kProcType)))));
 }
 
@@ -7822,8 +7821,8 @@ proc P {
 }
 
 impl P {
-    fn new(init_val: u32) -> Self {
-      P { state: init_val }
+    fn new() -> Self {
+      P { state: 5 }
     }
 
     fn next(self, a: u32) {}
@@ -7843,8 +7842,8 @@ proc P {
 }
 
 impl P {
-    fn new(init_val: u32) -> Self {
-      P { state: init_val }
+    fn new() -> Self {
+      P { state: 5 }
     }
 
     fn next() {}
@@ -7864,8 +7863,8 @@ proc P {
 }
 
 impl P {
-    fn new(init_val: u32) -> Self {
-      P { state: init_val }
+    fn new() -> Self {
+      P { state: 5 }
     }
 
     fn next() -> u32 { 0 }
@@ -7873,6 +7872,28 @@ impl P {
 )",
       TypecheckFails(HasSubstr("The next() function of a `proc` with an `impl` "
                                "must not return anything")));
+}
+
+TEST(TypecheckV2Test, ProcWithImplIntegerParamInTopProcNewFails) {
+  EXPECT_THAT(
+      R"(
+#![feature(explicit_state_access)]
+
+proc P {
+  state: u32,
+}
+
+impl P {
+    fn new(init_val: u32) -> Self {
+      P { state: init_val }
+    }
+
+    fn next() -> u32 { 0 }
+}
+)",
+      TypecheckFails(
+          HasSubstr("Initializer for member `state` of proc `P` must be "
+                    "possible to evaluate at compile time.")));
 }
 
 TEST(TypecheckV2Test, SpawnProcWithImpl) {

@@ -191,21 +191,11 @@ class Flattener : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleStructDef(const StructDef* node) override {
-    if (node->IsParametric() && node != root_) {
-      return absl::OkStatus();
-    }
-    // StructDefBase::GetChildren does not return StructMemberNodes, this is
-    // blocked by https://github.com/google/xls/issues/1756.
-    nodes_.push_back(node->name_def());
-    for (const ParametricBinding* parametric_binding :
-         node->parametric_bindings()) {
-      XLS_RETURN_IF_ERROR(parametric_binding->Accept(this));
-    }
-    for (const StructMemberNode* member : node->members()) {
-      XLS_RETURN_IF_ERROR(member->Accept(this));
-    }
-    nodes_.push_back(node);
-    return absl::OkStatus();
+    return HandleStructDefBaseInternal(node);
+  }
+
+  absl::Status HandleProcDef(const ProcDef* node) override {
+    return HandleStructDefBaseInternal(node);
   }
 
   absl::Status HandleTypeRef(const TypeRef* node) override {
@@ -257,6 +247,24 @@ class Flattener : public AstNodeVisitorWithDefault {
   const std::vector<const AstNode*>& nodes() const { return nodes_; }
 
  private:
+  absl::Status HandleStructDefBaseInternal(const StructDefBase* node) {
+    if (node->IsParametric() && node != root_) {
+      return absl::OkStatus();
+    }
+    // StructDefBase::GetChildren does not return StructMemberNodes, this is
+    // blocked by https://github.com/google/xls/issues/1756.
+    nodes_.push_back(node->name_def());
+    for (const ParametricBinding* parametric_binding :
+         node->parametric_bindings()) {
+      XLS_RETURN_IF_ERROR(parametric_binding->Accept(this));
+    }
+    for (const StructMemberNode* member : node->members()) {
+      XLS_RETURN_IF_ERROR(member->Accept(this));
+    }
+    nodes_.push_back(node);
+    return absl::OkStatus();
+  }
+
   const ImportData& import_data_;
   const AstNode* const root_;
   const bool include_parametric_entities_;

@@ -39,6 +39,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -1413,15 +1414,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   // annotation for each member and cache it for use by type unification of
   // instances of this struct.
   absl::Status HandleStructDef(const StructDef* node) override {
-    if (!node->IsParametric()) {
-      for (const StructMemberNode* member : node->members()) {
-        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(member, member->type()));
-      }
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          node, CreateStructOrProcAnnotation(
-                    module_, const_cast<StructDef*>(node), {}, std::nullopt)));
-    }
-    return DefaultHandler(node);
+    return HandleStructDefBaseInternal(node);
+  }
+
+  absl::Status HandleProcDef(const ProcDef* node) override {
+    return HandleStructDefBaseInternal(node);
   }
 
   absl::Status HandleTupleIndex(const TupleIndex* node) override {
@@ -2040,6 +2037,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         node, module_.Make<MemberTypeAnnotation>(
                   AttrSpan(node), type_ref_annotation, node->attr())));
     return true;
+  }
+
+  absl::Status HandleStructDefBaseInternal(const StructDefBase* node) {
+    if (!node->IsParametric()) {
+      for (const StructMemberNode* member : node->members()) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(member, member->type()));
+      }
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node,
+          CreateStructOrProcAnnotation(
+              module_, const_cast<StructDefBase*>(node), {}, std::nullopt)));
+    }
+    return DefaultHandler(node);
   }
 
   // Helper that creates an internal type variable for a `ConstantDef`, `Param`,
