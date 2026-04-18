@@ -808,9 +808,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
           Node * narrow_shift,
           shift_value->function_base()->MakeNodeWithName<BinOp>(
               shll->loc(), narrow_shift_val, narrow_shift_amnt, Op::kShll,
-              shll->HasAssignedName()
-                  ? absl::StrFormat("%s_narrowed", shll->GetNameView())
-                  : ""));
+              NodeNameFormat("%s_narrowed", shll)));
       if (shift_value == narrow_shift_val) {
         XLS_RETURN_IF_ERROR(shll->ReplaceUsesWith(narrow_shift));
         return Change(shll, narrow_shift);
@@ -823,9 +821,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
                 Value(SBits(
                     value_qe.GetKnownMsb(shift_value) ? -1 : 0,
                     shll->BitCountOrDie() - narrow_shift->BitCountOrDie())),
-                shll->HasAssignedName()
-                    ? absl::StrFormat("%s_leading", shll->GetNameView())
-                    : ""));
+                NodeNameFormat("%s_leading", shll)));
         XLS_ASSIGN_OR_RETURN(
             Node * res, shll->ReplaceUsesWithNew<Concat>(
                             absl::Span<Node* const>{leading, narrow_shift}));
@@ -882,10 +878,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         Node * narrowed_shift_value,
         shll->function_base()->MakeNodeWithName<BitSlice>(
             shll->loc(), shift_value, 0, max_result_unknown_bits,
-            shift_value->HasAssignedName()
-                ? absl::StrFormat("%s_narrowed_for_shll",
-                                  shift_value->GetNameView())
-                : ""));
+            NodeNameFormat("%s_narrowed_for_shll", shift_value)));
 
     return replace_with_narrowed(narrowed_shift_value, narrowed_shift_amnt);
   }
@@ -956,14 +949,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         amnt_range.LowerBound()->ToUint64().value() > values_bit_cnt) {
       // Shift all non-sign-bit values out.
       if (is_arithmetic) {
-        XLS_ASSIGN_OR_RETURN(
-            Node * sign_bit,
-            shift->function_base()->MakeNodeWithName<BitSlice>(
-                shift_value->loc(), shift_value,
-                shift_value->BitCountOrDie() - 1, 1,
-                shift_value->HasAssignedName()
-                    ? absl::StrFormat("%s_sign_bit", shift_value->GetNameView())
-                    : ""));
+        XLS_ASSIGN_OR_RETURN(Node * sign_bit,
+                             shift->function_base()->MakeNodeWithName<BitSlice>(
+                                 shift_value->loc(), shift_value,
+                                 shift_value->BitCountOrDie() - 1, 1,
+                                 NodeNameFormat("%s_sign_bit", shift_value)));
         XLS_RETURN_IF_ERROR(
             shift
                 ->ReplaceUsesWithNew<ExtendOp>(sign_bit, shift->BitCountOrDie(),
@@ -1006,22 +996,16 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     }
     // We can narrow the shift value to only those bits that aren't the sign
     // bit.
-    XLS_ASSIGN_OR_RETURN(
-        Node * narrowed_shift_value,
-        shift->function_base()->MakeNodeWithName<BitSlice>(
-            shift->loc(), shift_value, /*start=*/0,
-            /*width=*/to_ext_bit_count,
-            shift_value->HasAssignedName()
-                ? absl::StrFormat("%s_shift_bits", shift_value->GetNameView())
-                : ""));
+    XLS_ASSIGN_OR_RETURN(Node * narrowed_shift_value,
+                         shift->function_base()->MakeNodeWithName<BitSlice>(
+                             shift->loc(), shift_value, /*start=*/0,
+                             /*width=*/to_ext_bit_count,
+                             NodeNameFormat("%s_shift_bits", shift_value)));
     XLS_ASSIGN_OR_RETURN(
         Node * narrowed_shift,
         shift->function_base()->MakeNodeWithName<BinOp>(
             shift->loc(), narrowed_shift_value, narrowed_shift_amnt,
-            shift->op(),
-            shift->HasAssignedName()
-                ? absl::StrFormat("%s_narrowed", shift->GetNameView())
-                : ""));
+            shift->op(), NodeNameFormat("%s_narrowed", shift)));
     XLS_ASSIGN_OR_RETURN(Node * replacment,
                          shift->ReplaceUsesWithNew<ExtendOp>(
                              narrowed_shift, shift->BitCountOrDie(),
@@ -1069,13 +1053,10 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         XLS_ASSIGN_OR_RETURN(replaced, slice->ReplaceUsesWithNew<BitSlice>(
                                            slice->to_slice(), start, width));
       } else {
-        XLS_ASSIGN_OR_RETURN(
-            Node * static_slice,
-            slice->function_base()->MakeNodeWithName<BitSlice>(
-                slice->loc(), slice->to_slice(), start, width,
-                slice->HasAssignedName()
-                    ? absl::StrFormat("%s_slice", slice->GetNameView())
-                    : ""));
+        XLS_ASSIGN_OR_RETURN(Node * static_slice,
+                             slice->function_base()->MakeNodeWithName<BitSlice>(
+                                 slice->loc(), slice->to_slice(), start, width,
+                                 NodeNameFormat("%s_slice", slice)));
         XLS_ASSIGN_OR_RETURN(
             replaced, slice->ReplaceUsesWithNew<ExtendOp>(
                           static_slice, slice->BitCountOrDie(), Op::kZeroExt));
@@ -1108,10 +1089,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
           slice->function_base()->MakeNodeWithName<BitSlice>(
               slice->start()->loc(), slice->start(), /*start=*/0,
               /*width=*/slice->start()->BitCountOrDie() - leading_start_zeros,
-              slice->start()->HasAssignedName()
-                  ? absl::StrFormat("%s_narrowed",
-                                    slice->start()->GetNameView())
-                  : ""));
+              NodeNameFormat("%s_narrowed", slice->start())));
     } else {
       narrowed_start = slice->start();
     }
@@ -1127,10 +1105,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
           slice->function_base()->MakeNodeWithName<BitSlice>(
               slice->to_slice()->loc(), slice->to_slice(), /*start=*/0,
               /*width=*/interesting_to_slice_bits,
-              slice->to_slice()->HasAssignedName()
-                  ? absl::StrFormat("%s_narrowed",
-                                    slice->to_slice()->GetNameView())
-                  : ""));
+              NodeNameFormat("%s_narrowed", slice->to_slice())));
     } else {
       narrowed_to_slice = slice->to_slice();
     }
@@ -1151,9 +1126,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         Node * dyn_slice,
         slice->function_base()->MakeNodeWithName<DynamicBitSlice>(
             slice->loc(), narrowed_to_slice, narrowed_start, narrow_width,
-            slice->HasAssignedName()
-                ? absl::StrFormat("%s_narrowed", slice->GetNameView())
-                : ""));
+            NodeNameFormat("%s_narrowed", slice)));
     XLS_ASSIGN_OR_RETURN(Node * res,
                          slice->ReplaceUsesWithNew<ExtendOp>(
                              dyn_slice, slice->width(), Op::kZeroExt));

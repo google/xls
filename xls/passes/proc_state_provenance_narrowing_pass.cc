@@ -34,6 +34,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
@@ -60,9 +61,7 @@ struct BitSegment {
       return src;
     }
     return src->function_base()->MakeNodeWithName<BitSlice>(
-        src->loc(), src, low_bit, width,
-        src->HasAssignedName() ? absl::StrFormat("sliced_%s", src->GetName())
-                               : "");
+        src->loc(), src, low_bit, width, NodeNameFormat("sliced_%s", src));
   }
 
   Bits SliceBits(const Bits& v) const {
@@ -185,9 +184,7 @@ class NarrowTransform final : public Proc::StateElementTransformer {
     }
     return proc->MakeNodeWithName<Concat>(
         old_next->value()->loc(), concat_args,
-        old_next->value()->HasAssignedName()
-            ? absl::StrFormat("%s_slice_reduced", old_next->value()->GetName())
-            : "");
+        NodeNameFormat("%s_slice_reduced", old_next->value()));
   }
 
  private:

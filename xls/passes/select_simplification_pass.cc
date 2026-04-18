@@ -94,18 +94,13 @@ struct RemoveUnchangedBits {
             Node * sliced,
             fb->MakeNodeWithName<BitSlice>(
                 src->loc(), src, range.dest_bit_index_low(), range.bit_width(),
-                src->HasAssignedName()
-                    ? absl::StrFormat("%s_bits_%d_width_%d", src->GetName(),
-                                      range.dest_bit_index_low(),
-                                      range.bit_width())
-                    : ""));
+                NodeNameFormat("%s_bits_%d_width_%d", src,
+                               range.dest_bit_index_low(), range.bit_width())));
         pieces.push_back(sliced);
       }
     }
-    return fb->MakeNodeWithName<Tuple>(
-        src->loc(), pieces,
-        src->HasAssignedName() ? absl::StrFormat("%s_squeezed", src->GetName())
-                               : "");
+    return fb->MakeNodeWithName<Tuple>(src->loc(), pieces,
+                                       NodeNameFormat("%s_squeezed", src));
   }
 };
 
@@ -124,13 +119,11 @@ struct RestoreUnchangedBits {
       if (range.source_node() == changed_bit_src) {
         Node* sliced;
         XLS_ASSIGN_OR_RETURN(
-            sliced, fb->MakeNodeWithName<TupleIndex>(
-                        src->loc(), src, piece_count,
-                        src->HasAssignedName()
-                            ? absl::StrFormat(
-                                  "%s_portion_%d_width_%d", src->GetName(),
-                                  range.dest_bit_index_low(), range.bit_width())
-                            : ""));
+            sliced,
+            fb->MakeNodeWithName<TupleIndex>(
+                src->loc(), src, piece_count,
+                NodeNameFormat("%s_portion_%d_width_%d", src,
+                               range.dest_bit_index_low(), range.bit_width())));
         concat_args.push_back(sliced);
         piece_count++;
       } else {
@@ -145,21 +138,16 @@ struct RestoreUnchangedBits {
               fb->MakeNodeWithName<BitSlice>(
                   unsliced->loc(), unsliced, range.source_bit_index_low(),
                   range.bit_width(),
-                  unsliced->HasAssignedName()
-                      ? absl::StrFormat(
-                            "%s_portion_%d_width_%d", unsliced->GetName(),
-                            range.source_bit_index_low(), range.bit_width())
-                      : ""));
+                  NodeNameFormat("%s_portion_%d_width_%d", unsliced,
+                                 range.source_bit_index_low(),
+                                 range.bit_width())));
           concat_args.push_back(sliced);
         }
       }
     }
     absl::c_reverse(concat_args);
-    return fb->MakeNodeWithName<Concat>(
-        src->loc(), concat_args,
-        src->HasAssignedName()
-            ? absl::StrFormat("%s_unsqueezed", src->GetName())
-            : "");
+    return fb->MakeNodeWithName<Concat>(src->loc(), concat_args,
+                                        NodeNameFormat("%s_unsqueezed", src));
   }
 };
 struct SqueezeConstantBits {
@@ -170,8 +158,7 @@ struct SqueezeConstantBits {
     return src->function_base()->MakeNodeWithName<BitSlice>(
         src->loc(), src, const_lsb.bit_count(),
         src->BitCountOrDie() - (const_msb.bit_count() + const_lsb.bit_count()),
-        src->HasAssignedName() ? absl::StrFormat("%s_squeezed", src->GetName())
-                               : "");
+        NodeNameFormat("%s_squeezed", src));
   }
 };
 struct UnsqueezeConstantBits {
@@ -179,8 +166,7 @@ struct UnsqueezeConstantBits {
   const Bits& const_lsb;
   absl::StatusOr<Node*> operator()(Node* src) const {
     auto fmt_name = [&](std::string_view postfix) -> std::string {
-      return src->HasAssignedName() ? absl::StrCat(src->GetName(), postfix)
-                                    : "";
+      return NodeNameConcat(src, postfix);
     };
     FunctionBase* fb = src->function_base();
     XLS_ASSIGN_OR_RETURN(Node * msbs, fb->MakeNodeWithName<Literal>(
@@ -214,9 +200,7 @@ absl::Status SqueezeSelect(SelectT* select, SqueezeF squeeze,
     new_cases.push_back(squeezed);
   }
   XLS_ASSIGN_OR_RETURN(Node * squeezed_sel, make_select(select, new_cases));
-  if (!squeezed_sel->HasAssignedName() && sel_node->HasAssignedName()) {
-    squeezed_sel->SetName(absl::StrFormat("%s_squeezed", sel_node->GetName()));
-  }
+  squeezed_sel->SetName(NodeNameFormat("%s_squeezed", sel_node));
   VLOG(2) << absl::StreamFormat("Squeezed select %s into %d bits",
                                 select->ToString(),
                                 squeezed_sel->GetType()->GetFlatBitCount());
@@ -391,16 +375,12 @@ absl::StatusOr<bool> TrySqueezeSelect(SelectT* sel,
           [&](Node* src) -> absl::StatusOr<Node*> {
             return src->function_base()->MakeNodeWithName<BitSlice>(
                 src->loc(), src, /*start=*/0, /*width=*/min_signed_size,
-                src->HasAssignedName()
-                    ? absl::StrFormat("%s_squeezed", src->GetName())
-                    : "");
+                NodeNameFormat("%s_squeezed", src));
           },
           [&](Node* src) -> absl::StatusOr<Node*> {
             return src->function_base()->MakeNodeWithName<ExtendOp>(
                 src->loc(), src, node->BitCountOrDie(), Op::kSignExt,
-                src->HasAssignedName()
-                    ? absl::StrFormat("%s_unsqueezed", src->GetName())
-                    : "");
+                NodeNameFormat("%s_unsqueezed", src));
           },
           MakeSelect<SelectT>));
       break;
@@ -736,10 +716,7 @@ absl::StatusOr<Node*> SliceBitBasedSelect(Node* bbs, int64_t start,
   }
 
   std::string new_bbs_name;
-  if (bbs->HasAssignedName()) {
-    new_bbs_name =
-        absl::StrFormat("%s__%d_to_%d", bbs->GetName(), start, start + width);
-  }
+  new_bbs_name = NodeNameFormat("%s__%d_to_%d", bbs, start, start + width);
   if (bbs->Is<OneHotSelect>()) {
     XLS_RET_CHECK(!default_value_slice.has_value());
     return bbs->function_base()->MakeNodeWithName<OneHotSelect>(

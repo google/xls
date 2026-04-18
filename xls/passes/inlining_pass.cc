@@ -37,6 +37,7 @@
 #include "xls/ir/call_graph.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
@@ -76,7 +77,7 @@ std::optional<std::string> GetInlinedNodeName(Node* node, Invoke* invoke) {
          matching_param->GetName().size() < param->GetName().size())) {
       matching_param = param;
       std::string suffix = node->GetName().substr(param->GetName().size());
-      derived_name = absl::StrCat(operand->GetName(), suffix);
+      derived_name = NodeNameConcat(operand, suffix);
     }
   }
   if (matching_param == nullptr) {

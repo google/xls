@@ -611,10 +611,10 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
             "a channel; there are multiple receives and %s is non-blocking.",
             recv->GetName()));
       }
-      XLS_ASSIGN_OR_RETURN(StateRead * tok, proc->AppendStateElement(
-                                                absl::StrCat("implicit_token__",
-                                                             recv->GetName()),
-                                                Value::Token()));
+      XLS_ASSIGN_OR_RETURN(
+          StateRead * tok,
+          proc->AppendStateElement(NodeNameConcat("implicit_token__", recv),
+                                   Value::Token()));
       self_tokens.push_back(tok);
       XLS_ASSIGN_OR_RETURN(Node * recv_tok,
                            proc->MakeNode<TupleIndex>(recv->loc(), recv, 0));

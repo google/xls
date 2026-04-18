@@ -32,6 +32,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
@@ -62,7 +63,7 @@ struct ProcStateNarrowTransform : public Proc::StateElementTransformer {
     return proc->MakeNodeWithName<BitSlice>(
         old_next->loc(), old_next->value(), /*start=*/0,
         /*width=*/new_state_read->GetType()->GetFlatBitCount(),
-        absl::StrFormat("unexpand_for_%s", old_next->GetName()));
+        NodeNameFormat("unexpand_for_%s", old_next));
   }
 
  private:

@@ -34,6 +34,7 @@
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
@@ -726,25 +727,22 @@ absl::StatusOr<bool> StrengthReduceNode(Node* node,
     auto replace_with_select = [&](Node* variable, const Bits& value,
                                    const Value& true_result,
                                    const Value& false_result) -> absl::Status {
-      XLS_ASSIGN_OR_RETURN(
-          Node * compare_lit,
-          node->function_base()->MakeNodeWithName<Literal>(
-              node->loc(), Value(value),
-              absl::StrFormat("%s_possible_value", variable->GetName())));
+      XLS_ASSIGN_OR_RETURN(Node * compare_lit,
+                           node->function_base()->MakeNodeWithName<Literal>(
+                               node->loc(), Value(value),
+                               NodeNameFormat("%s_possible_value", variable)));
       XLS_ASSIGN_OR_RETURN(Node * eq,
                            node->function_base()->MakeNodeWithName<CompareOp>(
                                node->loc(), variable, compare_lit, Op::kEq,
-                               absl::StrFormat("%s_compare", node->GetName())));
-      XLS_ASSIGN_OR_RETURN(
-          Node * true_node,
-          node->function_base()->MakeNodeWithName<Literal>(
-              node->loc(), Value(true_result),
-              absl::StrFormat("%s_result_value_true", node->GetName())));
-      XLS_ASSIGN_OR_RETURN(
-          Node * false_node,
-          node->function_base()->MakeNodeWithName<Literal>(
-              node->loc(), Value(false_result),
-              absl::StrFormat("%s_result_value_false", node->GetName())));
+                               NodeNameFormat("%s_compare", node)));
+      XLS_ASSIGN_OR_RETURN(Node * true_node,
+                           node->function_base()->MakeNodeWithName<Literal>(
+                               node->loc(), Value(true_result),
+                               NodeNameFormat("%s_result_value_true", node)));
+      XLS_ASSIGN_OR_RETURN(Node * false_node,
+                           node->function_base()->MakeNodeWithName<Literal>(
+                               node->loc(), Value(false_result),
+                               NodeNameFormat("%s_result_value_false", node)));
       return node
           ->ReplaceUsesWithNew<Select>(
               eq, absl::Span<Node* const>{false_node, true_node}, std::nullopt)

@@ -26,6 +26,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
@@ -68,7 +69,7 @@ absl::StatusOr<Node*> ConvertArrayToTuple(Node* node) {
     tuple_elements.push_back(element);
   }
   return node->function_base()->MakeNodeWithName<Tuple>(
-      node->loc(), tuple_elements, absl::StrCat(node->GetName(), "_as_tuple"));
+      node->loc(), tuple_elements, NodeNameConcat(node, "_as_tuple"));
 }
 
 // Transformer to convert an array-typed proc state element into a tuple-typed
@@ -100,7 +101,7 @@ class ArrayToTupleStateTransformer : public Proc::StateElementTransformer {
     return proc->MakeNodeWithName<Array>(
         new_state_read->loc(), tuple_elements,
         old_state_read->GetType()->AsArrayOrDie()->element_type(),
-        absl::StrCat(old_state_read->GetName(), "_as_array"));
+        NodeNameConcat(old_state_read, "_as_array"));
   }
   absl::StatusOr<Node*> TransformNextValue(Proc* proc,
                                            StateRead* new_state_read,

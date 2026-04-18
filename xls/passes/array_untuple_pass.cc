@@ -577,9 +577,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
   }
   // Give a name for the untupled values.
   std::string IdxName(Node* n, int64_t idx) const {
-    return n->HasAssignedName()
-               ? absl::StrFormat("%s_tuple_idx_%d", n->GetName(), idx)
-               : "";
+    return NodeNameFormat("%s_tuple_idx_%d", n, idx);
   }
   // Check if the node is eligible for and not excluded from untuple-ing
   bool CanUntuple(Node* n) {

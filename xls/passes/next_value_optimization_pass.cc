@@ -196,10 +196,7 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
                          std::vector<Node*>{*next.main->predicate(), predicate},
                          Op::kAnd));
     }
-    std::string name;
-    if (next.main->HasAssignedName()) {
-      name = absl::StrCat(next.main->GetName(), "_case_", i);
-    }
+    std::string name = NodeNameFormat("%s_case_%d", next.main, i);
     XLS_ASSIGN_OR_RETURN(new_next.main,
                          proc->MakeNodeWithName<Next>(
                              next.main->loc(),
@@ -208,11 +205,8 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
                              /*label=*/next.main->label(), name));
 
     if (next.non_synth) {
-      std::string non_synth_name;
-      if ((*next.non_synth)->HasAssignedName()) {
-        non_synth_name =
-            absl::StrCat((*next.non_synth)->GetName(), "_case_", i);
-      }
+      std::string non_synth_name =
+          NodeNameFormat("%s_case_%d", *next.non_synth, i);
       // Change main pass-through updates to pass-through on the non-synth one
       // too.
       Node* case_val = selected_value.cases()[i] == next.main->state_read()
@@ -241,10 +235,7 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
     }
 
     IdenticalNexts new_next;
-    std::string name;
-    if (next.main->HasAssignedName()) {
-      name = absl::StrCat(next.main->GetNameView(), "_default_case");
-    }
+    std::string name = NodeNameConcat(next.main, "_default_case");
     XLS_ASSIGN_OR_RETURN(
         new_next.main,
         proc->MakeNodeWithName<Next>(next.main->loc(),
@@ -252,11 +243,8 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
                                      /*value=*/*selected_value.default_value(),
                                      predicate, next.main->label(), name));
     if (next.non_synth) {
-      std::string non_synth_name;
-      if ((*next.non_synth)->HasAssignedName()) {
-        non_synth_name =
-            absl::StrCat((*next.non_synth)->GetNameView(), "_default_case");
-      }
+      std::string non_synth_name =
+          NodeNameConcat(*next.non_synth, "_default_case");
       Node* value = *selected_value.default_value() == next.main->state_read()
                         ? (*next.non_synth)->state_read()
                         : *selected_value.default_value();

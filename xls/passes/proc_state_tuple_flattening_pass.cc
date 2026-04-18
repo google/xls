@@ -29,6 +29,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
@@ -260,7 +261,7 @@ absl::Status FlattenState(Proc* proc) {
           predicate = predicate_identity;
         }
         element.next_values.push_back(NextValue{
-            .name = absl::StrCat(next->GetName(), component_suffix(i)),
+            .name = NodeNameConcat(next, component_suffix(i)),
             .loc = next->loc(),
             .value = value,
             .predicate = predicate,
