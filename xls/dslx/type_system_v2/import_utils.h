@@ -16,12 +16,15 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_IMPORT_UTILS_H_
 
 #include <optional>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
@@ -73,6 +76,17 @@ absl::StatusOr<bool> IsProcDefNextFunction(const Function* f,
 
 // Returns whether `colon_ref` is imported from a different module.
 bool IsImport(const ColonRef* colon_ref);
+
+// Returns whether the given `type` of a member of a `ProcDef` indicates that
+// the member is a state element. All state members of a `ProcDef` have the
+// inferred type `State<T>` where `T` is the type written by the programmer, so
+// this amounts to checking if `type` is a "State-wrapped" type.
+bool IsProcDefStateType(const Type& type, const ImportData& import_data);
+
+// Returns all the members of `proc_def` that are state elements.
+absl::StatusOr<std::vector<StructMemberNode*>> GetProcDefStateMembers(
+    const ProcDef* proc_def, const ImportData& import_data,
+    const TypeInfo& type_info);
 
 }  // namespace xls::dslx
 
