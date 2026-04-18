@@ -8626,6 +8626,29 @@ proc main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ExplicitStateAccessMultipleBranchingLabeledReads) {
+  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
+proc main {
+  init { (0, true) }
+  config() { }
+  next(val: u32, switch: bool) {
+    let switch_val = read(switch);
+    if (switch_val) {
+      let even = 'EvenRead:read(val);
+      'EvenWrite:write(val, even + 1);
+    } else {
+      let odd = 'OddRead:read(val);
+      'OddWrite:write(val, odd + 1);
+    };
+    write(switch, !switch_val);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kModule));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, DerivedToBitsNestedStructs) {
   constexpr std::string_view kDslxProgram = R"(
 #[derive(ToBits)]
