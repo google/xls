@@ -329,8 +329,9 @@ class BinaryDecisionDiagram {
     };
     using LossyArray = std::vector<IteCacheEntry>;
 
-    static constexpr size_t kLossyCacheSize = size_t{1} << 20;
-    static constexpr size_t kCutoverThreshold = size_t{1} << 20;
+    // Each entry in the lossy cache is 16 bytes, so this is 2MB.
+    static constexpr size_t kLossyCacheSize = size_t{1} << 17;
+    static constexpr size_t kCutoverThreshold = size_t{1} << 17;
 
     DynamicIteCache() : cache_(ExactMap()) {}
 
