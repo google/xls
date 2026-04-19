@@ -3618,9 +3618,9 @@ class StructInstanceBase : public Expr {
   }
 
   // Returns the members for the struct instance, ordered by the (resolved)
-  // struct definition "struct_def".
+  // struct definition "struct_or_proc_def".
   std::vector<std::pair<std::string, Expr*>> GetOrderedMembers(
-      const StructDef* struct_def) const;
+      const StructDefBase* struct_or_proc_def) const;
 
   const std::vector<std::pair<std::string, Expr*>>& members() const {
     return members_;
