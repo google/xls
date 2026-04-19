@@ -29,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
@@ -679,6 +680,67 @@ class Visitor : public AstNodeVisitorWithDefault {
       trace_.SetResult(*val);
       ti_->NoteConstExpr(expr, *val);
     }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleStructInstance(const StructInstance* node) {
+    if (!type_.IsProc()) {
+      return absl::OkStatus();
+    }
+
+    // For a StructInstance node that is creating an impl-style proc, we store a
+    // tuple of the initial state values as the constexpr value in TypeInfo.
+    // This is equivalent to the result of the 'init' block in legacy procs.
+    const ProcType& type = type_.AsProc();
+    std::vector<InterpValue> state_init_values;
+    for (const auto& [member_name, initializer] :
+         node->GetOrderedMembers(&type.AsProc().struct_def_base())) {
+      std::optional<const Type*> maybe_member_type =
+          type.GetMemberTypeByName(member_name);
+      XLS_RET_CHECK(maybe_member_type.has_value());
+
+      // The inferred types of the state members are State<T> where T is the
+      // type specified in the DSLX source. These are the only members we need
+      // to evaluate.
+      const Type& member_type = **maybe_member_type;
+      if (!IsProcDefStateType(member_type, import_data_)) {
+        continue;
+      }
+
+      absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+          &import_data_, ti_, &warning_collector_,
+          table_.GetParametricEnv(parametric_context_), initializer);
+      if (!value.ok()) {
+        return TypeInferenceErrorStatus(
+            initializer->span(), &type_,
+            absl::Substitute("Initializer for member `$0` of proc `$1` must be "
+                             "possible to evaluate at compile time.",
+                             member_name,
+                             type.AsProc().struct_def_base().identifier()),
+            file_table_);
+      }
+
+      state_init_values.push_back(std::move(*value));
+    }
+
+    InterpValue value = InterpValue::MakeTuple(std::move(state_init_values));
+    ti_->NoteConstExpr(node, value);
+    VLOG(6) << "Storing value " << value.ToHumanString()
+            << " for proc initializer " << node->ToString();
+
+    // Propagate the proc "value" through the statement and/or statement block
+    // that yields it. This way IR conversion can easily say "give me the
+    // constant value for the body of the proc constructor."
+    for (AstNode* parent = node->parent();
+         parent != nullptr && (parent->kind() == AstNodeKind::kStatement ||
+                               parent->kind() == AstNodeKind::kStatementBlock);
+         parent = parent->parent()) {
+      VLOG(6) << "Propagating proc initializer value for expr `"
+              << node->ToString() << "` to ancestor of kind "
+              << AstNodeKindToString(parent->kind());
+      ti_->NoteConstExpr(parent, value);
+    }
+
     return absl::OkStatus();
   }
 

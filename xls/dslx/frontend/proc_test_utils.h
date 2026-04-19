@@ -18,6 +18,7 @@
 #include <string_view>
 #include <utility>
 
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc.h"
@@ -29,6 +30,10 @@ namespace xls::dslx {
 // with irrelevant content.
 std::pair<Module, Proc*> CreateEmptyProc(FileTable& file_table,
                                          std::string_view name);
+
+// Variant of `CreateEmptyProc` that creates an impl-style proc.
+std::pair<Module, ProcDef*> CreateEmptyProcDef(FileTable& file_table,
+                                               std::string_view name);
 
 }  // namespace xls::dslx
 

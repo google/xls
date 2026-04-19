@@ -20,6 +20,7 @@
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/substitute.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/module.h"
@@ -45,6 +46,21 @@ std::pair<Module, Proc*> CreateEmptyProc(FileTable& file_table,
   CHECK(proc.ok());
   CHECK(std::holds_alternative<Proc*>(*proc));
   return {std::move(parser.module()), std::get<Proc*>(*proc)};
+}
+
+std::pair<Module, ProcDef*> CreateEmptyProcDef(FileTable& file_table,
+                                               std::string_view name) {
+  const std::string_view code_template = R"(proc $0 {}
+    impl $0 {}
+})";
+  Scanner s(file_table, Fileno(0), absl::Substitute(code_template, name));
+  Parser parser{"test", &s};
+  Bindings bindings;
+  absl::StatusOr<ModuleMember> proc =
+      parser.ParseProc(Pos(), /*is_public=*/false, bindings);
+  CHECK(proc.ok());
+  CHECK(std::holds_alternative<ProcDef*>(*proc));
+  return {std::move(parser.module()), std::get<ProcDef*>(*proc)};
 }
 
 }  // namespace xls::dslx

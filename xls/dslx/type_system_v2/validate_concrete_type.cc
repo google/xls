@@ -246,13 +246,12 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(invocation);
   }
 
-  absl::Status HandleStructMemberNode(const StructMemberNode* member) override {
-    if (type_->IsProc()) {
-      return TypeInferenceErrorStatus(
-          member->span(), type_, "Structs cannot contain procs as members.",
-          file_table_);
-    }
-    return absl::OkStatus();
+  absl::Status HandleStructDef(const StructDef* node) override {
+    return HandleStructDefBaseInternal(node);
+  }
+
+  absl::Status HandleProcDef(const ProcDef* node) override {
+    return HandleStructDefBaseInternal(node);
   }
 
   absl::Status HandleFormatMacro(const FormatMacro* macro) override {
@@ -528,6 +527,21 @@ class TypeValidator : public AstNodeVisitorWithDefault {
 
     return ValidateFuzzTestDomainType(domain_type, param_type, domain->span(),
                                       domain->ToString(), param->ToString());
+  }
+
+  absl::Status HandleStructDefBaseInternal(const StructDefBase* def) {
+    if (type_->IsProc()) {
+      return absl::OkStatus();
+    }
+    for (const StructMemberNode* member : def->members()) {
+      XLS_ASSIGN_OR_RETURN(const Type* member_type, ti_.GetItemOrError(member));
+      if (member_type->IsProc()) {
+        return TypeInferenceErrorStatus(
+            member->span(), type_, "Structs cannot contain procs as members.",
+            file_table_);
+      }
+    }
+    return absl::OkStatus();
   }
 
   absl::Status ValidateBinopShift(const Binop& binop) {
