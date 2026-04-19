@@ -35,12 +35,16 @@ class ProcIdTest : public ::testing::Test {
     auto [foo_module, foo_proc] = CreateEmptyProc(file_table_, "Foo");
     auto [bar_module, bar_proc] = CreateEmptyProc(file_table_, "Bar");
     auto [baz_module, baz_proc] = CreateEmptyProc(file_table_, "Baz");
+    auto [proc_def_module, proc_def] =
+        CreateEmptyProcDef(file_table_, "TestProcDef");
     foo_ = foo_proc;
     bar_ = bar_proc;
     baz_ = baz_proc;
+    proc_def_ = proc_def;
     modules_.push_back(std::move(foo_module));
     modules_.push_back(std::move(bar_module));
     modules_.push_back(std::move(baz_module));
+    modules_.push_back(std::move(proc_def_module));
   }
 
   FileTable file_table_;
@@ -48,6 +52,7 @@ class ProcIdTest : public ::testing::Test {
   Proc* foo_;
   Proc* bar_;
   Proc* baz_;
+  ProcDef* proc_def_;
   ProcIdFactory factory_;
 };
 
@@ -92,6 +97,20 @@ TEST_F(ProcIdTest, SharedInstance) {
   EXPECT_EQ(factory_.CreateProcId(root, bar_).ToString(), "Foo->Bar:0");
   EXPECT_FALSE(factory_.HasMultipleInstancesOfAnyProc());
   EXPECT_EQ(factory_.CreateProcId(root, bar_).ToString(), "Foo->Bar:1");
+  EXPECT_TRUE(factory_.HasMultipleInstancesOfAnyProc());
+}
+
+TEST_F(ProcIdTest, CreateProcIdForProcDef) {
+  const ProcId id = factory_.CreateProcId(proc_def_);
+  EXPECT_EQ(id.ToString(), "TestProcDef:0");
+  EXPECT_FALSE(factory_.HasMultipleInstancesOfAnyProc());
+}
+
+TEST_F(ProcIdTest, CreateMultipleProcIdsForProcDef) {
+  const ProcId id1 = factory_.CreateProcId(proc_def_);
+  const ProcId id2 = factory_.CreateProcId(proc_def_);
+  EXPECT_EQ(id1.ToString(), "TestProcDef:0");
+  EXPECT_EQ(id2.ToString(), "TestProcDef:1");
   EXPECT_TRUE(factory_.HasMultipleInstancesOfAnyProc());
 }
 

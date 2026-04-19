@@ -15,16 +15,22 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <variant>
 #include <vector>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/substitute.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
@@ -141,6 +147,73 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
   Visitor v(bindings, package);
   XLS_RETURN_IF_ERROR(type.Accept(v));
   return v.retval();
+}
+
+std::optional<Function*> GetProcNextFunction(const ProcDef* proc) {
+  for (ImplMember member : (*proc->impl())->members()) {
+    if (!std::holds_alternative<Function*>(member)) {
+      continue;
+    }
+
+    Function* fn = std::get<Function*>(member);
+    if (fn->identifier() == "next") {
+      return fn;
+    }
+  }
+
+  return std::nullopt;
+}
+
+absl::StatusOr<std::vector<Function*>> GetProcConstructors(const ProcDef* p,
+                                                           const TypeInfo* ti) {
+  XLS_RET_CHECK(p->impl().has_value());
+  const Impl* impl = *p->impl();
+  std::vector<Function*> result;
+  for (ImplMember member : impl->members()) {
+    if (std::holds_alternative<Function*>(member)) {
+      Function* function = std::get<Function*>(member);
+      XLS_ASSIGN_OR_RETURN(const Type* fn_type, ti->GetItemOrError(function));
+      XLS_RET_CHECK(fn_type->IsFunction());
+
+      if (!fn_type->AsFunction().params().empty()) {
+        const Type& first_param_type = *fn_type->AsFunction().params().front();
+        if (first_param_type.IsProc() &&
+            &first_param_type.AsProc().struct_def_base() == p) {
+          continue;
+        }
+      }
+
+      // It's only a constructor if it returns effectively `Self`.
+      const Type& return_type = fn_type->AsFunction().return_type();
+      if (return_type.IsProc() &&
+          &return_type.AsProc().struct_def_base() == p) {
+        result.push_back(function);
+      }
+    }
+  }
+  return result;
+}
+
+absl::StatusOr<Function*> GetTopProcConstructor(const ProcDef* proc,
+                                                const TypeInfo* ti) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Function*> constructors,
+                       GetProcConstructors(proc, ti));
+  if (constructors.empty()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "Proc '$0' does not have a constructor, i.e. a static function "
+        "returning Self, so it cannot be used as a top proc.",
+        proc->identifier()));
+  }
+
+  if (constructors.size() > 1) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "Proc '$0' has $1 possible constructors, i.e. static functions "
+        "returning Self. In order to be used as a top proc, there must only be "
+        "one constructor.",
+        proc->identifier(), constructors.size()));
+  }
+
+  return constructors.front();
 }
 
 }  // namespace xls::dslx

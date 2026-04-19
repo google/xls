@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -41,6 +42,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "cppitertools/filter.hpp"
 #include "cppitertools/imap.hpp"
@@ -66,10 +68,12 @@
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/function_converter.h"
 #include "xls/dslx/ir_convert/get_conversion_records.h"
+#include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
@@ -240,6 +244,22 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
     }
 
     return converter.HandleProcNextFunction(record, import_data, proc_data);
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool is_proc_def_next,
+                       IsProcDefNextFunction(f, *import_data));
+  if (is_proc_def_next) {
+    XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
+                         GetStructOrProcDef(f, *import_data));
+    XLS_RET_CHECK(def.has_value());
+    const ProcDef* proc_def = absl::down_cast<const ProcDef*>(*def);
+    // TODO: https://github.com/google/xls/issues/4125 - Specify the intended
+    // constructor in the params to `ConvertOneFunctionInternal`. For now we
+    // assume the proc is top, because we don't yet support spawns.
+    XLS_ASSIGN_OR_RETURN(Function * constructor,
+                         GetTopProcConstructor(proc_def, record.type_info()));
+    return converter.ConvertProcDef(proc_def, constructor, *record.proc_id(),
+                                    record.type_info());
   }
 
   return converter.HandleFunction(f, record.type_info(),
@@ -449,6 +469,18 @@ absl::Status CheckAcceptableTopProc(Proc* proc) {
   return absl::OkStatus();
 }
 
+absl::Status CheckAcceptableTopProcDef(const ProcDef* proc,
+                                       const TypeInfo* ti) {
+  if (!proc->impl().has_value()) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("Cannot convert proc '$0' because it does not have an "
+                         "impl with a constructor.",
+                         proc->identifier()));
+  }
+
+  return GetTopProcConstructor(proc, ti).status();
+}
+
 template <typename BlockT>
 absl::Status ConvertOneFunctionIntoPackageInternal(
     BlockT* block, ImportData* import_data, const ConvertOptions& options,
@@ -524,6 +556,15 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
     XLS_RETURN_IF_ERROR(CheckAcceptableTopProc(*proc));
     return ConvertOneFunctionIntoPackageInternal(*proc, import_data, options,
                                                  conv);
+  }
+
+  absl::StatusOr<ProcDef*> proc_def =
+      module->GetMemberOrError<ProcDef>(entry_function_name);
+  if (proc_def.ok()) {
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo(module));
+    XLS_RETURN_IF_ERROR(CheckAcceptableTopProcDef(*proc_def, ti));
+    return ConvertOneFunctionIntoPackageInternal(*proc_def, import_data,
+                                                 options, conv);
   }
 
   absl::StatusOr<ProcAlias*> proc_alias =

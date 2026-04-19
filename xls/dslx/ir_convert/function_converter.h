@@ -157,6 +157,10 @@ class FunctionConverter {
                                       ImportData* import_data,
                                       ProcConversionData* proc_data);
 
+  absl::Status ConvertProcDef(const ProcDef* proc_def,
+                              const Function* constructor, ProcId proc_id,
+                              TypeInfo* type_info);
+
   // Notes a constant-definition dependency for the function (so it can
   // participate in the IR conversion).
   void AddConstantDep(ConstantDef* constant_def);
@@ -238,11 +242,18 @@ class FunctionConverter {
     BValue value;
   };
 
+  struct ProcDefInstance;
+
   // Every AST node has an "IR value" that is either a function builder value
   // (BValue) or its IR-conversion-time-constant-decorated cousin (CValue), or
   // an inter-proc Channel.
-  using IrValue =
-      std::variant<BValue, CValue, Channel*, ChannelInterface*, ChannelArray*>;
+  using IrValue = std::variant<BValue, CValue, Channel*, ChannelInterface*,
+                               ChannelArray*, ProcDefInstance*>;
+
+  struct ProcDefInstance {
+    const ProcDef* proc_def;
+    std::vector<IrValue> member_values;
+  };
 
   // Helper for converting an IR value to its BValue pointer for use in
   // debugging.
@@ -518,8 +529,16 @@ class FunctionConverter {
   absl::Status HandleBuiltinZip(const Invocation* node);
   // keep-sorted end
 
-  // Derefences the type definition to a struct definition.
-  absl::StatusOr<StructDef*> DerefStruct(TypeDefinition node);
+  absl::Status HandleProcDef(const ProcDef* proc_def,
+                             const Function* constructor);
+
+  absl::Status HandleProcDefConstructor(const ProcDef& proc,
+                                        const Function& constructor,
+                                        const ParametricEnv& bindings,
+                                        ProcBuilder* builder);
+
+  // Dereferences the type definition to a struct or impl-style proc definition.
+  absl::StatusOr<StructDefBase*> DerefStructOrProc(TypeDefinition node);
 
   // Derefences the type definition to a enum definition.
   absl::StatusOr<EnumDef*> DerefEnum(TypeDefinition node);
@@ -548,7 +567,7 @@ class FunctionConverter {
 
   // Dereferences a type definition to either a struct definition or enum
   // definition.
-  using DerefVariant = std::variant<StructDef*, EnumDef*>;
+  using DerefVariant = std::variant<StructDef*, EnumDef*, ProcDef*>;
   absl::StatusOr<DerefVariant> DerefStructOrEnum(TypeDefinition node);
 
   SourceInfo ToSourceInfo(const std::optional<Span>& span) {
@@ -668,6 +687,8 @@ class FunctionConverter {
   // every time we emit a state read/write.
   absl::flat_hash_map<std::string, BValue> state_read_called_by_state_name_;
   absl::flat_hash_map<std::string, BValue> state_write_called_by_state_name_;
+
+  std::vector<std::unique_ptr<ProcDefInstance>> proc_def_instances_;
 };
 
 }  // namespace xls::dslx
