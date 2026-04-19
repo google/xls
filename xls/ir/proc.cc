@@ -272,6 +272,18 @@ absl::StatusOr<StateElement*> Proc::InsertUnreadStateElement(
   return state_element;
 }
 
+absl::StatusOr<StateRead*> Proc::AddStateRead(StateElement* state_element,
+                                              std::optional<Node*> predicate,
+                                              std::optional<std::string> label,
+                                              const SourceInfo& loc) {
+  XLS_ASSIGN_OR_RETURN(
+      StateRead * state_read,
+      MakeNodeWithName<StateRead>(loc, state_element, predicate, label,
+                                  state_element->name()));
+  state_reads_[state_element].push_back(state_read);
+  return state_read;
+}
+
 absl::StatusOr<StateRead*> Proc::InsertStateElement(
     int64_t index, std::string_view requested_state_name,
     const Value& init_value, std::optional<Node*> read_predicate,
