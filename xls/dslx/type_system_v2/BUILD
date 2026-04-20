@@ -602,6 +602,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/type_system:typecheck_test_utils",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",

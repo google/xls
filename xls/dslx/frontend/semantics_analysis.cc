@@ -220,6 +220,19 @@ void WarnOnInappropriateMemberName(std::string_view member_name,
   }
 }
 
+void WarnOnSystemVerilogKeywordStructMemberName(
+    std::string_view member_name, const Span& span,
+    WarningCollector& warning_collector) {
+  if (SystemVerilogKeywords().contains(member_name)) {
+    warning_collector.Add(
+        span, WarningKind::kVerilogKeywordName,
+        absl::StrFormat(
+            "Struct member name `%s` is a Verilog/SystemVerilog keyword; "
+            "(System)Verilog code generation may fail",
+            member_name));
+  }
+}
+
 // Checks whether an expression may have side-effects. It may have
 // false-positives, for example an invocation may actually have no side-effects,
 // but because we do not recursively look into the callee, we conservatively
@@ -421,7 +434,7 @@ class PreTypecheckPass : public AstNodeRecursiveVisitor {
     }
     if (SystemVerilogKeywords().contains(node->identifier())) {
       warning_collector_.Add(
-          node->name_def()->span(), WarningKind::kKeywordParameterName,
+          node->name_def()->span(), WarningKind::kVerilogKeywordName,
           absl::StrFormat(
               "Parameter name `%s` is a Verilog/SystemVerilog keyword; "
               "(System)Verilog code generation may fail",
@@ -434,6 +447,8 @@ class PreTypecheckPass : public AstNodeRecursiveVisitor {
     for (const auto* member : node->members()) {
       WarnOnInappropriateMemberName(member->name(), member->name_def()->span(),
                                     *node->owner(), warning_collector_);
+      WarnOnSystemVerilogKeywordStructMemberName(
+          member->name(), member->name_def()->span(), warning_collector_);
     }
     return DefaultHandler(node);
   }

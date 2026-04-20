@@ -46,7 +46,7 @@ fn f(input: u32) -> u32 { input }
 )"));
   ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
   EXPECT_EQ(result.tm.warnings.warnings()[0].kind,
-            WarningKind::kKeywordParameterName);
+            WarningKind::kVerilogKeywordName);
   EXPECT_EQ(result.tm.warnings.warnings()[0].message,
             "Parameter name `input` is a Verilog/SystemVerilog keyword; "
             "(System)Verilog code generation may fail");

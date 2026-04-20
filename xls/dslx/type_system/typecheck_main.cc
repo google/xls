@@ -63,8 +63,8 @@ ABSL_FLAG(std::string, disable_warnings, "",
           "recommended, but can be used in exceptional circumstances");
 ABSL_FLAG(std::string, enable_warnings, "",
           "Comma-delimited list of warnings to enable that are disabled in the "
-          "default set; e.g. `keyword_parameter_name` checks for "
-          "Verilog/SystemVerilog keyword parameter names.");
+          "default set; e.g. `verilog_keyword_name` checks for "
+          "Verilog/SystemVerilog keyword parameter and struct member names.");
 ABSL_FLAG(bool, warnings_as_errors, true,
           "Whether to fail early, as an error, if warnings are detected");
 

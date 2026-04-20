@@ -1355,16 +1355,31 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
 
   def test_keyword_parameter_name_warning_default_off(self):
     stderr = self._run(
-        'xls/dslx/tests/errors/warning_on_keyword_parameter_name.x',
+        'xls/dslx/tests/errors/warning_on_verilog_keyword_parameter_name.x',
         want_err_retcode=False,
     )
     self.assertNotIn('Verilog/SystemVerilog keyword', stderr)
 
     stderr = self._run(
-        'xls/dslx/tests/errors/warning_on_keyword_parameter_name.x',
-        enable_warnings={'keyword_parameter_name'},
+        'xls/dslx/tests/errors/warning_on_verilog_keyword_parameter_name.x',
+        enable_warnings={'verilog_keyword_name'},
         want_err_retcode=True,
     )
+    self.assertIn('Verilog/SystemVerilog keyword', stderr)
+
+  def test_keyword_struct_member_name_warning_default_off(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/warning_on_verilog_keyword_struct_member_name.x',
+        want_err_retcode=False,
+    )
+    self.assertNotIn('Verilog/SystemVerilog keyword', stderr)
+
+    stderr = self._run(
+        'xls/dslx/tests/errors/warning_on_verilog_keyword_struct_member_name.x',
+        enable_warnings={'verilog_keyword_name'},
+        want_err_retcode=True,
+    )
+    self.assertIn('Struct member name `input`', stderr)
     self.assertIn('Verilog/SystemVerilog keyword', stderr)
 
   def test_logical_and_on_functions(self):

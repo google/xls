@@ -24,6 +24,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
+#include "xls/dslx/warning_kind.h"
 
 // Tests for struct definitions, instantiations, member access, and splatting
 // (excluding `impl` blocks).
@@ -33,6 +34,20 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
+
+TEST(TypecheckV2StructTest, SystemVerilogKeywordStructMemberNameGivesWarning) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+struct S {
+  input: u32,
+}
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].kind,
+            WarningKind::kVerilogKeywordName);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "Struct member name `input` is a Verilog/SystemVerilog keyword; "
+            "(System)Verilog code generation may fail");
+}
 
 TEST(TypecheckV2StructTest, GlobalStructInstancePropagation) {
   EXPECT_THAT(
