@@ -1554,12 +1554,16 @@ absl::Status BytecodeInterpreter::EvalTraceFmt(const Bytecode& bytecode) {
                        bytecode.trace_data());
   XLS_ASSIGN_OR_RETURN(std::string message,
                        TraceDataToString(*trace_data, stack_));
-  // Exclude "vtrace" messages if the verbosity level is set to a value higher
-  // than the verbosity level passed by the "max_trace_verbosity" flag.
-  if (events_.has_value() &&
-      (*trace_data->verbosity() <= *options_.max_trace_verbosity())) {
-    (*events_)->AddTraceStatementMessage(import_data_->file_table(),
-                                         bytecode.source_span(), message);
+  if (events_.has_value()) {
+    // Exclude "vtrace" messages if their verbosity level is set to a value
+    // higher than the verbosity level specified by the "max_trace_verbosity"
+    // flag. Set the default verbosity value to zero to not skip `trace_fmt!()`
+    // messages, because we only want to filter `vtrace_fmt!() messages.
+    const auto verbosity = trace_data->verbosity().value_or(0);
+    if (verbosity <= *options_.max_trace_verbosity()) {
+      (*events_)->AddTraceStatementMessage(import_data_->file_table(),
+                                           bytecode.source_span(), message);
+    }
   }
   stack_.Push(InterpValue::MakeToken());
   return absl::OkStatus();
