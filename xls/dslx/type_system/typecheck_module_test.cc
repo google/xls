@@ -3544,6 +3544,36 @@ const mol = u32:42;)";
   ASSERT_TRUE(tm.warnings.warnings().empty());
 }
 
+TEST_F(TypecheckV2Test, SystemVerilogKeywordParameterNameGivesWarning) {
+  constexpr std::string_view kProgram = R"(
+fn f(input: u32) -> u32 { input }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(kProgram));
+  TypecheckedModule& tm = tr.tm;
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(tm.warnings.warnings().at(0).kind,
+            WarningKind::kVerilogKeywordName);
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Parameter name `input` is a Verilog/SystemVerilog keyword; "
+            "(System)Verilog code generation may fail");
+}
+
+TEST_F(TypecheckV2Test, SystemVerilogKeywordStructMemberNameGivesWarning) {
+  constexpr std::string_view kProgram = R"(
+struct S {
+  input: u32,
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(kProgram));
+  TypecheckedModule& tm = tr.tm;
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(tm.warnings.warnings().at(0).kind,
+            WarningKind::kVerilogKeywordName);
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Struct member name `input` is a Verilog/SystemVerilog keyword; "
+            "(System)Verilog code generation may fail");
+}
+
 TEST_F(TypecheckV2Test, BadTraceFmtWithUseOfChannel) {
   constexpr std::string_view kProgram =
       R"(

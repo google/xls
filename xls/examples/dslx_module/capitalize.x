@@ -20,20 +20,20 @@ const LOWERCASE_A = u8:97;
 const LOWERCASE_Z = u8:122;
 
 // Converts all letters in the input string to uppercase.
-pub fn capitalize<N: u32>(input: u8[N]) -> u8[N] {
+pub fn capitalize<N: u32>(x: u8[N]) -> u8[N] {
   let cap_distance = 'a' - 'A';
 
   let result = for (i, result) : (u32, u8[N]) in u32:0..N {
     let element =
-        if input[i] >= LOWERCASE_A && input[i] <= LOWERCASE_Z {
-          input[i] - cap_distance
+        if x[i] >= LOWERCASE_A && x[i] <= LOWERCASE_Z {
+          x[i] - cap_distance
         } else {
-          input[i]
+          x[i]
         };
 
     let result = update(result, i, element);
     result
-  }(input);
+  }(x);
 
   result
 }
@@ -41,29 +41,29 @@ pub fn capitalize<N: u32>(input: u8[N]) -> u8[N] {
 // Converts consecutive letters in the input string to alternate cases:
 // uppercase, then lowercase, then uppercase, etc., as if spoken in a mocking
 // manner by a somewhat anthropomorphic yellow sea sponge.
-pub fn sponge_capitalize<N: u32>(input: u8[N]) -> u8[N] {
+pub fn sponge_capitalize<N: u32>(x: u8[N]) -> u8[N] {
   let cap_distance = 'a' - 'A';
 
   let do_cap = true;
   let result = for (i, (result, do_cap)) : (u32, (u8[N], u1)) in u32:0..N {
-    let input_is_cap = input[i] >= u8:65 && input[i] <= u8:90;
-    let input_is_lower = input[i] >= u8:97 && input[i] <= u8:122;
-    let capital = input[i] - cap_distance;
-    let lower = input[i] + cap_distance;
+    let input_is_cap = x[i] >= u8:65 && x[i] <= u8:90;
+    let input_is_lower = x[i] >= u8:97 && x[i] <= u8:122;
+    let capital = x[i] - cap_distance;
+    let lower = x[i] + cap_distance;
 
     let element =
         if do_cap && input_is_lower {
           capital
         } else {
           if !do_cap && input_is_cap { lower }
-          else { input[i] }
+          else { x[i] }
         };
     let do_cap =
         if input_is_lower || input_is_cap { !do_cap } else { do_cap };
 
     let result = update(result, i, element);
     (result, do_cap)
-  }((input, do_cap));
+  }((x, do_cap));
 
   result.0
 }

@@ -54,10 +54,14 @@ TEST(WarningKindTest, InitializerListHasAllKinds) {
 
 TEST(WarningKindTest, DefaultSetAnyMissing) {
   ASSERT_TRUE(WarningIsEnabled(kAllWarningsSet, WarningKind::kShouldUseAssert));
+  ASSERT_TRUE(
+      WarningIsEnabled(kAllWarningsSet, WarningKind::kVerilogKeywordName));
 
   // Currently "should use assert" warning is disabled for propagation delay.
   ASSERT_FALSE(
       WarningIsEnabled(kDefaultWarningsSet, WarningKind::kShouldUseAssert));
+  ASSERT_FALSE(
+      WarningIsEnabled(kDefaultWarningsSet, WarningKind::kVerilogKeywordName));
 }
 
 TEST(WarningKindTest, Complement) {
@@ -89,6 +93,12 @@ TEST(WarningKindTest, WarningKindSetFromString) {
   XLS_ASSERT_OK_AND_ASSIGN(WarningKindSet set,
                            WarningKindSetFromString("should_use_assert"));
   ASSERT_TRUE(WarningIsEnabled(set, WarningKind::kShouldUseAssert));
+}
+
+TEST(WarningKindTest, WarningKindSetFromStringVerilogKeywordName) {
+  XLS_ASSERT_OK_AND_ASSIGN(WarningKindSet set,
+                           WarningKindSetFromString("verilog_keyword_name"));
+  ASSERT_TRUE(WarningIsEnabled(set, WarningKind::kVerilogKeywordName));
 }
 
 TEST(WarningKindTest, GetWarningsSetFromFlagsEmpty) {

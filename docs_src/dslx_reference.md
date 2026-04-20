@@ -409,9 +409,9 @@ Characters are a special case of bits types: they are implicitly-type as u8.
 Characters can be used just as traditional bits:
 
 ```dslx
-fn add_to_null(input: u8) -> u8 {
+fn add_to_null(x: u8) -> u8 {
     let null: u8 = '\0';
-    input + null
+    x + null
 }
 
 #[test]
@@ -786,10 +786,10 @@ Character strings are a special case of array types, being implicitly-sized
 arrays of u8 elements. String constants can be used just as traditional arrays:
 
 ```dslx
-fn add_one<N: u32>(input: u8[N]) -> u8[N] {
+fn add_one<N: u32>(x: u8[N]) -> u8[N] {
     for (i, result): (u32, u8[N]) in u32:0..N {
         update(result, i, result[i] + u8:1)
-    }(input)
+    }(x)
 }
 
 #[test]

@@ -32,6 +32,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "xls/codegen/vast/verilog_keywords.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -214,6 +215,19 @@ void WarnOnInappropriateMemberName(std::string_view member_name,
         absl::StrFormat("Standard style is snake_case for struct member names; "
                         "got: `%s`",
                         member_name));
+  }
+}
+
+void WarnOnSystemVerilogKeywordStructMemberName(
+    std::string_view member_name, const Span& span,
+    WarningCollector& warning_collector) {
+  if (SystemVerilogKeywords().contains(member_name)) {
+    warning_collector.Add(
+        span, WarningKind::kVerilogKeywordName,
+        absl::StrFormat(
+            "Struct member name `%s` is a Verilog/SystemVerilog keyword; "
+            "(System)Verilog code generation may fail",
+            member_name));
   }
 }
 
@@ -712,10 +726,28 @@ class PreTypecheckPass : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleParam(const Param* node) override {
+    const auto* parent_fn = dynamic_cast<const Function*>(node->parent());
+    if (parent_fn == nullptr || parent_fn->tag() != FunctionTag::kNormal) {
+      return DefaultHandler(node);
+    }
+    if (SystemVerilogKeywords().contains(node->identifier())) {
+      warning_collector_.Add(
+          node->name_def()->span(), WarningKind::kVerilogKeywordName,
+          absl::StrFormat(
+              "Parameter name `%s` is a Verilog/SystemVerilog keyword; "
+              "(System)Verilog code generation may fail",
+              node->identifier()));
+    }
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleStructDef(const StructDef* node) override {
     for (const auto* member : node->members()) {
       WarnOnInappropriateMemberName(member->name(), member->name_def()->span(),
                                     *node->owner(), warning_collector_);
+      WarnOnSystemVerilogKeywordStructMemberName(
+          member->name(), member->name_def()->span(), warning_collector_);
     }
     return DefaultHandler(node);
   }

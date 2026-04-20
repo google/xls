@@ -73,11 +73,11 @@ fn test_fse_record_to_bits() {
     assert_eq(bit, u32:0x0020_05_17);
 }
 
-pub fn bits_to_fse_record(bit: u32) -> FseTableRecord {
+pub fn bits_to_fse_record(raw: u32) -> FseTableRecord {
     FseTableRecord {
-        symbol: bit[0:8],
-        num_of_bits: bit[8:16],
-        base: bit[16:32]
+        symbol: raw[0:8],
+        num_of_bits: raw[8:16],
+        base: raw[16:32]
     }
 }
 
