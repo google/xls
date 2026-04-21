@@ -96,9 +96,9 @@ ABSL_FLAG(bool, trace_calls, false,
 ABSL_FLAG(int64_t, max_ticks, 100000,
           "If non-zero, the maximum number of ticks to execute on any proc. If "
           "exceeded an error is returned.");
-ABSL_FLAG(int64_t, max_trace_verbosity, 0,
+ABSL_FLAG(int64_t, max_trace_verbosity, 100,
           "Maximum verbosity for traces. Traces with higher verbosity are "
-          "stripped from the output. 0 by default.");
+          "stripped from the output. 100 by default.");
 ABSL_FLAG(std::string, evaluator, "dslx-interpreter",
           "What evaluator should be used to actually execute the dslx test. "
           "'dslx-interpreter' is the DSLX bytecode interpreter. 'ir-jit' is "
