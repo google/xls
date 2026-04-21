@@ -32,7 +32,40 @@ fn vtrace_fmt_example(a: u32, b: u32) -> u32 {
     a + b
 }
 
+proc Vprinter {
+    trigger: chan<bool> in;
+
+    config(trigger: chan<bool> in) { (trigger,) }
+
+    init { () }
+
+    next(st: ()) {
+        vtrace_fmt!(VERBOSITY_LEV_0, "Verbosity level {:d}", VERBOSITY_LEV_0);
+        vtrace_fmt!(VERBOSITY_LEV_3, "Verbosity level {:d}", VERBOSITY_LEV_3);
+        vtrace_fmt!(VERBOSITY_LEV_4, "Verbosity level {:d}", VERBOSITY_LEV_4);
+        trace_fmt!("Trace verification.");
+        let (tok, _) = recv(join(), trigger);
+    }
+}
+
 #[test]
-fn example_test() {
-    assert_eq(vtrace_fmt_example(u32:1, u32:2), u32:3);
+fn example_test() { assert_eq(vtrace_fmt_example(u32:1, u32:2), u32:3); }
+
+#[test_proc]
+proc TestVtrace {
+    start: chan<bool> out;
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) {
+        let (s, r) = chan<bool>("init");
+        spawn Vprinter(r);
+        (s, terminator)
+    }
+
+    init { () }
+
+    next(st: ()) {
+        let tok = send(join(), start, true);
+        let tok = send(tok, terminator, true);
+    }
 }

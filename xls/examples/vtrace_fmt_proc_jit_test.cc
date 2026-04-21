@@ -16,17 +16,17 @@
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/examples/proc_vtrace_jit_wrapper.h"
+#include "xls/examples/vtrace_fmt_proc_jit_wrapper.h"
 
 namespace xls {
 namespace examples {
 namespace {
 
-TEST(ProcVtraceJitTest, VerbosityTest) {
+TEST(VtraceFmtProcJitTest, VerbosityTest) {
   EvaluatorOptions opts = EvaluatorOptions().set_max_trace_verbosity(10);
-  XLS_ASSERT_OK_AND_ASSIGN(auto proc_vtrace_jit, ProcVtrace::Create(opts));
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc_vtrace_jit, VtraceFmtProc::Create(opts));
   XLS_EXPECT_OK(proc_vtrace_jit->SendToChannel(
-      "_trigger", "__proc_vtrace__Vprinter_0_next", Value(UBits(1, 1))));
+      "_trigger", "__vtrace_fmt__Vprinter_0_next", Value(UBits(1, 1))));
   XLS_ASSERT_OK(proc_vtrace_jit->Tick());
 
   ProcRuntime* rt = proc_vtrace_jit->runtime();
