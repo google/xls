@@ -1303,7 +1303,7 @@ absl::Status CleanUp(FunctionBase* f, bool can_remove_params) {
   XLS_RETURN_IF_ERROR(
       dce.Run(f->package(), OptimizationPassOptions(), &results, context)
           .status());
-  if (can_remove_params) {
+  if (can_remove_params && f->package()->IsTop(f)) {
     XLS_RETURN_IF_ERROR(RemoveDeadParameters(f).status());
   }
   XLS_RETURN_IF_ERROR(

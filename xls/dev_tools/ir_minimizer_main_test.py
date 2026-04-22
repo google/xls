@@ -844,7 +844,7 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
     )
     minimized_ir = output.stdout
     self._maybe_record_property('output', minimized_ir)
-    self.assertIn('baz()', minimized_ir)
+    self.assertIn('baz', minimized_ir)
 
   def test_can_unwrap_map(self):
     ir_file = self.create_tempfile(content=INVOKE_MAP)
@@ -875,7 +875,7 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
     minimized_ir = output.stdout
     self._maybe_record_property('output', minimized_ir)
     self.assertEqual(function_count(minimized_ir), 2)
-    self.assertEqual(node_count(minimized_ir), 3)
+    self.assertEqual(node_count(minimized_ir), 4)
     self.assertIn('ret literal', minimized_ir)
     self.assertNotIn('ret invoke', minimized_ir)
 
