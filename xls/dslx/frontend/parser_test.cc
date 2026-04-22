@@ -3102,6 +3102,15 @@ TEST_F(ParserTest, ForInWithColonRefAsRangeLimit) {
                 {"m", "i"});
 }
 
+TEST_F(ParserTest, ForExpressionAsRhsOfBinop) {
+  // Regression test: inline `for` used as RHS operand of a binary expression.
+  RoundTripExpr(
+      R"(p ^ for (i, acc) in u32:0..u32:8 {
+    acc
+}(u1:1))",
+      {"p"});
+}
+
 TEST_F(ParserTest, TernaryWithOrExpressionTest) {
   RoundTripExpr("if a || b { u32:42 } else { u32:24 }", {"a", "b"});
 }
