@@ -72,7 +72,7 @@ def : FCmpPat<"ole", (Xls_CallDslxOp (FloatLib $lhs), CS<"lte_2">,
 
 // Define unordered(x, y) = is_nan(x + y)
 def : FCmpPat<"uno", (Xls_CallDslxOp (FloatLib $lhs), CS<"is_nan">,
-                                     (variadic (Arith_AddFOp $lhs, $rhs, $fmf)),
+                                     (variadic (Arith_AddFOp $lhs, $rhs, $fmf, (GetNullAttr))),
                                      PureCall, VectorCall)>;
 
 class OppositeFCmpPat<string s, string r> :
@@ -143,7 +143,7 @@ def : Pat<(Arith_NegFOp:$op $a, /*FastMathFlags=*/$_),
 
 // Emits a binary float library call.
 class FloatLibcall<Op Op, string Name> :
-    Pat<(Op:$op $a, $b, /*FastMathFlags=*/$_),
+    Pat<(Op:$op $a, $b, /*FastMathFlags=*/$_, /*RoundingMode=*/$_),
         (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b),
           PureCall, VectorCall)>;
 
