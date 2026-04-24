@@ -2596,6 +2596,9 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(outer_bindings, /*is_const=*/false));
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseArray(outer_bindings));
+  } else if (peek->IsKeyword(Keyword::kFor) ||
+             peek->IsKeyword(Keyword::kUnrollFor)) {  // For expression.
+    XLS_ASSIGN_OR_RETURN(lhs, ParseFor(outer_bindings));
   } else if (peek->IsKeyword(Keyword::kIf)) {  // Conditional expression.
     XLS_ASSIGN_OR_RETURN(lhs,
                          ParseRangeExpression(outer_bindings, kNoRestrictions));
