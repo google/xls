@@ -17,8 +17,6 @@
 #include <cstdint>
 #include <string_view>
 
-#include "xls/common/proto_adaptor_utils.h"
-
 namespace xls::noc {
 
 VirtualChannelConfigProtoBuilder& VirtualChannelConfigProtoBuilder::WithName(

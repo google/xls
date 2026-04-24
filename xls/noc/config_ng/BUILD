@@ -356,7 +356,6 @@ cc_library(
     deps = [
         ":coordinate_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
-        "//xls/common:proto_adaptor_utils",
         "@com_google_absl//absl/log:die_if_null",
     ],
 )
@@ -379,7 +378,6 @@ cc_library(
     hdrs = ["channel_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "//xls/common:proto_adaptor_utils",
         "@com_google_absl//absl/log:die_if_null",
     ],
 )

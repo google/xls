@@ -85,12 +85,6 @@ cc_library(
 )
 
 cc_library(
-    name = "proto_adaptor_utils",
-    hdrs = ["proto_adaptor_utils.h"],
-    deps = ["@com_google_absl//absl/base:core_headers"],
-)
-
-cc_library(
     name = "proto_test_utils",
     testonly = True,
     hdrs = ["proto_test_utils.h"],

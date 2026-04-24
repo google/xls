@@ -28,7 +28,6 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "re2/re2.h"
-#include "xls/common/proto_adaptor_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/sample.pb.h"
 #include "xls/tests/testvector.pb.h"
@@ -113,9 +112,7 @@ class SampleOptions {
   }
 
   const std::string& simulator() const { return proto_.simulator(); }
-  void set_simulator(std::string_view value) {
-    proto_.set_simulator(ToProtoString(value));
-  }
+  void set_simulator(std::string_view value) { proto_.set_simulator(value); }
 
   std::vector<std::string> codegen_args() const {
     return std::vector<std::string>(proto_.codegen_args().begin(),

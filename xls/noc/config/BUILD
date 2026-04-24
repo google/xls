@@ -50,7 +50,6 @@ cc_library(
     hdrs = ["link_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
-        "//xls/common:proto_adaptor_utils",
         "@com_google_absl//absl/log:die_if_null",
     ],
 )
@@ -72,7 +71,6 @@ cc_library(
     hdrs = ["virtual_channel_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
-        "//xls/common:proto_adaptor_utils",
         "@com_google_absl//absl/log:die_if_null",
     ],
 )
@@ -94,7 +92,6 @@ cc_library(
     hdrs = ["port_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
-        "//xls/common:proto_adaptor_utils",
         "@com_google_absl//absl/log:die_if_null",
     ],
 )
@@ -139,7 +136,6 @@ cc_library(
     deps = [
         ":network_config_cc_proto",
         ":network_config_proto_builder_utils",
-        "//xls/common:proto_adaptor_utils",
         "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/types:span",
     ],
@@ -166,7 +162,6 @@ cc_library(
         ":network_config_cc_proto",
         ":port_config_proto_builder",
         ":routing_scheme_config_proto_builder",
-        "//xls/common:proto_adaptor_utils",
         "@com_google_absl//absl/log:die_if_null",
     ],
 )
@@ -196,7 +191,6 @@ cc_library(
         ":port_config_proto_builder",
         ":router_config_proto_builder",
         ":virtual_channel_config_proto_builder",
-        "//xls/common:proto_adaptor_utils",
         "@com_google_absl//absl/status:statusor",
     ],
 )

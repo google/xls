@@ -39,7 +39,6 @@
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/interp_value.h"

@@ -317,7 +317,6 @@ cc_library(
     hdrs = ["module_signature.h"],
     deps = [
         ":module_signature_cc_proto",
-        "//xls/common:proto_adaptor_utils",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
@@ -595,7 +594,6 @@ cc_library(
         ":module_signature_cc_proto",
         ":op_override",
         ":ram_configuration",
-        "//xls/common:proto_adaptor_utils",
         "//xls/ir:channel",
         "//xls/ir:op",
         "//xls/ir:register",

@@ -202,7 +202,6 @@ cc_library(
         ":type",
         ":type_info",
         ":type_info_cc_proto",
-        "//xls/common:proto_adaptor_utils",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
         "//xls/dslx:import_data",

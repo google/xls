@@ -29,7 +29,6 @@
 #include "absl/types/span.h"
 #include "google/protobuf/text_format.h"
 #include "xls/codegen/module_signature.pb.h"
-#include "xls/common/proto_adaptor_utils.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
@@ -47,7 +46,7 @@ class ModuleSignature;
 class ModuleSignatureBuilder {
  public:
   explicit ModuleSignatureBuilder(std::string_view module_name) {
-    proto_.set_module_name(ToProtoString(module_name));
+    proto_.set_module_name(module_name);
   }
 
   static ModuleSignatureBuilder FromProto(ModuleSignatureProto proto) {

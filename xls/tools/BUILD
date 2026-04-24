@@ -91,7 +91,6 @@ cc_library(
     hdrs = ["proto_to_dslx.h"],
     deps = [
         "//xls/common:math_util",
-        "//xls/common:proto_adaptor_utils",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
         "//xls/common/status:ret_check",

@@ -474,7 +474,6 @@ cc_library(
     deps = [
         ":sample_cc_proto",
         ":scrub_crasher",
-        "//xls/common:proto_adaptor_utils",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
