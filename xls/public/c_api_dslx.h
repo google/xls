@@ -93,10 +93,12 @@ struct xls_dslx_type_alias;
 struct xls_dslx_type_info;
 struct xls_dslx_type;
 struct xls_dslx_type_annotation;
+struct xls_dslx_array_type_annotation;
 struct xls_dslx_constant_def;
 struct xls_dslx_function;
 struct xls_dslx_quickcheck;
 struct xls_dslx_function;
+struct xls_dslx_import;
 struct xls_dslx_param;
 struct xls_dslx_parametric_binding;
 struct xls_dslx_expr;
@@ -264,6 +266,11 @@ struct xls_dslx_enum_def* xls_dslx_module_member_get_enum_def(
     struct xls_dslx_module_member*);
 
 struct xls_dslx_type_alias* xls_dslx_module_member_get_type_alias(
+    struct xls_dslx_module_member*);
+
+// Returns the import AST node from the given module member if it is an import;
+// otherwise returns nullptr.
+struct xls_dslx_import* xls_dslx_module_member_get_import(
     struct xls_dslx_module_member*);
 
 // Returns the function AST node from the given module member if it is a
@@ -503,6 +510,11 @@ char* xls_dslx_constant_def_to_string(struct xls_dslx_constant_def*);
 char* xls_dslx_struct_def_get_identifier(struct xls_dslx_struct_def*);
 
 bool xls_dslx_struct_def_is_parametric(struct xls_dslx_struct_def*);
+int64_t xls_dslx_struct_def_get_parametric_binding_count(
+    struct xls_dslx_struct_def*);
+struct xls_dslx_parametric_binding*
+xls_dslx_struct_def_get_parametric_binding(struct xls_dslx_struct_def*,
+                                           int64_t);
 int64_t xls_dslx_struct_def_get_member_count(struct xls_dslx_struct_def*);
 
 struct xls_dslx_struct_member* xls_dslx_struct_def_get_member(
@@ -552,10 +564,30 @@ struct xls_dslx_type_ref_type_annotation*
 xls_dslx_type_annotation_get_type_ref_type_annotation(
     struct xls_dslx_type_annotation*);
 
+// Attempts to convert the given type annotation to an ArrayTypeAnnotation --
+// returns nullptr if the conversion is not viable.
+struct xls_dslx_array_type_annotation*
+xls_dslx_type_annotation_get_array_type_annotation(
+    struct xls_dslx_type_annotation*);
+
+// -- array_type_annotation
+
+struct xls_dslx_type_annotation*
+xls_dslx_array_type_annotation_get_element_type(
+    struct xls_dslx_array_type_annotation*);
+
 // -- type_ref_type_annotation
 
 struct xls_dslx_type_ref* xls_dslx_type_ref_type_annotation_get_type_ref(
     struct xls_dslx_type_ref_type_annotation*);
+
+int64_t xls_dslx_type_ref_type_annotation_get_parametric_count(
+    struct xls_dslx_type_ref_type_annotation*);
+
+// Returns nullptr if the parametric argument at `index` is a type annotation
+// instead of an expression.
+struct xls_dslx_expr* xls_dslx_type_ref_type_annotation_get_parametric_expr(
+    struct xls_dslx_type_ref_type_annotation*, int64_t index);
 
 // -- type_ref
 

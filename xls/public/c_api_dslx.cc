@@ -606,6 +606,16 @@ struct xls_dslx_type_alias* xls_dslx_module_member_get_type_alias(
   return reinterpret_cast<xls_dslx_type_alias*>(cpp_type_alias);
 }
 
+struct xls_dslx_import* xls_dslx_module_member_get_import(
+    struct xls_dslx_module_member* member) {
+  auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
+  if (std::holds_alternative<xls::dslx::Import*>(*cpp_member)) {
+    auto* cpp_import = std::get<xls::dslx::Import*>(*cpp_member);
+    return reinterpret_cast<xls_dslx_import*>(cpp_import);
+  }
+  return nullptr;
+}
+
 struct xls_dslx_function* xls_dslx_module_member_get_function(
     struct xls_dslx_module_member* member) {
   auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
@@ -1222,6 +1232,21 @@ bool xls_dslx_struct_def_is_parametric(struct xls_dslx_struct_def* n) {
   return cpp_struct_def->IsParametric();
 }
 
+int64_t xls_dslx_struct_def_get_parametric_binding_count(
+    struct xls_dslx_struct_def* n) {
+  auto* cpp_struct_def = reinterpret_cast<xls::dslx::StructDef*>(n);
+  return static_cast<int64_t>(cpp_struct_def->parametric_bindings().size());
+}
+
+struct xls_dslx_parametric_binding*
+xls_dslx_struct_def_get_parametric_binding(struct xls_dslx_struct_def* n,
+                                           int64_t index) {
+  auto* cpp_struct_def = reinterpret_cast<xls::dslx::StructDef*>(n);
+  xls::dslx::ParametricBinding* cpp_binding =
+      cpp_struct_def->parametric_bindings().at(index);
+  return reinterpret_cast<xls_dslx_parametric_binding*>(cpp_binding);
+}
+
 int64_t xls_dslx_struct_def_get_member_count(struct xls_dslx_struct_def* n) {
   auto* cpp_struct_def = reinterpret_cast<xls::dslx::StructDef*>(n);
   return cpp_struct_def->size();
@@ -1290,6 +1315,24 @@ xls_dslx_type_annotation_get_type_ref_type_annotation(
   return reinterpret_cast<xls_dslx_type_ref_type_annotation*>(cpp_type_ref);
 }
 
+struct xls_dslx_array_type_annotation*
+xls_dslx_type_annotation_get_array_type_annotation(
+    struct xls_dslx_type_annotation* n) {
+  auto* cpp = reinterpret_cast<xls::dslx::TypeAnnotation*>(n);
+  auto* cpp_array = dynamic_cast<xls::dslx::ArrayTypeAnnotation*>(cpp);
+  return reinterpret_cast<xls_dslx_array_type_annotation*>(cpp_array);
+}
+
+// -- array_type_annotation
+
+struct xls_dslx_type_annotation*
+xls_dslx_array_type_annotation_get_element_type(
+    struct xls_dslx_array_type_annotation* n) {
+  auto* cpp = reinterpret_cast<xls::dslx::ArrayTypeAnnotation*>(n);
+  xls::dslx::TypeAnnotation* cpp_element_type = cpp->element_type();
+  return reinterpret_cast<xls_dslx_type_annotation*>(cpp_element_type);
+}
+
 // -- type_ref_type_annotation
 
 struct xls_dslx_type_ref* xls_dslx_type_ref_type_annotation_get_type_ref(
@@ -1297,6 +1340,23 @@ struct xls_dslx_type_ref* xls_dslx_type_ref_type_annotation_get_type_ref(
   auto* cpp = reinterpret_cast<xls::dslx::TypeRefTypeAnnotation*>(n);
   auto* cpp_type_ref = cpp->type_ref();
   return reinterpret_cast<xls_dslx_type_ref*>(cpp_type_ref);
+}
+
+int64_t xls_dslx_type_ref_type_annotation_get_parametric_count(
+    struct xls_dslx_type_ref_type_annotation* n) {
+  auto* cpp = reinterpret_cast<xls::dslx::TypeRefTypeAnnotation*>(n);
+  return static_cast<int64_t>(cpp->parametrics().size());
+}
+
+struct xls_dslx_expr* xls_dslx_type_ref_type_annotation_get_parametric_expr(
+    struct xls_dslx_type_ref_type_annotation* n, int64_t index) {
+  auto* cpp = reinterpret_cast<xls::dslx::TypeRefTypeAnnotation*>(n);
+  const xls::dslx::ExprOrType& parametric = cpp->parametrics().at(index);
+  if (std::holds_alternative<xls::dslx::Expr*>(parametric)) {
+    xls::dslx::Expr* cpp_expr = std::get<xls::dslx::Expr*>(parametric);
+    return reinterpret_cast<xls_dslx_expr*>(cpp_expr);
+  }
+  return nullptr;
 }
 
 // -- type_ref

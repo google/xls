@@ -1754,6 +1754,193 @@ type MyOtherTypeAlias = MyTypeAlias;
   }
 }
 
+TEST(XlsCApiTest, DslxInspectArrayTypeAnnotationElement) {
+  const char kImported[] = "pub struct Widget { value: u32 }";
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempDirectory tempdir,
+                           xls::TempDirectory::Create());
+  const std::filesystem::path& tempdir_path = tempdir.path();
+  const std::filesystem::path module_path =
+      tempdir_path / "my_imported_module.x";
+  XLS_ASSERT_OK(xls::SetFileContents(module_path, kImported));
+
+  const char kProgram[] = R"(import my_imported_module;
+
+type Widgets = my_imported_module::Widget[2];
+)";
+  const char* additional_search_paths[] = {tempdir_path.c_str()};
+
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      ABSL_ARRAYSIZE(additional_search_paths));
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [&] { xls_dslx_import_data_free(import_data); });
+
+  xls_dslx_typechecked_module* tm = nullptr;
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  bool ok = xls_dslx_parse_and_typecheck(kProgram, "foo.x", "foo", import_data,
+                                         &error, &tm);
+  ASSERT_TRUE(ok) << "got not-ok result from parse-and-typecheck; error: "
+                  << error;
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(tm, nullptr);
+  absl::Cleanup free_tm([&] { xls_dslx_typechecked_module_free(tm); });
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  ASSERT_EQ(xls_dslx_module_get_type_definition_count(module), 1);
+  xls_dslx_type_alias* type_alias =
+      xls_dslx_module_get_type_definition_as_type_alias(module, 0);
+  xls_dslx_type_annotation* type =
+      xls_dslx_type_alias_get_type_annotation(type_alias);
+  xls_dslx_array_type_annotation* array_type =
+      xls_dslx_type_annotation_get_array_type_annotation(type);
+  ASSERT_NE(array_type, nullptr);
+
+  xls_dslx_type_annotation* element_type =
+      xls_dslx_array_type_annotation_get_element_type(array_type);
+  ASSERT_NE(element_type, nullptr);
+  xls_dslx_type_ref_type_annotation* element_type_ref_annotation =
+      xls_dslx_type_annotation_get_type_ref_type_annotation(element_type);
+  ASSERT_NE(element_type_ref_annotation, nullptr);
+  xls_dslx_type_ref* element_type_ref =
+      xls_dslx_type_ref_type_annotation_get_type_ref(
+          element_type_ref_annotation);
+  xls_dslx_type_definition* element_type_definition =
+      xls_dslx_type_ref_get_type_definition(element_type_ref);
+  xls_dslx_colon_ref* colon_ref =
+      xls_dslx_type_definition_get_colon_ref(element_type_definition);
+  ASSERT_NE(colon_ref, nullptr);
+
+  xls_dslx_import* import_subject =
+      xls_dslx_colon_ref_resolve_import_subject(colon_ref);
+  ASSERT_NE(import_subject, nullptr);
+  EXPECT_EQ(xls_dslx_import_get_subject_count(import_subject), 1);
+  char* subject = xls_dslx_import_get_subject(import_subject, 0);
+  absl::Cleanup free_subject([&] { xls_c_str_free(subject); });
+  EXPECT_EQ(std::string_view{subject}, "my_imported_module");
+
+  char* attr = xls_dslx_colon_ref_get_attr(colon_ref);
+  absl::Cleanup free_attr([&] { xls_c_str_free(attr); });
+  EXPECT_EQ(std::string_view{attr}, "Widget");
+}
+
+TEST(XlsCApiTest, DslxInspectTypeRefParametricExprsAndStructBindings) {
+  const char kProgram[] = R"(
+struct Box<N: u32> {
+  value: bits[N],
+}
+
+type Box8 = Box<u32:8>;
+)";
+  const char* additional_search_paths[] = {};
+
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [&] { xls_dslx_import_data_free(import_data); });
+
+  xls_dslx_typechecked_module* tm = nullptr;
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  bool ok = xls_dslx_parse_and_typecheck(kProgram, "foo.x", "foo", import_data,
+                                         &error, &tm);
+  ASSERT_TRUE(ok) << "got not-ok result from parse-and-typecheck; error: "
+                  << error;
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(tm, nullptr);
+  absl::Cleanup free_tm([&] { xls_dslx_typechecked_module_free(tm); });
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  xls_dslx_type_info* type_info = xls_dslx_typechecked_module_get_type_info(tm);
+  ASSERT_EQ(xls_dslx_module_get_type_definition_count(module), 2);
+
+  xls_dslx_struct_def* box_struct =
+      xls_dslx_module_get_type_definition_as_struct_def(module, 0);
+  ASSERT_TRUE(xls_dslx_struct_def_is_parametric(box_struct));
+  ASSERT_EQ(xls_dslx_struct_def_get_parametric_binding_count(box_struct), 1);
+  xls_dslx_parametric_binding* binding =
+      xls_dslx_struct_def_get_parametric_binding(box_struct, 0);
+  ASSERT_NE(binding, nullptr);
+  char* identifier = xls_dslx_parametric_binding_get_identifier(binding);
+  absl::Cleanup free_identifier([&] { xls_c_str_free(identifier); });
+  EXPECT_EQ(std::string_view{identifier}, "N");
+
+  xls_dslx_type_alias* type_alias =
+      xls_dslx_module_get_type_definition_as_type_alias(module, 1);
+  xls_dslx_type_annotation* rhs =
+      xls_dslx_type_alias_get_type_annotation(type_alias);
+  xls_dslx_type_ref_type_annotation* type_ref_type_annotation =
+      xls_dslx_type_annotation_get_type_ref_type_annotation(rhs);
+  ASSERT_NE(type_ref_type_annotation, nullptr);
+  ASSERT_EQ(xls_dslx_type_ref_type_annotation_get_parametric_count(
+                type_ref_type_annotation),
+            1);
+  xls_dslx_expr* parametric_expr =
+      xls_dslx_type_ref_type_annotation_get_parametric_expr(
+          type_ref_type_annotation, 0);
+  ASSERT_NE(parametric_expr, nullptr);
+
+  xls_dslx_interp_value* parametric_value = nullptr;
+  ASSERT_TRUE(xls_dslx_type_info_get_const_expr(
+      type_info, parametric_expr, &error, &parametric_value))
+      << error;
+  ASSERT_NE(parametric_value, nullptr);
+  absl::Cleanup free_parametric_value(
+      [&] { xls_dslx_interp_value_free(parametric_value); });
+
+  char* parametric_value_str =
+      xls_dslx_interp_value_to_string(parametric_value);
+  absl::Cleanup free_parametric_value_str(
+      [&] { xls_c_str_free(parametric_value_str); });
+  EXPECT_EQ(std::string_view{parametric_value_str}, "u32:8");
+}
+
+TEST(XlsCApiTest, DslxInspectImportModuleMember) {
+  const char kImported[] = "pub const VALUE = u32:7;";
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempDirectory tempdir,
+                           xls::TempDirectory::Create());
+  const std::filesystem::path& tempdir_path = tempdir.path();
+  const std::filesystem::path module_path =
+      tempdir_path / "my_imported_module.x";
+  XLS_ASSERT_OK(xls::SetFileContents(module_path, kImported));
+
+  const char kProgram[] = "import my_imported_module as mim;";
+  const char* additional_search_paths[] = {tempdir_path.c_str()};
+
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      ABSL_ARRAYSIZE(additional_search_paths));
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [&] { xls_dslx_import_data_free(import_data); });
+
+  xls_dslx_typechecked_module* tm = nullptr;
+  char* error = nullptr;
+  absl::Cleanup free_error([&] { xls_c_str_free(error); });
+  bool ok = xls_dslx_parse_and_typecheck(kProgram, "foo.x", "foo", import_data,
+                                         &error, &tm);
+  ASSERT_TRUE(ok) << "got not-ok result from parse-and-typecheck; error: "
+                  << error;
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(tm, nullptr);
+  absl::Cleanup free_tm([&] { xls_dslx_typechecked_module_free(tm); });
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  ASSERT_EQ(xls_dslx_module_get_member_count(module), 1);
+  xls_dslx_module_member* member = xls_dslx_module_get_member(module, 0);
+  EXPECT_EQ(xls_dslx_module_member_get_kind(member),
+            xls_dslx_module_member_kind_import);
+  xls_dslx_import* import = xls_dslx_module_member_get_import(member);
+  ASSERT_NE(import, nullptr);
+  EXPECT_EQ(xls_dslx_import_get_subject_count(import), 1);
+  char* subject = xls_dslx_import_get_subject(import, 0);
+  absl::Cleanup free_subject([&] { xls_c_str_free(subject); });
+  EXPECT_EQ(std::string_view{subject}, "my_imported_module");
+}
+
 TEST(XlsCApiTest, DslxModuleMembers) {
   const std::string_view kProgram = R"(
     struct MyStruct {}
