@@ -343,23 +343,20 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleProcDef(const ProcDef* p) override {
     VLOG(5) << "HandleProcDef " << p->ToString();
 
-    XLS_ASSIGN_OR_RETURN(Function * constructor,
-                         GetTopProcConstructor(p, type_info_));
-    XLS_ASSIGN_OR_RETURN(InterpValue initial_state,
-                         type_info_->GetConstExpr(constructor->body()));
-
-    VLOG(5) << "Initial state: " << initial_state.ToHumanString();
-
     std::optional<Function*> next_fn = GetProcNextFunction(p);
     XLS_RET_CHECK(next_fn.has_value());
 
+    // Note that we don't need an `init_value` in a `ProcDef` record because the
+    // counterpart to that plus the `config` output is in the proc instance
+    // object.
     XLS_ASSIGN_OR_RETURN(
         ConversionRecord cr,
         MakeConversionRecord(*next_fn, p->owner(), type_info_,
                              /*bindings=*/ParametricEnv(),
                              /*proc_id=*/proc_id_factory_.CreateProcId(p),
                              /*is_top=*/top_ == next_fn,
-                             /*config_record=*/nullptr, initial_state));
+                             /*config_record=*/nullptr,
+                             /*init_value=*/std::nullopt));
     records_.push_back(std::move(cr));
     return absl::OkStatus();
   }

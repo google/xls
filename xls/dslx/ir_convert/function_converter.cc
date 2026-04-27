@@ -671,6 +671,25 @@ absl::StatusOr<BValue> FunctionConverter::Use(const AstNode* node) const {
   return std::get<CValue>(ir_value).value;
 }
 
+absl::Status FunctionConverter::VisitAndPropagateIrValue(const AstNode* source,
+                                                         const AstNode* dest) {
+  XLS_RETURN_IF_ERROR(Visit(source));
+
+  VLOG(10) << "Propagate IR value for " << AstNodeKindToString(source->kind())
+           << " `" << source->ToString() << "` to "
+           << AstNodeKindToString(source->kind()) << " `" << dest->ToString()
+           << "`";
+  std::optional<IrValue> value = GetNodeToIr(source);
+  XLS_RET_CHECK(value.has_value());
+  VLOG(10) << "Propagated value is: " << IrValueToString(*value);
+  if (std::holds_alternative<BValue>(*value) ||
+      std::holds_alternative<CValue>(*value)) {
+    XLS_RETURN_IF_ERROR(Use(source).status());
+  }
+  SetNodeToIr(dest, *value);
+  return absl::OkStatus();
+}
+
 void FunctionConverter::SetNodeToIr(const AstNode* node, IrValue value) {
   VLOG(6) << absl::StreamFormat("Setting node '%s' (%p) to IR value %s.",
                                 node->ToString(), node, IrValueToString(value));
@@ -1023,6 +1042,10 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
       Visitor{[&](ChannelInterface* ci) { return process_channel_rhs(ci); },
               [&](ChannelArray* ca) { return process_channel_rhs(ca); },
               [&](Channel* c) { return process_channel_rhs(c); },
+              [&](ProcDefInstance* i) {
+                SetNodeToIr(node, value);
+                return absl::OkStatus();
+              },
               [&](auto) -> absl::Status {
                 // BValue, CValue
                 XLS_ASSIGN_OR_RETURN(rhs, Use(node->rhs()));
@@ -1305,11 +1328,7 @@ absl::Status FunctionConverter::HandleConstMatch(const Match* node) {
   XLS_ASSIGN_OR_RETURN(uint32_t arm_id,
                        current_type_info_->GetArmSelectionResult(node));
   const MatchArm* arm = node->arms()[arm_id];
-
-  XLS_RETURN_IF_ERROR(Visit(arm->expr()));
-  XLS_ASSIGN_OR_RETURN(BValue arm_rhs_value, Use(arm->expr()));
-  SetNodeToIr(node, arm_rhs_value);
-
+  XLS_RETURN_IF_ERROR(VisitAndPropagateIrValue(arm->expr(), node));
   return absl::OkStatus();
 }
 
@@ -3732,8 +3751,58 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
 }
 
 absl::Status FunctionConverter::HandleProcDefConstructor(
-    const ProcDef& proc, const Function& constructor,
-    const ParametricEnv& bindings, ProcBuilder* builder) {
+    const ProcDef* proc_def, const Function& constructor,
+    const ParametricEnv& bindings, TypeInfo* type_info, ProcId proc_id) {
+  ScopedTypeInfoSwap stis(this, type_info);
+  proc_id_ = proc_id;
+  proc_data_->id_to_members[proc_id] = {};
+
+  // TODO: https://github.com/google/xls/issues/4125 - Consider the parametrics
+  // when invoking `MangleDslxName` here, using `HandleProcNextFunction` as a
+  // rough guide. ProcDef support is a WIP and we don't yet support parametrics.
+  XLS_ASSIGN_OR_RETURN(std::string mangled_name,
+                       MangleDslxName(module_->name(), proc_def->identifier(),
+                                      CallingConvention::kProcNext,
+                                      /*free_keys=*/{}, &bindings));
+  auto unique_builder =
+      std::make_unique<ProcBuilder>(NewStyleProc{}, mangled_name, package());
+  ProcBuilder* builder = unique_builder.get();
+  SetFunctionBuilder(std::move(unique_builder));
+  if (is_top_) {
+    XLS_RETURN_IF_ERROR(builder->SetAsTop());
+  }
+
+  // We make an implicit token in case any downstream functions need it; if it's
+  // unused, it'll be optimized out later.
+  BValue implicit_token =
+      builder->Literal(Value::Token(), SourceInfo(), "__token");
+  implicit_token_data_ = ImplicitTokenData{
+      .entry_token = implicit_token,
+      .activated = builder->Literal(Value::Bool(true)),
+      .create_control_predicate =
+          [this]() { return implicit_token_data_->activated; },
+  };
+  tokens_.push_back(implicit_token);
+
+  // TODO: https://github.com/google/xls/issues/4125 - Deal with the parametric
+  // bindings here, using `HandleProcNextFunction` as a rough guide.
+
+  VLOG(3) << "Proc has " << constant_deps_.size() << " constant deps";
+  for (ConstantDef* dep : constant_deps_) {
+    VLOG(5) << "Visiting constant dep: " << dep->ToString();
+
+    // The constant dep may be from a different module than the module for the
+    // function we're currently converting.
+    XLS_ASSIGN_OR_RETURN(std::optional<ScopedTypeInfoSwap> stis,
+                         ScopedTypeInfoSwap::ForNode(this, dep));
+    XLS_RETURN_IF_ERROR(Visit(dep));
+  }
+
+  auto proc_scoped_channel_scope = std::make_unique<ProcScopedChannelScope>(
+      package_data_.conversion_info, import_data_, options_, builder);
+  proc_scoped_channel_scope->EnterFunctionContext(current_type_info_, bindings);
+  channel_scope_ = proc_scoped_channel_scope.get();
+
   // Generate channel interfaces.
   for (const Param* param : constructor.params()) {
     VLOG(5) << "Generating channel interface: " << param->ToString();
@@ -3768,17 +3837,24 @@ absl::Status FunctionConverter::HandleProcDefConstructor(
   VLOG(5) << "Visiting body of constructor: " << constructor.identifier();
   FunctionTag original_tag = current_fn_tag_;
   current_fn_tag_ = FunctionTag::kProcConfig;
-  last_tuple_.clear();
   XLS_RETURN_IF_ERROR(Visit(constructor.body()));
   current_fn_tag_ = original_tag;
 
-  XLS_RET_CHECK_EQ(last_tuple_.size(), proc.members().size());
-  for (int i = 0; i < proc.members().size(); i++) {
-    const StructMemberNode* member = proc.members()[i];
+  std::optional<IrValue> constructor_result = GetNodeToIr(constructor.body());
+  XLS_RET_CHECK(constructor_result.has_value());
+  XLS_RET_CHECK(std::holds_alternative<ProcDefInstance*>(*constructor_result));
+  ProcDefInstance* proc_instance =
+      std::get<ProcDefInstance*>(*constructor_result);
+  for (int i = 0; i < proc_def->members().size(); i++) {
+    const StructMemberNode* member = proc_def->members()[i];
     VLOG(5) << "Handling proc member " << member->ToString();
 
-    IrValue tuple_entry = last_tuple_[i];
-    SetNodeToIr(member->name_def(), tuple_entry);
+    const auto member_value = proc_instance->member_values.find(member->name());
+    if (member_value == proc_instance->member_values.end()) {
+      continue;
+    }
+
+    SetNodeToIr(member->name_def(), member_value->second);
     std::optional<ChannelOrArray> channel_or_array = absl::visit(
         Visitor{
             [](Channel* chan) -> std::optional<ChannelOrArray> { return chan; },
@@ -3792,7 +3868,7 @@ absl::Status FunctionConverter::HandleProcDefConstructor(
               return std::nullopt;
             },
         },
-        tuple_entry);
+        member_value->second);
 
     if (channel_or_array.has_value()) {
       proc_data_->id_to_members.at(
@@ -3807,52 +3883,29 @@ absl::Status FunctionConverter::HandleProcDefConstructor(
     }
   }
 
+  proc_instance->proc_id = proc_id;
+  proc_instance->type_info = type_info;
+  proc_instance->env = bindings;
+  proc_instance->builder = std::move(function_builder_);
+  proc_instance->channel_scope = std::move(proc_scoped_channel_scope);
+
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::ConvertProcDef(const ProcDef* proc_def,
-                                               const Function* constructor,
-                                               ProcId proc_id,
-                                               TypeInfo* type_info) {
-  ScopedTypeInfoSwap stis(this, type_info);
-  proc_id_ = proc_id;
-  proc_data_->id_to_members[proc_id] = {};
+absl::Status FunctionConverter::HandleProcDefSpawn(ProcDefInstance* instance) {
+  proc_id_ = instance->proc_id;
+  channel_scope_ = instance->channel_scope.get();
+  ScopedTypeInfoSwap stis(this, instance->type_info);
+  ProcBuilder* proc_builder =
+      absl::down_cast<ProcBuilder*>(instance->builder.get());
 
-  // TODO: https://github.com/google/xls/issues/4125 - Consider the parametrics
-  // when invoking `MangleDslxName` here, using `HandleProcNextFunction` as a
-  // rough guide. ProcDef support is a WIP and we don't yet support parametrics.
-  ParametricEnv env;
-  XLS_ASSIGN_OR_RETURN(std::string mangled_name,
-                       MangleDslxName(module_->name(), proc_def->identifier(),
-                                      CallingConvention::kProcNext,
-                                      /*free_keys=*/{}, &env));
-  auto unique_builder =
-      std::make_unique<ProcBuilder>(NewStyleProc{}, mangled_name, package());
-  ProcBuilder* builder = unique_builder.get();
-  SetFunctionBuilder(std::move(unique_builder));
-  if (is_top_) {
-    XLS_RETURN_IF_ERROR(builder->SetAsTop());
-  }
+  // TODO: https://github.com/google/xls/issues/4125 - Change FunctionConverter
+  // to not own this builder.
+  SetFunctionBuilder(std::move(instance->builder));
 
-  // We make an implicit token in case any downstream functions need it; if it's
-  // unused, it'll be optimized out later.
-  BValue implicit_token =
-      builder->Literal(Value::Token(), SourceInfo(), "__token");
-  implicit_token_data_ = ImplicitTokenData{
-      .entry_token = implicit_token,
-      .activated = builder->Literal(Value::Bool(true)),
-      .create_control_predicate =
-          [this]() { return implicit_token_data_->activated; },
-  };
-  tokens_.push_back(implicit_token);
-
-  XLS_ASSIGN_OR_RETURN(InterpValue init_interp_value,
-                       current_type_info_->GetConstExpr(constructor->body()));
-  XLS_ASSIGN_OR_RETURN(Value init_value, InterpValueToValue(init_interp_value));
-
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<StructMemberNode*> state_elements,
-      GetProcDefStateMembers(proc_def, *import_data_, *current_type_info_));
+  XLS_ASSIGN_OR_RETURN(std::vector<StructMemberNode*> state_elements,
+                       GetProcDefStateMembers(instance->proc_def, *import_data_,
+                                              *current_type_info_));
   VLOG(5) << "Proc has " << state_elements.size() << " state elements.";
 
   for (int i = 0; i < state_elements.size(); i++) {
@@ -3860,63 +3913,54 @@ absl::Status FunctionConverter::ConvertProcDef(const ProcDef* proc_def,
     VLOG(5) << "Configuring state element: " << state_element->name();
 
     state_read_called_by_state_name_[state_element->name()] =
-        builder->Literal(UBits(0, 1));
+        function_builder_->Literal(UBits(0, 1));
     state_write_called_by_state_name_[state_element->name()] =
-        builder->Literal(UBits(0, 1));
+        function_builder_->Literal(UBits(0, 1));
 
     PackageInterfaceProto::Proc::StateValue* state_value_proto =
         proc_proto_.value()->add_state_values();
     PackageInterfaceProto::NamedValue* state_name_proto =
         state_value_proto->mutable_name();
     std::string state_name = absl::StrCat("__", state_element->name());
-    Value init = init_value.elements()[i];
-    BValue state_element_value = builder->StateElement(state_name, init);
+    const Value& init = instance->state_init_values.at(state_element->name());
+    IrValue state_element_value = proc_builder->StateElement(state_name, init);
+    instance->member_values[state_element->name()] = state_element_value;
     state_name_proto->set_name(state_name);
     XLS_ASSIGN_OR_RETURN(auto type, ResolveTypeToIr(state_element->type()));
     *state_name_proto->mutable_type() = type->ToProto();
     SetNodeToIr(state_element->name_def(), state_element_value);
   }
 
-  // TODO: https://github.com/google/xls/issues/4125 - Deal with the parametric
-  // bindings here, using `HandleProcNextFunction` as a rough guide.
-
-  VLOG(3) << "Proc has " << constant_deps_.size() << " constant deps";
-  for (ConstantDef* dep : constant_deps_) {
-    VLOG(5) << "Visiting constant dep: " << dep->ToString();
-
-    // The constant dep may be from a different module than the module for the
-    // function we're currently converting.
-    XLS_ASSIGN_OR_RETURN(std::optional<ScopedTypeInfoSwap> stis,
-                         ScopedTypeInfoSwap::ForNode(this, dep));
-    XLS_RETURN_IF_ERROR(Visit(dep));
-  }
-
-  auto proc_scoped_channel_scope = std::make_unique<ProcScopedChannelScope>(
-      package_data_.conversion_info, import_data_, options_, builder);
-  proc_scoped_channel_scope->EnterFunctionContext(current_type_info_, env);
-  channel_scope_ = proc_scoped_channel_scope.get();
-
-  XLS_RETURN_IF_ERROR(
-      HandleProcDefConstructor(*proc_def, *constructor, env, builder));
-
   VLOG(5) << "Visiting proc next body.";
-  std::optional<Function*> next_fn = GetProcNextFunction(proc_def);
+  std::optional<Function*> next_fn = GetProcNextFunction(instance->proc_def);
   XLS_RET_CHECK(next_fn.has_value());
 
   // TODO: https://github.com/google/xls/issues/4125 - Tell the ChannelScope to
   // enter the function context, when next() has a dedicated
   // TypeInfo/ParametricEnv.
 
-  auto proc_def_instance =
-      std::make_unique<ProcDefInstance>(proc_def, last_tuple_);
-  SetNodeToIr((*next_fn)->params()[0]->name_def(), proc_def_instance.get());
-  proc_def_instances_.push_back(std::move(proc_def_instance));
+  SetNodeToIr((*next_fn)->params()[0]->name_def(), instance);
   XLS_RETURN_IF_ERROR(Visit((*next_fn)->body()));
-  XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder->Build());
+  XLS_ASSIGN_OR_RETURN(
+      xls::Proc * p,
+      absl::down_cast<ProcBuilder*>(function_builder_.get())->Build());
 
   package_data_.ir_to_dslx[p] = *next_fn;
-  package_data_.callee_to_ir_proc[{*next_fn, env}] = p;
+  package_data_.callee_to_ir_proc[{*next_fn, instance->env}] = p;
   return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::ConvertProcDef(const ProcDef* proc_def,
+                                               const Function* constructor,
+                                               ProcId proc_id,
+                                               TypeInfo* type_info) {
+  XLS_RETURN_IF_ERROR(HandleProcDefConstructor(
+      proc_def, *constructor, ParametricEnv{}, type_info, proc_id));
+  std::optional<IrValue> constructor_result = GetNodeToIr(constructor->body());
+  XLS_RET_CHECK(constructor_result.has_value());
+  XLS_RET_CHECK(std::holds_alternative<ProcDefInstance*>(*constructor_result));
+  auto* instance = std::get<ProcDefInstance*>(*constructor_result);
+  return HandleProcDefSpawn(instance);
 }
 
 // TODO: davidplass - break this method up. It's too big.
@@ -4320,8 +4364,8 @@ absl::Status FunctionConverter::HandleStructInstance(
     // `config`, although the mechanics are a bit different. The tuple we create
     // here is the IR version of the `ProcDef` instance, which includes both
     // channels and state elements.
-    std::vector<IrValue> ir_operands;
-    std::vector<BValue> b_operands;
+    absl::flat_hash_map<std::string, IrValue> non_state_ir_values;
+    absl::flat_hash_map<std::string, Value> state_init_values;
     for (const auto& [name, value] : node->GetOrderedMembers(def)) {
       std::optional<StructMemberNode*> member = def->GetMemberByName(name);
       XLS_RET_CHECK(member.has_value());
@@ -4330,28 +4374,35 @@ absl::Status FunctionConverter::HandleStructInstance(
       XLS_RET_CHECK(member_type.has_value());
       std::optional<IrValue> v;
       if (IsProcDefStateType(**member_type, *import_data_)) {
-        // Get the state element by member `NameDef`, i.e. don't treat it like
-        // it's a value supplied by the struct instance node.
+        // Note that we only populate the `state_init_values` and not the
+        // `state_elements` of the `ProcDefInstance` here, since there is no
+        // `ProcBuilder` yet to deal out a `StateElement`. The `state_elements`
+        // are initialized when we ultimately convert the proc logic.
         v = GetNodeToIr((*member)->name_def());
+        XLS_ASSIGN_OR_RETURN(InterpValue const_value,
+                             current_type_info_->GetConstExpr(value));
+        XLS_ASSIGN_OR_RETURN(state_init_values[name],
+                             InterpValueToValue(const_value));
       } else {
         // If it's not a state element (e.g. it's a channel) then it's a
         // "normal" IR value.
         XLS_RETURN_IF_ERROR(Visit(value));
         v = GetNodeToIr(value);
+        XLS_RET_CHECK(v.has_value())
+            << "Expected a value for proc member " << name;
+        non_state_ir_values[name] = *v;
       }
-
-      XLS_RET_CHECK(v.has_value())
-          << "Expected a value for proc member " << name;
-      if (std::holds_alternative<BValue>(*v)) {
-        b_operands.push_back(std::get<BValue>(*v));
-      }
-      ir_operands.push_back(*v);
     }
-    last_tuple_ = ir_operands;
 
-    Def(node, [this, &b_operands](const SourceInfo& loc) {
-      return function_builder_->Tuple(b_operands, loc);
-    });
+    // Note that `member_values` gets augmented later with the `StateElement`
+    // pointers for members that are state elements.
+    auto proc_def_instance = std::make_unique<ProcDefInstance>(
+        ProcDefInstance{.proc_def = absl::down_cast<ProcDef*>(def),
+                        .state_init_values = std::move(state_init_values),
+                        .member_values = std::move(non_state_ir_values)});
+
+    SetNodeToIr(node, proc_def_instance.get());
+    proc_def_instances_.push_back(std::move(proc_def_instance));
     return absl::OkStatus();
   }
 
@@ -4586,10 +4637,8 @@ absl::Status FunctionConverter::HandleAttr(const Attr* node) {
   // real IR tuple can't contain.
   std::optional<IrValue> value = GetNodeToIr(node->lhs());
   if (value.has_value() && std::holds_alternative<ProcDefInstance*>(*value)) {
-    XLS_ASSIGN_OR_RETURN(int64_t index,
-                         (*lhs_type)->AsProc().GetMemberIndex(node->attr()));
-    SetNodeToIr(node,
-                std::get<ProcDefInstance*>(*value)->member_values.at(index));
+    SetNodeToIr(node, std::get<ProcDefInstance*>(*value)->member_values.at(
+                          node->attr()));
     return absl::OkStatus();
   }
 
@@ -4632,8 +4681,13 @@ absl::Status FunctionConverter::HandleStatementBlock(
     });
   } else {
     XLS_RET_CHECK_NE(last_expr, nullptr);
-    XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(last_expr));
-    SetNodeToIr(node, bvalue);
+    std::optional<IrValue> value = GetNodeToIr(last_expr);
+    if (value.has_value() && std::holds_alternative<ProcDefInstance*>(*value)) {
+      SetNodeToIr(node, *value);
+    } else {
+      XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(last_expr));
+      SetNodeToIr(node, bvalue);
+    }
   }
   return absl::OkStatus();
 }
@@ -4645,9 +4699,7 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
           [&](Expr* e) -> absl::Status {
             VLOG(5) << "HandleStatement dealing with expr: "
                     << node->ToString();
-            XLS_RETURN_IF_ERROR(Visit(ToAstNode(e)));
-            XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(e));
-            SetNodeToIr(node, bvalue);
+            XLS_RETURN_IF_ERROR(VisitAndPropagateIrValue(e, node));
             return absl::OkStatus();
           },
           [&](TypeAlias*) {
@@ -4659,9 +4711,7 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
             return absl::OkStatus();
           },
           [&](Let* let) -> absl::Status {
-            XLS_RETURN_IF_ERROR(Visit(ToAstNode(let)));
-            XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(let));
-            SetNodeToIr(node, bvalue);
+            XLS_RETURN_IF_ERROR(VisitAndPropagateIrValue(let, node));
             return absl::OkStatus();
           },
           [](VerbatimNode*) {
@@ -4681,15 +4731,10 @@ absl::Status FunctionConverter::HandleConditional(const Conditional* node) {
                              import_data_, current_type_info_,
                              kNoWarningCollector, bindings, node->test()));
 
-    BValue bvalue;
-    if (test_value.IsTrue()) {
-      XLS_RETURN_IF_ERROR(Visit(node->consequent()));
-      XLS_ASSIGN_OR_RETURN(bvalue, Use(node->consequent()));
-    } else {
-      XLS_RETURN_IF_ERROR(Visit(ToExprNode(node->alternate())));
-      XLS_ASSIGN_OR_RETURN(bvalue, Use(ToExprNode(node->alternate())));
-    }
-    SetNodeToIr(node, bvalue);
+    XLS_RETURN_IF_ERROR(VisitAndPropagateIrValue(
+        test_value.IsTrue() ? ToAstNode(node->consequent())
+                            : ToAstNode(node->alternate()),
+        node));
     return absl::OkStatus();
   }
 

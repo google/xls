@@ -688,9 +688,8 @@ class Visitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    // For a StructInstance node that is creating an impl-style proc, we store a
-    // tuple of the initial state values as the constexpr value in TypeInfo.
-    // This is equivalent to the result of the 'init' block in legacy procs.
+    // For a StructInstance node that is creating an impl-style proc, we collect
+    // the initial state values.
     const ProcType& type = type_.AsProc();
     std::vector<InterpValue> state_init_values;
     for (const auto& [member_name, initializer] :
@@ -720,25 +719,7 @@ class Visitor : public AstNodeVisitorWithDefault {
             file_table_);
       }
 
-      state_init_values.push_back(std::move(*value));
-    }
-
-    InterpValue value = InterpValue::MakeTuple(std::move(state_init_values));
-    ti_->NoteConstExpr(node, value);
-    VLOG(6) << "Storing value " << value.ToHumanString()
-            << " for proc initializer " << node->ToString();
-
-    // Propagate the proc "value" through the statement and/or statement block
-    // that yields it. This way IR conversion can easily say "give me the
-    // constant value for the body of the proc constructor."
-    for (AstNode* parent = node->parent();
-         parent != nullptr && (parent->kind() == AstNodeKind::kStatement ||
-                               parent->kind() == AstNodeKind::kStatementBlock);
-         parent = parent->parent()) {
-      VLOG(6) << "Propagating proc initializer value for expr `"
-              << node->ToString() << "` to ancestor of kind "
-              << AstNodeKindToString(parent->kind());
-      ti_->NoteConstExpr(parent, value);
+      ti_->NoteConstExpr(initializer, *value);
     }
 
     return absl::OkStatus();

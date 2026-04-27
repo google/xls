@@ -3054,6 +3054,42 @@ impl Main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, TopProcDefWithIndrectConstructorResult) {
+  constexpr std::string_view program = R"(
+#![feature(explicit_state_access)]
+
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  i: u32,
+  j: u32,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    let result = Main { c_in: c_in, c_out: c_out, i: 1, j: 2 };
+    let foo = result;
+    foo
+  }
+
+  fn next(self) {
+    let i_val = read(self.i);
+    let j_val = read(self.j);
+    let (tok, v) = recv(join(), self.c_in);
+    let res = i_val + j_val + v;
+    let tok = send(tok, self.c_out, res);
+    write(self.i, res);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Main", import_data));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, TopProcDefWithNoConstructorFails) {
   constexpr std::string_view program = R"(
 #![feature(explicit_state_access)]

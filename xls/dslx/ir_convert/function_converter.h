@@ -251,12 +251,22 @@ class FunctionConverter {
       std::variant<BValue, CValue, Channel*, ChannelInterface*, ChannelArray*,
                    ProcDefInstance*, xls::StateElement*>;
 
-  // The `IrValue` for an instance of an impl-based proc. This is basically a
-  // tuple, except that the members are typically non-BValues (e.g. channels).
-  // When these are supported by BValues, we can probably use a native tuple.
+  // The `IrValue` for an instance of an impl-based proc.
   struct ProcDefInstance {
     const ProcDef* proc_def;
-    std::vector<IrValue> member_values;
+    ProcId proc_id;
+    TypeInfo* type_info;
+    ParametricEnv env;
+
+    std::unique_ptr<ChannelScope> channel_scope;
+    std::unique_ptr<BuilderBase> builder;
+
+    absl::flat_hash_map<std::string, Value> state_init_values;
+    absl::flat_hash_map<std::string, StateElement*> state_elements;
+
+    // We can lower this as a native tuple, if there is ever a need, and if
+    // channels and channel arrays become native IR values.
+    absl::flat_hash_map<std::string, IrValue> member_values;
   };
 
   // Helper for converting an IR value to its BValue pointer for use in
@@ -304,6 +314,11 @@ class FunctionConverter {
   // Returns the BValue previously noted as corresponding to "node" (via a
   // Def/DefAlias).
   absl::StatusOr<BValue> Use(const AstNode* node) const;
+
+  // Visits `source` and propagates its `IrValue` to `dest`. This checks that
+  // visiting `source` produces an `IrValue`.
+  absl::Status VisitAndPropagateIrValue(const AstNode* source,
+                                        const AstNode* dest);
 
   void SetNodeToIr(const AstNode* node, IrValue value);
   void SetNodeToChannelOrArray(const AstNode* node, ChannelOrArray value);
@@ -536,10 +551,12 @@ class FunctionConverter {
   absl::Status HandleProcDef(const ProcDef* proc_def,
                              const Function* constructor);
 
-  absl::Status HandleProcDefConstructor(const ProcDef& proc,
+  absl::Status HandleProcDefConstructor(const ProcDef* proc_def,
                                         const Function& constructor,
                                         const ParametricEnv& bindings,
-                                        ProcBuilder* builder);
+                                        TypeInfo* type_info, ProcId proc_id);
+
+  absl::Status HandleProcDefSpawn(ProcDefInstance* instance);
 
   // Dereferences the type definition to a struct or impl-style proc definition.
   absl::StatusOr<StructDefBase*> DerefStructOrProc(TypeDefinition node);
