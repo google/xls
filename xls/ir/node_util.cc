@@ -443,6 +443,38 @@ absl::StatusOr<Node*> ConcatIfNeeded(FunctionBase* f,
   return f->MakeNodeWithName<Concat>(source_info, operands, name);
 }
 
+namespace {
+absl::StatusOr<Node*> NaryCompoundOp(FunctionBase* f,
+                                     absl::Span<Node* const> operands, Op op,
+                                     std::string_view name,
+                                     const SourceInfo& source_info) {
+  XLS_RET_CHECK_GT(operands.size(), 1);
+  if (operands.front()->GetType()->IsBits()) {
+    return f->MakeNodeWithName<NaryOp>(source_info, operands, op, name);
+  }
+  std::vector<LeafTypeTree<Node*>> trees;
+  for (Node* operand : operands) {
+    XLS_ASSIGN_OR_RETURN(std::back_inserter(trees), ToTreeOfNodes(operand));
+  }
+  std::vector<Node*> res_elements;
+  res_elements.reserve(trees.front().size());
+  for (int64_t i = 0; i < trees.front().size(); ++i) {
+    std::vector<Node*> elements;
+    elements.reserve(operands.size());
+    for (const auto& tree : trees) {
+      XLS_RET_CHECK(tree.elements()[i]->GetType()->IsBits())
+          << "Expected bits, got " << tree.elements()[i]->GetType()
+          << " for operand " << tree.elements()[i];
+      elements.push_back(tree.elements()[i]);
+    }
+    XLS_ASSIGN_OR_RETURN(Node * element,
+                         NaryCompoundOp(f, elements, op, "", source_info));
+    res_elements.push_back(element);
+  }
+  LeafTypeTree<Node*> ltt(operands.front()->GetType(), std::move(res_elements));
+  return FromTreeOfNodes(f, ltt.AsView(), name, source_info);
+}
+}  // namespace
 absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
                                       absl::Span<Node* const> operands,
                                       std::string_view name,
@@ -464,8 +496,7 @@ absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
   if (unique_operands.size() == 1) {
     return unique_operands[0];
   }
-  return f->MakeNodeWithName<NaryOp>(source_info, unique_operands, Op::kAnd,
-                                     name);
+  return NaryCompoundOp(f, unique_operands, Op::kAnd, name, source_info);
 }
 
 absl::StatusOr<Node*> NaryOrIfNeeded(FunctionBase* f,
@@ -489,8 +520,7 @@ absl::StatusOr<Node*> NaryOrIfNeeded(FunctionBase* f,
   if (unique_operands.size() == 1) {
     return unique_operands[0];
   }
-  return f->MakeNodeWithName<NaryOp>(source_info, unique_operands, Op::kOr,
-                                     name);
+  return NaryCompoundOp(f, unique_operands, Op::kOr, name, source_info);
 }
 
 absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
@@ -513,8 +543,7 @@ absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
     return f->MakeNodeWithName<UnOp>(source_info, unique_operands[0], Op::kNot,
                                      name);
   }
-  return f->MakeNodeWithName<NaryOp>(source_info, unique_operands, Op::kNor,
-                                     name);
+  return NaryCompoundOp(f, unique_operands, Op::kNor, name, source_info);
 }
 
 absl::StatusOr<Node*> JoinWithAnd(FunctionBase* f,

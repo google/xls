@@ -80,6 +80,24 @@ the optimization pass pipeline for modernizing procs.
 
 
 
+## remove_one_hot_sel - One Hot Select Removal Pass {#remove_one_hot_sel}
+
+
+Pass which replaces OneHotSelects with equivalent Selects without regard to
+profitability concerns. This pass is meant for investigation and analysis use
+only and should not be used for normal optimization pipelines.
+
+To avoid extreme proliferation of nodes, we only translate OneHotSelects with
+a selector bitwidth <= 16.
+
+
+[Header](http://github.com/google/xls/tree/main/xls/dev_tools/dev_passes/remove_one_hot_select_pass.h)
+
+
+
+
+
+
 ## to_zero_ext - DebugPass: To ZeroExt Pass {#to_zero_ext}
 
 

@@ -43,6 +43,7 @@ xls_pass_registry(
         ":literalize_zero_bits_pass",
         ":to_zero_ext_pass",
         ":decompose_dataflow_pass",
+        ":remove_one_hot_select_pass",
     ],
     tags = ["keep_dep"],
 )
@@ -261,6 +262,47 @@ cc_test(
         "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+xls_pass(
+    name = "remove_one_hot_select_pass",
+    srcs = ["remove_one_hot_select_pass.cc"],
+    hdrs = ["remove_one_hot_select_pass.h"],
+    pass_class = "RemoveOneHotSelectPass",
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:node_util",
+        "//xls/ir:value_utils",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@cppitertools",
+    ],
+)
+
+cc_test(
+    name = "remove_one_hot_select_pass_test",
+    srcs = ["remove_one_hot_select_pass_test.cc"],
+    deps = [
+        ":remove_one_hot_select_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
+        "//xls/solvers:z3_ir_equivalence_testutils",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )
