@@ -17,6 +17,7 @@ syntax = "proto3";
 package xls;
 
 import "xls/ir/xls_type.proto";
+import "xls/ir/xls_value.proto";
 
 message PackageInterfaceProto {
   // A generic thing with a name and a type.
@@ -59,6 +60,10 @@ message PackageInterfaceProto {
     optional TypeProto result_type = 3;
     // If present the corresponding sv type for the result of this function.
     optional string sv_result_type = 4;
+
+    // The structured fuzzing domains for this function. There may be
+    // either zero domains, or exactly one domain per parameter.
+    repeated FuzzTestDomain parameter_domains = 5;
   }
 
   message Proc {
@@ -85,6 +90,29 @@ message PackageInterfaceProto {
     repeated NamedValue registers = 2;
     repeated NamedValue input_ports = 3;
     repeated NamedValue output_ports = 4;
+  }
+
+  message FuzzTestDomain {
+    message Range {
+      optional ValueProto min = 1;
+      optional ValueProto max = 2;
+    }
+    message ElementOf {
+      repeated ValueProto values = 1;
+    }
+    message Tuple {
+      repeated FuzzTestDomain elements = 1;
+    }
+
+    oneof domain_kind {
+      bool arbitrary = 1;
+      Range range = 2;
+      ElementOf element_of = 3;
+      Tuple tuple = 4;
+      // TODO: davidplass - design how Array domains will be represented ,
+      // starting from the DSLX parser, through AOT generation.
+      // Array array = 5;
+    }
   }
 
   // Name of the overall package.

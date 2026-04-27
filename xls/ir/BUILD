@@ -1570,7 +1570,10 @@ py_proto_library(
 proto_library(
     name = "xls_ir_interface_proto",
     srcs = ["xls_ir_interface.proto"],
-    deps = [":xls_type_proto"],
+    deps = [
+        ":xls_type_proto",
+        ":xls_value_proto",
+    ],
 )
 
 cc_proto_library(
