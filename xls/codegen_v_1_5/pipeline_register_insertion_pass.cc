@@ -201,21 +201,54 @@ absl::StatusOr<ConcurrentStageGroups> CalculateConcurrentStages(
       continue;
     }
     Next* next = node->As<Next>();
-    StateRead* state_read = node->As<Next>()->state_read()->As<StateRead>();
-    StateElement* state_element = state_read->state_element();
-    if (state_read->predicate().has_value()) {
-      // If the state read is predicated, then it doesn't start a mutual
-      // exclusion zone.
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(read_by_stage[state_element],
-                         block->GetStageIndex(state_read));
+    if (next->has_state_read()) {
+      StateRead* state_read = next->state_read()->As<StateRead>();
+      StateElement* state_element = state_read->state_element();
+      if (state_read->predicate().has_value()) {
+        // If the state read is predicated, then it doesn't start a mutual
+        // exclusion zone.
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(read_by_stage[state_element],
+                           block->GetStageIndex(state_read));
 
-    XLS_ASSIGN_OR_RETURN(int64_t write_stage, block->GetStageIndex(next));
-    auto [it, inserted] =
-        first_write_stage.try_emplace(state_element, write_stage);
-    if (!inserted) {
-      it->second = std::min(it->second, write_stage);
+      XLS_ASSIGN_OR_RETURN(int64_t write_stage, block->GetStageIndex(next));
+      auto [it, inserted] =
+          first_write_stage.try_emplace(state_element, write_stage);
+      if (!inserted) {
+        it->second = std::min(it->second, write_stage);
+      }
+    } else {
+      StateElement* state_element = next->state_element();
+      if (block->source() == nullptr || !block->source()->IsProc()) {
+        continue;
+      }
+      Proc* proc = block->source()->AsProcOrDie();
+      absl::Span<StateRead* const> reads =
+          proc->GetStateReadsByStateElement(state_element);
+      std::optional<int64_t> min_read_stage;
+      for (StateRead* read : reads) {
+        // Predicated interactions don't safely map exclusion zones
+        if (read->predicate().has_value()) {
+          continue;
+        }
+        XLS_ASSIGN_OR_RETURN(int64_t read_stage, block->GetStageIndex(read));
+        if (!min_read_stage.has_value() || read_stage < *min_read_stage) {
+          min_read_stage = read_stage;
+        }
+      }
+      // If no unconditional paths trigger, ignore constraint
+      if (!min_read_stage.has_value()) {
+        continue;
+      }
+      read_by_stage[state_element] = *min_read_stage;
+
+      XLS_ASSIGN_OR_RETURN(int64_t write_stage, block->GetStageIndex(next));
+      auto [it, inserted] =
+          first_write_stage.try_emplace(state_element, write_stage);
+      if (!inserted) {
+        it->second = std::min(it->second, write_stage);
+      }
     }
   }
   for (const auto& [state_element, read_stage] : read_by_stage) {
@@ -253,8 +286,7 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
   for (Node* node : block->nodes()) {
     if (node->Is<Next>()) {
       Next* next = node->As<Next>();
-      StateElement* state_element =
-          next->state_read()->As<StateRead>()->state_element();
+      StateElement* state_element = next->state_element();
       int64_t stage = *block->GetStageIndex(next);
       auto [it, inserted] =
           earliest_next_stage.try_emplace(state_element, stage);
@@ -351,8 +383,9 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
             // corresponding StateRead, we need to avoid updating that specific
             // operand, since no data is being passed. For simplicity, we put it
             // back afterwards rather than actually avoiding the update.
-            bool restore_state_read =
-                user->Is<Next>() && user->As<Next>()->state_read() == node;
+            bool restore_state_read = user->Is<Next>() &&
+                                      user->As<Next>()->has_state_read() &&
+                                      user->As<Next>()->state_read() == node;
             user->ReplaceOperand(node, live_node);
             if (restore_state_read) {
               XLS_RETURN_IF_ERROR(user->As<Next>()->ReplaceOperandNumber(
