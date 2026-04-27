@@ -642,5 +642,26 @@ TEST_F(FunctionTest, AttributeDataTest) {
   EXPECT_THAT(f->DumpIr(), HasSubstr("#[fuzz_test]"));
 }
 
+TEST_F(FunctionTest, AttributeSerializationWithArgumentsTest) {
+  auto p = CreatePackage();
+  FunctionBuilder b("f", p.get());
+  b.Param("x", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.BuildWithReturnValue(b.Tuple({})));
+
+  std::vector<AttributeData::Argument> args;
+  args.push_back("ident");
+  args.push_back(AttributeData::StringLiteralArgument{.text = "literal"});
+  args.push_back(AttributeData::StringKeyValueArgument{
+      .first = "key", .second = "backticked", .is_backticked = true});
+  args.push_back(AttributeData::IntKeyValueArgument{"int_key", 42});
+
+  f->AddAttribute(AttributeData(AttributeKind::kFuzzTest, args));
+
+  EXPECT_THAT(
+      f->DumpIr(),
+      HasSubstr(
+          "#[fuzz_test(ident, \"literal\", key=`backticked`, int_key=42)]"));
+}
+
 }  // namespace
 }  // namespace xls

@@ -32,9 +32,11 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_annotator.h"
@@ -348,8 +350,32 @@ std::vector<std::string> Function::AttributeIrStrings() const {
     attribute_strings.push_back("non_synth");
   }
   for (const auto& attr : attributes_) {
-    // TODO - davidplass: Properly serialize AttributeData arguments.
-    attribute_strings.push_back(AttributeKindToString(attr.kind()));
+    std::string attr_str = AttributeKindToString(attr.kind());
+    if (!attr.args().empty()) {
+      std::vector<std::string> arg_strings;
+      for (const auto& arg : attr.args()) {
+        std::string arg_str = absl::visit(
+            Visitor{
+                [](const std::string& s) { return s; },
+                [](const AttributeData::StringLiteralArgument& s) {
+                  return absl::StrCat("\"", s.text, "\"");
+                },
+                [](const AttributeData::StringKeyValueArgument& s) {
+                  if (s.is_backticked) {
+                    return absl::StrCat(s.first, "=`", s.second, "`");
+                  }
+                  return absl::StrCat(s.first, "=\"", s.second, "\"");
+                },
+                [](const AttributeData::IntKeyValueArgument& s) {
+                  return absl::StrCat(s.first, "=", s.second);
+                },
+            },
+            arg);
+        arg_strings.push_back(arg_str);
+      }
+      absl::StrAppend(&attr_str, "(", absl::StrJoin(arg_strings, ", "), ")");
+    }
+    attribute_strings.push_back(attr_str);
   }
   return attribute_strings;
 }
