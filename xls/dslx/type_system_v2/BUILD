@@ -1003,7 +1003,6 @@ cc_test(
     srcs = ["typecheck_module_v2_lambda_test.cc"],
     deps = [
         ":matchers",
-        ":type_system_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
