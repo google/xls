@@ -1051,8 +1051,20 @@ TEST_F(IrConverterTest, DecodeWideResult) {
 TEST_F(IrConverterTest, OneHotSelSplat) {
   constexpr std::string_view program =
       R"(
-fn main(s: u2) -> u32 {
-  one_hot_sel(s, u32[2]:[2, 3])
+fn main(s: u3, a: u32, b: u32, c: u32) -> u32 {
+  one_hot_sel(s, [a, b, c])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, OneHotSelSplatWithEllipsis) {
+  constexpr std::string_view program =
+      R"(
+fn main(s: u3, a: u32) -> u32 {
+  one_hot_sel(s, u32[3]:[a, ...])
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -1080,8 +1092,8 @@ fn main(s: u2) -> u32 {
 TEST_F(IrConverterTest, PrioritySelSplat) {
   constexpr std::string_view program =
       R"(
-fn main(s: u2) -> u32 {
-  priority_sel(s, u32[2]:[u32:2, u32:3], u32:4)
+fn main(s: u3, a: u32, b: u32, c: u32, default_value: u32) -> u32 {
+  priority_sel(s, [a, b, c], default_value)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
