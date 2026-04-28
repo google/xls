@@ -74,10 +74,17 @@ struct ResetAttribute {
 
 struct NonSynthMarker : public std::monostate {};
 
+struct FuzzTestAttribute {
+  // This string is the backticked string that was parsed from the IR,
+  // and should be the text proto representing the FuzzTestDomain(s) for this
+  // function.
+  std::optional<std::string> domains_proto_str;
+};
+
 using IrAttributePayload =
     std::variant<InitiationInterval, ChannelPortMetadata, ForeignFunctionData,
                  ResetAttribute, BlockProvenance, verilog::ModuleSignatureProto,
-                 NonSynthMarker>;
+                 NonSynthMarker, FuzzTestAttribute>;
 struct IrAttribute {
   std::string name;
   IrAttributePayload payload;

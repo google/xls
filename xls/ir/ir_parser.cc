@@ -44,6 +44,7 @@
 #include "google/protobuf/text_format.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -74,6 +75,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls {
 
@@ -2386,21 +2388,49 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   }
 
   for (const IrAttribute& attribute : outer_attributes) {
-    if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
-      result->SetInitiationInterval(
-          std::get<InitiationInterval>(attribute.payload).value);
-    } else if (std::holds_alternative<ForeignFunctionData>(attribute.payload)) {
-      // Dummy parse to make sure it is a valid template.
-      const ForeignFunctionData& ffi =
-          std::get<ForeignFunctionData>(attribute.payload);
-      XLS_RETURN_IF_ERROR(CodeTemplate::Create(ffi.code_template()).status());
-      result->SetForeignFunctionData(ffi);
-    } else if (std::holds_alternative<NonSynthMarker>(attribute.payload)) {
-      result->set_non_synth(true);
-    } else {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Invalid attribute for function: %s", attribute.name));
-    }
+    XLS_RETURN_IF_ERROR(absl::visit(
+        Visitor{[&](const InitiationInterval& ii) -> absl::Status {
+                  result->SetInitiationInterval(ii.value);
+                  return absl::OkStatus();
+                },
+                [&](const ForeignFunctionData& ffi) -> absl::Status {
+                  // Dummy parse to make sure it is a valid template.
+                  XLS_RETURN_IF_ERROR(
+                      CodeTemplate::Create(ffi.code_template()).status());
+                  result->SetForeignFunctionData(ffi);
+                  return absl::OkStatus();
+                },
+                [&](const NonSynthMarker&) -> absl::Status {
+                  result->set_non_synth(true);
+                  return absl::OkStatus();
+                },
+                [&](const FuzzTestAttribute& fuzz_test_attr) -> absl::Status {
+                  std::vector<AttributeData::Argument> args;
+                  if (fuzz_test_attr.domains_proto_str.has_value()) {
+                    xls::PackageInterfaceProto::Function function_proto;
+                    if (!google::protobuf::TextFormat::ParseFromString(
+                            *fuzz_test_attr.domains_proto_str,
+                            &function_proto)) {
+                      return absl::InvalidArgumentError(absl::StrFormat(
+                          "Invalid FuzzTestDomain proto string: %s",
+                          *fuzz_test_attr.domains_proto_str));
+                    }
+                    // TODO: davidplass - Typecheck against the function
+                    // signature (at least for the correct # of parameters.)
+                    args.push_back(AttributeData::StringKeyValueArgument{
+                        .first = "domains",
+                        .second = *fuzz_test_attr.domains_proto_str,
+                        .is_backticked = true});
+                  }
+                  result->AddAttribute(
+                      AttributeData(AttributeKind::kFuzzTest, std::move(args)));
+                  return absl::OkStatus();
+                },
+                [&](const auto&) -> absl::Status {
+                  return absl::InvalidArgumentError(absl::StrFormat(
+                      "Invalid attribute for function: %s", attribute.name));
+                }},
+        attribute.payload));
   }
 
   return result;
@@ -3019,6 +3049,28 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
     XLS_RETURN_IF_ERROR(
         scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
     return IrAttribute{.name = attribute_name.value(), .payload = ffi};
+  }
+  if (attribute_name.value() == "fuzz_test") {
+    std::optional<std::string> domains_proto_str;
+
+    if (scanner_.TryDropToken(LexicalTokenType::kParenOpen)) {
+      absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
+      handlers["domains"] = [&]() -> absl::Status {
+        XLS_ASSIGN_OR_RETURN(
+            Token token,
+            scanner_.PopTokenOrError(LexicalTokenType::kBacktickedString,
+                                     "backticked string"));
+        domains_proto_str = token.value();
+        return absl::OkStatus();
+      };
+      XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers));
+      XLS_RETURN_IF_ERROR(
+          scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+    }
+
+    return IrAttribute{
+        .name = attribute_name.value(),
+        .payload = FuzzTestAttribute{.domains_proto_str = domains_proto_str}};
   }
   if (attribute_name.value() == "channel_ports") {
     std::optional<std::string> channel_name;

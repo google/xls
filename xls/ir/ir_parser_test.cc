@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -26,8 +27,11 @@
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "google/protobuf/text_format.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -42,6 +46,7 @@
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls {
 
@@ -1204,6 +1209,139 @@ scheduled_block b() {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, pkg->GetBlock("b"));
   EXPECT_TRUE(block->IsScheduled());
   EXPECT_EQ(block->stages().size(), 1);
+}
+
+TEST(IrParserTest, ParseAttributeWithArguments) {
+  std::string program = R"(
+package test
+
+#[fuzz_test(domains = `parameter_domains { arbitrary: true }`)]
+fn main(x: bits[32]) -> bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  EXPECT_EQ(package->functions().size(), 1);
+  Function* func = package->functions().front().get();
+  EXPECT_TRUE(func->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = func->attributes();
+  ASSERT_EQ(attributes.size(), 1);
+  const AttributeData& attr = attributes[0];
+  EXPECT_EQ(attr.kind(), AttributeKind::kFuzzTest);
+  ASSERT_EQ(attr.args().size(), 1);
+  const AttributeData::Argument& arg = attr.args()[0];
+  ASSERT_TRUE(
+      std::holds_alternative<AttributeData::StringKeyValueArgument>(arg));
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+  EXPECT_EQ(skv.first, "domains");
+  EXPECT_EQ(skv.second, "parameter_domains { arbitrary: true }");
+  EXPECT_TRUE(skv.is_backticked);
+}
+
+TEST(IrParserTest, ParseAttributeWithRangeDomain) {
+  xls::PackageInterfaceProto::Function function_proto;
+  PackageInterfaceProto::FuzzTestDomain* domain =
+      function_proto.add_parameter_domains();
+  PackageInterfaceProto::FuzzTestDomain::Range* range = domain->mutable_range();
+  range->mutable_min()->mutable_bits()->set_bit_count(8);
+  range->mutable_min()->mutable_bits()->set_data("\000", 1);
+  range->mutable_max()->mutable_bits()->set_bit_count(8);
+  range->mutable_max()->mutable_bits()->set_data("\144", 1);
+
+  google::protobuf::TextFormat::Printer printer;
+  printer.SetSingleLineMode(true);
+  std::string proto_str;
+  ASSERT_TRUE(printer.PrintToString(function_proto, &proto_str));
+
+  std::string program = absl::StrFormat(R"(
+package test
+
+#[fuzz_test(domains = `%s`)]
+fn main(x: bits[8]) -> bits[8] {
+  ret x: bits[8] = param(name=x)
+}
+)",
+                                        proto_str);
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  EXPECT_EQ(package->functions().size(), 1);
+  Function* func = package->functions().front().get();
+  EXPECT_TRUE(func->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = func->attributes();
+  ASSERT_EQ(attributes.size(), 1);
+  const AttributeData& attr = attributes[0];
+  EXPECT_EQ(attr.kind(), AttributeKind::kFuzzTest);
+  ASSERT_EQ(attr.args().size(), 1);
+  const AttributeData::Argument& arg = attr.args()[0];
+  ASSERT_TRUE(
+      std::holds_alternative<AttributeData::StringKeyValueArgument>(arg));
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+  EXPECT_EQ(skv.first, "domains");
+  EXPECT_EQ(skv.second, proto_str);
+  EXPECT_TRUE(skv.is_backticked);
+}
+
+TEST(IrParserTest, ParseAttributeWithBrokenBacktick) {
+  std::string program = R"(
+package test
+
+#[fuzz_test(domains = `u32:0..100)]
+fn main(x: bits[32]) -> bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unterminated quoted string")));
+}
+
+TEST(IrParserTest, ParseAttributeEmptyFuzzTest) {
+  std::string program = R"ir(
+package test
+
+#[fuzz_test]
+fn main(x: bits[32]) -> bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+)ir";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  EXPECT_EQ(package->functions().size(), 1);
+  Function* func = package->functions().front().get();
+  EXPECT_TRUE(func->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = func->attributes();
+  ASSERT_EQ(attributes.size(), 1);
+  const AttributeData& attr = attributes[0];
+  EXPECT_EQ(attr.kind(), AttributeKind::kFuzzTest);
+  EXPECT_TRUE(attr.args().empty());
+}
+
+TEST(IrParserTest, ParseAttributeExtraArgument) {
+  std::string program = R"ir(
+package test
+
+#[fuzz_test(domains = `u32:0..100`, extra = 42)]
+fn main(x: bits[32]) -> bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+)ir";
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid keyword argument")));
+}
+
+TEST(IrParserTest, ParseAttributeInvalidDomainType) {
+  std::string program = R"ir(
+package test
+
+#[fuzz_test(domains = "u32:0..100")]
+fn main(x: bits[32]) -> bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+)ir";
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Expected token of type \"backticked string\"")));
 }
 
 }  // namespace xls

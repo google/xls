@@ -74,6 +74,8 @@ std::string LexicalTokenTypeToString(LexicalTokenType token_type) {
       return "(";
     case LexicalTokenType::kQuotedString:
       return "quoted string";
+    case LexicalTokenType::kBacktickedString:
+      return "backticked string";
     case LexicalTokenType::kRightArrow:
       return "->";
     case LexicalTokenType::kHash:
@@ -302,6 +304,13 @@ class Tokenizer {
       if (content.has_value()) {
         tokens.push_back(Token(LexicalTokenType::kQuotedString, content.value(),
                                start_lineno, start_colno));
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(content,
+                           MatchQuotedString("`", /*allow_multiline=*/false));
+      if (content.has_value()) {
+        tokens.push_back(Token(LexicalTokenType::kBacktickedString,
+                               content.value(), start_lineno, start_colno));
         continue;
       }
 
