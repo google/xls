@@ -199,12 +199,17 @@ class ConstraintConverter {
       return absl::OkStatus();
     }
     for (Next* next : fb_->AsProcOrDie()->next_values()) {
-      node_constraints_.emplace_back(NodeDifferenceConstraint{
-          .anchor = next->state_read(),
-          .subject = next,
-          .min_after = 0,
-          .max_after = *ii_ - 1,
-      });
+      absl::Span<StateRead* const> reads =
+          fb_->AsProcOrDie()->GetStateReadsByStateElement(
+              next->state_element());
+      for (StateRead* read : reads) {
+        node_constraints_.emplace_back(NodeDifferenceConstraint{
+            .anchor = read,
+            .subject = next,
+            .min_after = 0,
+            .max_after = *ii_ - 1,
+        });
+      }
     }
     return absl::OkStatus();
   }

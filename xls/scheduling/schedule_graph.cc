@@ -157,11 +157,14 @@ std::string ScheduleGraph::ToString() const {
   // Proc state is represented as backedges in the graph.
   if (f->IsProc()) {
     for (Next* next : f->AsProcOrDie()->next_values()) {
-      StateRead* state_read = next->state_read()->As<StateRead>();
-      backedges.push_back(
-          ScheduleBackedge{.source = next,
-                           .destination = state_read,
-                           .distance = LessThanInitiationInterval()});
+      absl::Span<StateRead* const> reads =
+          f->AsProcOrDie()->GetStateReadsByStateElement(next->state_element());
+      for (StateRead* read : reads) {
+        backedges.push_back(
+            ScheduleBackedge{.source = next,
+                             .destination = read,
+                             .distance = LessThanInitiationInterval()});
+      }
     }
   }
 

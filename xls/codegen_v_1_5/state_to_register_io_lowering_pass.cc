@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -165,7 +166,8 @@ absl::Status AddFullRegisterWrite(Block* block, Register* reg_full,
 
 absl::Status LowerStateElement(ScheduledBlock* block,
                                const StateElement& state_element,
-                               StateRead* read, absl::Span<Next*> writes) {
+                               absl::Span<StateRead* const> reads,
+                               absl::Span<Next*> writes) {
   // A token or empty tuple state element has no real functionality.
   Type* type = state_element.type();
   const bool has_data = type->GetFlatBitCount() > 0;
@@ -177,32 +179,40 @@ absl::Status LowerStateElement(ScheduledBlock* block,
         state_element.name(), type->ToString()));
   }
 
-  // Lower the read of the state element.
-  std::optional<Node*> read_predicate = read->predicate();
+  // Lower the reads of the state element.
   std::string name =
       block->UniquifyNodeName(absl::StrCat("__", state_element.name()));
-
-  XLS_ASSIGN_OR_RETURN(int read_stage_index, block->GetStageIndex(read));
-  Stage& read_stage = block->stages()[read_stage_index];
-  Node* reg_read_or_zero = nullptr;
   Register* state_register = nullptr;
   if (has_data) {
     XLS_ASSIGN_OR_RETURN(state_register,
                          block->AddRegister(name, state_element.type(),
                                             state_element.initial_value()));
-    XLS_ASSIGN_OR_RETURN(reg_read_or_zero,
-                         block->MakeNodeWithNameInStage<RegisterRead>(
-                             read_stage_index, read->loc(), state_register,
-                             /*name=*/state_register->name()));
-  } else {
-    XLS_ASSIGN_OR_RETURN(reg_read_or_zero, block->MakeNode<xls::Literal>(
-                                               read->loc(), ZeroOfType(type)));
   }
 
-  XLS_ASSIGN_OR_RETURN(bool read_removed,
-                       ReplaceNode(block, read, reg_read_or_zero,
-                                   /*replace_implicit_uses=*/false));
-  XLS_RET_CHECK(!read_removed);
+  std::vector<Node*> reg_reads_or_zeros;
+  std::vector<int> read_stage_indices;
+  reg_reads_or_zeros.reserve(reads.size());
+  read_stage_indices.reserve(reads.size());
+  for (StateRead* read : reads) {
+    XLS_ASSIGN_OR_RETURN(int read_stage_index, block->GetStageIndex(read));
+    read_stage_indices.push_back(read_stage_index);
+    Node* reg_read_or_zero = nullptr;
+    if (has_data) {
+      XLS_ASSIGN_OR_RETURN(reg_read_or_zero,
+                           block->MakeNodeWithNameInStage<RegisterRead>(
+                               read_stage_index, read->loc(), state_register,
+                               /*name=*/state_register->name()));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          reg_read_or_zero,
+          block->MakeNode<xls::Literal>(read->loc(), ZeroOfType(type)));
+    }
+    XLS_ASSIGN_OR_RETURN(bool read_removed,
+                         ReplaceNode(block, read, reg_read_or_zero,
+                                     /*replace_implicit_uses=*/false));
+    XLS_RET_CHECK(!read_removed);
+    reg_reads_or_zeros.push_back(reg_read_or_zero);
+  }
 
   Next* last_write = nullptr;
   Node* last_value = nullptr;
@@ -222,11 +232,18 @@ absl::Status LowerStateElement(ScheduledBlock* block,
   // we have a non-trivial backedge between initiations (II>1); use a "full" bit
   // to track whether the state is currently valid.
   Register* reg_full = nullptr;
-  if (last_write_stage_index > read_stage_index) {
-    XLS_ASSIGN_OR_RETURN(
-        reg_full,
-        CreateFullRegisterAndRead(block, state_element, read_predicate,
-                                  *last_write, read_stage_index, read_stage));
+  if (!reads.empty() && !writes.empty()) {
+    int earliest_read_stage_index = read_stage_indices[0];
+    Stage& earliest_read_stage = block->stages()[earliest_read_stage_index];
+    if (last_write_stage_index > earliest_read_stage_index) {
+      // TODO(nelsonliang): Support II > 1 with multiple reads in different
+      // stages.
+      XLS_ASSIGN_OR_RETURN(
+          reg_full,
+          CreateFullRegisterAndRead(block, state_element, reads[0]->predicate(),
+                                    *last_write, earliest_read_stage_index,
+                                    earliest_read_stage));
+    }
   }
 
   std::vector<Node*> all_write_conditions;
@@ -247,7 +264,8 @@ absl::Status LowerStateElement(ScheduledBlock* block,
 
     // If we have no full bit to update and this is just a self-assignment, we
     // can skip this write entirely.
-    if (!reg_full && write->value() == reg_read_or_zero) {
+    if (!reg_full &&
+        absl::c_linear_search(reg_reads_or_zeros, write->value())) {
       continue;
     }
 
@@ -267,7 +285,7 @@ absl::Status LowerStateElement(ScheduledBlock* block,
 
     // For data updates, we skip all self-assignments, as they're just
     // unchanged values.
-    if (write->value() == reg_read_or_zero) {
+    if (absl::c_linear_search(reg_reads_or_zeros, write->value())) {
       continue;
     }
 
@@ -303,7 +321,7 @@ absl::Status LowerStateElement(ScheduledBlock* block,
   if (values.empty()) {
     // If we never change the state element, write the current value
     // unconditionally.
-    value = reg_read_or_zero;
+    value = reg_reads_or_zeros.back();
   } else if (values.size() == 1) {
     value = values[0];
     write_load_enable = write_conditions[0];
@@ -350,9 +368,11 @@ absl::Status LowerStateElement(ScheduledBlock* block,
                            NaryOrIfNeeded(block, all_write_conditions,
                                           /*name=*/"", last_write_loc));
     }
-    XLS_RETURN_IF_ERROR(AddFullRegisterWrite(block, reg_full, read_predicate,
-                                             read_stage, last_write_loc,
-                                             full_write_enable));
+    int earliest_read_stage_index = read_stage_indices[0];
+    Stage& earliest_read_stage = block->stages()[earliest_read_stage_index];
+    XLS_RETURN_IF_ERROR(AddFullRegisterWrite(
+        block, reg_full, reads[0]->predicate(), earliest_read_stage,
+        last_write_loc, full_write_enable));
   }
 
   return absl::OkStatus();
@@ -382,11 +402,8 @@ absl::StatusOr<bool> LowerStateIoForBlock(ScheduledBlock* block) {
 
   for (StateElement* state_element : source_proc->StateElements()) {
     std::vector<StateRead*> reads_for_element = state_reads.at(state_element);
-    // Multiple reads are not yet supported.
-    XLS_RET_CHECK_EQ(reads_for_element.size(), 1)
-        << "Found multiple reads for state element: " << state_element->name();
     XLS_RETURN_IF_ERROR(
-        LowerStateElement(block, *state_element, reads_for_element[0],
+        LowerStateElement(block, *state_element, reads_for_element,
                           absl::MakeSpan(next_values[state_element])));
   }
 
