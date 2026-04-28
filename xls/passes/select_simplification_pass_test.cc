@@ -70,7 +70,7 @@ class SelectSimplificationPassTest
     : public IrTestBase,
       public testing::WithParamInterface<AnalysisType> {
  protected:
-  absl::StatusOr<bool> Run(Function* f) {
+  absl::StatusOr<bool> Run(FunctionBase* f) {
     PassResults results;
     OptimizationContext context;
     if (GetParam() == AnalysisType::kTernary) {
@@ -1828,6 +1828,29 @@ TEST_P(SelectSimplificationPassTest,
           {m::PrioritySelect(m::Eq(m::Param("a"), m::Param("b")),
                              {m::Param("eq_result")}, m::Param("ult_result"))},
           m::Param("ugt_result")));
+}
+
+TEST_P(SelectSimplificationPassTest, PredicatedStateReadFeedSelector) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element1,
+                           pb.UnreadStateElement("state1", Value(UBits(0, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element2,
+                           pb.UnreadStateElement("state2", Value(UBits(0, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(auto in1,
+                           pb.AddInputChannel("in1", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto in2,
+                           pb.AddInputChannel("in2", p->GetBitsType(32)));
+  BValue sr1 = pb.StateRead(state_element1);
+  BValue sr2 = pb.StateRead(state_element2, sr1);
+  BValue update = pb.BitSlice(
+      pb.Select(sr2, {pb.ReceiveIf(in1, sr1), pb.ReceiveIf(in2, sr1)}), 0, 1);
+  pb.Next(state_element1, sr1);
+  pb.Next(state_element2, update, /*pred=*/sr1);
+  pb.Next(state_element2, sr1, /*pred=*/pb.Not(sr1));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  EXPECT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 INSTANTIATE_TEST_SUITE_P(SelectSimplificationPassTest,

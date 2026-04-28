@@ -1114,6 +1114,15 @@ absl::StatusOr<bool> MaybeReorderSelect(Node* node,
     return false;
   }
 
+  // Side effecting operations don't have values which depend on their inputs so
+  // we can't replace the select with one on the selectors arguments.
+  // NB Only predicated state reads would get caught by this and not be caught
+  // by the 'unknown_operands.size() != 1' check below. Those could confuse this
+  // however and its better to be explicit.
+  if (OpIsSideEffecting(selector->op()) && selector->op() != Op::kGate) {
+    return false;
+  }
+
   // Run through all of the selector's operands, recording the Values of any
   // that are known constant; this simplification applies if all but one are
   // known.
