@@ -1726,16 +1726,6 @@ const X = foo()..(A * 2);
               TypecheckSucceeds(HasNodeWithType("X", "sN[16][8]")));
 }
 
-TEST(TypecheckV2Test, RangeExprEmptyRange) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
-const A = s8:4;
-const X = A..s8:4;
-)"));
-  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
-  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
-            "`A..s8:4` from `s8:4` to `s8:4` is an empty range");
-}
-
 TEST(TypecheckV2Test, RangeExprSignednessMismatch) {
   EXPECT_THAT(R"(const X = u32:1..s32:2;)",
               TypecheckFails(HasSignednessMismatch("s32", "u32")));

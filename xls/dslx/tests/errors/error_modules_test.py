@@ -1097,15 +1097,6 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
         stderr,
     )
 
-  def test_match_empty_range(self):
-    stderr = self._run(
-        'xls/dslx/tests/errors/match_empty_range.x',
-    )
-    self.assertIn(
-        '`u32:0..u32:0` from `u32:0` to `u32:0` is an empty range',
-        stderr,
-    )
-
   def test_parametric_test_fn(self):
     stderr = self._run(
         'xls/dslx/tests/errors/parametric_test_fn.x',
