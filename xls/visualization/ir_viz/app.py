@@ -289,6 +289,41 @@ def graph_handler():
   return jsonified
 
 
+@webapp.route('/run_passes', methods=['POST'])
+def run_passes_handler():
+  """Runs specified passes on the posted IR text and returns the new IR."""
+  text = flask.request.form.get('text', '')
+  passes = flask.request.form.get('passes', '')
+  with tempfile.NamedTemporaryFile(
+      mode='w', encoding='utf-8', prefix='ir_viz.', suffix='.ir'
+  ) as tmp_ir, tempfile.NamedTemporaryFile(
+      mode='r+', encoding='utf-8', prefix='ir_viz.', suffix='.opt.ir'
+  ) as tmp_out:
+    tmp_ir.write(text)
+    tmp_ir.seek(0)
+    argv = [
+        OPT_MAIN_PATH,
+        '--passes={}'.format(passes),
+        '--output_path={}'.format(tmp_out.name),
+        tmp_ir.name,
+    ]
+    try:
+      subprocess.check_output(
+          argv,
+          stdin=None,
+          stderr=subprocess.PIPE,
+          encoding='utf-8',
+      )
+      tmp_out.seek(0)
+      new_ir = tmp_out.read()
+    except subprocess.CalledProcessError as e:
+      return flask.jsonify({'error_code': 'error', 'message': e.stderr})
+    except Exception as e:  # pylint: disable=broad-except
+      return flask.jsonify({'error_code': 'error', 'message': str(e)})
+
+  return flask.jsonify({'error_code': 'ok', 'ir': new_ir})
+
+
 def main(argv):
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')

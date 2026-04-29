@@ -182,6 +182,37 @@ document.addEventListener('DOMContentLoaded', function() {
         visualizer.selectCriticalPath();
       });
 
+  let runPassesBtn = document.getElementById('run-passes-btn');
+  if (runPassesBtn) {
+    runPassesBtn.addEventListener('click', e => {
+      let passes = document.getElementById('passes-input').value;
+      let text = document.getElementById('ir-source-text').textContent;
+      runPassesBtn.disabled = true;
+
+      let xmr = new XMLHttpRequest();
+      xmr.open('POST', '/run_passes');
+      xmr.addEventListener('load', function() {
+        runPassesBtn.disabled = false;
+        if (xmr.status >= 200 && xmr.status < 400) {
+          let response = JSON.parse(xmr.responseText);
+          if (response.error_code == 'ok') {
+            document.getElementById('ir-source-text').textContent = response.ir;
+            inputChangeHandler();
+          } else {
+            let src_status = document.getElementById('source-status');
+            src_status.classList.remove('alert-dark', 'alert-success');
+            src_status.classList.add('alert-danger');
+            src_status.textContent = response.message;
+          }
+        }
+      });
+      let data = new FormData();
+      data.append('text', text);
+      data.append('passes', passes);
+      xmr.send(data);
+    });
+  }
+
   document.getElementById('only-selected-checkbox')
       .addEventListener('input', e => {
         visualizer.setShowOnlySelected(showOnlySelectedState());
