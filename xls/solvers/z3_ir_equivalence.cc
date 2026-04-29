@@ -248,23 +248,25 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
   XLS_ASSIGN_OR_RETURN(
       ProverResult base_result,
       TryProve(to_test_func, new_ret, Predicate::NotEqualToZero(), timeout));
-  // remap parameters back tot he originals.
+  // remap parameters back to the originals.
   return std::visit(
       Visitor{
           [](ProvenTrue t) -> absl::StatusOr<ProverResult> { return t; },
           [&](ProvenFalse f) -> absl::StatusOr<ProverResult> {
             if (f.counterexample.ok()) {
-              absl::flat_hash_map<const Param*, Value> mapped_counterexample;
+              absl::flat_hash_map<Node*, Value> mapped_counterexample;
               for (const auto& [param, value] : *f.counterexample) {
+                if (!param->Is<Param>()) {
+                  continue;
+                }
+
                 if (node_map.contains(param)) {
                   // from 'b'
-                  mapped_counterexample[node_map[const_cast<Param*>(param)]
-                                            ->As<Param>()] = value;
+                  mapped_counterexample[node_map[param]] = value;
                 } else {
                   // from 'a'
-                  XLS_ASSIGN_OR_RETURN(
-                      int64_t idx,
-                      to_test_func->GetParamIndex(const_cast<Param*>(param)));
+                  XLS_ASSIGN_OR_RETURN(int64_t idx, to_test_func->GetParamIndex(
+                                                        param->As<Param>()));
                   mapped_counterexample[a->param(idx)] = value;
                 }
               }

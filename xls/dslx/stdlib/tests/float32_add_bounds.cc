@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
 #include <vector>
@@ -171,10 +172,11 @@ static absl::Status CompareToReference(xls::dslx::VirtualizableFilesystem& vfs,
       ctx, absl::bit_cast<float>(error_bound), Z3_mk_fpa_sort_32(ctx));
 
   // Push all that work into z3, and have the solver do its work.
-  translator->SetTimeout(timeout);
-
   Z3_solver solver =
       solvers::z3::CreateSolver(ctx, std::thread::hardware_concurrency());
+  auto solver_params =
+      solvers::z3::ScopedSolverParams::WithTimeout(ctx, solver, timeout);
+
   Z3_ast objective = Z3_mk_fpa_gt(ctx, error, bounds);
   Z3_solver_assert(ctx, solver, objective);
 

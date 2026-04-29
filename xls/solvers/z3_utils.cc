@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -26,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "re2/re2.h"
 #include "xls/common/source_location.h"
@@ -114,6 +116,26 @@ Z3_solver CreateSolver(Z3_context ctx, int num_threads) {
   Z3_params_dec_ref(ctx, params);
   return solver;
 }
+
+ScopedSolverParams::ScopedSolverParams(Z3_context ctx, Z3_solver solver,
+                                       std::optional<absl::Duration> timeout,
+                                       std::optional<int64_t> rlimit)
+    : ctx_(ctx) {
+  params_ = Z3_mk_params(ctx);
+  Z3_params_inc_ref(ctx, params_);
+  if (timeout.has_value()) {
+    Z3_symbol timeout_sym = Z3_mk_string_symbol(ctx, "timeout");
+    Z3_params_set_uint(ctx, params_, timeout_sym,
+                       absl::ToInt64Milliseconds(*timeout));
+  }
+  if (rlimit.has_value()) {
+    Z3_symbol rlimit_sym = Z3_mk_string_symbol(ctx, "rlimit");
+    Z3_params_set_uint(ctx, params_, rlimit_sym, *rlimit);
+  }
+  Z3_solver_set_params(ctx, solver, params_);
+}
+
+ScopedSolverParams::~ScopedSolverParams() { Z3_params_dec_ref(ctx_, params_); }
 
 std::string SolverResultToString(Z3_context ctx, Z3_solver solver,
                                  Z3_lbool satisfiable, bool hexify) {

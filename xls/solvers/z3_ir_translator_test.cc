@@ -2769,8 +2769,8 @@ TEST_F(Z3IrTranslatorTest, DumpWithNodeValues) {
   BValue y = fb.Param("y", p->GetBitsType(32));
   fb.Tuple({fb.Add(x, y), fb.UMul(x, y)});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  absl::flat_hash_map<const Param*, Value> counterexample{
-      {x.node()->As<Param>(), Value(UBits(1, 32))}};
+  absl::flat_hash_map<Node*, Value> counterexample{
+      {x.node(), Value(UBits(1, 32))}};
   solvers::z3::ProvenFalse proven_false{.counterexample = counterexample};
   EXPECT_THAT(f->DumpIr(solvers::z3::CounterExampleAnnotator(proven_false)),
               AllOf(ContainsRegex("x: bits\\[32\\] id=[0-9]+ \\(1\\)"),

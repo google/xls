@@ -881,11 +881,15 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
 
     // Extract the counterexample, and collapse it back into sequential order.
     std::vector<Value> counterexample;
-    using ParamValues = absl::flat_hash_map<const xls::Param*, Value>;
-    XLS_ASSIGN_OR_RETURN(ParamValues counterexample_map,
+    using InputValues = absl::flat_hash_map<xls::Node*, Value>;
+    XLS_ASSIGN_OR_RETURN(InputValues counterexample_map,
                          proven_false.counterexample);
     for (const xls::Param* param : (*ir_function)->params()) {
-      counterexample.push_back(counterexample_map[param]);
+      auto it = counterexample_map.find(param);
+      if (it == counterexample_map.end()) {
+        counterexample.push_back(ZeroOfType(param->GetType()));
+      }
+      counterexample.push_back(it->second);
     }
     std::string one_liner =
         absl::StrCat("counterexample: ", absl::StrJoin(counterexample, ", "));

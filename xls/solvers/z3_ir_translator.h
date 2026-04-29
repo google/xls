@@ -53,11 +53,12 @@ namespace z3 {
 
 // Kinds of predicates we can compute about a subject node.
 enum class PredicateKind : uint8_t {
-  kEqualToZero,
-  kNotEqualToZero,
-  kEqualToNode,
-  kUnsignedGreaterOrEqual,  // vs some given (constant) value
-  kUnsignedLessOrEqual,     // vs some given (constant) value
+  kEqualToZero,             // subject is zero
+  kNotEqualToZero,          // subject is not zero
+  kEqualToNode,             // subject and node are equal
+  kExclusiveWithNode,       // at least one of subject and node is zero
+  kUnsignedGreaterOrEqual,  // subject >= some given (constant) value
+  kUnsignedLessOrEqual,     // subject <= some given (constant) value
 };
 
 // Translates a function into its Z3 equivalent bit-vector circuit for use in
@@ -87,12 +88,16 @@ class IrTranslator : public DfsVisitorWithDefault {
   ~IrTranslator() override;
 
   // Sets the amount of time to allow Z3 to execute before aborting.
-  void SetTimeout(absl::Duration timeout);
+  //
+  // std::nullopt means no timeout.
+  void SetTimeout(std::optional<absl::Duration> timeout);
 
   // Sets the amount of "solver resources" Z3 can use before aborting.
   //
   // Useful for reproducible termination, since timeout is not reproducible.
-  void SetRlimit(int64_t rlimit);
+  //
+  // std::nullopt means no rlimit.
+  void SetRlimit(std::optional<int64_t> rlimit);
 
   // Returns the Z3 value (or set of values) corresponding to the given Node.
   // Translates if the translation is not yet stored.
@@ -146,6 +151,9 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::StatusOr<Z3_ast> ToFloat32(Z3_ast tuple);
 
   Z3_context ctx() { return ctx_; }
+
+  std::optional<absl::Duration> timeout() const { return timeout_; }
+  std::optional<int64_t> rlimit() const { return rlimit_; }
 
   // DfsVisitorWithDefault override decls.
   absl::Status DefaultHandler(Node* node) override;
@@ -332,6 +340,8 @@ class IrTranslator : public DfsVisitorWithDefault {
   std::optional<absl::Span<const Z3_ast>> imported_params_;
   FunctionBase* xls_function_;
   int current_symbol_;
+  std::optional<absl::Duration> timeout_;
+  std::optional<int64_t> rlimit_;
 };
 
 // Describes a predicate to compute about a subject node in an XLS IR function.
@@ -343,6 +353,11 @@ class IrTranslator : public DfsVisitorWithDefault {
 class Predicate {
  public:
   static Predicate IsEqualTo(Node* other);
+
+  // Returns a predicate that is true iff the subject is never true at the same
+  // time as `other`.
+  static Predicate IsExclusiveWith(Node* other);
+
   static Predicate EqualToZero();
   static Predicate NotEqualToZero();
   static Predicate UnsignedGreaterOrEqual(Bits lower_bound);
@@ -394,7 +409,7 @@ struct ProvenFalse {
   // If available, a set of Values for the function's Params that implement the
   // counterexample; otherwise, an absl::Status documenting the failure to
   // translate the counterexample.
-  absl::StatusOr<absl::flat_hash_map<const Param*, Value>> counterexample =
+  absl::StatusOr<absl::flat_hash_map<Node*, Value>> counterexample =
       absl::UnimplementedError("no counterexample analysis attempted");
 
   // Typically contains the encoded Z3 solver result (which usually includes the
@@ -423,6 +438,17 @@ absl::StatusOr<ProverResult> TryProveConjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
     bool allow_unsupported = false);
 
+// Attempts to prove the conjunction of "terms". "terms" refers to predicates on
+// nodes within the given translator's function. Returns true iff "terms" can be
+// proven true in conjunction (over all possible inputs) within the given
+// "timeout" or "rlimit".
+absl::StatusOr<ProverResult> TryProveConjunctionWithTranslator(
+    IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
+    absl::Duration timeout);
+absl::StatusOr<ProverResult> TryProveConjunctionWithTranslator(
+    IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
+    int64_t rlimit);
+
 // Attempts to prove the disjunction of "terms". "terms" refers to predicates on
 // nodes within function "f". Returns true iff "terms" can be proven true in
 // disjunction (over all possible inputs) within the given "timeout" or
@@ -433,6 +459,17 @@ absl::StatusOr<ProverResult> TryProveDisjunction(
 absl::StatusOr<ProverResult> TryProveDisjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
     bool allow_unsupported = false);
+
+// Attempts to prove the disjunction of "terms". "terms" refers to predicates on
+// nodes within the given translator's function. Returns true iff "terms" can be
+// proven true in disjunction (over all possible inputs) within the given
+// "timeout" or "rlimit".
+absl::StatusOr<ProverResult> TryProveDisjunctionWithTranslator(
+    IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
+    absl::Duration timeout);
+absl::StatusOr<ProverResult> TryProveDisjunctionWithTranslator(
+    IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
+    int64_t rlimit);
 
 // Attempts to prove node "subject" in function "f" satisfies the given
 // predicate (over all possible inputs) within the duration "timeout" or the
@@ -447,6 +484,17 @@ absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
                                       Predicate p, int64_t rlimit,
                                       bool allow_unsupported = false);
 
+// Attempts to prove node "subject" satisfies the given predicate using the
+// given translator, within the duration "timeout" or the "rlimit". The
+// translator must already have been populated with the function containing
+// "subject".
+absl::StatusOr<ProverResult> TryProveWithTranslator(IrTranslator* translator,
+                                                    Node* subject, Predicate p,
+                                                    absl::Duration timeout);
+absl::StatusOr<ProverResult> TryProveWithTranslator(IrTranslator* translator,
+                                                    Node* subject, Predicate p,
+                                                    int64_t rlimit);
+
 // Emits a self-contained SMT-LIB2 representation of `function` consisting of:
 // Returns Z3's pretty-printed SMT-LIB2 form of a λ-expression that binds all
 // parameters of `function` (currently Bits-typed only) and yields the
@@ -459,8 +507,8 @@ absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
 // printing internally.
 absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function);
 
-// Function annotator that adds counter example values to nodes in a function
-// ir. NB only works for functions. Non-functions are ignored.
+// Annotator that prints counterexample values for nodes in an IR entity;
+// supports functions, procs, and blocks.
 class CounterExampleAnnotator : public IrAnnotator {
  public:
   explicit CounterExampleAnnotator(
@@ -475,13 +523,7 @@ class CounterExampleAnnotator : public IrAnnotator {
   // returns that value. By default returns nullopt for everything except Param
   // nodes where it returns the counterexample value of any param with the same
   // name or ZeroOfType if not available.
-  // TODO(allight): With this it should be possible to get a block/proc
-  // annotator too.
   virtual std::optional<Value> CounterExampleValue(Node* node) const;
-  virtual bool CanAnnotate(Node* node) const {
-    // TODO(allight): It would be nice to handle procs etc.
-    return node->function_base()->IsFunction();
-  }
 
  private:
   const ProvenFalse& fail_;

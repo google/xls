@@ -60,6 +60,9 @@ class Z3OpTranslator {
   // Takes boolean kinds as arguments and produces a boolean kind result.
   Z3_ast AndBool(Z3_ast lhs, Z3_ast rhs);
 
+  // Takes boolean kinds as arguments and produces a boolean kind result.
+  Z3_ast NotBool(Z3_ast arg);
+
   Z3_ast True() { return Z3_mk_true(z3_ctx_); }
   Z3_ast False() { return Z3_mk_false(z3_ctx_); }
 

@@ -144,8 +144,12 @@ absl::StatusOr<ProverResult> TryProveAssertClean(Function* func) {
       Visitor{
           [&](ProvenFalse f) -> absl::StatusOr<ProverResult> {
             if (f.counterexample.ok()) {
-              absl::flat_hash_map<const Param*, Value> mapped_counterexample;
+              absl::flat_hash_map<Node*, Value> mapped_counterexample;
               for (const auto& [param, value] : *f.counterexample) {
+                if (!param->Is<Param>()) {
+                  continue;
+                }
+
                 if (new_to_old.contains(param)) {
                   mapped_counterexample[new_to_old.at(param)->As<Param>()] =
                       value;

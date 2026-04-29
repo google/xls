@@ -31,6 +31,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -53,6 +54,7 @@
 #include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -68,6 +70,9 @@ namespace z3 {
 
 /* static */ Predicate Predicate::IsEqualTo(Node* other) {
   return Predicate(PredicateKind::kEqualToNode, other);
+}
+/* static */ Predicate Predicate::IsExclusiveWith(Node* other) {
+  return Predicate(PredicateKind::kExclusiveWithNode, other);
 }
 /* static */ Predicate Predicate::EqualToZero() {
   return Predicate(PredicateKind::kEqualToZero);
@@ -100,6 +105,8 @@ std::string Predicate::ToString() const {
       return "ne zero";
     case PredicateKind::kEqualToNode:
       return "eq " + node()->GetName();
+    case PredicateKind::kExclusiveWithNode:
+      return "nand " + node()->GetName();
     case PredicateKind::kUnsignedGreaterOrEqual:
       return "uge " + value_->ToDebugString();
     case PredicateKind::kUnsignedLessOrEqual:
@@ -268,14 +275,12 @@ Z3_sort_kind IrTranslator::GetValueKind(Z3_ast value) {
   return Z3_get_sort_kind(ctx_, sort);
 }
 
-void IrTranslator::SetTimeout(absl::Duration timeout) {
-  std::string timeout_str = absl::StrCat(absl::ToInt64Milliseconds(timeout));
-  Z3_update_param_value(ctx_, "timeout", timeout_str.c_str());
+void IrTranslator::SetTimeout(std::optional<absl::Duration> timeout) {
+  timeout_ = timeout;
 }
 
-void IrTranslator::SetRlimit(int64_t rlimit) {
-  const std::string rlimit_str = absl::StrCat(rlimit);
-  Z3_update_param_value(ctx_, "rlimit", rlimit_str.c_str());
+void IrTranslator::SetRlimit(std::optional<int64_t> rlimit) {
+  rlimit_ = rlimit;
 }
 
 Z3_ast IrTranslator::FloatZero(Z3_sort sort) {
@@ -1597,7 +1602,7 @@ absl::Status IrTranslator::DefaultHandler(Node* node) {
     XLS_ASSIGN_OR_RETURN(Z3_ast fresh,
                          CreateZ3Param(node->GetType(), node->GetName()));
     NoteTranslation(node, fresh);
-    VLOG(1) << "Unhandled node for conversion from XLS IR to Z3, "
+    VLOG(2) << "Unhandled node for conversion from XLS IR to Z3, "
                "defaulting to variable: "
             << node->ToString();
     return absl::OkStatus();
@@ -1725,6 +1730,24 @@ static absl::StatusOr<Z3_ast> PredicateToNegatedObjective(
       XLS_RETURN_IF_ERROR(seh.status());
       break;
     }
+    case PredicateKind::kExclusiveWithNode: {
+      XLS_RETURN_IF_ERROR(validate_bv_sort());
+      ScopedErrorHandler seh(translator->ctx());
+
+      // Validate that the node to compare is also bit-vector valued.
+      Z3_ast b = translator->GetTranslation(p.node());
+      if (translator->GetValueKind(b) != Z3_BV_SORT) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Cannot compare to non-bits-valued node: %s sort: %s",
+            p.node()->ToString(), t.GetSortName(b)));
+      }
+
+      // Our objective: `a` and `b` are not zero at the same time.
+      // (If it's true, then we've disproven the claim.)
+      objective = t.AndBool(t.NeZeroBool(a), t.NeZeroBool(b));
+      XLS_RETURN_IF_ERROR(seh.status());
+      break;
+    }
     case PredicateKind::kUnsignedGreaterOrEqual: {
       XLS_RETURN_IF_ERROR(validate_bv_sort());
       ScopedErrorHandler seh(translator->ctx());
@@ -1758,7 +1781,7 @@ namespace {
 enum class PredicateCombination : std::uint8_t { kDisjunction, kConjunction };
 
 absl::StatusOr<ProverResult> TryProveCombination(
-    FunctionBase* f, std::unique_ptr<IrTranslator> translator,
+    FunctionBase* f, IrTranslator* translator,
     absl::Span<const PredicateOfNode> terms,
     PredicateCombination predicate_combination) {
   Z3OpTranslator t(translator->ctx());
@@ -1769,9 +1792,9 @@ absl::StatusOr<ProverResult> TryProveCombination(
     XLS_RET_CHECK(value != nullptr);
 
     // Translate the predicate to a term we can throw into the conjunction.
-    XLS_ASSIGN_OR_RETURN(Z3_ast objective_term,
-                         PredicateToNegatedObjective(term.p, term.subject,
-                                                     value, translator.get()));
+    XLS_ASSIGN_OR_RETURN(
+        Z3_ast objective_term,
+        PredicateToNegatedObjective(term.p, term.subject, value, translator));
     XLS_RET_CHECK(objective_term != nullptr);
 
     if (objective.has_value()) {
@@ -1798,8 +1821,18 @@ absl::StatusOr<ProverResult> TryProveCombination(
   Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
   auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
 
+  ScopedSolverParams solver_params(ctx, solver, translator->timeout(),
+                                   translator->rlimit());
+
   Z3_solver_assert(ctx, solver, objective.value());
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+
+  if (VLOG_IS_ON(1)) {
+    Z3_stats solver_stats = Z3_solver_get_statistics(ctx, solver);
+    Z3_stats_inc_ref(ctx, solver_stats);
+    VLOG(1) << "Solver stats: " << Z3_stats_to_string(ctx, solver_stats);
+    Z3_stats_dec_ref(ctx, solver_stats);
+  }
 
   VLOG(1) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
   switch (satisfiable) {
@@ -1808,14 +1841,20 @@ absl::StatusOr<ProverResult> TryProveCombination(
       return ProvenTrue();
     case Z3_L_TRUE: {
       // Satisfiable; found a value that contradicts the claim.
-      absl::StatusOr<absl::flat_hash_map<const Param*, Value>> counterexample =
-          absl::flat_hash_map<const Param*, Value>();
+      absl::StatusOr<absl::flat_hash_map<Node*, Value>> counterexample =
+          absl::flat_hash_map<Node*, Value>();
       auto model = Z3_solver_get_model(ctx, solver);
-      for (const Param* param : f->params()) {
+      for (Node* node : translator->xls_function()->nodes()) {
+        if (!node->OpIn({Op::kParam, Op::kRegisterRead, Op::kStateRead,
+                         Op::kReceive, Op::kInputPort,
+                         Op::kInstantiationInput})) {
+          continue;
+        }
+
         absl::StatusOr<Value> value = NodeValue(
-            ctx, model, translator->GetTranslation(param), param->GetType());
+            ctx, model, translator->GetTranslation(node), node->GetType());
         if (value.ok()) {
-          counterexample->emplace(param, *std::move(value));
+          counterexample->emplace(node, *std::move(value));
         } else {
           counterexample = std::move(value).status();
           break;
@@ -1844,7 +1883,7 @@ absl::StatusOr<ProverResult> TryProveConjunction(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
                        IrTranslator::CreateAndTranslate(f, allow_unsupported));
   translator->SetTimeout(timeout);
-  return TryProveCombination(f, std::move(translator), terms,
+  return TryProveCombination(f, translator.get(), terms,
                              PredicateCombination::kConjunction);
 }
 
@@ -1855,7 +1894,33 @@ absl::StatusOr<ProverResult> TryProveConjunction(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
                        IrTranslator::CreateAndTranslate(f, allow_unsupported));
   translator->SetRlimit(rlimit);
-  return TryProveCombination(f, std::move(translator), terms,
+  return TryProveCombination(f, translator.get(), terms,
+                             PredicateCombination::kConjunction);
+}
+
+absl::StatusOr<ProverResult> TryProveConjunctionWithTranslator(
+    IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
+    absl::Duration timeout) {
+  XLS_RET_CHECK(!terms.empty());
+  std::optional<absl::Duration> old_timeout = translator->timeout();
+  absl::Cleanup cleanup = [translator, old_timeout] {
+    translator->SetTimeout(old_timeout);
+  };
+  translator->SetTimeout(timeout);
+  return TryProveCombination(translator->xls_function(), translator, terms,
+                             PredicateCombination::kConjunction);
+}
+
+absl::StatusOr<ProverResult> TryProveConjunctionWithTranslator(
+    IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
+    int64_t rlimit) {
+  XLS_RET_CHECK(!terms.empty());
+  std::optional<int64_t> old_rlimit = translator->rlimit();
+  absl::Cleanup cleanup = [translator, old_rlimit] {
+    translator->SetRlimit(old_rlimit);
+  };
+  translator->SetRlimit(rlimit);
+  return TryProveCombination(translator->xls_function(), translator, terms,
                              PredicateCombination::kConjunction);
 }
 
@@ -1866,7 +1931,7 @@ absl::StatusOr<ProverResult> TryProveDisjunction(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
                        IrTranslator::CreateAndTranslate(f, allow_unsupported));
   translator->SetTimeout(timeout);
-  return TryProveCombination(f, std::move(translator), terms,
+  return TryProveCombination(f, translator.get(), terms,
                              PredicateCombination::kDisjunction);
 }
 
@@ -1877,7 +1942,33 @@ absl::StatusOr<ProverResult> TryProveDisjunction(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
                        IrTranslator::CreateAndTranslate(f, allow_unsupported));
   translator->SetRlimit(rlimit);
-  return TryProveCombination(f, std::move(translator), terms,
+  return TryProveCombination(f, translator.get(), terms,
+                             PredicateCombination::kDisjunction);
+}
+
+absl::StatusOr<ProverResult> TryProveDisjunctionWithTranslator(
+    IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
+    absl::Duration timeout) {
+  XLS_RET_CHECK(!terms.empty());
+  std::optional<absl::Duration> old_timeout = translator->timeout();
+  absl::Cleanup cleanup = [translator, old_timeout] {
+    translator->SetTimeout(old_timeout);
+  };
+  translator->SetTimeout(timeout);
+  return TryProveCombination(translator->xls_function(), translator, terms,
+                             PredicateCombination::kDisjunction);
+}
+
+absl::StatusOr<ProverResult> TryProveDisjunctionWithTranslator(
+    IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
+    int64_t rlimit) {
+  XLS_RET_CHECK(!terms.empty());
+  std::optional<int64_t> old_rlimit = translator->rlimit();
+  absl::Cleanup cleanup = [translator, old_rlimit] {
+    translator->SetRlimit(old_rlimit);
+  };
+  translator->SetRlimit(rlimit);
+  return TryProveCombination(translator->xls_function(), translator, terms,
                              PredicateCombination::kDisjunction);
 }
 
@@ -1895,6 +1986,38 @@ absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
   PredicateOfNode term = {.subject = subject, .p = std::move(p)};
   return TryProveConjunction(f, absl::MakeConstSpan(&term, 1), rlimit,
                              allow_unsupported);
+}
+
+absl::StatusOr<ProverResult> TryProveWithTranslator(IrTranslator* translator,
+                                                    Node* subject, Predicate p,
+                                                    absl::Duration timeout) {
+  PredicateOfNode term = {.subject = subject, .p = std::move(p)};
+
+  std::optional<absl::Duration> old_timeout = translator->timeout();
+  absl::Cleanup cleanup = [translator, old_timeout] {
+    translator->SetTimeout(old_timeout);
+  };
+  translator->SetTimeout(timeout);
+
+  return TryProveCombination(translator->xls_function(), translator,
+                             absl::MakeConstSpan(&term, 1),
+                             PredicateCombination::kConjunction);
+}
+
+absl::StatusOr<ProverResult> TryProveWithTranslator(IrTranslator* translator,
+                                                    Node* subject, Predicate p,
+                                                    int64_t rlimit) {
+  PredicateOfNode term = {.subject = subject, .p = std::move(p)};
+
+  std::optional<int64_t> old_rlimit = translator->rlimit();
+  absl::Cleanup cleanup = [translator, old_rlimit] {
+    translator->SetRlimit(old_rlimit);
+  };
+  translator->SetRlimit(rlimit);
+
+  return TryProveCombination(translator->xls_function(), translator,
+                             absl::MakeConstSpan(&term, 1),
+                             PredicateCombination::kConjunction);
 }
 
 absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function) {
@@ -1944,22 +2067,23 @@ std::optional<std::vector<Node*>> CounterExampleAnnotator::NodeOrder(
 
 std::optional<Value> CounterExampleAnnotator::CounterExampleValue(
     Node* node) const {
-  if (node->Is<Param>()) {
-    auto it = absl::c_find_if(*fail_.counterexample, [&](const auto& pair) {
-      const Node* counter_node = pair.first;
-      return node->GetName() == counter_node->GetName();
-    });
-    if (it == fail_.counterexample->end()) {
-      VLOG(1) << "No counterexample found for param: " << node->GetName();
+  auto it = absl::c_find_if(*fail_.counterexample, [&](const auto& pair) {
+    const Node* counter_node = pair.first;
+    return node->GetName() == counter_node->GetName();
+  });
+  if (it == fail_.counterexample->end()) {
+    if (node->OpIn({Op::kParam, Op::kRegisterRead, Op::kStateRead, Op::kReceive,
+                    Op::kInputPort, Op::kInstantiationInput})) {
+      VLOG(1) << "No counterexample info found for input: " << node->GetName();
       return ZeroOfType(node->GetType());
     }
-    return it->second;
+    return std::nullopt;
   }
-  return std::nullopt;
+  return it->second;
 }
 
 Annotation CounterExampleAnnotator::NodeAnnotation(Node* node) const {
-  if (!CanAnnotate(node) || !fail_.counterexample.ok()) {
+  if (!fail_.counterexample.ok()) {
     return {};
   }
   auto paren = [](std::string_view sv) -> std::string {

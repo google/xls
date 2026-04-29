@@ -107,14 +107,14 @@ absl::StatusOr<solvers::z3::ProverResult> CheckProcEquivalence(
 absl::StatusOr<std::vector<std::string>> CounterexampleParams(
     FunctionBase* f, const solvers::z3::ProvenFalse& proven_false) {
   std::vector<std::string> counterexample;
-  using ParamValues = absl::flat_hash_map<const Param*, Value>;
-  XLS_ASSIGN_OR_RETURN(ParamValues counterexample_map,
+  using InputValues = absl::flat_hash_map<Node*, Value>;
+  XLS_ASSIGN_OR_RETURN(InputValues counterexample_map,
                        proven_false.counterexample);
   if (f->IsFunction()) {
     for (const xls::Param* param : f->params()) {
       bool missing = true;
       for (const auto& [counterexample_param, value] : counterexample_map) {
-        if (counterexample_param->name() == param->name()) {
+        if (counterexample_param->GetName() == param->name()) {
           missing = false;
           counterexample.push_back(value.ToString(FormatPreference::kHex));
           break;

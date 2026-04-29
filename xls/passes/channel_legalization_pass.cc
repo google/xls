@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -363,14 +364,6 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedDAG(
   return result_vector;
 }
 
-Z3_lbool RunSolver(Z3_context c, Z3_ast asserted) {
-  Z3_solver solver = solvers::z3::CreateSolver(c, 1);
-  Z3_solver_assert(c, solver, asserted);
-  Z3_lbool satisfiable = Z3_solver_check(c, solver);
-  Z3_solver_dec_ref(c, solver);
-  return satisfiable;
-}
-
 absl::Status CheckMutualExclusion(Proc* proc,
                                   absl::Span<Node* const> operations,
                                   ChannelStrictness strictness,
@@ -479,90 +472,91 @@ absl::Status CheckMutualExclusion(Proc* proc,
     }
 
     if (unrelated_predicates.empty()) {
-      // Prove that `node` is never active.
+      // Prove that `node` is never active.)
       XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * translator,
                            get_translator());
-      Z3_lbool can_be_active =
-          RunSolver(translator->ctx(),
-                    solvers::z3::BitVectorToBoolean(
-                        translator->ctx(),
-                        translator->GetTranslation(*node->predicate())));
-      if (can_be_active == Z3_L_FALSE) {
+      XLS_ASSIGN_OR_RETURN(
+          solvers::z3::ProverResult result,
+          solvers::z3::TryProveWithTranslator(
+              translator, *node->predicate(),
+              solvers::z3::Predicate::EqualToZero(),
+              /*rlimit=*/0),
+          _.SetPrepend() << absl::StreamFormat(
+              "Channel %s is %s; when trying to prove that %v is never "
+              "active: ",
+              node->channel_name(), ChannelStrictnessToString(strictness),
+              *node));
+      if (std::holds_alternative<solvers::z3::ProvenTrue>(result)) {
         // Proved mutual exclusion for `node`.
         continue;
       }
-      if (can_be_active == Z3_L_TRUE) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Channel %s is %s, and %v is unconditionally active; proved that "
-            "%v is also sometimes active.",
-            node->channel_name(), ChannelStrictnessToString(strictness),
-            *unpredicated_node, *node));
-      }
+      CHECK(std::holds_alternative<solvers::z3::ProvenFalse>(result));
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Channel %s is %s, and %v is unconditionally active; failed to "
-          "prove that %v is never active.",
+          "Channel %s is %s, and %v is unconditionally active; proved that "
+          "%v is also sometimes active.",
           node->channel_name(), ChannelStrictnessToString(strictness),
           *unpredicated_node, *node));
-    }
-
-    XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * translator,
-                         get_translator());
-    Z3_ast unrelated_node_active =
-        translator->GetTranslation(unrelated_predicates.front());
-    for (Node* predicate :
-         absl::MakeConstSpan(unrelated_predicates).subspan(1)) {
-      unrelated_node_active =
-          Z3_mk_bvor(translator->ctx(), unrelated_node_active,
-                     translator->GetTranslation(predicate));
     }
 
     if (!node->predicate().has_value()) {
       // Prove that no other node can be active.
       XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * translator,
                            get_translator());
-      Z3_lbool unrelated_can_be_active = RunSolver(
-          translator->ctx(), solvers::z3::BitVectorToBoolean(
-                                 translator->ctx(), unrelated_node_active));
-      if (unrelated_can_be_active == Z3_L_FALSE) {
-        // Proved mutual exclusion for `node`; no assert needed.
+
+      std::vector<solvers::z3::PredicateOfNode> unrelated_predicates_false;
+      unrelated_predicates_false.reserve(unrelated_predicates.size());
+      for (Node* predicate : unrelated_predicates) {
+        unrelated_predicates_false.push_back(solvers::z3::PredicateOfNode(
+            predicate, solvers::z3::Predicate::EqualToZero()));
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          solvers::z3::ProverResult result,
+          solvers::z3::TryProveConjunctionWithTranslator(
+              translator, unrelated_predicates_false, /*rlimit=*/0),
+          _.SetPrepend() << absl::StreamFormat(
+              "Channel %s is %s; when trying to prove that %v is the only "
+              "active node: ",
+              node->channel_name(), ChannelStrictnessToString(strictness),
+              *node));
+      if (std::holds_alternative<solvers::z3::ProvenTrue>(result)) {
+        // Proved mutual exclusion for `node`.
         continue;
       }
-      if (unrelated_can_be_active == Z3_L_TRUE) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Channel %s is %s, and %v is unconditionally active; proved that "
-            "another node on the same channel can be active in the same "
-            "activation.",
-            node->channel_name(), ChannelStrictnessToString(strictness),
-            *node));
-      }
+      CHECK(std::holds_alternative<solvers::z3::ProvenFalse>(result));
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Channel %s is %s, and %v is unconditionally active; failed to prove "
-          "that no other node on the same channel can be active in the same "
+          "Channel %s is %s, and %v is unconditionally active; proved that "
+          "another node on the same channel can be active in the same "
           "activation.",
           node->channel_name(), ChannelStrictnessToString(strictness), *node));
     }
 
-    Z3_lbool not_mutually_exclusive = RunSolver(
-        translator->ctx(),
-        solvers::z3::BitVectorToBoolean(
-            translator->ctx(),
-            Z3_mk_bvand(translator->ctx(),
-                        translator->GetTranslation(*node->predicate()),
-                        unrelated_node_active)));
-    if (not_mutually_exclusive == Z3_L_FALSE) {
-      // Proved mutual exclusion for `node`; no assert needed.
+    XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * translator,
+                         get_translator());
+
+    std::vector<solvers::z3::PredicateOfNode> unrelated_predicates_exclusive;
+    unrelated_predicates_exclusive.reserve(unrelated_predicates.size());
+    for (Node* predicate : unrelated_predicates) {
+      unrelated_predicates_exclusive.push_back(solvers::z3::PredicateOfNode(
+          predicate,
+          solvers::z3::Predicate::IsExclusiveWith(*node->predicate())));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        solvers::z3::ProverResult result,
+        solvers::z3::TryProveConjunctionWithTranslator(
+            translator, unrelated_predicates_exclusive, /*rlimit=*/0),
+        _.SetPrepend() << absl::StreamFormat(
+            "Channel %s is %s; when trying to prove mutual exclusion for %v: ",
+            node->channel_name(), ChannelStrictnessToString(strictness),
+            *node));
+    if (std::holds_alternative<solvers::z3::ProvenTrue>(result)) {
+      // Proved mutual exclusion for `node`.
       continue;
     }
-    if (not_mutually_exclusive == Z3_L_TRUE) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Channel %s is %s, and %v can be active at the same time as another "
-          "node on the same channel.",
-          node->channel_name(), ChannelStrictnessToString(strictness), *node));
-    }
+    CHECK(std::holds_alternative<solvers::z3::ProvenFalse>(result));
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Channel %s is %s, and %v is unconditionally active; failed to prove "
-        "that no other node on the same channel can be active in the same "
-        "activation.",
+        "Channel %s is %s, and %v can be active at the same time as another "
+        "node on the same channel.",
         node->channel_name(), ChannelStrictnessToString(strictness), *node));
   }
   return absl::OkStatus();

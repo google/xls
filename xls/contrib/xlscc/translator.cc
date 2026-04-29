@@ -6130,9 +6130,9 @@ absl::StatusOr<Z3_lbool> Translator::CheckAssumptions(
         xls::solvers::z3::BitVectorToBoolean(ctx, z3_node_not));
   }
 
-  if (z3_rlimit_ >= 0) {
-    z3_translator.SetRlimit(z3_rlimit_);
-  }
+  auto scoped_solver_params = xls::solvers::z3::ScopedSolverParams::WithRlimit(
+      ctx, solver,
+      z3_rlimit_ > 0 ? std::make_optional(z3_rlimit_) : std::nullopt);
 
   Z3_lbool satisfiable = Z3_solver_check_assumptions(
       ctx, solver, static_cast<unsigned int>(z3_nodes_asserted.size()),

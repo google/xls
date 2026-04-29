@@ -16,11 +16,14 @@
 #ifndef XLS_SOLVERS_Z3_UTILS_H_
 #define XLS_SOLVERS_Z3_UTILS_H_
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "xls/common/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -64,6 +67,28 @@ class ScopedErrorHandler {
 // This is a refcounted object and will need to be unref'ed once no longer
 // needed.
 Z3_solver CreateSolver(Z3_context ctx, int num_threads);
+
+// Manages timeout & rlimit settings for a Z3 solver using RAII.
+class ScopedSolverParams {
+ public:
+  ScopedSolverParams(Z3_context ctx, Z3_solver solver,
+                     std::optional<absl::Duration> timeout,
+                     std::optional<int64_t> rlimit);
+  ~ScopedSolverParams();
+
+  inline static ScopedSolverParams WithTimeout(
+      Z3_context ctx, Z3_solver solver, std::optional<absl::Duration> timeout) {
+    return ScopedSolverParams(ctx, solver, timeout, /*rlimit=*/std::nullopt);
+  }
+  inline static ScopedSolverParams WithRlimit(Z3_context ctx, Z3_solver solver,
+                                              std::optional<int64_t> rlimit) {
+    return ScopedSolverParams(ctx, solver, /*timeout=*/std::nullopt, rlimit);
+  }
+
+ private:
+  Z3_context ctx_;
+  Z3_params params_;
+};
 
 // Printing / output functions ------------------------------------------------
 // Prints the solver's result, and, if satisfiable, prints a model demonstrating

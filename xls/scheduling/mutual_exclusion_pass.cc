@@ -86,6 +86,7 @@ class LazyZ3Translator {
                            solvers::z3::IrTranslator::CreateAndTranslate(
                                f_, /*allow_unsupported=*/true));
     }
+    translator_->SetRlimit(z3_rlimit_);
     return translator_.get();
   }
   int64_t z3_rlimit() const { return z3_rlimit_; }
@@ -213,14 +214,6 @@ absl::flat_hash_set<T> Intersection(const absl::flat_hash_set<T>& lhs,
     }
   }
   return result;
-}
-
-Z3_lbool RunSolver(Z3_context c, Z3_ast asserted) {
-  Z3_solver solver = solvers::z3::CreateSolver(c, 1);
-  Z3_solver_assert(c, solver, asserted);
-  Z3_lbool satisfiable = Z3_solver_check(c, solver);
-  Z3_solver_dec_ref(c, solver);
-  return satisfiable;
 }
 
 bool IsHeavyOp(Op op) { return op == Op::kSend || op == Op::kReceive; }
@@ -941,36 +934,51 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
   // NB We could check if a or b is always false but since we do this lazily
   // theres no benefit there.
 
+  int64_t rlimit = translator.z3_rlimit();
   if (required_for_compilation) {
     VLOG(1) << "Removing Z3's rlimit for mutex check on " << pred_a->GetName()
             << " and " << pred_b->GetName()
             << " as mutual exclusion is required for compilation.";
-    solver->SetRlimit(0);
-  } else {
-    solver->SetRlimit(translator.z3_rlimit());
+    rlimit = 0;
   }
   std::optional<Stopwatch> timer;
   if (VLOG_IS_ON(2)) {
     timer.emplace();
   }
   VLOG(2) << "START: Checking mutex between " << pred_a << " and " << pred_b;
-  Z3_ast z3_a = solver->GetTranslation(pred_a);
-  Z3_ast z3_b = solver->GetTranslation(pred_b);
-
-  // We try to find out if `a ∧ b` is satisfiable, which is true iff
-  // `a NAND b` is not valid.
-  Z3_ast a_and_b =
-      solvers::z3::BitVectorToBoolean(ctx, Z3_mk_bvand(ctx, z3_a, z3_b));
-  Z3_lbool satisfiable = RunSolver(ctx, a_and_b);
+  absl::StatusOr<solvers::z3::ProverResult> result =
+      solvers::z3::TryProveWithTranslator(
+          solver, pred_a, solvers::z3::Predicate::IsExclusiveWith(pred_b),
+          rlimit);
   VLOG(2) << "END: Took " << timer->GetElapsedTime() << " to "
-          << (satisfiable == Z3_L_FALSE  ? "prove"
-              : satisfiable == Z3_L_TRUE ? "disprove"
-                                         : "give up proving")
+          << (!result.ok()
+                  ? "give up proving"
+                  : (std::holds_alternative<solvers::z3::ProvenTrue>(*result)
+                         ? "prove"
+                         : "disprove"))
           << " mutex between " << pred_a << " and " << pred_b;
-  if (satisfiable == Z3_L_FALSE) {
+  if (!result.ok()) {
+    VLOG(3) << "Z3 ran out of time checking mutual exclusion of "
+            << pred_a->GetName() << " and " << pred_b->GetName();
+    XLS_RETURN_IF_ERROR(MarkUnknownMutuallyExclusive(pred_a, pred_b));
+    if (required_for_compilation) {
+      return absl::FailedPreconditionError(absl::StrFormat(
+          "Z3 failed to prove that %s and %s, which control operations on "
+          "proven-mutually-exclusive channels (%s), are mutually "
+          "exclusive: %v",
+          pred_a->GetName(), pred_b->GetName(),
+          absl::StrJoin(Intersection(channels_a, channels_b), ", ",
+                        [](std::string* out, ChannelRef channel) {
+                          absl::StrAppend(out, ChannelRefName(channel));
+                        }),
+          result.status()));
+    }
+    return std::nullopt;
+  } else if (std::holds_alternative<solvers::z3::ProvenTrue>(*result)) {
     XLS_RETURN_IF_ERROR(MarkMutuallyExclusive(pred_a, pred_b));
     return true;
-  } else if (satisfiable == Z3_L_TRUE) {
+  } else {
+    CHECK(std::holds_alternative<solvers::z3::ProvenFalse>(*result));
     XLS_RETURN_IF_ERROR(MarkNotMutuallyExclusive(pred_a, pred_b));
     if (required_for_compilation) {
       return absl::FailedPreconditionError(absl::StrFormat(
@@ -984,22 +992,6 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
                         })));
     }
     return false;
-  } else {
-    VLOG(3) << "Z3 ran out of time checking mutual exclusion of "
-            << pred_a->GetName() << " and " << pred_b->GetName();
-    XLS_RETURN_IF_ERROR(MarkUnknownMutuallyExclusive(pred_a, pred_b));
-    if (required_for_compilation) {
-      return absl::FailedPreconditionError(absl::StrFormat(
-          "Z3 failed to prove that %s and %s, which control operations on "
-          "proven-mutually-exclusive channels (%s), are mutually "
-          "exclusive.",
-          pred_a->GetName(), pred_b->GetName(),
-          absl::StrJoin(Intersection(channels_a, channels_b), ", ",
-                        [](std::string* out, ChannelRef channel) {
-                          absl::StrAppend(out, ChannelRefName(channel));
-                        })));
-    }
-    return std::nullopt;
   }
 }
 

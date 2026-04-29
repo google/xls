@@ -63,6 +63,8 @@ Z3_ast Z3OpTranslator::AndBool(Z3_ast lhs, Z3_ast rhs) {
   return Z3_mk_and(z3_ctx_, /*num_args=*/ABSL_ARRAYSIZE(args), args);
 }
 
+Z3_ast Z3OpTranslator::NotBool(Z3_ast arg) { return Z3_mk_not(z3_ctx_, arg); }
+
 std::vector<Z3_ast> Z3OpTranslator::ExplodeBits(Z3_ast arg) {
   std::vector<Z3_ast> bits;
   int64_t bit_count = GetBvBitCount(arg);
