@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/attribute_data.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -710,6 +711,12 @@ class FunctionConverter {
   absl::flat_hash_map<std::string, BValue> state_write_called_by_state_name_;
 
   std::vector<std::unique_ptr<ProcDefInstance>> proc_def_instances_;
+
+  // If the function has a kFuzzTest attribute, this method will convert the
+  // fuzz test domains to proto and insert it into the AttributeData for
+  // storage in the IR.
+  absl::StatusOr<std::optional<AttributeData>> LowerFuzzTestDomains(
+      Function* node);
 };
 
 }  // namespace xls::dslx

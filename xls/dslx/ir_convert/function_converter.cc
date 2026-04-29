@@ -40,6 +40,8 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "google/protobuf/text_format.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -3599,6 +3601,12 @@ absl::Status FunctionConverter::HandleFunction(
   VLOG(5) << "Built function: " << ir_fn->name();
   XLS_RETURN_IF_ERROR(VerifyFunction(ir_fn));
 
+  XLS_ASSIGN_OR_RETURN(std::optional<AttributeData> fuzz_test_attr,
+                       LowerFuzzTestDomains(node));
+  if (fuzz_test_attr.has_value()) {
+    ir_fn->AddAttribute(std::move(*fuzz_test_attr));
+  }
+
   // If it's a public fallible function, or it's the entry function for the
   // package, we make a wrapper so that the external world (e.g. JIT, verilog
   // module) doesn't need to take implicit token arguments.
@@ -3622,6 +3630,70 @@ absl::Status FunctionConverter::HandleFunction(
 
   package_data_.ir_to_dslx[ir_fn] = node;
   return absl::OkStatus();
+}
+
+absl::StatusOr<std::optional<AttributeData>>
+FunctionConverter::LowerFuzzTestDomains(Function* node) {
+  if (node->parent() == nullptr ||
+      node->parent()->kind() != AstNodeKind::kFuzzTestFunction) {
+    return std::nullopt;
+  }
+  FuzzTestFunction* ft = static_cast<FuzzTestFunction*>(node->parent());
+
+  if (ft->domains().has_value()) {
+    XlsTuple* domains_tuple = *ft->domains();
+    // We use a dummy Function proto here solely to  get the
+    // `parameter_domains` field name wrapper in the serialized text proto.
+    // This will allow clients to easily parse the string back into a Function
+    // proto and recover the domains therein.
+    PackageInterfaceProto::Function temp_func;
+
+    for (Expr* domain_expr : domains_tuple->members()) {
+      PackageInterfaceProto::FuzzTestDomain* domain_proto =
+          temp_func.add_parameter_domains();
+
+      if (domain_expr->kind() == AstNodeKind::kXlsTuple &&
+          static_cast<XlsTuple*>(domain_expr)->empty()) {
+        domain_proto->set_arbitrary(true);
+      } else if (domain_expr->kind() == AstNodeKind::kRange) {
+        Range* range_node = static_cast<Range*>(domain_expr);
+
+        XLS_ASSIGN_OR_RETURN(
+            InterpValue min_val,
+            current_type_info_->GetConstExpr(range_node->start()));
+        XLS_ASSIGN_OR_RETURN(
+            InterpValue max_val,
+            current_type_info_->GetConstExpr(range_node->end()));
+
+        XLS_ASSIGN_OR_RETURN(Value ir_min, InterpValueToValue(min_val));
+        XLS_ASSIGN_OR_RETURN(Value ir_max, InterpValueToValue(max_val));
+
+        XLS_ASSIGN_OR_RETURN(ValueProto min_proto, ir_min.AsProto());
+        XLS_ASSIGN_OR_RETURN(ValueProto max_proto, ir_max.AsProto());
+
+        auto* range_proto = domain_proto->mutable_range();
+        *range_proto->mutable_min() = std::move(min_proto);
+        *range_proto->mutable_max() = std::move(max_proto);
+      } else {
+        return absl::UnimplementedError(absl::StrCat(
+            "Unsupported fuzztest domain type: ", domain_expr->ToString()));
+      }
+    }
+
+    std::string proto_str;
+    google::protobuf::TextFormat::Printer printer;
+    printer.SetSingleLineMode(true);
+    XLS_RET_CHECK(printer.PrintToString(temp_func, &proto_str));
+
+    std::vector<AttributeData::Argument> args;
+    args.push_back(
+        AttributeData::StringKeyValueArgument{.first = "domains",
+                                              .second = std::move(proto_str),
+                                              .is_backticked = true});
+
+    return AttributeData(AttributeKind::kFuzzTest, std::move(args));
+  }
+  return std::nullopt;
 }
 
 absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {

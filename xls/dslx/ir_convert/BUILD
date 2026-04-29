@@ -335,6 +335,7 @@ cc_library(
         ":ir_conversion_utils",
         ":proc_config_ir_converter",
         ":proc_scoped_channel_scope",
+        "//xls/common:attribute_data",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -383,6 +384,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -395,6 +397,7 @@ cc_test(
         ":convert_options",
         ":function_converter",
         ":test_utils",
+        "//xls/common:attribute_data",
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -404,6 +407,9 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/ir",
         "//xls/ir:xls_ir_interface_cc_proto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+        "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
     ],
 )
