@@ -535,9 +535,6 @@ filegroup(
 cc_binary(
     name = "ir_minimizer_main",
     srcs = ["ir_minimizer_main.cc"],
-    data = [
-        "//xls/tools:opt_main",
-    ],
     deps = [
         ":extract_segment",
         ":extract_state_element",
