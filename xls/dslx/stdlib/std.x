@@ -19,7 +19,7 @@
 pub fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N] {
     for (i, result) in 0..N {
         update(result, i, (i, x[i]))
-    }([(u32:0, zero!<T>()), ...])
+    }(zero!<(u32, T)[N]>())
 }
 
 #[test]
@@ -30,6 +30,13 @@ fn emumerate_test() {
     assert_eq(enumerated[1], (1, 2));
     assert_eq(enumerated[2], (2, 4));
     assert_eq(enumerated[3], (3, 8));
+}
+
+#[test]
+fn emumerate_empty_array_test() {
+    let empty_array: u32[0] = [];
+    let enumerated_empty = enumerate(empty_array);
+    assert_eq(enumerated_empty, []);
 }
 
 #[test]
