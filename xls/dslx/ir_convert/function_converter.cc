@@ -3632,6 +3632,58 @@ absl::Status FunctionConverter::HandleFunction(
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::LowerDomainExpr(
+    Expr* expr, PackageInterfaceProto::FuzzTestDomain* proto) {
+  if (expr->kind() == AstNodeKind::kXlsTuple &&
+      static_cast<XlsTuple*>(expr)->empty()) {
+    proto->set_arbitrary(true);
+    return absl::OkStatus();
+  }
+  if (expr->kind() == AstNodeKind::kRange) {
+    Range* range_node = static_cast<Range*>(expr);
+
+    XLS_ASSIGN_OR_RETURN(InterpValue min_val,
+                         current_type_info_->GetConstExpr(range_node->start()));
+    XLS_ASSIGN_OR_RETURN(InterpValue max_val,
+                         current_type_info_->GetConstExpr(range_node->end()));
+
+    XLS_ASSIGN_OR_RETURN(Value ir_min, InterpValueToValue(min_val));
+    XLS_ASSIGN_OR_RETURN(Value ir_max, InterpValueToValue(max_val));
+
+    XLS_ASSIGN_OR_RETURN(ValueProto min_proto, ir_min.AsProto());
+    XLS_ASSIGN_OR_RETURN(ValueProto max_proto, ir_max.AsProto());
+
+    auto* range_proto = proto->mutable_range();
+    *range_proto->mutable_min() = std::move(min_proto);
+    *range_proto->mutable_max() = std::move(max_proto);
+    return absl::OkStatus();
+  }
+  if (expr->kind() == AstNodeKind::kArray) {
+    Array* array_node = static_cast<Array*>(expr);
+
+    auto* element_of_proto = proto->mutable_element_of();
+    for (Expr* member : array_node->members()) {
+      XLS_ASSIGN_OR_RETURN(InterpValue val,
+                           current_type_info_->GetConstExpr(member));
+      XLS_ASSIGN_OR_RETURN(Value ir_val, InterpValueToValue(val));
+      XLS_ASSIGN_OR_RETURN(ValueProto val_proto, ir_val.AsProto());
+      *element_of_proto->add_values() = std::move(val_proto);
+    }
+    return absl::OkStatus();
+  }
+  if (expr->kind() == AstNodeKind::kXlsTuple) {
+    XlsTuple* tuple_node = static_cast<XlsTuple*>(expr);
+
+    auto* tuple_proto = proto->mutable_tuple();
+    for (Expr* member : tuple_node->members()) {
+      XLS_RETURN_IF_ERROR(LowerDomainExpr(member, tuple_proto->add_elements()));
+    }
+    return absl::OkStatus();
+  }
+  return absl::UnimplementedError(
+      absl::StrCat("Unsupported fuzztest domain type: ", expr->ToString()));
+}
+
 absl::StatusOr<std::optional<AttributeData>>
 FunctionConverter::LowerFuzzTestDomains(Function* node) {
   if (node->parent() == nullptr ||
@@ -3642,7 +3694,7 @@ FunctionConverter::LowerFuzzTestDomains(Function* node) {
 
   if (ft->domains().has_value()) {
     XlsTuple* domains_tuple = *ft->domains();
-    // We use a dummy Function proto here solely to  get the
+    // We use a dummy Function proto here solely to get the
     // `parameter_domains` field name wrapper in the serialized text proto.
     // This will allow clients to easily parse the string back into a Function
     // proto and recover the domains therein.
@@ -3652,32 +3704,7 @@ FunctionConverter::LowerFuzzTestDomains(Function* node) {
       PackageInterfaceProto::FuzzTestDomain* domain_proto =
           temp_func.add_parameter_domains();
 
-      if (domain_expr->kind() == AstNodeKind::kXlsTuple &&
-          static_cast<XlsTuple*>(domain_expr)->empty()) {
-        domain_proto->set_arbitrary(true);
-      } else if (domain_expr->kind() == AstNodeKind::kRange) {
-        Range* range_node = static_cast<Range*>(domain_expr);
-
-        XLS_ASSIGN_OR_RETURN(
-            InterpValue min_val,
-            current_type_info_->GetConstExpr(range_node->start()));
-        XLS_ASSIGN_OR_RETURN(
-            InterpValue max_val,
-            current_type_info_->GetConstExpr(range_node->end()));
-
-        XLS_ASSIGN_OR_RETURN(Value ir_min, InterpValueToValue(min_val));
-        XLS_ASSIGN_OR_RETURN(Value ir_max, InterpValueToValue(max_val));
-
-        XLS_ASSIGN_OR_RETURN(ValueProto min_proto, ir_min.AsProto());
-        XLS_ASSIGN_OR_RETURN(ValueProto max_proto, ir_max.AsProto());
-
-        auto* range_proto = domain_proto->mutable_range();
-        *range_proto->mutable_min() = std::move(min_proto);
-        *range_proto->mutable_max() = std::move(max_proto);
-      } else {
-        return absl::UnimplementedError(absl::StrCat(
-            "Unsupported fuzztest domain type: ", domain_expr->ToString()));
-      }
+      XLS_RETURN_IF_ERROR(LowerDomainExpr(domain_expr, domain_proto));
     }
 
     std::string proto_str;

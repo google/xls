@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The IR converter handles domains now, but not arrays ("element of" fuzz test domains) yet.
-//#[fuzz_test(domains=`u32:0..1, [u32:0, u32:10]`)]
-#[fuzz_test(domains=`u32:0..1, u32:0..10`)]
+#[fuzz_test(domains=`u32:0..1, [u32:0, u32:10]`)]
 fn my_fuzz_property(x: u32, y: u32) {
     ()
 }

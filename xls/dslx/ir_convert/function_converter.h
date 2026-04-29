@@ -717,6 +717,10 @@ class FunctionConverter {
   // storage in the IR.
   absl::StatusOr<std::optional<AttributeData>> LowerFuzzTestDomains(
       Function* node);
+
+  // Lowers the given expression into the given FuzzTestDomain proto.
+  absl::Status LowerDomainExpr(Expr* expr,
+                               PackageInterfaceProto::FuzzTestDomain* proto);
 };
 
 }  // namespace xls::dslx

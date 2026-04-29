@@ -19,7 +19,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/attribute_data.h"
@@ -37,7 +36,6 @@
 
 namespace xls::dslx {
 namespace {
-using ::absl_testing::StatusIs;
 using ::xls::proto_testing::EqualsProto;
 
 void ExpectIr(std::string_view got) {
@@ -796,7 +794,7 @@ fn f(x: u32, y: u32) -> u32 { x + y }
               )pb"));
 }
 
-TEST(FunctionConverterTest, FuzzTestFunctionFailsOnUnsupportedDomains) {
+TEST(FunctionConverterTest, ConvertsFuzzTestFunctionWithTupleDomain) {
   ImportData import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
@@ -819,11 +817,195 @@ fn f(x: (u32, u32)) -> u32 { x.0 }
                               /*channel_scope=*/nullptr,
                               /*is_top=*/true);
 
-  auto status =
-      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr);
-  EXPECT_THAT(status,
-              StatusIs(absl::StatusCode::kUnimplemented,
-                       testing::HasSubstr("Unsupported fuzztest domain type")));
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const auto& skv =
+      std::get<AttributeData::StringKeyValueArgument>(attributes[0].args()[0]);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  tuple {
+                    elements {
+                      range {
+                        min { bits { bit_count: 32 data: "\000\000\000\000" } }
+                        max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                      }
+                    }
+                    elements {
+                      range {
+                        min { bits { bit_count: 32 data: "\000\000\000\000" } }
+                        max { bits { bit_count: 32 data: "\024\000\000\000" } }
+                      }
+                    }
+                  }
+                }
+              )pb"));
+}
+
+TEST(FunctionConverterTest, ConvertsFuzzTestFunctionWithElementOfDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+#[fuzz_test(domains = `[u32:1, u32:2, u32:3]`)]
+fn f(x: u32) -> u32 { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const auto& skv =
+      std::get<AttributeData::StringKeyValueArgument>(attributes[0].args()[0]);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  element_of {
+                    values { bits { bit_count: 32 data: "\001\000\000\000" } }
+                    values { bits { bit_count: 32 data: "\002\000\000\000" } }
+                    values { bits { bit_count: 32 data: "\003\000\000\000" } }
+                  }
+                }
+              )pb"));
+}
+
+TEST(FunctionConverterTest, ConvertsFuzzTestFunctionWithEnumElementOfDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+enum MyEnum : u32 {
+  A = 1,
+  B = 2,
+}
+#[fuzz_test(domains = `[MyEnum::A, MyEnum::B]`)]
+fn f(x: MyEnum) -> MyEnum { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const auto& skv =
+      std::get<AttributeData::StringKeyValueArgument>(attributes[0].args()[0]);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  element_of {
+                    values { bits { bit_count: 32 data: "\001\000\000\000" } }
+                    values { bits { bit_count: 32 data: "\002\000\000\000" } }
+                  }
+                }
+              )pb"));
+}
+
+TEST(FunctionConverterTest, ConvertsFuzzTestFunctionWithNestedTupleDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+#[fuzz_test(domains = `u32:0..10, ((), u32:0..5)`)]
+fn f(x: u32, y: ((), u32)) -> u32 { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const auto& skv =
+      std::get<AttributeData::StringKeyValueArgument>(attributes[0].args()[0]);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  range {
+                    min { bits { bit_count: 32 data: "\000\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                  }
+                }
+                parameter_domains {
+                  tuple {
+                    elements { arbitrary: true }
+                    elements {
+                      range {
+                        min { bits { bit_count: 32 data: "\000\000\000\000" } }
+                        max { bits { bit_count: 32 data: "\005\000\000\000" } }
+                      }
+                    }
+                  }
+                }
+              )pb"));
 }
 
 }  // namespace
