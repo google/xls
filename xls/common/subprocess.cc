@@ -15,9 +15,11 @@
 #include "xls/common/subprocess.h"
 
 #include <fcntl.h>
+#include <linux/memfd.h>
 #include <signal.h>  // NOLINT
 #include <spawn.h>
 #include <stdlib.h>  // NOLINT for WIFEXITED, WEXITSTATUS; not in <cstdlib>
+#include <sys/mman.h>
 #include <sys/poll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -25,6 +27,7 @@
 
 #include <atomic>
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -47,10 +50,10 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/file/file_descriptor.h"
-#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/strerror.h"
+#include "xls/common/subprocess_helper_embedded_embedded.h"
 #include "xls/common/thread.h"
 
 #if defined(__APPLE__)
@@ -59,10 +62,6 @@ extern char** environ;
 
 namespace xls {
 namespace {
-
-// Note: this path is runfiles-relative.
-constexpr std::string_view kSubprocessHelperPath =
-    "xls/common/subprocess_helper";
 
 struct Pipe {
   Pipe(FileDescriptor exit, FileDescriptor&& entrance)
@@ -130,6 +129,50 @@ absl::StatusOr<posix_spawn_file_actions_t> CreateChildFileActions(
   return actions;
 }
 
+class CleanableFd {
+ public:
+  explicit CleanableFd(int fd) : fd_(fd) {}
+  CleanableFd(const CleanableFd&) = delete;
+  CleanableFd& operator=(const CleanableFd&) = delete;
+  CleanableFd(CleanableFd&& o) : fd_(o.fd_) { o.fd_ = -1; }
+  CleanableFd& operator=(CleanableFd&& o) {
+    if (this != &o) {
+      fd_ = o.fd_;
+      o.fd_ = -1;
+    }
+    return *this;
+  }
+  ~CleanableFd() {
+    if (fd_ != -1) {
+      close(fd_);
+    }
+  }
+  operator int() const { return fd_; }
+
+ private:
+  int fd_ = -1;
+};
+
+absl::StatusOr<CleanableFd> GetSubprocessHelperFd() {
+  int raw_fd = memfd_create("subprocess_helper", MFD_CLOEXEC);
+  CleanableFd fd(raw_fd);
+  if (fd == -1) {
+    return absl::InternalError(absl::StrCat(
+        "Failed to create memfd for subprocess helper: ", Strerror(errno)));
+  }
+  if (write(fd, get_subprocess_helper_embedded().data(),
+            get_subprocess_helper_embedded().size()) !=
+      get_subprocess_helper_embedded().size()) {
+    return absl::InternalError(absl::StrCat(
+        "Failed to write subprocess helper to memfd: ", Strerror(errno)));
+  }
+  if (lseek(fd, 0, SEEK_SET) != 0) {
+    return absl::InternalError(absl::StrCat(
+        "Failed to seek subprocess helper in memfd: ", Strerror(errno)));
+  }
+  return std::move(fd);
+}
+
 absl::StatusOr<pid_t> ExecInChildProcess(
     const std::vector<const char*>& argv_pointers,
     const std::optional<std::filesystem::path>& cwd, Pipe& stdout_pipe,
@@ -146,8 +189,15 @@ absl::StatusOr<pid_t> ExecInChildProcess(
   // use a helper binary that chdir's to its first argument, then invokes
   // "execvp" with the remaining arguments to replace itself with the command we
   // actually wanted to run.
-  XLS_ASSIGN_OR_RETURN(std::filesystem::path subprocess_helper,
-                       GetXlsRunfilePath(kSubprocessHelperPath));
+
+  // To avoid having dependencies on the bazel build artifacts continuing to
+  // exist we run subprocess_helper out of a memfd.
+  static const absl::StatusOr<CleanableFd> subprocess_helper_fd =
+      GetSubprocessHelperFd();
+  XLS_RETURN_IF_ERROR(subprocess_helper_fd.status());
+  int fd = *subprocess_helper_fd;
+
+  std::string subprocess_helper = absl::StrCat("/proc/self/fd/", fd);
   std::vector<const char*> helper_argv_pointers;
   helper_argv_pointers.reserve(argv_pointers.size() + 2);
   helper_argv_pointers.push_back(subprocess_helper.c_str());

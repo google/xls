@@ -21,6 +21,7 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test", "pytype_strict_library")
+load("//xls/build_rules:xls_cc_embed_data_rules.bzl", "xls_cc_embed_data")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -265,13 +266,18 @@ cc_binary(
     srcs = ["subprocess_helper.cc"],
 )
 
+xls_cc_embed_data(
+    name = "subprocess_helper_embedded",
+    data = ":subprocess_helper",
+)
+
 cc_library(
     name = "subprocess",
     srcs = ["subprocess.cc"],
     hdrs = ["subprocess.h"],
-    data = [":subprocess_helper"],
     deps = [
         ":strerror",
+        ":subprocess_helper_embedded",
         ":thread",
         "//xls/common/file:file_descriptor",
         "//xls/common/file:get_runfile_path",
