@@ -320,7 +320,7 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
   absl::Status AddNameRef(const NameRef* name_ref) {
     const NameDef* nd = std::get<const NameDef*>(name_ref->name_def());
     XLS_RET_CHECK(nd != nullptr);
-    if (!name_ref_info_.contains(nd)) {
+    if (name_ref_info_.contains(nd)) {
       NameRefInfo& info = name_ref_info_[nd];
       info.name_refs.insert(name_ref);
       if (in_type_annotation_) {
@@ -382,30 +382,38 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     if (containing_fn.has_value()) {
       for (ParametricBinding* parametric_binding :
            (*containing_fn)->parametric_bindings()) {
-        for (const NameRef* original_name_ref :
-             collect_nr.NameRefsForDef(parametric_binding->name_def())) {
-          NameDef* lambda_struct_nd = module->Make<NameDef>(
-              parametric_binding->span(), parametric_binding->identifier(),
-              /*definer=*/nullptr);
-          XLS_ASSIGN_OR_RETURN(AstNode * cloned_ta,
-                               CloneAst(parametric_binding->type_annotation()));
+        absl::flat_hash_set<const NameRef*> name_refs =
+            collect_nr.NameRefsForDef(parametric_binding->name_def());
+        if (name_refs.empty()) {
+          continue;
+        }
+        NameDef* lambda_struct_nd = module->Make<NameDef>(
+            parametric_binding->span(), parametric_binding->identifier(),
+            /*definer=*/nullptr);
+        XLS_ASSIGN_OR_RETURN(AstNode * cloned_ta,
+                             CloneAst(parametric_binding->type_annotation()));
 
-          AstNode* cloned_expr = nullptr;
-          if (parametric_binding->expr() != nullptr) {
-            XLS_ASSIGN_OR_RETURN(cloned_expr,
-                                 CloneAst(parametric_binding->expr()));
-          }
-          ParametricBinding* lambda_struct_binding =
-              module->Make<ParametricBinding>(
-                  lambda_struct_nd, absl::down_cast<TypeAnnotation*>(cloned_ta),
-                  absl::down_cast<Expr*>(cloned_expr));
-          struct_parametrics.push_back(lambda_struct_binding);
-          NameRef* parametric_nr = module->Make<NameRef>(
-              parametric_binding->span(), parametric_binding->identifier(),
-              parametric_binding->name_def());
-          containing_fn_parametric_vals.push_back(parametric_nr);
-          parametric_nds.insert(parametric_binding->name_def());
-          name_ref_replacements.emplace(original_name_ref, parametric_nr);
+        AstNode* cloned_expr = nullptr;
+        if (parametric_binding->expr() != nullptr) {
+          XLS_ASSIGN_OR_RETURN(cloned_expr,
+                               CloneAst(parametric_binding->expr()));
+        }
+        ParametricBinding* lambda_struct_binding =
+            module->Make<ParametricBinding>(
+                lambda_struct_nd, absl::down_cast<TypeAnnotation*>(cloned_ta),
+                absl::down_cast<Expr*>(cloned_expr));
+        struct_parametrics.push_back(lambda_struct_binding);
+        NameRef* parametric_nr = module->Make<NameRef>(
+            parametric_binding->span(), parametric_binding->identifier(),
+            parametric_binding->name_def());
+        containing_fn_parametric_vals.push_back(parametric_nr);
+        parametric_nds.insert(parametric_binding->name_def());
+        for (const NameRef* original_name_ref : name_refs) {
+          name_ref_replacements.emplace(
+              original_name_ref,
+              module->Make<NameRef>(original_name_ref->span(),
+                                    original_name_ref->identifier(),
+                                    lambda_struct_nd));
         }
       }
     }

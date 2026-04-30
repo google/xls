@@ -49,7 +49,10 @@ fn helper<N: u32>() -> uN[N] {
 }
 
 fn my_conversion<N: u32>(arr: u32[3]) -> uN[N][3] {
-  map(arr, |x: u32| -> uN[N] { helper<N>() })
+  map(arr, |x: u32| -> uN[N] {
+    let _ = N;
+    helper<N>()
+  })
 }
 
 const M = u32:0..3;
@@ -63,12 +66,12 @@ TEST(TypecheckV2Test, LambdaUsesParentFunctionParametricAndContextCapture) {
   EXPECT_THAT(R"(
 fn my_conversion<N: u32>(arr: u32[3]) -> uN[N][3] {
   let delta = uN[N]:5;
-  map(arr, |x| -> uN[N] { x as uN[N] + delta })
+  map(arr, |x| -> uN[N] { (x + N) as uN[N] + delta })
 }
 
 const M = u32:0..3;
 const ARR = my_conversion<16>(M);
-const_assert!(ARR[1] == u16:6);
+const_assert!(ARR[1] == u16:22);
 )",
               TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
 }
@@ -82,6 +85,22 @@ fn add_N<N: u32>(arr: u32[3]) -> u32[3] {
 const M = u32:0..3;
 const ARR = add_N<16>(M);
 const_assert!(ARR[1] == 17);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][3]")));
+}
+
+TEST(TypecheckV2Test, LambdaUsesParentFunctionParametricInBodyMultipleTimes) {
+  EXPECT_THAT(R"(
+fn add_N<N: u32>(arr: u32[3]) -> u32[3] {
+  map(arr, |x| {
+    let y = x + N;
+    y + N
+  })
+}
+
+const M = u32:0..3;
+const ARR = add_N<16>(M);
+const_assert!(ARR[1] == 33);
 )",
               TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][3]")));
 }
