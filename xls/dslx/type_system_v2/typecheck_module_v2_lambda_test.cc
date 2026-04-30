@@ -409,6 +409,37 @@ const_assert!(RES2 == [u32:0, 3, 2]);
                                       HasNodeWithType("RES2", "uN[32][3]"))));
 }
 
+TEST(TypecheckV2Test, NestedLambdaIteratesOverGlobalConst) {
+  EXPECT_THAT(
+      R"(
+const X = u32:2;
+const Y = u32:3;
+type Results = u1[X][Y];
+
+fn nested() -> Results {
+   map(0..Y, | y_idx | {
+       map(0..X, | x_idx | {
+           if (x_idx + y_idx) % 2 == 0 {
+               1
+           } else {
+               0
+           }
+       })
+   })
+}
+
+const RES = nested();
+const EX = [
+  [u1:1, u1:0],
+  [u1:0, u1:1],
+  [u1:1, u1:0],
+];
+const_assert!(RES == EX);
+
+)",
+      TypecheckSucceeds(HasNodeWithType("RES", "uN[1][2][3]")));
+}
+
 TEST(TypecheckV2Test, LambdaUsesUnrollForOutput) {
   EXPECT_THAT(
       R"(
