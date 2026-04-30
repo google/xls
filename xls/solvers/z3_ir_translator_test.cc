@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <initializer_list>
-#include <iterator>
 #include <limits>
 #include <memory>
 #include <string>
@@ -1931,6 +1930,7 @@ fn f(x: bits[32], y: bits[16], z: bits[8]) -> bits[16] {
   Z3_ast return_2 = translator_2->GetReturnNode();
 
   Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+  auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
 
   // Remember: we try to prove the condition by searching for a model that
   // produces the opposite result. Thus, we want to find a model where the
@@ -1940,7 +1940,6 @@ fn f(x: bits[32], y: bits[16], z: bits[8]) -> bits[16] {
 
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
   EXPECT_EQ(satisfiable, Z3_L_FALSE);
-  Z3_solver_dec_ref(ctx, solver);
 }
 
 TEST_F(Z3IrTranslatorTest, HandlesZeroOneHotSelector) {
@@ -1960,6 +1959,7 @@ fn f(selector: bits[2]) -> bits[4] {
                            IrTranslator::CreateAndTranslate(f));
   Z3_context ctx = translator->ctx();
   Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+  auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
   // We want to prove that the result can be 0x0 - without the fix for this case
   // (selector_can_be_zero=false -> true), that can not be the case.
   Z3_ast z3_zero = Z3_mk_int(ctx, 0, Z3_mk_bv_sort(ctx, 4));
@@ -1967,7 +1967,6 @@ fn f(selector: bits[2]) -> bits[4] {
   Z3_solver_assert(ctx, solver, objective);
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
   EXPECT_EQ(satisfiable, Z3_L_TRUE);
-  Z3_solver_dec_ref(ctx, solver);
 }
 
 TEST_F(Z3IrTranslatorTest, HandlePrioritySelect) {
@@ -2018,6 +2017,7 @@ fn f() -> bits[6] {
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
     Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+    auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
     uint32_t mask = 127;
     Z3_ast expected =
         Z3_mk_int(ctx, (test_case.first * test_case.second) & mask,
@@ -2026,7 +2026,6 @@ fn f() -> bits[6] {
     Z3_solver_assert(ctx, solver, objective);
     Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
     EXPECT_EQ(satisfiable, Z3_L_TRUE);
-    Z3_solver_dec_ref(ctx, solver);
   }
 }
 
@@ -2063,6 +2062,7 @@ fn f() -> bits[6] {
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
     Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+    auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
     Bits lhs = SBits(test_case.first, 4);
     Bits rhs = SBits(test_case.second, 8);
     Bits expected_bits = bits_ops::SMul(lhs, rhs);
@@ -2073,7 +2073,6 @@ fn f() -> bits[6] {
     Z3_solver_assert(ctx, solver, objective);
     Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
     EXPECT_EQ(satisfiable, Z3_L_TRUE);
-    Z3_solver_dec_ref(ctx, solver);
   }
 }
 
@@ -2110,6 +2109,7 @@ fn f() -> bits[64] {
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
     Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+    auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
     Bits lhs = SBits(test_case.first, 8);
     Bits rhs = SBits(test_case.second, 8);
     Bits expected_bits = bits_ops::SMul(lhs, rhs);
@@ -2120,7 +2120,6 @@ fn f() -> bits[64] {
     Z3_solver_assert(ctx, solver, objective);
     Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
     EXPECT_EQ(satisfiable, Z3_L_TRUE);
-    Z3_solver_dec_ref(ctx, solver);
   }
 }
 
@@ -2159,6 +2158,7 @@ fn f() -> bits[64] {
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
     Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+    auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
     Bits lhs = UBits(test_case_lhs, 64);
     Bits rhs = UBits(test_case_rhs, 64);
     Bits expected_bits = bits_ops::UDiv(lhs, rhs);
@@ -2169,7 +2169,6 @@ fn f() -> bits[64] {
     Z3_solver_assert(ctx, solver, objective);
     Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
     EXPECT_EQ(satisfiable, Z3_L_TRUE);
-    Z3_solver_dec_ref(ctx, solver);
   }
 }
 
@@ -2200,6 +2199,7 @@ fn f() -> bits[64] {
                                IrTranslator::CreateAndTranslate(f));
       Z3_context ctx = translator->ctx();
       Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+      auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
       Bits lhs = SBits(test_case_lhs, 64);
       Bits rhs = SBits(test_case_rhs, 64);
       Bits expected_bits = bits_ops::SDiv(lhs, rhs);
@@ -2212,7 +2212,6 @@ fn f() -> bits[64] {
       EXPECT_EQ(satisfiable, Z3_L_TRUE)
           << test_case_lhs << " sdiv " << test_case_rhs << " -> expect "
           << BitsToRawDigits(expected_bits, FormatPreference::kSignedDecimal);
-      Z3_solver_dec_ref(ctx, solver);
     }
   }
 }
@@ -2245,6 +2244,7 @@ fn f() -> bits[1] {
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
     Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+    auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
     Bits lhs = SBits(test_case_lhs, 1);
     Bits rhs = SBits(test_case_rhs, 1);
     Bits expected_bits = bits_ops::SDiv(lhs, rhs);
@@ -2255,7 +2255,6 @@ fn f() -> bits[1] {
     Z3_solver_assert(ctx, solver, objective);
     Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
     EXPECT_EQ(satisfiable, Z3_L_TRUE);
-    Z3_solver_dec_ref(ctx, solver);
   }
 }
 
@@ -2283,6 +2282,7 @@ fn f() -> bits[64] {
                                IrTranslator::CreateAndTranslate(f));
       Z3_context ctx = translator->ctx();
       Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+      auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
 
       // Result as coming from XLS bit ops library
       const Bits lhs = UBits(test_case_lhs, 64);
@@ -2298,7 +2298,6 @@ fn f() -> bits[64] {
       EXPECT_EQ(satisfiable, Z3_L_TRUE)
           << test_case_lhs << " umod " << test_case_rhs << " -> expect "
           << BitsToRawDigits(expected_bits, FormatPreference::kUnsignedDecimal);
-      Z3_solver_dec_ref(ctx, solver);
     }
   }
 }
@@ -2330,6 +2329,7 @@ fn f() -> bits[64] {
                                IrTranslator::CreateAndTranslate(f));
       Z3_context ctx = translator->ctx();
       Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+      auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
 
       // Result as coming from XLS bit ops library
       const Bits lhs = SBits(test_case_lhs, 64);
@@ -2345,7 +2345,6 @@ fn f() -> bits[64] {
       EXPECT_EQ(satisfiable, Z3_L_TRUE)
           << test_case_lhs << " smod " << test_case_rhs << " -> expect "
           << BitsToRawDigits(expected_bits, FormatPreference::kSignedDecimal);
-      Z3_solver_dec_ref(ctx, solver);
     }
   }
 }
@@ -3064,6 +3063,41 @@ FUZZ_TEST(IrFuzzTest, Z3TranslationTest)
                  Op::kCover, Op::kAssert, Op::kTrace})
             .WithCombineListMethod(CombineListMethod::TUPLE_LIST_METHOD)
             .Build()));
+
+TEST_F(Z3IrTranslatorTest, ProveWithAssumptions) {
+  // Create a function with a tuple parameter: (bits[8], bits[8])
+  const std::string program = R"(
+package p
+fn f(x: (bits[8], bits[8])) -> bits[8] {
+  i0: bits[8] = tuple_index(x, index=0)
+  i1: bits[8] = tuple_index(x, index=1)
+  ret result: bits[8] = add(i0, i1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+
+  Node* i0 = FindNode("i0", package.get());
+  Node* i1 = FindNode("i1", package.get());
+
+  std::vector<solvers::z3::PredicateOfNode> assumptions = {
+      {i0, solvers::z3::Predicate::UnsignedGreaterOrEqual(UBits(10, 8))},
+      {i0, solvers::z3::Predicate::UnsignedLessOrEqual(UBits(20, 8))},
+      {i1, solvers::z3::Predicate::UnsignedGreaterOrEqual(UBits(30, 8))},
+      {i1, solvers::z3::Predicate::UnsignedLessOrEqual(UBits(40, 8))},
+  };
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      solvers::z3::ProverResult res,
+      solvers::z3::TryProve(
+          f, f->return_value(),
+          solvers::z3::Predicate::UnsignedGreaterOrEqual(UBits(35, 8)),
+          absl::InfiniteDuration(), false, assumptions));
+
+  EXPECT_THAT(res, IsProvenTrue());
+}
 
 }  // namespace
 }  // namespace xls

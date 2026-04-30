@@ -49,10 +49,9 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/proc_state_analysis.h"
 #include "xls/passes/token_provenance_analysis.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_utils.h"
-#include "z3/src/api/z3_api.h"
 
 namespace xls {
 
@@ -383,6 +382,15 @@ absl::Status CheckMutualExclusion(Proc* proc,
     return lazy_translator.get();
   };
 
+  std::optional<std::vector<solvers::z3::PredicateOfNode>> lazy_assumptions;
+  auto get_assumptions =
+      [&]() -> absl::StatusOr<absl::Span<const solvers::z3::PredicateOfNode>> {
+    if (!lazy_assumptions.has_value()) {
+      XLS_ASSIGN_OR_RETURN(lazy_assumptions, GetProcStateAssumptions(proc));
+    }
+    return *lazy_assumptions;
+  };
+
   XLS_ASSIGN_OR_RETURN(std::vector<NodeAndPredecessors> dag,
                        GetProjectedDAG(operations, strictness, context));
   for (int64_t i = 0; i < dag.size(); ++i) {
@@ -476,11 +484,14 @@ absl::Status CheckMutualExclusion(Proc* proc,
       XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * translator,
                            get_translator());
       XLS_ASSIGN_OR_RETURN(
+          absl::Span<const solvers::z3::PredicateOfNode> assumptions,
+          get_assumptions());
+      XLS_ASSIGN_OR_RETURN(
           solvers::z3::ProverResult result,
           solvers::z3::TryProveWithTranslator(
               translator, *node->predicate(),
               solvers::z3::Predicate::EqualToZero(),
-              /*rlimit=*/0),
+              /*rlimit=*/0, assumptions),
           _.SetPrepend() << absl::StreamFormat(
               "Channel %s is %s; when trying to prove that %v is never "
               "active: ",
@@ -491,6 +502,9 @@ absl::Status CheckMutualExclusion(Proc* proc,
         continue;
       }
       CHECK(std::holds_alternative<solvers::z3::ProvenFalse>(result));
+      VLOG(4) << "Mutual exclusion check failed with counterexample:\n"
+              << proc->DumpIr(solvers::z3::CounterExampleAnnotator(
+                     std::get<solvers::z3::ProvenFalse>(result)));
       return absl::InvalidArgumentError(absl::StrFormat(
           "Channel %s is %s, and %v is unconditionally active; proved that "
           "%v is also sometimes active.",
@@ -502,6 +516,9 @@ absl::Status CheckMutualExclusion(Proc* proc,
       // Prove that no other node can be active.
       XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * translator,
                            get_translator());
+      XLS_ASSIGN_OR_RETURN(
+          absl::Span<const solvers::z3::PredicateOfNode> assumptions,
+          get_assumptions());
 
       std::vector<solvers::z3::PredicateOfNode> unrelated_predicates_false;
       unrelated_predicates_false.reserve(unrelated_predicates.size());
@@ -513,7 +530,8 @@ absl::Status CheckMutualExclusion(Proc* proc,
       XLS_ASSIGN_OR_RETURN(
           solvers::z3::ProverResult result,
           solvers::z3::TryProveConjunctionWithTranslator(
-              translator, unrelated_predicates_false, /*rlimit=*/0),
+              translator, unrelated_predicates_false, /*rlimit=*/0,
+              assumptions),
           _.SetPrepend() << absl::StreamFormat(
               "Channel %s is %s; when trying to prove that %v is the only "
               "active node: ",
@@ -524,6 +542,9 @@ absl::Status CheckMutualExclusion(Proc* proc,
         continue;
       }
       CHECK(std::holds_alternative<solvers::z3::ProvenFalse>(result));
+      VLOG(4) << "Mutual exclusion check failed with counterexample:\n"
+              << proc->DumpIr(solvers::z3::CounterExampleAnnotator(
+                     std::get<solvers::z3::ProvenFalse>(result)));
       return absl::InvalidArgumentError(absl::StrFormat(
           "Channel %s is %s, and %v is unconditionally active; proved that "
           "another node on the same channel can be active in the same "
@@ -533,6 +554,9 @@ absl::Status CheckMutualExclusion(Proc* proc,
 
     XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * translator,
                          get_translator());
+    XLS_ASSIGN_OR_RETURN(
+        absl::Span<const solvers::z3::PredicateOfNode> assumptions,
+        get_assumptions());
 
     std::vector<solvers::z3::PredicateOfNode> unrelated_predicates_exclusive;
     unrelated_predicates_exclusive.reserve(unrelated_predicates.size());
@@ -544,7 +568,8 @@ absl::Status CheckMutualExclusion(Proc* proc,
     XLS_ASSIGN_OR_RETURN(
         solvers::z3::ProverResult result,
         solvers::z3::TryProveConjunctionWithTranslator(
-            translator, unrelated_predicates_exclusive, /*rlimit=*/0),
+            translator, unrelated_predicates_exclusive, /*rlimit=*/0,
+            assumptions),
         _.SetPrepend() << absl::StreamFormat(
             "Channel %s is %s; when trying to prove mutual exclusion for %v: ",
             node->channel_name(), ChannelStrictnessToString(strictness),

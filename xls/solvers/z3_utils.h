@@ -25,6 +25,9 @@
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "xls/common/source_location.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/interval_set.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
@@ -33,6 +36,21 @@
 namespace xls {
 namespace solvers {
 namespace z3 {
+
+// Converts a Bits value to a Z3_ast literal.
+Z3_ast BitsToZ3(Z3_context ctx, const Bits& value);
+
+// Converts a TernaryVector of known/unknown bits into a Z3 boolean constraint
+// asserting that the target Z3_ast matches the known bits.
+absl::StatusOr<Z3_ast> TernaryToZ3Constraint(Z3_context ctx,
+                                             Z3_ast target_value,
+                                             TernarySpan ternary);
+
+// Converts an IntervalSet of valid bounded ranges into a Z3 boolean constraint
+// asserting that the target Z3_ast falls within at least one interval.
+absl::StatusOr<Z3_ast> IntervalSetToZ3Constraint(Z3_context ctx,
+                                                 Z3_ast target_value,
+                                                 const IntervalSet& intervals);
 
 // Helper class for establishing an error callback / turning it into a status
 // via RAII.

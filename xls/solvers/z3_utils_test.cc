@@ -22,7 +22,10 @@
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/interval.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/package.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/solvers/z3_op_translator.h"
@@ -284,6 +287,50 @@ TEST_F(Z3UtilsTest, NodeValueTupleBigger) {
   EXPECT_FALSE(elements[0].bits().IsZero());
   EXPECT_EQ(elements[1].bits().bit_count(), 16);
   EXPECT_FALSE(elements[1].bits().IsZero());
+}
+
+TEST_F(Z3UtilsTest, TernaryConstraint) {
+  Z3OpTranslator t(ctx_);
+  Z3_ast param = t.MakeBvParam(4, "p");
+  TernaryVector vec = {TernaryValue::kKnownOne, TernaryValue::kUnknown,
+                       TernaryValue::kKnownZero, TernaryValue::kUnknown};
+
+  XLS_ASSERT_OK_AND_ASSIGN(Z3_ast constraint,
+                           TernaryToZ3Constraint(ctx_, param, vec));
+  Z3_solver_assert(ctx_, solver_, constraint);
+
+  Z3_lbool satisfiable = Z3_solver_check(ctx_, solver_);
+  ASSERT_EQ(satisfiable, Z3_L_TRUE);
+
+  Z3_model model = Z3_solver_get_model(ctx_, solver_);
+  Package p("test_pkg");
+  XLS_ASSERT_OK_AND_ASSIGN(Value param_value,
+                           NodeValue(ctx_, model, param, p.GetBitsType(4)));
+  EXPECT_EQ(param_value.bits().Get(0), true);
+  EXPECT_EQ(param_value.bits().Get(2), false);
+}
+
+TEST_F(Z3UtilsTest, IntervalConstraint) {
+  Z3OpTranslator t(ctx_);
+  Z3_ast param = t.MakeBvParam(8, "p");
+
+  IntervalSet intervals(8);
+  intervals.AddInterval(Interval(UBits(10, 8), UBits(20, 8)));
+  intervals.Normalize();
+
+  XLS_ASSERT_OK_AND_ASSIGN(Z3_ast constraint,
+                           IntervalSetToZ3Constraint(ctx_, param, intervals));
+  Z3_solver_assert(ctx_, solver_, constraint);
+
+  Z3_lbool satisfiable = Z3_solver_check(ctx_, solver_);
+  ASSERT_EQ(satisfiable, Z3_L_TRUE);
+
+  Z3_model model = Z3_solver_get_model(ctx_, solver_);
+  Package p("test_pkg");
+  XLS_ASSERT_OK_AND_ASSIGN(Value param_value,
+                           NodeValue(ctx_, model, param, p.GetBitsType(8)));
+  EXPECT_GE(param_value.bits().ToUint64().value(), 10);
+  EXPECT_LE(param_value.bits().ToUint64().value(), 20);
 }
 
 }  // namespace

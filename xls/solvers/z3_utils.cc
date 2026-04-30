@@ -35,6 +35,9 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/interval.h"
+#include "xls/ir/interval_set.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "z3/src/api/z3_api.h"
@@ -367,6 +370,90 @@ Z3_ast BitVectorToBoolean(Z3_context c, Z3_ast bit_vector) {
   std::unique_ptr<bool[]> bits(new bool[1]);
   bits[0] = true;
   return Z3_mk_eq(c, bit_vector, Z3_mk_bv_numeral(c, 1, &bits[0]));
+}
+
+Z3_ast BitsToZ3(Z3_context ctx, const Bits& value) {
+  std::unique_ptr<bool[]> bools(new bool[value.bit_count()]);
+  for (int64_t i = 0; i < value.bit_count(); ++i) {
+    bools[i] = value.Get(i);
+  }
+  return Z3_mk_bv_numeral(ctx, value.bit_count(), &bools[0]);
+}
+
+absl::StatusOr<Z3_ast> TernaryToZ3Constraint(Z3_context ctx,
+                                             Z3_ast target_value,
+                                             TernarySpan ternary) {
+  int64_t bit_count = ternary.size();
+  if (bit_count == 0) {
+    return Z3_mk_true(ctx);
+  }
+  std::vector<Z3_ast> bit_constraints;
+  for (int64_t i = 0; i < bit_count; ++i) {
+    if (ternary_ops::IsUnknown(ternary[i])) {
+      continue;
+    }
+    Z3_ast bit_extract = Z3_mk_extract(ctx, i, i, target_value);
+    Z3_ast expected_bit =
+        Z3_mk_int(ctx, ternary[i] == TernaryValue::kKnownOne ? 1 : 0,
+                  Z3_mk_bv_sort(ctx, 1));
+    bit_constraints.push_back(Z3_mk_eq(ctx, bit_extract, expected_bit));
+  }
+  if (bit_constraints.empty()) {
+    return Z3_mk_true(ctx);
+  }
+  if (bit_constraints.size() == 1) {
+    return bit_constraints.front();
+  }
+  return Z3_mk_and(ctx, bit_constraints.size(), bit_constraints.data());
+}
+
+absl::StatusOr<Z3_ast> IntervalSetToZ3Constraint(Z3_context ctx,
+                                                 Z3_ast target_value,
+                                                 const IntervalSet& intervals) {
+  if (intervals.IsMaximal()) {
+    return Z3_mk_true(ctx);
+  }
+  int64_t bit_count = intervals.BitCount();
+  if (bit_count == 0) {
+    return Z3_mk_true(ctx);
+  }
+
+  if (intervals.IsEmpty()) {
+    return Z3_mk_false(ctx);
+  }
+
+  std::vector<Z3_ast> interval_constraints;
+  for (const Interval& interval : intervals.Intervals()) {
+    std::vector<Z3_ast> bounds;
+
+    if (!interval.LowerBound().IsZero()) {
+      Z3_ast lower_ast = BitsToZ3(ctx, interval.LowerBound());
+      bounds.push_back(Z3_mk_bvuge(ctx, target_value, lower_ast));
+    }
+
+    if (!interval.UpperBound().IsAllOnes()) {
+      Z3_ast upper_ast = BitsToZ3(ctx, interval.UpperBound());
+      bounds.push_back(Z3_mk_bvule(ctx, target_value, upper_ast));
+    }
+
+    if (bounds.empty()) {
+      interval_constraints.push_back(Z3_mk_true(ctx));
+    } else if (bounds.size() == 1) {
+      interval_constraints.push_back(bounds.front());
+    } else {
+      interval_constraints.push_back(
+          Z3_mk_and(ctx, bounds.size(), bounds.data()));
+    }
+  }
+
+  if (interval_constraints.empty()) {
+    return Z3_mk_false(ctx);
+  }
+  if (interval_constraints.size() == 1) {
+    return interval_constraints.front();
+  }
+  return Z3_mk_or(ctx, interval_constraints.size(),
+                  interval_constraints.data());
 }
 
 }  // namespace z3

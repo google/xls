@@ -228,6 +228,22 @@ cc_library(
 )
 
 cc_library(
+    name = "proc_state_analysis",
+    srcs = ["proc_state_analysis.cc"],
+    hdrs = ["proc_state_analysis.h"],
+    deps = [
+        ":proc_state_range_query_engine",
+        ":query_engine",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:interval_set",
+        "//xls/solvers:z3_ir_translator",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "query_engine_checker",
     srcs = ["query_engine_checker.cc"],
     hdrs = ["query_engine_checker.h"],
@@ -3821,6 +3837,7 @@ xls_pass(
     deps = [
         ":optimization_pass",
         ":pass_base",
+        ":proc_state_analysis",
         ":token_provenance_analysis",
         "//xls/codegen/vast",
         "//xls/common/status:ret_check",
@@ -3833,7 +3850,6 @@ xls_pass(
         "//xls/ir:proc_elaboration",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_translator",
-        "//xls/solvers:z3_utils",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -3846,7 +3862,6 @@ xls_pass(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:compare",
         "@com_google_absl//absl/types:span",
-        "@z3//:api",
     ],
 )
 

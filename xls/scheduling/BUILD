@@ -630,6 +630,7 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_utils",
         "//xls/passes:pass_base",
+        "//xls/passes:proc_state_analysis",
         "//xls/passes:token_provenance_analysis",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",

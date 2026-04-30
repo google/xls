@@ -44,6 +44,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/query_engine.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
 #include "z3/src/api/z3_api.h"
 
@@ -53,13 +54,129 @@ namespace z3 {
 
 // Kinds of predicates we can compute about a subject node.
 enum class PredicateKind : uint8_t {
-  kEqualToZero,             // subject is zero
-  kNotEqualToZero,          // subject is not zero
-  kEqualToNode,             // subject and node are equal
-  kExclusiveWithNode,       // at least one of subject and node is zero
-  kUnsignedGreaterOrEqual,  // subject >= some given (constant) value
-  kUnsignedLessOrEqual,     // subject <= some given (constant) value
+  kEqualToZero,                // subject is zero
+  kNotEqualToZero,             // subject is not zero
+  kEqualToNode,                // subject and node are equal
+  kExclusiveWithNode,          // at least one of subject and node is zero
+  kUnsignedGreaterOrEqual,     // subject >= some given (constant) value
+  kUnsignedLessOrEqual,        // subject <= some given (constant) value
+  kCompatibleWithTernary,      // subject is compatible with given ternaries
+  kCompatibleWithIntervalSet,  // subject is compatible with given interval sets
 };
+
+// Describes a predicate to compute about a subject node in an XLS IR function.
+//
+// Note: predicates currently implicitly refer to an (unreferenced) subject,
+// like a return value, so you can make fairly context-free constructs like
+// `Predicate::EqualToZero()`. (See `PredicateOfNode` for ways to explicitly
+// provide a subject node for the predicate to act upon.)
+class Predicate {
+ public:
+  // Returns a predicate that is true iff the subject is equal to `other`.
+  static Predicate IsEqualTo(Node* other);
+
+  // Returns a predicate that is true iff the subject is never true at the same
+  // time as `other`.
+  static Predicate IsExclusiveWith(Node* other);
+
+  // Returns a predicate that is true iff the subject is compatible with the
+  // given ternary; i.e., where the leaf ternaries have known bits, the subject
+  // matches those bits.
+  static Predicate IsCompatibleWith(SharedTernaryTree ternaries);
+
+  // Returns a predicate that is true iff the subject is compatible with the
+  // given interval sets; i.e., the value of each leaf is contained in the
+  // corresponding interval set.
+  static Predicate IsCompatibleWith(IntervalSetTree intervals);
+
+  static Predicate EqualToZero();
+  static Predicate NotEqualToZero();
+  static Predicate UnsignedGreaterOrEqual(Bits lower_bound);
+  static Predicate UnsignedLessOrEqual(Bits upper_bound);
+
+  PredicateKind kind() const { return kind_; }
+
+  // For predicates that refer to another node; e.g.
+  // `Predicate::IsEqualTo(other)`, returns the node the predicate is comparing
+  // to (`other` in this example).
+  Node* node() const {
+    CHECK(node_.has_value());
+    return node_.value();
+  }
+
+  std::string ToString() const;
+
+  // For predicates that have a bits value as part of the predicate payload,
+  // returns the bits value; e.g. for
+  // `Predicate::UnsignedGreaterOrEqual(my_bits)` returns the value of
+  // `my_bits`.
+  const Bits& value() const {
+    CHECK(value_.has_value());
+    return value_.value();
+  }
+
+  // For predicates that have a ternary tree as part of the predicate payload,
+  // returns the ternary.
+  TernaryTreeView ternaries() const {
+    CHECK(ternaries_.has_value());
+    return ternaries_->AsView();
+  }
+
+  // For predicates that have an interval set tree as part of the
+  // predicate payload, returns the interval set tree view.
+  IntervalSetTreeView intervals() const {
+    CHECK(intervals_.has_value());
+    return intervals_->AsView();
+  }
+
+ private:
+  explicit Predicate(PredicateKind kind);
+  Predicate(PredicateKind kind, Node* node);
+  Predicate(PredicateKind kind, Node* node, Bits value);
+  Predicate(PredicateKind kind, SharedTernaryTree ternaries);
+  Predicate(PredicateKind kind, IntervalSetTree intervals);
+
+  PredicateKind kind_;
+  std::optional<Node*> node_;
+  std::optional<Bits> value_;
+  std::optional<TernaryTree> ternaries_;
+  std::optional<IntervalSetTree> intervals_;
+};
+
+// Predicates generally don't encode a subject, they say things like "should be
+// greater than zero" but the subject is implicit, e.g. a return value.
+//
+// This struct wraps a predicate with an explicit subject (that must be present
+// inside of the associated function).
+struct PredicateOfNode {
+  Node* subject;
+  Predicate p;
+};
+
+enum class PredicateCombination : std::uint8_t { kDisjunction, kConjunction };
+
+using ProvenTrue = std::true_type;
+struct ProvenFalse {
+  // If available, a set of Values for the function's Params that implement the
+  // counterexample; otherwise, an absl::Status documenting the failure to
+  // translate the counterexample.
+  absl::StatusOr<absl::flat_hash_map<Node*, Value>> counterexample =
+      absl::UnimplementedError("no counterexample analysis attempted");
+
+  // Typically contains the encoded Z3 solver result (which usually includes the
+  // counterexample).
+  std::string message;
+};
+using ProverResult = std::variant<ProvenTrue, ProvenFalse>;
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const ProverResult& p) {
+  if (std::holds_alternative<ProvenTrue>(p)) {
+    absl::Format(&sink, "[ProvenTrue]");
+    return;
+  }
+  absl::Format(&sink, "[ProvenFalse: %s]", std::get<ProvenFalse>(p).message);
+}
 
 // Translates a function into its Z3 equivalent bit-vector circuit for use in
 // theorem proving.
@@ -154,6 +271,11 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   std::optional<absl::Duration> timeout() const { return timeout_; }
   std::optional<int64_t> rlimit() const { return rlimit_; }
+
+  absl::StatusOr<ProverResult> TryProveCombination(
+      absl::Span<const PredicateOfNode> terms,
+      PredicateCombination predicate_combination,
+      absl::Span<const PredicateOfNode> assumptions = {});
 
   // DfsVisitorWithDefault override decls.
   absl::Status DefaultHandler(Node* node) override;
@@ -270,7 +392,6 @@ class IrTranslator : public DfsVisitorWithDefault {
                                    absl::Span<Z3_ast const>,
                                    absl::Span<int64_t const>>)
   absl::Status HandleSelect(NodeT* node, Handler evaluator);
-
   // Turn a single possibly compound typed z3 value into a leaf-type-tree of
   // bits values.
   absl::StatusOr<LeafTypeTree<Z3_ast>> ToLeafTypeTree(Node* node) {
@@ -279,6 +400,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Turn a single possibly compound typed z3 value into a leaf-type-tree of
   // bits values.
   absl::StatusOr<LeafTypeTree<Z3_ast>> ToLeafTypeTree(Type* type, Z3_ast ast);
+
   // Turn a shattered z3 leaf-type-tree back into a single z3 value.
   absl::StatusOr<Z3_ast> FromLeafTypeTree(LeafTypeTreeView<Z3_ast> ast);
 
@@ -325,6 +447,33 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Get a new Z3_symbol.
   Z3_symbol GetNewSymbol();
 
+  // Converts the predicate into a boolean assertion that can be asserted in the
+  // Z3 solver.
+  //
+  // Args:
+  //  p: predicate that the user is asserting on the subject a_node
+  //  a_node: the node that is the subject of the predicate
+  //  a: the Z3 AST value that a_node resolves to
+  absl::StatusOr<Z3_ast> PredicateToAssertion(const Predicate& p, Node* a_node,
+                                              Z3_ast a);
+
+  // Converts the predicate into a boolean objective that can be fed to the
+  // Z3 solver.
+  //
+  // Args:
+  //  p: predicate that the user is attempting to prove on the subject a_node
+  //  a_node: the node that is the subject of the predicate
+  //  a: the Z3 AST value that a_node resolves to
+  //
+  // Implementation note: if the predicate we want to prove is "equal to zero"
+  // we return that "not equal to zero" is not satisfiable. That is, this
+  // routine inverts the condition we're attempting to prove, so that we can try
+  // to demonstrate an example for our attempted assertion "there exists no
+  // value where this (the inverse of what we're expecting to be the case, i.e.
+  // inverse of our assertion) holds".
+  absl::StatusOr<Z3_ast> PredicateToNegatedObjective(const Predicate& p,
+                                                     Node* a_node, Z3_ast a);
+
   Z3_config config_;
   Z3_context ctx_;
 
@@ -344,99 +493,18 @@ class IrTranslator : public DfsVisitorWithDefault {
   std::optional<int64_t> rlimit_;
 };
 
-// Describes a predicate to compute about a subject node in an XLS IR function.
-//
-// Note: predicates currently implicitly refer to an (unreferenced) subject,
-// like a return value, so you can make fairly context-free constructs like
-// `Predicate::EqualToZero()`. (See `PredicateOfNode` for ways to explicitly
-// provide a subject node for the predicate to act upon.)
-class Predicate {
- public:
-  static Predicate IsEqualTo(Node* other);
-
-  // Returns a predicate that is true iff the subject is never true at the same
-  // time as `other`.
-  static Predicate IsExclusiveWith(Node* other);
-
-  static Predicate EqualToZero();
-  static Predicate NotEqualToZero();
-  static Predicate UnsignedGreaterOrEqual(Bits lower_bound);
-  static Predicate UnsignedLessOrEqual(Bits upper_bound);
-
-  PredicateKind kind() const { return kind_; }
-
-  // For predicates that refer to another node; e.g.
-  // `Predicate::IsEqualTo(other)`, returns the node the predicate is comparing
-  // to (`other` in this example).
-  Node* node() const {
-    CHECK(node_.has_value());
-    return node_.value();
-  }
-
-  std::string ToString() const;
-
-  // For predicates that have a bits value as part of the predicate payload,
-  // returns the bits value; e.g. for
-  // `Predicate::UnsignedGreaterOrEqual(my_bits)` returns the value of
-  // `my_bits`.
-  const Bits& value() const {
-    CHECK(value_.has_value());
-    return value_.value();
-  }
-
- private:
-  explicit Predicate(PredicateKind kind);
-  Predicate(PredicateKind kind, Node* node);
-  Predicate(PredicateKind kind, Node* node, Bits value);
-
-  PredicateKind kind_;
-  std::optional<Node*> node_;
-  std::optional<Bits> value_;
-};
-
-// Predicates generally don't encode a subject, they say things like "should be
-// greater than zero" but the subject is implicit, e.g. a return value.
-//
-// This struct wraps a predicate with an explicit subject (that must be present
-// inside of the associated function).
-struct PredicateOfNode {
-  Node* subject;
-  Predicate p;
-};
-
-using ProvenTrue = std::true_type;
-struct ProvenFalse {
-  // If available, a set of Values for the function's Params that implement the
-  // counterexample; otherwise, an absl::Status documenting the failure to
-  // translate the counterexample.
-  absl::StatusOr<absl::flat_hash_map<Node*, Value>> counterexample =
-      absl::UnimplementedError("no counterexample analysis attempted");
-
-  // Typically contains the encoded Z3 solver result (which usually includes the
-  // counterexample).
-  std::string message;
-};
-using ProverResult = std::variant<ProvenTrue, ProvenFalse>;
-
-template <typename Sink>
-void AbslStringify(Sink& sink, const ProverResult& p) {
-  if (std::holds_alternative<ProvenTrue>(p)) {
-    absl::Format(&sink, "[ProvenTrue]");
-    return;
-  }
-  absl::Format(&sink, "[ProvenFalse: %s]", std::get<ProvenFalse>(p).message);
-}
-
 // Attempts to prove the conjunction of "terms". "terms" refers to predicates on
 // nodes within function "f". Returns true iff "terms" can be proven true in
 // conjunction (over all possible inputs) within the given "timeout" or
 // "rlimit".
 absl::StatusOr<ProverResult> TryProveConjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms,
-    absl::Duration timeout, bool allow_unsupported = false);
+    absl::Duration timeout, bool allow_unsupported = false,
+    absl::Span<const PredicateOfNode> assumptions = {});
 absl::StatusOr<ProverResult> TryProveConjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
-    bool allow_unsupported = false);
+    bool allow_unsupported = false,
+    absl::Span<const PredicateOfNode> assumptions = {});
 
 // Attempts to prove the conjunction of "terms". "terms" refers to predicates on
 // nodes within the given translator's function. Returns true iff "terms" can be
@@ -444,10 +512,10 @@ absl::StatusOr<ProverResult> TryProveConjunction(
 // "timeout" or "rlimit".
 absl::StatusOr<ProverResult> TryProveConjunctionWithTranslator(
     IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
-    absl::Duration timeout);
+    absl::Duration timeout, absl::Span<const PredicateOfNode> assumptions = {});
 absl::StatusOr<ProverResult> TryProveConjunctionWithTranslator(
     IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
-    int64_t rlimit);
+    int64_t rlimit, absl::Span<const PredicateOfNode> assumptions = {});
 
 // Attempts to prove the disjunction of "terms". "terms" refers to predicates on
 // nodes within function "f". Returns true iff "terms" can be proven true in
@@ -455,10 +523,12 @@ absl::StatusOr<ProverResult> TryProveConjunctionWithTranslator(
 // "rlimit".
 absl::StatusOr<ProverResult> TryProveDisjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms,
-    absl::Duration timeout, bool allow_unsupported = false);
+    absl::Duration timeout, bool allow_unsupported = false,
+    absl::Span<const PredicateOfNode> assumptions = {});
 absl::StatusOr<ProverResult> TryProveDisjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
-    bool allow_unsupported = false);
+    bool allow_unsupported = false,
+    absl::Span<const PredicateOfNode> assumptions = {});
 
 // Attempts to prove the disjunction of "terms". "terms" refers to predicates on
 // nodes within the given translator's function. Returns true iff "terms" can be
@@ -466,10 +536,10 @@ absl::StatusOr<ProverResult> TryProveDisjunction(
 // "timeout" or "rlimit".
 absl::StatusOr<ProverResult> TryProveDisjunctionWithTranslator(
     IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
-    absl::Duration timeout);
+    absl::Duration timeout, absl::Span<const PredicateOfNode> assumptions = {});
 absl::StatusOr<ProverResult> TryProveDisjunctionWithTranslator(
     IrTranslator* translator, absl::Span<const PredicateOfNode> terms,
-    int64_t rlimit);
+    int64_t rlimit, absl::Span<const PredicateOfNode> assumptions = {});
 
 // Attempts to prove node "subject" in function "f" satisfies the given
 // predicate (over all possible inputs) within the duration "timeout" or the
@@ -477,23 +547,25 @@ absl::StatusOr<ProverResult> TryProveDisjunctionWithTranslator(
 //
 // This offers a simpler subset of the functionality of TryProveConjunction
 // above.
-absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
-                                      Predicate p, absl::Duration timeout,
-                                      bool allow_unsupported = false);
-absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
-                                      Predicate p, int64_t rlimit,
-                                      bool allow_unsupported = false);
+absl::StatusOr<ProverResult> TryProve(
+    FunctionBase* f, Node* subject, Predicate p, absl::Duration timeout,
+    bool allow_unsupported = false,
+    absl::Span<const PredicateOfNode> assumptions = {});
+absl::StatusOr<ProverResult> TryProve(
+    FunctionBase* f, Node* subject, Predicate p, int64_t rlimit,
+    bool allow_unsupported = false,
+    absl::Span<const PredicateOfNode> assumptions = {});
 
 // Attempts to prove node "subject" satisfies the given predicate using the
 // given translator, within the duration "timeout" or the "rlimit". The
 // translator must already have been populated with the function containing
 // "subject".
-absl::StatusOr<ProverResult> TryProveWithTranslator(IrTranslator* translator,
-                                                    Node* subject, Predicate p,
-                                                    absl::Duration timeout);
-absl::StatusOr<ProverResult> TryProveWithTranslator(IrTranslator* translator,
-                                                    Node* subject, Predicate p,
-                                                    int64_t rlimit);
+absl::StatusOr<ProverResult> TryProveWithTranslator(
+    IrTranslator* translator, Node* subject, Predicate p,
+    absl::Duration timeout, absl::Span<const PredicateOfNode> assumptions = {});
+absl::StatusOr<ProverResult> TryProveWithTranslator(
+    IrTranslator* translator, Node* subject, Predicate p, int64_t rlimit,
+    absl::Span<const PredicateOfNode> assumptions = {});
 
 // Emits a self-contained SMT-LIB2 representation of `function` consisting of:
 // Returns Z3's pretty-printed SMT-LIB2 form of a λ-expression that binds all

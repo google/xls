@@ -59,6 +59,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/proc_state_analysis.h"
 #include "xls/passes/token_provenance_analysis.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
@@ -89,12 +90,25 @@ class LazyZ3Translator {
     translator_->SetRlimit(z3_rlimit_);
     return translator_.get();
   }
+
+  absl::StatusOr<absl::Span<const solvers::z3::PredicateOfNode>> Assumptions()
+      const {
+    if (!assumptions_.has_value()) {
+      if (f_->IsProc()) {
+        XLS_ASSIGN_OR_RETURN(assumptions_,
+                             GetProcStateAssumptions(f_->AsProcOrDie()));
+      }
+    }
+    return *assumptions_;
+  }
+
   int64_t z3_rlimit() const { return z3_rlimit_; }
 
  private:
   FunctionBase* f_;
   int64_t z3_rlimit_;
   mutable std::unique_ptr<solvers::z3::IrTranslator> translator_;
+  mutable std::optional<std::vector<solvers::z3::PredicateOfNode>> assumptions_;
 };
 
 // This stores a mapping from nodes in a FunctionBase to 1-bit nodes that are
@@ -946,10 +960,13 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
     timer.emplace();
   }
   VLOG(2) << "START: Checking mutex between " << pred_a << " and " << pred_b;
+  XLS_ASSIGN_OR_RETURN(
+      absl::Span<const solvers::z3::PredicateOfNode> assumptions,
+      translator.Assumptions());
   absl::StatusOr<solvers::z3::ProverResult> result =
       solvers::z3::TryProveWithTranslator(
           solver, pred_a, solvers::z3::Predicate::IsExclusiveWith(pred_b),
-          rlimit);
+          rlimit, assumptions);
   VLOG(2) << "END: Took " << timer->GetElapsedTime() << " to "
           << (!result.ok()
                   ? "give up proving"
