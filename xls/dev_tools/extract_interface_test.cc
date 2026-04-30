@@ -15,9 +15,12 @@
 #include "xls/dev_tools/extract_interface.h"
 
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -162,6 +165,103 @@ TEST_F(ExtractInterfaceTest, BasicBlock) {
                       }
                     }
                   )pb"));
+}
+
+TEST_F(ExtractInterfaceTest, FuzzTestFunction) {
+  constexpr std::string_view kIr = R"(
+package test
+
+#[fuzz_test(domains = `parameter_domains { range { min { bits { bit_count: 32 data: "\000" } } max { bits { bit_count: 32 data: "\012" } } } } parameter_domains { arbitrary: true }`)]
+fn f(x: bits[32], y: bits[32]) -> bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(kIr));
+
+  PackageInterfaceProto proto = ExtractPackageInterface(p.get());
+
+  ASSERT_EQ(proto.functions().size(), 1);
+  const auto& func_proto = proto.functions(0);
+
+  ASSERT_EQ(func_proto.parameter_domains().size(), 2);
+  EXPECT_TRUE(func_proto.parameter_domains(1).arbitrary());
+  EXPECT_TRUE(func_proto.parameter_domains(0).has_range());
+}
+
+TEST_F(ExtractInterfaceTest, FuzzTestFunctionNoDomains) {
+  constexpr std::string_view kIr = R"(
+package test
+
+#[fuzz_test]
+fn f(x: bits[32]) -> bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(kIr));
+
+  PackageInterfaceProto proto = ExtractPackageInterface(p.get());
+
+  ASSERT_EQ(proto.functions().size(), 1);
+  const auto& func_proto = proto.functions(0);
+
+  EXPECT_THAT(func_proto.parameter_domains(), testing::IsEmpty());
+}
+
+TEST_F(ExtractInterfaceTest, FuzzTestFunctionInvalidArgKeyManual) {
+  VerifiedPackage p("test_package");
+  Function* f;
+  {
+    FunctionBuilder fb("f", &p);
+    fb.Param("x", p.GetBitsType(32));
+    XLS_ASSERT_OK_AND_ASSIGN(f, fb.Build());
+  }
+
+  std::vector<AttributeData::Argument> args;
+  args.push_back(AttributeData::StringKeyValueArgument{
+      .first = "invalid", .second = "value", .is_backticked = true});
+  f->AddAttribute(AttributeData(AttributeKind::kFuzzTest, std::move(args)));
+
+  EXPECT_DEATH(ExtractPackageInterface(&p),
+               "kFuzzTest only supports 'domains' argument");
+}
+
+TEST_F(ExtractInterfaceTest, PackageWithMixOfFuzzAndNonFuzzFunctions) {
+  constexpr std::string_view kIr = R"(
+package test
+
+#[fuzz_test(domains = `parameter_domains { arbitrary: true }`)]
+fn fuzz_me(x: bits[32]) -> bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+
+fn dont_fuzz_me(x: bits[32]) -> bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(kIr));
+
+  PackageInterfaceProto proto = ExtractPackageInterface(p.get());
+
+  ASSERT_EQ(proto.functions().size(), 2);
+
+  const PackageInterfaceProto::Function* fuzz_proto = nullptr;
+  const PackageInterfaceProto::Function* non_fuzz_proto = nullptr;
+
+  for (const auto& f : proto.functions()) {
+    if (f.base().name() == "fuzz_me") {
+      fuzz_proto = &f;
+    } else if (f.base().name() == "dont_fuzz_me") {
+      non_fuzz_proto = &f;
+    }
+  }
+
+  ASSERT_NE(fuzz_proto, nullptr);
+  ASSERT_NE(non_fuzz_proto, nullptr);
+
+  EXPECT_EQ(fuzz_proto->parameter_domains().size(), 1);
+  EXPECT_TRUE(fuzz_proto->parameter_domains(0).arbitrary());
+
+  EXPECT_TRUE(non_fuzz_proto->parameter_domains().empty());
 }
 
 }  // namespace

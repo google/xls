@@ -14,8 +14,13 @@
 
 #include "xls/dev_tools/extract_interface.h"
 
+#include <string>
+#include <variant>
+
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "google/protobuf/text_format.h"
+#include "xls/common/attribute_data.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
@@ -61,6 +66,28 @@ PackageInterfaceProto::Function ExtractFunctionInterface(Function* func) {
     AddNamed(proto.add_parameters(), param);
   }
   *proto.mutable_result_type() = func->GetType()->return_type()->ToProto();
+
+  for (const auto& attr : func->attributes()) {
+    if (attr.kind() == AttributeKind::kFuzzTest) {
+      for (const auto& arg : attr.args()) {
+        const auto* skv =
+            std::get_if<AttributeData::StringKeyValueArgument>(&arg);
+        CHECK(skv != nullptr);
+        CHECK_EQ(skv->first, "domains")
+            << "kFuzzTest only supports 'domains' argument";
+        CHECK(skv->is_backticked)
+            << "kFuzzTest domains argument must be backticked";
+
+        PackageInterfaceProto::Function temp_func;
+        CHECK(google::protobuf::TextFormat::ParseFromString(skv->second, &temp_func))
+            << "Failed to parse fuzz test domains proto from attribute";
+        proto.mutable_parameter_domains()->CopyFrom(
+            temp_func.parameter_domains());
+      }
+      break;
+    }
+  }
+
   return proto;
 }
 

@@ -119,6 +119,7 @@ cc_library(
     srcs = ["extract_interface.cc"],
     hdrs = ["extract_interface.h"],
     deps = [
+        "//xls/common:attribute_data",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:register",
@@ -127,6 +128,7 @@ cc_library(
         "//xls/ir:xls_ir_interface_cc_proto",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -154,6 +156,7 @@ cc_test(
     srcs = ["extract_interface_test.cc"],
     deps = [
         ":extract_interface",
+        "//xls/common:attribute_data",
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
