@@ -721,6 +721,10 @@ class FunctionConverter {
   // Lowers the given expression into the given FuzzTestDomain proto.
   absl::Status LowerDomainExpr(Expr* expr,
                                PackageInterfaceProto::FuzzTestDomain* proto);
+
+  // Lowers a range expression to a proto
+  absl::Status LowerRangeExpr(Range* range_node,
+                              PackageInterfaceProto::FuzzTestDomain* proto);
 };
 
 }  // namespace xls::dslx

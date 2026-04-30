@@ -3635,31 +3635,32 @@ absl::Status FunctionConverter::HandleFunction(
 absl::Status FunctionConverter::LowerDomainExpr(
     Expr* expr, PackageInterfaceProto::FuzzTestDomain* proto) {
   if (expr->kind() == AstNodeKind::kXlsTuple &&
-      static_cast<XlsTuple*>(expr)->empty()) {
+      absl::down_cast<XlsTuple*>(expr)->empty()) {
     proto->set_arbitrary(true);
     return absl::OkStatus();
   }
   if (expr->kind() == AstNodeKind::kRange) {
-    Range* range_node = static_cast<Range*>(expr);
+    Range* range_node = absl::down_cast<Range*>(expr);
+    return LowerRangeExpr(range_node, proto);
+  }
+  if (expr->kind() == AstNodeKind::kNameRef) {
+    NameRef* name_ref = absl::down_cast<NameRef*>(expr);
 
-    XLS_ASSIGN_OR_RETURN(InterpValue min_val,
-                         current_type_info_->GetConstExpr(range_node->start()));
-    XLS_ASSIGN_OR_RETURN(InterpValue max_val,
-                         current_type_info_->GetConstExpr(range_node->end()));
-
-    XLS_ASSIGN_OR_RETURN(Value ir_min, InterpValueToValue(min_val));
-    XLS_ASSIGN_OR_RETURN(Value ir_max, InterpValueToValue(max_val));
-
-    XLS_ASSIGN_OR_RETURN(ValueProto min_proto, ir_min.AsProto());
-    XLS_ASSIGN_OR_RETURN(ValueProto max_proto, ir_max.AsProto());
-
-    auto* range_proto = proto->mutable_range();
-    *range_proto->mutable_min() = std::move(min_proto);
-    *range_proto->mutable_max() = std::move(max_proto);
-    return absl::OkStatus();
+    absl::StatusOr<ConstantDef*> const_def =
+        module_->GetMemberOrError<ConstantDef>(name_ref->identifier());
+    if (const_def.ok()) {
+      // TODO: davidplass - This fails if there's a const that refers to another
+      // const, or calls a function, or references an imported symbol. Instead,
+      // we could tag the InterpValue of such arrays as actually ranges, use
+      // GetConstExpr to get the range instead.
+      Expr* value_expr = (*const_def)->value();
+      if (value_expr->kind() == AstNodeKind::kRange) {
+        return LowerRangeExpr(absl::down_cast<Range*>(value_expr), proto);
+      }
+    }
   }
   if (expr->kind() == AstNodeKind::kArray) {
-    Array* array_node = static_cast<Array*>(expr);
+    Array* array_node = absl::down_cast<Array*>(expr);
 
     auto* element_of_proto = proto->mutable_element_of();
     for (Expr* member : array_node->members()) {
@@ -3672,7 +3673,7 @@ absl::Status FunctionConverter::LowerDomainExpr(
     return absl::OkStatus();
   }
   if (expr->kind() == AstNodeKind::kXlsTuple) {
-    XlsTuple* tuple_node = static_cast<XlsTuple*>(expr);
+    XlsTuple* tuple_node = absl::down_cast<XlsTuple*>(expr);
 
     auto* tuple_proto = proto->mutable_tuple();
     for (Expr* member : tuple_node->members()) {
@@ -3682,6 +3683,25 @@ absl::Status FunctionConverter::LowerDomainExpr(
   }
   return absl::UnimplementedError(
       absl::StrCat("Unsupported fuzztest domain type: ", expr->ToString()));
+}
+
+absl::Status FunctionConverter::LowerRangeExpr(
+    Range* range_node, PackageInterfaceProto::FuzzTestDomain* proto) {
+  XLS_ASSIGN_OR_RETURN(InterpValue min_val,
+                       current_type_info_->GetConstExpr(range_node->start()));
+  XLS_ASSIGN_OR_RETURN(InterpValue max_val,
+                       current_type_info_->GetConstExpr(range_node->end()));
+
+  XLS_ASSIGN_OR_RETURN(Value ir_min, InterpValueToValue(min_val));
+  XLS_ASSIGN_OR_RETURN(Value ir_max, InterpValueToValue(max_val));
+
+  XLS_ASSIGN_OR_RETURN(ValueProto min_proto, ir_min.AsProto());
+  XLS_ASSIGN_OR_RETURN(ValueProto max_proto, ir_max.AsProto());
+
+  auto* range_proto = proto->mutable_range();
+  *range_proto->mutable_min() = std::move(min_proto);
+  *range_proto->mutable_max() = std::move(max_proto);
+  return absl::OkStatus();
 }
 
 absl::StatusOr<std::optional<AttributeData>>

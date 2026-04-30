@@ -632,6 +632,238 @@ fn f(x: u32, y: u32) -> u32 { x + y }
               )pb"));
 }
 
+TEST(FunctionConverterTest, ConvertsFuzzTestFunctionWithConstantRangeDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+const C = u32:1..u32:10;
+#[fuzz_test(domains = `C`)]
+fn f(x: u32) -> u32 { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  ASSERT_EQ(attributes.size(), 1);
+  const AttributeData& attr = attributes[0];
+  EXPECT_EQ(attr.kind(), AttributeKind::kFuzzTest);
+  ASSERT_EQ(attr.args().size(), 1);
+  const AttributeData::Argument& arg = attr.args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  range {
+                    min { bits { bit_count: 32 data: "\001\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                  }
+                }
+              )pb"));
+}
+
+// TODO: davidplass - When the TODO in LowerDomainExpr is implemented, this
+// should work, because it will get the range information from the type system
+// instead of from the AST.
+TEST(FunctionConverterTest,
+     DISABLED_ConvertsFuzzTestFunctionWithConstantRangeReferenceDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+const C = u32:1..u32:10;
+const D = C;
+#[fuzz_test(domains = `D`)]
+fn f(x: u32) -> u32 { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  ASSERT_EQ(attributes.size(), 1);
+  const AttributeData& attr = attributes[0];
+  EXPECT_EQ(attr.kind(), AttributeKind::kFuzzTest);
+  ASSERT_EQ(attr.args().size(), 1);
+  const AttributeData::Argument& arg = attr.args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  range {
+                    min { bits { bit_count: 32 data: "\001\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                  }
+                }
+              )pb"));
+}
+
+TEST(FunctionConverterTest, ConvertsFuzzTestFunctionWithConstantRangeInTuple) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+const C = u32:1..u32:10;
+#[fuzz_test(domains = `(C, u16:0..5)`)]
+fn f(x: (u32, u16)) -> u16 { x.0 as u16 + x.1 }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  ASSERT_EQ(attributes.size(), 1);
+  const AttributeData& attr = attributes[0];
+  EXPECT_EQ(attr.kind(), AttributeKind::kFuzzTest);
+  ASSERT_EQ(attr.args().size(), 1);
+  const AttributeData::Argument& arg = attr.args()[0];
+
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  tuple {
+                    elements {
+                      range {
+                        min { bits { bit_count: 32 data: "\001\000\000\000" } }
+                        max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                      }
+                    }
+                    elements {
+                      range {
+                        min { bits { bit_count: 16 data: "\000\000" } }
+                        max { bits { bit_count: 16 data: "\005\000" } }
+                      }
+                    }
+                  }
+                }
+              )pb"));
+}
+
+TEST(FunctionConverterTest,
+     ConvertsFuzzTestFunctionWithConstantRangeAndLiteral) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+const C = u32:1..u32:10;
+#[fuzz_test(domains = `C, u16:0..5`)]
+fn f(x: u32, y: u16) -> u16 { x as u16 + y }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  ASSERT_EQ(attributes.size(), 1);
+  const AttributeData& attr = attributes[0];
+  EXPECT_EQ(attr.kind(), AttributeKind::kFuzzTest);
+  ASSERT_EQ(attr.args().size(), 1);
+  const AttributeData::Argument& arg = attr.args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  range {
+                    min { bits { bit_count: 32 data: "\001\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                  }
+                }
+                parameter_domains {
+                  range {
+                    min { bits { bit_count: 16 data: "\000\000" } }
+                    max { bits { bit_count: 16 data: "\005\000" } }
+                  }
+                }
+              )pb"));
+}
+
 TEST(FunctionConverterTest, ConvertsFuzzTestFunctionWithDifferentBitWidths) {
   ImportData import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
