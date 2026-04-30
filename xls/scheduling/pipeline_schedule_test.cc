@@ -2118,5 +2118,67 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserializeWithSynchronousSchedule) {
   EXPECT_EQ(clone.GetSynchronousCycle(add2.node()), 42);
 }
 
+TEST_F(PipelineScheduleTest, ProcWithExplicitStateAccess) {
+  Package p(TestName());
+  Type* u32 = p.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out_ch", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
+                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+  BValue current = pb.StateRead(se);
+  BValue add_val = pb.Add(current, pb.Literal(UBits(1, 32)));
+
+  pb.Send(out_ch, add_val);
+
+  pb.Next(se, add_val);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  SchedulingOptions options(SchedulingStrategy::ASAP);
+  options.clock_period_ps(2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), options));
+
+  EXPECT_EQ(schedule.length(), 1);
+}
+
+TEST_F(PipelineScheduleTest, ProcWithMultipleStateReads) {
+  Package p(TestName());
+  Type* u32 = p.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out_ch", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
+                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+  BValue read1 = pb.StateRead(se);
+
+  // Create a second read with a predicate
+  BValue cond = pb.Literal(UBits(1, 1));
+  BValue read2 = pb.StateRead(se, cond);
+
+  BValue add_val = pb.Add(read1, read2);
+  pb.Send(out_ch, add_val);
+
+  pb.Next(se, add_val);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  SchedulingOptions options(SchedulingStrategy::ASAP);
+  options.clock_period_ps(2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), options));
+
+  EXPECT_EQ(schedule.length(), 1);
+}
+
 }  // namespace
 }  // namespace xls
