@@ -274,14 +274,15 @@ TEST(IntervalTest, Elements) {
   EXPECT_EQ(improper, improper_result);
 
   std::vector<Bits> early_return;
-  EXPECT_TRUE(
-      Interval(four, eight).ForEachElement([&](const Bits& bits) -> bool {
-        if (bits_ops::UGreaterThan(bits, SumOf({four, one, one}))) {
-          return true;
-        }
-        early_return.push_back(bits);
-        return false;
-      }));
+  bool aborted = false;
+  for (const Bits& bits : Interval(four, eight)) {
+    if (bits_ops::UGreaterThan(bits, SumOf({four, one, one}))) {
+      aborted = true;
+      break;
+    }
+    early_return.push_back(bits);
+  }
+  EXPECT_TRUE(aborted);
   std::vector<Bits> early_return_result{
       four,
       SumOf({four, one}),
@@ -410,10 +411,14 @@ TEST(IntervalTest, OverlappingBitsIsTrueWhenMaskWith2) {
 }
 
 void IsTrueWhenAndWith(const Interval& interval, const Bits& value) {
-  EXPECT_EQ(interval.IsTrueWhenAndWith(value),
-            interval.ForEachElement([&](const Bits& bits) -> bool {
-              return bits_ops::OrReduce(bits_ops::And(bits, value)).IsAllOnes();
-            }));
+  bool expected = false;
+  for (const Bits& bits : interval) {
+    if (bits_ops::OrReduce(bits_ops::And(bits, value)).IsAllOnes()) {
+      expected = true;
+      break;
+    }
+  }
+  EXPECT_EQ(interval.IsTrueWhenAndWith(value), expected);
 }
 FUZZ_TEST(IntervalFuzzTest, IsTrueWhenAndWith)
     .WithDomains(ProperInterval(12), ArbitraryBits(12));
@@ -424,21 +429,18 @@ TEST(IntervalTest, Covers) {
   Interval interval(thirty_two, sixty_four);
 
   absl::flat_hash_set<Bits> covered_elements;
-  interval.ForEachElement([&](const Bits& bits) -> bool {
+  for (const Bits& bits : interval) {
     EXPECT_FALSE(covered_elements.contains(bits));
     covered_elements.insert(bits);
-    return false;
-  });
+  }
 
   absl::flat_hash_set<Bits> noncovered_elements;
-  Interval(sixty_four, thirty_two)
-      .ForEachElement([&](const Bits& bits) -> bool {
-        if ((bits != thirty_two) && (bits != sixty_four)) {
-          EXPECT_FALSE(noncovered_elements.contains(bits));
-          noncovered_elements.insert(bits);
-        }
-        return false;
-      });
+  for (const Bits& bits : Interval(sixty_four, thirty_two)) {
+    if ((bits != thirty_two) && (bits != sixty_four)) {
+      EXPECT_FALSE(noncovered_elements.contains(bits));
+      noncovered_elements.insert(bits);
+    }
+  }
 
   for (const Bits& element : covered_elements) {
     EXPECT_TRUE(interval.Covers(element));

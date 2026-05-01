@@ -123,7 +123,7 @@ TEST(IntervalTest, ConvexHull) {
   EXPECT_EQ(empty.ConvexHull(), std::nullopt);
 }
 
-TEST(IntervalTest, ForEachElement) {
+TEST(IntervalTest, IterateElements) {
   IntervalSet example(32);
   example.AddInterval(MakeInterval(10, 40, 32));
   example.AddInterval(MakeInterval(50, 55, 32));
@@ -131,24 +131,22 @@ TEST(IntervalTest, ForEachElement) {
   example.Normalize();
 
   absl::flat_hash_set<Bits> visited;
-  example.ForEachElement([&](const Bits& bits) -> bool {
+  for (const Bits& bits : example.Values()) {
     visited.insert(bits);
-    return false;
-  });
+  }
   EXPECT_EQ(visited.size(), example.Size().value());
 
   for (const Interval& interval : example.Intervals()) {
-    interval.ForEachElement([&](const Bits& bits) -> bool {
+    for (const Bits& bits : interval) {
       EXPECT_TRUE(visited.contains(bits)) << bits;
       visited.erase(bits);
-      return false;
-    });
+    }
   }
 
   EXPECT_TRUE(visited.empty());
 }
 
-TEST(IntervalTest, ForEachElementAborts) {
+TEST(IntervalTest, IterateElementsAborts) {
   IntervalSet example(32);
   example.AddInterval(MakeInterval(50, 55, 32));
   example.AddInterval(MakeInterval(10, 40, 32));
@@ -156,36 +154,42 @@ TEST(IntervalTest, ForEachElementAborts) {
   example.Normalize();
 
   absl::flat_hash_set<Bits> visited;
-  EXPECT_TRUE(example.ForEachElement([&](const Bits& bits) -> bool {
+  bool loop_aborted = false;
+  for (const Bits& bits : example.Values()) {
     if (*bits.ToUint64() >= 52) {
       visited.insert(bits);
-      return true;
+      loop_aborted = true;
+      break;
     }
     visited.insert(bits);
-    return false;
-  }));
+  }
+  EXPECT_TRUE(loop_aborted);
   EXPECT_THAT(visited, SizeIs(31 + 3));  // [10, 40] and [50, 52]
 
   visited.clear();
-  EXPECT_TRUE(example.ForEachElement([&](const Bits& bits) -> bool {
+  loop_aborted = false;
+  for (const Bits& bits : example.Values()) {
     if (*bits.ToUint64() >= 55) {
       visited.insert(bits);
-      return true;
+      loop_aborted = true;
+      break;
     }
     visited.insert(bits);
-    return false;
-  }));
+  }
+  EXPECT_TRUE(loop_aborted);
   EXPECT_THAT(visited, SizeIs(31 + 6));  // [10, 40] and [50, 55]
 
   visited.clear();
-  EXPECT_TRUE(example.ForEachElement([&](const Bits& bits) -> bool {
+  loop_aborted = false;
+  for (const Bits& bits : example.Values()) {
     if (*bits.ToUint64() >= 50) {
       visited.insert(bits);
-      return true;
+      loop_aborted = true;
+      break;
     }
     visited.insert(bits);
-    return false;
-  }));
+  }
+  EXPECT_TRUE(loop_aborted);
   EXPECT_THAT(visited, SizeIs(31 + 1));  // [10, 40] and [50, 50]
 }
 
@@ -210,24 +214,21 @@ void IntersectMatchesSetIntersection(const IntervalSet& lhs,
   absl::flat_hash_set<Bits> intersection_set;
   {
     absl::flat_hash_set<Bits> lhs_set;
-    lhs.ForEachElement([&](const Bits& bits) -> bool {
+    for (const Bits& bits : lhs.Values()) {
       lhs_set.insert(bits);
-      return false;
-    });
-    rhs.ForEachElement([&](const Bits& bits) -> bool {
+    }
+    for (const Bits& bits : rhs.Values()) {
       if (lhs_set.contains(bits)) {
         intersection_set.insert(bits);
       }
-      return false;
-    });
+    }
   }
 
   EXPECT_EQ(intersection_set.size(), intersection.Size().value());
   std::vector<Bits> intersection_vector;
-  intersection.ForEachElement([&](const Bits& bits) -> bool {
+  for (const Bits& bits : intersection.Values()) {
     intersection_vector.push_back(bits);
-    return false;
-  });
+  }
   EXPECT_THAT(intersection_vector, UnorderedElementsAreArray(intersection_set));
 }
 FUZZ_TEST(IntervalFuzzTest, IntersectMatchesSetIntersection)

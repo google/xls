@@ -845,19 +845,16 @@ void ConcatIsCorrect(const IntervalSet& x_intervals,
                             BitsLTT(z.node(), z_intervals.Intervals()));
   XLS_ASSERT_OK(engine.Populate(f));
 
-  x_intervals.ForEachElement([&](const Bits& bits_x) -> bool {
-    y_intervals.ForEachElement([&](const Bits& bits_y) -> bool {
-      z_intervals.ForEachElement([&](const Bits& bits_z) -> bool {
+  for (const Bits& bits_x : x_intervals.Values()) {
+    for (const Bits& bits_y : y_intervals.Values()) {
+      for (const Bits& bits_z : z_intervals.Values()) {
         Bits concatenated = bits_ops::Concat({bits_x, bits_y, bits_z});
         EXPECT_TRUE(engine.GetIntervalSetTree(expr.node())
                         .Get({})
                         .Covers(concatenated));
-        return false;
-      });
-      return false;
-    });
-    return false;
-  });
+      }
+    }
+  }
 }
 FUZZ_TEST(RangeQueryEngineFuzzTest, ConcatIsCorrect)
     .WithDomains(NonemptyNormalizedIntervalSet(6),

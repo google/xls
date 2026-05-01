@@ -200,24 +200,6 @@ class Interval {
   }
   ValuesIterator cend() const { return end(); }
 
-  // Iterate over every point in the interval, calling the given callback for
-  // each point. If the callback returns `true`, terminate the iteration early
-  // and return `true`. Otherwise, continue the iteration until all points have
-  // been visited and return `false`. The iterator interface should be prefered
-  // to this.
-  template <typename Func>
-    requires(std::is_invocable_r_v<bool, Func, const Bits&>)
-  ABSL_DEPRECATE_AND_INLINE()
-  bool ForEachElement(Func callback) const {
-    EnsureValid();
-    for (const Bits& b : *this) {
-      if (callback(b)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   // This simply collects the results of iterating over this interval into a
   // `std::vector<Bits>` for convenience. This is often impractical as it will
   // use a lot of memory, but can be useful temporarily for debugging. Prefer

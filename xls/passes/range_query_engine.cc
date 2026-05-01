@@ -770,8 +770,7 @@ absl::Status RangeQueryVisitor::HandleArraySlice(ArraySlice* slice) {
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(start_interval, slice->start());
 
   IntervalSetTree result = EmptyIntervalSetTree(slice->GetType());
-  absl::Status status;
-  start_interval.ForEachElement([&](const Bits& v) -> bool {
+  for (const Bits& v : start_interval.Values()) {
     // XLS arrays can't be bigger than this anyway.
     int64_t start = v.FitsInUint64() ? v.ToUint64().value()
                                      : std::numeric_limits<int64_t>::max();
@@ -783,17 +782,17 @@ absl::Status RangeQueryVisitor::HandleArraySlice(ArraySlice* slice) {
         slice->GetType()->AsArrayOrDie(), array_interval_set_tree->AsView(),
         start);
     if (!slice_ltt.ok()) {
-      status.Update(slice_ltt.status());
-      return true;
+      return slice_ltt.status();
     }
     leaf_type_tree::SimpleUpdateFrom<IntervalSet, IntervalSet>(
         result.AsMutableView(), slice_ltt->AsView(),
         [](IntervalSet& lhs, const IntervalSet& rhs) {
           lhs = IntervalSet::Combine(lhs, rhs);
         });
-    return start >= slice->array()->GetType()->AsArrayOrDie()->size();
-  });
-  XLS_RETURN_IF_ERROR(status);
+    if (start >= slice->array()->GetType()->AsArrayOrDie()->size()) {
+      break;
+    }
+  }
 
   SetIntervalSetTree(slice, std::move(result));
   return absl::OkStatus();
@@ -1260,9 +1259,8 @@ absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
 
   // Initialize all interval sets to empty
   IntervalSetTree result = EmptyIntervalSetTree(sel->GetType());
-  absl::Status status = absl::OkStatus();
   const uint64_t num_cases = sel->cases().size();
-  selector_intervals.ForEachElement([&](const Bits& bits) -> bool {
+  for (const Bits& bits : selector_intervals.Values()) {
     // Selects can't have a cases size of more than uint64_MAX.
     uint64_t i = bits.ToUint64().value_or(std::numeric_limits<uint64_t>::max());
     std::optional<IntervalSetTreeView> selected_case;
@@ -1273,9 +1271,8 @@ absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
       // Would select the default case; handle it, then end, since all later
       // selectors will also select the default case.
       if (!sel->default_value().has_value()) {
-        status = absl::InternalError(
+        return absl::InternalError(
             "Reached default case for a Select that has no default case");
-        return true;
       }
       selected_case = MaybeGetIntervalSetTreeView(*sel->default_value());
       finished = true;
@@ -1286,7 +1283,7 @@ absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
       result = UnconstrainedIntervalSetTree(result.type());
 
       // No need to check further cases.
-      return true;
+      break;
     }
 
     leaf_type_tree::SimpleUpdateFrom<IntervalSet, IntervalSet>(
@@ -1294,9 +1291,10 @@ absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
         [](IntervalSet& lhs, const IntervalSet& rhs) {
           lhs = IntervalSet::Combine(lhs, rhs);
         });
-    return finished;
-  });
-  XLS_RETURN_IF_ERROR(status);
+    if (finished) {
+      break;
+    }
+  }
 
   for (IntervalSet& intervals : result.elements()) {
     intervals =

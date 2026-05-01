@@ -292,27 +292,6 @@ class IntervalSet {
   // CHECK fails if the bit width is less than the current `BitCount`.
   IntervalSet ZeroExtend(int64_t bit_width) const;
 
-  // Call the given function on each point contained within this set of
-  // intervals. The function returns a `bool` that, if true, ends the iteration
-  // early and results in `ForEachElement` returning true. If the iteration does
-  // not end early, false is returned. Generally you should prefer the Values
-  // interface.
-  //
-  // CHECK fails if this interval set is not normalized, as that can lead to
-  // unexpectedly calling the callback on the same point twice.
-  template <typename Func>
-    requires(std::is_invocable_r_v<bool, Func, const Bits&>)
-  ABSL_DEPRECATE_AND_INLINE()
-  bool ForEachElement(Func callback) const {
-    CHECK(is_normalized_);
-    for (const Bits& b : Values()) {
-      if (callback(b)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   // Returns a normalized set of intervals comprising the union of the two given
   // interval sets.
   static IntervalSet Combine(const IntervalSet& lhs, const IntervalSet& rhs);
@@ -321,7 +300,7 @@ class IntervalSet {
   // two given interval sets.
   static IntervalSet Intersect(const IntervalSet& lhs, const IntervalSet& rhs);
 
-  // Returns the normalized set of intervals comprising the complemet of the
+  // Returns the normalized set of intervals comprising the complement of the
   // given interval set.
   static IntervalSet Complement(const IntervalSet& set);
 

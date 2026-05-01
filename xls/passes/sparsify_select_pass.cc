@@ -79,8 +79,7 @@ absl::Status SparsifySelect(FunctionBase* f, Select* select,
     std::vector<Node*> cases_in_range;
 
     {
-      absl::Status failure = absl::OkStatus();
-      interval.ForEachElement([&](const Bits& bits) -> bool {
+      for (const Bits& bits : interval) {
         std::optional<uint64_t> index =
             bits.FitsInUint64() ? std::make_optional(*bits.ToUint64())
                                 : std::nullopt;
@@ -89,13 +88,10 @@ absl::Status SparsifySelect(FunctionBase* f, Select* select,
         } else if (select->default_value().has_value()) {
           cases_in_range.push_back(select->default_value().value());
         } else {
-          failure = absl::InternalError(
+          return absl::InternalError(
               "SparsifySelectPass: select had not enough cases and no default");
-          return true;
         }
-        return false;
-      });
-      XLS_RETURN_IF_ERROR(failure);
+      }
     }
 
     XLS_ASSIGN_OR_RETURN(

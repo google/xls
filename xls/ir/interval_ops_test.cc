@@ -1399,12 +1399,15 @@ FUZZ_TEST(MinimizeIntervalsTest, MinimizeIntervalsGeneratesSuperset)
 
 void CoversTernaryWorksForIntervals(const Interval& interval,
                                     TernarySpan ternary) {
-  EXPECT_EQ(interval_ops::CoversTernary(interval, ternary),
-            interval.ForEachElement([&](const Bits& element) {
-              return ternary ==
-                     ternary_ops::Intersection(
-                         ternary_ops::BitsToTernary(element), ternary);
-            }))
+  bool exists = false;
+  for (const Bits& element : interval) {
+    if (ternary == ternary_ops::Intersection(
+                       ternary_ops::BitsToTernary(element), ternary)) {
+      exists = true;
+      break;
+    }
+  }
+  EXPECT_EQ(interval_ops::CoversTernary(interval, ternary), exists)
       << "interval: "
       << absl::StrFormat("[%s, %s]", interval.LowerBound().ToDebugString(),
                          interval.UpperBound().ToDebugString())
