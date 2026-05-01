@@ -490,29 +490,19 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   // unconditionally since we totally remove the array in these circumstances.
   // TODO(meheff): Consider cases where selects with multiple users are still
   // advantageous to transform.
-  if ((array_index->array()->Is<Select>() ||
-       array_index->array()->Is<PrioritySelect>()) &&
+  if (array_index->array()->OpIn(
+          {Op::kSel, Op::kOneHotSel, Op::kPrioritySel}) &&
       (HasSingleUse(array_index->array()) ||
        (IsSmallArray(array_index->array()) && SplitsEnabled(opt_level)))) {
     VLOG(2) << absl::StrFormat(
-        "Replacing array-index of select with select of array-indexes: %s",
-        array_index->ToString());
-    absl::Span<Node* const> original_cases;
-    std::optional<Node*> original_default_value;
-    if (array_index->array()->Is<Select>()) {
-      Select* select = array_index->array()->As<Select>();
-      original_cases = select->cases();
-      original_default_value = select->default_value();
-    } else {
-      XLS_RET_CHECK(array_index->array()->Is<PrioritySelect>());
-      PrioritySelect* select = array_index->array()->As<PrioritySelect>();
-      original_cases = select->cases();
-      original_default_value = select->default_value();
-    }
-
+        "Replacing array-index of select with select of array-indexes: %s "
+        "(select array: %s)",
+        array_index->ToString(), array_index->array()->ToString());
+    XLS_ASSIGN_OR_RETURN(GenericSelect sel,
+                         GenericSelect::From(array_index->array()));
     std::vector<Node*> cases;
-    cases.reserve(original_cases.size());
-    for (Node* case_value : original_cases) {
+    cases.reserve(sel.cases().size());
+    for (Node* case_value : sel.cases()) {
       XLS_ASSIGN_OR_RETURN(
           ArrayIndex * case_array_index,
           array_index->function_base()->MakeNode<ArrayIndex>(
@@ -522,29 +512,18 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     }
 
     std::optional<Node*> default_value;
-    if (original_default_value.has_value()) {
+    if (sel.default_value().has_value()) {
       XLS_ASSIGN_OR_RETURN(
           default_value,
           array_index->function_base()->MakeNode<ArrayIndex>(
-              array_index->loc(), *original_default_value,
-              array_index->indices(), array_index->assumed_in_bounds()));
+              array_index->loc(), *sel.default_value(), array_index->indices(),
+              array_index->assumed_in_bounds()));
     }
 
-    Node* new_select;
-    if (array_index->array()->Is<Select>()) {
-      XLS_ASSIGN_OR_RETURN(
-          new_select, array_index->ReplaceUsesWithNew<Select>(
-                          array_index->array()->As<Select>()->selector(), cases,
-                          default_value));
-    } else {
-      XLS_RET_CHECK(array_index->array()->Is<PrioritySelect>());
-      XLS_RET_CHECK(default_value.has_value());
-      XLS_ASSIGN_OR_RETURN(
-          new_select,
-          array_index->ReplaceUsesWithNew<PrioritySelect>(
-              array_index->array()->As<PrioritySelect>()->selector(), cases,
-              *default_value));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_select,
+        sel.CloneSelectLike(sel.selector(), cases, default_value));
+    XLS_RETURN_IF_ERROR(array_index->ReplaceUsesWith(new_select));
 
     std::vector<Node*> changed = std::move(cases);
     if (default_value.has_value()) {

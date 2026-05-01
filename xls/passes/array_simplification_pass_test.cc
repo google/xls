@@ -1700,6 +1700,28 @@ TEST_F(ArraySimplificationPassTest, ArraySliceLiteralOOBAll) {
                        m::ArrayIndex(m::Param("array"), {m::Literal(9)})));
 }
 
+TEST_F(ArraySimplificationPassTest, IndexOfOneHotSelect) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", p->GetArrayType(3, p->GetArrayType(4, u32)));
+  BValue b = fb.Param("b", p->GetArrayType(3, p->GetArrayType(4, u32)));
+  BValue sel = fb.Param("p", p->GetBitsType(2));
+  BValue one_hot = fb.OneHotSelect(sel, {a, b});
+  BValue i = fb.Param("i", p->GetBitsType(10));
+  BValue j = fb.Param("j", p->GetBitsType(10));
+  fb.ArrayIndex(one_hot, {i, j});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::OneHotSelect(
+          m::Param("p"), /*cases=*/{
+              m::ArrayIndex(m::Param("a"), {m::Param("i"), m::Param("j")}),
+              m::ArrayIndex(m::Param("b"), {m::Param("i"), m::Param("j")})}));
+}
+
 void IrFuzzArraySimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ArraySimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
