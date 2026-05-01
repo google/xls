@@ -3634,14 +3634,15 @@ absl::Status FunctionConverter::HandleFunction(
 
 absl::Status FunctionConverter::LowerDomainExpr(
     Expr* expr, PackageInterfaceProto::FuzzTestDomain* proto) {
-  if (expr->kind() == AstNodeKind::kXlsTuple &&
-      absl::down_cast<XlsTuple*>(expr)->empty()) {
-    proto->set_arbitrary(true);
-    return absl::OkStatus();
+  if (expr->kind() == AstNodeKind::kArray) {
+    return LowerArrayExpr(absl::down_cast<Array*>(expr), proto);
   }
   if (expr->kind() == AstNodeKind::kRange) {
     Range* range_node = absl::down_cast<Range*>(expr);
     return LowerRangeExpr(range_node, proto);
+  }
+  if (expr->kind() == AstNodeKind::kXlsTuple) {
+    return LowerTupleExpr(absl::down_cast<XlsTuple*>(expr), proto);
   }
   if (expr->kind() == AstNodeKind::kNameRef) {
     NameRef* name_ref = absl::down_cast<NameRef*>(expr);
@@ -3654,32 +3655,8 @@ absl::Status FunctionConverter::LowerDomainExpr(
       // we could tag the InterpValue of such arrays as actually ranges, use
       // GetConstExpr to get the range instead.
       Expr* value_expr = (*const_def)->value();
-      if (value_expr->kind() == AstNodeKind::kRange) {
-        return LowerRangeExpr(absl::down_cast<Range*>(value_expr), proto);
-      }
+      return LowerDomainExpr(value_expr, proto);
     }
-  }
-  if (expr->kind() == AstNodeKind::kArray) {
-    Array* array_node = absl::down_cast<Array*>(expr);
-
-    auto* element_of_proto = proto->mutable_element_of();
-    for (Expr* member : array_node->members()) {
-      XLS_ASSIGN_OR_RETURN(InterpValue val,
-                           current_type_info_->GetConstExpr(member));
-      XLS_ASSIGN_OR_RETURN(Value ir_val, InterpValueToValue(val));
-      XLS_ASSIGN_OR_RETURN(ValueProto val_proto, ir_val.AsProto());
-      *element_of_proto->add_values() = std::move(val_proto);
-    }
-    return absl::OkStatus();
-  }
-  if (expr->kind() == AstNodeKind::kXlsTuple) {
-    XlsTuple* tuple_node = absl::down_cast<XlsTuple*>(expr);
-
-    auto* tuple_proto = proto->mutable_tuple();
-    for (Expr* member : tuple_node->members()) {
-      XLS_RETURN_IF_ERROR(LowerDomainExpr(member, tuple_proto->add_elements()));
-    }
-    return absl::OkStatus();
   }
   return absl::UnimplementedError(
       absl::StrCat("Unsupported fuzztest domain type: ", expr->ToString()));
@@ -3704,13 +3681,39 @@ absl::Status FunctionConverter::LowerRangeExpr(
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::LowerArrayExpr(
+    Array* array_node, PackageInterfaceProto::FuzzTestDomain* proto) {
+  auto* element_of_proto = proto->mutable_element_of();
+  for (Expr* member : array_node->members()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue val,
+                         current_type_info_->GetConstExpr(member));
+    XLS_ASSIGN_OR_RETURN(Value ir_val, InterpValueToValue(val));
+    XLS_ASSIGN_OR_RETURN(ValueProto val_proto, ir_val.AsProto());
+    *element_of_proto->add_values() = std::move(val_proto);
+  }
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::LowerTupleExpr(
+    XlsTuple* tuple_node, PackageInterfaceProto::FuzzTestDomain* proto) {
+  if (tuple_node->members().empty()) {
+    proto->set_arbitrary(true);
+    return absl::OkStatus();
+  }
+  auto* tuple_proto = proto->mutable_tuple();
+  for (Expr* member : tuple_node->members()) {
+    XLS_RETURN_IF_ERROR(LowerDomainExpr(member, tuple_proto->add_elements()));
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::optional<AttributeData>>
 FunctionConverter::LowerFuzzTestDomains(Function* node) {
   if (node->parent() == nullptr ||
       node->parent()->kind() != AstNodeKind::kFuzzTestFunction) {
     return std::nullopt;
   }
-  FuzzTestFunction* ft = static_cast<FuzzTestFunction*>(node->parent());
+  FuzzTestFunction* ft = absl::down_cast<FuzzTestFunction*>(node->parent());
 
   if (ft->domains().has_value()) {
     XlsTuple* domains_tuple = *ft->domains();

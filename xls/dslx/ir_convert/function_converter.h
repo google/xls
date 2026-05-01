@@ -722,8 +722,16 @@ class FunctionConverter {
   absl::Status LowerDomainExpr(Expr* expr,
                                PackageInterfaceProto::FuzzTestDomain* proto);
 
-  // Lowers a range expression to a proto
+  // Lowers a DSLX Range expression to a FuzzTestDomain proto.
   absl::Status LowerRangeExpr(Range* range_node,
+                              PackageInterfaceProto::FuzzTestDomain* proto);
+
+  // Lowers a DSLX Array expression to a FuzzTestDomain proto (ElementOf).
+  absl::Status LowerArrayExpr(Array* array_node,
+                              PackageInterfaceProto::FuzzTestDomain* proto);
+
+  // Lowers a DSLX Tuple expression to a FuzzTestDomain proto.
+  absl::Status LowerTupleExpr(XlsTuple* tuple_node,
                               PackageInterfaceProto::FuzzTestDomain* proto);
 };
 
