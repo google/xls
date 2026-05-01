@@ -2180,5 +2180,24 @@ TEST_F(PipelineScheduleTest, ProcWithMultipleStateReads) {
   EXPECT_EQ(schedule.length(), 1);
 }
 
+TEST_F(PipelineScheduleTest, ProcWithZeroReadsErrors) {
+  Package p(TestName());
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
+                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+
+  BValue add_val = pb.Literal(UBits(42, 32));
+  pb.Next(se, add_val);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  SchedulingOptions options(SchedulingStrategy::ASAP);
+  options.clock_period_ps(2);
+
+  EXPECT_THAT(RunPipelineSchedule(proc, TestDelayEstimator(), options),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("has no reads")));
+}
+
 }  // namespace
 }  // namespace xls

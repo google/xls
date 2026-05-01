@@ -40,6 +40,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "ortools/graph/topologicalsorter.h"
 
@@ -156,9 +157,19 @@ std::string ScheduleGraph::ToString() const {
 
   // Proc state is represented as backedges in the graph.
   if (f->IsProc()) {
-    for (Next* next : f->AsProcOrDie()->next_values()) {
+    Proc* proc = f->AsProcOrDie();
+    // Forbid any state element with zero reads.
+    for (StateElement* state_element : proc->StateElements()) {
+      if (proc->GetStateReadsByStateElement(state_element).empty()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "State element `%s` has no reads. This is not allowed.",
+            state_element->name()));
+      }
+    }
+
+    for (Next* next : proc->next_values()) {
       absl::Span<StateRead* const> reads =
-          f->AsProcOrDie()->GetStateReadsByStateElement(next->state_element());
+          proc->GetStateReadsByStateElement(next->state_element());
       for (StateRead* read : reads) {
         backedges.push_back(
             ScheduleBackedge{.source = next,

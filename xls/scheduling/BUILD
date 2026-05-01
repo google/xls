@@ -714,6 +714,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:proc_elaboration",
+        "//xls/ir:state_element",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

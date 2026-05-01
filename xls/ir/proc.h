@@ -117,7 +117,11 @@ class Proc : public FunctionBase {
   // Get state reads for a state element.
   absl::Span<StateRead* const> GetStateReadsByStateElement(
       StateElement* state_element) const {
-    return state_reads_.at(state_element);
+    auto it = state_reads_.find(state_element);
+    if (it == state_reads_.end()) {
+      return absl::Span<StateRead* const>();
+    }
+    return it->second;
   }
 
   // Returns the index of the given state element in the vector of state
