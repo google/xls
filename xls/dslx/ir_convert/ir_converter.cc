@@ -239,7 +239,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
           ConstexprEvaluator::EvaluateToValue(
               import_data, record.type_info(), kNoWarningCollector,
               record.parametric_env(), p->init().body()));
-      XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(iv));
+      XLS_ASSIGN_OR_RETURN(Value ir_value, iv.ConvertToIr());
       proc_data->id_to_initial_value[record.proc_id().value()] = ir_value;
     }
 

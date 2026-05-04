@@ -62,9 +62,6 @@
 
 namespace xls::dslx {
 
-// Converts an interpreter value to an IR value.
-absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);
-
 // For all free variables of "node", adds them transitively for any required
 // constant dependencies to the converter.
 //

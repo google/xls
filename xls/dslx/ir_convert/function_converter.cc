@@ -40,7 +40,6 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
-#include "google/protobuf/text_format.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -60,6 +59,7 @@
 #include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/ir_convert/convert_format_macro.h"
 #include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/ir_convert/fuzz_test_converter.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 #include "xls/dslx/ir_convert/proc_scoped_channel_scope.h"
@@ -842,7 +842,7 @@ absl::Status FunctionConverter::HandleXlsTuple(const XlsTuple* node) {
 
 absl::Status FunctionConverter::HandleZeroMacro(const ZeroMacro* node) {
   XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
-  XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
+  XLS_ASSIGN_OR_RETURN(Value value, iv.ConvertToIr());
   Def(node, [this, &value](const SourceInfo& loc) {
     return function_builder_->Literal(value, loc);
   });
@@ -851,7 +851,7 @@ absl::Status FunctionConverter::HandleZeroMacro(const ZeroMacro* node) {
 
 absl::Status FunctionConverter::HandleAllOnesMacro(const AllOnesMacro* node) {
   XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
-  XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
+  XLS_ASSIGN_OR_RETURN(Value value, iv.ConvertToIr());
   Def(node, [this, &value](const SourceInfo& loc) {
     return function_builder_->Literal(value, loc);
   });
@@ -961,7 +961,7 @@ absl::Status FunctionConverter::HandleConstantDef(const ConstantDef* node) {
   VLOG(5) << "Visiting ConstantDef expr: " << node->value()->ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue iv,
                        current_type_info_->GetConstExpr(node->value()));
-  XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
+  XLS_ASSIGN_OR_RETURN(Value value, iv.ConvertToIr());
   Def(node->value(), [this, &value](const SourceInfo& loc) {
     return function_builder_->Literal(value, loc);
   });
@@ -1273,7 +1273,7 @@ absl::Status FunctionConverter::HandleBuiltinCheckedCast(
 absl::Status FunctionConverter::HandleBuiltinBitCount(const Invocation* node) {
   // Like array_size, bit_count is always constexpr.
   XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
-  XLS_ASSIGN_OR_RETURN(Value v, InterpValueToValue(iv));
+  XLS_ASSIGN_OR_RETURN(Value v, iv.ConvertToIr());
   DefConst(node, v);
   return absl::OkStatus();
 }
@@ -1282,7 +1282,7 @@ absl::Status FunctionConverter::HandleBuiltinElementCount(
     const Invocation* node) {
   // Like bit_count, element_count is always constexpr.
   XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
-  XLS_ASSIGN_OR_RETURN(Value v, InterpValueToValue(iv));
+  XLS_ASSIGN_OR_RETURN(Value v, iv.ConvertToIr());
   DefConst(node, v);
   return absl::OkStatus();
 }
@@ -1290,7 +1290,7 @@ absl::Status FunctionConverter::HandleBuiltinElementCount(
 absl::Status FunctionConverter::HandleBuiltinConfiguredValueOr(
     const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
-  XLS_ASSIGN_OR_RETURN(Value v, InterpValueToValue(iv));
+  XLS_ASSIGN_OR_RETURN(Value v, iv.ConvertToIr());
   DefConst(node, v);
   return absl::OkStatus();
 }
@@ -3542,8 +3542,7 @@ absl::Status FunctionConverter::HandleFunction(
       XLS_ASSIGN_OR_RETURN(TypeDim parametric_width_ctd,
                            parametric_type->GetTotalBitCount());
 
-      XLS_ASSIGN_OR_RETURN(Value param_value,
-                           InterpValueToValue(*parametric_value));
+      XLS_ASSIGN_OR_RETURN(Value param_value, parametric_value->ConvertToIr());
       const CValue evaluated = DefConst(parametric_binding, param_value);
       const_prefill.SetNamedValue(parametric_binding->name_def()->identifier(),
                                   evaluated.ir_value);
@@ -3632,118 +3631,10 @@ absl::Status FunctionConverter::HandleFunction(
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::LowerDomainExpr(
-    Expr* expr, PackageInterfaceProto::FuzzTestDomain* proto) {
-  if (expr->kind() == AstNodeKind::kArray) {
-    return LowerArrayExpr(absl::down_cast<Array*>(expr), proto);
-  }
-  if (expr->kind() == AstNodeKind::kRange) {
-    Range* range_node = absl::down_cast<Range*>(expr);
-    return LowerRangeExpr(range_node, proto);
-  }
-  if (expr->kind() == AstNodeKind::kXlsTuple) {
-    return LowerTupleExpr(absl::down_cast<XlsTuple*>(expr), proto);
-  }
-  if (expr->kind() == AstNodeKind::kNameRef) {
-    NameRef* name_ref = absl::down_cast<NameRef*>(expr);
-
-    absl::StatusOr<ConstantDef*> const_def =
-        module_->GetMemberOrError<ConstantDef>(name_ref->identifier());
-    if (const_def.ok()) {
-      // TODO: davidplass - This fails if there's a const that refers to another
-      // const, or calls a function, or references an imported symbol. Instead,
-      // we could tag the InterpValue of such arrays as actually ranges, use
-      // GetConstExpr to get the range instead.
-      Expr* value_expr = (*const_def)->value();
-      return LowerDomainExpr(value_expr, proto);
-    }
-  }
-  return absl::UnimplementedError(
-      absl::StrCat("Unsupported fuzztest domain type: ", expr->ToString()));
-}
-
-absl::Status FunctionConverter::LowerRangeExpr(
-    Range* range_node, PackageInterfaceProto::FuzzTestDomain* proto) {
-  XLS_ASSIGN_OR_RETURN(InterpValue min_val,
-                       current_type_info_->GetConstExpr(range_node->start()));
-  XLS_ASSIGN_OR_RETURN(InterpValue max_val,
-                       current_type_info_->GetConstExpr(range_node->end()));
-
-  XLS_ASSIGN_OR_RETURN(Value ir_min, InterpValueToValue(min_val));
-  XLS_ASSIGN_OR_RETURN(Value ir_max, InterpValueToValue(max_val));
-
-  XLS_ASSIGN_OR_RETURN(ValueProto min_proto, ir_min.AsProto());
-  XLS_ASSIGN_OR_RETURN(ValueProto max_proto, ir_max.AsProto());
-
-  auto* range_proto = proto->mutable_range();
-  *range_proto->mutable_min() = std::move(min_proto);
-  *range_proto->mutable_max() = std::move(max_proto);
-  return absl::OkStatus();
-}
-
-absl::Status FunctionConverter::LowerArrayExpr(
-    Array* array_node, PackageInterfaceProto::FuzzTestDomain* proto) {
-  auto* element_of_proto = proto->mutable_element_of();
-  for (Expr* member : array_node->members()) {
-    XLS_ASSIGN_OR_RETURN(InterpValue val,
-                         current_type_info_->GetConstExpr(member));
-    XLS_ASSIGN_OR_RETURN(Value ir_val, InterpValueToValue(val));
-    XLS_ASSIGN_OR_RETURN(ValueProto val_proto, ir_val.AsProto());
-    *element_of_proto->add_values() = std::move(val_proto);
-  }
-  return absl::OkStatus();
-}
-
-absl::Status FunctionConverter::LowerTupleExpr(
-    XlsTuple* tuple_node, PackageInterfaceProto::FuzzTestDomain* proto) {
-  if (tuple_node->members().empty()) {
-    proto->set_arbitrary(true);
-    return absl::OkStatus();
-  }
-  auto* tuple_proto = proto->mutable_tuple();
-  for (Expr* member : tuple_node->members()) {
-    XLS_RETURN_IF_ERROR(LowerDomainExpr(member, tuple_proto->add_elements()));
-  }
-  return absl::OkStatus();
-}
-
 absl::StatusOr<std::optional<AttributeData>>
 FunctionConverter::LowerFuzzTestDomains(Function* node) {
-  if (node->parent() == nullptr ||
-      node->parent()->kind() != AstNodeKind::kFuzzTestFunction) {
-    return std::nullopt;
-  }
-  FuzzTestFunction* ft = absl::down_cast<FuzzTestFunction*>(node->parent());
-
-  if (ft->domains().has_value()) {
-    XlsTuple* domains_tuple = *ft->domains();
-    // We use a dummy Function proto here solely to get the
-    // `parameter_domains` field name wrapper in the serialized text proto.
-    // This will allow clients to easily parse the string back into a Function
-    // proto and recover the domains therein.
-    PackageInterfaceProto::Function temp_func;
-
-    for (Expr* domain_expr : domains_tuple->members()) {
-      PackageInterfaceProto::FuzzTestDomain* domain_proto =
-          temp_func.add_parameter_domains();
-
-      XLS_RETURN_IF_ERROR(LowerDomainExpr(domain_expr, domain_proto));
-    }
-
-    std::string proto_str;
-    google::protobuf::TextFormat::Printer printer;
-    printer.SetSingleLineMode(true);
-    XLS_RET_CHECK(printer.PrintToString(temp_func, &proto_str));
-
-    std::vector<AttributeData::Argument> args;
-    args.push_back(
-        AttributeData::StringKeyValueArgument{.first = "domains",
-                                              .second = std::move(proto_str),
-                                              .is_backticked = true});
-
-    return AttributeData(AttributeKind::kFuzzTest, std::move(args));
-  }
-  return std::nullopt;
+  FuzzTestConverter converter(module_, current_type_info_);
+  return converter.LowerFuzzTestDomains(node);
 }
 
 absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
@@ -4113,8 +4004,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   std::optional<InterpValue> const_init_value = record.init_value();
   if (const_init_value.has_value()) {
     // Note that this is the branch we take for any spawned proc.
-    XLS_ASSIGN_OR_RETURN(initial_element,
-                         InterpValueToValue(*const_init_value));
+    XLS_ASSIGN_OR_RETURN(initial_element, const_init_value->ConvertToIr());
     VLOG(5) << "HandleProcNextFunction: initial element now "
             << initial_element.ToString();
   } else if (proc_data_->id_to_initial_value.contains(proc_id)) {
@@ -4440,7 +4330,7 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
   // computed.
   XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
                        current_type_info_->GetConstExpr(node));
-  XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(interp_value));
+  XLS_ASSIGN_OR_RETURN(Value value, interp_value.ConvertToIr());
   DefConst(node, value);
   return absl::OkStatus();
 }
@@ -4504,7 +4394,7 @@ absl::Status FunctionConverter::HandleStructInstance(
         XLS_ASSIGN_OR_RETURN(InterpValue const_value,
                              current_type_info_->GetConstExpr(value));
         XLS_ASSIGN_OR_RETURN(state_init_values[name],
-                             InterpValueToValue(const_value));
+                             const_value.ConvertToIr());
       } else {
         // If it's not a state element (e.g. it's a channel) then it's a
         // "normal" IR value.
@@ -4907,7 +4797,7 @@ absl::Status FunctionConverter::HandleBuiltinArraySize(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   // All array sizes are constexpr since they're based on known types.
   XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
-  XLS_ASSIGN_OR_RETURN(Value v, InterpValueToValue(iv));
+  XLS_ASSIGN_OR_RETURN(Value v, iv.ConvertToIr());
   DefConst(node, v);
   return absl::OkStatus();
 }
@@ -5363,33 +5253,6 @@ absl::StatusOr<xls::Type*> FunctionConverter::ResolveTypeToIr(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type, ResolveType(node));
   return TypeToIr(package_data_.conversion_info->package.get(), *type,
                   ParametricEnv(parametric_env_map_));
-}
-
-absl::StatusOr<Value> InterpValueToValue(const InterpValue& iv) {
-  switch (iv.tag()) {
-    case InterpValueTag::kSBits:
-    case InterpValueTag::kUBits:
-    case InterpValueTag::kEnum:
-      return Value(iv.GetBitsOrDie());
-    case InterpValueTag::kTuple:
-    case InterpValueTag::kArray: {
-      std::vector<Value> ir_values;
-      for (const InterpValue& e : iv.GetValuesOrDie()) {
-        XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(e));
-        ir_values.push_back(std::move(ir_value));
-      }
-      if (iv.tag() == InterpValueTag::kTuple) {
-        return Value::Tuple(ir_values);
-      }
-      return Value::Array(ir_values);
-    }
-    case InterpValueTag::kToken:
-      return Value::Token();
-    default:
-      return absl::InvalidArgumentError(
-          absl::StrCat("Cannot convert interpreter value with tag: ",
-                       TagToString(iv.tag())));
-  }
 }
 
 absl::StatusOr<std::optional<ConstantDef*>> TryResolveConstantDef(
