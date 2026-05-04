@@ -466,5 +466,19 @@ const_assert!(FOO == [u32:20, 21, 22, 23, 24]);
                           "{ X: uN[32] })"))));
 }
 
+TEST(TypecheckV2Test, LambdaUsesColonRef) {
+  EXPECT_THAT(
+      R"(
+struct S {}
+impl S {
+  const C: u32 = 5;
+}
+
+const ARR = map(u32:0..6, | i | { S::C + i });
+const_assert!(ARR == [u32:5, 6, 7, 8, 9, 10]);
+)",
+      TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][6]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

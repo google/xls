@@ -278,6 +278,13 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  // ColonRefs refer to names in other namespaces (e.g., modules, struct
+  // members) and are not what this visitor is trying to collect, which is
+  // references to locally-defined NameDefs.
+  absl::Status HandleColonRef(const ColonRef* node) override {
+    return absl::OkStatus();
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     bool prev_in_type_annotation = in_type_annotation_;
     if (node->kind() == AstNodeKind::kTypeAnnotation) {
