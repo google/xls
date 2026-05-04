@@ -44,6 +44,7 @@ xls_pass_registry(
         ":to_zero_ext_pass",
         ":decompose_dataflow_pass",
         ":remove_one_hot_select_pass",
+        ":remove_identifiers_pass",
     ],
     tags = ["keep_dep"],
 )
@@ -303,6 +304,43 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
+xls_pass(
+    name = "remove_identifiers_pass",
+    srcs = ["remove_identifiers_pass.cc"],
+    hdrs = ["remove_identifiers_pass.h"],
+    pass_class = "RemoveIdentifiersPass",
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/dev_tools:remove_identifiers",
+        "//xls/ir",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "remove_identifiers_pass_test",
+    srcs = ["remove_identifiers_pass_test.cc"],
+    deps = [
+        ":remove_identifiers_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "//xls/passes:dfe_pass",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )

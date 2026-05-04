@@ -700,6 +700,13 @@ absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannelInProc(
   return channel_ptr;
 }
 
+absl::Status Package::ClearFiles() {
+  fileno_to_filename_.clear();
+  filename_to_fileno_.clear();
+  maximum_fileno_.reset();
+  return absl::OkStatus();
+}
+
 absl::Status Package::RemoveChannel(Channel* channel) {
   // First check that the channel is owned by this package.
   auto it = std::find(channel_vec_.begin(), channel_vec_.end(), channel);

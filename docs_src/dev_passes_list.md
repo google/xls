@@ -80,6 +80,33 @@ the optimization pass pipeline for modernizing procs.
 
 
 
+## remove_identifiers_unsafe - UNSAFE: Remove all identifiers {#remove_identifiers_unsafe}
+
+
+A pass version of 'remove_identifers_main'. Running this pass will rewrite
+the package to remove the names of all functions, procs, nodes, channels,
+etc.
+
+This should only be used while investigating optimizer behavior using the
+ir-visualizer or other tools.
+
+!!! WARNING
+    This pass does not preserve externally visible names. Once run on a
+    design the various io-constraint and other configs which rely on naming
+    pieces of the design will not work. This pass is only for dev/ investigatory
+    purposes.
+
+!!! NOTE
+    This pass **does not** preserve the id number of nodes.
+
+
+[Header](http://github.com/google/xls/tree/main/xls/dev_tools/dev_passes/remove_identifiers_pass.h)
+
+
+
+
+
+
 ## remove_one_hot_sel - One Hot Select Removal Pass {#remove_one_hot_sel}
 
 

@@ -381,6 +381,9 @@ class Package {
   // nodes an error is returned.
   absl::Status RemoveChannel(Channel* channel);
 
+  // Clears all files from the package.
+  absl::Status ClearFiles();
+
   // Builder to collect overrides when cloning channels.
   // Each field is optional where std::nullopt indicates that the cloned channel
   // should share the same value as the original. If a field contains a value,
