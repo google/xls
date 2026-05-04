@@ -299,17 +299,24 @@ class OptimizationContext {
 
   class InvalidatingVector : public ChangeListener {
    public:
-    explicit InvalidatingVector(FunctionBase* f, std::vector<Node*> value = {})
-        : f_(f), storage_(std::move(value)) {
+    explicit InvalidatingVector(OptimizationContext* owner, FunctionBase* f,
+                                std::vector<Node*> value = {})
+        : f_(f), storage_(std::move(value)), owner_(owner) {
       f_->RegisterChangeListener(this);
     }
-    ~InvalidatingVector() override { f_->UnregisterChangeListener(this); }
+    ~InvalidatingVector() override {
+      if (f_ != nullptr) {
+        f_->UnregisterChangeListener(this);
+      }
+    }
 
     InvalidatingVector(const InvalidatingVector&) = delete;
     InvalidatingVector& operator=(const InvalidatingVector&) = delete;
 
     InvalidatingVector(InvalidatingVector&& other)
-        : f_(other.f_), storage_(std::move(other.storage_)) {
+        : f_(other.f_),
+          storage_(std::move(other.storage_)),
+          owner_(other.owner_) {
       f_->RegisterChangeListener(this);
     }
     InvalidatingVector& operator=(InvalidatingVector&& other) {
@@ -318,6 +325,7 @@ class OptimizationContext {
       }
       f_ = other.f_;
       storage_ = std::move(other.storage_);
+      owner_ = other.owner_;
       if (f_ != nullptr) {
         f_->RegisterChangeListener(this);
       }
@@ -341,11 +349,33 @@ class OptimizationContext {
     void NextStateElementChanged(Proc*, int64_t, Node*) override {
       storage_.clear();
     }
+    void FunctionBaseDeleted(FunctionBase* f) override {
+      CHECK_NE(f_, nullptr) << "FunctionBase already deleted!";
+      CHECK_EQ(f, f_) << "Deleted function base doesn't match stored one!";
+      // Avoid issues where we try to unregister a listener that's already gone
+      // because the function is already deleted.
+      //
+      // NB We can't call RemoveChangeListener here because we're in the
+      // destructor of the function base and doing so would invalidate its
+      // iterators.
+      storage_.clear();
+      f_ = nullptr;
+      owner_->HandleFunctionBaseDeleted(f);
+    }
 
    private:
     FunctionBase* f_;
     std::vector<Node*> storage_;
+    OptimizationContext* owner_;
   };
+
+  // Remove the function from the topo sort map so we don't have issues if the
+  // pointer is still around but invalid.
+  //
+  // NB The function is currently in its destructor.
+  void HandleFunctionBaseDeleted(FunctionBase* f) {
+    reverse_topo_sort_.erase(f);
+  }
   absl::flat_hash_map<FunctionBase*, InvalidatingVector> reverse_topo_sort_;
 
   // Helper class to hide the actual constructor arguments needed to create an

@@ -144,7 +144,7 @@ OptimizationContext::ReverseTopoSortReference(FunctionBase* f) {
     XLS_ASSIGN_OR_RETURN(std::vector<Node*> sorted, xls::ReverseTopoSort(f));
     bool inserted = false;
     std::tie(it, inserted) =
-        reverse_topo_sort_.emplace(f, InvalidatingVector(f, sorted));
+        reverse_topo_sort_.emplace(f, InvalidatingVector(this, f, sorted));
     XLS_RET_CHECK(inserted);
   }
   if (it->second->empty() && f->node_count() > 0) {
