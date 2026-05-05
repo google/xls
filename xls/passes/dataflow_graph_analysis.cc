@@ -72,8 +72,8 @@ DataflowGraphAnalysis::DataflowGraphAnalysis(std::vector<Node*> topo_sort_nodes,
     node_to_index_[nodes_[i]] = i;
   }
 
-  graph_ = std::make_unique<Graph>();
-  graph_->AddNode(kSourceIndex);
+  Graph::Builder builder;
+  builder.AddNode(kSourceIndex);
   absl::flat_hash_map<ArcIndex, int64_t> arc_capacities;
   absl::flat_hash_map<Node*, ArcIndex> internal_arcs;
   absl::flat_hash_map<Node*, ArcIndex> source_arcs;
@@ -83,8 +83,8 @@ DataflowGraphAnalysis::DataflowGraphAnalysis(std::vector<Node*> topo_sort_nodes,
 
     NodeIndex v_in = InIndex(i);
     NodeIndex v_out = OutIndex(i);
-    graph_->AddNode(v_in);
-    graph_->AddNode(v_out);
+    builder.AddNode(v_in);
+    builder.AddNode(v_out);
 
     int64_t bit_count = node->GetType()->GetFlatBitCount();
 
@@ -94,7 +94,7 @@ DataflowGraphAnalysis::DataflowGraphAnalysis(std::vector<Node*> topo_sort_nodes,
     } else if (IsDataOriginating(node)) {
       // These nodes originate (potentially) variable data; they are the points
       // of entry for unknown data.
-      source_arcs[node] = graph_->AddArc(kSourceIndex, v_in);
+      source_arcs[node] = builder.AddArc(kSourceIndex, v_in);
       arc_capacities[source_arcs[node]] = bit_count;
     } else if (query_engine != nullptr) {
       if (std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
@@ -108,17 +108,17 @@ DataflowGraphAnalysis::DataflowGraphAnalysis(std::vector<Node*> topo_sort_nodes,
       }
     }
 
-    internal_arcs[node] = graph_->AddArc(v_in, v_out);
+    internal_arcs[node] = builder.AddArc(v_in, v_out);
     arc_capacities[internal_arcs[node]] = unknown_bits;
-    sink_arcs[node] = graph_->AddArc(v_in, kSinkIndex);
+    sink_arcs[node] = builder.AddArc(v_in, kSinkIndex);
     arc_capacities[sink_arcs[node]] = 0;
     for (Node* user : node->users()) {
-      arc_capacities[graph_->AddArc(v_out, InIndex(user))] = unknown_bits;
+      arc_capacities[builder.AddArc(v_out, InIndex(user))] = unknown_bits;
     }
   }
 
   std::vector<ArcIndex> arc_permutation;
-  graph_->Build(&arc_permutation);
+  graph_ = std::move(builder).Build(&arc_permutation);
   auto permuted = [&](ArcIndex arc) {
     return arc < arc_permutation.size() ? arc_permutation[arc] : arc;
   };
