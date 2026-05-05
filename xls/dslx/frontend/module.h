@@ -302,6 +302,10 @@ class Module : public AstNode {
     return GetTopWithT<TestProc>();
   }
 
+  std::vector<Function*> GetFunctions() const {
+    return GetTopWithT<Function>();
+  }
+
   std::vector<Impl*> GetImpls() const { return GetTopWithT<Impl>(); }
 
   // Returns the identifiers for all functions within this module (in the order

@@ -259,6 +259,9 @@ cc_test(
 xls_dslx_test(
     name = "round_dslx_test",
     srcs = ["round_tests.x"],
+    dslx_test_args = {
+        "lower_to_ir": "false",
+    },
     deps = ["//xls/dslx/stdlib:round_dslx"],
 )
 

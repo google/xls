@@ -88,6 +88,7 @@ cc_test(
 
 pytype_strict_contrib_test(
     name = "documentation_test",
+    timeout = "long",
     srcs = ["documentation_test.py"],
     data = [
         "//docs_src:dslx_documentation_files",

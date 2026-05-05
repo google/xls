@@ -967,6 +967,57 @@ class OutOfTreeInterpreterTest(test_base.TestCase):
     self.assertEqual(p.returncode, 0)
     self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
 
+  def test_lower_to_ir_check(self):
+    """Tests performing an early feedback IR conversion test."""
+    program = """
+    proc Generator {
+      out_ch: chan<u32> out;
+      val: u32;
+
+      init {()}
+      config(out_ch: chan<u32> out, val: u32, val2: u32) {
+        (out_ch, val + val2)
+      }
+      next(state: ()) {
+        send(join(), out_ch, val);
+      }
+    }
+
+    #[test_proc]
+    proc Testing {
+      terminator: chan<bool> out;
+      response: chan<u32> in;
+
+      init {  }
+
+      config(terminator: chan<bool> out){
+        let (s, r) = chan<u32, u32:1>("test_chan");
+        spawn Generator(s, u32:66, u32:99);
+        (terminator, r)
+      }
+
+      next(state: ()) {
+        let (tok, data) = recv(join(), response);
+        send(tok, terminator, true);
+      }
+    }
+    """
+    temp_file = self.create_tempfile(content=program)
+    # Note: we have to supply `env` to avoid the Python testbridge setting
+    # seeping in.
+    p = subp.run(
+        [self.interpreter_path.full_path, temp_file.full_path],
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+        encoding='utf-8',
+        env={},
+        check=False,
+    )
+    print('p:', p)
+    self.assertEqual(p.returncode, 1)
+    self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
+    self.assertIn('IR conversion test failed for Generator.', p.stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

@@ -56,12 +56,14 @@ xls_dslx_opt_ir_test(
     dep = ":crc32_one_byte_inferred",
 )
 
-# TODO(leary): 2019-07-24 Missing conversion of 'for/enumerate'.
+# TODO: Remove `lower_to_ir` flag once the support for std::enumerate
+#       is merged: https://github.com/google/xls/pull/3816
 xls_dslx_test(
     name = "prefix_scan_equality_dslx_test",
     srcs = ["prefix_scan_equality.x"],
     dslx_test_args = {
         "compare": "none",
+        "lower_to_ir": "false",
     },
 )
 

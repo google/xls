@@ -618,6 +618,7 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":command_line_utils",
+        ":create_import_data",
         ":default_dslx_stdlib_path",
         ":parse_and_typecheck",
         ":virtualizable_file_system",
@@ -626,6 +627,7 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
+        "//xls/dslx/ir_convert:ir_converter",
         "//xls/dslx/run_routines",
         "//xls/dslx/run_routines:ir_test_runner",
         "//xls/dslx/run_routines:run_comparator",
