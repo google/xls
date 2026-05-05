@@ -18,6 +18,7 @@
 #include <cctype>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -248,12 +249,14 @@ class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
   // relative to the XLS source top.
   virtual std::filesystem::path GoldenFilePath(
       std::string_view test_file_name,
-      const std::filesystem::path& testdata_dir) {
+      const std::filesystem::path& testdata_dir,
+      std::optional<std::string_view> forced_test_base_name = std::nullopt) {
     // We suffix the golden reference files with "txt" on top of the extension
     // just to indicate they're compiler byproduct comparison points and not
     // Verilog files that have been written by hand.
     std::string filename =
-        absl::StrFormat("%s_%s.%s", test_file_name, TestBaseName(),
+        absl::StrFormat("%s_%s.%s", test_file_name,
+                        forced_test_base_name.value_or(TestBaseName()),
                         UseSystemVerilog() ? "svtxt" : "vtxt");
     return testdata_dir / filename;
   }
