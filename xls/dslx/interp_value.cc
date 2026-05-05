@@ -1018,12 +1018,10 @@ InterpValue::ConvertValuesToIr(absl::Span<InterpValue const> values) {
 
 absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
   switch (tag_) {
-    case InterpValueTag::kUBits: {
+    case InterpValueTag::kUBits:
+    case InterpValueTag::kSBits:
+    case InterpValueTag::kEnum:
       return xls::Value(GetBitsOrDie());
-    }
-    case InterpValueTag::kSBits: {
-      return xls::Value(GetBitsOrDie());
-    }
     case InterpValueTag::kArray: {
       XLS_ASSIGN_OR_RETURN(std::vector<xls::Value> converted,
                            ConvertValuesToIr(GetValuesOrDie()));
@@ -1034,24 +1032,17 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
                            ConvertValuesToIr(GetValuesOrDie()));
       return xls::Value::Tuple(converted);
     }
-    case InterpValueTag::kEnum: {
-      return xls::Value(GetBitsOrDie());
-    }
-    case InterpValueTag::kToken: {
+    case InterpValueTag::kToken:
       return xls::Value::Token();
-    }
-    case InterpValueTag::kFunction: {
+    case InterpValueTag::kFunction:
       return absl::InvalidArgumentError(absl::StrFormat(
           "Cannot convert functions to IR: %s", ToString(/*humanize=*/true)));
-    }
-    case InterpValueTag::kChannelReference: {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Cannot convert channel-reference-typed values to IR."));
-    }
-    case InterpValueTag::kTypeReference: {
+    case InterpValueTag::kChannelReference:
       return absl::InvalidArgumentError(
-          absl::StrFormat("Cannot convert type-reference-typed values to IR."));
-    }
+          "Cannot convert channel-reference-typed values to IR.");
+    case InterpValueTag::kTypeReference:
+      return absl::InvalidArgumentError(
+          "Cannot convert type-reference-typed values to IR.");
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
 }
