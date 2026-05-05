@@ -35,6 +35,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/eco/ir_patch.pb.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
@@ -99,6 +100,9 @@ const absl::flat_hash_map<std::string, Op>& PatchToIrOpMap() {
       {"receive", Op::kReceive},
       {"send", Op::kSend},
       {"next_value", Op::kNext},
+      {"assert", Op::kAssert},
+      {"trace", Op::kTrace},
+      {"gate", Op::kGate},
   };
   return *kMap;
 }
@@ -253,16 +257,9 @@ absl::Status PatchIr::ApplyDeletePath(
     XLS_ASSIGN_OR_RETURN(int64_t index, proc_->GetStateElementIndex(se));
     XLS_RETURN_IF_ERROR(proc_->RemoveStateElement(index));
   } else {
-    // TODO(eco): Remove this loop once ir2nx.py / ir2gxl.py are deprecated in
-    // favour of the C++ GXL toolchain.  When that happens, the C++ parser will
-    // export assert/trace nodes into the GXL graph so the GED will generate
-    // proper edge-deletions for them, making this clean-up unnecessary.
-    //
-    // Background: ir2nx.py's _parse_dbg_node silently skips 'assert' and
-    // 'trace' nodes (software-only, no hardware representation), so the GED
-    // never sees edges to/from those nodes and never generates edge-deletions
-    // for them.  We must therefore disconnect any remaining debug-node users
-    // ourselves before calling RemoveNode.
+    // Defensive cleanup for debug-node users. The direct IR graph represents
+    // assert/trace nodes, so ordinary patches should delete their edges before
+    // deleting this node.
     for (Node* user : n->users()) {
       if (user->op() != Op::kAssert && user->op() != Op::kTrace) {
         return absl::InternalError(absl::StrFormat(
@@ -646,6 +643,56 @@ absl::Status PatchIr::ApplyInsertPath(
                                             /*label=*/std::nullopt));
       XLS_RETURN_IF_ERROR(
           UpdateNodeMaps(n, all_dummy_operands, patch_node.name()));
+      break;
+    }
+    case (Op::kAssert): {
+      const std::string message =
+          patch_node.unique_args_size() > 0 &&
+                  patch_node.unique_args(0).has_message()
+              ? patch_node.unique_args(0).message()
+              : "";
+      std::optional<std::string> label;
+      if (patch_node.unique_args_size() > 1 &&
+          patch_node.unique_args(1).has_label()) {
+        label = patch_node.unique_args(1).label();
+      }
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<Assert>(SourceInfo(), dummy_operands[0],
+                                              dummy_operands[1], message, label,
+                                              std::nullopt));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kTrace): {
+      const std::string format_string =
+          patch_node.unique_args_size() > 0 &&
+                  patch_node.unique_args(0).has_format()
+              ? patch_node.unique_args(0).format()
+              : "";
+      XLS_ASSIGN_OR_RETURN(std::vector<FormatStep> format,
+                           ParseFormatString(format_string));
+      int64_t verbosity = 0;
+      if (patch_node.unique_args_size() > 1 &&
+          patch_node.unique_args(1).has_verbosity()) {
+        verbosity = patch_node.unique_args(1).verbosity();
+      }
+      XLS_ASSIGN_OR_RETURN(
+          n, function_base_->MakeNode<Trace>(
+                 SourceInfo(), dummy_operands[0], dummy_operands[1],
+                 absl::MakeConstSpan(dummy_operands).subspan(2),
+                 absl::MakeConstSpan(format), verbosity));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
+      break;
+    }
+    case (Op::kGate): {
+      XLS_ASSIGN_OR_RETURN(n,
+                           function_base_->MakeNode<Gate>(
+                               SourceInfo(), dummy_operands[0],
+                               dummy_operands[1]));
+      XLS_RETURN_IF_ERROR(
+          UpdateNodeMaps(n, absl::MakeSpan(dummy_operands), patch_node.name()));
       break;
     }
     default:

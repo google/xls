@@ -29,6 +29,8 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/util/json_util.h"
 #include "xls/contrib/eco/ged.h"
 #include "xls/contrib/eco/graph.h"
 #include "xls/contrib/eco/ir_patch.pb.h"
@@ -37,8 +39,19 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_value.pb.h"
+#include "xls/visualization/ir_viz/visualization.pb.h"
 
 namespace {
+
+std::string BoolString(bool value) { return value ? "true" : "false"; }
+
+std::string DoubleString(double value) {
+  int64_t integer_value = static_cast<int64_t>(value);
+  if (static_cast<double>(integer_value) == value) {
+    return absl::StrCat(integer_value);
+  }
+  return absl::StrCat(value);
+}
 
 std::optional<xls::TypeProto> ParseTypeProto(absl::string_view type_str) {
   if (type_str.empty()) {
@@ -51,6 +64,48 @@ std::optional<xls::TypeProto> ParseTypeProto(absl::string_view type_str) {
     return std::nullopt;
   }
   return type_or.value()->ToProto();
+}
+
+std::string NodeAttributeFieldToString(
+    const xls::viz::NodeAttributes& node_attributes,
+    const google::protobuf::FieldDescriptor* field) {
+  const google::protobuf::Reflection* reflection =
+      node_attributes.GetReflection();
+  switch (field->cpp_type()) {
+    case google::protobuf::FieldDescriptor::CPPTYPE_DOUBLE:
+      return DoubleString(reflection->GetDouble(node_attributes, field));
+    case google::protobuf::FieldDescriptor::CPPTYPE_INT64:
+      return absl::StrCat(reflection->GetInt64(node_attributes, field));
+    case google::protobuf::FieldDescriptor::CPPTYPE_STRING:
+      return reflection->GetString(node_attributes, field);
+    case google::protobuf::FieldDescriptor::CPPTYPE_BOOL:
+      return BoolString(reflection->GetBool(node_attributes, field));
+    default:
+      return "";
+  }
+}
+
+void ExpandNodeAttributesJson(
+    const std::string& json,
+    absl::flat_hash_map<std::string, std::string>* fields) {
+  xls::viz::NodeAttributes node_attributes;
+  if (!google::protobuf::util::JsonStringToMessage(json, &node_attributes)
+           .ok()) {
+    return;
+  }
+
+  std::vector<const google::protobuf::FieldDescriptor*> present_fields;
+  node_attributes.GetReflection()->ListFields(node_attributes, &present_fields);
+  for (const google::protobuf::FieldDescriptor* field : present_fields) {
+    (*fields)[field->name()] =
+        NodeAttributeFieldToString(node_attributes, field);
+  }
+  if (fields->contains("initial_value") && !fields->contains("init")) {
+    (*fields)["init"] = fields->at("initial_value");
+  }
+  if (fields->contains("state_param_index") && !fields->contains("index")) {
+    (*fields)["index"] = fields->at("state_param_index");
+  }
 }
 
 absl::flat_hash_map<std::string, std::string> ParseFields(
@@ -68,6 +123,11 @@ absl::flat_hash_map<std::string, std::string> ParseFields(
     std::string key = token.substr(0, pos);
     std::string value = token.substr(pos + 1);
     result[key] = value;
+  }
+
+  auto node_attributes_it = result.find("node_attributes");
+  if (node_attributes_it != result.end()) {
+    ExpandNodeAttributesJson(node_attributes_it->second, &result);
   }
 
   return result;
@@ -236,6 +296,33 @@ void PopulateUniqueArgs(
     auto channel_it = attrs.find("channel");
     if (channel_it != attrs.end()) {
       node_proto->add_unique_args()->set_channel(channel_it->second);
+    }
+  } else if (op_name == "assert") {
+    auto message_it = attrs.find("message_");
+    if (message_it == attrs.end()) {
+      message_it = attrs.find("message");
+    }
+    if (message_it != attrs.end()) {
+      node_proto->add_unique_args()->set_message(message_it->second);
+    }
+    auto label_it = attrs.find("label");
+    if (label_it != attrs.end()) {
+      node_proto->add_unique_args()->set_label(label_it->second);
+    }
+  } else if (op_name == "trace") {
+    auto format_it = attrs.find("xls_format");
+    if (format_it == attrs.end()) {
+      format_it = attrs.find("format");
+    }
+    if (format_it != attrs.end()) {
+      node_proto->add_unique_args()->set_format(format_it->second);
+    }
+    auto verbosity_it = attrs.find("verbosity");
+    if (verbosity_it != attrs.end()) {
+      if (auto verbosity = ParseInt64(verbosity_it->second);
+          verbosity.has_value()) {
+        node_proto->add_unique_args()->set_verbosity(*verbosity);
+      }
     }
   } else if (op_name == "state_read") {
     auto index_it = attrs.find("index");
