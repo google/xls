@@ -1,4 +1,4 @@
-// Copyright 2025 The XLS Authors
+// Copyright 2026 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_ECO_GXL_PARSER_H_
-#define XLS_ECO_GXL_PARSER_H_
+#ifndef XLS_ECO_XLS_IR_TO_GRAPH_H_
+#define XLS_ECO_XLS_IR_TO_GRAPH_H_
 
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <string>
-#include <tuple>
-#include <vector>
+#include <string_view>
 
-#include "tinyxml2.h"
+#include "absl/status/statusor.h"
 #include "xls/contrib/eco/graph.h"
+#include "xls/ir/function_base.h"
 
-XLSGraph parse_gxl(const std::string& filename);
-bool export_gxl(const XLSGraph& graph, const std::string& filename);
+namespace xls {
 
-#endif  // XLS_ECO_GXL_PARSER_H_
+absl::StatusOr<XLSGraph> XlsIrToGraph(FunctionBase* function_base);
+absl::StatusOr<XLSGraph> ParseIrFileToGraph(std::string_view ir_path);
+
+}  // namespace xls
+
+#endif  // XLS_ECO_XLS_IR_TO_GRAPH_H_
