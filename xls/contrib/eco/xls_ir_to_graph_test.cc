@@ -23,14 +23,11 @@
 #include "xls/contrib/eco/graph.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 
 namespace xls {
 namespace {
-
-bool Contains(const std::string& haystack, const std::string& needle) {
-  return haystack.find(needle) != std::string::npos;
-}
 
 TEST(XlsIrToGraphTest, ConvertsFunctionToGraph) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -70,12 +67,17 @@ top fn main(x: bits[32], y: bits[32]) -> bits[32] {
   EXPECT_TRUE(graph.has_edge(add, result, 0));
   EXPECT_TRUE(graph.has_edge(literal, result, 1));
 
-  EXPECT_TRUE(Contains(graph.nodes[literal].cost_attributes, "op=literal"));
-  EXPECT_TRUE(
-      Contains(graph.nodes[literal].cost_attributes, "node_attributes="));
-  EXPECT_TRUE(Contains(graph.nodes[literal].cost_attributes, "\"value\""));
-  EXPECT_TRUE(Contains(graph.nodes[add].cost_attributes,
-                       "operand_dtype_strs=bits[32],bits[32]"));
+  EXPECT_EQ(graph.nodes[literal].cost_attributes.op, Op::kLiteral);
+  ASSERT_TRUE(graph.nodes[literal].cost_attributes.literal_value.has_value());
+  EXPECT_EQ(graph.nodes[literal].cost_attributes.literal_value->bits().bit_count(),
+            32);
+  EXPECT_TRUE(graph.nodes[literal]
+                  .cost_attributes.node_attributes.has_value());
+  EXPECT_EQ(graph.nodes[add].cost_attributes.operand_data_types.size(), 2);
+  EXPECT_EQ(graph.nodes[add].cost_attributes.operand_data_types[0].bit_count(),
+            32);
+  EXPECT_EQ(graph.nodes[add].cost_attributes.operand_data_types[1].bit_count(),
+            32);
 }
 
 TEST(XlsIrToGraphTest, IncludesDebugNodesFromIr) {
@@ -100,12 +102,18 @@ top fn main(tkn: token, cond: bits[1], x: bits[5]) -> bits[5] {
   const int trace_node = graph.node_name_to_index.at("trace.5");
 
   EXPECT_TRUE(graph.has_edge(assert_node, trace_node, 0));
+  EXPECT_EQ(graph.nodes[assert_node].cost_attributes.op, Op::kAssert);
+  EXPECT_EQ(graph.nodes[assert_node].cost_attributes.node_attributes.message_(),
+            "boom");
+  EXPECT_EQ(graph.nodes[assert_node].cost_attributes.node_attributes.label(),
+            "label");
+  EXPECT_EQ(graph.nodes[trace_node].cost_attributes.op, Op::kTrace);
   EXPECT_TRUE(
-      Contains(graph.nodes[assert_node].cost_attributes, "op=assert"));
-  EXPECT_TRUE(
-      Contains(graph.nodes[assert_node].cost_attributes, "\"message_\""));
-  EXPECT_TRUE(Contains(graph.nodes[trace_node].cost_attributes, "op=trace"));
-  EXPECT_TRUE(Contains(graph.nodes[trace_node].cost_attributes, "\"format\""));
+      graph.nodes[trace_node].cost_attributes.node_attributes.has_format());
+  ASSERT_TRUE(
+      graph.nodes[trace_node].cost_attributes.trace_xls_format.has_value());
+  EXPECT_EQ(*graph.nodes[trace_node].cost_attributes.trace_xls_format,
+            "x is {}");
 }
 
 TEST(XlsIrToGraphTest, IncludesProcStateReadAttributes) {
@@ -125,12 +133,15 @@ top proc main(st: bits[32], init={42}) {
 
   ASSERT_TRUE(graph.node_name_to_index.contains("st"));
   const int state_read = graph.node_name_to_index.at("st");
-  EXPECT_TRUE(Contains(graph.nodes[state_read].cost_attributes,
-                       "op=state_read"));
-  EXPECT_TRUE(Contains(graph.nodes[state_read].cost_attributes,
-                       "state_element=st"));
-  EXPECT_TRUE(Contains(graph.nodes[state_read].cost_attributes, "init=42"));
-  EXPECT_TRUE(Contains(graph.nodes[state_read].cost_attributes, "index=0"));
+  EXPECT_EQ(graph.nodes[state_read].cost_attributes.op, Op::kStateRead);
+  EXPECT_EQ(graph.nodes[state_read].cost_attributes.state_element, "st");
+  ASSERT_TRUE(
+      graph.nodes[state_read].cost_attributes.state_initial_value.has_value());
+  EXPECT_EQ(graph.nodes[state_read]
+                .cost_attributes.state_initial_value->bits()
+                .bit_count(),
+            32);
+  EXPECT_EQ(graph.nodes[state_read].cost_attributes.state_index, 0);
 }
 
 }  // namespace

@@ -91,7 +91,6 @@ bazel_dep(name = "rules_closure", version = "0.15.0")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
-bazel_dep(name = "tinyxml2", version = "11.0.0")
 bazel_dep(name = "verible", version = "0.0.3933")
 bazel_dep(name = "with_cfg.bzl", version = "0.14.6")
 
