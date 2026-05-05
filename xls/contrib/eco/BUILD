@@ -257,14 +257,6 @@ cc_proto_library(
 # Graph Edit Distance (GED) and Maximum Common Subgraph (MCS) implementation
 
 cc_library(
-    name = "tinyxml2",
-    srcs = ["libs/tinyxml2/tinyxml2.cpp"],
-    hdrs = ["libs/tinyxml2/tinyxml2.h"],
-    strip_include_prefix = "libs/tinyxml2",
-    visibility = ["//visibility:private"],
-)
-
-cc_library(
     name = "graph",
     srcs = ["graph.cc"],
     hdrs = ["graph.h"],
@@ -282,10 +274,10 @@ cc_library(
     hdrs = ["gxl_parser.h"],
     deps = [
         ":graph",
-        ":tinyxml2",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
+        "@tinyxml2",
     ],
 )
 
