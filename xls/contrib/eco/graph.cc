@@ -14,36 +14,179 @@
 
 #include "xls/contrib/eco/graph.h"
 
-#include "absl/container/flat_hash_set.h"
-
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <optional>
+#include <string>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
+#include "xls/ir/op.h"
 
-XLSNode::XLSNode(const std::string& node_name, const std::string& cost_attrs)
+namespace {
+
+std::size_t HashCombine(std::size_t seed, std::size_t v) {
+  seed ^= v + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+  return seed;
+}
+
+std::size_t HashString(const std::string& value) {
+  return std::hash<std::string>{}(value);
+}
+
+template <typename T>
+std::size_t HashProto(const T& proto) {
+  return HashString(proto.SerializeAsString());
+}
+
+std::size_t HashOp(xls::Op op) {
+  return std::hash<int>{}(static_cast<int>(op));
+}
+
+template <typename T, typename HashFn>
+std::size_t HashOptional(const std::optional<T>& value, HashFn hash_fn) {
+  std::size_t seed = 0;
+  seed = HashCombine(seed, value.has_value() ? 1 : 0);
+  if (value.has_value()) {
+    seed = HashCombine(seed, hash_fn(*value));
+  }
+  return seed;
+}
+
+std::size_t HashOptionalOp(const std::optional<xls::Op>& op) {
+  return HashOptional(op, [](xls::Op value) { return HashOp(value); });
+}
+
+template <typename T>
+std::size_t HashOptionalProto(const std::optional<T>& proto) {
+  return HashOptional(proto, [](const T& value) { return HashProto(value); });
+}
+
+template <typename T>
+std::size_t HashOptionalValue(const std::optional<T>& value) {
+  return HashOptional(value, [](const T& present_value) {
+    return std::hash<T>{}(present_value);
+  });
+}
+
+std::string OptionalOpDebugString(const std::optional<xls::Op>& op) {
+  return op.has_value() ? std::string(xls::OpToString(*op)) : "<unset>";
+}
+
+std::string OptionalProtoDebugString(
+    const std::optional<xls::TypeProto>& proto) {
+  return proto.has_value() ? proto->ShortDebugString() : "<unset>";
+}
+
+std::string OptionalProtoDebugString(
+    const std::optional<xls::ValueProto>& proto) {
+  return proto.has_value() ? proto->ShortDebugString() : "<unset>";
+}
+
+}  // namespace
+
+std::size_t NodeCostAttributes::Hash() const {
+  std::size_t seed = 0;
+  seed = HashCombine(seed, HashOptionalOp(op));
+  seed = HashCombine(seed, HashOptionalProto(data_type));
+  for (const xls::TypeProto& operand_type : operand_data_types) {
+    seed = HashCombine(seed, HashProto(operand_type));
+  }
+  seed = HashCombine(seed, HashProto(node_attributes));
+  seed = HashCombine(seed, HashOptionalProto(literal_value));
+  seed = HashCombine(seed, HashOptionalValue(array_assumed_in_bounds));
+  seed = HashCombine(seed, HashOptionalValue(state_element));
+  seed = HashCombine(seed, HashOptionalProto(state_initial_value));
+  seed = HashCombine(seed, HashOptionalValue(state_index));
+  seed = HashCombine(seed, HashOptionalValue(trace_xls_format));
+  return seed;
+}
+
+std::string NodeCostAttributes::DebugString() const {
+  std::vector<std::string> fields{
+      absl::StrCat("op=", OptionalOpDebugString(op)),
+      absl::StrCat("data_type=", OptionalProtoDebugString(data_type)),
+  };
+  if (!operand_data_types.empty()) {
+    fields.push_back(absl::StrCat(
+        "operand_data_types=[",
+        absl::StrJoin(operand_data_types, ", ",
+                      [](std::string* out, const xls::TypeProto& type) {
+                        absl::StrAppend(out, type.ShortDebugString());
+                      }),
+        "]"));
+  }
+  if (node_attributes.ByteSizeLong() != 0) {
+    fields.push_back(
+        absl::StrCat("node_attributes=", node_attributes.ShortDebugString()));
+  }
+  if (literal_value.has_value()) {
+    fields.push_back(absl::StrCat("literal_value=",
+                                  OptionalProtoDebugString(literal_value)));
+  }
+  if (array_assumed_in_bounds.has_value()) {
+    fields.push_back(
+        absl::StrCat("array_assumed_in_bounds=", *array_assumed_in_bounds));
+  }
+  if (state_element.has_value()) {
+    fields.push_back(absl::StrCat("state_element=", *state_element));
+  }
+  if (state_initial_value.has_value()) {
+    fields.push_back(absl::StrCat(
+        "state_initial_value=", OptionalProtoDebugString(state_initial_value)));
+  }
+  if (state_index.has_value()) {
+    fields.push_back(absl::StrCat("state_index=", *state_index));
+  }
+  if (trace_xls_format.has_value()) {
+    fields.push_back(absl::StrCat("trace_xls_format=", *trace_xls_format));
+  }
+  return absl::StrJoin(fields, ", ");
+}
+
+std::size_t EdgeCostAttributes::Hash() const {
+  std::size_t seed = 0;
+  seed = HashCombine(seed, HashOptionalOp(source_op));
+  seed = HashCombine(seed, HashOptionalProto(source_data_type));
+  seed = HashCombine(seed, HashOptionalOp(sink_op));
+  seed = HashCombine(seed, HashOptionalProto(sink_data_type));
+  seed = HashCombine(seed, HashOptionalValue(index));
+  return seed;
+}
+
+std::string EdgeCostAttributes::DebugString() const {
+  std::vector<std::string> fields{
+      absl::StrCat("source_op=", OptionalOpDebugString(source_op)),
+      absl::StrCat("source_data_type=",
+                   OptionalProtoDebugString(source_data_type)),
+      absl::StrCat("sink_op=", OptionalOpDebugString(sink_op)),
+      absl::StrCat("sink_data_type=", OptionalProtoDebugString(sink_data_type)),
+  };
+  if (index.has_value()) {
+    fields.push_back(absl::StrCat("index=", *index));
+  }
+  return absl::StrJoin(fields, ", ");
+}
+
+XLSNode::XLSNode(const std::string& node_name,
+                 const NodeCostAttributes& cost_attrs)
     : name(node_name),
       cost_attributes(cost_attrs),
-      label(std::hash<std::string>{}(cost_attributes)) {}
-XLSEdge::XLSEdge(int source, int sink, const std::string& cost_attrs, int idx)
+      label(cost_attributes.Hash()) {}
+
+XLSEdge::XLSEdge(int source, int sink, const EdgeCostAttributes& cost_attrs,
+                 int idx)
     : endpoints(source, sink),
       cost_attributes(cost_attrs),
       index(idx),
-      label(std::hash<std::string>{}(cost_attributes)) {}
-XLSGraph::XLSGraph() {}
+      label(cost_attributes.Hash()) {}
 
-// Helper function to extract op value from cost_attributes string
-static std::string extract_op(const std::string& cost_attributes) {
-  size_t op_pos = cost_attributes.find("op=");
-  if (op_pos == std::string::npos) return "";
-  size_t start = op_pos + 3;
-  size_t end = cost_attributes.find("|", start);
-  if (end == std::string::npos) end = cost_attributes.length();
-  return cost_attributes.substr(start, end - start);
-}
+XLSGraph::XLSGraph() {}
 
 int XLSGraph::add_node(const XLSNode& node) {
   int node_index = nodes.size();
@@ -51,7 +194,7 @@ int XLSGraph::add_node(const XLSNode& node) {
   nodes.back().index = node_index;
   node_name_to_index[node.name] = node_index;
   VLOG(2) << "Added node: " << node.name << " at index " << node_index
-          << " with cost attributes: " << node.cost_attributes;
+          << " with cost attributes: " << node.cost_attributes.DebugString();
   VLOG(3) << "Node Label: " << node.label;
   return node_index;
 }
@@ -65,38 +208,24 @@ int XLSGraph::add_edge(const XLSEdge& edge) {
   int sink_index = edge.endpoints.second;
   edge_count++;  // Still track count for potential future use
 
-  // Assert that edge source and sink ops match the source and sink nodes ops
-  std::string source_op = extract_op(nodes[source_index].cost_attributes);
-  std::string sink_op = extract_op(nodes[sink_index].cost_attributes);
-
-  // Extract source_op and sink_op from edge cost_attributes if present
-  std::string edge_source_op;
-  std::string edge_sink_op;
-
-  size_t edge_source_op_pos = edge.cost_attributes.find("source_op=");
-  if (edge_source_op_pos != std::string::npos) {
-    size_t start = edge_source_op_pos + 10;
-    size_t end = edge.cost_attributes.find("|", start);
-    if (end == std::string::npos) end = edge.cost_attributes.length();
-    edge_source_op = edge.cost_attributes.substr(start, end - start);
-  }
-
-  size_t edge_sink_op_pos = edge.cost_attributes.find("sink_op=");
-  if (edge_sink_op_pos != std::string::npos) {
-    size_t start = edge_sink_op_pos + 8;
-    size_t end = edge.cost_attributes.find("|", start);
-    if (end == std::string::npos) end = edge.cost_attributes.length();
-    edge_sink_op = edge.cost_attributes.substr(start, end - start);
-  }
-
   // If edge specifies source_op or sink_op, they must match the nodes' ops
-  if (!edge_source_op.empty() && source_op != edge_source_op) {
-    LOG(FATAL) << "Edge source_op mismatch: edge specifies '" << edge_source_op
-               << "' but source node has op='" << source_op << "'";
+  if (edge.cost_attributes.source_op.has_value() &&
+      nodes[source_index].cost_attributes.op.has_value() &&
+      *nodes[source_index].cost_attributes.op !=
+          *edge.cost_attributes.source_op) {
+    LOG(FATAL) << "Edge source_op mismatch: edge specifies '"
+               << xls::OpToString(*edge.cost_attributes.source_op)
+               << "' but source node has op='"
+               << xls::OpToString(*nodes[source_index].cost_attributes.op)
+               << "'";
   }
-  if (!edge_sink_op.empty() && sink_op != edge_sink_op) {
-    LOG(FATAL) << "Edge sink_op mismatch: edge specifies '" << edge_sink_op
-               << "' but sink node has op='" << sink_op << "'";
+  if (edge.cost_attributes.sink_op.has_value() &&
+      nodes[sink_index].cost_attributes.op.has_value() &&
+      *nodes[sink_index].cost_attributes.op != *edge.cost_attributes.sink_op) {
+    LOG(FATAL) << "Edge sink_op mismatch: edge specifies '"
+               << xls::OpToString(*edge.cost_attributes.sink_op)
+               << "' but sink node has op='"
+               << xls::OpToString(*nodes[sink_index].cost_attributes.op) << "'";
   }
 
   edges.emplace_back(source_index, sink_index, edge.cost_attributes,
@@ -114,9 +243,10 @@ int XLSGraph::add_edge(const XLSEdge& edge) {
   VLOG(2) << "Added edge: " << nodes[source_index].name << " -> "
           << nodes[sink_index].name << " with index: " << edge.index;
   VLOG(3) << "  Source node attributes: "
-          << nodes[source_index].cost_attributes;
-  VLOG(3) << "  Sink node attributes: " << nodes[sink_index].cost_attributes;
-  VLOG(3) << "  Edge attributes: " << edge.cost_attributes;
+          << nodes[source_index].cost_attributes.DebugString();
+  VLOG(3) << "  Sink node attributes: "
+          << nodes[sink_index].cost_attributes.DebugString();
+  VLOG(3) << "  Edge attributes: " << edge.cost_attributes.DebugString();
   VLOG(3) << "  Edge label: " << edge.label;
   return edge_idx;
 }
@@ -211,15 +341,9 @@ int XLSGraph::count_edges(int u, int v) const {
   return count;
 }
 
-static inline std::size_t hash_combine(std::size_t seed, std::size_t v) {
-  seed ^= v + 0x9e3779b97f4a7c15ULL + (seed << 6) +
-          (seed >> 2);  // The golden ratio
-  return seed;
-}
-
 static inline std::size_t hash_vector(const std::vector<std::size_t>& vals) {
   std::size_t seed = 0;
-  for (auto v : vals) seed = hash_combine(seed, v);
+  for (auto v : vals) seed = HashCombine(seed, v);
   return seed;
 }
 
@@ -289,9 +413,9 @@ void XLSGraph::populate_node_signatures() {
     // signature = hash(label, ordered(incoming_labels),
     // unordered(outgoing_labels))
     std::size_t sig = 0;
-    sig = hash_combine(sig, nodes[u].label);
-    sig = hash_combine(sig, hash_vector(nodes[u].incoming_labels));
-    sig = hash_combine(sig, hash_vector(nodes[u].outgoing_labels));
+    sig = HashCombine(sig, nodes[u].label);
+    sig = HashCombine(sig, hash_vector(nodes[u].incoming_labels));
+    sig = HashCombine(sig, hash_vector(nodes[u].outgoing_labels));
     nodes[u].signature = sig;
   }
 
@@ -300,7 +424,7 @@ void XLSGraph::populate_node_signatures() {
   for (size_t i = 0; i < nodes.size(); ++i) {
     if (nodes[i].pinned) {
       VLOG(2) << "Pinned node: " << nodes[i].name
-              << " attrs=" << nodes[i].cost_attributes;
+              << " attrs=" << nodes[i].cost_attributes.DebugString();
     }
   }
 }

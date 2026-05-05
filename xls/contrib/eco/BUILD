@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
-load("@protobuf//bazel:proto_library.bzl", "proto_library")
-load("@protobuf//bazel:py_proto_library.bzl", "py_proto_library")
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
@@ -42,10 +42,10 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:op",
         "//xls/visualization/ir_viz:node_attribute_visitor",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/strings",
-        "@protobuf//:json_util",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:json_util",
     ],
 )
 
@@ -67,6 +67,7 @@ pytype_strict_contrib_test(
     name = "xls_ir_to_networkx_test",
     srcs = ["xls_ir_to_networkx_test.py"],
     data = ["//xls/examples:riscv_simple.opt.ir"],
+    tags = ["manual"],
     deps = [
         ":xls_ir_to_networkx",
         "//xls/common:runfiles",
@@ -155,11 +156,7 @@ pytype_strict_contrib_test(
         "//xls/examples:riscv_simple.ir",  # unopt
         "//xls/examples:riscv_simple.opt.ir",  #opt
     ],
-    # These test relatively expensive Python code (the py_binary using it cares enough to call
-    # sys.setrecursionlimit()), so make them optonly. They are flaky with sanitizers.
-    # TODO: google/xls#3813 - remove when our GED implementation is C++ based and more extensively
-    # tested.
-    tags = ["optonly"],
+    tags = ["manual"],
     deps = [
         ":ir_diff",
         ":ir_diff_main_lib",
@@ -261,6 +258,11 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings",
+        "//xls/ir:op",
+        "//xls/ir:xls_type_cc_proto",
+        "//xls/ir:xls_value_cc_proto",
+        "//xls/visualization/ir_viz:visualization_cc_proto",
     ],
 )
 
@@ -274,16 +276,13 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:format_preference",
         "//xls/ir:format_strings",
         "//xls/ir:ir_parser",
         "//xls/ir:op",
         "//xls/visualization/ir_viz:node_attribute_visitor",
-        "//xls/visualization/ir_viz:visualization_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_protobuf//:json_util",
     ],
 )
 
@@ -348,6 +347,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "//xls/ir:op",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
@@ -361,18 +361,7 @@ cc_library(
         ":ged",
         ":graph",
         ":ir_patch_cc_proto",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/ir:type",
-        "//xls/ir:value",
-        "//xls/ir:xls_value_cc_proto",
-        "//xls/visualization/ir_viz:visualization_cc_proto",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_protobuf//:json_util",
-        "@com_google_protobuf//:protobuf",
+        "//xls/ir:op",
     ],
 )
 

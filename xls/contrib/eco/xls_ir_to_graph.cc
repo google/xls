@@ -25,13 +25,10 @@
 #include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
-#include "google/protobuf/util/json_util.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/eco/graph.h"
-#include "xls/ir/format_preference.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -42,100 +39,74 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/visualization/ir_viz/node_attribute_visitor.h"
-#include "xls/visualization/ir_viz/visualization.pb.h"
 
 namespace xls {
 namespace {
 
-struct KeyValueFormatter {
-  void operator()(std::string* out,
-                  const std::pair<std::string, std::string>& attr) const {
-    absl::StrAppend(out, attr.first, "=", attr.second);
-  }
-};
-
-std::string SerializeAttributes(
-    const std::vector<std::pair<std::string, std::string>>& attributes) {
-  return absl::StrJoin(attributes, "|", KeyValueFormatter());
-}
-
-std::string OperandTypeStrings(Node* node) {
-  std::vector<std::string> operand_type_strings;
-  operand_type_strings.reserve(node->operand_count());
-  for (Node* operand : node->operands()) {
-    operand_type_strings.push_back(operand->GetType()->ToString());
-  }
-  return absl::StrJoin(operand_type_strings, ",");
-}
-
 absl::Status AddStateReadAttributes(
-    Node* node, std::vector<std::pair<std::string, std::string>>* attrs) {
+    Node* node, NodeCostAttributes* attrs) {
   if (!node->Is<StateRead>()) {
     return absl::OkStatus();
   }
 
   StateRead* state_read = node->As<StateRead>();
-  attrs->push_back({"state_element", state_read->state_element()->name()});
-  attrs->push_back({"init",
-                    state_read->state_element()->initial_value().ToHumanString(
-                        FormatPreference::kDefault)});
+  attrs->state_element = state_read->state_element()->name();
+  XLS_ASSIGN_OR_RETURN(attrs->state_initial_value,
+                       state_read->state_element()->initial_value().AsProto());
   if (node->function_base()->IsProc()) {
     XLS_ASSIGN_OR_RETURN(
         int64_t index,
         node->function_base()->AsProcOrDie()->GetStateElementIndex(
             state_read->state_element()));
-    attrs->push_back({"index", absl::StrCat(index)});
+    attrs->state_index = index;
   }
   return absl::OkStatus();
 }
 
-void AddTraceAttributes(
-    Node* node, std::vector<std::pair<std::string, std::string>>* attrs) {
+void AddTraceAttributes(Node* node, NodeCostAttributes* attrs) {
   if (!node->Is<Trace>()) {
     return;
   }
-  attrs->push_back(
-      {"xls_format", StepsToXlsFormatString(node->As<Trace>()->format())});
+  attrs->trace_xls_format = StepsToXlsFormatString(node->As<Trace>()->format());
 }
 
-absl::StatusOr<std::string> NodeCostAttributes(Node* node) {
-  std::vector<std::pair<std::string, std::string>> attrs{
-      {"op", OpToString(node->op())},
-      {"dtype_str", node->GetType()->ToString()},
-  };
-  if (node->operand_count() > 0) {
-    attrs.push_back({"operand_dtype_strs", OperandTypeStrings(node)});
+absl::StatusOr<NodeCostAttributes> GetNodeCostAttributes(Node* node) {
+  NodeCostAttributes attrs;
+  attrs.op = node->op();
+  attrs.data_type = node->GetType()->ToProto();
+  attrs.operand_data_types.reserve(node->operand_count());
+  for (Node* operand : node->operands()) {
+    attrs.operand_data_types.push_back(operand->GetType()->ToProto());
+  }
+  if (node->Is<Literal>()) {
+    XLS_ASSIGN_OR_RETURN(attrs.literal_value,
+                         node->As<Literal>()->value().AsProto());
+  }
+  if (node->Is<ArrayIndex>()) {
+    attrs.array_assumed_in_bounds = node->As<ArrayIndex>()->assumed_in_bounds();
+  } else if (node->Is<ArrayUpdate>()) {
+    attrs.array_assumed_in_bounds = node->As<ArrayUpdate>()->assumed_in_bounds();
   }
   XLS_RETURN_IF_ERROR(AddStateReadAttributes(node, &attrs));
   AddTraceAttributes(node, &attrs);
 
   AttributeVisitor visitor;
   XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
-  const viz::NodeAttributes& node_attributes = visitor.attributes();
-  google::protobuf::util::JsonPrintOptions print_options;
-  print_options.add_whitespace = false;
-  print_options.preserve_proto_field_names = true;
-
-  std::string json_node_attributes;
-  XLS_RETURN_IF_ERROR(google::protobuf::util::MessageToJsonString(
-      node_attributes, &json_node_attributes, print_options));
-  if (!json_node_attributes.empty() && json_node_attributes != "{}") {
-    attrs.push_back({"node_attributes", json_node_attributes});
-  }
-  return SerializeAttributes(attrs);
+  attrs.node_attributes = visitor.attributes();
+  return attrs;
 }
 
-std::string EdgeCostAttributes(Node* operand, Node* user, int64_t index) {
-  std::vector<std::pair<std::string, std::string>> attrs{
-      {"source_data_type", operand->GetType()->ToString()},
-      {"source_op", OpToString(operand->op())},
-      {"sink_data_type", user->GetType()->ToString()},
-      {"sink_op", OpToString(user->op())},
-  };
+EdgeCostAttributes GetEdgeCostAttributes(Node* operand, Node* user,
+                                         int64_t index) {
+  EdgeCostAttributes attrs;
+  attrs.source_data_type = operand->GetType()->ToProto();
+  attrs.source_op = operand->op();
+  attrs.sink_data_type = user->GetType()->ToProto();
+  attrs.sink_op = user->op();
   if (!OpIsCommutative(user->op())) {
-    attrs.push_back({"index", absl::StrCat(index)});
+    attrs.index = index;
   }
-  return SerializeAttributes(attrs);
+  return attrs;
 }
 
 void SortEdgesAndRefresh(XLSGraph& graph) {
@@ -159,14 +130,15 @@ absl::StatusOr<XLSGraph> XlsIrToGraph(FunctionBase* function_base) {
 
   XLSGraph graph;
   for (Node* node : function_base->nodes()) {
-    XLS_ASSIGN_OR_RETURN(std::string cost_attributes, NodeCostAttributes(node));
+    XLS_ASSIGN_OR_RETURN(NodeCostAttributes cost_attributes,
+                         GetNodeCostAttributes(node));
     XLSNode graph_node(node->GetName(), cost_attributes);
     graph_node.all_attributes = {
         {"id", absl::StrCat(node->id())},
         {"name", node->GetName()},
         {"op", OpToString(node->op())},
         {"ir", node->ToStringWithOperandTypes()},
-        {"cost_attributes", graph_node.cost_attributes},
+        {"cost_attributes", graph_node.cost_attributes.DebugString()},
     };
     graph.add_node(graph_node);
   }
@@ -181,7 +153,7 @@ absl::StatusOr<XLSGraph> XlsIrToGraph(FunctionBase* function_base) {
           << "Missing graph node for operand " << operand->GetName();
       const int source = graph.node_name_to_index.at(operand->GetName());
       graph.add_edge(
-          XLSEdge(source, sink, EdgeCostAttributes(operand, node, index),
+          XLSEdge(source, sink, GetEdgeCostAttributes(operand, node, index),
                   static_cast<int>(index)));
     }
   }
