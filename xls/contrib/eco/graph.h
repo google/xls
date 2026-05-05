@@ -16,6 +16,7 @@
 #define XLS_ECO_GRAPH_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <set>
@@ -24,10 +25,41 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "xls/ir/op.h"
+#include "xls/ir/xls_type.pb.h"
+#include "xls/ir/xls_value.pb.h"
+#include "xls/visualization/ir_viz/visualization.pb.h"
+
+struct NodeCostAttributes {
+  std::optional<xls::Op> op;
+  std::optional<xls::TypeProto> data_type;
+  std::vector<xls::TypeProto> operand_data_types;
+  xls::viz::NodeAttributes node_attributes;
+  std::optional<xls::ValueProto> literal_value;
+  std::optional<bool> array_assumed_in_bounds;
+  std::optional<std::string> state_element;
+  std::optional<xls::ValueProto> state_initial_value;
+  std::optional<int64_t> state_index;
+  std::optional<std::string> trace_xls_format;
+
+  std::size_t Hash() const;
+  std::string DebugString() const;
+};
+
+struct EdgeCostAttributes {
+  std::optional<xls::Op> source_op;
+  std::optional<xls::TypeProto> source_data_type;
+  std::optional<xls::Op> sink_op;
+  std::optional<xls::TypeProto> sink_data_type;
+  std::optional<int64_t> index;
+
+  std::size_t Hash() const;
+  std::string DebugString() const;
+};
 
 struct XLSNode {
   std::string name;
-  std::string cost_attributes;
+  NodeCostAttributes cost_attributes;
   bool pinned = false;
   int index = -1;                    // current index in graph.nodes
   std::optional<int> mcs_map_index;  // index in MCS mapping, if mapped
@@ -39,16 +71,17 @@ struct XLSNode {
   std::size_t signature = 0;
   std::vector<std::size_t> incoming_labels;
   std::vector<std::size_t> outgoing_labels;
-  XLSNode(const std::string& node_name, const std::string& cost_attrs = "");
+  XLSNode(const std::string& node_name,
+          const NodeCostAttributes& cost_attrs = {});
 };
 
 struct XLSEdge {
   std::pair<int, int> endpoints;  // source, sink
-  std::string cost_attributes;
+  EdgeCostAttributes cost_attributes;
   int index;
   // label: hash of cost_attributes (edge-local label)
   std::size_t label = 0;
-  XLSEdge(int source, int sink, const std::string& cost_attrs = "",
+  XLSEdge(int source, int sink, const EdgeCostAttributes& cost_attrs = {},
           int idx = 0);
 };
 

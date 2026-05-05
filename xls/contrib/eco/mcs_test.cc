@@ -29,15 +29,29 @@ using internal::CandidatePartition;
 using internal::EquivalenceInfo;
 using internal::ExclusionSet;
 
+NodeCostAttributes AttributesForLabel(const std::string& label) {
+  NodeCostAttributes attrs;
+  if (label == "A") {
+    attrs.op = xls::Op::kAdd;
+  } else if (label == "B") {
+    attrs.op = xls::Op::kAnd;
+  } else if (label == "C") {
+    attrs.op = xls::Op::kOr;
+  } else {
+    attrs.op = xls::Op::kParam;
+  }
+  return attrs;
+}
+
 XLSGraph MakeGraph(const std::vector<std::string>& labels,
                    const std::vector<std::tuple<int, int, int>>& edges) {
   XLSGraph graph;
   for (int i = 0; i < static_cast<int>(labels.size()); ++i) {
     graph.add_node(
-        XLSNode("n" + std::to_string(i), "label=" + labels[i]));
+        XLSNode("n" + std::to_string(i), AttributesForLabel(labels[i])));
   }
   for (const auto& [from, to, index] : edges) {
-    graph.add_edge(XLSEdge(from, to, "", index));
+    graph.add_edge(XLSEdge(from, to, EdgeCostAttributes{}, index));
   }
   graph.populate_node_signatures();
   return graph;
