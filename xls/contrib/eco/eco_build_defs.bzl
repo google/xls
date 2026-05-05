@@ -32,32 +32,8 @@ def _dslx_ir_diff_impl(ctx):
     before_ir = ctx.attr.before[IrFileInfo].ir_file
     after_ir = ctx.attr.after[IrFileInfo].ir_file
 
-    # Ensure the ir2gxl tool's runfiles (its Python sources/deps) are hashed into
-    # the action key so changes invalidate cached GXL outputs.
-    ir2gxl_runfiles = ctx.attr.ir2gxl[DefaultInfo].default_runfiles.files.to_list()
-
-    before_gxl = ctx.actions.declare_file(ctx.label.name + ".before.gxl")
-    after_gxl = ctx.actions.declare_file(ctx.label.name + ".after.gxl")
     patch_out = ctx.actions.declare_file(ctx.label.name + ".patch.bin")
     report_out = ctx.actions.declare_file(ctx.label.name + ".report.txt")
-
-    # before.ir -> before.gxl
-    ctx.actions.run(
-        inputs = [before_ir] + ctx.files.ir2gxl + ir2gxl_runfiles,
-        outputs = [before_gxl],
-        executable = ctx.executable.ir2gxl,
-        mnemonic = "Ir2GxlBefore",
-        arguments = [before_ir.path, before_gxl.path],
-    )
-
-    # after.ir -> after.gxl
-    ctx.actions.run(
-        inputs = [after_ir] + ctx.files.ir2gxl + ir2gxl_runfiles,
-        outputs = [after_gxl],
-        executable = ctx.executable.ir2gxl,
-        mnemonic = "Ir2GxlAfter",
-        arguments = [after_ir.path, after_gxl.path],
-    )
 
     ged_args = []
     if ctx.attr.timeout >= 0:
@@ -76,12 +52,12 @@ def _dslx_ir_diff_impl(ctx):
     outputs = [patch_out, report_out]
 
     ged_args += [
-        "--before_ir=" + before_gxl.path,
-        "--after_ir=" + after_gxl.path,
+        "--before_ir=" + before_ir.path,
+        "--after_ir=" + after_ir.path,
         "--patch=" + patch_out.path,
     ]
     ctx.actions.run(
-        inputs = [before_gxl, after_gxl] + ctx.files.ged_main + ged_runfiles,
+        inputs = [before_ir, after_ir] + ctx.files.ged_main + ged_runfiles,
         outputs = outputs,
         tools = [ctx.executable.ged_main],
         mnemonic = "GedMain",
@@ -120,11 +96,6 @@ xls_dslx_ir_diff_rule = rule(
             providers = [IrFileInfo],
             doc = "Opt IR (after).",
         ),
-        "ir2gxl": attr.label(
-            executable = True,
-            cfg = "target",
-            default = Label("//xls/contrib/eco:ir2gxl"),
-        ),
         "ged_main": attr.label(
             executable = True,
             cfg = "target",
@@ -153,7 +124,7 @@ xls_dslx_ir_diff_rule = rule(
     },
 )
 
-def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutoff = None, mcs_optimal = None, mcs_timeout = None):
+def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutoff = None, mcs_optimal = None, mcs_timeout = None, tags = None):
     """Builds opt IRs for two DSLX sources and emits a patch between them.
 
     Args:
@@ -165,6 +136,7 @@ def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutof
       mcs_cutoff: Optional int. Stop MCS when remaining nodes <= this value; negative => run to completion.
       mcs_optimal: Optional boolean. False enables heuristic MCS early stop.
       mcs_timeout: Optional int. Timeout in seconds for MCS preprocessing.
+      tags: Optional Bazel tags applied to generated targets.
     """
     if len(srcs) != 2:
         fail("xls_dslx_ir_diff.srcs must have length 2")
@@ -182,12 +154,14 @@ def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutof
         name = before_ir_target,
         srcs = [srcs[0]],
         dslx_top = tops[0],
+        tags = tags,
     )
 
     xls_dslx_opt_ir(
         name = after_ir_target,
         srcs = [srcs[1]],
         dslx_top = tops[1],
+        tags = tags,
     )
 
     xls_dslx_ir_diff_rule_kwargs = dict(
@@ -205,6 +179,8 @@ def xls_dslx_ir_diff(name, srcs, dslx_top, timeout = None, mcs = None, mcs_cutof
         xls_dslx_ir_diff_rule_kwargs["mcs_optimal"] = mcs_optimal
     if mcs_timeout != None:
         xls_dslx_ir_diff_rule_kwargs["mcs_timeout"] = mcs_timeout
+    if tags != None:
+        xls_dslx_ir_diff_rule_kwargs["tags"] = tags
 
     xls_dslx_ir_diff_rule(**xls_dslx_ir_diff_rule_kwargs)
 
