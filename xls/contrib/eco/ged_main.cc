@@ -77,7 +77,8 @@ struct ExecutionStats {
     std::ostringstream os;
     os << "Execution Stats\n";
     os << "Initial Graphs:\n";
-    os << "  G1 (Original): nodes=" << g1_nodes << " edges=" << g1_edges << "\n";
+    os << "  G1 (Original): nodes=" << g1_nodes << " edges=" << g1_edges
+       << "\n";
     os << "  G2 (Revised): nodes=" << g2_nodes << " edges=" << g2_edges << "\n";
     if (use_mcs) {
       os << "MCS Preprocessing:\n";
@@ -102,7 +103,8 @@ struct ExecutionStats {
        << " ins=" << ged_node_ins << "\n";
     os << "  Edge Ops: subs=" << ged_edge_subs << " dels=" << ged_edge_dels
        << " ins=" << ged_edge_ins << "\n";
-    os << "  Peak RSS: " << (ged_rss_peak_bytes / 1048576) << " MB\n"; // Convert bytes to MB
+    os << "  Peak RSS: " << (ged_rss_peak_bytes / 1048576)
+       << " MB\n";  // Convert bytes to MB
     return os.str();
   }
 };
@@ -122,8 +124,7 @@ ABSL_FLAG(std::string, before_ir, "",
           "Path to the first (golden) GXL graph file.");
 ABSL_FLAG(std::string, after_ir, "",
           "Path to the second (revised) GXL graph file.");
-ABSL_FLAG(bool, use_mcs, true,
-          "Enable MCS preprocessing before GED.");
+ABSL_FLAG(bool, use_mcs, true, "Enable MCS preprocessing before GED.");
 ABSL_FLAG(int, mcs_cutoff, -1,
           "Stop MCS early when remaining unmatched nodes <= this value; "
           "negative disables (runs MCS to completion).");
@@ -164,11 +165,9 @@ void AnnotateMcsMappings(
 }
 
 absl::Status RealMain(const std::vector<std::string_view>& positional_args,
-                      std::string before_ir, std::string after_ir,
-                      bool use_mcs, int mcs_cutoff, bool mcs_optimal,
-                      int mcs_timeout,
-                      double timeout,
-                      bool optimal, std::string patch_path,
+                      std::string before_ir, std::string after_ir, bool use_mcs,
+                      int mcs_cutoff, bool mcs_optimal, int mcs_timeout,
+                      double timeout, bool optimal, std::string patch_path,
                       std::string report_path) {
   if (before_ir.empty() && !positional_args.empty()) {
     before_ir = std::string(positional_args[0]);
@@ -187,9 +186,8 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
   VLOG(0) << "Starting GED run: file1=" << before_ir << " file2=" << after_ir
           << " use_mcs=" << (use_mcs ? 1 : 0) << " mcs_cutoff=" << mcs_cutoff
           << " mcs_optimal=" << (mcs_optimal ? 1 : 0)
-          << (mcs_timeout >= 0
-                  ? absl::StrCat(" mcs_timeout=", mcs_timeout)
-                  : "")
+          << (mcs_timeout >= 0 ? absl::StrCat(" mcs_timeout=", mcs_timeout)
+                               : "")
           << " timeout=" << timeout << " optimal=" << optimal;
 
   XLSGraph graph1 = parse_gxl(before_ir);
@@ -451,9 +449,8 @@ int main(int argc, char* argv[]) {
   bool optimal = absl::GetFlag(FLAGS_optimal);
   std::string patch_path = absl::GetFlag(FLAGS_patch);
   std::string report_path = absl::GetFlag(FLAGS_report);
-  return xls::ExitStatus(RealMain(positional, std::move(before_ir),
-                                  std::move(after_ir), use_mcs, mcs_cutoff,
-                                  mcs_optimal, mcs_timeout, timeout, optimal,
-                                  std::move(patch_path),
-                                  std::move(report_path)));
+  return xls::ExitStatus(
+      RealMain(positional, std::move(before_ir), std::move(after_ir), use_mcs,
+               mcs_cutoff, mcs_optimal, mcs_timeout, timeout, optimal,
+               std::move(patch_path), std::move(report_path)));
 }
