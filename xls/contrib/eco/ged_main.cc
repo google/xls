@@ -31,11 +31,12 @@
 #include "absl/strings/str_cat.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/eco/ged.h"
 #include "xls/contrib/eco/ged_cost_functions.h"
-#include "xls/contrib/eco/gxl_parser.h"
 #include "xls/contrib/eco/ir_patch_gen.h"
 #include "xls/contrib/eco/mcs.h"
+#include "xls/contrib/eco/xls_ir_to_graph.h"
 
 namespace {
 
@@ -112,18 +113,18 @@ struct ExecutionStats {
 constexpr std::string_view kUsage = R"(ged_main - Compute graph edit distance.
 
 Examples:
-  ged_main --before_ir=a.gxl --after_ir=b.gxl
-  ged_main --before_ir=a.gxl --after_ir=b.gxl --v=2 --timeout=30
-  ged_main --before_ir=a.gxl --after_ir=b.gxl --patch=patch.bin
+  ged_main --before_ir=a.ir --after_ir=b.ir
+  ged_main --before_ir=a.ir --after_ir=b.ir --v=2 --timeout=30
+  ged_main --before_ir=a.ir --after_ir=b.ir --patch=patch.bin
 
-Alternately, two positional arguments may be provided for the GXL files.)";
+Alternately, two positional arguments may be provided for the XLS IR files.)";
 
 }  // namespace
 
 ABSL_FLAG(std::string, before_ir, "",
-          "Path to the first (golden) GXL graph file.");
+          "Path to the first (golden) XLS IR file.");
 ABSL_FLAG(std::string, after_ir, "",
-          "Path to the second (revised) GXL graph file.");
+          "Path to the second (revised) XLS IR file.");
 ABSL_FLAG(bool, use_mcs, true, "Enable MCS preprocessing before GED.");
 ABSL_FLAG(int, mcs_cutoff, -1,
           "Stop MCS early when remaining unmatched nodes <= this value; "
@@ -179,7 +180,7 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
   }
   if (before_ir.empty() || after_ir.empty()) {
     return absl::InvalidArgumentError(
-        "Provide two GXL inputs via --before_ir/--after_ir or as "
+        "Provide two XLS IR inputs via --before_ir/--after_ir or as "
         "positional arguments.");
   }
 
@@ -190,8 +191,8 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
                                : "")
           << " timeout=" << timeout << " optimal=" << optimal;
 
-  XLSGraph graph1 = parse_gxl(before_ir);
-  XLSGraph graph2 = parse_gxl(after_ir);
+  XLS_ASSIGN_OR_RETURN(XLSGraph graph1, xls::ParseIrFileToGraph(before_ir));
+  XLS_ASSIGN_OR_RETURN(XLSGraph graph2, xls::ParseIrFileToGraph(after_ir));
   ExecutionStats stats;
 
   stats.g1_nodes = graph1.nodes.size();

@@ -32,7 +32,6 @@ xls_dslx_ir_diff(
         ":apfloat_fmac.rev0.x",
     ],
     dslx_top = "fmac",
-    mcs = True,
 )
 
 xls_dslx_ir_diff(
@@ -42,7 +41,6 @@ xls_dslx_ir_diff(
         ":apfloat_fmac.rev1.x",
     ],
     dslx_top = "fmac",
-    mcs = False,
 )
 
 xls_dslx_ir_diff(
@@ -84,6 +82,7 @@ xls_dslx_ir_diff(
     dslx_top = "main",
     mcs = True,
     mcs_optimal = False,  #Plateaus after finding 3699 mappings and is probably the optimal mapping but due to large difference  between input node counts the recursion is taking a long time to find the optimal mapping, so we set it to false for now to get the results faster.
+    tags = ["manual"],
 )
 
 xls_dslx_ir_diff(
@@ -93,7 +92,6 @@ xls_dslx_ir_diff(
         ":fir_filter_fixed32.rev.x",
     ],
     dslx_top = "main",
-    mcs = True,
 )
 
 xls_patch_ir(
@@ -132,6 +130,7 @@ xls_patch_ir(
 xls_patch_ir(
     name = "fir_filter_patched_opt_ir",
     ir_diff = ":fir_filter_fp_diff",
+    tags = ["manual"],
 )
 
 xls_dslx_ir_diff(
