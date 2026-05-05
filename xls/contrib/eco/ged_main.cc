@@ -340,7 +340,7 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
         VLOG(2) << "Delete edge G1 idx=" << idx
                 << " from=" << graph1.nodes[e.endpoints.first].name
                 << " to=" << graph1.nodes[e.endpoints.second].name
-                << " attrs=" << e.cost_attributes;
+                << " attrs=" << e.cost_attributes.DebugString();
       } else {
         VLOG(2) << "Delete edge G1 idx=" << idx << " attrs=<invalid>";
       }
@@ -351,7 +351,7 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
         VLOG(2) << "Insert edge G2 idx=" << idx
                 << " from=" << graph2.nodes[e.endpoints.first].name
                 << " to=" << graph2.nodes[e.endpoints.second].name
-                << " attrs=" << e.cost_attributes;
+                << " attrs=" << e.cost_attributes.DebugString();
       } else {
         VLOG(2) << "Insert edge G2 idx=" << idx << " attrs=<invalid>";
       }
