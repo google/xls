@@ -12,389 +12,133 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <algorithm>
-#include <cstdint>
-#include <optional>
-#include <sstream>
-#include <string>
-#include <utility>
-#include <vector>
+#include "xls/contrib/eco/ir_patch_gen.h"
 
-#include "absl/base/no_destructor.h"
-#include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/ascii.h"
-#include "absl/strings/numbers.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_split.h"
-#include "absl/strings/string_view.h"
-#include "absl/strings/strip.h"
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/util/json_util.h"
+#include <cstdint>
+
 #include "xls/contrib/eco/ged.h"
 #include "xls/contrib/eco/graph.h"
 #include "xls/contrib/eco/ir_patch.pb.h"
-#include "xls/ir/ir_parser.h"
-#include "xls/ir/package.h"
-#include "xls/ir/type.h"
-#include "xls/ir/value.h"
-#include "xls/ir/xls_value.pb.h"
-#include "xls/visualization/ir_viz/visualization.pb.h"
+#include "xls/ir/op.h"
 
 namespace {
 
-std::string BoolString(bool value) { return value ? "true" : "false"; }
-
-std::string DoubleString(double value) {
-  int64_t integer_value = static_cast<int64_t>(value);
-  if (static_cast<double>(integer_value) == value) {
-    return absl::StrCat(integer_value);
-  }
-  return absl::StrCat(value);
-}
-
-std::optional<xls::TypeProto> ParseTypeProto(absl::string_view type_str) {
-  if (type_str.empty()) {
-    return std::nullopt;
-  }
-  static absl::NoDestructor<xls::Package> package("ir_patch_gen_types");
-  absl::StatusOr<xls::Type*> type_or =
-      xls::Parser::ParseType(type_str, package.get());
-  if (!type_or.ok()) {
-    return std::nullopt;
-  }
-  return type_or.value()->ToProto();
-}
-
-std::string NodeAttributeFieldToString(
-    const xls::viz::NodeAttributes& node_attributes,
-    const google::protobuf::FieldDescriptor* field) {
-  const google::protobuf::Reflection* reflection =
-      node_attributes.GetReflection();
-  switch (field->cpp_type()) {
-    case google::protobuf::FieldDescriptor::CPPTYPE_DOUBLE:
-      return DoubleString(reflection->GetDouble(node_attributes, field));
-    case google::protobuf::FieldDescriptor::CPPTYPE_INT64:
-      return absl::StrCat(reflection->GetInt64(node_attributes, field));
-    case google::protobuf::FieldDescriptor::CPPTYPE_STRING:
-      return reflection->GetString(node_attributes, field);
-    case google::protobuf::FieldDescriptor::CPPTYPE_BOOL:
-      return BoolString(reflection->GetBool(node_attributes, field));
-    default:
-      return "";
-  }
-}
-
-void ExpandNodeAttributesJson(
-    const std::string& json,
-    absl::flat_hash_map<std::string, std::string>* fields) {
-  xls::viz::NodeAttributes node_attributes;
-  if (!google::protobuf::util::JsonStringToMessage(json, &node_attributes)
-           .ok()) {
+void PopulateUniqueArgs(const NodeCostAttributes& attrs,
+                        xls_eco::NodeProto* node_proto) {
+  if (node_proto == nullptr || !attrs.op.has_value()) {
     return;
   }
 
-  std::vector<const google::protobuf::FieldDescriptor*> present_fields;
-  node_attributes.GetReflection()->ListFields(node_attributes, &present_fields);
-  for (const google::protobuf::FieldDescriptor* field : present_fields) {
-    (*fields)[field->name()] =
-        NodeAttributeFieldToString(node_attributes, field);
-  }
-  if (fields->contains("initial_value") && !fields->contains("init")) {
-    (*fields)["init"] = fields->at("initial_value");
-  }
-  if (fields->contains("state_param_index") && !fields->contains("index")) {
-    (*fields)["index"] = fields->at("state_param_index");
-  }
-}
-
-absl::flat_hash_map<std::string, std::string> ParseFields(
-    const std::string& input) {
-  absl::flat_hash_map<std::string, std::string> result;
-  std::stringstream ss(input);
-  std::string token;
-
-  // Each token looks like: key=value
-  while (std::getline(ss, token, '|')) {
-    auto pos = token.find('=');
-    if (pos == std::string::npos) {
-      continue;  // ignore malformed entries
-    }
-    std::string key = token.substr(0, pos);
-    std::string value = token.substr(pos + 1);
-    result[key] = value;
-  }
-
-  auto node_attributes_it = result.find("node_attributes");
-  if (node_attributes_it != result.end()) {
-    ExpandNodeAttributesJson(node_attributes_it->second, &result);
-  }
-
-  return result;
-}
-
-std::optional<int64_t> ParseInt64(absl::string_view text) {
-  int64_t value = 0;
-  return absl::SimpleAtoi(text, &value) ? std::optional<int64_t>(value)
-                                        : std::nullopt;
-}
-
-std::optional<bool> ParseBool(absl::string_view text) {
-  if (text.empty()) {
-    return std::nullopt;
-  }
-  std::string lowered = std::string(absl::AsciiStrToLower(text));
-  if (lowered == "true" || lowered == "1") {
-    return true;
-  }
-  if (lowered == "false" || lowered == "0") {
-    return false;
-  }
-  return std::nullopt;
-}
-
-std::optional<xls::ValueProto> ParseValueProto(absl::string_view value_str,
-                                               absl::string_view type_str) {
-  if (value_str.empty() || type_str.empty()) {
-    return std::nullopt;
-  }
-  std::string typed = absl::StrCat(type_str, ":", value_str);
-  absl::StatusOr<xls::Value> value_or = xls::Parser::ParseTypedValue(typed);
-  if (!value_or.ok()) {
-    return std::nullopt;
-  }
-  absl::StatusOr<xls::ValueProto> proto = value_or.value().AsProto();
-  if (!proto.ok()) {
-    return std::nullopt;
-  }
-  return *proto;
-}
-
-std::string ExtractValueToken(absl::string_view raw_value) {
-  size_t data_pos = raw_value.find("data=");
-  if (data_pos == absl::string_view::npos) {
-    return std::string(absl::StripAsciiWhitespace(raw_value));
-  }
-  data_pos += 5;
-  size_t end = raw_value.find_first_of(")|", data_pos);
-  if (end == absl::string_view::npos) {
-    end = raw_value.size();
-  }
-  return std::string(
-      absl::StripAsciiWhitespace(raw_value.substr(data_pos, end - data_pos)));
-}
-
-std::vector<std::string> SplitTopLevel(absl::string_view input) {
-  std::vector<std::string> parts;
-  if (input.empty()) {
-    return parts;
-  }
-  std::string current;
-  int depth = 0;
-  for (char c : input) {
-    if (c == '(' || c == '[') {
-      depth++;
-    } else if (c == ')' || c == ']') {
-      depth = std::max(0, depth - 1);
-    }
-    if (c == ',' && depth == 0) {
-      parts.push_back(std::string(absl::StripAsciiWhitespace(current)));
-      current.clear();
-      continue;
-    }
-    current.push_back(c);
-  }
-  if (!current.empty()) {
-    parts.push_back(std::string(absl::StripAsciiWhitespace(current)));
-  }
-  return parts;
-}
-
-void PopulateUniqueArgs(
-    const absl::flat_hash_map<std::string, std::string>& attrs,
-    absl::string_view op_name, xls_eco::NodeProto* node_proto) {
-  if (node_proto == nullptr) {
-    return;
-  }
-  if (op_name == "literal") {
-    auto value_str_it = attrs.find("value_str");
-    if (value_str_it == attrs.end()) {
-      value_str_it = attrs.find("value");
-    }
-    auto dtype_str_it = attrs.find("dtype_str");
-    if (value_str_it != attrs.end() && dtype_str_it != attrs.end()) {
-      if (auto value_proto =
-              ParseValueProto(value_str_it->second, dtype_str_it->second);
-          value_proto.has_value()) {
-        node_proto->add_unique_args()->mutable_value()->CopyFrom(*value_proto);
+  const xls::viz::NodeAttributes& node_attributes = attrs.node_attributes;
+  switch (*attrs.op) {
+    case xls::Op::kLiteral:
+      if (attrs.literal_value.has_value()) {
+        node_proto->add_unique_args()->mutable_value()->CopyFrom(
+            *attrs.literal_value);
       }
-    }
-  } else if (op_name == "bit_slice") {
-    auto start_it = attrs.find("start");
-    if (start_it != attrs.end()) {
-      if (auto start_value = ParseInt64(start_it->second);
-          start_value.has_value()) {
+      break;
+    case xls::Op::kBitSlice:
+      if (node_attributes.has_start()) {
         node_proto->add_unique_args()->set_start(
-            static_cast<uint64_t>(*start_value));
+            static_cast<uint64_t>(node_attributes.start()));
       }
-    }
-  } else if (op_name == "tuple_index") {
-    auto index_it = attrs.find("index");
-    if (index_it != attrs.end()) {
-      if (auto index_value = ParseInt64(index_it->second);
-          index_value.has_value()) {
+      break;
+    case xls::Op::kTupleIndex:
+      if (node_attributes.has_index()) {
         node_proto->add_unique_args()->set_index(
-            static_cast<uint64_t>(*index_value));
+            static_cast<uint64_t>(node_attributes.index()));
       }
-    }
-  } else if (op_name == "array_index" || op_name == "array_update") {
-    auto assumed_it = attrs.find("assumed_in_bounds");
-    if (assumed_it != attrs.end()) {
-      if (auto assumed = ParseBool(assumed_it->second); assumed.has_value()) {
-        node_proto->add_unique_args()->set_assumed_in_bounds(*assumed);
+      break;
+    case xls::Op::kArrayIndex:
+    case xls::Op::kArrayUpdate:
+      if (attrs.array_assumed_in_bounds.has_value()) {
+        node_proto->add_unique_args()->set_assumed_in_bounds(
+            *attrs.array_assumed_in_bounds);
       }
-    }
-  } else if (op_name == "one_hot") {
-    auto lsb_it = attrs.find("lsb_prio");
-    if (lsb_it != attrs.end()) {
-      if (auto lsb = ParseBool(lsb_it->second); lsb.has_value()) {
-        node_proto->add_unique_args()->set_lsb_prio(*lsb);
+      break;
+    case xls::Op::kOneHot:
+      if (node_attributes.has_lsb_prio()) {
+        node_proto->add_unique_args()->set_lsb_prio(
+            node_attributes.lsb_prio());
       }
-    }
-  } else if (op_name == "sign_ext") {
-    auto count_it = attrs.find("new_bit_count");
-    if (count_it != attrs.end()) {
-      if (auto count = ParseInt64(count_it->second); count.has_value()) {
+      break;
+    case xls::Op::kSignExt:
+      if (node_attributes.has_new_bit_count()) {
         node_proto->add_unique_args()->set_new_bit_count(
-            static_cast<uint64_t>(*count));
+            static_cast<uint64_t>(node_attributes.new_bit_count()));
       }
-    }
-  } else if (op_name == "sel" || op_name == "priority_sel") {
-    auto default_it = attrs.find("has_default");
-    if (default_it == attrs.end()) {
-      default_it = attrs.find("has_default_value");
-    }
-    if (default_it != attrs.end()) {
-      if (auto has_default = ParseBool(default_it->second);
-          has_default.has_value()) {
-        node_proto->add_unique_args()->set_has_default_value(*has_default);
+      break;
+    case xls::Op::kSel:
+    case xls::Op::kPrioritySel:
+      if (node_attributes.has_has_default()) {
+        node_proto->add_unique_args()->set_has_default_value(
+            node_attributes.has_default());
       }
-    }
-  } else if (op_name == "receive") {
-    auto channel_it = attrs.find("channel");
-    if (channel_it != attrs.end()) {
-      node_proto->add_unique_args()->set_channel(channel_it->second);
-    }
-    auto blocking_it = attrs.find("blocking");
-    if (blocking_it != attrs.end()) {
-      if (auto blocking = ParseBool(blocking_it->second);
-          blocking.has_value()) {
-        node_proto->add_unique_args()->set_blocking(*blocking);
+      break;
+    case xls::Op::kReceive:
+      if (node_attributes.has_channel()) {
+        node_proto->add_unique_args()->set_channel(node_attributes.channel());
       }
-    }
-  } else if (op_name == "send") {
-    auto channel_it = attrs.find("channel");
-    if (channel_it != attrs.end()) {
-      node_proto->add_unique_args()->set_channel(channel_it->second);
-    }
-  } else if (op_name == "assert") {
-    auto message_it = attrs.find("message_");
-    if (message_it == attrs.end()) {
-      message_it = attrs.find("message");
-    }
-    if (message_it != attrs.end()) {
-      node_proto->add_unique_args()->set_message(message_it->second);
-    }
-    auto label_it = attrs.find("label");
-    if (label_it != attrs.end()) {
-      node_proto->add_unique_args()->set_label(label_it->second);
-    }
-  } else if (op_name == "trace") {
-    auto format_it = attrs.find("xls_format");
-    if (format_it == attrs.end()) {
-      format_it = attrs.find("format");
-    }
-    if (format_it != attrs.end()) {
-      node_proto->add_unique_args()->set_format(format_it->second);
-    }
-    auto verbosity_it = attrs.find("verbosity");
-    if (verbosity_it != attrs.end()) {
-      if (auto verbosity = ParseInt64(verbosity_it->second);
-          verbosity.has_value()) {
-        node_proto->add_unique_args()->set_verbosity(*verbosity);
+      if (node_attributes.has_blocking()) {
+        node_proto->add_unique_args()->set_blocking(node_attributes.blocking());
       }
-    }
-  } else if (op_name == "state_read") {
-    auto index_it = attrs.find("index");
-    if (index_it != attrs.end()) {
-      if (auto index_value = ParseInt64(index_it->second);
-          index_value.has_value()) {
+      break;
+    case xls::Op::kSend:
+      if (node_attributes.has_channel()) {
+        node_proto->add_unique_args()->set_channel(node_attributes.channel());
+      }
+      break;
+    case xls::Op::kAssert:
+      if (node_attributes.has_message_()) {
+        node_proto->add_unique_args()->set_message(node_attributes.message_());
+      }
+      if (node_attributes.has_label()) {
+        node_proto->add_unique_args()->set_label(node_attributes.label());
+      }
+      break;
+    case xls::Op::kTrace:
+      if (attrs.trace_xls_format.has_value()) {
+        node_proto->add_unique_args()->set_format(*attrs.trace_xls_format);
+      } else if (node_attributes.has_format()) {
+        node_proto->add_unique_args()->set_format(node_attributes.format());
+      }
+      if (node_attributes.has_verbosity()) {
+        node_proto->add_unique_args()->set_verbosity(
+            node_attributes.verbosity());
+      }
+      break;
+    case xls::Op::kStateRead:
+      if (attrs.state_index.has_value()) {
         node_proto->add_unique_args()->set_index(
-            static_cast<uint64_t>(*index_value));
+            static_cast<uint64_t>(*attrs.state_index));
       }
-    }
-    auto state_element_it = attrs.find("state_element");
-    if (state_element_it != attrs.end()) {
-      node_proto->add_unique_args()->set_state_element(
-          state_element_it->second);
-    }
-    auto init_it = attrs.find("init");
-    auto dtype_it = attrs.find("dtype_str");
-    if (init_it != attrs.end() && dtype_it != attrs.end()) {
-      std::string value_token = ExtractValueToken(init_it->second);
-      if (auto init_proto = ParseValueProto(value_token, dtype_it->second);
-          init_proto.has_value()) {
-        node_proto->add_unique_args()->mutable_init()->CopyFrom(*init_proto);
+      if (attrs.state_element.has_value()) {
+        node_proto->add_unique_args()->set_state_element(*attrs.state_element);
       }
-    }
+      if (attrs.state_initial_value.has_value()) {
+        node_proto->add_unique_args()->mutable_init()->CopyFrom(
+            *attrs.state_initial_value);
+      }
+      break;
+    default:
+      break;
   }
 }
 
 void ExportNodeProto(const XLSNode& node, xls_eco::NodeProto* node_proto) {
-  auto attribs = ParseFields(node.cost_attributes);
+  const NodeCostAttributes& attrs = node.cost_attributes;
   node_proto->set_name(node.name);
-  auto data_type_it = attribs.find("data_type");
-  if (data_type_it == attribs.end()) {
-    data_type_it = attribs.find("dtype_str");
+  if (attrs.data_type.has_value()) {
+    node_proto->mutable_data_type()->CopyFrom(*attrs.data_type);
   }
-  if (data_type_it != attribs.end()) {
-    if (auto type_proto = ParseTypeProto(data_type_it->second);
-        type_proto.has_value()) {
-      node_proto->mutable_data_type()->CopyFrom(*type_proto);
-    }
+  if (attrs.op.has_value()) {
+    node_proto->set_op(xls::OpToString(*attrs.op));
   }
-  auto op_it = attribs.find("op");
-  if (op_it != attribs.end()) {
-    node_proto->set_op(op_it->second);
+  for (const xls::TypeProto& operand_data_type : attrs.operand_data_types) {
+    node_proto->add_operand_data_types()->CopyFrom(operand_data_type);
   }
 
-  auto add_operand_type = [&](absl::string_view type_str) {
-    if (auto operand_type_proto = ParseTypeProto(type_str);
-        operand_type_proto.has_value()) {
-      node_proto->add_operand_data_types()->CopyFrom(*operand_type_proto);
-    }
-  };
-
-  auto single_operand_it = attribs.find("operand_data_type");
-  if (single_operand_it == attribs.end()) {
-    single_operand_it = attribs.find("operand_dtype_str");
-  }
-  if (single_operand_it != attribs.end()) {
-    add_operand_type(single_operand_it->second);
-  }
-
-  auto operand_list_it = attribs.find("operand_data_types");
-  if (operand_list_it == attribs.end()) {
-    operand_list_it = attribs.find("operand_dtype_strs");
-  }
-  if (operand_list_it != attribs.end()) {
-    for (const std::string& operand_type_str :
-         SplitTopLevel(operand_list_it->second)) {
-      add_operand_type(operand_type_str);
-    }
-  }
-
-  PopulateUniqueArgs(attribs, node_proto->op(), node_proto);
+  PopulateUniqueArgs(attrs, node_proto);
 }
 
 }  // namespace
@@ -492,12 +236,12 @@ xls_eco::IrPatchProto GenerateIrPatchProto(const XLSGraph& original_graph,
     id++;
   }
 
-  // Always record the return node when present.  RestoreReturnNode() needs it
+  // Always record the return node when present. RestoreReturnNode() needs it
   // whenever the return node was isolated via UPDATE or DELETE, even if the
   // return-node name did not change between the two versions.
   if (modified_graph.return_node_name.has_value()) {
-    auto it = modified_graph.node_name_to_index.find(
-        *modified_graph.return_node_name);
+    auto it =
+        modified_graph.node_name_to_index.find(*modified_graph.return_node_name);
     if (it != modified_graph.node_name_to_index.end()) {
       xls_eco::NodeProto* ret_proto = patch_proto.mutable_return_node();
       ret_proto->set_name(*modified_graph.return_node_name);

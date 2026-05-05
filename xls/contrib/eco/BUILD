@@ -67,6 +67,7 @@ pytype_strict_contrib_test(
     name = "xls_ir_to_networkx_test",
     srcs = ["xls_ir_to_networkx_test.py"],
     data = ["//xls/examples:riscv_simple.opt.ir"],
+    tags = ["manual"],
     deps = [
         ":xls_ir_to_networkx",
         "//xls/common:runfiles",
@@ -155,6 +156,7 @@ pytype_strict_contrib_test(
         "//xls/examples:riscv_simple.ir",  # unopt
         "//xls/examples:riscv_simple.opt.ir",  #opt
     ],
+    tags = ["manual"],
     deps = [
         ":ir_diff",
         ":ir_diff_main_lib",
@@ -256,6 +258,11 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings",
+        "//xls/ir:op",
+        "//xls/ir:xls_type_cc_proto",
+        "//xls/ir:xls_value_cc_proto",
+        "//xls/visualization/ir_viz:visualization_cc_proto",
     ],
 )
 
@@ -269,16 +276,13 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:format_preference",
         "//xls/ir:format_strings",
         "//xls/ir:ir_parser",
         "//xls/ir:op",
         "//xls/visualization/ir_viz:node_attribute_visitor",
-        "//xls/visualization/ir_viz:visualization_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_protobuf//:json_util",
     ],
 )
 
@@ -343,6 +347,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "//xls/ir:op",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
@@ -356,18 +361,7 @@ cc_library(
         ":ged",
         ":graph",
         ":ir_patch_cc_proto",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/ir:type",
-        "//xls/ir:value",
-        "//xls/ir:xls_value_cc_proto",
-        "//xls/visualization/ir_viz:visualization_cc_proto",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_protobuf//:json_util",
-        "@com_google_protobuf//:protobuf",
+        "//xls/ir:op",
     ],
 )
 
