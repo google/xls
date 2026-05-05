@@ -93,16 +93,6 @@ py_library(
     ],
 )
 
-pytype_strict_binary(
-    name = "ir2gxl",
-    srcs = ["ir2gxl.py"],
-    main = "ir2gxl.py",
-    deps = [
-        ":ir2nx",
-        "@xls_pip_deps//networkx",
-    ],
-)
-
 pytype_strict_library(
     name = "ir_diff_utils",
     srcs = ["ir_diff_utils.py"],
@@ -201,6 +191,7 @@ cc_library(
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:format_strings",
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:source_location",
@@ -269,15 +260,25 @@ cc_library(
 )
 
 cc_library(
-    name = "gxl_parser",
-    srcs = ["gxl_parser.cc"],
-    hdrs = ["gxl_parser.h"],
+    name = "xls_ir_to_graph",
+    srcs = ["xls_ir_to_graph.cc"],
+    hdrs = ["xls_ir_to_graph.h"],
     deps = [
         ":graph",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:format_preference",
+        "//xls/ir:format_strings",
+        "//xls/ir:ir_parser",
+        "//xls/ir:op",
+        "//xls/visualization/ir_viz:node_attribute_visitor",
+        "//xls/visualization/ir_viz:visualization_cc_proto",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@tinyxml2",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:json_util",
     ],
 )
 
@@ -331,6 +332,22 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "xls_ir_to_graph_test",
+    size = "small",
+    srcs = ["xls_ir_to_graph_test.cc"],
+    deps = [
+        ":graph",
+        ":xls_ir_to_graph",
+        "//xls/common/status:matchers",
+        "//xls/common:xls_gunit_main",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "ir_patch_gen_lib",
     srcs = ["ir_patch_gen.cc"],
@@ -344,10 +361,13 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:xls_value_cc_proto",
+        "//xls/visualization/ir_viz:visualization_cc_proto",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:json_util",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -356,11 +376,12 @@ cc_binary(
     srcs = ["ged_main.cc"],
     deps = [
         ":ged",
-        ":gxl_parser",
         ":ir_patch_gen_lib",
         ":mcs",
+        ":xls_ir_to_graph",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:globals",

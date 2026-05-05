@@ -16,7 +16,7 @@
 # will be replaced by ged_main.cc (C++ implementation) which provides:
 # - 10-100x faster graph edit distance computation
 # - MCS preprocessing optimization
-# - Direct GXL file parsing without NetworkX dependency
+# - Direct XLS IR parsing without NetworkX dependency
 # Please use //xls/contrib/eco:ged_main instead.
 
 """The main routine for the python-side of the ECO flow."""
