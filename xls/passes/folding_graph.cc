@@ -39,10 +39,42 @@
 
 namespace xls {
 
+namespace {
+
+// This function permutes the order of the elements of the array
+// @array_to_permute following the permutations listed in @permutation.
+//
+// This function is similar to util::Permute. There are only two differences
+// between this function and util::Permute:
+// 1) This function uses std::move rather than relying on the copy constructor.
+//    This is important when using smart pointers.
+// 2) This function relies on "typeof" to find the type of the elements of the
+//    array to permute.
+template <class IntVector, class Array>
+void Permute(const IntVector& permutation, Array* array_to_permute) {
+  if (permutation.empty()) {
+    return;
+  }
+  std::vector<std::remove_reference_t<decltype((*array_to_permute)[0])>> temp(
+      permutation.size());
+  for (size_t i = 0; i < permutation.size(); ++i) {
+    temp[i] = std::move((*array_to_permute)[i]);
+  }
+  for (size_t i = 0; i < permutation.size(); ++i) {
+    (*array_to_permute)[static_cast<size_t>(permutation[i])] =
+        std::move(temp[i]);
+  }
+}
+
+}  // namespace
+
 FoldingGraph::FoldingGraph(
     FunctionBase* f,
     std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions)
     : f_{f} {
+  // Allocate the graph
+  graph_ = std::make_unique<Graph>();
+
   // Ensure deterministic construction of FoldingGraph
   std::sort(foldable_actions.begin(), foldable_actions.end(),
             [](const std::unique_ptr<BinaryFoldingAction>& a,
@@ -53,16 +85,16 @@ FoldingGraph::FoldingGraph(
               return a->GetFrom()->id() < b->GetFrom()->id();
             });
 
-  Graph::Builder builder;
-
   // Add the nodes
-  AddNodes(foldable_actions, builder);
+  AddNodes(foldable_actions);
 
   // Add the edges
-  AddEdges(std::move(foldable_actions), builder);
+  AddEdges(std::move(foldable_actions));
 
   // Build the graph
-  graph_ = std::move(builder).BuildAndPermute(edges_);
+  std::vector<EdgeIndex> edge_permutations;
+  graph_->Build(&edge_permutations);
+  Permute(edge_permutations, &edges_);
 
   // Print the folding graph
   if (VLOG_IS_ON(2)) {
@@ -109,8 +141,7 @@ FoldingGraph::FoldingGraph(
 FunctionBase* FoldingGraph::function() const { return f_; }
 
 void FoldingGraph::AddNodes(
-    absl::Span<const std::unique_ptr<BinaryFoldingAction>> foldable_actions,
-    Graph::Builder& builder) {
+    absl::Span<const std::unique_ptr<BinaryFoldingAction>> foldable_actions) {
   // Add all nodes involved in folding actions into the internal
   // representation.
   absl::flat_hash_set<Node*> already_added;
@@ -137,21 +168,20 @@ void FoldingGraph::AddNodes(
 
   // Add the nodes to the graph
   for (size_t i = 0; i < nodes_.size(); ++i) {
-    builder.AddNode(i);
+    graph_->AddNode(i);
   }
 }
 
 void FoldingGraph::AddEdges(
-    std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
-    Graph::Builder& builder) {
+    std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions) {
   // Add all edges to the graph
   for (std::unique_ptr<BinaryFoldingAction>& f : foldable_actions) {
     // Add a new edge into the graph to represent the current folding action
     NodeIndex from_index = node_to_index_.at(f->GetFrom());
     NodeIndex to_index = node_to_index_.at(f->GetTo());
-    CHECK(0 <= from_index && from_index < builder.num_nodes());
-    CHECK(0 <= to_index && to_index < builder.num_nodes());
-    builder.AddArc(from_index, to_index);
+    CHECK(graph_->IsNodeValid(from_index));
+    CHECK(graph_->IsNodeValid(to_index));
+    graph_->AddArc(from_index, to_index);
 
     // Add the current folding action to our internal representation
     edges_.push_back(std::move(f));

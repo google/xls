@@ -509,7 +509,7 @@ absl::StatusOr<ProcInstantiationPath> ProcElaboration::CreatePath(
 absl::StatusOr<std::pair<ProcElaboration::ChannelGraph,
                          std::vector<ProcElaboration::ChannelEdge>>>
 ProcElaboration::BuildChannelGraph() const {
-  ProcElaboration::ChannelGraph::Builder builder(
+  ProcElaboration::ChannelGraph graph(
       /*num_nodes=*/proc_instance_ptrs_.size() + 1,
       /*arc_capacity=*/channel_instance_ptrs_.size());
   struct MissingSide {
@@ -523,7 +523,7 @@ ProcElaboration::BuildChannelGraph() const {
   std::vector<ProcElaboration::ChannelEdge> refs;
   refs.reserve(channel_instance_ptrs_.size());
   for (ProcInstance* p : proc_instance_ptrs_) {
-    builder.AddNode(id);
+    graph.AddNode(id);
     for (Node* n : p->proc()->nodes()) {
       if (n->Is<Send>()) {
         XLS_ASSIGN_OR_RETURN(SendChannelRef ref,
@@ -545,8 +545,7 @@ ProcElaboration::BuildChannelGraph() const {
             // to support all cases.
             continue;
           }
-          ProcElaboration::ChannelId nxt =
-              builder.AddArc(id, other_side[c]->id);
+          ProcElaboration::ChannelId nxt = graph.AddArc(id, other_side[c]->id);
           XLS_RET_CHECK_EQ(nxt, refs.size());
           refs.push_back(
               {.send = ref,
@@ -575,8 +574,7 @@ ProcElaboration::BuildChannelGraph() const {
             // to support all cases.
             continue;
           }
-          ProcElaboration::ChannelId nxt =
-              builder.AddArc(other_side[c]->id, id);
+          ProcElaboration::ChannelId nxt = graph.AddArc(other_side[c]->id, id);
           XLS_RET_CHECK_EQ(nxt, refs.size());
           refs.push_back({.send = std::get<SendChannelRef>(other_side[c]->ref),
                           .recv = ref});
@@ -589,24 +587,26 @@ ProcElaboration::BuildChannelGraph() const {
     id++;
   }
   // Add external channels.
-  builder.AddNode(proc_instance_ptrs_.size());
+  graph.AddNode(proc_instance_ptrs_.size());
   for (const auto& [chan, other] : other_side) {
     if (!other) {
       continue;
     }
     const MissingSide& side = *other;
     if (std::holds_alternative<SendChannelRef>(side.ref)) {
-      builder.AddArc(side.id, external_id);
+      graph.AddArc(side.id, external_id);
       refs.push_back({.send = std::get<SendChannelRef>(side.ref),
                       .recv = static_cast<Channel*>(nullptr)});
     } else {
-      builder.AddArc(external_id, side.id);
+      graph.AddArc(external_id, side.id);
       refs.push_back({.send = static_cast<Channel*>(nullptr),
                       .recv = std::get<ReceiveChannelRef>(side.ref)});
     }
   }
   // NB Build can renumber arcs so we need to renumber the channel info.
-  auto graph = std::move(builder).BuildGraphAndPermute(refs);
+  std::vector<ProcElaboration::ChannelId> permutation;
+  graph.Build(&permutation);
+  util::Permute(permutation, &refs);
   return std::pair<ProcElaboration::ChannelGraph,
                    std::vector<ProcElaboration::ChannelEdge>>(std::move(graph),
                                                               std::move(refs));

@@ -229,11 +229,9 @@ class FoldingGraph {
   absl::flat_hash_set<absl::flat_hash_set<NodeIndex>> cliques_;
 
   void AddNodes(
-      absl::Span<const std::unique_ptr<BinaryFoldingAction>> foldable_actions,
-      Graph::Builder& builder);
+      absl::Span<const std::unique_ptr<BinaryFoldingAction>> foldable_actions);
   void AddEdges(
-      std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
-      Graph::Builder& builder);
+      std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions);
   void IdentifyCliques();
 };
 
