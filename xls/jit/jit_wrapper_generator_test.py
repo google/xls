@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from absl import app
 import jinja2
 
 from absl.testing import absltest
 from xls.common import runfiles
+from xls.ir import xls_ir_interface_pb2 as ir_interface_pb2
 from xls.ir import xls_type_pb2 as type_pb2
 from xls.jit import jit_wrapper_generator
 
@@ -574,6 +576,166 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
     self.assertIn(
         'xls::test::TupleMixedFuncJit::GetParamType(0).value()', rendered_code
     )
+
+  def test_render_fuzztest_uses_property_param_filter(self):
+    u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
+    wrapped_ir = jit_wrapper_generator.WrappedIr(
+        jit_type=jit_wrapper_generator.JitType.FUNCTION,
+        ir_text='',
+        function_name='my_func',
+        class_name='MyFuncJit',
+        header_guard='HEADER_GUARD',
+        header_filename='my_func_jit.h',
+        namespace='xls::test',
+        aot_entrypoint=None,
+        params=[
+            jit_wrapper_generator.XlsNamedValue(
+                name='a',
+                type_proto=u8,
+                packed_type='',
+                unpacked_type='',
+                specialized_type=None,
+            ),
+        ],
+        result=None,
+    )
+    template = '{{ fuzztest.params[0] | property_param }}'
+    rendered_code = jit_wrapper_generator.render_fuzztest(
+        wrapped_ir,
+        self.env,
+        template,
+        'xls::test::MyFuncJit',
+        'my_func_jit.h',
+    )
+    self.assertEqual(rendered_code, 'xls::Value a')
+
+
+class JitWrapperGeneratorToDomainTest(absltest.TestCase):
+
+  def test_extract_int_from_bytes(self):
+    self.assertEqual(jit_wrapper_generator.extract_int_from_bytes(b'\x00'), 0)
+    self.assertEqual(jit_wrapper_generator.extract_int_from_bytes(b'\x0a'), 10)
+    self.assertEqual(
+        jit_wrapper_generator.extract_int_from_bytes(b'\xff\xff\xff\xff'),
+        0xFFFFFFFF,
+    )
+
+  def test_bits_domain_power_of_2(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(u32, None),
+        'fuzztest::Arbitrary<uint32_t>()',
+    )
+
+  def test_bits_domain_non_power_of_2(self):
+    u17 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=17)
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(u17, None),
+        'fuzztest::InRange<uint32_t>(0, 131071)',
+    )
+
+  def test_range_domain(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    d = ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain()
+    d.range.min.bits.bit_count = 32
+    d.range.min.bits.data = b'\x01'
+    d.range.max.bits.bit_count = 32
+    d.range.max.bits.data = b'\x0a'
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(u32, d),
+        'fuzztest::InRange<uint32_t>(1, 10)',
+    )
+
+  def test_element_of_domain(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    d = ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain()
+    v1 = d.element_of.values.add()
+    v1.bits.bit_count = 32
+    v1.bits.data = b'\x01'
+    v2 = d.element_of.values.add()
+    v2.bits.bit_count = 32
+    v2.bits.data = b'\x02'
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(u32, d),
+        'fuzztest::ElementOf(std::vector<uint32_t>{1, 2})',
+    )
+
+  def test_tuple_domain(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u32, u32]
+    )
+    d = ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain()
+    d.tuple.elements.add().range.min.bits.bit_count = 32
+    d.tuple.elements[0].range.min.bits.data = b'\x00'
+    d.tuple.elements[0].range.max.bits.bit_count = 32
+    d.tuple.elements[0].range.max.bits.data = b'\x0a'
+    d.tuple.elements.add().arbitrary = True
+
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(tup, d),
+        'fuzztest::TupleOf(fuzztest::InRange<uint32_t>(0, 10),'
+        ' fuzztest::Arbitrary<uint32_t>())',
+    )
+
+  def test_nested_tuple_domain(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    inner_tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u32]
+    )
+    outer_tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u32, inner_tup]
+    )
+
+    d = ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain()
+    d.tuple.elements.add().arbitrary = True
+    inner_d = d.tuple.elements.add().tuple.elements.add()
+    inner_d.range.min.bits.bit_count = 32
+    inner_d.range.min.bits.data = b'\x00'
+    inner_d.range.max.bits.bit_count = 32
+    inner_d.range.max.bits.data = b'\x05'
+
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(outer_tup, d),
+        'fuzztest::TupleOf(fuzztest::Arbitrary<uint32_t>(),'
+        ' fuzztest::TupleOf(fuzztest::InRange<uint32_t>(0, 5)))',
+    )
+
+  def test_tuple_with_array_domain(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    arr = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.ARRAY, array_size=3, array_element=u32
+    )
+    tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u32, arr]
+    )
+
+    d = ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain()
+    d.tuple.elements.add().arbitrary = True
+    d.tuple.elements.add().arbitrary = True
+
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(tup, d),
+        'fuzztest::TupleOf(fuzztest::Arbitrary<uint32_t>(),'
+        ' fuzztest::VectorOf(fuzztest::Arbitrary<uint32_t>()).WithSize(3))',
+    )
+
+  def test_unsupported_domain_raises(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u32]
+    )
+    d = ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain()
+    d.range.min.bits.bit_count = 32
+    d.range.min.bits.data = b'\x00'
+    d.range.max.bits.bit_count = 32
+    d.range.max.bits.data = b'\x0a'
+
+    with self.assertRaisesRegex(
+        app.UsageError,
+        'Range domain is only supported for specializable bits types',
+    ):
+      jit_wrapper_generator.to_domain(tup, d)
 
 
 if __name__ == '__main__':

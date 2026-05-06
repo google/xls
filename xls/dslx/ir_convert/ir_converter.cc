@@ -522,6 +522,12 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
     return ConvertOneFunctionIntoPackageInternal(&(*test_fn)->fn(), import_data,
                                                  options, conv);
   }
+  absl::StatusOr<FuzzTestFunction*> fuzz_test_fn =
+      module->GetMemberOrError<FuzzTestFunction>(entry_function_name);
+  if (fuzz_test_fn.ok()) {
+    return ConvertOneFunctionIntoPackageInternal(&(*fuzz_test_fn)->fn(),
+                                                 import_data, options, conv);
+  }
 
   std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
   if (fn_or.has_value()) {

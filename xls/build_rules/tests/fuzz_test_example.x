@@ -12,4 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[fuzz_test(domains=`u32:0..100, u32:0..100`)]
 fn my_fuzz_property(x: u32, y: u32) -> bool { x + y == y + x }

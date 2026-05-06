@@ -411,7 +411,9 @@ pytype_strict_contrib_test(
     deps = [
         ":jit_wrapper_generator",
         "//xls/common:runfiles",
+        "//xls/ir:xls_ir_interface_py_pb2",
         "//xls/ir:xls_type_py_pb2",
+        "@abseil-py//absl:app",
         "@abseil-py//absl/testing:absltest",
         "@xls_pip_deps//jinja2",
     ],

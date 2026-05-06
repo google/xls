@@ -17,6 +17,7 @@
 from collections.abc import Sequence
 import dataclasses
 import enum
+import itertools
 from typing import Optional
 
 from absl import app
@@ -36,6 +37,7 @@ class XlsNamedValue:
   unpacked_type: str
   specialized_type: Optional[str]
   type_proto: type_pb2.TypeProto
+  domain_snippet: Optional[str] = None
 
   @property
   def value_arg(self):
@@ -123,6 +125,10 @@ class PropertyFunctionParam:
   name: str
   # The index of the parameter in the function signature.
   index: int
+  domain_snippet: Optional[str] = None
+  cpp_type: str = "xls::Value"
+  is_native: bool = False
+  conversion_snippet: Optional[str] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -137,6 +143,8 @@ class PropertyFunction:
   # Function params and result.
   params: Sequence[PropertyFunctionParam]
   return_type: bool
+  can_be_specialized: bool = False
+  result_width: int = 0
 
 
 def to_packed(t: type_pb2.TypeProto) -> str:
@@ -263,6 +271,91 @@ def to_specialized(
   return None
 
 
+def extract_int_from_bytes(data: bytes) -> int:
+  """Extracts an int from a bytes object."""
+  return int.from_bytes(data, byteorder="little")
+
+
+def to_domain(
+    t: type_pb2.TypeProto,
+    d: Optional[ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain],
+) -> str:
+  """Converts an XLS type and domain spec to a FuzzTest domain string.
+
+  Args:
+    t: The XLS type proto.
+    d: The optional FuzzTest domain specification from the package interface.
+
+  Returns:
+    A string representing the C++ FuzzTest domain (e.g.,
+    "fuzztest::Arbitrary<uint32_t>()").
+
+  Raises:
+    app.UsageError: If the domain specification is invalid or unsupported for
+       the given type.
+  """
+  if (
+      d is None
+      or d.HasField("arbitrary")
+      or (
+          not d.HasField("range")
+          and not d.HasField("element_of")
+          and not d.HasField("tuple")
+      )
+  ):
+    if t.type_enum == type_pb2.TypeProto.BITS:
+      c_type = to_specialized(t, int_only=True)
+      if c_type is None:
+        return "fuzztest::Arbitrary<xls::Value>()"
+      if t.bit_count in (8, 16, 32, 64):
+        return f"fuzztest::Arbitrary<{c_type}>()"
+      else:
+        max_val = (1 << t.bit_count) - 1
+        return f"fuzztest::InRange<{c_type}>(0, {max_val})"
+    elif t.type_enum == type_pb2.TypeProto.TUPLE:
+      elems = (to_domain(e, None) for e in t.tuple_elements)
+      return f"fuzztest::TupleOf({', '.join(elems)})"
+    elif t.type_enum == type_pb2.TypeProto.ARRAY:
+      elem_domain = to_domain(t.array_element, None)
+      return f"fuzztest::VectorOf({elem_domain}).WithSize({t.array_size})"
+    else:
+      return "fuzztest::Arbitrary<xls::Value>()"
+
+  if d.HasField("range"):
+    c_type = to_specialized(t, int_only=True)
+    if c_type is None:
+      raise app.UsageError(
+          "Range domain is only supported for specializable bits types"
+      )
+    min_val = extract_int_from_bytes(d.range.min.bits.data)
+    max_val = extract_int_from_bytes(d.range.max.bits.data)
+    return f"fuzztest::InRange<{c_type}>({min_val}, {max_val})"
+
+  if d.HasField("element_of"):
+    c_type = to_specialized(t, int_only=True)
+    if c_type is None:
+      raise app.UsageError(
+          "ElementOf domain only supported for specializable bits types in"
+          " this CL"
+      )
+    vals = [
+        str(extract_int_from_bytes(v.bits.data)) for v in d.element_of.values
+    ]
+    return f"fuzztest::ElementOf(std::vector<{c_type}>{{{', '.join(vals)}}})"
+
+  if d.HasField("tuple"):
+    if t.type_enum != type_pb2.TypeProto.TUPLE:
+      raise app.UsageError("Tuple domain requires Tuple type")
+    if len(d.tuple.elements) != len(t.tuple_elements):
+      raise app.UsageError("Tuple domain and type element count mismatch")
+    elems = [
+        to_domain(te, de) for te, de in zip(t.tuple_elements, d.tuple.elements)
+    ]
+    return f"fuzztest::TupleOf({', '.join(elems)})"
+
+  raise app.UsageError(f"Unsupported domain: {d}")
+
+
 def to_chan(
     c: ir_interface_pb2.PackageInterfaceProto.Channel, package_name: str
 ) -> XlsChannel:
@@ -278,6 +371,7 @@ def to_chan(
 
 def to_param(
     p: ir_interface_pb2.PackageInterfaceProto.NamedValue,
+    d: Optional[ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain] = None,
 ) -> XlsNamedValue:
   return XlsNamedValue(
       name=p.name,
@@ -285,6 +379,7 @@ def to_param(
       unpacked_type=to_unpacked(p.type),
       specialized_type=to_specialized(p.type),
       type_proto=p.type,
+      domain_snippet=to_domain(p.type, d),
   )
 
 
@@ -330,7 +425,12 @@ def interpret_function_interface(
   """
   if func_ir.base.name != aot_info.entrypoint[0].xls_function_identifier:
     raise app.UsageError("Aot info is for a different function.")
-  params = [to_param(p) for p in func_ir.parameters]
+  params = [
+      to_param(p, d)
+      for p, d in itertools.zip_longest(
+          func_ir.parameters, func_ir.parameter_domains
+      )
+  ]
   result = XlsNamedValue(
       name="result",
       packed_type=to_packed(func_ir.result_type),
@@ -458,16 +558,42 @@ def wrapped_to_fuzztest(
   params = []
   if wrapped.params:
     for idx, p in enumerate(wrapped.params):
-      params.append(PropertyFunctionParam(name=p.name, index=idx))
+      is_native = p.specialized_type is not None
+      conversion_snippet = None
+      if is_native and p.type_proto.type_enum == type_pb2.TypeProto.BITS:
+        conversion_snippet = (
+            f"xls::Value(xls::UBits({p.name}, {p.type_proto.bit_count}))"
+        )
+
+      params.append(
+          PropertyFunctionParam(
+              name=p.name,
+              index=idx,
+              domain_snippet=p.domain_snippet,
+              cpp_type=p.specialized_type or "xls::Value",
+              is_native=is_native,
+              conversion_snippet=conversion_snippet,
+          )
+      )
+
+  if (
+      wrapped.result
+      and wrapped.result.type_proto.type_enum == type_pb2.TypeProto.BITS
+  ):
+    result_width = wrapped.result.type_proto.bit_count
+  else:
+    result_width = 0
+
   return PropertyFunction(
       fuzztest_name=wrapped.function_name + "_fuzztest",
       property_function_name=wrapped.function_name,
       lib_class_name=lib_class_name,
       lib_header_path=lib_header_path,
-      # Everything shares the namespace
       namespace=wrapped.namespace,
       params=params,
       return_type=wrapped.result is not None,
+      can_be_specialized=wrapped.can_be_specialized,
+      result_width=result_width,
   )
 
 
@@ -479,7 +605,7 @@ def render_fuzztest(
     lib_header_path: str,
 ) -> str:
   """Renders the fuzztest C++ code."""
-  env.filters["property_param"] = lambda p: "xls::Value " + p.name
+  env.filters["property_param"] = lambda p: f"{p.cpp_type} {p.name}"
   cc_template = env.from_string(cc_template_content)
   fuzztest = wrapped_to_fuzztest(wrapped, lib_class_name, lib_header_path)
   bindings = {"fuzztest": fuzztest, "len": len}

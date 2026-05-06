@@ -9,14 +9,29 @@
 namespace {{ fuzztest.namespace }} {
 namespace {
 
-void {{fuzztest.property_function_name}}({{ fuzztest.params | map("property_param") | join (", ") }}) {
+void {{fuzztest.property_function_name}}({% for param in fuzztest.params %}{{param.cpp_type}} {{param.name}}{% if not loop.last %}, {% endif %}{% endfor %}) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<{{fuzztest.lib_class_name}}> f,
                            {{fuzztest.lib_class_name}}::Create());
 
+  {% if fuzztest.can_be_specialized %}
+  // Use specialized overload.
+  XLS_ASSERT_OK_AND_ASSIGN(auto res_native, f->Run(
+  {% for param in fuzztest.params %}{{param.name}}{% if not loop.last %}, {% endif %}{% endfor %}
+  ));
+  xls::Value result = xls::Value(xls::UBits(res_native, {{fuzztest.result_width}}));
+  {% else %}
+  // Fallback: Manual binding for the standard Run(xls::Value...) overload.
+  {% for param in fuzztest.params %}
+  {% if param.is_native %}
+  xls::Value {{param.name}}_val = {{param.conversion_snippet}};
+  {% endif %}
+  {% endfor %}
   XLS_ASSERT_OK_AND_ASSIGN(xls::Value result, f->Run(
   {% for param in fuzztest.params %}
-  {{param.name}}{% if not loop.last %}, {% endif %}
-  {% endfor %}));
+  {{param.name}}{% if param.is_native %}_val{% endif %}{% if not loop.last %}, {% endif %}
+  {% endfor %}
+  ));
+  {% endif %}
 
   {% if fuzztest.return_type %}
   ASSERT_TRUE(result.IsAllOnes());
@@ -26,7 +41,10 @@ void {{fuzztest.property_function_name}}({{ fuzztest.params | map("property_para
 FUZZ_TEST({{fuzztest.fuzztest_name}}, {{fuzztest.property_function_name}})
   .WithDomains(
     {% for param in fuzztest.params %}
-    xls::ArbitraryValue({{fuzztest.lib_class_name}}::GetParamType({{param.index}}).value()){% if not loop.last %},
+    {% if param.domain_snippet %}
+    {{param.domain_snippet}}{% if not loop.last %}, {% endif %}
+    {% else %}
+    xls::ArbitraryValue({{fuzztest.lib_class_name}}::GetParamType({{param.index}}).value()){% if not loop.last %}, {% endif %}
     {% endif %}
     {% endfor %}
   );
