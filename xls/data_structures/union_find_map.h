@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 
 namespace xls {
 
@@ -67,12 +68,20 @@ class UnionFindMap {
   // Given a key, returns the representative element in that key's equivalence
   // class, along with the associated value. Returns `std::nullopt` if the
   // given key has never been inserted.
-  std::optional<std::pair<K, V&>> Find(const K& key) {
+  std::optional<std::pair<K, const V&>> Find(const K& key) const {
     if (auto index = GetIndex(key)) {
       uint32_t found = FindRoot(index.value());
       return {{keys_.at(found), values_.at(found)}};
     }
     return std::nullopt;
+  }
+
+  std::optional<std::pair<K, V&>> Find(const K& key) {
+    auto opt_res = std::as_const(*this).Find(key);
+    if (!opt_res.has_value()) {
+      return std::nullopt;
+    }
+    return {{opt_res->first, const_cast<V&>(opt_res->second)}};
   }
 
   // Union together the equivalence classes of two keys.
@@ -100,16 +109,16 @@ class UnionFindMap {
     uint32_t y_root = FindRoot(y_index.value());
 
     if (x_root != y_root) {
-      uint32_t x_root_size = nodes_.at(x_root).size;
-      uint32_t y_root_size = nodes_.at(y_root).size;
+      uint32_t x_root_size = nodes_.at(x_root).size();
+      uint32_t y_root_size = nodes_.at(y_root).size();
       if (x_root_size < y_root_size) {
         std::swap(x_root, y_root);
       }
       V new_value = merge(values_.at(x_root), values_.at(y_root));
       values_.at(x_root) = new_value;
       values_.at(y_root) = new_value;
-      nodes_.at(y_root).parent = x_root;
-      nodes_.at(x_root).size = x_root_size + y_root_size;
+      nodes_.at(y_root).set_parent(x_root);
+      nodes_.at(x_root).set_size(x_root_size + y_root_size);
     }
 
     return true;
@@ -122,7 +131,7 @@ class UnionFindMap {
   const std::vector<K>& GetKeys() const { return keys_; }
 
   // Returns the smallest element of every equivalence class.
-  absl::flat_hash_set<K> GetRepresentatives() {
+  absl::flat_hash_set<K> GetRepresentatives() const {
     absl::flat_hash_set<K> result;
     for (const K& key : keys_) {
       result.insert(Find(key)->first);
@@ -133,9 +142,34 @@ class UnionFindMap {
  private:
   // The `parent` field should be a valid index into `nodes_` et al.
   // A root node will have itself as its parent.
-  struct Node {
-    uint32_t parent;
-    uint32_t size;
+  class Node {
+    // Give initial invalid values.
+    uint32_t parent_ = -1;
+    uint32_t size_ = 0;
+
+   public:
+    Node(uint32_t parent_val, uint32_t size_val)
+        : parent_(parent_val), size_(size_val) {}
+
+    uint32_t parent() const {
+      DCHECK_NE(parent_, static_cast<uint32_t>(-1))
+          << "Uninitialized parent index.";
+      return parent_;
+    }
+
+    void set_parent(uint32_t new_parent) {
+      DCHECK_NE(new_parent, static_cast<uint32_t>(-1)) << "Invalid new parent.";
+      parent_ = new_parent;
+    }
+
+    uint32_t size() const {
+      DCHECK_NE(size_, 0) << "Invalid / uninitialized size";
+      return size_;
+    }
+    void set_size(uint32_t new_size) {
+      DCHECK_NE(new_size, 0) << "Invalid new size";
+      size_ = new_size;
+    }
   };
 
   std::optional<uint32_t> GetIndex(const K& key) const {
@@ -146,15 +180,15 @@ class UnionFindMap {
   }
 
   // Uses the path-halving algorithm.
-  uint32_t FindRoot(uint32_t index) {
+  uint32_t FindRoot(uint32_t index) const {
     uint32_t x = index;
     while (true) {
-      uint32_t p = nodes_.at(x).parent;
-      uint32_t pp = nodes_.at(p).parent;
+      uint32_t p = nodes_.at(x).parent();
+      uint32_t pp = nodes_.at(p).parent();
       if (p == x) {
         return x;
       }
-      nodes_.at(x).parent = pp;
+      nodes_.at(x).set_parent(pp);
       x = pp;
     }
   }
@@ -170,7 +204,7 @@ class UnionFindMap {
   std::vector<V> values_;
 
   // Maps an index to a node. Should have size equal to the number of indices.
-  std::vector<Node> nodes_;
+  mutable std::vector<Node> nodes_;
 };
 
 }  // namespace xls
