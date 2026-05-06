@@ -191,6 +191,45 @@ ExprOrType ToExprOrType(AstNode* n) {
   return type;
 }
 
+std::string_view TypeAnnotationKindToString(TypeAnnotationKind kind) {
+  switch (kind) {
+    case TypeAnnotationKind::kAny:
+      return "any";
+    case TypeAnnotationKind::kArray:
+      return "array";
+    case TypeAnnotationKind::kBuiltin:
+      return "builtin";
+    case TypeAnnotationKind::kChannel:
+      return "channel";
+    case TypeAnnotationKind::kConstConditional:
+      return "const conditional";
+    case TypeAnnotationKind::kConstMatch:
+      return "const match";
+    case TypeAnnotationKind::kElement:
+      return "element";
+    case TypeAnnotationKind::kFunction:
+      return "function";
+    case TypeAnnotationKind::kGeneric:
+      return "generic";
+    case TypeAnnotationKind::kMember:
+      return "member";
+    case TypeAnnotationKind::kParam:
+      return "param";
+    case TypeAnnotationKind::kReturn:
+      return "return";
+    case TypeAnnotationKind::kSelf:
+      return "self";
+    case TypeAnnotationKind::kSlice:
+      return "slice";
+    case TypeAnnotationKind::kTuple:
+      return "tuple";
+    case TypeAnnotationKind::kTypeRef:
+      return "type ref";
+    case TypeAnnotationKind::kTypeVariable:
+      return "type variable";
+  }
+}
+
 std::string_view AstNodeKindToString(AstNodeKind kind) {
   switch (kind) {
     case AstNodeKind::kAttribute:

@@ -323,6 +323,13 @@ enum class TypeAnnotationKind : uint8_t {
   kTypeVariable
 };
 
+std::string_view TypeAnnotationKindToString(TypeAnnotationKind kind);
+
+inline std::ostream& operator<<(std::ostream& os, TypeAnnotationKind kind) {
+  os << TypeAnnotationKindToString(kind);
+  return os;
+}
+
 // One of the `#[foo]`-like nodes preceding some entity.
 class Attribute : public AstNode {
  public:
