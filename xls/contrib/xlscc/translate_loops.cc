@@ -291,8 +291,12 @@ Translator::GenerateIR_LoopImplImpl(
   IOOp* begin_op = nullptr;
 
   if (add_loop_jump) {
-    if (!merge_states_) {
-      XLS_RETURN_IF_ERROR(InsertActivationBarrier(/*conditional=*/false, loc));
+    // Don't add implicit barrier after the first slice.
+    // It cannot have any benefit, only costs.
+    if (!merge_states_ && context().sf->slices.size() > 1) {
+      // TODO(seanhaskell): Insert conditional barriers here?
+      XLS_RETURN_IF_ERROR(InsertActivationBarrier(
+          /*type=*/ActivationBarrierType::kUnconditional, loc));
     }
     XLS_ASSIGN_OR_RETURN(begin_op, GenerateIR_AddLoopBegin(loc));
   }

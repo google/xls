@@ -10650,8 +10650,10 @@ TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrierInLoop) {
     outputs["out"] = {
         xls::Value(xls::SBits(9, 32)), xls::Value(xls::SBits(12, 32)),
         xls::Value(xls::SBits(15, 32)), xls::Value(xls::SBits(18, 32))};
+
+    int64_t ticks = 6;
     ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
-             /*min_ticks=*/6, /*max_ticks=*/6);
+             /*min_ticks=*/ticks, /*max_ticks=*/ticks);
   }
 }
 
@@ -10676,8 +10678,9 @@ TEST_P(TranslatorProcTest_NewFSMOnly, ActivationBarrierAtBeginning) {
 
     absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
     outputs["out"] = {xls::Value(xls::SBits(42 * 3, 32))};
+
     ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
-             /*min_ticks=*/1, /*max_ticks=*/1);
+             /*min_ticks=*/2, /*max_ticks=*/2);
   }
 }
 
@@ -10945,6 +10948,374 @@ TEST_P(TranslatorProcTest, PipelinedLoopOuterExit) {
   };
   ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
            /* min_ticks = */ 3);
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex,
+       MergeMutuallyExclusiveOpsWithDependency) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+           const int a = data_in.read();
+           if (a == 1) {
+             __xlscc_activation_barrier</*conditional=*/true>();
+             const int b = data_in.read();
+             data_out.write(a + b);
+           }
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in"] = {
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(3, 32)),
+        // Iteration
+        xls::Value(xls::SBits(4, 32)),
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(5, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(1 + 3, 32)),
+                           xls::Value(xls::SBits(1 + 5, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/5, /*max_ticks=*/5);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex,
+       MergeMutuallyExclusiveOpsWithDependencyInFunc) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         void Func(int a) {
+           if (a == 1) {
+             __xlscc_activation_barrier</*conditional=*/true>();
+             const int b = data_in.read();
+             data_out.write(a + b);
+           }
+         }
+
+         #pragma hls_top
+         void Run() {
+           const int a = data_in.read();
+           Func(a);
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in"] = {
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(3, 32)),
+        // Iteration
+        xls::Value(xls::SBits(4, 32)),
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(5, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(1 + 3, 32)),
+                           xls::Value(xls::SBits(1 + 5, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/5, /*max_ticks=*/5);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex,
+       MergeMutuallyExclusiveOpsWithDependencyAndDataOutOfScope) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+           const int a = data_in.read();
+           int b = 0;
+           if (a == 1) {
+             __xlscc_activation_barrier</*conditional=*/true>();
+             b = data_in.read();
+           }
+           data_out.write(a + b);
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in"] = {
+        // Iteration
+        xls::Value(xls::SBits(4, 32)),
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(3, 32)),
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(5, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(4, 32)),
+                           xls::Value(xls::SBits(1 + 3, 32)),
+                           xls::Value(xls::SBits(1 + 5, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/5, /*max_ticks=*/5);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex,
+       MergeMutuallyExclusiveOpsWithDependency2) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+           const int a = data_in.read();
+           if (a <= 1) {
+             __xlscc_activation_barrier</*conditional=*/true>();
+             int b = 0;
+             // Introduces data dependency
+             if (a == 1) {
+               b = data_in.read();
+             }
+             data_out.write(a + b);
+           }
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in"] = {
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(3, 32)),
+        // Iteration
+        xls::Value(xls::SBits(4, 32)),
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(5, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(1 + 3, 32)),
+                           xls::Value(xls::SBits(1 + 5, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/5, /*max_ticks=*/5);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex,
+       MergeMutuallyExclusiveOpsWithDependency3) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+           static int data = 0;
+           static bool initialized = false;
+           if (initialized) {
+             data += data_in.read();
+           } else {
+             __xlscc_activation_barrier</*conditional=*/true>();
+             data = 3 * data_in.read();
+             initialized = true;
+          }
+
+          if (data > 10) {
+            data_out.write(data);
+          }
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in"] = {
+        // Iteration
+        xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(3, 32)),
+        xls::Value(xls::SBits(10, 32)),
+    };
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(3 * 1 + 3 + 10, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/4, /*max_ticks=*/4);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex,
+       MergeMutuallyExclusiveOpsWithNestedDependency) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+           const int a = data_in.read();
+           __xlscc_trace("A");
+           if (a == 1) {
+             __xlscc_activation_barrier</*conditional=*/true>();
+             const int b = data_in.read();
+             __xlscc_trace("B");
+             if (b == 1) {
+               __xlscc_activation_barrier</*conditional=*/true>();
+               const int c = data_in.read();
+               __xlscc_trace("C");
+               data_out.write(a + b + c);
+             }
+           }
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in"] = {
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(3, 32)),
+        // Iteration
+        xls::Value(xls::SBits(4, 32)),
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(4, 32)),
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(5, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(3 + 1 + 1, 32)),
+                           xls::Value(xls::SBits(5 + 1 + 1, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/9, /*max_ticks=*/9);
+  }
 }
 
 }  // namespace

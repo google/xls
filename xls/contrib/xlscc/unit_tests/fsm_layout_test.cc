@@ -239,7 +239,7 @@ class FSMLayoutTest : public XlsccTestBase {
     EXPECT_EQ(transition.from_slice, from_slice_index);
     EXPECT_EQ(transition.to_slice, to_slice_index);
     EXPECT_EQ(transition.conditional, conditional);
-    EXPECT_EQ(transition.forward, forward);
+    EXPECT_EQ(transition.forward(), forward);
   }
 
   void ExpectNoSliceTransition(const NewFSMLayout layout,
@@ -946,7 +946,8 @@ TEST_F(FSMLayoutTest, ActivationBarrierAtBeginning) {
 
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
-  ExpectNoSliceTransition(layout, /*from_slice_index=*/0);
+  ExpectSliceTransition(layout, /*from_slice_index=*/0, /*to_slice_index=*/1,
+                        /*conditional=*/true, /*forward=*/true);
 }
 
 TEST_F(FSMLayoutTest, ActivationBarrierAtEnd) {

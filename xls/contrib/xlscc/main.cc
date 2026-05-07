@@ -148,6 +148,9 @@ ABSL_FLAG(bool, debug_ir_trace_loop_control, false,
 ABSL_FLAG(bool, debug_print_fsm_states, false,
           "Print FSM states to XLS_LOG (try --alsologtostderr).");
 
+ABSL_FLAG(bool, debug_trace_activation_barriers, false,
+          "Generate IR traces for activation barriers.");
+
 ABSL_FLAG(std::string, debug_write_function_slice_graph_path, "",
           "Path to which to write out a graphviz (dot) file for the function "
           "slices of the top function");
@@ -198,6 +201,10 @@ static absl::Status Run(std::string_view cpp_path) {
   if (absl::GetFlag(FLAGS_print_optimization_warnings)) {
     ir_trace_flags = static_cast<DebugIrTraceFlags>(
         ir_trace_flags | DebugIrTraceFlags_OptimizationWarnings);
+  }
+  if (absl::GetFlag(FLAGS_debug_trace_activation_barriers)) {
+    ir_trace_flags = static_cast<DebugIrTraceFlags>(
+        ir_trace_flags | DebugIrTraceFlags_ActivationBarriers);
   }
 
   xlscc::Translator translator(

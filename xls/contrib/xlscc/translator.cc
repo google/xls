@@ -185,6 +185,7 @@ TranslationContext& Translator::PushContext() {
   context().propagate_continue_up = true;
   // Declaration propagation does not get propagated down
   context().propagate_declarations = false;
+  context().conditional_barrier_start_ops.clear();
 
   return context();
 }
@@ -193,6 +194,17 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
   const bool propagate_up = context().propagate_up;
   const bool propagate_break_up = context().propagate_break_up;
   const bool propagate_continue_up = context().propagate_continue_up;
+
+  for (auto op_it = context().conditional_barrier_start_ops.rbegin();
+       op_it != context().conditional_barrier_start_ops.rend(); ++op_it) {
+    IOOp* start_op = *op_it;
+    XLSCC_CHECK(start_op != nullptr, loc);
+    XLSCC_CHECK_EQ(start_op->activation_barrier_type,
+                   ActivationBarrierType::kConditionalBegin, loc);
+    XLS_RETURN_IF_ERROR(InsertActivationBarrier(
+        /*type=*/ActivationBarrierType::kConditionalEnd,
+        start_op->full_op_location, start_op));
+  }
 
   // Copy updated variables
   TranslationContext popped = context();
@@ -3129,7 +3141,10 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
 
     const bool conditional = arg.getAsIntegral().getExtValue() != 0;
 
-    XLS_RETURN_IF_ERROR(InsertActivationBarrier(conditional, loc));
+    XLS_RETURN_IF_ERROR(InsertActivationBarrier(
+        /*type=*/conditional ? ActivationBarrierType::kConditionalBegin
+                             : ActivationBarrierType::kUnconditional,
+        loc));
 
     return std::make_pair(true, CValue());
   } else {
@@ -3188,19 +3203,30 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
   return std::make_pair(true, CValue());
 }
 
-absl::Status Translator::InsertActivationBarrier(bool conditional,
-                                                 const xls::SourceInfo& loc) {
+absl::Status Translator::InsertActivationBarrier(
+    ActivationBarrierType type, const xls::SourceInfo& loc,
+    std::optional<IOOp*> start_op) {
   if (!generate_new_fsm_) {
     return absl::InvalidArgumentError(
         ErrorMessage(loc, "Activation barrier is only supported in new FSM."));
   }
 
+  XLSCC_CHECK_NE(type, ActivationBarrierType::kNone, loc);
+
   IOOp op = {.op = OpType::kActivationBarrier,
-             .activation_barrier_conditional = conditional,
+             .activation_barrier_type = type,
              .ret_value = context().full_condition_bval(loc)};
 
-  XLS_RETURN_IF_ERROR(
-      AddOpToChannel(op, /*channel_param=*/nullptr, loc).status());
+  XLS_ASSIGN_OR_RETURN(IOOp * op_ptr,
+                       AddOpToChannel(op, /*channel_param=*/nullptr, loc));
+
+  if (type == ActivationBarrierType::kConditionalBegin) {
+    context().conditional_barrier_start_ops.push_back(op_ptr);
+  } else if (type == ActivationBarrierType::kConditionalEnd) {
+    XLSCC_CHECK(start_op.has_value(), loc);
+    XLSCC_CHECK_NE(start_op.value(), nullptr, loc);
+    op_ptr->barrier_begin_op = start_op.value();
+  }
 
   return absl::OkStatus();
 }
@@ -4542,8 +4568,11 @@ absl::Status Translator::AddIOOpForSliceForCall(
   caller_op.label_string = callee_op.label_string;
   caller_op.scheduling_option = callee_op.scheduling_option;
   caller_op.sub_op = &callee_op;
-  caller_op.activation_barrier_conditional =
-      callee_op.activation_barrier_conditional;
+  caller_op.activation_barrier_type = callee_op.activation_barrier_type;
+  if (callee_op.barrier_begin_op != nullptr) {
+    caller_op.barrier_begin_op =
+        caller_ops_by_callee_op.at(callee_op.barrier_begin_op);
+  }
 
   XLSCC_CHECK(last_slice_ret.valid(), loc);
 

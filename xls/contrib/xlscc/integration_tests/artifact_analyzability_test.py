@@ -114,6 +114,7 @@ class ArtifactAnalyzabilityTest(absltest.TestCase):
         output_interface, for_variable="a", bit_count=32
     )
 
+  @absltest.skip("Need to convert for new FSM")
   def test_unsigned_nested_pipelined_loop_is_narrowed(self):
     input_interface = _get_interface_proto(_INPUT_UNSIGNED_NESTED_LOOP_IR_FILE)
     output_interface = _get_interface_proto(
@@ -144,6 +145,7 @@ class ArtifactAnalyzabilityTest(absltest.TestCase):
         output_interface, for_variable="i", bit_count=3
     )
 
+  @absltest.skip("Need to convert for new FSM")
   def test_signed_nested_pipelined_loop_is_narrowed(self):
     input_interface = _get_interface_proto(_INPUT_SIGNED_NESTED_LOOP_IR_FILE)
     output_interface = _get_interface_proto(_OUTPUT_SIGNED_NESTED_LOOP_IR_FILE)

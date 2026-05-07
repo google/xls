@@ -1303,42 +1303,70 @@ void LogContinuations(const xlscc::GeneratedFunction& func) {
   }
 }
 
+std::string Debug_OpName(OpType op) {
+  std::string op_type_name = "";
+  switch (op) {
+    case OpType::kNull:
+      op_type_name = "null";
+      break;
+    case OpType::kSend:
+      op_type_name = "send";
+      break;
+    case OpType::kRecv:
+      op_type_name = "recv";
+      break;
+    case OpType::kSendRecv:
+      op_type_name = "send_recv";
+      break;
+    case OpType::kRead:
+      op_type_name = "read";
+      break;
+    case OpType::kWrite:
+      op_type_name = "write";
+      break;
+
+    case OpType::kExplicitReadRequest:
+      op_type_name = "read_request";
+      break;
+    case OpType::kExplicitReadResponse:
+      op_type_name = "read_response";
+      break;
+    case OpType::kTrace:
+      op_type_name = "trace";
+      break;
+    case OpType::kLoopBegin:
+      op_type_name = "begin";
+      break;
+    case OpType::kLoopEndJump:
+      op_type_name = "jump";
+      break;
+    case OpType::kActivationBarrier:
+      op_type_name = "barrier";
+      break;
+  }
+  return op_type_name;
+}
+
 std::string Debug_OpName(const IOOp& op) {
-  if (op.op == OpType::kTrace) {
-    return "trace";
-  }
-  if (op.op == OpType::kLoopBegin || op.op == OpType::kLoopEndJump) {
-    return op.op == OpType::kLoopBegin ? "begin" : "jump";
-  }
+  std::string op_type_name = Debug_OpName(op.op);
   if (op.op == OpType::kActivationBarrier) {
-    return "activation_barrier";
-  }
-  if (op.channel != nullptr) {
-    std::string op_type_name;
-    switch (op.op) {
-      case OpType::kSend:
-        op_type_name = "send";
-        break;
-      case OpType::kRecv:
-        op_type_name = "recv";
-        break;
-      case OpType::kRead:
-        op_type_name = "read";
-        break;
-      case OpType::kWrite:
-        op_type_name = "write";
-        break;
-      case OpType::kExplicitReadRequest:
-        op_type_name = "read_request";
-        break;
-      case OpType::kExplicitReadResponse:
-        op_type_name = "read_response";
-        break;
-      default:
-        LOG(FATAL) << absl::StrFormat("Op type doesn't make sense here: %i",
-                                      op.op);
+    if (op.activation_barrier_type ==
+        ActivationBarrierType::kConditionalBegin) {
+      op_type_name = "barrier_start";
+    } else if (op.activation_barrier_type ==
+               ActivationBarrierType::kConditionalEnd) {
+      op_type_name = "barrier_end";
+    } else if (op.activation_barrier_type ==
+               ActivationBarrierType::kUnconditional) {
+      op_type_name = "barrier_uncond";
     }
-    return absl::StrFormat("%s_%s", op.channel->unique_name, op_type_name);
+  }
+  if (!op_type_name.empty()) {
+    if (op.channel != nullptr) {
+      return absl::StrFormat("%s_%s", op.channel->unique_name, op_type_name);
+    } else {
+      return op_type_name;
+    }
   }
   if (!op.final_param_name.empty()) {
     return op.final_param_name;

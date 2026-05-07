@@ -2406,6 +2406,14 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
                             "mutually exclusive for priority %i",
                             elem->name(), pb.name(), priority_it->first),
             /*label=*/std::nullopt, loc);
+        token = pb.Trace(
+            token, pb.Ne(one_hot, conditions_bval, loc),
+            /*args=*/{one_hot, conditions_bval},
+            /*format=*/
+            absl::StrFormat("Conditions for state element %s in %s are not "
+                            "mutually exclusive for priority %i, one_hot {:b} "
+                            "vs conditions {:b}",
+                            elem->name(), pb.name(), priority_it->first));
       }
     }
   }

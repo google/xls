@@ -465,6 +465,15 @@ enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory, kTrace };
 enum class TraceType { kNull = 0, kAssert, kTrace };
 // TODO(seanhaskell): Remove with old FSM
 enum class IOSchedulingOption { kNone = 0, kASAPBefore = 1, kASAPAfter = 2 };
+// Conditional barriers are scoped, and a slice must be inserted after the scope
+// to enable the new FSM to properly enable/disable slices in the scope,
+// and to properly prepare input phis inside of / outside of the scope.
+enum class ActivationBarrierType {
+  kNone = 0,
+  kUnconditional = 1,
+  kConditionalBegin = 2,
+  kConditionalEnd = 3
+};
 
 // __xls_channel in C/C++
 class CChannelType : public CType {
@@ -936,7 +945,8 @@ struct IOOp {
   const IOOp* loop_op_paired = nullptr;
 
   // Whether or not a condition is to be applied to the barrier.
-  bool activation_barrier_conditional = false;
+  ActivationBarrierType activation_barrier_type = ActivationBarrierType::kNone;
+  const IOOp* barrier_begin_op = nullptr;
 
   // --- Not preserved across calls ---
 
@@ -1259,6 +1269,7 @@ enum DebugIrTraceFlags {
   DebugIrTraceFlags_FSMStates = 4,
   DebugIrTraceFlags_PrevStateIOReferences = 8,
   DebugIrTraceFlags_OptimizationWarnings = 16,
+  DebugIrTraceFlags_ActivationBarriers = 32,
 };
 
 struct NextStateValue {
@@ -1285,6 +1296,7 @@ int Debug_CountNodes(const xls::Node* node,
 std::string Debug_NodeToInfix(TrackedBValue bval);
 std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed);
 std::string Debug_OpName(const IOOp& op);
+std::string Debug_OpName(OpType op);
 
 void LogContinuations(const xlscc::GeneratedFunction& func);
 

@@ -29,6 +29,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -93,10 +94,10 @@ absl::Status NewFSMGenerator::LayoutNewFSMNoStateElements(
     LOG(INFO) << "FSM transitions:";
     for (const NewFSMActivationTransition& transition :
          layout.state_transitions) {
-      LOG(INFO) << absl::StrFormat("  %li -> %li (conditional? %i forward? %i)",
-                                   transition.from_slice, transition.to_slice,
-                                   (int)transition.conditional,
-                                   (int)transition.forward);
+      LOG(INFO) << absl::StrFormat(
+          "  %li -> %li (conditional? %i start_op? %s)", transition.from_slice,
+          transition.to_slice, (int)transition.conditional,
+          Debug_OpName(transition.start_op_type));
     }
   }
 
@@ -257,12 +258,13 @@ absl::Status NewFSMGenerator::LayoutNewFSMTransitions(
         continue;
       }
 
+      // Implied barrier
       XLSCC_CHECK_GT(before_io_slice_index, 0, body_loc);
       NewFSMActivationTransition transition = {
           .from_slice = before_io_slice_index - 1,
           .to_slice = before_io_slice_index,
           .conditional = false,
-          .forward = true,
+          .start_op_type = OpType::kActivationBarrier,
       };
       insert_transition_safely(transition, body_loc);
       layout.state_transitions.push_back(transition);
@@ -277,20 +279,17 @@ absl::Status NewFSMGenerator::LayoutNewFSMTransitions(
     const IOOp* after_op = slice.after_op;
     XLSCC_CHECK_NE(after_op, nullptr, body_loc);
 
-    if (after_op->op == OpType::kActivationBarrier) {
+    if (after_op->op == OpType::kActivationBarrier &&
+        after_op->activation_barrier_type !=
+            ActivationBarrierType::kConditionalEnd) {
       const int64_t before_io_slice_index = layout.index_by_slice.at(&slice);
-
-      // Barriers at the beginning/end guard nothing and just reduce throughput.
-      if (before_io_slice_index == 1 ||
-          before_io_slice_index == slices.size() - 1) {
-        continue;
-      }
 
       NewFSMActivationTransition transition = {
           .from_slice = before_io_slice_index - 1,
           .to_slice = before_io_slice_index,
-          .conditional = after_op->activation_barrier_conditional,
-          .forward = true,
+          .conditional = after_op->activation_barrier_type ==
+                         ActivationBarrierType::kConditionalBegin,
+          .start_op_type = after_op->op,
       };
       insert_transition_safely(transition, body_loc);
       layout.state_transitions.push_back(transition);
@@ -311,7 +310,7 @@ absl::Status NewFSMGenerator::LayoutNewFSMTransitions(
           .from_slice = end_jump_slice_index - 1,
           .to_slice = begin_slice_index,
           .conditional = true,
-          .forward = false,
+          .start_op_type = after_op->op,
       };
       insert_transition_safely(transition, body_loc);
       layout.state_transitions.push_back(transition);
@@ -421,7 +420,7 @@ absl::Status NewFSMGenerator::LayoutNewFSMStates(
 
         slice_index = transition.to_slice;
 
-        if (transition.forward) {
+        if (transition.forward()) {
           // Jumping forwards
           CHECK_GT(transition.to_slice, transition.from_slice);
         } else {
@@ -771,6 +770,188 @@ void NewFSMGenerator::PrintNewFSMStates(const NewFSMLayout& layout) {
   }
 }
 
+absl::StatusOr<
+    absl::flat_hash_map<const IOOp*, NewFSMGenerator::BarrierScopeMask>>
+NewFSMGenerator::GenerateBarrierScopeMasksByStartOp(
+    int64_t num_slice_index_bits, TrackedBValue next_activation_slice_index,
+    const GeneratedFunction& func, const NewFSMLayout& layout,
+    xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
+  absl::flat_hash_map<const IOOp*, BarrierScopeMask> scopes_by_start_op;
+
+  for (const IOOp& op : func.io_ops) {
+    if (op.op != OpType::kActivationBarrier) {
+      continue;
+    }
+    if (op.activation_barrier_type ==
+        ActivationBarrierType::kConditionalBegin) {
+      scopes_by_start_op[&op] = BarrierScopeMask{
+          .start_slice = layout.slice_index_by_after_op.at(&op),
+          .end_slice = -1};
+    } else if (op.activation_barrier_type ==
+               ActivationBarrierType::kConditionalEnd) {
+      XLSCC_CHECK_NE(op.barrier_begin_op, nullptr, body_loc);
+      XLSCC_CHECK(scopes_by_start_op.contains(op.barrier_begin_op), body_loc);
+      scopes_by_start_op.at(op.barrier_begin_op).end_slice =
+          layout.slice_index_by_after_op.at(&op);
+    }
+  }
+
+  absl::flat_hash_map<const IOOp*, TrackedBValue> scope_masks_by_start_op;
+
+  // Loop over scopes. Use ops for determinism.
+  for (const IOOp& op : func.io_ops) {
+    auto found_scope = scopes_by_start_op.find(&op);
+    if (found_scope == scopes_by_start_op.end()) {
+      continue;
+    }
+    const int64_t slice_index = layout.slice_index_by_after_op.at(&op);
+    BarrierScopeMask& scope = found_scope->second;
+
+    XLSCC_CHECK_NE(scope.start_slice, -1, body_loc);
+    XLSCC_CHECK_NE(scope.end_slice, -1, body_loc);
+    XLSCC_CHECK_LT(scope.start_slice, scope.end_slice, body_loc);
+
+    TrackedBValue start_slice_index_bval = pb.Literal(
+        xls::UBits(scope.start_slice, num_slice_index_bits), body_loc);
+
+    TrackedBValue end_slice_index_bval =
+        pb.Literal(xls::UBits(scope.end_slice, num_slice_index_bits), body_loc);
+
+    TrackedBValue slice_lower_bound =
+        pb.UGe(next_activation_slice_index, start_slice_index_bval, body_loc,
+               /*name=*/absl::StrFormat("scope_before_slice_%li", slice_index));
+    TrackedBValue slice_is_after =
+        pb.ULt(next_activation_slice_index, end_slice_index_bval, body_loc,
+               /*name=*/absl::StrFormat("scope_after_slice_%li", slice_index));
+
+    TrackedBValue slice_is_in_scope =
+        pb.And({slice_lower_bound, slice_is_after}, body_loc,
+               /*name=*/absl::StrFormat("in_scope_slice_%li", slice_index));
+
+    scope.mask_bval = slice_is_in_scope;
+  }
+
+  return scopes_by_start_op;
+}
+
+absl::StatusOr<TrackedBValue> NewFSMGenerator::GenerateBarrierSliceMask(
+    int64_t slice_index,
+    const absl::flat_hash_map<const IOOp*, BarrierScopeMask>&
+        scopes_by_start_op,
+    const GeneratedFunction& func, const NewFSMLayout& layout,
+    xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
+  absl::InlinedVector<NATIVE_BVAL, 1> scope_masks_this_slice;
+
+  // Loop over scopes. Use ops for determinism.
+  // TODO(seanhaskell): Optimize this with log(N) lookup once the feature
+  // is mature.
+  for (const IOOp& op : func.io_ops) {
+    auto found_scope = scopes_by_start_op.find(&op);
+    if (found_scope == scopes_by_start_op.end()) {
+      continue;
+    }
+    const BarrierScopeMask& scope = found_scope->second;
+
+    XLSCC_CHECK_NE(scope.start_slice, -1, body_loc);
+    XLSCC_CHECK_NE(scope.end_slice, -1, body_loc);
+    XLSCC_CHECK_LT(scope.start_slice, scope.end_slice, body_loc);
+
+    // Start slice activity is used to calculate after barrier at end of
+    // scope.
+    // End slice activity may be used to calculate finished iteration.
+    if (slice_index <= scope.start_slice || slice_index >= scope.end_slice) {
+      continue;
+    }
+
+    scope_masks_this_slice.push_back(scope.mask_bval);
+  }
+
+  if (scope_masks_this_slice.empty()) {
+    return pb.Literal(xls::UBits(1, 1), body_loc);
+  }
+
+  return pb.And(scope_masks_this_slice, body_loc,
+                absl::StrFormat("barrier_slice_mask_%li", slice_index));
+}
+
+absl::Status NewFSMGenerator::GenerateExtractStaticReturns(
+    TrackedBValue last_slice_return_value,
+    const absl::flat_hash_map<const clang::NamedDecl*, int64_t>&
+        return_index_for_static,
+    std::vector<TrackedBValue>& return_values, xls::ProcBuilder& pb,
+    const xls::SourceInfo& body_loc) {
+  struct DeclAndReturnIndex {
+    const clang::NamedDecl* decl;
+    int64_t return_index = -1;
+
+    bool operator<(const DeclAndReturnIndex& other) const {
+      return return_index < other.return_index;
+    }
+  };
+
+  std::vector<DeclAndReturnIndex> all_static_values;
+
+  for (const auto& [name, _] : return_index_for_static) {
+    all_static_values.push_back(
+        {.decl = name, .return_index = return_index_for_static.at(name)});
+  }
+
+  // Determinism
+  std::sort(all_static_values.begin(), all_static_values.end());
+
+  for (int64_t static_index = 0; static_index < all_static_values.size();
+       ++static_index) {
+    const DeclAndReturnIndex& static_decl_and_return_index =
+        all_static_values.at(static_index);
+    const clang::NamedDecl* static_decl = static_decl_and_return_index.decl;
+    const int64_t return_index = static_decl_and_return_index.return_index;
+
+    TrackedBValue output_value;
+    // TODO(seanhaskell): Normalize last slice return
+    if (all_static_values.size() == 1) {
+      output_value = last_slice_return_value;
+    } else {
+      output_value = pb.TupleIndex(
+          last_slice_return_value, static_index, body_loc,
+          /*name=*/
+          absl::StrFormat("return__%s", static_decl->getNameAsString()));
+    }
+
+    XLSCC_CHECK(output_value.GetType()->IsEqualTo(
+                    return_values.at(return_index).GetType()),
+                body_loc);
+
+    return_values.at(return_index) = output_value;
+  }
+  return absl::OkStatus();
+}
+
+void NewFSMGenerator::ResetValuesToStateElements(
+    const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
+        state_element_by_continuation_value,
+    std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack) {
+  ContinuationValueBValMap& value_by_continuation_value =
+      conditional_barrier_scope_stack.back().value_by_continuation_value;
+  for (auto& [value, state_element] : state_element_by_continuation_value) {
+    value_by_continuation_value[value] = state_element;
+  }
+}
+
+void NewFSMGenerator::AddToAfterConditionalActivationTransition(
+    TrackedBValue condition, const xls::SourceInfo& loc, int64_t slice_index,
+    std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack,
+    xls::ProcBuilder& pb) {
+  for (ConditionalBarrierScope& scope : conditional_barrier_scope_stack) {
+    TrackedBValue& after_conditional_activation_transition =
+        scope.after_conditional_activation_transition;
+    after_conditional_activation_transition = pb.Or(
+        after_conditional_activation_transition, condition, loc,
+        /*name=*/
+        absl::StrFormat("after_%li_after_conditional_activation_transition",
+                        slice_index));
+  }
+};
+
 absl::StatusOr<GenerateFSMInvocationReturn>
 NewFSMGenerator::GenerateNewFSMInvocation(
     const GeneratedFunction* xls_func,
@@ -784,7 +965,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
     xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
   XLSCC_CHECK_NE(xls_func, nullptr, body_loc);
   const GeneratedFunction& func = *xls_func;
-
   NewFSMLayout layout;
   XLS_ASSIGN_OR_RETURN(layout,
                        LayoutNewFSM(func, state_element_for_static, body_loc));
@@ -826,7 +1006,7 @@ NewFSMGenerator::GenerateNewFSMInvocation(
     const NewFSMActivationTransition& transition =
         layout.transition_by_slice_from_index.at(jump_slice_index);
 
-    if (transition.forward) {
+    if (transition.start_op_type == OpType::kActivationBarrier) {
       continue;
     }
 
@@ -845,11 +1025,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       phi_elements_by_param_node_id,
       GeneratePhiConditions(layout, state_element_by_jump_slice_index, pb,
                             body_loc, generated_conditions));
-
-  // The value from the current activation's perspective,
-  // either outputted from invoke or state element.
-  absl::flat_hash_map<const ContinuationValue*, TrackedBValue>
-      value_by_continuation_value;
 
   absl::flat_hash_map<const ContinuationValue*, TrackedBValue>
       state_element_by_continuation_value;
@@ -891,31 +1066,22 @@ NewFSMGenerator::GenerateNewFSMInvocation(
     }
   }
 
+  std::vector<ConditionalBarrierScope> conditional_barrier_scope_stack;
+  conditional_barrier_scope_stack.push_back(
+      ConditionalBarrierScope{.after_conditional_activation_transition =
+                                  pb.Literal(xls::UBits(0, 1), body_loc)});
+
   // Set values initially to state elements, so that feedbacks
   // come from state. These will be overwritten for feedforwards as slices
   // are generated.
-  value_by_continuation_value = state_element_by_continuation_value;
 
-  TrackedBValue last_op_out_value;
-  TrackedBValue after_conditional_activation_transition =
-      pb.Literal(xls::UBits(0, 1), body_loc);
+  ResetValuesToStateElements(state_element_by_continuation_value,
+                             conditional_barrier_scope_stack);
 
-  // Sort by Node ID and StateElement name for determinism.
-  struct StateElementAndNodeLessThan {
-    bool operator()(const std::tuple<xls::StateElement*, xls::Node*>& a,
-                    const std::tuple<xls::StateElement*, xls::Node*>& b) const {
-      const auto& [a_elem, a_node] = a;
-      const auto& [b_elem, b_node] = b;
-      if (a_elem->name() != b_elem->name()) {
-        return a_elem->name() < b_elem->name();
-      }
-      return a_node->id() < b_node->id();
-    }
-  };
-
-  struct NodeIdLessThan {
-    bool operator()(const xls::Node* a, const xls::Node* b) const {
-      return a->id() < b->id();
+  auto assign_bval_to_continuation_value = [&](const ContinuationValue* value,
+                                               TrackedBValue bval) {
+    for (ConditionalBarrierScope& scope_map : conditional_barrier_scope_stack) {
+      scope_map.value_by_continuation_value[value] = bval;
     }
   };
 
@@ -940,14 +1106,76 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   std::sort(unconditional_from_slice_indices_ordered.begin(),
             unconditional_from_slice_indices_ordered.end());
 
+  // Generate the slice active masks for scoped barriers.
+  absl::flat_hash_map<const IOOp*, BarrierScopeMask> scopes_by_start_op;
+  XLS_ASSIGN_OR_RETURN(scopes_by_start_op,
+                       GenerateBarrierScopeMasksByStartOp(
+                           num_slice_index_bits, next_activation_slice_index,
+                           func, layout, pb, body_loc));
+
+  if (debug_ir_trace_flags_ & DebugIrTraceFlags_ActivationBarriers) {
+    TrackedBValue token = pb.Literal(xls::Value::Token(), body_loc,
+                                     /*name=*/"token");
+    pb.Trace(token, pb.Literal(xls::UBits(1, 1)),
+             /*args=*/
+             {next_activation_slice_index},
+             absl::StrFormat("---- next activation slice index {:d} ---"));
+  }
+
   // Use this index to step through the unconditional transition indices.
   int64_t next_unconditional_transition_index = 0;
 
-  TrackedBValue last_slice_current = pb.Literal(xls::UBits(1, 1), body_loc);
+  TrackedBValue last_slice_active = pb.Literal(xls::UBits(1, 1), body_loc);
+  TrackedBValue last_op_out_value;
+
+  absl::flat_hash_map<int64_t, TrackedBValue>
+      jump_conditions_by_begin_slice_index;
 
   for (int64_t slice_index = 0; slice_index < func.slices.size();
        ++slice_index) {
+    const GeneratedFunctionSlice& slice =
+        *layout.slice_by_index.at(slice_index);
+
+    // Pop the value reference stack before preparing inputs for the end
+    // barrier slice.
+    if (slice.after_op != nullptr &&
+        slice.after_op->op == OpType::kActivationBarrier &&
+        slice.after_op->activation_barrier_type ==
+            ActivationBarrierType::kConditionalEnd) {
+      // Should never pop the base context
+      XLSCC_CHECK_GT(conditional_barrier_scope_stack.size(), 1L, body_loc);
+      // Pop the continuation value reference stack
+      // State elements should be popped before end slice invoke, as it contains
+      // the phi selects for the end of the scope.
+      conditional_barrier_scope_stack.pop_back();
+
+      const int64_t begin_slice_index =
+          layout.slice_index_by_after_op.at(slice.after_op->barrier_begin_op);
+      XLSCC_CHECK_GT(begin_slice_index, 0, body_loc);
+
+      // Transition is from the slice before.
+      // Need to also consider transitions in inner scopes.
+      AddToAfterConditionalActivationTransition(
+          jump_conditions_by_begin_slice_index.at(begin_slice_index - 1),
+          body_loc, slice_index, conditional_barrier_scope_stack, pb);
+
+      if (debug_ir_trace_flags_ & DebugIrTraceFlags_ActivationBarriers) {
+        TrackedBValue token = pb.Literal(xls::Value::Token(), body_loc,
+                                         /*name=*/"token");
+        pb.Trace(
+            token, pb.Literal(xls::UBits(1, 1)),
+            /*args=*/
+            {conditional_barrier_scope_stack.back()
+                 .after_conditional_activation_transition},
+            absl::StrFormat("end_scope[%li]: after_act {:b}", slice_index));
+      }
+    }
+
     const bool is_last_slice = (slice_index == func.slices.size() - 1);
+
+    TrackedBValue slice_index_bval =
+        pb.Literal(xls::UBits(slice_index, num_slice_index_bits), body_loc,
+                   /*name=*/absl::StrFormat("slice_%li_index", slice_index));
 
     TrackedBValue slice_is_current = pb.Literal(xls::UBits(1, 1), body_loc);
     if (next_unconditional_transition_index > 0) {
@@ -972,9 +1200,7 @@ NewFSMGenerator::GenerateNewFSMInvocation(
     // anywhere. next_activation_slice_index <= from_slice
     slice_is_current = pb.And(
         slice_is_current,
-        pb.ULe(next_activation_slice_index,
-               pb.Literal(xls::UBits(slice_index, num_slice_index_bits)),
-               body_loc,
+        pb.ULe(next_activation_slice_index, slice_index_bval, body_loc,
                /*name=*/
                absl::StrFormat("slice_%li_is_current_upper", slice_index)));
 
@@ -991,28 +1217,36 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       }
     }
 
-    last_slice_current = slice_is_current;
+    XLS_ASSIGN_OR_RETURN(
+        TrackedBValue slice_barrier_mask,
+        GenerateBarrierSliceMask(slice_index, scopes_by_start_op, func, layout,
+                                 pb, body_loc));
 
     TrackedBValue slice_active = pb.And(
-        {slice_is_current,
-         pb.Not(after_conditional_activation_transition, body_loc, /*name=*/
+        {slice_is_current, slice_barrier_mask,
+         pb.Not(conditional_barrier_scope_stack.back()
+                    .after_conditional_activation_transition,
+                body_loc, /*name=*/
                 absl::StrFormat(
                     "slice_%li_not_after_conditional_activation_transition",
                     slice_index))},
         body_loc,
         /*name=*/absl::StrFormat("slice_%li_active", slice_index));
 
-    // To avoid needing to store the IO op's received value,
-    // the after_op is always in the same activation as the invoke for the
-    // function slice.
-    //
-    // The output value for the op doesn't need to be stored because
-    // it is available from the invoke for the previous function slice.
-    //
-    // NOTE: After an activation transition, the function slice must be
-    // invoked again
-    const GeneratedFunctionSlice& slice =
-        *layout.slice_by_index.at(slice_index);
+    last_slice_active = slice_active;
+
+    if (debug_ir_trace_flags_ & DebugIrTraceFlags_ActivationBarriers) {
+      TrackedBValue token = pb.Literal(xls::Value::Token(), body_loc,
+                                       /*name=*/"token");
+      pb.Trace(token, pb.Literal(xls::UBits(1, 1)),
+               /*args=*/
+               {slice_active, slice_barrier_mask, slice_is_current,
+                conditional_barrier_scope_stack.back()
+                    .after_conditional_activation_transition},
+               absl::StrFormat("slice[%li]: active {:b} mask {:b} current {:b} "
+                               "after barrier {:b}",
+                               slice_index));
+    }
 
     // Gather invoke params, except IO input
     std::vector<TrackedBValue> invoke_params;
@@ -1027,12 +1261,13 @@ NewFSMGenerator::GenerateNewFSMInvocation(
     // Order for determinism
     for (const xls::Param* param : slice.function->params()) {
       std::optional<TrackedBValue> input_value;
-      XLS_ASSIGN_OR_RETURN(
-          input_value,
-          GenerateInputValueInContext(
-              param, phi_elements_by_param_node_id, value_by_continuation_value,
-              state_element_by_continuation_value, slice_index, slice_active,
-              slice_is_current, pb, body_loc));
+      XLS_ASSIGN_OR_RETURN(input_value,
+                           GenerateInputValueInContext(
+                               param, phi_elements_by_param_node_id,
+                               conditional_barrier_scope_stack.back()
+                                   .value_by_continuation_value,
+                               state_element_by_continuation_value, slice_index,
+                               slice_active, slice_is_current, pb, body_loc));
 
       if (!input_value.has_value()) {
         continue;
@@ -1045,6 +1280,15 @@ NewFSMGenerator::GenerateNewFSMInvocation(
                          (slice.after_op->op == OpType::kLoopBegin ||
                           slice.after_op->op == OpType::kLoopEndJump);
 
+    // To avoid needing to store the IO op's received value,
+    // the after_op is always in the same activation as the invoke for the
+    // function slice.
+    //
+    // The output value for the op doesn't need to be stored because
+    // it is available from the invoke for the previous function slice.
+    //
+    // NOTE: After an activation transition, the function slice must be
+    // invoked again
     if (slice.after_op != nullptr && !loop_op) {
       const IOOp* after_op = slice.after_op;
       XLSCC_CHECK(after_op->op != OpType::kLoopBegin, body_loc);
@@ -1058,7 +1302,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
                                        /*name=*/"token");
       XLSCC_CHECK(last_op_out_value.valid(), body_loc);
       // No IO before first slice
-      XLSCC_CHECK(slice_active.valid(), body_loc);
+      TrackedBValue io_active = slice_active;
+      XLSCC_CHECK(io_active.valid(), body_loc);
       XLSCC_CHECK(slice_is_current.valid(), body_loc);
 
       // The IO op is predicated on the slice after it being active.
@@ -1067,13 +1312,12 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       // but the received value is only valid in the activation in which the IO
       // op happens, so it must be consumed in that same activation by the slice
       // after it.
-
       XLS_ASSIGN_OR_RETURN(
           GenerateIOReturn io_return,
           translator_io_.GenerateIO(*after_op, token, last_op_out_value, pb,
                                     optional_bundle,
                                     /*extra_condition=*/
-                                    slice_active));
+                                    io_active));
 
       // Add IO parameter if applicable
       if (io_return.received_value.valid()) {
@@ -1083,7 +1327,7 @@ NewFSMGenerator::GenerateNewFSMInvocation(
         // slices where they are spurious. This improves IO merging and
         // throughput.
         received_value = pb.Select(
-            slice_active,
+            io_active,
             /*on_true=*/received_value,
             /*on_false=*/
             pb.Literal(xls::ZeroOfType(received_value.GetType()), body_loc),
@@ -1142,13 +1386,13 @@ NewFSMGenerator::GenerateNewFSMInvocation(
                                         continuation_out.name));
 
       if (!state_element_by_continuation_value.contains(&continuation_out)) {
-        value_by_continuation_value[&continuation_out] = value_out;
+        assign_bval_to_continuation_value(&continuation_out, value_out);
         continue;
       }
 
       // A continuation value is available directly if the slice that produces
       // it is active this activation.
-      value_by_continuation_value[&continuation_out] = pb.Select(
+      TrackedBValue select_bval = pb.Select(
           slice_active,
           /*on_true=*/value_out,
           /*on_false=*/
@@ -1156,181 +1400,25 @@ NewFSMGenerator::GenerateNewFSMInvocation(
           /*name=*/
           absl::StrFormat("select_active_or_prev_slice_%li_cont_%s",
                           slice_index, continuation_out.name));
+      assign_bval_to_continuation_value(&continuation_out, select_bval);
     }
 
     if (is_last_slice) {
-      struct DeclAndReturnIndex {
-        const clang::NamedDecl* decl;
-        int64_t return_index = -1;
-
-        bool operator<(const DeclAndReturnIndex& other) const {
-          return return_index < other.return_index;
-        }
-      };
-
-      std::vector<DeclAndReturnIndex> all_static_values;
-
-      for (const auto& [name, _] : return_index_for_static) {
-        all_static_values.push_back(
-            {.decl = name, .return_index = return_index_for_static.at(name)});
-      }
-
-      // Determinism
-      std::sort(all_static_values.begin(), all_static_values.end());
-
-      for (int64_t static_index = 0; static_index < all_static_values.size();
-           ++static_index) {
-        const DeclAndReturnIndex& static_decl_and_return_index =
-            all_static_values.at(static_index);
-        const clang::NamedDecl* static_decl = static_decl_and_return_index.decl;
-        const int64_t return_index = static_decl_and_return_index.return_index;
-
-        TrackedBValue output_value;
-        // TODO(seanhaskell): Normalize last slice return
-        if (all_static_values.size() == 1) {
-          output_value = ret_tup;
-        } else {
-          output_value = pb.TupleIndex(
-              ret_tup, static_index, body_loc,
-              /*name=*/
-              absl::StrFormat("return__%s", static_decl->getNameAsString()));
-        }
-
-        XLSCC_CHECK(output_value.GetType()->IsEqualTo(
-                        return_values.at(return_index).GetType()),
-                    body_loc);
-
-        return_values.at(return_index) = output_value;
-      }
+      XLS_RETURN_IF_ERROR(GenerateExtractStaticReturns(
+          ret_tup, return_index_for_static, return_values, pb, body_loc));
     }
 
     if (layout.transition_by_slice_from_index.contains(slice_index)) {
-      const NewFSMActivationTransition& transition =
-          layout.transition_by_slice_from_index.at(slice_index);
-      TrackedBValue jump_condition = slice_active;
-
-      // Save values before transition for forming state element next values.
-      auto value_by_continuation_value_before_transition =
-          value_by_continuation_value;
-
-      if (transition.forward) {
-        XLSCC_CHECK_GE(transition.to_slice, transition.from_slice, body_loc);
-      } else {
-        XLSCC_CHECK_GE(transition.from_slice, transition.to_slice, body_loc);
-        const TrackedBValue jump_state_elem =
-            state_element_by_jump_slice_index.at(slice_index);
-        extra_next_state_values.insert(
-            {jump_state_elem.node()->As<xls::StateRead>()->state_element(),
-             NextStateValue{
-                 .value = last_op_out_value,
-                 .condition = slice_active,
-             }});
-      }
-
-      if (transition.conditional) {
-        XLSCC_CHECK(last_op_out_value.valid(), body_loc);
-        XLSCC_CHECK(jump_condition.valid(), body_loc);
-        jump_condition = pb.And(
-            last_op_out_value, jump_condition, body_loc, /*name=*/
-            absl::StrFormat("%s_jump_condition", slice.function->name()));
-        XLSCC_CHECK(jump_condition.valid(), body_loc);
-        XLSCC_CHECK(jump_condition.GetType()->IsBits(), body_loc);
-        XLSCC_CHECK_EQ(jump_condition.GetType()->GetFlatBitCount(), 1,
-                       body_loc);
-
-        XLSCC_CHECK(jump_condition.valid(), body_loc);
-
-        after_conditional_activation_transition = pb.Or(
-            after_conditional_activation_transition, jump_condition, body_loc,
-            /*name=*/
-            absl::StrFormat("after_%li_after_conditional_activation_transition",
-                            slice_index));
-
-      } else {
-        after_conditional_activation_transition =
-            pb.Literal(xls::UBits(0, 1), body_loc);
-
-        // Remove direct references from downstream slices to raw outputs
-        // of upstream slices by referring directly to the state element,
-        // not a select over the state element and raw value.
-        //
-        // This is only done for values that have state elements. Others,
-        // such as direct-ins, still need to be fed through directly.
-        //
-        // This makes it clear to the optimizer that dependencies don't exist
-        // across the unconditional transition.
-        for (auto& [continuation_out, value_out] :
-             state_element_by_continuation_value) {
-          value_by_continuation_value[continuation_out] = value_out;
-        }
-      }
-
-      TrackedBValue jump_to_slice_index = pb.Literal(
-          xls::UBits(transition.to_slice, num_slice_index_bits), body_loc,
-          /*name=*/
-          absl::StrFormat("%s_jump_to_slice_index", slice.function->name()));
-
-      extra_next_state_values.insert(
-          {next_activation_slice_index.node()
-               ->As<xls::StateRead>()
-               ->state_element(),
-           NextStateValue{
-               .priority = std::numeric_limits<int64_t>::max(),
-               .value = jump_to_slice_index,
-               .condition = jump_condition,
-           }});
-
-      // Sorted for determinism
-      absl::btree_set<int64_t> from_jump_slice_indices;
-      for (const NewFSMState& state : layout.states) {
-        if (state.slice_index != slice_index) {
-          continue;
-        }
-        for (const JumpInfo& jump_info : state.jumped_from_slice_indices) {
-          from_jump_slice_indices.insert(jump_info.from_slice);
-        }
-      }
-
-      // Create a next value for each state for this slice
-      for (const NewFSMState& state : layout.states) {
-        if (state.slice_index != slice_index) {
-          continue;
-        }
-        absl::btree_set<int64_t> jumped_from_slice_indices_this_state;
-        for (const JumpInfo& jump_info : state.jumped_from_slice_indices) {
-          jumped_from_slice_indices_this_state.insert(jump_info.from_slice);
-        }
-
-        XLS_ASSIGN_OR_RETURN(
-            TrackedBValue state_active_condition,
-            GeneratePhiCondition(
-                from_jump_slice_indices, jumped_from_slice_indices_this_state,
-                state_element_by_jump_slice_index, pb, state.slice_index,
-                body_loc, generated_conditions));
-
-        TrackedBValue next_value_condition =
-            pb.And(state_active_condition, jump_condition, body_loc,
-                   /*name=*/GetIRStateName(state));
-
-        for (const ContinuationValue* continuation_out : state.values_to_save) {
-          xls::StateElement* state_elem =
-              state_element_by_continuation_value.at(continuation_out)
-                  .node()
-                  ->As<xls::StateRead>()
-                  ->state_element();
-
-          std::tuple<xls::StateElement*, xls::Node*> key = {
-              state_elem,
-              value_by_continuation_value_before_transition.at(continuation_out)
-                  .node()};
-
-          // Generate next values
-          next_value_conditions_by_state_element_and_value[key].insert(
-              next_value_condition.node());
-        }
-      }
+      XLS_RETURN_IF_ERROR(GenerateTransitionFromThisSlice(
+          /*from_slice_index=*/slice_index, num_slice_index_bits, slice_active,
+          last_op_out_value, next_activation_slice_index, layout, slice,
+          state_element_by_jump_slice_index,
+          state_element_by_continuation_value, extra_next_state_values,
+          jump_conditions_by_begin_slice_index, conditional_barrier_scope_stack,
+          generated_conditions,
+          next_value_conditions_by_state_element_and_value, pb, body_loc));
     }
-  }
+  }  // slices
 
   for (auto& [key, or_nodes] :
        next_value_conditions_by_state_element_and_value) {
@@ -1356,12 +1444,14 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   }
 
   // Set next slice index
-  const TrackedBValue finished_iteration = pb.And(
-      {last_slice_current,
-       pb.Not(after_conditional_activation_transition, body_loc, /*name=*/
-              "last_slice_not_after_conditional_activation_transition")},
-      body_loc,
-      /*name=*/"finished_iteration");
+  const TrackedBValue finished_iteration =
+      pb.And({last_slice_active,
+              pb.Not(conditional_barrier_scope_stack.back()
+                         .after_conditional_activation_transition,
+                     body_loc, /*name=*/
+                     "last_slice_not_after_conditional_activation_transition")},
+             body_loc,
+             /*name=*/"finished_iteration");
 
   extra_next_state_values.insert(
       {next_activation_slice_index.node()
@@ -1372,6 +1462,19 @@ NewFSMGenerator::GenerateNewFSMInvocation(
            .value = first_slice_index,
            .condition = finished_iteration,
        }});
+
+  if (debug_ir_trace_flags_ & DebugIrTraceFlags_ActivationBarriers) {
+    TrackedBValue token = pb.Literal(xls::Value::Token(), body_loc,
+                                     /*name=*/"token");
+    pb.Trace(
+        token, pb.Literal(xls::UBits(1, 1)),
+        /*args=*/
+        {finished_iteration, last_slice_active,
+         conditional_barrier_scope_stack.back()
+             .after_conditional_activation_transition},
+        absl::StrFormat(
+            "finished_iteration? {:b} last_slice_active {:b} after_act {:b}"));
+  }
 
   TrackedBValue return_value;
 
@@ -1385,6 +1488,187 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       .return_value = return_value,
       .returns_this_activation = finished_iteration,
       .extra_next_state_values = extra_next_state_values};
+}
+
+absl::Status NewFSMGenerator::GenerateTransitionFromThisSlice(
+    const int64_t from_slice_index, const int64_t num_slice_index_bits,
+    TrackedBValue slice_active, TrackedBValue last_op_out_value,
+    TrackedBValue next_activation_slice_index, const NewFSMLayout& layout,
+    const GeneratedFunctionSlice& slice,
+    const absl::flat_hash_map<int64_t, TrackedBValue>&
+        state_element_by_jump_slice_index,
+    const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
+        state_element_by_continuation_value,
+    absl::btree_multimap<const xls::StateElement*, NextStateValue>&
+        extra_next_state_values,
+    absl::flat_hash_map<int64_t, TrackedBValue>&
+        jump_conditions_by_begin_slice_index,
+    std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack,
+    absl::flat_hash_map<PhiConditionCacheKey, TrackedBValue>&
+        generated_conditions,
+    absl::btree_map<std::tuple<xls::StateElement*, xls::Node*>,
+                    absl::btree_set<xls::Node*, NodeIdLessThan>,
+                    StateElementAndNodeLessThan>&
+        next_value_conditions_by_state_element_and_value,
+    xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
+  const NewFSMActivationTransition& transition =
+      layout.transition_by_slice_from_index.at(from_slice_index);
+  // This is the activity of the slice before the begin slice for activation
+  // transitions.
+  TrackedBValue jump_condition = slice_active;
+
+  // Save values before transition for forming state element next values.
+  auto value_by_continuation_value_before_transition =
+      conditional_barrier_scope_stack.back().value_by_continuation_value;
+
+  if (transition.forward()) {
+    XLSCC_CHECK_GE(transition.to_slice, transition.from_slice, body_loc);
+  } else {
+    XLSCC_CHECK_GE(transition.from_slice, transition.to_slice, body_loc);
+    const TrackedBValue jump_state_elem =
+        state_element_by_jump_slice_index.at(from_slice_index);
+    extra_next_state_values.insert(
+        {jump_state_elem.node()->As<xls::StateRead>()->state_element(),
+         NextStateValue{
+             .value = last_op_out_value,
+             .condition = slice_active,
+         }});
+  }
+
+  if (transition.conditional) {
+    XLSCC_CHECK(last_op_out_value.valid(), body_loc);
+    XLSCC_CHECK(jump_condition.valid(), body_loc);
+    jump_condition =
+        pb.And(last_op_out_value, jump_condition, body_loc, /*name=*/
+               absl::StrFormat("%s_jump_condition", slice.function->name()));
+    XLSCC_CHECK(jump_condition.valid(), body_loc);
+    XLSCC_CHECK(jump_condition.GetType()->IsBits(), body_loc);
+    XLSCC_CHECK_EQ(jump_condition.GetType()->GetFlatBitCount(), 1, body_loc);
+
+    XLSCC_CHECK(jump_condition.valid(), body_loc);
+
+    if (transition.start_op_type == OpType::kActivationBarrier) {
+      // Push the stack of continuation value references
+      conditional_barrier_scope_stack.push_back(ConditionalBarrierScope{
+          .value_by_continuation_value = conditional_barrier_scope_stack.back()
+                                             .value_by_continuation_value,
+          .after_conditional_activation_transition =
+              pb.Literal(xls::UBits(0, 1), body_loc),
+      });
+
+      // Reference state values after the barrier (within the scope).
+      // State elements should be applied before begin slice invoke.
+      ResetValuesToStateElements(state_element_by_continuation_value,
+                                 conditional_barrier_scope_stack);
+    } else {
+      XLSCC_CHECK_EQ(transition.start_op_type, OpType::kLoopEndJump, body_loc);
+      AddToAfterConditionalActivationTransition(
+          jump_condition, body_loc, from_slice_index,
+          conditional_barrier_scope_stack, pb);
+    }
+  } else {
+    // Can't unmask from slice as it could drive an IO op..
+    if (conditional_barrier_scope_stack.size() > 1) {
+      return absl::UnimplementedError(
+          absl::StrFormat("Unconditional transition from slice %li within "
+                          "scope of conditional transition",
+                          from_slice_index));
+    }
+
+    TrackedBValue zero_cond = pb.Literal(xls::UBits(0, 1), body_loc);
+    for (ConditionalBarrierScope& scope : conditional_barrier_scope_stack) {
+      scope.after_conditional_activation_transition = zero_cond;
+    }
+
+    // Remove direct references from downstream slices to raw outputs
+    // of upstream slices by referring directly to the state element,
+    // not a select over the state element and raw value.
+    //
+    // This is only done for values that have state elements. Others,
+    // such as direct-ins, still need to be fed through directly.
+    //
+    // This makes it clear to the optimizer that dependencies don't exist
+    // across the unconditional transition.
+    ResetValuesToStateElements(state_element_by_continuation_value,
+                               conditional_barrier_scope_stack);
+  }
+
+  TrackedBValue jump_to_slice_index = pb.Literal(
+      xls::UBits(transition.to_slice, num_slice_index_bits), body_loc,
+      /*name=*/
+      absl::StrFormat("%s_jump_to_slice_index", slice.function->name()));
+
+  extra_next_state_values.insert(
+      {next_activation_slice_index.node()
+           ->As<xls::StateRead>()
+           ->state_element(),
+       NextStateValue{
+           .priority = std::numeric_limits<int64_t>::max(),
+           .value = jump_to_slice_index,
+           .condition = jump_condition,
+       }});
+
+  jump_conditions_by_begin_slice_index[from_slice_index] = jump_condition;
+
+  if (debug_ir_trace_flags_ & DebugIrTraceFlags_ActivationBarriers) {
+    TrackedBValue token = pb.Literal(xls::Value::Token(), body_loc,
+                                     /*name=*/"token");
+    pb.Trace(token, pb.Literal(xls::UBits(1, 1)),
+             /*args=*/
+             {jump_condition},
+             absl::StrFormat("transition[%li]: jump {:b}", from_slice_index));
+  }
+
+  // Sorted for determinism
+  absl::btree_set<int64_t> from_jump_slice_indices;
+  for (const NewFSMState& state : layout.states) {
+    if (state.slice_index != from_slice_index) {
+      continue;
+    }
+    for (const JumpInfo& jump_info : state.jumped_from_slice_indices) {
+      from_jump_slice_indices.insert(jump_info.from_slice);
+    }
+  }
+
+  // Create a next value for each state for this slice
+  for (const NewFSMState& state : layout.states) {
+    if (state.slice_index != from_slice_index) {
+      continue;
+    }
+    absl::btree_set<int64_t> jumped_from_slice_indices_this_state;
+    for (const JumpInfo& jump_info : state.jumped_from_slice_indices) {
+      jumped_from_slice_indices_this_state.insert(jump_info.from_slice);
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        TrackedBValue state_active_condition,
+        GeneratePhiCondition(
+            from_jump_slice_indices, jumped_from_slice_indices_this_state,
+            state_element_by_jump_slice_index, pb, state.slice_index, body_loc,
+            generated_conditions));
+
+    TrackedBValue next_value_condition =
+        pb.And(state_active_condition, jump_condition, body_loc,
+               /*name=*/GetIRStateName(state));
+
+    for (const ContinuationValue* continuation_out : state.values_to_save) {
+      xls::StateElement* state_elem =
+          state_element_by_continuation_value.at(continuation_out)
+              .node()
+              ->As<xls::StateRead>()
+              ->state_element();
+
+      std::tuple<xls::StateElement*, xls::Node*> key = {
+          state_elem,
+          value_by_continuation_value_before_transition.at(continuation_out)
+              .node()};
+
+      // Generate next values
+      next_value_conditions_by_state_element_and_value[key].insert(
+          next_value_condition.node());
+    }
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<TrackedBValue> NewFSMGenerator::GeneratePhiCondition(

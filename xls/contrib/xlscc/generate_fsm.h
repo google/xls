@@ -81,7 +81,12 @@ struct NewFSMActivationTransition {
   int64_t from_slice = -1;
   int64_t to_slice = -1;
   bool conditional = false;
-  bool forward = false;
+  OpType start_op_type = OpType::kNull;
+
+  bool forward() const {
+    CHECK_NE(start_op_type, OpType::kNull);
+    return start_op_type == OpType::kActivationBarrier;
+  }
 };
 
 struct NewFSMStateElement {
@@ -152,6 +157,13 @@ class NewFSMGenerator : public GeneratorBase {
           return_index_for_static,
       xls::ProcBuilder& pb, const xls::SourceInfo& body_loc);
 
+  absl::Status GenerateExtractStaticReturns(
+      TrackedBValue last_slice_return_value,
+      const absl::flat_hash_map<const clang::NamedDecl*, int64_t>&
+          return_index_for_static,
+      std::vector<TrackedBValue>& return_values, xls::ProcBuilder& pb,
+      const xls::SourceInfo& body_loc);
+
   void PrintNewFSMStates(const NewFSMLayout& layout);
 
  protected:
@@ -217,6 +229,89 @@ class NewFSMGenerator : public GeneratorBase {
 
   std::string GetStateName(const NewFSMState& state);
   std::string GetIRStateName(const NewFSMState& state);
+
+  // The value from the current activation's perspective,
+  // either outputted from invoke or state element.
+  typedef absl::flat_hash_map<const ContinuationValue*, TrackedBValue>
+      ContinuationValueBValMap;
+
+  struct ConditionalBarrierScope {
+    ContinuationValueBValMap value_by_continuation_value;
+    TrackedBValue after_conditional_activation_transition;
+  };
+
+  // Sort by Node ID and StateElement name for determinism.
+  struct StateElementAndNodeLessThan {
+    bool operator()(const std::tuple<xls::StateElement*, xls::Node*>& a,
+                    const std::tuple<xls::StateElement*, xls::Node*>& b) const {
+      const auto& [a_elem, a_node] = a;
+      const auto& [b_elem, b_node] = b;
+      if (a_elem->name() != b_elem->name()) {
+        return a_elem->name() < b_elem->name();
+      }
+      return a_node->id() < b_node->id();
+    }
+  };
+
+  struct NodeIdLessThan {
+    bool operator()(const xls::Node* a, const xls::Node* b) const {
+      return a->id() < b->id();
+    }
+  };
+
+  absl::Status GenerateTransitionFromThisSlice(
+      int64_t from_slice_index, int64_t num_slice_index_bits,
+      TrackedBValue slice_active, TrackedBValue last_op_out_value,
+      TrackedBValue next_activation_slice_index, const NewFSMLayout& layout,
+      const GeneratedFunctionSlice& slice,
+      const absl::flat_hash_map<int64_t, TrackedBValue>&
+          state_element_by_jump_slice_index,
+      const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
+          state_element_by_continuation_value,
+      absl::btree_multimap<const xls::StateElement*, NextStateValue>&
+          extra_next_state_values,
+      absl::flat_hash_map<int64_t, TrackedBValue>&
+          jump_conditions_by_begin_slice_index,
+      std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack,
+      absl::flat_hash_map<PhiConditionCacheKey, TrackedBValue>&
+          generated_conditions,
+      absl::btree_map<std::tuple<xls::StateElement*, xls::Node*>,
+                      absl::btree_set<xls::Node*, NodeIdLessThan>,
+                      StateElementAndNodeLessThan>&
+          next_value_conditions_by_state_element_and_value,
+      xls::ProcBuilder& pb, const xls::SourceInfo& body_loc);
+
+  void AddToAfterConditionalActivationTransition(
+      TrackedBValue condition, const xls::SourceInfo& loc, int64_t slice_index,
+      std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack,
+      xls::ProcBuilder& pb);
+
+  void ResetValuesToStateElements(
+      const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
+          state_element_by_continuation_value,
+      std::vector<ConditionalBarrierScope>& conditional_barrier_scope_stack);
+
+  struct BarrierScopeMask {
+    // scope includes start_slice, but not end_slice
+    int64_t start_slice;
+    int64_t end_slice;
+    TrackedBValue mask_bval;
+  };
+
+  absl::StatusOr<absl::flat_hash_map<const IOOp*, BarrierScopeMask>>
+  GenerateBarrierScopeMasksByStartOp(int64_t num_slice_index_bits,
+                                     TrackedBValue next_activation_slice_index,
+                                     const GeneratedFunction& func,
+                                     const NewFSMLayout& layout,
+                                     xls::ProcBuilder& pb,
+                                     const xls::SourceInfo& body_loc);
+
+  absl::StatusOr<TrackedBValue> GenerateBarrierSliceMask(
+      int64_t slice_index,
+      const absl::flat_hash_map<const IOOp*, BarrierScopeMask>&
+          scopes_by_start_op,
+      const GeneratedFunction& func, const NewFSMLayout& layout,
+      xls::ProcBuilder& pb, const xls::SourceInfo& body_loc);
 
  private:
   TranslatorIOInterface& translator_io_;

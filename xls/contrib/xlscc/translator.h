@@ -271,6 +271,9 @@ struct TranslationContext {
   // Always propagates up
   absl::flat_hash_map<const clang::NamedDecl*, int64_t> variables_accessed;
   absl::flat_hash_set<const clang::NamedDecl*> variables_masked_by_assignment;
+
+  // Does not propagate
+  absl::InlinedVector<IOOp*, 1> conditional_barrier_start_ops;
 };
 
 std::string Debug_VariablesChangedBetween(const TranslationContext& before,
@@ -765,8 +768,9 @@ class Translator final : public GeneratorBase,
   // Returns true if built-in call generated
   absl::StatusOr<std::pair<bool, CValue>> GenerateIR_BuiltInCall(
       const clang::CallExpr* call, const xls::SourceInfo& loc);
-  absl::Status InsertActivationBarrier(bool conditional,
-                                       const xls::SourceInfo& loc);
+  absl::Status InsertActivationBarrier(
+      ActivationBarrierType type, const xls::SourceInfo& loc,
+      std::optional<IOOp*> start_op = std::nullopt);
   absl::StatusOr<CValue> GenerateIR_Call(const clang::CallExpr* call,
                                          const xls::SourceInfo& loc);
 
