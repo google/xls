@@ -226,6 +226,7 @@ fn main() -> () {
 TEST_F(BytecodeInterpreterTest, VtraceFmtBitsValueDefaultFormat) {
   constexpr std::string_view kProgram = R"(
 fn main() -> () {
+  trace_fmt!("{}", u32:0);
   vtrace_fmt!(u32:2, "{}", u32:2);
   vtrace_fmt!(u32:6, "{}", u32:6);
   vtrace_fmt!(u32:10, "{}", u32:10);
@@ -238,7 +239,8 @@ fn main() -> () {
       Interpret(kProgram, "main", /*args=*/{},
                 BytecodeInterpreterOptions().max_trace_verbosity(8), nullptr,
                 &events));
-  EXPECT_THAT(events.GetTraceMessageStrings(), testing::ElementsAre("2", "6"));
+  EXPECT_THAT(events.GetTraceMessageStrings(),
+              testing::ElementsAre("0", "2", "6"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
