@@ -91,6 +91,7 @@ cc_library(
     srcs = ["scheduling_options.cc"],
     hdrs = ["scheduling_options.h"],
     deps = [
+        "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/estimators/delay_model:delay_estimators",

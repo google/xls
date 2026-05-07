@@ -1,8 +1,3 @@
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
-#include "xls/ir/channel.h"
-#include "ortools/math_opt/cpp/math_opt.h"
 // Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,12 +28,17 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/visitor.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 
 namespace xls {
 
@@ -212,10 +212,15 @@ class DifferenceConstraint {
 
   friend std::ostream& operator<<(std::ostream& os,
                                   const DifferenceConstraint& constraint) {
-    os << absl::StreamFormat("%s - %s <= %d", constraint.GetA()->GetName(),
-                             constraint.GetB()->GetName(),
-                             constraint.GetMaxDifference());
+    os << absl::StreamFormat("%v", constraint);
     return os;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink,
+                            const DifferenceConstraint& constraint) {
+    absl::Format(&sink, "%s - %s <= %d", constraint.GetA()->GetName(),
+                 constraint.GetB()->GetName(), constraint.GetMaxDifference());
   }
 
  private:
@@ -231,8 +236,13 @@ class RecvsFirstSendsLastConstraint {
   RecvsFirstSendsLastConstraint() = default;
   friend std::ostream& operator<<(
       std::ostream& os, const RecvsFirstSendsLastConstraint& constraint) {
-    os << "RecvsFirstSendsLastConstraint";
+    os << absl::StreamFormat("%v", constraint);
     return os;
+  }
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink,
+                            const RecvsFirstSendsLastConstraint& constraint) {
+    absl::Format(&sink, "RecvsFirstSendsLastConstraint");
   }
 };
 
@@ -243,8 +253,13 @@ class BackedgeConstraint {
   BackedgeConstraint() = default;
   friend std::ostream& operator<<(std::ostream& os,
                                   const BackedgeConstraint& constraint) {
-    os << "BackedgeConstraint";
+    os << absl::StreamFormat("%v", constraint);
     return os;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const BackedgeConstraint& constraint) {
+    absl::Format(&sink, "BackedgeConstraint");
   }
 };
 
@@ -262,8 +277,15 @@ class SendThenRecvConstraint {
 
   friend std::ostream& operator<<(std::ostream& os,
                                   const SendThenRecvConstraint& constraint) {
-    os << "SendThenRecvConstraint(" << constraint.MinimumLatency() << ")";
+    os << absl::StreamFormat("%v", constraint);
     return os;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink,
+                            const SendThenRecvConstraint& constraint) {
+    absl::Format(&sink, "SendThenRecvConstraint(%d)",
+                 constraint.MinimumLatency());
   }
 
  private:
@@ -283,8 +305,15 @@ class SameChannelConstraint {
 
   friend std::ostream& operator<<(std::ostream& os,
                                   const SameChannelConstraint& constraint) {
-    os << "SameChannelConstraint(" << constraint.MinimumLatency() << ")";
+    os << absl::StreamFormat("%v", constraint);
     return os;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink,
+                            const SameChannelConstraint& constraint) {
+    absl::Format(&sink, "SameChannelConstraint(%d)",
+                 constraint.MinimumLatency());
   }
 
  private:
@@ -295,6 +324,15 @@ using SchedulingConstraint =
     std::variant<IOConstraint, NodeInCycleConstraint, DifferenceConstraint,
                  RecvsFirstSendsLastConstraint, BackedgeConstraint,
                  SendThenRecvConstraint, SameChannelConstraint>;
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const SchedulingConstraint& constraint) {
+  std::visit(
+      Visitor{
+          [&](const auto& actual) { absl::Format(&sink, "%v", actual); },
+      },
+      constraint);
+}
 
 // Options for what the scheduler should do if scheduling fails.
 struct SchedulingFailureBehavior {
