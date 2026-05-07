@@ -1726,6 +1726,33 @@ const X = foo()..(A * 2);
               TypecheckSucceeds(HasNodeWithType("X", "sN[16][8]")));
 }
 
+TEST(TypecheckV2Test, RangeExprEmptyRange) {
+  EXPECT_THAT(R"(
+const A = s8:4;
+const X = A..s8:4;
+const_assert!(X == []);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "sN[8]")));
+}
+
+TEST(TypecheckV2Test, RangeExprEmptyRangeSignedMax) {
+  EXPECT_THAT(R"(
+const A = s32::MAX;
+const X = A..A;
+const_assert!(X == []);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "sN[32]")));
+}
+
+TEST(TypecheckV2Test, RangeExprEmptyRangeUnsignedMax) {
+  EXPECT_THAT(R"(
+const A = u32::MAX;
+const X = A..A;
+const_assert!(X == []);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
 TEST(TypecheckV2Test, RangeExprSignednessMismatch) {
   EXPECT_THAT(R"(const X = u32:1..s32:2;)",
               TypecheckFails(HasSignednessMismatch("s32", "u32")));
