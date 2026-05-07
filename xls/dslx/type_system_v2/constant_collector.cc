@@ -34,6 +34,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -72,7 +73,8 @@ class Visitor : public AstNodeVisitorWithDefault {
           ParametricStructInstantiator& parametric_struct_instantiator,
           TypeSystemTracer& tracer,
           std::optional<const ParametricContext*> parametric_context,
-          const Type& type, TypeInfo* ti, TypeSystemTrace trace)
+          const Type& type, TypeInfo* ti, TypeSystemTrace trace,
+          int64_t* next_channel_id)
       : table_(table),
         module_(module),
         import_data_(import_data),
@@ -85,7 +87,8 @@ class Visitor : public AstNodeVisitorWithDefault {
         parametric_context_(parametric_context),
         type_(type),
         ti_(ti),
-        trace_(std::move(trace)) {}
+        trace_(std::move(trace)),
+        next_channel_id_(next_channel_id) {}
 
   absl::Status HandleConstantDef(const ConstantDef* constant_def) override {
     VLOG(6) << "Checking constant def value: " << constant_def->ToString()
@@ -645,6 +648,22 @@ class Visitor : public AstNodeVisitorWithDefault {
     if (!IsBuiltinFn(invocation->callee())) {
       std::optional<const Function*> f =
           table_.GetCalleeInCallerContext(invocation, parametric_context_);
+      XLS_RET_CHECK(f.has_value());
+
+      XLS_ASSIGN_OR_RETURN(std::optional<const ProcDef*> constructed_proc,
+                           GetProcConstructedByFunction(*f, ti_));
+      if (constructed_proc.has_value()) {
+        return HandleProcDefConstructorInvocation(*f, invocation);
+      }
+
+      bool is_proc_def_spawn = false;
+      if (f.has_value()) {
+        XLS_ASSIGN_OR_RETURN(is_proc_def_spawn, IsProcDefSpawnFunction(*f));
+      }
+      if (is_proc_def_spawn) {
+        return HandleProcDefSpawnInvocation(invocation);
+      }
+
       // It's basically a performance optimization that we only try this for
       // some functions. A proc `init` ultimately must be constexpr, which is
       // enforced at IR conversion time. A compiler-derived trait function has a
@@ -672,14 +691,104 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status EvaluateAndNoteExpr(const Expr* expr) {
-    absl::StatusOr<InterpValue> val = ConstexprEvaluator::EvaluateToValue(
+  absl::Status HandleProcDefConstructorInvocation(
+      const Function* constructor, const Invocation* invocation) {
+    // When we come in here, evaluating the `invocation` yields the canonical
+    // `ProcInitializer` (the bytecode interpreter derives that from the logic
+    // inside the constructor). We take this canonical initializer and derive
+    // the external initializer, which captures which channels the caller is
+    // passing in. Then we store the external one as the constexpr for the
+    // constructor invocation node.
+
+    XLS_ASSIGN_OR_RETURN(InterpValue internal_initializer_value,
+                         Evaluate(invocation));
+    const InterpValue::ProcInitializer& internal_initializer =
+        internal_initializer_value.GetProcInitializerOrDie();
+    absl::flat_hash_map<const Param*, InterpValue> arg_values;
+    for (int i = 0; i < constructor->params().size(); i++) {
+      Expr* arg = invocation->args()[i];
+      const Param* param = constructor->params()[i];
+      XLS_ASSIGN_OR_RETURN(InterpValue arg_value, Evaluate(arg));
+      arg_values.emplace(param, std::move(arg_value));
+    }
+
+    std::vector<InterpValue> external_instance_args;
+    external_instance_args.reserve(internal_initializer.members().size());
+    for (const InterpValue& internal_arg : internal_initializer.members()) {
+      if (internal_arg.IsChannelReference()) {
+        std::optional<const AstNode*> definer =
+            internal_arg.GetChannelReferenceOrDie().GetDefiner();
+        if (definer.has_value() && (*definer)->kind() == AstNodeKind::kParam) {
+          const Param* param = absl::down_cast<const Param*>(*definer);
+          const auto it = arg_values.find(param);
+          if (it != arg_values.end()) {
+            external_instance_args.push_back(it->second);
+            continue;
+          }
+        }
+      }
+      external_instance_args.push_back(internal_arg);
+    }
+
+    ti_->NoteConstExpr(invocation, InterpValue::MakeProcInitializer(
+                                       internal_initializer.proc_def(),
+                                       internal_initializer.definer(),
+                                       std::move(external_instance_args)));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleProcDefSpawnInvocation(const Invocation* invocation) {
+    XLS_RET_CHECK_EQ(invocation->callee()->kind(), AstNodeKind::kAttr);
+    const Expr* object =
+        absl::down_cast<const Attr*>(invocation->callee())->lhs();
+    XLS_ASSIGN_OR_RETURN(InterpValue external_initializer, Evaluate(object));
+    XLS_RET_CHECK(external_initializer.IsProcInitializer())
+        << "Expr `" << object->ToString() << "` yielded `"
+        << external_initializer.ToString() << "`";
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<const StructDefBase*> proc_def,
+        GetContainingStructOrProcDef(invocation, import_data_));
+    XLS_RET_CHECK(proc_def.has_value());
+    ti_->AddProcDefSpawn(absl::down_cast<const ProcDef*>(*proc_def),
+                         external_initializer);
+    return absl::OkStatus();
+  }
+
+  absl::StatusOr<InterpValue> Evaluate(const Expr* expr) {
+    return ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_,
         table_.GetParametricEnv(parametric_context_), expr);
+  }
+
+  absl::Status EvaluateAndNoteExpr(const Expr* expr) {
+    absl::StatusOr<InterpValue> val = Evaluate(expr);
     if (val.ok()) {
       trace_.SetResult(*val);
       ti_->NoteConstExpr(expr, *val);
     }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleParam(const Param* node) {
+    if (type_.IsChannel()) {
+      InterpValue value = InterpValue::MakeChannelReference(
+          type_.AsChannel().direction(), /*id=*/++*next_channel_id_,
+          /*definer=*/node);
+      ti_->NoteConstExpr(node, value);
+      ti_->NoteConstExpr(node->name_def(), value);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleChannelDecl(const ChannelDecl* node) {
+    InterpValue ends = InterpValue::MakeTuple(std::vector<InterpValue>{
+        InterpValue::MakeChannelReference(ChannelDirection::kOut,
+                                          /*id=*/++*next_channel_id_,
+                                          /*definer=*/node),
+        InterpValue::MakeChannelReference(ChannelDirection::kIn,
+                                          /*id=*/++*next_channel_id_,
+                                          /*definer=*/node)});
+    ti_->NoteConstExpr(node, ends);
     return absl::OkStatus();
   }
 
@@ -688,27 +797,20 @@ class Visitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    // For a StructInstance node that is creating an impl-style proc, we collect
-    // the initial state values.
+    // For a `StructInstance` node that is creating an impl-style proc, the
+    // constexpr value is a `ProcInitializer`.
     const ProcType& type = type_.AsProc();
-    std::vector<InterpValue> state_init_values;
+    std::vector<InterpValue> member_values;
     for (const auto& [member_name, initializer] :
          node->GetOrderedMembers(&type.AsProc().struct_def_base())) {
       std::optional<const Type*> maybe_member_type =
           type.GetMemberTypeByName(member_name);
       XLS_RET_CHECK(maybe_member_type.has_value());
 
-      // The inferred types of the state members are State<T> where T is the
-      // type specified in the DSLX source. These are the only members we need
-      // to evaluate.
-      const Type& member_type = **maybe_member_type;
-      if (!IsProcDefStateType(member_type, import_data_)) {
-        continue;
-      }
-
       absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
           &import_data_, ti_, &warning_collector_,
           table_.GetParametricEnv(parametric_context_), initializer);
+
       if (!value.ok()) {
         return TypeInferenceErrorStatus(
             initializer->span(), &type_,
@@ -720,7 +822,14 @@ class Visitor : public AstNodeVisitorWithDefault {
       }
 
       ti_->NoteConstExpr(initializer, *value);
+      member_values.push_back(*value);
     }
+
+    auto inst = InterpValue::MakeProcInitializer(
+        &absl::down_cast<const ProcDef&>(type.struct_def_base()), node,
+        member_values);
+
+    ti_->NoteConstExpr(node, inst);
 
     return absl::OkStatus();
   }
@@ -739,6 +848,7 @@ class Visitor : public AstNodeVisitorWithDefault {
   const Type& type_;
   TypeInfo* ti_;
   TypeSystemTrace trace_;
+  int64_t* const next_channel_id_;
 };
 
 class ConstantCollectorImpl : public ConstantCollector {
@@ -764,10 +874,10 @@ class ConstantCollectorImpl : public ConstantCollector {
       const AstNode* node, const Type& type, TypeInfo* ti) override {
     TypeSystemTrace trace =
         tracer_.TraceCollectConstants(parametric_context, node);
-    Visitor visitor(table_, module_, import_data_, warning_collector_,
-                    file_table_, converter_, evaluator_,
-                    parametric_struct_instantiator_, tracer_,
-                    parametric_context, type, ti, std::move(trace));
+    Visitor visitor(
+        table_, module_, import_data_, warning_collector_, file_table_,
+        converter_, evaluator_, parametric_struct_instantiator_, tracer_,
+        parametric_context, type, ti, std::move(trace), &next_channel_id_);
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
 
     if (const AstNode* parent_node = node->parent();
@@ -839,6 +949,7 @@ class ConstantCollectorImpl : public ConstantCollector {
   Evaluator& evaluator_;
   ParametricStructInstantiator& parametric_struct_instantiator_;
   TypeSystemTracer& tracer_;
+  int64_t next_channel_id_ = 0;
 };
 
 }  // namespace

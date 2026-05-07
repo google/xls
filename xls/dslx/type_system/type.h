@@ -324,6 +324,7 @@ class Type {
   bool IsFunction() const;
   bool IsModule() const;
 
+  const ChannelType& AsChannel() const;
   const StructType& AsStruct() const;
   const ProcType& AsProc() const;
   const EnumType& AsEnum() const;
@@ -434,6 +435,8 @@ class TokenType : public Type {
 // like a struct.
 class StructTypeBase : public Type {
  public:
+  static std::string GetDebugName() { return "StructTypeBase"; }
+
   // Note: members must correspond to struct_def's members (same length and
   // order).
   StructTypeBase(std::vector<std::unique_ptr<Type>> members,

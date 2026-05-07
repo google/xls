@@ -183,6 +183,7 @@ class ModuleTraitManagerImpl : public ModuleTraitManager {
         XLS_ASSIGN_OR_RETURN(
             AstNode * derived_stub,
             CloneAst(derived, &PreserveTypeDefinitionsReplacer));
+        absl::down_cast<Function*>(derived_stub)->set_compiler_derived(true);
         impl.AddMember(absl::down_cast<Function*>(derived_stub));
         XLS_RETURN_IF_ERROR(visitor->PopulateFromFunction(
             absl::down_cast<Function*>(derived_stub)));

@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -55,6 +56,7 @@ enum class InterpValueTag : uint8_t {
   kToken,
   kChannelReference,
   kTypeReference,
+  kProcInitializer,
 };
 
 std::string TagToString(InterpValueTag tag);
@@ -81,8 +83,11 @@ class InterpValue {
   class ChannelReference {
    public:
     ChannelReference(ChannelDirection direction,
-                     std::optional<int64_t> channel_instance_id)
-        : direction_(direction), channel_instance_id_(channel_instance_id) {}
+                     std::optional<int64_t> channel_instance_id,
+                     std::optional<const AstNode*> definer)
+        : direction_(direction),
+          channel_instance_id_(channel_instance_id),
+          definer_(definer) {}
     ChannelDirection GetDirection() const { return direction_; }
 
     // An optional unique identifier of the particular channel instance this
@@ -90,9 +95,94 @@ class InterpValue {
     // where the hierarchy is elaborated such as the bytecode interpreter.
     std::optional<int64_t> GetChannelId() const { return channel_instance_id_; }
 
+    std::optional<const AstNode*> GetDefiner() const { return definer_; }
+
    private:
     ChannelDirection direction_;
     std::optional<int64_t> channel_instance_id_;
+    std::optional<const AstNode*> definer_;
+  };
+
+  // An initializer for an impl-style proc, specifying which actual channels and
+  // initial state values are used for its members. A `ProcInitializer` can have
+  // two possible perspectives:
+  //  * Internal to the proc, capturing the "stuff" in the `SomeProc { stuff }`
+  //    expression within the relevant `SomeProc` constructor, and using
+  //    channel references internal to that constructor.
+  //  * External to the proc, capturing the channel references from the caller
+  //    of `SomeProc::new(...)` (the spawning proc), in places where the
+  //    internal one would have constructor-local channel references.
+  //
+  // The internal initializer is used in some contexts as a "canonical" form. It
+  // is a reduction of a whole proc constructor to an InterpValue that is
+  // independent of the channels that a particular spawn passes in. An external
+  // counterpart to an internal `ProcInitializer` has the same `definer` node,
+  // which is `SomeProc { stuff }` in the above example. This allows the holder
+  // of an external initializer to find the internal one in `TypeInfo` as the
+  // constexpr for the definer.
+  class ProcInitializer {
+   public:
+    ProcInitializer(const ProcDef* proc_def, const AstNode* definer,
+                    std::vector<InterpValue> members)
+        : proc_def_(proc_def), definer_(definer), members_(std::move(members)) {
+      InitMemberMap();
+    }
+
+    ProcInitializer(const ProcInitializer& other)
+        : ProcInitializer(other.proc_def_, other.definer_, other.members_) {}
+
+    ProcInitializer(ProcInitializer&& other)
+        : ProcInitializer(other.proc_def_, other.definer_,
+                          std::move(other.members_)) {
+      other.member_map_.clear();
+    }
+
+    ProcInitializer& operator=(const ProcInitializer& other) {
+      proc_def_ = other.proc_def_;
+      members_ = other.members_;
+      definer_ = other.definer_;
+      InitMemberMap();
+      return *this;
+    }
+
+    ProcInitializer& operator=(ProcInitializer&& other) {
+      if (this == &other) {
+        return *this;
+      }
+      proc_def_ = other.proc_def_;
+      members_ = std::move(other.members_);
+      definer_ = other.definer_;
+      InitMemberMap();
+      other.member_map_.clear();
+      return *this;
+    }
+
+    const ProcDef* proc_def() const { return proc_def_; }
+    const AstNode* definer() const { return definer_; }
+    const std::vector<InterpValue>& members() const { return members_; }
+
+    const InterpValue& GetMemberValue(const StructMemberNode* member) const {
+      return *member_map_.at(member);
+    }
+
+    bool Eq(const ProcInitializer& other) const;
+    bool operator==(const ProcInitializer& other) const { return Eq(other); }
+
+   private:
+    void InitMemberMap() {
+      member_map_.clear();
+      for (int i = 0; i < proc_def_->members().size(); i++) {
+        member_map_[proc_def_->members()[i]] = &members_[i];
+      }
+    }
+
+    const ProcDef* proc_def_;
+    const AstNode* definer_;
+    std::vector<InterpValue> members_;
+
+    // The same values in `members_`, as a map.
+    absl::flat_hash_map<const StructMemberNode*, const InterpValue*>
+        member_map_;
   };
 
   // Factories
@@ -139,9 +229,19 @@ class InterpValue {
   static InterpValue MakeTuple(std::vector<InterpValue> members);
   static InterpValue MakeChannelReference(
       ChannelDirection direction,
-      std::optional<int64_t> channel_instance_id = std::nullopt) {
-    return InterpValue(InterpValueTag::kChannelReference,
-                       ChannelReference(direction, channel_instance_id));
+      std::optional<int64_t> channel_instance_id = std::nullopt,
+      std::optional<const AstNode*> definer = std::nullopt) {
+    return InterpValue(
+        InterpValueTag::kChannelReference,
+        ChannelReference(direction, channel_instance_id, definer));
+  }
+
+  static InterpValue MakeProcInitializer(const ProcDef* proc_def,
+                                         const AstNode* definer,
+                                         std::vector<InterpValue> members) {
+    return InterpValue(InterpValueTag::kProcInitializer,
+                       std::make_shared<ProcInitializer>(proc_def, definer,
+                                                         std::move(members)));
   }
 
   static absl::StatusOr<InterpValue> MakeArray(
@@ -189,6 +289,10 @@ class InterpValue {
   bool IsBool() const { return IsBits() && GetBitCount().value() == 1; }
   bool IsEnum() const { return tag_ == InterpValueTag::kEnum; }
   bool IsFunction() const { return tag_ == InterpValueTag::kFunction; }
+  bool IsChannelReference() const {
+    return tag_ == InterpValueTag::kChannelReference;
+  }
+
   bool IsBuiltinFunction() const {
     return IsFunction() && std::holds_alternative<Builtin>(GetFunctionOrDie());
   }
@@ -199,10 +303,12 @@ class InterpValue {
   bool IsTypeReference() const {
     return tag_ == InterpValueTag::kTypeReference;
   }
+  bool IsProcInitializer() const {
+    return tag_ == InterpValueTag::kProcInitializer;
+  }
 
   bool IsFalse() const { return IsBool() && GetBitsOrDie().IsZero(); }
   bool IsTrue() const { return IsBool() && GetBitsOrDie().IsAllOnes(); }
-
   bool IsNegative() const {
     return IsSigned() && (GetBitsOrDie().GetFromMsb(0));
   }
@@ -357,11 +463,23 @@ class InterpValue {
     return &std::get<FnData>(payload_);
   }
   const FnData& GetFunctionOrDie() const { return *GetFunction().value(); }
+
+  absl::StatusOr<const ProcInitializer*> GetProcInitializer() const {
+    if (!std::holds_alternative<std::shared_ptr<ProcInitializer>>(payload_)) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Value does not hold a proc initializer: ", ToString(), "."));
+    }
+    return std::get<std::shared_ptr<ProcInitializer>>(payload_).get();
+  }
+  const ProcInitializer& GetProcInitializerOrDie() const {
+    return **GetProcInitializer();
+  }
+
   absl::StatusOr<Bits> GetBits() const;
   const Bits& GetBitsOrDie() const;
   absl::StatusOr<const TypeAnnotation*> GetTypeReference() const;
   absl::StatusOr<ChannelReference> GetChannelReference() const;
-  ChannelReference GetChannelReferenceOrDie() const {
+  const ChannelReference& GetChannelReferenceOrDie() const {
     return std::get<ChannelReference>(payload_);
   }
 
@@ -454,9 +572,9 @@ class InterpValue {
     Bits bits;
   };
 
-  using Payload =
-      std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
-                   std::shared_ptr<TokenData>, ChannelReference, TypeReference>;
+  using Payload = std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
+                               std::shared_ptr<TokenData>, ChannelReference,
+                               TypeReference, std::shared_ptr<ProcInitializer>>;
 
   InterpValue(InterpValueTag tag, Payload payload)
       : tag_(tag), payload_(std::move(payload)) {}

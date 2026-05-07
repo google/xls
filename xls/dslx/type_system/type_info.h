@@ -250,6 +250,22 @@ class TypeInfo {
   absl::StatusOr<std::vector<SpawnData>> GetUniqueSpawns(
       const Proc* proc) const;
 
+  // Returns all the unique canonical initializers that `proc` is used with in
+  // the `TypeInfo` hierarchy. This indicates which variations of the IR proc
+  // are needed.
+  absl::StatusOr<std::vector<InterpValue>> GetCanonicalProcInitializers(
+      const ProcDef* proc) const;
+
+  // Records a spawn of a callee proc from `caller`, given the
+  // `external_initializer` that indicates what channels and initial state
+  // values from the caller's perspective end up in the proc.
+  void AddProcDefSpawn(const ProcDef* caller, InterpValue external_initializer);
+
+  // Returns all of the external initializers for procs that are spawned
+  // directly from the given `caller` proc.
+  absl::StatusOr<std::vector<InterpValue>> GetProcDefSpawnsFrom(
+      const ProcDef* caller) const;
+
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to
   // particular type-information for the callee.
@@ -568,6 +584,13 @@ class TypeInfo {
   absl::flat_hash_map<const ProcAlias*, ResolvedProcAlias>
       resolved_proc_aliases_;
   absl::flat_hash_map<const Proc*, std::vector<SpawnData>> spawns_;
+
+  // Initializers for each callee proc.
+  absl::flat_hash_map<const ProcDef*, std::vector<InterpValue>>
+      proc_def_initializers_by_callee_proc_;
+  // External proc initializers, mapped by caller proc.
+  absl::flat_hash_map<const ProcDef*, std::vector<InterpValue>>
+      proc_def_spawns_by_caller_proc_;
 
   absl::flat_hash_map<const ColonRef*, ResolvedColonRefSubject>
       resolved_colon_ref_subjects_;

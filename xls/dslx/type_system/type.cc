@@ -293,6 +293,12 @@ bool Type::IsModule() const {
   return dynamic_cast<const ModuleType*>(this) != nullptr;
 }
 
+const ChannelType& Type::AsChannel() const {
+  auto* c = dynamic_cast<const ChannelType*>(this);
+  CHECK(c != nullptr) << "Type is not a channel: " << *this;
+  return *c;
+}
+
 const EnumType& Type::AsEnum() const {
   auto* s = dynamic_cast<const EnumType*>(this);
   CHECK(s != nullptr) << "Type is not an enum: " << *this;

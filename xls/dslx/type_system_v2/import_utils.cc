@@ -23,10 +23,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -214,6 +216,22 @@ absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
   return GetStructOrProcDef((*f->impl())->struct_ref(), import_data);
 }
 
+absl::StatusOr<std::optional<const StructDefBase*>>
+GetContainingStructOrProcDef(const AstNode* node,
+                             const ImportData& import_data) {
+  std::optional<ModuleMember> member = GetContainingModuleMember(node);
+  if (!member.has_value()) {
+    return std::nullopt;
+  }
+
+  if (std::holds_alternative<Impl*>(*member)) {
+    return GetStructOrProcDef(std::get<Impl*>(*member)->struct_ref(),
+                              import_data);
+  }
+
+  return std::nullopt;
+}
+
 absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
   if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
@@ -249,6 +267,10 @@ absl::StatusOr<bool> IsProcDefNextFunction(const Function* f,
   return (*def)->kind() == AstNodeKind::kProcDef;
 }
 
+absl::StatusOr<bool> IsProcDefSpawnFunction(const Function* f) {
+  return f->IsCompilerDerived() && f->identifier() == "spawn";
+}
+
 bool IsProcDefStateType(const Type& type, const ImportData& import_data) {
   // A state element in a `ProcDef` always uses explicit state access, so should
   // have been made into a State<T> by semantics analysis, i.e. it is always a
@@ -274,6 +296,36 @@ absl::StatusOr<std::vector<StructMemberNode*>> GetProcDefStateMembers(
     }
   }
   return result;
+}
+
+absl::StatusOr<std::optional<const ProcDef*>> GetProcConstructedByFunction(
+    const Function* f, TypeInfo* ti) {
+  if (!f->impl().has_value()) {
+    return std::nullopt;
+  }
+
+  if (f->owner() != ti->module()) {
+    ti = *ti->GetImportedTypeInfo(f->owner());
+  }
+
+  // TODO: https://github.com/google/xls/issues/4125 - We should use
+  // GetItemOrError here, but being able to do this is part of parametric proc
+  // support (we will not have the right `TypeInfo` in all cases currently).
+  std::optional<Type*> fn_type = ti->GetItem(f);
+  if (!fn_type.has_value()) {
+    return std::nullopt;
+  }
+
+  XLS_RET_CHECK((*fn_type)->IsFunction());
+
+  // It's only a constructor if it returns effectively `Self`.
+  const Type& return_type = (*fn_type)->AsFunction().return_type();
+  if (return_type.IsProc()) {
+    return &absl::down_cast<const ProcDef&>(
+        return_type.AsProc().struct_def_base());
+  }
+
+  return std::nullopt;
 }
 
 }  // namespace xls::dslx

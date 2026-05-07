@@ -288,8 +288,8 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
 
   // Now we need the index of the attr NameRef in the struct def.
-  XLS_ASSIGN_OR_RETURN(StructType * struct_type,
-                       type_info_->GetItemAs<StructType>(node->lhs()));
+  XLS_ASSIGN_OR_RETURN(StructTypeBase * struct_type,
+                       type_info_->GetItemAs<StructTypeBase>(node->lhs()));
   XLS_ASSIGN_OR_RETURN(int64_t member_index,
                        struct_type->GetMemberIndex(node->attr()));
 
@@ -1598,10 +1598,18 @@ absl::Status BytecodeEmitter::HandleString(const String* node) {
 }
 
 absl::Status BytecodeEmitter::HandleStructInstance(const StructInstance* node) {
-  XLS_ASSIGN_OR_RETURN(StructType * struct_type,
-                       type_info_->GetItemAs<StructType>(node));
+  XLS_ASSIGN_OR_RETURN(StructTypeBase * struct_type,
+                       type_info_->GetItemAs<StructTypeBase>(node));
 
-  const StructDef& struct_def = struct_type->nominal_type();
+  const StructDefBase& struct_def = struct_type->struct_def_base();
+  if (struct_def.kind() == AstNodeKind::kProcDef) {
+    // The result of instantiating an impl-style proc is always a constexpr
+    // created by type inference.
+    XLS_ASSIGN_OR_RETURN(InterpValue proc_inst, type_info_->GetConstExpr(node));
+    Add(Bytecode::MakeLiteral(node->span(), proc_inst));
+    return absl::OkStatus();
+  }
+
   for (const std::pair<std::string, Expr*>& member :
        node->GetOrderedMembers(&struct_def)) {
     XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));

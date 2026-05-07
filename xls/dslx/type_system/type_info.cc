@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system/type_info.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -200,6 +202,17 @@ void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
   //         << " inserting value: " << value.ToString();
   //   }
   // }
+
+  // Collect proc initializers in their own separate map so that we can find all
+  // the uses of a given proc easily.
+  if (value.IsProcInitializer() &&
+      value.GetProcInitializerOrDie().definer() == const_expr) {
+    TypeInfo* root = GetRoot();
+    const InterpValue::ProcInitializer& initializer =
+        value.GetProcInitializerOrDie();
+    root->proc_def_initializers_by_callee_proc_[initializer.proc_def()]
+        .push_back(value);
+  }
 
   const_exprs_.insert_or_assign(const_expr, std::move(value));
 }
@@ -787,6 +800,41 @@ absl::StatusOr<std::vector<SpawnData>> TypeInfo::GetUniqueSpawns(
     }
   }
   return result;
+}
+
+absl::StatusOr<std::vector<InterpValue>> TypeInfo::GetCanonicalProcInitializers(
+    const ProcDef* proc) const {
+  if (parent_ != nullptr) {
+    return parent_->GetCanonicalProcInitializers(proc);
+  }
+  XLS_RET_CHECK_EQ(proc->owner(), module_);
+  const auto it = proc_def_initializers_by_callee_proc_.find(proc);
+  if (it == proc_def_initializers_by_callee_proc_.end()) {
+    return std::vector<InterpValue>{};
+  }
+  absl::btree_set<InterpValue> unique_instantiations;
+  std::vector<InterpValue> result;
+  for (const InterpValue& next : it->second) {
+    if (unique_instantiations.insert(next).second) {
+      result.push_back(next);
+    }
+  }
+  return result;
+}
+
+void TypeInfo::AddProcDefSpawn(const ProcDef* caller,
+                               InterpValue external_initializer) {
+  TypeInfo* root = GetRoot();
+  root->proc_def_spawns_by_caller_proc_[caller].push_back(external_initializer);
+}
+
+absl::StatusOr<std::vector<InterpValue>> TypeInfo::GetProcDefSpawnsFrom(
+    const ProcDef* caller) const {
+  const TypeInfo* root = GetRoot();
+  const auto it = root->proc_def_spawns_by_caller_proc_.find(caller);
+  return it == root->proc_def_spawns_by_caller_proc_.end()
+             ? std::vector<InterpValue>{}
+             : it->second;
 }
 
 absl::Status TypeInfo::SetTopLevelProcTypeInfo(const Proc* p, TypeInfo* ti) {

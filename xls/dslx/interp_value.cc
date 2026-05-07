@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
@@ -40,6 +41,7 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -68,6 +70,8 @@ std::string TagToString(InterpValueTag tag) {
       return "channel_reference";
     case InterpValueTag::kTypeReference:
       return "type_reference";
+    case InterpValueTag::kProcInitializer:
+      return "proc_initializer";
   }
   return absl::StrFormat("<invalid InterpValueTag(%d)>",
                          static_cast<int64_t>(tag));
@@ -190,7 +194,8 @@ std::string InterpValue::ToString(bool humanize,
       tag_ == InterpValueTag::kArray || tag_ == InterpValueTag::kEnum ||
       tag_ == InterpValueTag::kFunction || tag_ == InterpValueTag::kToken ||
       tag_ == InterpValueTag::kChannelReference ||
-      tag_ == InterpValueTag::kTypeReference) {
+      tag_ == InterpValueTag::kTypeReference ||
+      tag_ == InterpValueTag::kProcInitializer) {
     return result;
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
@@ -236,15 +241,34 @@ std::string InterpValue::ToStringInternal(bool humanize,
           std::get<UserFnData>(GetFunctionOrDie()).function->identifier());
     case InterpValueTag::kToken:
       return absl::StrFormat("token:%p", GetTokenData().get());
-    case InterpValueTag::kChannelReference:
-      return absl::StrFormat(
-          "channel_reference(%s, channel_instance_id=%s)",
-          ChannelDirectionToString(GetChannelReferenceOrDie().GetDirection()),
-          GetChannelReferenceOrDie().GetChannelId().has_value()
-              ? absl::StrCat(*GetChannelReferenceOrDie().GetChannelId())
-              : "none");
+    case InterpValueTag::kChannelReference: {
+      const ChannelReference& channel_ref =
+          std::get<ChannelReference>(payload_);
+      std::string channel_args(
+          ChannelDirectionToString(channel_ref.GetDirection()));
+      absl::StrAppendFormat(&channel_args, ", channel_instance_id=%s",
+                            channel_ref.GetChannelId().has_value()
+                                ? absl::StrCat(*channel_ref.GetChannelId())
+                                : "none");
+      if (channel_ref.GetDefiner().has_value()) {
+        absl::StrAppendFormat(
+            &channel_args, ", definer=`%s` (%s)",
+            (*channel_ref.GetDefiner())->ToString(),
+            AstNodeKindToString((*channel_ref.GetDefiner())->kind()));
+      }
+      return absl::Substitute("channel_reference($0)", channel_args);
+    }
     case InterpValueTag::kTypeReference:
       return std::get<TypeReference>(payload_).string;
+    case InterpValueTag::kProcInitializer:
+      const auto& initializer =
+          std::get<std::shared_ptr<ProcInitializer>>(payload_);
+      std::vector<std::string> member_strings;
+      for (const InterpValue& member : initializer->members()) {
+        member_strings.push_back(member.ToString());
+      }
+      return absl::Substitute("$0($1)", initializer->proc_def()->identifier(),
+                              absl::StrJoin(member_strings, ", "));
   }
   return "<INVALID>";
 }
@@ -403,6 +427,21 @@ absl::StatusOr<std::string> InterpValue::ToFormattedString(
   return v.result().value();
 }
 
+bool InterpValue::ProcInitializer::Eq(const ProcInitializer& other) const {
+  if (proc_def_ != other.proc_def_) {
+    return false;
+  }
+  if (members_.size() != other.members_.size()) {
+    return false;
+  }
+  for (int i = 0; i < members_.size(); i++) {
+    if (members_[i] != other.members_[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool InterpValue::Eq(const InterpValue& other) const {
   auto values_equal = [&] {
     const std::vector<InterpValue>& lhs = GetValuesOrDie();
@@ -460,6 +499,9 @@ bool InterpValue::Eq(const InterpValue& other) const {
              GetChannelReferenceOrDie().GetChannelId().has_value() &&
              GetChannelReferenceOrDie().GetChannelId() ==
                  other.GetChannelReferenceOrDie().GetChannelId();
+    case InterpValueTag::kProcInitializer:
+      return other.IsProcInitializer() &&
+             GetProcInitializerOrDie() == other.GetProcInitializerOrDie();
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
 }
@@ -1043,6 +1085,10 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
     case InterpValueTag::kTypeReference:
       return absl::InvalidArgumentError(
           "Cannot convert type-reference-typed values to IR.");
+    case InterpValueTag::kProcInitializer: {
+      return absl::InvalidArgumentError(
+          "Cannot convert proc-initializer-typed values to IR.");
+    }
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
 }
@@ -1059,6 +1105,33 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
     }
 
     return Lt(rhs).value().IsTrue();
+  }
+
+  if (IsProcInitializer()) {
+    const ProcInitializer& inst =
+        *std::get<std::shared_ptr<ProcInitializer>>(payload_);
+    if (!rhs.IsProcInitializer()) {
+      return true;
+    }
+    const ProcInitializer& rhs_inst =
+        *std::get<std::shared_ptr<ProcInitializer>>(rhs.payload_);
+    if (inst.proc_def() != rhs_inst.proc_def()) {
+      if (inst.proc_def()->identifier() != rhs_inst.proc_def()->identifier()) {
+        return inst.proc_def()->identifier() <
+               rhs_inst.proc_def()->identifier();
+      }
+      return inst.proc_def()->owner()->name() <
+             rhs_inst.proc_def()->owner()->name();
+    }
+
+    if (inst.members().size() != rhs_inst.members().size()) {
+      return inst.members().size() < rhs_inst.members().size();
+    }
+    for (int i = 0; i < inst.members().size(); i++) {
+      if (!inst.members()[i].Eq(rhs_inst.members()[i])) {
+        return inst.members()[i] < rhs_inst.members()[i];
+      }
+    }
   }
 
   if (IsTuple()) {

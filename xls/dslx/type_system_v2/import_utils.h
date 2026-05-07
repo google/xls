@@ -56,6 +56,12 @@ absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
     const Function* f, const ImportData& import_data);
 
+// Returns the definition of the struct or proc whose impl contains `node`, if
+// any.
+absl::StatusOr<std::optional<const StructDefBase*>>
+GetContainingStructOrProcDef(const AstNode* node,
+                             const ImportData& import_data);
+
 // Finds and returns a public module member for the given `ColonRef`. Returns
 // an error if it doesn't exist or isn't public.
 absl::StatusOr<ModuleMember> GetPublicModuleMember(const Module& module,
@@ -74,6 +80,10 @@ absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
 absl::StatusOr<bool> IsProcDefNextFunction(const Function* f,
                                            const ImportData& import_data);
 
+// Returns whether `f` is an auto-generated `spawn` function in an impl-style
+// proc.
+absl::StatusOr<bool> IsProcDefSpawnFunction(const Function* f);
+
 // Returns whether `colon_ref` is imported from a different module.
 bool IsImport(const ColonRef* colon_ref);
 
@@ -87,6 +97,11 @@ bool IsProcDefStateType(const Type& type, const ImportData& import_data);
 absl::StatusOr<std::vector<StructMemberNode*>> GetProcDefStateMembers(
     const ProcDef* proc_def, const ImportData& import_data,
     const TypeInfo& type_info);
+
+// Returns all functions in `proc` that are constructors by signature, i.e.
+// static functions returning `Self`.
+absl::StatusOr<std::optional<const ProcDef*>> GetProcConstructedByFunction(
+    const Function* f, TypeInfo* ti);
 
 }  // namespace xls::dslx
 
