@@ -4342,6 +4342,73 @@ fn main() -> u64[4] {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, NestedLambdasWithVariables) {
+  constexpr std::string_view program =
+      R"(
+const X = u32:2;
+const Y = u32:3;
+type word = u4;
+type Results = word[X][Y];
+
+fn nested() -> Results {
+  let used_in_outer = [[false, false], [true, true], [true, false]];
+  map(0..Y, | y_idx: u32 | -> word[X] {
+      let used_in_inner = used_in_outer[y_idx];
+      map(0..X, | x_idx: u32 | -> word {
+          if used_in_inner[x_idx] {
+              1
+          } else {
+              0
+          }
+      })
+  })
+}
+
+fn main() -> Results {
+  nested()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, NestedLambdasWithVariablesInFor) {
+  constexpr std::string_view program =
+      R"(
+const X = u32:2;
+const Y = u32:3;
+const COUNT = u32:4;
+type word = u4;
+type Results = word[X][Y];
+
+fn nested() -> Results {
+  let used_in_outer = [[false, false], [true, true], [true, false], [false, false]];
+  for (ct, result): (u32, Results) in u32:0..COUNT {
+      map(result, | res | -> word[X] {
+          let used_in_inner = used_in_outer[0];
+          map(0..X, | x_idx | -> word {
+              if used_in_inner[x_idx] {
+                  1
+              } else {
+                  0
+              }
+          })
+      })
+  }(zero!<Results>())
+}
+
+fn main() -> Results {
+  nested()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, MapInvocationWithStruct) {
   constexpr std::string_view program =
       R"(

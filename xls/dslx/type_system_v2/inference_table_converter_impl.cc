@@ -307,7 +307,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_RETURN_IF_ERROR(parent_ti->AddInvocationTypeInfo(
         *invocation, data.callee,
         data.caller.has_value() ? *data.caller : nullptr, parent_env,
-        callee_env, parametric_context->target_struct(),
+        callee_env,
         IsBuiltin(data.callee) ? nullptr : parametric_context->type_info()));
     return absl::OkStatus();
   }
@@ -622,7 +622,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_RETURN_IF_ERROR(parent_ti->AddInvocationTypeInfo(
             *invocation, function, caller_details.callee,
             table_.GetParametricEnv(caller_context), ParametricEnv{},
-            /*target_struct=*/std::nullopt, function_owner_ti));
+            function_owner_ti));
       } else {
         XLS_RETURN_IF_ERROR(parent_ti->AddInvocation(
             *invocation, function, caller.has_value() ? *caller : nullptr,

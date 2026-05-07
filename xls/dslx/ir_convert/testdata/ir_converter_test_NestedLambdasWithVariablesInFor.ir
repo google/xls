@@ -1,0 +1,65 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__lambda_capture_struct_at_test_module_x_13_21_19_12__call__u32_bool__dim_2(self: (bits[1][2]) id=1, x_idx: bits[32] id=2) -> bits[4] {
+  self_used_in_inner: bits[1][2] = tuple_index(self, index=0, id=3)
+  array_index.4: bits[1] = array_index(self_used_in_inner, indices=[x_idx], id=4)
+  literal.6: bits[4] = literal(value=0, id=6)
+  literal.5: bits[4] = literal(value=1, id=5)
+  ret sel.7: bits[4] = sel(array_index.4, cases=[literal.6, literal.5], id=7)
+}
+
+fn __SYNTHETIC_LOOP_BODY___test_module__lambda_capture_struct_at_test_module_x_11_19_20_8__call__u4__dim_2_bool__dim_2__dim_4_CALLING___test_module__lambda_capture_struct_at_test_module_x_13_21_19_12__call__u32_bool__dim_2__MAP_0(idx: bits[32] id=16, array_val: bits[4][2] id=17, context_struct: (bits[1][2]) id=18, input_array: bits[32][2] id=19) -> bits[4][2] {
+  array_index.20: bits[32] = array_index(input_array, indices=[idx], id=20)
+  map_call_call: bits[4] = invoke(context_struct, array_index.20, to_apply=__test_module__lambda_capture_struct_at_test_module_x_13_21_19_12__call__u32_bool__dim_2, id=21)
+  ret map_iteration: bits[4][2] = array_update(array_val, map_call_call, indices=[idx], id=22)
+}
+
+fn __test_module__lambda_capture_struct_at_test_module_x_11_19_20_8__call__u4__dim_2_bool__dim_2__dim_4(self: (bits[1][2][4]) id=8, res: bits[4][2] id=9) -> bits[4][2] {
+  self_used_in_outer: bits[1][2][4] = tuple_index(self, index=0, id=11)
+  literal.12: bits[32] = literal(value=0, id=12)
+  used_in_inner: bits[1][2] = array_index(self_used_in_outer, indices=[literal.12], id=13)
+  literal.23: bits[4][2] = literal(value=[0, 0], id=23)
+  tuple.15: (bits[1][2]) = tuple(used_in_inner, id=15)
+  literal.14: bits[32][2] = literal(value=[0, 1], id=14)
+  X: bits[32] = literal(value=2, id=10)
+  ret map_invocation__call: bits[4][2] = counted_for(literal.23, trip_count=2, stride=1, body=__SYNTHETIC_LOOP_BODY___test_module__lambda_capture_struct_at_test_module_x_11_19_20_8__call__u4__dim_2_bool__dim_2__dim_4_CALLING___test_module__lambda_capture_struct_at_test_module_x_13_21_19_12__call__u32_bool__dim_2__MAP_0, invariant_args=[tuple.15, literal.14], id=24)
+}
+
+fn __SYNTHETIC_LOOP_BODY_____test_module__nested_counted_for_0_body_CALLING___test_module__lambda_capture_struct_at_test_module_x_11_19_20_8__call__u4__dim_2_bool__dim_2__dim_4__MAP_0(idx: bits[32] id=46, array_val: bits[4][2][3] id=47, context_struct: (bits[1][2][4]) id=48, input_array: bits[4][2][3] id=49) -> bits[4][2][3] {
+  array_index.50: bits[4][2] = array_index(input_array, indices=[idx], id=50)
+  map_call_call: bits[4][2] = invoke(context_struct, array_index.50, to_apply=__test_module__lambda_capture_struct_at_test_module_x_11_19_20_8__call__u4__dim_2_bool__dim_2__dim_4, id=51)
+  ret map_iteration: bits[4][2][3] = array_update(array_val, map_call_call, indices=[idx], id=52)
+}
+
+fn ____test_module__nested_counted_for_0_body(ct: bits[32] id=40, result: bits[4][2][3] id=43, used_in_outer: bits[1][2][4] id=44) -> bits[4][2][3] {
+  literal.41: bits[32] = literal(value=0, id=41)
+  literal.53: bits[4][2][3] = literal(value=[[0, 0], [0, 0], [0, 0]], id=53)
+  tuple.45: (bits[1][2][4]) = tuple(used_in_outer, id=45)
+  add.42: bits[32] = add(ct, literal.41, id=42)
+  ret map_invocation__call: bits[4][2][3] = counted_for(literal.53, trip_count=3, stride=1, body=__SYNTHETIC_LOOP_BODY_____test_module__nested_counted_for_0_body_CALLING___test_module__lambda_capture_struct_at_test_module_x_11_19_20_8__call__u4__dim_2_bool__dim_2__dim_4__MAP_0, invariant_args=[tuple.45, result], id=54)
+}
+
+fn __test_module__nested() -> bits[4][2][3] {
+  literal.26: bits[1] = literal(value=0, id=26)
+  literal.27: bits[1] = literal(value=0, id=27)
+  literal.29: bits[1] = literal(value=1, id=29)
+  literal.30: bits[1] = literal(value=1, id=30)
+  literal.32: bits[1] = literal(value=1, id=32)
+  literal.33: bits[1] = literal(value=0, id=33)
+  literal.35: bits[1] = literal(value=0, id=35)
+  literal.36: bits[1] = literal(value=0, id=36)
+  array.28: bits[1][2] = array(literal.26, literal.27, id=28)
+  array.31: bits[1][2] = array(literal.29, literal.30, id=31)
+  array.34: bits[1][2] = array(literal.32, literal.33, id=34)
+  array.37: bits[1][2] = array(literal.35, literal.36, id=37)
+  literal.39: bits[4][2][3] = literal(value=[[0, 0], [0, 0], [0, 0]], id=39)
+  used_in_outer: bits[1][2][4] = array(array.28, array.31, array.34, array.37, id=38)
+  COUNT: bits[32] = literal(value=4, id=25)
+  ret counted_for.55: bits[4][2][3] = counted_for(literal.39, trip_count=4, stride=1, body=____test_module__nested_counted_for_0_body, invariant_args=[used_in_outer], id=55)
+}
+
+fn __test_module__main() -> bits[4][2][3] {
+  ret invoke.56: bits[4][2][3] = invoke(to_apply=__test_module__nested, id=56)
+}

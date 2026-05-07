@@ -440,6 +440,43 @@ const_assert!(RES == EX);
       TypecheckSucceeds(HasNodeWithType("RES", "uN[1][2][3]")));
 }
 
+TEST(TypecheckV2Test, NestedLambdaWithInnerAndOuterLoopVars) {
+  EXPECT_THAT(
+      R"(
+const X = u32:2;
+const Y = u32:3;
+const COUNT = u32:4;
+type word = u4;
+type Results = word[X][Y];
+
+fn nested() -> Results {
+  let used_in_outer = [[false, false], [true, true], [true, false], [false, false]];
+  for (ct, result): (u32, Results) in u32:0..COUNT {
+      map(result, | res | -> word[X] {
+          let used_in_inner = used_in_outer[ct];
+          map(0..X, | x_idx | -> word {
+              if used_in_inner[x_idx] {
+                  res[x_idx] + 1
+              } else {
+                  res[x_idx]
+              }
+          })
+      })
+  }(zero!<Results>())
+}
+
+const RES = nested();
+const EX = [
+  [u4:2, u4:1],
+  [u4:2, u4:1],
+  [u4:2, u4:1],
+];
+const_assert!(RES == EX);
+
+)",
+      TypecheckSucceeds(HasNodeWithType("RES", "uN[4][2][3]")));
+}
+
 TEST(TypecheckV2Test, LambdaUsesUnrollForOutput) {
   EXPECT_THAT(
       R"(

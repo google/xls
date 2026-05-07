@@ -176,7 +176,8 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
 
     TypeSystemTrace trace = tracer_.TraceUnify(node);
-    VLOG(6) << "ResolveAndUnifyTypeAnnotationsForNode " << node->ToString();
+    VLOG(6) << "ResolveAndUnifyTypeAnnotationsForNode " << node->ToString()
+            << " with context " << ToString(parametric_context);
     const std::optional<const NameRef*> type_variable =
         table_.GetTypeVariable(node);
     if (type_variable.has_value()) {

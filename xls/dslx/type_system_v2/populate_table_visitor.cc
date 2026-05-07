@@ -1487,7 +1487,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // Only apply a type annotation to the function itself if it's
     // non-parametric. This is to avoid leaking types like `uN[N]` into type
     // variables that are outside the function.
-    if (!node->IsParametric()) {
+    if (!node->IsParametric() && !node->IsMethodOnParametricStruct()) {
       table_.SetAnnotationFlag(function_type_annotation,
                                TypeInferenceFlag::kFormalFunctionType);
       XLS_RETURN_IF_ERROR(

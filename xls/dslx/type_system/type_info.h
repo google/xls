@@ -99,11 +99,10 @@ struct ResolvedProcAlias {
 // Parametric instantiation information related to an invocation AST node.
 struct InvocationData {
  public:
-  InvocationData(
-      const Invocation* node, const Function* callee, const Function* caller,
-      absl::flat_hash_map<ParametricEnv, InvocationCalleeData>
-          env_to_callee_data,
-      std::optional<const StructDefBase*> target_struct = std::nullopt);
+  InvocationData(const Invocation* node, const Function* callee,
+                 const Function* caller,
+                 absl::flat_hash_map<ParametricEnv, InvocationCalleeData>
+                     env_to_callee_data);
 
   const Invocation* node() const { return node_; }
   const Function* callee() const { return callee_; }
@@ -146,10 +145,6 @@ struct InvocationData {
   // Map from symbolic bindings in the caller to the corresponding symbolic
   // bindings in the callee for this invocation.
   absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data_;
-
-  // If the invocation is a method invocation, this is the struct whose method
-  // is being called.
-  std::optional<const StructDefBase*> target_struct_;
 };
 
 // Owns "type information" objects created during the type checking process.
@@ -227,12 +222,12 @@ class TypeInfo {
   //
   // Returns an error status if internal invariants are violated; e.g. if the
   // "caller_env" is not a valid env for the "caller".
-  absl::Status AddInvocationTypeInfo(
-      const Invocation& invocation, const Function* callee,
-      const Function* caller, const ParametricEnv& caller_env,
-      const ParametricEnv& callee_env,
-      std::optional<const StructDefBase*> target_struct,
-      TypeInfo* derived_type_info);
+  absl::Status AddInvocationTypeInfo(const Invocation& invocation,
+                                     const Function* callee,
+                                     const Function* caller,
+                                     const ParametricEnv& caller_env,
+                                     const ParametricEnv& callee_env,
+                                     TypeInfo* derived_type_info);
 
   // Add data for a non-parametric invocation.
   absl::Status AddInvocation(const Invocation& invocation,

@@ -180,6 +180,45 @@ const_assert!(D == 4);
 )"));
 }
 
+TEST(TypecheckV2GenericsTest, ParametricImplFnCallsParametricImplFn) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct inner<UType: type> {
+  inner_var: UType
+}
+
+impl inner<UType> {
+  fn call(self) -> UType {
+    self.inner_var
+  }
+}
+
+struct outer<N: u32> {
+  outer_var: u32[N]
+}
+
+impl outer<N> {
+  fn call(self) -> u32 {
+    let i_var = self.outer_var[0];
+    inner{inner_var: i_var}.call()
+  }
+}
+
+fn nested(arr: u32[5]) -> u32 {
+  outer{outer_var: arr}.call()
+}
+
+const RES = nested(u32:0..5);
+const_assert!(RES == 0);
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("RES", "uN[32]"),
+                HasNodeWithType("outer<5>",
+                                "typeof(outer { outer_var: uN[32][5] }"))));
+}
+
 TEST(TypecheckV2GenericsTest,
      ResolveAnnotationFromSeparateImplInvocationWithOtherStruct) {
   EXPECT_THAT(

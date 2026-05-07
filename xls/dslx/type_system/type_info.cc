@@ -22,7 +22,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -51,13 +50,11 @@ namespace xls::dslx {
 
 InvocationData::InvocationData(
     const Invocation* node, const Function* callee, const Function* caller,
-    absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data,
-    std::optional<const StructDefBase*> target_struct)
+    absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data)
     : node_(node),
       callee_(callee),
       caller_(caller),
-      env_to_callee_data_(std::move(env_to_callee_data)),
-      target_struct_(target_struct) {
+      env_to_callee_data_(std::move(env_to_callee_data)) {
   // If we have a caller, check that the invocation node is contained within the
   // confines of the caller.
   //
@@ -127,8 +124,10 @@ absl::Status InvocationData::ValidateEnvForCaller(
     if (caller_->parametric_keys().contains(k)) {
       return true;
     }
-    return (target_struct_.has_value() &&
-            (*target_struct_)->ParametricKeys().contains(k));
+    std::optional<const StructDefBase*> caller_target_struct =
+        caller_->GetTargetStruct();
+    return (caller_target_struct.has_value() &&
+            (*caller_target_struct)->ParametricKeys().contains(k));
   };
   for (const auto& k : env.GetKeySet()) {
     if (!in_keys(k)) {
@@ -634,12 +633,12 @@ absl::Status TypeInfo::AddInvocation(const Invocation& invocation,
   return absl::OkStatus();
 }
 
-absl::Status TypeInfo::AddInvocationTypeInfo(
-    const Invocation& invocation, const Function* callee,
-    const Function* caller, const ParametricEnv& caller_env,
-    const ParametricEnv& callee_env,
-    std::optional<const StructDefBase*> target_struct,
-    TypeInfo* derived_type_info) {
+absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
+                                             const Function* callee,
+                                             const Function* caller,
+                                             const ParametricEnv& caller_env,
+                                             const ParametricEnv& callee_env,
+                                             TypeInfo* derived_type_info) {
   CHECK_EQ(invocation.owner(), module_);
 
   // The rationale for this is the same as in AddInvocation().
@@ -660,10 +659,9 @@ absl::Status TypeInfo::AddInvocationTypeInfo(
                                      derived_type_info, &invocation};
     env_to_callee_data[caller_env] = callee_data;
 
-    ti->InsertInvocationData(invocation,
-                             std::make_unique<InvocationData>(
-                                 &invocation, callee, caller,
-                                 std::move(env_to_callee_data), target_struct));
+    ti->InsertInvocationData(invocation, std::make_unique<InvocationData>(
+                                             &invocation, callee, caller,
+                                             std::move(env_to_callee_data)));
     // Add the parametric env to the vector for this function
     ti->callee_data_[callee].push_back(callee_data);
     GetRoot()->callee_data_by_invocation_[&invocation].push_back(callee_data);

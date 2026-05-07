@@ -2614,6 +2614,8 @@ class Function : public AstNode {
   absl::flat_hash_set<const ParametricBinding*> LambdaReturnTypeParametrics()
       const;
 
+  std::optional<const StructDefBase*> GetTargetStruct() const;
+
  private:
   Span span_;
   NameDef* name_def_;

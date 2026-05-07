@@ -104,7 +104,6 @@ fn main() -> u32 {
   EXPECT_THAT(tm.type_info->AddInvocationTypeInfo(
                   *invoke_p, /*callee=*/nullptr, /*caller=*/main,
                   bad_caller_env, valid_callee_env,
-                  /*target_struct=*/std::nullopt,
                   /*derived_type_info=*/nullptr),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("caller `main` given env with key `A` not "
