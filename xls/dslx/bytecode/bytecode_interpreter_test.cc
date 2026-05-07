@@ -2002,6 +2002,18 @@ fn main() -> u32[8] {
   }
 }
 
+TEST_F(BytecodeInterpreterTest, RangeExprEmpty) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32[0] {
+  u32:100..u32:100
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* elements,
+                           value.GetValues());
+  EXPECT_EQ(elements->size(), 0);
+}
+
 TEST_F(BytecodeInterpreterTest, TypeMaxExprU7) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u7 {

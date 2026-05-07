@@ -94,6 +94,22 @@ TEST(InterpValueTest, FlattenArrayOfBits) {
   EXPECT_THAT(o->GetBitValueUnsigned(), IsOkAndHolds(0xf00ba5));
 }
 
+TEST(InterpValueTest, ConcatRange) {
+  auto a = InterpValue::MakeUBits(/*bit_count=*/4, 1);
+  auto b = InterpValue::MakeUBits(/*bit_count=*/4, 2);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue range_a, InterpValue::MakeRange({a}));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue array_b, InterpValue::MakeArray({b}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue concat, range_a.Concat(array_b));
+  // Concatenating ranges don't produce a range, it produces an array.
+  EXPECT_FALSE(concat.is_range());
+  EXPECT_TRUE(concat.IsArray());
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue concat2, array_b.Concat(range_a));
+  EXPECT_FALSE(concat2.is_range());
+  EXPECT_TRUE(concat2.IsArray());
+}
+
 TEST(InterpValueTest, BitwiseNegateAllBitsSet) {
   auto v = InterpValue::MakeUBits(/*bit_count=*/3, 0x7);
   auto expected = InterpValue::MakeUBits(/*bit_count=*/3, 0);

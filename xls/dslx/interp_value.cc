@@ -87,6 +87,12 @@ std::string TagToString(InterpValueTag tag) {
   return InterpValue{InterpValueTag::kArray, std::move(elements)};
 }
 
+/* static */ absl::StatusOr<InterpValue> InterpValue::MakeRange(
+    std::vector<InterpValue> elements) {
+  return InterpValue{InterpValueTag::kArray, std::move(elements),
+                     /*is_range=*/true};
+}
+
 /* static */ InterpValue InterpValue::MakeUBits(int64_t bit_count,
                                                 int64_t value) {
   return InterpValue{InterpValueTag::kUBits,
@@ -975,7 +981,11 @@ absl::StatusOr<InterpValue> InterpValue::Concat(
       for (const InterpValue& o : other.GetValuesOrDie()) {
         result.push_back(o);
       }
-      return InterpValue(InterpValueTag::kArray, std::move(result));
+      // We don't propagate is_range_ from either operand, because the resulting
+      // concatenated array may or may not represent a contiguous range of
+      // values anymore.
+      return InterpValue(InterpValueTag::kArray, std::move(result),
+                         /*is_range=*/false);
     }
     case InterpValueTag::kUBits:
       return InterpValue(

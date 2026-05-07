@@ -249,6 +249,8 @@ class InterpValue {
   static InterpValue MakeBool(bool value) {
     return MakeUBits(1, value ? 1 : 0);
   }
+  static absl::StatusOr<InterpValue> MakeRange(
+      std::vector<InterpValue> elements);
 
   static absl::StatusOr<InterpValue> MakeBits(InterpValueTag tag, Bits bits) {
     if (tag != InterpValueTag::kUBits && tag != InterpValueTag::kSBits) {
@@ -541,6 +543,8 @@ class InterpValue {
   bool operator<(const InterpValue& rhs) const;
   bool operator>=(const InterpValue& rhs) const;
 
+  bool is_range() const { return is_range_; }
+
  private:
   friend struct InterpValuePickler;
 
@@ -576,8 +580,8 @@ class InterpValue {
                                std::shared_ptr<TokenData>, ChannelReference,
                                TypeReference, std::shared_ptr<ProcInitializer>>;
 
-  InterpValue(InterpValueTag tag, Payload payload)
-      : tag_(tag), payload_(std::move(payload)) {}
+  InterpValue(InterpValueTag tag, Payload payload, bool is_range = false)
+      : tag_(tag), payload_(std::move(payload)), is_range_(is_range) {}
 
   using CompareF = bool (*)(const Bits& lhs, const Bits& rhs);
 
@@ -588,6 +592,7 @@ class InterpValue {
 
   InterpValueTag tag_;
   Payload payload_;
+  bool is_range_;
 };
 
 template <typename H>

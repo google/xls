@@ -158,7 +158,7 @@ absl::Status BuiltinRangeInternal(InterpreterStack& stack) {
         XLS_RET_CHECK(end.IsBits());
         XLS_ASSIGN_OR_RETURN(InterpValue start_ge_end, start.Ge(end));
         if (start_ge_end.IsTrue()) {
-          return InterpValue::MakeArray({});
+          return InterpValue::MakeRange({});
         }
 
         std::vector<InterpValue> elements;
@@ -172,7 +172,7 @@ absl::Status BuiltinRangeInternal(InterpreterStack& stack) {
           XLS_ASSIGN_OR_RETURN(cur, cur.Add(one));
           XLS_ASSIGN_OR_RETURN(done, cur.Ge(end));
         }
-        return InterpValue::MakeArray(elements);
+        return InterpValue::MakeRange(elements);
       },
       stack);
 }
