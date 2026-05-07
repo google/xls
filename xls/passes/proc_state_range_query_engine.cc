@@ -808,13 +808,6 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine::Populate(
       final_range_data[orig_state_element] = t;
       continue;
     }
-    // We can't remove segments from a 1 bit value.
-    if (interval_set.Get({}).BitCount() < 2) {
-      VLOG(2) << "Unable to narrow range of " << orig_state_element->ToString()
-              << ". Value is unconstrained. Interval is: "
-              << interval_set.Get({});
-      continue;
-    }
     // Try for signed value compression. We *only* do this if there are no
     // narrowings we can do without checking this. This is under the assumption
     // that in most cases the only thing that would case discontinuous range

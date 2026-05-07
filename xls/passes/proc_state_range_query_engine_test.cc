@@ -173,5 +173,48 @@ TEST_F(ProcStateRangeQueryEngineTest, BitSliceCompare) {
   EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())), "[[0, 7]]");
 }
 
+TEST_F(ProcStateRangeQueryEngineTest, OneBitStateUnconstrained) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  BValue state = pb.StateElement("the_state", UBits(0, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
+                           pb.AddInputChannel("data", p->GetBitsType(1)));
+  pb.Next(state, pb.And(pb.Receive(chan), pb.Not(state)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())), "[[0, 1]]");
+}
+TEST_F(ProcStateRangeQueryEngineTest, OneBitStateIsOne) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  BValue state = pb.StateElement("the_state", UBits(1, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
+                           pb.AddInputChannel("data", p->GetBitsType(1)));
+  pb.Next(state, pb.Nand(pb.Receive(chan), pb.Not(state)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())), "[[1, 1]]");
+}
+TEST_F(ProcStateRangeQueryEngineTest, OneBitStateIsZero) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  BValue state = pb.StateElement("the_state", UBits(0, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
+                           pb.AddInputChannel("data", p->GetBitsType(1)));
+  pb.Next(state, pb.Nor(pb.Receive(chan), pb.Not(state)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())), "[[0, 0]]");
+}
+
 }  // namespace
 }  // namespace xls
