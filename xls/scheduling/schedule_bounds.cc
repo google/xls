@@ -603,7 +603,7 @@ absl::StatusOr<std::optional<int64_t>> PropagateGenericBounds(
           // in PropagateGenericConstraints and trying again.
         } else if (constraint.Is<NodeInCycleConstraint>()) {
           auto nicc = constraint.As<NodeInCycleConstraint>();
-          XLS_RET_CHECK_GE(nicc.GetCycle(), cycle)
+          XLS_RET_CHECK_GE(nicc.GetCycle(), cycle).SetNoLogging()
               << "Constraint "
               << (kBoundType == BoundType::kLower
                       ? constraint
@@ -948,7 +948,7 @@ absl::Status ScheduleBounds::CheckConstraints(std::optional<int64_t> fuel,
   if (main_result.ok() || stabilized) {
     return main_result;
   }
-  return xabsl::StatusBuilder(main_result).SetPrepend()
+  return xabsl::StatusBuilder(main_result).SetPrepend().SetNoLogging()
          << "Constraints failed to converge after " << *fuel
          << " iterations. Result is not usable because: ";
 }
