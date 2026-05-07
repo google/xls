@@ -337,7 +337,7 @@ class Bytecode {
 
     TraceData(std::vector<FormatStep> steps,
               std::vector<ValueFormatDescriptor> value_fmt_descs,
-              std::optional<int64_t> verbosity = std::nullopt)
+              int64_t verbosity = 0)
         : steps_(std::move(steps)),
           value_fmt_descs_(std::move(value_fmt_descs)),
           verbosity_(verbosity) {}
@@ -346,7 +346,7 @@ class Bytecode {
     absl::Span<const ValueFormatDescriptor> value_fmt_descs() const {
       return value_fmt_descs_;
     }
-    const std::optional<int64_t> verbosity() const { return verbosity_; }
+    int64_t verbosity() const { return verbosity_; }
 
    private:
     std::vector<FormatStep> steps_;
@@ -355,7 +355,7 @@ class Bytecode {
     // to format them in more detail (struct name, fields, etc).
     std::vector<ValueFormatDescriptor> value_fmt_descs_;
     // Verbosity of the `vtrace` messages
-    std::optional<int64_t> verbosity_;
+    int64_t verbosity_ = 0;
   };
 
   // Information necessary for channel operations.
