@@ -99,3 +99,41 @@ cc_library(
     visibility = ["//xls:xls_internal"],
     deps = ["@com_google_absl//absl/log:globals"],
 )
+
+cc_library(
+    name = "scoped_record_logs",
+    testonly = 1,
+    srcs = ["scoped_record_logs.cc"],
+    hdrs = ["scoped_record_logs.h"],
+    visibility = ["//xls:xls_internal"],
+    deps = [
+        ":collect_logs",
+        "@com_google_absl//absl/log:log_sink_registry",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "collect_logs",
+    hdrs = ["collect_logs.h"],
+    visibility = ["//xls:xls_internal"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:log_entry",
+        "@com_google_absl//absl/log:log_sink",
+        "@com_google_absl//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "collect_logs_test",
+    srcs = ["collect_logs_test.cc"],
+    deps = [
+        ":collect_logs",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:log_sink_registry",
+        "@googletest//:gtest",
+    ],
+)
