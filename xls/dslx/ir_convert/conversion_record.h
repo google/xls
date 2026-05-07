@@ -51,7 +51,8 @@ class ConversionRecord {
       Function* f, Module* module, TypeInfo* type_info,
       ParametricEnv parametric_env, std::optional<ProcId> proc_id, bool is_top,
       std::unique_ptr<ConversionRecord> config_record = nullptr,
-      std::optional<InterpValue> init_value = std::nullopt);
+      std::optional<InterpValue> init_value = std::nullopt,
+      std::optional<const ProcDef*> proc_def = std::nullopt);
 
   // Integrity-checks that the parametric_env provided are sufficient to
   // instantiate f (i.e. if it is parametric). Returns an internal error status
@@ -67,13 +68,15 @@ class ConversionRecord {
   bool IsTop() const { return is_top_; }
   const ConversionRecord* config_record() const { return config_record_.get(); }
   std::optional<InterpValue> init_value() const { return init_value_; }
+  std::optional<const ProcDef*> proc_def() const { return proc_def_; }
   std::string ToString() const;
 
  private:
   ConversionRecord(Function* f, Module* module, TypeInfo* type_info,
                    ParametricEnv parametric_env, std::optional<ProcId> proc_id,
                    bool is_top, std::unique_ptr<ConversionRecord> config_record,
-                   std::optional<InterpValue> init_value)
+                   std::optional<InterpValue> init_value,
+                   std::optional<const ProcDef*> proc_def)
       : f_(f),
         module_(module),
         type_info_(type_info),
@@ -81,7 +84,8 @@ class ConversionRecord {
         proc_id_(std::move(proc_id)),
         is_top_(is_top),
         config_record_(std::move(config_record)),
-        init_value_(init_value) {}
+        init_value_(init_value),
+        proc_def_(proc_def) {}
 
   Function* f_;
   Module* module_;
@@ -91,6 +95,7 @@ class ConversionRecord {
   bool is_top_;
   std::unique_ptr<ConversionRecord> config_record_;
   std::optional<InterpValue> init_value_;
+  std::optional<const ProcDef*> proc_def_;
 };
 
 std::string ConversionRecordsToString(

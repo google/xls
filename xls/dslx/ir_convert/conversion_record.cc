@@ -84,12 +84,13 @@ std::string ConversionRecordsToString(
     Function* f, Module* module, TypeInfo* type_info,
     ParametricEnv parametric_env, std::optional<ProcId> proc_id, bool is_top,
     std::unique_ptr<ConversionRecord> config_record,
-    std::optional<InterpValue> init_value) {
+    std::optional<InterpValue> init_value,
+    std::optional<const ProcDef*> proc_def) {
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, parametric_env));
 
   return ConversionRecord(f, module, type_info, std::move(parametric_env),
                           std::move(proc_id), is_top, std::move(config_record),
-                          std::move(init_value));
+                          std::move(init_value), std::move(proc_def));
 }
 
 std::string ConversionRecord::ToString() const {

@@ -31,6 +31,7 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
@@ -165,28 +166,16 @@ std::optional<Function*> GetProcNextFunction(const ProcDef* proc) {
 }
 
 absl::StatusOr<std::vector<Function*>> GetProcConstructors(const ProcDef* p,
-                                                           const TypeInfo* ti) {
+                                                           TypeInfo* ti) {
   XLS_RET_CHECK(p->impl().has_value());
   const Impl* impl = *p->impl();
   std::vector<Function*> result;
   for (ImplMember member : impl->members()) {
     if (std::holds_alternative<Function*>(member)) {
       Function* function = std::get<Function*>(member);
-      XLS_ASSIGN_OR_RETURN(const Type* fn_type, ti->GetItemOrError(function));
-      XLS_RET_CHECK(fn_type->IsFunction());
-
-      if (!fn_type->AsFunction().params().empty()) {
-        const Type& first_param_type = *fn_type->AsFunction().params().front();
-        if (first_param_type.IsProc() &&
-            &first_param_type.AsProc().struct_def_base() == p) {
-          continue;
-        }
-      }
-
-      // It's only a constructor if it returns effectively `Self`.
-      const Type& return_type = fn_type->AsFunction().return_type();
-      if (return_type.IsProc() &&
-          &return_type.AsProc().struct_def_base() == p) {
+      XLS_ASSIGN_OR_RETURN(std::optional<const ProcDef*> constructed_proc_def,
+                           GetProcConstructedByFunction(function, ti));
+      if (constructed_proc_def.has_value() && *constructed_proc_def == p) {
         result.push_back(function);
       }
     }
@@ -195,7 +184,7 @@ absl::StatusOr<std::vector<Function*>> GetProcConstructors(const ProcDef* p,
 }
 
 absl::StatusOr<Function*> GetTopProcConstructor(const ProcDef* proc,
-                                                const TypeInfo* ti) {
+                                                TypeInfo* ti) {
   XLS_ASSIGN_OR_RETURN(std::vector<Function*> constructors,
                        GetProcConstructors(proc, ti));
   if (constructors.empty()) {

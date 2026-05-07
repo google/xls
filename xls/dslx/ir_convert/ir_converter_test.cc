@@ -3054,6 +3054,240 @@ impl Main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ProcDefWithSpawn) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+
+proc Loopback {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Loopback {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Loopback { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  c_in_from_loopback: chan<u32> in,
+  c_out_to_loopback: chan<u32> out,
+  i: u32,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    let (out_to_loopback, loopback_in) = chan<u32>("main_to_loopback");
+    let (loopback_out, in_from_loopback) = chan<u32>("loopback_to_main");
+    Loopback::new(loopback_in, loopback_out).spawn();
+
+    Main {
+      c_in: c_in,
+      c_out: c_out,
+      c_in_from_loopback: in_from_loopback,
+      c_out_to_loopback: out_to_loopback,
+      i: 1
+    }
+  }
+
+  fn next(self) {
+    let i_val = read(self.i);
+    let (_, j) = recv(join(), self.c_in);
+    let loopback_tok = send(join(), self.c_out_to_loopback, j);
+    let (_, loopback_val) = recv(loopback_tok, self.c_in_from_loopback);
+    send(join(), self.c_out, i_val + loopback_val);
+    write(self.i, i_val + loopback_val);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ProcDefWithMultipleSpawnsOfSameProc) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+
+proc Loopback {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Loopback {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Loopback { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  c_in_from_loopback1: chan<u32> in,
+  c_in_from_loopback2: chan<u32> in,
+  c_out_to_loopback1: chan<u32> out,
+  c_out_to_loopback2: chan<u32> out,
+  i: u32,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    let (out_to_loopback1, loopback_in1) = chan<u32>("main_to_loopback1");
+    let (out_to_loopback2, loopback_in2) = chan<u32>("main_to_loopback2");
+    let (loopback_out1, in_from_loopback1) = chan<u32>("loopback_to_main1");
+    let (loopback_out2, in_from_loopback2) = chan<u32>("loopback_to_main2");
+
+    Loopback::new(loopback_in1, loopback_out1).spawn();
+    let loopback2 = Loopback::new(loopback_in2, loopback_out2);
+    loopback2.spawn();
+
+    Main {
+      c_in: c_in,
+      c_out: c_out,
+      c_in_from_loopback1: in_from_loopback1,
+      c_in_from_loopback2: in_from_loopback2,
+      c_out_to_loopback1: out_to_loopback1,
+      c_out_to_loopback2: out_to_loopback2,
+      i: 5
+    }
+  }
+
+  fn next(self) {
+    let i_val = read(self.i);
+    let (_, j) = recv(join(), self.c_in);
+    let loopback_tok1 = send(join(), self.c_out_to_loopback1, j);
+    let loopback_tok2 = send(join(), self.c_out_to_loopback2, j);
+
+    let (_, loopback_val1) = recv(loopback_tok1, self.c_in_from_loopback1);
+    let (_, loopback_val2) = recv(loopback_tok2, self.c_in_from_loopback2);
+
+    send(join(), self.c_out, i_val + loopback_val1 + loopback_val2);
+    write(self.i, i_val + loopback_val1 + loopback_val2);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ProcDefNetworkWithThreeLevels) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+
+proc Mul {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Mul {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Mul { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, a) = recv(join(), self.c_in);
+    let (t, b) = recv(t, self.c_in);
+    send(t, self.c_out, a * b);
+  }
+}
+
+proc MulAdd {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  c_in_from_mul: chan<u32> in,
+  c_out_to_mul: chan<u32> out,
+}
+
+impl MulAdd {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    let (c_out_to_mul, mul_in) = chan<u32>("mul_add_to_mul");
+    let (mul_out, c_in_from_mul) = chan<u32>("mul_to_mul_add");
+
+    Mul::new(mul_in, mul_out).spawn();
+    MulAdd { c_in, c_out, c_in_from_mul, c_out_to_mul }
+  }
+
+  fn next(self) {
+    let (t, a) = recv(join(), self.c_in);
+    let (t, b) = recv(t, self.c_in);
+    let (t, c) = recv(t, self.c_in);
+
+    let t = send(t, self.c_out_to_mul, a);
+    let t = send(t, self.c_out_to_mul, b);
+    let (t, mul_res) = recv(t, self.c_in_from_mul);
+    send(t, self.c_out, mul_res + c);
+  }
+}
+
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  c_in_from_mul_add: chan<u32> in,
+  c_out_to_mul_add: chan<u32> out,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    let (out_to_mul_add, mul_add_in) = chan<u32>("main_to_mul_add");
+    let (mul_add_out, in_from_mul_add) = chan<u32>("mul_add_to_main");
+    MulAdd::new(mul_add_in, mul_add_out).spawn();
+
+    Main {
+      c_in: c_in,
+      c_out: c_out,
+      c_in_from_mul_add: in_from_mul_add,
+      c_out_to_mul_add: out_to_mul_add,
+    }
+  }
+
+  fn next(self) {
+    let (_, a) = recv(join(), self.c_in);
+    let (_, b) = recv(join(), self.c_in);
+    let (_, c) = recv(join(), self.c_in);
+    let tok = send(join(), self.c_out_to_mul_add, a);
+    let tok = send(tok, self.c_out_to_mul_add, b);
+    let tok = send(tok, self.c_out_to_mul_add, c);
+    let (_, res) = recv(tok, self.c_in_from_mul_add);
+    send(join(), self.c_out, res);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
 TEST_F(IrConverterTest, TopProcDefWithIndrectConstructorResult) {
   constexpr std::string_view program = R"(
 #![feature(explicit_state_access)]

@@ -43,6 +43,7 @@
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/public/status_macros.h"
 
 namespace xls::dslx {
@@ -60,13 +61,25 @@ absl::StatusOr<ConversionRecord> MakeConversionRecord(
                                 std::move(init_value));
 }
 
+// Variant for a `ProcDef` as opposed to a legacy `Proc`.
+absl::StatusOr<ConversionRecord> MakeConversionRecord(
+    const ProcDef* p, ProcId proc_id, TypeInfo* ti, ParametricEnv env, bool top,
+    std::optional<InterpValue> initializer = std::nullopt) {
+  std::optional<Function*> next_fn = GetProcNextFunction(p);
+  XLS_RET_CHECK(next_fn.has_value());
+  return ConversionRecord::Make(*next_fn, p->owner(), ti, std::move(env),
+                                proc_id, top,
+                                /*config_record=*/nullptr,
+                                /*init_value=*/initializer, p);
+}
+
 // An AstNodeVisitor that creates ConversionRecords from appropriate AstNodes
 // like Function, QuickCheck, Proc, etc.
 class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
  public:
   ConversionRecordVisitor(
       Module* module, TypeInfo* type_info, bool include_tests,
-      ProcIdFactory proc_id_factory, AstNode* top,
+      ProcIdFactory* proc_id_factory, AstNode* top,
       std::optional<ResolvedProcAlias> resolved_proc_alias,
       std::vector<ConversionRecord>& records,
       absl::flat_hash_set<const Invocation*>& processed_invocations)
@@ -161,6 +174,19 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       VLOG(5) << "Skipping function " << f->identifier()
               << " during AST traversal because it needs to be processed in an "
                  "invocation context.";
+      return absl::OkStatus();
+    }
+
+    XLS_ASSIGN_OR_RETURN(bool is_proc_def_spawn, IsProcDefSpawnFunction(f));
+    if (is_proc_def_spawn) {
+      VLOG(5) << "Skipping proc spawn function";
+      return absl::OkStatus();
+    }
+
+    XLS_ASSIGN_OR_RETURN(std::optional<const ProcDef*> constructed_proc,
+                         GetProcConstructedByFunction(f, type_info_));
+    if (constructed_proc.has_value()) {
+      VLOG(5) << "Skipping proc constructor: " << f->ToString();
       return absl::OkStatus();
     }
 
@@ -346,18 +372,28 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     std::optional<Function*> next_fn = GetProcNextFunction(p);
     XLS_RET_CHECK(next_fn.has_value());
 
-    // Note that we don't need an `init_value` in a `ProcDef` record because the
-    // counterpart to that plus the `config` output is in the proc instance
-    // object.
-    XLS_ASSIGN_OR_RETURN(
-        ConversionRecord cr,
-        MakeConversionRecord(*next_fn, p->owner(), type_info_,
-                             /*bindings=*/ParametricEnv(),
-                             /*proc_id=*/proc_id_factory_.CreateProcId(p),
-                             /*is_top=*/top_ == next_fn,
-                             /*config_record=*/nullptr,
-                             /*init_value=*/std::nullopt));
-    records_.push_back(std::move(cr));
+    TypeInfo* proc_owner_ti = GetTypeInfo(p);
+    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> canonical_initializers,
+                         proc_owner_ti->GetCanonicalProcInitializers(p));
+    if (p->IsParametric() && canonical_initializers.empty()) {
+      VLOG(5) << "No calls to parametric proc " << p->name_def()->ToString();
+      return absl::OkStatus();
+    }
+    for (const InterpValue& canonical_initializer : canonical_initializers) {
+      // TODO: https://github.com/google/xls/issues/4125 - Exclude test-only
+      // procs, and those only used in test-only contexts, if desired.
+
+      VLOG(5)
+          << "Making conversion record for canonical initializer of ProcDef: "
+          << canonical_initializer.ToString();
+
+      XLS_ASSIGN_OR_RETURN(
+          ConversionRecord cr,
+          MakeConversionRecord(p, proc_id_factory_->CreateProcId(p), type_info_,
+                               ParametricEnv(), /*top=*/top_ == *next_fn,
+                               canonical_initializer));
+      records_.push_back(std::move(cr));
+    }
     return absl::OkStatus();
   }
 
@@ -375,7 +411,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       XLS_RETURN_IF_ERROR(DefaultHandler(&p->config()));
     }
 
-    ProcId proc_id = proc_id_factory_.CreateProcId(
+    ProcId proc_id = proc_id_factory_->CreateProcId(
         /*parent=*/std::nullopt, const_cast<Proc*>(p),
         /*count_as_new_instance=*/false);
     if (top_ == next_fn && resolved_proc_alias_.has_value()) {
@@ -517,7 +553,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   Module* const module_;
   TypeInfo* const type_info_;
   const bool include_tests_;
-  ProcIdFactory proc_id_factory_;
+  ProcIdFactory* const proc_id_factory_;
   AstNode* top_;
 
   // The proc alias that was used to specify the top proc, if any.
@@ -549,7 +585,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
   std::vector<ConversionRecord> records;
   absl::flat_hash_set<const Invocation*> processed_invocations;
   ConversionRecordVisitor visitor(
-      module, type_info, include_tests, proc_id_factory, /*top=*/nullptr,
+      module, type_info, include_tests, &proc_id_factory, /*top=*/nullptr,
       /*resolved_proc_alias=*/std::nullopt, records, processed_invocations);
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
 
@@ -593,7 +629,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
   // We are only ever called for tests, so we set include_tests to true,
   // and make sure that this proc's next function is top.
   ConversionRecordVisitor visitor(m, visitor_ti, /*include_tests=*/true,
-                                  proc_id_factory, top_fn, resolved_proc_alias,
+                                  &proc_id_factory, top_fn, resolved_proc_alias,
                                   records, processed_invocations);
   XLS_RETURN_IF_ERROR(visit_target->Accept(&visitor));
   return RemoveFunctionDuplicates(records);

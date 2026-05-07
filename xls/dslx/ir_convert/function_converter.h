@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -97,6 +98,9 @@ struct PackageData {
   absl::flat_hash_map<std::pair<const dslx::Function*, ParametricEnv>,
                       xls::Proc*>
       callee_to_ir_proc;
+
+  absl::btree_map<InterpValue, xls::Proc*>
+      canonical_proc_def_initializer_to_ir_proc;
   absl::flat_hash_set<xls::Function*> wrappers;
 };
 
@@ -156,8 +160,8 @@ class FunctionConverter {
                                       ProcConversionData* proc_data);
 
   absl::Status ConvertProcDef(const ProcDef* proc_def,
-                              const Function* constructor, ProcId proc_id,
-                              TypeInfo* type_info);
+                              const InterpValue& canonical_initializer_value,
+                              ProcId proc_id, TypeInfo* type_info);
 
   // Notes a constant-definition dependency for the function (so it can
   // participate in the IR conversion).
@@ -252,15 +256,6 @@ class FunctionConverter {
   // The `IrValue` for an instance of an impl-based proc.
   struct ProcDefInstance {
     const ProcDef* proc_def;
-    ProcId proc_id;
-    TypeInfo* type_info;
-    ParametricEnv env;
-
-    std::unique_ptr<ChannelScope> channel_scope;
-    std::unique_ptr<BuilderBase> builder;
-
-    absl::flat_hash_map<std::string, Value> state_init_values;
-    absl::flat_hash_map<std::string, StateElement*> state_elements;
 
     // We can lower this as a native tuple, if there is ever a need, and if
     // channels and channel arrays become native IR values.
@@ -549,10 +544,18 @@ class FunctionConverter {
   absl::Status HandleProcDef(const ProcDef* proc_def,
                              const Function* constructor);
 
-  absl::Status HandleProcDefConstructor(const ProcDef* proc_def,
-                                        const Function& constructor,
-                                        const ParametricEnv& bindings,
-                                        TypeInfo* type_info, ProcId proc_id);
+  absl::Status InitProcDefBuilder(const ProcDef* proc_def);
+  absl::Status InitProcDefChannels(
+      const ProcDef* proc_def,
+      const InterpValue::ProcInitializer& canonical_initializer);
+  absl::Status InitProcDefStateElements(
+      const ProcDef* proc_def,
+      const InterpValue::ProcInitializer& canonical_initializer);
+  absl::StatusOr<std::unique_ptr<ProcDefInstance>> CreateProcDefInstance(
+      const ProcDef* proc_def);
+  absl::Status AddProcDefInstantiation(
+      const ProcDef* proc_def, const InterpValue& external_initializer,
+      const InterpValue& canonical_initializer);
 
   absl::Status HandleProcDefSpawn(ProcDefInstance* instance);
 
@@ -643,6 +646,10 @@ class FunctionConverter {
   // Mapping from AST node to its corresponding IR value.
   absl::flat_hash_map<const AstNode*, IrValue> node_to_ir_;
 
+  // Each channel ID dealt out in a `ChannelReference` by type inference, mapped
+  // to its IR counterpart.
+  absl::flat_hash_map<int64_t, IrValue> channel_id_to_channel_or_array_;
+
   // Various conversion options; e.g. whether or not to emit source code
   // positions into the XLS IR.
   ConvertOptions options_;
@@ -678,6 +685,10 @@ class FunctionConverter {
   // Uses id_to_members to resolve a proc's [constant] member values.
   ProcConversionData* proc_data_;
 
+  // Only used when converting a `ProcDef`, in which case this serves as the
+  // owner for the same object pointed to by `channel_scope_`.
+  std::unique_ptr<ChannelScope> proc_def_channel_scope_;
+
   // Used to handle channel array accesses.
   ChannelScope* channel_scope_;
 
@@ -706,8 +717,6 @@ class FunctionConverter {
   // every time we emit a state read/write.
   absl::flat_hash_map<std::string, BValue> state_read_called_by_state_name_;
   absl::flat_hash_map<std::string, BValue> state_write_called_by_state_name_;
-
-  std::vector<std::unique_ptr<ProcDefInstance>> proc_def_instances_;
 
   // If the function has a kFuzzTest attribute, this method will convert the
   // fuzz test domains to proto and insert it into the AttributeData for
