@@ -190,11 +190,6 @@ absl::StatusOr<TestResult> RealMain(
                                    : TypeInferenceVersion::kVersion1)
           : std::nullopt;
 
-  std::optional<int64_t> max_trace_verbosity =
-      absl::GetFlag(FLAGS_max_trace_verbosity) == 0
-          ? std::nullopt
-          : std::optional<int64_t>(absl::GetFlag(FLAGS_max_trace_verbosity));
-
   RealFilesystem vfs;
 
   XLS_ASSIGN_OR_RETURN(std::string program,
@@ -269,7 +264,7 @@ absl::StatusOr<TestResult> RealMain(
       .trace_channels = trace_channels,
       .trace_calls = trace_calls,
       .max_ticks = max_ticks,
-      .max_trace_verbosity = max_trace_verbosity,
+      .max_trace_verbosity = absl::GetFlag(FLAGS_max_trace_verbosity),
       .evaluator = evaluator,
   };
   options.convert_options.configured_values = configured_values;

@@ -117,7 +117,7 @@ struct ParseAndTestOptions {
   bool trace_channels = false;
   bool trace_calls = false;
   std::optional<int64_t> max_ticks;
-  std::optional<int64_t> max_trace_verbosity;
+  int64_t max_trace_verbosity = 0;
   std::optional<EvaluatorType> evaluator;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
