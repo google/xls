@@ -413,6 +413,8 @@ generate_crasher_regression_tests(
         "crashers/crasher_2026-04-10_7b7e.x",
         # TODO: https://github.com/google/xls/issues/4142 - Remove when fixed.
         "crashers/crasher_2026-04-22_2292.x",
+        # TODO: https://github.com/google/xls/issues/4209 - Remove when fixed.
+        "crashers/crasher_2026-05-05_45c4.x",
     ],
     # Tests which are too slow in the unopt-ir interpreter.
     no_unopt_interpreter = [
