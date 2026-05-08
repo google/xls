@@ -72,6 +72,8 @@ struct OptOptions {
   std::optional<int64_t> bisect_limit;
   bool debug_optimizations = false;
   std::optional<std::string> delay_model = std::nullopt;
+  int64_t bdd_default_path_limit =
+      xls::OptimizationPassOptions::kBddDefaultPathLimit;
 };
 
 absl::StatusOr<OptOptions> OptOptionsFromFlagsProto(const OptFlagsProto& proto);

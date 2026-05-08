@@ -276,6 +276,7 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
         "top",
         "delay_model",
         "area_model",
+        "bdd_default_path_limit",
     )
 
     is_args_valid(opt_ir_args, IR_OPT_FLAGS)

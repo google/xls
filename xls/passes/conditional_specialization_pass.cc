@@ -952,7 +952,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   UnionQueryEngine query_engine;
   std::optional<BddQueryEngine*> bdd_query_engine;
   if (use_bdd_) {
-    bdd_query_engine = context.SharedQueryEngine<BddQueryEngine>(f);
+    bdd_query_engine = context.SharedQueryEngine<BddQueryEngine>(
+        f, options.bdd_default_path_limit);
     query_engine =
         UnionQueryEngine::Of(StatelessQueryEngine(), *bdd_query_engine);
   } else {

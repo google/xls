@@ -453,9 +453,9 @@ RedundancyGuard BddSimplificationPass::GetRedundancyGuard(
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
-  auto query_engine =
-      UnionQueryEngine::Of(StatelessQueryEngine(),
-                           context.GetForwardingQueryEngine<BddQueryEngine>(f));
+  auto query_engine = UnionQueryEngine::Of(
+      StatelessQueryEngine(), context.GetForwardingQueryEngine<BddQueryEngine>(
+                                  f, options.bdd_default_path_limit));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   bool modified = false;
