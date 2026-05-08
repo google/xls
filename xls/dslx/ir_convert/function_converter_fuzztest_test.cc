@@ -17,6 +17,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/attribute_data.h"
@@ -83,10 +84,59 @@ fn f(x: u32, y: u32) -> u32 { x + y }
                 parameter_domains {
                   range {
                     min { bits { bit_count: 32 data: "\000\000\000\000" } }
-                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\t\000\000\000" } }
                   }
                 }
                 parameter_domains { arbitrary: true }
+              )pb"));
+}
+
+TEST(FunctionConverterFuzzTestTest, OneDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+#[fuzz_test(domains = `u32:0..10`)]
+fn f(x: u32) -> u32 { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  ASSERT_EQ(attributes.size(), 1);
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  range {
+                    min { bits { bit_count: 32 data: "\000\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\t\000\000\000" } }
+                  }
+                }
               )pb"));
 }
 
@@ -136,16 +186,13 @@ fn f(x: u32) -> u32 { x }
                 parameter_domains {
                   range {
                     min { bits { bit_count: 32 data: "\001\000\000\000" } }
-                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\t\000\000\000" } }
                   }
                 }
               )pb"));
 }
 
-// TODO: davidplass - When the TODO in LowerDomainExpr is implemented, this
-// should work, because it will get the range information from the type system
-// instead of from the AST.
-TEST(FunctionConverterFuzzTestTest, DISABLED_ConstantRangeReferenceDomain) {
+TEST(FunctionConverterFuzzTestTest, ConstantRangeReferenceDomain) {
   ImportData import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
@@ -192,7 +239,7 @@ fn f(x: u32) -> u32 { x }
                 parameter_domains {
                   range {
                     min { bits { bit_count: 32 data: "\001\000\000\000" } }
-                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\t\000\000\000" } }
                   }
                 }
               )pb"));
@@ -247,13 +294,13 @@ fn f(x: (u32, u16)) -> u16 { x.0 as u16 + x.1 }
                     elements {
                       range {
                         min { bits { bit_count: 32 data: "\001\000\000\000" } }
-                        max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                        max { bits { bit_count: 32 data: "\t\000\000\000" } }
                       }
                     }
                     elements {
                       range {
                         min { bits { bit_count: 16 data: "\000\000" } }
-                        max { bits { bit_count: 16 data: "\005\000" } }
+                        max { bits { bit_count: 16 data: "\004\000" } }
                       }
                     }
                   }
@@ -308,16 +355,93 @@ fn f(x: u32, y: u16) -> u16 { x as u16 + y }
                 parameter_domains {
                   range {
                     min { bits { bit_count: 32 data: "\001\000\000\000" } }
-                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\t\000\000\000" } }
                   }
                 }
                 parameter_domains {
                   range {
                     min { bits { bit_count: 16 data: "\000\000" } }
-                    max { bits { bit_count: 16 data: "\005\000" } }
+                    max { bits { bit_count: 16 data: "\004\000" } }
                   }
                 }
               )pb"));
+}
+
+TEST(FunctionConverterFuzzTestTest, InclusiveRangeDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+#[fuzz_test(domains = `u32:0..=10`)]
+fn f(x: u32) -> u32 { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  ASSERT_EQ(attributes.size(), 1);
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  range {
+                    min { bits { bit_count: 32 data: "\000\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                  }
+                }
+              )pb"));
+}
+
+TEST(FunctionConverterFuzzTestTest, EmptyRangeError) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+#[fuzz_test(domains = `u32:0..0`)]
+fn f(x: u32) -> u32 { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  EXPECT_THAT(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr(
+              "Empty ranges are unsupported as fuzztest domains")));
 }
 
 TEST(FunctionConverterFuzzTestTest, ConstantArrayDomain) {
@@ -483,7 +607,7 @@ fn f(x: u8, y: u64) -> u64 { (x as u64) + y }
         parameter_domains {
           range {
             min { bits { bit_count: 8 data: "\000" } }
-            max { bits { bit_count: 8 data: "\005" } }
+            max { bits { bit_count: 8 data: "\004" } }
           }
         }
         parameter_domains {
@@ -491,7 +615,7 @@ fn f(x: u8, y: u64) -> u64 { (x as u64) + y }
             min {
               bits { bit_count: 64 data: "\000\000\000\000\000\000\000\000" }
             }
-            max { bits { bit_count: 64 data: "d\000\000\000\000\000\000\000" } }
+            max { bits { bit_count: 64 data: "c\000\000\000\000\000\000\000" } }
           }
         }
       )pb"));
@@ -502,8 +626,8 @@ TEST(FunctionConverterFuzzTestTest, RangeEdgeCases) {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(R"(
-#[fuzz_test(domains = `u32:10..10, u32:0..0xFFFFFFFF`)]
-fn f(x: u32, y: u32) -> u32 { x + y }
+#[fuzz_test(domains = `u32:0..0xFFFFFFFF`)]
+fn f(y: u32) -> u32 { y }
 )",
                         "test_module.x", "test_module", &import_data));
 
@@ -537,20 +661,14 @@ fn f(x: u32, y: u32) -> u32 { x + y }
   EXPECT_THAT(function_proto, EqualsProto(R"pb(
                 parameter_domains {
                   range {
-                    min { bits { bit_count: 32 data: "\n\000\000\000" } }
-                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
-                  }
-                }
-                parameter_domains {
-                  range {
                     min { bits { bit_count: 32 data: "\000\000\000\000" } }
-                    max { bits { bit_count: 32 data: "\377\377\377\377" } }
+                    max { bits { bit_count: 32 data: "\376\377\377\377" } }
                   }
                 }
               )pb"));
 }
 
-TEST(FunctionConverterFuzzTestTest, MultipleSameDomains) {
+TEST(FunctionConverterFuzzTestTest, MultipleDomains) {
   ImportData import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
@@ -591,13 +709,13 @@ fn f(x: u32, y: u32) -> u32 { x + y }
                 parameter_domains {
                   range {
                     min { bits { bit_count: 32 data: "\000\000\000\000" } }
-                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\t\000\000\000" } }
                   }
                 }
                 parameter_domains {
                   range {
                     min { bits { bit_count: 32 data: "\024\000\000\000" } }
-                    max { bits { bit_count: 32 data: "\036\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\035\000\000\000" } }
                   }
                 }
               )pb"));
@@ -646,13 +764,13 @@ fn f(x: (u32, u32)) -> u32 { x.0 }
                     elements {
                       range {
                         min { bits { bit_count: 32 data: "\000\000\000\000" } }
-                        max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                        max { bits { bit_count: 32 data: "\t\000\000\000" } }
                       }
                     }
                     elements {
                       range {
                         min { bits { bit_count: 32 data: "\000\000\000\000" } }
-                        max { bits { bit_count: 32 data: "\024\000\000\000" } }
+                        max { bits { bit_count: 32 data: "\023\000\000\000" } }
                       }
                     }
                   }
@@ -764,7 +882,8 @@ TEST(FunctionConverterFuzzTestTest, NestedTupleDomain) {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(R"(
-#[fuzz_test(domains = `u32:0..10, ((), u32:0..5)`)]
+const R = u32:0..5;
+#[fuzz_test(domains = `u32:0..10, ((), R)`)]
 fn f(x: u32, y: ((), u32)) -> u32 { x }
 )",
                         "test_module.x", "test_module", &import_data));
@@ -800,7 +919,7 @@ fn f(x: u32, y: ((), u32)) -> u32 { x }
                 parameter_domains {
                   range {
                     min { bits { bit_count: 32 data: "\000\000\000\000" } }
-                    max { bits { bit_count: 32 data: "\n\000\000\000" } }
+                    max { bits { bit_count: 32 data: "\t\000\000\000" } }
                   }
                 }
                 parameter_domains {
@@ -809,12 +928,55 @@ fn f(x: u32, y: ((), u32)) -> u32 { x }
                     elements {
                       range {
                         min { bits { bit_count: 32 data: "\000\000\000\000" } }
-                        max { bits { bit_count: 32 data: "\005\000\000\000" } }
+                        max { bits { bit_count: 32 data: "\004\000\000\000" } }
                       }
                     }
                   }
                 }
               )pb"));
+}
+
+TEST(FunctionConverterFuzzTestTest, ScalarConstantDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  EXPECT_THAT(ParseAndTypecheck(R"(
+const C = u32:42;
+#[fuzz_test(domains = `C`)]
+fn f(x: u32) -> u32 { x }
+)",
+                                "test_module.x", "test_module", &import_data),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("Unsupported fuzz test domain")));
+}
+
+TEST(FunctionConverterFuzzTestTest, EmptyArrayDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+#[fuzz_test(domains = `u32[0]:[]`)]
+fn f(x: u32) -> u32 { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  EXPECT_THAT(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr(
+              "Empty arrays are unsupported as fuzztest domains")));
 }
 
 }  // namespace

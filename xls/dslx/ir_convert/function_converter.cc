@@ -3636,7 +3636,7 @@ absl::Status FunctionConverter::HandleFunction(
 
 absl::StatusOr<std::optional<AttributeData>>
 FunctionConverter::LowerFuzzTestDomains(Function* node) {
-  FuzzTestConverter converter(module_, current_type_info_);
+  FuzzTestConverter converter(module_, current_type_info_, import_data_);
   return converter.LowerFuzzTestDomains(node);
 }
 

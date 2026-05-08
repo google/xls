@@ -22,6 +22,7 @@
 #include "xls/common/attribute_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
@@ -29,25 +30,25 @@ namespace xls::dslx {
 
 class FuzzTestConverter {
  public:
-  FuzzTestConverter(Module* module, TypeInfo* type_info)
-      : module_(module), current_type_info_(type_info) {}
+  FuzzTestConverter(Module* module, TypeInfo* type_info,
+                    ImportData* import_data)
+      : module_(module),
+        current_type_info_(type_info),
+        import_data_(import_data) {}
 
   absl::StatusOr<std::optional<AttributeData>> LowerFuzzTestDomains(
-      Function* node);
+      const Function* node);
 
  private:
-  absl::Status LowerTupleExpr(XlsTuple* tuple_node,
-                              PackageInterfaceProto::FuzzTestDomain* proto);
-  absl::Status LowerDomainExpr(Expr* expr,
-                               PackageInterfaceProto::FuzzTestDomain* proto);
-  absl::Status LowerRangeExpr(Range* range_node,
-                              PackageInterfaceProto::FuzzTestDomain* proto);
-  absl::Status LowerArrayExpr(Array* array_node,
-                              PackageInterfaceProto::FuzzTestDomain* proto);
+  absl::Status LowerDomainExpr(const Expr* expr,
+                               PackageInterfaceProto::FuzzTestDomain& proto);
+  absl::Status LowerRangeExpr(const Range* range_node,
+                              PackageInterfaceProto::FuzzTestDomain& proto);
 
  private:
   const Module* module_;
-  const TypeInfo* current_type_info_;
+  TypeInfo* current_type_info_;
+  ImportData* import_data_;
 };
 }  // namespace xls::dslx
 
