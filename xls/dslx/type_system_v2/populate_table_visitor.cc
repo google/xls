@@ -111,10 +111,18 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status PopulateFromUnrolledLoopBody(
       const StatementBlock* root) override {
     XLS_RET_CHECK(!handle_proc_functions_);
+
     std::optional<const Function*> containing_function =
         GetContainingFunction(root);
-    handle_proc_functions_ =
-        containing_function.has_value() && (*containing_function)->IsInProc();
+    if (containing_function.has_value() && (*containing_function)->IsInProc()) {
+      handle_proc_functions_ = true;
+    } else {
+      XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> struct_or_proc,
+                           GetContainingStructOrProcDef(root, import_data_));
+      handle_proc_functions_ =
+          struct_or_proc.has_value() &&
+          (*struct_or_proc)->kind() == AstNodeKind::kProcDef;
+    }
 
     absl::Status result = root->Accept(this);
     handle_proc_functions_ = false;
