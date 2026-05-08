@@ -333,6 +333,11 @@ class Type {
   const MetaType& AsMeta() const;
   const TupleType& AsTuple() const;
 
+  virtual std::optional<const ChannelType*> GetDirectOrElementChannelType()
+      const {
+    return std::nullopt;
+  }
+
  protected:
   static std::vector<std::unique_ptr<Type>> CloneSpan(
       absl::Span<const std::unique_ptr<Type>> ts);
@@ -682,6 +687,16 @@ class ArrayType : public Type {
   const Type& element_type() const { return *element_type_; }
   const TypeDim& size() const { return size_; }
 
+  std::optional<const ChannelType*> GetDirectOrElementChannelType()
+      const override {
+    ArrayType::InnerMostElementType innermost_element_type =
+        GetInnermostElementType();
+    return innermost_element_type.element_type.IsChannel()
+               ? std::make_optional(
+                     &innermost_element_type.element_type.AsChannel())
+               : std::nullopt;
+  }
+
   // Returns the number of dimensions (i.e., nested ArrayTypes)
   // within this ArrayType. This is in contrast to GetAllDims
   // which is for parametric dimensions, e.g., the N in uN[N]
@@ -972,6 +987,11 @@ class ChannelType : public Type {
 
   const Type& payload_type() const { return *payload_type_; }
   ChannelDirection direction() const { return direction_; }
+
+  std::optional<const ChannelType*> GetDirectOrElementChannelType()
+      const override {
+    return this;
+  }
 
  private:
   std::unique_ptr<Type> payload_type_;

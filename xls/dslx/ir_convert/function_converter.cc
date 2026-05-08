@@ -3813,13 +3813,37 @@ absl::Status FunctionConverter::InitProcDefBuilder(const ProcDef* proc_def) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<ChannelArray*> FunctionConverter::GetChannelArrayForAttr(
+    const Attr* attr) {
+  XLS_RETURN_IF_ERROR(Visit(attr->lhs()));
+  std::optional<IrValue> object = GetNodeToIr(attr->lhs());
+  if (!object.has_value() ||
+      !std::holds_alternative<ProcDefInstance*>(*object)) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("Reference to channel or array in an object that is "
+                         "not a proc instance: `$0`",
+                         attr->ToString()));
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(attr));
+  std::optional<IrValue> attr_value = GetNodeToIr(attr);
+  if (attr_value.has_value() &&
+      std::holds_alternative<ChannelArray*>(*attr_value)) {
+    return std::get<ChannelArray*>(*attr_value);
+  }
+
+  return absl::InvalidArgumentError(
+      absl::Substitute("Not a channel or array: `$0`", attr->ToString()));
+}
+
 absl::Status FunctionConverter::InitProcDefChannels(
     const ProcDef* proc_def,
     const InterpValue::ProcInitializer& canonical_initializer) {
   ParametricEnv env;
   proc_def_channel_scope_ = std::make_unique<ProcScopedChannelScope>(
       package_data_.conversion_info, import_data_, options_,
-      absl::down_cast<ProcBuilder*>(function_builder_.get()));
+      absl::down_cast<ProcBuilder*>(function_builder_.get()),
+      [this](const Attr* attr) { return GetChannelArrayForAttr(attr); });
   proc_def_channel_scope_->EnterFunctionContext(current_type_info_, env);
   channel_scope_ = proc_def_channel_scope_.get();
 

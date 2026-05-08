@@ -3054,6 +3054,33 @@ impl Main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ProcDefWithBoundaryChannelArray) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+
+proc P {
+  ch_arr: chan<u32>[2] in,
+}
+
+impl P {
+  fn new(ch_arr: chan<u32>[2] in) -> Self {
+    P { ch_arr }
+  }
+
+  fn next(self) {
+    let (tok, _) = recv(join(), self.ch_arr[0]);
+    let (tok, _) = recv(tok, self.ch_arr[1]);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kModule, "P", import_data));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ProcDefWithSpawn) {
   constexpr std::string_view kModule = R"(
 #![feature(explicit_state_access)]

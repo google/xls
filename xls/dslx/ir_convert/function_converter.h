@@ -556,6 +556,7 @@ class FunctionConverter {
   absl::Status AddProcDefInstantiation(
       const ProcDef* proc_def, const InterpValue& external_initializer,
       const InterpValue& canonical_initializer);
+  absl::StatusOr<ChannelArray*> GetChannelArrayForAttr(const Attr* attr);
 
   absl::Status HandleProcDefSpawn(ProcDefInstance* instance);
 

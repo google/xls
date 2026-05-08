@@ -63,10 +63,12 @@ constexpr std::string_view kBetweenDimsSeparator = "_";
 
 ChannelScope::ChannelScope(PackageConversionData* conversion_info,
                            ImportData* import_data,
-                           const ConvertOptions& convert_options)
+                           const ConvertOptions& convert_options,
+                           AttrResolver attr_resolver)
     : conversion_info_(conversion_info),
       import_data_(import_data),
       convert_options_(convert_options),
+      attr_resolver_(std::move(attr_resolver)),
       channel_name_uniquer_(kNameAndDimsSeparator) {
   // Populate channel name uniquer with pre-existing channel names.
   for (Channel* channel : conversion_info_->package->channels()) {
@@ -283,11 +285,21 @@ absl::StatusOr<ChannelOrArray> ChannelScope::EvaluateIndex(
     suffix = suffix.empty()
                  ? absl::StrCat(dim_value)
                  : absl::StrCat(dim_value, kBetweenDimsSeparator, suffix);
+
     if (const NameRef* name_ref = dynamic_cast<NameRef*>(index->lhs());
         name_ref) {
-      return GetChannelArrayElement(proc_id, name_ref, suffix,
+      XLS_ASSIGN_OR_RETURN(ChannelArray * array,
+                           GetChannelArrayForNameRef(proc_id, name_ref));
+      return GetChannelArrayElement(proc_id, array, suffix,
                                     allow_subarray_reference);
     }
+
+    if (const Attr* attr = dynamic_cast<Attr*>(index->lhs()); attr) {
+      XLS_ASSIGN_OR_RETURN(ChannelArray * array, attr_resolver_(attr));
+      return GetChannelArrayElement(proc_id, array, suffix,
+                                    allow_subarray_reference);
+    }
+
     Index* new_index = dynamic_cast<Index*>(index->lhs());
     if (!new_index) {
       return absl::InvalidArgumentError(
@@ -296,6 +308,25 @@ absl::StatusOr<ChannelOrArray> ChannelScope::EvaluateIndex(
     }
     index = new_index;
   }
+}
+
+absl::StatusOr<ChannelArray*> ChannelScope::GetChannelArrayForNameRef(
+    const ProcId& proc_id, const NameRef* name_ref) {
+  const auto* name_def = std::get<const NameDef*>(name_ref->name_def());
+  const auto it =
+      name_def_to_channel_or_array_.find(std::make_pair(proc_id, name_def));
+  if (it == name_def_to_channel_or_array_.end()) {
+    return absl::NotFoundError(
+        absl::StrCat("Not a channel or channel array: ", name_def->ToString()));
+  }
+  ChannelOrArray channel_or_array = it->second;
+  if (!std::holds_alternative<ChannelArray*>(channel_or_array)) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Attempted to index into an individual channel "
+                     "instead of an array: ",
+                     std::get<Channel*>(channel_or_array)->name()));
+  }
+  return std::get<ChannelArray*>(channel_or_array);
 }
 
 std::string_view ChannelScope::GetBaseNameForChannelOrArray(
@@ -410,23 +441,8 @@ absl::StatusOr<ChannelRef> ChannelScope::CreateChannel(
 }
 
 absl::StatusOr<ChannelOrArray> ChannelScope::GetChannelArrayElement(
-    const ProcId& proc_id, const NameRef* name_ref,
+    const ProcId& proc_id, ChannelArray* array,
     std::string_view flattened_name_suffix, bool allow_subarray_reference) {
-  const auto* name_def = std::get<const NameDef*>(name_ref->name_def());
-  const auto it =
-      name_def_to_channel_or_array_.find(std::make_pair(proc_id, name_def));
-  if (it == name_def_to_channel_or_array_.end()) {
-    return absl::NotFoundError(
-        absl::StrCat("Not a channel or channel array: ", name_def->ToString()));
-  }
-  ChannelOrArray channel_or_array = it->second;
-  if (!std::holds_alternative<ChannelArray*>(channel_or_array)) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Attempted to index into an individual channel "
-                     "instead of an array: ",
-                     std::get<Channel*>(channel_or_array)->name()));
-  }
-  ChannelArray* array = std::get<ChannelArray*>(channel_or_array);
   std::string flattened_channel_name = absl::StrCat(
       array->base_channel_name(),
       array->is_subarray() ? kBetweenDimsSeparator : kNameAndDimsSeparator,

@@ -14,6 +14,7 @@
 #ifndef XLS_DSLX_IR_CONVERT_CHANNEL_SCOPE_H_
 #define XLS_DSLX_IR_CONVERT_CHANNEL_SCOPE_H_
 
+#include <functional>
 #include <list>
 #include <optional>
 #include <string>
@@ -117,8 +118,21 @@ using ChannelOrArray = std::variant<Channel*, ChannelArray*, ChannelInterface*>;
 // An object that manages definition and access to channels used in a proc.
 class ChannelScope {
  public:
+  // A function optionally provided by the owner of a `ChannelScope` to look up
+  // channel arrays associated with `Attr` nodes. For example, in `self.arr[0]`,
+  // where `self` is an impl-style proc, there is no way for
+  // `ChannelScope::GetChannelForArrayIndex` to internally know which array
+  // `self.arr` refers to.
+  using AttrResolver =
+      std::function<absl::StatusOr<ChannelArray*>(const Attr*)>;
+
+  static absl::StatusOr<ChannelArray*> DefaultAttrResolver(const Attr*) {
+    return absl::UnimplementedError("Not implemented");
+  }
+
   ChannelScope(PackageConversionData* conversion_info, ImportData* import_data,
-               const ConvertOptions& options);
+               const ConvertOptions& options,
+               AttrResolver attr_resolver = &DefaultAttrResolver);
   virtual ~ChannelScope() = default;
 
   // The owner (IR converter driving the overall procedure) should invoke this
@@ -161,7 +175,10 @@ class ChannelScope {
   //      `DefineChannelOrArray`. Otherwise, a not-found error is returned.
   //   2. If the array being indexed is an alias, then that alias must have been
   //      associated with an existing array. Otherwise, a not-found error is
-  //      returned.
+  //      returned. There is an exception for array references like
+  //      `self.arr<dims>`; to resolve the `self.arr` reference to an array, the
+  //      owner must have provided an `AttrResolver` to the `ChannelScope`
+  //      constructor.
   //   3. The expression(s) in `index` indicating the element in the array must
   //      be constexpr evaluatable.
   // A not-found error is the guaranteed result in cases where `index` is not
@@ -214,15 +231,19 @@ class ChannelScope {
                                                bool allow_subarray_reference);
 
   absl::StatusOr<ChannelOrArray> GetChannelArrayElement(
-      const ProcId& proc_id, const NameRef* name_ref,
+      const ProcId& proc_id, ChannelArray* array,
       std::string_view flattened_name_suffix, bool allow_subarray_reference);
 
   absl::StatusOr<ChannelArray*> GetOrDefineSubarray(
       ChannelArray* array, std::string_view subarray_name);
 
+  absl::StatusOr<ChannelArray*> GetChannelArrayForNameRef(
+      const ProcId& proc_id, const NameRef* name_ref);
+
   PackageConversionData* const conversion_info_;
   ImportData* const import_data_;
   const ConvertOptions& convert_options_;
+  AttrResolver attr_resolver_;
   NameUniquer channel_name_uniquer_;
 
   // Set by the caller via `EnterContext()` before the conversion of each

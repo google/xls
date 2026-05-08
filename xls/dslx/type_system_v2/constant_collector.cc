@@ -770,9 +770,11 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleParam(const Param* node) {
-    if (type_.IsChannel()) {
+    std::optional<const ChannelType*> channel_type =
+        type_.GetDirectOrElementChannelType();
+    if (channel_type.has_value()) {
       InterpValue value = InterpValue::MakeChannelReference(
-          type_.AsChannel().direction(), /*id=*/++*next_channel_id_,
+          (*channel_type)->direction(), /*id=*/++*next_channel_id_,
           /*definer=*/node);
       ti_->NoteConstExpr(node, value);
       ti_->NoteConstExpr(node->name_def(), value);

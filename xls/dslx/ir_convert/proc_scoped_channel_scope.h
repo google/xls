@@ -34,8 +34,10 @@ class ProcScopedChannelScope : public ChannelScope {
  public:
   ProcScopedChannelScope(PackageConversionData* conversion_info,
                          ImportData* import_data, const ConvertOptions& options,
-                         ProcBuilder* proc_builder)
-      : ChannelScope(conversion_info, import_data, options),
+                         ProcBuilder* proc_builder,
+                         AttrResolver attr_resolver = &DefaultAttrResolver)
+      : ChannelScope(conversion_info, import_data, options,
+                     std::move(attr_resolver)),
         proc_builder_(proc_builder) {}
 
  protected:
