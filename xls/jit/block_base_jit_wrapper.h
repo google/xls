@@ -157,7 +157,7 @@ class BaseBlockJitWrapper {
     XLS_ASSIGN_OR_RETURN(
         auto jit, BlockJit::CreateFromAot(
                       proto.entrypoint(0), proto.data_layout(), entrypoint,
-                      options.max_trace_verbosity().value_or(0)));
+                      options.max_trace_verbosity()));
 
     auto res = std::unique_ptr<RealType>(new RealType(std ::move(jit)));
     res->aot_entrypoints_proto_ = std::move(proto);

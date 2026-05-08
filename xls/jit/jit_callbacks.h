@@ -125,24 +125,24 @@ struct InstanceContextVTable {
 struct InstanceContext {
  public:
   static InstanceContext CreateForFunc(
-      std::optional<int64_t> max_trace_verbosity = 0) {
+      int64_t max_trace_verbosity = 0) {
     InstanceContext ctx;
-    ctx.max_trace_verbosity_ = max_trace_verbosity.value_or(0);
+    ctx.max_trace_verbosity_ = max_trace_verbosity;
     return ctx;
   }
   static InstanceContext CreateForBlock(
-      std::optional<int64_t> max_trace_verbosity = 0) {
+      int64_t max_trace_verbosity = 0) {
     InstanceContext ctx;
-    ctx.max_trace_verbosity_ = max_trace_verbosity.value_or(0);
+    ctx.max_trace_verbosity_ = max_trace_verbosity;
     return ctx;
   }
   static InstanceContext CreateForProc(
       ProcInstance* inst, std::vector<JitChannelQueue*> queues,
-      std::optional<int64_t> max_trace_verbosity = 0) {
+      int64_t max_trace_verbosity = 0) {
     InstanceContext ret;
     ret.instance = inst;
     ret.channel_queues = std::move(queues);
-    ret.max_trace_verbosity_ = max_trace_verbosity.value_or(0);
+    ret.max_trace_verbosity_ = max_trace_verbosity;
     return ret;
   }
 

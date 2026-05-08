@@ -49,11 +49,11 @@ class EvaluatorOptions {
   }
   bool trace_calls() const { return trace_calls_; }
 
-  EvaluatorOptions& set_max_trace_verbosity(std::optional<int64_t> value) {
+  EvaluatorOptions& set_max_trace_verbosity(int64_t value) {
     max_trace_verbosity_ = value;
     return *this;
   }
-  std::optional<int64_t> max_trace_verbosity() const {
+  int64_t max_trace_verbosity() const {
     return max_trace_verbosity_;
   }
 
@@ -62,7 +62,7 @@ class EvaluatorOptions {
   FormatPreference format_preference_ = FormatPreference::kDefault;
   bool support_observers_ = false;
   bool trace_calls_ = false;
-  std::optional<int64_t> max_trace_verbosity_;
+  int64_t max_trace_verbosity_ = 0;
 };
 
 }  // namespace xls
