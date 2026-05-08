@@ -2196,6 +2196,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (!parametric_context.has_value()) {
       return type;
     }
+    XLS_ASSIGN_OR_RETURN(
+        type, resolver_->ResolveIndirectTypeAnnotations(
+                  parametric_context, /*context_node=*/std::nullopt, type,
+                  TypeAnnotationFilter::None()));
 
     std::vector<std::pair<const NameRef*, const NameDef*>> refs;
     XLS_ASSIGN_OR_RETURN(refs, CollectReferencedUnder(type));

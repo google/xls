@@ -31,6 +31,28 @@ using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
+TEST(TypecheckV2GenericsTest, ParentGenericParametric) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+fn call<FnType: type>() -> FnType {
+    zero!<FnType>()
+}
+
+fn main<T: type>() -> T {
+    call<T>()
+}
+
+const ONE:u16 = main<u16>();
+const TWO:u24 = main<u24>();
+const_assert!(ONE == u16:0);
+const_assert!(TWO == u24:0);
+)",
+      TypecheckSucceeds(AllOf((HasNodeWithType("ONE", "uN[16]"),
+                               HasNodeWithType("TWO", "uN[24]")))));
+}
+
 TEST(TypecheckV2GenericsTest, TypeValueParametricMismatch) {
   EXPECT_THAT(
       R"(
