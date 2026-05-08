@@ -394,7 +394,7 @@ BlockEvaluator::EvaluateChannelizedSequentialBlock(
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
     const std::optional<verilog::ResetProto>& reset, int64_t seed,
-    const std::optional<int64_t> max_trace_verbosity = 0) const {
+    int64_t max_trace_verbosity) const {
   std::minstd_rand random_engine;
   random_engine.seed(seed);
 
@@ -404,7 +404,7 @@ BlockEvaluator::EvaluateChannelizedSequentialBlock(
   XLS_ASSIGN_OR_RETURN(
       auto continuation,
       NewContinuation(block, OutputPortSampleTime::kAtLastPosEdgeClock));
-  continuation->SetMaxTraceVerbosity(max_trace_verbosity.value_or(0));
+  continuation->SetMaxTraceVerbosity(max_trace_verbosity);
   for (int64_t cycle = 0; cycle < max_cycle_count; ++cycle) {
     absl::flat_hash_map<std::string, Value> input_set = inputs.at(cycle);
 
@@ -462,7 +462,7 @@ BlockEvaluator::EvaluateChannelizedSequentialBlockWithUint64(
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
     const std::optional<verilog::ResetProto>& reset, int64_t seed,
-    const std::optional<int64_t> max_trace_verbosity = 0) const {
+    int64_t max_trace_verbosity) const {
   std::vector<absl::flat_hash_map<std::string, Value>> input_values;
   for (const absl::flat_hash_map<std::string, uint64_t>& input_set : inputs) {
     absl::flat_hash_map<std::string, Value> input_value_set;
