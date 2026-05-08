@@ -607,7 +607,7 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         'xls::test::MyFuncJit',
         'my_func_jit.h',
     )
-    self.assertEqual(rendered_code, 'xls::Value a')
+    self.assertEqual(rendered_code, 'const xls::Value& a')
 
   def test_render_fuzztest_default_domain(self):
     u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)

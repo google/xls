@@ -649,7 +649,11 @@ def render_fuzztest(
     lib_header_path: str,
 ) -> str:
   """Renders the fuzztest C++ code."""
-  env.filters["property_param"] = lambda p: f"{p.cpp_type} {p.name}"
+  env.filters["property_param"] = lambda p: (
+      f"const {p.cpp_type}& {p.name}"
+      if p.cpp_type == "xls::Value"
+      else f"{p.cpp_type} {p.name}"
+  )
   cc_template = env.from_string(cc_template_content)
   fuzztest = wrapped_to_fuzztest(wrapped, lib_class_name, lib_header_path)
   bindings = {"fuzztest": fuzztest, "len": len}
