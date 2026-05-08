@@ -180,10 +180,10 @@ class JittedFunctionBase {
 
   int64_t temp_buffer_alignment() const { return temp_buffer_alignment_; }
 
-  std::optional<int64_t> max_trace_verbosity() const {
+  int64_t max_trace_verbosity() const {
     return max_trace_verbosity_;
   }
-  void set_max_trace_verbosity(std::optional<int64_t> value) {
+  void set_max_trace_verbosity(int64_t value) {
     max_trace_verbosity_ = value;
   }
 
@@ -258,7 +258,7 @@ class JittedFunctionBase {
   // the instance context.
   absl::btree_map<std::string, int64_t> queue_indices_;
 
-  std::optional<int64_t> max_trace_verbosity_;
+  int64_t max_trace_verbosity_ = 0;
 };
 
 struct FunctionEntrypoint {
