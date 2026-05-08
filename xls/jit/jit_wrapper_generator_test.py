@@ -609,6 +609,40 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
     )
     self.assertEqual(rendered_code, 'xls::Value a')
 
+  def test_render_fuzztest_default_domain(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    wrapped_ir = jit_wrapper_generator.WrappedIr(
+        jit_type=jit_wrapper_generator.JitType.FUNCTION,
+        ir_text='',
+        function_name='my_func',
+        class_name='MyFuncJit',
+        header_guard='HEADER_GUARD',
+        header_filename='my_func_jit.h',
+        namespace='xls::test',
+        aot_entrypoint=None,
+        params=[
+            jit_wrapper_generator.XlsNamedValue(
+                name='a',
+                type_proto=u32,
+                packed_type='xls::PackedBitsView<32>',
+                unpacked_type='xls::BitsView<32>',
+                specialized_type='uint32_t',
+                fuzztest_info=jit_wrapper_generator.FuzzTestInfo(
+                    domain_snippet='fuzztest::Arbitrary<uint32_t>()'
+                ),
+            ),
+        ],
+        result=None,
+    )
+    rendered_code = jit_wrapper_generator.render_fuzztest(
+        wrapped_ir,
+        self.env,
+        self.template,
+        'xls::test::MyFuncJit',
+        'my_func_jit.h',
+    )
+    self.assertIn('fuzztest::Arbitrary<uint32_t>()', rendered_code)
+
 
 class JitWrapperGeneratorToDomainTest(absltest.TestCase):
 
@@ -634,6 +668,10 @@ class JitWrapperGeneratorToDomainTest(absltest.TestCase):
         'fuzztest::InRange<uint32_t>(0, 131071)',
     )
 
+  def test_bits_domain_too_wide(self):
+    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    self.assertIsNone(jit_wrapper_generator.to_domain(u128, None))
+
   def test_range_domain(self):
     u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
     d = ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain()
@@ -644,6 +682,18 @@ class JitWrapperGeneratorToDomainTest(absltest.TestCase):
     self.assertEqual(
         jit_wrapper_generator.to_domain(u32, d),
         'fuzztest::InRange<uint32_t>(1, 10)',
+    )
+
+  def test_range_domain_wide_bits_fits(self):
+    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    d = ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain()
+    d.range.min.bits.bit_count = 128
+    d.range.min.bits.data = b'\x01'
+    d.range.max.bits.bit_count = 128
+    d.range.max.bits.data = b'\x0a'
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(u128, d),
+        'fuzztest::InRange<uint64_t>(1, 10)',
     )
 
   def test_element_of_domain(self):
@@ -736,6 +786,20 @@ class JitWrapperGeneratorToDomainTest(absltest.TestCase):
         'Range domain is only supported for specializable bits types',
     ):
       jit_wrapper_generator.to_domain(tup, d)
+
+
+class JitWrapperGeneratorToParamTest(absltest.TestCase):
+
+  def test_to_param_default_domain(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    p = ir_interface_pb2.PackageInterfaceProto.NamedValue(name='a', type=u32)
+    xls_param = jit_wrapper_generator.to_param(p, None)
+    self.assertEqual(xls_param.name, 'a')
+    fuzztest_info = xls_param.fuzztest_info
+    assert fuzztest_info is not None
+    self.assertEqual(
+        fuzztest_info.domain_snippet, 'fuzztest::Arbitrary<uint32_t>()'
+    )
 
 
 if __name__ == '__main__':

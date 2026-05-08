@@ -29,6 +29,16 @@ from xls.jit import aot_entrypoint_pb2
 
 
 @dataclasses.dataclass(frozen=True)
+class FuzzTestInfo:
+  """FuzzTest specific information for a value."""
+
+  domain_snippet: Optional[str] = None
+  domain_proto: Optional[
+      ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain
+  ] = None
+
+
+@dataclasses.dataclass(frozen=True)
 class XlsNamedValue:
   """A Named & typed value for the wrapped function/proc."""
 
@@ -37,7 +47,7 @@ class XlsNamedValue:
   unpacked_type: str
   specialized_type: Optional[str]
   type_proto: type_pb2.TypeProto
-  domain_snippet: Optional[str] = None
+  fuzztest_info: Optional[FuzzTestInfo] = None
 
   @property
   def value_arg(self):
@@ -276,10 +286,22 @@ def extract_int_from_bytes(data: bytes) -> int:
   return int.from_bytes(data, byteorder="little")
 
 
+def can_use_uint64_range(
+    t: type_pb2.TypeProto,
+    d: Optional[ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain],
+) -> bool:
+  """Returns true if the range domain fits within a 64-bit unsigned integer."""
+
+  if t.type_enum == type_pb2.TypeProto.BITS and d and d.HasField("range"):
+    max_val = extract_int_from_bytes(d.range.max.bits.data)
+    return max_val < (1 << 64)
+  return False
+
+
 def to_domain(
     t: type_pb2.TypeProto,
     d: Optional[ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain],
-) -> str:
+) -> Optional[str]:
   """Converts an XLS type and domain spec to a FuzzTest domain string.
 
   Args:
@@ -288,7 +310,8 @@ def to_domain(
 
   Returns:
     A string representing the C++ FuzzTest domain (e.g.,
-    "fuzztest::Arbitrary<uint32_t>()").
+    "fuzztest::Arbitrary<uint32_t>()"), or None if it should fallback to
+    xls::ArbitraryValue.
 
   Raises:
     app.UsageError: If the domain specification is invalid or unsupported for
@@ -306,30 +329,37 @@ def to_domain(
     if t.type_enum == type_pb2.TypeProto.BITS:
       c_type = to_specialized(t, int_only=True)
       if c_type is None:
-        return "fuzztest::Arbitrary<xls::Value>()"
+        return None
       if t.bit_count in (8, 16, 32, 64):
         return f"fuzztest::Arbitrary<{c_type}>()"
       else:
         max_val = (1 << t.bit_count) - 1
         return f"fuzztest::InRange<{c_type}>(0, {max_val})"
     elif t.type_enum == type_pb2.TypeProto.TUPLE:
-      elems = (to_domain(e, None) for e in t.tuple_elements)
+      elems = [to_domain(e, None) for e in t.tuple_elements]
+      if any(e is None for e in elems):
+        return None
       return f"fuzztest::TupleOf({', '.join(elems)})"
     elif t.type_enum == type_pb2.TypeProto.ARRAY:
       elem_domain = to_domain(t.array_element, None)
+      if elem_domain is None:
+        return None
       return f"fuzztest::VectorOf({elem_domain}).WithSize({t.array_size})"
     else:
-      return "fuzztest::Arbitrary<xls::Value>()"
+      return None
 
   if d.HasField("range"):
-    c_type = to_specialized(t, int_only=True)
-    if c_type is None:
-      raise app.UsageError(
-          "Range domain is only supported for specializable bits types"
-      )
+    cpp_type = to_specialized(t, int_only=True)
+    if cpp_type is None:
+      if not can_use_uint64_range(t, d):
+        raise app.UsageError(
+            "Range domain is only supported for specializable bits types or"
+            " ranges fitting in 64 bits"
+        )
+      cpp_type = "uint64_t"
     min_val = extract_int_from_bytes(d.range.min.bits.data)
     max_val = extract_int_from_bytes(d.range.max.bits.data)
-    return f"fuzztest::InRange<{c_type}>({min_val}, {max_val})"
+    return f"fuzztest::InRange<{cpp_type}>({min_val}, {max_val})"
 
   if d.HasField("element_of"):
     c_type = to_specialized(t, int_only=True)
@@ -373,13 +403,16 @@ def to_param(
     p: ir_interface_pb2.PackageInterfaceProto.NamedValue,
     d: Optional[ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain] = None,
 ) -> XlsNamedValue:
+
   return XlsNamedValue(
       name=p.name,
       packed_type=to_packed(p.type),
       unpacked_type=to_unpacked(p.type),
       specialized_type=to_specialized(p.type),
       type_proto=p.type,
-      domain_snippet=to_domain(p.type, d),
+      fuzztest_info=FuzzTestInfo(
+          domain_snippet=to_domain(p.type, d), domain_proto=d
+      ),
   )
 
 
@@ -559,7 +592,18 @@ def wrapped_to_fuzztest(
   if wrapped.params:
     for idx, p in enumerate(wrapped.params):
       is_native = p.specialized_type is not None
+      cpp_type = p.specialized_type or "xls::Value"
       conversion_snippet = None
+
+      domain_proto = p.fuzztest_info.domain_proto if p.fuzztest_info else None
+      domain_snippet = (
+          p.fuzztest_info.domain_snippet if p.fuzztest_info else None
+      )
+
+      if not is_native and can_use_uint64_range(p.type_proto, domain_proto):
+        cpp_type = "uint64_t"
+        is_native = True
+
       if is_native and p.type_proto.type_enum == type_pb2.TypeProto.BITS:
         conversion_snippet = (
             f"xls::Value(xls::UBits({p.name}, {p.type_proto.bit_count}))"
@@ -569,8 +613,8 @@ def wrapped_to_fuzztest(
           PropertyFunctionParam(
               name=p.name,
               index=idx,
-              domain_snippet=p.domain_snippet,
-              cpp_type=p.specialized_type or "xls::Value",
+              domain_snippet=domain_snippet,
+              cpp_type=cpp_type,
               is_native=is_native,
               conversion_snippet=conversion_snippet,
           )
