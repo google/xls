@@ -89,11 +89,11 @@ class JitEvaluatorOptions {
   }
   bool enable_llvm_coverage() const { return enable_llvm_coverage_; }
 
-  JitEvaluatorOptions& set_max_trace_verbosity(std::optional<int64_t> value) {
+  JitEvaluatorOptions& set_max_trace_verbosity(int64_t value) {
     max_trace_verbosity_ = value;
     return *this;
   }
-  std::optional<int64_t> max_trace_verbosity() const {
+  int64_t max_trace_verbosity() const {
     return max_trace_verbosity_;
   }
 
@@ -106,7 +106,7 @@ class JitEvaluatorOptions {
   bool generate_skeleton_ = false;
   bool generate_only_unopt_llvm_ir_ = false;
   bool enable_llvm_coverage_ = false;
-  std::optional<int64_t> max_trace_verbosity_;
+  int64_t max_trace_verbosity_ = 0;
 };
 
 }  // namespace xls
