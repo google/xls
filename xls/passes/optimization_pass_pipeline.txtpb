@@ -66,6 +66,8 @@ compound_passes: [
       "dce",
       "dataflow",
       "dce",
+      "value_set_simp",
+      "dce",
       "strength_red",
       "dce",
       "array_simp",
