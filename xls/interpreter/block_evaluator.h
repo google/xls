@@ -324,7 +324,7 @@ class BlockEvaluator {
       absl::Span<ChannelSink> channel_sinks,
       absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
       const std::optional<verilog::ResetProto>& reset, int64_t seed,
-      const std::optional<int64_t> max_trace_verbosity) const;
+      int64_t max_trace_verbosity) const;
 
   // Runs the evaluator on a block.  Each input port in the block
   // should be given a sequence of data values to drive the block.
@@ -344,7 +344,7 @@ class BlockEvaluator {
       absl::Span<ChannelSink> channel_sinks,
       absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
       const std::optional<verilog::ResetProto>& reset,
-      const std::optional<int64_t> max_trace_verbosity = 0) const {
+      int64_t max_trace_verbosity = 0) const {
     return EvaluateChannelizedSequentialBlock(block, channel_sources,
                                               channel_sinks, inputs, reset,
                                               /*seed=*/0, max_trace_verbosity);
@@ -367,7 +367,7 @@ class BlockEvaluator {
       Block* block, absl::Span<ChannelSource> channel_sources,
       absl::Span<ChannelSink> channel_sinks,
       absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
-      const std::optional<int64_t> max_trace_verbosity = 0) const {
+      int64_t max_trace_verbosity = 0) const {
     return EvaluateChannelizedSequentialBlock(
         block, channel_sources, channel_sinks, inputs, /*reset=*/std::nullopt,
         max_trace_verbosity);
@@ -380,7 +380,7 @@ class BlockEvaluator {
       absl::Span<ChannelSink> channel_sinks,
       absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
       const std::optional<verilog::ResetProto>& reset, int64_t seed,
-      const std::optional<int64_t> max_trace_verbosity) const;
+      int64_t max_trace_verbosity) const;
 
   // Variant which accepts and returns uint64_t values instead of xls::Values.
   absl::StatusOr<BlockIOResultsAsUint64>
@@ -389,7 +389,7 @@ class BlockEvaluator {
       absl::Span<ChannelSink> channel_sinks,
       absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
       const std::optional<verilog::ResetProto>& reset,
-      const std::optional<int64_t> max_trace_verbosity = 0) const {
+      int64_t max_trace_verbosity = 0) const {
     return EvaluateChannelizedSequentialBlockWithUint64(
         block, channel_sources, channel_sinks, inputs, reset, /*seed=*/0,
         max_trace_verbosity);
@@ -401,7 +401,7 @@ class BlockEvaluator {
       Block* block, absl::Span<ChannelSource> channel_sources,
       absl::Span<ChannelSink> channel_sinks,
       absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
-      const std::optional<int64_t> max_trace_verbosity = 0) const {
+      int64_t max_trace_verbosity = 0) const {
     return EvaluateChannelizedSequentialBlockWithUint64(
         block, channel_sources, channel_sinks, inputs, /*reset=*/std::nullopt,
         max_trace_verbosity);
