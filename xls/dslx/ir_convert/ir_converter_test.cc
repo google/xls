@@ -430,88 +430,6 @@ TEST_F(IrConverterTest, LetTupleBindingRestOfTupleSkipsMiddle) {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, MatchRestOfTupleBeginning) {
-  constexpr std::string_view program =
-      R"(fn f() -> u32 {
-  let t = (u32:1, u32:2, u32:3, u32:4);
-  match t {
-    (.., u32:3, y) => y,
-    _ => u32:0
-  }
-})";
-  RunComparator run_comparator(CompareMode::kInterpreter);
-  XLS_ASSERT_OK(ParseAndTest(program, "", "test_module.x",
-                             ParseAndTestOptions{
-                                 .run_comparator = &run_comparator,
-                             }));
-}
-
-TEST_F(IrConverterTest, MatchRestOfTupleMiddle) {
-  constexpr std::string_view program =
-      R"(fn f() -> u32 {
-  let t = (u32:1, u32:2, u32:3, u32:4);
-  match t {
-    (u32:1, .., y) => y,
-    _ => u32:0
-  }
-})";
-  RunComparator run_comparator(CompareMode::kInterpreter);
-  XLS_ASSERT_OK(ParseAndTest(program, "", "test_module.x",
-                             ParseAndTestOptions{
-                                 .run_comparator = &run_comparator,
-                             }));
-}
-
-TEST_F(IrConverterTest, MatchRestOfTupleEnd) {
-  constexpr std::string_view program =
-      R"(fn f() -> u32 {
-  let t = (u32:1, u32:2, u32:3, u32:4);
-  match t {
-    (u32:1, y, ..) => y,
-    _ => u32:0
-  }
-})";
-  RunComparator run_comparator(CompareMode::kInterpreter);
-  XLS_ASSERT_OK(ParseAndTest(program, "", "test_module.x",
-                             ParseAndTestOptions{
-                                 .run_comparator = &run_comparator,
-                             }));
-}
-
-TEST_F(IrConverterTest, MatchTupleOfTuplesRestOfTuple) {
-  constexpr std::string_view program =
-      R"(fn f() -> u32 {
-  let t = (u32:1, (u32:2, u32:3, u32:4), u32:5, u32:6);
-  match t {
-    (u32:1, .., a) => a,
-    (u32:1, (b, ..), ..) => b,
-    (u32:0, (.., d), ..) => d,
-    (u32:0, (e, .., g), ..) => g,
-    (.., h, u32:5) => h,
-    _ => u32:0
-  }
-})";
-  RunComparator run_comparator(CompareMode::kInterpreter);
-  XLS_ASSERT_OK(ParseAndTest(program, "", "test_module.x",
-                             ParseAndTestOptions{
-                                 .run_comparator = &run_comparator,
-                             }));
-}
-
-TEST_F(IrConverterTest, MatchRestOfTupleAsTrailingArm) {
-  constexpr std::string_view program =
-      R"(fn f() -> u32 {
-  let t = (u32:1, u32:2);
-  match t {
-    (u32:1, .., a) => a,
-    (..) => u32:1
-  }
-})";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "f"));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterTest, Struct) {
   constexpr std::string_view program =
       R"(struct S {
@@ -554,72 +472,6 @@ TEST_F(IrConverterTest, TupleOfLiterals) {
   constexpr std::string_view program =
       R"(fn f() -> (u8, u8) {
   (u8:0xaa, u8:0x55)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "f"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, CountedFor) {
-  constexpr std::string_view program =
-      R"(fn f() -> u32 {
-  for (i, accum): (u32, u32) in u32:0..u32:4 {
-    accum + i
-  }(u32:0)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "f"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ConstFor) {
-  constexpr std::string_view program =
-      R"(fn f() -> u32 {
-  const for (i, accum): (u32, u32) in u32:0..u32:4 {
-    accum + i
-  }(u32:0)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "f"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ForOverArrayOfItems) {
-  constexpr std::string_view program = R"(
-fn main(a: (u7, u7)[3]) -> u7 {
-  for (t, accum): ((u7, u7), u7) in a {
-    accum + t.0 + t.1
-  }(u7:0)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "main"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ForOverArrayLiteral) {
-  constexpr std::string_view program = R"(
-fn main() -> u7 {
-  for (t, accum): ((u7, u7), u7) in (u7, u7)[2]:[(u7:0, u7:1), (u7:2, u7:3)] {
-    accum + t.0 + t.1
-  }(u7:0)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "main"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, CountedForDestructuring) {
-  constexpr std::string_view program =
-      R"(fn f() -> u32 {
-  let t = for (i, (x, y)): (u32, (u32, u8)) in u32:0..u32:4 {
-    (x + i, y)
-  }((u32:0, u8:0));
-  t.0
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -723,128 +575,6 @@ fn caller() -> u32 {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, Match) {
-  constexpr std::string_view program =
-      R"(
-fn f(x: u8) -> u2 {
-  match x {
-    u8:42 => u2:0,
-    u8:64 => u2:1,
-    _ => u2:2
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ConstMatch) {
-  constexpr std::string_view program =
-      R"(
-fn f() -> u2 {
-  const COND = u8:5;
-  const match COND {
-    u8:0 => u2:0,
-    _ => u2:1
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ConstMatchProcScopedWithParams) {
-  constexpr std::string_view program = R"(
-  proc Multiply {
-    input: chan<u32> in;
-    output: chan<u32> out;
-
-    init {}
-
-    config(input: chan<u32> in, output: chan<u32> out) {
-      (input, output)
-    }
-
-    next(state: ()) {
-      let (tok, req) = recv(join(), input);
-      let data = req * u32:2;
-      let tok = send(tok, output, data);
-    }
-  }
-
-  proc Passthrough {
-    input: chan<u32> in;
-    output: chan<u32> out;
-
-    init {}
-
-    config(input: chan<u32> in, output: chan<u32> out) {
-      (input, output)
-    }
-
-    next(state: ()) {
-      let (tok, req) = recv(join(), input);
-      let tok = send(tok, output, req);
-    }
-  }
-
-  const CONFIG = u32:31;
-
-  proc Top {
-    init {}
-
-    config(req_r: chan<u32> in, resp_s: chan<u32> out) {
-      const match CONFIG {
-        u32:32 => spawn Passthrough(req_r, resp_s),
-        _ => spawn Multiply(req_r, resp_s),
-      };
-      ()
-    }
-
-    next(state: ()) { state }
-  }
-  )";
-
-  ConvertOptions options;
-  options.lower_to_proc_scoped_channels = true;
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "Top", options));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, MatchDefaultOnly) {
-  constexpr std::string_view program =
-      R"(
-fn f(x: u8) -> u2 {
-  match x {
-    _ => u2:2
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, MatchDense) {
-  constexpr std::string_view program =
-      R"(
-fn f(x: u2) -> u8 {
-  match x {
-    u2:0 => u8:42,
-    u2:1 => u8:64,
-    u2:2 => u8:128,
-    _ => u8:255
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterTest, EnumUse) {
   constexpr std::string_view program =
       R"(
@@ -909,26 +639,6 @@ fn main(array: u8[4]) -> (u32, u8)[4] {
   ExpectIr(converted);
 }
 
-// TODO: github.com/google/xls/issues/1289 - Need to support this to enumerate
-// in a for-loop.
-TEST_F(IrConverterTest, DISABLED_LoopThroughTupleArray) {
-  constexpr std::string_view program = R"(
-pub fn make_bool_array() -> bool[2] {
-    let enumerated = [(u32:0, u32:0), (u32:1, u32:1)];
-    for ((_, i), x): ((u32, u32), bool[2]) in enumerated {
-        update(x, i, true)
-    }(zero!<bool[2]>())
-}
-
-fn main() -> bool[2] {
-  make_bool_array()
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "main"));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterTest, SplatStructInstance) {
   constexpr std::string_view program =
       R"(
@@ -951,21 +661,6 @@ TEST_F(IrConverterTest, BoolLiterals) {
       R"(
 fn f(x: u8) -> bool {
   if x == u8:42 { true } else { false }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, MatchIdentity) {
-  constexpr std::string_view program =
-      R"(
-fn f(x: u8) -> u2 {
-  match x {
-    u8:42 => u2:3,
-    _ => x as u2
-  }
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -1197,21 +892,6 @@ fn main(x: bool) -> u8 { X + Y + Z }
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, MatchPackageLevelConstant) {
-  constexpr std::string_view program =
-      R"(const FOO = u8:0xff;
-fn f(x: u8) -> u2 {
-  match x {
-    FOO => u2:0,
-    _ => x as u2
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterTest, ParametricInvocation) {
   constexpr std::string_view program =
       R"(
@@ -1221,22 +901,6 @@ fn parametric_id<N: u32>(x: bits[N]) -> bits[N] {
 
 fn main(x: u8) -> u8 {
   parametric_id(x)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, MatchUnderLet) {
-  constexpr std::string_view program =
-      R"(
-fn main(x: u8) -> u8 {
-  let t = match x {
-    u8:42 => u8:0xff,
-    _ => x
-  };
-  t
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -1286,43 +950,6 @@ TEST_F(IrConverterTest, BitSliceCast) {
       R"(
 fn main(x: u2) -> u1 {
   x as u1
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, MatchDenseConsts) {
-  constexpr std::string_view program =
-      R"(
-type MyU2 = u2;
-const ZERO = MyU2:0;
-const ONE = MyU2:1;
-const TWO = MyU2:2;
-fn f(x: u2) -> u8 {
-  match x {
-    ZERO => u8:42,
-    ONE => u8:64,
-    TWO => u8:128,
-    _ => u8:255
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, CountedForWithLoopInvariants) {
-  constexpr std::string_view program =
-      R"(
-fn f(outer_thing_1: u32, outer_thing_2: u32) -> u32 {
-  let outer_thing_3: u32 = u32:42;
-  let outer_thing_4: u32 = u32:24;
-  for (i, accum): (u32, u32) in u32:0..u32:4 {
-    accum + i + outer_thing_1 + outer_thing_2 + outer_thing_3 + outer_thing_4
-  }(u32:0)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -1395,186 +1022,6 @@ fn main() -> u32 {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, UnrollForSimple) {
-  constexpr std::string_view program = R"(
-fn test() -> u32 {
-  unroll_for!(i, acc): (u32, u32) in u32:0..u32:4 {
-    i + acc
-  }(u32:0)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForNonU32) {
-  constexpr std::string_view program = R"(
-fn test() -> u8 {
-  unroll_for!(i, acc): (u8, u8) in u8:0..u8:4 {
-    i + acc
-  }(u8:0)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForWithSignedIterable) {
-  constexpr std::string_view program = R"(
-fn test() -> s32 {
-  unroll_for!(i, acc): (s32, s32) in [-s32:2, s32:0, s32:5] {
-    i + acc
-  }(s32:0)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForWithoutIndexName) {
-  constexpr std::string_view program = R"(
-fn test() -> u32 {
-  unroll_for!(_, acc): (u32, u32) in u32:0..u32:4 {
-    acc + u32:2
-  }(u32:0)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForWithoutAccName) {
-  constexpr std::string_view program = R"(
-fn test() -> u32 {
-  unroll_for!(i, _): (u32, u32) in u32:0..u32:4 {
-    trace_fmt!("{}", i);
-    i
-  }(u32:0)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForWithoutIndexAccTypeAnnotation) {
-  constexpr std::string_view program = R"(
-proc SomeProc {
-  init { () }
-  config() { }
-  next(state: ()) {
-    unroll_for! (i, a) in u32:0..u32:4 {
-      a + i
-    }(u32:0);
-  }
-})";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForNested) {
-  constexpr std::string_view program = R"(
-fn test() -> u32 {
-  unroll_for!(i, acc): (u32, u32) in u32:0..u32:4 {
-    let x = unroll_for!(j, acc2): (u32, u32) in u32:3..u32:6 {
-      j + acc2
-    }(u32:11);
-    x + i + acc
-  }((u32:0))
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForWithArrayAsIterable) {
-  constexpr std::string_view program = R"(
-fn test() -> u32 {
-  unroll_for!(i, acc): (u32, u32) in [u32:3, u32:4, u32:1] {
-    i + acc
-  }(u32:0)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForWithNonConstexprIterable) {
-  constexpr std::string_view program = R"(
-fn test(x:u32, y:u32) -> u32 {
-  unroll_for!(i, acc): (u32, u32) in [x, y] {
-    i + acc
-  }(u32:0)
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForWithNonBitsIterable) {
-  constexpr std::string_view program = R"(
-fn test() -> u32 {
-  unroll_for!(i, acc): ((u32, u32), u32) in [(u32:0, u32:5)] {
-    i.0 + acc
-  }(u32:0)
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForWithParametric) {
-  constexpr std::string_view program = R"(
-fn test<SIZE:u32>() -> bits[SIZE] {
-  unroll_for!(i, acc): (bits[SIZE], bits[SIZE]) in bits[SIZE]:0..bits[SIZE]:4 {
-    i + acc
-  }(zero!<bits[SIZE]>())
-}
-
-fn foo() -> u8 {
-  (test<u32:7>() as u8) + test<u32:8>()
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UnrollForWithTupleAccumulator) {
-  constexpr std::string_view program = R"(
-fn test() -> (u32, u32) {
-  unroll_for!(i, (acc1, acc2)): (u32, (u32, u32)) in u32:0..u32:4 {
-    (i + acc1, i + acc2)
-  }((u32:2, u32:3))
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterTest, ImportedUnrollForCallsParametric) {
   auto import_data = CreateImportDataForTest();
   constexpr std::string_view imported_program = R"(
@@ -1602,20 +1049,6 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertOneFunctionForTest(
                                program, "main", import_data, kNoVerifyOptions));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, CountedForWithTupleAccumulator) {
-  constexpr std::string_view program =
-      R"(
-fn f() -> (u32, u32) {
-  for (i, (a, b)): (u32, (u32, u32)) in u32:0..u32:4 {
-    (a+b, b+u32:1)
-  }((u32:0, u32:1))
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
   ExpectIr(converted);
 }
 
@@ -1819,22 +1252,6 @@ fn g() -> u8[2] { FOO }
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, MatchWithlet) {
-  constexpr std::string_view program =
-      R"(
-fn f(x: u8) -> u2 {
-  match x {
-    u8:42 => { let x = u2:0; x },
-    u8:64 => { let x = u2:1; x },
-    _ => { let x = u2:2; x }
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterTest, SignexAcceptsSignedOutputType) {
   constexpr std::string_view program =
       R"(
@@ -1904,20 +1321,6 @@ TEST_F(IrConverterTest, NestedTupleSignature) {
     fn main(r: u9, l: u10, input: MoreStructured) -> (u9, u10, Data) {
       (u9:0, u10:0, (u64:0, u1:0))
     }
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ArrayUpdateInLoop) {
-  constexpr std::string_view program =
-      R"(
-fn main() -> u8[2] {
-  for (i, accum): (u32, u8[2]) in u32:0..u32:2 {
-    update(accum, i, i as u8)
-  }(u8[2]:[0, 0])
-}
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(program));
@@ -2013,53 +1416,6 @@ fn main(x: u32) -> u32 {
   ExpectIr(converted);
 }
 
-// Fail within one arm of a match expression.
-TEST_F(IrConverterTest, FailInMatch) {
-  constexpr std::string_view program = R"(
-fn main(x: u32) -> u32 {
-  match x {
-    u32:42 => fail!("failure", x),
-    _ => x
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, FailInMatchInvocation) {
-  constexpr std::string_view program = R"(
-fn do_fail(x: u32) -> u32 {
-  fail!("failure", x)
-}
-
-fn main(x: u32) -> u32 {
-  match x {
-    u32:42 => do_fail(x),
-    _ => x
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, MatchMultiFail) {
-  constexpr std::string_view program = R"(
-fn main(x: u32) -> u32 {
-  match x {
-    u32:42 => fail!("failure_0", x),
-    _ => fail!("failure_1", x+u32:1)
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterTest, InvokeMethodThatFails) {
   constexpr std::string_view program = R"(
 fn does_fail() -> u32 {
@@ -2102,67 +1458,6 @@ fn calls_failing<N: u32>() -> bits[N] {
 
 fn main(x: u32) -> u32 {
   calls_failing<u32:32>()
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, FailInsideFor) {
-  constexpr std::string_view program = R"(
-fn main(x: u32) -> u32 {
-  for (i, x): (u32, u32) in u32:0..u32:1 {
-    fail!("failure", x)
-  }(u32:0)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-// Even though the fail comes after the `for` construct, we currently prepare
-// the `for` to be capable of failing, since the fallibility marking happens at
-// the function scope.
-TEST_F(IrConverterTest, FailOutsideFor) {
-  constexpr std::string_view program = R"(
-fn main(x: u32) -> u32 {
-  let x = for (i, x): (u32, u32) in u32:0..u32:1 {
-    x
-  }(u32:0);
-  fail!("failure", x)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, FailInsideForWithTupleAccum) {
-  constexpr std::string_view program = R"(
-fn main(x: u32) -> (u32, u32) {
-  for (i, (x, y)): (u32, (u32, u32)) in u32:0..u32:1 {
-    fail!("failure", (x, y))
-  }((u32:0, u32:0))
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, CountedForParametricRefInBody) {
-  constexpr std::string_view program =
-      R"(
-fn f<N:u32>(init: bits[N]) -> bits[N] {
-  for (i, accum): (u32, bits[N]) in u32:0..u32:4 {
-    accum as bits[N]
-  }(init)
-}
-
-fn main() -> u32 {
-  f(u32:0)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -4867,35 +4162,6 @@ TEST_F(IrConverterTest, DISABLED_UseTreeEntryCallInParametric) {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, MatchExhaustiveMultiplePatternLastArm) {
-  constexpr std::string_view program = R"(
-fn main(x: u2) -> u32 {
-  match x {
-    u2:0 | u2:1 => u32:0,
-    u2:2 | u2:3 => u32:1,
-  }
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, MatchExhaustiveOneRangeAndValueInSingleArm) {
-  constexpr std::string_view program = R"(
-  fn main(x: u2) -> u32 {
-    match x {
-      u2:0..u2:3 | u2:3 => u32:42,
-    }
-  }
-  )";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterTest, ConvertInstanceMethodOnParametricStruct) {
   constexpr std::string_view program = R"(
   struct S<A: u32> {
@@ -5022,35 +4288,6 @@ TEST_F(IrConverterTest, SimpleImplMethod) {
     f.bar()
   }
   )";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, MatchExhaustiveRangeInTrailingArm) {
-  constexpr std::string_view program = R"(
-  fn main(x: u2) -> u32 {
-    match x {
-      u2:3 => u32:42,
-      u2:0..u2:3 => u32:64,
-    }
-  }
-  )";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, MatchRangeInclusiveEnd) {
-  constexpr std::string_view program = R"(
-fn main(x: u2) -> u32 {
-match x {
- u2:0..=u2:3 => u32:1,
-}
-}
-)";
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(program));
