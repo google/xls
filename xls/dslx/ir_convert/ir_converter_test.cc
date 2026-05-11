@@ -21,10 +21,8 @@
 #include "xls/dslx/ir_convert/ir_converter.h"
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -34,12 +32,11 @@
 #include "absl/status/statusor.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
-#include "xls/dslx/ir_convert/test_utils.h"
+#include "xls/dslx/ir_convert/ir_converter_test_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
@@ -140,80 +137,6 @@ proc TestProc {
     }
 }
 )";
-
-absl::StatusOr<TestResultData> ParseAndTest(
-    std::string_view program, std::string_view module_name,
-    std::string_view filename, const ParseAndTestOptions& options) {
-  // Other interpreters rely on ir_convert so we can't test with them.
-  return DslxInterpreterTestRunner().ParseAndTest(program, module_name,
-                                                  filename, options);
-}
-
-constexpr ConvertOptions kProcScopedChannelOptions = {
-    .emit_positions = false,
-    .lower_to_proc_scoped_channels = true,
-};
-
-constexpr ConvertOptions kNoVerifyOptions = {
-    .emit_positions = false,
-    .verify_ir = false,
-    .lower_to_proc_scoped_channels = true,
-};
-
-void ExpectIr(std::string_view got) {
-  return ::xls::dslx::ExpectIr(got, TestName(), "ir_converter_test");
-}
-
-class IrConverterTest : public ::testing::Test {
- public:
-  absl::StatusOr<std::string> ConvertOneFunctionForTest(
-      std::string_view program, std::string_view fn_name,
-      ImportData& import_data,
-      const ConvertOptions& options = kProcScopedChannelOptions) {
-    XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
-                         ::xls::dslx::ParseAndTypecheck(
-                             program, /*path=*/"test_module.x",
-                             /*module_name=*/"test_module", &import_data,
-                             /*comments=*/nullptr));
-    return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
-                              &import_data,
-                              /*parametric_env=*/nullptr, options);
-  }
-
-  absl::StatusOr<std::string> ConvertOneFunctionForTest(
-      std::string_view program, std::string_view fn_name,
-      const ConvertOptions& options = kProcScopedChannelOptions) {
-    auto import_data = CreateImportDataForTest();
-    return ConvertOneFunctionForTest(program, fn_name, import_data, options);
-  }
-
-  absl::StatusOr<std::string> ConvertModuleForTest(
-      std::string_view program,
-      const ConvertOptions& options = kProcScopedChannelOptions,
-      ImportData* import_data = nullptr) {
-    std::optional<ImportData> import_data_value;
-    if (import_data == nullptr) {
-      import_data_value.emplace(CreateImportDataForTest());
-      import_data = &*import_data_value;
-    }
-    XLS_ASSIGN_OR_RETURN(
-        TypecheckedModule tm,
-        ::xls::dslx::ParseAndTypecheck(program, "test_module.x", "test_module",
-                                       import_data,
-                                       /*comments=*/nullptr, options));
-    XLS_ASSIGN_OR_RETURN(std::string converted,
-                         ConvertModule(tm.module, import_data, options));
-    return converted;
-  }
-
-  absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
-      std::string_view program, std::string_view path,
-      std::string_view module_name, ImportData* import_data = nullptr) {
-    return ::xls::dslx::ParseAndTypecheck(program, path, module_name,
-                                          import_data,
-                                          /*comments=*/nullptr);
-  }
-};
 
 TEST_F(IrConverterTest, NamedConstant) {
   constexpr std::string_view program =

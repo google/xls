@@ -252,6 +252,27 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "ir_converter_test_utils",
+    testonly = True,
+    srcs = ["ir_converter_test_utils.cc"],
+    hdrs = ["ir_converter_test_utils.h"],
+    deps = [
+        ":convert_options",
+        ":ir_converter",
+        ":test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/run_routines",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "ir_converter_test",
     srcs = ["ir_converter_test.cc"],
@@ -260,11 +281,10 @@ cc_test(
         ":conversion_info",
         ":convert_options",
         ":ir_converter",
-        ":test_utils",
+        ":ir_converter_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
@@ -288,18 +308,14 @@ cc_test(
     data = glob(["testdata/*.ir"]),
     deps = [
         ":convert_options",
-        ":ir_converter",
-        ":test_utils",
+        ":ir_converter_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
-        "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/run_routines",
         "//xls/dslx/run_routines:run_comparator",
         "//xls/dslx/type_system:typecheck_test_utils",
-        "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
