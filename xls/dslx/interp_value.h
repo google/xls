@@ -120,26 +120,46 @@ class InterpValue {
   // which is `SomeProc { stuff }` in the above example. This allows the holder
   // of an external initializer to find the internal one in `TypeInfo` as the
   // constexpr for the definer.
+  //
+  // In cases where a proc A constructor forwards non-retained arguments to a
+  // proc B constructor, as in:
+  //   impl A {
+  //     fn new(c1: chan<u32> out, c2: chan<u32> out) -> Self {
+  //        B::new(c1).spawn();
+  //        A { c2 } // A has no retention of c1; only c2 resides in "members".
+  //     }
+  //   }
+  //
+  // the ProcInitializer for A retains a separate vector of InterpValues for the
+  // params to its constructor which are forwarded elsewhere without retention.
   class ProcInitializer {
    public:
-    ProcInitializer(const ProcDef* proc_def, const AstNode* definer,
-                    std::vector<InterpValue> members)
-        : proc_def_(proc_def), definer_(definer), members_(std::move(members)) {
+    ProcInitializer(
+        const ProcDef* proc_def, const AstNode* definer,
+        std::vector<InterpValue> members,
+        std::vector<std::pair<const Param*, InterpValue>> forwarded_values)
+        : proc_def_(proc_def),
+          definer_(definer),
+          members_(std::move(members)),
+          forwarded_values_(std::move(forwarded_values)) {
       InitMemberMap();
     }
 
     ProcInitializer(const ProcInitializer& other)
-        : ProcInitializer(other.proc_def_, other.definer_, other.members_) {}
+        : ProcInitializer(other.proc_def_, other.definer_, other.members_,
+                          std::move(other.forwarded_values_)) {}
 
     ProcInitializer(ProcInitializer&& other)
         : ProcInitializer(other.proc_def_, other.definer_,
-                          std::move(other.members_)) {
+                          std::move(other.members_),
+                          std::move(other.forwarded_values_)) {
       other.member_map_.clear();
     }
 
     ProcInitializer& operator=(const ProcInitializer& other) {
       proc_def_ = other.proc_def_;
       members_ = other.members_;
+      forwarded_values_ = other.forwarded_values_;
       definer_ = other.definer_;
       InitMemberMap();
       return *this;
@@ -151,6 +171,7 @@ class InterpValue {
       }
       proc_def_ = other.proc_def_;
       members_ = std::move(other.members_);
+      forwarded_values_ = std::move(other.forwarded_values_);
       definer_ = other.definer_;
       InitMemberMap();
       other.member_map_.clear();
@@ -160,6 +181,10 @@ class InterpValue {
     const ProcDef* proc_def() const { return proc_def_; }
     const AstNode* definer() const { return definer_; }
     const std::vector<InterpValue>& members() const { return members_; }
+    const std::vector<std::pair<const Param*, InterpValue>>& forwarded_values()
+        const {
+      return forwarded_values_;
+    }
 
     const InterpValue& GetMemberValue(const StructMemberNode* member) const {
       return *member_map_.at(member);
@@ -179,6 +204,7 @@ class InterpValue {
     const ProcDef* proc_def_;
     const AstNode* definer_;
     std::vector<InterpValue> members_;
+    std::vector<std::pair<const Param*, InterpValue>> forwarded_values_;
 
     // The same values in `members_`, as a map.
     absl::flat_hash_map<const StructMemberNode*, const InterpValue*>
@@ -236,12 +262,14 @@ class InterpValue {
         ChannelReference(direction, channel_instance_id, definer));
   }
 
-  static InterpValue MakeProcInitializer(const ProcDef* proc_def,
-                                         const AstNode* definer,
-                                         std::vector<InterpValue> members) {
-    return InterpValue(InterpValueTag::kProcInitializer,
-                       std::make_shared<ProcInitializer>(proc_def, definer,
-                                                         std::move(members)));
+  static InterpValue MakeProcInitializer(
+      const ProcDef* proc_def, const AstNode* definer,
+      std::vector<InterpValue> members,
+      std::vector<std::pair<const Param*, InterpValue>> forwarded_values) {
+    return InterpValue(
+        InterpValueTag::kProcInitializer,
+        std::make_shared<ProcInitializer>(proc_def, definer, std::move(members),
+                                          std::move(forwarded_values)));
   }
 
   static absl::StatusOr<InterpValue> MakeArray(

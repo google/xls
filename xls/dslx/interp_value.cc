@@ -273,6 +273,10 @@ std::string InterpValue::ToStringInternal(bool humanize,
       for (const InterpValue& member : initializer->members()) {
         member_strings.push_back(member.ToString());
       }
+      for (const auto& [param, value] : initializer->forwarded_values()) {
+        member_strings.push_back(absl::Substitute(
+            "fwd $0: $1", param->identifier(), value.ToString()));
+      }
       return absl::Substitute("$0($1)", initializer->proc_def()->identifier(),
                               absl::StrJoin(member_strings, ", "));
   }
@@ -442,6 +446,15 @@ bool InterpValue::ProcInitializer::Eq(const ProcInitializer& other) const {
   }
   for (int i = 0; i < members_.size(); i++) {
     if (members_[i] != other.members_[i]) {
+      return false;
+    }
+  }
+
+  if (forwarded_values_.size() != other.forwarded_values().size()) {
+    return false;
+  }
+  for (int i = 0; i < forwarded_values_.size(); i++) {
+    if (forwarded_values_[i] != other.forwarded_values_[i]) {
       return false;
     }
   }
@@ -1142,6 +1155,23 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
         return inst.members()[i] < rhs_inst.members()[i];
       }
     }
+
+    if (inst.forwarded_values().size() != rhs_inst.forwarded_values().size()) {
+      return inst.forwarded_values().size() <
+             rhs_inst.forwarded_values().size();
+    }
+    for (int i = 0; i < inst.forwarded_values().size(); i++) {
+      const auto& [inst_param, inst_value] = inst.forwarded_values()[i];
+      const auto& [rhs_param, rhs_value] = rhs_inst.forwarded_values()[i];
+      if (inst_param != rhs_param) {
+        return inst_param->identifier() < rhs_param->identifier();
+      }
+      if (inst_value != rhs_value) {
+        return inst_value < rhs_value;
+      }
+    }
+
+    return false;
   }
 
   if (IsTuple()) {

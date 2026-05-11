@@ -3836,6 +3836,82 @@ absl::StatusOr<ChannelArray*> FunctionConverter::GetChannelArrayForAttr(
       absl::Substitute("Not a channel or array: `$0`", attr->ToString()));
 }
 
+template <typename NodeType>
+absl::Status FunctionConverter::DefineProcDefChannelOrArray(
+    const NodeType* node, const InterpValue::ChannelReference& channel_ref,
+    const Type* type,
+    absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>& channel_decls) {
+  XLS_RET_CHECK(channel_ref.GetDefiner().has_value());
+  const AstNode* definer = *channel_ref.GetDefiner();
+
+  if (definer->kind() == AstNodeKind::kChannelDecl) {
+    VLOG(5) << "Generating owned channel for: " << definer->ToString();
+    const auto* channel_decl = absl::down_cast<const ChannelDecl*>(definer);
+    auto it = channel_decls.find(channel_decl);
+    if (it == channel_decls.end()) {
+      XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
+                           channel_scope_->DefineChannelOrArray(channel_decl));
+      it = channel_decls.emplace(channel_decl, channel_or_array).first;
+      IrValue ir_value = absl::ConvertVariantTo<IrValue>(channel_or_array);
+      VLOG(10) << "Populating channel ID " << *channel_ref.GetChannelId()
+               << " in conv " << std::hex << (uint64_t)this;
+      SetNodeToIr(channel_decl, ir_value);
+
+      XLS_ASSIGN_OR_RETURN(InterpValue full_decl_tuple,
+                           current_type_info_->GetConstExpr(channel_decl));
+      XLS_RET_CHECK(full_decl_tuple.IsTuple());
+      const std::vector<InterpValue> ends = full_decl_tuple.GetValuesOrDie();
+      for (int i = 0; i < ends.size(); i++) {
+        channel_id_to_channel_or_array_
+            [*ends[i].GetChannelReferenceOrDie().GetChannelId()] = ir_value;
+      }
+    }
+
+    SetNodeToChannelOrArray(node, it->second);
+    SetNodeToChannelOrArray(node->name_def(), it->second);
+    return absl::OkStatus();
+  }
+
+  XLS_RET_CHECK(definer->kind() == AstNodeKind::kParam);
+  const auto* param = absl::down_cast<const Param*>(definer);
+  VLOG(5) << "Generating channel interface: " << param->ToString();
+
+  ChannelOrArray channel_or_array;
+  const ChannelType* channel_type = nullptr;
+
+  if (const auto* array_type = dynamic_cast<const ArrayType*>(type);
+      array_type != nullptr) {
+    const Type& innermost_type =
+        array_type->GetInnermostElementType().element_type;
+    VLOG(5) << "Lowering to PSC, innermost type: " << innermost_type.ToString();
+    channel_type = dynamic_cast<const ChannelType*>(&innermost_type);
+  } else if (type->IsChannel()) {
+    channel_type = dynamic_cast<const ChannelType*>(type);
+  } else {
+    return absl::InvalidArgumentError(
+        absl::Substitute("Unsupported type for channel or array $0: $1",
+                         param->ToString(), type->ToString()));
+  }
+
+  XLS_RET_CHECK(channel_type != nullptr);
+
+  VLOG(10) << "Param " << param->ToString() << " has channel type "
+           << channel_type->ToString();
+  XLS_ASSIGN_OR_RETURN(
+      channel_or_array,
+      channel_scope_->DefineBoundaryChannelOrArray(param, current_type_info_));
+  SetNodeToChannelOrArray(node, channel_or_array);
+  SetNodeToChannelOrArray(node->name_def(), channel_or_array);
+  XLS_RET_CHECK(channel_ref.GetChannelId().has_value());
+  VLOG(10) << "Populating channel ID " << *channel_ref.GetChannelId()
+           << " in conv " << std::hex << (uint64_t)this;
+  channel_id_to_channel_or_array_[*channel_ref.GetChannelId()] =
+      absl::ConvertVariantTo<IrValue>(channel_or_array);
+  XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
+      *proc_id_, param->name_def(), channel_or_array));
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::InitProcDefChannels(
     const ProcDef* proc_def,
     const InterpValue::ProcInitializer& canonical_initializer) {
@@ -3847,7 +3923,6 @@ absl::Status FunctionConverter::InitProcDefChannels(
   proc_def_channel_scope_->EnterFunctionContext(current_type_info_, env);
   channel_scope_ = proc_def_channel_scope_.get();
 
-  // Generate channel interfaces.
   XLS_ASSIGN_OR_RETURN(const Type* type,
                        current_type_info_->GetItemOrError(proc_def));
   XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
@@ -3855,6 +3930,7 @@ absl::Status FunctionConverter::InitProcDefChannels(
 
   absl::flat_hash_map<const ChannelDecl*, ChannelOrArray> channel_decls;
   const ProcType& proc_type = type->AsProc();
+
   for (int i = 0; i < proc_type.members().size(); i++) {
     const Type* member_type = proc_type.members()[i].get();
     const InterpValue& initializer = canonical_initializer.members()[i];
@@ -3862,82 +3938,32 @@ absl::Status FunctionConverter::InitProcDefChannels(
     VLOG(10) << "Member `" << member->name() << "` has canonical initializer `"
              << initializer.ToString() << "`";
 
-    // TODO: https://github.com/google/xls/issues/4125 - Deal with channel
-    // arrays here.
+    if (!initializer.IsChannelReference()) {
+      continue;
+    }
+    const InterpValue::ChannelReference& channel_ref =
+        initializer.GetChannelReferenceOrDie();
+
+    XLS_RETURN_IF_ERROR(DefineProcDefChannelOrArray<StructMemberNode>(
+        member, channel_ref, member_type, channel_decls));
+  }
+
+  for (const auto& [param, initializer] :
+       canonical_initializer.forwarded_values()) {
+    XLS_ASSIGN_OR_RETURN(const Type* param_type,
+                         current_type_info_->GetItemOrError(param));
+    VLOG(10) << "Param `" << param->identifier()
+             << "` has canonical forwarded initializer `"
+             << initializer.ToString() << "`";
 
     if (!initializer.IsChannelReference()) {
       continue;
     }
     const InterpValue::ChannelReference& channel_ref =
         initializer.GetChannelReferenceOrDie();
-    XLS_RET_CHECK(channel_ref.GetDefiner().has_value());
-    const AstNode* definer = *channel_ref.GetDefiner();
 
-    if (definer->kind() == AstNodeKind::kChannelDecl) {
-      VLOG(5) << "Generating owned channel for: " << definer->ToString();
-      const auto* channel_decl = absl::down_cast<const ChannelDecl*>(definer);
-      auto it = channel_decls.find(channel_decl);
-      if (it == channel_decls.end()) {
-        XLS_ASSIGN_OR_RETURN(
-            ChannelOrArray channel_or_array,
-            channel_scope_->DefineChannelOrArray(channel_decl));
-        it = channel_decls.emplace(channel_decl, channel_or_array).first;
-        IrValue ir_value = absl::ConvertVariantTo<IrValue>(channel_or_array);
-        VLOG(10) << "Populating channel ID " << *channel_ref.GetChannelId()
-                 << " in conv " << std::hex << (uint64_t)this;
-        SetNodeToIr(channel_decl, ir_value);
-
-        XLS_ASSIGN_OR_RETURN(InterpValue full_decl_tuple,
-                             current_type_info_->GetConstExpr(channel_decl));
-        XLS_RET_CHECK(full_decl_tuple.IsTuple());
-        const std::vector<InterpValue> ends = full_decl_tuple.GetValuesOrDie();
-        for (int i = 0; i < ends.size(); i++) {
-          channel_id_to_channel_or_array_
-              [*ends[i].GetChannelReferenceOrDie().GetChannelId()] = ir_value;
-        }
-      }
-
-      SetNodeToChannelOrArray(member, it->second);
-      SetNodeToChannelOrArray(member->name_def(), it->second);
-      continue;
-    }
-
-    XLS_RET_CHECK(definer->kind() == AstNodeKind::kParam);
-    const auto* param = absl::down_cast<const Param*>(definer);
-    VLOG(5) << "Generating channel interface: " << param->ToString();
-
-    ChannelOrArray channel_or_array;
-    const ChannelType* channel_type = nullptr;
-
-    if (const auto* array_type = dynamic_cast<const ArrayType*>(member_type);
-        array_type != nullptr) {
-      const Type& innermost_type =
-          array_type->GetInnermostElementType().element_type;
-      VLOG(5) << "Lowering to PSC, innermost type: "
-              << innermost_type.ToString();
-      channel_type = dynamic_cast<const ChannelType*>(&innermost_type);
-    } else if (member_type->IsChannel()) {
-      channel_type = dynamic_cast<const ChannelType*>(member_type);
-    } else {
-      continue;
-    }
-
-    XLS_RET_CHECK(channel_type != nullptr);
-
-    VLOG(10) << "Param " << param->ToString() << " has channel type "
-             << channel_type->ToString();
-    XLS_ASSIGN_OR_RETURN(channel_or_array,
-                         channel_scope_->DefineBoundaryChannelOrArray(
-                             param, current_type_info_));
-    SetNodeToChannelOrArray(member, channel_or_array);
-    SetNodeToChannelOrArray(member->name_def(), channel_or_array);
-    XLS_RET_CHECK(channel_ref.GetChannelId().has_value());
-    VLOG(10) << "Populating channel ID " << *channel_ref.GetChannelId()
-             << " in conv " << std::hex << (uint64_t)this;
-    channel_id_to_channel_or_array_[*channel_ref.GetChannelId()] =
-        absl::ConvertVariantTo<IrValue>(channel_or_array);
-    XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
-        *proc_id_, param->name_def(), channel_or_array));
+    XLS_RETURN_IF_ERROR(DefineProcDefChannelOrArray<Param>(
+        param, channel_ref, param_type, channel_decls));
   }
 
   return absl::OkStatus();
@@ -3997,15 +4023,49 @@ FunctionConverter::CreateProcDefInstance(const ProcDef* proc_def) {
   return std::make_unique<ProcDefInstance>(proc_def, std::move(member_values));
 }
 
+absl::Status FunctionConverter::ExpandProcDefChannelReference(
+    const InterpValue::ChannelReference& ref,
+    std::vector<ChannelInterface*>& out) {
+  XLS_RET_CHECK(ref.GetChannelId().has_value());
+  const IrValue& channel_ir_value =
+      channel_id_to_channel_or_array_.at(*ref.GetChannelId());
+
+  if (std::holds_alternative<ChannelArray*>(channel_ir_value)) {
+    // Get all the channel interfaces of this array and
+    // add them to the channel_args
+    ChannelArray* channel_array = std::get<ChannelArray*>(channel_ir_value);
+    for (ChannelRef channel_ref : channel_array->channels()) {
+      XLS_ASSIGN_OR_RETURN(
+          ChannelInterface * channel_interface,
+          absl::visit(
+              Visitor{[&](Channel* c) -> absl::StatusOr<ChannelInterface*> {
+                        return ChannelToInterface(c, ref.GetDirection());
+                      },
+                      [&](ChannelInterface* ci)
+                          -> absl::StatusOr<ChannelInterface*> { return ci; }},
+              channel_ref));
+      out.push_back(channel_interface);
+    }
+  } else {
+    // Channel or ChannelInterface.
+    XLS_ASSIGN_OR_RETURN(
+        ChannelInterface * channel_interface,
+        IrValueToChannelInterface(channel_ir_value, ref.GetDirection()));
+    out.push_back(channel_interface);
+  }
+
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::AddProcDefInstantiation(
     const ProcDef* proc_def, const InterpValue& external_initializer,
     const InterpValue& canonical_initializer) {
   std::vector<ChannelInterface*> channel_args;
+
   const std::vector<InterpValue>& external_members =
       external_initializer.GetProcInitializerOrDie().members();
   const std::vector<InterpValue>& canonical_members =
       canonical_initializer.GetProcInitializerOrDie().members();
-
   for (int i = 0; i < external_members.size(); i++) {
     const InterpValue& external_arg = external_members[i];
     const InterpValue& canonical_arg = canonical_members[i];
@@ -4016,37 +4076,38 @@ absl::Status FunctionConverter::AddProcDefInstantiation(
 
     const InterpValue::ChannelReference& arg_channel =
         external_arg.GetChannelReferenceOrDie();
+
     VLOG(10) << "Passing channel `" << external_arg.ToString()
              << "` in proc instantiation `" << canonical_initializer.ToString()
              << "`";
-    XLS_RET_CHECK(arg_channel.GetChannelId().has_value());
-    const IrValue& channel_ir_value =
-        channel_id_to_channel_or_array_.at(*arg_channel.GetChannelId());
+    XLS_RETURN_IF_ERROR(
+        ExpandProcDefChannelReference(arg_channel, channel_args));
+  }
 
-    if (std::holds_alternative<ChannelArray*>(channel_ir_value)) {
-      // Get all the channel interfaces of this array and
-      // add them to the channel_args
-      ChannelArray* channel_array = std::get<ChannelArray*>(channel_ir_value);
-      for (ChannelRef channel_ref : channel_array->channels()) {
-        XLS_ASSIGN_OR_RETURN(
-            ChannelInterface * channel_interface,
-            absl::visit(
-                Visitor{
-                    [&](Channel* c) -> absl::StatusOr<ChannelInterface*> {
-                      return ChannelToInterface(c, arg_channel.GetDirection());
-                    },
-                    [&](ChannelInterface* ci)
-                        -> absl::StatusOr<ChannelInterface*> { return ci; }},
-                channel_ref));
-        channel_args.push_back(channel_interface);
-      }
-    } else {
-      // Channel or ChannelInterface.
-      XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface,
-                           IrValueToChannelInterface(
-                               channel_ir_value, arg_channel.GetDirection()));
-      channel_args.push_back(channel_interface);
+  const std::vector<std::pair<const Param*, InterpValue>>&
+      external_forwarded_values =
+          external_initializer.GetProcInitializerOrDie().forwarded_values();
+  const std::vector<std::pair<const Param*, InterpValue>>&
+      canonical_forwarded_values =
+          canonical_initializer.GetProcInitializerOrDie().forwarded_values();
+  for (int i = 0; i < external_forwarded_values.size(); i++) {
+    const auto& [external_param, external_value] = external_forwarded_values[i];
+    const auto& [canonical_param, canonical_value] =
+        canonical_forwarded_values[i];
+
+    if (!external_value.IsChannelReference() ||
+        external_value.Eq(canonical_value)) {
+      continue;
     }
+
+    const InterpValue::ChannelReference& arg_channel =
+        external_value.GetChannelReferenceOrDie();
+
+    VLOG(10) << "Forwarding channel `" << external_value.ToString()
+             << "` in proc instantiation `" << canonical_initializer.ToString()
+             << "`";
+    XLS_RETURN_IF_ERROR(
+        ExpandProcDefChannelReference(arg_channel, channel_args));
   }
 
   const auto proc_it =
@@ -4109,6 +4170,7 @@ absl::Status FunctionConverter::ConvertProcDef(
                        CreateProcDefInstance(proc_def));
   SetNodeToIr((*next_fn)->params()[0]->name_def(), instance.get());
   XLS_RETURN_IF_ERROR(Visit((*next_fn)->body()));
+
   XLS_ASSIGN_OR_RETURN(
       xls::Proc * p,
       absl::down_cast<ProcBuilder*>(function_builder_.get())->Build());

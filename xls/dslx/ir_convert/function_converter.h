@@ -545,6 +545,13 @@ class FunctionConverter {
                              const Function* constructor);
 
   absl::Status InitProcDefBuilder(const ProcDef* proc_def);
+
+  template <typename NodeType>
+  absl::Status DefineProcDefChannelOrArray(
+      const NodeType* node, const InterpValue::ChannelReference& channel_ref,
+      const Type* type,
+      absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>& channel_decls);
+
   absl::Status InitProcDefChannels(
       const ProcDef* proc_def,
       const InterpValue::ProcInitializer& canonical_initializer);
@@ -553,6 +560,9 @@ class FunctionConverter {
       const InterpValue::ProcInitializer& canonical_initializer);
   absl::StatusOr<std::unique_ptr<ProcDefInstance>> CreateProcDefInstance(
       const ProcDef* proc_def);
+  absl::Status ExpandProcDefChannelReference(
+      const InterpValue::ChannelReference& ref,
+      std::vector<ChannelInterface*>& out);
   absl::Status AddProcDefInstantiation(
       const ProcDef* proc_def, const InterpValue& external_initializer,
       const InterpValue& canonical_initializer);

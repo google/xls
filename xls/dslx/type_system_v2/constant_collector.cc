@@ -24,6 +24,7 @@
 
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -716,25 +717,54 @@ class Visitor : public AstNodeVisitorWithDefault {
     external_instance_args.reserve(internal_initializer.members().size());
     for (const InterpValue& internal_arg : internal_initializer.members()) {
       if (internal_arg.IsChannelReference()) {
-        std::optional<const AstNode*> definer =
-            internal_arg.GetChannelReferenceOrDie().GetDefiner();
-        if (definer.has_value() && (*definer)->kind() == AstNodeKind::kParam) {
-          const Param* param = absl::down_cast<const Param*>(*definer);
-          const auto it = arg_values.find(param);
-          if (it != arg_values.end()) {
-            external_instance_args.push_back(it->second);
-            continue;
-          }
+        std::optional<InterpValue> external_arg =
+            GetProcDefArgReplacement(internal_arg, arg_values);
+        if (external_arg.has_value()) {
+          external_instance_args.push_back(*external_arg);
+          continue;
         }
       }
       external_instance_args.push_back(internal_arg);
     }
 
-    ti_->NoteConstExpr(invocation, InterpValue::MakeProcInitializer(
-                                       internal_initializer.proc_def(),
-                                       internal_initializer.definer(),
-                                       std::move(external_instance_args)));
+    std::vector<std::pair<const Param*, InterpValue>>
+        external_instance_forwarded_values;
+    for (const auto& [param, internal_arg] :
+         internal_initializer.forwarded_values()) {
+      if (internal_arg.IsChannelReference()) {
+        std::optional<InterpValue> external_arg =
+            GetProcDefArgReplacement(internal_arg, arg_values);
+        if (external_arg.has_value()) {
+          external_instance_forwarded_values.emplace_back(param, *external_arg);
+          continue;
+        }
+      }
+      external_instance_forwarded_values.emplace_back(param, internal_arg);
+    }
+
+    ti_->NoteConstExpr(
+        invocation,
+        InterpValue::MakeProcInitializer(
+            internal_initializer.proc_def(), internal_initializer.definer(),
+            std::move(external_instance_args),
+            std::move(external_instance_forwarded_values)));
     return absl::OkStatus();
+  }
+
+  std::optional<InterpValue> GetProcDefArgReplacement(
+      const InterpValue& internal_arg,
+      const absl::flat_hash_map<const Param*, InterpValue>& replacements) {
+    std::optional<const AstNode*> definer =
+        internal_arg.GetChannelReferenceOrDie().GetDefiner();
+    if (definer.has_value() && (*definer)->kind() == AstNodeKind::kParam) {
+      const Param* param = absl::down_cast<const Param*>(*definer);
+      const auto it = replacements.find(param);
+      if (it != replacements.end()) {
+        return it->second;
+      }
+    }
+
+    return std::nullopt;
   }
 
   absl::Status HandleProcDefSpawnInvocation(const Invocation* invocation) {
@@ -801,6 +831,7 @@ class Visitor : public AstNodeVisitorWithDefault {
 
     // For a `StructInstance` node that is creating an impl-style proc, the
     // constexpr value is a `ProcInitializer`.
+    absl::flat_hash_set<const Param*> retained_params;
     const ProcType& type = type_.AsProc();
     std::vector<InterpValue> member_values;
     for (const auto& [member_name, initializer] :
@@ -823,16 +854,40 @@ class Visitor : public AstNodeVisitorWithDefault {
             file_table_);
       }
 
+      // Note that currently we only track proc retention of channel and channel
+      // array params, both of which have ChannelReference InterpValues. It may
+      // be necessary in the future to track retention of spawned procs.
+      if (value->IsChannelReference()) {
+        std::optional<const AstNode*> definer =
+            value->GetChannelReferenceOrDie().GetDefiner();
+        if (definer.has_value() && (*definer)->kind() == AstNodeKind::kParam) {
+          retained_params.insert(absl::down_cast<const Param*>(*definer));
+        }
+      }
+
       ti_->NoteConstExpr(initializer, *value);
       member_values.push_back(*value);
     }
 
+    std::vector<std::pair<const Param*, InterpValue>> forwarded_values;
+    std::optional<const Function*> constructor = GetContainingFunction(node);
+    XLS_RET_CHECK(constructor.has_value());
+    for (const Param* param : (*constructor)->params()) {
+      if (!retained_params.contains(param)) {
+        // As above, we only track forwarding of channel and channel array
+        // params currently.
+        std::optional<InterpValue> param_value = ti_->GetConstExprOption(param);
+        if (param_value.has_value() && param_value->IsChannelReference()) {
+          forwarded_values.emplace_back(param, *param_value);
+        }
+      }
+    }
+
     auto inst = InterpValue::MakeProcInitializer(
         &absl::down_cast<const ProcDef&>(type.struct_def_base()), node,
-        member_values);
+        member_values, std::move(forwarded_values));
 
     ti_->NoteConstExpr(node, inst);
-
     return absl::OkStatus();
   }
 

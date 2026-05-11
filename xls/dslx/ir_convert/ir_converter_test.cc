@@ -2424,6 +2424,131 @@ impl TopProc {
   ExpectIr(conv.DumpIr());
 }
 
+TEST_F(IrConverterTest, ProcDefWithForwardedAndRetainedChannels) {
+  constexpr std::string_view kModule = R"(
+proc SomeProc {
+  ins: chan<u32>[2] in,
+}
+
+impl SomeProc {
+  fn new(ins: chan<u32>[2] in) -> Self {
+    SomeProc { ins }
+  }
+
+  fn next(self) {
+    const for (i, _) in u32:0..2 {
+      let (_, v) = recv(token(), self.ins[i]);
+      trace_fmt!("recv: {}", v);
+    }(());
+  }
+}
+
+proc PassthroughProc {
+  ch_out: chan<u32> out,
+}
+
+impl PassthroughProc {
+  fn new(ch_out: chan<u32> out, ins: chan<u32>[2] in) -> Self {
+    SomeProc::new(ins).spawn();
+    PassthroughProc { ch_out }
+  }
+
+  fn next(self) {
+    send(join(), self.ch_out, 50);
+  }
+}
+
+proc TopProc {
+  outs: chan<u32>[2] out,
+  pt_in: chan<u32> in,
+}
+
+impl TopProc {
+  fn new() -> Self {
+    let (outs, ins) = chan<u32>[2]("ins_outs");
+    let (pt_out, pt_in) = chan<u32>("pt");
+    PassthroughProc::new(pt_out, ins).spawn();
+    TopProc { outs, pt_in }
+  }
+
+  fn next(self) {
+    recv(token(), self.pt_in);
+    const for (i, _) in u32:0..2 {
+      send(token(), self.outs[i], i);
+    }(());
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ProcDefWithForwardedChannelArray) {
+  constexpr std::string_view kModule = R"(
+proc SomeProc {
+  ins: chan<u32>[2] in,
+}
+
+impl SomeProc {
+  fn new(ins: chan<u32>[2] in) -> Self {
+    SomeProc { ins }
+  }
+
+  fn next(self) {
+    const for (i, _) in u32:0..2 {
+      let (_, v) = recv(token(), self.ins[i]);
+      trace_fmt!("recv: {}", v);
+    }(());
+  }
+}
+
+proc PassthroughProc {}
+
+impl PassthroughProc {
+  fn new(ins: chan<u32>[2] in) -> Self {
+    SomeProc::new(ins).spawn();
+    PassthroughProc {}
+  }
+
+  fn next(self) {}
+}
+
+proc TopProc {
+  outs: chan<u32>[2] out,
+}
+
+impl TopProc {
+  fn new() -> Self {
+    let (outs, ins) = chan<u32>[2]("ins_outs");
+    PassthroughProc::new(ins).spawn();
+    TopProc { outs }
+  }
+
+  fn next(self) {
+    const for (i, _) in u32:0..2 {
+      send(token(), self.outs[i], i);
+    }(());
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
 TEST_F(IrConverterTest, ProcDefWithSpawn) {
   constexpr std::string_view kModule = R"(
 #![feature(explicit_state_access)]

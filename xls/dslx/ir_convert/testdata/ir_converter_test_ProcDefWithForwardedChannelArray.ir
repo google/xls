@@ -1,0 +1,55 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__SomeProc_next<_ins__0: bits[32] in, _ins__1: bits[32] in>() {
+  chan_interface _ins__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _ins__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  literal.4: token = literal(value=token, id=4)
+  literal.2: bits[1] = literal(value=1, id=2)
+  literal.11: token = literal(value=token, id=11)
+  receive.5: (token, bits[32]) = receive(literal.4, predicate=literal.2, channel=_ins__0, id=5)
+  receive.12: (token, bits[32]) = receive(literal.11, predicate=literal.2, channel=_ins__1, id=12)
+  __token: token = literal(value=token, id=1)
+  v: bits[32] = tuple_index(receive.5, index=1, id=8)
+  v__1: bits[32] = tuple_index(receive.12, index=1, id=15)
+  i: bits[32] = literal(value=0, id=3)
+  tuple_index.6: token = tuple_index(receive.5, index=0, id=6)
+  tuple_index.7: token = tuple_index(receive.5, index=0, id=7)
+  trace.9: token = trace(__token, literal.2, format="recv: {}", data_operands=[v], id=9)
+  i__1: bits[32] = literal(value=1, id=10)
+  tuple_index.13: token = tuple_index(receive.12, index=0, id=13)
+  tuple_index.14: token = tuple_index(receive.12, index=0, id=14)
+  trace.16: token = trace(__token, literal.2, format="recv: {}", data_operands=[v__1], id=16)
+  tuple.17: () = tuple(id=17)
+  tuple.18: () = tuple(id=18)
+}
+
+proc __test_module__PassthroughProc_next<_ins__0: bits[32] in, _ins__1: bits[32] in>() {
+  chan_interface _ins__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _ins__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  proc_instantiation __test_module__SomeProc_next_inst(_ins__0, _ins__1, proc=__test_module__SomeProc_next)
+  __token: token = literal(value=token, id=19)
+  literal.20: bits[1] = literal(value=1, id=20)
+  tuple.21: () = tuple(id=21)
+}
+
+proc __test_module__TopProc_next<>() {
+  chan _ins_outs__0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _ins_outs__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _ins_outs__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan _ins_outs__1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _ins_outs__1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _ins_outs__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  proc_instantiation __test_module__PassthroughProc_next_inst(_ins_outs__0, _ins_outs__1, proc=__test_module__PassthroughProc_next)
+  literal.25: token = literal(value=token, id=25)
+  i: bits[32] = literal(value=0, id=24)
+  literal.23: bits[1] = literal(value=1, id=23)
+  literal.28: token = literal(value=token, id=28)
+  i__1: bits[32] = literal(value=1, id=27)
+  __token: token = literal(value=token, id=22)
+  send.26: token = send(literal.25, i, predicate=literal.23, channel=_ins_outs__0, id=26)
+  send.29: token = send(literal.28, i__1, predicate=literal.23, channel=_ins_outs__1, id=29)
+  tuple.30: () = tuple(id=30)
+  tuple.31: () = tuple(id=31)
+}
