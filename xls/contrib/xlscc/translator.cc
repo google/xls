@@ -5997,29 +5997,37 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     XLS_RETURN_IF_ERROR(
         Assign(pasm->getOutputExpr(0), CValue(fret, out_val.type()), loc));
   } else if (const auto* ifst = clang::dyn_cast<const clang::IfStmt>(stmt)) {
-    XLS_ASSIGN_OR_RETURN(CValue cond, GenerateIR_Expr(ifst->getCond(), loc));
-    XLSCC_CHECK(cond.type()->Is<CBoolType>(), loc);
-    if (ifst->getInit() != nullptr) {
-      return absl::UnimplementedError(
-          ErrorMessage(loc, "Unimplemented C++17 if initializers"));
-    }
-    auto orig_vars = context().variables;
-    if (ifst->getThen() != nullptr) {
-      PushContextGuard context_guard(*this, cond.rvalue(), loc);
-      XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getThen(), ctx));
-    }
-    if (ifst->getElse() != nullptr) {
-      PushContextGuard context_guard(*this, context().fb->Not(cond.rvalue()),
-                                     loc);
-      // Avoid complexifying expressions on variables set in previous
-      // if-blocks.
-      for (auto& [name, cval] : context().variables) {
-        if (!orig_vars.contains(name)) {
-          continue;
-        }
-        context().variables[name] = orig_vars.at(name);
+    if (ifst->isConstexpr()) {
+      XLS_ASSIGN_OR_RETURN(bool cond, EvaluateBool(*ifst->getCond(), ctx, loc));
+      auto enabled_body = cond ? ifst->getThen() : ifst->getElse();
+      if (enabled_body != nullptr) {
+        XLS_RETURN_IF_ERROR(GenerateIR_Compound(enabled_body, ctx));
       }
-      XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getElse(), ctx));
+    } else {
+      XLS_ASSIGN_OR_RETURN(CValue cond, GenerateIR_Expr(ifst->getCond(), loc));
+      XLSCC_CHECK(cond.type()->Is<CBoolType>(), loc);
+      if (ifst->getInit() != nullptr) {
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unimplemented C++17 if initializers"));
+      }
+      auto orig_vars = context().variables;
+      if (ifst->getThen() != nullptr) {
+        PushContextGuard context_guard(*this, cond.rvalue(), loc);
+        XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getThen(), ctx));
+      }
+      if (ifst->getElse() != nullptr) {
+        PushContextGuard context_guard(*this, context().fb->Not(cond.rvalue()),
+                                       loc);
+        // Avoid complexifying expressions on variables set in previous
+        // if-blocks.
+        for (auto& [name, cval] : context().variables) {
+          if (!orig_vars.contains(name)) {
+            continue;
+          }
+          context().variables[name] = orig_vars.at(name);
+        }
+        XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getElse(), ctx));
+      }
     }
   } else if (auto forst = clang::dyn_cast<const clang::ForStmt>(stmt)) {
     XLS_RETURN_IF_ERROR(GenerateIR_Loop(

@@ -907,6 +907,44 @@ TEST_F(TranslatorLogicTest, IfAssignOverrideCondition) {
   Run({{"a", 1001}, {"b", 1}}, 1234, content);
 }
 
+TEST_F(TranslatorLogicTest, IfStmtConstexprTrue) {
+  std::string_view content = R"(
+      constexpr bool aFlag = true;
+
+      template<typename T>
+      inline T doit(T a) {
+        return a + 1;
+      }
+
+      long long my_package(long long a) {
+        if constexpr (aFlag) {
+          a = doit(a);
+        }
+        return a;
+      })";
+
+  Run({{"a", 60}}, 61, content);
+}
+
+TEST_F(TranslatorLogicTest, IfStmtConstexprFalse) {
+  std::string_view content = R"(
+      constexpr bool aFlag = false;
+
+      template<typename T>
+      inline T doit(T a) {
+        return a + 1;
+      }
+
+      long long my_package(long long a) {
+        if constexpr (aFlag) {
+          a = doit(a);
+        }
+        return a;
+      })";
+
+  Run({{"a", 60}}, 60, content);
+}
+
 TEST_F(TranslatorLogicTest, SwitchStmt) {
   std::string_view content = R"(
        long long my_package(long long a) {
