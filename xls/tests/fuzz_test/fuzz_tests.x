@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// No domain attribute is the same as #[fuzz_test(domains=`()`)]
+fn test_no_domains(x: u32) -> bool { x == x }
+
 #[fuzz_test(domains=`()`)]
 fn test_arbitrary(x: u32) -> bool {
     x == x
@@ -25,4 +28,9 @@ fn test_range(x: u32) -> bool {
 #[fuzz_test(domains=`[u32:5, 10, 15]`)]
 fn test_element_of(x: u32) -> bool {
     x == u32:5 || x == u32:10 || x == u32:15
+}
+
+#[fuzz_test(domains=`(u32:0..10, [u8:1, 2])`)]
+fn test_tuple(t: (u32, u8)) -> bool {
+    t.0 <= u32:10 && (t.1 == u8:1 || t.1 == u8:2)
 }

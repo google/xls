@@ -294,6 +294,12 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
                 packed_type='',
                 unpacked_type='',
                 specialized_type=None,
+                fuzztest_info=jit_wrapper_generator.FuzzTestInfo(
+                    domain_snippet=(
+                        'fuzztest::TupleOf(fuzztest::Arbitrary<uint8_t>(),'
+                        ' fuzztest::Arbitrary<uint64_t>())'
+                    )
+                ),
             ),
         ],
         result=jit_wrapper_generator.XlsNamedValue(
@@ -312,6 +318,14 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
     self.assertLen(prop_func.params, 1)
     self.assertEqual(prop_func.params[0].name, 't')
     self.assertEqual(prop_func.params[0].index, 0)
+    self.assertEqual(
+        prop_func.params[0].cpp_type, 'std::tuple<uint8_t, uint64_t>'
+    )
+    self.assertEqual(
+        prop_func.params[0].domain_snippet,
+        'fuzztest::TupleOf(fuzztest::TupleOf(fuzztest::Arbitrary<uint8_t>(),'
+        ' fuzztest::Arbitrary<uint64_t>()))',
+    )
 
   def test_function_no_result(self):
     u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
@@ -342,6 +356,72 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
     self.assertFalse(prop_func.return_type)
     self.assertLen(prop_func.params, 1)
     self.assertEqual(prop_func.params[0].name, 'a')
+
+
+class JitWrapperGeneratorToValueConversionTest(absltest.TestCase):
+
+  def test_bits(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    self.assertEqual(
+        jit_wrapper_generator.to_value_conversion(u32, 'x'),
+        'xls::Value(xls::UBits(x, 32))',
+    )
+
+  def test_tuple_of_tuples(self):
+    u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
+    inner_tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u8]
+    )
+    outer_tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[inner_tup]
+    )
+    self.assertEqual(
+        jit_wrapper_generator.to_value_conversion(outer_tup, 't'),
+        'xls::Value::Tuple({xls::Value::Tuple({xls::Value(xls::UBits('
+        'std::get<0>(std::get<0>(t)), 8))})})',
+    )
+
+  def test_tuple_of_arrays(self):
+    u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
+    a8 = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.ARRAY, array_size=2, array_element=u8
+    )
+    tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[a8]
+    )
+    self.assertEqual(
+        jit_wrapper_generator.to_value_conversion(tup, 't'),
+        'xls::Value::Tuple({xls::Value::Array({xls::Value(xls::UBits('
+        'std::get<0>(t)[0], 8)), xls::Value(xls::UBits(std::get<0>(t)[1], 8))})'
+        '})',
+    )
+
+  def test_tuple_of_primitives(self):
+    u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u8, u32]
+    )
+    self.assertEqual(
+        jit_wrapper_generator.to_value_conversion(tup, 't'),
+        'xls::Value::Tuple({xls::Value(xls::UBits(std::get<0>(t), 8)),'
+        ' xls::Value(xls::UBits(std::get<1>(t), 32))})',
+    )
+
+  def test_mixed_tuple(self):
+    u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    a8 = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.ARRAY, array_size=1, array_element=u8
+    )
+    tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u32, a8]
+    )
+    self.assertEqual(
+        jit_wrapper_generator.to_value_conversion(tup, 't'),
+        'xls::Value::Tuple({xls::Value(xls::UBits(std::get<0>(t), 32)),'
+        ' xls::Value::Array({xls::Value(xls::UBits(std::get<1>(t)[0], 8))})})',
+    )
 
 
 class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
@@ -396,7 +476,7 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         'xls::test::MyFuncJit',
         'my_func_jit.h',
     )
-    self.assertIn('void my_func(xls::Value a, xls::Value b)', rendered_code)
+    self.assertIn('void my_func(uint8_t a, uint32_t b)', rendered_code)
     self.assertIn(
         'XLS_ASSERT_OK_AND_ASSIGN(xls::Value result, f->Run(', rendered_code
     )
@@ -441,7 +521,9 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         'xls::test::ArrayIntFuncJit',
         'array_int_func_jit.h',
     )
-    self.assertIn('void array_int_func(xls::Value x)', rendered_code)
+    self.assertIn(
+        'void array_int_func(std::array<uint16_t, 4> x)', rendered_code
+    )
     self.assertIn(
         'FUZZ_TEST(array_int_func_fuzztest, array_int_func)', rendered_code
     )
@@ -483,7 +565,10 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         'xls::test::ArrayTupleFuncJit',
         'array_tuple_func_jit.h',
     )
-    self.assertIn('void array_tuple_func(xls::Value y)', rendered_code)
+    self.assertIn(
+        'void array_tuple_func(std::array<std::tuple<uint8_t, uint32_t>, 3> y)',
+        rendered_code,
+    )
     self.assertIn(
         'FUZZ_TEST(array_tuple_func_fuzztest, array_tuple_func)', rendered_code
     )
@@ -524,7 +609,9 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         'xls::test::TupleIntFuncJit',
         'tuple_int_func_jit.h',
     )
-    self.assertIn('void tuple_int_func(xls::Value t)', rendered_code)
+    self.assertIn(
+        'void tuple_int_func(std::tuple<uint16_t, uint64_t> t)', rendered_code
+    )
     self.assertIn(
         'FUZZ_TEST(tuple_int_func_fuzztest, tuple_int_func)', rendered_code
     )
@@ -569,7 +656,11 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         'xls::test::TupleMixedFuncJit',
         'tuple_mixed_func_jit.h',
     )
-    self.assertIn('void tuple_mixed_func(xls::Value m)', rendered_code)
+    self.assertIn(
+        'void tuple_mixed_func(std::tuple<uint8_t, std::tuple<uint8_t,'
+        ' uint16_t>> m)',
+        rendered_code,
+    )
     self.assertIn(
         'FUZZ_TEST(tuple_mixed_func_fuzztest, tuple_mixed_func)', rendered_code
     )
@@ -607,7 +698,7 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
         'xls::test::MyFuncJit',
         'my_func_jit.h',
     )
-    self.assertEqual(rendered_code, 'const xls::Value& a')
+    self.assertEqual(rendered_code, 'uint8_t a')
 
   def test_render_fuzztest_default_domain(self):
     u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)

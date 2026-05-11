@@ -36,6 +36,12 @@ dslx_fuzz_test(
 )
 
 dslx_fuzz_test(
+    name = "test_no_domains_fuzz_test",
+    library = ":fuzz_test_dslx",
+    test_function = "test_no_domains",
+)
+
+dslx_fuzz_test(
     name = "test_arbitrary_opt_fuzz_test",
     library = ":fuzz_test_dslx",
     opt_ir = True,
@@ -52,4 +58,10 @@ dslx_fuzz_test(
     name = "test_element_of_fuzz_test",
     library = ":fuzz_test_dslx",
     test_function = "test_element_of",
+)
+
+dslx_fuzz_test(
+    name = "test_tuple_fuzz_test",
+    library = ":fuzz_test_dslx",
+    test_function = "test_tuple",
 )

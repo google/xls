@@ -386,6 +386,23 @@ def to_domain(
   raise app.UsageError(f"Unsupported domain: {d}")
 
 
+def to_value_conversion(t: type_pb2.TypeProto, expr: str) -> str:
+  """Generates C++ snippet to convert a native type to xls::Value."""
+  if t.type_enum == type_pb2.TypeProto.BITS:
+    return f"xls::Value(xls::UBits({expr}, {t.bit_count}))"
+  elif t.type_enum == type_pb2.TypeProto.TUPLE:
+    elems = []
+    for i, e in enumerate(t.tuple_elements):
+      elems.append(to_value_conversion(e, f"std::get<{i}>({expr})"))
+    return f"xls::Value::Tuple({{{', '.join(elems)}}})"
+  elif t.type_enum == type_pb2.TypeProto.ARRAY:
+    elems = []
+    for i in range(t.array_size):
+      elems.append(to_value_conversion(t.array_element, f"{expr}[{i}]"))
+    return f"xls::Value::Array({{{', '.join(elems)}}})"
+  raise app.UsageError(f"Unsupported type for value conversion: {t}")
+
+
 def to_chan(
     c: ir_interface_pb2.PackageInterfaceProto.Channel, package_name: str
 ) -> XlsChannel:
@@ -592,9 +609,6 @@ def wrapped_to_fuzztest(
   if wrapped.params:
     for idx, p in enumerate(wrapped.params):
       is_native = p.specialized_type is not None
-      cpp_type = p.specialized_type or "xls::Value"
-      conversion_snippet = None
-
       domain_proto = p.fuzztest_info.domain_proto if p.fuzztest_info else None
       domain_snippet = (
           p.fuzztest_info.domain_snippet if p.fuzztest_info else None
@@ -603,11 +617,16 @@ def wrapped_to_fuzztest(
       if not is_native and can_use_uint64_range(p.type_proto, domain_proto):
         cpp_type = "uint64_t"
         is_native = True
+      else:
+        cpp_type = to_c_type(p.type_proto)
 
-      if is_native and p.type_proto.type_enum == type_pb2.TypeProto.BITS:
-        conversion_snippet = (
-            f"xls::Value(xls::UBits({p.name}, {p.type_proto.bit_count}))"
-        )
+      conversion_snippet = to_value_conversion(p.type_proto, p.name)
+
+      if (
+          p.type_proto.type_enum == type_pb2.TypeProto.TUPLE
+          and domain_snippet is not None
+      ):
+        domain_snippet = f"fuzztest::TupleOf({domain_snippet})"
 
       params.append(
           PropertyFunctionParam(

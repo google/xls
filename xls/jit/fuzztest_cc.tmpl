@@ -22,13 +22,13 @@ void {{fuzztest.property_function_name}}({% for param in fuzztest.params %}{{par
   {% else %}
   // Fallback: Manual binding for the standard Run(xls::Value...) overload.
   {% for param in fuzztest.params %}
-  {% if param.is_native %}
+  {% if param.conversion_snippet %}
   xls::Value {{param.name}}_val = {{param.conversion_snippet}};
   {% endif %}
   {% endfor %}
   XLS_ASSERT_OK_AND_ASSIGN(xls::Value result, f->Run(
   {% for param in fuzztest.params %}
-  {{param.name}}{% if param.is_native %}_val{% endif %}{% if not loop.last %}, {% endif %}
+  {{param.name}}{% if param.conversion_snippet %}_val{% endif %}{% if not loop.last %}, {% endif %}
   {% endfor %}
   ));
   {% endif %}
