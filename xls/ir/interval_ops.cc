@@ -28,6 +28,7 @@
 #include "absl/container/fixed_array.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/numeric/int128.h"
 #include "absl/types/span.h"
 #include "xls/common/iter_util.h"
 #include "xls/common/iterator_range.h"
@@ -516,6 +517,105 @@ std::optional<IntervalSet> MaybePerformExactCalculation(
   return std::move(results);
 }
 
+// How many computations are we willing to do for a variadic operation.
+static constexpr int64_t kMaxVariadicOperations = 1000000;
+
+struct SafeMultiplyResult {
+  bool overflow = false;
+  uint64_t result = 0;
+};
+
+// TODO(allight): Replace this with safe_int_ops once it is available.
+SafeMultiplyResult SafeMultiply(uint64_t a, uint64_t b) {
+  absl::uint128 big_a = a;
+  absl::uint128 big_b = b;
+  absl::uint128 product = big_a * big_b;
+  if (product > std::numeric_limits<uint64_t>::max()) {
+    return {true, 0};
+  }
+  return {false, static_cast<uint64_t>(product)};
+}
+
+SafeMultiplyResult SafeMultiply(SafeMultiplyResult a, uint64_t b) {
+  if (a.overflow) {
+    return {true, 0};
+  }
+  return SafeMultiply(a.result, b);
+}
+
+// Heuristically reduce the specificity of the input interval sets to avoid
+// exponential blow up. We do this by merging intervals which cause the least
+// loss of precision iteratively until we are below the threshold.
+std::vector<IntervalSet> ReduceIntervalFragmentationForOp(
+    absl::Span<const IntervalSet> interval_sets) {
+  // Since we do variadic ops the number of operations is proportional to the
+  // product of the number of intervals in each interval set.
+  std::vector<IntervalSet> results(interval_sets.begin(), interval_sets.end());
+
+  int64_t max_bit_width = 0;
+  int64_t total_intervals = 0;
+  for (const auto& is : interval_sets) {
+    max_bit_width = std::max(max_bit_width, is.BitCount());
+    total_intervals += is.NumberOfIntervals();
+    if (is.NumberOfIntervals() == 0) {
+      // Nothing to actually do since this operation is unreachable.
+      return results;
+    }
+  }
+
+  if (interval_sets.empty()) {
+    // Nothing to actually do since this operation is unreachable.
+    return results;
+  }
+
+  // NB This will iterate at most the total number of intervals in all the
+  // interval sets since we combine one at a time. We should always break before
+  // we hit this limit but this is a good correctness check to stop us from
+  // going on forever.
+  for (int64_t i = 0; i < total_intervals; ++i) {
+    auto [overflow, product] = absl::c_accumulate(
+        results, SafeMultiplyResult{false, 1},
+        [&](SafeMultiplyResult acc, const IntervalSet& is) {
+          return SafeMultiply(acc,
+                              static_cast<uint64_t>(is.NumberOfIntervals()));
+        });
+
+    if (!overflow && product <= kMaxVariadicOperations) {
+      return results;
+    }
+
+    std::optional<int64_t> best_set_idx;
+    std::optional<Bits> min_gap_size;
+
+    // NB We could do this with min_element or something but this lets us keep
+    // around the best measure too.
+    for (int64_t i = 0; i < results.size(); ++i) {
+      const auto& is = results[i];
+      if (is.NumberOfIntervals() <= 1) {
+        continue;
+      }
+      for (int64_t j = 0; j < is.NumberOfIntervals() - 1; ++j) {
+        Bits gap_size = bits_ops::Sub(is.Intervals()[j + 1].LowerBound(),
+                                      is.Intervals()[j].UpperBound());
+        Bits extended_gap_size = bits_ops::ZeroExtend(gap_size, max_bit_width);
+
+        if (!min_gap_size.has_value() ||
+            bits_ops::ULessThan(extended_gap_size, *min_gap_size)) {
+          min_gap_size = extended_gap_size;
+          best_set_idx = i;
+        }
+      }
+    }
+    CHECK(best_set_idx.has_value());
+
+    results[*best_set_idx] = MinimizeIntervals(
+        results[*best_set_idx], results[*best_set_idx].NumberOfIntervals() - 1);
+  }
+  LOG(FATAL) << "Failed to reduce interval fragmentation. Expected to break "
+                "before hitting "
+             << total_intervals << " iterations";
+}
+
 template <typename Calculate>
   requires(
       std::is_invocable_r_v<OverflowResult, Calculate, absl::Span<Bits const>>)
@@ -528,30 +628,11 @@ IntervalSet PerformVariadicOp(Calculate calc,
   std::optional<IntervalSet> exact_result = MaybePerformExactCalculation(
       calc, behaviors, input_operands, result_bit_size);
   if (exact_result) {
-    // VLOG(2) << "Got exact results: " << exact_result->ToString();
     return *exact_result;
   }
 
-  std::vector<IntervalSet> operands;
-  operands.reserve(input_operands.size());
-
-  {
-    int64_t i = 0;
-    for (IntervalSet interval_set : input_operands) {
-      // TODO(taktoa): we could choose the minimized interval sets more
-      // carefully, since `MinimizeIntervals` is minimizing optimally for each
-      // interval set without the knowledge that other interval sets exist.
-      // For example, we could call `ConvexHull` greedily on the sets
-      // that have the smallest difference between convex hull size and size.
-
-      // TODO(allight): We might want to distribute the intervals more evenly
-      // then just giving the first 12 operands 5 segments and the rest 1.
-      // Limit exponential growth after 12 parameters. 5^12 = 244 million
-      interval_set = MinimizeIntervals(interval_set, (i < 12) ? 5 : 1);
-      operands.push_back(interval_set);
-      ++i;
-    }
-  }
+  std::vector<IntervalSet> operands =
+      ReduceIntervalFragmentationForOp(input_operands);
 
   if (absl::c_all_of(operands,
                      [](const IntervalSet& i) { return i.IsPrecise(); })) {
