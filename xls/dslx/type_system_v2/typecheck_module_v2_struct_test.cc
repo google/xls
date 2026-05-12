@@ -34,7 +34,7 @@ using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
-TEST(TypecheckV2Test, GlobalStructInstancePropagation) {
+TEST(TypecheckV2StructTest, GlobalStructInstancePropagation) {
   EXPECT_THAT(
       R"(
 struct S { field: u32 }
@@ -45,7 +45,7 @@ const Y = X;
                               HasNodeWithType("Y", "S { field: uN[32] }"))));
 }
 
-TEST(TypecheckV2Test, GlobalStructInstanceContainingStructInstance) {
+TEST(TypecheckV2StructTest, GlobalStructInstanceContainingStructInstance) {
   EXPECT_THAT(R"(
 struct S { field: u32 }
 struct T { s: S }
@@ -56,7 +56,7 @@ const X = T { s: S { field: 5 } };
                         HasNodeWithType("5", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, SplatParametricStructWithFunctionReturnValue) {
+TEST(TypecheckV2StructTest, SplatParametricStructWithFunctionReturnValue) {
   // Note that triggering the creation of a struct `ParametricContext` at the
   // point of the `Y` declaration is necessary in order to test possible missing
   // handling of splatted members in the logic that creates the context. If we
@@ -75,7 +75,7 @@ const Y = S<16, 32> { field: 3, ..X };
           HasNodeWithType("Y", "S { field: uN[16], field2: uN[32] }")));
 }
 
-TEST(TypecheckV2Test, UselessStructSplatWarning) {
+TEST(TypecheckV2StructTest, UselessStructSplatWarning) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 struct S { field1: u32, field2: s32 }
 const X = S { field1: u32:6, field2: s32:7 };
@@ -87,7 +87,7 @@ const Y = S { field1: u32:3, field2: s32:4, ..X };
             "consider removing the `..X`");
 }
 
-TEST(TypecheckV2Test, AccessOfStructMember) {
+TEST(TypecheckV2StructTest, AccessOfStructMember) {
   EXPECT_THAT(
       R"(
 struct S { x: u32 }
@@ -96,7 +96,7 @@ const X = S { x: u32:5 }.x;
       TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, AccessOfNonexistentStructMemberFails) {
+TEST(TypecheckV2StructTest, AccessOfNonexistentStructMemberFails) {
   EXPECT_THAT(
       R"(
 struct S { x: u32 }
@@ -105,7 +105,7 @@ const X = S { x: u32:5 }.y;
       TypecheckFails(HasSubstr("No member `y` in struct `S`")));
 }
 
-TEST(TypecheckV2Test, AccessOfMemberOfNonStructFails) {
+TEST(TypecheckV2StructTest, AccessOfMemberOfNonStructFails) {
   EXPECT_THAT(
       R"(
 const X = (u32:1).y;
@@ -114,7 +114,7 @@ const X = (u32:1).y;
           HasSubstr("Builtin type 'u32' does not have attribute 'y'")));
 }
 
-TEST(TypecheckV2Test, ParametricStructWithParametricCallInMemberType) {
+TEST(TypecheckV2StructTest, ParametricStructWithParametricCallInMemberType) {
   // Based upon https://github.com/google/xls/issues/2722.
   EXPECT_THAT(R"(
 fn bar<N: u32>(a: uN[N]) -> uN[N] { a / 2 }
@@ -128,7 +128,7 @@ const C = Foo<32>{ x: u16:2 };
               TypecheckSucceeds(HasNodeWithType("C", "Foo { x: uN[16] }")));
 }
 
-TEST(TypecheckV2Test, ParametricStructAnnotationWithoutParametrics) {
+TEST(TypecheckV2StructTest, ParametricStructAnnotationWithoutParametrics) {
   EXPECT_THAT(
       R"(
 struct Foo<A: u32> {}
@@ -140,7 +140,7 @@ const C = zero!<Foo>();
                     "parametrics specified in this context")));
 }
 
-TEST(TypecheckV2Test, SumOfStructMembers) {
+TEST(TypecheckV2StructTest, SumOfStructMembers) {
   EXPECT_THAT(
       R"(
 struct S {
@@ -153,7 +153,7 @@ const Y = X.x + X.y;
       TypecheckSucceeds(HasNodeWithType("Y", "sN[16]")));
 }
 
-TEST(TypecheckV2Test, AccessOfStructMemberFromFunctionReturnValue) {
+TEST(TypecheckV2StructTest, AccessOfStructMemberFromFunctionReturnValue) {
   EXPECT_THAT(
       R"(
 struct S { x: u32 }
@@ -164,7 +164,7 @@ const X = f(2).x;
       TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, AccessOfStructMemberUsedForParametricInference) {
+TEST(TypecheckV2StructTest, AccessOfStructMemberUsedForParametricInference) {
   EXPECT_THAT(
       R"(
 struct S<N: u32> { x: uN[N] }
@@ -174,7 +174,8 @@ const X = f(S { x: u24:1 }.x);
       TypecheckSucceeds(HasNodeWithType("X", "uN[24]")));
 }
 
-TEST(TypecheckV2Test, ParametricStructWithInferredParametricFromOtherStruct) {
+TEST(TypecheckV2StructTest,
+     ParametricStructWithInferredParametricFromOtherStruct) {
   EXPECT_THAT(
       R"(
 struct S<N: u32> {
@@ -186,7 +187,7 @@ const Y = S{ x: X.x };
       TypecheckSucceeds(HasNodeWithType("Y", "S { x: uN[24] }")));
 }
 
-TEST(TypecheckV2Test, ParametricStructWithTooManyParametricsFails) {
+TEST(TypecheckV2StructTest, ParametricStructWithTooManyParametricsFails) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
 const X = S<16, 8>{};
@@ -194,7 +195,7 @@ const X = S<16, 8>{};
               TypecheckFails(HasSubstr("Too many parametric values supplied")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ParametricStructWithInsufficientExplicitParametricsInfersParametrics) {
   EXPECT_THAT(
       R"(
@@ -207,7 +208,7 @@ const X = S<32>{x: u32:4, y: u32:5};
       TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[32], y: uN[32] }")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ParametricStructWithOneExplicitAndOneDefaultedParametric) {
   EXPECT_THAT(
       R"(
@@ -220,7 +221,7 @@ const X = S<16>{x: u16:4, y: u32:5};
       TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[16], y: uN[32] }")));
 }
 
-TEST(TypecheckV2Test, ParametricStructAsFunctionArgument) {
+TEST(TypecheckV2StructTest, ParametricStructAsFunctionArgument) {
   EXPECT_THAT(
       R"(
 struct S<N: u32> {
@@ -232,7 +233,8 @@ const X = foo(S<24> { x: u24:5 });
       TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
 }
 
-TEST(TypecheckV2Test, ParametricStructAsFunctionArgumentExplicitMismatchFails) {
+TEST(TypecheckV2StructTest,
+     ParametricStructAsFunctionArgumentExplicitMismatchFails) {
   EXPECT_THAT(
       R"(
 struct S<N: u32> {
@@ -246,7 +248,7 @@ const X = foo(S<25> { x: u25:5 });
                 HasSubstr("u32:24 vs. u32:25"))));
 }
 
-TEST(TypecheckV2Test, ParametricStructAsFunctionReturnValue) {
+TEST(TypecheckV2StructTest, ParametricStructAsFunctionReturnValue) {
   EXPECT_THAT(
       R"(
 struct S<N: u32> {
@@ -260,7 +262,8 @@ const X = foo(u24:5);
                 HasNodeWithType("S { x: x }", "S { x: uN[24] }"))));
 }
 
-TEST(TypecheckV2Test, ParametricStructFormalReturnValueWithTooManyParametrics) {
+TEST(TypecheckV2StructTest,
+     ParametricStructFormalReturnValueWithTooManyParametrics) {
   EXPECT_THAT(
       R"(
 struct S<N: u32> {}
@@ -269,7 +272,7 @@ fn foo() -> S<24, 25> { S {} }
       TypecheckFails(HasSubstr("Too many parametric values supplied")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ParametricStructFormalReturnValueWithWrongTypeParametric) {
   EXPECT_THAT(
       R"(
@@ -279,7 +282,8 @@ fn foo() -> S<u64:24> { S {} }
       TypecheckFails(HasSizeMismatch("u64", "u32")));
 }
 
-TEST(TypecheckV2Test, ParametricStructFormalArgumentWithTooManyParametrics) {
+TEST(TypecheckV2StructTest,
+     ParametricStructFormalArgumentWithTooManyParametrics) {
   EXPECT_THAT(
       R"(
 struct S<N: u32> {}
@@ -288,7 +292,8 @@ fn foo(a: S<24, 25>) {}
       TypecheckFails(HasSubstr("Too many parametric values supplied")));
 }
 
-TEST(TypecheckV2Test, ParametricStructFormalArgumentWithWrongTypeParametric) {
+TEST(TypecheckV2StructTest,
+     ParametricStructFormalArgumentWithWrongTypeParametric) {
   EXPECT_THAT(
       R"(
 struct S<N: u32> {}
@@ -297,7 +302,7 @@ fn foo(a: S<u64:24>) {}
       TypecheckFails(HasSizeMismatch("u64", "u32")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ParametricStructAsFunctionReturnValueWithExplicitismatchFails) {
   EXPECT_THAT(
       R"(
@@ -312,7 +317,7 @@ const X = foo(u24:5);
                 HasSubstr("u32:25 vs. u32:24"))));
 }
 
-TEST(TypecheckV2Test, ParametricStructWithWrongOrderParametricValues) {
+TEST(TypecheckV2StructTest, ParametricStructWithWrongOrderParametricValues) {
   EXPECT_THAT(
       R"(
 struct StructFoo<A: u32, B: u32> {
@@ -332,7 +337,8 @@ fn test() -> StructFoo<32, 33> {
                                "`StructFoo`: u32:33 vs. u32:32")));
 }
 
-TEST(TypecheckV2Test, ParametricStructWithCorrectReverseOrderParametricValues) {
+TEST(TypecheckV2StructTest,
+     ParametricStructWithCorrectReverseOrderParametricValues) {
   EXPECT_THAT(
       R"(
 struct StructFoo<A: u32, B: u32> {
@@ -352,7 +358,7 @@ fn test() -> StructFoo<33, 32> {
                                         "StructFoo { x: uN[33], y: uN[32] }")));
 }
 
-TEST(TypecheckV2Test, ParametricStructWithConstantDimension) {
+TEST(TypecheckV2StructTest, ParametricStructWithConstantDimension) {
   EXPECT_THAT(
       R"(
 const N = u32:4;
@@ -367,7 +373,7 @@ const X = S { x: [u24:1, u24:2, u24:3, u24:4] };
 // Various samples of actual-argument compatibility with an `xN` field within a
 // struct via a struct instantiation expression (based on original
 // `typecheck_module_test`).
-TEST(TypecheckV2Test, StructInstantiateParametricXnField) {
+TEST(TypecheckV2StructTest, StructInstantiateParametricXnField) {
   EXPECT_THAT(
       R"(
 struct XnWrapper<S: bool, N: u32> {
@@ -389,7 +395,7 @@ fn i() -> XnWrapper<true, u32:8> { XnWrapper<true, u32:8> { field: xN[true][8]:3
                           "XnWrapper { field: sN[8] }"))));
 }
 
-TEST(TypecheckV2Test, StructFunctionArgument) {
+TEST(TypecheckV2StructTest, StructFunctionArgument) {
   EXPECT_THAT(R"(
 struct S { field: u32 }
 fn f(s: S) {}
@@ -402,7 +408,7 @@ fn g() {
                   HasNodeWithType("S { field: 2 }", "S { field: uN[32] }"))));
 }
 
-TEST(TypecheckV2Test, StructFunctionReturnValue) {
+TEST(TypecheckV2StructTest, StructFunctionReturnValue) {
   EXPECT_THAT(R"(
 struct S { field: u32 }
 fn f(value: u32) -> S {
@@ -414,14 +420,14 @@ const X = f(2);
                   HasNodeWithType("const X = f(2);", "S { field: uN[32] }"))));
 }
 
-TEST(TypecheckV2Test, InstantiationOfNonStruct) {
+TEST(TypecheckV2StructTest, InstantiationOfNonStruct) {
   EXPECT_THAT(
       "const X = u32 { foo: 1 };",
       TypecheckFails(HasSubstr(
           "Attempted to instantiate non-struct type `u32` as a struct.")));
 }
 
-TEST(TypecheckV2Test, ZeroMacroEmptyStruct) {
+TEST(TypecheckV2StructTest, ZeroMacroEmptyStruct) {
   EXPECT_THAT(R"(
 struct S { }
 const Y = zero!<S>();
@@ -429,7 +435,7 @@ const Y = zero!<S>();
               TypecheckSucceeds(HasNodeWithType("Y", "S {}")));
 }
 
-TEST(TypecheckV2Test, ZeroMacroStruct) {
+TEST(TypecheckV2StructTest, ZeroMacroStruct) {
   EXPECT_THAT(
       R"(
 struct S { a: u32, b: u32, }
@@ -438,7 +444,7 @@ const Y = zero!<S>();
       TypecheckSucceeds(HasNodeWithType("Y", "S { a: uN[32], b: uN[32] }")));
 }
 
-TEST(TypecheckV2Test, ZeroMacroParametricStruct) {
+TEST(TypecheckV2StructTest, ZeroMacroParametricStruct) {
   EXPECT_THAT(
       R"(
 struct S<A: u32, B: u32> { a: uN[A], b: uN[B], }
@@ -447,7 +453,7 @@ const Y = zero!<S<16, 64>>();
       TypecheckSucceeds(HasNodeWithType("Y", "S { a: uN[16], b: uN[64] }")));
 }
 
-TEST(TypecheckV2Test, ZeroMacroParametricStructInFn) {
+TEST(TypecheckV2StructTest, ZeroMacroParametricStructInFn) {
   EXPECT_THAT(
       R"(
 struct S<A: u32, B: u32> { a: uN[A], b: uN[B], }
@@ -457,7 +463,7 @@ const Y = f<16>();
       TypecheckSucceeds(HasNodeWithType("Y", "S { a: uN[16], b: uN[64] }")));
 }
 
-TEST(TypecheckV2Test, ZeroMacroImportedStructType) {
+TEST(TypecheckV2StructTest, ZeroMacroImportedStructType) {
   constexpr std::string_view kImported = R"(
 pub struct S { field: u32 }
 )";
@@ -472,7 +478,7 @@ const Y = zero!<imported::S>();
       IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "S { field: uN[32] }"))));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ZeroMacroImportedStructTypeWithParametricsInOwnningModule) {
   constexpr std::string_view kImported = R"(
 pub struct S<N: u32> { field: uN[N] }
@@ -489,7 +495,7 @@ const Y = zero!<imported::S32>();
       IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "S { field: uN[32] }"))));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ZeroMacroImportedStructTypeWithInlineParametricsInConsumingModule) {
   constexpr std::string_view kImported = R"(
 pub struct S<N: u32> { field: uN[N] }
@@ -505,7 +511,7 @@ const Y = zero!<imported::S<32>>();
       IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "S { field: uN[32] }"))));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ZeroMacroImportedStructTypeWithAliasParametricsInConsumingModule) {
   constexpr std::string_view kImported = R"(
 pub struct S<N: u32> { field: uN[N] }
@@ -522,7 +528,7 @@ const Y = zero!<S32>();
       IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "S { field: uN[32] }"))));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ZeroMacroImportedStructTypeWithParametricsInBothModulesFails) {
   constexpr std::string_view kImported = R"(
 pub struct S<N: u32> { field: uN[N] }
@@ -540,7 +546,7 @@ const Y = zero!<imported::S32<32>>();
                                  "annotation: `S<32>`")));
 }
 
-TEST(TypecheckV2Test, AllOnesMacroEmptyStruct) {
+TEST(TypecheckV2StructTest, AllOnesMacroEmptyStruct) {
   EXPECT_THAT(R"(
 struct S { }
 const Y = all_ones!<S>();
@@ -548,7 +554,7 @@ const Y = all_ones!<S>();
               TypecheckSucceeds(HasNodeWithType("Y", "S {}")));
 }
 
-TEST(TypecheckV2Test, AllOnesMacroStruct) {
+TEST(TypecheckV2StructTest, AllOnesMacroStruct) {
   EXPECT_THAT(
       R"(
 struct S { a: u32, b: u32, }
@@ -557,7 +563,7 @@ const Y = all_ones!<S>();
       TypecheckSucceeds(HasNodeWithType("Y", "S { a: uN[32], b: uN[32] }")));
 }
 
-TEST(TypecheckV2Test, AllOnesMacroParametricStruct) {
+TEST(TypecheckV2StructTest, AllOnesMacroParametricStruct) {
   EXPECT_THAT(
       R"(
 struct S<A: u32, B: u32> { a: uN[A], b: uN[B], }
@@ -566,7 +572,7 @@ const Y = all_ones!<S<16, 64>>();
       TypecheckSucceeds(HasNodeWithType("Y", "S { a: uN[16], b: uN[64] }")));
 }
 
-TEST(TypecheckV2Test, ParametricsFromStructAndMethodInType) {
+TEST(TypecheckV2StructTest, ParametricsFromStructAndMethodInType) {
   EXPECT_THAT(
       R"(
 struct S<M: u32> {
@@ -584,7 +590,33 @@ const Y = S{a: u32:6}.replicate<4>();
                               HasNodeWithType("Y", "uN[32][4]"))));
 }
 
-TEST(TypecheckV2Test, ParametricsFromStructAndMethodBothInferred) {
+TEST(TypecheckV2StructTest, ParametricStructsWithSameBindingName) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32> {
+  a: uN[M]
+}
+
+struct T<M: u32> {
+  a: uN[M]
+}
+
+impl S<M> {
+  fn replicate<N: u32>(self) -> uN[M][N] { [self.a, ...] }
+}
+
+impl T<M> {
+  fn replicate<N: u32>(self) -> uN[M][N] { [self.a, ...] }
+}
+
+const X = S{a: u16:5}.replicate<3>();
+const Y = T{a: u32:6}.replicate<4>();
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16][3]"),
+                              HasNodeWithType("Y", "uN[32][4]"))));
+}
+
+TEST(TypecheckV2StructTest, ParametricsFromStructAndMethodBothInferred) {
   EXPECT_THAT(
       R"(
 struct Data<M: u32> {
@@ -604,7 +636,7 @@ const Y = Data{a: u7:120}.combine(u9:256);
                               HasNodeWithType("Y", "(uN[7], uN[9])"))));
 }
 
-TEST(TypecheckV2Test, TypeAliasOnStructInParametricFn) {
+TEST(TypecheckV2StructTest, TypeAliasOnStructInParametricFn) {
   EXPECT_THAT(R"(
 struct S<X: u32> {
   x: bits[X],
@@ -624,7 +656,7 @@ fn main() {
                                       HasNodeWithType("y", "uN[15]"))));
 }
 
-TEST(TypecheckV2Test, TypeAliasOfStructWithBoundParametrics) {
+TEST(TypecheckV2StructTest, TypeAliasOfStructWithBoundParametrics) {
   EXPECT_THAT(R"(
 struct S<X: u32, Y: u32> {
   x: bits[X],
@@ -638,7 +670,7 @@ fn f() -> MyS { MyS {x: 3, y: 4 } }
                   HasNodeWithType("MyS", "typeof(S { x: uN[3], y: uN[4] })"))));
 }
 
-TEST(TypecheckV2Test, ElementInTypeAliasOfStructWithBoundParametrics) {
+TEST(TypecheckV2StructTest, ElementInTypeAliasOfStructWithBoundParametrics) {
   EXPECT_THAT(R"(
 struct S<X: u32, Y: u32> {
   x: bits[X],
@@ -656,7 +688,7 @@ fn f() -> uN[3] {
                   HasNodeWithType("x", "S { x: uN[3], y: uN[4] }"))));
 }
 
-TEST(TypecheckV2Test, ForWithDestructuredAcc) {
+TEST(TypecheckV2StructTest, ForWithDestructuredAcc) {
   EXPECT_THAT(
       R"(
 const X = for (i, (x, y, (a, b))) : (u32, (u32, u32, (u32, u32))) in u32:0..3 {
@@ -672,7 +704,7 @@ const X = for (i, (x, y, (a, b))) : (u32, (u32, u32, (u32, u32))) in u32:0..3 {
                 HasNodeWithType("(a, b)", "(uN[32], uN[32])"))));
 }
 
-TEST(TypecheckV2Test, SliceDestructuredAccumulator) {
+TEST(TypecheckV2StructTest, SliceDestructuredAccumulator) {
   EXPECT_THAT(R"(
 const X = for (i, (q, r)): (u32, (u8, u16)) in u32:0..1 {
     (q, r[0:s32:16])
@@ -681,7 +713,7 @@ const X = for (i, (q, r)): (u32, (u8, u16)) in u32:0..1 {
               TypecheckSucceeds(HasNodeWithType("X", "(uN[8], uN[16])")));
 }
 
-TEST(TypecheckV2Test, ProcAsStructMemberFails) {
+TEST(TypecheckV2StructTest, ProcAsStructMemberFails) {
   EXPECT_THAT(
       R"(
 proc Foo {
@@ -698,7 +730,7 @@ struct Bar {
       TypecheckFails(HasSubstr("Structs cannot contain procs as members.")));
 }
 
-TEST(TypecheckV2Test, ParametricStructInferenceUsingProcParametric) {
+TEST(TypecheckV2StructTest, ParametricStructInferenceUsingProcParametric) {
   constexpr std::string_view kImported = R"(
 pub struct Data<N: u32> {
   value: uN[N]
@@ -748,7 +780,7 @@ proc main {
                         HasNodeWithType("spawn Counter<32>(p32)", "()")))));
 }
 
-TEST(TypecheckV2Test, ImportConstantStructSizeMismatch) {
+TEST(TypecheckV2StructTest, ImportConstantStructSizeMismatch) {
   constexpr std::string_view kImported = R"(
 struct Point { x: uN[8] }
 
@@ -768,7 +800,7 @@ fn main() -> uN[5] {
                        HasSizeMismatch("uN[8]", "uN[5]")));
 }
 
-TEST(TypecheckV2Test, ImportStruct) {
+TEST(TypecheckV2StructTest, ImportStruct) {
   constexpr std::string_view kImported = R"(
 pub struct S { x: u5[2] }
 )";
@@ -787,7 +819,7 @@ fn main() -> u5 {
                                      HasNodeWithType("s.x", "uN[5]")))));
 }
 
-TEST(TypecheckV2Test, ImportReturnsStructWithForeignConstant) {
+TEST(TypecheckV2StructTest, ImportReturnsStructWithForeignConstant) {
   constexpr std::string_view kFoo = R"(
 pub struct S<N: u32> { x: uN[N] }
 )";
@@ -814,7 +846,7 @@ fn main() {
   XLS_EXPECT_OK(TypecheckV2(kBaz, "baz", &import_data).status());
 }
 
-TEST(TypecheckV2Test, ImportStructAsTypeTwoLevels) {
+TEST(TypecheckV2StructTest, ImportStructAsTypeTwoLevels) {
   constexpr std::string_view kFirst = R"(
 pub struct S { x: u5 }
 )";
@@ -839,7 +871,7 @@ fn main() -> u5 {
                                      HasNodeWithType("s", "S { x: uN[5] }")))));
 }
 
-TEST(TypecheckV2Test, ImportStructAsType) {
+TEST(TypecheckV2StructTest, ImportStructAsType) {
   constexpr std::string_view kImported = R"(
 pub struct S { x: u5 }
 
@@ -864,7 +896,7 @@ fn main() -> u5 {
                                      HasNodeWithType("s", "S { x: uN[5] }")))));
 }
 
-TEST(TypecheckV2Test, ImportNonPublicStructUseStaticFunction) {
+TEST(TypecheckV2StructTest, ImportNonPublicStructUseStaticFunction) {
   constexpr std::string_view kImported = R"(
 struct S {}
 
@@ -885,7 +917,7 @@ fn main() -> u5 {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
 }
 
-TEST(TypecheckV2Test, PassReassignedStructFieldFromParametricFunction) {
+TEST(TypecheckV2StructTest, PassReassignedStructFieldFromParametricFunction) {
   EXPECT_THAT(
       R"(
 struct S { a: u32 }
@@ -904,7 +936,7 @@ const X = f<1>(S { a: 1 });
       TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, ParametricDefaultClog2InStruct) {
+TEST(TypecheckV2StructTest, ParametricDefaultClog2InStruct) {
   constexpr std::string_view kImported = R"(
 pub fn clog2<N: u32>(x: bits[N]) -> bits[N] {
     if x >= bits[N]:1 { (N as bits[N]) - clz(x - bits[N]:1) } else { bits[N]:0 }
@@ -940,7 +972,7 @@ fn test() -> Foo<5> {
                           "Foo { a: uN[30], b: uN[5] }")))));
 }
 
-TEST(TypecheckV2Test, CallFunctionOnStructMember) {
+TEST(TypecheckV2StructTest, CallFunctionOnStructMember) {
   EXPECT_THAT(
       R"(
 struct G { }
@@ -963,7 +995,8 @@ impl F {
       TypecheckSucceeds(HasNodeWithType("y", "(F { g: G {} }) -> uN[32]")));
 }
 
-TEST(TypecheckV2Test, InvocationInfersParametricForStructMemberInvocation) {
+TEST(TypecheckV2StructTest,
+     InvocationInfersParametricForStructMemberInvocation) {
   EXPECT_THAT(R"(
 pub struct MyStruct<SIZE: u32> { x: bits[SIZE] }
 
@@ -988,7 +1021,7 @@ fn test() {
               TypecheckSucceeds(HasNodeWithType("o", "MyStruct { x: uN[8] }")));
 }
 
-TEST(TypecheckV2Test, InvocationAsStructParameter) {
+TEST(TypecheckV2StructTest, InvocationAsStructParameter) {
   EXPECT_THAT(R"(
 struct MyStruct<A: u32> {
     x: uN[A],
@@ -1008,7 +1041,7 @@ fn test() -> S {
               TypecheckSucceeds(HasNodeWithType("test", "() -> MyStruct")));
 }
 
-TEST(TypecheckV2Test, ImportedTypeDefinedUsingStructMember) {
+TEST(TypecheckV2StructTest, ImportedTypeDefinedUsingStructMember) {
   constexpr std::string_view kImported = R"(
 pub struct Params {
     dim: u32,
@@ -1034,7 +1067,7 @@ type x = imported::S;
                   HasNodeWithType("x", "typeof(S { arr: uN[32][4] })"))));
 }
 
-TEST(TypecheckV2Test, ImportConstantStruct) {
+TEST(TypecheckV2StructTest, ImportConstantStruct) {
   constexpr std::string_view kImported = R"(
 pub struct X { x: u32 }
 
@@ -1057,7 +1090,8 @@ fn test() -> imported::Word {
       IsOkAndHolds(HasTypeInfo(HasNodeWithType("test", "() -> uN[30]"))));
 }
 
-TEST(TypecheckV2Test, SplatImplicitParametricStructWithFunctionReturnValue) {
+TEST(TypecheckV2StructTest,
+     SplatImplicitParametricStructWithFunctionReturnValue) {
   EXPECT_THAT(
       R"(
 struct S<A: u32, B: u32> { field: uN[A], field2: uN[B] }
@@ -1071,7 +1105,7 @@ const Y = S { field: 3, ..X };
           HasNodeWithType("Y", "S { field: uN[16], field2: uN[32] }")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ParametricStructAsFunctionArgumentWithImplicitParametric) {
   EXPECT_THAT(
       R"(
@@ -1084,7 +1118,7 @@ const X = foo(S { x: u24:5 });
       TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ParametricStructAsFunctionArgumentWithImplicitParametricMismatchFails) {
   EXPECT_THAT(
       R"(
@@ -1098,7 +1132,7 @@ const X = foo(S { x: u25:5 });
                                "`S`: u32:24 vs. u32:25")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ParametricStructAsFunctionReturnValueWithImplicitMismatchFails) {
   EXPECT_THAT(
       R"(
@@ -1111,7 +1145,7 @@ const X = foo();
       TypecheckFails(HasSizeMismatch("u25", "uN[24]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ParametricStructAsParametricFunctionArgumentWithImplicitParametric) {
   EXPECT_THAT(
       R"(
@@ -1124,7 +1158,7 @@ const X = foo(S { x: u24:5 });
       TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ParametricFunctionWithImplicitParametricStructReturnExpr) {
   EXPECT_THAT(
       R"(
@@ -1137,7 +1171,7 @@ const X = foo(u24:5);
       TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
 }
 
-TEST(TypecheckV2Test, ZeroMacroImplConstError) {
+TEST(TypecheckV2StructTest, ZeroMacroImplConstError) {
   EXPECT_THAT(R"(
 struct S{}
 impl S { const X = u32:10; }
@@ -1146,7 +1180,7 @@ const Y = zero!<S::X>();
               TypecheckFails(HasSubstr("in `zero!<S::X>()`")));
 }
 
-TEST(TypecheckV2Test, AllOnesMacroImplConstError) {
+TEST(TypecheckV2StructTest, AllOnesMacroImplConstError) {
   EXPECT_THAT(R"(
 struct S{}
 impl S { const X = u32:10; }
@@ -1155,7 +1189,7 @@ const Y = all_ones!<S::X>();
               TypecheckFails(HasSubstr("in `all_ones!<S::X>()`")));
 }
 
-TEST(TypecheckV2Test, StaticConstantOnImpl) {
+TEST(TypecheckV2StructTest, StaticConstantOnImpl) {
   EXPECT_THAT(R"(
 struct Point {}
 impl Point {
@@ -1166,7 +1200,7 @@ const X = Point::NUM_DIMS;
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, MissingFunctionOnImplFails) {
+TEST(TypecheckV2StructTest, MissingFunctionOnImplFails) {
   EXPECT_THAT(
       R"(
 struct Point {}
@@ -1179,7 +1213,7 @@ const X = Point::num_dims();
           "Name 'num_dims' is not defined by the impl for struct 'Point'")));
 }
 
-TEST(TypecheckV2Test, ImplWithMissingConstantFails) {
+TEST(TypecheckV2StructTest, ImplWithMissingConstantFails) {
   EXPECT_THAT(
       R"(
 struct Point { x: u32, y: u32 }
@@ -1196,7 +1230,7 @@ fn point_dims() -> u32 {
           "Name 'DIMENSIONS' is not defined by the impl for struct 'Point'")));
 }
 
-TEST(TypecheckV2Test, MissingImplOnStructFails) {
+TEST(TypecheckV2StructTest, MissingImplOnStructFails) {
   EXPECT_THAT(R"(
 struct Point {}
 const X = Point::num_dims();
@@ -1205,7 +1239,7 @@ const X = Point::num_dims();
                   HasSubstr("Struct 'Point' has no impl defining 'num_dims'")));
 }
 
-TEST(TypecheckV2Test, ImplWithConstCalledAsFuncFails) {
+TEST(TypecheckV2StructTest, ImplWithConstCalledAsFuncFails) {
   EXPECT_THAT(R"(
 struct Point {}
 impl Point {
@@ -1217,7 +1251,7 @@ const X = Point::num_dims();
                   "Invocation callee `Point::num_dims` is not a function")));
 }
 
-TEST(TypecheckV2Test, StaticImplFunction) {
+TEST(TypecheckV2StructTest, StaticImplFunction) {
   EXPECT_THAT(R"(
 struct Point {}
 impl Point {
@@ -1228,7 +1262,7 @@ const X = Point::num_dims();
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, StaticImplFunctionWithWrongArgumentTypeFails) {
+TEST(TypecheckV2StructTest, StaticImplFunctionWithWrongArgumentTypeFails) {
   EXPECT_THAT(R"(
 struct Point {}
 impl Point {
@@ -1239,7 +1273,7 @@ const X = Point::foo(u24:5);
               TypecheckFails(HasSizeMismatch("u24", "u32")));
 }
 
-TEST(TypecheckV2Test, StaticImplFunctionCallWithMissingArgumentFails) {
+TEST(TypecheckV2StructTest, StaticImplFunctionCallWithMissingArgumentFails) {
   EXPECT_THAT(R"(
 struct Point {}
 impl Point {
@@ -1250,7 +1284,7 @@ const X = Point::foo();
               TypecheckFails(HasSubstr("Expected 1 argument(s) but got 0")));
 }
 
-TEST(TypecheckV2Test, StaticImplFunctionCallWithExtraArgumentFails) {
+TEST(TypecheckV2StructTest, StaticImplFunctionCallWithExtraArgumentFails) {
   EXPECT_THAT(R"(
 struct Point {}
 impl Point {
@@ -1261,7 +1295,7 @@ const X = Point::foo(u32:1, u32:2);
               TypecheckFails(HasSubstr("Expected 1 argument(s) but got 2")));
 }
 
-TEST(TypecheckV2Test, StaticImplFunctioUsingConst) {
+TEST(TypecheckV2StructTest, StaticImplFunctioUsingConst) {
   EXPECT_THAT(R"(
 struct Point {}
 impl Point {
@@ -1277,7 +1311,7 @@ const X = uN[Point::num_dims()]:0;
               TypecheckSucceeds(HasNodeWithType("X", "uN[2]")));
 }
 
-TEST(TypecheckV2Test, StaticConstUsingImplFunction) {
+TEST(TypecheckV2StructTest, StaticConstUsingImplFunction) {
   EXPECT_THAT(R"(
 struct Point {}
 impl Point {
@@ -1290,7 +1324,7 @@ const X = uN[Point::DIMS]:0;
               TypecheckSucceeds(HasNodeWithType("X", "uN[2]")));
 }
 
-TEST(TypecheckV2Test, ImplConstantUsedForParametricFunctionInference) {
+TEST(TypecheckV2StructTest, ImplConstantUsedForParametricFunctionInference) {
   EXPECT_THAT(R"(
 struct Foo {}
 impl Foo {
@@ -1302,7 +1336,7 @@ const Y = f(Foo::X);
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, ImplMethodCallsStaticImplFunction) {
+TEST(TypecheckV2StructTest, ImplMethodCallsStaticImplFunction) {
   EXPECT_THAT(
       R"(
 struct F<N: u32> { x: uN[N] }
@@ -1326,7 +1360,7 @@ const G_ST = F_ST.diff_x();
                               HasNodeWithType("G_ST", "F { x: uN[5] }"))));
 }
 
-TEST(TypecheckV2Test, ImplFunctionUsingStructMembers) {
+TEST(TypecheckV2StructTest, ImplFunctionUsingStructMembers) {
   EXPECT_THAT(R"(
 struct Point { x: u32, y: u32 }
 
@@ -1344,7 +1378,7 @@ const Z = uN[Y]:0;
                                       HasNodeWithType("Z", "uN[8]"))));
 }
 
-TEST(TypecheckV2Test, ImplFunctionReturnsSelf) {
+TEST(TypecheckV2StructTest, ImplFunctionReturnsSelf) {
   EXPECT_THAT(R"(
 struct Point { x: u32, y: u32 }
 
@@ -1360,7 +1394,7 @@ const X = uN[P.x]:0;
                         HasNodeWithType("X", "uN[1]"))));
 }
 
-TEST(TypecheckV2Test, ImplsForDifferentStructs) {
+TEST(TypecheckV2StructTest, ImplsForDifferentStructs) {
   EXPECT_THAT(R"(
 struct Point { x: u32, y: u32 }
 
@@ -1389,7 +1423,7 @@ const Z = uN[A + H]:0;
                                       HasNodeWithType("Z", "uN[10]"))));
 }
 
-TEST(TypecheckV2Test, ImplFunctionUsingStructMembersIndirect) {
+TEST(TypecheckV2StructTest, ImplFunctionUsingStructMembersIndirect) {
   EXPECT_THAT(R"(
 struct Point { x: u32, y: u32 }
 
@@ -1407,7 +1441,7 @@ const X = uN[W.area()]:0;
               TypecheckSucceeds(HasNodeWithType("X", "uN[8]")));
 }
 
-TEST(TypecheckV2Test, InstanceMethodCalledStaticallyWithNoParamsFails) {
+TEST(TypecheckV2StructTest, InstanceMethodCalledStaticallyWithNoParamsFails) {
   EXPECT_THAT(R"(
 struct Point { x: u32, y: u32 }
 
@@ -1422,7 +1456,7 @@ const P = Point::area();
               TypecheckFails(HasSubstr("Expected 1 argument(s) but got 0")));
 }
 
-TEST(TypecheckV2Test, ImplFunctionCalledOnSelf) {
+TEST(TypecheckV2StructTest, ImplFunctionCalledOnSelf) {
   EXPECT_THAT(R"(
 struct Rect { width: u32, height: u32 }
 
@@ -1442,7 +1476,7 @@ const Z = uN[R.area()]:0;
               TypecheckSucceeds(HasNodeWithType("Z", "uN[48]")));
 }
 
-TEST(TypecheckV2Test, ParametricInstanceMethodCallingNonParametricOne) {
+TEST(TypecheckV2StructTest, ParametricInstanceMethodCallingNonParametricOne) {
   XLS_EXPECT_OK(TypecheckV2(
       R"(
 struct T {
@@ -1468,7 +1502,7 @@ fn main() -> u32 {
 )"));
 }
 
-TEST(TypecheckV2Test, ParametricInstanceMethodWithParametricSignedness) {
+TEST(TypecheckV2StructTest, ParametricInstanceMethodWithParametricSignedness) {
   EXPECT_THAT(
       R"(
 struct S {}
@@ -1484,7 +1518,7 @@ const Y = S{}.foo(s32:200);
                               HasNodeWithType("Y", "sN[32]"))));
 }
 
-TEST(TypecheckV2Test, ParametricInstanceMethodOfParametricStruct) {
+TEST(TypecheckV2StructTest, ParametricInstanceMethodOfParametricStruct) {
   EXPECT_THAT(
       R"(
 struct S<M: u32> {}
@@ -1501,7 +1535,7 @@ const_assert!(X == 7);
                               HasNodeWithType("Y", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2StructTest,
      ParametricInstanceMethodOfParametricStructDuplicatesParametric) {
   EXPECT_THAT(
       R"(
@@ -1518,7 +1552,7 @@ const Y = S<5>{}.add<6>();
           "Parametric binding `M` shadows binding from struct definition")));
 }
 
-TEST(TypecheckV2Test, ParametricInstanceMethodUsingParametricConstant) {
+TEST(TypecheckV2StructTest, ParametricInstanceMethodUsingParametricConstant) {
   EXPECT_THAT(
       R"(
 struct S<M: u32> {}
@@ -1535,7 +1569,8 @@ const Y = S<5>{}.add<6>();
                               HasNodeWithType("Y", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, ParametricInstanceMethodUsingStaticParametricAsDefault) {
+TEST(TypecheckV2StructTest,
+     ParametricInstanceMethodUsingStaticParametricAsDefault) {
   EXPECT_THAT(
       R"(
 struct S<M: u32> {}
@@ -1551,7 +1586,7 @@ const Y = S<5>{}.add<6>();
                               HasNodeWithType("Y", "uN[11]"))));
 }
 
-TEST(TypecheckV2Test, StackedParametricInstanceMethodCalls) {
+TEST(TypecheckV2StructTest, StackedParametricInstanceMethodCalls) {
   EXPECT_THAT(
       R"(
 struct Data<M: u32> {
@@ -1573,7 +1608,7 @@ const Y = Data{a: u7:120}.foo(u9:256);
                               HasNodeWithType("Y", "(uN[7], uN[9], uN[16])"))));
 }
 
-TEST(TypecheckV2Test, ImportStructImpl) {
+TEST(TypecheckV2StructTest, ImportStructImpl) {
   constexpr std::string_view kImported = R"(
 pub struct S { x: u5 }
 
@@ -1596,7 +1631,7 @@ fn main() -> u5 {
                                      HasNodeWithType("s", "S { x: uN[5] }")))));
 }
 
-TEST(TypecheckV2Test, ImportImplUseStaticFunction) {
+TEST(TypecheckV2StructTest, ImportImplUseStaticFunction) {
   constexpr std::string_view kImported = R"(
 pub struct S {}
 
@@ -1617,7 +1652,7 @@ fn main() -> u5 {
       IsOkAndHolds(HasTypeInfo(HasNodeWithType("main", "() -> uN[5]"))));
 }
 
-TEST(TypecheckV2Test, ImportedMissingStaticFunctionOnImpl) {
+TEST(TypecheckV2StructTest, ImportedMissingStaticFunctionOnImpl) {
   constexpr std::string_view kImported = R"(
 pub struct S {}
 
@@ -1636,7 +1671,7 @@ fn main() -> u5 {
                        HasSubstr("is not defined by the impl")));
 }
 
-TEST(TypecheckV2Test, ImportedStaticFunctionOnStructWithoutImpl) {
+TEST(TypecheckV2StructTest, ImportedStaticFunctionOnStructWithoutImpl) {
   constexpr std::string_view kImported = R"(
 pub struct S {}
 )";
@@ -1653,7 +1688,7 @@ fn main() -> u5 {
                        HasSubstr("no impl defining")));
 }
 
-TEST(TypecheckV2Test, ImportImplUseStaticConstantTypeMismatch) {
+TEST(TypecheckV2StructTest, ImportImplUseStaticConstantTypeMismatch) {
   constexpr std::string_view kImported = R"(
 pub struct S {}
 
@@ -1674,7 +1709,7 @@ fn main() -> u32 {
                        HasTypeMismatch("u5", "u32")));
 }
 
-TEST(TypecheckV2Test, ImportedImplParametric) {
+TEST(TypecheckV2StructTest, ImportedImplParametric) {
   constexpr std::string_view kImported = R"(
 pub struct Empty<X: u32> { }
 
@@ -1698,7 +1733,7 @@ fn main() -> uN[6] {
                         HasNodeWithType("uN[MyEmpty::IMPORTED]:0", "uN[6]")))));
 }
 
-TEST(TypecheckV2Test, ImportedImplTypeAlias) {
+TEST(TypecheckV2StructTest, ImportedImplTypeAlias) {
   constexpr std::string_view kImported = R"(
 pub struct Empty<X: u32> { }
 
@@ -1722,7 +1757,7 @@ fn main() -> uN[10] {
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("var", "uN[10]"))));
 }
 
-TEST(TypecheckV2Test, ImportedImplTypeAliasWithFunction) {
+TEST(TypecheckV2StructTest, ImportedImplTypeAliasWithFunction) {
   constexpr std::string_view kImported = R"(
 pub struct Empty { }
 
@@ -1748,7 +1783,7 @@ fn main() -> uN[5] {
                   HasNodeWithType("MyEmpty::some_val()", "uN[5]"))));
 }
 
-TEST(TypecheckV2Test, ImportedImplConstant) {
+TEST(TypecheckV2StructTest, ImportedImplConstant) {
   constexpr std::string_view kImported = R"(
 pub struct X<EXP_SZ: u32, FRACTION_SZ: u32> { }
 
@@ -1776,7 +1811,7 @@ const_assert!(PADDED_F32_W == u32:37);
                   HasNodeWithType("MXU_RESULT_F32_PADDING", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, ImportedImplConstInType) {
+TEST(TypecheckV2StructTest, ImportedImplConstInType) {
   constexpr std::string_view kImported = R"(
 pub struct MyStruct<SZ: u32> {
     val: bits[SZ],
@@ -1815,7 +1850,7 @@ const S3_FORMAT_SPEC = FloatFormatSpec<S3::SIZE> {
                                   "min_normal: MyStruct { val: uN[3] } }"))));
 }
 
-TEST(TypecheckV2Test, ImplFnUsesStructParametricInInvocation) {
+TEST(TypecheckV2StructTest, ImplFnUsesStructParametricInInvocation) {
   EXPECT_THAT(R"(
 fn helper<N: u32>() -> uN[N] {
   uN[N]:1
@@ -1840,7 +1875,7 @@ const_assert!(ARR[1] == u16:1);
               TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
 }
 
-TEST(TypecheckV2Test, InstanceMethodNotDefined) {
+TEST(TypecheckV2StructTest, InstanceMethodNotDefined) {
   EXPECT_THAT(
       R"(
 struct Point { x: u32, y: u32 }
@@ -1854,7 +1889,7 @@ const Z = uN[P.area()]:0;
           "Name 'area' is not defined by the impl for struct 'Point'")));
 }
 
-TEST(TypecheckV2Test, ImplFunctionUsingStructMembersAndArg) {
+TEST(TypecheckV2StructTest, ImplFunctionUsingStructMembersAndArg) {
   EXPECT_THAT(R"(
 struct Point { x: u32, y: u32 }
 
@@ -1871,7 +1906,7 @@ const Z = uN[Y]:0;
               TypecheckSucceeds(HasNodeWithType("Z", "uN[16]")));
 }
 
-TEST(TypecheckV2Test, ImplFunctionUsingStructMembersExplicitSelfType) {
+TEST(TypecheckV2StructTest, ImplFunctionUsingStructMembersExplicitSelfType) {
   EXPECT_THAT(R"(
 struct Point { x: u32, y: u32 }
 
@@ -1888,7 +1923,7 @@ const Z = uN[A]:0;
               TypecheckSucceeds(HasNodeWithType("Z", "uN[8]")));
 }
 
-TEST(TypecheckV2Test, ParametricImplConstant) {
+TEST(TypecheckV2StructTest, ParametricImplConstant) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
 
@@ -1903,7 +1938,7 @@ const Y = uN[S<2>::N_VALUE]:0;
                                       HasNodeWithType("Y", "uN[2]"))));
 }
 
-TEST(TypecheckV2Test, ImplConstantForwardParametricToFunction) {
+TEST(TypecheckV2StructTest, ImplConstantForwardParametricToFunction) {
   EXPECT_THAT(R"(
 fn f<A: u32>(a: uN[A]) -> uN[A] { a }
 
@@ -1925,7 +1960,7 @@ const Y = S2::F_VALUE;
                                       HasNodeWithType("Y", "uN[2]"))));
 }
 
-TEST(TypecheckV2Test, SumOfImplConstantsFromDifferentParameterizations) {
+TEST(TypecheckV2StructTest, SumOfImplConstantsFromDifferentParameterizations) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
 
@@ -1938,7 +1973,7 @@ const X = uN[S<2>::N_VALUE + S<1>::N_VALUE]:0;
               TypecheckSucceeds(HasNodeWithType("X", "uN[3]")));
 }
 
-TEST(TypecheckV2Test, ParametricConstantUsingConstantFromSameImpl) {
+TEST(TypecheckV2StructTest, ParametricConstantUsingConstantFromSameImpl) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
 
@@ -1956,7 +1991,7 @@ const Y = uN[S<10>::N_PLUS_2_VALUE]:0;
                                       HasNodeWithType("Y", "uN[12]"))));
 }
 
-TEST(TypecheckV2Test, StaticParametricImplFnUsingConstant) {
+TEST(TypecheckV2StructTest, StaticParametricImplFnUsingConstant) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
 
@@ -1975,7 +2010,7 @@ const Y = S<4>::foo(10);
                                       HasNodeWithType("Y", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, StaticImplFnUsingParametricForInterface) {
+TEST(TypecheckV2StructTest, StaticImplFnUsingParametricForInterface) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
 
@@ -1990,7 +2025,7 @@ const Y = S<32>::foo(11);
                                       HasNodeWithType("Y", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, ParametricConstantUsingConstantFromOtherImpl) {
+TEST(TypecheckV2StructTest, ParametricConstantUsingConstantFromOtherImpl) {
   EXPECT_THAT(R"(
 // Note that the entities in here are sensitive to positioning due to
 // https://github.com/google/xls/issues/1911
@@ -2016,7 +2051,7 @@ const Y = uN[T<10>::N_PLUS_2_VALUE]:0;
                                       HasNodeWithType("Y", "uN[12]"))));
 }
 
-TEST(TypecheckV2Test, ParametricBasedImplConstantType) {
+TEST(TypecheckV2StructTest, ParametricBasedImplConstantType) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
 
@@ -2031,7 +2066,7 @@ const C3 = S<3>::C;
                                       HasNodeWithType("C3", "uN[3]"))));
 }
 
-TEST(TypecheckV2Test, ImplConstantUsingParametricDefault) {
+TEST(TypecheckV2StructTest, ImplConstantUsingParametricDefault) {
   EXPECT_THAT(R"(
 struct S<A: u32, B: u32 = {A * 2}> {}
 
@@ -2046,7 +2081,7 @@ const Y = uN[S<3>::C]:0;
                                       HasNodeWithType("Y", "uN[6]"))));
 }
 
-TEST(TypecheckV2Test, ParametricImplConstantUsedWithMissingParametrics) {
+TEST(TypecheckV2StructTest, ParametricImplConstantUsedWithMissingParametrics) {
   EXPECT_THAT(
       R"(
 struct S<A: u32, B: u32 = {A * 2}> {}
@@ -2060,7 +2095,7 @@ const X = S::C;
       TypecheckFails(HasSubstr("Use of `S` with missing parametric(s): A")));
 }
 
-TEST(TypecheckV2Test, ParametricImplConstantUsedWithTooManyParametrics) {
+TEST(TypecheckV2StructTest, ParametricImplConstantUsedWithTooManyParametrics) {
   EXPECT_THAT(
       R"(
 struct S<A: u32> {}
@@ -2075,7 +2110,7 @@ const X = S<1, 2>::C;
           HasSubstr("Too many parametric values supplied; limit: 1 given: 2")));
 }
 
-TEST(TypecheckV2Test, InstanceMethodReturningStaticParametricType) {
+TEST(TypecheckV2StructTest, InstanceMethodReturningStaticParametricType) {
   EXPECT_THAT(
       R"(
 struct S<A: u32> {}
@@ -2091,7 +2126,7 @@ const Y = S<32>{}.foo();
                               HasNodeWithType("Y", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, InstanceMethodReturningParametricConstType) {
+TEST(TypecheckV2StructTest, InstanceMethodReturningParametricConstType) {
   EXPECT_THAT(
       R"(
 struct S<A: u32> {}
@@ -2108,7 +2143,7 @@ const Y = S<32>{}.foo();
                               HasNodeWithType("Y", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, InstanceMethodTakingStaticParametricType) {
+TEST(TypecheckV2StructTest, InstanceMethodTakingStaticParametricType) {
   EXPECT_THAT(
       R"(
 struct S<A: u32> {}
@@ -2127,7 +2162,8 @@ const_assert!(Y == 201);
           HasNodeWithType("100", "uN[16]"), HasNodeWithType("200", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, InstanceMethodTakingStaticParametricTypeAndUsingSelf) {
+TEST(TypecheckV2StructTest,
+     InstanceMethodTakingStaticParametricTypeAndUsingSelf) {
   EXPECT_THAT(
       R"(
 struct S<A: u32> {
@@ -2148,7 +2184,7 @@ const_assert!(Y == 202);
           HasNodeWithType("100", "uN[16]"), HasNodeWithType("200", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, InstanceMethodTakingStaticConstType) {
+TEST(TypecheckV2StructTest, InstanceMethodTakingStaticConstType) {
   EXPECT_THAT(
       R"(
 struct S<A: u32> {}
@@ -2167,7 +2203,7 @@ const Y = S<32>{}.foo(200);
           HasNodeWithType("100", "uN[17]"), HasNodeWithType("200", "uN[33]"))));
 }
 
-TEST(TypecheckV2Test, ParametricInstanceMethodTakingStaticConstType) {
+TEST(TypecheckV2StructTest, ParametricInstanceMethodTakingStaticConstType) {
   EXPECT_THAT(
       R"(
 struct S<A: u32> {}
@@ -2186,7 +2222,7 @@ const_assert!(X == 101);
           HasNodeWithType("100", "uN[17]"), HasNodeWithType("200", "uN[33]"))));
 }
 
-TEST(TypecheckV2Test, ParametricInstanceMethod) {
+TEST(TypecheckV2StructTest, ParametricInstanceMethod) {
   EXPECT_THAT(
       R"(
 struct S {}
@@ -2202,7 +2238,7 @@ const Y = S{}.foo(u32:200);
                               HasNodeWithType("Y", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, ParametricInstanceMethodUsingSelf) {
+TEST(TypecheckV2StructTest, ParametricInstanceMethodUsingSelf) {
   EXPECT_THAT(
       R"(
 struct S {

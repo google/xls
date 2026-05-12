@@ -177,6 +177,7 @@ cc_library(
         "//xls/ir:foreign_function_data_cc_proto",
         "//xls/ir:format_strings",
         "//xls/ir:name_uniquer",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/cleanup",

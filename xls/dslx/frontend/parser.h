@@ -306,14 +306,18 @@ class Parser : public TokenParser {
                                                    const Token& tok);
 
   // allow_generic_type indicates `T: type` is allowed.
+  // impl_declaration_semantics indicates that, in an annotation like `Foo<N>`,
+  //    the `N` refers to the formal binding in `Foo` rather than a locally
+  //    visible actual argument for that.
   absl::StatusOr<TypeAnnotation*> ParseTypeAnnotation(
       Bindings& bindings, std::optional<Token> first = std::nullopt,
-      bool allow_generic_type = false);
+      bool allow_generic_type = false, bool impl_declaration_semantics = false);
 
   // Parses the parametrics and dims after a `TypeRef` that the caller has
   // already parsed, producing a `TypeAnnotation` for the whole thing.
   absl::StatusOr<TypeAnnotation*> ParseTypeRefParametricsAndDims(
-      Bindings& bindings, const Span& span, TypeRefOrAnnotation type_ref);
+      Bindings& bindings, const Span& span, TypeRefOrAnnotation type_ref,
+      bool impl_declaration_semantics = false);
 
   absl::StatusOr<NameRef*> ParseNameRef(Bindings& bindings,
                                         const Token* tok = nullptr);

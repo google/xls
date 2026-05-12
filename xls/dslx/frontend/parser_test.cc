@@ -333,6 +333,91 @@ impl foo {
 })");
 }
 
+TEST_F(ParserTest, ParametricStructsWithSameBindingName) {
+  constexpr std::string_view kProgram = R"(
+struct S<M: u32> {}
+struct T<M: u32> {}
+
+impl S<M> {}
+impl T<M> {}
+)";
+
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           parser.ParseModule());
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * s_struct,
+                           module->GetMemberOrError<StructDef>("S"));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * t_struct,
+                           module->GetMemberOrError<StructDef>("T"));
+  EXPECT_NE(
+      absl::down_cast<TypeRefTypeAnnotation*>((*s_struct->impl())->struct_ref())
+          ->parametrics()[0],
+      absl::down_cast<TypeRefTypeAnnotation*>((*t_struct->impl())->struct_ref())
+          ->parametrics()[0]);
+}
+
+TEST_F(ParserTest, ParametricImplWithInterveningConstant) {
+  constexpr std::string_view kProgram = R"(
+struct S<M: u32> {}
+const M = u32:5;
+
+// M here refers to the formal parameter in S and not the constant M.
+impl S<M> {}
+)";
+
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           parser.ParseModule());
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * s_struct,
+                           module->GetMemberOrError<StructDef>("S"));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * const_m,
+                           module->GetMemberOrError<ConstantDef>("M"));
+  EXPECT_NE(absl::down_cast<NameRef*>(
+                ToAstNode(absl::down_cast<TypeRefTypeAnnotation*>(
+                              (*s_struct->impl())->struct_ref())
+                              ->parametrics()[0]))
+                ->name_def(),
+            const_m->name_def());
+}
+
+TEST_F(ParserTest, ParametricProcDef) {
+  RoundTrip(R"(proc Loopback<N: u32> {
+    c_in: chan<uN[N]> in,
+    c_out: chan<uN[N]> out,
+}
+impl Loopback<N> {
+    fn new(c_in: chan<uN[N]> in, c_out: chan<uN[N]> out) -> Self {
+        Loopback { c_in: c_in, c_out: c_out }
+    }
+    fn next(self) {
+        let (t, val) = recv(join(), self.c_in);
+        send(t, self.c_out, val);
+    }
+})");
+}
+
+TEST_F(ParserTest, GenericProcDef) {
+  RoundTrip(R"(#![feature(generics)]
+
+proc Loopback<T: type> {
+    c_in: chan<T> in,
+    c_out: chan<T> out,
+}
+impl Loopback<T> {
+    fn new(c_in: chan<T> in, c_out: chan<T> out) -> Self {
+        Loopback { c_in: c_in, c_out: c_out }
+    }
+    fn next(self) {
+        let (t, val) = recv(join(), self.c_in);
+        send(t, self.c_out, val);
+    }
+})");
+}
+
 TEST_F(ParserTest, EmptyTrait) {
   RoundTrip(R"(pub trait Foo {
 })",
@@ -2698,7 +2783,7 @@ struct Foo {
 fn f<T: type>(a: Wrapper<Wrapper<Wrapper<T>>>) -> Wrapper<Wrapper<Wrapper<T>>> {
     a
 }
-fn f2(a: Wrapper<Wrapper<Wrapper<T>>>) -> u32 {
+fn f2<T: type>(a: Wrapper<Wrapper<Wrapper<T>>>) -> u32 {
     1
 }
 const C = Wrapper<Wrapper<u32>> { value: zero!<Wrapper<u32>>() };

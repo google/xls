@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/base/nullability.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
@@ -252,6 +253,14 @@ ColonRef::Subject ConvertToTvtaIfGeneric(ColonRef::Subject subject) {
   }
   return name_ref->owner()->Make<TypeVariableTypeAnnotation>(
       name_ref, /*internal=*/false);
+}
+
+void LoadParametricBindings(const StructDefBase& struct_or_proc,
+                            Bindings& bindings) {
+  for (const ParametricBinding* binding :
+       struct_or_proc.parametric_bindings()) {
+    bindings.Add(binding->identifier(), binding->name_def());
+  }
 }
 
 }  // namespace
@@ -1451,7 +1460,8 @@ absl::StatusOr<TypeRefOrAnnotation> Parser::ParseTypeRef(Bindings& bindings,
 }
 
 absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
-    Bindings& bindings, std::optional<Token> first, bool allow_generic_type) {
+    Bindings& bindings, std::optional<Token> first, bool allow_generic_type,
+    bool impl_declaration_semantics) {
   XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth, BumpExpressionDepth());
 
   VLOG(5) << "ParseTypeAnnotation @ " << GetPos();
@@ -1558,16 +1568,29 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   // reference.
   XLS_ASSIGN_OR_RETURN(TypeRefOrAnnotation type_ref,
                        ParseTypeRef(bindings, tok));
-  return ParseTypeRefParametricsAndDims(bindings, tok.span(), type_ref);
+  return ParseTypeRefParametricsAndDims(bindings, tok.span(), type_ref,
+                                        impl_declaration_semantics);
 }
 
 absl::StatusOr<TypeAnnotation*> Parser::ParseTypeRefParametricsAndDims(
-    Bindings& bindings, const Span& span, TypeRefOrAnnotation type_ref) {
+    Bindings& bindings, const Span& span, TypeRefOrAnnotation type_ref,
+    bool impl_declaration_semantics) {
   VLOG(5) << "ParseTypeRefParametricsAndDims @ " << GetPos();
   std::vector<ExprOrType> parametrics;
   XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
   if (peek_is_oangle) {
-    XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
+    Bindings effective_bindings(&bindings);
+    if (impl_declaration_semantics &&
+        std::holds_alternative<TypeRef*>(type_ref)) {
+      TypeDefinition def = std::get<TypeRef*>(type_ref)->type_definition();
+      if (std::holds_alternative<StructDef*>(def) ||
+          std::holds_alternative<ProcDef*>(def)) {
+        StructDefBase* struct_or_proc =
+            absl::down_cast<StructDefBase*>(ToAstNode(def));
+        LoadParametricBindings(*struct_or_proc, effective_bindings);
+      }
+    }
+    XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(effective_bindings));
   }
 
   std::vector<Expr*> dims;
@@ -4267,16 +4290,18 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(const Pos& start_pos,
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(bindings));
 
   XLS_ASSIGN_OR_RETURN(bool dropped_oangle, TryDropToken(TokenKind::kOAngle));
+  Bindings struct_bindings(&bindings);
+
   std::vector<ParametricBinding*> parametric_bindings;
   if (dropped_oangle) {
     XLS_ASSIGN_OR_RETURN(parametric_bindings,
-                         ParseParametricBindings(bindings));
+                         ParseParametricBindings(struct_bindings));
   }
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
 
   auto parse_struct_member =
-      [this, &bindings]() -> absl::StatusOr<StructMemberNode*> {
+      [this, &struct_bindings]() -> absl::StatusOr<StructMemberNode*> {
     Pos node_start_pos = GetPos();
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
     Pos colon_start_pos = GetPos();
@@ -4285,7 +4310,8 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(const Pos& start_pos,
                          "Expect type annotation on struct field"));
     Pos colon_end_pos = GetPos();
     Span colon_span(colon_start_pos, colon_end_pos);
-    XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
+    XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
+                         ParseTypeAnnotation(struct_bindings));
     Pos node_end_pos = GetPos();
     return module_->Make<StructMemberNode>(Span(node_start_pos, node_end_pos),
                                            name_def, colon_span, type);
@@ -4312,8 +4338,11 @@ absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
 
   Bindings impl_bindings(&bindings);
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kImpl));
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
-                       ParseTypeAnnotation(impl_bindings));
+  XLS_ASSIGN_OR_RETURN(
+      TypeAnnotation * type,
+      ParseTypeAnnotation(impl_bindings, /*first=*/std::nullopt,
+                          /*allow_generic_type=*/false,
+                          /*impl_declaration_semantics=*/true));
   impl_bindings.AddStructAsSelf(type);
 
   absl::Status wrong_type_error = ParseErrorStatus(
@@ -4333,6 +4362,7 @@ absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
         type->span(), "'impl' can only be defined once for a given 'struct'");
   }
 
+  LoadParametricBindings(**struct_def, impl_bindings);
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
                                        "Opening brace for impl."));
 
