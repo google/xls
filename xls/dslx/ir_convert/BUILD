@@ -321,6 +321,24 @@ cc_test(
 )
 
 cc_test(
+    name = "ir_converter_builtins_test",
+    srcs = ["ir_converter_builtins_test.cc"],
+    data = glob(["testdata/*.ir"]),
+    deps = [
+        ":convert_options",
+        ":ir_converter_test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "ir_converter_legacy_test",
     srcs = ["ir_converter_legacy_test.cc"],
     data = glob(["testdata/*.ir"]),
