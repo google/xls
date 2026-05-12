@@ -464,9 +464,16 @@ class InferenceTable {
     bool created_new;
   };
 
+  // For each parametric binding in the given struct def and env, add
+  // annotations to the table for the given context.
+  virtual absl::Status AddStructBindingAnnotationsForContext(
+      const StructDefBase* struct_def, ParametricEnv parametric_env,
+      const ParametricContext* context) = 0;
+
   // Get the cached parametric context, if it exists.
   virtual std::optional<StructContextResult> GetCachedParametricStructContext(
       const StructDefBase* struct_def, ParametricEnv parametric_env) = 0;
+
   // Defines a parametric struct context with the given parametric values, or
   // returns the existing one with the same values. The idea is to tie each
   // struct parameterization to a canonicalized env to avoid unnecessary

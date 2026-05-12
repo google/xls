@@ -1885,6 +1885,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             table_.GetParametricEnv(*callee_struct_context);
         values.merge(parent_env.ToMap());
       }
+      ParametricStructDetails details = std::get<ParametricStructDetails>(
+          (*callee_struct_context)->details());
+      XLS_RETURN_IF_ERROR(table_.AddStructBindingAnnotationsForContext(
+          details.struct_or_proc_def, ParametricEnv(std::move(values)),
+          invocation_context));
     }
 
     if (callee.IsInProc()) {

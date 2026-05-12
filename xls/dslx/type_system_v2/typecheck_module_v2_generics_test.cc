@@ -53,6 +53,55 @@ const_assert!(TWO == u24:0);
                                HasNodeWithType("TWO", "uN[24]")))));
 }
 
+TEST(TypecheckV2GenericsTest, StructImplUsesLocalType) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct lm<LambdaType: type> {}
+
+impl lm<LambdaType> {
+    fn call(self, i: u32) -> LambdaType {
+        zero!<LambdaType>()
+    }
+}
+
+fn main<T: type>() -> T[5] {
+    type LocalType = T;
+    map(u32:0..5, lm<LocalType>{}.call)
+}
+
+const ONE = main<u16>();
+const TWO = main<u24>();
+const_assert!(ONE == [u16:0, 0, 0, 0, 0]);
+const_assert!(TWO == [u24:0, 0, 0, 0, 0]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16][5]"),
+                              HasNodeWithType("TWO", "uN[24][5]"))));
+}
+
+TEST(TypecheckV2GenericsTest, StructImplUsesGenericTypeParametric) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct lm<LambdaType: type> {}
+
+impl lm<LambdaType> {
+    fn call(self) -> LambdaType {
+        zero!<LambdaType>()
+    }
+}
+
+const ONE = lm<u16>{}.call();
+const TWO = lm<u24>{}.call();
+const_assert!(ONE == 0);
+const_assert!(TWO == 0);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16]"),
+                              HasNodeWithType("TWO", "uN[24]"))));
+}
+
 TEST(TypecheckV2GenericsTest, TypeValueParametricMismatch) {
   EXPECT_THAT(
       R"(

@@ -464,6 +464,24 @@ class InferenceTableImpl : public InferenceTable {
     return std::nullopt;
   }
 
+  absl::Status AddStructBindingAnnotationsForContext(
+      const StructDefBase* struct_def, ParametricEnv parametric_env,
+      const ParametricContext* context) {
+    for (const ParametricBinding* binding : struct_def->parametric_bindings()) {
+      if (binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
+        std::optional<InterpValue> value =
+            parametric_env.GetValue(binding->name_def());
+        if (value.has_value()) {
+          XLS_ASSIGN_OR_RETURN(const TypeAnnotation* type,
+                               value->GetTypeReference());
+          XLS_RETURN_IF_ERROR(AddTypeAnnotationToVariableForParametricContext(
+              context, binding, type));
+        }
+      }
+    }
+    return absl::OkStatus();
+  }
+
   absl::StatusOr<StructContextResult> GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
       ParametricEnv parametric_env, const TypeAnnotation* self_type,
@@ -488,18 +506,8 @@ class InferenceTableImpl : public InferenceTable {
                                              MutableParametricContextData{});
     converted_parametric_envs_.emplace(result, parametric_env);
 
-    for (const ParametricBinding* binding : struct_def->parametric_bindings()) {
-      if (binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
-        std::optional<InterpValue> value =
-            parametric_env.GetValue(binding->name_def());
-        if (value.has_value()) {
-          XLS_ASSIGN_OR_RETURN(const TypeAnnotation* type,
-                               value->GetTypeReference());
-          XLS_RETURN_IF_ERROR(AddTypeAnnotationToVariableForParametricContext(
-              result, binding, type));
-        }
-      }
-    }
+    XLS_RETURN_IF_ERROR(AddStructBindingAnnotationsForContext(
+        struct_def, parametric_env, result));
     return StructContextResult{.context = result, .created_new = true};
   }
 
