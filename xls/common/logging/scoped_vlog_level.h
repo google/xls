@@ -15,22 +15,30 @@
 #ifndef XLS_COMMON_LOGGING_SCOPED_VLOG_LEVEL_H_
 #define XLS_COMMON_LOGGING_SCOPED_VLOG_LEVEL_H_
 
+#include <initializer_list>
 #include <string_view>
+#include <vector>
 
 #include "absl/log/globals.h"
+#include "absl/types/span.h"
 
 namespace xls {
 
 // Set the vlog level to the given level for a scope.
 class ScopedSetVlogLevel {
  public:
+  struct VlogLevel {
+    std::string_view pattern;
+    int level;
+  };
+  explicit ScopedSetVlogLevel(absl::Span<const VlogLevel> levels);
+  explicit ScopedSetVlogLevel(std::initializer_list<VlogLevel> levels);
   ScopedSetVlogLevel(std::string_view pattern, int level)
-      : pattern_(pattern), level_(absl::SetVLogLevel(pattern_, level)) {}
-  ~ScopedSetVlogLevel() { absl::SetVLogLevel(pattern_, level_); }
+      : ScopedSetVlogLevel({{pattern, level}}) {}
+  ~ScopedSetVlogLevel();
 
  private:
-  std::string_view pattern_;
-  int level_;
+  std::vector<VlogLevel> original_levels_;
 };
 
 }  // namespace xls

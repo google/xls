@@ -95,9 +95,30 @@ cc_binary(
 
 cc_library(
     name = "scoped_vlog_level",
+    srcs = ["scoped_vlog_level.cc"],
     hdrs = ["scoped_vlog_level.h"],
     visibility = ["//xls:xls_internal"],
-    deps = ["@com_google_absl//absl/log:globals"],
+    deps = [
+        "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "scoped_vlog_level_test",
+    srcs = [
+        "scoped_vlog_level_test.cc",
+        "scoped_vlog_level_test_helper.cc",
+        "scoped_vlog_level_test_helper.h",
+    ],
+    deps = [
+        ":collect_logs",
+        ":scoped_vlog_level",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:log_sink_registry",
+        "@googletest//:gtest",
+    ],
 )
 
 cc_library(
