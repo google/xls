@@ -614,6 +614,50 @@ static clang::ParsedAttrInfoRegistry::Add<XlsChannelStrictnessAttrInfo>
     hls_channel_strictness("hls_channel_strictness",
                            "Specifies the strictness of the defined channel.");
 
+struct XlsFifoDepthAttrInfo : public clang::ParsedAttrInfo {
+  XlsFifoDepthAttrInfo() {
+    // GNU-style __attribute__(("hls_fifo_depth")) and C++/C23-style
+    // [[hls_fifo_depth]] and [[xlscc::hls_fifo_depth]]
+    // supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_fifo_depth"},
+        {clang::ParsedAttr::AS_C23, "hls_fifo_depth"},
+        {clang::ParsedAttr::AS_CXX11, "hls_fifo_depth"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_fifo_depth"}};
+    Spellings = S;
+    NumArgs = 1;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    // This attribute appertains to channel declarations only.
+    if (!isa<clang::VarDecl>(D) && !isa<clang::FieldDecl>(D)) {
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "channel declarations";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    // Attach an annotate attribute to the Decl.
+    if (Attr.getNumArgs() != 1) {
+      S.Diag(Attr.getLoc(), clang::diag::err_attribute_wrong_number_arguments)
+          << Attr << 1;
+      return AttributeNotApplied;
+    }
+
+    clang::Expr* arg = Attr.getArgAsExpr(0);
+    D->addAttr(clang::AnnotateAttr::Create(S.Context, "hls_fifo_depth", &arg,
+                                           /*ArgsSize=*/1, Attr.getRange()));
+    return AttributeApplied;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsFifoDepthAttrInfo> hls_fifo_depth(
+    "hls_fifo_depth", "Specifies the FIFO depth of a channel.");
+
 struct XlsAsapAttrInfo : public clang::ParsedAttrInfo {
   XlsAsapAttrInfo() {
     // GNU-style __attribute__(("xlscc_asap")) and C++/C23-style

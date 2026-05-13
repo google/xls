@@ -6803,6 +6803,7 @@ TEST_P(TranslatorProcTest, LocalChannel) {
 
       #pragma hls_top
       void foo() {
+        [[hls_fifo_depth(4)]]
         static __xls_channel<int> internal;
 
         const int x = in.read();
@@ -6826,6 +6827,20 @@ TEST_P(TranslatorProcTest, LocalChannel) {
 
     ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
   }
+
+  absl::StatusOr<const xls::Channel*> internal_channel =
+      package_->GetChannel("__internal_foo_internal");
+  XLS_ASSERT_OK(internal_channel.status());
+  const xls::Channel* channel = internal_channel.value();
+  ASSERT_EQ(channel->kind(), xls::ChannelKind::kStreaming);
+  const xls::StreamingChannel* streaming_channel =
+      absl::down_cast<const xls::StreamingChannel*>(channel);
+  const std::optional<xls::ChannelConfig>& channel_config =
+      streaming_channel->channel_config();
+  ASSERT_TRUE(channel_config.has_value());
+  ASSERT_TRUE(channel_config.value().fifo_config().has_value());
+  const xls::FifoConfig& fifo_config = channel_config->fifo_config().value();
+  EXPECT_EQ(fifo_config.depth(), 4);
 }
 
 TEST_P(TranslatorProcTest, LocalChannelUsedInSubroutine) {

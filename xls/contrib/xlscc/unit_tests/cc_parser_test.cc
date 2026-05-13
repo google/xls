@@ -1016,6 +1016,37 @@ TEST_F(CCParserTest, ChannelStrictnessWorks) {
       static_cast<int64_t>(xls::ChannelStrictness::kArbitraryStaticOrder));
 }
 
+TEST_F(CCParserTest, FifoDepthWorks) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #define HLS_PRAGMA(x) _Pragma(x)
+    HLS_PRAGMA("hls_top")
+    void foo(__xls_channel<int>& chan,
+            __xls_channel<int>& chan2) {
+      [[hls_fifo_depth(4)]]
+      __xls_channel<int> internal_fifo;
+      (void)internal_fifo;
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+
+  const auto& children = top_ptr->getBody()->children();
+  ASSERT_FALSE(children.empty());
+  const clang::Stmt* internal_fifo_decl = *children.begin();
+  const clang::DeclStmt* decl_stmt =
+      llvm::dyn_cast<clang::DeclStmt>(internal_fifo_decl);
+  ASSERT_NE(decl_stmt, nullptr);
+  const clang::Decl* decl = decl_stmt->getSingleDecl();
+  ASSERT_NE(decl, nullptr);
+  ExpectAnnotateWithIntegerArg(decl->getAttrs(), "hls_fifo_depth",
+                               /*arg_expected=*/4);
+}
+
 TEST_F(CCParserTest, DesignTooManyArgs) {
   xlscc::CCParser parser;
 

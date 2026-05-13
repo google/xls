@@ -5590,12 +5590,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_LocalChannel(
       namedecl->getNameAsString());
   XLS_ASSIGN_OR_RETURN(xls::Type * item_type_xls,
                        TranslateTypeToXLS(channel_type->GetItemType(), loc));
+  XLS_ASSIGN_OR_RETURN(std::optional<int64_t> fifo_depth,
+                       GetAnnotationWithNonNegativeIntegerParam(
+                           *namedecl, "hls_fifo_depth", loc));
   XLS_ASSIGN_OR_RETURN(
       xls::Channel * xls_channel,
       package_->CreateStreamingChannel(
           ch_name, xls::ChannelOps::kSendReceive, item_type_xls,
           /*initial_values=*/{}, /*fifo_config=*/
-          xls::FifoConfig(/*depth=*/0, /*bypass=*/true,
+          xls::FifoConfig(/*depth=*/fifo_depth.value_or(0), /*bypass=*/true,
                           /*register_push_outputs=*/false,
                           /*register_pop_outputs=*/false),
           xls::FlowControl::kReadyValid));
@@ -5634,6 +5637,9 @@ absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
 
     if (obj_type->Is<CChannelType>() &&
         clang::dyn_cast<clang::CXXConstructExpr>(vard->getAnyInitializer())) {
+      std::vector<const clang::AnnotateAttr*> annotate_attrs =
+          GetClangAnnotations(*vard);
+
       XLS_ASSIGN_OR_RETURN(
           CValue generated,
           GenerateIR_LocalChannel(
