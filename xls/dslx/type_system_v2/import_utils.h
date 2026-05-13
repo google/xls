@@ -108,6 +108,13 @@ absl::StatusOr<std::optional<const ProcDef*>> GetProcConstructedByFunction(
 bool IsProcConstructor(const Function* function, const ProcDef* proc_def,
                        const FunctionType& function_type);
 
+// Returns builtin IO function invoked by `expr`, if any.
+std::optional<const Function*> GetBuiltinIoFunction(
+    const Expr* expr, const TypeInfo* ti);
+
+// Returns whether `function` is a builtin `send` variant.
+bool IsBuiltinSendVariant(const Function* function);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_IMPORT_UTILS_H_
