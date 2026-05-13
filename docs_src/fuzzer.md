@@ -491,35 +491,35 @@ cmake ../llvm -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 ```
 
 LLVM includes a test case minimizer called
-[`bugpoint`](https://llvm.org/docs/Bugpoint.html) which tries to reduce the size
-of an LLVM IR test case. `bugpoint` has many options but it can operate in a
-similar manner to the XLS IR minimizer where a user-specified script is used to
-determine whether the bug exists in the LLVM IR:
+[`llvm-reduce`](https://llvm.org/docs/CommandGuide/llvm-reduce.html) which tries
+to reduce the size of an LLVM IR test case. `llvm-reduce` has many options but
+it can operate in a similar manner to the XLS IR minimizer where a
+user-specified script is used to determine whether the bug exists in the LLVM
+IR:
 
 ```
-bugpoint input.ll -compile-custom -compile-command bugpoint_test.sh
+llvm-reduce linked.ll --test=bug_still_exists.sh
 ```
 
-Example bugpoint test script (`bugpoint_test.sh`):
+Example test script (`bug_still_exists.sh`):
 
 ```shell
 #!/bin/bash
 
-# Create a temporary file for the test command
-logfile="$(mktemp)"
+input_ir=$1
+# Succeeds with opt level 2
+first_exit_code=0
+opt -O2 "$input_ir" > /tmp/out
+lli /tmp/out || first_exit_code=$?
 
-# Run your test command (and redirect the output messages)
-/path/to/llc "$@" -o /tmp/out.o -mcpu=skylake-avx512 --filetype=obj > "${logfile}" 2>&1
-ret="$?"
+# Fails with opt level 3
+second_exit_code=0
+opt -O3 "$input_ir" > /tmp/out
+lli /tmp/out || second_exit_code=$?
 
-# Print messages when error occurs
-if [ "${ret}" != 0 ]; then
-  echo "test failed"  # must print something on failure
-  cat "${logfile}"
+rm /tmp/out
+if [ $first_exit_code -eq 0 ] && [ $second_exit_code -eq 1 ]; then
+  exit 0
 fi
-
-# Cleanup the temporary file
-rm "${logfile}"
-
-exit "${ret}"
+exit 1
 ```
