@@ -16,11 +16,7 @@
 
 #![feature(generics)]
 
-pub fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N] {
-    for (i, result) in 0..N {
-        update(result, i, (i, x[i]))
-    }([(u32:0, zero!<T>()), ...])
-}
+pub fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N] { map(0..N, |i| (i, x[i])) }
 
 #[test]
 fn emumerate_test() {

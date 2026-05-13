@@ -517,5 +517,59 @@ const_assert!(ARR == [u32:5, 6, 7, 8, 9, 10]);
       TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][6]")));
 }
 
+TEST(TypecheckV2Test, LambdaUsesParentGenericTypeImplicitReturn) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+fn main<T: type>() -> T[5] {
+  let res = map(u32:0..5, |i| {i as T});
+  res
+}
+
+const ONE = main<u16>();
+const TWO = main<u24>();
+const_assert!(ONE == [u16:0, 1, 2, 3, 4]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16][5]"),
+                              HasNodeWithType("TWO", "uN[24][5]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesParentGenericTypeAndContextCapture) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+fn main<T: type>() -> T[5] {
+  let x: T = 5;
+  map(u32:0..5, |i| {i as T + x})
+}
+
+const ONE = main<u16>();
+const TWO = main<u24>();
+const_assert!(ONE == [u16:5, 6, 7, 8, 9]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16][5]"),
+                              HasNodeWithType("TWO", "uN[24][5]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesParentGenericTypeExplicitReturn) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+fn main<OuterType: type>() -> OuterType[5] {
+  map(u32:0..5, |i| -> OuterType {i as OuterType})
+}
+
+const ONE = main<u16>();
+const TWO = main<u24>();
+const_assert!(ONE == [u16:0, 1, 2, 3, 4]);
+const_assert!(TWO == [u24:0, 1, 2, 3, 4]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16][5]"),
+                              HasNodeWithType("TWO", "uN[24][5]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx
