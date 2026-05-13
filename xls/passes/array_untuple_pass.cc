@@ -190,7 +190,6 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindExternalGroups(
       VLOG(2) << "Unable to untuple " << n << " (in group: " << groups.Find(n)
               << ")";
       excluded.insert(groups.Find(n));
-      continue;
     }
     // We need to exclude this if the result is an array but we don't need to
     // exclude its operands.

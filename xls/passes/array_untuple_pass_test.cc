@@ -15,6 +15,7 @@
 #include "xls/passes/array_untuple_pass.h"
 
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -23,11 +24,16 @@
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
+#include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/interpreter_proc_runtime.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/clone_package.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -35,6 +41,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
@@ -45,6 +52,7 @@ namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
+
 using ::absl_testing::IsOkAndHolds;
 using ::testing::_;
 using ::testing::IsSupersetOf;
@@ -456,6 +464,65 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayImplicitNext) {
   EXPECT_THAT(pr->StateElements(),
               IsSupersetOf({m::StateElement(_, m::Type("bits[1][4]")),
                             m::StateElement(_, m::Type("bits[3][4]"))}));
+}
+
+TEST_F(ArrayUntuplePassTest, ProcStateArrayWithInvoke) {
+  auto p = CreatePackage();
+  Type* u1 = p->GetBitsType(1);
+  Type* u1_pair = p->GetTupleType({u1, u1});
+  Type* st_type = p->GetArrayType(1, u1_pair);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ch_out,
+      p->CreateStreamingChannel("ch_out", ChannelOps::kSendOnly, st_type));
+
+  FunctionBuilder fb("for_body", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Param("st", st_type)));
+
+  ProcBuilder pb("inner", p.get());
+  BValue acc = pb.StateElement("acc", ZeroOfType(st_type));
+  BValue tok = pb.Literal(Value::Token());
+  BValue red = pb.Invoke(absl::MakeConstSpan({acc}), f);
+  BValue oa = pb.Literal(ValueBuilder::ArrayB({
+      ValueBuilder::Tuple({Value(UBits(1, 1)), Value(UBits(1, 1))}),
+  }));
+  pb.Send(ch_out, tok, red);
+  pb.Next(acc, oa);
+
+  XLS_ASSERT_OK(pb.Build().status());
+
+  // 1. Evaluate BEFORE the pass runs on a clone of the package.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> original_pkg,
+                           ClonePackage(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<SerialProcRuntime> eval_before,
+      CreateInterpreterSerialProcRuntime(original_pkg.get()));
+  XLS_ASSERT_OK(eval_before->Tick());
+  XLS_ASSERT_OK(eval_before->Tick());
+  ChannelQueue& queue_before = eval_before->queue_manager().GetQueue(
+      original_pkg->GetChannel("ch_out").value());
+  ASSERT_EQ(queue_before.GetSize(), 2);
+  std::optional<Value> val1_before = queue_before.Read();
+  std::optional<Value> val2_before = queue_before.Read();
+
+  // 2. Run the pass (mutates package `p` in-place).
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(p.get()), IsOkAndHolds(false));
+
+  // 3. Evaluate AFTER the pass runs.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> eval_after,
+                           CreateInterpreterSerialProcRuntime(p.get()));
+  XLS_ASSERT_OK(eval_after->Tick());
+  XLS_ASSERT_OK(eval_after->Tick());
+  ChannelQueue& queue_after = eval_after->queue_manager().GetQueue(ch_out);
+  ASSERT_EQ(queue_after.GetSize(), 2);
+  std::optional<Value> val1_after = queue_after.Read();
+  std::optional<Value> val2_after = queue_after.Read();
+
+  // Confirm that the output values agree before and after the pass runs.
+  EXPECT_EQ(val1_before, val1_after);
+  EXPECT_EQ(val2_before, val2_after);
 }
 
 void IrFuzzArrayUntuple(FuzzPackageWithArgs fuzz_package_with_args) {
