@@ -14,6 +14,8 @@
 
 #include "xls/codegen/block_metrics.h"
 
+#include <cstdint>
+
 #include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
@@ -26,6 +28,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
@@ -426,6 +429,170 @@ TEST(BlockMetricsGeneratorTest, DelayMetrics) {
     EXPECT_EQ(proto.max_reg_to_output_delay_ps(), 0);
     EXPECT_FALSE(proto.has_max_feedthrough_path_delay_ps());
   }
+}
+
+int64_t CountBomEntriesRecursively(const BlockMetricsProto& proto,
+                                   BomKindProto kind) {
+  int64_t count = 0;
+  for (const BomEntryProto& entry : proto.bill_of_materials()) {
+    if (entry.kind() == kind) {
+      ++count;
+    }
+    if (entry.kind() == BOM_KIND_BLOCK_INSTANCE) {
+      count += CountBomEntriesRecursively(
+          entry.block_instance_metrics().block_metrics(), kind);
+    }
+  }
+  return count;
+}
+
+TEST(BlockMetricsGeneratorTest, MultiBlock) {
+  Package package("test");
+  Type* u32 = package.GetBitsType(32);
+
+  Block* block_a = nullptr;
+
+  {
+    BlockBuilder bb("block_a", &package);
+    BValue a = bb.InputPort("a", u32);
+    BValue b = bb.InputPort("b", u32);
+    bb.OutputPort("z", bb.Subtract(a, b));
+
+    XLS_ASSERT_OK_AND_ASSIGN(block_a, bb.Build());
+  }
+
+  Block* top_block = nullptr;
+  {
+    BlockBuilder bb("block_b", &package);
+
+    BValue a = bb.InputPort("a", u32);
+    BValue b = bb.InputPort("b", u32);
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        BlockInstantiation * inst_a,
+        bb.block()->AddBlockInstantiation("inst_a", block_a));
+
+    bb.InstantiationInput(inst_a, "a", a);
+    bb.InstantiationInput(inst_a, "b", b);
+    bb.OutputPort("z", bb.InstantiationOutput(inst_a, "z"));
+
+    XLS_ASSERT_OK_AND_ASSIGN(top_block, bb.Build());
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
+                           GenerateBlockMetrics(top_block));
+
+  EXPECT_EQ(CountBomEntriesRecursively(proto, BOM_KIND_BLOCK_INSTANCE), 1);
+  EXPECT_EQ(CountBomEntriesRecursively(proto, BOM_KIND_ADDER), 1);
+}
+
+TEST(BlockMetricsGeneratorTest, MultiBlockMultipleInstantiations) {
+  Package package("test");
+  Type* u32 = package.GetBitsType(32);
+
+  Block* block_a = nullptr;
+
+  {
+    BlockBuilder bb("block_a", &package);
+    BValue a = bb.InputPort("a", u32);
+    BValue b = bb.InputPort("b", u32);
+    bb.OutputPort("z", bb.Subtract(a, b));
+
+    XLS_ASSERT_OK_AND_ASSIGN(block_a, bb.Build());
+  }
+
+  Block* top_block = nullptr;
+  {
+    BlockBuilder bb("block_b", &package);
+
+    BValue a = bb.InputPort("a", u32);
+    BValue b = bb.InputPort("b", u32);
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        BlockInstantiation * inst_a,
+        bb.block()->AddBlockInstantiation("inst_a", block_a));
+
+    bb.InstantiationInput(inst_a, "a", a);
+    bb.InstantiationInput(inst_a, "b", b);
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        BlockInstantiation * inst_b,
+        bb.block()->AddBlockInstantiation("inst_b", block_a));
+
+    bb.InstantiationInput(inst_b, "a", bb.InstantiationOutput(inst_a, "z"));
+    bb.InstantiationInput(inst_b, "b", b);
+
+    bb.OutputPort("z", bb.InstantiationOutput(inst_b, "z"));
+
+    XLS_ASSERT_OK_AND_ASSIGN(top_block, bb.Build());
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
+                           GenerateBlockMetrics(top_block));
+
+  EXPECT_EQ(CountBomEntriesRecursively(proto, BOM_KIND_BLOCK_INSTANCE), 2);
+  EXPECT_EQ(CountBomEntriesRecursively(proto, BOM_KIND_ADDER), 2);
+}
+
+TEST(BlockMetricsGeneratorTest, MultiBlockSubInstantiation) {
+  Package package("test");
+  Type* u32 = package.GetBitsType(32);
+
+  Block* block_b = nullptr;
+
+  {
+    BlockBuilder bb("block_b", &package);
+    BValue a = bb.InputPort("a", u32);
+    BValue b = bb.InputPort("b", u32);
+    bb.OutputPort("z", bb.SMul(a, b));
+
+    XLS_ASSERT_OK_AND_ASSIGN(block_b, bb.Build());
+  }
+
+  Block* block_a = nullptr;
+
+  {
+    BlockBuilder bb("block_a", &package);
+    BValue a = bb.InputPort("a", u32);
+    BValue b = bb.InputPort("b", u32);
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        BlockInstantiation * inst_b,
+        bb.block()->AddBlockInstantiation("inst_b", block_b));
+
+    bb.InstantiationInput(inst_b, "a", a);
+    bb.InstantiationInput(inst_b, "b", b);
+
+    BValue z = bb.InstantiationOutput(inst_b, "z");
+
+    bb.OutputPort("z", bb.Subtract(z, b));
+
+    XLS_ASSERT_OK_AND_ASSIGN(block_a, bb.Build());
+  }
+
+  Block* top_block = nullptr;
+  {
+    BlockBuilder bb("block_b", &package);
+
+    BValue a = bb.InputPort("a", u32);
+    BValue b = bb.InputPort("b", u32);
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        BlockInstantiation * inst_a,
+        bb.block()->AddBlockInstantiation("inst_a", block_a));
+
+    bb.InstantiationInput(inst_a, "a", a);
+    bb.InstantiationInput(inst_a, "b", b);
+    bb.OutputPort("z", bb.InstantiationOutput(inst_a, "z"));
+
+    XLS_ASSERT_OK_AND_ASSIGN(top_block, bb.Build());
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
+                           GenerateBlockMetrics(top_block));
+
+  EXPECT_EQ(CountBomEntriesRecursively(proto, BOM_KIND_BLOCK_INSTANCE), 2);
+  EXPECT_EQ(CountBomEntriesRecursively(proto, BOM_KIND_ADDER), 1);
+  EXPECT_EQ(CountBomEntriesRecursively(proto, BOM_KIND_MULTIPLIER), 1);
 }
 
 }  // namespace

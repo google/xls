@@ -29,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -348,6 +349,20 @@ absl::Status GenerateBom(Block* block, BlockMetricsProto* proto) {
   for (Node* node : block->nodes()) {
     BomEntryProto* bom_entry = proto->add_bill_of_materials();
     XLS_RETURN_IF_ERROR(GenerateBomEntry(node, bom_entry));
+  }
+  for (Instantiation* instantiation : block->GetInstantiations()) {
+    if (instantiation->kind() != InstantiationKind::kBlock) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(BlockInstantiation * instantiated_block,
+                         instantiation->AsBlockInstantiation());
+    BomEntryProto* bom_entry = proto->add_bill_of_materials();
+    bom_entry->set_kind(BOM_KIND_BLOCK_INSTANCE);
+    bom_entry->mutable_block_instance_metrics()->set_name(
+        instantiation->name());
+    XLS_RETURN_IF_ERROR(GenerateBom(
+        instantiated_block->instantiated_block(),
+        bom_entry->mutable_block_instance_metrics()->mutable_block_metrics()));
   }
 
   return absl::OkStatus();
