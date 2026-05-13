@@ -29,7 +29,7 @@ load(
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
-    "//xls/build_rules:xls_dslx_rules.bzl",
+    "//xls/build_rules:xls_dslx_test.bzl",
     "get_dslx_test_cmd",
     "xls_dslx_test_common_attrs",
 )

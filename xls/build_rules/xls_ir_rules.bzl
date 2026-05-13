@@ -36,11 +36,10 @@ load(
     "CONFIG",
     "DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL",
 )
+load("//xls/build_rules:xls_dslx_common.bzl", "get_src_files_from_dslx_library_as_input", "xls_dslx_library_as_input_attrs")
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     "get_DslxInfo_from_dslx_library_as_input",
-    "get_src_files_from_dslx_library_as_input",
-    "xls_dslx_library_as_input_attrs",
 )
 load(
     "//xls/build_rules:xls_providers.bzl",
