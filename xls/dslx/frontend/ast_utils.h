@@ -68,9 +68,12 @@ bool IsTestFn(const Function* fn);
 bool IsBuiltinFn(Expr* callee,
                  std::optional<std::string_view> target = std::nullopt);
 
+// Returns true if `callee` refers to a builtin channel operation.
+bool IsBuiltinChannelOp(const Expr* callee);
+
 // Returns the name of the builtin function referred to by `callee` if it is a
 // builtin function. If `callee` isn't a builtin function, returns std::nullopt.
-std::optional<std::string_view> GetBuiltinFnName(Expr* callee);
+std::optional<std::string_view> GetBuiltinFnName(const Expr* callee);
 
 // Returns true if `callee` refers to a builtin function that requires an
 // implicit token parameter.
