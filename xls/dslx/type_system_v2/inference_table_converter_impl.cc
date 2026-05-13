@@ -551,99 +551,112 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (!function->IsParametric() && !function->IsInProc() &&
         !(function->IsCompilerDerived() && function->impl().has_value()) &&
         !function->IsMethodOnParametricStruct()) {
-      std::optional<std::string_view> builtin =
-          GetBuiltinFnName(invocation->callee());
-      if (builtin.has_value() || function->owner() != &module_) {
-        const FunctionTypeAnnotation* ft_annotation =
-            CreateFunctionTypeAnnotation(module_, *function);
-        if (builtin.has_value() && builtin == "join") {
-          ft_annotation =
-              ExpandVarargs(module_, ft_annotation, actual_args.size());
-        }
-        table_.SetAnnotationFlag(ft_annotation,
-                                 TypeInferenceFlag::kFormalFunctionType);
-        std::optional<const NameRef*> callee_var =
-            table_.GetTypeVariable(invocation->callee());
-        XLS_RET_CHECK(callee_var.has_value());
-        XLS_RETURN_IF_ERROR(
-            table_.AddTypeAnnotationToVariableForParametricContext(
-                caller_context, *callee_var, ft_annotation));
-      }
-
-      XLS_RETURN_IF_ERROR(GenerateTypeInfo(caller_or_target_struct_context,
-                                           invocation->callee()));
-      // For non-parametric functions, the formal argument types can be taken at
-      // face value. Apply them to the actual arguments, convert them, and
-      // convert the invocation itself. We use the unified signature rather than
-      // the `Function` object for this, because the `Function` may have struct
-      // parametrics in it which are outside their domain here, and the unified
-      // signature will not.
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<const TypeAnnotation*> signature,
-          resolver_->ResolveAndUnifyTypeAnnotationsForNode(
-              caller_or_target_struct_context, invocation->callee()));
-      XLS_RET_CHECK(signature.has_value());
-      const auto* function_type =
-          (*signature)->AsAnnotation<FunctionTypeAnnotation>();
-      XLS_RETURN_IF_ERROR(
-          table_.AddTypeAnnotationToVariableForParametricContext(
-              caller_context, *table_.GetTypeVariable(invocation),
-              function_type->return_type()));
-      for (int i = 0; i < function_type->param_types().size(); i++) {
-        const TypeAnnotation* formal_param = function_type->param_types()[i];
-        const Expr* actual_param = actual_args[i];
-        std::optional<const NameRef*> actual_param_var =
-            table_.GetTypeVariable(actual_param);
-        XLS_RET_CHECK(actual_param_var.has_value());
-        XLS_RETURN_IF_ERROR(
-            table_.AddTypeAnnotationToVariableForParametricContext(
-                caller_context, *actual_param_var, formal_param));
-        TypeSystemTrace arg_trace =
-            tracer_->TraceConvertActualArgument(actual_param);
-        XLS_RETURN_IF_ERROR(
-            ConvertSubtree(actual_param, caller, caller_context));
-      }
-      XLS_ASSIGN_OR_RETURN(TypeInfo * parent_ti,
-                           GetTypeInfo(invocation->owner(), caller_context));
-
-      // All invocations need to be recorded in `TypeInfo`. For most
-      // non-parametric callees, this is simple; the identity of the callee
-      // `Function` object cannot even depend on generics in the caller. The
-      // exception is impl functions; a caller with a generic parametric can use
-      // that to dispatch the same invocation to different possible impls.
-      XLS_ASSIGN_OR_RETURN(
-          TypeInfo * function_owner_ti,
-          GetTypeInfo(function_and_target_object.function->owner(),
-                      caller_context));
-      if (caller_context.has_value() &&
-          function_and_target_object.target_object.has_value()) {
-        auto& caller_details =
-            std::get<ParametricInvocationDetails>((*caller_context)->details());
-        XLS_RETURN_IF_ERROR(parent_ti->AddInvocationTypeInfo(
-            *invocation, function, caller_details.callee,
-            table_.GetParametricEnv(caller_context), ParametricEnv{},
-            function_owner_ti));
-      } else {
-        XLS_RETURN_IF_ERROR(parent_ti->AddInvocation(
-            *invocation, function, caller.has_value() ? *caller : nullptr,
-            function_owner_ti));
-      }
-
-      if (invocation->originating_invocation().has_value()) {
-        XLS_ASSIGN_OR_RETURN(
-            parent_ti,
-            GetTypeInfo((*invocation->originating_invocation())->owner(),
-                        caller_context));
-        XLS_RETURN_IF_ERROR(parent_ti->AddInvocation(
-            **invocation->originating_invocation(), function,
-            caller.has_value() ? *caller : nullptr, function_owner_ti));
-      }
-      XLS_RETURN_IF_ERROR(NoteIfRequiresImplicitToken(
-          caller, function_and_target_object.function, invocation->callee()));
-      return GenerateTypeInfo(caller_context, invocation,
-                              function_type->return_type());
+      return ConvertNonParametricInvocation(
+          invocation, caller_context, caller_or_target_struct_context,
+          function_and_target_object, caller, actual_args);
     }
 
+    return ConvertParametricInvocation(
+        invocation, caller_context, caller_or_target_struct_context,
+        function_and_target_object, caller, actual_args);
+  }
+
+  absl::Status ConvertNonParametricInvocation(
+      const Invocation* invocation,
+      std::optional<const ParametricContext*> caller_context,
+      std::optional<const ParametricContext*> caller_or_target_struct_context,
+      const FunctionAndTargetObject function_and_target_object,
+      std::optional<const Function*> caller,
+      std::vector<const Expr*> actual_args) {
+    std::optional<std::string_view> builtin =
+        GetBuiltinFnName(invocation->callee());
+    const Function* function = function_and_target_object.function;
+    if (builtin.has_value() || function->owner() != &module_) {
+      const FunctionTypeAnnotation* ft_annotation =
+          CreateFunctionTypeAnnotation(module_, *function);
+      if (builtin.has_value() && builtin == "join") {
+        ft_annotation =
+            ExpandVarargs(module_, ft_annotation, actual_args.size());
+      }
+      table_.SetAnnotationFlag(ft_annotation,
+                               TypeInferenceFlag::kFormalFunctionType);
+      std::optional<const NameRef*> callee_var =
+          table_.GetTypeVariable(invocation->callee());
+      XLS_RET_CHECK(callee_var.has_value());
+      XLS_RETURN_IF_ERROR(
+          table_.AddTypeAnnotationToVariableForParametricContext(
+              caller_context, *callee_var, ft_annotation));
+    }
+
+    XLS_RETURN_IF_ERROR(GenerateTypeInfo(caller_or_target_struct_context,
+                                         invocation->callee()));
+    // For non-parametric functions, the formal argument types can be taken at
+    // face value. Apply them to the actual arguments, convert them, and
+    // convert the invocation itself. We use the unified signature rather than
+    // the `Function` object for this, because the `Function` may have struct
+    // parametrics in it which are outside their domain here, and the unified
+    // signature will not.
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<const TypeAnnotation*> signature,
+        resolver_->ResolveAndUnifyTypeAnnotationsForNode(
+            caller_or_target_struct_context, invocation->callee()));
+    XLS_RET_CHECK(signature.has_value());
+    const auto* function_type =
+        (*signature)->AsAnnotation<FunctionTypeAnnotation>();
+    XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
+        caller_context, *table_.GetTypeVariable(invocation),
+        function_type->return_type()));
+    XLS_RETURN_IF_ERROR(AddAnnotationsAndConvertParameters(
+        function_type, actual_args, caller_context, caller));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * parent_ti,
+                         GetTypeInfo(invocation->owner(), caller_context));
+
+    // All invocations need to be recorded in `TypeInfo`. For most
+    // non-parametric callees, this is simple; the identity of the callee
+    // `Function` object cannot even depend on generics in the caller. The
+    // exception is impl functions; a caller with a generic parametric can use
+    // that to dispatch the same invocation to different possible impls.
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * function_owner_ti,
+        GetTypeInfo(function_and_target_object.function->owner(),
+                    caller_context));
+    if (caller_context.has_value() &&
+        function_and_target_object.target_object.has_value()) {
+      auto& caller_details =
+          std::get<ParametricInvocationDetails>((*caller_context)->details());
+      XLS_RETURN_IF_ERROR(parent_ti->AddInvocationTypeInfo(
+          *invocation, function, caller_details.callee,
+          table_.GetParametricEnv(caller_context), ParametricEnv{},
+          function_owner_ti));
+    } else {
+      XLS_RETURN_IF_ERROR(parent_ti->AddInvocation(
+          *invocation, function, caller.has_value() ? *caller : nullptr,
+          function_owner_ti));
+    }
+
+    if (invocation->originating_invocation().has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          parent_ti,
+          GetTypeInfo((*invocation->originating_invocation())->owner(),
+                      caller_context));
+      XLS_RETURN_IF_ERROR(parent_ti->AddInvocation(
+          **invocation->originating_invocation(), function,
+          caller.has_value() ? *caller : nullptr, function_owner_ti));
+    }
+    XLS_RETURN_IF_ERROR(NoteIfRequiresImplicitToken(
+        caller, function_and_target_object.function, invocation->callee()));
+    return GenerateTypeInfo(caller_context, invocation,
+                            function_type->return_type());
+  }
+
+  absl::Status ConvertParametricInvocation(
+      const Invocation* invocation,
+      std::optional<const ParametricContext*> caller_context,
+      std::optional<const ParametricContext*> caller_or_target_struct_context,
+      const FunctionAndTargetObject function_and_target_object,
+      std::optional<const Function*> caller,
+      std::vector<const Expr*> actual_args) {
+    const Function* function = function_and_target_object.function;
     XLS_RETURN_IF_ERROR(ValidateParametricsAgainstBindings(
         function->parametric_bindings(), invocation->explicit_parametrics()));
 
@@ -850,19 +863,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           GenerateTypeInfo(caller_context, invocation->callee()));
     }
 
-    for (int i = 0; i < parametric_free_function_type->param_types().size();
-         i++) {
-      const TypeAnnotation* formal_type =
-          parametric_free_function_type->param_types()[i];
-      const Expr* actual_param = actual_args[i];
-      XLS_RETURN_IF_ERROR(
-          table_.AddTypeAnnotationToVariableForParametricContext(
-              caller_context, *table_.GetTypeVariable(actual_param),
-              formal_type));
-      TypeSystemTrace arg_trace =
-          tracer_->TraceConvertActualArgument(actual_param);
-      XLS_RETURN_IF_ERROR(ConvertSubtree(actual_param, caller, caller_context));
-    }
+    XLS_RETURN_IF_ERROR(AddAnnotationsAndConvertParameters(
+        parametric_free_function_type, actual_args, caller_context, caller));
 
     // Convert the actual parametric function in the context of this invocation,
     // and finally, convert the invocation node. If the function is in a proc,
@@ -903,6 +905,25 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           *function->proc(), std::move(callee_env), IsTestFn(*caller),
           config_invocation, invocation, *config_ti, invocation_type_info,
           init_value));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status AddAnnotationsAndConvertParameters(
+      const FunctionTypeAnnotation* function_type,
+      const std::vector<const Expr*>& actual_args,
+      std::optional<const ParametricContext*> caller_context,
+      std::optional<const Function*> caller) {
+    for (int i = 0; i < function_type->param_types().size(); i++) {
+      const TypeAnnotation* formal_type = function_type->param_types()[i];
+      const Expr* actual_param = actual_args[i];
+      XLS_RETURN_IF_ERROR(
+          table_.AddTypeAnnotationToVariableForParametricContext(
+              caller_context, *table_.GetTypeVariable(actual_param),
+              formal_type));
+      TypeSystemTrace arg_trace =
+          tracer_->TraceConvertActualArgument(actual_param);
+      XLS_RETURN_IF_ERROR(ConvertSubtree(actual_param, caller, caller_context));
     }
     return absl::OkStatus();
   }
