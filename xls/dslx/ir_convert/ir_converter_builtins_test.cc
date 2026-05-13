@@ -587,5 +587,125 @@ TEST_F(IrConverterTest, NonSynthNoCover) {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, Signex) {
+  constexpr std::string_view program =
+      R"(
+fn main(x: u8) -> u32 {
+  signex(x, u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, SMulp) {
+  constexpr std::string_view program = R"(
+fn main(x: s10, y: s10) -> s10 {
+  let product = smulp(x, y);
+  let sum = product.0 + product.1;
+  sum as s10
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, UMulp) {
+  constexpr std::string_view program = R"(
+fn main(x: u10, y: u10) -> u10 {
+  let product = umulp(x, y);
+  product.0 + product.1
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, OneHotSelSplat) {
+  constexpr std::string_view program =
+      R"(
+fn main(s: u2) -> u32 {
+  one_hot_sel(s, u32[2]:[2, 3])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, OneHotSelNonArrayNode) {
+  // Tests that the cases parameter of a one_hot_sel can take a node that
+  // is not an Array node, but rather a name that refers to an Array.
+  //
+  // See https://github.com/google/xls/issues/1303
+  constexpr std::string_view program =
+      R"(
+fn main(s: u2) -> u32 {
+  let cases = u32[2]:[2, 3];
+  one_hot_sel(s, cases)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, PrioritySelSplat) {
+  constexpr std::string_view program =
+      R"(
+fn main(s: u2) -> u32 {
+  priority_sel(s, u32[2]:[u32:2, u32:3], u32:4)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, PrioritySelNonArrayNode) {
+  // Tests that the cases parameter of a priority_sel can take a node that
+  // is not an Array node, but rather a name that refers to an Array.
+  //
+  // See https://github.com/google/xls/issues/1303
+
+  constexpr std::string_view program =
+      R"(
+fn main(s: u2) -> u32 {
+  let cases = u32[2]:[2, 3];
+  priority_sel(s, cases, u32:4)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, SignexAcceptsSignedOutputType) {
+  constexpr std::string_view program =
+      R"(
+fn main(x: u8) -> s32 {
+  signex(x, s32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, ConvertGateOp) {
+  constexpr std::string_view program = R"(
+fn main(p: bool, x: u32) -> u32 {
+  gate!(p, x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 }  // namespace
 }  // namespace xls::dslx

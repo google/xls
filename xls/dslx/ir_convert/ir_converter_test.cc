@@ -57,93 +57,6 @@ using ::testing::SizeIs;
 
 namespace m = ::xls::op_matchers;
 
-TEST_F(IrConverterTest, NamedConstant) {
-  constexpr std::string_view program =
-      R"(fn f() -> u32 {
-  let foo: u32 = u32:42;
-  foo
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "f"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, Concat) {
-  constexpr std::string_view program =
-      R"(fn f(x: bits[31]) -> u32 {
-  bits[1]:1 ++ x
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "f"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ParameterNamePreservedOnLetAlias) {
-  constexpr std::string_view program = R"(
-pub fn my_fun(baz: u32) -> u32 {
-  let foo = baz;
-  foo
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "my_fun"));
-
-  // Expect the parameter to retain its original DSLX name `baz` in IR.
-  EXPECT_EQ(converted, R"(package test_module
-
-file_number 0 "test_module.x"
-
-top fn __test_module__my_fun(baz: bits[32] id=1) -> bits[32] {
-  ret baz: bits[32] = param(name=baz, id=1)
-}
-)");
-}
-
-TEST_F(IrConverterTest, TwoPlusTwo) {
-  constexpr std::string_view program =
-      R"(fn two_plus_two() -> u32 {
-  u32:2 + u32:2
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "two_plus_two"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, SignedDiv) {
-  constexpr std::string_view program =
-      R"(fn signed_div(x: s32, y: s32) -> s32 {
-  x / y
-})";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "signed_div"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, NegativeX) {
-  constexpr std::string_view program =
-      R"(fn negate(x: u32) -> u32 {
-  -x
-})";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "negate"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, LetBinding) {
-  constexpr std::string_view program =
-      R"(fn f() -> u32 {
-  let x: u32 = u32:2;
-  x+x
-})";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "f"));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterTest, LetTupleBinding) {
   constexpr std::string_view program =
       R"(fn f() -> u32 {
@@ -363,16 +276,6 @@ TEST_F(IrConverterTest, CountedForVariableRange) {
   ASSERT_FALSE(status_or_ir.ok());
 }
 
-TEST_F(IrConverterTest, ExtendConversions) {
-  constexpr std::string_view program =
-      R"(fn main(x: u8, y: s8) -> (u32, u32, s32, s32) {
-  (x as u32, y as u32, x as s32, y as s32)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
 
 TEST_F(IrConverterTest, TupleIndex) {
   constexpr std::string_view program =
@@ -510,48 +413,6 @@ fn f(x: u8) -> bool {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, Conditional) {
-  constexpr std::string_view program =
-      R"(fn main(x: bool) -> u8 {
-  if x { u8:42 } else { u8:24 }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ConditionalsPlusStuff) {
-  constexpr std::string_view program =
-      R"(
-fn foo(a: bool) -> u8 {
-  let x = if a { u8:42 } else { u8:24 } + u8:1;
-  let y = u8:1 + if a { u8:42 } else { u8:24 };
-  let z = if a { u8:42 } else { u8:24 } + if a { u8:42 } else { u8:24 };
-  x + y + z
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ConstConditional) {
-  constexpr std::string_view program =
-      R"(
-fn main() -> u32 {
-  const if true {
-    u16:42
-  } else {
-    u8:24
-  } as u32
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
 
 TEST_F(IrConverterTest, ConstConditionalProcScoped) {
   constexpr std::string_view program = R"(
@@ -668,26 +529,6 @@ TEST_F(IrConverterTest, ConstConditionalProcScopedWithParams) {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, ConstIfOfParametricInFn) {
-  constexpr std::string_view kProgram = R"(
-fn const_if_disparate_types<A: u32>() -> u32 {
-    let data = const if A == u32:0 {
-        u16:600
-    } else if A == u32:1 {
-        u32:70000
-    } else {
-        u8:4
-    };
-
-    data as u32
-}
-
-fn main() -> u32 { const_if_disparate_types<u32:0>() }
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kProgram));
-  ExpectIr(converted);
-}
 
 TEST_F(IrConverterTest, ConstIfOfParametricInProc) {
   constexpr std::string_view kProgram = R"(
@@ -720,47 +561,6 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, ConstantsWithConditionalsPlusStuff) {
-  constexpr std::string_view program =
-      R"(
-const A = true;
-const X = if A { u8:42 } else { u8:24 } + u8:1;
-const Y = u8:1 + if A { u8:42 } else { u8:24 };
-const Z = if A { u8:42 } else { u8:24 } + if A { u8:42 } else { u8:24 };
-fn main(x: bool) -> u8 { X + Y + Z }
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ParametricInvocation) {
-  constexpr std::string_view program =
-      R"(
-fn parametric_id<N: u32>(x: bits[N]) -> bits[N] {
-  x+(N as bits[N])
-}
-
-fn main(x: u8) -> u8 {
-  parametric_id(x)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, WidthSlice) {
-  constexpr std::string_view program =
-      R"(
-fn f(x: u32, y: u32) -> u8 {
-  x[2+:u8]+x[y+:u8]
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
 
 TEST_F(IrConverterTest, SingleElementBitsArrayParam) {
   constexpr std::string_view program =
@@ -787,17 +587,6 @@ fn f(x: Foo[1]) -> Foo[1] {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, BitSliceCast) {
-  constexpr std::string_view program =
-      R"(
-fn main(x: u2) -> u1 {
-  x as u1
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
 
 TEST_F(IrConverterTest, ParametricDefaultInStruct) {
   constexpr std::string_view program = R"(
@@ -908,154 +697,6 @@ fn caller() -> u32 {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, CastOfAdd) {
-  constexpr std::string_view program =
-      R"(
-fn main(x: u8, y: u8) -> u32 {
-  (x + y) as u32
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, IdentityFinalArg) {
-  constexpr std::string_view program =
-      R"(
-fn main(x0: u19, x3: u29) -> u29 {
-  let x15: u29 = u29:0;
-  let x17: u19 = (x0) + (x15 as u19);
-  x3
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ModuleLevelConstantDims) {
-  constexpr std::string_view program =
-      R"(
-const BATCH_SIZE = u32:17;
-
-fn main(x: u32[BATCH_SIZE]) -> u32 {
-  x[u32:16]
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, Signex) {
-  constexpr std::string_view program =
-      R"(
-fn main(x: u8) -> u32 {
-  signex(x, u32:0)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, SMulp) {
-  constexpr std::string_view program = R"(
-fn main(x: s10, y: s10) -> s10 {
-  let product = smulp(x, y);
-  let sum = product.0 + product.1;
-  sum as s10
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, UMulp) {
-  constexpr std::string_view program = R"(
-fn main(x: u10, y: u10) -> u10 {
-  let product = umulp(x, y);
-  product.0 + product.1
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, OneHotSelSplat) {
-  constexpr std::string_view program =
-      R"(
-fn main(s: u2) -> u32 {
-  one_hot_sel(s, u32[2]:[2, 3])
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, OneHotSelNonArrayNode) {
-  // Tests that the cases parameter of a one_hot_sel can take a node that
-  // is not an Array node, but rather a name that refers to an Array.
-  //
-  // See https://github.com/google/xls/issues/1303
-  constexpr std::string_view program =
-      R"(
-fn main(s: u2) -> u32 {
-  let cases = u32[2]:[2, 3];
-  one_hot_sel(s, cases)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, PrioritySelSplat) {
-  constexpr std::string_view program =
-      R"(
-fn main(s: u2) -> u32 {
-  priority_sel(s, u32[2]:[u32:2, u32:3], u32:4)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, PrioritySelNonArrayNode) {
-  // Tests that the cases parameter of a priority_sel can take a node that
-  // is not an Array node, but rather a name that refers to an Array.
-  //
-  // See https://github.com/google/xls/issues/1303
-
-  constexpr std::string_view program =
-      R"(
-fn main(s: u2) -> u32 {
-  let cases = u32[2]:[2, 3];
-  priority_sel(s, cases, u32:4)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, BitSliceSyntax) {
-  constexpr std::string_view program =
-      R"(
-fn f(x: u4) -> u2 {
-  x[:2]+x[-2:]+x[1:3]+x[-3:-1]+x[0:-2]
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterTest, InvocationMultiSymbol) {
   constexpr std::string_view program =
       R"(fn parametric<M: u32, N: u32, R: u32 = {M + N}>(x: bits[M], y: bits[N]) -> bits[R] {
@@ -1094,17 +735,6 @@ fn g() -> u8[2] { FOO }
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, SignexAcceptsSignedOutputType) {
-  constexpr std::string_view program =
-      R"(
-fn main(x: u8) -> s32 {
-  signex(x, s32:0)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
 
 TEST_F(IrConverterTest, StructWithConstSizedArray) {
   constexpr std::string_view program =
@@ -1169,15 +799,6 @@ TEST_F(IrConverterTest, NestedTupleSignature) {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, Identity) {
-  constexpr std::string_view program =
-      R"(fn main(x: u8) -> u8 {
-  x
-})";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
 
 TEST_F(IrConverterTest, PackageLevelConstantArrayAccess) {
   constexpr std::string_view program =
@@ -1516,24 +1137,7 @@ fn f() -> u32 {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, BitSliceUpdate) {
-  constexpr std::string_view program =
-      R"(
-fn main(x: u32, y: u16, z: u8) -> u32 {
-  bit_slice_update(x, y, z)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
 
-TEST_F(IrConverterTest, TokenIdentityFunction) {
-  constexpr std::string_view program = "fn main(x: token) -> token { x }";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
 
 TEST_F(IrConverterTest, ImportEnumValue) {
   auto import_data = CreateImportDataForTest();
@@ -1594,17 +1198,6 @@ fn main(x: u32) -> u32 {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, ConvertGateOp) {
-  constexpr std::string_view program = R"(
-fn main(p: bool, x: u32) -> u32 {
-  gate!(p, x)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
-}
 
 TEST_F(IrConverterTest, ConvertRangeOpUnsigned) {
   constexpr std::string_view program = R"(
@@ -2943,30 +2536,6 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, ParameterShadowingModuleLevelConstant) {
-  constexpr std::string_view program = R"(
-  const FOO = u32:0;
-
-  fn test1<FOO:u32>(x:u32) -> u32 {
-    x + FOO
-  }
-
-  fn test2<FOO:u32>(x:u32) -> u32 {
-    test1<FOO>(x) - FOO
-  }
-
-  fn main() -> u32 {
-    let foo = test2<u32:3>(u32:3);
-    foo
-  }
-  )";
-
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, kProcScopedChannelOptions, &import_data));
-  ExpectIr(converted);
-}
 
 TEST_F(IrConverterTest, InvalidChannelDecl) {
   constexpr std::string_view program = R"(fn main() {
@@ -3040,17 +2609,6 @@ proc main {
                                  "method.")));
 }
 
-TEST_F(IrConverterTest, StringWithUnsignedRangeCharacter) {
-  constexpr std::string_view program = R"(fn main() -> u8[1] {
-  "\x80"  // -128 in signed char interpretation
-})";
-
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertOneFunctionForTest(program, "main", import_data));
-  ExpectIr(converted);
-}
 
 // TODO(google/xls#917): Remove this test when empty arrays are supported.
 TEST_F(IrConverterTest, EmptyArray) {
@@ -3064,39 +2622,6 @@ TEST_F(IrConverterTest, EmptyArray) {
   EXPECT_THAT(ConvertOneFunctionForTest(program, "main", import_data),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Array u32[0]:[] was empty")));
-}
-
-TEST_F(IrConverterTest, WideningCastsUnErrors) {
-  constexpr std::string_view program =
-      R"(
-fn main(x: u8) -> u32 {
-  let x_32 = widening_cast<u32>(x);
-  let x_4  = widening_cast<u4>(x_32);
-  x_32 + widening_cast<u32>(x_4)
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(program, "main", import_data),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot cast from type `uN[32]` (32 bits) "
-                                 "to `uN[4]` (4 bits) with widening_cast")));
-}
-
-TEST_F(IrConverterTest, WideningAndCheckedCasts) {
-  constexpr std::string_view program =
-      R"(
-fn main(x: u8, y: s8) -> u32 {
-  let x_32 = checked_cast<u32>(widening_cast<u32>(x));
-  let y_16 = widening_cast<s16>(checked_cast<s7>(y));
-  let y_times_two_32 = checked_cast<s32>(y_16) + widening_cast<s32>(y_16);
-  x_32 + checked_cast<u32>(y_times_two_32)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(program));
-  ExpectIr(converted);
 }
 
 TEST_F(IrConverterTest, ArrayOfTokenError) {
@@ -4151,39 +3676,6 @@ pub proc main {
     ()
   }
 })";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "main"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ConstantInFn) {
-  constexpr std::string_view program = R"(
-fn f(input: u16) -> u16 {
-  all_ones!<u16>() + input
-}
-
-fn main() -> u16 {
-  f(u16:1)
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "main"));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ParametricConstantInFn) {
-  constexpr std::string_view program = R"(
-fn f<N:u32>(input: uN[N]) -> uN[N] {
-  all_ones!<uN[N]>() + input
-}
-
-fn main() -> u16 {
-  f<u32:16>(u16:1)
-}
-)";
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertOneFunctionForTest(program, "main"));
@@ -5383,23 +4875,6 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST_F(IrConverterTest, UnrollFor) {
-  // Based on UnrollForWithoutIndexAccTypeAnnotation
-  constexpr std::string_view program = R"(
-proc SomeProc {
-  init { () }
-  config() { }
-  next(state: ()) {
-    unroll_for! (i, a) in u32:0..u32:4 {
-      a + i
-    }(u32:0);
-  }
-})";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "SomeProc"));
-  ExpectIr(converted);
-}
 
 constexpr std::string_view kTestProc = R"(
 proc TestUtilityProc {
@@ -7045,153 +6520,6 @@ proc passthrough {
   EXPECT_FALSE(proc->is_new_style_proc());
 }
 
-TEST_F(IrConverterTest, ExplicitStateAccessU32) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc Counter {
-  init { 0 }
-  config() { }
-  next(state: u32) {
-    let x = read(state);
-    let y = x + 1;
-    write(state, y);
-  }
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessS32) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc Counter {
-  init { -5 }
-  config() { }
-  next(state: s32) {
-    let current = read(state);
-    write(state, current + 1);
-  }
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessString) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc String {
-  init { "hello" }
-  config() { }
-  next(state: u8[5]) {
-    let current = read(state);
-    write(state, "world");
-  }
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessBool) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc Bool {
-  init { false }
-  config() { }
-  next(state: bool) {
-    let false_val = read(state);
-    write(state, true);
-  }
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessStruct) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-struct Point {
-  x: u32,
-  y: u32,
-}
-proc Struct {
-  init { Point { x: 0, y: 0 } }
-  config() { }
-  next(state: Point) {
-    let curr_point = read(state);
-    let shift = Point { x: curr_point.x + 1, y: curr_point.y + 1 };
-    write(state, shift)
-  }
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessArray) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc Array {
-  init { [0, 1, 2, 3] }
-  config() { }
-  next(state: u32[4]) {
-    let array = read(state);
-    let new_array = for (i, arr) in 0..4 {
-      update(arr, i, arr[i] + 1)
-    }(array);
-    write(state, new_array);
-  }
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
-                           ConvertModuleToPackage(tm.module, &import_data,
-                                                  kProcScopedChannelOptions));
-  ExpectIr(conv.DumpIr());
-}
-
 TEST_F(IrConverterTest, ChannelStrictnessAttributeProcScoped) {
   constexpr std::string_view kProgram = R"(
 #![feature(channel_attributes)]
@@ -7278,271 +6606,6 @@ proc p {
   EXPECT_THAT(converted, HasSubstr("strictness=runtime_ordered"));
   EXPECT_THAT(converted,
               Not(HasSubstr("strictness=proven_mutually_exclusive")));
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMultipleReads) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-
-  config() { () }
-
-  init { 0 }
-
-  next(state: u32) {
-      let first = read(state);
-      let second = read(state);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMultipleWrites) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  config() { () }
-
-  init { 0 }
-
-  next(state: u32) {
-      let accum = read(state) + 1;
-      write(state, accum);
-      let accum = accum + 1;
-      write(state, accum);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessWriteBeforeRead) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  config() { () }
-
-  init { 0 }
-
-  next(state: u32) {
-    write(state, u32:1);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessConditionalWrite) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  config() { () }
-
-  init { (0, false) }
-
-  next(state: (u32, bool)) {
-    let even_or_odd = read(state);
-    if (even_or_odd.0 % 2 == 0) {
-      write(state, (even_or_odd.0 + 1, true))
-    } else {
-      write(state, (even_or_odd.0 + 1, false))
-    }
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMatch) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  config() { () }
-  init { 0 }
-  next(state: u32) {
-    let current = read(state);
-    let even_or_odd = current % 2;
-    match even_or_odd {
-      0 => {
-        write(state, current + 1);
-      },
-      1 => {
-        write(state, current * 2);
-      },
-      _ => {
-        write(state, current);
-      }
-    }
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMatchMultipleWrites) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  config() { () }
-  init { true }
-  next(state: bool) {
-    let val = read(state);
-    match val {
-      true => {
-        write(state, false);
-        write(state, false);
-      },
-      false => {
-        write(state, true);
-        write(state, true);
-      },
-    }
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessLabeledReadAndWrite) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  init { 0 }
-  config() { }
-  next(state: u32) {
-    let x = 'main_read:read(state);
-    let y = x + 1;
-    'main_write:write(state, y);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessReadWithLabeledRead) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  init { 0 }
-  config() { }
-  next(state: u32) {
-    let curr = read(state);
-    let x = 'main_read:read(state);
-    let y = x + 1 + curr;
-    'main_write:write(state, y);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMultipleStates) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-struct Point {
-  x: u32,
-  y: u32,
-}
-
-proc main {
-  init { (Point { x: 0, y: 1 }, (2, 3), 4) }
-  config() { }
-  next(state_0: Point, state_1: (u32, u32), state_2: u32) {
-    let a = read(state_0);
-    let b = read(state_1);
-    let c = read(state_2);
-    let new_a = Point { x: a.x + 1, y: b.1 + c };
-    let new_b = (b.0 + 1, c + 1);
-    write(state_0, new_a);
-    write(state_1, new_b);
-    write(state_2, c + 2);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMultipleStatesMultipleReads) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  init { (0, 1) }
-  config() { }
-  next(state_0: u32, state_1: u32) {
-    let b_0 = read(state_1);
-    let b_1 = read(state_1);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMultipleStatesMultipleWrites) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  init { (0, 1) }
-  config() { }
-  next(state_0: u32, state_1: u32) {
-    let a = read(state_0);
-    let b = read(state_1);
-    write(state_1, a + b);
-    write(state_1, a + 1);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMultipleStatesWriteBeforeRead) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  init { (0, 1) }
-  config() { }
-  next(state_0: u32, state_1: u32) {
-    let a = read(state_0);
-    write(state_1, a);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
-}
-
-TEST_F(IrConverterTest, ExplicitStateAccessMultipleBranchingLabeledReads) {
-  constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
-proc main {
-  init { (0, true) }
-  config() { }
-  next(val: u32, switch: bool) {
-    let switch_val = read(switch);
-    if (switch_val) {
-      let even = 'EvenRead:read(val);
-      'EvenWrite:write(val, even + 1);
-    } else {
-      let odd = 'OddRead:read(val);
-      'OddWrite:write(val, odd + 1);
-    };
-    write(switch, !switch_val);
-  }
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kModule));
-  ExpectIr(converted);
 }
 
 TEST_F(IrConverterTest, DerivedToBitsNestedStructs) {
