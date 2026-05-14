@@ -1156,6 +1156,24 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return type.status();
     }
 
+    if (node->kind() == AstNodeKind::kXlsTuple ||
+        node->kind() == AstNodeKind::kArray) {
+      XLS_ASSIGN_OR_RETURN(const TypeAnnotation* resolved_annotation,
+                           resolver_->ResolveIndirectTypeAnnotations(
+                               parametric_context, node, *annotation,
+                               TypeAnnotationFilter::None()));
+
+      if (node->kind() == AstNodeKind::kXlsTuple) {
+        XLS_RETURN_IF_ERROR(ApplyContainerAnnotationToMembers(
+            parametric_context, absl::down_cast<const XlsTuple*>(node),
+            resolved_annotation));
+      } else {
+        XLS_RETURN_IF_ERROR(ApplyContainerAnnotationToMembers(
+            parametric_context, absl::down_cast<const Array*>(node),
+            resolved_annotation));
+      }
+    }
+
     // Mark NameDef's concretized type to tell if it is actually unused.
     if (semantics_analysis_) {
       if (node->kind() == AstNodeKind::kNameDef) {
@@ -1181,6 +1199,56 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     VLOG(5) << "Generated type: " << (*ti->GetItem(node))->ToString()
             << " for node: " << node->ToString() << " in TI module "
             << ti->module()->name() << " with TI name " << ti->name();
+    return absl::OkStatus();
+  }
+
+  // Helper that is used once the type of an array or tuple construction
+  // expression is fully known, and we want to make the member exprs within it
+  // be forced to unify with the element type of the overall array or tuple
+  // type. For example, we might infer based on the surrounding context that the
+  // type of `(1, 2)` is `(u16, u32)`. However, unless there is an explicit
+  // declaration type for the tuple, we need to then add the u16 annotation to
+  // the `1` in the table and the `u32` annotation to the `2`, before those
+  // literals are converted, in order to guarantee that the inference results
+  // for the literal nodes will agree with the inferred container node type, as
+  // opposed to being shrunk to fit the literals.
+  template <typename ContainerNodeType>
+  absl::Status ApplyContainerAnnotationToMembers(
+      std::optional<const ParametricContext*> parametric_context,
+      const ContainerNodeType* container,
+      const TypeAnnotation* container_annotation) {
+    auto get_element_annotation = [&](int i) {
+      if (container_annotation->IsAnnotation<TupleTypeAnnotation>()) {
+        return container_annotation->AsAnnotation<TupleTypeAnnotation>()
+            ->members()[i];
+      }
+      return container_annotation->AsAnnotation<ArrayTypeAnnotation>()
+          ->element_type();
+    };
+
+    for (int i = 0; i < container->members().size(); i++) {
+      const AstNode* member = container->members()[i];
+
+      // TODO: https://github.com/google/xls/issues/4260 - Applying this
+      // propagation to range exprs inside array or tuple exprs might be the
+      // right thing, but would currently trigger a false-alarm high bit
+      // dimension warning for fuzz tests that request the whole u32 domain.
+      // These false alarms (if we really consider them false) would be hard to
+      // get rid of.
+      if (member->kind() == AstNodeKind::kRange) {
+        continue;
+      }
+
+      std::optional<const NameRef*> member_variable =
+          table_.GetTypeVariable(member);
+      if (member_variable.has_value()) {
+        const TypeAnnotation* member_annotation = get_element_annotation(i);
+        XLS_RETURN_IF_ERROR(
+            table_.AddTypeAnnotationToVariableForParametricContext(
+                parametric_context, *member_variable, member_annotation));
+      }
+    }
+
     return absl::OkStatus();
   }
 

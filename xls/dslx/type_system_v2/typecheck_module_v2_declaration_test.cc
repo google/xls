@@ -1346,5 +1346,115 @@ const_assert!(h() == u8::MIN);
 )"));
 }
 
+TEST(TypecheckV2Test, LetDestructuringWithMemberTypePushdown) {
+  EXPECT_THAT(R"(
+fn main() {
+  let a = u32:1;
+  let (x, (y, z)) = if a == 0 {
+    (3, (8, u32:5))
+  } else {
+    (u32:1, (u16:100, u32:5))
+  };
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("3", "uN[32]"),
+                                      HasNodeWithType("8", "uN[16]"))));
+}
+
+TEST(TypecheckV2Test, LetDestructuringWithInvocationFeedingPushdown) {
+  EXPECT_THAT(R"(
+fn foo<N: u32>() -> (uN[N], (u16, uN[N])) {
+  (u32:1, (u16:100, u32:5))
+}
+
+fn main() {
+  let a = u32:1;
+  let (x, (y, z)) = if a == 0 {
+    (3, (8, u32:5))
+  } else {
+    foo<32>()
+  };
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("3", "uN[32]"),
+                                      HasNodeWithType("8", "uN[16]"))));
+}
+
+TEST(TypecheckV2Test, LetDestructuringWithMemberTypemismatch) {
+  EXPECT_THAT(R"(
+fn main() {
+  let a = u32:1;
+  let (x, (y, z)) = if a == 0 {
+    (u8:3, (8, u32:5))
+  } else {
+    (u32:1, (u16:100, u32:5))
+  };
+}
+)",
+              TypecheckFails(HasTypeMismatch("u32", "u8")));
+}
+
+TEST(TypecheckV2Test, LetDestructuringWithMemberTypeImplicitmismatch) {
+  EXPECT_THAT(R"(
+fn main() {
+  let a = u32:1;
+  let (x, (y, z)) = if a == 0 {
+    (5000, (8, u32:5))
+  } else {
+    (u8:1, (u16:100, u32:5))
+  };
+}
+)",
+              TypecheckFails(HasTypeMismatch("u13", "u8")));
+}
+
+TEST(TypecheckV2Test, LetArrayWithMemberTypePushdown) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let a = u32:1;
+  let arr = if a == 0 {
+    [[3, 4], [8, 9]]
+  } else {
+    [[u32:1, 2], [u32:100, 200]]
+  };
+}
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("3", "uN[32]"), HasNodeWithType("4", "uN[32]"),
+                HasNodeWithType("8", "uN[32]"), HasNodeWithType("9", "uN[32]"),
+                HasNodeWithType("arr", "uN[32][2][2]"))));
+}
+
+TEST(TypecheckV2Test, LetArrayWithMemberTypePushdownMismatch) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let a = u32:1;
+  let arr = if a == 0 {
+    [[u16:3, 4], [8, 9]]
+  } else {
+    [[u32:1, 2], [u32:100, 200]]
+  };
+}
+)",
+      TypecheckFails(HasTypeMismatch("u32", "u16")));
+}
+
+TEST(TypecheckV2Test, LetArrayWithMemberTypePushdownImplicitMismatch) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let a = u32:1;
+  let arr = if a == 0 {
+    [[5000, 4], [8, 9]]
+  } else {
+    [[u8:1, 2], [u8:100, 200]]
+  };
+}
+)",
+      TypecheckFails(HasTypeMismatch("u13", "u8")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

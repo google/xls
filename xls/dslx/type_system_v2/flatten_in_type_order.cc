@@ -214,7 +214,27 @@ class Flattener : public AstNodeVisitorWithDefault {
 
   absl::Status HandleTrait(const Trait*) override { return absl::OkStatus(); }
 
+  absl::Status HandleXlsTuple(const XlsTuple* node) override {
+    return DefaultHandlerInternal(node, /*container_semantics=*/true);
+  }
+
+  absl::Status HandleArray(const Array* node) override {
+    return DefaultHandlerInternal(node, /*container_semantics=*/true);
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
+    return DefaultHandlerInternal(node);
+  }
+
+  // Container semantics is appropriate for array and tuple construction
+  // expressions. It means that the parent comes before the non-invocation
+  // children in the order, so that we can push down the container type to make
+  // elements conform once the container is decided. Invocations don't require
+  // this push down effect, and deferring them until after the parent would be
+  // unsafe. Upward flow from invocations is sometimes necessary, and the table
+  // data for them is lazily populated when they are encountered in the order.
+  absl::Status DefaultHandlerInternal(const AstNode* node,
+                                      bool container_semantics = false) {
     // Prefer conversion of invocations before nodes that may use them.
     std::vector<const AstNode*> invocations;
     std::vector<const AstNode*> non_invocations;
@@ -237,10 +257,19 @@ class Flattener : public AstNodeVisitorWithDefault {
     for (const AstNode* child : invocations) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
     }
+
+    if (container_semantics) {
+      nodes_.push_back(node);
+    }
+
     for (const AstNode* child : non_invocations) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
     }
-    nodes_.push_back(node);
+
+    if (!container_semantics) {
+      nodes_.push_back(node);
+    }
+
     return absl::OkStatus();
   }
 
