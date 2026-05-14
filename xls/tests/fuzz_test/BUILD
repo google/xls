@@ -65,3 +65,20 @@ dslx_fuzz_test(
     library = ":fuzz_test_dslx",
     test_function = "test_tuple",
 )
+
+xls_dslx_library(
+    name = "enum_tests_dslx",
+    srcs = ["enum_tests.x"],
+)
+
+dslx_fuzz_test(
+    name = "arbitrary_enum_fuzz_test",
+    library = ":enum_tests_dslx",
+    test_function = "arbitrary_enum",
+)
+
+dslx_fuzz_test(
+    name = "oneof_enum_fuzz_test",
+    library = ":enum_tests_dslx",
+    test_function = "oneof_enum",
+)

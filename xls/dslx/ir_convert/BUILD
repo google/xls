@@ -502,6 +502,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/ir:value",
         "//xls/ir:xls_ir_interface_cc_proto",
@@ -511,7 +512,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
         "@com_google_protobuf//:protobuf",
     ],
 )

@@ -16,6 +16,7 @@
 #define XLS_DSLX_IR_CONVERT_FUZZ_TEST_CONVERTER_H_
 
 #include <optional>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -23,6 +24,8 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
@@ -40,10 +43,23 @@ class FuzzTestConverter {
       const Function* node);
 
  private:
-  absl::Status LowerDomainExpr(const Expr* expr,
-                               PackageInterfaceProto::FuzzTestDomain& proto);
+  absl::Status LowerConstant(const Type* param_type, const InterpValue& val,
+                             PackageInterfaceProto::FuzzTestDomain& proto);
+  // Lower an enum type as an ElementOf domain containing each of the enum
+  // values.
+  absl::Status LowerArbitraryEnum(const Type* param_type,
+                                  PackageInterfaceProto::FuzzTestDomain& proto);
+  absl::Status LowerArbitraryType(const Type* param_type,
+                                  PackageInterfaceProto::FuzzTestDomain& proto);
+  absl::Status LowerTuple(const Type* param_type,
+                          const std::vector<InterpValue>& elements,
+                          PackageInterfaceProto::FuzzTestDomain& proto);
+
   absl::Status LowerRangeExpr(const Range* range_node,
                               PackageInterfaceProto::FuzzTestDomain& proto);
+  // Main entry point
+  absl::Status LowerDomainExpr(const Type* param_type, const Expr* expr,
+                               PackageInterfaceProto::FuzzTestDomain& proto);
 
  private:
   const Module* module_;

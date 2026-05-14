@@ -979,5 +979,238 @@ fn f(x: u32) -> u32 { x }
               "Empty arrays are unsupported as fuzztest domains")));
 }
 
+TEST(FunctionConverterFuzzTestTest, ArbitraryEnumBecomesElementOf) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+enum MyEnum : u32 {
+  A = 1,
+  B = 2,
+}
+
+#[fuzz_test(domains = `()`)]
+fn f(x: MyEnum) -> bool { x == x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(function_proto, EqualsProto(R"pb(
+                parameter_domains {
+                  element_of {
+                    values { bits { bit_count: 32 data: "\001\000\000\000" } }
+                    values { bits { bit_count: 32 data: "\002\000\000\000" } }
+                  }
+                }
+              )pb"));
+}
+
+TEST(FunctionConverterFuzzTestTest, ArbitraryEnumInTupleBecomesElementOf) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+enum MyEnum : u32 {
+  A = 1,
+  B = 2,
+}
+
+#[fuzz_test(domains = `()`)]
+fn f(x: (MyEnum, MyEnum)) -> bool { x == x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(
+      function_proto, EqualsProto(R"pb(
+        parameter_domains {
+          tuple {
+            elements {
+              element_of {
+                values { bits { bit_count: 32 data: "\001\000\000\000" } }
+                values { bits { bit_count: 32 data: "\002\000\000\000" } }
+              }
+            }
+            elements {
+              element_of {
+                values { bits { bit_count: 32 data: "\001\000\000\000" } }
+                values { bits { bit_count: 32 data: "\002\000\000\000" } }
+              }
+            }
+          }
+        }
+      )pb"));
+}
+
+TEST(FunctionConverterFuzzTestTest, DeeplyNestedArbitraryEnumInTuple) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+enum MyEnum : u32 {
+  A = 1,
+  B = 2,
+}
+
+#[fuzz_test(domains = `()`)]
+fn f(x: (u32, (MyEnum, u8))) -> bool { x.0 == x.0 }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(
+      function_proto, EqualsProto(R"pb(
+        parameter_domains {
+          tuple {
+            elements { arbitrary: true }
+            elements {
+              tuple {
+                elements {
+                  element_of {
+                    values { bits { bit_count: 32 data: "\001\000\000\000" } }
+                    values { bits { bit_count: 32 data: "\002\000\000\000" } }
+                  }
+                }
+                elements { arbitrary: true }
+              }
+            }
+          }
+        }
+      )pb"));
+}
+
+TEST(FunctionConverterFuzzTestTest, MixedTupleDomainWithArbitraryEnum) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+enum MyEnum : u32 {
+  A = 1,
+  B = 2,
+}
+
+#[fuzz_test(domains = `(u32:1..5, ())`)]
+fn f(x: (u32, MyEnum)) -> bool { x.0 == x.0 }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  EXPECT_THAT(
+      function_proto, EqualsProto(R"pb(
+        parameter_domains {
+          tuple {
+            elements {
+              range {
+                min { bits { bit_count: 32 data: "\001\000\000\000" } }
+                max { bits { bit_count: 32 data: "\004\000\000\000" } }
+              }
+            }
+            elements {
+              element_of {
+                values { bits { bit_count: 32 data: "\001\000\000\000" } }
+                values { bits { bit_count: 32 data: "\002\000\000\000" } }
+              }
+            }
+          }
+        }
+      )pb"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

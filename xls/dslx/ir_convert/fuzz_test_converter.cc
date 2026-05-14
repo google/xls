@@ -14,6 +14,7 @@
 
 #include "xls/dslx/ir_convert/fuzz_test_converter.h"
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <utility>
@@ -33,6 +34,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
@@ -68,25 +70,75 @@ absl::Status LowerArray(const std::vector<InterpValue>& elements,
   return absl::OkStatus();
 }
 
-// Forward declaration due to mutual recursion.
-absl::Status LowerConstant(const InterpValue& val,
-                           PackageInterfaceProto::FuzzTestDomain& proto);
+}  // namespace
 
-absl::Status LowerTuple(const std::vector<InterpValue>& elements,
-                        PackageInterfaceProto::FuzzTestDomain& proto) {
+absl::Status FuzzTestConverter::LowerTuple(
+    const Type* param_type, const std::vector<InterpValue>& elements,
+    PackageInterfaceProto::FuzzTestDomain& proto) {
   if (elements.empty()) {
+    // Cannot send enums into this function; must use LowerArbitraryType
+    XLS_RET_CHECK(!param_type->IsEnum());
     proto.set_arbitrary(true);
     return absl::OkStatus();
   }
   auto* tuple_proto = proto.mutable_tuple();
-  for (const auto& element : elements) {
-    XLS_RETURN_IF_ERROR(LowerConstant(element, *tuple_proto->add_elements()));
+  const TupleType* tuple_type = nullptr;
+  if (param_type != nullptr && param_type->IsTuple()) {
+    tuple_type = &param_type->AsTuple();
+  }
+  for (size_t i = 0; i < elements.size(); ++i) {
+    const Type* member_type =
+        (tuple_type != nullptr) ? tuple_type->members()[i].get() : nullptr;
+    const InterpValue& element = elements[i];
+    XLS_RETURN_IF_ERROR(
+        LowerConstant(member_type, element, *tuple_proto->add_elements()));
   }
   return absl::OkStatus();
 }
 
-absl::Status LowerConstant(const InterpValue& val,
-                           PackageInterfaceProto::FuzzTestDomain& proto) {
+absl::Status FuzzTestConverter::LowerArbitraryEnum(
+    const Type* param_type, PackageInterfaceProto::FuzzTestDomain& proto) {
+  XLS_RET_CHECK(param_type != nullptr && param_type->HasEnum());
+  const EnumType& enum_type = param_type->AsEnum();
+
+  auto* element_of_proto = proto.mutable_element_of();
+  //  1. Get the enum values
+  for (const auto& enum_member : enum_type.nominal_type().values()) {
+    Expr* value_expr = enum_member.value;
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue const_value,
+        ConstexprEvaluator::EvaluateToValue(import_data_, current_type_info_,
+                                            /*warning_collector=*/nullptr,
+                                            /*bindings=*/{}, value_expr));
+    XLS_ASSIGN_OR_RETURN(ValueProto val_proto, const_value.AsProto());
+    //  2. Add them to the element_of_proto
+    *element_of_proto->add_values() = std::move(val_proto);
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status FuzzTestConverter::LowerArbitraryType(
+    const Type* param_type, PackageInterfaceProto::FuzzTestDomain& proto) {
+  if (param_type->IsEnum()) {
+    return LowerArbitraryEnum(param_type, proto);
+  }
+  if (param_type->IsTuple()) {
+    auto* tuple_proto = proto.mutable_tuple();
+    const TupleType& tuple_type = param_type->AsTuple();
+    for (const auto& member_type : tuple_type.members()) {
+      XLS_RETURN_IF_ERROR(
+          LowerArbitraryType(member_type.get(), *tuple_proto->add_elements()));
+    }
+    return absl::OkStatus();
+  }
+  proto.set_arbitrary(true);
+  return absl::OkStatus();
+}
+
+absl::Status FuzzTestConverter::LowerConstant(
+    const Type* param_type, const InterpValue& val,
+    PackageInterfaceProto::FuzzTestDomain& proto) {
   if (val.is_range()) {
     // InterpValues that originated as ranges are stored as an array of
     // elements, so we need to get the first and last entries in the array
@@ -100,6 +152,7 @@ absl::Status LowerConstant(const InterpValue& val,
     return LowerRange(elements->front(), elements->back(), proto);
   }
   if (val.IsArray()) {
+    // Indicates an ElementOf domain, NOT an array parameter.
     XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
                          val.GetValues());
     return LowerArray(*elements, proto);
@@ -107,16 +160,24 @@ absl::Status LowerConstant(const InterpValue& val,
   if (val.IsTuple()) {
     XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
                          val.GetValues());
-    return LowerTuple(*elements, proto);
+    // If the parameter is an enum, or contains enums, with an arbitrary domain,
+    // we need to lower it so it is represented as an ElementOf domain (or tuple
+    // thereof), rather than a RangeOf the underlying bits type. This is because
+    // some enumerations don't cover their whole bits range, and so it would be
+    // wrong to use the whole bits range as a fuzztest domain.
+    XLS_RET_CHECK(param_type != nullptr);
+    if (param_type->HasEnum() && elements->empty()) {
+      return LowerArbitraryType(param_type, proto);
+    }
+    return LowerTuple(param_type, *elements, proto);
   }
   return absl::UnimplementedError(absl::StrCat(
       "Unsupported constant fuzztest domain type: ", val.ToString()));
 }
 
-}  // namespace
-
 absl::Status FuzzTestConverter::LowerDomainExpr(
-    const Expr* expr, PackageInterfaceProto::FuzzTestDomain& proto) {
+    const Type* param_type, const Expr* expr,
+    PackageInterfaceProto::FuzzTestDomain& proto) {
   if (expr->kind() == AstNodeKind::kRange) {
     // Ranges get expanded into arrays by the constexpr evaluator, so if you
     // have a range of u32:0..u32:FFFFFFFF, it will try to turn it into an array
@@ -130,7 +191,7 @@ absl::Status FuzzTestConverter::LowerDomainExpr(
       ConstexprEvaluator::EvaluateToValue(import_data_, current_type_info_,
                                           /*warning_collector=*/nullptr,
                                           /*bindings=*/{}, expr));
-  return LowerConstant(const_value, proto);
+  return LowerConstant(param_type, const_value, proto);
 }
 
 absl::Status FuzzTestConverter::LowerRangeExpr(
@@ -182,11 +243,16 @@ FuzzTestConverter::LowerFuzzTestDomains(const Function* node) {
     // proto and recover the domains therein.
     PackageInterfaceProto::Function temp_func;
 
-    for (const Expr* domain_expr : domains_tuple->members()) {
+    for (int i = 0; i < domains_tuple->members().size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          const Type* param_type,
+          current_type_info_->GetItemOrError(node->params()[i]));
+      const Expr* domain_expr = domains_tuple->members().at(i);
+
       PackageInterfaceProto::FuzzTestDomain* domain_proto =
           temp_func.add_parameter_domains();
-
-      XLS_RETURN_IF_ERROR(LowerDomainExpr(domain_expr, *domain_proto));
+      XLS_RETURN_IF_ERROR(
+          LowerDomainExpr(param_type, domain_expr, *domain_proto));
     }
 
     std::string proto_str;
