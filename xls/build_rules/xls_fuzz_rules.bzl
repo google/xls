@@ -66,6 +66,7 @@ def dslx_fuzz_test(
         library = library,
         dslx_top = test_function,
         ir_file = ir_file,
+        tags = tags,
     )
 
     lib_name = name + "_lib"
@@ -80,6 +81,7 @@ def dslx_fuzz_test(
         },
         enable_llvm_coverage = True,
         testonly = True,
+        tags = tags,
     )
 
     fuzzer_name = name + "_fuzzer"
@@ -96,6 +98,7 @@ def dslx_fuzz_test(
         },
         testonly = True,
         deps = [":" + lib_name],
+        tags = tags,
     )
 
     cc_test(
