@@ -238,8 +238,9 @@ class ExprClone
       VISIT(cloned_init, init);
       inits.push_back(cloned_init);
     }
-    auto* cloned = new (ctx) clang::InitListExpr(ctx, expr->getLBraceLoc(),
-                                                 inits, expr->getRBraceLoc());
+    auto* cloned = new (ctx) clang::InitListExpr(
+        ctx, expr->getLBraceLoc(), inits, expr->getRBraceLoc(),
+        expr->getLBraceLoc().isValid() && expr->getRBraceLoc().isValid());
     cloned->setType(expr->getType());
     return cloned;
   }
