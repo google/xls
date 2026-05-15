@@ -1982,8 +1982,8 @@ unary `-` `!`               | n/a
 
 ## Testing and Debugging
 
-DSLX allows specifying tests right in the implementation file via the `test` and
-`quickcheck` attributes.
+DSLX allows specifying tests right in the implementation file via the `test`,
+`quickcheck` and `fuzztest` attributes.
 
 Having test code in the implementation file serves two purposes. It helps to
 ensure the code behaves as expected. Additionally, it serves as 'executable'
@@ -2094,6 +2094,130 @@ stimulus over randomized stimulus. Note that as the space becomes large,
 exhaustive concrete-stimulus-based testing becomes implausible, and users should
 consider attempting to prove the QuickCheck formally via the
 `prove_quickcheck_main` tool.
+
+### Fuzz tests
+
+Fuzz tests are designed to find edge cases and hard-to-reach bugs that standard
+unit tests or random QuickCheck might miss. They work by generating a large
+number of pseudo-random inputs and are guided by code coverage. DSLX fuzz tests
+leverage the [Google FuzzTest](https://github.com/google/fuzztest) framework and
+the AOT C++ version of the DSLX code; the LLVM compilation from DSLX IR to LLVM
+IR includes coverage information that guides the fuzzer to explore new execution
+paths.
+
+This differs from QuickCheck primarily in how inputs are generated and explored.
+While QuickCheck generates random inputs based on parameter type to check
+properties, the Google FuzzTest framework uses **coverage guidance** to actively
+search for inputs that trigger new behaviors or code paths. Fuzz tests are
+typically run for longer durations to explore a much larger state space.
+
+IMPORTANT: You can only fuzz test parameters that are numeric (bits), or tuples
+of them at this time.
+
+IMPORTANT: Arrays are not currently supported, but are planned.
+
+#### Property function
+
+The property function is the core of the fuzz test. It takes the
+fuzzer-generated inputs as arguments and returns a boolean indicating success
+(`true`) or failure (`false`). It should contain the logic to verify that the
+system behaves correctly for any valid input.
+
+Although the property function can call `assert!` if the test fails, for best
+integration with the testing framework, it isn't recommended.
+
+```dslx-snippet
+#[fuzz_test(domains=`u32:0..32, (), [Op::ADD, Op::MUL], (u32:1..10, ())`)]
+fn fuzz_tester(x: u32, y: u16, op: Op, pair: (u32, u16)) -> bool {
+  true
+}
+```
+
+In this example:
+
+*   `x` is restricted to the range `u32:0..32`
+*   `y` has an "Arbitrary" domain `()`, meaning any `u16` value can be
+    generated.
+*   `op` is restricted to the elements in the list `[Op::ADD, Op::MUL]`.
+*   `pair` is a tuple where the first element is in the range `u32:1..10` and
+    the second element is arbitrary.
+
+You can define multiple fuzz test property functions within the same DSLX file.
+However, each property function must have its own corresponding `dslx_fuzz_test`
+build target in the [BUILD file](#build-targets).
+
+Note: If the `fuzz_test` attribute itself or the `domains` parameter is omitted,
+all parameter domains are considered "arbitrary".
+
+#### Domain specifiers
+
+The following domain specifiers are available.
+
+| Name      | Syntax example  | Description                                  |
+| --------- | --------------- | -------------------------------------------- |
+| Arbitrary | `()`            | Any possible value for this parameter may be |
+:           :                 : generated, within its bit-size               :
+| Range     | `u32:1..99`     | End-exclusive range of values will be        |
+:           :                 : generated for this parameter                 :
+| Range     | `u32:1..=99`    | End-inclusive range of values will be        |
+:           :                 : generated for this parameter                 :
+| ElementOf | `[u32:1, 2, 4]` | One of the provided values will be used for  |
+:           :                 : this parameter                               :
+
+You can also specify domains for tuples. This specification is recursive, and
+you can use `()` to denote an "Arbitrary" domain for a specific slot in the
+tuple. The fuzzer will generate tuples where each element respects its defined
+domain. For example, `(u32:0..10, ())` specifies a domain for a pair where the
+first element is restricted to 0..10 and the second can be any value of its
+type.
+
+The "Arbitrary" domain applied to `enum` parameters restrains the provided
+fuzzed values to the defined values of the `enum`, even if the `enum` is sparse.
+For example:
+
+```dslx
+enum Op : u3 {
+    ADD = 0,
+    MUL = 1,
+}
+```
+
+will never generate 2 through 7 even though they are valid `u3` values.
+
+#### BUILD targets
+
+See the
+[XLS Bazel Rules Documentation](https://google.github.io/xls/bazel_rules_macros/#dslx_fuzz_test)
+for more information.
+
+```build
+dslx_library(
+  name="code_lib",
+  srcs=["code_with_test.x"]
+)
+
+dslx_fuzz_test(
+  name="example_fuzz_test",
+  library=":code_lib",
+  test_function="fuzz_tester"
+)
+```
+
+To run the tests:
+
+```sh
+$ bazel test :example_fuzz_test
+```
+
+To run fuzz tests in "continuous" mode:
+
+```sh
+$ bazel run :example_fuzz_test --config=fuzztest
+```
+
+See also the
+[Google FuzzTest documentation](https://github.com/google/fuzztest/blob/main/doc/quickstart-bazel.md)
+for more details on running fuzz tests.
 
 ## Communicating Sequential Processes (AKA procs)
 
