@@ -2,6 +2,9 @@
 
 This directory contains examples/integration tests for DSLX fuzz testing.
 
+See https://google.github.io/xls/dslx_reference/#fuzz-tests for more
+information.
+
 ## Supported Domains
 
 The following domain specifications are supported in the `domains` argument of
@@ -18,10 +21,9 @@ the `#[fuzz_test]` attribute:
 
 ## Known Limitations
 
--   **Array parameters**: `(ElementDomain)[N]` is not yet supported; however if
-    you specify the parameter "as arbitrary" (i.e., `()`) it will Just Work.
--   **Struct parameters**: `StructName { field: Domain, ... }` is not yet
-    supported.
+-   **Array parameters**: are not yet supported.
+-   **Struct parameters**: (e.g., `StructName { field: Domain, ... }`) are not
+    yet supported.
 -   Fuzzing is currently limited to types that can be mapped to native C++ types
     up to 64 bits for full specialization. Larger types fallback to `xls::Value`
     and may have limited mutation capabilities.
