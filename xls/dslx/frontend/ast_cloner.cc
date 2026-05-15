@@ -1157,9 +1157,14 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleTypeRefTypeAnnotation(
       const TypeRefTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
+    // Don't clone the instantiator here because it may not be in the hierarchy
+    // currently being cloned and, if it is,  we can't guarantee that it has
+    // already been visited by the cloner.
+    // TODO: Reliably handle the instantiator, updating the cloned version if
+    // the instantiator is cloned.
     old_to_new_[n] = module(n)->Make<TypeRefTypeAnnotation>(
         n->span(), absl::down_cast<TypeRef*>(old_to_new_.at(n->type_ref())),
-        CloneParametrics(n->parametrics()));
+        CloneParametrics(n->parametrics()), n->instantiator());
     return absl::OkStatus();
   }
 

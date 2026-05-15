@@ -2258,5 +2258,59 @@ const Y = S{a: 2}.foo(u32:200);
                               HasNodeWithType("Y", "uN[64]"))));
 }
 
+TEST(TypecheckV2StructTest, PartialInferenceForStructInstance) {
+  EXPECT_THAT(
+      R"(
+struct S<DefinedParametric: u32, InferredParametric: u32> {
+    x: uN[InferredParametric],
+}
+
+impl S<DefinedParametric, InferredParametric> {
+    fn call(self, i: u32) -> uN[DefinedParametric] {
+        i as uN[DefinedParametric] + self.x
+    }
+}
+fn main<N: u32>() -> uN[N] {
+    let x: uN[N] = 5;
+    S<N>{ x: x }.call(u32:1)
+}
+
+const ONE = main<16>();
+const TWO = main<24>();
+const_assert!(ONE == u16:6);
+const_assert!(TWO == u24:6);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16]"),
+                              HasNodeWithType("TWO", "uN[24]"))));
+}
+
+TEST(TypecheckV2StructTest, PartialInferenceForStructInstanceGeneric) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<DefinedType: type, InferredType: type> {
+    x: InferredType,
+}
+
+impl S<DefinedType, InferredType> {
+    fn call(self, i: u32) -> DefinedType {
+        i as DefinedType + self.x
+    }
+}
+fn main<T: type>() -> T {
+    let x: T = 5;
+    S<T>{ x: x }.call(u32:1)
+}
+
+const ONE = main<u16>();
+const TWO = main<u24>();
+const_assert!(ONE == u16:6);
+const_assert!(TWO == u24:6);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16]"),
+                              HasNodeWithType("TWO", "uN[24]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx
