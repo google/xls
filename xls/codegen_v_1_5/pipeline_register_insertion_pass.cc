@@ -45,6 +45,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
@@ -192,32 +193,49 @@ absl::StatusOr<ConcurrentStageGroups> CalculateConcurrentStages(
   if (block->source() == nullptr || !block->source()->IsProc()) {
     return result;
   }
+  Proc* proc = block->source()->AsProcOrDie();
 
   // Find all the mutex regions created by unconditional state feedback.
   absl::flat_hash_map<StateElement*, int64_t> read_by_stage;
   absl::flat_hash_map<StateElement*, int64_t> first_write_stage;
-  for (Node* node : block->nodes()) {
-    if (!node->Is<Next>()) {
-      continue;
-    }
-    Next* next = node->As<Next>();
-    StateRead* state_read = node->As<Next>()->state_read()->As<StateRead>();
-    StateElement* state_element = state_read->state_element();
-    if (state_read->predicate().has_value()) {
+
+  // 1. Find the earliest unconditional read stage for each state element.
+  // During block lowering, StateRead nodes remain owned by the source Proc.
+  for (Node* node : proc->nodes()) {
+    if (node->Is<StateRead>()) {
+      StateRead* state_read = node->As<StateRead>();
       // If the state read is predicated, then it doesn't start a mutual
       // exclusion zone.
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(read_by_stage[state_element],
-                         block->GetStageIndex(state_read));
-
-    XLS_ASSIGN_OR_RETURN(int64_t write_stage, block->GetStageIndex(next));
-    auto [it, inserted] =
-        first_write_stage.try_emplace(state_element, write_stage);
-    if (!inserted) {
-      it->second = std::min(it->second, write_stage);
+      if (state_read->predicate().has_value()) {
+        continue;
+      }
+      StateElement* state_element = state_read->state_element();
+      XLS_ASSIGN_OR_RETURN(int64_t read_stage,
+                           block->GetStageIndex(state_read));
+      auto [it, inserted] =
+          read_by_stage.try_emplace(state_element, read_stage);
+      if (!inserted) {
+        it->second = std::min(it->second, read_stage);
+      }
     }
   }
+
+  // 2. Find the earliest write stage for each state element.
+  // Next nodes are added directly to the Block and are owned by the Block.
+  for (Node* node : block->nodes()) {
+    if (node->Is<Next>()) {
+      Next* next = node->As<Next>();
+      StateElement* state_element = next->state_element();
+      XLS_ASSIGN_OR_RETURN(int64_t write_stage, block->GetStageIndex(next));
+      auto [it, inserted] =
+          first_write_stage.try_emplace(state_element, write_stage);
+      if (!inserted) {
+        it->second = std::min(it->second, write_stage);
+      }
+    }
+  }
+
+  // 3. Mark mutual exclusion zones.
   for (const auto& [state_element, read_stage] : read_by_stage) {
     auto write_stage_it = first_write_stage.find(state_element);
     if (write_stage_it == first_write_stage.end()) {
@@ -253,8 +271,7 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
   for (Node* node : block->nodes()) {
     if (node->Is<Next>()) {
       Next* next = node->As<Next>();
-      StateElement* state_element =
-          next->state_read()->As<StateRead>()->state_element();
+      StateElement* state_element = next->state_element();
       int64_t stage = *block->GetStageIndex(next);
       auto [it, inserted] =
           earliest_next_stage.try_emplace(state_element, stage);
@@ -351,8 +368,9 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
             // corresponding StateRead, we need to avoid updating that specific
             // operand, since no data is being passed. For simplicity, we put it
             // back afterwards rather than actually avoiding the update.
-            bool restore_state_read =
-                user->Is<Next>() && user->As<Next>()->state_read() == node;
+            bool restore_state_read = user->Is<Next>() &&
+                                      user->As<Next>()->has_state_read() &&
+                                      user->As<Next>()->state_read() == node;
             user->ReplaceOperand(node, live_node);
             if (restore_state_read) {
               XLS_RETURN_IF_ERROR(user->As<Next>()->ReplaceOperandNumber(

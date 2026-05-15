@@ -18,8 +18,11 @@
 #include "gtest/gtest.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -64,6 +67,34 @@ TEST_F(ConvertToBlockTest, SimpleFunction) {
                                &opt_context, &pass_results));
 
   // TODO: https://github.com/google/xls/issues/3356 - assert stuff.
+}
+
+TEST_F(ConvertToBlockTest, ProcWithExplicitStateAccessNextValueStateElement) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out_ch_interface,
+                           pb.AddOutputChannel("out_ch", p->GetBitsType(32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
+                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+  BValue state_read = pb.StateRead(se);
+  BValue current = pb.Identity(state_read);
+  BValue add_val = pb.Add(current, pb.Literal(UBits(1, 32)));
+
+  pb.Send(out_ch_interface, add_val);
+
+  pb.Next(se, add_val);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(top));
+
+  OptimizationContext opt_context;
+  PassResults pass_results;
+  XLS_ASSERT_OK(ConvertToBlock(
+      p.get(),
+      codegen_options().clock_name("clk").reset("rst", false, false, false),
+      scheduling_options().opt_level(0), &delay_estimator_, &opt_context,
+      &pass_results));
 }
 
 }  // namespace
