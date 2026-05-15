@@ -82,3 +82,26 @@ dslx_fuzz_test(
     library = ":enum_tests_dslx",
     test_function = "oneof_enum",
 )
+
+xls_dslx_library(
+    name = "array_tests_dslx",
+    srcs = ["array_tests.x"],
+)
+
+dslx_fuzz_test(
+    name = "array_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "arbitrary_array",
+)
+
+dslx_fuzz_test(
+    name = "array_of_tuples_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "array_of_tuples",
+)
+
+dslx_fuzz_test(
+    name = "tuple_with_array_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "tuple_with_array",
+)

@@ -317,6 +317,12 @@ def to_domain(
     app.UsageError: If the domain specification is invalid or unsupported for
        the given type.
   """
+  if t.type_enum == type_pb2.TypeProto.ARRAY:
+    elem_domain = to_domain(t.array_element, None)
+    if elem_domain is None:
+      return None
+    return f"fuzztest::ArrayOf<{t.array_size}>({elem_domain})"
+
   if (
       d is None
       or d.HasField("arbitrary")
@@ -340,11 +346,7 @@ def to_domain(
       if any(e is None for e in elems):
         return None
       return f"fuzztest::TupleOf({', '.join(elems)})"
-    elif t.type_enum == type_pb2.TypeProto.ARRAY:
-      elem_domain = to_domain(t.array_element, None)
-      if elem_domain is None:
-        return None
-      return f"fuzztest::VectorOf({elem_domain}).WithSize({t.array_size})"
+
     else:
       return None
 
@@ -399,7 +401,7 @@ def to_value_conversion(t: type_pb2.TypeProto, expr: str) -> str:
     elems = []
     for i in range(t.array_size):
       elems.append(to_value_conversion(t.array_element, f"{expr}[{i}]"))
-    return f"xls::Value::Array({{{', '.join(elems)}}})"
+    return f"xls::Value::ArrayOrDie({{{', '.join(elems)}}})"
   raise app.UsageError(f"Unsupported type for value conversion: {t}")
 
 

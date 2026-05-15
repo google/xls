@@ -391,7 +391,7 @@ class JitWrapperGeneratorToValueConversionTest(absltest.TestCase):
     )
     self.assertEqual(
         jit_wrapper_generator.to_value_conversion(tup, 't'),
-        'xls::Value::Tuple({xls::Value::Array({xls::Value(xls::UBits('
+        'xls::Value::Tuple({xls::Value::ArrayOrDie({xls::Value(xls::UBits('
         'std::get<0>(t)[0], 8)), xls::Value(xls::UBits(std::get<0>(t)[1], 8))})'
         '})',
     )
@@ -420,7 +420,8 @@ class JitWrapperGeneratorToValueConversionTest(absltest.TestCase):
     self.assertEqual(
         jit_wrapper_generator.to_value_conversion(tup, 't'),
         'xls::Value::Tuple({xls::Value(xls::UBits(std::get<0>(t), 32)),'
-        ' xls::Value::Array({xls::Value(xls::UBits(std::get<1>(t)[0], 8))})})',
+        ' xls::Value::ArrayOrDie({xls::Value(xls::UBits(std::get<1>(t)[0],'
+        ' 8))})})',
     )
 
 
@@ -842,6 +843,16 @@ class JitWrapperGeneratorToDomainTest(absltest.TestCase):
         ' fuzztest::TupleOf(fuzztest::InRange<uint32_t>(0, 5)))',
     )
 
+  def test_array_domain(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    arr = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.ARRAY, array_size=3, array_element=u32
+    )
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(arr, None),
+        'fuzztest::ArrayOf<3>(fuzztest::Arbitrary<uint32_t>())',
+    )
+
   def test_tuple_with_array_domain(self):
     u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
     arr = type_pb2.TypeProto(
@@ -858,7 +869,7 @@ class JitWrapperGeneratorToDomainTest(absltest.TestCase):
     self.assertEqual(
         jit_wrapper_generator.to_domain(tup, d),
         'fuzztest::TupleOf(fuzztest::Arbitrary<uint32_t>(),'
-        ' fuzztest::VectorOf(fuzztest::Arbitrary<uint32_t>()).WithSize(3))',
+        ' fuzztest::ArrayOf<3>(fuzztest::Arbitrary<uint32_t>()))',
     )
 
   def test_unsupported_domain_raises(self):
