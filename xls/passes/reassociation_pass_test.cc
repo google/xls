@@ -1490,6 +1490,39 @@ TEST_F(ReassociationPassTest, NegateAdds) {
                     m::Add(m::Literal(), m::Literal()))));
 }
 
+TEST_F(ReassociationPassTest, NegateNotPulledUpThroughZeroExtend) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x1 = fb.Param("x1", p->GetBitsType(8));
+  BValue x1_ext = fb.ZeroExtend(x1, 16);
+  BValue lit0 = fb.Literal(UBits(0, 8));
+  BValue lit0_ext = fb.ZeroExtend(lit0, 16);
+  fb.Negate(fb.Add(fb.Add(lit0_ext, lit0_ext), x1_ext));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ReassociationPassTest, NegateNotPulledUpThroughSignExtend) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x1 = fb.Param("x1", p->GetBitsType(8));
+  BValue x2 = fb.Param("x2", p->GetBitsType(8));
+  BValue x3 = fb.Param("x3", p->GetBitsType(16));
+  BValue x4 = fb.Param("x4", p->GetBitsType(16));
+  BValue lit1 = fb.Literal(UBits(1, 8));
+  BValue x1_x2_ext = fb.SignExtend(fb.Add(fb.Add(x1, lit1), x2), 16);
+  fb.Add(fb.Add(fb.Negate(x1_x2_ext), x3), x4);
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  // Theoretically could reassociate to this if extends were annotated:
+  // EXPECT_THAT(
+  //     f->return_value(),
+  //     m::Sub(m::Add(m::Param("x3"), m::Param("x4")),
+  //            m::Add(m::Add(m::Param("x1"), m::Literal()), m::Param("x2"))));
+}
+
 void IrFuzzReassociation(FuzzPackageWithArgs fuzz_package_with_args) {
   ReassociationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

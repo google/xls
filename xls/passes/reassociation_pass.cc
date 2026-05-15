@@ -582,6 +582,7 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
                          CalculateAssociativeOp(op, /*is_signed=*/false));
     return absl::OkStatus();
   }
+
   absl::Status HandleNeg(UnOp* op) override {
     const AssociativeElements& base_signed =
         GetOperandInfo(0, /*is_signed=*/true);
@@ -597,6 +598,7 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
         signed_result_->SetOverflow();
       }
     }
+
     const AssociativeElements& base_unsigned =
         GetOperandInfo(0, /*is_signed=*/false);
     if (base_unsigned.op() == Op::kSMul) {
@@ -610,14 +612,17 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
       // NB If we did reassociation in conjunction with narrowing then we could
       // reassociate the neg here anyway but that's not really possible. The
       // fixedpoint should ensure we get all the way down eventually though.
-      bool multi_bit_width = !base_unsigned.is_leaf() && [&]() -> bool {
+      bool multi_bit_width = [&]() -> bool {
         auto elements = base_unsigned.all_elements();
         auto it = elements.begin();
         if (it == elements.end()) {
           return false;
         }
         Type* first_ty = it->node->GetType();
-        return absl::c_any_of(elements,
+        // Catches zero extends which are not annotated in the tree.
+        bool same_type_as_neg = first_ty == op->GetType();
+        return !same_type_as_neg ||
+               absl::c_any_of(elements,
                               [&](const AssociativeElements::NodeData& data) {
                                 return data.node->GetType() != first_ty;
                               });
@@ -629,6 +634,7 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
     }
     return absl::OkStatus();
   }
+
   absl::Status HandleConcat(Concat* cc) override {
     std::optional<ZeroExtLike> ext_like = ZeroExtLike::Make(cc, query_engine_);
     if (!ext_like) {
