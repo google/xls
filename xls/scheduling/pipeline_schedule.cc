@@ -265,17 +265,32 @@ absl::Status PipelineSchedule::Verify() const {
       continue;
     }
     XLS_RET_CHECK(IsScheduled(node));
+    if (node->Is<MinDelay>()) {
+      // NB Our SDC scheduler will usually put the min-delay after its operand
+      // but the ASAP and potentially other schedulers (due to the specific way
+      // they represent delay and the constraints the min-delay node represents)
+      // may place it in the same cycle as the operand or even place it
+      // somewhere in between the operand and the nodes users. To allow for any
+      // choice we check the difference between the users and the operand
+      // directly and don't care about the min-delay itself.
+      int64_t cycle_operand = cycle(node->operand(0));
+      for (Node* user : node->users()) {
+        XLS_RET_CHECK_LE(cycle_operand,
+                         cycle(user) - node->As<MinDelay>()->delay())
+            << "The user '" << user->ToString() << "' at cycle " << cycle(user)
+            << " of the MinDelay node " << node
+            << " is not correctly scheduled. It is not "
+            << node->As<MinDelay>()->delay()
+            << " cycles after the min-delay operand " << node->operand(0)
+            << " at cycle " << cycle_operand << ".";
+      }
+    }
     for (Node* operand : node->operands()) {
       if (IsUntimed(operand)) {
         continue;
       }
       XLS_RET_CHECK_LE(cycle(operand), cycle(node))
           << "Operand " << operand << " scheduled after user " << node;
-
-      if (node->Is<MinDelay>()) {
-        XLS_RET_CHECK_LE(cycle(operand),
-                         cycle(node) - node->As<MinDelay>()->delay());
-      }
     }
   }
   if (function_base()->IsProc()) {
