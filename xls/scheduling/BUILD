@@ -348,6 +348,7 @@ cc_test(
     deps = [
         ":schedule_bounds",
         ":schedule_graph",
+        ":scheduling_options",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",

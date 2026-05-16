@@ -88,6 +88,10 @@ class ConstraintConverter {
                       constraint);
   }
 
+  void AddNodeConstraint(const NodeSchedulingConstraint& constraint) {
+    node_constraints_.push_back(constraint);
+  }
+
   absl::Status AddSpecificConstraint(const NodeInCycleConstraint& nic) {
     node_constraints_.emplace_back(nic);
     return absl::OkStatus();
@@ -381,6 +385,18 @@ ScheduleBounds::ConvertSchedulingConstraints(
     XLS_RETURN_IF_ERROR(converter.AddConstraint(constraint))
         << "Could not add constraint for " << graph.name();
   }
+  // Finally add any min-delay constraints as a final pass.
+  for (const ScheduleNode& node : graph.nodes()) {
+    if (node.node->Is<MinDelay>()) {
+      converter.AddNodeConstraint(
+          NodeSchedulingConstraint(NodeDifferenceConstraint{
+              .anchor = node.node->operand(0),
+              .subject = node.node,
+              .min_after = node.node->As<MinDelay>()->delay(),
+              .max_after = max_upper_bound,
+          }));
+    }
+  }
   XLS_ASSIGN_OR_RETURN(std::vector<NodeSchedulingConstraint> node_constraints,
                        std::move(converter).Finalize());
   VLOG(2) << "  Node constraints are: ["
@@ -557,14 +573,13 @@ absl::StatusOr<std::optional<int64_t>> PropagateGenericBounds(
         node_in_cycle_delay = in_cycle_delay.at(operand.node) + operand_delay;
         continue;
       }
-      int64_t min_delay = operand.node->Is<MinDelay>()
-                              ? operand.node->As<MinDelay>()->delay()
-                              : 0;
-      if (operand_cb + min_delay > node_cb) {
+      // NB MinDelay nodes are handled by constraints so no need to do anything
+      // here.
+      if (operand_cb > node_cb) {
         VLOG(4) << absl::StreamFormat(
             "    tightened lb to %d because of operand %s", operand_cb,
             operand.node->GetName());
-        XLS_RETURN_IF_ERROR(TightenBound(node_cb, operand_cb + min_delay));
+        XLS_RETURN_IF_ERROR(TightenBound(node_cb, operand_cb));
         changed = true;
         node_in_cycle_delay = 0;
         continue;

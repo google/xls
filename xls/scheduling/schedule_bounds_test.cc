@@ -42,6 +42,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/scheduling/schedule_graph.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace m = xls::op_matchers;
 namespace xls {
@@ -500,6 +501,138 @@ TEST_F(ScheduleBoundsTest, PushNodeLaterChain) {
   EXPECT_THAT(sched.bounds(e.node()), Bounds(3, 3));
   EXPECT_THAT(sched.bounds(g.node()), Bounds(5, 5));
   EXPECT_THAT(sched.bounds(h.node()), Bounds(7, 7));
+}
+
+TEST_F(ScheduleBoundsTest, MinDelayBasic) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a = fb.Param("a", p->GetBitsType(32));
+  auto b = fb.Param("b", p->GetBitsType(32));
+  fb.Add(a, b);
+  auto tkn = fb.Literal(Value::Token());
+  auto min_delay = fb.MinDelay(tkn, /*delay=*/3);
+  auto assert = fb.Assert(min_delay, fb.Literal(UBits(1, 1)), "msg");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ControllableDelayEstimator delay;
+  delay.SetDelay(m::Add(), 1);
+  delay.SetDelay(Op::kMinDelay, 0);
+  delay.SetDelay(Op::kAssert, 0);
+  delay.SetDelay(FreeOperations(), 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleBounds sched,
+      ScheduleBounds::ComputeAsapAndAlapBounds(f,
+                                               /*clock_period_ps=*/3, delay));
+  EXPECT_THAT(sched.bounds(min_delay.node()), Bounds(3, 3));
+  EXPECT_THAT(sched.bounds(assert.node()), Bounds(3, 3));
+}
+
+TEST_F(ScheduleBoundsTest, MinDelayChain) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto tkn = fb.Literal(Value::Token());
+  auto md1 = fb.MinDelay(tkn, /*delay=*/2);
+  auto md2 = fb.MinDelay(md1, /*delay=*/3);
+  fb.Assert(md2, fb.Literal(UBits(1, 1)), "msg");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ControllableDelayEstimator delay;
+  delay.SetDelay(Op::kMinDelay, 0);
+  delay.SetDelay(Op::kAssert, 0);
+  delay.SetDelay(FreeOperations(), 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleBounds sched,
+      ScheduleBounds::ComputeAsapAndAlapBounds(f,
+                                               /*clock_period_ps=*/3, delay));
+  EXPECT_THAT(sched.bounds(md1.node()), Bounds(2, 2));
+  EXPECT_THAT(sched.bounds(md2.node()), Bounds(5, 5));
+}
+
+TEST_F(ScheduleBoundsTest, MinDelayAndIIInteraction) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc(), TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * ch_in,
+                           pb.AddInputChannel("in", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * ch_out,
+                           pb.AddOutputChannel("out", p->GetBitsType(32)));
+
+  BValue state = pb.StateElement("st", Value(UBits(0, 32)));
+  BValue tkn = pb.Literal(Value::Token());
+  BValue rcv = pb.Receive(ch_in, tkn);
+  BValue rcv_tkn = pb.TupleIndex(rcv, 0);
+  BValue rcv_data = pb.TupleIndex(rcv, 1);
+  BValue md = pb.MinDelay(rcv_tkn, /*delay=*/3);
+  BValue send = pb.Send(ch_out, md, rcv_data);
+  // Make the next state depend on send token so backedge constraint covers the
+  // whole chain.
+  BValue next_state = pb.Add(state, pb.TupleIndex(pb.Receive(ch_in, send), 1));
+  pb.Next(state, next_state);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ControllableDelayEstimator delay;
+  delay.SetDelay(m::Add(), 1);
+  delay.SetDelay(Op::kMinDelay, 0);
+  delay.SetDelay(FreeOperations(), 0);
+
+  // Set II = 4.
+  // Backedge constraint: Next - state <= II - 1 = 3.
+  // MinDelay constraint: send >= md >= rcv_tkn + 3.
+  // Since rcv_tkn is derived from tkn (state read), this forces send to be
+  // scheduled at least 3 cycles after the receive.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleBounds sched,
+      ScheduleBounds::ComputeAsapAndAlapBounds(
+          proc,
+          /*clock_period_ps=*/3, delay, /*ii=*/4, {BackedgeConstraint()}));
+  EXPECT_THAT(sched.bounds(md.node()), Bounds(3, 3));
+  EXPECT_THAT(sched.bounds(send.node()), Bounds(3, 3));
+}
+
+TEST_F(ScheduleBoundsTest, MinDelayAndIOConstraintConflict) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc(), TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * ch_a,
+                           pb.AddInputChannel("a", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * ch_b,
+                           pb.AddOutputChannel("b", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * ch_c,
+                           pb.AddOutputChannel("c", p->GetBitsType(32)));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue rcv_a = pb.Receive(ch_a, tkn);
+  BValue rcv_a_tkn = pb.TupleIndex(rcv_a, 0);
+  BValue rcv_a_data = pb.TupleIndex(rcv_a, 1);
+
+  BValue md1 = pb.MinDelay(rcv_a_tkn, /*delay=*/2);
+  BValue send_b = pb.Send(ch_b, md1, rcv_a_data);
+
+  BValue md2 = pb.MinDelay(send_b, /*delay=*/2);
+  pb.Send(ch_c, md2, rcv_a_data);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ControllableDelayEstimator delay;
+  delay.SetDelay(Op::kMinDelay, 0);
+  delay.SetDelay(FreeOperations(), 0);
+
+  // IO constraint says send_c (Channel "c") must be at most 3 cycles after
+  // rcv_a (Channel "a"). MinDelay requires:
+  //   send_b >= rcv_a + 2
+  //   send_c >= send_b + 2
+  // So send_c >= rcv_a + 4.
+  // This conflicts with maximum_latency = 3.
+  IOConstraint io_const("a", IODirection::kReceive, "c", IODirection::kSend,
+                        /*minimum_latency=*/0, /*maximum_latency=*/3);
+
+  EXPECT_THAT(
+      ScheduleBounds::ComputeAsapAndAlapBounds(proc,
+                                               /*clock_period_ps=*/3, delay,
+                                               /*ii=*/std::nullopt, {io_const}),
+      StatusIs(absl::StatusCode::kInternal,
+               ContainsRegex(".*failed to converge.*|.*potentially "
+                             "incompatible with constraint.*")));
 }
 
 TEST_F(ScheduleBoundsTest, StringifyConstraints) {
