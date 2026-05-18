@@ -23,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -1179,5 +1180,46 @@ TypeInfo::~TypeInfo() {
 const FileTable& TypeInfo::file_table() const { return *module_->file_table(); }
 
 FileTable& TypeInfo::file_table() { return *module_->file_table(); }
+
+ResolvedDomain ResolveDomainExpression(const Expr* domain,
+                                       const TypeInfo* type_info) {
+  const TypeInfo* current_ti = type_info;
+  while (true) {
+    if (domain->kind() == AstNodeKind::kNameRef) {
+      const NameRef* name_ref = absl::down_cast<const NameRef*>(domain);
+      if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+        const NameDef* name_def =
+            std::get<const NameDef*>(name_ref->name_def());
+        if (const ConstantDef* const_def =
+                dynamic_cast<const ConstantDef*>(name_def->definer())) {
+          domain = const_def->value();
+          continue;
+        }
+      }
+    }
+    if (domain->kind() == AstNodeKind::kColonRef && current_ti != nullptr) {
+      const ColonRef* colon_ref = absl::down_cast<const ColonRef*>(domain);
+      std::optional<ImportSubject> import_subject =
+          colon_ref->ResolveImportSubject();
+      if (import_subject.has_value()) {
+        std::optional<const ImportedInfo*> imported_info =
+            current_ti->GetImported(*import_subject);
+        if (imported_info.has_value()) {
+          Module* imported_module = (*imported_info)->module;
+          const TypeInfo* imported_type_info = (*imported_info)->type_info;
+          auto const_def_or =
+              imported_module->GetMember<ConstantDef>(colon_ref->attr());
+          if (const_def_or.has_value()) {
+            domain = (*const_def_or)->value();
+            current_ti = imported_type_info;
+            continue;
+          }
+        }
+      }
+    }
+    break;
+  }
+  return {domain, current_ti};
+}
 
 }  // namespace xls::dslx

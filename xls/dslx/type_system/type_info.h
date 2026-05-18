@@ -652,6 +652,19 @@ inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
   return target;
 }
 
+struct ResolvedDomain {
+  const Expr* expr;
+  const TypeInfo* type_info;
+};
+
+// Resolves a domain expression recursively. If the expression is a NameRef that
+// references a ConstantDef, it returns the resolved constant value expression.
+// If it is a ColonRef that references an imported constant, it resolves it to
+// the imported constant value expression using the provided TypeInfo.
+// Otherwise, it returns the expression itself.
+ResolvedDomain ResolveDomainExpression(const Expr* domain,
+                                       const TypeInfo* type_info);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_TYPE_INFO_H_
