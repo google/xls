@@ -4751,6 +4751,88 @@ fn f(x: u32, op: Op) {}
   }
 }
 
+TEST_F(ParserTest, FuzzTestAttributeStructDomain) {
+  const char* kProgram = R"(
+struct MyStruct { x: u32 }
+#[fuzz_test(domains=`MyStruct { x: u32:0..10 }`)]
+fn f(s: MyStruct) {}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ftf,
+                           module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_TRUE(ftf->domains().has_value());
+  const Expr* domains_expr = ftf->domains().value();
+  const XlsTuple* tuple = dynamic_cast<const XlsTuple*>(domains_expr);
+  ASSERT_NE(tuple, nullptr);
+  ASSERT_EQ(tuple->members().size(), 1);
+
+  const StructInstance* struct_inst =
+      dynamic_cast<const StructInstance*>(tuple->members()[0]);
+  ASSERT_NE(struct_inst, nullptr);
+}
+
+TEST_F(ParserTest, FuzzTestAttributeStructDomainConst) {
+  const char* kProgram = R"(
+struct MyStruct { x: u32 }
+const DOMAINS = MyStruct { x: u32:0..10 };
+#[fuzz_test(domains=`DOMAINS`)]
+fn f(s: MyStruct) {}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ftf,
+                           module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_TRUE(ftf->domains().has_value());
+  const Expr* domains_expr = ftf->domains().value();
+  const XlsTuple* tuple = dynamic_cast<const XlsTuple*>(domains_expr);
+  ASSERT_NE(tuple, nullptr);
+  ASSERT_EQ(tuple->members().size(), 1);
+
+  const NameRef* name_ref = dynamic_cast<const NameRef*>(tuple->members()[0]);
+  ASSERT_NE(name_ref, nullptr);
+}
+
+TEST_F(ParserTest, FuzzTestAttributeNestedStructDomain) {
+  const char* kProgram = R"(
+struct Inner { y: u32 }
+struct Outer { x: Inner }
+#[fuzz_test(domains=`Outer { x: Inner { y: u32:0..10 } }`)]
+fn f(s: Outer) {}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ftf,
+                           module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_TRUE(ftf->domains().has_value());
+  const Expr* domains_expr = ftf->domains().value();
+  const XlsTuple* tuple = dynamic_cast<const XlsTuple*>(domains_expr);
+  ASSERT_NE(tuple, nullptr);
+  ASSERT_EQ(tuple->members().size(), 1);
+
+  const StructInstance* struct_inst =
+      dynamic_cast<const StructInstance*>(tuple->members()[0]);
+  ASSERT_NE(struct_inst, nullptr);
+}
+
+TEST_F(ParserTest, FuzzTestAttributeArbitraryNestedStructDomain) {
+  const char* kProgram = R"(
+struct Inner { y: u32 }
+struct Outer { x: Inner }
+#[fuzz_test(domains=`Outer { x: () }`)]
+fn f(s: Outer) {}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ftf,
+                           module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_TRUE(ftf->domains().has_value());
+  const Expr* domains_expr = ftf->domains().value();
+  const XlsTuple* tuple = dynamic_cast<const XlsTuple*>(domains_expr);
+  ASSERT_NE(tuple, nullptr);
+  ASSERT_EQ(tuple->members().size(), 1);
+
+  const StructInstance* struct_inst =
+      dynamic_cast<const StructInstance*>(tuple->members()[0]);
+  ASSERT_NE(struct_inst, nullptr);
+}
+
 TEST_F(ParserTest, FuzzTestAttributeInvalidNoDomains) {
   const char* kProgram = R"(
 #[fuzz_test(`u32:0..1`)]
