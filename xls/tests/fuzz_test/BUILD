@@ -105,3 +105,15 @@ dslx_fuzz_test(
     library = ":array_tests_dslx",
     test_function = "tuple_with_array",
 )
+
+dslx_fuzz_test(
+    name = "big_array_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "big_array",
+)
+
+dslx_fuzz_test(
+    name = "tuple_with_big_array_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "tuple_with_big_array",
+)

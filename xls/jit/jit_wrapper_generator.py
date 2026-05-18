@@ -227,17 +227,31 @@ def is_float_tuple(t: type_pb2.TypeProto) -> bool:
   return is_floating_point(t, 8, 23)
 
 
-def to_c_type(t: type_pb2.TypeProto) -> str:
+def to_c_type(t: type_pb2.TypeProto) -> Optional[str]:
+  """Get the C++ type for the given XLS type.
+
+  Args:
+    t: The XLS type proto.
+
+  Returns:
+    The C++ type, or None if it can't be determined. None indicates an
+    XLS::Value should be used instead of the C++ type.
+  """
   c_type = to_specialized(t, int_only=True)
   if c_type is not None:
     return c_type
   the_type = t.type_enum
   if the_type == type_pb2.TypeProto.TUPLE:
-    inner = ", ".join(to_c_type(e) for e in t.tuple_elements)
-    return f"std::tuple<{inner}>"
+    elems = [to_c_type(e) for e in t.tuple_elements]
+    if any(e is None for e in elems):
+      return None
+    return f"std::tuple<{', '.join(elems)}>"
   elif the_type == type_pb2.TypeProto.ARRAY:
-    return f"std::array<{to_c_type(t.array_element)}, {t.array_size}>"
-  raise app.UsageError(f"Cannot convert {t} to c_type")
+    elem_c_type = to_c_type(t.array_element)
+    if elem_c_type is None:
+      return None
+    return f"std::array<{elem_c_type}, {t.array_size}>"
+  return None
 
 
 def to_specialized(
@@ -622,7 +636,11 @@ def wrapped_to_fuzztest(
       else:
         cpp_type = to_c_type(p.type_proto)
 
-      conversion_snippet = to_value_conversion(p.type_proto, p.name)
+      if cpp_type is None:
+        cpp_type = "xls::Value"
+        conversion_snippet = None
+      else:
+        conversion_snippet = to_value_conversion(p.type_proto, p.name)
 
       if (
           p.type_proto.type_enum == type_pb2.TypeProto.TUPLE

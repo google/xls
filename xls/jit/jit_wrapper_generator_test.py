@@ -134,6 +134,25 @@ class JitWrapperGeneratorToCTypeTest(absltest.TestCase):
         'std::tuple<std::tuple<uint8_t, uint32_t>, uint64_t>',
     )
 
+  def test_unsupported_bits(self):
+    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    self.assertIsNone(jit_wrapper_generator.to_c_type(u128))
+
+  def test_unsupported_array(self):
+    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    a128 = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.ARRAY, array_size=4, array_element=u128
+    )
+    self.assertIsNone(jit_wrapper_generator.to_c_type(a128))
+
+  def test_unsupported_tuple(self):
+    u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
+    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    tup = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u8, u128]
+    )
+    self.assertIsNone(jit_wrapper_generator.to_c_type(tup))
+
 
 class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
 
@@ -356,6 +375,35 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
     self.assertFalse(prop_func.return_type)
     self.assertLen(prop_func.params, 1)
     self.assertEqual(prop_func.params[0].name, 'a')
+
+  def test_function_unsupported_param_fallback(self):
+    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    wrapped_ir = jit_wrapper_generator.WrappedIr(
+        jit_type=jit_wrapper_generator.JitType.FUNCTION,
+        ir_text='',
+        function_name='big_bits_func',
+        class_name='BigBitsFuncJit',
+        header_guard='HEADER_GUARD',
+        header_filename='big_bits_func_jit.h',
+        namespace='xls',
+        aot_entrypoint=None,
+        params=[
+            jit_wrapper_generator.XlsNamedValue(
+                name='x',
+                type_proto=u128,
+                packed_type='',
+                unpacked_type='',
+                specialized_type=None,
+            ),
+        ],
+        result=None,
+    )
+    prop_func = jit_wrapper_generator.wrapped_to_fuzztest(
+        wrapped_ir, 'xls::BigBitsFuncJit', 'big_bits_func_jit.h'
+    )
+    self.assertLen(prop_func.params, 1)
+    self.assertEqual(prop_func.params[0].cpp_type, 'xls::Value')
+    self.assertIsNone(prop_func.params[0].conversion_snippet)
 
 
 class JitWrapperGeneratorToValueConversionTest(absltest.TestCase):

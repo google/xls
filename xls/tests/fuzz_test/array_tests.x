@@ -22,7 +22,17 @@ fn array_of_tuples(x: (u32, u32)[2]) -> bool {
     true
 }
 
-#[fuzz_test(domains=`()`)]
+#[fuzz_test(domains=`((), u32:0..9)`)]
 fn tuple_with_array(x: (u32[2], u32)) -> bool {
+    true
+}
+
+#[fuzz_test(domains=`()`)]
+fn big_array(x: uN[128][3]) -> bool {
+    true
+}
+
+#[fuzz_test(domains=`()`)]
+fn tuple_with_big_array(x: (uN[128][2], u32)) -> bool {
     true
 }
