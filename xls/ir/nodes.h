@@ -1167,6 +1167,8 @@ class ChannelNode : public Node {
     return absl::OkStatus();
   }
 
+  virtual bool is_blocking() const { return true; }
+
  private:
   std::string channel_name_;
   ChannelDirection direction_;
@@ -1186,7 +1188,7 @@ class Receive final : public ChannelNode {
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
 
-  bool is_blocking() const { return is_blocking_; }
+  bool is_blocking() const override { return is_blocking_; }
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
