@@ -17,10 +17,15 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "cppitertools/reversed.hpp"
+#include "cppitertools/zip.hpp"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
@@ -48,9 +53,12 @@ namespace m = ::xls::op_matchers;
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
+using ::testing::_;
 using ::testing::Contains;
 using ::testing::HasSubstr;
 using ::testing::Not;
+using ::testing::SizeIs;
+using ::testing::UnorderedElementsAre;
 
 class ChannelToPortIoLoweringPassTest : public IrTestBase {
  protected:
@@ -668,6 +676,70 @@ TEST_F(ChannelToPortIoLoweringPassTest, NoGateRecvsNonBlockingWithPredicate) {
       block->nodes(),
       Contains(m::Tuple(m::Literal(Value::Token()), m::InputPort("a_in"),
                         m::And(m::InputPort("a_in_vld"), m::Literal(1)))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       LowerThreeSendsSameChannelSelectorOrdering) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto p1_ch,
+                           pb.AddInputChannel("p1_ch", p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto p2_ch,
+                           pb.AddInputChannel("p2_ch", p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto p3_ch,
+                           pb.AddInputChannel("p3_ch", p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_out,
+                           pb.AddOutputChannel("a_out", p->GetBitsType(32)));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue p1_recv = pb.Receive(p1_ch, tkn);
+  BValue p2_recv = pb.Receive(p2_ch, tkn);
+  BValue p3_recv = pb.Receive(p3_ch, tkn);
+  BValue p1 = pb.TupleIndex(p1_recv, 1);
+  BValue p2 = pb.TupleIndex(p2_recv, 1);
+  BValue p3 = pb.TupleIndex(p3_recv, 1);
+  BValue lit1 = pb.Literal(Value(UBits(1, 32)));
+  BValue lit2 = pb.Literal(Value(UBits(2, 32)));
+  BValue lit3 = pb.Literal(Value(UBits(3, 32)));
+  pb.SendIf(a_out, tkn, p1, lit1);
+  pb.SendIf(a_out, tkn, p2, lit2);
+  pb.SendIf(a_out, tkn, p3, lit3);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  // Check that we have the ports.
+  EXPECT_THAT(block->GetOutputPort("a_out"), IsOk());
+
+  // Check that the data port is driven by a OneHotSelect (multiplexer), where
+  // the selector is a concat of the three predicates such that, read in
+  // LSB-to-MSB order, they match the three cases.
+  Node* output_port_data =
+      block->GetOutputPort("a_out").value()->output_source();
+  ASSERT_THAT(output_port_data, m::OneHotSelect());
+  OneHotSelect* output_data_ohs = output_port_data->As<OneHotSelect>();
+  ASSERT_THAT(output_data_ohs->selector(), m::Concat());
+  absl::Span<Node* const> predicate_bits =
+      output_data_ohs->selector()->As<Concat>()->operands();
+  absl::Span<Node* const> cases = output_port_data->As<OneHotSelect>()->cases();
+  ASSERT_THAT(cases, SizeIs(predicate_bits.size()));
+  auto predicated_cases_it = iter::zip(iter::reversed(predicate_bits), cases);
+  std::vector<std::pair<Node*, Node*>> predicated_cases(
+      predicated_cases_it.begin(), predicated_cases_it.end());
+  EXPECT_THAT(
+      predicated_cases,
+      UnorderedElementsAre(
+          Pair(m::And(_, _,
+                      m::TupleIndex(m::Tuple(_, m::InputPort("p1_ch")), 1)),
+               m::Literal(1)),
+          Pair(m::And(_, _,
+                      m::TupleIndex(m::Tuple(_, m::InputPort("p2_ch")), 1)),
+               m::Literal(2)),
+          Pair(m::And(_, _,
+                      m::TupleIndex(m::Tuple(_, m::InputPort("p3_ch")), 1)),
+               m::Literal(3))));
 }
 
 }  // namespace

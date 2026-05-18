@@ -855,6 +855,10 @@ absl::Status ConnectSendsToConnector(
     absl::Span<Node* const> sends, Connector& connector, ScheduledBlock* block,
     const BlockConversionPassOptions& options) {
   XLS_RET_CHECK_EQ(connector.direction, ChannelDirection::kSend);
+  SourceInfo loc = SourceInfo();
+  for (Node* send : sends) {
+    loc = loc.Extend(send->loc());
+  }
 
   std::vector<int64_t> stage_indices;
   stage_indices.reserve(sends.size());
@@ -939,39 +943,6 @@ absl::Status ConnectSendsToConnector(
       }
     }
 
-    if (connector.valid.has_value()) {
-      // Since at most one send is active on a channel at a time, the output
-      // data is valid iff at least one operation is trying to send data.
-      if (valid_conditions.size() == 1) {
-        XLS_RETURN_IF_ERROR(
-            connector.ReplaceValidSignal(valid_conditions.front()));
-      } else {
-        XLS_ASSIGN_OR_RETURN(Node * valid_condition,
-                             JoinWithOr(block, valid_conditions));
-        XLS_RETURN_IF_ERROR(connector.ReplaceValidSignal(valid_condition));
-      }
-    }
-
-    // Lastly, we connect up the data signals from the sends. Since we assume no
-    // two sends can be active on the same channel at the same time, we can use
-    // OneHotSelect.
-    if (data_signals.size() == 1) {
-      XLS_RETURN_IF_ERROR(connector.ReplaceDataSignal(data_signals.front()));
-    } else {
-      XLS_RET_CHECK_GT(data_signals.size(), 1);
-      // Reverse the order of the valid conditions, so LSB-to-MSB order will
-      // match each condition up with its data signal.
-      absl::c_reverse(valid_conditions);
-      XLS_ASSIGN_OR_RETURN(
-          Node * selector,
-          block->MakeNode<Concat>(send->loc(),
-                                  absl::MakeConstSpan(valid_conditions)));
-      XLS_ASSIGN_OR_RETURN(
-          Node * data,
-          block->MakeNode<OneHotSelect>(send->loc(), selector, data_signals));
-      XLS_RETURN_IF_ERROR(connector.ReplaceDataSignal(data));
-    }
-
     if (connector.reset_one_shot.has_value()) {
       // Make sure to reset the connector's one-shot logic when this send
       // actually resolves.
@@ -993,6 +964,37 @@ absl::Status ConnectSendsToConnector(
 
     XLS_RETURN_IF_ERROR(send->ReplaceUsesWith(token));
     XLS_RETURN_IF_ERROR(block->RemoveNode(send));
+  }
+
+  if (connector.valid.has_value()) {
+    // Since at most one send is active on a channel at a time, the output
+    // data is valid iff at least one operation is trying to send data.
+    if (valid_conditions.size() == 1) {
+      XLS_RETURN_IF_ERROR(
+          connector.ReplaceValidSignal(valid_conditions.front()));
+    } else {
+      XLS_ASSIGN_OR_RETURN(Node * valid_condition,
+                           JoinWithOr(block, valid_conditions));
+      XLS_RETURN_IF_ERROR(connector.ReplaceValidSignal(valid_condition));
+    }
+  }
+
+  // Lastly, we connect up the data signals from the sends. Since we assume no
+  // two sends can be active on the same channel at the same time, we can use
+  // OneHotSelect.
+  if (data_signals.size() == 1) {
+    XLS_RETURN_IF_ERROR(connector.ReplaceDataSignal(data_signals.front()));
+  } else {
+    XLS_RET_CHECK_GT(data_signals.size(), 1);
+    // Reverse the valid conditions, so LSB-to-MSB order will match each
+    // condition up with its data signal.
+    absl::c_reverse(valid_conditions);
+    XLS_ASSIGN_OR_RETURN(
+        Node * selector,
+        block->MakeNode<Concat>(loc, absl::MakeConstSpan(valid_conditions)));
+    XLS_ASSIGN_OR_RETURN(Node * data, block->MakeNode<OneHotSelect>(
+                                          loc, selector, data_signals));
+    XLS_RETURN_IF_ERROR(connector.ReplaceDataSignal(data));
   }
 
   return absl::OkStatus();

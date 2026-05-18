@@ -260,6 +260,8 @@ cc_test(
         "//xls/ir:value",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "@cppitertools",
         "@googletest//:gtest",
     ],
 )
