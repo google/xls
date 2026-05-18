@@ -692,6 +692,7 @@ cc_library(
     deps = [
         ":pipeline_schedule",
         ":run_pipeline_schedule",
+        ":schedule_graph",
         ":scheduling_options",
         ":scheduling_pass",
         "//xls/common/status:ret_check",

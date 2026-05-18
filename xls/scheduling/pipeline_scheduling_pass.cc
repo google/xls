@@ -32,6 +32,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 
@@ -61,7 +62,7 @@ absl::Status AddCycleConstraints(const PipelineSchedule& schedule,
           }
         }
       }
-      if (!already_constrained) {
+      if (!already_constrained && !IsUntimed(node)) {
         scheduling_options.add_constraint(NodeInCycleConstraint(node, c));
       }
     }
