@@ -419,10 +419,6 @@ generate_crasher_regression_tests(
         "crashers/crasher_2026-05-06_cad8.x",
         # TODO: https://github.com/google/xls/issues/4214 - Remove when fixed.
         "crashers/crasher_2026-05-06_cbc5.x",
-        # TODO: https://github.com/google/xls/issues/4233 - Remove when fixed.
-        "crashers/crasher_2026-05-11_d422.x",
-        # TODO: https://github.com/google/xls/issues/4242 - Remove when fixed.
-        "crashers/crasher_2026-05-12_dad0.x",
     ],
     # Tests which are too slow in the unopt-ir interpreter.
     no_unopt_interpreter = [
@@ -446,9 +442,6 @@ generate_crasher_regression_tests(
             "optonly",
         ],
         "crashers/crasher_2026-04-10_7b7e.x": [
-            "optonly",
-        ],
-        "crashers/crasher_2026-05-11_d422.x": [
             "optonly",
         ],
     },
