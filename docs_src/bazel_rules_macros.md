@@ -970,6 +970,10 @@ xls_dslx_test(<a href="#xls_dslx_test-kwargs">**kwargs</a>)
 
 A dslx test executes the tests and quick checks of a DSLX source file.
 
+!!! WARNING
+    Running this test rule in default `fastbuild` compilation mode is not recommended for
+    runtime performance. Using `opt` compilation mode may result in tests running multiple times faster.
+
 Examples:
 
 1. xls_dslx_test on DSLX source files.

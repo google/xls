@@ -396,6 +396,9 @@ def _xls_dslx_prove_quickcheck_test_impl(ctx):
 def xls_dslx_test(**kwargs):
     """A dslx test executes the tests and quick checks of a DSLX source file.
 
+WARNING: Running this test rule in default `fastbuild` compilation mode is not recommended for
+runtime performance. Using `opt` compilation mode may result in tests running multiple times faster.
+
 Examples:
 
 1. xls_dslx_test on DSLX source files.
