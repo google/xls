@@ -443,26 +443,6 @@ fn foo() -> Foo {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST_F(TypecheckV2Test, ProcWithImplInstantiation) {
-  constexpr std::string_view kProgram = R"(
-proc Foo<N: u32> {
-  foo: u32,
-  bar: bits[N],
-}
-
-impl Foo {}
-
-fn foo() -> Foo<u32:8> {
-  Foo<u32:8> { foo: u32:5, bar: u8:6 }
-}
-  )";
-  EXPECT_THAT(
-      Typecheck(kProgram),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Parametric impl-based procs are not yet supported.")));
-}
-
 TEST_F(TypecheckV2Test, FailsOnProcWithImplZero) {
   constexpr std::string_view kProgram = R"(
 proc Foo {

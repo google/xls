@@ -33,13 +33,13 @@ class ParametricStructInstantiator {
  public:
   virtual ~ParametricStructInstantiator() = default;
 
-  // Instantiates a parametric struct of the type indicated by `struct_def`.
-  // Here, "instantiate" means "make the appropriate parameterization exist with
+  // Instantiates a parametric struct or proc of the type indicated by `def`.
+  // Here, "instantiate" means "make the appropriate.parameterization exist with
   // a `ParametricContext` in the `InferenceTable`." Sometimes this is done to
   // handle a struct instance expression (which makes a particular object of the
   // struct exist in DSLX), e.g. `Foo { a: 1, b: 2 }`. Other times it is done to
   // handle a type annotation in DSLX referencing a parametric struct, like
-  // `zero!<Foo>()`
+  // `zero!<Foo>()`.
   //
   // The `module`, `span`, `parametric_context`, and `instantiator_node` are all
   // from the place which is motivating the instantiation of the struct, i.e.
@@ -51,7 +51,7 @@ class ParametricStructInstantiator {
   virtual absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
       Module& module, const Span& span,
       std::optional<const ParametricContext*> parent_context,
-      const StructDef& struct_def,
+      const StructDefBase& def,
       const std::vector<InterpValue>& explicit_parametrics,
       std::optional<const StructInstanceBase*> instantiator_node) = 0;
 

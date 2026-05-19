@@ -1109,6 +1109,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status HandleAttr(const Attr* node) override {
+    VLOG(5) << "HandleAttr " << node->ToString();
+
     // Establish a context for the unification of the struct type.
     XLS_ASSIGN_OR_RETURN(const NameRef* struct_type_variable,
                          DefineTypeVariable(node->lhs(), "struct_type"));
@@ -1495,7 +1497,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // Only apply a type annotation to the function itself if it's
     // non-parametric. This is to avoid leaking types like `uN[N]` into type
     // variables that are outside the function.
-    if (!node->IsParametric() && !node->IsMethodOnParametricStruct()) {
+    if (!node->IsParametric() && !node->IsFunctionOnParametricStruct()) {
       table_.SetAnnotationFlag(function_type_annotation,
                                TypeInferenceFlag::kFormalFunctionType);
       XLS_RETURN_IF_ERROR(

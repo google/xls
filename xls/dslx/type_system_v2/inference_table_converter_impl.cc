@@ -283,8 +283,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     const auto& data =
         std::get<ParametricInvocationDetails>(parametric_context->details());
 
-    if (parametric_context->parent_context().has_value() &&
-        (*parametric_context->parent_context())->is_invocation()) {
+    if (parametric_context->parent_context().has_value()) {
       // Note that if a parametric function `g` is invoked by a default
       // parametric expr for a function `f`, there is a chicken-and-egg problem
       // where we cannot have produced the `ParametricEnv` for `f` at the time
@@ -550,7 +549,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // which may be specialized to a particular concrete type of the struct.
     if (!function->IsParametric() && !function->IsInProc() &&
         !(function->IsCompilerDerived() && function->impl().has_value()) &&
-        !function->IsMethodOnParametricStruct()) {
+        !function->IsFunctionOnParametricStruct()) {
       return ConvertNonParametricInvocation(
           invocation, caller_context, caller_or_target_struct_context,
           function_and_target_object, caller, actual_args);
@@ -760,10 +759,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // parametric-free types.
     const NameRef* callee_variable =
         *table_.GetTypeVariable(invocation->callee());
-    XLS_RETURN_IF_ERROR(table_.RemoveTypeAnnotationsFromTypeVariable(
-        callee_variable, [](const TypeAnnotation* annotation) {
-          return annotation->IsAnnotation<MemberTypeAnnotation>();
-        }));
+    if (function->IsParametric()) {
+      XLS_RETURN_IF_ERROR(table_.RemoveTypeAnnotationsFromTypeVariable(
+          callee_variable, [](const TypeAnnotation* annotation) {
+            return annotation->IsAnnotation<MemberTypeAnnotation>();
+          }));
+    }
 
     const FunctionTypeAnnotation* parametric_free_function_type = nullptr;
     if (canonicalized) {
@@ -1969,7 +1970,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
       // If the callee is a method, any parametrics on the self parameter are
       // effectively part of the parametric environment for the invocation.
-      if (callee.IsMethod()) {
+      if (callee.IsMethod() || callee.IsFunctionOnParametricStruct()) {
         ParametricEnv parent_env =
             table_.GetParametricEnv(*callee_struct_context);
         values.merge(parent_env.ToMap());
@@ -2319,10 +2320,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
       Module& module, const Span& span,
       std::optional<const ParametricContext*> parent_context,
-      const StructDef& struct_def,
+      const StructDefBase& def,
       const std::vector<InterpValue>& explicit_parametrics,
       std::optional<const StructInstanceBase*> instantiator_node) override {
-    VLOG(6) << "Instantiate parametric struct `" << struct_def.identifier()
+    VLOG(6) << "Instantiate parametric struct `" << def.identifier()
             << "` with parent context: " << ToString(parent_context) << " and "
             << explicit_parametrics.size()
             << " explicit parametrics from module: " << module.name();
@@ -2334,18 +2335,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // logistics. We build this as a map, `resolved_parametrics`, and convert it
     // to a vector at the end.
     XLS_ASSIGN_OR_RETURN(TypeInfo * instance_parent_ti,
-                         GetTypeInfo(struct_def.owner(), parent_context));
+                         GetTypeInfo(def.owner(), parent_context));
     XLS_ASSIGN_OR_RETURN(TypeInfo * actual_arg_ti,
                          GetTypeInfo(&module, parent_context));
     absl::flat_hash_map<std::string, InterpValue> parametrics_map;
     for (int i = 0; i < explicit_parametrics.size(); i++) {
-      parametrics_map.emplace(struct_def.parametric_bindings()[i]->identifier(),
+      parametrics_map.emplace(def.parametric_bindings()[i]->identifier(),
                               explicit_parametrics[i]);
     }
     ParametricEnv env(parametrics_map);
     std::optional<InferenceTable::StructContextResult> context_result =
-        table_.GetCachedParametricStructContext(
-            static_cast<const StructDefBase*>(&struct_def), env);
+        table_.GetCachedParametricStructContext(&def, env);
 
     TypeInfo* instance_type_info;
     if (context_result.has_value()) {
@@ -2355,13 +2355,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // instantiate the struct for now. At this stage, we may not have full
       // information to create the parametric context and add all relevant
       // information for the table.
-      XLS_ASSIGN_OR_RETURN(instance_type_info,
-                           import_data_.type_info_owner().New(
-                               struct_def.owner(),
-                               absl::StrCat("struct_", struct_def.identifier()),
-                               instance_parent_ti));
+      XLS_ASSIGN_OR_RETURN(
+          instance_type_info,
+          import_data_.type_info_owner().New(
+              def.owner(), absl::StrCat("struct_", def.identifier()),
+              instance_parent_ti));
     }
-    ParametricBindings bindings(struct_def.parametric_bindings());
+    ParametricBindings bindings(def.parametric_bindings());
     absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
     auto set_value = [&](const ParametricBinding* binding,
                          InterpValue value) -> absl::Status {
@@ -2393,13 +2393,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
     std::vector<const TypeAnnotation*> formal_member_types;
     std::vector<Expr*> actual_member_exprs;
-    for (const StructMemberNode* member : struct_def.members()) {
+    for (const StructMemberNode* member : def.members()) {
       formal_member_types.push_back(member->type());
     }
     if (instantiator_node.has_value()) {
       absl::flat_hash_map<std::string, Expr*> actual_member_exprs_by_name;
       for (const auto& [name, expr] :
-           (*instantiator_node)->GetOrderedMembers(&struct_def)) {
+           (*instantiator_node)->GetOrderedMembers(&def)) {
         actual_member_exprs_by_name.emplace(name, expr);
       }
 
@@ -2410,7 +2410,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           (*instantiator_node)->kind() == AstNodeKind::kSplatStructInstance) {
         const auto* splat =
             absl::down_cast<const SplatStructInstance*>(*instantiator_node);
-        for (const StructMemberNode* member : struct_def.members()) {
+        for (const StructMemberNode* member : def.members()) {
           if (!actual_member_exprs_by_name.contains(member->name())) {
             XLS_ASSIGN_OR_RETURN(
                 Expr * initializer,
@@ -2423,7 +2423,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // At this point we should have an `Expr` per formal member of the struct
       // definition.
       CHECK_EQ(actual_member_exprs_by_name.size(), formal_member_types.size());
-      for (const StructMemberNode* member : struct_def.members()) {
+      for (const StructMemberNode* member : def.members()) {
         actual_member_exprs.push_back(
             actual_member_exprs_by_name.at(member->name()));
       }
@@ -2441,7 +2441,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 "Reference to parametric struct type `$0` must have all "
                 "parametrics specified in this context. Implicit struct "
                 "parametrics are only allowed in struct instance expressions.",
-                struct_def.identifier()),
+                def.identifier()),
             file_table_);
       }
 
@@ -2450,7 +2450,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           new_values,
           InferImplicitParametrics(
               span, parent_context, /*target_context=*/std::nullopt,
-              struct_def.parametric_bindings(), implicit_parametrics,
+              def.parametric_bindings(), implicit_parametrics,
               formal_member_types, actual_member_exprs, instance_type_info,
               actual_arg_ti, [&](const Expr* actual_arg) {
                 // Invocation arguments within a struct need to be converted
@@ -2468,8 +2468,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
       return absl::OkStatus();
     };
-    for (int i = 0; i < struct_def.parametric_bindings().size(); i++) {
-      const ParametricBinding* binding = struct_def.parametric_bindings()[i];
+    for (int i = 0; i < def.parametric_bindings().size(); i++) {
+      const ParametricBinding* binding = def.parametric_bindings()[i];
       if (i < explicit_parametrics.size()) {
         XLS_RETURN_IF_ERROR(set_value(binding, explicit_parametrics[i]));
       } else if (binding->expr() != nullptr) {
@@ -2485,15 +2485,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
     std::vector<ExprOrType> resolved_parametrics_vector;
-    resolved_parametrics_vector.reserve(
-        struct_def.parametric_bindings().size());
-    for (const ParametricBinding* binding : struct_def.parametric_bindings()) {
+    resolved_parametrics_vector.reserve(def.parametric_bindings().size());
+    for (const ParametricBinding* binding : def.parametric_bindings()) {
       resolved_parametrics_vector.push_back(
           resolved_parametrics.at(binding->identifier()));
     }
     return CreateStructOrProcAnnotation(
-        module_, const_cast<StructDef*>(&struct_def),
-        resolved_parametrics_vector, instantiator_node);
+        module_, const_cast<StructDefBase*>(&def), resolved_parametrics_vector,
+        instantiator_node);
   }
 
   // Creates a member initializer `Expr` for a splatted member of a struct

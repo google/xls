@@ -607,9 +607,9 @@ inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
 
   std::optional<Type*> t = GetItem(key);
   if (!t.has_value()) {
-    return absl::NotFoundError(
-        absl::StrFormat("No type found for AST node: %s @ %s", key->ToString(),
-                        SpanToString(key->GetSpan(), file_table())));
+    return absl::NotFoundError(absl::StrFormat(
+        "No type found for AST node: %s @ %s in TI %s", key->ToString(),
+        SpanToString(key->GetSpan(), file_table()), name()));
   }
   DCHECK(t.value() != nullptr);
   auto* target = dynamic_cast<T*>(t.value());

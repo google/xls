@@ -224,13 +224,7 @@ class Unifier {
         return annotations[0];
       }
 
-      if (def->kind() != AstNodeKind::kStructDef) {
-        return absl::UnimplementedError(
-            "Parametric impl-based procs are not yet supported.");
-      }
-
-      return UnifyParametricStructAnnotations(
-          *absl::down_cast<const StructDef*>(def), annotations_to_unify);
+      return UnifyParametricStructOrProcAnnotations(*def, annotations_to_unify);
     }
     return UnifyBitsLikeTypeAnnotations(annotations, span);
   }
@@ -484,11 +478,11 @@ class Unifier {
 
   // Unifies multiple annotations for a parametric struct, and produces an
   // annotation with agreeing explicit parametric values.
-  absl::StatusOr<const TypeAnnotation*> UnifyParametricStructAnnotations(
-      const StructDef& struct_def,
+  absl::StatusOr<const TypeAnnotation*> UnifyParametricStructOrProcAnnotations(
+      const StructDefBase& def,
       std::vector<const TypeAnnotation*> annotations) {
-    VLOG(6) << "Unifying parametric struct annotations; struct def: "
-            << struct_def.identifier();
+    VLOG(6) << "Unifying parametric struct/proc annotations; def: "
+            << def.identifier();
     std::vector<InterpValue> explicit_parametrics;
     std::optional<const StructInstanceBase*> instantiator;
 
@@ -507,7 +501,7 @@ class Unifier {
       for (int i = 0; i < struct_or_proc_ref->parametrics.size(); i++) {
         ExprOrType parametric = struct_or_proc_ref->parametrics[i];
         std::optional<InterpValue> value;
-        const ParametricBinding* binding = struct_def.parametric_bindings()[i];
+        const ParametricBinding* binding = def.parametric_bindings()[i];
         if (std::holds_alternative<TypeAnnotation*>(parametric)) {
           value = InterpValue::MakeTypeReference(
               std::get<TypeAnnotation*>(parametric));
@@ -524,11 +518,12 @@ class Unifier {
         } else if (*value != explicit_parametrics[i]) {
           return TypeInferenceErrorStatusForAnnotation(
               annotation->span(), annotation,
-              absl::Substitute("Value mismatch for parametric `$0` of struct "
-                               "`$1`: $2 vs. $3",
-                               binding->identifier(), struct_def.identifier(),
-                               value->ToString(),
-                               explicit_parametrics[i].ToString()),
+              absl::Substitute(
+                  "Value mismatch for parametric `$0` of $1 `$2`: $3 vs. $4",
+                  binding->identifier(),
+                  def.kind() == AstNodeKind::kStructDef ? "struct" : "proc",
+                  def.identifier(), value->ToString(),
+                  explicit_parametrics[i].ToString()),
               file_table_);
         }
       }
@@ -537,7 +532,7 @@ class Unifier {
         module_,
         instantiator.has_value() ? (*instantiator)->span()
                                  : annotations[0]->span(),
-        parametric_context_, struct_def, explicit_parametrics, instantiator);
+        parametric_context_, def, explicit_parametrics, instantiator);
   }
 
   absl::StatusOr<const TypeAnnotation*> UnifyBitsLikeTypeAnnotations(

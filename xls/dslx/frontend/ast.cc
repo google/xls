@@ -2348,7 +2348,7 @@ bool Function::IsMethod() const {
 }
 
 std::optional<const StructDefBase*> Function::GetTargetStruct() const {
-  if (!IsMethod() || !impl().has_value()) {
+  if (!impl().has_value()) {
     return std::nullopt;
   }
   const auto* struct_ref =
@@ -2359,8 +2359,13 @@ std::optional<const StructDefBase*> Function::GetTargetStruct() const {
 
 bool Function::IsMethodOnParametricStruct() const {
   std::optional<const StructDefBase*> target_struct = GetTargetStruct();
-  return target_struct.has_value() &&
+  return target_struct.has_value() && IsMethod() &&
          !(*target_struct)->parametric_bindings().empty();
+}
+
+bool Function::IsFunctionOnParametricStruct() const {
+  std::optional<const StructDefBase*> target_struct = GetTargetStruct();
+  return target_struct.has_value() && (*target_struct)->IsParametric();
 }
 
 std::vector<AstNode*> Function::GetChildren(bool want_types) const {

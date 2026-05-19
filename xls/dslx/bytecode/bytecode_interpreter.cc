@@ -705,61 +705,27 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
     const ParametricEnv& caller_bindings) {
   const Frame& frame = frames_.back();
   const TypeInfo* caller_type_info = frame.type_info();
-
+  std::optional<const ParametricEnv*> callee_env =
+      caller_type_info->GetInvocationCalleeBindings(invocation,
+                                                    caller_bindings);
+  std::optional<TypeInfo*> callee_type_info =
+      caller_type_info->GetInvocationTypeInfo(invocation, caller_bindings);
   BytecodeCacheInterface* cache = import_data_->bytecode_cache();
   XLS_RET_CHECK(cache != nullptr);
 
-  std::optional<ParametricEnv> callee_bindings;
-
-  TypeInfo* callee_type_info = nullptr;
-  if (f.IsParametric() || f.tag() == FunctionTag::kProcInit ||
-      (f.impl().has_value() && f.IsCompilerDerived()) ||
-      f.IsMethodOnParametricStruct()) {
-    std::optional<const InvocationData*> invocation_data_opt =
-        caller_type_info->GetInvocationData(invocation);
-    if (!invocation_data_opt.has_value()) {
-      return absl::InternalError(absl::StrFormat(
-          "BytecodeInterpreter::GetBytecodeFn; could not find information for "
-          "invocation `%s` "
-          "callee: %s (tag: %v), caller_bindings: %s span: %s",
-          invocation->ToString(), f.identifier(), f.tag(),
-          caller_bindings.ToString(),
-          invocation->span().ToString(file_table())));
-    }
-    const InvocationData* invocation_data = *invocation_data_opt;
-
-    // If the invocation data doesn't contain these bindings, it may be a set of
-    // outer bindings that were resolved before adding the invocation to type
-    // info. Check to see if callee data is available for default bindings.
-    bool contains_caller_bindings =
-        invocation_data->env_to_callee_data().contains(caller_bindings) ||
-        invocation_data->env_to_callee_data().contains(ParametricEnv());
-    if (!contains_caller_bindings) {
-      XLS_RET_CHECK(contains_caller_bindings)
-          << "invocation: `" << invocation_data->node()->ToString() << "` @ "
-          << invocation_data->node()->span().ToString(file_table())
-          << " caller: `"
-          << (invocation_data->caller() == nullptr
-                  ? "nullptr"
-                  : invocation_data->caller()->identifier())
-          << "` caller_bindings: " << caller_bindings;
-    }
-
-    const InvocationCalleeData& callee_data =
-        invocation_data->env_to_callee_data().contains(caller_bindings)
-            ? invocation_data->env_to_callee_data().at(caller_bindings)
-            : invocation_data->env_to_callee_data().at(ParametricEnv());
-    callee_type_info = callee_data.derived_type_info;
-    callee_bindings = callee_data.callee_bindings;
-  } else {
-    // If it's NOT parametric, then we need the root TypeInfo for the new
-    // module.
-    XLS_ASSIGN_OR_RETURN(callee_type_info,
+  const TypeInfo* effective_type_info = caller_type_info;
+  if (callee_type_info.has_value()) {
+    effective_type_info = *callee_type_info;
+  } else if (f.owner() != caller_type_info->module()) {
+    XLS_ASSIGN_OR_RETURN(effective_type_info,
                          import_data_->GetRootTypeInfo(f.owner()));
   }
 
-  return cache->GetOrCreateBytecodeFunction(*import_data(), f, callee_type_info,
-                                            callee_bindings);
+  return cache->GetOrCreateBytecodeFunction(
+      *import_data(), f, effective_type_info,
+      callee_env.has_value()
+          ? std::make_optional(*const_cast<ParametricEnv*>(*callee_env))
+          : std::nullopt);
 }
 
 absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {

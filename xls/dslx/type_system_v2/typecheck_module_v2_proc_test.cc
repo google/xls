@@ -567,5 +567,65 @@ impl P {
                     "possible to evaluate at compile time.")));
 }
 
+TEST(TypecheckV2Test, ParametricProcDef) {
+  EXPECT_THAT(
+      R"(
+#![feature(explicit_state_access)]
+
+proc Loopback<N: u32> {
+  c_in: chan<uN[N]> in,
+  c_out: chan<uN[N]> out,
+}
+
+impl Loopback<N> {
+  fn new(c_in: chan<uN[N]> in, c_out: chan<uN[N]> out) -> Self {
+    Loopback { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  c_in_from_loopback: chan<u32> in,
+  c_out_to_loopback: chan<u32> out,
+  i: u32,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    let (out_to_loopback, loopback_in) = chan<u32>("main_to_loopback");
+    let (loopback_out, in_from_loopback) = chan<u32>("loopback_to_main");
+    Loopback<32>::new(loopback_in, loopback_out).spawn();
+
+    Main {
+      c_in: c_in,
+      c_out: c_out,
+      c_in_from_loopback: in_from_loopback,
+      c_out_to_loopback: out_to_loopback,
+      i: 1
+    }
+  }
+
+  fn next(self) {
+    let i_val = read(self.i);
+    let (_, j) = recv(join(), self.c_in);
+    let loopback_tok = send(join(), self.c_out_to_loopback, j);
+    let (_, loopback_val) = recv(loopback_tok, self.c_in_from_loopback);
+    send(join(), self.c_out, i_val + loopback_val);
+    write(self.i, i_val + loopback_val);
+  }
+}
+)",
+      TypecheckSucceeds(
+          HasNodeWithType("Loopback<32>::new(loopback_in, loopback_out)",
+                          "Loopback { c_in: chan(uN[32], dir=in), c_out: "
+                          "chan(uN[32], dir=out) }")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

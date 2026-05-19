@@ -186,8 +186,8 @@ absl::StatusOr<TypeInfo*> TypeInfoOwner::GetRootTypeInfo(const Module* module) {
 
 void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
   VLOG(5) << absl::StreamFormat(
-      "noting node: `%s` (%p) has constexpr value: `%s` in TypeInfo %p",
-      const_expr->ToString(), const_expr, value.ToString(), this);
+      "noting node: `%s` (%p) has constexpr value: `%s` in TypeInfo %s",
+      const_expr->ToString(), const_expr, value.ToString(), name());
 
   // Note: this assertion will generally hold as of 2024-08-23, except in the
   // case of `ConstFor` nodes, which https://github.com/richmckeever is
@@ -663,7 +663,7 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
           << invocation.ToString() << "` @ "
           << invocation.span().ToString(file_table())
           << " caller_env: " << caller_env.ToString()
-          << " callee_env: " << callee_env.ToString();
+          << " callee_env: " << callee_env.ToString() << " in TI " << name();
   auto it = ti->invocations_.find(&invocation);
   if (it == ti->invocations_.end()) {
     // No data for this invocation yet.

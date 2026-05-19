@@ -2547,7 +2547,15 @@ class Function : public AstNode {
   void set_test_utility(bool value) { is_test_utility_ = value; }
   void set_compiler_derived(bool value) { is_compiler_derived_ = value; }
   bool IsMethod() const;
+
+  // Returns true if this is an instance method on a parametric struct (i.e. a
+  // function with a `Self`-typed first argument.
   bool IsMethodOnParametricStruct() const;
+
+  // Returns true if this is any "static" or "instance" function on a parametric
+  // struct.
+  bool IsFunctionOnParametricStruct() const;
+
   bool IsStub() const { return is_stub_; }
   bool IsCompilerDerived() const { return is_compiler_derived_; }
 

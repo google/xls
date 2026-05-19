@@ -2312,5 +2312,65 @@ const_assert!(TWO == u24:6);
                               HasNodeWithType("TWO", "uN[24]"))));
 }
 
+TEST(TypecheckV2StructTest, SimpleStructConstructorThenUse) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+struct S {
+   a: u32
+}
+
+impl S {
+  fn new(a: u32) -> Self {
+    S { a }
+  }
+
+  fn foo(self) -> u32 { self.a }
+}
+
+const X = S::new(5).foo();
+const_assert!(X == 5);
+)"));
+}
+
+TEST(TypecheckV2StructTest, SimpleStructConstructorThenParametricUse) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+struct S {
+   a: u32
+}
+
+impl S {
+  fn new(a: u32) -> Self {
+    S { a }
+  }
+
+  fn foo<N: u32>(self) -> u32 { self.a }
+}
+
+const X = S::new(5).foo<32>();
+const_assert!(X == 5);
+)"));
+}
+
+TEST(TypecheckV2StructTest, ParametricStructConstructorThenUse) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+struct S<N: u32> {
+   a: uN[N]
+}
+
+impl S<N> {
+  fn new(a: uN[N]) -> Self {
+    S<N> { a }
+  }
+
+  fn foo(self) -> uN[N] { self.a }
+}
+
+const X = S<32>::new(5).foo();
+const_assert!(X == 5);
+)"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -109,6 +109,18 @@ class FunctionResolverImpl : public FunctionResolver {
         XLS_RETURN_IF_ERROR(populate_visitor->PopulateFromColonRef(colon_ref));
         target = table_.GetColonRefTarget(colon_ref);
       }
+
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<StructOrProcRef> struct_or_proc_ref,
+          GetStructOrProcRefForSubject(colon_ref, import_data_));
+      if (struct_or_proc_ref.has_value() &&
+          struct_or_proc_ref->def->IsParametric()) {
+        XLS_ASSIGN_OR_RETURN(
+            target_struct_context,
+            parametric_struct_instantiator_.GetOrCreateParametricStructContext(
+                caller_context, *struct_or_proc_ref, callee));
+      }
+
       if (target.has_value()) {
         function_node = *target;
       }
