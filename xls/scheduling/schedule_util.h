@@ -15,6 +15,13 @@
 #ifndef XLS_SCHEDULING_SCHEDULE_UTIL_H_
 #define XLS_SCHEDULING_SCHEDULE_UTIL_H_
 
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
@@ -27,6 +34,49 @@ namespace xls {
 // that is only used pre-synthesis (e.g., asserts, covers, & traces).
 absl::StatusOr<absl::flat_hash_set<Node*>> GetDeadAfterSynthesisNodes(
     FunctionBase* f);
+
+// Returns the specificity score for a single pattern against a label.
+// Specificity represents how "precise" a matching pattern is:
+// - Exact Match (2 points): Matches the specific label of a read or a write
+//   (e.g. "my_label").
+// - Unlabeled Match (1 point): Represented by "_", matches all unlabeled state
+//   operations.
+// - Wildcard Match (0 points): Represented by "*", matches any state
+//   operation, labeled or unlabeled.
+std::optional<int> GetLabelMatchScore(std::string_view pattern,
+                                      const std::optional<std::string>& label);
+
+// Returns a score for a pattern pair (write, read) against a feedback arc's
+// labels (write, read). The total score is the sum of the scores of its
+// components the higher the score the more specific the pattern.
+// Total Score = (Write Score) + (Read Score)
+// exact label match = 2, unlabeled(_) = 1, wildcard(*) = 0, the maximum
+// possible score is 4 (exact-exact) and the minimum is 0 (wildcard-wildcard).
+// Returns std::nullopt if the pattern pair does not match the labels.
+std::optional<int> GetArcMatchScore(
+    const std::pair<std::string, std::string>& pattern_pair,
+    const std::optional<std::string>& label_w,
+    const std::optional<std::string>& label_r);
+
+struct ResolvedThroughput {
+  std::optional<int64_t> limit;
+  std::optional<std::pair<std::string, std::string>> matched_pattern;
+};
+
+// Resolves the final throughput limit for a state feedback arc using the
+// configured scheduling options and proc properties (initiation interval).
+// Performs specificity matching on write and read labels, applies fallback
+// and clamping rules, and returns the resolved limit and the winning pattern
+// if any.
+ResolvedThroughput GetResolvedThroughputLimit(
+    const std::optional<std::string>& write_label,
+    const std::optional<std::string>& read_label,
+    const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
+        arc_worst_case_throughput,
+    std::optional<int64_t> default_arc_worst_case_throughput,
+    std::optional<int64_t> initiation_interval,
+    absl::flat_hash_set<std::pair<std::string, std::string>>* viable_patterns =
+        nullptr);
 
 }  // namespace xls
 

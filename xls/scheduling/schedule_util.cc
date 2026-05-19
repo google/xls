@@ -14,6 +14,14 @@
 
 #include "xls/scheduling/schedule_util.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
@@ -105,6 +113,91 @@ absl::StatusOr<absl::flat_hash_set<Node*>> GetDeadAfterSynthesisNodes(
     }
   }
   return dead_after_synthesis;
+}
+
+std::optional<int> GetLabelMatchScore(std::string_view pattern,
+                                      const std::optional<std::string>& label) {
+  // Wildcards always match any target with the lowest specificity score.
+  if (pattern == "*") {
+    return 0;
+  }
+
+  // Unlabeled operation check, unlabeled operations are represented by
+  // nullopt or empty strings.
+  if (!label.has_value() || label->empty()) {
+    return (pattern == "_") ? std::optional<int>(1) : std::nullopt;
+  }
+
+  // Labeled operation exact match check.
+  return (pattern == *label) ? std::optional<int>(2) : std::nullopt;
+}
+
+std::optional<int> GetArcMatchScore(
+    const std::pair<std::string, std::string>& pattern_pair,
+    const std::optional<std::string>& label_w,
+    const std::optional<std::string>& label_r) {
+  std::optional<int> score_w = GetLabelMatchScore(pattern_pair.first, label_w);
+  std::optional<int> score_r = GetLabelMatchScore(pattern_pair.second, label_r);
+  if (score_w && score_r) {
+    return *score_w + *score_r;
+  }
+  return std::nullopt;
+}
+
+ResolvedThroughput GetResolvedThroughputLimit(
+    const std::optional<std::string>& write_label,
+    const std::optional<std::string>& read_label,
+    const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
+        arc_worst_case_throughput,
+    std::optional<int64_t> default_arc_worst_case_throughput,
+    std::optional<int64_t> initiation_interval,
+    absl::flat_hash_set<std::pair<std::string, std::string>>* viable_patterns) {
+  // Find best match using specificity scoring.
+  std::optional<std::pair<std::string, std::string>> highest_priority_pattern =
+      std::nullopt;
+  int64_t highest_priority_pattern_throughput = 0;
+  int64_t highest_pattern_score = -1;
+
+  for (const auto& [pattern, throughput] : arc_worst_case_throughput) {
+    std::optional<int> pattern_score =
+        GetArcMatchScore(pattern, write_label, read_label);
+    if (pattern_score.has_value()) {
+      if (viable_patterns != nullptr) {
+        viable_patterns->insert(pattern);
+      }
+      if (*pattern_score > highest_pattern_score) {
+        highest_pattern_score = *pattern_score;
+        highest_priority_pattern = pattern;
+        highest_priority_pattern_throughput = throughput;
+      }
+    }
+  }
+
+  // Fallback and clamping logic (treating <= 0 as "not enforced")
+  std::optional<int64_t> throughput_limit = std::nullopt;
+
+  if (highest_priority_pattern.has_value() &&
+      highest_priority_pattern_throughput > 0) {
+    // 1. Best matching specific pattern from arc_worst_case_throughput.
+    throughput_limit = highest_priority_pattern_throughput;
+  } else if (default_arc_worst_case_throughput.value_or(0) > 0) {
+    // 2. Fall back to default_arc_worst_case_throughput.
+    throughput_limit = default_arc_worst_case_throughput;
+  } else if (initiation_interval.has_value() && *initiation_interval > 0) {
+    // 3. Fall back to global worst_case_throughput.
+    throughput_limit = *initiation_interval;
+  }
+
+  // Enforce initiation_interval as strict upper bound (clamping), if
+  // globally enabled.
+  if (throughput_limit.has_value() && initiation_interval.value_or(0) > 0) {
+    throughput_limit = std::min(*throughput_limit, *initiation_interval);
+  }
+
+  return ResolvedThroughput{
+      .limit = throughput_limit,
+      .matched_pattern = highest_priority_pattern,
+  };
 }
 
 }  // namespace xls

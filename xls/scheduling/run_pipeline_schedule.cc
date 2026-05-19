@@ -443,8 +443,8 @@ absl::StatusOr<PipelineSchedule> RunIterativeSDCSchedule(
       PipelineSchedule::Create(f, cycle_map, options.pipeline_stages()));
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, delay_manager));
-  XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
-                                                 f->GetInitiationInterval()));
+  XLS_RETURN_IF_ERROR(
+      schedule.VerifyConstraints(options.constraints(), options));
 
   XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
   return schedule;
@@ -635,8 +635,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
                          PipelineSchedule::Create(f, std::move(cycle_map),
                                                   options.pipeline_stages()));
     XLS_RETURN_IF_ERROR(schedule.Verify());
-    XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
-                                                   f->GetInitiationInterval()));
+    XLS_RETURN_IF_ERROR(
+        schedule.VerifyConstraints(options.constraints(), options));
 
     XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
     return schedule;
@@ -876,8 +876,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
   XLS_VLOG_LINES(5, "Schedule\n" + schedule.ToString());
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, io_delay_added));
-  XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
-                                                 f->GetInitiationInterval()));
+  XLS_RETURN_IF_ERROR(
+      schedule.VerifyConstraints(options.constraints(), options));
 
   return schedule;
 }

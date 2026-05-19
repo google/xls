@@ -296,23 +296,31 @@ absl::Status PipelineSchedule::Verify() const {
   if (function_base()->IsProc()) {
     Proc* proc = function_base()->AsProcOrDie();
     int64_t worst_case_throughput = proc->GetInitiationInterval().value_or(1);
-    if (worst_case_throughput >= 1) {
-      for (Next* next : proc->next_values()) {
-        absl::Span<StateRead* const> reads =
-            proc->GetStateReadsByStateElement(next->state_element());
-        for (StateRead* read : reads) {
-          XLS_RET_CHECK_LE(cycle(read), cycle(next))
-              << "Next node " << next << " scheduled before state read "
-              << read;
+    if (worst_case_throughput < 1) {
+      VLOG(5) << "No worst-case throughput set for proc " << proc->name()
+              << ", skipping verification of Next nodes.";
+    }
+    for (Next* next : proc->next_values()) {
+      absl::Span<StateRead* const> reads =
+          proc->GetStateReadsByStateElement(next->state_element());
+      for (StateRead* read : reads) {
+        // Bypass BOTH causality (R <= W) and throughput checks for labeled
+        // arcs since R <= W is ignored in this CL and throughput cannot be
+        // resolved here.
+        if (next->label().has_value() || read->label().has_value()) {
+          continue;
+        }
+
+        // Always enforce causality for unlabeled arcs (legacy behavior)
+        XLS_RET_CHECK_LE(cycle(read), cycle(next))
+            << "Next node " << next << " scheduled before state read " << read;
+        if (worst_case_throughput >= 1) {
           XLS_RET_CHECK_LT(cycle(next), cycle(read) + worst_case_throughput)
               << "Next node " << next << " scheduled too late after " << read
               << " (stage " << cycle(next) << " is not less than "
               << cycle(read) << " + WCT " << worst_case_throughput << ")";
         }
       }
-    } else {
-      VLOG(5) << "No worst-case throughput set for proc " << proc->name()
-              << ", skipping verification of Next nodes.";
     }
   }
   // Verify initial nodes in cycle 0. Final nodes in final cycle.
@@ -420,7 +428,7 @@ absl::Status PipelineSchedule::VerifyTiming(
 
 absl::Status PipelineSchedule::VerifyConstraints(
     absl::Span<const SchedulingConstraint> constraints,
-    std::optional<int64_t> worst_case_throughput) const {
+    const SchedulingOptions& options) const {
   absl::flat_hash_map<std::string, std::vector<Node*>> channel_to_nodes;
   absl::flat_hash_map<Node*, absl::btree_set<Node*>> send_predecessors;
   absl::flat_hash_map<Node*, absl::btree_set<Node*>> io_predecessors;
@@ -562,16 +570,37 @@ absl::Status PipelineSchedule::VerifyConstraints(
       if (!function_base_->IsProc()) {
         continue;
       }
-      const int64_t max_backedge = worst_case_throughput.value_or(1) - 1;
-      if (max_backedge < 0) {
-        // Worst-case throughput constraint is disabled.
-        continue;
-      }
       Proc* proc = function_base_->AsProcOrDie();
       for (Next* next : proc->next_values()) {
         absl::Span<StateRead* const> reads =
             proc->GetStateReadsByStateElement(next->state_element());
         for (StateRead* read : reads) {
+          std::optional<int64_t> initiation_interval = std::nullopt;
+          if (function_base_->IsProc()) {
+            std::optional<int64_t> proc_ii =
+                function_base_->AsProcOrDie()->GetInitiationInterval();
+            if (!proc_ii.has_value()) {
+              initiation_interval = 1;  // Legacy default to 1
+            } else if (*proc_ii == 0) {
+              initiation_interval = std::nullopt;  // Explicitly unconstrained
+            } else {
+              initiation_interval = proc_ii;
+            }
+          }
+
+          std::optional<int64_t> throughput_limit =
+              GetResolvedThroughputLimit(
+                  next->label(), read->label(),
+                  options.arc_worst_case_throughput(),
+                  options.default_arc_worst_case_throughput(),
+                  initiation_interval)
+                  .limit;
+
+          if (!throughput_limit.has_value()) {
+            continue;
+          }
+
+          const int64_t max_backedge = *throughput_limit - 1;
           int64_t backedge_length = cycle_map_.at(next) - cycle_map_.at(read);
           if (backedge_length > max_backedge) {
             return absl::ResourceExhaustedError(absl::StrFormat(
@@ -582,8 +611,8 @@ absl::Status PipelineSchedule::VerifyConstraints(
                 "one "
                 "iteration per %d cycle%s without external stalls.",
                 read->GetName(), backedge_length, plural_s(backedge_length),
-                next->ToString(), worst_case_throughput.value_or(1),
-                plural_s(worst_case_throughput.value_or(1))));
+                next->ToString(), *throughput_limit,
+                plural_s(*throughput_limit)));
           }
         }
       }

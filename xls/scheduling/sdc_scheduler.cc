@@ -202,16 +202,154 @@ ComputeCombinationalDelayConstraints(
   return result;
 }
 
+// Returns the static specificity score for a throughput matching pattern:
+// - Exact Label Match (e.g., "my_label") = 2 points.
+// - Unlabeled Match ("_")                = 1 point.
+// - Wildcard Match ("*")                 = 0 points.
+// The total score is the sum of the scores of the write and read components.
+// Example: ("L_W", "*") has a static score of 2 + 0 = 2.
+int GetSpecificityScore(const std::pair<std::string, std::string>& pattern) {
+  auto get_component_score = [](std::string_view p) -> int {
+    if (p == "*") {
+      return 0;
+    }
+    if (p == "_") {
+      return 1;
+    }
+    return 2;  // Exact label
+  };
+  return get_component_score(pattern.first) +
+         get_component_score(pattern.second);
+}
+
+// Returns the overlapping intersection of two pattern components.
+// - If they are identical (e.g. both are "L_W"), they intersect perfectly.
+// - If one component is a wildcard ("*"), it matches everything, so the
+//   intersection is the other component.
+// - If they are different and neither is "*", they are disjoint (nullopt).
+std::optional<std::string> GetPatternIntersectionComponent(
+    std::string_view p1, std::string_view p2) {
+  if (p1 == p2) {
+    return std::string(p1);
+  }
+  if (p1 == "*") {
+    return std::string(p2);
+  }
+  if (p2 == "*") {
+    return std::string(p1);
+  }
+  return std::nullopt;  // Disjoint
+}
+
+// Returns the overlapping intersection between two pattern pairs.
+// Two pattern pairs intersect if both their write and read components
+// intersect. Returns std::nullopt if the patterns are completely disjoint.
+std::optional<std::pair<std::string, std::string>> GetPatternIntersection(
+    const std::pair<std::string, std::string>& pattern_a,
+    const std::pair<std::string, std::string>& pattern_b) {
+  auto w_int =
+      GetPatternIntersectionComponent(pattern_a.first, pattern_b.first);
+  auto r_int =
+      GetPatternIntersectionComponent(pattern_a.second, pattern_b.second);
+  if (w_int.has_value() && r_int.has_value()) {
+    return std::make_pair(*w_int, *r_int);
+  }
+  return std::nullopt;
+}
+
+// Returns true if two patterns have a non-empty intersection (i.e., they
+// overlap and could potentially match the same feedback arc).
+bool HasPatternIntersection(const std::pair<std::string, std::string>& pattern,
+                            const std::pair<std::string, std::string>& target) {
+  return GetPatternIntersectionComponent(pattern.first, target.first)
+             .has_value() &&
+         GetPatternIntersectionComponent(pattern.second, target.second)
+             .has_value();
+}
+
+// Checks if any pair of patterns in arc_worst_case_throughput are ambiguous.
+// Two patterns are ambiguous if they can match the same label pair with the
+// same highest specificity score, but have different throughput values.
+absl::Status CheckAmbiguousArcWorstCaseThroughput(
+    const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
+        throughput_map) {
+  // A single rule (or empty configuration) can never conflict with itself.
+  if (throughput_map.size() < 2) {
+    return absl::OkStatus();
+  }
+
+  std::vector<std::pair<std::pair<std::string, std::string>, int64_t>> rules(
+      throughput_map.begin(), throughput_map.end());
+  rules.reserve(throughput_map.size());
+
+  for (int i = 0; i < rules.size(); ++i) {
+    for (int j = i + 1; j < rules.size(); ++j) {
+      const auto& pattern_a = rules[i].first;
+      const auto& pattern_b = rules[j].first;
+      int64_t throughput_a = rules[i].second;
+      int64_t throughput_b = rules[j].second;
+
+      // 1. Harmless tie if they have the same throughput value.
+      if (throughput_a == throughput_b) {
+        continue;
+      }
+
+      // 2. Harmless if they have different specificity scores (higher score
+      // wins).
+      int score_a = GetSpecificityScore(pattern_a);
+      int score_b = GetSpecificityScore(pattern_b);
+      if (score_a != score_b) {
+        continue;
+      }
+
+      // 3. Check if they overlap (intersect). If they don't, they are disjoint.
+      auto intersection = GetPatternIntersection(pattern_a, pattern_b);
+      if (!intersection.has_value()) {
+        continue;
+      }
+
+      // 4. Overlap detected, verify if any strictly more specific rule in the
+      // map overrides the overlap.
+      bool tie_is_overridden = false;
+      for (const auto& [pattern_c, throughput_c] : throughput_map) {
+        if (GetSpecificityScore(pattern_c) > score_a &&
+            HasPatternIntersection(pattern_c, *intersection)) {
+          tie_is_overridden = true;
+          break;
+        }
+      }
+
+      // 5. Unresolvable tie found.
+      if (!tie_is_overridden) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Ambiguous throughput configuration: patterns \"%s,%s\" and "
+            "\"%s,%s\" can both match target \"%s,%s\" with the same "
+            "specificity score %d but have different throughputs (%d vs %d).",
+            pattern_a.first, pattern_a.second, pattern_b.first,
+            pattern_b.second, intersection->first, intersection->second,
+            score_a, throughput_a, throughput_b));
+      }
+    }
+  }
+
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 SDCSchedulingModel::SDCSchedulingModel(
     const ScheduleGraph& graph, const DelayMap& delay_map,
-    std::optional<int64_t> initiation_interval, double sdc_solution_tolerance)
+    std::optional<int64_t> initiation_interval, double sdc_solution_tolerance,
+    absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>
+        arc_worst_case_throughput,
+    std::optional<int64_t> default_arc_worst_case_throughput)
     : graph_(graph),
       model_(absl::StrCat("sdc_model:", graph_.name())),
       sdc_solution_tolerance_(sdc_solution_tolerance),
       delay_map_(delay_map),
       initiation_interval_(initiation_interval),
+      arc_worst_case_throughput_(arc_worst_case_throughput),
+      default_arc_worst_case_throughput_(default_arc_worst_case_throughput),
       last_stage_(model_.AddContinuousVariable(0.0, kMaxStages, "last_stage")),
       cycle_at_sinknode_(model_.AddContinuousVariable(-kInfinity, kInfinity,
                                                       "cycle_at_sinknode")) {
@@ -295,14 +433,17 @@ absl::Status SDCSchedulingModel::AddDefUseConstraints(
 
   if (node->Is<StateRead>() && user.has_value() && user.value()->Is<Next>()) {
     Next* next = user.value()->As<Next>();
-    if (next->state_read() == node) {
-      XLS_RETURN_IF_ERROR(AddThroughputConstraint(node->As<StateRead>(), next));
-    }
-    if (next->value() != node && next->predicate() != node) {
-      XLS_RET_CHECK_EQ(next->state_read(), node);
-      // We don't need to keep the param's value alive to this user, so no need
-      // for a lifetime constraint.
-      return absl::OkStatus();
+    if (next->has_state_read()) {
+      if (next->state_read() == node) {
+        XLS_RETURN_IF_ERROR(
+            AddThroughputConstraint(node->As<StateRead>(), next));
+      }
+      if (next->value() != node && next->predicate() != node) {
+        XLS_RET_CHECK_EQ(next->state_read(), node);
+        // We don't need to keep the param's value alive to this user, so no
+        // need for a lifetime constraint.
+        return absl::OkStatus();
+      }
     }
   }
 
@@ -406,13 +547,12 @@ absl::Status SDCSchedulingModel::AddThroughputConstraint(StateRead* state_read,
 // necessary while enforcing a target II.
 absl::Status SDCSchedulingModel::AddBackedgeConstraints(
     const BackedgeConstraint& constraint) {
-  if (!initiation_interval_.has_value()) {
-    // Distance of backedge is constrained by the II, but the worst-case
-    // throughput constraint is not set.
-    return absl::OkStatus();
-  }
+  XLS_RETURN_IF_ERROR(
+      CheckAmbiguousArcWorstCaseThroughput(arc_worst_case_throughput_));
 
-  const int64_t II = *initiation_interval_;
+  // Track which pattern keys in options_.arc_worst_case_throughput() are
+  // viable.
+  absl::flat_hash_set<std::pair<std::string, std::string>> viable_patterns;
 
   for (const ScheduleBackedge& backedge : graph_.backedges()) {
     if (!backedge.distance.has_value() ||
@@ -421,15 +561,46 @@ absl::Status SDCSchedulingModel::AddBackedgeConstraints(
       return absl::UnimplementedError(
           "Unsupported backedge type in SDC schedule");
     }
+    // We only apply constraints to state backedges (connecting Next to
+    // StateRead).
+    if (!backedge.source->Is<Next>() ||
+        !backedge.destination->Is<StateRead>()) {
+      continue;
+    }
 
-    VLOG(2) << "Setting backedge constraint (II): "
-            << absl::StrFormat("cycle[%s] - cycle[%s] < %d",
-                               backedge.source->GetName(),
-                               backedge.destination->GetName(), II);
-    backedge_constraint_.emplace(
-        std::make_pair(backedge.destination, backedge.source),
-        DiffLessThanConstraint(backedge.source, backedge.destination, II,
-                               "backedge"));
+    Next* next = backedge.source->As<Next>();
+    StateRead* read = backedge.destination->As<StateRead>();
+    std::optional<std::string> L_W = next->label();
+    std::optional<std::string> L_R = read->label();
+
+    std::optional<int64_t> throughput_limit =
+        GetResolvedThroughputLimit(L_W, L_R, arc_worst_case_throughput_,
+                                   default_arc_worst_case_throughput_,
+                                   initiation_interval_, &viable_patterns)
+            .limit;
+
+    // Inject the constraint (only if enforced)
+    if (throughput_limit.has_value()) {
+      VLOG(2) << "Setting backedge constraint: "
+              << absl::StrFormat(
+                     "cycle[%s] - cycle[%s] < %d", backedge.source->GetName(),
+                     backedge.destination->GetName(), *throughput_limit);
+      backedge_constraint_.emplace(
+          std::make_pair(backedge.destination, backedge.source),
+          DiffLessThanConstraint(backedge.source, backedge.destination,
+                                 *throughput_limit, "backedge"));
+    }
+  }
+
+  // Verify that all configured patterns in arc_worst_case_throughput_
+  // were viable.
+  for (const auto& [pattern, throughput] : arc_worst_case_throughput_) {
+    if (!viable_patterns.contains(pattern)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Throughput override pattern \"%s,%s\" did not match "
+                          "any feedback arc.",
+                          pattern.first, pattern.second));
+    }
   }
 
   return absl::OkStatus();
@@ -1251,7 +1422,9 @@ absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
                        ComputeNodeDelays(graph, delay_estimator));
   std::unique_ptr<SDCScheduler> scheduler(new SDCScheduler(
       graph, options.sdc_solution_tolerance(), options.solver_type(),
-      options.solve_parameters(), std::nullopt, std::move(delay_map)));
+      options.solve_parameters(), std::nullopt, std::move(delay_map),
+      options.arc_worst_case_throughput(),
+      options.default_arc_worst_case_throughput()));
   XLS_RETURN_IF_ERROR(scheduler->Initialize());
   return std::move(scheduler);
 }
@@ -1260,12 +1433,16 @@ SDCScheduler::SDCScheduler(
     const ScheduleGraph& graph, double sdc_solution_tolerance,
     ::operations_research::math_opt::SolverType solver_type,
     ::operations_research::math_opt::SolveParameters&& solve_parameters,
-    std::optional<int64_t> initiation_interval, DelayMap&& delay_map)
+    std::optional<int64_t> initiation_interval, DelayMap&& delay_map,
+    const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
+        arc_worst_case_throughput,
+    std::optional<int64_t> default_arc_worst_case_throughput)
     : Scheduler("SDCScheduler"),
       delay_map_(std::move(delay_map)),
       solver_type_(solver_type),
       solve_parameters_(std::move(solve_parameters)),
-      model_(graph, delay_map_, initiation_interval, sdc_solution_tolerance) {}
+      model_(graph, delay_map_, initiation_interval, sdc_solution_tolerance,
+             arc_worst_case_throughput, default_arc_worst_case_throughput) {}
 
 absl::Status SDCScheduler::Initialize() {
   XLS_ASSIGN_OR_RETURN(solver_, math_opt::NewIncrementalSolver(
