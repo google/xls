@@ -2114,8 +2114,6 @@ typically run for longer durations to explore a much larger state space.
 IMPORTANT: You can only fuzz test parameters that are numeric (bits), or tuples
 of them at this time.
 
-IMPORTANT: Arrays are not currently supported, but are planned.
-
 #### Property function
 
 The property function is the core of the fuzz test. It takes the
@@ -2170,6 +2168,9 @@ tuple. The fuzzer will generate tuples where each element respects its defined
 domain. For example, `(u32:0..10, ())` specifies a domain for a pair where the
 first element is restricted to 0..10 and the second can be any value of its
 type.
+
+Currently only the "Arbitrary" domain can be applied to array parameters of fuzz
+test property functions.
 
 The "Arbitrary" domain applied to `enum` parameters restrains the provided
 fuzzed values to the defined values of the `enum`, even if the `enum` is sparse.
