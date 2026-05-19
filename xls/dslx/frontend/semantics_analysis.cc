@@ -289,6 +289,13 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
     bool prev_in_type_annotation = in_type_annotation_;
     if (node->kind() == AstNodeKind::kTypeAnnotation) {
       in_type_annotation_ = true;
+      const auto* type_annotation =
+          absl::down_cast<const TypeAnnotation*>(node);
+      if (type_annotation->IsAnnotation<TypeVariableTypeAnnotation>()) {
+        const auto* tvta =
+            type_annotation->AsAnnotation<TypeVariableTypeAnnotation>();
+        XLS_RETURN_IF_ERROR(tvta->type_variable()->Accept(this));
+      }
     }
     for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
@@ -375,7 +382,7 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     Function* original_fn = node->function();
     Span span = node->span();
     CollectNameRefs collect_nr;
-    XLS_RETURN_IF_ERROR(node->body()->Accept(&collect_nr));
+    XLS_RETURN_IF_ERROR(node->Accept(&collect_nr));
     absl::flat_hash_set<const NameDef*> seen;
 
     // If there are any parametric bindings in the containing function that are
@@ -383,44 +390,55 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     // the `StructDef`.
     std::vector<ParametricBinding*> struct_parametrics;
     std::optional<const Function*> containing_fn = GetContainingFunction(node);
-    std::vector<ExprOrType> containing_fn_parametric_vals;
+    std::vector<ExprOrType> struct_type_parametrics;
+    std::vector<ExprOrType> struct_instance_parametrics;
     absl::flat_hash_set<const NameDef*> parametric_nds;
     absl::flat_hash_map<const NameRef*, NameRef*> name_ref_replacements;
 
     if (containing_fn.has_value()) {
-      for (ParametricBinding* parametric_binding :
+      for (ParametricBinding* parent_binding :
            (*containing_fn)->parametric_bindings()) {
         absl::flat_hash_set<const NameRef*> name_refs =
-            collect_nr.NameRefsForDef(parametric_binding->name_def());
+            collect_nr.NameRefsForDef(parent_binding->name_def());
         if (name_refs.empty()) {
           continue;
         }
         NameDef* lambda_struct_nd = module->Make<NameDef>(
-            parametric_binding->span(), parametric_binding->identifier(),
+            parent_binding->span(), parent_binding->identifier() + "_ls",
             /*definer=*/nullptr);
         XLS_ASSIGN_OR_RETURN(AstNode * cloned_ta,
-                             CloneAst(parametric_binding->type_annotation()));
+                             CloneAst(parent_binding->type_annotation()));
 
         AstNode* cloned_expr = nullptr;
-        if (parametric_binding->expr() != nullptr) {
-          XLS_ASSIGN_OR_RETURN(cloned_expr,
-                               CloneAst(parametric_binding->expr()));
+        if (parent_binding->expr() != nullptr) {
+          XLS_ASSIGN_OR_RETURN(cloned_expr, CloneAst(parent_binding->expr()));
         }
         ParametricBinding* lambda_struct_binding =
             module->Make<ParametricBinding>(
                 lambda_struct_nd, absl::down_cast<TypeAnnotation*>(cloned_ta),
                 absl::down_cast<Expr*>(cloned_expr));
         struct_parametrics.push_back(lambda_struct_binding);
-        NameRef* parametric_nr = module->Make<NameRef>(
-            parametric_binding->span(), parametric_binding->identifier(),
-            parametric_binding->name_def());
-        containing_fn_parametric_vals.push_back(parametric_nr);
-        parametric_nds.insert(parametric_binding->name_def());
+        NameRef* struct_type_parametric_nr = module->Make<NameRef>(
+            parent_binding->span(), lambda_struct_nd->identifier(),
+            lambda_struct_nd);
+        NameRef* struct_instance_parametric_nr = module->Make<NameRef>(
+            parent_binding->span(), parent_binding->identifier(),
+            parent_binding->name_def());
+        struct_type_parametrics.push_back(struct_type_parametric_nr);
+        if (parent_binding->type_annotation()
+                ->IsAnnotation<GenericTypeAnnotation>()) {
+          struct_instance_parametrics.push_back(
+              module->Make<TypeVariableTypeAnnotation>(
+                  struct_instance_parametric_nr));
+        } else {
+          struct_instance_parametrics.push_back(struct_instance_parametric_nr);
+        }
+        parametric_nds.insert(parent_binding->name_def());
         for (const NameRef* original_name_ref : name_refs) {
           name_ref_replacements.emplace(
               original_name_ref,
               module->Make<NameRef>(original_name_ref->span(),
-                                    original_name_ref->identifier(),
+                                    lambda_struct_nd->identifier(),
                                     lambda_struct_nd));
         }
       }
@@ -481,11 +499,15 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     TypeRefTypeAnnotation* struct_type_annotation =
         module->Make<TypeRefTypeAnnotation>(
             span, module->Make<TypeRef>(span, full_struct_def),
-            containing_fn_parametric_vals);
+            struct_type_parametrics);
     struct_nd->set_definer(full_struct_def);
 
+    TypeRefTypeAnnotation* struct_instance_annotation =
+        module->Make<TypeRefTypeAnnotation>(
+            span, module->Make<TypeRef>(span, full_struct_def),
+            struct_instance_parametrics);
     StructInstance* struct_instance = module->Make<StructInstance>(
-        span, struct_type_annotation, struct_instance_members);
+        span, struct_instance_annotation, struct_instance_members);
 
     Attr* instance_invocation = module->Make<Attr>(
         span, struct_instance, std::string(Lambda::kCallLambdaFn));
@@ -496,8 +518,8 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
         span, KeywordToString(Keyword::kSelf), /*definer=*/nullptr);
     CloneReplacer insert_self =
         [self_nd, seen, name_ref_replacements](
-            const AstNode* node, const Module* _,
-            const absl::flat_hash_map<const AstNode*, AstNode*>& replacements)
+            const AstNode* node, const Module*,
+            const absl::flat_hash_map<const AstNode*, AstNode*>&)
         -> std::optional<AstNode*> {
       if (node->kind() == AstNodeKind::kNameRef) {
         const NameRef* name_ref = absl::down_cast<const NameRef*>(node);
@@ -517,11 +539,29 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
       }
       return std::nullopt;
     };
+    CloneReplacer swap_name_refs =
+        [name_ref_replacements](
+            const AstNode* node, const Module*,
+            const absl::flat_hash_map<const AstNode*, AstNode*>&)
+        -> std::optional<AstNode*> {
+      if (node->kind() == AstNodeKind::kNameRef) {
+        const NameRef* name_ref = absl::down_cast<const NameRef*>(node);
+        if (name_ref_replacements.contains(name_ref)) {
+          return name_ref_replacements.at(name_ref);
+        }
+      }
+      return std::nullopt;
+    };
     XLS_ASSIGN_OR_RETURN(
         AstNode * cloned_body,
         CloneAst(original_fn->body(),
                  ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
                                      std::move(insert_self))));
+    XLS_ASSIGN_OR_RETURN(
+        AstNode * cloned_return_type,
+        CloneAst(original_fn->return_type(),
+                 ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
+                                     std::move(swap_name_refs))));
     SelfTypeAnnotation* self_type = module->Make<SelfTypeAnnotation>(
         span, /*explicit_type=*/false, struct_type_annotation);
     std::vector<Param*> params = {module->Make<Param>(self_nd, self_type)};
@@ -530,7 +570,8 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     }
     Function* impl_fn = module->Make<Function>(
         original_fn->span(), original_fn->name_def(),
-        original_fn->parametric_bindings(), params, original_fn->return_type(),
+        original_fn->parametric_bindings(), params,
+        absl::down_cast<TypeAnnotation*>(cloned_return_type),
         absl::down_cast<StatementBlock*>(cloned_body),
         FunctionTag::kGeneratedFromLambda,
         /*is_public=*/false, /*is_stub=*/false);
