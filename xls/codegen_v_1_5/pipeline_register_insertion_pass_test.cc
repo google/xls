@@ -36,6 +36,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
 #include "xls/ir/scheduled_builder.h"
 #include "xls/ir/source_location.h"
@@ -862,6 +863,53 @@ TEST_F(PipelineRegisterInsertionPassTest,
   // in stage 1.
   EXPECT_THAT(sb->GetRegisters(),
               testing::Contains(m2::Register("p0_acc", m::Type("bits[32]"))));
+}
+
+TEST_F(PipelineRegisterInsertionPassTest,
+       TestNextNodeConstructedWithStateElement) {
+  auto p = CreatePackage();
+  ScheduledBlockBuilder sbb(TestName(), p.get());
+  Proc* source;
+  {
+    std::unique_ptr<Proc> owned_source = std::make_unique<Proc>(
+        absl::StrCat("__", TestName(), "_source"), p.get());
+    source = owned_source.get();
+    sbb.SetSource(std::move(owned_source));
+  }
+  XLS_ASSERT_OK(sbb.block()->AddClockPort("clk"));
+  BValue x = sbb.InputPort("x", p->GetBitsType(32));
+
+  // Stage 0 - starts mutex region
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * source_se,
+      source->AppendUnreadStateElement("acc", Value(UBits(0, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(StateRead * source_read,
+                           source->AddStateRead(source_se));
+  BValue acc = sbb.SourceNode(source_read);
+  sbb.AddStateReadToCurrentStage(acc);
+  BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 1
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  // Stage 2 - ends mutex region
+  sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  BValue neg_v0 = sbb.Negate(v0);
+  sbb.Next(source_se, neg_v0);
+  sbb.OutputPort("out", neg_v0);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
+
+  BlockConversionPassOptions options;
+  options.codegen_options.register_merge_strategy(
+      verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly);
+  EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
+  EXPECT_THAT(sb->GetRegisters(),
+              ElementsAre(m2::Register("p0_v0", m::Type("bits[32]"))));
 }
 
 }  // namespace

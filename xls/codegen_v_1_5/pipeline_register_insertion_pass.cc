@@ -201,8 +201,12 @@ absl::StatusOr<ConcurrentStageGroups> CalculateConcurrentStages(
       continue;
     }
     Next* next = node->As<Next>();
-    StateRead* state_read = node->As<Next>()->state_read()->As<StateRead>();
-    StateElement* state_element = state_read->state_element();
+    StateElement* state_element = next->state_element();
+    absl::Span<StateRead* const> state_reads =
+        block->source()->AsProcOrDie()->GetStateReadsByStateElement(
+            state_element);
+    XLS_RET_CHECK_EQ(state_reads.size(), 1);
+    StateRead* state_read = state_reads.front();
     if (state_read->predicate().has_value()) {
       // If the state read is predicated, then it doesn't start a mutual
       // exclusion zone.
@@ -253,8 +257,7 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
   for (Node* node : block->nodes()) {
     if (node->Is<Next>()) {
       Next* next = node->As<Next>();
-      StateElement* state_element =
-          next->state_read()->As<StateRead>()->state_element();
+      StateElement* state_element = next->state_element();
       int64_t stage = *block->GetStageIndex(next);
       auto [it, inserted] =
           earliest_next_stage.try_emplace(state_element, stage);
