@@ -1629,6 +1629,10 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
         return xls::Op::kAnd;
       case clang::BinaryOperatorKind::BO_LOr:
       case clang::BinaryOperatorKind::BO_OrAssign:
+      // For now AddAssign is implemented as OR which works for all cases except
+      // for when the right hand side is an integer type set to all ones and the
+      // result is non-zero before the assignment.
+      case clang::BinaryOperatorKind::BO_AddAssign:
         return xls::Op::kOr;
       default:
         return absl::UnimplementedError(absl::StrFormat(

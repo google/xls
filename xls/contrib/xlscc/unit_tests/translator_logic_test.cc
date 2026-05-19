@@ -171,6 +171,34 @@ TEST_F(TranslatorLogicTest, Bool) {
   Run({{"a", -1}}, 1, content);
 }
 
+TEST_F(TranslatorLogicTest, BoolAddAssign) {
+  std::string_view content = R"(
+      bool my_package(bool a, bool b) {
+        a += b;
+        return a;
+      })";
+
+  Run({{"a", true}, {"b", true}}, static_cast<int64_t>(true), content);
+  Run({{"a", true}, {"b", false}}, static_cast<int64_t>(true), content);
+  Run({{"a", false}, {"b", true}}, static_cast<int64_t>(true), content);
+  Run({{"a", false}, {"b", false}}, static_cast<int64_t>(false), content);
+}
+
+TEST_F(TranslatorLogicTest, BoolAddAssignInt) {
+  std::string_view content = R"(
+      bool my_package(bool a, int b) {
+        a += b;
+        return a;
+      })";
+
+  Run({{"a", true}, {"b", 2}}, static_cast<int64_t>(true), content);
+  Run({{"a", true}, {"b", 1}}, static_cast<int64_t>(true), content);
+  Run({{"a", true}, {"b", 0}}, static_cast<int64_t>(true), content);
+  Run({{"a", false}, {"b", 2}}, static_cast<int64_t>(true), content);
+  Run({{"a", false}, {"b", 1}}, static_cast<int64_t>(true), content);
+  Run({{"a", false}, {"b", 0}}, static_cast<int64_t>(false), content);
+}
+
 TEST_F(TranslatorLogicTest, DeclGroup) {
   std::string_view content = R"(
       long long my_package(long long a, long long b) {
