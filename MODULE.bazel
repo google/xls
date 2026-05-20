@@ -92,7 +92,6 @@ bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "verible", version = "0.0.3933")
-bazel_dep(name = "with_cfg.bzl", version = "0.14.6")
 
 # pprof is not in BCR.
 pprof_ext = use_extension("//dependency_support/pprof:extension.bzl", "pprof_extension")

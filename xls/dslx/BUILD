@@ -20,7 +20,6 @@ load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("//xls/build_rules:opt_filegroup.bzl", "opt_filegroup")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_contrib_test")
 
 package(
@@ -651,11 +650,6 @@ cc_binary(
     ],
 )
 
-opt_filegroup(
-    name = "interpreter_main_opt",
-    srcs = [":interpreter_main"],
-)
-
 cc_binary(
     name = "parse_and_typecheck_dslx_main",
     srcs = ["parse_and_typecheck_dslx_main.cc"],
@@ -704,11 +698,6 @@ cc_binary(
         "@com_google_absl//absl/types:span",
         "@re2",
     ],
-)
-
-opt_filegroup(
-    name = "prove_quickcheck_main_opt",
-    srcs = [":prove_quickcheck_main"],
 )
 
 cc_binary(
