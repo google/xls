@@ -102,7 +102,7 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
     Returns:
       The command that executes in the xls_dslx_test rule.
     """
-    dslx_interpreter_tool = ctx.executable._xls_dslx_interpreter_tool
+    dslx_interpreter_tool = ctx.file._xls_dslx_interpreter_tool
     _dslx_test_args = append_default_to_args(
         ctx.attr.dslx_test_args,
         _DEFAULT_DSLX_TEST_ARGS,

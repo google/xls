@@ -31,9 +31,9 @@ _DEFAULT_AOT_BASIC_FUNCTION_TARGET = "//xls/jit:aot_basic_function_entrypoint_ma
 
 _DEFAULT_PARSE_AND_TYPECHECK_DSLX_TARGET = "//xls/dslx:parse_and_typecheck_dslx_main"
 
-_DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
+_DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main_opt"
 
-_DEFAULT_PROVE_QUICKCHECK_TARGET = "//xls/dslx:prove_quickcheck_main"
+_DEFAULT_PROVE_QUICKCHECK_TARGET = "//xls/dslx:prove_quickcheck_main_opt"
 
 # Note: exported so we can use it in our macro implementation (which does not
 # get a toolchain ctx).
@@ -106,14 +106,12 @@ xls_toolchain_attrs = {
         doc = "The target of the DSLX interpreter executable.",
         default = Label(_DEFAULT_INTERPRETER_TARGET),
         allow_single_file = True,
-        executable = True,
         cfg = "target",
     ),
     "_xls_dslx_prove_quickcheck_tool": attr.label(
         doc = "The target of the DSLX prove quickcheck executable.",
         default = Label(_DEFAULT_PROVE_QUICKCHECK_TARGET),
         allow_single_file = True,
-        executable = True,
         cfg = "target",
     ),
     "_xls_dslx_autoformat_tool": attr.label(

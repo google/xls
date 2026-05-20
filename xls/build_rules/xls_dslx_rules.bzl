@@ -95,7 +95,7 @@ def _get_dslx_prove_quickcheck_test_cmdline(ctx, src, all_srcs, append_cmd_line_
     Returns:
       The command that executes in the xls_dslx_test rule.
     """
-    dslx_prove_quickcheck_tool = ctx.executable._xls_dslx_prove_quickcheck_tool
+    dslx_prove_quickcheck_tool = ctx.file._xls_dslx_prove_quickcheck_tool
     dslx_prove_quickcheck_test_args = dict()
     test_filter = ctx.attr.test_filter
     if test_filter:
