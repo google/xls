@@ -1554,3 +1554,130 @@ xls_dslx_verilog(
     library = ":const_match_dslx",
     verilog_file = "const_match.sv",
 )
+
+xls_dslx_library(
+    name = "content_based_arbiter_dslx",
+    srcs = ["content_based_arbiter.x"],
+)
+
+xls_dslx_test(
+    name = "content_based_arbiter_dslx_test",
+    srcs = ["content_based_arbiter.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+[
+    (
+        xls_dslx_verilog(
+            name = "content_based_arbiter_%s_%s_verilog" % (major, minor),
+            codegen_args = {
+                "module_name": "content_based_arbiter",
+                "delay_model": "unit",
+                "pipeline_stages": "4",
+                "reset": "rst",
+                "codegen_version": "%s.%s" % (major, minor),
+            },
+            dslx_top = "PeekContentBasedArbiterInst",
+            library = ":content_based_arbiter_dslx",
+            verilog_file = "content_based_arbiter_%s_%s.sv" % (major, minor),
+        )
+    )
+    for major, minor in [
+        ["1", "0"],
+        ["1", "5"],
+        ["2", "0"],
+    ]
+]
+
+xls_dslx_library(
+    name = "peek_dslx",
+    srcs = ["peek.x"],
+)
+
+xls_dslx_test(
+    name = "peek_dslx_test",
+    size = "small",
+    srcs = ["peek.x"],
+)
+
+[
+    (
+        xls_dslx_ir(
+            name = "peek_%s_%s_ir" % (top, proc_scoped),
+            dslx_top = top,
+            ir_conv_args = {
+                "lower_to_proc_scoped_channels": proc_scoped
+            },
+            ir_file = "peek_%s_%s.ir" % (top, proc_scoped),
+            library = ":peek_dslx",
+        )
+    )
+    for proc_scoped in [
+        "true", "false"
+    ] for top in ["Peek", "PeekIf"]
+]
+
+[
+    (
+        xls_dslx_opt_ir(
+            name = "peek_opt_%s_%s_ir" % (top, proc_scoped),
+            srcs = ["peek.x"],
+            dslx_top = top,
+            ir_conv_args = {"lower_to_proc_scoped_channels": proc_scoped},
+        ),
+
+        cc_xls_ir_jit_wrapper(
+            name = "peek_%s_%s_jit_wrapper" % (top, proc_scoped),
+            src = ":peek_opt_%s_%s_ir" % (top, proc_scoped),
+            jit_wrapper_args = {
+                "class_name": top,
+                "namespace": "xls::examples",
+            },
+            wrapper_type = "PROC",
+        )
+
+    )
+    for proc_scoped in [
+        "true", "false"
+    ] for top in ["Peek", "PeekIf"]
+]
+
+cc_test(
+    name = "peek_jit_test",
+    srcs = ["peek_test.cc"],
+    deps = [
+        ":peek_Peek_true_jit_wrapper",
+        ":peek_PeekIf_true_jit_wrapper",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:value",
+        "@googletest//:gtest",
+    ],
+)
+[
+    (
+        xls_dslx_verilog(
+            name = "peek_%s_%s_%s_%s_verilog" %
+                       (top, major, minor, proc_scoped),
+            codegen_args = {
+                "module_name": top,
+                "generator": "pipeline",
+                "pipeline_stages": "1",
+                "reset": "rst",
+                "codegen_version": "%s.%s" % (major, minor),
+            },
+            ir_conv_args = {"lower_to_proc_scoped_channels": proc_scoped},
+            library = ":peek_dslx",
+            dslx_top = top,
+            verilog_file = "peek_%s_%s_%s_%s.sv" %
+                               (top, major, minor, proc_scoped),
+        )
+    )
+    for proc_scoped in [
+        "true", "false"
+    ] for major, minor in [
+        ["1", "0"],
+        ["1", "5"],
+        ["2", "0"],
+    ] for top in ["Peek", "PeekIf"]
+]
