@@ -196,12 +196,8 @@ fn twice<N: u32>(x: bits[N]) -> bits[N] {
   std::string_view specialized_filename =
       specialized->span().GetFilename(files);
 
-  if (module->fs_path().has_value()) {
-    EXPECT_EQ(specialized_filename, module->fs_path()->generic_string());
-  } else {
-    EXPECT_NE(original_filename, specialized_filename);
-    EXPECT_TRUE(absl::StrContains(specialized_filename, "<specialization:"));
-  }
+  EXPECT_NE(original_filename, specialized_filename);
+  EXPECT_TRUE(absl::StrContains(specialized_filename, "<specialization:"));
 
   // The specialized function span should enclose its body span.
   ASSERT_NE(specialized->body(), nullptr);
@@ -377,6 +373,63 @@ fn select_poly<N: u32>(polys: uN[6][N], selector: uN[N]) -> uN[6] {
   absl::StatusOr<TypecheckedModule> replaced = ReplaceInvocationsInModule(
       retyped, absl::MakeSpan(callers_arr), absl::MakeSpan(rules_arr),
       *rewrite_import_data, "rewrite_test.rewrite");
+  ASSERT_TRUE(replaced.ok()) << replaced.status();
+}
+
+TEST(FunctionSpecializerTest,
+     SyntheticSpecializedCallerDoesNotOverlapRealInvocationSpans) {
+  constexpr std::string_view kProgram =
+      R"(fn helper(x: u32) -> u32 { x }
+
+fn unrelated(x: u32) -> u32 { helper(x) }
+
+fn id<N: u32>(x: bits[N]) -> bits[N] { x }
+)";
+
+  std::unique_ptr<ImportData> import_data = CreateImportDataPtrForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule typechecked,
+      ParseAndTypecheck(kProgram, "synthetic_overlap_test.x",
+                        "synthetic_overlap_test", import_data.get()));
+
+  Module* module = typechecked.module;
+  ASSERT_NE(module, nullptr);
+
+  Function* id_fn = module->GetFunctionByName().at("id");
+  const ParametricBinding* binding = id_fn->parametric_bindings().front();
+  absl::flat_hash_map<std::string, InterpValue> env_bindings;
+  env_bindings.emplace(binding->identifier(),
+                       InterpValue::MakeUBits(/*bit_count=*/32, 32));
+  ParametricEnv env(env_bindings);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * specialized,
+      InsertFunctionSpecialization(id_fn, env, "id_N32"));
+  ASSERT_NE(specialized, nullptr);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModule(*module));
+  std::unique_ptr<ImportData> rewrite_import_data =
+      CreateImportDataPtrForTest();
+  rewrite_import_data->file_table() = *module->file_table();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule retyped,
+      TypecheckModule(std::move(cloned_module), "synthetic_overlap_test.x",
+                      rewrite_import_data.get()));
+
+  const Function* caller = retyped.module->GetFunction("id_N32").value();
+  const Function* callee = retyped.module->GetFunction("helper").value();
+  const Function* callers_arr[] = {caller};
+
+  InvocationRewriteRule rule;
+  rule.from_callee = callee;
+  rule.to_callee = callee;
+  const InvocationRewriteRule rules_arr[] = {rule};
+
+  absl::StatusOr<TypecheckedModule> replaced = ReplaceInvocationsInModule(
+      retyped, absl::MakeSpan(callers_arr), absl::MakeSpan(rules_arr),
+      *rewrite_import_data, "synthetic_overlap_test.rewrite");
   ASSERT_TRUE(replaced.ok()) << replaced.status();
 }
 

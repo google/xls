@@ -26,6 +26,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -56,18 +57,22 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
     Module& module, InferenceTable& table, const Span& span,
     const InterpValue& value, const TypeAnnotation* type_annotation) {
   // Invariant: nodes created into `module` should either have a "no-file" span
-  // (for internally-fabricated nodes) or a span that points at `module`'s own
-  // source file. Violating this makes downstream consumers that resolve nodes
-  // by (kind, span) fragile and can lead to confusing "could not find node"
-  // errors.
+  // (for internally-fabricated nodes), a recognized internal synthetic file,
+  // or a span that points at `module`'s own source file. Violating this makes
+  // downstream consumers that resolve nodes by (kind, span) fragile and can
+  // lead to confusing "could not find node" errors.
   //
   // Note: not all modules have a filesystem path (e.g. in-memory modules); we
   // only enforce this when `fs_path()` is known.
   XLS_RET_CHECK(module.file_table() != nullptr);
   if (span.HasFile() && module.fs_path().has_value()) {
     std::string_view span_filename = span.GetFilename(*module.file_table());
-    XLS_RET_CHECK_EQ(span_filename, module.fs_path()->generic_string())
-        << "MakeTypeCheckedNumber span filename must match module fs_path; "
+    const bool is_specialization_span =
+        absl::StartsWith(span_filename, "<specialization:");
+    XLS_RET_CHECK(is_specialization_span ||
+                  span_filename == module.fs_path()->generic_string())
+        << "MakeTypeCheckedNumber span filename must match module fs_path or "
+           "use a recognized specialization pseudo-file; "
         << "module name: `" << module.name() << "`; "
         << "span: `" << span.ToString(*module.file_table()) << "`; "
         << "module fs_path: `" << module.fs_path()->generic_string() << "`";
