@@ -17,6 +17,7 @@ import os
 import re
 import stat
 import subprocess
+import textwrap
 from typing import Optional
 
 from absl.testing import absltest
@@ -858,6 +859,7 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
         [
             IR_MINIMIZER_MAIN_PATH,
             '--can_remove_params',
+            '--can_minimize_bitwidth=false',
             '--can_inline_everything=false',
             '--test_executable=' + test_sh_file.full_path,
             ir_file.full_path,
@@ -878,6 +880,163 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
     self.assertEqual(node_count(minimized_ir), 3)
     self.assertIn('ret literal', minimized_ir)
     self.assertNotIn('ret invoke', minimized_ir)
+
+  def test_minimize_bitwidth(self):
+    input_ir = textwrap.dedent("""
+      package foo
+      top fn minimize_bits(x: bits[8] id=2, y: bits[8] id=3, z: bits[8] id=4) -> bits[8] {
+          add_5: bits[8] = add(x, y, id=5)
+          ret mul_6: bits[8] = umul(add_5, z, id=6)
+      }""")
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    # The test script checks that add and umul are preserved, and rejects any
+    # bitwidth narrower than 4 (bits[1], bits[2], bits[3]) or the params being
+    # dropped outright, forcing the minimizer to reach exactly bits[4].
+    self._write_sh_script(
+        test_sh_file.full_path,
+        [
+            "/usr/bin/env grep 'add(' $1",
+            "/usr/bin/env grep 'umul(' $1",
+            r"/usr/bin/env grep -E 'x\w*:.+y\w*:.+z\w*:' $1",
+            r"/usr/bin/env grep -q 'bits\[[123]\]' $1 && exit 1 || true",
+        ],
+    )
+    output = subprocess.run(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--can_minimize_bitwidth=true',
+            '--can_remove_params=true',
+            f'--test_executable={test_sh_file.full_path}',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    self.assertEqual(
+        output.returncode,
+        0,
+        f'Non zero return: stderr {output.stderr!r}, stdout: {output.stdout!r}',
+    )
+    minimized_ir = output.stdout
+    self._maybe_record_property('output', minimized_ir)
+
+    self.assertEqual(function_count(minimized_ir), 1)
+    self.assertEqual(node_count(minimized_ir), 2)
+    self.assertRegex(
+        minimized_ir,
+        r'fn minimize_bits\(x\w*: bits\[4\] id=2, y\w*: bits\[4\] id=3, z\w*:'
+        r' bits\[4\] id=4\) -> bits\[4\] \{\s*'
+        r'add\w*: bits\[4\] = add\(x\w*, y\w*.*\s*'
+        r'ret mul\w*: bits\[4\] = umul\(add\w*, z\w*',
+    )
+
+  def test_minimize_bitwidth_no_param_changes(self):
+    input_ir = textwrap.dedent("""
+      package foo
+      top fn minimize_bits(x: bits[8] id=2, y: bits[8] id=3, z: bits[8] id=4) -> bits[8] {
+          add_5: bits[8] = add(x, y, id=5)
+          ret mul_6: bits[8] = umul(add_5, z, id=6)
+      }""")
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    # The test script checks that add and umul are preserved, and rejects any
+    # bitwidth narrower than 4 (bits[1], bits[2], bits[3]) or literals replacing
+    # the parameters usage, forcing the minimizer to reach exactly bits[4].
+    self._write_sh_script(
+        test_sh_file.full_path,
+        [
+            "/usr/bin/env grep 'add(' $1",
+            "/usr/bin/env grep 'umul(' $1",
+            r"/usr/bin/env grep -q 'literal(' $1 && exit 1 || true",
+            r"/usr/bin/env grep -q 'bits\[[123]\]' $1 && exit 1 || true",
+        ],
+    )
+    output = subprocess.run(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--can_minimize_bitwidth=true',
+            '--can_remove_params=false',
+            f'--test_executable={test_sh_file.full_path}',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    self.assertEqual(
+        output.returncode,
+        0,
+        f'Non zero return: stderr {output.stderr!r}, stdout: {output.stdout!r}',
+    )
+    minimized_ir = output.stdout
+    self._maybe_record_property('output', minimized_ir)
+
+    self.assertEqual(function_count(minimized_ir), 1)
+    self.assertEqual(node_count(minimized_ir), 5)
+    self.assertRegex(
+        minimized_ir,
+        r'fn minimize_bits\(x\w*: bits\[8\] id=2, y\w*: bits\[8\] id=3, z\w*:'
+        r' bits\[8\] id=4\) -> bits\[4\] \{\s*'
+        r'bit_slice\.\w*: bits\[4\] = bit_slice\(x\w*, start=4, width=4.*\s*'
+        r'bit_slice\.\w*: bits\[4\] = bit_slice\(y\w*, start=4, width=4.*\s*'
+        r'add\w*: bits\[4\] = add\(bit_slice\.\w*, bit_slice\.\w*.*\s*'
+        r'bit_slice\.\w*: bits\[4\] = bit_slice\(z\w*, start=4, width=4.*\s*'
+        r'ret mul\w*: bits\[4\] = umul\(add\w*, bit_slice\.\w*',
+    )
+
+  def test_minimize_tuple_of_bits(self):
+    input_ir = textwrap.dedent("""
+      package foo
+      top fn minimize_tuple_out() -> (bits[1000], bits[1000]) {
+        literal.34: bits[1000] = literal(value=0, id=34)
+        ret smulp.5: (bits[1000], bits[1000]) = smulp(literal.34, literal.34, id=5)
+      }
+      """)
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    # The test script rejects bitwidths less than 8 (bits[1] through bits[7]),
+    # forcing the minimizer to reach exactly bits[8].
+    self._write_sh_script(
+        test_sh_file.full_path,
+        [
+            "/usr/bin/env grep 'smulp(' $1",
+            "/usr/bin/env grep 'literal' $1",
+            r"/usr/bin/env grep -q 'bits\[[1-7]\]' $1 && exit 1 || true",
+        ],
+    )
+    output = subprocess.run(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--can_minimize_bitwidth=true',
+            f'--test_executable={test_sh_file.full_path}',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    self.assertEqual(
+        output.returncode,
+        0,
+        f'Non zero return: stderr {output.stderr!r}, stdout: {output.stdout!r}',
+    )
+    minimized_ir = output.stdout
+    self._maybe_record_property('output', minimized_ir)
+
+    self.assertEqual(function_count(minimized_ir), 1)
+    self.assertEqual(node_count(minimized_ir), 2)
+    self.assertRegex(
+        minimized_ir,
+        r'top fn minimize_tuple_out\(\) -> \(bits\[8\], bits\[8\]\) \{\s*'
+        r'literal[\w\.]*: bits\[8\] = literal\(value=0.*\s*'
+        r'ret smulp[\w\.]*: \(bits\[8\], bits\[8\]\) = smulp\(literal[\w\.]*,'
+        r' literal[\w\.]*',
+    )
 
 
 if __name__ == '__main__':

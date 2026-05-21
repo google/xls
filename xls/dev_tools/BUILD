@@ -554,6 +554,7 @@ cc_binary(
         "//xls/estimators/delay_model/models",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
         "//xls/ir:events",
