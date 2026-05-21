@@ -24,7 +24,6 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/scheduling/mutual_exclusion_pass.h"
 #include "xls/scheduling/pipeline_scheduling_pass.h"
 #include "xls/scheduling/proc_state_legalization_pass.h"
 #include "xls/scheduling/scheduling_checker.h"
@@ -45,9 +44,6 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
   top->Add<ProcStateLegalizationPass>();
 
   bool eliminate_noop_next = false;
-  if (options.merge_on_mutual_exclusion()) {
-    top->Add<MutualExclusionPass>();
-  }
   if (options.opt_level() > 0) {
     // Run a small number of opt-passes to clean up the mutex changes.
     // TODO(allight): We might want to move this pre-scheduling mutex pass (and
@@ -64,15 +60,6 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
                                   context, options.opt_level(),
                                   eliminate_noop_next);
   top->Add<PipelineSchedulingPass>();
-  if (options.merge_on_mutual_exclusion()) {
-    // Much of mutual exclusion is only possible after scheduling - but it also
-    // invalidates the schedule, so we need to run it again afterwards.
-    top->Add<MutualExclusionPass>();
-    top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                                    context, options.opt_level(),
-                                    eliminate_noop_next);
-    top->Add<PipelineSchedulingPass>();
-  }
 
   return top;
 }
