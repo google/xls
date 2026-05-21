@@ -242,6 +242,10 @@ AddPortsForReceive(ChannelRef channel, Block* block,
   std::optional<Node*> valid;
   std::optional<Node*> ready;
   if (ChannelRefKind(channel) == ChannelKind::kStreaming) {
+    if (ChannelRefFlowControl(channel) == FlowControl::kValidData) {
+      return absl::UnimplementedError(
+          "valid_data flow control not supported in codegen v1.0");
+    }
     XLS_ASSIGN_OR_RETURN(
         valid, block->AddInputPort(
                    absl::StrCat(ChannelRefName(channel),
@@ -290,6 +294,10 @@ absl::StatusOr<CloneNodesIntoBlockHandler::ChannelConnection> AddPortsForSend(
   std::optional<Node*> valid;
   std::optional<Node*> ready;
   if (ChannelRefKind(channel) == ChannelKind::kStreaming) {
+    if (ChannelRefFlowControl(channel) == FlowControl::kValidData) {
+      return absl::UnimplementedError(
+          "valid_data flow control not supported in codegen v1.0");
+    }
     XLS_ASSIGN_OR_RETURN(Node * one, block->MakeNode<xls::Literal>(
                                          SourceInfo(), Value(UBits(1, 1))));
     XLS_ASSIGN_OR_RETURN(
@@ -875,6 +883,10 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
   }
 
   XLS_RET_CHECK_EQ(ChannelRefKind(connection.channel), ChannelKind::kStreaming);
+  if (ChannelRefFlowControl(connection.channel) == FlowControl::kValidData) {
+    return absl::UnimplementedError(
+        "valid_data flow control not supported in codegen v1.0");
+  }
   XLS_RET_CHECK_EQ(ChannelRefFlowControl(connection.channel),
                    FlowControl::kReadyValid)
       << " channel " << ChannelRefToString(connection.channel);
@@ -999,6 +1011,10 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
   }
 
   XLS_RET_CHECK_EQ(ChannelRefKind(connection.channel), ChannelKind::kStreaming);
+  if (ChannelRefFlowControl(connection.channel) == FlowControl::kValidData) {
+    return absl::UnimplementedError(
+        "valid_data flow control not supported in codegen v1.0");
+  }
   XLS_RET_CHECK_EQ(ChannelRefFlowControl(connection.channel),
                    FlowControl::kReadyValid);
 

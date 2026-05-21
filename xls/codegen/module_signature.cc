@@ -171,6 +171,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
   ChannelProto* channel = proto_.add_channels();
   channel->set_name(name);
   channel->set_kind(CHANNEL_KIND_STREAMING);
+  CHECK_NE(flow_control, FlowControl::kValidData)
+      << "valid_data flow control not supported in codegen v1.0";
   if (flow_control == FlowControl::kReadyValid) {
     channel->set_flow_control(CHANNEL_FLOW_CONTROL_READY_VALID);
   } else {
@@ -212,6 +214,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannelInterface(
   interface->set_direction(direction);
   *interface->mutable_type() = type->ToProto();
   interface->set_kind(CHANNEL_KIND_STREAMING);
+  CHECK_NE(flow_control, FlowControl::kValidData)
+      << "valid_data flow control not supported in codegen v1.0";
   interface->mutable_streaming()->set_flow_control(
       flow_control == FlowControl::kReadyValid
           ? CHANNEL_FLOW_CONTROL_READY_VALID

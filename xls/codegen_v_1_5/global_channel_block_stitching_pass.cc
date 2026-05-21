@@ -146,6 +146,11 @@ absl::Status StitchStreamingOutputToFifo(
                               SourceInfo(), block_valid, fifo,
                               FifoInstantiation::kPushValidPortName)
                           .status());
+  if (!output.ready_port.has_value()) {
+    return absl::UnimplementedError(
+        "Channels with flow control other than ready_valid are not yet "
+        "supported.");
+  }
   XLS_RET_CHECK(output.ready_port.has_value());
   XLS_RETURN_IF_ERROR(caller
                           ->MakeNode<xls::InstantiationInput>(
@@ -168,6 +173,11 @@ absl::Status StitchStreamingInputToFifo(
       xls::Node * fifo_valid,
       caller->MakeNode<xls::InstantiationOutput>(
           SourceInfo(), fifo, FifoInstantiation::kPopValidPortName));
+  if (!input.ready_port.has_value()) {
+    return absl::UnimplementedError(
+        "Channels with flow control other than ready_valid are not yet "
+        "supported.");
+  }
   XLS_RET_CHECK(input.ready_port.has_value());
 
   XLS_ASSIGN_OR_RETURN(
@@ -205,6 +215,11 @@ absl::Status ExposeStreamingOutput(
   VLOG(5) << "Exposing output port valid: " << name_or_none(output.valid_port);
   VLOG(5) << "Exposing output port ready: " << name_or_none(output.ready_port);
 
+  if (!output.ready_port.has_value()) {
+    return absl::UnimplementedError(
+        "Channels with flow control other than ready_valid are not yet "
+        "supported.");
+  }
   XLS_RET_CHECK(output.data_port.has_value());
   XLS_RET_CHECK(output.ready_port.has_value());
   XLS_RET_CHECK(output.valid_port.has_value());
@@ -246,6 +261,11 @@ absl::Status ExposeStreamingOutput(
 absl::Status ExposeStreamingInput(
     StreamingChannel* channel, const ChannelPortMetadata& input, Block* block,
     ::xls::BlockInstantiation* block_instantiation) {
+  if (!input.ready_port.has_value()) {
+    return absl::UnimplementedError(
+        "Channels with flow control other than ready_valid are not yet "
+        "supported.");
+  }
   XLS_RET_CHECK(input.data_port.has_value());
   XLS_RET_CHECK(input.ready_port.has_value());
   XLS_RET_CHECK(input.valid_port.has_value());

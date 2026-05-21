@@ -301,6 +301,15 @@ enum class FlowControl : uint8_t {
   // signal is valid. When both ready and valid are asserted a transaction
   // occurs.
   kReadyValid,
+
+  // The channel uses a valid-data handshake. A valid signal indicates that the
+  // data is valid, and the receiver is presumed to always be ready to accept
+  // data. A transaction occurs whenever valid is asserted.
+  //
+  // This is used when the channel doesn't want to support backpressure. Safe
+  // use requires ensuring that the receiver can always accept data when the
+  // sender is sending, and can optionally be checked with an assert.
+  kValidData,
 };
 
 std::string FlowControlToString(FlowControl fc);

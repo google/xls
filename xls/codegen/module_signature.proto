@@ -42,6 +42,7 @@ enum ChannelKindProto {
 enum ChannelFlowControlProto {
   CHANNEL_FLOW_CONTROL_NONE = 0;
   CHANNEL_FLOW_CONTROL_READY_VALID = 1;
+  CHANNEL_FLOW_CONTROL_VALID_DATA = 2;
 }
 
 // Data structure describing a port on a module.

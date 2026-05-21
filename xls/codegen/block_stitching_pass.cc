@@ -490,6 +490,11 @@ absl::Status StitchSingleValueChannel(
 absl::Status StitchStreamingChannel(
     Block* container, StreamingChannel* channel, const ChannelMap& channel_map,
     const absl::flat_hash_map<Block*, ::xls::Instantiation*>& instantiations) {
+  if (channel->flow_control() == FlowControl::kValidData) {
+    return absl::UnimplementedError(
+        "Channels with valid_data flow control are not supported in codegen "
+        "v1.0.");
+  }
   auto input_iter = channel_map.channel_to_streaming_input().find(channel);
   auto output_iter = channel_map.channel_to_streaming_output().find(channel);
   bool has_input = input_iter != channel_map.channel_to_streaming_input().end();

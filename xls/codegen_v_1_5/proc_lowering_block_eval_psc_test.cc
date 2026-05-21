@@ -798,6 +798,12 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
       // Only process streaming channels in this block
       continue;
     }
+    if (!metadata.data_port.has_value() || !metadata.valid_port.has_value() ||
+        !metadata.ready_port.has_value()) {
+      return absl::UnimplementedError(
+          "Channels with flow control other than ready_valid are not yet "
+          "supported.");
+    }
     // If this channel isn't in the input, skip it.
     if (!inputs.contains(channel_name)) {
       continue;
@@ -845,6 +851,12 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
       // Only process streaming channels in this block
       continue;
     }
+    if (!metadata.data_port.has_value() || !metadata.valid_port.has_value() ||
+        !metadata.ready_port.has_value()) {
+      return absl::UnimplementedError(
+          "Channels with flow control other than ready_valid are not yet "
+          "supported.");
+    }
     sinks.push_back(ChannelSink(
         *metadata.data_port, *metadata.valid_port, *metadata.ready_port, 0.5,
         block, ChannelSink::BehaviorDuringReset::kIgnoreValid));
@@ -879,6 +891,12 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
     if (metadata.channel_kind != ChannelKind::kStreaming) {
       // Only process streaming channels in this block
       continue;
+    }
+    if (!metadata.data_port.has_value() || !metadata.valid_port.has_value() ||
+        !metadata.ready_port.has_value()) {
+      return absl::UnimplementedError(
+          "Channels with flow control other than ready_valid are not yet "
+          "supported.");
     }
     if (!actual_outputs.contains(*metadata.data_port)) {
       continue;

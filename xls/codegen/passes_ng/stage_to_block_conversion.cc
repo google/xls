@@ -73,6 +73,8 @@ RDVNodeGroupName CreatePortNamesForChannel(
           ? options.streaming_channel_data_suffix()
           : "";
   std::string_view valid_suffix = options.streaming_channel_valid_suffix();
+  CHECK_NE(chan_interface->flow_control(), FlowControl::kValidData)
+      << "valid_data flow control not supported in codegen v2.0";
 
   // Construct names for the ports.
   std::string port_ready_name =
@@ -529,6 +531,13 @@ class TopProcToBlockCloner : public ProcToBlockClonerBase {
   // Create wires and a slot for an internal channel.
   absl::Status CreateWiresForChannel(const Channel* chan, Block* block) {
     Proc* proc = proc_metadata_.proc();
+
+    if (chan->kind() == ChannelKind::kStreaming &&
+        absl::down_cast<const StreamingChannel*>(chan)->flow_control() ==
+            FlowControl::kValidData) {
+      return absl::UnimplementedError(
+          "valid_data flow control not supported in codegen v2.0");
+    }
 
     // Retrieve the suffix for the ports associated with the channel.
     std::string_view data_suffix =

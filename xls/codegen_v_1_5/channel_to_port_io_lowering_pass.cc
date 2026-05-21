@@ -352,6 +352,10 @@ absl::StatusOr<Connector> AddPortsForSend(
   std::optional<Node*> valid;
   std::optional<Node*> ready;
   if (ChannelRefKind(channel) == ChannelKind::kStreaming) {
+    if (ChannelRefFlowControl(channel) == FlowControl::kValidData) {
+      return absl::UnimplementedError(
+          "valid_data flow control is not yet supported.");
+    }
     XLS_ASSIGN_OR_RETURN(
         Node * placeholder_valid,
         block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
@@ -416,6 +420,10 @@ absl::StatusOr<Connector> AddPortsForReceive(
   std::optional<Node*> valid;
   std::optional<Node*> ready;
   if (ChannelRefKind(channel) == ChannelKind::kStreaming) {
+    if (ChannelRefFlowControl(channel) == FlowControl::kValidData) {
+      return absl::UnimplementedError(
+          "valid_data flow control is not yet supported.");
+    }
     XLS_ASSIGN_OR_RETURN(
         valid,
         block->AddInputPort(
@@ -1076,6 +1084,10 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
                              const BlockConversionPassOptions& options,
                              std::string_view channel_name = "") {
   XLS_RET_CHECK_EQ(connector.direction, ChannelDirection::kSend);
+  if (connector.valid.has_value() && !connector.ready.has_value()) {
+    return absl::UnimplementedError(
+        "valid_data flow control is not yet supported.");
+  }
   XLS_RET_CHECK(connector.ready.has_value());
   XLS_RET_CHECK(connector.valid.has_value());
 
@@ -1505,6 +1517,10 @@ absl::Status AddIOFlopsForReceive(Connector& connector, FlopKind flop_kind,
     return absl::OkStatus();
   }
   CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
+  if (ChannelRefFlowControl(channel) == FlowControl::kValidData) {
+    return absl::UnimplementedError(
+        "Valid-data flow control is not yet supported.");
+  }
 
   if (flop_kind == FlopKind::kNone) {
     return absl::OkStatus();
@@ -1558,6 +1574,10 @@ absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
         .status();
   }
   CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
+  if (ChannelRefFlowControl(channel) == FlowControl::kValidData) {
+    return absl::UnimplementedError(
+        "Valid-data flow control is not yet supported.");
+  }
   CHECK(connector.valid.has_value());
   CHECK(connector.ready.has_value());
 

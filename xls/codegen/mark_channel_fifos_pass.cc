@@ -15,6 +15,7 @@
 #include "xls/codegen/mark_channel_fifos_pass.h"
 
 #include "absl/base/casts.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -45,6 +46,11 @@ absl::StatusOr<bool> MarkChannelFifosPass::RunInternal(
       continue;
     }
     StreamingChannel* schan = absl::down_cast<StreamingChannel*>(chan);
+    if (schan->flow_control() == FlowControl::kValidData) {
+      return absl::UnimplementedError(
+          "Channels with flow control valid_data are not supported in codegen "
+          "v1.0.");
+    }
     if (!schan->channel_config().input_flop_kind()) {
       schan->SetChannelConfig(schan->channel_config().WithInputFlopKind(
           GetRealFlopKind(options.codegen_options.flop_inputs(),

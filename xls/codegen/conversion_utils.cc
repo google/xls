@@ -69,6 +69,10 @@ absl::Status CheckForMultiplexingCycle(Channel* channel,
   }
   StreamingChannel* streaming_channel =
       absl::down_cast<StreamingChannel*>(channel);
+  if (streaming_channel->flow_control() == FlowControl::kValidData) {
+    return absl::UnimplementedError(
+        "Channels with flow control valid_data are not yet supported.");
+  }
   if (!streaming_channel->channel_config().fifo_config().has_value()) {
     return absl::InvalidArgumentError(
         absl::StrCat("Cannot allow multiple operations from proc `", proc_name,

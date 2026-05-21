@@ -25,6 +25,7 @@
 #include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_options.h"
@@ -151,6 +152,12 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
             : verilog::ChannelDirectionProto::CHANNEL_DIRECTION_RECEIVE;
     switch (metadata.channel_kind) {
       case ChannelKind::kStreaming: {
+        if (metadata.ready_port.has_value() !=
+            metadata.valid_port.has_value()) {
+          return absl::UnimplementedError(
+              "Channels with flow control other than ready_valid or none are "
+              "not yet supported.");
+        }
         FlowControl flow_control =
             (metadata.ready_port.has_value() && metadata.valid_port.has_value())
                 ? FlowControl::kReadyValid

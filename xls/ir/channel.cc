@@ -262,6 +262,8 @@ std::string FlowControlToString(FlowControl fc) {
       return "none";
     case FlowControl::kReadyValid:
       return "ready_valid";
+    case FlowControl::kValidData:
+      return "valid_data";
   }
   LOG(FATAL) << "Invalid flow control value: " << static_cast<int64_t>(fc);
 }
@@ -273,8 +275,11 @@ absl::StatusOr<FlowControl> StringToFlowControl(std::string_view str) {
   if (str == "ready_valid") {
     return FlowControl::kReadyValid;
   }
+  if (str == "valid_data") {
+    return FlowControl::kValidData;
+  }
   return absl::InvalidArgumentError(
-      absl::StrFormat("Invalid channel kind '%s'", str));
+      absl::StrFormat("Invalid flow control '%s'", str));
 }
 
 std::ostream& operator<<(std::ostream& os, FlowControl fc) {
