@@ -15,8 +15,10 @@
 #include "xls/dslx/ir_convert/fuzz_test_converter.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -92,6 +94,30 @@ absl::Status FuzzTestConverter::LowerTuple(
     const InterpValue& element = elements[i];
     XLS_RETURN_IF_ERROR(
         LowerConstant(member_type, element, *tuple_proto->add_elements()));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status FuzzTestConverter::LowerStructInstanceDomain(
+    const StructType& struct_type, const StructInstance& struct_domain,
+    PackageInterfaceProto::FuzzTestDomain& proto) {
+  auto* tuple_proto = proto.mutable_tuple();
+
+  for (int64_t i = 0; i < struct_type.size(); ++i) {
+    std::string_view field_name = struct_type.GetMemberName(i);
+    const Type& field_type = struct_type.GetMemberType(i);
+    PackageInterfaceProto::FuzzTestDomain* element_proto =
+        tuple_proto->add_elements();
+
+    absl::StatusOr<Expr*> specified_domain = struct_domain.GetExpr(field_name);
+    if (specified_domain.ok()) {
+      XLS_RETURN_IF_ERROR(
+          LowerDomainExpr(&field_type, *specified_domain, *element_proto));
+    } else if (absl::IsNotFound(specified_domain.status())) {
+      XLS_RETURN_IF_ERROR(LowerArbitraryType(&field_type, *element_proto));
+    } else {
+      return specified_domain.status();
+    }
   }
   return absl::OkStatus();
 }
@@ -178,6 +204,14 @@ absl::Status FuzzTestConverter::LowerConstant(
 absl::Status FuzzTestConverter::LowerDomainExpr(
     const Type* param_type, const Expr* expr,
     PackageInterfaceProto::FuzzTestDomain& proto) {
+  if (expr->kind() == AstNodeKind::kStructInstance) {
+    XLS_RET_CHECK(param_type != nullptr && param_type->IsStruct());
+    const StructInstance* struct_domain =
+        absl::down_cast<const StructInstance*>(expr);
+    const StructType& struct_type = param_type->AsStruct();
+    return LowerStructInstanceDomain(struct_type, *struct_domain, proto);
+  }
+
   if (expr->kind() == AstNodeKind::kRange) {
     // Ranges get expanded into arrays by the constexpr evaluator, so if you
     // have a range of u32:0..u32:FFFFFFFF, it will try to turn it into an array

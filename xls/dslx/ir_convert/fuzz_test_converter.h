@@ -55,6 +55,10 @@ class FuzzTestConverter {
                           const std::vector<InterpValue>& elements,
                           PackageInterfaceProto::FuzzTestDomain& proto);
 
+  absl::Status LowerStructInstanceDomain(
+      const StructType& struct_type, const StructInstance& struct_domain,
+      PackageInterfaceProto::FuzzTestDomain& proto);
+
   absl::Status LowerRangeExpr(const Range* range_node,
                               PackageInterfaceProto::FuzzTestDomain& proto);
   // Main entry point

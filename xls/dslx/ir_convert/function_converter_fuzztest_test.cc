@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <memory>
+#include <string>
 #include <string_view>
 
 #include "gmock/gmock.h"
@@ -1210,6 +1211,190 @@ fn f(x: (u32, MyEnum)) -> bool { x.0 == x.0 }
           }
         }
       )pb"));
+}
+
+TEST(FunctionConverterFuzzTestTest, StructDomainBasic) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+struct MyStruct {
+  x: u32,
+  y: u8,
+}
+#[fuzz_test(domains = `MyStruct { x: u32:0..10, y: [u8:1, 2] }`)]
+fn f(s: MyStruct) -> u32 { s.x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  ASSERT_EQ(function_proto.parameter_domains_size(), 1);
+  const auto& domain = function_proto.parameter_domains(0);
+
+  // DSLX struct domain lowers to an IR Tuple domain
+  ASSERT_TRUE(domain.has_tuple());
+  ASSERT_EQ(domain.tuple().elements_size(), 2);
+
+  // First field: x: u32:0..10 -> range: [0, 10) in DSLX, so [0, 9] inclusive in
+  // proto
+  const auto& x_domain = domain.tuple().elements(0);
+  ASSERT_TRUE(x_domain.has_range());
+  EXPECT_EQ(x_domain.range().min().bits().bit_count(), 32);
+  EXPECT_EQ(x_domain.range().min().bits().data(), std::string(4, '\0'));
+  EXPECT_EQ(x_domain.range().max().bits().bit_count(), 32);
+  EXPECT_EQ(x_domain.range().max().bits().data(),
+            std::string("\011\000\000\000", 4));  // 9
+
+  // Second field: y: [u8:1, 2] -> element_of: [1, 2]
+  const auto& y_domain = domain.tuple().elements(1);
+  ASSERT_TRUE(y_domain.has_element_of());
+  ASSERT_EQ(y_domain.element_of().values_size(), 2);
+  EXPECT_EQ(y_domain.element_of().values(0).bits().data(), std::string{'\001'});
+  EXPECT_EQ(y_domain.element_of().values(1).bits().data(), std::string{'\002'});
+}
+
+TEST(FunctionConverterFuzzTestTest, StructDomainSparse) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+struct MyStruct {
+  x: u32,
+  y: u8,
+}
+#[fuzz_test(domains = `MyStruct { x: u32:0..10 }`)]
+fn f(s: MyStruct) -> u32 { s.x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  ASSERT_EQ(function_proto.parameter_domains_size(), 1);
+  const auto& domain = function_proto.parameter_domains(0);
+
+  ASSERT_TRUE(domain.has_tuple());
+  ASSERT_EQ(domain.tuple().elements_size(), 2);
+
+  // First field: x: u32:0..10
+  const auto& x_domain = domain.tuple().elements(0);
+  ASSERT_TRUE(x_domain.has_range());
+
+  // Second field: y omitted -> arbitrary: true
+  const auto& y_domain = domain.tuple().elements(1);
+  ASSERT_TRUE(y_domain.has_arbitrary());
+  EXPECT_TRUE(y_domain.arbitrary());
+}
+
+TEST(FunctionConverterFuzzTestTest, StructDomainNested) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+struct Inner {
+  a: u8,
+}
+struct Outer {
+  x: u32,
+  s: Inner,
+}
+#[fuzz_test(domains = `Outer { s: Inner { a: u8:1..5 } }`)]
+fn f(o: Outer) -> u32 { o.x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  ASSERT_EQ(function_proto.parameter_domains_size(), 1);
+  const auto& domain = function_proto.parameter_domains(0);
+
+  ASSERT_TRUE(domain.has_tuple());
+  ASSERT_EQ(domain.tuple().elements_size(), 2);
+
+  // Outer.x omitted -> arbitrary
+  const auto& x_domain = domain.tuple().elements(0);
+  ASSERT_TRUE(x_domain.has_arbitrary());
+  EXPECT_TRUE(x_domain.arbitrary());
+
+  // Outer.s -> Tuple representing Inner struct
+  const auto& s_domain = domain.tuple().elements(1);
+  ASSERT_TRUE(s_domain.has_tuple());
+  ASSERT_EQ(s_domain.tuple().elements_size(), 1);
+
+  // Inner.a -> range [1, 4] (u8:1..5 in DSLX)
+  const auto& a_domain = s_domain.tuple().elements(0);
+  ASSERT_TRUE(a_domain.has_range());
+  EXPECT_EQ(a_domain.range().min().bits().data(), std::string{'\001'});
+  EXPECT_EQ(a_domain.range().max().bits().data(), std::string{'\004'});
 }
 
 }  // namespace
