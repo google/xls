@@ -140,6 +140,7 @@ class OperandVisibilityAnalysis : public ChangeListener {
   BddNodeIndex ConditionOnPredicate(std::optional<Node*> predicate) const;
   BddNodeIndex ConditionOfUseWithAnd(Node* node, NaryOp* and_node) const;
   BddNodeIndex ConditionOfUseWithOr(Node* node, NaryOp* or_node) const;
+  BddNodeIndex ConditionOnNextUse(Next* next, Node* node) const;
 
  private:
   // For use of GetNodeBit

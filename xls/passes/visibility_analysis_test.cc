@@ -687,6 +687,51 @@ TEST_F(VisibilityAnalysisTest, VisibilityFallbackToPostDominatorIfManyEdges) {
             *visibility_small->GetInfo(reduced.node()));
 }
 
+TEST_F(VisibilityAnalysisTest, StateElementsCanBeMutualExclusive) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  auto a = pb.StateElement("a", UBits(0, 4));
+  auto b = pb.StateElement("b", UBits(0, 4));
+  auto c = pb.StateElement("c", UBits(0, 4));
+  XLS_ASSERT_OK_AND_ASSIGN(auto input,
+                           pb.AddInputChannel("op", p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
+                           pb.AddInputChannel("a_in", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto b_in,
+                           pb.AddInputChannel("b_in", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto c_in,
+                           pb.AddInputChannel("c_in", p->GetBitsType(4)));
+  auto op = pb.Receive(input);
+  auto add = pb.Add(a, b);
+  auto sub = pb.Subtract(b, c);
+  XLS_ASSERT_OK_AND_ASSIGN(auto out,
+                           pb.AddOutputChannel("out", p->GetBitsType(4)));
+  pb.Send(out, pb.Select(op, add, sub));
+  pb.ResetToken();
+  pb.Next(a, pb.Receive(a_in));
+  pb.Next(b, pb.Receive(b_in));
+  pb.Next(c, pb.Receive(c_in));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
+  ScopedRecordIr sri(p.get());
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
+                                                  bdd_engine.get(), &post_dom));
+
+  EXPECT_TRUE(visibility->IsMutuallyExclusive(add.node(), sub.node()));
+  EXPECT_TRUE(visibility->IsMutuallyExclusive(a.node(), c.node()));
+}
+
 TEST_F(VisibilityAnalysisTest, MutuallyExclusivePrioritySelectCases) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -712,6 +757,67 @@ TEST_F(VisibilityAnalysisTest, MutuallyExclusivePrioritySelectCases) {
                                                   bdd_engine.get(), &post_dom));
 
   EXPECT_TRUE(visibility->IsMutuallyExclusive(add.node(), sub.node()));
+}
+
+TEST_F(VisibilityAnalysisTest, StateUsedInValueIsVisible) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  auto a = pb.StateElement("a", UBits(0, 4));
+  auto b = pb.StateElement("b", UBits(0, 4));
+  pb.Next(b, b);
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
+                           pb.AddInputChannel("input", p->GetBitsType(4)));
+  auto input = pb.Receive(chan);
+  pb.Next(a, pb.Add(input, a));
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
+                                                  bdd_engine.get(), &post_dom));
+
+  EXPECT_EQ(*visibility->GetInfo(a.node()), bdd_engine->bdd().one());
+  EXPECT_EQ(*visibility->GetInfo(b.node()), bdd_engine->bdd().one());
+}
+
+TEST_F(VisibilityAnalysisTest, StateUsedInPredicateIsVisible) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  auto a = pb.StateElement("a", UBits(0, 4));
+  auto b = pb.StateElement("b", UBits(0, 4));
+  pb.Next(b, b);
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
+                           pb.AddInputChannel("input", p->GetBitsType(4)));
+  auto input = pb.Receive(chan);
+  auto pred = pb.Ne(a, pb.Literal(UBits(5, 4)));
+  pb.Next(a, input, pred);
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
+                                                  bdd_engine.get(), &post_dom));
+
+  EXPECT_EQ(*visibility->GetInfo(input.node()),
+            *visibility->GetInfo(pred.node()))
+      << "input: " << input.node()->ToString()
+      << " pred: " << pred.node()->ToString();
 }
 
 TEST_F(VisibilityAnalysisTest, MutuallyExclusiveMultipleSelects) {

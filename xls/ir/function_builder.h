@@ -971,6 +971,8 @@ class TokenlessProcBuilder : public ProcBuilder {
 
   ~TokenlessProcBuilder() override = default;
 
+  void ResetToken() { last_token_ = orig_token_; }
+
   BValue InitialToken() const { return orig_token_; }
 
   BValue CurrentToken() const { return last_token_; }

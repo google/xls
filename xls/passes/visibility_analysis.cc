@@ -30,6 +30,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/reversed.hpp"
+#include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
@@ -395,6 +396,17 @@ BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithSelect(
   return OrAggregate(or_cases, bdd_query_engine_);
 }
 
+BddNodeIndex OperandVisibilityAnalysis::ConditionOnNextUse(Next* next,
+                                                           Node* node) const {
+  if (next->state_read() == node &&
+      (!next->predicate() ||
+       !nda_->IsDependent(node, next->predicate().value())) &&
+      !nda_->IsDependent(node, next->value())) {
+    return bdd_query_engine_->bdd().zero();
+  }
+  return ConditionOnPredicate(next->predicate());
+}
+
 BddNodeIndex OperandVisibilityAnalysis::ConditionOnPredicate(
     std::optional<Node*> predicate) const {
   if (predicate.has_value() && predicate.value()->BitCountOrDie() == 1) {
@@ -518,7 +530,7 @@ BddNodeIndex OperandVisibilityAnalysis::ConditionOfUse(Node* node,
   } else if (user->Is<Send>()) {
     return ConditionOnPredicate(user->As<Send>()->predicate());
   } else if (user->Is<Next>()) {
-    return ConditionOnPredicate(user->As<Next>()->predicate());
+    return ConditionOnNextUse(user->As<Next>(), node);
   } else if (user->OpIn({Op::kAnd, Op::kNand})) {
     return ConditionOfUseWithAnd(node, user->As<NaryOp>());
   } else if (user->OpIn({Op::kOr, Op::kNor})) {
@@ -604,19 +616,19 @@ BddNodeIndex VisibilityAnalysis::ComputeInfo(
 
   absl::Span<Node* const> users = node->users();
   std::vector<BddNodeIndex> user_conditions;
-  for (int i = 0; i < users.size(); ++i) {
-    if (exclusions_.contains({node, users[i]})) {
-      user_conditions.push_back(*user_infos[i]);
+  for (const auto& [user, info] : iter::zip(users, user_infos)) {
+    if (exclusions_.contains({node, user})) {
+      user_conditions.push_back(*info);
       continue;
     }
     BddNodeIndex user_uses_node =
-        operand_visibility_->OperandVisibilityThroughNode(node, users[i]);
+        operand_visibility_->OperandVisibilityThroughNode(node, user);
     if (user_uses_node == bdd_query_engine_->bdd().one()) {
-      user_conditions.push_back(*user_infos[i]);
+      user_conditions.push_back(*info);
       continue;
     }
     user_conditions.push_back(
-        bdd_query_engine_->bdd().And(*user_infos[i], user_uses_node));
+        bdd_query_engine_->bdd().And(*info, user_uses_node));
   }
   BddNodeIndex any_uses_node = OrAggregate(user_conditions, bdd_query_engine_);
   if (bdd_query_engine_->bdd().path_count(any_uses_node) >
