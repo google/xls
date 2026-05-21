@@ -51,14 +51,12 @@ class SyntheticSpanAllocator {
       : module_(module),
         file_table_(module != nullptr ? module->file_table() : nullptr) {
     if (file_table_ != nullptr) {
-      if (module_ != nullptr && module_->fs_path().has_value()) {
-        synthetic_file_ =
-            file_table_->GetOrCreate(module_->fs_path()->generic_string());
-      } else {
-        synthetic_file_ = file_table_->GetOrCreate(absl::StrFormat(
-            "<specialization:%s:%s@%p>", module_->name(), specialized_name,
-            static_cast<const void*>(source_function)));
-      }
+      // Synthetic line/column coordinates must not share a file identity with
+      // real source text, or fabricated spans can appear to contain unrelated
+      // real invocations.
+      synthetic_file_ = file_table_->GetOrCreate(absl::StrFormat(
+          "<specialization:%s:%s@%p>", module_->name(), specialized_name,
+          static_cast<const void*>(source_function)));
     }
   }
 
