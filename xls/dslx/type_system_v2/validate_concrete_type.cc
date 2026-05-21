@@ -406,11 +406,9 @@ class TypeValidator : public AstNodeVisitorWithDefault {
             const_cast<ImportData*>(&import_data_), const_cast<TypeInfo*>(&ti_),
             &warning_collector_, env, range->end()));
 
+    // Allow empty range
     if (!range->inclusive_end() && start.Eq(end)) {
-      warning_collector_.Add(
-          range->span(), WarningKind::kEmptyRangeLiteral,
-          absl::StrFormat("`%s` from `%s` to `%s` is an empty range",
-                          range->ToString(), start.ToString(), end.ToString()));
+      return absl::OkStatus();
     }
     // In TIv1 we only warn for ranges in match arm that is empty.
     if (range->has_pattern_semantics()) {

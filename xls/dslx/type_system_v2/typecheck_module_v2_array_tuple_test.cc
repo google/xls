@@ -1727,13 +1727,30 @@ const X = foo()..(A * 2);
 }
 
 TEST(TypecheckV2Test, RangeExprEmptyRange) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const A = s8:4;
 const X = A..s8:4;
-)"));
-  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
-  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
-            "`A..s8:4` from `s8:4` to `s8:4` is an empty range");
+const_assert!(X == []);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "sN[8]")));
+}
+
+TEST(TypecheckV2Test, RangeExprEmptyRangeSignedMax) {
+  EXPECT_THAT(R"(
+const A = s32::MAX;
+const X = A..A;
+const_assert!(X == []);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "sN[32]")));
+}
+
+TEST(TypecheckV2Test, RangeExprEmptyRangeUnsignedMax) {
+  EXPECT_THAT(R"(
+const A = u32::MAX;
+const X = A..A;
+const_assert!(X == []);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
 TEST(TypecheckV2Test, RangeExprSignednessMismatch) {

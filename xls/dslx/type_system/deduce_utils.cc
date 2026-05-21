@@ -239,18 +239,6 @@ absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
   // producing a `Type`.
   const auto& casted_array_type = dynamic_cast<const ArrayType&>(array_type);
 
-  // Reject indexing into zero-sized arrays regardless of whether the index is
-  // constexpr, since out-of-bounds semantics (return last element) are
-  // undefined for empty arrays.
-
-  XLS_ASSIGN_OR_RETURN(int64_t concrete_size,
-                       casted_array_type.size().GetAsInt64());
-  if (concrete_size == 0) {
-    return TypeInferenceErrorStatus(node.span(), &array_type,
-                                    "Zero-sized arrays cannot be indexed",
-                                    file_table);
-  }
-
   if (!ti.IsKnownConstExpr(rhs)) {
     return absl::OkStatus();
   }
@@ -269,6 +257,16 @@ absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
                         "out of bounds of the array type.",
                         constexpr_index),
         file_table);
+  }
+
+  // Reject indexing into zero-sized arrays, since out-of-bounds semantics
+  // (return last element) are undefined for empty arrays.
+  XLS_ASSIGN_OR_RETURN(int64_t concrete_size,
+                       casted_array_type.size().GetAsInt64());
+  if (concrete_size == 0) {
+    return TypeInferenceErrorStatus(node.span(), &array_type,
+                                    "Zero-sized arrays cannot be indexed",
+                                    file_table);
   }
   return absl::OkStatus();
 }

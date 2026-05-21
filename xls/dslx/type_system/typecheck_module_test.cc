@@ -118,9 +118,7 @@ fn main() -> u2 { p<u32:1>(u2:0) }
 
 TEST_F(TypecheckV2Test, IndexZeroSizedArray) {
   std::string_view text = R"(fn f(a: u8[0], b: u3) -> u8 { a[b] })";
-  EXPECT_THAT(Typecheck(text),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Zero-sized arrays cannot be indexed")));
+  XLS_EXPECT_OK(Typecheck(text));
 }
 
 TEST_F(TypecheckV2Test, ZeroMacroFunctionRefIsNotValue) {

@@ -19,7 +19,7 @@
 pub fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N] {
     for (i, result) in 0..N {
         update(result, i, (i, x[i]))
-    }([(u32:0, zero!<T>()), ...])
+    }(zero!<(u32, T)[N]>())
 }
 
 #[test]
@@ -30,6 +30,13 @@ fn emumerate_test() {
     assert_eq(enumerated[1], (1, 2));
     assert_eq(enumerated[2], (2, 4));
     assert_eq(enumerated[3], (3, 8));
+}
+
+#[test]
+fn emumerate_empty_array_test() {
+    let empty_array: u32[0] = [];
+    let enumerated_empty = enumerate(empty_array);
+    assert_eq(enumerated_empty, []);
 }
 
 #[test]
@@ -49,6 +56,41 @@ fn enumerate_tuple_test() {
     let enumerated = enumerate(x);
     assert_eq(enumerated[0], (0, (true, 3)));
     assert_eq(enumerated[1], (1, (false, 2)));
+}
+
+type TestIdx = uN[2];
+type TestValue = uN[32];
+
+struct TestData { idx: TestIdx, value: TestValue }
+
+const TEST_DATA = TestData[20]:[
+    TestData { idx: TestIdx:0, value: TestValue:0xca32_9f4a },
+    TestData { idx: TestIdx:1, value: TestValue:0x0fb3_fa42 },
+    TestData { idx: TestIdx:2, value: TestValue:0xe7ee_da41 },
+    TestData { idx: TestIdx:3, value: TestValue:0xef51_f98c },
+    TestData { idx: TestIdx:0, value: TestValue:0x97a3_a2d2 },
+    TestData { idx: TestIdx:0, value: TestValue:0xea06_e94b },
+    TestData { idx: TestIdx:1, value: TestValue:0x5fac_17ce },
+    TestData { idx: TestIdx:3, value: TestValue:0xf9d8_9938 },
+    TestData { idx: TestIdx:2, value: TestValue:0xc262_2d2e },
+    TestData { idx: TestIdx:2, value: TestValue:0xb4dd_424e },
+    TestData { idx: TestIdx:1, value: TestValue:0x01f9_b9e4 },
+    TestData { idx: TestIdx:1, value: TestValue:0x3020_6eec },
+    TestData { idx: TestIdx:3, value: TestValue:0x3124_87b5 },
+    TestData { idx: TestIdx:0, value: TestValue:0x0a49_f5e3 },
+    TestData { idx: TestIdx:2, value: TestValue:0xde3b_5d0f },
+    TestData { idx: TestIdx:3, value: TestValue:0x5948_c1b3 },
+    TestData { idx: TestIdx:0, value: TestValue:0xa26d_851f },
+    TestData { idx: TestIdx:3, value: TestValue:0x3fa9_59c0 },
+    TestData { idx: TestIdx:1, value: TestValue:0x4efd_dd09 },
+    TestData { idx: TestIdx:1, value: TestValue:0x6d75_058a },
+];
+
+#[test]
+fn enumerate_struct_test() {
+    let enumerated = enumerate(TEST_DATA);
+    assert_eq(enumerated[0], (0, TEST_DATA[0]));
+    assert_eq(enumerated[19], (19, TEST_DATA[19]));
 }
 
 pub fn sizeof<S: bool, N: u32>(x: xN[S][N]) -> u32 { N }

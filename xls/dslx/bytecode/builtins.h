@@ -72,8 +72,6 @@ absl::Status RunBuiltinCeilLog2(const Bytecode& bytecode,
 absl::Status RunBuiltinClz(const Bytecode& bytecode, InterpreterStack& stack);
 absl::Status RunBuiltinCover(const Bytecode& bytecode, InterpreterStack& stack);
 absl::Status RunBuiltinCtz(const Bytecode& bytecode, InterpreterStack& stack);
-absl::Status RunBuiltinEnumerate(const Bytecode& bytecode,
-                                 InterpreterStack& stack);
 absl::Status RunBuiltinOrReduce(const Bytecode& bytecode,
                                 InterpreterStack& stack);
 absl::Status RunBuiltinRange(const Bytecode& bytecode, InterpreterStack& stack);

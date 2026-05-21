@@ -208,12 +208,13 @@ const_assert!(ARR[1] == u16:2);
 TEST(TypecheckV2Test, NestedLambdas) {
   EXPECT_THAT(
       R"(
+import std;
 fn main() -> u32[4][5] {
   let z = zero!<u32[4][5]>();
-  map(enumerate(z), | tup | {
+  map(std::enumerate(z), | tup | {
     let i = tup.0;
     let arr = tup.1;
-    map(enumerate(arr), | tup2 | {
+    map(std::enumerate(arr), | tup2 | {
       let j = tup2.0;
       i + j
     })
