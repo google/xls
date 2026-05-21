@@ -5587,6 +5587,27 @@ TEST_F(TranslatorLogicTest, ArrayAsTupleSlice) {
                              testing::HasSubstr("Slicing not supported")));
 }
 
+TEST_F(TranslatorLogicTest, ReferenceArraySubscriptAndDecay) {
+  std::string_view content = R"(
+      int my_package(int val) {
+        int arr[4] = {10, 20, 30, 40};
+        int (&ref)[4] = arr;
+        return ref[val];
+      })";
+  Run({{"val", 2}}, 30, content);
+}
+
+TEST_F(TranslatorLogicTest, ReferenceArrayToPointerDecay) {
+  std::string_view content = R"(
+      int my_package(int val) {
+        int arr[4] = {10, 20, 30, 40};
+        int (&ref)[4] = arr;
+        int* ptr = ref;
+        return ptr[val];
+      })";
+  Run({{"val", 2}}, 30, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

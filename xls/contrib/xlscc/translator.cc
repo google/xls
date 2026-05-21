@@ -4694,9 +4694,16 @@ absl::StatusOr<CValue> Translator::ResolveCast(
     XLS_ASSIGN_OR_RETURN(ResolvedInheritance ref_inheritance,
                          ResolveInheritance(ref->GetPointeeType(), to_type));
 
-    if (*to_type == *ref->GetPointeeType() || ref_inheritance.resolved_struct) {
+    if (*to_type == *ref->GetPointeeType() || ref_inheritance.resolved_struct ||
+        (ref->GetPointeeType()->Is<CArrayType>() &&
+         to_type->Is<CPointerType>())) {
       XLSCC_CHECK_NE(sub.lvalue(), nullptr, loc);
       XLS_ASSIGN_OR_RETURN(CValue subc, GenerateIR_Expr(sub.lvalue(), loc));
+      if (ref->GetPointeeType()->Is<CArrayType>() &&
+          to_type->Is<CPointerType>()) {
+        return CValue(TrackedBValue(), to_type, /*disable_type_check=*/false,
+                      sub.lvalue());
+      }
       return ResolveCast(subc, to_type, loc);
     }
     return absl::UnimplementedError(ErrorMessage(
@@ -4933,9 +4940,16 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
       }
 
       auto from_arr_type = std::dynamic_pointer_cast<CArrayType>(sub.type());
+      if (!from_arr_type) {
+        if (auto ref = std::dynamic_pointer_cast<CReferenceType>(sub.type())) {
+          from_arr_type =
+              std::dynamic_pointer_cast<CArrayType>(ref->GetPointeeType());
+        }
+      }
 
       // Avoid decay of array to pointer, pointers are unsupported
-      if (from_arr_type && nested_implicit->getType()->isPointerType()) {
+      if (from_arr_type && nested_implicit->getType()->isPointerType() &&
+          !sub.type()->Is<CReferenceType>()) {
         XLS_ASSIGN_OR_RETURN(
             CValue sub, GenerateIR_Expr(nested_implicit->getSubExpr(), loc));
 
@@ -5007,7 +5021,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
   if (auto* cast = clang::dyn_cast<const clang::ArraySubscriptExpr>(expr)) {
     XLS_ASSIGN_OR_RETURN(CValue arr_val, GenerateIR_Expr(cast->getBase(), loc));
     // Implicit dereference
-    if (arr_val.type()->Is<CPointerType>()) {
+    if (arr_val.type()->Is<CPointerType>() ||
+        arr_val.type()->Is<CReferenceType>()) {
       XLSCC_CHECK_NE(arr_val.lvalue(), nullptr, loc);
       XLS_ASSIGN_OR_RETURN(arr_val, GenerateIR_Expr(arr_val.lvalue(), loc));
     }
