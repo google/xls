@@ -117,3 +117,50 @@ dslx_fuzz_test(
     library = ":array_tests_dslx",
     test_function = "tuple_with_big_array",
 )
+
+dslx_fuzz_test(
+    name = "array_of_tuples_with_wide_bits_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "array_of_tuples_with_wide_bits",
+)
+
+dslx_fuzz_test(
+    name = "nested_big_array_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "nested_big_array",
+)
+
+xls_dslx_library(
+    name = "struct_tests_dslx",
+    srcs = ["struct_tests.x"],
+)
+
+dslx_fuzz_test(
+    name = "arbitrary_struct_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "arbitrary_struct",
+)
+
+dslx_fuzz_test(
+    name = "struct_range_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "struct_range",
+)
+
+dslx_fuzz_test(
+    name = "struct_element_of_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "struct_element_of",
+)
+
+dslx_fuzz_test(
+    name = "struct_arbitrary_field_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "struct_arbitrary_field",
+)
+
+dslx_fuzz_test(
+    name = "struct_with_wide_bits_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "struct_with_wide_bits",
+)

@@ -12,37 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[fuzz_test(domains=`()`)]
-fn arbitrary_array(x: u32[3]) -> bool {
-    true
+struct Point { x: u32, y: u8 }
+
+#[fuzz_test]
+fn arbitrary_struct(p: Point) -> bool {
+    p.x == p.x && p.y == p.y
 }
 
-#[fuzz_test(domains=`()`)]
-fn array_of_tuples(x: (u32, u32)[2]) -> bool {
-    true
+#[fuzz_test(domains=`Point { x: u32:0..10, y: u8:11..20 }`)]
+fn struct_range(p: Point) -> bool {
+    (p.x as u8) < p.y
 }
 
-#[fuzz_test(domains=`((), u32:0..9)`)]
-fn tuple_with_array(x: (u32[2], u32)) -> bool {
-    true
+#[fuzz_test(domains=`Point { x: [u32:0, 1,2,3], y: u8:11..20 }`)]
+fn struct_element_of(p: Point) -> bool {
+    (p.x as u8) < p.y
 }
 
-#[fuzz_test(domains=`()`)]
-fn big_array(x: uN[128][3]) -> bool {
-    true
+#[fuzz_test(domains=`Point { x: [u32:0, 1,2,3]}`)]
+fn struct_arbitrary_field(p: Point) -> bool {
+    p.x <= u32:3
 }
 
-#[fuzz_test(domains=`()`)]
-fn tuple_with_big_array(x: (uN[128][2], u32)) -> bool {
-    true
-}
+struct WideStruct { w: uN[128], x: u32 }
 
-#[fuzz_test(domains=`()`)]
-fn array_of_tuples_with_wide_bits(x: (uN[128], u32)[2]) -> bool {
-    true
-}
-
-#[fuzz_test(domains=`()`)]
-fn nested_big_array(x: uN[128][2][3]) -> bool {
+#[fuzz_test(domains=`WideStruct { x: u32:0..10 }`)]
+fn struct_with_wide_bits(s: WideStruct) -> bool {
     true
 }
