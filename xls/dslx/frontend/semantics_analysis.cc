@@ -285,6 +285,22 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleTypeRefTypeAnnotation(
+      const TypeRefTypeAnnotation* node) override {
+    AnyNameDef name_def =
+        TypeDefinitionGetNameDef(node->type_ref()->type_definition());
+    if (std::holds_alternative<const NameDef*>(name_def)) {
+      const NameDef* nd = std::get<const NameDef*>(name_def);
+      type_refs_[nd].emplace(node);
+    }
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleStructInstance(const StructInstance* node) override {
+    XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
+    return DefaultHandler(node);
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     bool prev_in_type_annotation = in_type_annotation_;
     if (node->kind() == AstNodeKind::kTypeAnnotation) {
@@ -298,7 +314,9 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
       }
     }
     for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
+      if (child->owner() == node->owner()) {
+        XLS_RETURN_IF_ERROR(child->Accept(this));
+      }
     }
     in_type_annotation_ = prev_in_type_annotation;
     return absl::OkStatus();
@@ -321,6 +339,23 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
       if (!info.any_used_in_type_annotation &&
           name_def->span().start() < start) {
         result.insert(name_def);
+      }
+    }
+    return result;
+  }
+
+  absl::flat_hash_map<const NameDef*,
+                      absl::flat_hash_set<const TypeRefTypeAnnotation*>>
+  TypesDefinedPrior(const Pos start) const {
+    absl::flat_hash_map<const NameDef*,
+                        absl::flat_hash_set<const TypeRefTypeAnnotation*>>
+        result;
+    for (const auto& [name_def, type_refs] : type_refs_) {
+      // Don't include top-level type definitions.
+      std::optional<const ModuleMember*> module_member =
+          name_def->owner()->FindMemberWithName(name_def->identifier());
+      if (!module_member.has_value() && name_def->span().start() < start) {
+        result.emplace(name_def, type_refs);
       }
     }
     return result;
@@ -349,6 +384,9 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
   }
 
   absl::flat_hash_map<const NameDef*, NameRefInfo> name_ref_info_;
+  absl::flat_hash_map<const NameDef*,
+                      absl::flat_hash_set<const TypeRefTypeAnnotation*>>
+      type_refs_;
   bool in_type_annotation_ = false;
 };
 
@@ -392,7 +430,7 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     std::vector<ExprOrType> struct_instance_parametrics;
     // NameDefs that have been added to the struct parametric bindings.
     absl::flat_hash_set<const NameDef*> parametric_nds;
-    absl::flat_hash_map<const NameRef*, NameRef*> name_ref_replacements;
+    absl::flat_hash_map<const AstNode*, AstNode*> node_replacements;
 
     // If there are any parametric bindings in the containing function that are
     // referenced in the lambda, they should be added as parametric bindings to
@@ -406,10 +444,20 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
         if (name_refs.empty()) {
           continue;
         }
-        XLS_RETURN_IF_ERROR(HandleParentParametric(
+        XLS_RETURN_IF_ERROR(AddBindingForParentParametric(
             module, parent_binding, name_refs, struct_parametric_bindings,
             struct_type_parametrics, struct_instance_parametrics,
-            parametric_nds, name_ref_replacements));
+            parametric_nds, node_replacements));
+      }
+    }
+
+    for (const auto& [original_nd, trtas] :
+         collect_nr.TypesDefinedPrior(span.start())) {
+      if (!parametric_nds.contains(original_nd)) {
+        XLS_RETURN_IF_ERROR(ReplaceTypeRefTypeAnnotations(
+            module, original_nd, trtas, struct_parametric_bindings,
+            struct_type_parametrics, struct_instance_parametrics,
+            parametric_nds, node_replacements));
       }
     }
 
@@ -422,9 +470,9 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     for (const NameDef* original_name_def :
          collect_nr.NameDefsDefinedPrior(span.start())) {
       if (!parametric_nds.contains(original_name_def)) {
-        HandleCapture(module, original_name_def, struct_parametric_bindings,
-                      struct_type_parametrics, struct_members,
-                      struct_instance_members, seen);
+        AddCapture(module, original_name_def, struct_parametric_bindings,
+                   struct_type_parametrics, struct_members,
+                   struct_instance_members, seen);
       }
     }
 
@@ -457,7 +505,7 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     NameDef* self_nd = module->Make<NameDef>(
         span, KeywordToString(Keyword::kSelf), /*definer=*/nullptr);
     CloneReplacer insert_self =
-        [self_nd, seen, name_ref_replacements](
+        [self_nd, seen, node_replacements](
             const AstNode* node, const Module*,
             const absl::flat_hash_map<const AstNode*, AstNode*>&)
         -> std::optional<AstNode*> {
@@ -473,22 +521,20 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
           return node->owner()->Make<Attr>(name_def->span(), self_nr,
                                            name_def->identifier(),
                                            /* in_parens= */ false);
-        } else if (name_ref_replacements.contains(name_ref)) {
-          return name_ref_replacements.at(name_ref);
         }
+      }
+      if (node_replacements.contains(node)) {
+        return node_replacements.at(node);
       }
       return std::nullopt;
     };
-    CloneReplacer swap_name_refs =
-        [name_ref_replacements](
+    CloneReplacer swap_nodes =
+        [node_replacements](
             const AstNode* node, const Module*,
             const absl::flat_hash_map<const AstNode*, AstNode*>&)
         -> std::optional<AstNode*> {
-      if (node->kind() == AstNodeKind::kNameRef) {
-        const NameRef* name_ref = absl::down_cast<const NameRef*>(node);
-        if (name_ref_replacements.contains(name_ref)) {
-          return name_ref_replacements.at(name_ref);
-        }
+      if (node_replacements.contains(node)) {
+        return node_replacements.at(node);
       }
       return std::nullopt;
     };
@@ -501,7 +547,7 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
         AstNode * cloned_return_type,
         CloneAst(original_fn->return_type(),
                  ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
-                                     std::move(swap_name_refs))));
+                                     std::move(swap_nodes))));
     SelfTypeAnnotation* self_type = module->Make<SelfTypeAnnotation>(
         span, /*explicit_type=*/false, struct_type_annotation);
     std::vector<Param*> params = {module->Make<Param>(self_nd, self_type)};
@@ -551,14 +597,14 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
   }
 
  private:
-  absl::Status HandleParentParametric(
+  absl::Status AddBindingForParentParametric(
       Module* module, const ParametricBinding* parent_binding,
       absl::flat_hash_set<const NameRef*> name_refs,
       std::vector<ParametricBinding*>& struct_parametric_bindings,
       std::vector<ExprOrType>& struct_type_parametrics,
       std::vector<ExprOrType>& struct_instance_parametrics,
       absl::flat_hash_set<const NameDef*>& parametric_nds,
-      absl::flat_hash_map<const NameRef*, NameRef*>& name_ref_replacements) {
+      absl::flat_hash_map<const AstNode*, AstNode*>& node_replacements) {
     NameDef* lambda_struct_nd = module->Make<NameDef>(
         parent_binding->span(), parent_binding->identifier() + "_ls",
         /*definer=*/nullptr);
@@ -590,7 +636,7 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     }
     parametric_nds.insert(parent_binding->name_def());
     for (const NameRef* original_name_ref : name_refs) {
-      name_ref_replacements.emplace(
+      node_replacements.emplace(
           original_name_ref,
           module->Make<NameRef>(original_name_ref->span(),
                                 lambda_struct_nd->identifier(),
@@ -599,7 +645,47 @@ class ReplaceLambdaWithInvocation : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  void HandleCapture(
+  absl::Status ReplaceTypeRefTypeAnnotations(
+      Module* module, const NameDef* original_nd,
+      absl::flat_hash_set<const TypeRefTypeAnnotation*> trtas,
+      std::vector<ParametricBinding*>& struct_parametric_bindings,
+      std::vector<ExprOrType>& struct_type_parametrics,
+      std::vector<ExprOrType>& struct_instance_parametrics,
+      absl::flat_hash_set<const NameDef*>& parametric_nds,
+      absl::flat_hash_map<const AstNode*, AstNode*>& node_replacements) {
+    NameDef* lambda_struct_nd = module->Make<NameDef>(
+        original_nd->span(),
+        absl::Substitute("$0_ls", original_nd->identifier()),
+        /*definer=*/nullptr);
+    ParametricBinding* lambda_struct_binding = module->Make<ParametricBinding>(
+        lambda_struct_nd, module->Make<GenericTypeAnnotation>(Span::None()),
+        /*expr=*/nullptr);
+    struct_parametric_bindings.push_back(lambda_struct_binding);
+    NameRef* struct_type_parametric_nr = module->Make<NameRef>(
+        original_nd->span(), lambda_struct_nd->identifier(), lambda_struct_nd);
+    struct_type_parametrics.push_back(struct_type_parametric_nr);
+
+    XLS_ASSIGN_OR_RETURN(TypeDefinition type_def,
+                         ToTypeDefinition(original_nd->definer()));
+    TypeRef* lambda_type_ref =
+        module->Make<TypeRef>(original_nd->span(), type_def);
+
+    struct_instance_parametrics.push_back(module->Make<TypeRefTypeAnnotation>(
+        original_nd->span(), lambda_type_ref, std::vector<ExprOrType>{}));
+    parametric_nds.insert(original_nd);
+    for (const TypeRefTypeAnnotation* original_type_ref : trtas) {
+      node_replacements.emplace(
+          original_type_ref,
+          module->Make<TypeVariableTypeAnnotation>(
+              module->Make<NameRef>(original_type_ref->span(),
+                                    lambda_struct_nd->identifier(),
+                                    lambda_struct_nd),
+              /*internal=*/true));
+    }
+    return absl::OkStatus();
+  }
+
+  void AddCapture(
       Module* module, const NameDef* original_name_def,
       std::vector<ParametricBinding*>& struct_parametric_bindings,
       std::vector<ExprOrType>& struct_type_parametrics,

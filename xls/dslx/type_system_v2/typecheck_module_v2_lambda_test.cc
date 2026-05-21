@@ -50,7 +50,6 @@ fn helper<N: u32>() -> uN[N] {
 
 fn my_conversion<N: u32>(arr: u32[3]) -> uN[N][3] {
   map(arr, |x: u32| -> uN[N] {
-    let _ = N;
     helper<N>()
   })
 }
@@ -416,14 +415,15 @@ TEST(TypecheckV2Test, NestedLambdaIteratesOverGlobalConst) {
 const X = u32:2;
 const Y = u32:3;
 type Results = u1[X][Y];
+type MyBit = u1;
 
 fn nested() -> Results {
    map(0..Y, | y_idx | {
-       map(0..X, | x_idx | {
+       map(0..X, | x_idx | -> MyBit {
            if (x_idx + y_idx) % 2 == 0 {
-               1
+               1 as MyBit
            } else {
-               0
+               0 as MyBit
            }
        })
    })
@@ -438,7 +438,11 @@ const EX = [
 const_assert!(RES == EX);
 
 )",
-      TypecheckSucceeds(HasNodeWithType("RES", "uN[1][2][3]")));
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("RES", "uN[1][2][3]"),
+                HasNodeWithType(
+                    "lambda_capture_struct_at_fake.x:10:14-18:5",
+                    "typeof(lambda_capture_struct_at_fake.x:10:14-18:5 {})"))));
 }
 
 TEST(TypecheckV2Test, NestedLambdaWithInnerAndOuterLoopVars) {
@@ -518,7 +522,61 @@ const_assert!(ARR == [u32:5, 6, 7, 8, 9, 10]);
       TypecheckSucceeds(HasNodeWithType("ARR", "uN[32][6]")));
 }
 
-TEST(TypecheckV2Test, LambdaUsesParentGenericTypeImplicitReturn) {
+TEST(TypecheckV2Test, LambdaUsesLocalTypeInFnCall) {
+  EXPECT_THAT(R"(
+#![feature(generics)]
+
+fn helper<T: type>() -> T {
+  1 as T
+}
+
+fn my_conversion<N: u32>(arr: u32[3]) -> uN[N][3] {
+  type MyN = uN[N];
+  map(arr, |x: u32| -> uN[N] {
+    helper<MyN>()
+  })
+}
+
+const M = u32:0..3;
+const ARR = my_conversion<16>(M);
+const_assert!(ARR[1] == u16:1);
+)",
+              TypecheckSucceeds(HasNodeWithType("ARR", "uN[16][3]")));
+}
+
+TEST(TypecheckV2Test, LambdaUsesLocalTypeExplicitReturn) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u16[5] {
+  type Int = u16;
+  let res = map(u32:0..5, | i: u32 | -> Int {zero!<Int>() + i as Int});
+  res
+}
+
+const ARR = main();
+const_assert!(ARR == [u16:0, 1, 2, 3, 4]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ARR", "uN[16][5]"),
+                              HasNodeWithType("res", "uN[16][5]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesLocalTypeImplicitReturn) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u16[5] {
+  type Int = u16;
+  let res = map(u32:0..5, | i: u32 | {zero!<Int>() + i as Int});
+  res
+}
+
+const ARR = main();
+const_assert!(ARR == [u16:0, 1, 2, 3, 4]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ARR", "uN[16][5]"),
+                              HasNodeWithType("res", "uN[16][5]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesParentGenericTypeImplicitReturnType) {
   EXPECT_THAT(
       R"(
 #![feature(generics)]
@@ -554,6 +612,64 @@ const_assert!(ONE == [u16:5, 6, 7, 8, 9]);
                               HasNodeWithType("TWO", "uN[24][5]"))));
 }
 
+TEST(TypecheckV2Test, LambdaUsesLocalTypeFromParentGenericImplicitReturn) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+fn main<OuterType: type>() -> OuterType[5] {
+  let y : OuterType = 17;
+  type LmType = OuterType;
+  map(u32:0..5, |i| {y + i as LmType})
+}
+
+const ONE = main<u16>();
+const TWO = main<u24>();
+const_assert!(ONE == [u16:17, 18, 19, 20, 21]);
+const_assert!(TWO == [u24:17, 18, 19, 20, 21]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16][5]"),
+                              HasNodeWithType("TWO", "uN[24][5]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesLocalTypeFromParentGenericWithContextCapture) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+fn main<OuterType: type>(x: OuterType) -> OuterType[5] {
+  type LmType = OuterType;
+  map(u32:0..5, |i| {i as LmType + x})
+}
+
+const ONE = main<u16>(u16:5);
+const TWO = main<u24>(u24:3);
+const_assert!(ONE == [u16:5, 6, 7, 8, 9]);
+const_assert!(TWO == [u24:3, 4, 5, 6, 7]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16][5]"),
+                              HasNodeWithType("TWO", "uN[24][5]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesLocalTypeFromParentGeneric) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+fn main<OuterType: type>() -> OuterType[5] {
+  type LmType = OuterType;
+  map(u32:0..5, |i| -> LmType {i as LmType})
+}
+
+const ONE = main<u16>();
+const TWO = main<u24>();
+const_assert!(ONE == [u16:0, 1, 2, 3, 4]);
+const_assert!(TWO == [u24:0, 1, 2, 3, 4]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16][5]"),
+                              HasNodeWithType("TWO", "uN[24][5]"))));
+}
+
 TEST(TypecheckV2Test, LambdaUsesParentGenericTypeExplicitReturn) {
   EXPECT_THAT(
       R"(
@@ -570,6 +686,72 @@ const_assert!(TWO == [u24:0, 1, 2, 3, 4]);
 )",
       TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16][5]"),
                               HasNodeWithType("TWO", "uN[24][5]"))));
+}
+
+TEST(TypecheckV2Test, NestedLambdaUsesLocalTypeFromParent) {
+  EXPECT_THAT(
+      R"(
+fn main<N: u32>() -> uN[N][5][4] {
+  type Int = uN[N];
+  let z = Int:5;
+  let res = map(u32:0..4, | j | -> Int[5] {
+    map(u32:0..5, | i | {j as Int + i as Int + z})
+  });
+  res
+}
+
+const ONE = main<16>();
+const TWO = main<32>();
+const_assert!(ONE == [[u16:5, 6, 7, 8, 9],
+                      [u16:6, 7, 8, 9, 10],
+                      [u16:7, 8, 9, 10, 11],
+                      [u16:8, 9, 10, 11, 12]]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16][5][4]"),
+                              HasNodeWithType("TWO", "uN[32][5][4]"))));
+}
+
+TEST(TypecheckV2Test, NestedLambdaUsesLocalGenericTypeFromParent) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+fn main<T: type>() -> T[5][4] {
+  type Int = T;
+  let z = Int:5;
+  map(u32:0..4, | j | -> Int[5] {
+    map(u32:0..5, | i | { Int:1 })
+  })
+}
+
+const ONE = main<u16>();
+const TWO = main<u32>();
+const_assert!(ONE == [[u16:1, 1, 1, 1, 1],
+                      [u16:1, 1, 1, 1, 1],
+                      [u16:1, 1, 1, 1, 1],
+                      [u16:1, 1, 1, 1, 1]]);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "uN[16][5][4]"),
+                              HasNodeWithType("TWO", "uN[32][5][4]"))));
+}
+
+// TODO: erinzmoore - Support local struct types.
+TEST(TypecheckV2Test, DISABLED_LambdaUsesLocalStructType) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+
+fn main() -> S<8>[5] {
+  type MyS = S<8>;
+  map(u8:0..5, |i| { MyS{x: i} })
+}
+
+const RES = main();
+const_assert!(RES[0] == S<8>{x: 0});
+)",
+      TypecheckSucceeds(HasNodeWithType("RES", "S { x: uN[8] }[5]")));
 }
 
 }  // namespace
