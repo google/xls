@@ -2372,5 +2372,70 @@ const_assert!(X == 5);
 )"));
 }
 
+TEST(TypecheckV2StructTest, FuzzTestStructDomainSuccess) {
+  EXPECT_THAT(R"(
+struct S { x: u32, y: u8 }
+#[fuzz_test(domains=`S { x: u32:0..10, y: u8:0..5 }`)]
+fn f(s: S) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestStructDomainOmittedFields) {
+  EXPECT_THAT(R"(
+struct S { x: u32, y: u8 }
+#[fuzz_test(domains=`S { x: u32:0..10 }`)]
+fn f(s: S) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestStructDomainInvalidField) {
+  EXPECT_THAT(R"(
+struct S { x: u32 }
+#[fuzz_test(domains=`S { x: u32:0..10, z: u8:0..5 }`)]
+fn f(s: S) {}
+)",
+              TypecheckFails(HasSubstr("Struct `S` has no member `z`")));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestStructDomainFieldTypeMismatch) {
+  EXPECT_THAT(R"(
+struct S { x: u32 }
+#[fuzz_test(domains=`S { x: u8:0..5 }`)]
+fn f(s: S) {}
+)",
+              TypecheckFails(HasSubstr("is not compatible with parameter")));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestStructDomainNestedSuccess) {
+  EXPECT_THAT(R"(
+struct Inner { y: u32 }
+struct Outer { x: Inner }
+#[fuzz_test(domains=`Outer { x: Inner { y: u32:0..10 } }`)]
+fn f(s: Outer) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestStructDomainNestedInvalid) {
+  EXPECT_THAT(R"(
+struct Inner { y: u32 }
+struct Outer { x: Inner }
+#[fuzz_test(domains=`Outer { x: Inner { y: u8:0..10 } }`)]
+fn f(s: Outer) {}
+)",
+              TypecheckFails(HasSubstr("is not compatible with parameter")));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestStructDomainEmpty) {
+  EXPECT_THAT(R"(
+struct S { x: u32, y: u8 }
+#[fuzz_test(domains=`S {}`)]
+fn f(s: S) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -1510,6 +1510,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return node->body()->Accept(this);
   }
 
+  absl::Status HandleFuzzTestFunction(const FuzzTestFunction* node) override {
+    VLOG(5) << "HandleFuzzTestFunction: " << node->ToString();
+    XLS_RETURN_IF_ERROR(node->fn().Accept(this));
+
+    if (node->domains().has_value()) {
+      in_fuzz_test_domain_ = true;
+      absl::Status status = (*node->domains())->Accept(this);
+      in_fuzz_test_domain_ = false;
+      XLS_RETURN_IF_ERROR(status);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleParametricBinding(const ParametricBinding* node) override {
     VLOG(5) << "HandleParametricBinding: " << node->ToString();
     XLS_RETURN_IF_ERROR(table_.DefineParametricVariable(*node).status());
@@ -2164,7 +2177,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   // Ensures that a `StructInstance` nodes provides exprs for all the names in a
   // struct definition, with no extraneous or duplicate names.
   absl::Status ValidateStructInstanceMemberNames(
-      const StructInstanceBase& instance, const StructDefBase& def) {
+      const StructInstanceBase& instance, const StructDefBase& def,
+      bool allow_missing_members = false) {
     std::vector<std::string> formal_name_vector = def.GetMemberNames();
     absl::btree_set<std::string> formal_names(formal_name_vector.begin(),
                                               formal_name_vector.end());
@@ -2187,7 +2201,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             file_table_);
       }
     }
-    if (instance.requires_all_members() &&
+    if (!allow_missing_members && instance.requires_all_members() &&
         actual_names.size() != formal_names.size()) {
       absl::btree_set<std::string> missing_set;
       absl::c_set_difference(formal_names, actual_names,
@@ -2267,7 +2281,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         node, CreateStructOrProcAnnotation(
                   module_, const_cast<StructDefBase*>(struct_def),
                   struct_or_proc_ref->parametrics, node)));
-    XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(*node, *struct_def));
+    XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(
+        *node, *struct_def, /*allow_missing_members=*/in_fuzz_test_domain_));
 
     absl::flat_hash_map<std::string, const StructMemberNode*> formal_member_map;
     for (const StructMemberNode* formal_member : struct_def->members()) {
@@ -2278,21 +2293,32 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     for (const auto& [name, actual_member] : node->members()) {
       const StructMemberNode* formal_member = formal_member_map.at(name);
 
-      // In the context of instance initialization only, we require the RHS of
-      // proc state assignment to be T rather than State<T>.
-      const TypeAnnotation* formal_member_type =
-          module_.Make<MemberTypeAnnotation>(
-              formal_member->name_def()->span(), struct_variable_type,
-              formal_member->name(),
-              /*use_wrapped_type_if_proc_state=*/false);
+      if (in_fuzz_test_domain_) {
+        // In a fuzz test domain, the actual member expression represents a
+        // domain (e.g. `u32:0..10` which has type `u32[10]`) rather than a
+        // value of the member's type (`u32`). We typecheck it without
+        // constraining it to the formal member type to avoid type mismatch
+        // errors.
+        XLS_RETURN_IF_ERROR(
+            DefineAndSetTypeVariable(actual_member, "actual_member_domain"));
+        XLS_RETURN_IF_ERROR(actual_member->Accept(this));
+      } else {
+        // In the context of instance initialization only, we require the RHS of
+        // proc state assignment to be T rather than State<T>.
+        const TypeAnnotation* formal_member_type =
+            module_.Make<MemberTypeAnnotation>(
+                formal_member->name_def()->span(), struct_variable_type,
+                formal_member->name(),
+                /*use_wrapped_type_if_proc_state=*/false);
 
-      table_.SetAnnotationFlag(formal_member_type,
-                               TypeInferenceFlag::kFormalMemberType);
-      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(
-          actual_member, "actual_member", formal_member_type));
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeAnnotation(actual_member, formal_member_type));
-      XLS_RETURN_IF_ERROR(actual_member->Accept(this));
+        table_.SetAnnotationFlag(formal_member_type,
+                                 TypeInferenceFlag::kFormalMemberType);
+        XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(
+            actual_member, "actual_member", formal_member_type));
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeAnnotation(actual_member, formal_member_type));
+        XLS_RETURN_IF_ERROR(actual_member->Accept(this));
+      }
     }
     return absl::OkStatus();
   }
@@ -2303,6 +2329,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   ImportData& import_data_;
   TypecheckModuleFn typecheck_imported_module_;
   bool handle_proc_functions_ = false;
+  bool in_fuzz_test_domain_ = false;
 };
 
 }  // namespace

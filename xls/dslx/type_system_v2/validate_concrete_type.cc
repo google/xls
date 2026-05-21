@@ -322,7 +322,10 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     for (int i = 0; i < domain_count; ++i) {
       const Expr* domain = tuple->members()[i];
       const Param* param = node->params()[i];
-      XLS_RETURN_IF_ERROR(ValidateFuzzTestDomain(domain, param));
+      std::optional<Type*> maybe_param_type = ti_.GetItem(param);
+      XLS_RET_CHECK(maybe_param_type.has_value());
+      XLS_RETURN_IF_ERROR(
+          ValidateFuzzTestDomain(domain, *maybe_param_type, param->ToString()));
     }
 
     return DefaultHandler(node);
@@ -512,19 +515,90 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         file_table_);
   }
 
+  absl::Status ValidateStructDomain(const StructInstance* domain,
+                                    const Type* param_type,
+                                    std::string_view param_str) {
+    if (!param_type->IsStruct()) {
+      return TypeInferenceErrorStatus(
+          domain->span(), param_type,
+          absl::Substitute("Fuzz test domain implies a struct type, but "
+                           "parameter is of type `$0`.",
+                           param_type->ToString()),
+          file_table_);
+    }
+    const StructType* struct_type =
+        absl::down_cast<const StructType*>(param_type);
+
+    absl::flat_hash_map<std::string_view, const Type*> formal_members;
+    for (int i = 0; i < struct_type->size(); ++i) {
+      formal_members[struct_type->GetMemberName(i)] =
+          &struct_type->GetMemberType(i);
+    }
+
+    for (const auto& [name, actual_member] : domain->members()) {
+      auto it = formal_members.find(name);
+      // Extraneous fields are already caught during type checking in
+      // ValidateStructInstanceMemberNames, so we can assume they exist here.
+      XLS_RET_CHECK(it != formal_members.end()) << "Extraneous member " << name;
+      const Type* formal_member_type = it->second;
+      XLS_RETURN_IF_ERROR(ValidateFuzzTestDomain(
+          actual_member, formal_member_type, formal_member_type->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ValidateTupleDomain(const XlsTuple* domain,
+                                   const Type* param_type,
+                                   std::string_view param_str) {
+    if (domain->members().empty()) {
+      // Empty domain for this parameter; this is considered an "Arbitrary"
+      // domain and always matches.
+      return absl::OkStatus();
+    }
+    if (!param_type->IsTuple()) {
+      return TypeInferenceErrorStatus(domain->span(), param_type,
+                                      "Fuzz test domain implies a tuple type, "
+                                      "but parameter is not a tuple.",
+                                      file_table_);
+    }
+    const TupleType* tuple_type = absl::down_cast<const TupleType*>(param_type);
+    if (domain->members().size() != tuple_type->size()) {
+      return TypeInferenceErrorStatus(
+          domain->span(), param_type,
+          absl::Substitute("Fuzz test domain tuple size ($0) does not match "
+                           "parameter tuple size ($1).",
+                           domain->members().size(), tuple_type->size()),
+          file_table_);
+    }
+    for (int i = 0; i < domain->members().size(); ++i) {
+      const Type& member_type = tuple_type->GetMemberType(i);
+      XLS_RETURN_IF_ERROR(ValidateFuzzTestDomain(
+          domain->members()[i], &member_type, member_type.ToString()));
+    }
+    return absl::OkStatus();
+  }
+
   // Validates that a fuzz test domain is compatible with the corresponding
-  // function parameter. Returns an error if not compatible.
-  absl::Status ValidateFuzzTestDomain(const Expr* domain, const Param* param) {
-    std::optional<Type*> maybe_param_type = ti_.GetItem(param);
-    XLS_RET_CHECK(maybe_param_type.has_value());
-    const Type* param_type = *maybe_param_type;
+  // function parameter type. Returns an error if not compatible.
+  absl::Status ValidateFuzzTestDomain(const Expr* domain,
+                                      const Type* param_type,
+                                      std::string_view param_str) {
+    if (domain->kind() == AstNodeKind::kStructInstance) {
+      return ValidateStructDomain(
+          absl::down_cast<const StructInstance*>(domain), param_type,
+          param_str);
+    }
+    if (domain->kind() == AstNodeKind::kXlsTuple) {
+      return ValidateTupleDomain(absl::down_cast<const XlsTuple*>(domain),
+                                 param_type, param_str);
+    }
 
     std::optional<Type*> maybe_domain_type = ti_.GetItem(domain);
     XLS_RET_CHECK(maybe_domain_type.has_value());
     const Type* domain_type = *maybe_domain_type;
 
     return ValidateFuzzTestDomainType(domain_type, param_type, domain->span(),
-                                      domain->ToString(), param->ToString());
+                                      domain->ToString(), param_str);
   }
 
   absl::Status HandleStructDefBaseInternal(const StructDefBase* def) {
