@@ -404,11 +404,17 @@ BddNodeIndex OperandVisibilityAnalysis::ConditionOnNextUse(Next* next,
       !nda_->IsDependent(node, next->value())) {
     return bdd_query_engine_->bdd().zero();
   }
-  return ConditionOnPredicate(next->predicate());
+  return ConditionOnPredicate(node, next->predicate());
 }
 
 BddNodeIndex OperandVisibilityAnalysis::ConditionOnPredicate(
-    std::optional<Node*> predicate) const {
+    Node* node, std::optional<Node*> predicate) const {
+  // If there is no predicate, we conservatively assume the node is always used
+  // by the predicated instruction. If the predicate uses the node, the node is
+  // always used.
+  if (!predicate.has_value() || nda_->IsDependent(node, *predicate)) {
+    return bdd_query_engine_->bdd().one();
+  }
   if (predicate.has_value() && predicate.value()->BitCountOrDie() == 1) {
     return GetNodeBit(predicate.value(), 0);
   }
@@ -528,7 +534,7 @@ BddNodeIndex OperandVisibilityAnalysis::ConditionOfUse(Node* node,
   } else if (user->Is<Select>()) {
     return ConditionOfUseWithSelect(node, user->As<Select>());
   } else if (user->Is<Send>()) {
-    return ConditionOnPredicate(user->As<Send>()->predicate());
+    return ConditionOnPredicate(node, user->As<Send>()->predicate());
   } else if (user->Is<Next>()) {
     return ConditionOnNextUse(user->As<Next>(), node);
   } else if (user->OpIn({Op::kAnd, Op::kNand})) {
@@ -603,14 +609,6 @@ void OperandVisibilityAnalysis::OperandAdded(Node* node) {
 BddNodeIndex VisibilityAnalysis::ComputeInfo(
     Node* node, absl::Span<const BddNodeIndex* const> user_infos) const {
   if (user_infos.empty()) {
-    if (Node* predicate = TerminalPredicate(node);
-        predicate && predicate->BitCountOrDie() == 1) {
-      TreeBitLocation predicate_bit(predicate, 0);
-      auto bdd_node = bdd_query_engine_->GetBddNode(predicate_bit);
-      if (bdd_node.has_value()) {
-        return *bdd_node;
-      }
-    }
     return bdd_query_engine_->bdd().one();
   }
 

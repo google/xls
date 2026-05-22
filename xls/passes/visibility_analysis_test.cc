@@ -427,6 +427,48 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughAnd) {
   EXPECT_NE(bdd.Implies(y_bit_0, bdd.Not(z_visible)), bdd.one());
 }
 
+TEST_F(VisibilityAnalysisTest, VisibilityThroughPredicate) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
+                           pb.AddInputChannel("a_in", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto b_in,
+                           pb.AddInputChannel("b_in", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto out,
+                           pb.AddOutputChannel("out", p->GetBitsType(4)));
+  auto a_in_val = pb.Receive(a_in, SourceInfo(), "a_in_val");
+  auto add = pb.Add(a_in_val, pb.Literal(UBits(1, 4)));
+  // The predicate depends on b_in_val
+  auto b_in_val = pb.Receive(b_in, SourceInfo(), "b_in_val");
+  auto le_3 = pb.ULe(b_in_val, pb.Literal(UBits(3, 4)));
+  // The add is visible if le_3. The `b_in_val` is always visible because it is
+  // used by the predicate.
+  pb.SendIf(out, le_3, add);
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  BinaryDecisionDiagram& bdd = bdd_engine->bdd();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
+                                                  bdd_engine.get(), &post_dom));
+
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex le_3_bit_0,
+                           GetNodeBit(le_3.node(), 0, *bdd_engine));
+  // if `le_3` is true, the add is visible.
+  EXPECT_EQ(bdd.Implies(le_3_bit_0, *visibility->GetInfo(add.node())),
+            bdd.one());
+  // `b_in_val` used by the send_if predicate is always visible
+  EXPECT_EQ(*visibility->GetInfo(b_in_val.node()), bdd.one());
+}
+
 TEST_F(VisibilityAnalysisTest, VisibilityHandlesIrrelevantUnknown) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -814,8 +856,9 @@ TEST_F(VisibilityAnalysisTest, StateUsedInPredicateIsVisible) {
       auto visibility, VisibilityAnalysis::Create(&operand_visibility,
                                                   bdd_engine.get(), &post_dom));
 
-  EXPECT_EQ(*visibility->GetInfo(input.node()),
-            *visibility->GetInfo(pred.node()))
+  auto pred_bdd_node = bdd_engine->GetBddNode(TreeBitLocation(pred.node(), 0));
+  ASSERT_TRUE(pred_bdd_node.has_value());
+  EXPECT_EQ(*visibility->GetInfo(input.node()), pred_bdd_node.value())
       << "input: " << input.node()->ToString()
       << " pred: " << pred.node()->ToString();
 }
