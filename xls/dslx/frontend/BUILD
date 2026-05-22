@@ -740,22 +740,43 @@ cc_library(
 )
 
 cc_library(
-    name = "semantics_analysis",
-    srcs = ["semantics_analysis.cc"],
-    hdrs = ["semantics_analysis.h"],
+    name = "lambda_rewriter",
+    srcs = ["lambda_rewriter.cc"],
+    hdrs = ["lambda_rewriter.h"],
     deps = [
         ":ast",
         ":ast_cloner",
         ":ast_node",
         ":ast_node_visitor_with_default",
         ":ast_utils",
-        ":bindings",
         ":module",
         ":pos",
         ":token",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "semantics_analysis",
+    srcs = ["semantics_analysis.cc"],
+    hdrs = ["semantics_analysis.h"],
+    deps = [
+        ":ast",
+        ":ast_node",
+        ":ast_node_visitor_with_default",
+        ":ast_utils",
+        ":bindings",
+        ":lambda_rewriter",
+        ":module",
+        ":pos",
         ":token_utils",
         "//xls/common:attribute_data",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
