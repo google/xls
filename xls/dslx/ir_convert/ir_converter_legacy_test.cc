@@ -824,19 +824,6 @@ fn main(input: u8[2]) -> u8[2] {
   ExpectIr(converted);
 }
 
-// TODO(https://github.com/google/xls/issues/1289): Need to be able to convert
-// enumerate builtin.
-TEST_F(IrConverterLegacyTest, DISABLED_ArrayEnumerate) {
-  constexpr std::string_view program = R"(
-fn main(array: u8[4]) -> (u32, u8)[4]) {
-  enumerate(array)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertOneFunctionForTest(program, "main"));
-  ExpectIr(converted);
-}
-
 TEST_F(IrConverterLegacyTest, SplatStructInstance) {
   constexpr std::string_view program =
       R"(
