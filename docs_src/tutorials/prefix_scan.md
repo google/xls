@@ -81,12 +81,12 @@ loop-carried values:
 
 ```dslx-snippet
     for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, u3[8]))
-          in enumerate(x) {
+          in std::enumerate(x) {
 ```
 
-The iterable of this loop is `enumerate(x)`. On each iteration, this construct
-delivers a tuple consisting of current index and current element. This is
-represented as the tuple `(i, elem)` in the `for` construct.
+The iterable of this loop is created by `std::enumerate(x)`. On each iteration,
+this construct delivers a tuple consisting of current index and current element.
+This is represented as the tuple `(i, elem)` in the `for` construct.
 
 The loop next specifies the accumulator, which is a 3-tuple consisting of the
 values named `prior`, `count`, and `result`.
@@ -205,8 +205,3 @@ xls$ bazel run -c opt //xls/dslx:interpreter_main -- \
 [            OK ]
 [===============] 2 test(s) ran; 0 failed; 0 skipped.
 ```
-
-(Note that `--compare=none` is currently required because `enumerate` ranges are
-not currently convertable to IR, otherwise running the DSLX interpreter would do
-implicit comparison to IR interpreter -- see
-[google/xls#164](https://github.com/google/xls/issues/164).)

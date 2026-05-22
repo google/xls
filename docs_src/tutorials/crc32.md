@@ -25,9 +25,9 @@ A DSLX `for` loop has the following structure:
         but it should be able to hold all possible loop index values).
     3.  An
         [iterable](../dslx_reference.md),
-        which can be a range expression `start..limit`, `enumerate()`, or an
-        array object. This dictates the number of iterations of the loop to
-        complete.
+        which can be a range expression `start..limit`, `std::enumerate()`,
+        or an array object. This dictates the number of iterations of the loop
+        to complete.
 2.  The loop body: this has the same general form as a DSLX function.
     Particularly noteworthy is that the loop body ends by stating the "return"
     value. In a `for` loop, this "return" value is either used as the input to
