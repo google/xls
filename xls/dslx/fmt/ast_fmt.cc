@@ -342,6 +342,12 @@ DocRef Fmt(const ArrayTypeAnnotation& n, Comments& comments, DocArena& arena) {
       arena, {elem, arena.obracket(), arena.MakeAlign(dim), arena.cbracket()});
 }
 
+DocRef Fmt(const DomainTypeAnnotation& n, Comments& comments, DocArena& arena) {
+  DocRef payload = Fmt(*n.payload(), comments, arena);
+  return ConcatNGroup(arena, {arena.MakeText("Domain"), arena.MakeText("<"),
+                              arena.MakeAlign(payload), arena.MakeText(">")});
+}
+
 DocRef FmtTypeAnnotationPtr(const TypeAnnotation* n, Comments& comments,
                             DocArena& arena) {
   CHECK(n != nullptr);
@@ -432,6 +438,9 @@ DocRef Fmt(const TypeAnnotation& n, Comments& comments, DocArena& arena) {
     return Fmt(*t, comments, arena);
   }
   if (auto* t = dynamic_cast<const ArrayTypeAnnotation*>(&n)) {
+    return Fmt(*t, comments, arena);
+  }
+  if (auto* t = dynamic_cast<const DomainTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
   }
   if (auto* t = dynamic_cast<const TypeRefTypeAnnotation*>(&n)) {

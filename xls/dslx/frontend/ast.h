@@ -132,6 +132,7 @@
   X(ChannelTypeAnnotation)          \
   X(ConstConditionalTypeAnnotation) \
   X(ConstMatchTypeAnnotation)       \
+  X(DomainTypeAnnotation)           \
   X(ElementTypeAnnotation)          \
   X(FunctionTypeAnnotation)         \
   X(GenericTypeAnnotation)          \
@@ -310,6 +311,7 @@ enum class TypeAnnotationKind : uint8_t {
   kChannel,
   kConstConditional,
   kConstMatch,
+  kDomain,
   kElement,
   kFunction,
   kGeneric,
@@ -918,6 +920,33 @@ class ArrayTypeAnnotation : public TypeAnnotation {
   TypeAnnotation* element_type_;
   Expr* dim_;
   bool dim_is_min_;
+};
+
+// Represents a compiler-internal domain type annotation; e.g. `Domain<u32>`.
+class DomainTypeAnnotation : public TypeAnnotation {
+ public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kDomain;
+
+  DomainTypeAnnotation(Module* owner, Span span, TypeAnnotation* payload);
+
+  ~DomainTypeAnnotation() override;
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleDomainTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "DomainTypeAnnotation";
+  }
+  TypeAnnotation* payload() const { return payload_; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  std::string ToString() const override;
+
+ private:
+  TypeAnnotation* payload_;
 };
 
 // Represents the type for the `self` keyword (e.g., used in impl methods). In

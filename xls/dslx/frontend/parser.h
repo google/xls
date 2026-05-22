@@ -749,6 +749,17 @@ class Parser : public TokenParser {
   // during fuzzing.
   absl::StatusOr<ExpressionDepthGuard> BumpExpressionDepth();
 
+  // Helper to generate a derived domain struct for a given struct.
+  absl::StatusOr<StructDef*> GenerateDomainStruct(
+      const StructDef& original, std::string_view derived_name,
+      NameDef* derived_name_def,
+      const absl::flat_hash_map<const StructDef*, StructDef*>& derived_structs);
+
+  // Helper to recursively wrap a type annotation in DomainTypeAnnotation.
+  absl::StatusOr<TypeAnnotation*> WrapInDomain(
+      TypeAnnotation* type,
+      const absl::flat_hash_map<const StructDef*, StructDef*>& derived_structs);
+
   // Holds ownership of the module if it was created by this parser instance
   // (e.g., when parsing a complete file). This is null if the parser is
   // borrowing an existing module (e.g., as a sub-parser).
