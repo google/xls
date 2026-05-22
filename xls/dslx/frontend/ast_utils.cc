@@ -640,6 +640,18 @@ std::optional<const Function*> GetContainingFunction(const AstNode* node) {
   return std::nullopt;
 }
 
+std::optional<const Expr*> GetContainingLoop(const AstNode* node) {
+  const AstNode* current = node->parent();
+  while (current != nullptr) {
+    if (current->kind() == AstNodeKind::kConstFor ||
+        current->kind() == AstNodeKind::kFor) {
+      return absl::down_cast<const Expr*>(current);
+    }
+    current = current->parent();
+  }
+  return std::nullopt;
+}
+
 std::optional<ModuleMember> GetContainingModuleMember(const AstNode* node) {
   AstNode* parent = node->parent();
   while (parent != nullptr) {

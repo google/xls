@@ -432,6 +432,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status ConvertConstantsReferencedUnder(
       const AstNode* node,
       std::optional<const ParametricContext*> parametric_context) {
+    std::optional<const Expr*> loop_containing_node = GetContainingLoop(node);
     std::vector<std::pair<const NameRef*, const NameDef*>> references;
     XLS_ASSIGN_OR_RETURN(references,
                          CollectReferencedUnder(node, /*want_types=*/true));
@@ -464,13 +465,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         decl = decl->parent();
       }
 
-      // Recursively convert that declaration's deps and itself.
+      // Recursively convert that declaration's deps and itself, but exclude it
+      // if it is inside a `const for` that is a descendant of `node`.
+      // Converting such declarations is unnecessary, and in the case of a
+      // `const for`, can't even be done before unrolling is performed.
       if (decl != nullptr && (decl->kind() == AstNodeKind::kConstantDef ||
                               decl->kind() == AstNodeKind::kLet)) {
-        XLS_RETURN_IF_ERROR(
-            ConvertConstantsReferencedUnder(decl, parametric_context));
-        XLS_RETURN_IF_ERROR(
-            ConvertSubtree(decl, std::nullopt, parametric_context));
+        std::optional<const Expr*> loop_containing_decl =
+            GetContainingLoop(name_def);
+        if (!loop_containing_decl.has_value() ||
+            (loop_containing_node.has_value() &&
+             *loop_containing_node == *loop_containing_decl)) {
+          XLS_RETURN_IF_ERROR(
+              ConvertConstantsReferencedUnder(decl, parametric_context));
+          XLS_RETURN_IF_ERROR(
+              ConvertSubtree(decl, std::nullopt, parametric_context));
+        }
       }
     }
 

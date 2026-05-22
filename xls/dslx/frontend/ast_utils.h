@@ -257,6 +257,10 @@ bool ContainedWithinFunction(const Invocation& invocation,
 // Retrieves the containing function of `node`, if any.
 std::optional<const Function*> GetContainingFunction(const AstNode* node);
 
+// Retrieves the containing `for`, `const for` or `unroll_for!` of `node`, if
+// any.
+std::optional<const Expr*> GetContainingLoop(const AstNode* node);
+
 // Retrieves the nearest parent that is a top-level module member.
 std::optional<ModuleMember> GetContainingModuleMember(const AstNode* node);
 

@@ -763,6 +763,26 @@ fn repro(x: u3) -> u2 {
               TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
 }
 
+TEST(TypecheckV2Test, ConditionalWithConversionForUnificationAndConstForDep) {
+  EXPECT_THAT(R"(
+fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
+fn repro(x: u3) -> u2 {
+    let (_dummy, upper) = if x > 3 {
+      (u8:0, 0b00)
+    } else {
+      let c = const for (i, a) in s32:0..10 {
+          let ignored_const = s32:2;
+          a + i + ignored_const
+      }(s32:0);
+      let d = c;
+      (u8:0, lsb(x[d:]) ++ u1:0)
+    };
+    upper
+}
+  )",
+              TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
+}
+
 TEST(TypecheckV2Test, ConstMatch) {
   EXPECT_THAT(R"(
 fn main(a: u32, b: u32) -> u32 {
