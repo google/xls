@@ -149,6 +149,7 @@ CODEGEN_FIELDS = {
     "source_annotation_strategy": "The strategy to use for generating source annotations. Use 'comment'" +
                                   "to generate comments, 'directive' to generate SystemVerilog `line directives, " +
                                   "or 'none'",
+    "find_bounds_strategy": "Scheduler algorithm to use for finding minimum bounds.",
 }
 
 SCHEDULING_FIELDS = {

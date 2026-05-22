@@ -16,25 +16,20 @@
 #define XLS_SCHEDULING_MIN_CUT_SCHEDULER_H_
 
 #include <cstdint>
+#include <memory>
+#include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
+#include "xls/scheduling/asap_scheduler.h"
 #include "xls/scheduling/schedule_bounds.h"
+#include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
-
-// Schedules the given function into a pipeline with the given clock
-// period. Attempts to split nodes into stages such that the total number of
-// flops in the pipeline stages is minimized without violating the target clock
-// period.
-absl::StatusOr<ScheduleCycleMap> MinCutScheduler(
-    FunctionBase* f, int64_t pipeline_stages, int64_t clock_period_ps,
-    const DelayEstimator& delay_estimator, sched::ScheduleBounds* bounds,
-    absl::Span<const SchedulingConstraint> constraints);
 
 // Returns the list of ordering of cycles (pipeline stages) in which to compute
 // min cut of the graph. Each min cut of the graph computes which XLS node
@@ -45,6 +40,21 @@ absl::StatusOr<ScheduleCycleMap> MinCutScheduler(
 // affect the total number of registers in the pipeline so multiple orderings
 // are tried. This function returns this set of orderings.  Exposed for testing.
 std::vector<std::vector<int64_t>> GetMinCutCycleOrders(int64_t length);
+
+// Schedules the given function into a pipeline with the given clock
+// period. Attempts to split nodes into stages such that the total number of
+// flops in the pipeline stages is minimized without violating the target clock
+// period.
+class MinCutScheduler : public ASAPScheduler {
+ public:
+  MinCutScheduler(const ScheduleGraph& graph, DelayEstimator& delay_estimator)
+      : ASAPScheduler("MinCutScheduler", graph, delay_estimator) {}
+  ~MinCutScheduler() override = default;
+  absl::StatusOr<ScheduleCycleMap> Schedule(
+      std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
+      SchedulingFailureBehavior failure_behavior,
+      std::optional<int64_t> worst_case_throughput = std::nullopt) override;
+};
 
 }  // namespace xls
 
