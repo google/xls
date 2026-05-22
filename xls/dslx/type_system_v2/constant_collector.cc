@@ -651,18 +651,29 @@ class Visitor : public AstNodeVisitorWithDefault {
           table_.GetCalleeInCallerContext(invocation, parametric_context_);
       XLS_RET_CHECK(f.has_value());
 
-      XLS_ASSIGN_OR_RETURN(std::optional<const ProcDef*> constructed_proc,
-                           GetProcConstructedByFunction(*f, ti_));
-      if (constructed_proc.has_value()) {
-        return HandleProcDefConstructorInvocation(*f, invocation);
-      }
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<const StructDefBase*> struct_or_proc_def,
+          GetStructOrProcDef(*f, import_data_));
+      if (struct_or_proc_def.has_value() &&
+          (*struct_or_proc_def)->kind() == AstNodeKind::kProcDef) {
+        XLS_ASSIGN_OR_RETURN(const Type* return_type,
+                             ti_->GetItemOrError(invocation));
+        if (return_type->IsProc() &&
+            &return_type->AsProc().struct_def_base() == *struct_or_proc_def) {
+          return HandleProcDefConstructorInvocation(*f, invocation);
+        }
 
-      bool is_proc_def_spawn = false;
-      if (f.has_value()) {
-        XLS_ASSIGN_OR_RETURN(is_proc_def_spawn, IsProcDefSpawnFunction(*f));
-      }
-      if (is_proc_def_spawn) {
-        return HandleProcDefSpawnInvocation(invocation);
+        XLS_ASSIGN_OR_RETURN(bool is_proc_def_spawn,
+                             IsProcDefSpawnFunction(*f));
+        if (is_proc_def_spawn) {
+          return HandleProcDefSpawnInvocation(invocation);
+        }
+
+        XLS_ASSIGN_OR_RETURN(bool is_proc_def_next,
+                             IsProcDefNextFunction(*f, import_data_));
+        if (is_proc_def_next) {
+          return HandleSyntheticProcDefNextInvocation(invocation);
+        }
       }
 
       // It's basically a performance optimization that we only try this for
@@ -742,12 +753,24 @@ class Visitor : public AstNodeVisitorWithDefault {
       external_instance_forwarded_values.emplace_back(param, internal_arg);
     }
 
-    ti_->NoteConstExpr(
-        invocation,
+    XLS_RETURN_IF_ERROR(ti_->NoteProcConstructorInvocation(
+        invocation, table_.GetParametricEnv(parametric_context_),
         InterpValue::MakeProcInitializer(
             internal_initializer.proc_def(), internal_initializer.definer(),
             std::move(external_instance_args),
-            std::move(external_instance_forwarded_values)));
+            std::move(external_instance_forwarded_values))));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSyntheticProcDefNextInvocation(
+      const Invocation* invocation) {
+    XLS_RET_CHECK(invocation->callee()->kind() == AstNodeKind::kAttr);
+    Expr* target_object = absl::down_cast<Attr*>(invocation->callee())->lhs();
+    XLS_ASSIGN_OR_RETURN(InterpValue external_initializer,
+                         Evaluate(target_object));
+    XLS_RETURN_IF_ERROR(ti_->NoteProcNextInvocation(
+        invocation, table_.GetParametricEnv(parametric_context_),
+        external_initializer));
     return absl::OkStatus();
   }
 
@@ -887,7 +910,8 @@ class Visitor : public AstNodeVisitorWithDefault {
         &absl::down_cast<const ProcDef&>(type.struct_def_base()), node,
         member_values, std::move(forwarded_values));
 
-    ti_->NoteConstExpr(node, inst);
+    ti_->NoteCanonicalProcInitializer(
+        node, table_.GetParametricEnv(parametric_context_), inst);
     return absl::OkStatus();
   }
 

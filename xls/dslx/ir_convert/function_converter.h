@@ -161,7 +161,8 @@ class FunctionConverter {
 
   absl::Status ConvertProcDef(const ProcDef* proc_def,
                               const InterpValue& canonical_initializer_value,
-                              ProcId proc_id, TypeInfo* type_info);
+                              ProcId proc_id, TypeInfo* constructor_ti,
+                              TypeInfo* next_ti, const ParametricEnv& env);
 
   // Notes a constant-definition dependency for the function (so it can
   // participate in the IR conversion).
@@ -544,7 +545,8 @@ class FunctionConverter {
   absl::Status HandleProcDef(const ProcDef* proc_def,
                              const Function* constructor);
 
-  absl::Status InitProcDefBuilder(const ProcDef* proc_def);
+  absl::Status InitProcDefBuilder(const ProcDef* proc_def,
+                                  const ParametricEnv& env);
 
   template <typename NodeType>
   absl::Status DefineProcDefChannelOrArray(

@@ -190,6 +190,8 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
                                         ProcConversionData* proc_data,
                                         ChannelScope* channel_scope,
                                         const ConvertOptions& options) {
+  VLOG(6) << "Convert record: " << record.ToString();
+
   // Validate the requested conversion looks sound in terms of provided
   // parametrics.
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(
@@ -206,8 +208,10 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   }
 
   if (record.proc_def().has_value()) {
-    return converter.ConvertProcDef(*record.proc_def(), *record.init_value(),
-                                    *record.proc_id(), record.type_info());
+    return converter.ConvertProcDef(
+        *record.proc_def(), *record.init_value(), *record.proc_id(),
+        record.config_record()->type_info(), record.type_info(),
+        record.parametric_env());
   }
 
   Function* f = record.f();

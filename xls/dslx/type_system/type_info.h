@@ -27,6 +27,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -94,6 +95,16 @@ struct ResolvedProcAlias {
   ParametricEnv env;
   TypeInfo* config_type_info;
   TypeInfo* next_type_info;
+};
+
+// A decorated ProcInitializer-type InterpValue with the TypeInfo's and
+// ParametricEnv for the instantiated proc. We can't put this all inside the
+// InterpValue because it would create a dependency cycle.
+struct ProcInitializerWithTypeInfo {
+  TypeInfo* constructor_type_info = nullptr;
+  TypeInfo* next_type_info = nullptr;
+  ParametricEnv constructor_env;
+  InterpValue initializer;
 };
 
 // Parametric instantiation information related to an invocation AST node.
@@ -253,8 +264,8 @@ class TypeInfo {
   // Returns all the unique canonical initializers that `proc` is used with in
   // the `TypeInfo` hierarchy. This indicates which variations of the IR proc
   // are needed.
-  absl::StatusOr<std::vector<InterpValue>> GetCanonicalProcInitializers(
-      const ProcDef* proc) const;
+  absl::StatusOr<std::vector<ProcInitializerWithTypeInfo>>
+  GetCanonicalProcInitializers(const ProcDef* proc) const;
 
   // Records a spawn of a callee proc from `caller`, given the
   // `external_initializer` that indicates what channels and initial state
@@ -431,6 +442,17 @@ class TypeInfo {
   // Note that these index over AstNodes instead of Exprs so that NameDefs can
   // be used as constexpr keys.
   void NoteConstExpr(const AstNode* const_expr, InterpValue value);
+  void NoteCanonicalProcInitializer(const StructInstance* definer,
+                                    ParametricEnv env, InterpValue value);
+  absl::Status NoteProcConstructorInvocation(
+      const Invocation* invocation, ParametricEnv env,
+      InterpValue external_proc_initializer);
+  absl::Status NoteProcNextInvocation(const Invocation* invocation,
+                                      ParametricEnv env,
+                                      InterpValue external_proc_initializer);
+  absl::StatusOr<InterpValue> GetCanonicalProcInitializer(
+      const InterpValue& external_initializer);
+
   bool IsKnownConstExpr(const AstNode* node) const;
   bool IsKnownNonConstExpr(const AstNode* node) const;
   absl::StatusOr<InterpValue> GetConstExpr(const AstNode* const_expr) const;
@@ -586,8 +608,17 @@ class TypeInfo {
   absl::flat_hash_map<const Proc*, std::vector<SpawnData>> spawns_;
 
   // Initializers for each callee proc.
-  absl::flat_hash_map<const ProcDef*, std::vector<InterpValue>>
+  absl::flat_hash_map<const ProcDef*, std::vector<ProcInitializerWithTypeInfo>>
       proc_def_initializers_by_callee_proc_;
+
+  // The same objects in `proc_def_initializers_by_callee_proc`, but with the
+  // decorating wrapper discoverable by raw canonical ProcInitializer.
+  absl::btree_map<InterpValue, ProcInitializerWithTypeInfo*>
+      decorated_canonical_proc_initializer_;
+
+  absl::btree_map<InterpValue, InterpValue>
+      external_to_canonical_proc_initializer_;
+
   // External proc initializers, mapped by caller proc.
   absl::flat_hash_map<const ProcDef*, std::vector<InterpValue>>
       proc_def_spawns_by_caller_proc_;

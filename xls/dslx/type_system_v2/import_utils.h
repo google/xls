@@ -103,6 +103,11 @@ absl::StatusOr<std::vector<StructMemberNode*>> GetProcDefStateMembers(
 absl::StatusOr<std::optional<const ProcDef*>> GetProcConstructedByFunction(
     const Function* f, TypeInfo* ti);
 
+// Returns whether the given function is a constructor for the proc indicated by
+// `proc_def`, assuming the function is a member of the proc.
+bool IsProcConstructor(const Function* function, const ProcDef* proc_def,
+                       const FunctionType& function_type);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_IMPORT_UTILS_H_

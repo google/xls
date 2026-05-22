@@ -119,6 +119,7 @@ class FunctionResolverImpl : public FunctionResolver {
             target_struct_context,
             parametric_struct_instantiator_.GetOrCreateParametricStructContext(
                 caller_context, *struct_or_proc_ref, callee));
+        target_object_type = (*target_struct_context)->self_type();
       }
 
       if (target.has_value()) {

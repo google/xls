@@ -3766,16 +3766,21 @@ absl::Status FunctionConverter::HandleChannelDecl(const ChannelDecl* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::InitProcDefBuilder(const ProcDef* proc_def) {
-  // TODO: https://github.com/google/xls/issues/4125 - Consider the parametrics
-  // and init values when invoking `MangleDslxName` here, using
-  // `HandleProcNextFunction` as a rough guide. ProcDef support is a WIP and we
-  // don't yet support parametrics.
-  ParametricEnv bindings;
-  XLS_ASSIGN_OR_RETURN(std::string mangled_name,
-                       MangleDslxName(module_->name(), proc_def->identifier(),
-                                      CallingConvention::kProcNext,
-                                      /*free_keys=*/{}, &bindings));
+absl::Status FunctionConverter::InitProcDefBuilder(const ProcDef* proc_def,
+                                                   const ParametricEnv& env) {
+  absl::btree_set<std::string> parametric_keys;
+
+  // Include parametric values in the mangled names of non-top procs only.
+  if (!is_top_) {
+    for (const ParametricBinding* binding : proc_def->parametric_bindings()) {
+      parametric_keys.insert(binding->identifier());
+    }
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::string mangled_name,
+      MangleDslxName(module_->name(), proc_def->identifier(),
+                     CallingConvention::kProcNext, parametric_keys, &env));
   auto unique_builder =
       std::make_unique<ProcBuilder>(NewStyleProc{}, mangled_name, package());
   ProcBuilder* builder = unique_builder.get();
@@ -4139,26 +4144,29 @@ absl::Status FunctionConverter::AddProcDefInstantiation(
 
 absl::Status FunctionConverter::ConvertProcDef(
     const ProcDef* proc_def, const InterpValue& canonical_initializer_value,
-    ProcId proc_id, TypeInfo* type_info) {
-  VLOG(5) << "Converting ProcDef: " << proc_def->identifier();
+    ProcId proc_id, TypeInfo* constructor_ti, TypeInfo* next_ti,
+    const ParametricEnv& env) {
+  VLOG(5) << "Converting ProcDef: " << proc_def->identifier()
+          << " using constructor TI " << constructor_ti->name()
+          << " and next TI " << next_ti->name();
 
   InterpValue::ProcInitializer canonical_initializer =
       canonical_initializer_value.GetProcInitializerOrDie();
-  ScopedTypeInfoSwap stis(this, type_info);
+  ScopedTypeInfoSwap stis(this, constructor_ti);
   proc_id_ = proc_id;
   proc_data_->id_to_members[proc_id] = {};
 
-  XLS_RETURN_IF_ERROR(InitProcDefBuilder(proc_def));
+  XLS_RETURN_IF_ERROR(InitProcDefBuilder(proc_def, env));
   XLS_RETURN_IF_ERROR(InitProcDefChannels(proc_def, canonical_initializer));
   XLS_RETURN_IF_ERROR(
       InitProcDefStateElements(proc_def, canonical_initializer));
 
   XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> spawnees,
-                       type_info->GetProcDefSpawnsFrom(proc_def));
+                       constructor_ti->GetProcDefSpawnsFrom(proc_def));
   for (const InterpValue& spawnee : spawnees) {
-    const AstNode* definer = spawnee.GetProcInitializerOrDie().definer();
-    XLS_ASSIGN_OR_RETURN(InterpValue canonical_initializer,
-                         current_type_info_->GetConstExpr(definer));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue canonical_initializer,
+        current_type_info_->GetCanonicalProcInitializer(spawnee));
     XLS_RETURN_IF_ERROR(
         AddProcDefInstantiation(proc_def, spawnee, canonical_initializer));
   }
@@ -4168,7 +4176,9 @@ absl::Status FunctionConverter::ConvertProcDef(
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcDefInstance> instance,
                        CreateProcDefInstance(proc_def));
+
   SetNodeToIr((*next_fn)->params()[0]->name_def(), instance.get());
+  ScopedTypeInfoSwap stis_next(this, next_ti);
   XLS_RETURN_IF_ERROR(Visit((*next_fn)->body()));
 
   XLS_ASSIGN_OR_RETURN(
@@ -4179,7 +4189,7 @@ absl::Status FunctionConverter::ConvertProcDef(
   // structure to support an InterpValue::ProcInitializer (or its whole
   // contents + env) as a key.
   package_data_.ir_to_dslx[p] = *next_fn;
-  package_data_.callee_to_ir_proc[{*next_fn, ParametricEnv{}}] = p;
+  package_data_.callee_to_ir_proc[{*next_fn, env}] = p;
   package_data_
       .canonical_proc_def_initializer_to_ir_proc[canonical_initializer_value] =
       p;

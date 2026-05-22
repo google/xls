@@ -203,18 +203,81 @@ void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
   //   }
   // }
 
-  // Collect proc initializers in their own separate map so that we can find all
-  // the uses of a given proc easily.
-  if (value.IsProcInitializer() &&
-      value.GetProcInitializerOrDie().definer() == const_expr) {
-    TypeInfo* root = GetRoot();
-    const InterpValue::ProcInitializer& initializer =
-        value.GetProcInitializerOrDie();
-    root->proc_def_initializers_by_callee_proc_[initializer.proc_def()]
-        .push_back(value);
-  }
-
   const_exprs_.insert_or_assign(const_expr, std::move(value));
+}
+
+void TypeInfo::NoteCanonicalProcInitializer(const StructInstance* definer,
+                                            ParametricEnv env,
+                                            InterpValue value) {
+  NoteConstExpr(definer, value);
+  TypeInfo* root = GetRoot();
+  const InterpValue::ProcInitializer& initializer =
+      value.GetProcInitializerOrDie();
+  ProcInitializerWithTypeInfo& decorated_initializer =
+      root->proc_def_initializers_by_callee_proc_[initializer.proc_def()]
+          .emplace_back(ProcInitializerWithTypeInfo{
+              .constructor_type_info = this,
+              .next_type_info =
+                  this,  // Updated later if we handle a parametric next().
+              .constructor_env = std::move(env),
+              .initializer = value,
+          });
+  root->decorated_canonical_proc_initializer_[value] = &decorated_initializer;
+}
+
+absl::Status TypeInfo::NoteProcConstructorInvocation(
+    const Invocation* invocation, ParametricEnv caller_env,
+    InterpValue external_proc_initializer) {
+  VLOG(6) << "Noting proc constructor invocation: `" << invocation->ToString()
+          << "` with caller env " << caller_env.ToString() << " in TI "
+          << name();
+  NoteConstExpr(invocation, external_proc_initializer);
+  std::optional<TypeInfo*> parametric_invocation_ti =
+      GetInvocationTypeInfo(invocation, caller_env);
+  TypeInfo* invocation_ti = this;
+  if (parametric_invocation_ti.has_value()) {
+    invocation_ti = *parametric_invocation_ti;
+  }
+  TypeInfo* root = GetRoot();
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue canonical_initializer,
+      invocation_ti->GetConstExpr(
+          external_proc_initializer.GetProcInitializerOrDie().definer()));
+  const auto it =
+      root->decorated_canonical_proc_initializer_.find(canonical_initializer);
+  XLS_RET_CHECK(it != root->decorated_canonical_proc_initializer_.end());
+  external_to_canonical_proc_initializer_.emplace(
+      std::move(external_proc_initializer), std::move(canonical_initializer));
+  return absl::OkStatus();
+}
+
+absl::Status TypeInfo::NoteProcNextInvocation(
+    const Invocation* invocation, ParametricEnv caller_env,
+    InterpValue external_proc_initializer) {
+  std::optional<TypeInfo*> invocation_ti =
+      GetInvocationTypeInfo(invocation, caller_env);
+  VLOG(6) << "Noting proc next invocation: `" << invocation->ToString()
+          << "` with caller env: " << caller_env.ToString()
+          << " and external initializer: "
+          << external_proc_initializer.ToString();
+
+  XLS_RET_CHECK(invocation_ti.has_value());
+  TypeInfo* root = GetRoot();
+  XLS_ASSIGN_OR_RETURN(InterpValue canonical_initializer,
+                       GetCanonicalProcInitializer(external_proc_initializer));
+  const auto it =
+      root->decorated_canonical_proc_initializer_.find(canonical_initializer);
+  XLS_RET_CHECK(it != root->decorated_canonical_proc_initializer_.end());
+  it->second->next_type_info = *invocation_ti;
+  return absl::OkStatus();
+}
+
+absl::StatusOr<InterpValue> TypeInfo::GetCanonicalProcInitializer(
+    const InterpValue& external_initializer) {
+  const auto it =
+      external_to_canonical_proc_initializer_.find(external_initializer);
+  XLS_RET_CHECK(it != external_to_canonical_proc_initializer_.end());
+  return it->second;
 }
 
 absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
@@ -604,7 +667,8 @@ absl::StatusOr<Type*> TypeInfo::GetItemOrError(const AstNode* key) const {
   }
 
   return absl::NotFoundError(
-      absl::StrCat("Could not find concrete type for node: ", key->ToString()));
+      absl::Substitute("Could not find concrete type for node: `$0` in TI $1",
+                       key->ToString(), name()));
 }
 
 void TypeInfo::InsertInvocationData(const Invocation& invocation,
@@ -802,20 +866,20 @@ absl::StatusOr<std::vector<SpawnData>> TypeInfo::GetUniqueSpawns(
   return result;
 }
 
-absl::StatusOr<std::vector<InterpValue>> TypeInfo::GetCanonicalProcInitializers(
-    const ProcDef* proc) const {
+absl::StatusOr<std::vector<ProcInitializerWithTypeInfo>>
+TypeInfo::GetCanonicalProcInitializers(const ProcDef* proc) const {
   if (parent_ != nullptr) {
     return parent_->GetCanonicalProcInitializers(proc);
   }
   XLS_RET_CHECK_EQ(proc->owner(), module_);
   const auto it = proc_def_initializers_by_callee_proc_.find(proc);
   if (it == proc_def_initializers_by_callee_proc_.end()) {
-    return std::vector<InterpValue>{};
+    return std::vector<ProcInitializerWithTypeInfo>{};
   }
   absl::btree_set<InterpValue> unique_instantiations;
-  std::vector<InterpValue> result;
-  for (const InterpValue& next : it->second) {
-    if (unique_instantiations.insert(next).second) {
+  std::vector<ProcInitializerWithTypeInfo> result;
+  for (const ProcInitializerWithTypeInfo& next : it->second) {
+    if (unique_instantiations.insert(next.initializer).second) {
       result.push_back(next);
     }
   }

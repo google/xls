@@ -328,4 +328,10 @@ absl::StatusOr<std::optional<const ProcDef*>> GetProcConstructedByFunction(
   return std::nullopt;
 }
 
+bool IsProcConstructor(const Function* function, const ProcDef* proc_def,
+                       const FunctionType& function_type) {
+  return function_type.return_type().IsProc() &&
+         &function_type.return_type().AsProc().struct_def_base() == proc_def;
+}
+
 }  // namespace xls::dslx

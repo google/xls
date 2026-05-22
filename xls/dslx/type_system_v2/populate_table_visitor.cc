@@ -2063,15 +2063,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status HandleStructDefBaseInternal(const StructDefBase* node) {
-    if (!node->IsParametric()) {
-      for (const StructMemberNode* member : node->members()) {
-        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(member, member->type()));
-      }
+    for (const StructMemberNode* member : node->members()) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(member, member->type()));
+    }
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           node,
           CreateStructOrProcAnnotation(
               module_, const_cast<StructDefBase*>(node), {}, std::nullopt)));
-    }
+
     return DefaultHandler(node);
   }
 

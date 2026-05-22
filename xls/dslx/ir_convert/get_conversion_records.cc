@@ -63,14 +63,27 @@ absl::StatusOr<ConversionRecord> MakeConversionRecord(
 
 // Variant for a `ProcDef` as opposed to a legacy `Proc`.
 absl::StatusOr<ConversionRecord> MakeConversionRecord(
-    const ProcDef* p, ProcId proc_id, TypeInfo* ti, ParametricEnv env, bool top,
-    std::optional<InterpValue> initializer = std::nullopt) {
+    const ProcDef* p, ProcId proc_id, bool top,
+    const ProcInitializerWithTypeInfo& canonical_initializer) {
   std::optional<Function*> next_fn = GetProcNextFunction(p);
   XLS_RET_CHECK(next_fn.has_value());
-  return ConversionRecord::Make(*next_fn, p->owner(), ti, std::move(env),
-                                proc_id, top,
-                                /*config_record=*/nullptr,
-                                /*init_value=*/initializer, p);
+
+  // TODO: https://github.com/google/xls/issues/4125 - We are only using the
+  // "config record" here as a place to store the TypeInfo for the constructor.
+  // Legacy procs need more of the record. We should get rid of the separate
+  // config record concept once we get rid of legacy procs.
+  XLS_ASSIGN_OR_RETURN(
+      ConversionRecord config_record,
+      ConversionRecord::Make(*next_fn, p->owner(),
+                             canonical_initializer.constructor_type_info,
+                             canonical_initializer.constructor_env, proc_id,
+                             false, nullptr, std::nullopt, p));
+
+  return ConversionRecord::Make(
+      *next_fn, p->owner(), canonical_initializer.next_type_info,
+      canonical_initializer.constructor_env, proc_id, top,
+      std::make_unique<ConversionRecord>(std::move(config_record)),
+      /*init_value=*/canonical_initializer.initializer, p);
 }
 
 // An AstNodeVisitor that creates ConversionRecords from appropriate AstNodes
@@ -244,7 +257,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       // We can still convert this function even though it's never been called.
       // Make sure we are using the right type info for imported functions.
       TypeInfo* invocation_ti = GetTypeInfo(f);
-      VLOG(5) << "Processing fn " << f->ToString();
+      VLOG(5) << "Processing fn " << f->ToString() << " with TI "
+              << invocation_ti->name();
       XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
                            MakeConversionRecord(const_cast<Function*>(f),
                                                 f->owner(), invocation_ti,
@@ -373,24 +387,29 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     XLS_RET_CHECK(next_fn.has_value());
 
     TypeInfo* proc_owner_ti = GetTypeInfo(p);
-    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> canonical_initializers,
-                         proc_owner_ti->GetCanonicalProcInitializers(p));
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<ProcInitializerWithTypeInfo> canonical_initializers,
+        proc_owner_ti->GetCanonicalProcInitializers(p));
     if (p->IsParametric() && canonical_initializers.empty()) {
       VLOG(5) << "No calls to parametric proc " << p->name_def()->ToString();
       return absl::OkStatus();
     }
-    for (const InterpValue& canonical_initializer : canonical_initializers) {
+    for (const ProcInitializerWithTypeInfo& canonical_initializer :
+         canonical_initializers) {
       // TODO: https://github.com/google/xls/issues/4125 - Exclude test-only
       // procs, and those only used in test-only contexts, if desired.
 
       VLOG(5)
           << "Making conversion record for canonical initializer of ProcDef: "
-          << canonical_initializer.ToString();
+          << canonical_initializer.initializer.ToString()
+          << " with constructor TI "
+          << canonical_initializer.constructor_type_info->name()
+          << " and next() TI " << canonical_initializer.next_type_info->name();
 
       XLS_ASSIGN_OR_RETURN(
           ConversionRecord cr,
-          MakeConversionRecord(p, proc_id_factory_->CreateProcId(p), type_info_,
-                               ParametricEnv(), /*top=*/top_ == *next_fn,
+          MakeConversionRecord(p, proc_id_factory_->CreateProcId(p),
+                               /*top=*/top_ == *next_fn,
                                canonical_initializer));
       records_.push_back(std::move(cr));
     }

@@ -483,7 +483,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status ConvertInvocation(
       const Invocation* invocation,
       std::optional<const ParametricContext*> caller_context,
-      bool short_circuit_if_duplicate = true) {
+      bool short_circuit_if_duplicate = true, bool convert_callee = true) {
     // Short-circuit re-processing the same invocation, except for map()
     // invocations, whose unusual parametric resolution makes this problematic.
     if (short_circuit_if_duplicate &&
@@ -557,7 +557,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     return ConvertParametricInvocation(
         invocation, caller_context, caller_or_target_struct_context,
-        function_and_target_object, caller, actual_args);
+        function_and_target_object, caller, actual_args, convert_callee);
   }
 
   absl::Status ConvertNonParametricInvocation(
@@ -654,7 +654,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<const ParametricContext*> caller_or_target_struct_context,
       const FunctionAndTargetObject function_and_target_object,
       std::optional<const Function*> caller,
-      std::vector<const Expr*> actual_args) {
+      std::vector<const Expr*> actual_args, bool convert_callee) {
     const Function* function = function_and_target_object.function;
     XLS_RETURN_IF_ERROR(ValidateParametricsAgainstBindings(
         function->parametric_bindings(), invocation->explicit_parametrics()));
@@ -757,13 +757,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // it's dealing with a parametric instance method. So we scrub these from
     // the table here, and the next step is to replace them with usable,
     // parametric-free types.
-    const NameRef* callee_variable =
-        *table_.GetTypeVariable(invocation->callee());
-    if (function->IsParametric()) {
-      XLS_RETURN_IF_ERROR(table_.RemoveTypeAnnotationsFromTypeVariable(
-          callee_variable, [](const TypeAnnotation* annotation) {
-            return annotation->IsAnnotation<MemberTypeAnnotation>();
-          }));
+    const NameRef* callee_variable = nullptr;
+    if (convert_callee) {
+      callee_variable = *table_.GetTypeVariable(invocation->callee());
+      if (function->IsParametric()) {
+        XLS_RETURN_IF_ERROR(table_.RemoveTypeAnnotationsFromTypeVariable(
+            callee_variable, [](const TypeAnnotation* annotation) {
+              return annotation->IsAnnotation<MemberTypeAnnotation>();
+            }));
+      }
     }
 
     const FunctionTypeAnnotation* parametric_free_function_type = nullptr;
@@ -848,9 +850,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
 
-    XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
-        caller_or_target_struct_context, callee_variable,
-        parametric_free_function_type));
+    if (convert_callee) {
+      XLS_RET_CHECK(callee_variable != nullptr);
+      XLS_RETURN_IF_ERROR(
+          table_.AddTypeAnnotationToVariableForParametricContext(
+              caller_or_target_struct_context, callee_variable,
+              parametric_free_function_type));
+    }
+
     XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
         caller_context, *table_.GetTypeVariable(invocation),
         parametric_free_function_type->return_type()));
@@ -859,7 +866,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // proc function, and generating it would be complicated due to the possible
     // use of proc-level parametrics. Unlike with impl-style member functions,
     // we don't have a target struct context for the proc.
-    if (!function->IsInProc()) {
+    if (convert_callee && !function->IsInProc()) {
       XLS_RETURN_IF_ERROR(
           GenerateTypeInfo(caller_context, invocation->callee()));
     }
@@ -876,8 +883,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(function, function, invocation_context));
     }
-    XLS_RETURN_IF_ERROR(NoteIfRequiresImplicitToken(
-        caller, function_and_target_object.function, invocation->callee()));
+
+    if (convert_callee) {
+      XLS_RETURN_IF_ERROR(NoteIfRequiresImplicitToken(
+          caller, function_and_target_object.function, invocation->callee()));
+    }
+
     XLS_RETURN_IF_ERROR(GenerateTypeInfo(caller_context, invocation));
 
     if (function->tag() == FunctionTag::kProcNext) {
@@ -907,6 +918,79 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           config_invocation, invocation, *config_ti, invocation_type_info,
           init_value));
     }
+
+    // The type of the enclosing struct, if any, must also be reachable from the
+    // TI of the function.
+    XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> struct_def,
+                         GetStructOrProcDef(function, import_data_));
+    if (struct_def.has_value()) {
+      XLS_RETURN_IF_ERROR(GenerateStructAndMemberTypes(
+          *struct_def, invocation_context, invocation_type_info));
+    }
+
+    // If we have just converted the constructor of some parametric ProcDef, we
+    // should also convert next(), because it will not be automatically
+    // traversed. To do this, we create a synthetic invocation of next(). The
+    // next() invocation AST is the same for any parametrics of the proc, so we
+    // only create that AST once, but we convert it for every parametric use of
+    // the proc.
+    if (struct_def.has_value() &&
+        (*struct_def)->kind() == AstNodeKind::kProcDef &&
+        (*struct_def)->IsParametric()) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> function_type,
+                           Concretize(parametric_free_function_type,
+                                      caller_or_target_struct_context));
+      if (IsProcConstructor(function,
+                            absl::down_cast<const ProcDef*>(*struct_def),
+                            function_type->AsFunction())) {
+        const std::optional<ImplMember> next_member =
+            (*(*struct_def)->impl())->GetMember("next");
+        XLS_RET_CHECK(next_member.has_value());
+        XLS_RET_CHECK(std::holds_alternative<Function*>(*next_member));
+        XLS_ASSIGN_OR_RETURN(const Invocation* next_invocation,
+                             GetOrCreateProcDefNextInvocation(
+                                 absl::down_cast<const ProcDef*>(*struct_def),
+                                 const_cast<Invocation*>(invocation),
+                                 parametric_free_function_type->return_type()));
+
+        // Note: the callee of the synthetic next invocation is a throw-away
+        // clone of the constructor invocation, so we just ignore that when
+        // converting next().
+        XLS_RETURN_IF_ERROR(ConvertInvocation(
+            next_invocation, caller_context,
+            /*short_circuit_if_duplicate=*/true, /*convert_callee=*/false));
+      }
+    }
+
+    return absl::OkStatus();
+  }
+
+  absl::Status GenerateStructAndMemberTypes(
+      const StructDefBase* struct_def, const ParametricContext* dest_context,
+      TypeInfo* dest_type_info) {
+    XLS_RET_CHECK(dest_context->self_type().has_value());
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete_self_type,
+                         Concretize(*dest_context->self_type(), dest_context));
+    VLOG(6) << "Concrete self type: " << concrete_self_type->ToString();
+    auto meta_self_type =
+        std::make_unique<MetaType>(std::move(concrete_self_type));
+    dest_type_info->SetItem(struct_def, *meta_self_type);
+
+    XLS_ASSIGN_OR_RETURN(
+        (absl::flat_hash_map<const NameDef*, ExprOrType> value_exprs),
+        table_.GetParametricValueExprs(dest_context));
+
+    for (const StructMemberNode* member : struct_def->members()) {
+      XLS_ASSIGN_OR_RETURN(const TypeAnnotation* member_type,
+                           GetParametricFreeType(member->type(), value_exprs,
+                                                 *dest_context->self_type()));
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete_member_type,
+                           Concretize(member_type, dest_context));
+      VLOG(6) << "Concrete member type for `" << member->ToString()
+              << "` is: " << concrete_member_type->ToString();
+      dest_type_info->SetItem(member, *concrete_member_type);
+    }
+
     return absl::OkStatus();
   }
 
@@ -1253,6 +1337,45 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return absl::OkStatus();
   }
 
+  // Creates a synthetic invocation of the next() function of a parametric
+  // ProcDef, and caches it by ProcDef pointer, in case this is later called for
+  // the same proc. Because the logic we need for converting the next() function
+  // of a parametric proc is in ConvertInvocation, we need a synthetic
+  // Invocation node in order to use it. For legacy procs, we had a similar
+  // thing in the parser.
+  absl::StatusOr<const Invocation*> GetOrCreateProcDefNextInvocation(
+      const ProcDef* proc_def, Expr* constructor_invocation,
+      const TypeAnnotation* target_object_type) {
+    auto it = proc_def_next_invocations_.find(proc_def);
+    if (it != proc_def_next_invocations_.end()) {
+      return it->second;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        AstNode * cloned_constructor_invocation,
+        table_.Clone(constructor_invocation, &NoopCloneReplacer));
+    Attr* callee = constructor_invocation->owner()->Make<Attr>(
+        Span::None(), absl::down_cast<Expr*>(cloned_constructor_invocation),
+        "next");
+    Invocation* invocation = constructor_invocation->owner()->Make<Invocation>(
+        constructor_invocation->span(), callee, std::vector<Expr*>{});
+    invocation->SetParentNonLexical(constructor_invocation->parent());
+    proc_def_next_invocations_.emplace_hint(it, proc_def, invocation);
+    std::unique_ptr<PopulateTableVisitor> visitor =
+        CreatePopulateTableVisitor(&module_, &table_, &import_data_,
+                                   /*typecheck_imported_module=*/nullptr);
+    std::optional<const NameRef*> constructor_invocation_var =
+        table_.GetTypeVariable(constructor_invocation);
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* invocation_var,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, invocation,
+            absl::StrCat("_synthetic_next_",
+                         (*constructor_invocation_var)->identifier())));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(invocation, invocation_var));
+    XLS_RETURN_IF_ERROR(visitor->PopulateFromInvocation(invocation));
+    return invocation;
+  }
+
   // Gets or creates the `ParametricContext` for a parameterization of a struct.
   // This boils down the `actual_parametrics` to `InterpValue`s and only deals
   // out one instance per set of equivalent `InterpValue`s for a struct. It
@@ -1262,7 +1385,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<const ParametricContext*> parent_context,
       const StructOrProcRef& ref, const AstNode* node) final {
     VLOG(6) << "Get or create parametric struct context for: "
-            << ref.def->identifier();
+            << ref.def->identifier() << " and " << ref.parametrics.size()
+            << " explicit parametrics.";
     XLS_ASSIGN_OR_RETURN(
         ParametricEnv parametric_env,
         GenerateParametricStructEnv(node->owner(), parent_context, *ref.def,
@@ -2992,6 +3116,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                       absl::flat_hash_set<const Invocation*>>
       converted_invocations_;
   absl::flat_hash_set<const Proc*> converted_procs_;
+
+  // Fabricated invocations for the next() functions of ProcDefs.
+  absl::flat_hash_map<const ProcDef*, const Invocation*>
+      proc_def_next_invocations_;
 
   SimplifiedTypeAnnotationCache simplified_type_annotation_cache_;
   absl::flat_hash_map<
