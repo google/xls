@@ -797,6 +797,7 @@ TEST_F(VisibilityAnalysisTest, MutuallyExclusivePrioritySelectCases) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto visibility, VisibilityAnalysis::Create(&operand_visibility,
                                                   bdd_engine.get(), &post_dom));
+  RecordProperty("ir", f->DumpIr(visibility->annotator()));
 
   EXPECT_TRUE(visibility->IsMutuallyExclusive(add.node(), sub.node()));
 }
@@ -856,6 +857,7 @@ TEST_F(VisibilityAnalysisTest, StateUsedInPredicateIsVisible) {
       auto visibility, VisibilityAnalysis::Create(&operand_visibility,
                                                   bdd_engine.get(), &post_dom));
 
+  RecordProperty("ir", f->DumpIr(visibility->annotator()));
   auto pred_bdd_node = bdd_engine->GetBddNode(TreeBitLocation(pred.node(), 0));
   ASSERT_TRUE(pred_bdd_node.has_value());
   EXPECT_EQ(*visibility->GetInfo(input.node()), pred_bdd_node.value())

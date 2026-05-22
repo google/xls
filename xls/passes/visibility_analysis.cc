@@ -35,6 +35,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -745,6 +746,17 @@ BddNodeIndex VisibilityAnalysis::ConservativeVisibilityByPruningEdges(
   }
 
   return bdd_query_engine_->bdd().one();
+}
+
+VisibilityAnnotator VisibilityAnalysis::annotator() const {
+  return VisibilityAnnotator(this);
+}
+
+Annotation VisibilityAnnotator::NodeAnnotation(Node* node) const {
+  return Annotation{
+      .suffix = absl::StrFormat(
+          "visible[%s]",
+          vis_->bdd_query_engine()->bdd().ToStringDnf(*vis_->GetInfo(node)))};
 }
 
 BddNodeIndex VisibilityAnalysis::VisibilityOfNearestPostDominator(

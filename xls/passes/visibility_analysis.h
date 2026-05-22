@@ -30,6 +30,7 @@
 #include "absl/types/span.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/change_listener.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/passes/bdd_evaluator.h"
@@ -178,6 +179,8 @@ class NodeImpactOnVisibilityAnalysis : public LazyNodeData<int64_t> {
   }
 };
 
+class VisibilityAnnotator;
+
 // The visibility of a node is the BDD expression that, if true, indicates that
 // the node's value propagates outside of the function or proc.
 //
@@ -227,6 +230,11 @@ class VisibilityAnalysis : public LazyNodeData<BddNodeIndex> {
                                              int64_t max_edges_to_handle) const;
 
   BddNodeIndex VisibilityOfNearestPostDominator(Node* node) const;
+
+  const BddQueryEngine* bdd_query_engine() const { return bdd_query_engine_; }
+
+  // Get an annotator for the IR this analsysis is performed on.
+  VisibilityAnnotator annotator() const;
 
  protected:
   BddNodeIndex ComputeInfo(
@@ -329,6 +337,16 @@ class SingleSelectVisibilityAnalysis
   void NodeDeleted(Node* node) override;
   void UserAdded(Node* node, Node* user) override;
   void UserRemoved(Node* node, Node* user) override;
+};
+
+class VisibilityAnnotator : public IrAnnotator {
+ public:
+  VisibilityAnnotator(const VisibilityAnalysis* vis) : vis_(vis) {}
+
+  Annotation NodeAnnotation(Node* node) const override;
+
+ private:
+  const VisibilityAnalysis* vis_;
 };
 
 }  // namespace xls
