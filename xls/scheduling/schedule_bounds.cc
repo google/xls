@@ -832,11 +832,6 @@ absl::Status ScheduleBounds::CheckBasicBounds() {
 absl::Status ScheduleBounds::CheckConstraints(std::optional<int64_t> fuel,
                                               bool stabilized) {
   auto main_result = [&]() -> absl::Status {
-    if (bounds_.empty()) {
-      // The schedule has no nodes in it. Either everything is dead or this is a
-      // trivial function.
-      return absl::OkStatus();
-    }
     int64_t before_max_last_stage_num =
         absl::c_min_element(bounds_, [](const auto& a, const auto& b) {
           return a.second.before_max < b.second.before_max;

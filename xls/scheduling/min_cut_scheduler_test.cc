@@ -19,24 +19,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
-#include "xls/common/status/matchers.h"
-#include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/ir/bits.h"
-#include "xls/ir/function_builder.h"
-#include "xls/ir/ir_test_base.h"
-#include "xls/ir/value.h"
-#include "xls/scheduling/schedule_graph.h"
-#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 namespace {
 
 using ::testing::ElementsAre;
 
-class MinCutSchedulerTest : public IrTestBase {};
-
-TEST_F(MinCutSchedulerTest, MinCutCycleOrders) {
+TEST(MinCutSchedulerTest, MinCutCycleOrders) {
   EXPECT_THAT(GetMinCutCycleOrders(0), ElementsAre(std::vector<int64_t>()));
   EXPECT_THAT(GetMinCutCycleOrders(1), ElementsAre(std::vector<int64_t>({0})));
   EXPECT_THAT(
@@ -58,48 +47,6 @@ TEST_F(MinCutSchedulerTest, MinCutCycleOrders) {
               ElementsAre(std::vector<int64_t>({0, 1, 2, 3, 4, 5, 6, 7}),
                           std::vector<int64_t>({7, 6, 5, 4, 3, 2, 1, 0}),
                           std::vector<int64_t>({3, 1, 0, 2, 5, 4, 6, 7})));
-}
-
-TEST_F(MinCutSchedulerTest, SimpleFunction) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  auto x = fb.Param("x", p->GetBitsType(32));
-  auto y = fb.Param("y", p->GetBitsType(32));
-  auto add = fb.Add(x, y);
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-
-  TestDelayEstimator delay_estimator;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ScheduleGraph graph,
-      ScheduleGraph::Create(f, /*dead_after_synthesis=*/{}));
-  MinCutScheduler scheduler(graph, delay_estimator);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ScheduleCycleMap cycle_map,
-      scheduler.Schedule(/*pipeline_stages=*/1,
-                         /*clock_period_ps=*/2, SchedulingFailureBehavior{}));
-  EXPECT_TRUE(cycle_map.contains(x.node()));
-  EXPECT_TRUE(cycle_map.contains(y.node()));
-  EXPECT_TRUE(cycle_map.contains(add.node()));
-}
-
-TEST_F(MinCutSchedulerTest, SimpleProc) {
-  auto p = CreatePackage();
-  ProcBuilder pb(TestName(), p.get());
-  pb.StateElement("x", Value(UBits(0, 32)));
-  pb.Next(pb.GetStateParam(0),
-          pb.Add(pb.GetStateParam(0), pb.Literal(UBits(1, 32))));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-
-  TestDelayEstimator delay_estimator;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ScheduleGraph graph,
-      ScheduleGraph::Create(proc, /*dead_after_synthesis=*/{}));
-  MinCutScheduler scheduler(graph, delay_estimator);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ScheduleCycleMap cycle_map,
-      scheduler.Schedule(/*pipeline_stages=*/1,
-                         /*clock_period_ps=*/2, SchedulingFailureBehavior{}));
-  EXPECT_TRUE(cycle_map.contains(pb.GetStateParam(0).node()));
 }
 
 }  // namespace

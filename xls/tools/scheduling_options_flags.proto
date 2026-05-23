@@ -103,6 +103,4 @@ message SchedulingOptionsFlagsProto {
       37;
   // What sort of scheduler one should use.
   optional ProtoSchedulingStrategy scheduling_strategy = 38;
-  // What sort of scheduler to use when finding bounds.
-  optional ProtoSchedulingStrategy find_bounds_strategy = 39;
 }

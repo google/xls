@@ -109,70 +109,15 @@ using ::testing::Contains;
 using ::testing::Each;
 using ::testing::Gt;
 using ::testing::HasSubstr;
-using ::testing::IsEmpty;
 using ::testing::IsSupersetOf;
 using ::testing::Key;
 using ::testing::Not;
 using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedPointwise;
 
-struct Strategies {
-  SchedulingStrategy primary;
-  SchedulingStrategy bounds;
-  template <typename Sink>
-  friend void AbslStringify(Sink& sink, const Strategies& s) {
-    absl::Format(&sink, "primary_%v_bounds_%v", s.primary, s.bounds);
-  }
-};
-class PipelineScheduleTestBase
-    : public IrTestBase,
-      public testing::WithParamInterface<Strategies> {
- public:
-  PipelineScheduleTestBase() = default;
-  PipelineScheduleTestBase(PipelineScheduleTestBase&& other) = delete;
-  PipelineScheduleTestBase(const PipelineScheduleTestBase& other) = delete;
-  PipelineScheduleTestBase& operator=(PipelineScheduleTestBase&& other) =
-      delete;
-  PipelineScheduleTestBase& operator=(const PipelineScheduleTestBase& other) =
-      delete;
-  SchedulingOptions options() const {
-    return SchedulingOptions(GetParam().primary, GetParam().bounds);
-  }
-  bool is_sdc() const { return GetParam().primary == SchedulingStrategy::SDC; }
-  bool is_asap() const {
-    return GetParam().primary == SchedulingStrategy::ASAP;
-  }
-  bool is_random() const {
-    return GetParam().primary == SchedulingStrategy::RANDOM;
-  }
-  bool is_min_cut() const {
-    return GetParam().primary == SchedulingStrategy::MIN_CUT;
-  }
-};
+class PipelineScheduleTest : public IrTestBase {};
 
-// ASAP, SDC, and Random primary, ASAP and SDC bounds in all combos
-class PipelineScheduleTest : public PipelineScheduleTestBase {};
-
-// Tests for error messages from scheduling. Currently does SDC ASAP in all
-// combos since those 2 specifically have similar error formats.
-//
-// TODO(allight): Really the error messages should be created outside of the
-// scheduler themselves so that we can have nice test error messages without
-// having to depend on a particular implementation of scheduling.
-class PipelineScheduleErrorTest : public PipelineScheduleTestBase {};
-// Error message tests where only SDC can give all the information we are
-// looking for. Most of these are checking for throughput change suggestions
-// that SDC can extract from the model but ASAP cannot.
-class SdcOnlyPipelineScheduleErrorTest : public PipelineScheduleTestBase {};
-// Pure asap
-class AsapPipelineScheduleTest : public PipelineScheduleTestBase {};
-// Pure SDC
-class SdcPipelineScheduleTest : public PipelineScheduleTestBase {};
-class SdcPrimaryPipelineScheduleTest : public PipelineScheduleTestBase {};
-// Random scheduler only.
-class RandomPipelineScheduleTest : public PipelineScheduleTestBase {};
-
-TEST_P(PipelineScheduleTest, SelectsEntry) {
+TEST_F(PipelineScheduleTest, SelectsEntry) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Param("x", p->GetBitsType(32));
@@ -197,7 +142,7 @@ TEST_P(PipelineScheduleTest, SelectsEntry) {
   EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(m::Literal()));
 }
 
-TEST_P(AsapPipelineScheduleTest, AsapScheduleTrivial) {
+TEST_F(PipelineScheduleTest, AsapScheduleTrivial) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Param("x", p->GetBitsType(32));
@@ -213,7 +158,7 @@ TEST_P(AsapPipelineScheduleTest, AsapScheduleTrivial) {
   EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(m::Param()));
 }
 
-TEST_P(PipelineScheduleErrorTest, OutrightInfeasibleSchedule) {
+TEST_F(PipelineScheduleTest, OutrightInfeasibleSchedule) {
   // Create a schedule in which the critical path doesn't even fit in the
   // requested clock_period * stages.
   auto p = CreatePackage();
@@ -222,15 +167,17 @@ TEST_P(PipelineScheduleErrorTest, OutrightInfeasibleSchedule) {
   fb.Not(fb.Not(fb.Not(fb.Not(x))));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  ASSERT_THAT(
-      RunPipelineSchedule(f, TestDelayEstimator(),
-                          options().clock_period_ps(1).pipeline_stages(2))
-          .status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("--pipeline_stages=4")));
+  ASSERT_THAT(RunPipelineSchedule(f, TestDelayEstimator(),
+                                  SchedulingOptions(SchedulingStrategy::MIN_CUT)
+                                      .clock_period_ps(1)
+                                      .pipeline_stages(2))
+                  .status(),
+              StatusIs(absl::StatusCode::kResourceExhausted,
+                       HasSubstr("cannot be scheduled in 2 stages. Computed "
+                                 "minimum stage count is 4.")));
 }
 
-TEST_P(PipelineScheduleErrorTest, InfeasibleScheduleWithBinPacking) {
+TEST_F(PipelineScheduleTest, InfeasibleScheduleWithBinPacking) {
   // Create a schedule in which the critical path fits in the requested
   // clock_period * stages, but there is no way to bin pack the instructions
   // into the stages such that the schedule is met.
@@ -240,15 +187,17 @@ TEST_P(PipelineScheduleErrorTest, InfeasibleScheduleWithBinPacking) {
   fb.Not(fb.UDiv(fb.Not(x), fb.Not(x)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  ASSERT_THAT(
-      RunPipelineSchedule(f, TestDelayEstimator(),
-                          options().clock_period_ps(2).pipeline_stages(2))
-          .status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("--pipeline_stages=3")));
+  ASSERT_THAT(RunPipelineSchedule(f, TestDelayEstimator(),
+                                  SchedulingOptions(SchedulingStrategy::MIN_CUT)
+                                      .clock_period_ps(2)
+                                      .pipeline_stages(2))
+                  .status(),
+              StatusIs(absl::StatusCode::kResourceExhausted,
+                       HasSubstr("cannot be scheduled in 2 stages. Computed "
+                                 "minimum stage count is 3.")));
 }
 
-TEST_P(PipelineScheduleErrorTest, InfeasibleScheduleWithReturnValueUsers) {
+TEST_F(PipelineScheduleTest, InfeasibleScheduleWithReturnValueUsers) {
   // Create function which has users of the return value node such that the
   // return value cannot be scheduled in the final cycle.
   auto p = CreatePackage();
@@ -260,22 +209,25 @@ TEST_P(PipelineScheduleErrorTest, InfeasibleScheduleWithReturnValueUsers) {
 
   ASSERT_THAT(
       RunPipelineSchedule(f, TestDelayEstimator(),
-                          options().clock_period_ps(1).pipeline_stages(2))
+                          SchedulingOptions(SchedulingStrategy::MIN_CUT)
+                              .clock_period_ps(1)
+                              .pipeline_stages(2))
           .status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("cannot achieve the specified clock period. Try "
-                         "`--clock_period_ps=2`")));
+      StatusIs(absl::StatusCode::kResourceExhausted,
+               HasSubstr("cannot be scheduled in any number of stages")));
 }
 
-TEST_P(AsapPipelineScheduleTest, AsapScheduleNoParameters) {
+TEST_F(PipelineScheduleTest, AsapScheduleNoParameters) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Negate(fb.Add(fb.Literal(UBits(42, 8)), fb.Literal(UBits(100, 8))));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(f, TestDelayEstimator(),
-                                               options().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          f, TestDelayEstimator(),
+          SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
@@ -283,7 +235,7 @@ TEST_P(AsapPipelineScheduleTest, AsapScheduleNoParameters) {
   EXPECT_THAT(schedule.nodes_in_cycle(1), UnorderedElementsAre(m::Neg()));
 }
 
-TEST_P(AsapPipelineScheduleTest, AsapScheduleIncrementChain) {
+TEST_F(PipelineScheduleTest, AsapScheduleIncrementChain) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   auto x = fb.Param("x", p->GetBitsType(32));
@@ -291,9 +243,11 @@ TEST_P(AsapPipelineScheduleTest, AsapScheduleIncrementChain) {
          fb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(f, TestDelayEstimator(),
-                                               options().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          f, TestDelayEstimator(),
+          SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 3);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
@@ -303,7 +257,7 @@ TEST_P(AsapPipelineScheduleTest, AsapScheduleIncrementChain) {
   EXPECT_THAT(schedule.nodes_in_cycle(2), UnorderedElementsAre(m::Add()));
 }
 
-TEST_P(SdcPrimaryPipelineScheduleTest, MinimizeRegisterBitslices) {
+TEST_F(PipelineScheduleTest, MinimizeRegisterBitslices) {
   // When minimizing registers, bit-slices should be hoisted in the schedule if
   // their operand is not otherwise live, and sunk in the schedule if their
   // operand *is* otherwise live.
@@ -319,9 +273,10 @@ TEST_P(SdcPrimaryPipelineScheduleTest, MinimizeRegisterBitslices) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(f, TestDelayEstimator(),
-                                               options().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
@@ -332,7 +287,7 @@ TEST_P(SdcPrimaryPipelineScheduleTest, MinimizeRegisterBitslices) {
       UnorderedElementsAre(m::BitSlice(m::Param("x")), m::Neg(), m::Concat()));
 }
 
-TEST_P(AsapPipelineScheduleTest, AsapScheduleComplex) {
+TEST_F(PipelineScheduleTest, AsapScheduleComplex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -343,9 +298,11 @@ TEST_P(AsapPipelineScheduleTest, AsapScheduleComplex) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(f, TestDelayEstimator(),
-                                               options().clock_period_ps(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          f, TestDelayEstimator(),
+          SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(2)));
 
   EXPECT_EQ(schedule.length(), 3);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
@@ -356,7 +313,7 @@ TEST_P(AsapPipelineScheduleTest, AsapScheduleComplex) {
   EXPECT_THAT(schedule.nodes_in_cycle(2), UnorderedElementsAre(m::Neg()));
 }
 
-TEST_P(PipelineScheduleTest, JustClockPeriodGiven) {
+TEST_F(PipelineScheduleTest, JustClockPeriodGiven) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -367,9 +324,10 @@ TEST_P(PipelineScheduleTest, JustClockPeriodGiven) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(func, TestDelayEstimator(),
-                                               options().clock_period_ps(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(2)));
 
   // Returns the unique scheduled Ops in the given cycle.
   auto scheduled_ops = [&](int64_t cycle) {
@@ -381,26 +339,15 @@ TEST_P(PipelineScheduleTest, JustClockPeriodGiven) {
   };
 
   EXPECT_EQ(schedule.length(), 3);
-  if (is_sdc()) {
-    EXPECT_THAT(scheduled_ops(0),
-                UnorderedElementsAre(Op::kParam, Op::kOr, Op::kNot));
-    EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kAdd, Op::kConcat,
-                                                       Op::kUMul, Op::kSub));
-    EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNeg));
-    EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre());
-  } else if (is_asap()) {
-    EXPECT_THAT(scheduled_ops(0),
-                UnorderedElementsAre(Op::kParam, Op::kOr, Op::kNot, Op::kAdd));
-    EXPECT_THAT(scheduled_ops(1),
-                UnorderedElementsAre(Op::kConcat, Op::kUMul, Op::kSub));
-    EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNeg));
-    EXPECT_THAT(scheduled_ops(3), IsEmpty());
-  } else {
-    EXPECT_TRUE(is_random());
-  }
+  EXPECT_THAT(scheduled_ops(0),
+              UnorderedElementsAre(Op::kParam, Op::kOr, Op::kNot));
+  EXPECT_THAT(scheduled_ops(1),
+              UnorderedElementsAre(Op::kAdd, Op::kConcat, Op::kUMul, Op::kSub));
+  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNeg));
+  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre());
 }
 
-TEST_P(PipelineScheduleTest, TestVerifyTiming) {
+TEST_F(PipelineScheduleTest, TestVerifyTiming) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -411,9 +358,10 @@ TEST_P(PipelineScheduleTest, TestVerifyTiming) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(func, TestDelayEstimator(),
-                                               options().clock_period_ps(5)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(5)));
 
   EXPECT_EQ(schedule.length(), 1);
   XLS_EXPECT_OK(
@@ -438,7 +386,42 @@ TEST_P(PipelineScheduleTest, TestVerifyTiming) {
               "(3ps): add.3 (1ps) -> neg.4 (1ps) -> sub.5 (1ps)")));
 }
 
-TEST_P(PipelineScheduleTest, ClockPeriodAndPipelineLengthGiven) {
+TEST_F(PipelineScheduleTest, ClockPeriodAndPipelineLengthGiven) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  auto x = fb.Param("x", u32);
+  auto y = fb.Param("y", u32);
+  auto z = fb.Param("z", u32);
+  fb.Negate(fb.Concat({(fb.Not(fb.Negate(x | y)) - z) * x, z + z}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          func, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(2).pipeline_stages(4)));
+
+  // Returns the unique scheduled Ops in the given cycle.
+  auto scheduled_ops = [&](int64_t cycle) {
+    absl::flat_hash_set<Op> ops;
+    for (const auto& node : schedule.nodes_in_cycle(cycle)) {
+      ops.insert(node->op());
+    }
+    return ops;
+  };
+
+  EXPECT_EQ(schedule.length(), 4);
+  EXPECT_THAT(scheduled_ops(0),
+              UnorderedElementsAre(Op::kParam, Op::kOr, Op::kNeg));
+  EXPECT_THAT(scheduled_ops(1),
+              UnorderedElementsAre(Op::kAdd, Op::kNot, Op::kSub));
+  EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kConcat, Op::kUMul));
+  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kNeg));
+}
+
+TEST_F(PipelineScheduleTest, JustPipelineLengthGiven) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -452,52 +435,7 @@ TEST_P(PipelineScheduleTest, ClockPeriodAndPipelineLengthGiven) {
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(func, TestDelayEstimator(),
-                          options().clock_period_ps(2).pipeline_stages(4)));
-
-  // Returns the unique scheduled Ops in the given cycle.
-  auto scheduled_ops = [&](int64_t cycle) {
-    absl::flat_hash_set<Op> ops;
-    for (const auto& node : schedule.nodes_in_cycle(cycle)) {
-      ops.insert(node->op());
-    }
-    return ops;
-  };
-
-  EXPECT_EQ(schedule.length(), 4);
-  if (is_sdc()) {
-    EXPECT_THAT(scheduled_ops(0),
-                UnorderedElementsAre(Op::kParam, Op::kOr, Op::kNeg));
-    EXPECT_THAT(scheduled_ops(1),
-                UnorderedElementsAre(Op::kAdd, Op::kNot, Op::kSub));
-    EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kConcat, Op::kUMul));
-    EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kNeg));
-  } else if (is_asap()) {
-    // Since ASAP doesn't minimize regs the assignments are slightly different.
-    EXPECT_THAT(scheduled_ops(0),
-                UnorderedElementsAre(Op::kParam, Op::kOr, Op::kNeg, Op::kAdd));
-    EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kNot, Op::kSub));
-    EXPECT_THAT(scheduled_ops(2),
-                UnorderedElementsAre(Op::kConcat, Op::kUMul, Op::kNeg));
-    EXPECT_THAT(scheduled_ops(3), IsEmpty());
-  } else {
-    EXPECT_TRUE(is_random());
-  }
-}
-
-TEST_P(PipelineScheduleTest, JustPipelineLengthGiven) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  Type* u32 = p->GetBitsType(32);
-  auto x = fb.Param("x", u32);
-  auto y = fb.Param("y", u32);
-  auto z = fb.Param("z", u32);
-  fb.Negate(fb.Concat({(fb.Not(fb.Negate(x | y)) - z) * x, z + z}));
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
-
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(func, TestDelayEstimator(),
-                                               options().pipeline_stages(6)));
+                          SchedulingOptions().pipeline_stages(6)));
 
   // Returns the unique scheduled Ops in the given cycle.
   auto scheduled_ops = [&](int64_t cycle) {
@@ -513,28 +451,15 @@ TEST_P(PipelineScheduleTest, JustPipelineLengthGiven) {
   // The maximum delay of any stage should be minimum feasible value. In this
   // case it is 1ps, which means there should be no dependent instructions in
   // single cycle.
-  if (is_random()) {
-    return;
-  }
-  EXPECT_TRUE(is_sdc() || is_asap());
-  if (is_sdc()) {
-    EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam, Op::kOr));
-  } else {
-    EXPECT_THAT(scheduled_ops(0),
-                UnorderedElementsAre(Op::kParam, Op::kOr, Op::kAdd));
-  }
+  EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam, Op::kOr));
   EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kNeg));
   EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNot));
-  if (is_sdc()) {
-    EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kAdd, Op::kSub));
-  } else {
-    EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kSub));
-  }
+  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kAdd, Op::kSub));
   EXPECT_THAT(scheduled_ops(4), UnorderedElementsAre(Op::kConcat, Op::kUMul));
   EXPECT_THAT(scheduled_ops(5), UnorderedElementsAre(Op::kNeg));
 }
 
-TEST_P(PipelineScheduleTest, LongPipelineLength) {
+TEST_F(PipelineScheduleTest, LongPipelineLength) {
   // Generate an absurdly long pipeline schedule. Most stages are empty, but it
   // should not crash.
   auto p = CreatePackage();
@@ -546,39 +471,25 @@ TEST_P(PipelineScheduleTest, LongPipelineLength) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(func, TestDelayEstimator(),
-                                               options().pipeline_stages(100)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(100)));
 
   EXPECT_EQ(schedule.length(), 100);
   // Most stages should be empty.
-  if (is_random()) {
-    return;
-  }
-  EXPECT_TRUE(is_sdc() || is_asap());
-  if (is_sdc()) {
-    EXPECT_THAT(schedule.nodes_in_cycle(0),
-                UnorderedElementsAre(x.node(), bitslice.node()));
-  } else {
-    EXPECT_THAT(
-        schedule.nodes_in_cycle(0),
-        UnorderedElementsAre(x.node(), bitslice.node(), zero_ext.node()));
-  }
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              UnorderedElementsAre(x.node(), bitslice.node()));
   // The bitslice is the narrowest among the chain of operations so it should
-  // precede the long chain of empty stages if we are SDC. It can fit in the
-  // first stage so ASAP will place it there.
+  // precede the long chain of empty stages.
   for (int64_t i = 1; i < 99; ++i) {
     EXPECT_THAT(schedule.nodes_in_cycle(i), UnorderedElementsAre());
   }
-  if (is_sdc()) {
-    EXPECT_THAT(schedule.nodes_in_cycle(99),
-                UnorderedElementsAre(zero_ext.node()));
-  } else {
-    EXPECT_THAT(schedule.nodes_in_cycle(99), IsEmpty());
-  }
+  EXPECT_THAT(schedule.nodes_in_cycle(99),
+              UnorderedElementsAre(zero_ext.node()));
 }
 
-TEST_P(PipelineScheduleTest, ClockPeriodMargin) {
+TEST_F(PipelineScheduleTest, ClockPeriodMargin) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -588,9 +499,10 @@ TEST_P(PipelineScheduleTest, ClockPeriodMargin) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(func, TestDelayEstimator(),
-                                               options().clock_period_ps(3)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(3)));
   EXPECT_EQ(schedule.length(), 2);
 
   {
@@ -598,7 +510,7 @@ TEST_P(PipelineScheduleTest, ClockPeriodMargin) {
         PipelineSchedule schedule,
         RunPipelineSchedule(
             func, TestDelayEstimator(),
-            options().clock_period_ps(3).clock_margin_percent(0)));
+            SchedulingOptions().clock_period_ps(3).clock_margin_percent(0)));
     EXPECT_EQ(schedule.length(), 2);
   }
   {
@@ -606,7 +518,7 @@ TEST_P(PipelineScheduleTest, ClockPeriodMargin) {
         PipelineSchedule schedule,
         RunPipelineSchedule(
             func, TestDelayEstimator(),
-            options().clock_period_ps(3).clock_margin_percent(33)));
+            SchedulingOptions().clock_period_ps(3).clock_margin_percent(33)));
     EXPECT_EQ(schedule.length(), 3);
   }
   {
@@ -614,13 +526,13 @@ TEST_P(PipelineScheduleTest, ClockPeriodMargin) {
         PipelineSchedule schedule,
         RunPipelineSchedule(
             func, TestDelayEstimator(),
-            options().clock_period_ps(3).clock_margin_percent(66)));
+            SchedulingOptions().clock_period_ps(3).clock_margin_percent(66)));
     EXPECT_EQ(schedule.length(), 6);
   }
   EXPECT_THAT(
       RunPipelineSchedule(
           func, TestDelayEstimator(),
-          options().clock_period_ps(3).clock_margin_percent(200))
+          SchedulingOptions().clock_period_ps(3).clock_margin_percent(200))
           .status(),
       absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
@@ -629,11 +541,7 @@ TEST_P(PipelineScheduleTest, ClockPeriodMargin) {
               "Original clock period: 3ps, clock margin: 200%")));
 }
 
-TEST_P(PipelineScheduleTest, PeriodRelaxation) {
-  if (is_random()) {
-    GTEST_SKIP() << "Relaxation not guarneteed to improve schedule quality "
-                    "with random scheduler.";
-  }
+TEST_F(PipelineScheduleTest, PeriodRelaxation) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -656,9 +564,10 @@ TEST_P(PipelineScheduleTest, PeriodRelaxation) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(func, TestDelayEstimator(),
-                                               options().pipeline_stages(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(2)));
   EXPECT_EQ(schedule.length(), 2);
   int64_t reg_count_default = schedule.CountFinalInteriorPipelineRegisters();
 
@@ -667,7 +576,7 @@ TEST_P(PipelineScheduleTest, PeriodRelaxation) {
         PipelineSchedule schedule,
         RunPipelineSchedule(
             func, TestDelayEstimator(),
-            options().pipeline_stages(2).period_relaxation_percent(
+            SchedulingOptions().pipeline_stages(2).period_relaxation_percent(
                 relax_percent)));
     EXPECT_EQ(schedule.length(), 2);
     int64_t reg_count_relaxed = schedule.CountFinalInteriorPipelineRegisters();
@@ -675,7 +584,7 @@ TEST_P(PipelineScheduleTest, PeriodRelaxation) {
   }
 }
 
-TEST_P(PipelineScheduleTest, SerializeAndDeserialize) {
+TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -684,9 +593,10 @@ TEST_P(PipelineScheduleTest, SerializeAndDeserialize) {
   auto z = fb.Param("z", u32);
   fb.Negate(fb.Concat({(fb.Not(fb.Negate(x | y)) - z) * x, z + z}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(func, TestDelayEstimator(),
-                                               options().pipeline_stages(3)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   ASSERT_TRUE(schedule.min_clock_period_ps().has_value());
   XLS_ASSERT_OK_AND_ASSIGN(PipelineScheduleProto proto,
@@ -705,7 +615,7 @@ TEST_P(PipelineScheduleTest, SerializeAndDeserialize) {
   EXPECT_EQ(clone.length(), schedule.length());
 }
 
-TEST_P(PipelineScheduleTest, NodeDelayInScheduleProto) {
+TEST_F(PipelineScheduleTest, NodeDelayInScheduleProto) {
   // Tests that node and path delays are serialized in the schedule proto
   // using trivial pipeline: 3 stages of 2 x 1-bit inverters.
   auto p = CreatePackage();
@@ -713,9 +623,10 @@ TEST_P(PipelineScheduleTest, NodeDelayInScheduleProto) {
   auto x = fb.Param("x", p->GetBitsType(1));
   fb.Not(fb.Not(fb.Not(fb.Not(fb.Not(fb.Not(x))))));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(func, TestDelayEstimator(),
-                                               options().pipeline_stages(3)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(PipelineScheduleProto proto,
                            schedule.ToProto(TestDelayEstimator()));
@@ -728,7 +639,7 @@ TEST_P(PipelineScheduleTest, NodeDelayInScheduleProto) {
   }
 }
 
-TEST_P(PipelineScheduleTest, ProcSchedule) {
+TEST_F(PipelineScheduleTest, ProcSchedule) {
   Package p("p");
   Type* u16 = p.GetBitsType(16);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -744,9 +655,10 @@ TEST_P(PipelineScheduleTest, ProcSchedule) {
   BValue send = pb.Send(out_ch, out);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, TestDelayEstimator(),
-                                               options().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 3);
 
@@ -754,7 +666,7 @@ TEST_P(PipelineScheduleTest, ProcSchedule) {
   EXPECT_EQ(schedule.cycle(send.node()), 2);
 }
 
-TEST_P(PipelineScheduleTest, StatelessProcSchedule) {
+TEST_F(PipelineScheduleTest, StatelessProcSchedule) {
   Package p("p");
   Type* u16 = p.GetBitsType(16);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -769,9 +681,10 @@ TEST_P(PipelineScheduleTest, StatelessProcSchedule) {
   BValue send = pb.Send(out_ch, out);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, TestDelayEstimator(),
-                                               options().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 3);
 
@@ -779,7 +692,7 @@ TEST_P(PipelineScheduleTest, StatelessProcSchedule) {
   EXPECT_EQ(schedule.cycle(send.node()), 2);
 }
 
-TEST_P(PipelineScheduleTest, MultistateProcSchedule) {
+TEST_F(PipelineScheduleTest, MultistateProcSchedule) {
   Package p("p");
   Type* u16 = p.GetBitsType(16);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -797,22 +710,20 @@ TEST_P(PipelineScheduleTest, MultistateProcSchedule) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build({pb.Add(st0, rcv), pb.Subtract(st1, rcv)}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, TestDelayEstimator(),
-                                               options().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 3);
 
-  if (is_random()) {
-    return;
-  }
   EXPECT_EQ(schedule.cycle(st0.node()), 0);
   EXPECT_EQ(schedule.cycle(st1.node()), 0);
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
   EXPECT_EQ(schedule.cycle(send.node()), 2);
 }
 
-TEST_P(PipelineScheduleTest, ProcWithConditionalReceive) {
+TEST_F(PipelineScheduleTest, ProcWithConditionalReceive) {
   // Test a proc with a conditional receive.
   Package p("p");
   Type* u16 = p.GetBitsType(16);
@@ -830,22 +741,20 @@ TEST_P(PipelineScheduleTest, ProcWithConditionalReceive) {
   BValue send = pb.Send(out_ch, out);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, TestDelayEstimator(),
-                                               options().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 3);
 
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
-  // Literals are "untimed" and not in the schedule for SDC.
-  // TODO(allight): We might want to match this with ASAP and remove this check.
-  if (is_sdc()) {
-    EXPECT_FALSE(schedule.IsScheduled(cond.node()));
-  }
+  // Literals are "untimed" and not in the schedule.
+  EXPECT_FALSE(schedule.IsScheduled(cond.node()));
   EXPECT_EQ(schedule.cycle(send.node()), 2);
 }
 
-TEST_P(PipelineScheduleTest, ProcWithConditionalReceiveLongCondition) {
+TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveLongCondition) {
   // Test a proc with a conditional receive. The receive condition takes too
   // long to compute in the same cycle as the receive so the receive is pushed
   // to stage 1.
@@ -864,19 +773,18 @@ TEST_P(PipelineScheduleTest, ProcWithConditionalReceiveLongCondition) {
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   pb.Send(out_ch, out);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, TestDelayEstimator(),
-                                               options().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 5);
 
   EXPECT_EQ(schedule.cycle(cond.node()), 1);
-  // NB ASAP location is cycle 1 but since the condition is 1 bit and the recv'd
-  // value is 16 SDC pushes it back one cycle to save register bits.
-  EXPECT_GE(schedule.cycle(rcv.node()), 1);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 2);
 }
 
-TEST_P(PipelineScheduleTest, ReceiveFollowedBySend) {
+TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -897,14 +805,15 @@ TEST_P(PipelineScheduleTest, ReceiveFollowedBySend) {
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, *delay_estimator,
-                                               options().pipeline_stages(5)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(5)));
   EXPECT_EQ(schedule.length(), 5);
   EXPECT_GE(schedule.cycle(send.node()), schedule.cycle(rcv.node()));
 }
 
-TEST_P(PipelineScheduleErrorTest, SendFollowedByReceiveCannotBeInSameCycle) {
+TEST_F(PipelineScheduleTest, SendFollowedByReceiveCannotBeInSameCycle) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -924,20 +833,20 @@ TEST_P(PipelineScheduleErrorTest, SendFollowedByReceiveCannotBeInSameCycle) {
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  ASSERT_THAT(
-      RunPipelineSchedule(proc, *delay_estimator, options().pipeline_stages(1)),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("--pipeline_stages=2")));
+  ASSERT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, *delay_estimator,
-                          options().clock_period_ps(10'000)));
+                          SchedulingOptions().clock_period_ps(10'000)));
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_EQ(schedule.cycle(send.node()), 0);
   EXPECT_EQ(schedule.cycle(rcv.node()), 1);
 }
 
-TEST_P(PipelineScheduleErrorTest, SendFollowedByReceiveIfCannotBeInSameCycle) {
+TEST_F(PipelineScheduleTest, SendFollowedByReceiveIfCannotBeInSameCycle) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -957,20 +866,20 @@ TEST_P(PipelineScheduleErrorTest, SendFollowedByReceiveIfCannotBeInSameCycle) {
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  ASSERT_THAT(
-      RunPipelineSchedule(proc, *delay_estimator, options().pipeline_stages(1)),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("--pipeline_stages=2")));
+  ASSERT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, *delay_estimator,
-                          options().clock_period_ps(10'000)));
+                          SchedulingOptions().clock_period_ps(10'000)));
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_EQ(schedule.cycle(send.node()), 0);
   EXPECT_EQ(schedule.cycle(rcv_if.node()), 1);
 }
 
-TEST_P(PipelineScheduleErrorTest,
+TEST_F(PipelineScheduleTest,
        SendFollowedByNonblockingReceiveCannotBeInSameCycle) {
   Package package = Package(TestName());
 
@@ -991,20 +900,20 @@ TEST_P(PipelineScheduleErrorTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  ASSERT_THAT(
-      RunPipelineSchedule(proc, *delay_estimator, options().pipeline_stages(1)),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("--pipeline_stages=2")));
+  ASSERT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, *delay_estimator,
-                          options().clock_period_ps(10'000)));
+                          SchedulingOptions().clock_period_ps(10'000)));
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_EQ(schedule.cycle(send.node()), 0);
   EXPECT_EQ(schedule.cycle(rcv.node()), 1);
 }
 
-TEST_P(PipelineScheduleErrorTest,
+TEST_F(PipelineScheduleTest,
        SendFollowedByNonblockingReceiveIfCannotBeInSameCycle) {
   Package package = Package(TestName());
 
@@ -1026,20 +935,20 @@ TEST_P(PipelineScheduleErrorTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  ASSERT_THAT(
-      RunPipelineSchedule(proc, *delay_estimator, options().pipeline_stages(1)),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("--pipeline_stages=2")));
+  ASSERT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, *delay_estimator,
-                          options().clock_period_ps(10'000)));
+                          SchedulingOptions().clock_period_ps(10'000)));
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_EQ(schedule.cycle(send.node()), 0);
   EXPECT_EQ(schedule.cycle(rcv_if.node()), 1);
 }
 
-TEST_P(PipelineScheduleErrorTest,
+TEST_F(PipelineScheduleTest,
        SendFollowedIndirectlyByReceiveCannotBeInSameCycle) {
   Package package = Package(TestName());
 
@@ -1063,20 +972,20 @@ TEST_P(PipelineScheduleErrorTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  ASSERT_THAT(
-      RunPipelineSchedule(proc, *delay_estimator, options().pipeline_stages(1)),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("--pipeline_stages=2")));
+  ASSERT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, *delay_estimator,
-                          options().clock_period_ps(10'000)));
+                          SchedulingOptions().clock_period_ps(10'000)));
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_EQ(schedule.cycle(send.node()), 0);
   EXPECT_EQ(schedule.cycle(rcv.node()), 1);
 }
 
-TEST_P(PipelineScheduleTest, SendFollowedByDelayedReceive) {
+TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceive) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -1097,18 +1006,15 @@ TEST_P(PipelineScheduleTest, SendFollowedByDelayedReceive) {
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, *delay_estimator,
-                                               options().pipeline_stages(5)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(5)));
   EXPECT_EQ(schedule.length(), 5);
-  if (is_random()) {
-    EXPECT_GE(schedule.cycle(rcv.node()) - schedule.cycle(send.node()), 3);
-  } else {
-    EXPECT_EQ(schedule.cycle(rcv.node()) - schedule.cycle(send.node()), 3);
-  }
+  EXPECT_EQ(schedule.cycle(rcv.node()) - schedule.cycle(send.node()), 3);
 }
 
-TEST_P(PipelineScheduleTest, SendFollowedByDelayedReceiveWithState) {
+TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceiveWithState) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -1131,14 +1037,16 @@ TEST_P(PipelineScheduleTest, SendFollowedByDelayedReceiveWithState) {
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, *delay_estimator,
-                                               options().pipeline_stages(5)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(5)));
   EXPECT_EQ(schedule.length(), 5);
-  EXPECT_EQ(schedule.cycle(send.node()) + 1, schedule.cycle(rcv.node()));
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 1);
 }
 
-TEST_P(PipelineScheduleErrorTest, SuggestIncreasedPipelineLengthWhenNeeded) {
+TEST_F(PipelineScheduleTest, SuggestIncreasedPipelineLengthWhenNeeded) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -1160,16 +1068,16 @@ TEST_P(PipelineScheduleErrorTest, SuggestIncreasedPipelineLengthWhenNeeded) {
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  EXPECT_THAT(RunPipelineSchedule(
-                  proc, *delay_estimator,
-                  options().pipeline_stages(1).worst_case_throughput(3)),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSubstr("--pipeline_stages=3"),
-                             Not(HasSubstr("--worst_case_throughput")))));
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          proc, *delay_estimator,
+          SchedulingOptions().pipeline_stages(1).worst_case_throughput(3)),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstr("--pipeline_stages=3"),
+                     Not(HasSubstr("--worst_case_throughput")))));
 }
 
-TEST_P(SdcOnlyPipelineScheduleErrorTest,
-       SuggestReducedThroughputWhenFullThroughputFails) {
+TEST_F(PipelineScheduleTest, SuggestReducedThroughputWhenFullThroughputFails) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -1191,15 +1099,14 @@ TEST_P(SdcOnlyPipelineScheduleErrorTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  EXPECT_THAT(RunPipelineSchedule(
-                  proc, *delay_estimator,
-                  options().pipeline_stages(5).worst_case_throughput(1)),
+  EXPECT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(5)),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        AllOf(HasSubstr("--worst_case_throughput=3"),
                              Not(HasSubstr("--pipeline_stages")))));
 }
 
-TEST_P(PipelineScheduleTest, UnboundedThroughputWorks) {
+TEST_F(PipelineScheduleTest, UnboundedThroughputWorks) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -1225,16 +1132,12 @@ TEST_P(PipelineScheduleTest, UnboundedThroughputWorks) {
       PipelineSchedule schedule,
       RunPipelineSchedule(
           proc, *delay_estimator,
-          options().pipeline_stages(5).worst_case_throughput(0)));
+          SchedulingOptions().pipeline_stages(5).worst_case_throughput(0)));
   EXPECT_EQ(schedule.length(), 5);
-  if (is_random()) {
-    EXPECT_GE(schedule.cycle(rcv.node()) - schedule.cycle(send.node()), 2);
-  } else {
-    EXPECT_EQ(schedule.cycle(rcv.node()) - schedule.cycle(send.node()), 2);
-  }
+  EXPECT_EQ(schedule.cycle(rcv.node()) - schedule.cycle(send.node()), 2);
 }
 
-TEST_P(PipelineScheduleTest, MinimizedThroughputWorksWithGivenPipelineLength) {
+TEST_F(PipelineScheduleTest, MinimizedThroughputWorksWithGivenPipelineLength) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -1259,7 +1162,7 @@ TEST_P(PipelineScheduleTest, MinimizedThroughputWorksWithGivenPipelineLength) {
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, *delay_estimator,
-                          options()
+                          SchedulingOptions()
                               .pipeline_stages(5)
                               .worst_case_throughput(0)
                               .minimize_worst_case_throughput(true)));
@@ -1268,7 +1171,7 @@ TEST_P(PipelineScheduleTest, MinimizedThroughputWorksWithGivenPipelineLength) {
   EXPECT_EQ(proc->GetInitiationInterval().value_or(1), 4);
 }
 
-TEST_P(PipelineScheduleTest, MinimizedThroughputWorksWithGivenClockPeriod) {
+TEST_F(PipelineScheduleTest, MinimizedThroughputWorksWithGivenClockPeriod) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -1293,7 +1196,7 @@ TEST_P(PipelineScheduleTest, MinimizedThroughputWorksWithGivenClockPeriod) {
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, *delay_estimator,
-                          options()
+                          SchedulingOptions()
                               .clock_period_ps(2)
                               .worst_case_throughput(0)
                               .minimize_worst_case_throughput(true)));
@@ -1303,7 +1206,7 @@ TEST_P(PipelineScheduleTest, MinimizedThroughputWorksWithGivenClockPeriod) {
   EXPECT_EQ(proc->GetInitiationInterval().value_or(1), 3);
 }
 
-TEST_P(SdcOnlyPipelineScheduleErrorTest,
+TEST_F(PipelineScheduleTest,
        SuggestReducedThroughputWhenFullThroughputFailsWithClockGiven) {
   Package package = Package(TestName());
 
@@ -1327,16 +1230,13 @@ TEST_P(SdcOnlyPipelineScheduleErrorTest,
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
   EXPECT_THAT(RunPipelineSchedule(proc, *delay_estimator,
-                                  options()
-                                      .clock_period_ps(1000)
-                                      .worst_case_throughput(1)
-                                      .minimize_clock_on_failure(false)),
+                                  SchedulingOptions().clock_period_ps(1000)),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        AllOf(HasSubstr("--worst_case_throughput=3"),
                              Not(HasSubstr("--pipeline_stages")))));
 }
 
-TEST_P(SdcOnlyPipelineScheduleErrorTest,
+TEST_F(PipelineScheduleTest,
        SuggestIncreasedPipelineLengthAndReducedThroughputWhenNeeded) {
   Package package = Package(TestName());
 
@@ -1360,17 +1260,13 @@ TEST_P(SdcOnlyPipelineScheduleErrorTest,
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
   EXPECT_THAT(RunPipelineSchedule(proc, *delay_estimator,
-                                  options()
-                                      .pipeline_stages(1)
-                                      .worst_case_throughput(1)
-                                      .minimize_worst_case_throughput(true)),
+                                  SchedulingOptions().pipeline_stages(1)),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        AllOf(HasSubstr("--pipeline_stages=3"),
                              HasSubstr("--worst_case_throughput=3"))));
 }
 
-TEST_P(SdcOnlyPipelineScheduleErrorTest,
-       SuggestIncreasedPipelineLengthAndIndividualSlack) {
+TEST_F(PipelineScheduleTest, SuggestIncreasedPipelineLengthAndIndividualSlack) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -1394,33 +1290,21 @@ TEST_P(SdcOnlyPipelineScheduleErrorTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  auto sched = RunPipelineSchedule(
-      proc, *delay_estimator,
-      options().pipeline_stages(1).failure_behavior(SchedulingFailureBehavior{
-          .explain_infeasibility = true,
-          .infeasible_per_state_backedge_slack_pool = 2.0}));
-  if (is_sdc()) {
-    EXPECT_THAT(
-        sched,
-        StatusIs(
-            absl::StatusCode::kInvalidArgument,
-            AllOf(HasSubstr("--pipeline_stages=3"),
-                  HasSubstr("looking at paths between state and next_state "
-                            "(needs 2 additional slack)"))));
-  } else {
-    EXPECT_THAT(sched, StatusIs(absl::StatusCode::kInvalidArgument,
-                                HasSubstr("--pipeline_stages=3")));
-  }
   EXPECT_THAT(
-      sched,
+      RunPipelineSchedule(
+          proc, *delay_estimator,
+          SchedulingOptions().pipeline_stages(1).failure_behavior(
+              SchedulingFailureBehavior{
+                  .explain_infeasibility = true,
+                  .infeasible_per_state_backedge_slack_pool = 2.0})),
       StatusIs(absl::StatusCode::kInvalidArgument,
                AllOf(HasSubstr("--pipeline_stages=3"),
                      HasSubstr("looking at paths between state and next_state "
                                "(needs 2 additional slack)"))));
 }
 
-TEST_P(
-    SdcOnlyPipelineScheduleErrorTest,
+TEST_F(
+    PipelineScheduleTest,
     SuggestIncreasedPipelineLengthWorstCaseThroughtputAndIndividualSlackPool2) {
   Package package = Package(TestName());
 
@@ -1457,7 +1341,7 @@ TEST_P(
   EXPECT_THAT(
       RunPipelineSchedule(
           proc, *delay_estimator,
-          options().pipeline_stages(1).failure_behavior(
+          SchedulingOptions().pipeline_stages(1).failure_behavior(
               SchedulingFailureBehavior{
                   .explain_infeasibility = true,
                   .infeasible_per_state_backedge_slack_pool = 2.0})),
@@ -1469,8 +1353,8 @@ TEST_P(
                           "(needs 1 additional slack)"))));
 }
 
-TEST_P(
-    SdcOnlyPipelineScheduleErrorTest,
+TEST_F(
+    PipelineScheduleTest,
     SuggestIncreasedPipelineLengthWorstCaseThroughtputAndIndividualSlackPool3) {
   Package package = Package(TestName());
 
@@ -1517,7 +1401,7 @@ TEST_P(
   EXPECT_THAT(
       RunPipelineSchedule(
           proc, *delay_estimator,
-          options().pipeline_stages(1).failure_behavior(
+          SchedulingOptions().pipeline_stages(1).failure_behavior(
               SchedulingFailureBehavior{
                   .explain_infeasibility = true,
                   .infeasible_per_state_backedge_slack_pool =
@@ -1533,17 +1417,15 @@ TEST_P(
                           "(needs 1 additional slack)"))));
 }
 
-void SuggestIncreasedClockPeriodWhenNecessaryCommon(
-    std::string test_name, const DelayEstimator& delay_estimator,
-    SchedulingOptions options, std::string expected) {
-  Package package = Package(test_name);
+TEST_F(PipelineScheduleTest, SuggestIncreasedClockPeriodWhenNecessary) {
+  Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(test_name, &package);
+  ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
 
@@ -1555,62 +1437,44 @@ void SuggestIncreasedClockPeriodWhenNecessaryCommon(
 
   // Each operation takes 500ps, so (with no pipeline depth restrictions), 500ps
   // is the fastest clock we can support.
-  EXPECT_THAT(
-      RunPipelineSchedule(proc, delay_estimator, options),
-      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr(expected)));
-}
-TEST_P(PipelineScheduleErrorTest, SuggestIncreasedClockPeriodWhenNecessary500) {
-  // Each operation takes 500ps, so (with no pipeline depth restrictions), 500ps
-  // is the fastest clock we can support.
-  SuggestIncreasedClockPeriodWhenNecessaryCommon(
-      TestName(), TestDelayEstimator(500),
-      options().clock_period_ps(100).worst_case_throughput(0),
-      "--clock_period_ps=500");
-}
-TEST_P(PipelineScheduleErrorTest,
-       SuggestIncreasedClockPeriodWhenNecessary1000) {
+  EXPECT_THAT(RunPipelineSchedule(proc, TestDelayEstimator(500),
+                                  SchedulingOptions().clock_period_ps(100)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=500")));
+
   // Each operation takes 500ps, but we have a chain of three operations; in two
   // stages, the best we can do is a 1000ps clock.
-  SuggestIncreasedClockPeriodWhenNecessaryCommon(
-      TestName(), TestDelayEstimator(500),
-      options().clock_period_ps(100).pipeline_stages(2).worst_case_throughput(
-          0),
-      "--clock_period_ps=1000");
-}
-TEST_P(PipelineScheduleErrorTest,
-       SuggestIncreasedClockPeriodWhenNecessary3Stage) {
+  EXPECT_THAT(RunPipelineSchedule(
+                  proc, TestDelayEstimator(500),
+                  SchedulingOptions().clock_period_ps(100).pipeline_stages(2)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=1000")));
+
   // Each operation takes 500ps, and our schedule fits nicely into 3 stages; we
   // can get down to a 500ps clock at 3 or more pipeline stages.
-  SuggestIncreasedClockPeriodWhenNecessaryCommon(
-      TestName(), TestDelayEstimator(500),
-      options().clock_period_ps(100).pipeline_stages(3).worst_case_throughput(
-          0),
-      "--clock_period_ps=500");
-}
-TEST_P(PipelineScheduleErrorTest,
-       SuggestIncreasedClockPeriodWhenNecessary20Stage) {
-  // Each operation takes 500ps, and our schedule fits nicely into 3 stages; we
-  // can get down to a 500ps clock at 3 or more pipeline stages.
-  SuggestIncreasedClockPeriodWhenNecessaryCommon(
-      TestName(), TestDelayEstimator(500),
-      options().clock_period_ps(100).pipeline_stages(20).worst_case_throughput(
-          0),
-      "--clock_period_ps=500");
-}
-TEST_P(PipelineScheduleErrorTest,
-       SuggestIncreasedClockPeriodWhenNecessary4StageNoMinimize) {
+  EXPECT_THAT(RunPipelineSchedule(
+                  proc, TestDelayEstimator(500),
+                  SchedulingOptions().clock_period_ps(100).pipeline_stages(3)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=500")));
+  EXPECT_THAT(RunPipelineSchedule(
+                  proc, TestDelayEstimator(500),
+                  SchedulingOptions().clock_period_ps(100).pipeline_stages(20)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=500")));
+
   // But... if told not to search for the smallest possible clock period, the
   // best we can do is signal that a longer clock period might help.
-  SuggestIncreasedClockPeriodWhenNecessaryCommon(
-      TestName(), TestDelayEstimator(500),
-      options()
-          .clock_period_ps(100)
-          .pipeline_stages(4)
-          .minimize_clock_on_failure(false),
-      "Try increasing `--clock_period_ps`");
+  EXPECT_THAT(RunPipelineSchedule(proc, TestDelayEstimator(500),
+                                  SchedulingOptions()
+                                      .clock_period_ps(100)
+                                      .pipeline_stages(4)
+                                      .minimize_clock_on_failure(false)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Try increasing `--clock_period_ps`")));
 }
 
-TEST_P(SdcPrimaryPipelineScheduleTest, OptimizeForDynamicThroughput) {
+TEST_F(PipelineScheduleTest, OptimizeForDynamicThroughput) {
   Package package = Package(TestName());
   Type* u1 = package.GetBitsType(1);
   Type* u2 = package.GetBitsType(2);
@@ -1642,14 +1506,11 @@ TEST_P(SdcPrimaryPipelineScheduleTest, OptimizeForDynamicThroughput) {
   //
   // NOTE: This is a VERY contrived example, but there are real examples of this
   // happening in the wild.
-  //
-  // NB This is only true for SDC scheduling. ASAP will put it in stage 0
-  // regardless of the penalty.
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(
           proc, *delay_estimator,
-          options().clock_period_ps(10).worst_case_throughput(2)));
+          SchedulingOptions().clock_period_ps(10).worst_case_throughput(2)));
   EXPECT_EQ(schedule.cycle(next_state.node()) - schedule.cycle(state.node()),
             1);
 
@@ -1658,7 +1519,7 @@ TEST_P(SdcPrimaryPipelineScheduleTest, OptimizeForDynamicThroughput) {
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule2,
       RunPipelineSchedule(proc, *delay_estimator,
-                          options()
+                          SchedulingOptions()
                               .clock_period_ps(10)
                               .worst_case_throughput(2)
                               .dynamic_throughput_objective_weight(1024.0)));
@@ -1673,7 +1534,7 @@ TEST_P(SdcPrimaryPipelineScheduleTest, OptimizeForDynamicThroughput) {
 // receive nodes where the second receive node depends on the first node, and
 // the first receive node produces the next state node and the param is used by
 // the second receive node.
-TEST_P(PipelineScheduleTest, ProcParamScheduledEarlyWithNextState) {
+TEST_F(PipelineScheduleTest, ProcParamScheduledEarlyWithNextState) {
   Package p("p");
   Type* u1 = p.GetBitsType(1);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1698,17 +1559,15 @@ TEST_P(PipelineScheduleTest, ProcParamScheduledEarlyWithNextState) {
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, *delay_estimator,
-                                               options().pipeline_stages(3)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(3)));
   EXPECT_EQ(schedule.length(), 3);
-  if (!is_random()) {
-    // The state's param node should be scheduled ASAP (i.e., the next-state
-    // node's stage), while still leaving its user in the later stage.
-    EXPECT_EQ(schedule.cycle(state.node()),
-              schedule.cycle(nb_rcv_valid.node()));
-    EXPECT_LT(schedule.cycle(state.node()), schedule.cycle(use_state.node()));
-  }
+  // The state's param node should be scheduled ASAP (i.e., the next-state
+  // node's stage), while still leaving its user in the later stage.
+  EXPECT_EQ(schedule.cycle(state.node()), schedule.cycle(nb_rcv_valid.node()));
+  EXPECT_LT(schedule.cycle(state.node()), schedule.cycle(use_state.node()));
 }
 
 // Proc next state does not depend on param. Force schedule of a param node's
@@ -1718,14 +1577,7 @@ TEST_P(PipelineScheduleTest, ProcParamScheduledEarlyWithNextState) {
 // the param is used by the second receive node. We make the scheduler prefer to
 // schedule the next-state computation earlier by making it narrower than the
 // param value, then widening later.
-//
-// We also ask to minimize WCT to force the next state and state to be close
-// even on schedulers incapable of minimizing cross cycle edges such as ASAP.
-TEST_P(PipelineScheduleTest, ProcParamScheduledAfterNextState) {
-  if (is_random()) {
-    // TODO(allight): Fix this.
-    GTEST_SKIP() << "Random scheduler can fail this for unclear reasons.";
-  }
+TEST_F(PipelineScheduleTest, ProcParamScheduledAfterNextState) {
   Package p("p");
   Type* u1 = p.GetBitsType(1);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1754,18 +1606,15 @@ TEST_P(PipelineScheduleTest, ProcParamScheduledAfterNextState) {
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      RunPipelineSchedule(
-          proc, *delay_estimator,
-          options().pipeline_stages(3).minimize_worst_case_throughput(true)));
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(3)));
   EXPECT_EQ(schedule.length(), 3);
   EXPECT_GT(schedule.cycle(state.node()), schedule.cycle(nb_rcv_valid.node()));
 }
 
 // If two param nodes are mutually dependent, they (and their next state nodes)
 // all need to be scheduled in the same stage.
-//
-// TODO(allight): This is only true for SDC I think.
-TEST_P(PipelineScheduleTest, ProcParamsScheduledInSameStage) {
+TEST_F(PipelineScheduleTest, ProcParamsScheduledInSameStage) {
   Package p("p");
   Type* u1 = p.GetBitsType(1);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1791,17 +1640,17 @@ TEST_P(PipelineScheduleTest, ProcParamsScheduledInSameStage) {
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, *delay_estimator,
-                                               options().pipeline_stages(3)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(3)));
   EXPECT_EQ(schedule.length(), 3);
-  if (!is_random()) {
-    EXPECT_EQ(schedule.cycle(a.node()), schedule.cycle(b.node()));
-  }
-  EXPECT_EQ(schedule.cycle(next_a.node()), schedule.cycle(next_a.node()));
+  EXPECT_EQ(schedule.cycle(a.node()), schedule.cycle(b.node()));
+  EXPECT_EQ(schedule.cycle(a.node()), schedule.cycle(next_a.node()));
+  EXPECT_EQ(schedule.cycle(a.node()), schedule.cycle(next_b.node()));
 }
 
-TEST_P(PipelineScheduleTest, FunctionScheduleWithInputAndOutputDelay) {
+TEST_F(PipelineScheduleTest, FunctionScheduleWithInputAndOutputDelay) {
   Package p("p");
 
   Type* u16 = p.GetBitsType(16);
@@ -1815,9 +1664,10 @@ TEST_P(PipelineScheduleTest, FunctionScheduleWithInputAndOutputDelay) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(negate));
 
   // No additional input/output delay, we get [{x, y, prod, negate}]
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(f, TestDelayEstimator(),
-                                               options().clock_period_ps(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(2)));
   ASSERT_EQ(schedule.length(), 1);
   EXPECT_THAT(
       schedule.nodes_in_cycle(0),
@@ -1826,9 +1676,10 @@ TEST_P(PipelineScheduleTest, FunctionScheduleWithInputAndOutputDelay) {
   // Additional input delay bumps prod to stage 2, we get
   // [{x,y}, {prod, negate}]
   XLS_ASSERT_OK_AND_ASSIGN(
-      schedule, RunPipelineSchedule(
-                    f, TestDelayEstimator(),
-                    options().clock_period_ps(2).additional_input_delay_ps(2)));
+      schedule,
+      RunPipelineSchedule(
+          f, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(2).additional_input_delay_ps(2)));
   ASSERT_EQ(schedule.length(), 2);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
               UnorderedElementsAre(x.node(), y.node()));
@@ -1839,7 +1690,7 @@ TEST_P(PipelineScheduleTest, FunctionScheduleWithInputAndOutputDelay) {
   // [{x,y}, {prod}, {negate}]
   XLS_ASSERT_OK_AND_ASSIGN(
       schedule, RunPipelineSchedule(f, TestDelayEstimator(),
-                                    options()
+                                    SchedulingOptions()
                                         .clock_period_ps(2)
                                         .additional_input_delay_ps(2)
                                         .additional_output_delay_ps(1)));
@@ -1850,7 +1701,7 @@ TEST_P(PipelineScheduleTest, FunctionScheduleWithInputAndOutputDelay) {
   EXPECT_THAT(schedule.nodes_in_cycle(2), UnorderedElementsAre(negate.node()));
 }
 
-TEST_P(PipelineScheduleTest, ProcScheduleWithInputDelay) {
+TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
   Package p("p");
 
   Type* u16 = p.GetBitsType(16);
@@ -1870,9 +1721,10 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithInputDelay) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, TestDelayEstimator(),
-                                               options().clock_period_ps(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(4)));
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
   EXPECT_EQ(schedule.cycle(send.node()), 1);
@@ -1882,9 +1734,10 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithInputDelay) {
   // Input delay of 1 is not large enough to bump all non-zero-latency nodes to
   // later stages.
   XLS_ASSERT_OK_AND_ASSIGN(
-      schedule, RunPipelineSchedule(
-                    proc, TestDelayEstimator(),
-                    options().clock_period_ps(4).additional_input_delay_ps(1)));
+      schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(4).additional_input_delay_ps(1)));
   EXPECT_THAT(schedule.nodes_in_cycle(0),
               Contains(OperationDelayInPs(IsOkAndHolds(Gt(0)))));
 
@@ -1896,18 +1749,15 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithInputDelay) {
   // receive.3: (token, bits[16]) = receive(tkn, channel_id=0, id=3)
   // st: () = param(st, id=2)
   XLS_ASSERT_OK_AND_ASSIGN(
-      schedule, RunPipelineSchedule(
-                    proc, TestDelayEstimator(),
-                    options().clock_period_ps(4).additional_input_delay_ps(4)));
+      schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(4).additional_input_delay_ps(4)));
   EXPECT_THAT(schedule.nodes_in_cycle(0),
               Each(OperationDelayInPs(IsOkAndHolds(0))));
 }
 
-TEST_P(PipelineScheduleTest, ProcScheduleWithInputAndOutputDelay) {
-  if (is_random()) {
-    GTEST_SKIP() << "Skipping test for random scheduler due to being unable to "
-                    "realistically check output.";
-  }
+TEST_F(PipelineScheduleTest, ProcScheduleWithInputAndOutputDelay) {
   Package p("p");
 
   Type* u16 = p.GetBitsType(16);
@@ -1928,18 +1778,20 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithInputAndOutputDelay) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   // No input delay, we get [{rcv, negate, send}]
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, TestDelayEstimator(),
-                                               options().clock_period_ps(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(2)));
   ASSERT_EQ(schedule.length(), 1);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
               IsSupersetOf({rcv.node(), negate.node(), send.node()}));
 
   // Input delay bumps send to stage 1, we get [{rcv, negate}, {send}]
   XLS_ASSERT_OK_AND_ASSIGN(
-      schedule, RunPipelineSchedule(
-                    proc, TestDelayEstimator(),
-                    options().clock_period_ps(2).additional_input_delay_ps(1)));
+      schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(2).additional_input_delay_ps(1)));
   ASSERT_EQ(schedule.length(), 2);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
               IsSupersetOf({rcv.node(), negate.node()}));
@@ -1950,7 +1802,8 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithInputAndOutputDelay) {
       schedule,
       RunPipelineSchedule(
           proc, TestDelayEstimator(),
-          options().clock_period_ps(2).additional_output_delay_ps(1)));
+          SchedulingOptions().clock_period_ps(2).additional_output_delay_ps(
+              1)));
   ASSERT_EQ(schedule.length(), 2);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
               IsSupersetOf({rcv.node(), negate.node()}));
@@ -1959,7 +1812,7 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithInputAndOutputDelay) {
   // Specifying both input and output delay doesn't change anything.
   XLS_ASSERT_OK_AND_ASSIGN(
       schedule, RunPipelineSchedule(proc, TestDelayEstimator(),
-                                    options()
+                                    SchedulingOptions()
                                         .clock_period_ps(2)
                                         .additional_input_delay_ps(1)
                                         .additional_output_delay_ps(1)));
@@ -1969,10 +1822,7 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithInputAndOutputDelay) {
   EXPECT_THAT(schedule.nodes_in_cycle(1), IsSupersetOf({send.node()}));
 }
 
-TEST_P(PipelineScheduleTest, ProcScheduleWithChannelSpecificDelay) {
-  if (is_random()) {
-    GTEST_SKIP() << "Unable to verify output for random scheduler.";
-  }
+TEST_F(PipelineScheduleTest, ProcScheduleWithChannelSpecificDelay) {
   Package p("p");
 
   Type* u16 = p.GetBitsType(16);
@@ -1999,9 +1849,10 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithChannelSpecificDelay) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   // No input delay, we get [{rcv1, neg_rcv1, rcv2, neg_rcv2, sum, send}]
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           RunPipelineSchedule(proc, TestDelayEstimator(),
-                                               options().clock_period_ps(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(2)));
   ASSERT_EQ(schedule.length(), 1);
   EXPECT_THAT(
       schedule.nodes_in_cycle(0),
@@ -2011,10 +1862,10 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithChannelSpecificDelay) {
   // [{rcv1, neg_rcv1, rcv2, neg_rcv2}, {sum, send}]
   XLS_ASSERT_OK_AND_ASSIGN(
       schedule,
-      RunPipelineSchedule(
-          proc, TestDelayEstimator(),
-          options().clock_period_ps(2).add_additional_channel_delay_ps("in2",
-                                                                       1)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions()
+                              .clock_period_ps(2)
+                              .add_additional_channel_delay_ps("in2", 1)));
   ASSERT_EQ(schedule.length(), 2);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
               IsSupersetOf({rcv1.node(), neg_rcv1.node(), rcv2.node(),
@@ -2026,10 +1877,10 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithChannelSpecificDelay) {
   // [{rcv1, neg_rcv1, rcv2}, {neg_rcv2, sum, send}]
   XLS_ASSERT_OK_AND_ASSIGN(
       schedule,
-      RunPipelineSchedule(
-          proc, TestDelayEstimator(),
-          options().clock_period_ps(2).add_additional_channel_delay_ps("in2",
-                                                                       2)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions()
+                              .clock_period_ps(2)
+                              .add_additional_channel_delay_ps("in2", 2)));
   ASSERT_EQ(schedule.length(), 2);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
               IsSupersetOf({rcv1.node(), neg_rcv1.node(), rcv2.node()}));
@@ -2037,7 +1888,7 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithChannelSpecificDelay) {
               IsSupersetOf({neg_rcv2.node(), sum.node(), send.node()}));
 }
 
-TEST_P(PipelineScheduleTest, ProcScheduleWithChannelDirectionSpecificDelay) {
+TEST_F(PipelineScheduleTest, ProcScheduleWithChannelDirectionSpecificDelay) {
   Package p("p");
 
   Type* u16 = p.GetBitsType(16);
@@ -2056,7 +1907,7 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithChannelDirectionSpecificDelay) {
 
   // Set different delays for send and receive on channel "ch".
   SchedulingOptions options =
-      this->options()
+      SchedulingOptions()
           .clock_period_ps(5)
           .add_additional_channel_delay_ps("ch:recv", 1)
           .add_additional_channel_delay_ps("ch:send", 5);
@@ -2074,11 +1925,7 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithChannelDirectionSpecificDelay) {
   EXPECT_EQ(schedule.cycle(send.node()), 1);
 }
 
-TEST_P(PipelineScheduleTest, ProcScheduleWithConstraints) {
-  if (is_random()) {
-    GTEST_SKIP() << "Random scheduler does not fully respect this constraint "
-                    "in all circumstances";
-  }
+TEST_F(PipelineScheduleTest, ProcScheduleWithConstraints) {
   Package p("p");
   Type* u16 = p.GetBitsType(16);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2097,17 +1944,18 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithConstraints) {
   for (int64_t i = 3; i <= 9; ++i) {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        RunPipelineSchedule(proc, TestDelayEstimator(),
-                            options().pipeline_stages(10).add_constraint(
-                                IOConstraint("in", IODirection::kReceive, "out",
-                                             IODirection::kSend, i, i))));
+        RunPipelineSchedule(
+            proc, TestDelayEstimator(),
+            SchedulingOptions().pipeline_stages(10).add_constraint(
+                IOConstraint("in", IODirection::kReceive, "out",
+                             IODirection::kSend, i, i))));
 
     EXPECT_EQ(schedule.length(), 10);
     EXPECT_EQ(schedule.cycle(send.node()) - schedule.cycle(rcv.node()), i);
   }
 }
 
-TEST_P(RandomPipelineScheduleTest, RandomScheduleRuns) {
+TEST_F(PipelineScheduleTest, RandomSchedule) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   auto x = fb.Param("x", p->GetBitsType(32));
@@ -2117,15 +1965,18 @@ TEST_P(RandomPipelineScheduleTest, RandomScheduleRuns) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
-  for (int32_t i = 0; i < 100; ++i) {
+  for (int32_t i = 0; i < 1000; ++i) {
     // Running the scheduler will call `VerifyTiming`.
-    XLS_ASSERT_OK(RunPipelineSchedule(func, TestDelayEstimator(),
-                                      options().seed(i).pipeline_stages(50))
-                      .status());
+    XLS_ASSERT_OK(
+        RunPipelineSchedule(func, TestDelayEstimator(),
+                            SchedulingOptions(SchedulingStrategy::RANDOM)
+                                .seed(i)
+                                .pipeline_stages(50))
+            .status());
   }
 }
 
-TEST_P(SdcPipelineScheduleTest, SingleStageSchedule) {
+TEST_F(PipelineScheduleTest, SingleStageSchedule) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   auto x = fb.Param("x", p->GetBitsType(32));
@@ -2145,11 +1996,7 @@ TEST_P(SdcPipelineScheduleTest, SingleStageSchedule) {
   EXPECT_EQ(schedule.value().nodes_in_cycle(0).size(), 21);
 }
 
-TEST_P(PipelineScheduleTest, LoopbackChannelWithConstraint) {
-  if (is_random()) {
-    GTEST_SKIP() << "Random scheduler does not fully respect this constraint "
-                    "in all circumstances";
-  }
+TEST_F(PipelineScheduleTest, LoopbackChannelWithConstraint) {
   auto p = CreatePackage();
   Type* u16 = p->GetBitsType(16);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2171,7 +2018,7 @@ TEST_P(PipelineScheduleTest, LoopbackChannelWithConstraint) {
         PipelineSchedule schedule,
         RunPipelineSchedule(
             proc, TestDelayEstimator(),
-            options().pipeline_stages(10).add_constraint(
+            SchedulingOptions().pipeline_stages(10).add_constraint(
                 IOConstraint("loopback", IODirection::kReceive, "loopback",
                              IODirection::kSend, i, i))));
 
@@ -2181,7 +2028,7 @@ TEST_P(PipelineScheduleTest, LoopbackChannelWithConstraint) {
   }
 }
 
-TEST_P(PipelineScheduleTest, PackageScheduleProtoSerializeAndDeserialize) {
+TEST_F(PipelineScheduleTest, PackageScheduleProtoSerializeAndDeserialize) {
   auto p = CreatePackage();
   auto make_test_fn = [](Package* p, std::string_view name) {
     FunctionBuilder fb(name, p);
@@ -2194,12 +2041,14 @@ TEST_P(PipelineScheduleTest, PackageScheduleProtoSerializeAndDeserialize) {
       Function * func0, make_test_fn(p.get(), absl::StrCat(TestName(), "0")));
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * func1, make_test_fn(p.get(), absl::StrCat(TestName(), "1")));
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule0,
-                           RunPipelineSchedule(func0, TestDelayEstimator(),
-                                               options().pipeline_stages(3)));
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule1,
-                           RunPipelineSchedule(func1, TestDelayEstimator(),
-                                               options().pipeline_stages(3)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule0,
+      RunPipelineSchedule(func0, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule1,
+      RunPipelineSchedule(func1, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   PackageSchedule package_schedule(p.get(),
                                    {{func0, schedule0}, {func1, schedule1}});
@@ -2221,10 +2070,7 @@ TEST_P(PipelineScheduleTest, PackageScheduleProtoSerializeAndDeserialize) {
       Each(CyclesMatch(package_schedule.GetSchedules(), clone.GetSchedules())));
 }
 
-// TODO(allight): We should rewrite the tests to allow for running with ASAP
-// scheduler too.
-TEST_P(SdcPipelineScheduleTest,
-       SerializeAndDeserializeWithSynchronousSchedule) {
+TEST_F(PipelineScheduleTest, SerializeAndDeserializeWithSynchronousSchedule) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb1("proc1", "tkn", p.get());
   auto literal1 = pb1.Literal(UBits(1, 32));
@@ -2236,12 +2082,14 @@ TEST_P(SdcPipelineScheduleTest,
   auto add2 = pb2.Add(literal2, literal2);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc2, pb2.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule1,
-                           RunPipelineSchedule(proc1, TestDelayEstimator(),
-                                               options().clock_period_ps(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule2,
-                           RunPipelineSchedule(proc2, TestDelayEstimator(),
-                                               options().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule1,
+      RunPipelineSchedule(proc1, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule2,
+      RunPipelineSchedule(proc2, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   absl::flat_hash_map<FunctionBase*, int64_t> synchronous_offsets(
       {{proc1, 0}, {proc2, 42}});
@@ -2270,7 +2118,7 @@ TEST_P(SdcPipelineScheduleTest,
   EXPECT_EQ(clone.GetSynchronousCycle(add2.node()), 42);
 }
 
-TEST_P(PipelineScheduleTest, ProcWithExplicitStateAccess) {
+TEST_F(PipelineScheduleTest, ProcWithExplicitStateAccess) {
   Package p(TestName());
   Type* u32 = p.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2289,7 +2137,7 @@ TEST_P(PipelineScheduleTest, ProcWithExplicitStateAccess) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  SchedulingOptions options = this->options();
+  SchedulingOptions options(SchedulingStrategy::ASAP);
   options.clock_period_ps(2);
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2299,7 +2147,7 @@ TEST_P(PipelineScheduleTest, ProcWithExplicitStateAccess) {
   EXPECT_EQ(schedule.length(), 1);
 }
 
-TEST_P(PipelineScheduleTest, ProcWithMultipleStateReads) {
+TEST_F(PipelineScheduleTest, ProcWithMultipleStateReads) {
   Package p(TestName());
   Type* u32 = p.GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2322,7 +2170,7 @@ TEST_P(PipelineScheduleTest, ProcWithMultipleStateReads) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  SchedulingOptions options = this->options();
+  SchedulingOptions options(SchedulingStrategy::ASAP);
   options.clock_period_ps(2);
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2332,7 +2180,7 @@ TEST_P(PipelineScheduleTest, ProcWithMultipleStateReads) {
   EXPECT_EQ(schedule.length(), 1);
 }
 
-TEST_P(PipelineScheduleErrorTest, ProcWithZeroReadsErrors) {
+TEST_F(PipelineScheduleTest, ProcWithZeroReadsErrors) {
   Package p(TestName());
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
@@ -2343,7 +2191,7 @@ TEST_P(PipelineScheduleErrorTest, ProcWithZeroReadsErrors) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  SchedulingOptions options = this->options();
+  SchedulingOptions options(SchedulingStrategy::ASAP);
   options.clock_period_ps(2);
 
   EXPECT_THAT(RunPipelineSchedule(proc, TestDelayEstimator(), options),
@@ -2351,56 +2199,5 @@ TEST_P(PipelineScheduleErrorTest, ProcWithZeroReadsErrors) {
                                      testing::HasSubstr("has no reads")));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    PipelineScheduleTest, PipelineScheduleTest,
-    testing::Values(
-        Strategies{SchedulingStrategy::ASAP, SchedulingStrategy::ASAP},
-        Strategies{SchedulingStrategy::ASAP, SchedulingStrategy::SDC},
-        Strategies{SchedulingStrategy::SDC, SchedulingStrategy::ASAP},
-        Strategies{SchedulingStrategy::SDC, SchedulingStrategy::SDC},
-        // TODO(allight): Min cut doesn't respect all constraints yet.
-        // Strategies{SchedulingStrategy::MIN_CUT, SchedulingStrategy::ASAP},
-        // Strategies{SchedulingStrategy::MIN_CUT, SchedulingStrategy::SDC},
-        Strategies{SchedulingStrategy::RANDOM, SchedulingStrategy::ASAP},
-        Strategies{SchedulingStrategy::RANDOM, SchedulingStrategy::SDC}),
-    testing::PrintToStringParamName());
-INSTANTIATE_TEST_SUITE_P(
-    PipelineScheduleErrorTest, PipelineScheduleErrorTest,
-    testing::Values(
-        Strategies{SchedulingStrategy::ASAP, SchedulingStrategy::ASAP},
-        Strategies{SchedulingStrategy::ASAP, SchedulingStrategy::SDC},
-        Strategies{SchedulingStrategy::SDC, SchedulingStrategy::ASAP},
-        Strategies{SchedulingStrategy::SDC, SchedulingStrategy::SDC}),
-    testing::PrintToStringParamName());
-// TODO(allight): Ideally this suite wouldn't need to exist and all error
-// messages would be handled generically.
-INSTANTIATE_TEST_SUITE_P(SdcOnlyPipelineScheduleErrorTest,
-                         SdcOnlyPipelineScheduleErrorTest,
-                         testing::Values(Strategies{SchedulingStrategy::SDC,
-                                                    SchedulingStrategy::SDC}),
-                         testing::PrintToStringParamName());
-
-INSTANTIATE_TEST_SUITE_P(AsapPipelineScheduleTest, AsapPipelineScheduleTest,
-                         testing::Values(Strategies{SchedulingStrategy::ASAP,
-                                                    SchedulingStrategy::ASAP}),
-                         testing::PrintToStringParamName());
-
-INSTANTIATE_TEST_SUITE_P(SdcPipelineScheduleTest, SdcPipelineScheduleTest,
-                         testing::Values(Strategies{SchedulingStrategy::SDC,
-                                                    SchedulingStrategy::SDC}),
-                         testing::PrintToStringParamName());
-INSTANTIATE_TEST_SUITE_P(RandomPipelineScheduleTest, RandomPipelineScheduleTest,
-                         testing::Values(Strategies{SchedulingStrategy::RANDOM,
-                                                    SchedulingStrategy::ASAP},
-                                         Strategies{SchedulingStrategy::RANDOM,
-                                                    SchedulingStrategy::SDC}),
-                         testing::PrintToStringParamName());
-INSTANTIATE_TEST_SUITE_P(SdcPrimaryPipelineScheduleTest,
-                         SdcPrimaryPipelineScheduleTest,
-                         testing::Values(Strategies{SchedulingStrategy::SDC,
-                                                    SchedulingStrategy::SDC},
-                                         Strategies{SchedulingStrategy::SDC,
-                                                    SchedulingStrategy::ASAP}),
-                         testing::PrintToStringParamName());
 }  // namespace
 }  // namespace xls

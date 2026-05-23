@@ -44,8 +44,6 @@ COMMON_CODEGEN_ARGS = {
     "clock_margin_percent": "20",
     "multi_proc": "true",
     "materialize_internal_fifos": "true",
-    "scheduling_strategy": "sdc",
-    "find_bounds_strategy": "asap",
 }
 
 xls_dslx_library(

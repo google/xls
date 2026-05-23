@@ -99,28 +99,9 @@ ABSL_FLAG(xls::SchedulingStrategy, scheduling_strategy,
           "Good for development and rapid iteration.\n"
           "min_cut: Approximates the minimum number of registers using a "
           "min-cut based algorithm.\n"
-          "         Does not respect all io_constraints.\n"
+          "         Does not respect io_constraints.\n"
           "random: Randomly schedules nodes. For internal testing only.\n"
           "        Does not respect io_constraints.");
-
-ABSL_FLAG(std::optional<xls::SchedulingStrategy>, find_bounds_strategy,
-          std::nullopt,
-          "Scheduler algorithm to use for finding minimum bounds.\n"
-          "\n"
-          "Options: [sdc, asap, min_cut, random]\n"
-          "\n"
-          "The options are the same as the `--scheduling_strategy` flag and "
-          "have the same restrictions and behaviors as described for that "
-          "flag. If unspecified, the default is to use the same strategy as "
-          "`--scheduling_strategy`.\n"
-          "\n"
-          "If possible, one should consider using the 'asap' strategy for "
-          "finding bounds, as it is much faster than the other strategies. It "
-          "is possible the asap schedule will be unable to find equivalent "
-          "bounds to the sdc one depending on set of io and other constraints "
-          "in the design.\n"
-          "\n"
-          "This flag is only used if one of the --minimize flags is set.");
 ABSL_FLAG(int64_t, clock_margin_percent, 0,
           "The percentage of clock period to set aside as a margin to ensure "
           "timing is met. Effectively, this lowers the clock period by this "
@@ -306,13 +287,6 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
     ProtoSchedulingStrategy scheduling_strategy =
         ToProtoSchedulingStrategy(absl::GetFlag(FLAGS_scheduling_strategy));
     proto.set_scheduling_strategy(scheduling_strategy);
-  }
-  {
-    any_flags_set |= FLAGS_find_bounds_strategy.IsSpecifiedOnCommandLine();
-    ProtoSchedulingStrategy find_bounds_strategy = ToProtoSchedulingStrategy(
-        absl::GetFlag(FLAGS_find_bounds_strategy)
-            .value_or(absl::GetFlag(FLAGS_scheduling_strategy)));
-    proto.set_find_bounds_strategy(find_bounds_strategy);
   }
   POPULATE_FLAG(clock_period_ps);
   POPULATE_FLAG(pipeline_stages);
