@@ -213,14 +213,7 @@ control the scheduler.
     -   `min_cut`: Approximates the minimum number of registers using a min-cut
         based algorithm. Does not respect io_constraints.
 
-    -   `random`: Internal testing algorithm that selects stages randomly. Does
-        respect the same io constraints that `asap` does.
-
--   `--find_bounds_strategy` controls what scheduler algorithm is used to
-    determine feasible boundary conditions for scheduling, such as minimum clock
-    period or minimum worst case throughput. By default it will use the same
-    scheduler as `--scheduling_strategy` but in many cases `asap` will provide
-    faster results without any loss of accuracy.
+    -   `random`: Internal testing algorithm that selects stages randomly.
 
 # Feedback-driven Optimization (FDO) Options
 

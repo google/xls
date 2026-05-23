@@ -53,7 +53,6 @@
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/schedule_util.h"
-#include "xls/scheduling/scheduler.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -205,9 +204,9 @@ ComputeCombinationalDelayConstraints(
 }  // namespace
 
 SDCSchedulingModel::SDCSchedulingModel(
-    const ScheduleGraph& graph, const DelayMap& delay_map,
+    ScheduleGraph graph, const DelayMap& delay_map,
     std::optional<int64_t> initiation_interval, double sdc_solution_tolerance)
-    : graph_(graph),
+    : graph_(std::move(graph)),
       model_(absl::StrCat("sdc_model:", graph_.name())),
       sdc_solution_tolerance_(sdc_solution_tolerance),
       delay_map_(delay_map),
@@ -406,13 +405,7 @@ absl::Status SDCSchedulingModel::AddThroughputConstraint(StateRead* state_read,
 // necessary while enforcing a target II.
 absl::Status SDCSchedulingModel::AddBackedgeConstraints(
     const BackedgeConstraint& constraint) {
-  if (!initiation_interval_.has_value()) {
-    // Distance of backedge is constrained by the II, but the worst-case
-    // throughput constraint is not set.
-    return absl::OkStatus();
-  }
-
-  const int64_t II = *initiation_interval_;
+  const int64_t II = initiation_interval_.value_or(1);
 
   for (const ScheduleBackedge& backedge : graph_.backedges()) {
     if (!backedge.distance.has_value() ||
@@ -420,6 +413,11 @@ absl::Status SDCSchedulingModel::AddBackedgeConstraints(
             *backedge.distance)) {
       return absl::UnimplementedError(
           "Unsupported backedge type in SDC schedule");
+    }
+    if (II <= 0) {
+      // Distance of backedge is constrained by the II, but the worst-case
+      // throughput constraint is not set.
+      continue;
     }
 
     VLOG(2) << "Setting backedge constraint (II): "
@@ -896,16 +894,13 @@ void SDCSchedulingModel::SetClockPeriod(int64_t clock_period_ps) {
 }
 
 absl::Status SDCSchedulingModel::SetWorstCaseThroughput(
-    std::optional<int64_t> worst_case_throughput) {
-  XLS_RET_CHECK(worst_case_throughput != 0)
-      << "WCT Of zero should be represented as std::nullopt (no throughput "
-         "requirements)";
+    int64_t worst_case_throughput) {
   if (!graph_.IsSingleProc()) {
     return absl::UnimplementedError(
         "SetWorstCaseThroughput only supports procs, since it controls state "
         "backedges");
   }
-  if (initiation_interval_ == worst_case_throughput) {
+  if (initiation_interval_.value_or(1) == worst_case_throughput) {
     return absl::OkStatus();
   }
   initiation_interval_ = worst_case_throughput;
@@ -913,10 +908,7 @@ absl::Status SDCSchedulingModel::SetWorstCaseThroughput(
     model_.DeleteLinearConstraint(constraint);
   }
   backedge_constraint_.clear();
-  if (initiation_interval_) {
-    return AddBackedgeConstraints(BackedgeConstraint());
-  }
-  return absl::OkStatus();
+  return AddBackedgeConstraints(BackedgeConstraint());
 }
 
 void SDCSchedulingModel::SetPipelineLength(
@@ -1245,27 +1237,56 @@ SDCSchedulingModel::AddLowerBoundSlack(
 }
 
 absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
-    const ScheduleGraph& graph, const DelayEstimator& delay_estimator,
+    FunctionBase* f, const DelayEstimator& delay_estimator,
+    const SchedulingOptions& options) {
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                       GetDeadAfterSynthesisNodes(f));
+  VLOG(4) << "dead_after_synthesis: (size: " << dead_after_synthesis.size()
+          << ") ["
+          << absl::StrJoin(dead_after_synthesis, ", ",
+                           [](std::string* out, Node* node) {
+                             absl::StrAppendFormat(out, "%s(%s)",
+                                                   node->GetName(),
+                                                   OpToString(node->op()));
+                           })
+          << "]";
+  XLS_ASSIGN_OR_RETURN(ScheduleGraph graph,
+                       ScheduleGraph::Create(f, dead_after_synthesis));
+  XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
+                       ComputeNodeDelays(graph, delay_estimator));
+  std::optional<int64_t> initiation_interval =
+      f->IsProc() ? std::optional<int64_t>(
+                        f->AsProcOrDie()->GetInitiationInterval().value_or(1))
+                  : std::nullopt;
+  std::unique_ptr<SDCScheduler> scheduler(new SDCScheduler(
+      std::move(graph), options.sdc_solution_tolerance(), options.solver_type(),
+      options.solve_parameters(), initiation_interval, std::move(delay_map)));
+  XLS_RETURN_IF_ERROR(scheduler->Initialize());
+  return std::move(scheduler);
+}
+
+absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
+    ScheduleGraph graph, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options) {
   XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
                        ComputeNodeDelays(graph, delay_estimator));
   std::unique_ptr<SDCScheduler> scheduler(new SDCScheduler(
-      graph, options.sdc_solution_tolerance(), options.solver_type(),
+      std::move(graph), options.sdc_solution_tolerance(), options.solver_type(),
       options.solve_parameters(), std::nullopt, std::move(delay_map)));
   XLS_RETURN_IF_ERROR(scheduler->Initialize());
   return std::move(scheduler);
 }
 
 SDCScheduler::SDCScheduler(
-    const ScheduleGraph& graph, double sdc_solution_tolerance,
+    ScheduleGraph graph, double sdc_solution_tolerance,
     ::operations_research::math_opt::SolverType solver_type,
     ::operations_research::math_opt::SolveParameters&& solve_parameters,
     std::optional<int64_t> initiation_interval, DelayMap&& delay_map)
-    : Scheduler("SDCScheduler"),
-      delay_map_(std::move(delay_map)),
+    : delay_map_(std::move(delay_map)),
       solver_type_(solver_type),
       solve_parameters_(std::move(solve_parameters)),
-      model_(graph, delay_map_, initiation_interval, sdc_solution_tolerance) {}
+      model_(std::move(graph), delay_map_, initiation_interval,
+             sdc_solution_tolerance) {}
 
 absl::Status SDCScheduler::Initialize() {
   XLS_ASSIGN_OR_RETURN(solver_, math_opt::NewIncrementalSolver(
@@ -1316,30 +1337,19 @@ absl::Status SDCScheduler::BuildError(
 
 absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
     std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
-    SchedulingFailureBehavior failure_behavior,
-    std::optional<int64_t> worst_case_throughput) {
-  VLOG(5) << "Running scheduling with "
-          << (pipeline_stages.has_value() ? absl::StrCat(*pipeline_stages)
-                                          : "unspecified")
-          << " pipeline stages, "
-          << (worst_case_throughput.has_value()
-                  ? absl::StrCat(*worst_case_throughput)
-                  : "unspecified")
-          << " wct, and " << clock_period_ps << " clock period.";
-  VLOG(5) << "  Configured with: "
-          << (check_feasibility_ ? "check feasibility"
-                                 : "minimize dynamic throughput");
+    SchedulingFailureBehavior failure_behavior, bool check_feasibility,
+    std::optional<int64_t> worst_case_throughput,
+    std::optional<double> dynamic_throughput_objective_weight) {
   model_.SetClockPeriod(clock_period_ps);
-  // TODO(allight): Having the II be sort of held in the model is a footgun
-  // since it can be not clear what the II being targeted is. For now just force
-  // it to the current value every time we schedule.
-  if (model_.initiation_interval() != worst_case_throughput) {
-    XLS_RETURN_IF_ERROR(model_.SetWorstCaseThroughput(worst_case_throughput))
-        << "Failed to set WCT of " << worst_case_throughput.value_or(-1);
+  if (worst_case_throughput.has_value()) {
+    if (model_.initiation_interval().value_or(1) != *worst_case_throughput) {
+      XLS_RETURN_IF_ERROR(
+          model_.SetWorstCaseThroughput(*worst_case_throughput));
+    }
   }
 
   model_.SetPipelineLength(pipeline_stages);
-  if (!pipeline_stages.has_value() && !check_feasibility_) {
+  if (!pipeline_stages.has_value() && !check_feasibility) {
     // Find the minimum feasible pipeline length.
     model_.MinimizePipelineLength();
     XLS_ASSIGN_OR_RETURN(
@@ -1357,16 +1367,16 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
     model_.SetPipelineLength(min_pipeline_length);
   }
 
-  if (check_feasibility_) {
+  if (check_feasibility) {
     model_.RemoveObjective();
   } else {
-    model_.SetObjective(dynamic_throughput_objective_weight_);
+    model_.SetObjective(dynamic_throughput_objective_weight);
   }
 
   XLS_ASSIGN_OR_RETURN(math_opt::SolveResult result,
                        solver_->Solve({.parameters = solve_parameters_}));
   if (result.termination.reason == math_opt::TerminationReason::kOptimal ||
-      (check_feasibility_ &&
+      (check_feasibility &&
        result.termination.reason == math_opt::TerminationReason::kFeasible)) {
     return model_.ExtractResult(result.variable_values());
   }

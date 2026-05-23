@@ -32,12 +32,11 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/random/random.h"
+#include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/math_util.h"
@@ -60,20 +59,44 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/topo_sort.h"
-#include "xls/scheduling/asap_scheduler.h"
 #include "xls/scheduling/min_cut_scheduler.h"
 #include "xls/scheduling/pipeline_schedule.h"
-#include "xls/scheduling/random_scheduler.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/schedule_util.h"
-#include "xls/scheduling/scheduler.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/sdc_scheduler.h"
 
 namespace xls {
 
 namespace {
+
+// Returns the nodes of `f` which must be scheduled in the first stage of a
+// pipeline. For functions this is parameters.
+std::vector<Node*> FirstStageNodes(FunctionBase* f) {
+  if (Function* function = dynamic_cast<Function*>(f)) {
+    return std::vector<Node*>(function->params().begin(),
+                              function->params().end());
+  }
+
+  return {};
+}
+
+// Returns the nodes of `f` which must be scheduled in the final stage of a
+// pipeline. For functions this is the return value.
+std::vector<Node*> FinalStageNodes(FunctionBase* f) {
+  if (Function* function = dynamic_cast<Function*>(f)) {
+    // If the return value is a parameter, then we do not force the return value
+    // to be scheduled in the final stage because, as a parameter, the node must
+    // be in the first stage.
+    if (function->return_value()->Is<Param>()) {
+      return {};
+    }
+    return {function->return_value()};
+  }
+
+  return {};
+}
 
 // Tighten `bounds` to the ASAP/ALAP bounds for each node. If `schedule_length`
 // is given, then the ALAP bounds are computed with the given length. Otherwise,
@@ -103,23 +126,33 @@ absl::Status TightenBounds(sched::ScheduleBounds& bounds, FunctionBase* f,
 // Returns the critical path through the given nodes (ordered topologically),
 // ignoring nodes that will be dead after synthesis.
 absl::StatusOr<int64_t> ComputeCriticalPath(
-    const ScheduleGraph& graph, const DelayEstimator& delay_estimator) {
+    absl::Span<Node* const> topo_sort,
+    const absl::flat_hash_set<Node*>& dead_after_synthesis,
+    const DelayEstimator& delay_estimator) {
   int64_t function_cp = 0;
   absl::flat_hash_map<Node*, int64_t> node_cp;
-  for (const auto& sn : graph.nodes()) {
-    if (sn.is_dead_after_synthesis) {
+  for (Node* node : topo_sort) {
+    if (dead_after_synthesis.contains(node)) {
       continue;
     }
     int64_t node_start = 0;
-    for (Node* operand : sn.node->operands()) {
+    for (Node* operand : node->operands()) {
       node_start = std::max(node_start, node_cp[operand]);
     }
     XLS_ASSIGN_OR_RETURN(int64_t node_delay,
-                         delay_estimator.GetOperationDelayInPs(sn.node));
-    node_cp[sn.node] = node_start + node_delay;
-    function_cp = std::max(function_cp, node_cp[sn.node]);
+                         delay_estimator.GetOperationDelayInPs(node));
+    node_cp[node] = node_start + node_delay;
+    function_cp = std::max(function_cp, node_cp[node]);
   }
   return function_cp;
+}
+absl::StatusOr<int64_t> ComputeCriticalPath(
+    FunctionBase* f, const DelayEstimator& delay_estimator) {
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                       GetDeadAfterSynthesisNodes(f));
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+  return ComputeCriticalPath(topo_sort_nodes, dead_after_synthesis,
+                             delay_estimator);
 }
 
 // Returns the minimum clock period in picoseconds for which it is feasible to
@@ -127,27 +160,17 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
 // `target_clock_period_ps` is specified, will not try to check lower clock
 // periods than this.
 absl::StatusOr<int64_t> FindMinimumClockPeriod(
-    const ScheduleGraph& graph, std::optional<int64_t> pipeline_stages,
+    FunctionBase* f, std::optional<int64_t> pipeline_stages,
     std::optional<int64_t> worst_case_throughput,
-    const DelayEstimator& delay_estimator, Scheduler& scheduler,
+    const DelayEstimator& delay_estimator, SDCScheduler& scheduler,
     SchedulingFailureBehavior failure_behavior,
     std::optional<int64_t> target_clock_period_ps = std::nullopt) {
   VLOG(4) << "FindMinimumClockPeriod()";
-  VLOG(4) << "  graph = " << graph.name();
-  VLOG(4) << "  scheduler = " << scheduler.name();
   VLOG(4) << "  pipeline stages = "
           << (pipeline_stages.has_value() ? absl::StrCat(*pipeline_stages)
                                           : "(unspecified)");
-  VLOG(4) << "  worst case throughput = "
-          << (worst_case_throughput.has_value()
-                  ? absl::StrCat(*worst_case_throughput)
-                  : "(unspecified)");
-  VLOG(4) << "  target clock period = "
-          << (target_clock_period_ps.has_value()
-                  ? absl::StrCat(*target_clock_period_ps)
-                  : "(unspecified)");
   XLS_ASSIGN_OR_RETURN(int64_t function_cp_ps,
-                       ComputeCriticalPath(graph, delay_estimator));
+                       ComputeCriticalPath(f, delay_estimator));
 
   // The upper bound of the search is simply the critical path of the entire
   // function, and the lower bound is the critical path delay evenly distributed
@@ -176,13 +199,13 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
   // schedule this function at all; if not, return a useful error.
   XLS_RETURN_IF_ERROR(scheduler
                           .Schedule(pipeline_stages, pessimistic_clk_period_ps,
-                                    failure_behavior, worst_case_throughput)
+                                    failure_behavior,
+                                    /*check_feasibility=*/true,
+                                    worst_case_throughput)
                           .status())
           .SetPrepend()
-      << absl::StrFormat(
-             "Impossible to schedule %s %s as specified with clock period %d",
-             (graph.IsSingleProc() ? "proc" : "function"), graph.name(),
-             pessimistic_clk_period_ps);
+      << absl::StrFormat("Impossible to schedule %s %s as specified; ",
+                         (f->IsProc() ? "proc" : "function"), f->name());
 
   // Don't waste time explaining infeasibility for the failing points in the
   // search.
@@ -190,16 +213,10 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
   int64_t min_clk_period_ps = BinarySearchMinTrue(
       optimistic_clk_period_ps, pessimistic_clk_period_ps,
       [&](int64_t clk_period_ps) {
-        auto sched =
-            scheduler.Schedule(pipeline_stages, clk_period_ps, failure_behavior,
-                               worst_case_throughput);
-        VLOG(5) << "FindMinClockPeriod(" << graph.name()
-                << ", pipeline_stages=" << pipeline_stages.value_or(-1)
-                << ", worst_case_throughput="
-                << worst_case_throughput.value_or(-1)
-                << ", clk_period_ps=" << clk_period_ps
-                << "): " << sched.status();
-        return sched.ok();
+        return scheduler
+            .Schedule(pipeline_stages, clk_period_ps, failure_behavior,
+                      /*check_feasibility=*/true, worst_case_throughput)
+            .ok();
       },
       BinarySearchAssumptions::kEndKnownTrue);
   VLOG(4) << "minimum clock period = " << min_clk_period_ps;
@@ -211,31 +228,38 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
 // schedule the function into a pipeline with the given number of stages and
 // target clock period.
 absl::StatusOr<int64_t> FindMinimumWorstCaseThroughput(
-    Proc* proc, std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
-    Scheduler& scheduler, SchedulingFailureBehavior failure_behavior) {
+    FunctionBase* f, std::optional<int64_t> pipeline_stages,
+    int64_t clock_period_ps, SDCScheduler& scheduler,
+    SchedulingFailureBehavior failure_behavior) {
   VLOG(4) << "FindMinimumWorstCaseThroughput()";
   VLOG(4) << "  pipeline stages = "
           << (pipeline_stages.has_value() ? absl::StrCat(*pipeline_stages)
                                           : "(unspecified)")
           << ", clock period = " << clock_period_ps << " ps";
 
+  Proc* proc = f->AsProcOrDie();
+
   // Check that it is in fact possible to schedule this function at all, with no
   // worst-case throughput bound; if not, return a useful error.
   XLS_ASSIGN_OR_RETURN(
       ScheduleCycleMap schedule_cycle_map,
       scheduler.Schedule(pipeline_stages, clock_period_ps, failure_behavior,
-                         /*worst_case_throughput=*/std::nullopt),
+                         /*check_feasibility=*/true,
+                         /*worst_case_throughput=*/0),
       _.SetPrepend() << absl::StrFormat(
-          "Impossible to schedule proc %s as specified; proc ", proc->name()));
+          "Impossible to schedule %s %s as specified; ",
+          (f->IsProc() ? "proc" : "function"), f->name()));
 
   // Extract the worst-case throughput from this schedule as an upper bound.
   int64_t pessimistic_worst_case_throughput = 1;
-  for (Next* next : proc->next_values()) {
-    Node* state_read = next->state_read();
-    const int64_t backedge_length =
-        schedule_cycle_map[next] - schedule_cycle_map[state_read];
-    pessimistic_worst_case_throughput =
-        std::max(pessimistic_worst_case_throughput, backedge_length + 1);
+  if (f->IsProc()) {
+    for (Next* next : proc->next_values()) {
+      Node* state_read = next->state_read();
+      const int64_t backedge_length =
+          schedule_cycle_map[next] - schedule_cycle_map[state_read];
+      pessimistic_worst_case_throughput =
+          std::max(pessimistic_worst_case_throughput, backedge_length + 1);
+    }
   }
   VLOG(4) << absl::StreamFormat(
       "Schedules at worst-case throughput %d; now binary searching over "
@@ -248,19 +272,11 @@ absl::StatusOr<int64_t> FindMinimumWorstCaseThroughput(
   int64_t min_worst_case_throughput = BinarySearchMinTrue(
       1, pessimistic_worst_case_throughput,
       [&](int64_t worst_case_throughput) {
-        CHECK(!failure_behavior.explain_infeasibility);
-        auto sched = scheduler.Schedule(
-            pipeline_stages, clock_period_ps, failure_behavior,
-            /*worst_case_throughput=*/worst_case_throughput);
-        VLOG(5) << "FindMinimumWorstCaseThroughput("
-                << absl::StreamFormat(
-                       "pipeline_stages=%d, clock_period_ps=%d, "
-                       "worst_case_throughput=%d",
-                       pipeline_stages.value_or(-1), clock_period_ps,
-                       worst_case_throughput)
-                << "): " << sched.status();
-        sched.IgnoreError();
-        return sched.ok();
+        return scheduler
+            .Schedule(pipeline_stages, clock_period_ps, failure_behavior,
+                      /*check_feasibility=*/true,
+                      /*worst_case_throughput=*/worst_case_throughput)
+            .ok();
       },
       BinarySearchAssumptions::kEndKnownTrue);
   VLOG(4) << "minimum worst-case throughput = " << min_worst_case_throughput;
@@ -319,215 +335,52 @@ absl::StatusOr<int64_t> ApplyClockMargin(const SchedulingOptions& options,
   return clock_period_ps;
 }
 
-// Handles the case where scheduling fails, providing more informative error
-// messages based on the failure type and options.
-absl::Status HandleScheduleFailure(
-    absl::Status schedule_status, const ScheduleGraph& graph,
-    const SchedulingOptions& options,
-    std::optional<int64_t> worst_case_throughput,
-    const DelayEstimator& io_delay_added,
-    std::optional<int64_t>& min_clock_period_ps_for_tracing,
-    int64_t clock_period_ps, Scheduler& bounds_scheduler) {
-  if (absl::IsInvalidArgument(schedule_status)) {
-    // The scheduler was able to explain the failure; report it up without
-    // further analysis.
-    return schedule_status;
-  }
-  if (options.clock_period_ps().has_value()) {
-    // The user specified a specific clock period; see if we can confirm
-    // that that's the issue.
-
-    if (options.minimize_clock_on_failure().value_or(true)) {
-      // Find the smallest clock period that would have worked.
-      LOG(LEVEL(options.recover_after_minimizing_clock().value_or(false)
-                    ? absl::LogSeverity::kWarning
-                    : absl::LogSeverity::kError))
-          << "Unable to schedule with the specified clock period ("
-          << clock_period_ps
-          << " ps); finding the shortest feasible clock period...";
-      int64_t target_clock_period_ps = clock_period_ps + 1;
-      absl::StatusOr<int64_t> min_clock_period_ps = FindMinimumClockPeriod(
-          graph, options.pipeline_stages(), worst_case_throughput,
-          io_delay_added, bounds_scheduler, options.failure_behavior(),
-          target_clock_period_ps);
-      VLOG(5) << "FindMinimumClockPeriod() returned " << min_clock_period_ps;
-      if (min_clock_period_ps.ok()) {
-        min_clock_period_ps_for_tracing = *min_clock_period_ps;
-        // Just increasing the clock period suffices.
-        return absl::InvalidArgumentError(
-            absl::StrFormat("cannot achieve the specified clock period. Try "
-                            "`--clock_period_ps=%d`.",
-                            *min_clock_period_ps));
-      }
-      if (absl::IsInvalidArgument(min_clock_period_ps.status())) {
-        // We failed with an explained error at the longest possible clock
-        // period. Report this error up, adding that the clock period will
-        // also need to be increased - though we don't know by how much.
-        return xabsl::StatusBuilder(std::move(min_clock_period_ps).status())
-                   .SetPrepend()
-               << absl::StrFormat(
-                      "cannot achieve the specified clock period; try "
-                      "increasing `--clock_period_ps`. Also, ");
-      }
-      // We fail with an unexplained error even at the longest possible
-      // clock period. Report the original error.
-      return schedule_status;
+absl::Status GenerateHelpfulAsapError(absl::Status&& orig_status,
+                                      FunctionBase* f, int64_t clock_period_ps,
+                                      const DelayEstimator& delay_estimator,
+                                      const SchedulingOptions& options) {
+  xabsl::StatusBuilder status(std::move(orig_status));
+  // Try to figure out what the actual required stages are.
+  if (options.pipeline_stages().has_value()) {
+    XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<xls::Node*> dead_after_synthesis,
+                         GetDeadAfterSynthesisNodes(f));
+    XLS_ASSIGN_OR_RETURN(ScheduleGraph graph,
+                         ScheduleGraph::Create(f, dead_after_synthesis));
+    XLS_ASSIGN_OR_RETURN(
+        auto bounds,
+        sched::ScheduleBounds::Create(graph, clock_period_ps, delay_estimator,
+                                      f->GetInitiationInterval().value_or(1),
+                                      options.constraints()),
+        std::move(status)
+            << "(Failed to create schedule bounds for error message creation)");
+    // Add first and last stage constraints.
+    using LastStageConstraint =
+        sched::ScheduleBounds::NodeSchedulingConstraint::LastStageConstraint;
+    for (Node* n : FirstStageNodes(f)) {
+      bounds.AddConstraint(NodeInCycleConstraint{n, 0});
     }
-
-    // Check if just increasing the clock period would have helped.
-    XLS_ASSIGN_OR_RETURN(int64_t pessimistic_clock_period_ps,
-                         ComputeCriticalPath(graph, io_delay_added));
-    // Make a copy of failure behavior with explain_feasibility true- we
-    // always want to produce an error message because this we are
-    // re-running the scheduler for its error message.
-    SchedulingFailureBehavior pessimistic_failure_behavior =
-        options.failure_behavior();
-    pessimistic_failure_behavior.explain_infeasibility = true;
-    absl::Status pessimistic_status =
-        bounds_scheduler
-            .Schedule(options.pipeline_stages(), pessimistic_clock_period_ps,
-                      pessimistic_failure_behavior)
-            .status();
-    if (pessimistic_status.ok()) {
-      // Just increasing the clock period suffices.
-      return absl::InvalidArgumentError(
-          "cannot achieve the specified clock period. Try increasing "
-          "`--clock_period_ps`.");
+    for (Node* n : FinalStageNodes(f)) {
+      bounds.AddConstraint(LastStageConstraint{n});
     }
-    if (absl::IsInvalidArgument(pessimistic_status)) {
-      // We failed with an explained error at the pessimistic clock period.
-      // Report this error up, adding that the clock period will also need
-      // to be increased - though we don't know by how much.
-      return xabsl::StatusBuilder(std::move(pessimistic_status)).SetPrepend()
-             << absl::StrFormat(
-                    "cannot achieve the specified clock period; try "
-                    "increasing `--clock_period_ps`. Also, ");
-    }
-    return pessimistic_status;
-  }
-  return schedule_status;
-}
-
-absl::StatusOr<PipelineSchedule> RunIterativeSDCSchedule(
-    FunctionBase* f, const SchedulingOptions& options, int64_t clock_period_ps,
-    const DelayEstimator& delay_estimator,
-    const synthesis::Synthesizer* synthesizer) {
-  if (!options.clock_period_ps().has_value()) {
-    return absl::UnimplementedError(
-        "Iterative SDC scheduling is only supported when a clock period is "
-        "specified.");
-  }
-
-  IterativeSDCSchedulingOptions isdc_options;
-  isdc_options.synthesizer = synthesizer;
-  isdc_options.iteration_number = options.fdo_iteration_number();
-  isdc_options.delay_driven_path_number =
-      options.fdo_delay_driven_path_number();
-  isdc_options.fanout_driven_path_number =
-      options.fdo_fanout_driven_path_number();
-  isdc_options.stochastic_ratio = options.fdo_refinement_stochastic_ratio();
-  isdc_options.path_evaluate_strategy = options.fdo_path_evaluate_strategy();
-
-  XLS_ASSIGN_OR_RETURN(DelayManager delay_manager,
-                       DelayManager::Create(f, delay_estimator));
-  XLS_ASSIGN_OR_RETURN(
-      ScheduleCycleMap cycle_map,
-      ScheduleByIterativeSDC(f, options.pipeline_stages(), clock_period_ps,
-                             delay_manager, options.constraints(), isdc_options,
-                             options.failure_behavior()));
-
-  // Use delay manager for scheduling timing verification.
-  XLS_ASSIGN_OR_RETURN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Create(f, cycle_map, options.pipeline_stages()));
-  XLS_RETURN_IF_ERROR(schedule.Verify());
-  XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, delay_manager));
-  XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
-                                                 f->GetInitiationInterval()));
-
-  XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
-  return schedule;
-}
-
-// NB For backwards compatibility reasons the flag options for worst case
-// throughput/II are rather confusing. Specifically, a value of 0 means that
-// the scheduler is free to choose any WCT it wants and a value of nullopt
-// means the value must be exactly 1.
-//
-// To make everything after this clearer we change this interpretation to have
-// std::nullopt mean "no throughput requirements" and `Some(X)` mean a
-// throughput requirement of X. Therefore a value of 0 from now on is invalid.
-std::optional<int64_t> GetWorstCaseThroughputSetting(
-    const SchedulingOptions& options, FunctionBase* f) {
-  if (!f->IsProc()) {
-    VLOG(5) << "No II is possible because this is not a proc.";
-    return std::nullopt;
-  }
-  std::optional<int64_t> worst_case_throughput =
-      options.worst_case_throughput();
-  if (worst_case_throughput && *worst_case_throughput == 0) {
-    VLOG(5) << "Setting II to unconstrained from options.";
-    worst_case_throughput = std::nullopt;
-  } else if (!worst_case_throughput) {
-    // No throughput requirement from options, See if the proc has one.
-    //
-    // NB This is only reachable if the scheduler is being configured from
-    // something other than scheduling_options_flags.cc and has complicated
-    // backwards-compat behaviors.
-    //
-    // In the future we are likely to move towards this being the primary way of
-    // configuring things however and we may want to reconsider how it is
-    // interpreted if/when that happens.
-    //
-    // TODO(allight): It may be worthwhile to go through and figure out what
-    // tests/other tools depend on this behavior to rationalize it all.
-    if (f->IsProc() && f->GetInitiationInterval()) {
-      // Now convert this to the new interpretation.
-      worst_case_throughput = f->GetInitiationInterval();
-      if (worst_case_throughput == 0) {
-        VLOG(5) << "Setting II to unconstrained from proc setting.";
-        worst_case_throughput = std::nullopt;
-      } else {
-        VLOG(5) << "Setting II to " << *worst_case_throughput
-                << " from proc setting.";
-      }
-    } else if (options.minimize_worst_case_throughput()) {
-      VLOG(5) << "Setting II to unconstrained since no options or proc setting "
-                 "and MinimizeWorstCaseThroughput is true.";
-      worst_case_throughput = std::nullopt;
+    absl::Status no_length =
+        TightenBounds(bounds, f, /*schedule_length=*/std::nullopt);
+    if (no_length.ok()) {
+      return (status << absl::StrFormat("Function %s cannot be scheduled in %d "
+                                        "stages. Computed minimum stage count "
+                                        "is %d.",
+                                        f->name(),
+                                        options.pipeline_stages().value(),
+                                        bounds.max_lower_bound() + 1))
+          .SetCode(absl::StatusCode::kResourceExhausted);
     } else {
-      VLOG(5) << "Setting II to 1 since no options or proc setting and "
-                 "MinimizeWorstCaseThroughput is false.";
-      worst_case_throughput = 1;
+      return (status << "Function " << f->name()
+                     << " cannot be scheduled in any number of stages via ASAP "
+                        "bounds. Some constraints may be unsatisfiable or "
+                        "require a full SDC schedule to resolve.")
+          .SetCode(absl::StatusCode::kResourceExhausted);
     }
-  } else {
-    VLOG(5) << "Setting II to " << *worst_case_throughput
-            << " from worst_case_throughput option.";
   }
-  return worst_case_throughput;
-}
-
-// Set the WCT (either calculated or from options) to the function. For
-// compatibility we need this to be in the same strange format as the option
-// setting. Specifically where nullopt means a WCT of 1, and a value of 0 means
-// unconstrained and all other values are WCT of the value.
-//
-// TODO(allight): Go through and update all users to the internal format where
-// std::nullopt means unconstrained and any value is an exact WCT.
-void SetWorstCaseThroughput(std::optional<int64_t> worst_case_throughput,
-                            FunctionBase* f) {
-  if (!f->IsProc()) {
-    return;
-  }
-  if (worst_case_throughput.has_value()) {
-    if (worst_case_throughput == 1) {
-      f->AsProcOrDie()->ClearInitiationInterval();
-    } else {
-      f->AsProcOrDie()->SetInitiationInterval(*worst_case_throughput);
-    }
-  } else {
-    f->AsProcOrDie()->SetInitiationInterval(0);
-  }
+  return status;
 }
 
 absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
@@ -550,22 +403,6 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         "Pipeline scheduling of a proc with proc-scoped channels requires an "
         "elaboration.");
   }
-
-  // NB For backwards compatibility reasons the flag options for worst case
-  // throughput/II are rather confusing. Specifically, a value of 0 means that
-  // the scheduler is free to choose any WCT it wants and a value of nullopt
-  // means the value must be exactly 1.
-  //
-  // To make everything after this clearer we change this interpretation to have
-  // std::nullopt mean "no throughput requirements" and `Some(X)` mean a
-  // throughput requirement of X. Therefore a value of 0 from now on is invalid.
-  std::optional<int64_t> worst_case_throughput =
-      GetWorstCaseThroughputSetting(options, f);
-
-  VLOG(4) << "Computed WCT is "
-          << (worst_case_throughput.has_value()
-                  ? absl::StrCat(*worst_case_throughput)
-                  : "unconstrained");
 
   int64_t input_delay = options.additional_input_delay_ps().value_or(0);
   int64_t output_delay = options.additional_output_delay_ps().value_or(0);
@@ -613,9 +450,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         return base_delay;
       });
 
-  if (worst_case_throughput == 0) {
-    VLOG(5) << "Worst case throughput explicitly set to 0 (unbounded).";
-    worst_case_throughput = std::nullopt;
+  if (options.worst_case_throughput().has_value()) {
+    f->SetInitiationInterval(*options.worst_case_throughput());
   }
 
   if (options.pipeline_stages() == 1 &&
@@ -641,74 +477,13 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     return schedule;
   }
 
-  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
-                       GetDeadAfterSynthesisNodes(f));
-  XLS_ASSIGN_OR_RETURN(ScheduleGraph graph,
-                       ScheduleGraph::Create(f, dead_after_synthesis));
-
-  // std::unique_ptr<SDCScheduler> sdc_scheduler;
-  std::unique_ptr<Scheduler> scheduler;
-  auto create_scheduler =
-      [&](SchedulingStrategy strategy,
-          std::optional<double> dynamic_throughput_objective_weight,
-          bool check_feasibility)
-      -> absl::StatusOr<std::unique_ptr<Scheduler>> {
-    std::unique_ptr<Scheduler> s;
-    switch (strategy) {
-      case SchedulingStrategy::ASAP: {
-        s = std::make_unique<ASAPScheduler>(graph, io_delay_added);
-        break;
-      }
-      case SchedulingStrategy::MIN_CUT: {
-        s = std::make_unique<MinCutScheduler>(graph, io_delay_added);
-        break;
-      }
-      case SchedulingStrategy::SDC: {
-        XLS_ASSIGN_OR_RETURN(
-            std::unique_ptr<SDCScheduler> sdc_scheduler,
-            SDCScheduler::Create(graph, io_delay_added, options));
-        sdc_scheduler->SetCheckFeasibility(check_feasibility);
-        sdc_scheduler->SetDynamicThroughputObjectiveWeight(
-            dynamic_throughput_objective_weight);
-        s = std::move(sdc_scheduler);
-        break;
-      }
-      case SchedulingStrategy::RANDOM: {
-        s = std::make_unique<RandomScheduler>(
-            graph, io_delay_added,
-            absl::BitGen(std::seed_seq{options.seed().value_or(0)}));
-        break;
-      }
+  std::unique_ptr<SDCScheduler> sdc_scheduler;
+  auto initialize_sdc_scheduler = [&]() -> absl::Status {
+    if (sdc_scheduler == nullptr) {
+      XLS_ASSIGN_OR_RETURN(sdc_scheduler,
+                           SDCScheduler::Create(f, io_delay_added, options));
+      XLS_RETURN_IF_ERROR(sdc_scheduler->AddConstraints(options.constraints()));
     }
-    VLOG(5) << "Constraints are : ["
-            << absl::StrJoin(options.constraints(), ",") << "]";
-    XLS_RETURN_IF_ERROR(s->AddConstraints(options.constraints()));
-    return std::move(s);
-  };
-  auto initialize_scheduler = [&]() -> absl::Status {
-    if (scheduler == nullptr) {
-      XLS_ASSIGN_OR_RETURN(
-          scheduler,
-          create_scheduler(options.strategy(),
-                           options.dynamic_throughput_objective_weight(),
-                           /*check_feasibility=*/false));
-    }
-    VLOG(5) << "Using scheduler " << scheduler->name()
-            << " for primary scheduling.";
-    return absl::OkStatus();
-  };
-  std::unique_ptr<Scheduler> bounds_scheduler;
-  auto initialize_bounds_scheduler = [&]() -> absl::Status {
-    if (bounds_scheduler == nullptr) {
-      // Even if we are SDC we ignore the dynamic_throughput_objective_weight
-      // for bounds.
-      XLS_ASSIGN_OR_RETURN(
-          bounds_scheduler,
-          create_scheduler(options.find_bounds_strategy(),
-                           /*dynamic_throughput_objective_weight=*/std::nullopt,
-                           /*check_feasibility=*/true));
-    }
-    VLOG(5) << "Using scheduler " << bounds_scheduler->name() << " for bounds.";
     return absl::OkStatus();
   };
 
@@ -724,20 +499,17 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     // user-specified relaxation percent if needed), and use that if it's
     // smaller than the target clock period.
     //
-    // TODO(allight): Ideally we'd always use the ASAP scheduler but it is
-    // possible to create graphs that are not ASAP schedulable. For now just
-    // use the configured bounds strategy.
-    VLOG(5) << "Finding min clock due to "
-            << (!options.clock_period_ps().has_value()
-                    ? "no target clock period"
-                    : "minimize_clock_on_failure and recover_after_minimizing_"
-                      "clock");
-    XLS_RETURN_IF_ERROR(initialize_bounds_scheduler());
+    // NOTE: We currently use the SDC scheduler to determine the minimum clock
+    //       period (if not specified), even if we're not using it for the final
+    //       schedule.
+    XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
     XLS_ASSIGN_OR_RETURN(
         min_clock_period_ps_for_tracing,
-        FindMinimumClockPeriod(graph, options.pipeline_stages(),
-                               worst_case_throughput, io_delay_added,
-                               *bounds_scheduler, options.failure_behavior()));
+        FindMinimumClockPeriod(
+            f, options.pipeline_stages(),
+            /*worst_case_throughput=*/f->IsProc() ? f->GetInitiationInterval()
+                                                  : std::nullopt,
+            io_delay_added, *sdc_scheduler, options.failure_behavior()));
 
     // Pad the minimum clock period to account for the clock margin.
     if (options.clock_margin_percent().has_value()) {
@@ -778,34 +550,30 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
                    << " ps; continuing with clock period = " << clock_period_ps
                    << " ps.";
     }
-    VLOG(5) << "Got clock period of " << clock_period_ps << " from minimum.";
   } else {
-    VLOG(5) << "Got clock period of " << options.clock_period_ps().value()
-            << " from options.";
     clock_period_ps = options.clock_period_ps().value();
   }
 
   XLS_ASSIGN_OR_RETURN(clock_period_ps,
                        ApplyClockMargin(options, clock_period_ps));
 
-  // Only actually attempt to minimize WCT if we are (1) told we can do so,
-  // (2) we don't have an explicitly chosen WCT already, and (3) we have a
-  // constraint that actually cares about WCT.
-  // TODO(allight): Does it actually make sense to ever not have a back-edge
-  // constraint with a WCT setting?
-  if (options.minimize_worst_case_throughput() && f->IsProc() &&
-      !worst_case_throughput &&
+  std::optional<int64_t> worst_case_throughput = std::nullopt;
+  if (options.minimize_worst_case_throughput().value_or(false) && f->IsProc() &&
+      f->GetInitiationInterval().value_or(1) <= 0 &&
       absl::c_any_of(
           options.constraints(), [](const SchedulingConstraint& constraint) {
             return std::holds_alternative<BackedgeConstraint>(constraint);
           })) {
-    XLS_RETURN_IF_ERROR(initialize_bounds_scheduler());
+    // NOTE: We currently use the SDC scheduler to minimize the worst-case
+    //       throughput (if minimization is requested), even if we're not using
+    //       it for the final schedule.
+    XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
     absl::StatusOr<int64_t> wct = FindMinimumWorstCaseThroughput(
-        f->AsProcOrDie(), options.pipeline_stages(), clock_period_ps,
-        *bounds_scheduler,
+        f, options.pipeline_stages(), clock_period_ps, *sdc_scheduler,
         /*failure_behavior=*/{.explain_infeasibility = false});
     if (wct.ok()) {
       worst_case_throughput = *wct;
+      f->AsProcOrDie()->SetInitiationInterval(*wct);
       LOG(INFO) << "Minimized worst-case throughput for proc '" << f->name()
                 << "': " << *worst_case_throughput;
     } else {
@@ -815,59 +583,222 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     }
   }
 
-  // Worst case throughput is either known from the options, the proc itself, or
-  // minimization by now. Notate it in the proc itself.
-  //
-  // Using a helper since other parts of codegen/sched/other tools use the same
-  // nullopt interpretation as the scheduling_options flag. See comment on
-  // function for more information.
-  SetWorstCaseThroughput(worst_case_throughput, f);
+  ScheduleCycleMap cycle_map;
+  if (options.strategy() == SchedulingStrategy::SDC) {
+    // Enable iterative SDC scheduling when use_fdo is true
+    if (options.use_fdo()) {
+      if (!options.clock_period_ps().has_value()) {
+        return absl::UnimplementedError(
+            "Iterative SDC scheduling is only supported when a clock period is "
+            "specified.");
+      }
 
-  // TODO(allight): Rewrite FDO into the scheduler API.
-  if (options.use_fdo() && options.strategy() == SchedulingStrategy::SDC) {
-    if (f->IsProc()) {
-      XLS_RET_CHECK_EQ(f->AsProcOrDie()->GetInitiationInterval().has_value(),
-                       worst_case_throughput.has_value())
-          << " ii: " << f->AsProcOrDie()->GetInitiationInterval().value_or(-1)
-          << " wct: " << worst_case_throughput.value_or(-1);
-      if (worst_case_throughput) {
-        XLS_RET_CHECK_EQ(*f->AsProcOrDie()->GetInitiationInterval(),
-                         *worst_case_throughput);
+      IterativeSDCSchedulingOptions isdc_options;
+      isdc_options.synthesizer = synthesizer;
+      isdc_options.iteration_number = options.fdo_iteration_number();
+      isdc_options.delay_driven_path_number =
+          options.fdo_delay_driven_path_number();
+      isdc_options.fanout_driven_path_number =
+          options.fdo_fanout_driven_path_number();
+      isdc_options.stochastic_ratio = options.fdo_refinement_stochastic_ratio();
+      isdc_options.path_evaluate_strategy =
+          options.fdo_path_evaluate_strategy();
+
+      XLS_ASSIGN_OR_RETURN(DelayManager delay_manager,
+                           DelayManager::Create(f, delay_estimator));
+      XLS_ASSIGN_OR_RETURN(
+          cycle_map,
+          ScheduleByIterativeSDC(f, options.pipeline_stages(), clock_period_ps,
+                                 delay_manager, options.constraints(),
+                                 isdc_options, options.failure_behavior()));
+
+      // Use delay manager for scheduling timing verification.
+      XLS_ASSIGN_OR_RETURN(
+          PipelineSchedule schedule,
+          PipelineSchedule::Create(f, cycle_map, options.pipeline_stages()));
+      XLS_RETURN_IF_ERROR(schedule.Verify());
+      XLS_RETURN_IF_ERROR(
+          schedule.VerifyTiming(clock_period_ps, delay_manager));
+      XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(
+          options.constraints(), f->GetInitiationInterval()));
+
+      XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
+      return schedule;
+    }
+
+    XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
+    absl::StatusOr<ScheduleCycleMap> schedule_cycle_map =
+        sdc_scheduler->Schedule(options.pipeline_stages(), clock_period_ps,
+                                options.failure_behavior(),
+                                /*check_feasibility=*/false,
+                                worst_case_throughput,
+                                options.dynamic_throughput_objective_weight());
+    if (!schedule_cycle_map.ok()) {
+      if (absl::IsInvalidArgument(schedule_cycle_map.status())) {
+        // The scheduler was able to explain the failure; report it up without
+        // further analysis.
+        return std::move(schedule_cycle_map).status();
+      }
+      if (options.clock_period_ps().has_value()) {
+        // The user specified a specific clock period; see if we can confirm
+        // that that's the issue.
+
+        if (options.minimize_clock_on_failure().value_or(true)) {
+          // Find the smallest clock period that would have worked.
+          LOG(LEVEL(options.recover_after_minimizing_clock().value_or(false)
+                        ? absl::LogSeverity::kWarning
+                        : absl::LogSeverity::kError))
+              << "Unable to schedule with the specified clock period ("
+              << clock_period_ps
+              << " ps); finding the shortest feasible clock period...";
+          int64_t target_clock_period_ps = clock_period_ps + 1;
+          XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
+          absl::StatusOr<int64_t> min_clock_period_ps = FindMinimumClockPeriod(
+              f, options.pipeline_stages(), worst_case_throughput,
+              io_delay_added, *sdc_scheduler, options.failure_behavior(),
+              target_clock_period_ps);
+          if (min_clock_period_ps.ok()) {
+            min_clock_period_ps_for_tracing = *min_clock_period_ps;
+            // Just increasing the clock period suffices.
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "cannot achieve the specified clock period. Try "
+                "`--clock_period_ps=%d`.",
+                *min_clock_period_ps));
+          }
+          if (absl::IsInvalidArgument(min_clock_period_ps.status())) {
+            // We failed with an explained error at the longest possible clock
+            // period. Report this error up, adding that the clock period will
+            // also need to be increased - though we don't know by how much.
+            return xabsl::StatusBuilder(std::move(min_clock_period_ps).status())
+                       .SetPrepend()
+                   << absl::StrFormat(
+                          "cannot achieve the specified clock period; try "
+                          "increasing `--clock_period_ps`. Also, ");
+          }
+          // We fail with an unexplained error even at the longest possible
+          // clock period. Report the original error.
+          return std::move(schedule_cycle_map).status();
+        }
+
+        // Check if just increasing the clock period would have helped.
+        XLS_ASSIGN_OR_RETURN(int64_t pessimistic_clock_period_ps,
+                             ComputeCriticalPath(f, io_delay_added));
+        // Make a copy of failure behavior with explain_feasibility true- we
+        // always want to produce an error message because this we are
+        // re-running the scheduler for its error message.
+        SchedulingFailureBehavior pessimistic_failure_behavior =
+            options.failure_behavior();
+        pessimistic_failure_behavior.explain_infeasibility = true;
+        XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
+        absl::Status pessimistic_status =
+            sdc_scheduler
+                ->Schedule(options.pipeline_stages(),
+                           pessimistic_clock_period_ps,
+                           pessimistic_failure_behavior,
+                           /*check_feasibility=*/true)
+                .status();
+        if (pessimistic_status.ok()) {
+          // Just increasing the clock period suffices.
+          return absl::InvalidArgumentError(
+              "cannot achieve the specified clock period. Try increasing "
+              "`--clock_period_ps`.");
+        }
+        if (absl::IsInvalidArgument(pessimistic_status)) {
+          // We failed with an explained error at the pessimistic clock period.
+          // Report this error up, adding that the clock period will also need
+          // to be increased - though we don't know by how much.
+          return xabsl::StatusBuilder(std::move(pessimistic_status))
+                     .SetPrepend()
+                 << absl::StrFormat(
+                        "cannot achieve the specified clock period; try "
+                        "increasing `--clock_period_ps`. Also, ");
+        }
+        return pessimistic_status;
+      }
+      return schedule_cycle_map.status();
+    }
+    cycle_map = *std::move(schedule_cycle_map);
+  } else {
+    // Run an initial ASAP/ALAP scheduling pass, which we'll refine with the
+    // chosen scheduler.
+    // First get the basic bounds.
+    XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                         GetDeadAfterSynthesisNodes(f));
+    XLS_ASSIGN_OR_RETURN(ScheduleGraph graph,
+                         ScheduleGraph::Create(f, dead_after_synthesis));
+    XLS_ASSIGN_OR_RETURN(
+        auto bounds,
+        sched::ScheduleBounds::Create(graph, clock_period_ps, io_delay_added,
+                                      f->GetInitiationInterval().value_or(1),
+                                      options.constraints()));
+    // Add first and last stage constraints.
+    using LastStageConstraint =
+        sched::ScheduleBounds::NodeSchedulingConstraint::LastStageConstraint;
+    for (Node* n : FirstStageNodes(f)) {
+      bounds.AddConstraint(NodeInCycleConstraint{n, 0});
+    }
+    for (Node* n : FinalStageNodes(f)) {
+      bounds.AddConstraint(LastStageConstraint{n});
+    }
+    absl::Status tighten_bounds_status =
+        TightenBounds(bounds, f, options.pipeline_stages());
+    if (!tighten_bounds_status.ok()) {
+      return GenerateHelpfulAsapError(std::move(tighten_bounds_status), f,
+                                      clock_period_ps, io_delay_added, options);
+    }
+
+    if (options.strategy() == SchedulingStrategy::MIN_CUT) {
+      XLS_ASSIGN_OR_RETURN(
+          cycle_map,
+          MinCutScheduler(
+              f,
+              options.pipeline_stages().value_or(bounds.max_lower_bound() + 1),
+              clock_period_ps, io_delay_added, &bounds, options.constraints()));
+    } else if (options.strategy() == SchedulingStrategy::RANDOM) {
+      std::mt19937_64 gen(options.seed().value_or(0));
+
+      cycle_map = ScheduleCycleMap();
+      XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
+      for (Node* node : topo_sort_nodes) {
+        if (IsUntimed(node)) {
+          continue;
+        }
+        int64_t cycle = absl::Uniform<int64_t>(
+            absl::IntervalClosed, gen, bounds.lb(node), bounds.ub(node));
+        if (bounds.lb(node) != bounds.ub(node)) {
+          XLS_RETURN_IF_ERROR(bounds.TightenNodeLb(node, cycle));
+          XLS_RETURN_IF_ERROR(bounds.TightenNodeUb(node, cycle));
+          // TODO(allight): We might want to give this more fuel.
+          XLS_RETURN_IF_ERROR(bounds.PropagateBounds());
+        }
+        cycle_map[node] = cycle;
+      }
+    } else {
+      XLS_RET_CHECK(options.strategy() == SchedulingStrategy::ASAP);
+      XLS_RET_CHECK(!options.pipeline_stages().has_value() ||
+                    options.pipeline_stages() == 1 ||
+                    options.pipeline_stages() >= bounds.max_lower_bound() + 1)
+          << "Pipeline stages must be at least 1 or greater than or equal to "
+             "the number of stages in the function. pipeline_stages: "
+          << (options.pipeline_stages() ? *options.pipeline_stages() : -1)
+          << " max_lower_bound: " << bounds.max_lower_bound();
+      // Just schedule everything as soon as possible.
+      for (Node* node : f->nodes()) {
+        cycle_map[node] = bounds.lb(node);
       }
     }
-    return RunIterativeSDCSchedule(f, options, clock_period_ps, delay_estimator,
-                                   synthesizer);
-  } else if (options.use_fdo()) {
-    return absl::InvalidArgumentError(
-        "FDO is only supported with SDC strategy.");
   }
-  VLOG(5) << "Starting primary scheduling. Failure behavior is: "
-          << options.failure_behavior().ToProto().ShortDebugString();
-  ScheduleCycleMap cycle_map;
-  XLS_RETURN_IF_ERROR(initialize_scheduler());
-  absl::StatusOr<ScheduleCycleMap> schedule_cycle_map =
-      scheduler->Schedule(options.pipeline_stages(), clock_period_ps,
-                          options.failure_behavior(), worst_case_throughput);
-
-  if (!schedule_cycle_map.ok()) {
-    XLS_RETURN_IF_ERROR(initialize_bounds_scheduler());
-    return HandleScheduleFailure(std::move(schedule_cycle_map).status(), graph,
-                                 options, worst_case_throughput, io_delay_added,
-                                 min_clock_period_ps_for_tracing,
-                                 clock_period_ps, *bounds_scheduler);
-  }
-  cycle_map = *std::move(schedule_cycle_map);
 
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
       PipelineSchedule::Create(f, cycle_map, options.pipeline_stages(),
                                min_clock_period_ps_for_tracing));
-  XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, io_delay_added));
   XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
                                                  f->GetInitiationInterval()));
 
+  XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
   return schedule;
 }
 

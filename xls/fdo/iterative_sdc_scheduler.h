@@ -38,9 +38,9 @@ class IterativeSDCSchedulingModel : public SDCSchedulingModel {
  public:
   // Delay map is no longer needed as the delay calculation is completely
   // handled by the delay manager.
-  IterativeSDCSchedulingModel(const ScheduleGraph& graph,
+  IterativeSDCSchedulingModel(ScheduleGraph graph,
                               const DelayManager& delay_manager)
-      : SDCSchedulingModel(graph, DelayMap(),
+      : SDCSchedulingModel(std::move(graph), DelayMap(),
                            /*initiation_interval=*/std::nullopt,
                            // Use kDefaultSdcSolutionTolerance as the tolerance
                            // as we unconditionally use glop with iterative
