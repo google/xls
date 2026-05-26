@@ -136,6 +136,10 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
       return absl::UnimplementedError(absl::StrCat(
           "Cannot convert module type to XLS IR type: ", t.ToString()));
     }
+    absl::Status HandleDomain(const DomainType& t) override {
+      return absl::UnimplementedError(absl::StrCat(
+          "Cannot convert domain type to XLS IR type: ", t.ToString()));
+    }
 
     xls::Type* retval() const { return retval_; }
 

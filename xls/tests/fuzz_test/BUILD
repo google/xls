@@ -117,3 +117,20 @@ dslx_fuzz_test(
     library = ":array_tests_dslx",
     test_function = "tuple_with_big_array",
 )
+
+xls_dslx_library(
+    name = "struct_tests_dslx",
+    srcs = ["struct_tests.x"],
+)
+
+dslx_fuzz_test(
+    name = "flat_struct_domain_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "test_flat_struct_domain",
+)
+
+dslx_fuzz_test(
+    name = "nested_struct_domain_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "test_nested_struct_domain",
+)

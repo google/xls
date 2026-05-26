@@ -574,6 +574,13 @@ absl::Status ConstexprEvaluator::HandleVerbatimNode(const VerbatimNode* node) {
 }
 
 absl::Status ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
+  std::optional<Type*> type = type_info_->GetItem(expr);
+  if (type.has_value() && (*type)->IsDomain() && expr->members().empty()) {
+    type_info_->NoteConstExpr(
+        expr, InterpValue::MakeTuple({InterpValue::MakeU32(0)}));
+    return absl::OkStatus();
+  }
+
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
     GET_CONSTEXPR_OR_RETURN(InterpValue value, member);

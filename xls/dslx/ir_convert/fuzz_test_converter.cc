@@ -79,18 +79,27 @@ absl::Status FuzzTestConverter::LowerTuple(
     PackageInterfaceProto::FuzzTestDomain& proto) {
   if (elements.empty()) {
     // Cannot send enums into this function; must use LowerArbitraryType
-    XLS_RET_CHECK(!param_type->IsEnum());
+    XLS_RET_CHECK(param_type == nullptr || !param_type->IsEnum());
     proto.set_arbitrary(true);
     return absl::OkStatus();
   }
   auto* tuple_proto = proto.mutable_tuple();
   const TupleType* tuple_type = nullptr;
-  if (param_type != nullptr && param_type->IsTuple()) {
-    tuple_type = &param_type->AsTuple();
+  const StructType* struct_type = nullptr;
+  if (param_type != nullptr) {
+    if (param_type->IsTuple()) {
+      tuple_type = &param_type->AsTuple();
+    } else if (param_type->IsStruct()) {
+      struct_type = &param_type->AsStruct();
+    }
   }
   for (size_t i = 0; i < elements.size(); ++i) {
-    const Type* member_type =
-        (tuple_type != nullptr) ? tuple_type->members()[i].get() : nullptr;
+    const Type* member_type = nullptr;
+    if (tuple_type != nullptr) {
+      member_type = tuple_type->members()[i].get();
+    } else if (struct_type != nullptr) {
+      member_type = &struct_type->GetMemberType(i);
+    }
     const InterpValue& element = elements[i];
     XLS_RETURN_IF_ERROR(
         LowerConstant(member_type, element, *tuple_proto->add_elements()));
@@ -186,6 +195,21 @@ absl::Status FuzzTestConverter::LowerConstant(
   if (val.IsTuple()) {
     XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
                          val.GetValues());
+
+    // Option B desugared domain Tuple decoding
+    if (!elements->empty() && elements->front().IsBits()) {
+      XLS_ASSIGN_OR_RETURN(int64_t tag, elements->front().GetBitValueViaSign());
+      if (tag == 0 && elements->size() == 1) {
+        // TAG_ARBITRARY
+        proto.set_arbitrary(true);
+        return absl::OkStatus();
+      }
+      if (tag == 1 && elements->size() == 3) {
+        // TAG_RANGE
+        return LowerRange((*elements)[1], (*elements)[2], proto);
+      }
+    }
+
     // If the parameter is an enum, or contains enums, with an arbitrary domain,
     // we need to lower it so it is represented as an ElementOf domain (or tuple
     // thereof), rather than a RangeOf the underlying bits type. This is because

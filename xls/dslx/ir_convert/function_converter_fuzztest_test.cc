@@ -1397,5 +1397,73 @@ fn f(o: Outer) -> u32 { o.x }
   EXPECT_EQ(a_domain.range().max().bits().data(), std::string{'\004'});
 }
 
+TEST(FunctionConverterFuzzTestTest, DerivedStructDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32,
+    y: bool,
+}
+
+fn create_f_domain() -> MyStructDomain {
+   MyStructDomain {
+     x: u32:0..10,
+     y: (),
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: MyStruct) {}
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  ASSERT_EQ(function_proto.parameter_domains_size(), 1);
+  const auto& domain = function_proto.parameter_domains(0);
+
+  ASSERT_TRUE(domain.has_tuple());
+  ASSERT_EQ(domain.tuple().elements_size(), 2);
+
+  // MyStruct.x -> Range [0, 9] (u32:0..10 in DSLX)
+  const auto& x_domain = domain.tuple().elements(0);
+  ASSERT_TRUE(x_domain.has_range());
+  EXPECT_EQ(x_domain.range().min().bits().data(),
+            std::string("\000\000\000\000", 4));
+  EXPECT_EQ(x_domain.range().max().bits().data(),
+            std::string("\t\000\000\000", 4));
+
+  // MyStruct.y -> arbitrary
+  const auto& y_domain = domain.tuple().elements(1);
+  ASSERT_TRUE(y_domain.has_arbitrary());
+  EXPECT_TRUE(y_domain.arbitrary());
+}
+
 }  // namespace
 }  // namespace xls::dslx

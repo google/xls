@@ -2880,5 +2880,133 @@ fn main() -> u32[3] {
                                             InterpValue::MakeU32(15)}));
 }
 
+TEST_F(BytecodeInterpreterTest, DerivedStructDomainEvaluation) {
+  constexpr std::string_view kProgram =
+      R"(
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32,
+    y: bool,
+}
+
+fn main() -> MyStructDomain {
+   MyStructDomain {
+     x: u32:0..10,
+     y: (),
+   }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+
+  // Expected layout: ((1, 0, 9), (0,))
+  InterpValue expected_x = InterpValue::MakeTuple({
+      InterpValue::MakeU32(1),  // TAG_RANGE
+      InterpValue::MakeU32(0),  // min
+      InterpValue::MakeU32(9),  // max (10 - 1)
+  });
+  InterpValue expected_y = InterpValue::MakeTuple({
+      InterpValue::MakeU32(0),  // TAG_ARBITRARY
+  });
+  InterpValue expected = InterpValue::MakeTuple({expected_x, expected_y});
+
+  EXPECT_EQ(value, expected);
+}
+
+TEST_F(BytecodeInterpreterTest, DerivedStructDomainInclusiveRangeEvaluation) {
+  constexpr std::string_view kProgram =
+      R"(
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32,
+}
+
+fn main() -> MyStructDomain {
+   MyStructDomain {
+     x: u32:0..=10,
+   }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+
+  // Expected layout: ((1, 0, 10),)
+  InterpValue expected_x = InterpValue::MakeTuple({
+      InterpValue::MakeU32(1),   // TAG_RANGE
+      InterpValue::MakeU32(0),   // min
+      InterpValue::MakeU32(10),  // max (no adjustment)
+  });
+  InterpValue expected = InterpValue::MakeTuple({expected_x});
+
+  EXPECT_EQ(value, expected);
+}
+
+TEST_F(BytecodeInterpreterTest, DerivedStructDomainNestedEvaluation) {
+  constexpr std::string_view kProgram =
+      R"(
+#[fuzz_domain("InnerDomain")]
+struct Inner {
+    y: u32,
+}
+
+#[fuzz_domain("OuterDomain")]
+struct Outer {
+    x: Inner,
+}
+
+fn main() -> OuterDomain {
+   OuterDomain {
+     x: InnerDomain {
+       y: u32:0..10,
+     },
+   }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+
+  // Expected layout: (((1, 0, 9),),)
+  InterpValue expected_y = InterpValue::MakeTuple({
+      InterpValue::MakeU32(1),  // TAG_RANGE
+      InterpValue::MakeU32(0),  // min
+      InterpValue::MakeU32(9),  // max (10 - 1)
+  });
+  InterpValue expected_x = InterpValue::MakeTuple({expected_y});
+  InterpValue expected = InterpValue::MakeTuple({expected_x});
+
+  EXPECT_EQ(value, expected);
+}
+
+TEST_F(BytecodeInterpreterTest, DerivedStructDomainArrayEvaluation) {
+  constexpr std::string_view kProgram =
+      R"(
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32[2],
+}
+
+fn main() -> MyStructDomain {
+   MyStructDomain {
+     x: [u32:0..10, u32:0..20],
+   }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+
+  // Expected layout: ([(1, 0, 9), (1, 0, 19)],)
+  InterpValue expected_x0 = InterpValue::MakeTuple({
+      InterpValue::MakeU32(1),  // TAG_RANGE
+      InterpValue::MakeU32(0),  // min
+      InterpValue::MakeU32(9),  // max (10 - 1)
+  });
+  InterpValue expected_x1 = InterpValue::MakeTuple({
+      InterpValue::MakeU32(1),   // TAG_RANGE
+      InterpValue::MakeU32(0),   // min
+      InterpValue::MakeU32(19),  // max (20 - 1)
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue expected_array,
+                           InterpValue::MakeArray({expected_x0, expected_x1}));
+  InterpValue expected = InterpValue::MakeTuple({expected_array});
+
+  EXPECT_EQ(value, expected);
+}
+
 }  // namespace
 }  // namespace xls::dslx
