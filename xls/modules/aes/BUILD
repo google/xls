@@ -96,7 +96,6 @@ cc_test(
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:events",
-        "//xls/ir:proc_elaboration",
         "//xls/jit:jit_channel_queue",
         "@boringssl//:crypto",
         "@com_google_absl//absl/flags:flag",

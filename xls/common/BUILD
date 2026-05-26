@@ -280,7 +280,6 @@ cc_library(
         ":subprocess_helper_embedded",
         ":thread",
         "//xls/common/file:file_descriptor",
-        "//xls/common/file:get_runfile_path",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:fixed_array",

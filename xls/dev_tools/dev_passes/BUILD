@@ -336,7 +336,6 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "//xls/passes:dfe_pass",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status:status_matchers",
