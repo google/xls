@@ -173,6 +173,17 @@ class ZipTypeVisitor : public TypeVisitor {
                                       lhs.ToString());
   }
 
+  absl::Status HandleDomain(const DomainType& lhs) override {
+    if (auto* rhs = dynamic_cast<const DomainType*>(&rhs_)) {
+      AggregatePair aggregates = std::make_pair(&lhs, rhs);
+      XLS_RETURN_IF_ERROR(callbacks_.NoteAggregateStart(aggregates));
+      XLS_RETURN_IF_ERROR(ZipTypesWithParents(
+          *lhs.payload_type(), *rhs->payload_type(), &lhs, rhs, callbacks_));
+      return callbacks_.NoteAggregateEnd(aggregates);
+    }
+    return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
+  }
+
   const Type& rhs_;
   const Type* lhs_parent_;
   const Type* rhs_parent_;

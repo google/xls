@@ -224,6 +224,7 @@ absl::StatusOr<AttributeKind> ParseAttributeKind(Token token,
       {"test", AttributeKind::kTest},
       {"test_proc", AttributeKind::kTestProc},
       {"quickcheck", AttributeKind::kQuickcheck},
+      {"fuzz_domain", AttributeKind::kFuzzDomain},
       {"fuzz_test", AttributeKind::kFuzzTest},
       {"channel_strictness", AttributeKind::kChannelStrictness}};
 
@@ -460,6 +461,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 
   bool is_public = false;
   std::vector<Attribute*> pending_attributes;
+  absl::flat_hash_map<const StructDef*, StructDef*> derived_structs;
 
   auto verify_not_public = [&](Token construct_token) {
     if (is_public) {
@@ -616,6 +618,34 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_RETURN_IF_ERROR(
             ApplyTypeAttributes(struct_def, pending_attributes));
         XLS_RETURN_IF_ERROR(module_->AddTop(struct_def, make_collision_error));
+
+        // Generate derived struct immediately if annotated
+        std::string derived_name;
+        for (const Attribute* attr : struct_def->attributes()) {
+          if (attr->attribute_kind() == AttributeKind::kFuzzDomain) {
+            derived_name =
+                std::get<AttributeData::StringLiteralArgument>(attr->args()[0])
+                    .text;
+            break;
+          }
+        }
+        if (!derived_name.empty()) {
+          NameDef* derived_name_def =
+              module_->Make<NameDef>(struct_def->name_def()->span(),
+                                     derived_name, /*definer=*/nullptr);
+
+          bindings->Add(derived_name, derived_name_def);
+
+          XLS_ASSIGN_OR_RETURN(
+              StructDef * derived_struct,
+              GenerateDomainStruct(*struct_def, derived_name, derived_name_def,
+                                   derived_structs));
+          XLS_RETURN_IF_ERROR(
+              module_->AddTop(derived_struct, make_collision_error));
+
+          bindings->Add(derived_name, derived_struct);
+          derived_structs[struct_def] = derived_struct;
+        }
         break;
       }
       case Keyword::kEnum: {
@@ -1169,6 +1199,20 @@ absl::Status Parser::ApplyTypeAttributes(T* node,
         node->set_extern_type_name(
             std::get<AttributeData::StringLiteralArgument>(next->args()[0])
                 .text);
+        break;
+      }
+
+      case AttributeKind::kFuzzDomain: {
+        if (node->kind() != AstNodeKind::kStructDef) {
+          return UnsupportedAttributeError(*next);
+        }
+        if (next->args().size() != 1 ||
+            !std::holds_alternative<AttributeData::StringLiteralArgument>(
+                next->args()[0])) {
+          return ParseErrorStatus(*next->GetSpan(),
+                                  "fuzz_domain attribute requires a single "
+                                  "string argument (the derived struct name).");
+        }
         break;
       }
 
@@ -4695,6 +4739,126 @@ absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
   return ParseCommaSeq<ExprOrType>(
       [this, &bindings]() { return ParseParametricArg(bindings); },
       TokenKind::kCAngle);
+}
+
+absl::StatusOr<StructDef*> Parser::GenerateDomainStruct(
+    const StructDef& original, std::string_view derived_name,
+    NameDef* derived_name_def,
+    const absl::flat_hash_map<const StructDef*, StructDef*>& derived_structs) {
+  VLOG(5) << "GenerateDomainStruct for " << original.identifier() << " -> "
+          << derived_name;
+
+  std::vector<StructMemberNode*> derived_members;
+  for (const StructMemberNode* member : original.members()) {
+    XLS_ASSIGN_OR_RETURN(TypeAnnotation * wrapped_type,
+                         WrapInDomain(member->type(), derived_structs));
+
+    NameDef* member_name_def = module_->Make<NameDef>(
+        member->name_def()->span(), member->name(), /*definer=*/nullptr);
+
+    auto* derived_member = module_->Make<StructMemberNode>(
+        member->span(), member_name_def, member->colon_span(), wrapped_type);
+    derived_members.push_back(derived_member);
+  }
+
+  auto* derived_struct = module_->Make<StructDef>(
+      original.span(), derived_name_def,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>{},
+      std::move(derived_members), original.is_public());
+  derived_struct->set_is_derived_domain_struct(true);
+
+  derived_name_def->set_definer(derived_struct);
+  return derived_struct;
+}
+
+absl::StatusOr<TypeAnnotation*> Parser::WrapInDomain(
+    TypeAnnotation* type,
+    const absl::flat_hash_map<const StructDef*, StructDef*>& derived_structs) {
+  if (auto* builtin = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+    XLS_ASSIGN_OR_RETURN(AstNode * cloned_builtin, CloneAst(builtin));
+    return module_->Make<DomainTypeAnnotation>(
+        type->span(), absl::down_cast<TypeAnnotation*>(cloned_builtin));
+  }
+  if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(type)) {
+    XLS_ASSIGN_OR_RETURN(TypeAnnotation * wrapped_elem,
+                         WrapInDomain(array->element_type(), derived_structs));
+    XLS_ASSIGN_OR_RETURN(AstNode * cloned_dim, CloneAst(array->dim()));
+    return module_->Make<ArrayTypeAnnotation>(
+        type->span(), wrapped_elem, absl::down_cast<Expr*>(cloned_dim),
+        array->dim_is_min());
+  }
+  if (auto* tuple = dynamic_cast<TupleTypeAnnotation*>(type)) {
+    std::vector<TypeAnnotation*> wrapped_members;
+    for (auto* member : tuple->members()) {
+      XLS_ASSIGN_OR_RETURN(TypeAnnotation * wrapped,
+                           WrapInDomain(member, derived_structs));
+      wrapped_members.push_back(wrapped);
+    }
+    return module_->Make<TupleTypeAnnotation>(type->span(), wrapped_members);
+  }
+  if (auto* type_ref_ann = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
+    TypeRef* type_ref = type_ref_ann->type_ref();
+    const TypeDefinition& type_def = type_ref->type_definition();
+
+    std::vector<ExprOrType> cloned_parametrics;
+    for (const auto& p : type_ref_ann->parametrics()) {
+      if (std::holds_alternative<Expr*>(p)) {
+        XLS_ASSIGN_OR_RETURN(AstNode * cloned, CloneAst(std::get<Expr*>(p)));
+        cloned_parametrics.push_back(absl::down_cast<Expr*>(cloned));
+      } else {
+        XLS_ASSIGN_OR_RETURN(AstNode * cloned,
+                             CloneAst(std::get<TypeAnnotation*>(p)));
+        cloned_parametrics.push_back(absl::down_cast<TypeAnnotation*>(cloned));
+      }
+    }
+
+    if (std::holds_alternative<StructDef*>(type_def)) {
+      const StructDef* struct_def = std::get<StructDef*>(type_def);
+
+      auto it = derived_structs.find(struct_def);
+      if (it == derived_structs.end()) {
+        return ParseErrorStatus(
+            type->span(),
+            absl::StrCat("Nested struct ", struct_def->identifier(),
+                         " must be annotated with #[fuzz_domain]"));
+      }
+      StructDef* derived_struct = it->second;
+
+      auto* new_type_ref = module_->Make<TypeRef>(
+          type_ref->span(), TypeDefinition(derived_struct));
+      return module_->Make<TypeRefTypeAnnotation>(
+          type->span(), new_type_ref, std::move(cloned_parametrics));
+
+    } else if (std::holds_alternative<ColonRef*>(type_def)) {
+      const ColonRef* colon_ref = std::get<ColonRef*>(type_def);
+      std::string derived_member_name = colon_ref->attr() + "Domain";
+
+      ColonRef::Subject new_subject;
+      if (std::holds_alternative<NameRef*>(colon_ref->subject())) {
+        XLS_ASSIGN_OR_RETURN(
+            AstNode * cloned,
+            CloneAst(std::get<NameRef*>(colon_ref->subject())));
+        new_subject = absl::down_cast<NameRef*>(cloned);
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            AstNode * cloned,
+            CloneAst(std::get<ColonRef*>(colon_ref->subject())));
+        new_subject = absl::down_cast<ColonRef*>(cloned);
+      }
+
+      auto* new_colon_ref = module_->Make<ColonRef>(
+          colon_ref->span(), new_subject, derived_member_name);
+      auto* new_type_ref =
+          module_->Make<TypeRef>(type_ref->span(), new_colon_ref);
+      return module_->Make<TypeRefTypeAnnotation>(
+          type->span(), new_type_ref, std::move(cloned_parametrics));
+    }
+  }
+
+  return ParseErrorStatus(
+      type->span(),
+      absl::StrCat("Unsupported type annotation in domain struct: ",
+                   type->ToString()));
 }
 
 const Span& GetSpan(

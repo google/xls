@@ -2292,12 +2292,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     for (const auto& [name, actual_member] : node->members()) {
       const StructMemberNode* formal_member = formal_member_map.at(name);
 
-      if (in_fuzz_test_domain_) {
-        // In a fuzz test domain, the actual member expression represents a
-        // domain (e.g. `u32:0..10` which has type `u32[10]`) rather than a
-        // value of the member's type (`u32`). We typecheck it without
-        // constraining it to the formal member type to avoid type mismatch
-        // errors.
+      if (in_fuzz_test_domain_ || struct_def->is_derived_domain_struct()) {
+        // In a fuzz test domain or derived domain struct, the actual member
+        // expression represents a domain (e.g. `u32:0..10` which has type
+        // `u32[10]`) rather than a value of the member's type (`u32`). We
+        // typecheck it without constraining it to the formal member type to
+        // avoid type mismatch errors.
         XLS_RETURN_IF_ERROR(
             DefineAndSetTypeVariable(actual_member, "actual_member_domain"));
         XLS_RETURN_IF_ERROR(actual_member->Accept(this));

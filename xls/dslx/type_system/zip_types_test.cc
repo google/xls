@@ -194,5 +194,51 @@ TEST(ZipTypesTest, TupleWithOneDifferingElement) {
                         nullptr, AggregatePair{aggregates}));
 }
 
+TEST(ZipTypesTest, DomainTypesSuccess) {
+  auto lhs = std::make_unique<DomainType>(BitsType::MakeU32());
+  auto rhs = std::make_unique<DomainType>(BitsType::MakeU32());
+
+  ZipTypesCallbacksCollector collector;
+  XLS_ASSERT_OK(ZipTypes(*lhs, *rhs, collector));
+
+  ASSERT_EQ(collector.data().size(), 3);
+
+  std::pair<const DomainType*, const DomainType*> aggregates =
+      std::make_pair(lhs.get(), rhs.get());
+  EXPECT_THAT(collector.data()[0],
+              FieldsAre(CallbackKind::kAggregateStart, nullptr, nullptr,
+                        nullptr, nullptr, AggregatePair{aggregates}));
+  EXPECT_THAT(
+      collector.data()[1],
+      FieldsAre(CallbackKind::kMatchedLeaf, lhs->payload_type().get(),
+                lhs.get(), rhs->payload_type().get(), rhs.get(), std::nullopt));
+  EXPECT_THAT(collector.data()[2],
+              FieldsAre(CallbackKind::kAggregateEnd, nullptr, nullptr, nullptr,
+                        nullptr, AggregatePair{aggregates}));
+}
+
+TEST(ZipTypesTest, DomainTypesMismatch) {
+  auto lhs = std::make_unique<DomainType>(BitsType::MakeU32());
+  auto rhs = std::make_unique<DomainType>(BitsType::MakeS32());
+
+  ZipTypesCallbacksCollector collector;
+  XLS_ASSERT_OK(ZipTypes(*lhs, *rhs, collector));
+
+  ASSERT_EQ(collector.data().size(), 3);
+
+  std::pair<const DomainType*, const DomainType*> aggregates =
+      std::make_pair(lhs.get(), rhs.get());
+  EXPECT_THAT(collector.data()[0],
+              FieldsAre(CallbackKind::kAggregateStart, nullptr, nullptr,
+                        nullptr, nullptr, AggregatePair{aggregates}));
+  EXPECT_THAT(
+      collector.data()[1],
+      FieldsAre(CallbackKind::kMismatch, lhs->payload_type().get(), lhs.get(),
+                rhs->payload_type().get(), rhs.get(), std::nullopt));
+  EXPECT_THAT(collector.data()[2],
+              FieldsAre(CallbackKind::kAggregateEnd, nullptr, nullptr, nullptr,
+                        nullptr, AggregatePair{aggregates}));
+}
+
 }  // namespace
 }  // namespace xls::dslx

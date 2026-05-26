@@ -31,7 +31,8 @@ using AggregatePair =
                  std::pair<const ArrayType*, const ArrayType*>,
                  std::pair<const ChannelType*, const ChannelType*>,
                  std::pair<const FunctionType*, const FunctionType*>,
-                 std::pair<const MetaType*, const MetaType*> >;
+                 std::pair<const MetaType*, const MetaType*>,
+                 std::pair<const DomainType*, const DomainType*> >;
 
 // This is a bit similar to "SAX parser" style callbacks, if you're familiar
 // with that pattern -- it helps us note points in the traversal (e.g. so we can

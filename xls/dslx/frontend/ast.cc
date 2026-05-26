@@ -205,6 +205,8 @@ std::string_view TypeAnnotationKindToString(TypeAnnotationKind kind) {
       return "const conditional";
     case TypeAnnotationKind::kConstMatch:
       return "const match";
+    case TypeAnnotationKind::kDomain:
+      return "domain";
     case TypeAnnotationKind::kElement:
       return "element";
     case TypeAnnotationKind::kFunction:
@@ -1338,6 +1340,23 @@ std::string ArrayTypeAnnotation::ToString() const {
                                        dim_->ToString())
                      : absl::StrFormat("%s[%s]", element_type_->ToString(),
                                        dim_->ToString());
+}
+
+// -- class DomainTypeAnnotation
+
+DomainTypeAnnotation::DomainTypeAnnotation(Module* owner, Span span,
+                                           TypeAnnotation* payload)
+    : TypeAnnotation(owner, std::move(span), kAnnotationKind),
+      payload_(payload) {}
+
+DomainTypeAnnotation::~DomainTypeAnnotation() = default;
+
+std::vector<AstNode*> DomainTypeAnnotation::GetChildren(bool want_types) const {
+  return {payload_};
+}
+
+std::string DomainTypeAnnotation::ToString() const {
+  return absl::StrCat("Domain<", payload_->ToString(), ">");
 }
 
 // -- class SelfTypeAnnotation

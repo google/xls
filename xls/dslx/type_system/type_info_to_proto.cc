@@ -366,6 +366,16 @@ absl::StatusOr<MetaTypeProto> ToProto(const MetaType& meta_type,
   return proto;
 }
 
+absl::StatusOr<DomainTypeProto> ToProto(const DomainType& domain_type,
+                                        const FileTable& file_table) {
+  VLOG(5) << "Converting DomainType to proto: " << domain_type.ToString();
+  DomainTypeProto proto;
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_payload(),
+                       ToProto(*domain_type.payload_type(), file_table));
+  VLOG(5) << "- proto: " << proto.ShortDebugString();
+  return proto;
+}
+
 ChannelDirectionProto extracted() {
   return ChannelDirectionProto::CHANNEL_DIRECTION_OUT;
 }
@@ -451,6 +461,11 @@ class ToProtoVisitor : public TypeVisitor {
   }
   absl::Status HandleModule(const ModuleType& type) override {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_module_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleDomain(const DomainType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_domain_type(),
                          ToProto(type, file_table_));
     return absl::OkStatus();
   }
@@ -637,6 +652,12 @@ absl::StatusOr<std::unique_ptr<Type>> FromProto(const TypeProto& ctp,
           std::unique_ptr<Type> wrapped,
           FromProto(ctp.meta_type().wrapped(), import_data, file_table));
       return std::make_unique<MetaType>(std::move(wrapped));
+    }
+    case TypeProto::TypeOneofCase::kDomainType: {
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<Type> payload,
+          FromProto(ctp.domain_type().payload(), import_data, file_table));
+      return std::make_unique<DomainType>(std::move(payload));
     }
     case TypeProto::TypeOneofCase::kChannelType: {
       break;  // Not yet implemented.

@@ -904,6 +904,87 @@ TEST_F(ParserTest, StructDefRoundTrip) {
 })");
 }
 
+TEST_F(ParserTest, FuzzDomainAttributeSuccess) {
+  const std::string kProgram = R"(
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32,
+    y: bool,
+}
+)";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), kProgram};
+  Parser parser{"test", &s};
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           parser.ParseModule());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StructDef * derived_struct,
+      module->GetMemberOrError<StructDef>("MyStructDomain"));
+  ASSERT_EQ(derived_struct->members().size(), 2);
+
+  EXPECT_EQ(derived_struct->members()[0]->name(), "x");
+  EXPECT_EQ(derived_struct->members()[0]->type()->GetNodeTypeName(),
+            "DomainTypeAnnotation");
+  EXPECT_EQ(derived_struct->members()[0]->type()->ToString(), "Domain<u32>");
+
+  EXPECT_EQ(derived_struct->members()[1]->name(), "y");
+  EXPECT_EQ(derived_struct->members()[1]->type()->GetNodeTypeName(),
+            "DomainTypeAnnotation");
+  EXPECT_EQ(derived_struct->members()[1]->type()->ToString(), "Domain<bool>");
+}
+
+TEST_F(ParserTest, FuzzDomainNestedStructSuccess) {
+  const std::string kProgram = R"(
+#[fuzz_domain("InnerDomain")]
+struct Inner {
+    y: u32,
+}
+
+#[fuzz_domain("OuterDomain")]
+struct Outer {
+    x: Inner,
+}
+)";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), kProgram};
+  Parser parser{"test", &s};
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           parser.ParseModule());
+
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * outer_domain,
+                           module->GetMemberOrError<StructDef>("OuterDomain"));
+  ASSERT_EQ(outer_domain->members().size(), 1);
+
+  EXPECT_EQ(outer_domain->members()[0]->name(), "x");
+  EXPECT_EQ(outer_domain->members()[0]->type()->GetNodeTypeName(),
+            "TypeRefTypeAnnotation");
+  EXPECT_EQ(outer_domain->members()[0]->type()->ToString(), "InnerDomain");
+}
+
+TEST_F(ParserTest, FuzzDomainNestedStructMissingAttribute) {
+  const std::string kProgram = R"(
+struct Inner {
+    y: u32,
+}
+
+#[fuzz_domain("OuterDomain")]
+struct Outer {
+    x: Inner,
+}
+)";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), kProgram};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(
+      module.status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr(
+              "Nested struct Inner must be annotated with #[fuzz_domain]")));
+}
+
 TEST_F(ParserTest, ParseErrorSpan) {
   Scanner scanner(file_table_, Fileno(0), "+");
   Parser parser("test_module", &scanner);

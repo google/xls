@@ -310,6 +310,16 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleDomainTypeAnnotation(
+      const DomainTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    old_to_new_[n] = module(n)->Make<DomainTypeAnnotation>(
+        n->span(),
+        absl::down_cast<TypeAnnotation*>(old_to_new_.at(n->payload())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleEnumDef(const EnumDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
