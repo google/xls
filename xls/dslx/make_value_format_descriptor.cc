@@ -153,6 +153,10 @@ absl::StatusOr<ValueFormatDescriptor> MakeValueFormatDescriptor(
       return absl::InvalidArgumentError("Cannot format a module type; got: " +
                                         t.ToString());
     }
+    absl::Status HandleDomain(const DomainType& t) override {
+      return absl::InvalidArgumentError("Cannot format a domain type; got: " +
+                                        t.ToString());
+    }
 
     ValueFormatDescriptor& result() { return result_; }
 

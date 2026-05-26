@@ -112,6 +112,12 @@ class FormatMacroArgumentValidator : public TypeVisitor {
         file_table_);
   }
 
+  absl::Status HandleDomain(const DomainType& t) override {
+    return TypeInferenceErrorStatus(
+        span_, &t, ": Cannot format an expression with domain type",
+        file_table_);
+  }
+
  private:
   const FileTable& file_table_;
   const Span& span_;

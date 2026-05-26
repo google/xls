@@ -55,6 +55,7 @@ namespace xls::dslx {
 class BitsType;
 class TupleType;
 class StructType;
+class DomainType;
 
 // Represents a parametric binding in a Type, which is either a) a
 // parametric expression or b) evaluated to an InterpValue. When type
@@ -151,6 +152,9 @@ class TypeVisitor {
   virtual absl::Status HandleArray(const ArrayType& t) = 0;
   virtual absl::Status HandleMeta(const MetaType& t) = 0;
   virtual absl::Status HandleModule(const ModuleType& t) = 0;
+  virtual absl::Status HandleDomain(const DomainType& t) {
+    return absl::UnimplementedError("HandleDomain not implemented");
+  }
 };
 
 class TypeVisitorWithDefault : public TypeVisitor {
@@ -191,6 +195,9 @@ class TypeVisitorWithDefault : public TypeVisitor {
     return absl::OkStatus();
   }
   absl::Status HandleModule(const ModuleType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleDomain(const DomainType& t) override {
     return absl::OkStatus();
   }
 };
@@ -323,6 +330,7 @@ class Type {
   bool IsTuple() const;
   bool IsFunction() const;
   bool IsModule() const;
+  bool IsDomain() const;
 
   const ChannelType& AsChannel() const;
   const StructType& AsStruct() const;
@@ -332,6 +340,7 @@ class Type {
   const FunctionType& AsFunction() const;
   const MetaType& AsMeta() const;
   const TupleType& AsTuple() const;
+  const DomainType& AsDomain() const;
 
   virtual std::optional<const ChannelType*> GetDirectOrElementChannelType()
       const {
@@ -398,6 +407,56 @@ class MetaType : public Type {
 
  private:
   std::unique_ptr<Type> wrapped_;
+};
+
+class DomainType : public Type {
+ public:
+  explicit DomainType(std::unique_ptr<Type> payload_type)
+      : payload_type_(std::move(payload_type)) {}
+
+  ~DomainType() override;
+
+  absl::Status Accept(TypeVisitor& v) const override {
+    return v.HandleDomain(*this);
+  }
+
+  bool operator==(const Type& other) const override {
+    if (const auto* o = dynamic_cast<const DomainType*>(&other)) {
+      return *payload_type() == *o->payload_type();
+    }
+    return false;
+  }
+
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override {
+    return absl::StrCat(
+        "Domain<", payload_type_->ToStringInternal(fully_qualify, file_table),
+        ">");
+  }
+
+  std::vector<TypeDim> GetAllDims() const override {
+    return payload_type_->GetAllDims();
+  }
+
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override {
+    return TypeDim(InterpValue::MakeU32(0));
+  }
+
+  std::string GetDebugTypeName() const override { return "domain"; }
+
+  bool HasEnum() const override { return payload_type_->HasEnum(); }
+  bool HasToken() const override { return payload_type_->HasToken(); }
+  bool IsAggregate() const override { return false; }
+
+  std::unique_ptr<Type> CloneToUnique() const override {
+    return std::make_unique<DomainType>(payload_type_->CloneToUnique());
+  }
+
+  const std::unique_ptr<Type>& payload_type() const { return payload_type_; }
+  std::unique_ptr<Type>& payload_type() { return payload_type_; }
+
+ private:
+  std::unique_ptr<Type> payload_type_;
 };
 
 // Represents the type of a token value.

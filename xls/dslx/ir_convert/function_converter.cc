@@ -437,6 +437,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(ChannelTypeAnnotation)
   INVALID(ConstConditionalTypeAnnotation)
   INVALID(ConstMatchTypeAnnotation)
+  INVALID(DomainTypeAnnotation)
   INVALID(ElementTypeAnnotation)
   INVALID(FunctionTypeAnnotation)
   INVALID(GenericTypeAnnotation)
