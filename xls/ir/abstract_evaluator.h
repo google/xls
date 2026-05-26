@@ -15,6 +15,7 @@
 #ifndef XLS_IR_ABSTRACT_EVALUATOR_H_
 #define XLS_IR_ABSTRACT_EVALUATOR_H_
 
+#include <bit>
 #include <cstdint>
 #include <optional>
 #include <queue>
@@ -356,12 +357,31 @@ class AbstractEvaluator {
 
   // Binary encode and decode operations.
   Vector Decode(Span input, int64_t result_width) {
+    // To improve the density of BDD representations and generally simplify
+    // things we pro actively check high bits which are out of range.
+    //
+    // How many bits of the input don't just force the result to 0.
+    int64_t used_bits =
+        Bits::MinBitCountUnsigned(std::bit_cast<uint64_t>(result_width)) + 1;
+    if (used_bits < input.size()) {
+      return IfBits(OrReduce(input.subspan(used_bits)).back(),
+                    Vector(result_width, Zero()),
+                    Decode(input.subspan(0, used_bits), result_width));
+    }
+    // Maybe cut down on the size of everything.
+    if (input.size() < 64 && (uint64_t{1} << input.size()) < result_width) {
+      // The input can never be large enough to force all the result bits to 1.
+      // Just calculate the result for a small enough result_width and resize.
+      return ZeroExtend(Decode(input, 1 << input.size()), result_width);
+    }
+    // Every bit is meaningful.
     Vector result(result_width);
     for (int64_t i = 0; i < result_width; ++i) {
       result[i] = Equals(input, BitsToVector(UBits(i, input.size())));
     }
     return result;
   }
+
   Vector Encode(Span input) {
     int64_t result_width = CeilOfLog2(input.size());
     Vector result(result_width, Zero());

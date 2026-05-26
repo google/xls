@@ -21,6 +21,7 @@
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "xls/common/status/matchers.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -878,6 +879,80 @@ void UMulMatches32BitMultiplication(uint32_t a, uint32_t b) {
   EXPECT_EQ(static_cast<uint32_t>(c.ToUint64().value()), a * b);
 }
 FUZZ_TEST(AbstractEvaluatorFuzzTest, UMulMatches32BitMultiplication);
+
+TEST(AbstractEvaluatorTest, Decode) {
+  TestAbstractEvaluator eval;
+  EXPECT_EQ(UBits(0b00001000, 8),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(3, 4)), 8)));
+  EXPECT_EQ(UBits(0b00001000, 8),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(3, 400)), 8)));
+  EXPECT_EQ(UBits(0b00000000, 8),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(300, 400)), 8)));
+  EXPECT_EQ(UBits(0b00000001, 8),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(0, 33)), 8)));
+
+  // Test result_width = 0
+  EXPECT_EQ(UBits(0, 0),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(0, 1)), 0)));
+  EXPECT_EQ(UBits(0, 0),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(5, 4)), 0)));
+
+  // Test result_width = 1
+  EXPECT_EQ(UBits(0b1, 1),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(0, 1)), 1)));
+  EXPECT_EQ(UBits(0b0, 1),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(1, 1)), 1)));
+  EXPECT_EQ(UBits(0b0, 1),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(5, 4)), 1)));
+
+  // Recursive cases on result_width = 8 (used_bits = 5)
+  // Value 8 is out of range [0, 7], so should be 0
+  EXPECT_EQ(UBits(0, 8),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(8, 6)), 8)));
+  // Value 7 is the last in-range value, should be 0b10000000
+  EXPECT_EQ(UBits(0b10000000, 8),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(7, 6)), 8)));
+  // Value 32 (high bit set on 6-bit input, greater than used_bits = 5) yields 0
+  EXPECT_EQ(UBits(0, 8),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(32, 6)), 8)));
+
+  // ZeroExtend optimization case: input.size() < 64 && (1 << input.size()) <
+  // result_width result_width = 10, input.size() = 3. (2^3 = 8 < 10) Value 3
+  // decoded in 8-wide is 0b00001000, zero-extended to 10-wide is 0b0000001000
+  EXPECT_EQ(UBits(0b0000001000, 10),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(3, 3)), 10)));
+  EXPECT_EQ(UBits(0b0000001000, 10000),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(3, 3)), 10000)));
+  // Value 7 decoded in 8-wide is 0b10000000, zero-extended to 10-wide is
+  // 0b0010000000
+  EXPECT_EQ(UBits(0b0010000000, 10),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(7, 3)), 10)));
+
+  // Base case with no optimizations: result_width = 10, input.size() = 4
+  EXPECT_EQ(UBits(0b1000000000, 10),
+            FromBoxedVector(eval.Decode(ToBoxedVector(UBits(9, 4)), 10)));
+}
+
+void DecodeMatchesReference(const Bits& a, int32_t result_width) {
+  TestAbstractEvaluator eval;
+  Bits got = FromBoxedVector(eval.Decode(ToBoxedVector(a), result_width));
+  Bits want;
+  if (a.FitsInNBitsUnsigned(63)) {
+    XLS_ASSERT_OK_AND_ASSIGN(int64_t shift, a.ToUint64());
+    want = bits_ops::ShiftLeftLogical(UBits(1, result_width), shift);
+  } else {
+    want = Bits(result_width);
+  }
+  EXPECT_EQ(got, want) << "Decode(" << a << ", " << result_width
+                       << ") = " << got << ", should be: " << want;
+}
+FUZZ_TEST(AbstractEvaluatorFuzzTest, DecodeMatchesReference)
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 fuzztest::Positive<int32_t>());
+
+TEST(AbstractEvaluatorFuzzTest, DecodeMatchesReferenceRegression) {
+  DecodeMatchesReference(UBits(1, 1), 1054074905);
+}
 
 }  // namespace
 }  // namespace xls

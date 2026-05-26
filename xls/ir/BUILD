@@ -1827,6 +1827,7 @@ cc_test(
         ":bits_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
