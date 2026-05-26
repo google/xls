@@ -92,10 +92,6 @@ std::unique_ptr<verilog::CodegenCompoundPass> CreatePostBlockConversionPipeline(
   // Replace provably-unneeded priority-select operations with simpler selects.
   top->Add<verilog::PrioritySelectReductionPass>();
 
-  // Deduplicate registers across mutually exclusive stages.
-  // TODO(epastor): Reimplement to avoid the need for metadata support.
-  // top->Add<RegisterCombiningPass>();
-
   // Remove any identity ops which might have been added earlier in the
   // pipeline.
   top->Add<verilog::CodegenWrapperPass>(std::make_unique<IdentityRemovalPass>(),
