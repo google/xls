@@ -257,6 +257,13 @@ class MakeValueVisitor : public TypeVisitor {
         file_table());
   }
 
+  absl::Status HandleDomain(const DomainType& t) override {
+    return TypeInferenceErrorStatus(
+        span_, &t,
+        absl::StrFormat("Cannot make a %s of a domain type.", value_name_),
+        file_table());
+  }
+
   absl::StatusOr<InterpValue> ResultOrError() const {
     XLS_RET_CHECK(result_.has_value());
     return *result_;

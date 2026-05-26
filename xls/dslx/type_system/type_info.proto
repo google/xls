@@ -234,6 +234,10 @@ message MetaTypeProto {
   optional TypeProto wrapped = 1;
 }
 
+message DomainTypeProto {
+  optional TypeProto payload = 1;
+}
+
 enum ChannelDirectionProto {
   CHANNEL_DIRECTION_INVALID = 0;
   CHANNEL_DIRECTION_IN = 1;
@@ -267,6 +271,7 @@ message TypeProto {
     BitsConstructorTypeProto bits_constructor_type = 10;
     ProcTypeProto proc_type = 11;
     ModuleTypeProto module_type = 12;
+    DomainTypeProto domain_type = 13;
   }
 }
 

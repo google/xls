@@ -1544,6 +1544,25 @@ BytecodeEmitter::HandleNumberInternal(const Number* node) {
 }
 
 absl::Status BytecodeEmitter::HandleRange(const Range* node) {
+  std::optional<const Type*> type = type_info_->GetItem(node);
+  if (type.has_value() && (*type)->IsDomain()) {
+    // Option B Domain representation: (TAG_RANGE (1), start, end_adjusted)
+    Add(Bytecode(node->span(), Bytecode::Op::kLiteral,
+                 InterpValue::MakeU32(1)));
+    XLS_RETURN_IF_ERROR(node->start()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(node->end()->AcceptExpr(this));
+    if (!node->inclusive_end()) {
+      Add(Bytecode(node->span(), Bytecode::Op::kLiteral,
+                   InterpValue::MakeU32(1)));
+      XLS_ASSIGN_OR_RETURN(bool is_signed, IsBitsTypeNodeSigned(node->end()));
+      Add(Bytecode(node->span(),
+                   is_signed ? Bytecode::Op::kSSub : Bytecode::Op::kUSub));
+    }
+    Add(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
+                 Bytecode::NumElements(3)));
+    return absl::OkStatus();
+  }
+
   XLS_RETURN_IF_ERROR(node->start()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->end()->AcceptExpr(this));
   Add(Bytecode::MakeRange(node->span()));
@@ -1684,6 +1703,16 @@ absl::Status BytecodeEmitter::HandleVerbatimNode(const VerbatimNode* node) {
 }
 
 absl::Status BytecodeEmitter::HandleXlsTuple(const XlsTuple* node) {
+  std::optional<const Type*> type = type_info_->GetItem(node);
+  if (type.has_value() && (*type)->IsDomain() && node->members().empty()) {
+    // Option B Domain representation of Arbitrary: (TAG_ARBITRARY (0),)
+    Add(Bytecode(node->span(), Bytecode::Op::kLiteral,
+                 InterpValue::MakeU32(0)));
+    Add(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
+                 Bytecode::NumElements(1)));
+    return absl::OkStatus();
+  }
+
   for (auto* member : node->members()) {
     XLS_RETURN_IF_ERROR(member->AcceptExpr(this));
   }

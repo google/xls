@@ -97,6 +97,10 @@ class Callbacks : public ZipTypesCallbacks {
               AddMatchedBoth("typeof(");
               return absl::OkStatus();
             },
+            [&](std::pair<const DomainType*, const DomainType*>) {
+              AddMatchedBoth("Domain<");
+              return absl::OkStatus();
+            },
         },
         aggregates);
   }
@@ -150,6 +154,10 @@ class Callbacks : public ZipTypesCallbacks {
             },
             [&](std::pair<const MetaType*, const MetaType*> p) {
               AddMatchedBoth(")");
+              return absl::OkStatus();
+            },
+            [&](std::pair<const DomainType*, const DomainType*>) {
+              AddMatchedBoth(">");
               return absl::OkStatus();
             },
         },

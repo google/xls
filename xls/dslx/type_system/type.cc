@@ -293,6 +293,10 @@ bool Type::IsModule() const {
   return dynamic_cast<const ModuleType*>(this) != nullptr;
 }
 
+bool Type::IsDomain() const {
+  return dynamic_cast<const DomainType*>(this) != nullptr;
+}
+
 const ChannelType& Type::AsChannel() const {
   auto* c = dynamic_cast<const ChannelType*>(this);
   CHECK(c != nullptr) << "Type is not a channel: " << *this;
@@ -341,6 +345,12 @@ const TupleType& Type::AsTuple() const {
   return *s;
 }
 
+const DomainType& Type::AsDomain() const {
+  auto* s = dynamic_cast<const DomainType*>(this);
+  CHECK(s != nullptr) << "Type is not a domain: " << *this;
+  return *s;
+}
+
 // -- TokenType
 
 TokenType::~TokenType() = default;
@@ -348,6 +358,10 @@ TokenType::~TokenType() = default;
 // -- MetaType
 
 MetaType::~MetaType() = default;
+
+// -- DomainType
+
+DomainType::~DomainType() = default;
 
 // -- BitsConstructorType
 

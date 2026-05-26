@@ -684,6 +684,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleXlsTuple(const XlsTuple* node) override {
     VLOG(5) << "HandleXlsTuple: " << node->ToString();
 
+    if (in_derived_struct_domain_initializer_ && node->members().empty()) {
+      // Do not set TupleTypeAnnotation for empty tuple in domain context,
+      // to allow it to be resolved to DomainType from the formal member
+      // constraint.
+      return DefaultHandler(node);
+    }
+
     // When we come in here with an example like:
     //   const FOO: (u32, (s8, u32)) = (4, (-2, 5));
     //
@@ -1306,6 +1313,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
             endpoint, module_.Make<ElementTypeAnnotation>(*range_annotation)));
       }
+    }
+
+    if (in_derived_struct_domain_initializer_) {
+      DomainTypeAnnotation* domain_annotation =
+          module_.Make<DomainTypeAnnotation>(
+              node->span(),
+              module_.Make<TypeVariableTypeAnnotation>(endpoint_type_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, domain_annotation));
+      return DefaultHandler(node);
     }
 
     ArrayTypeAnnotation* type_annotation = module_.Make<ArrayTypeAnnotation>(
@@ -2293,11 +2309,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       const StructMemberNode* formal_member = formal_member_map.at(name);
 
       if (in_fuzz_test_domain_) {
-        // In a fuzz test domain, the actual member expression represents a
-        // domain (e.g. `u32:0..10` which has type `u32[10]`) rather than a
-        // value of the member's type (`u32`). We typecheck it without
-        // constraining it to the formal member type to avoid type mismatch
-        // errors.
+        // In a fuzz test domain, the actual member
+        // expression represents a domain (e.g. `u32:0..10` which has type
+        // `u32[10]`) rather than a value of the member's type (`u32`). We
+        // typecheck it without constraining it to the formal member type to
+        // avoid type mismatch errors.
         XLS_RETURN_IF_ERROR(
             DefineAndSetTypeVariable(actual_member, "actual_member_domain"));
         XLS_RETURN_IF_ERROR(actual_member->Accept(this));
@@ -2316,7 +2332,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             actual_member, "actual_member", formal_member_type));
         XLS_RETURN_IF_ERROR(
             table_.SetTypeAnnotation(actual_member, formal_member_type));
+
+        bool old_derived = in_derived_struct_domain_initializer_;
+        if (struct_def->is_derived_domain_struct()) {
+          in_derived_struct_domain_initializer_ = true;
+        }
         XLS_RETURN_IF_ERROR(actual_member->Accept(this));
+        in_derived_struct_domain_initializer_ = old_derived;
       }
     }
     return absl::OkStatus();
@@ -2329,6 +2351,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   TypecheckModuleFn typecheck_imported_module_;
   bool handle_proc_functions_ = false;
   bool in_fuzz_test_domain_ = false;
+  bool in_derived_struct_domain_initializer_ = false;
 };
 
 }  // namespace

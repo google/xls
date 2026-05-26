@@ -763,6 +763,9 @@ class StatefulResolver : public TypeAnnotationResolver {
       return GetChannelArrayElementType(
           module_, container_type->AsAnnotation<ChannelTypeAnnotation>());
     }
+    if (container_type->IsAnnotation<DomainTypeAnnotation>()) {
+      return container_type->AsAnnotation<DomainTypeAnnotation>()->payload();
+    }
     if (element_type->allow_bit_vector_destructuring()) {
       absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
           GetSignednessAndBitCount(container_type);

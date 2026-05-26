@@ -139,6 +139,12 @@ class Unifier {
         return annotations[0];
       }
     }
+    if (annotations[0]->IsAnnotation<DomainTypeAnnotation>()) {
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<const DomainTypeAnnotation*> domain_annotations,
+          CastAllOrError<DomainTypeAnnotation>(annotations));
+      return UnifyDomainTypeAnnotations(domain_annotations, span);
+    }
     if (annotations[0]->IsAnnotation<TupleTypeAnnotation>()) {
       XLS_ASSIGN_OR_RETURN(
           std::vector<const TupleTypeAnnotation*> tuple_annotations,
@@ -230,6 +236,19 @@ class Unifier {
   }
 
  private:
+  absl::StatusOr<const DomainTypeAnnotation*> UnifyDomainTypeAnnotations(
+      std::vector<const DomainTypeAnnotation*> annotations, const Span& span) {
+    std::vector<const TypeAnnotation*> payload_annotations;
+    payload_annotations.reserve(annotations.size());
+    for (const DomainTypeAnnotation* annotation : annotations) {
+      payload_annotations.push_back(annotation->payload());
+    }
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_payload,
+                         UnifyTypeAnnotations(payload_annotations, span));
+    return module_.Make<DomainTypeAnnotation>(
+        span, const_cast<TypeAnnotation*>(unified_payload));
+  }
+
   // Unifies multiple annotations for a tuple. This function assumes the
   // passed-in array is nonempty. It attempts to expand any `AnyTypeAnnotations`
   // with `multiple=true` to match the size of the first annotation.. Unifying a

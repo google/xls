@@ -1586,6 +1586,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (IsToken(annotation)) {
       return std::make_unique<TokenType>();
     }
+    if (annotation->IsAnnotation<DomainTypeAnnotation>()) {
+      const auto* domain = annotation->AsAnnotation<DomainTypeAnnotation>();
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> payload_type,
+                           Concretize(domain->payload(), parametric_context));
+      return std::make_unique<DomainType>(std::move(payload_type));
+    }
     if (annotation->IsAnnotation<TupleTypeAnnotation>()) {
       const auto* tuple = annotation->AsAnnotation<TupleTypeAnnotation>();
       std::vector<std::unique_ptr<Type>> member_types;

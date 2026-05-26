@@ -2437,5 +2437,136 @@ fn f(s: S) {}
               TypecheckSucceeds(::testing::_));
 }
 
+TEST(TypecheckV2StructTest, FuzzTestDerivedStructDomainSuccess) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32,
+    y: bool,
+}
+
+fn create_f_domain() -> MyStructDomain {
+   MyStructDomain {
+     x: u32:0..10,
+     y: (),
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: MyStruct) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestDerivedStructDomainFieldTypeMismatch) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32,
+}
+
+fn create_f_domain() -> MyStructDomain {
+   MyStructDomain {
+     x: u8:0..5,
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: MyStruct) {}
+)",
+              TypecheckFails(HasSubstr("size mismatch: u32 vs. u8")));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestDerivedStructDomainNestedSuccess) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("InnerDomain")]
+struct Inner {
+    y: u32,
+}
+
+#[fuzz_domain("OuterDomain")]
+struct Outer {
+    x: Inner,
+}
+
+fn create_f_domain() -> OuterDomain {
+   OuterDomain {
+     x: InnerDomain {
+       y: u32:0..10,
+     },
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: Outer) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2StructTest,
+     FuzzTestDerivedStructDomainNestedFieldTypeMismatch) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("InnerDomain")]
+struct Inner {
+    y: u32,
+}
+
+#[fuzz_domain("OuterDomain")]
+struct Outer {
+    x: Inner,
+}
+
+fn create_f_domain() -> OuterDomain {
+   OuterDomain {
+     x: InnerDomain {
+       y: u8:0..10,
+     },
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: Outer) {}
+)",
+              TypecheckFails(HasSubstr("size mismatch: u32 vs. u8")));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestDerivedStructDomainArraySuccess) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32[2],
+}
+
+fn create_f_domain() -> MyStructDomain {
+   MyStructDomain {
+     x: [u32:0..10, u32:0..10],
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: MyStruct) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestDerivedStructDomainArrayMismatch) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32[2],
+}
+
+fn create_f_domain() -> MyStructDomain {
+   MyStructDomain {
+     x: [u8:0..10, u8:0..10],
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: MyStruct) {}
+)",
+              TypecheckFails(HasSubstr("size mismatch: u8 vs. u32")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
