@@ -766,6 +766,26 @@ cc_library(
 )
 
 cc_library(
+    name = "fuzz_domain_rewriter",
+    srcs = ["fuzz_domain_rewriter.cc"],
+    hdrs = ["fuzz_domain_rewriter.h"],
+    deps = [
+        ":ast",
+        ":module",
+        "//xls/common:attribute_data",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:import_data",
+        "//xls/dslx/type_system_v2:import_utils",
+        "//xls/dslx/type_system_v2:type_annotation_utils",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "semantics_analysis",
     srcs = ["semantics_analysis.cc"],
     hdrs = ["semantics_analysis.h"],
@@ -775,6 +795,7 @@ cc_library(
         ":ast_node_visitor_with_default",
         ":ast_utils",
         ":bindings",
+        ":fuzz_domain_rewriter",
         ":lambda_rewriter",
         ":module",
         ":pos",
@@ -795,6 +816,19 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "fuzz_domain_rewriter_test",
+    srcs = ["fuzz_domain_rewriter_test.cc"],
+    deps = [
+        ":ast",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "@googletest//:gtest",
     ],
 )
 

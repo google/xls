@@ -2272,6 +2272,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     const StructDefBase* struct_def = struct_or_proc_ref->def;
+
     const NameRef* type_variable = *table_.GetTypeVariable(node);
     if (source.has_value()) {
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(*source, type_variable));
@@ -2280,8 +2281,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         node, CreateStructOrProcAnnotation(
                   module_, const_cast<StructDefBase*>(struct_def),
                   struct_or_proc_ref->parametrics, node)));
+    const StructDef* concrete_struct_def =
+        dynamic_cast<const StructDef*>(struct_def);
+    bool allow_missing_members =
+        in_fuzz_test_domain_ || (concrete_struct_def != nullptr &&
+                                 concrete_struct_def->is_domain_struct());
     XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(
-        *node, *struct_def, /*allow_missing_members=*/in_fuzz_test_domain_));
+        *node, *struct_def, allow_missing_members));
 
     absl::flat_hash_map<std::string, const StructMemberNode*> formal_member_map;
     for (const StructMemberNode* formal_member : struct_def->members()) {
@@ -2292,7 +2298,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     for (const auto& [name, actual_member] : node->members()) {
       const StructMemberNode* formal_member = formal_member_map.at(name);
 
-      if (in_fuzz_test_domain_) {
+      if (allow_missing_members) {
         // In a fuzz test domain, the actual member expression represents a
         // domain (e.g. `u32:0..10` which has type `u32[10]`) rather than a
         // value of the member's type (`u32`). We typecheck it without

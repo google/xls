@@ -947,7 +947,8 @@ fn f(x: u32) -> u32 { x }
                                 "test_module.x", "test_module", &import_data),
               absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("Unsupported fuzz test domain")));
+                  testing::HasSubstr("Expected range or set domain for scalar "
+                                     "parameter x: u32; got type ubits")));
 }
 
 TEST(FunctionConverterFuzzTestTest, EmptyArrayDomain) {
