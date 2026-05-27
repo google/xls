@@ -445,9 +445,11 @@ string. These format strings use placeholders to fill in relevant information.
 
 -   `--fifo_module` provides the name of a Verilog module that will be used to
     implement FIFOs with data signals between procs in the same network; this
-    defaults to "xls_fifo_wrapper". If passed an empty string, these FIFOs will
-    be materialized using XLS-provided logic (which is not necessarily optimized
-    for PPA). This module must take the following parameters:
+    defaults to `xls_fifo_wrapper` and can be overridden on a per-channel basis
+    using DSLX `#[channel(fifo_wrapper=custom_fifo)]` attributes. If passed an
+    empty string, these FIFOs will be materialized using XLS-provided logic
+    (which is not necessarily optimized for PPA). This module must take the
+    following parameters:
 
     -   Width: a positive integer; the width of the datapath in bits.
     -   Depth: a non-negative integer; the number of entries in the FIFO.
@@ -473,11 +475,14 @@ string. These format strings use placeholders to fill in relevant information.
     -   `output logic pop_valid`,
     -   `output logic [Width-1:0] pop_data`.
 
+
 -   `--nodata_fifo_module` provides the name of a Verilog module that will be
     used to implement FIFOs with no data signal between procs in the same
-    network. If not present, these FIFOs will be materialized using XLS-provided
-    logic (which is not necessarily optimized for PPA). This module must take
-    the following parameters:
+    network. This can overridden on a per-channel basis using the same DSLX
+    attributes as FIFOs w/ data signals:
+    `#[channel(fifo_wrapper=my_fifo_counter)]`. If not present, these FIFOs will
+    be materialized using XLS-provided logic (which is not necessarily optimized
+    for PPA). This module must take the following parameters:
 
     -   Depth: a non-negative integer; the number of entries in the FIFO.
     -   RegisterPushOutputs: a bit; if set, the `push_*` output signals must be

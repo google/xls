@@ -1903,6 +1903,7 @@ cc_test(
     deps = [
         ":bits",
         ":channel",
+        ":channel_cc_proto",
         ":channel_ops",
         ":ir",
         ":ir_matcher",
@@ -1912,6 +1913,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",

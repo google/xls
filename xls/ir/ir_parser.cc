@@ -1678,6 +1678,14 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
     return absl::OkStatus();
   };
 
+  std::optional<std::string> fifo_wrapper;
+  handlers["fifo_wrapper"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token wrapper_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    fifo_wrapper = wrapper_token.value();
+    return absl::OkStatus();
+  };
+
   XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers,
                                             /*mandatory_keywords=*/{"kind"}));
 
@@ -1754,7 +1762,8 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
         FifoConfig(/*depth=*/*depth,
                    /*bypass=*/*bypass,
                    /*register_push_outputs=*/*register_push_outputs,
-                   /*register_pop_outputs=*/*register_pop_outputs),
+                   /*register_pop_outputs=*/*register_pop_outputs,
+                   /*fifo_wrapper=*/fifo_wrapper),
         *data_type, channel);
   }
 
@@ -2827,6 +2836,13 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
     XLS_ASSIGN_OR_RETURN(register_pop_outputs, token_to_bool(token));
     return absl::OkStatus();
   };
+  std::optional<std::string> fifo_wrapper;
+  handlers["fifo_wrapper"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    fifo_wrapper = token.value();
+    return absl::OkStatus();
+  };
 
   XLS_RETURN_IF_ERROR(ParseKeywordArguments(
       handlers, /*mandatory_keywords=*/{"id", "ops", "kind"}));
@@ -2860,7 +2876,8 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
         fifo_config = FifoConfig(
             /*depth=*/*fifo_depth, /*bypass=*/bypass.value_or(true),
             /*register_push_outputs=*/register_push_outputs.value_or(false),
-            /*register_pop_outputs=*/register_pop_outputs.value_or(false));
+            /*register_pop_outputs=*/register_pop_outputs.value_or(false),
+            /*fifo_wrapper=*/fifo_wrapper);
       }
       ChannelConfig channel_config(fifo_config, input_flop_kind,
                                    output_flop_kind);

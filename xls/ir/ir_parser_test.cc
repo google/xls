@@ -39,6 +39,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -749,7 +750,7 @@ TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadataNoFlops) {
                            Parser::ParseChannel(
                                R"(chan foo(bits[32], id=42, kind=streaming,
                          flow_control=none, ops=send_receive, fifo_depth=3,
-                         bypass=false))",
+                         bypass=false, fifo_wrapper=custom_fifo))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -769,6 +770,11 @@ TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadataNoFlops) {
                 .fifo_config()
                 ->bypass(),
             false);
+  EXPECT_EQ(absl::down_cast<StreamingChannel*>(ch)
+                ->channel_config()
+                .fifo_config()
+                ->fifo_wrapper(),
+            "custom_fifo");
 }
 
 TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadata) {
@@ -966,18 +972,30 @@ top proc example(tkn: token, init={token}) {
   EXPECT_EQ(f->GetInitiationInterval(), 12);
 }
 
-TEST(IrParserTest, ParseValidFifoInstantiation) {
+TEST(IrParserTest, ParseFifoInstantiationWithExtraFifoMeta) {
   constexpr std::string_view ir_text = R"(package test
 
 block my_block(in: bits[32], out: bits[32]) {
   in: bits[32] = input_port(name=in)
-  instantiation my_inst(data_type=bits[32], depth=3, bypass=true, register_push_outputs=false, register_pop_outputs=false, kind=fifo)
+  instantiation my_inst(data_type=bits[32], depth=3, bypass=true, register_push_outputs=false, register_pop_outputs=false, fifo_wrapper=custom_fifo, kind=fifo)
   in_inst_input: () = instantiation_input(in, instantiation=my_inst, port_name=push_data)
   pop_data_inst_output: bits[32] = instantiation_output(instantiation=my_inst, port_name=pop_data)
   out_output_port: () = output_port(pop_data_inst_output, name=out)
 }
 )";
-  XLS_EXPECT_OK(Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b, p->GetBlock("my_block"));
+  XLS_ASSERT_OK_AND_ASSIGN(Instantiation * inst,
+                           b->GetInstantiation("my_inst"));
+  ASSERT_EQ(inst->kind(), InstantiationKind::kFifo);
+  const FifoConfig& fifo_config =
+      inst->AsFifoInstantiation().value()->fifo_config();
+  EXPECT_EQ(fifo_config.depth(), 3);
+  EXPECT_EQ(fifo_config.bypass(), true);
+  EXPECT_EQ(fifo_config.register_push_outputs(), false);
+  EXPECT_EQ(fifo_config.register_pop_outputs(), false);
+  EXPECT_EQ(fifo_config.fifo_wrapper(), "custom_fifo");
 }
 
 TEST(IrParserTest, ParseWithUnspecifiedIds) {

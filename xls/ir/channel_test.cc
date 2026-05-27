@@ -21,11 +21,13 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/container/btree_set.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
@@ -188,29 +190,72 @@ TEST(ChannelTest, StreamingChannelWithFifoConfigSerializesFifoConfigCorrectly) {
                     HasSubstr("register_pop_outputs=true")));
 }
 
-TEST(ChannelTest, StreamingToStringParses) {
+TEST(ChannelTest, StreamingChannelWithFifoWrapper) {
+  Package p("my_package");
+  StreamingChannel ch(
+      "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32), {},
+      ChannelConfig(FifoConfig(/*depth=*/123, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false,
+                               /*fifo_wrapper=*/"custom_fifo")),
+      FlowControl::kNone, ChannelStrictness::kProvenMutuallyExclusive);
+
+  EXPECT_EQ(ch.name(), "my_channel");
+  EXPECT_EQ(ch.GetFifoDepth(), 123);
+  ASSERT_TRUE(ch.channel_config().fifo_config().has_value());
+  EXPECT_EQ(ch.channel_config().fifo_config()->fifo_wrapper(), "custom_fifo");
+}
+
+TEST(ChannelTest, FifoConfigProtoRoundtrip) {
+  FifoConfig config(/*depth=*/123, /*bypass=*/true,
+                    /*register_push_outputs=*/true,
+                    /*register_pop_outputs=*/false,
+                    /*fifo_wrapper=*/"custom_fifo");
+  FifoConfigProto proto = config.ToProto(/*width=*/32);
+  XLS_ASSERT_OK_AND_ASSIGN(FifoConfig roundtripped,
+                           FifoConfig::FromProto(proto));
+  EXPECT_EQ(roundtripped, config);
+}
+
+TEST(ChannelTest, StreamingWithExtraFifoMetaToStringParses) {
   Package p("my_package");
   std::vector<Value> initial_values = {
       Value::Tuple({Value(UBits(1234, 32)), Value(UBits(33, 23))}),
       Value::Tuple({Value(UBits(2222, 32)), Value(UBits(444, 23))})};
   StreamingChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
                       p.GetTypeForValue(initial_values.front()), initial_values,
-                      ChannelConfig(), FlowControl::kReadyValid,
+                      ChannelConfig(FifoConfig(/*depth=*/3, /*bypass=*/false,
+                                               /*register_push_outputs=*/false,
+                                               /*register_pop_outputs=*/false,
+                                               /*fifo_wrapper=*/"custom_fifo")),
+                      FlowControl::kReadyValid,
                       ChannelStrictness::kProvenMutuallyExclusive);
   std::string channel_str = ch.ToString();
   EXPECT_EQ(channel_str,
             "chan my_channel((bits[32], bits[23]), initial_values={(1234, 33), "
             "(2222, 444)}, id=42, kind=streaming, ops=receive_only, "
-            "flow_control=ready_valid, strictness=proven_mutually_exclusive)");
+            "flow_control=ready_valid, strictness=proven_mutually_exclusive, "
+            "fifo_depth=3, bypass=false, register_push_outputs=false, "
+            "register_pop_outputs=false, fifo_wrapper=custom_fifo)");
 
-  // Create another package and try to parse the channel into the other
-  // package. We can't use the existing package because adding the channel will
-  // fail because the id already exists.
   Package other_p("other_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * parsed_ch,
                            Parser::ParseChannel(channel_str, &other_p));
   EXPECT_EQ(parsed_ch->name(), "my_channel");
   EXPECT_EQ(parsed_ch->id(), 42);
+  ASSERT_EQ(parsed_ch->kind(), ChannelKind::kStreaming);
+  ASSERT_TRUE(absl::down_cast<StreamingChannel*>(parsed_ch)
+                  ->channel_config()
+                  .fifo_config()
+                  .has_value());
+  const FifoConfig& fifo_config = *absl::down_cast<StreamingChannel*>(parsed_ch)
+                                       ->channel_config()
+                                       .fifo_config();
+  EXPECT_EQ(fifo_config.depth(), 3);
+  EXPECT_EQ(fifo_config.bypass(), false);
+  EXPECT_EQ(fifo_config.register_push_outputs(), false);
+  EXPECT_EQ(fifo_config.register_pop_outputs(), false);
+  EXPECT_EQ(fifo_config.fifo_wrapper(), "custom_fifo");
 }
 
 TEST(ChannelTest, SingleValueToStringParses) {

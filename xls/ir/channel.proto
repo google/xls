@@ -16,12 +16,14 @@ syntax = "proto3";
 
 package xls;
 
+// TODO: google/xls#1561 - document supported options DSLX reference.
 message FifoConfigProto {
   optional int64 width = 1;
   optional int64 depth = 2;
   optional bool bypass = 3;
   optional bool register_push_outputs = 4;
   optional bool register_pop_outputs = 5;
+  optional string fifo_wrapper = 6;
 }
 
 // The kinds of flops a channels input/output may have.
