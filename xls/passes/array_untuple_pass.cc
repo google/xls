@@ -91,7 +91,17 @@ absl::StatusOr<UnionFind<Node*>> FindUntupleGroups(
       array_groups.Union(n->As<Gate>()->data(), n);
     } else if (n->Is<Next>()) {
       // Next needs both sides to be represented the same.
-      array_groups.Union(n->As<Next>()->state_read(), n->As<Next>()->value());
+      Next* next = n->As<Next>();
+      absl::Span<StateRead* const> state_reads =
+          f->AsProcOrDie()->GetStateReadsByStateElement(next->state_element());
+      XLS_RET_CHECK_EQ(state_reads.size(), 1)
+          << "State element '" << next->state_element()->name()
+          << "' has multiple StateReads which is not supported in "
+             "array_untuple_pass.";
+      // TODO(nelsonliang): Handle multiple state reads for a state element
+      // by unioning the state reads associated with a state_element and union
+      // them all with the next value.
+      array_groups.Union(state_reads.front(), next->value());
     }
   }
   return array_groups;
@@ -127,6 +137,8 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindExternalGroups(
               return nxt->state_read() == nxt->value() &&
                      nxt->state_read() == state_read;
             }
+            // TODO(nelsonliang): Handle identity state elements by retrieving
+            // all state reads and verifying all reds are identity updates.
             return false;
           })) {
         excluded.insert(groups.Find(state_read));
@@ -288,6 +300,10 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     if (!CanUntuple(state_read)) {
       return DefaultHandler(state_read);
     }
+    // TODO(nelsonliang): When supporting multiple state reads for a single
+    // state element, split state element and create new UnreadStateElements.
+    // Will add it to a map to be tracked by the UntupleVisitor.Add state read
+    // node for each new state element.
     XLS_RET_CHECK(state_read->function_base()->IsProc());
     VLOG(2) << "Untuple-ing state read " << state_read;
     Proc* proc = state_read->function_base()->AsProcOrDie();
@@ -309,17 +325,27 @@ class UntupleVisitor : public DfsVisitorWithDefault {
   }
 
   absl::Status HandleNext(Next* n) override {
-    if (!CanUntuple(n->state_read())) {
+    // TODO(nelsonliang): Handle multiple state reads for the same state
+    // element by creating a new next node using the state_element constructor
+    // for each state element that was split.
+    Proc* proc = n->function_base()->AsProcOrDie();
+    absl::Span<StateRead* const> state_reads =
+        proc->GetStateReadsByStateElement(n->state_element());
+    XLS_RET_CHECK_EQ(state_reads.size(), 1)
+        << "State element '" << n->state_element()->name()
+        << "' has multiple StateReads which is not supported in "
+           "array_untuple_pass.";
+    Node* state_read = state_reads.front();
+    if (!CanUntuple(state_read)) {
       return DefaultHandler(n);
     }
     VLOG(2) << "Untuple-ing next " << n;
     changed_ = true;
-    Proc* proc = n->function_base()->AsProcOrDie();
     XLS_RET_CHECK(CanUntuple(n->value()))
         << "Unable to untuple both state read and value.";
-    XLS_RET_CHECK(components_.contains(n->state_read()));
+    XLS_RET_CHECK(components_.contains(state_read));
     XLS_RET_CHECK(components_.contains(n->value()));
-    absl::Span<Node* const> state_read_values = components_.at(n->state_read());
+    absl::Span<Node* const> state_read_values = components_.at(state_read);
     absl::Span<Node* const> update_values = components_.at(n->value());
     for (const auto& [idx, state_read_node, value] :
          iter::zip(iter::count(), state_read_values, update_values)) {
@@ -331,8 +357,8 @@ class UntupleVisitor : public DfsVisitorWithDefault {
                               .status());
     }
     // Remove this next from consideration.
-    if (n->value() != n->state_read()) {
-      XLS_RET_CHECK(n->ReplaceOperand(n->value(), n->state_read()));
+    if (n->value() != state_read) {
+      XLS_RET_CHECK(n->ReplaceOperand(n->value(), state_read));
     }
     XLS_RET_CHECK(n->users().empty())
         << "Something is using the empty-tuple value of a next node: " << n;

@@ -93,7 +93,7 @@ TEST_F(ConvertToBlockTest, ProcWithExplicitStateAccessNextValueStateElement) {
   XLS_ASSERT_OK(ConvertToBlock(
       p.get(),
       codegen_options().clock_name("clk").reset("rst", false, false, false),
-      scheduling_options().opt_level(0), &delay_estimator_, &opt_context,
+      scheduling_options().opt_level(3), &delay_estimator_, &opt_context,
       &pass_results));
 }
 

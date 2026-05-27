@@ -525,6 +525,38 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayWithInvoke) {
   EXPECT_EQ(val2_before, val2_after);
 }
 
+TEST_F(ArrayUntuplePassTest, ProcStateArrayNextWithStateElement) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value init_val,
+      ValueBuilder::Array(
+          {ValueBuilder::Tuple({Value(UBits(0, 4)), Value(UBits(0, 8))}),
+           ValueBuilder::Tuple({Value(UBits(0, 4)), Value(UBits(0, 8))})})
+          .Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_elem,
+                           pb.UnreadStateElement("my_state", init_val));
+  BValue state_read = pb.StateRead(state_elem);
+
+  BValue updated = pb.ArrayUpdate(
+      state_read, pb.Tuple({pb.Literal(UBits(1, 4)), pb.Literal(UBits(42, 8))}),
+      {pb.Literal(UBits(0, 32))});
+
+  // Construct Next node using StateElement* instead of StateRead
+  pb.Next(state_elem, updated);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build());
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
+
+  // Verify it was untupled into separate state elements for each tuple field
+  EXPECT_THAT(pr->StateElements(),
+              IsSupersetOf({m::StateElement(_, m::Type("bits[4][2]")),
+                            m::StateElement(_, m::Type("bits[8][2]"))}));
+}
+
 void IrFuzzArrayUntuple(FuzzPackageWithArgs fuzz_package_with_args) {
   ArrayUntuplePass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
