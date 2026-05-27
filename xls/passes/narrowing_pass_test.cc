@@ -1993,6 +1993,25 @@ fn FuzzTest() -> bits[1000] {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
+// Found via ir fuzzing.
+TEST_P(NarrowingPassTest, DynamicBitSliceFails) {
+  constexpr std::string_view kProgram = R"ir(
+package FuzzTest
+
+top fn FuzzTest() -> bits[1000] {
+  literal.1: bits[64] = literal(value=0, id=1)
+  dynamic_bit_slice.3: bits[1] = dynamic_bit_slice(literal.1, literal.1, width=1, id=3)
+  literal.56: bits[1000] = literal(value=0x0, id=56)
+  zero_ext.27: bits[1000] = zero_ext(dynamic_bit_slice.3, new_bit_count=1000, id=27)
+  ret sel.28: bits[1000] = sel(dynamic_bit_slice.3, cases=[literal.56], default=zero_ext.27, id=28)
+}
+)ir";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(kProgram));
+  ScopedVerifyEquivalence sve(*p->GetTopAsFunction());
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     ::testing::Values(NarrowingPass::AnalysisType::kTernary,

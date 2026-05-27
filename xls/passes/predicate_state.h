@@ -105,8 +105,8 @@ class PredicateState {
     if (std::holds_alternative<Select*>(node_)) {
       if (IsDefaultArm()) {
         auto intervals = IntervalSet::Of(
-            {Interval::Open(UBits(cases_count(), selector->BitCountOrDie()),
-                            Bits::AllOnes(selector->BitCountOrDie()))});
+            {Interval::Closed(UBits(cases_count(), selector->BitCountOrDie()),
+                              Bits::AllOnes(selector->BitCountOrDie()))});
         auto tern = interval_ops::ExtractTernaryVector(intervals);
         return SelectorValues{.range = std::move(intervals),
                               .ternary = std::move(tern)};
