@@ -2482,5 +2482,28 @@ fn f(s: Outer) {}
               TypecheckSucceeds(::testing::_));
 }
 
+TEST(TypecheckV2StructTest, FuzzTestStructDomainDirectSizeMismatch) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32, y: u8 }
+struct Other { a: u32 }
+#[fuzz_test(domains=`Other { a: u32:0..5 }`)]
+fn f(s: S) {}
+)",
+      TypecheckFails(HasSubstr("Fuzz test domain struct size (1) does "
+                               "not match parameter 's: S' struct size (2)")));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestStructDomainNotAStruct) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32 }
+#[fuzz_test(domains=`u32:0..10`)]
+fn f(s: S) {}
+)",
+      TypecheckFails(HasSubstr("Fuzz test domain evaluates to type array, but "
+                               "parameter 's: S' expects a struct.")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

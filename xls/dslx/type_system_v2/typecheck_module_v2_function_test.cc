@@ -1191,7 +1191,7 @@ TEST(TypecheckV2Test, FuzzTestDomainNotSupported) {
 #[fuzz_test(domains=`u8:0`)]
 fn f(x: u8) {}
 )",
-      TypecheckFails(HasSubstr("Unsupported fuzz test domain `u8:0`")));
+      TypecheckFails(HasSubstr("Expected range or set domain")));
 }
 
 TEST(TypecheckV2Test, FuzzTestConstRange) {
@@ -1219,6 +1219,21 @@ TEST(TypecheckV2Test, FuzzTestAttributeWithZeroArguments) {
 fn f(x: u32) {}
 )",
               TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestDomainNonConstexprDivByZero) {
+  EXPECT_THAT(R"(
+fn get_index() -> u32 { u32:2 }
+fn div_by_zero() -> u32[5] {
+  let arr = [u32:1, u32:2];
+  let x = arr[get_index()];
+  u32:0..5
+}
+#[fuzz_test(domains=`div_by_zero()`)]
+fn f(x: u32) {}
+)",
+              TypecheckFails(HasSubstr("Fuzz test domain must be a constexpr "
+                                       "expression; evaluation failed")));
 }
 
 }  // namespace

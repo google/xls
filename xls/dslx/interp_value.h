@@ -31,7 +31,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/frontend/ast.h"
@@ -511,6 +510,14 @@ class InterpValue {
 
   absl::StatusOr<const std::vector<InterpValue>*> GetValues() const;
   const std::vector<InterpValue>& GetValuesOrDie() const;
+  std::optional<std::shared_ptr<RangeData>> GetRangeData() const {
+    if (is_range() &&
+        std::holds_alternative<std::shared_ptr<RangeData>>(payload_)) {
+      return std::get<std::shared_ptr<RangeData>>(payload_);
+    }
+    return std::nullopt;
+  }
+
   absl::StatusOr<const FnData*> GetFunction() const {
     if (!std::holds_alternative<FnData>(payload_)) {
       return absl::InvalidArgumentError(
