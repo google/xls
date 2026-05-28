@@ -75,7 +75,7 @@ std::string BytesToString(absl::Span<const uint8_t> bytes) {
 }
 
 std::vector<Type*> GetLeafTypes(Type* type) {
-  LeafTypeTree<absl::monostate> t(type);
+  LeafTypeTree<std::monostate> t(type);
   std::vector<Type*> leaf_types(t.leaf_types().begin(), t.leaf_types().end());
   return leaf_types;
 }
