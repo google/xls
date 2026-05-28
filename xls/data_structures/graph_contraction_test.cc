@@ -29,15 +29,15 @@ namespace {
 
 using ::testing::UnorderedElementsAre;
 
-static absl::monostate MergeMonostate(absl::monostate x, absl::monostate y) {
-  return absl::monostate();
+static std::monostate MergeMonostate(std::monostate x, std::monostate y) {
+  return std::monostate();
 }
 
 static int32_t Sum(int32_t x, int32_t y) { return x + y; }
 
 TEST(GraphContractionTest, NodeWeightsAreAdded) {
   // Test that node weights are added
-  GraphContraction<char, int32_t, absl::monostate> gc;
+  GraphContraction<char, int32_t, std::monostate> gc;
   gc.AddVertex('a', 5);
   gc.AddVertex('b', 10);
   EXPECT_EQ(gc.Vertices(), absl::flat_hash_set<char>({'a', 'b'}));
@@ -49,9 +49,9 @@ TEST(GraphContractionTest, NodeWeightsAreAdded) {
 
 TEST(GraphContractionTest, AToBYieldsSelfLoop) {
   // Test that {a -> b} yields a self-loop when a and b are merged.
-  GraphContraction<char, absl::monostate, int32_t> gc;
-  gc.AddVertex('a', absl::monostate());
-  gc.AddVertex('b', absl::monostate());
+  GraphContraction<char, std::monostate, int32_t> gc;
+  gc.AddVertex('a', std::monostate());
+  gc.AddVertex('b', std::monostate());
   gc.AddEdge('a', 'b', 20);
   EXPECT_TRUE(gc.IdentifyVertices('a', 'b', MergeMonostate, Sum));
   EXPECT_THAT(gc.Vertices(), UnorderedElementsAre('a'));
@@ -62,9 +62,9 @@ TEST(GraphContractionTest, AToBYieldsSelfLoop) {
 TEST(GraphContractionTest, AToBAndBToAYieldsSelfLoop) {
   // Test that {a -> b, b -> a} yields a self-loop with added weights
   // when a and b are merged.
-  GraphContraction<char, absl::monostate, int32_t> gc;
-  gc.AddVertex('a', absl::monostate());
-  gc.AddVertex('b', absl::monostate());
+  GraphContraction<char, std::monostate, int32_t> gc;
+  gc.AddVertex('a', std::monostate());
+  gc.AddVertex('b', std::monostate());
   gc.AddEdge('a', 'b', 20);
   gc.AddEdge('b', 'a', 30);
   EXPECT_TRUE(gc.IdentifyVertices('a', 'b', MergeMonostate, Sum));
@@ -76,9 +76,9 @@ TEST(GraphContractionTest, AToBAndBToAYieldsSelfLoop) {
 TEST(GraphContractionTest, AllABCombinationsYieldSelfLoop) {
   // Test that {a -> a, b -> b, a -> b, b -> a} yields a self-loop with
   // added weights when a and b are merged.
-  GraphContraction<char, absl::monostate, int32_t> gc;
-  gc.AddVertex('a', absl::monostate());
-  gc.AddVertex('b', absl::monostate());
+  GraphContraction<char, std::monostate, int32_t> gc;
+  gc.AddVertex('a', std::monostate());
+  gc.AddVertex('b', std::monostate());
   gc.AddEdge('a', 'a', 10);
   gc.AddEdge('b', 'b', 20);
   gc.AddEdge('a', 'b', 30);
@@ -92,10 +92,10 @@ TEST(GraphContractionTest, AllABCombinationsYieldSelfLoop) {
 TEST(GraphContractionTest, AToCAndBToCYieldsAToC) {
   // Test that {a -> c, b -> c} yields {a -> c} with added weights
   // when a and b are merged.
-  GraphContraction<char, absl::monostate, int32_t> gc;
-  gc.AddVertex('a', absl::monostate());
-  gc.AddVertex('b', absl::monostate());
-  gc.AddVertex('c', absl::monostate());
+  GraphContraction<char, std::monostate, int32_t> gc;
+  gc.AddVertex('a', std::monostate());
+  gc.AddVertex('b', std::monostate());
+  gc.AddVertex('c', std::monostate());
   gc.AddEdge('a', 'c', 30);
   gc.AddEdge('b', 'c', 40);
   EXPECT_TRUE(gc.IdentifyVertices('a', 'b', MergeMonostate, Sum));
@@ -107,10 +107,10 @@ TEST(GraphContractionTest, AToCAndBToCYieldsAToC) {
 TEST(GraphContractionTest, CToAAndCToBYieldsCToA) {
   // Test that {c -> a, c -> b} yields {c -> a} with added weights
   // when a and b are merged.
-  GraphContraction<char, absl::monostate, int32_t> gc;
-  gc.AddVertex('a', absl::monostate());
-  gc.AddVertex('b', absl::monostate());
-  gc.AddVertex('c', absl::monostate());
+  GraphContraction<char, std::monostate, int32_t> gc;
+  gc.AddVertex('a', std::monostate());
+  gc.AddVertex('b', std::monostate());
+  gc.AddVertex('c', std::monostate());
   EXPECT_TRUE(gc.AddEdge('c', 'a', 30));
   EXPECT_TRUE(gc.AddEdge('c', 'b', 40));
   EXPECT_TRUE(gc.IdentifyVertices('a', 'b', MergeMonostate, Sum));
@@ -121,10 +121,10 @@ TEST(GraphContractionTest, CToAAndCToBYieldsCToA) {
 
 TEST(GraphContractionTest, CToBYieldsCToA) {
   // Test that {c -> b} yields {c -> a} when a and b are merged.
-  GraphContraction<char, absl::monostate, int32_t> gc;
-  gc.AddVertex('a', absl::monostate());
-  gc.AddVertex('b', absl::monostate());
-  gc.AddVertex('c', absl::monostate());
+  GraphContraction<char, std::monostate, int32_t> gc;
+  gc.AddVertex('a', std::monostate());
+  gc.AddVertex('b', std::monostate());
+  gc.AddVertex('c', std::monostate());
   EXPECT_TRUE(gc.AddEdge('c', 'b', 40));
   EXPECT_TRUE(gc.IdentifyVertices('a', 'b', MergeMonostate, Sum));
   EXPECT_THAT(gc.Vertices(), UnorderedElementsAre('a', 'c'));
@@ -135,11 +135,11 @@ TEST(GraphContractionTest, CToBYieldsCToA) {
 TEST(GraphContractionTest, Diamond) {
   // Test that {c -> a, c -> b, a -> d, b -> d} yields {c -> a -> d} when
   // a and b are merged.
-  GraphContraction<char, absl::monostate, int32_t> gc;
-  gc.AddVertex('a', absl::monostate());
-  gc.AddVertex('b', absl::monostate());
-  gc.AddVertex('c', absl::monostate());
-  gc.AddVertex('d', absl::monostate());
+  GraphContraction<char, std::monostate, int32_t> gc;
+  gc.AddVertex('a', std::monostate());
+  gc.AddVertex('b', std::monostate());
+  gc.AddVertex('c', std::monostate());
+  gc.AddVertex('d', std::monostate());
   EXPECT_TRUE(gc.AddEdge('c', 'a', 10));
   EXPECT_TRUE(gc.AddEdge('c', 'b', 20));
   EXPECT_TRUE(gc.AddEdge('a', 'd', 30));
@@ -165,9 +165,9 @@ TEST(GraphContractionTest, WeightOfWorks) {
 
 TEST(GraphContractionTest, ContainsWorks) {
   // Test that `Contains` works properly.
-  GraphContraction<char, absl::monostate, absl::monostate> gc;
-  gc.AddVertex('a', absl::monostate());
-  gc.AddVertex('b', absl::monostate());
+  GraphContraction<char, std::monostate, std::monostate> gc;
+  gc.AddVertex('a', std::monostate());
+  gc.AddVertex('b', std::monostate());
   EXPECT_TRUE(gc.Contains('a'));
   EXPECT_TRUE(gc.Contains('b'));
   EXPECT_FALSE(gc.Contains('c'));
@@ -175,9 +175,9 @@ TEST(GraphContractionTest, ContainsWorks) {
 
 TEST(GraphContractionTest, RepresentativeOfWorks) {
   // Test that `RepresentativeOf` works properly.
-  GraphContraction<char, absl::monostate, absl::monostate> gc;
-  gc.AddVertex('a', absl::monostate());
-  gc.AddVertex('b', absl::monostate());
+  GraphContraction<char, std::monostate, std::monostate> gc;
+  gc.AddVertex('a', std::monostate());
+  gc.AddVertex('b', std::monostate());
   EXPECT_TRUE(gc.IdentifyVertices('a', 'b', MergeMonostate, MergeMonostate));
   EXPECT_EQ(gc.RepresentativeOf('a'), 'a');
   EXPECT_EQ(gc.RepresentativeOf('b'), 'a');
@@ -187,18 +187,18 @@ TEST(GraphContractionTest, RepresentativeOfWorks) {
 TEST(GraphContractionTest, AddEdgeWithNonexistentVertices) {
   // Test that adding an edge with source/target that was not previously
   // inserted returns `false`.
-  GraphContraction<char, absl::monostate, absl::monostate> gc;
-  gc.AddVertex('a', absl::monostate());
-  EXPECT_FALSE(gc.AddEdge('b', 'c', absl::monostate()));
-  EXPECT_FALSE(gc.AddEdge('a', 'b', absl::monostate()));
-  EXPECT_FALSE(gc.AddEdge('b', 'a', absl::monostate()));
+  GraphContraction<char, std::monostate, std::monostate> gc;
+  gc.AddVertex('a', std::monostate());
+  EXPECT_FALSE(gc.AddEdge('b', 'c', std::monostate()));
+  EXPECT_FALSE(gc.AddEdge('a', 'b', std::monostate()));
+  EXPECT_FALSE(gc.AddEdge('b', 'a', std::monostate()));
 }
 
 TEST(GraphContractionTest, IdentifyNonExistentVertices) {
   // Test that identifying two vertices where one or more of them was not
   // previously inserted returns `false`.
-  GraphContraction<char, absl::monostate, absl::monostate> gc;
-  gc.AddVertex('a', absl::monostate());
+  GraphContraction<char, std::monostate, std::monostate> gc;
+  gc.AddVertex('a', std::monostate());
   EXPECT_FALSE(gc.IdentifyVertices('b', 'c', MergeMonostate, MergeMonostate));
   EXPECT_FALSE(gc.IdentifyVertices('a', 'b', MergeMonostate, MergeMonostate));
   EXPECT_FALSE(gc.IdentifyVertices('b', 'a', MergeMonostate, MergeMonostate));
@@ -206,18 +206,18 @@ TEST(GraphContractionTest, IdentifyNonExistentVertices) {
 
 TEST(GraphContractionTest, SelfIdentification) {
   // Test that identify a node with itself returns `true`.
-  GraphContraction<char, absl::monostate, absl::monostate> gc;
-  gc.AddVertex('a', absl::monostate());
+  GraphContraction<char, std::monostate, std::monostate> gc;
+  gc.AddVertex('a', std::monostate());
   EXPECT_TRUE(gc.IdentifyVertices('a', 'a', MergeMonostate, MergeMonostate));
 }
 
 TEST(GraphContractionTest, QueryNonexistentVerticesAndEdges) {
   // Test that `EdgesOutOf`, `EdgesInto`, and `WeightOf` returns the right
   // thing for nonexistent vertices and edges.
-  GraphContraction<char, absl::monostate, absl::monostate> gc;
-  gc.AddVertex('a', absl::monostate());
-  gc.AddVertex('b', absl::monostate());
-  gc.AddEdge('a', 'b', absl::monostate());
+  GraphContraction<char, std::monostate, std::monostate> gc;
+  gc.AddVertex('a', std::monostate());
+  gc.AddVertex('b', std::monostate());
+  gc.AddEdge('a', 'b', std::monostate());
   EXPECT_TRUE(gc.EdgesOutOf('c').empty());
   EXPECT_TRUE(gc.EdgesInto('c').empty());
   EXPECT_FALSE(gc.WeightOf('c').has_value());
@@ -237,7 +237,7 @@ TEST(GraphContractionTest, LongestNodePaths) {
   //          ╲ ╱
   //           f 5
 
-  GraphContraction<char, int32_t, absl::monostate> gc;
+  GraphContraction<char, int32_t, std::monostate> gc;
   gc.AddVertex('a', 5);
   gc.AddVertex('b', 10);
   gc.AddVertex('c', 15);
@@ -245,14 +245,14 @@ TEST(GraphContractionTest, LongestNodePaths) {
   gc.AddVertex('e', 15);
   gc.AddVertex('f', 5);
 
-  gc.AddEdge('a', 'b', absl::monostate());
-  gc.AddEdge('a', 'c', absl::monostate());
-  gc.AddEdge('b', 'd', absl::monostate());
-  gc.AddEdge('b', 'e', absl::monostate());
-  gc.AddEdge('c', 'd', absl::monostate());
-  gc.AddEdge('c', 'e', absl::monostate());
-  gc.AddEdge('d', 'f', absl::monostate());
-  gc.AddEdge('e', 'f', absl::monostate());
+  gc.AddEdge('a', 'b', std::monostate());
+  gc.AddEdge('a', 'c', std::monostate());
+  gc.AddEdge('b', 'd', std::monostate());
+  gc.AddEdge('b', 'e', std::monostate());
+  gc.AddEdge('c', 'd', std::monostate());
+  gc.AddEdge('c', 'e', std::monostate());
+  gc.AddEdge('d', 'f', std::monostate());
+  gc.AddEdge('e', 'f', std::monostate());
 
   auto longest_paths_maybe = gc.LongestNodePaths();
   EXPECT_TRUE(longest_paths_maybe.has_value());
@@ -297,14 +297,14 @@ TEST(GraphContractionTest, LongestNodePaths) {
 TEST(GraphContractionTest, LongestNodePathsCyclic) {
   // Test that `LongestNodePaths` detects a cyclic graph properly.
 
-  GraphContraction<char, int32_t, absl::monostate> gc;
+  GraphContraction<char, int32_t, std::monostate> gc;
   gc.AddVertex('a', 1);
   gc.AddVertex('b', 1);
   gc.AddVertex('c', 1);
 
-  gc.AddEdge('a', 'b', absl::monostate());
-  gc.AddEdge('b', 'c', absl::monostate());
-  gc.AddEdge('c', 'a', absl::monostate());
+  gc.AddEdge('a', 'b', std::monostate());
+  gc.AddEdge('b', 'c', std::monostate());
+  gc.AddEdge('c', 'a', std::monostate());
 
   EXPECT_FALSE(gc.LongestNodePaths().has_value());
 }
@@ -312,10 +312,10 @@ TEST(GraphContractionTest, LongestNodePathsCyclic) {
 TEST(GraphContractionTest, LongestNodePathsSelfEdge) {
   // Test that `LongestNodePaths` detects a self-edge properly.
 
-  GraphContraction<char, int32_t, absl::monostate> gc;
+  GraphContraction<char, int32_t, std::monostate> gc;
   gc.AddVertex('a', 1);
 
-  gc.AddEdge('a', 'a', absl::monostate());
+  gc.AddEdge('a', 'a', std::monostate());
 
   EXPECT_FALSE(gc.LongestNodePaths().has_value());
 }
