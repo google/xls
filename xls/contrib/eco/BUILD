@@ -14,10 +14,8 @@
 
 load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
-load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -29,145 +27,6 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-cc_binary(
-    name = "xls_ir_to_cytoscape",
-    srcs = ["xls_ir_to_cytoscape.cc"],
-    deps = [
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/ir:op",
-        "//xls/visualization/ir_viz:node_attribute_visitor",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_protobuf//:json_util",
-    ],
-)
-
-pytype_strict_library(
-    name = "xls_ir_to_networkx",
-    srcs = ["xls_ir_to_networkx.py"],
-    data = [":xls_ir_to_cytoscape"],
-    deps = [
-        "@abseil-py//absl/logging",
-        "@xls_pip_deps//networkx",
-        # networkx annoyingly marks scipy as an optional dep, but our usage requires it.
-        # Also see b/394358042.
-        "@xls_pip_deps//scipy",  # buildcleaner: keep
-        "//xls/common:runfiles",
-    ],
-)
-
-pytype_strict_contrib_test(
-    name = "xls_ir_to_networkx_test",
-    srcs = ["xls_ir_to_networkx_test.py"],
-    data = ["//xls/examples:riscv_simple.opt.ir"],
-    tags = ["manual"],
-    deps = [
-        ":xls_ir_to_networkx",
-        "//xls/common:runfiles",
-        "@abseil-py//absl/testing:absltest",
-        "@xls_pip_deps//networkx",
-    ],
-)
-
-pytype_strict_library(
-    name = "ir_diff",
-    srcs = ["ir_diff.py"],
-    deps = [
-        "@xls_pip_deps//networkx",
-    ],
-)
-
-py_library(
-    name = "ir2nx",
-    srcs = ["ir2nx.py"],
-    deps = [
-        ":xls_types",
-        ":xls_values",
-        "@xls_pip_deps//networkx",
-    ],
-)
-
-pytype_strict_library(
-    name = "ir_diff_utils",
-    srcs = ["ir_diff_utils.py"],
-    deps = [
-        ":ir_diff",
-        "@xls_pip_deps//matplotlib",
-        "@xls_pip_deps//networkx",
-    ],
-)
-
-pytype_strict_library(
-    name = "ir_patch_gen",
-    srcs = ["ir_patch_gen.py"],
-    deps = [
-        ":ir_diff",
-        ":ir_patch_py_pb2",
-        ":xls_types",
-        ":xls_values",
-    ],
-)
-
-pytype_strict_library(
-    name = "xls_types",
-    srcs = ["xls_types.py"],
-    deps = ["//xls/ir:xls_type_py_pb2"],
-)
-
-pytype_strict_library(
-    name = "xls_values",
-    srcs = ["xls_values.py"],
-    deps = [
-        ":xls_types",
-        "//xls/ir:xls_value_py_pb2",
-    ],
-)
-
-pytype_strict_library(
-    name = "ir_diff_main_lib",
-    srcs = ["ir_diff_main.py"],
-    deps = [
-        ":ir_diff",
-        ":ir_diff_utils",
-        ":ir_patch_gen",
-        ":xls_ir_to_networkx",
-        "@abseil-py//absl:app",
-        "@abseil-py//absl/flags",
-    ],
-)
-
-pytype_strict_binary(
-    name = "ir_diff_main",
-    srcs = ["ir_diff_main.py"],
-    deps = [":ir_diff_main_lib"],
-)
-
-pytype_strict_contrib_test(
-    name = "ir_diff_main_test",
-    srcs = ["ir_diff_main_test.py"],
-    data = [
-        "//xls/examples:riscv_simple.ir",  # unopt
-        "//xls/examples:riscv_simple.opt.ir",  #opt
-    ],
-    tags = ["manual"],
-    deps = [
-        ":ir_diff",
-        ":ir_diff_main_lib",
-        ":ir_patch_py_pb2",
-        "//xls/common:runfiles",
-        "@abseil-py//absl/flags",
-        "@abseil-py//absl/testing:absltest",
-        "@abseil-py//absl/testing:flagsaver",
-    ],
-)
-
 proto_library(
     name = "ir_patch_proto",
     srcs = ["ir_patch.proto"],
@@ -175,11 +34,6 @@ proto_library(
         "//xls/ir:xls_type_proto",
         "//xls/ir:xls_value_proto",
     ],
-)
-
-py_proto_library(
-    name = "ir_patch_py_pb2",
-    deps = [":ir_patch_proto"],
 )
 
 cc_library(
@@ -254,15 +108,15 @@ cc_library(
     srcs = ["graph.cc"],
     hdrs = ["graph.h"],
     deps = [
+        "//xls/ir:op",
+        "//xls/ir:xls_type_cc_proto",
+        "//xls/ir:xls_value_cc_proto",
+        "//xls/visualization/ir_viz:visualization_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
-        "//xls/ir:op",
-        "//xls/ir:xls_type_cc_proto",
-        "//xls/ir:xls_value_cc_proto",
-        "//xls/visualization/ir_viz:visualization_cc_proto",
     ],
 )
 
@@ -290,6 +144,9 @@ cc_library(
     name = "lap_solver",
     srcs = ["lap_solver.cc"],
     hdrs = ["lap_solver.h"],
+    deps = [
+        "@com_google_absl//absl/algorithm:container",
+    ],
 )
 
 cc_library(
@@ -343,8 +200,8 @@ cc_test(
     deps = [
         ":graph",
         ":xls_ir_to_graph",
-        "//xls/common/status:matchers",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:op",

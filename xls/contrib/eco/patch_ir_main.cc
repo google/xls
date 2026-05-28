@@ -91,8 +91,8 @@ static absl::StatusOr<PipelineSchedule> PipelineScheduleFromProto(
   if (schedule_it->second.has_min_clock_period_ps()) {
     min_clock_period_ps = schedule_it->second.min_clock_period_ps();
   }
-  return PipelineSchedule(function, cycle_map, /*length=*/std::nullopt,
-                          min_clock_period_ps);
+  return PipelineSchedule::Create(function, std::move(cycle_map),
+                                  /*length=*/std::nullopt, min_clock_period_ps);
 }
 static absl::Status RealMain(
     const std::string& ir_path, const std::string& patch_path,

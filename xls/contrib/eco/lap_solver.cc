@@ -27,7 +27,7 @@
 
 #include "absl/algorithm/container.h"
 
-std::pair<std::vector<int>, std::vector<int>> linear_sum_assignment(
+std::pair<std::vector<int>, std::vector<int>> LinearSumAssignment(
     const std::vector<std::vector<double>>& cost_matrix) {
   if (cost_matrix.empty() || cost_matrix[0].empty()) return {{}, {}};
 
