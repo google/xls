@@ -124,7 +124,7 @@ CostMatrix MakeCostMatrix(const RawCostMatrix& C, int m, int n,
     }
   }
 
-  auto [row_ind, col_ind] = linear_sum_assignment(dense);
+  auto [row_ind, col_ind] = LinearSumAssignment(dense);
 
   result.lsa_row_ind.clear();
   result.lsa_col_ind.clear();
@@ -803,7 +803,7 @@ AssignmentResult SolveLSAP(const RawCostMatrix& M, int m, int n,
     }
   }
 
-  auto [row_ind, col_ind] = linear_sum_assignment(dense);
+  auto [row_ind, col_ind] = LinearSumAssignment(dense);
 
   int64_t total_cost = 0;
   for (size_t p = 0; p < row_ind.size(); ++p) {
