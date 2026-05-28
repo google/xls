@@ -939,9 +939,10 @@ absl::Status PatchIr::ExportScheduleProto() {
       GetSchedulingOptionsFlagsProto());
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
                        SetUpDelayEstimator(scheduling_options_flags_proto));
-  XLS_RETURN_IF_ERROR(
-      SetTextProtoFile(absl::GetFlag(FLAGS_output_schedule_path),
-                       schedule_->ToProto(*delay_estimator)));
+  XLS_ASSIGN_OR_RETURN(PipelineScheduleProto schedule_proto,
+                       schedule_->ToProto(*delay_estimator));
+  XLS_RETURN_IF_ERROR(SetTextProtoFile(
+      absl::GetFlag(FLAGS_output_schedule_path), schedule_proto));
   return absl::OkStatus();
 }
 bool PatchIr::CompareEditPaths(const xls_eco::EditPathProto& lhs,
