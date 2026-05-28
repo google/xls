@@ -241,7 +241,9 @@ def to_c_type(t: type_pb2.TypeProto) -> Optional[str]:
   if c_type is not None:
     return c_type
   the_type = t.type_enum
-  if the_type == type_pb2.TypeProto.TUPLE:
+  if the_type == type_pb2.TypeProto.BITS:
+    return "xls::Value"
+  elif the_type == type_pb2.TypeProto.TUPLE:
     elems = [to_c_type(e) for e in t.tuple_elements]
     if any(e is None for e in elems):
       return None
@@ -349,7 +351,14 @@ def to_domain(
     if t.type_enum == type_pb2.TypeProto.BITS:
       c_type = to_specialized(t, int_only=True)
       if c_type is None:
-        return None
+        # Support arbitrary domain for wide bits (>64) represented as xls::Value
+        byte_count = (t.bit_count + 7) // 8
+        return (
+            f"fuzztest::Map([](const std::array<uint8_t, {byte_count}>& bytes) "
+            " { return xls::Value(xls::Bits::FromBytes(bytes,"
+            f" {t.bit_count})); }},"
+            f" fuzztest::ArrayOf<{byte_count}>(fuzztest::Arbitrary<uint8_t>()))"
+        )
       if t.bit_count in (8, 16, 32, 64):
         return f"fuzztest::Arbitrary<{c_type}>()"
       else:
@@ -405,6 +414,9 @@ def to_domain(
 def to_value_conversion(t: type_pb2.TypeProto, expr: str) -> str:
   """Generates C++ snippet to convert a native type to xls::Value."""
   if t.type_enum == type_pb2.TypeProto.BITS:
+    c_type = to_specialized(t, int_only=True)
+    if c_type is None:
+      return expr
     return f"xls::Value(xls::UBits({expr}, {t.bit_count}))"
   elif t.type_enum == type_pb2.TypeProto.TUPLE:
     elems = []
@@ -643,7 +655,8 @@ def wrapped_to_fuzztest(
         conversion_snippet = to_value_conversion(p.type_proto, p.name)
 
       if (
-          p.type_proto.type_enum == type_pb2.TypeProto.TUPLE
+          len(wrapped.params) == 1
+          and p.type_proto.type_enum == type_pb2.TypeProto.TUPLE
           and domain_snippet is not None
       ):
         domain_snippet = f"fuzztest::TupleOf({domain_snippet})"

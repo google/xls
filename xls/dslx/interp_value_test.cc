@@ -449,5 +449,25 @@ TEST(InterpValueTest, AsProtoEnum) {
   EXPECT_EQ(round_trip, xls::Value(UBits(5, 3)));
 }
 
+TEST(InterpValueTest, RangeGetLengthWideBitsCrash) {
+  // Test exclusive range with bit-width < 63 does not crash.
+  InterpValue start = InterpValue::MakeUBits(32, 0);
+  InterpValue end = InterpValue::MakeUBits(32, 10);
+  InterpValue range =
+      InterpValue::MakeSymbolicRange(start, end, /*inclusive=*/false);
+  EXPECT_TRUE(range.is_range());
+  EXPECT_THAT(range.GetLength(), IsOkAndHolds(10));
+}
+
+TEST(InterpValueTest, RangeGetLengthWideBitsCrashInclusive) {
+  // Test inclusive range with bit-width < 63 does not crash.
+  InterpValue start = InterpValue::MakeUBits(32, 0);
+  InterpValue end = InterpValue::MakeUBits(32, 10);
+  InterpValue range =
+      InterpValue::MakeSymbolicRange(start, end, /*inclusive=*/true);
+  EXPECT_TRUE(range.is_range());
+  EXPECT_THAT(range.GetLength(), IsOkAndHolds(11));
+}
+
 }  // namespace
 }  // namespace xls::dslx

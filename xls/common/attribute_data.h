@@ -34,6 +34,7 @@ enum class AttributeKind : uint8_t {
   kQuickcheck,
   kChannelStrictness,
   kFuzzTest,
+  kFuzzDomain,
 };
 
 // Converts an AttributeKind to a string, e.g., "fuzz_test"

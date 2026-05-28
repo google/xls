@@ -41,6 +41,8 @@
 
 namespace xls::dslx {
 
+struct RangeData;
+
 // Tags a value to denote its payload.
 //
 // Note this goes beyond InterpValue::Payload annotating things like whether the
@@ -279,6 +281,8 @@ class InterpValue {
   }
   static absl::StatusOr<InterpValue> MakeRange(
       std::vector<InterpValue> elements);
+  static InterpValue MakeSymbolicRange(InterpValue start, InterpValue end,
+                                       bool inclusive = false);
 
   static absl::StatusOr<InterpValue> MakeBits(InterpValueTag tag, Bits bits) {
     if (tag != InterpValueTag::kUBits && tag != InterpValueTag::kSBits) {
@@ -385,13 +389,7 @@ class InterpValue {
   bool FitsInNBitsUnsigned(int64_t n) const;
   bool FitsInNBitsSigned(int64_t n) const;
 
-  absl::StatusOr<int64_t> GetLength() const {
-    if (IsTuple() || IsArray()) {
-      return GetValuesOrDie().size();
-    }
-    return absl::InvalidArgumentError("Invalid tag for length query: " +
-                                      TagToString(tag_));
-  }
+  absl::StatusOr<int64_t> GetLength() const;
 
   absl::StatusOr<InterpValue> ZeroExt(int64_t new_bit_count) const;
   absl::StatusOr<InterpValue> SignExt(int64_t new_bit_count) const;
@@ -476,15 +474,16 @@ class InterpValue {
 
   InterpValueTag tag() const { return tag_; }
 
-  absl::StatusOr<const std::vector<InterpValue>*> GetValues() const {
-    if (!std::holds_alternative<std::vector<InterpValue>>(payload_)) {
-      return absl::InvalidArgumentError("Value does not hold element values");
+  absl::StatusOr<const std::vector<InterpValue>*> GetValues() const;
+  const std::vector<InterpValue>& GetValuesOrDie() const;
+  std::optional<std::shared_ptr<RangeData>> GetRangeData() const {
+    if (is_range() &&
+        std::holds_alternative<std::shared_ptr<RangeData>>(payload_)) {
+      return std::get<std::shared_ptr<RangeData>>(payload_);
     }
-    return &std::get<std::vector<InterpValue>>(payload_);
+    return std::nullopt;
   }
-  const std::vector<InterpValue>& GetValuesOrDie() const {
-    return std::get<std::vector<InterpValue>>(payload_);
-  }
+
   absl::StatusOr<const FnData*> GetFunction() const {
     if (!std::holds_alternative<FnData>(payload_)) {
       return absl::InvalidArgumentError(
@@ -598,6 +597,7 @@ class InterpValue {
   //
   // TODO(leary): 2020-02-10 When all Python bindings are eliminated we can more
   // easily make an interpreter scoped lifetime that InterpValues can live in.
+
   struct TypeReference {
     const TypeAnnotation* annotation;
     std::string string;
@@ -606,7 +606,8 @@ class InterpValue {
 
   using Payload = std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
                                std::shared_ptr<TokenData>, ChannelReference,
-                               TypeReference, std::shared_ptr<ProcInitializer>>;
+                               TypeReference, std::shared_ptr<ProcInitializer>,
+                               std::shared_ptr<RangeData>>;
 
   InterpValue(InterpValueTag tag, Payload payload, bool is_range = false)
       : tag_(tag), payload_(std::move(payload)), is_range_(is_range) {}
@@ -618,8 +619,10 @@ class InterpValue {
                                              const InterpValue& rhs,
                                              CompareF ucmp, CompareF scmp);
 
+  absl::StatusOr<std::vector<InterpValue>> ExpandRange() const;
+
   InterpValueTag tag_;
-  Payload payload_;
+  mutable Payload payload_;
   bool is_range_;
 };
 
@@ -627,6 +630,17 @@ template <typename H>
 H AbslHashValue(H state, const InterpValue::UserFnData& v) {
   return H::combine(std::move(state), v.module, v.function);
 }
+
+struct RangeData {
+  InterpValue start;
+  InterpValue end;
+  bool inclusive;
+
+  bool operator==(const RangeData& other) const {
+    return start == other.start && end == other.end &&
+           inclusive == other.inclusive;
+  }
+};
 
 }  // namespace xls::dslx
 

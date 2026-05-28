@@ -27,9 +27,11 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -77,6 +79,77 @@ struct StructMemberResolutionResult {
   std::optional<const AstNode*> member_def;
 };
 
+// Helper to extract fuzz_domain attribute value if present.
+std::optional<std::string> GetFuzzDomainName(const StructDef* struct_def) {
+  if (struct_def == nullptr) {
+    return std::nullopt;
+  }
+  for (const Attribute* attr : struct_def->attributes()) {
+    if (attr->attribute_kind() == AttributeKind::kFuzzDomain) {
+      return std::get<AttributeData::StringLiteralArgument>(attr->args()[0])
+          .text;
+    }
+  }
+  return std::nullopt;
+}
+
+// Helper to infer domain member type.
+absl::StatusOr<TypeAnnotation*> InferDomainMemberType(
+    Module& module, ImportData& import_data, const StructMemberNode* member,
+    absl::FunctionRef<absl::Status(StructDef*)> populate_domain_fn) {
+  TypeAnnotation* member_type = member->type();
+  XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_ref,
+                       GetStructOrProcRef(member_type, import_data));
+  if (!struct_ref.has_value()) {
+    return nullptr;
+  }
+
+  const StructDef* nested_struct =
+      dynamic_cast<const StructDef*>(struct_ref->def);
+  if (nested_struct == nullptr) {
+    return nullptr;
+  }
+
+  std::optional<std::string> domain_name = GetFuzzDomainName(nested_struct);
+  if (!domain_name.has_value()) {
+    return nullptr;
+  }
+
+  Module* nested_module = nested_struct->owner();
+  XLS_ASSIGN_OR_RETURN(
+      StructDef * nested_domain_struct,
+      nested_module->GetMemberOrError<StructDef>(*domain_name));
+
+  XLS_RETURN_IF_ERROR(populate_domain_fn(nested_domain_struct));
+
+  auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(member_type);
+  if (type_ref_type == nullptr) {
+    return nullptr;
+  }
+
+  TypeRef* type_ref = type_ref_type->type_ref();
+  TypeDefinition def = type_ref->type_definition();
+  if (std::holds_alternative<ColonRef*>(def)) {
+    const ColonRef* colon_ref = std::get<ColonRef*>(def);
+    ColonRef* domain_colon_ref = module.Make<ColonRef>(
+        colon_ref->span(), colon_ref->subject(), *domain_name);
+    return module.Make<TypeRefTypeAnnotation>(
+        member->span(),
+        module.Make<TypeRef>(member->span(), TypeDefinition(domain_colon_ref)),
+        std::vector<ExprOrType>(), std::nullopt);
+  }
+
+  if (std::holds_alternative<StructDef*>(def)) {
+    return module.Make<TypeRefTypeAnnotation>(
+        member->span(),
+        module.Make<TypeRef>(member->span(),
+                             TypeDefinition(nested_domain_struct)),
+        std::vector<ExprOrType>(), std::nullopt);
+  }
+
+  return nullptr;
+}
+
 // A visitor that walks an AST and populates an `InferenceTable` with the
 // encountered info.
 class PopulateInferenceTableVisitor : public PopulateTableVisitor,
@@ -92,7 +165,17 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         typecheck_imported_module_(std::move(typecheck_imported_module)) {}
 
   absl::Status PopulateFromModule(const Module* module) override {
-    return module->Accept(this);
+    XLS_RETURN_IF_ERROR(module->Accept(this));
+    for (const ModuleMember& member : module->top()) {
+      if (std::holds_alternative<StructDef*>(member)) {
+        StructDef* struct_def = std::get<StructDef*>(member);
+        if (struct_def->is_domain_struct() && struct_def->members().empty()) {
+          XLS_RETURN_IF_ERROR(MaybePopulateDomainStruct(struct_def));
+          XLS_RETURN_IF_ERROR(struct_def->Accept(this));
+        }
+      }
+    }
+    return absl::OkStatus();
   }
 
   absl::Status PopulateFromInvocation(const Invocation* invocation) override {
@@ -1424,6 +1507,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   // annotation for each member and cache it for use by type unification of
   // instances of this struct.
   absl::Status HandleStructDef(const StructDef* node) override {
+    XLS_RETURN_IF_ERROR(
+        MaybePopulateDomainStruct(const_cast<StructDef*>(node)));
     return HandleStructDefBaseInternal(node);
   }
 
@@ -1974,6 +2059,40 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
  private:
+  absl::Status MaybePopulateDomainStruct(StructDef* struct_def) {
+    if (struct_def == nullptr || !struct_def->is_domain_struct() ||
+        !struct_def->members().empty()) {
+      return absl::OkStatus();
+    }
+
+    StructDef* original =
+        dynamic_cast<StructDef*>(struct_def->name_def()->definer());
+    XLS_RET_CHECK(original != nullptr);
+
+    for (const StructMemberNode* member : original->members()) {
+      XLS_ASSIGN_OR_RETURN(
+          TypeAnnotation * domain_member_type,
+          InferDomainMemberType(
+              module_, import_data_, member,
+              [this](StructDef* sd) { return MaybePopulateDomainStruct(sd); }));
+
+      if (domain_member_type == nullptr) {
+        domain_member_type = module_.Make<TupleTypeAnnotation>(
+            member->span(), std::vector<TypeAnnotation*>());
+      }
+
+      NameDef* member_name_def = module_.Make<NameDef>(
+          member->span(), member->name(), /*definer=*/nullptr);
+      StructMemberNode* domain_member = module_.Make<StructMemberNode>(
+          member->span(), member_name_def, member->colon_span(),
+          domain_member_type);
+      member_name_def->set_definer(domain_member);
+
+      struct_def->AddMember(domain_member);
+    }
+    return absl::OkStatus();
+  }
+
   // Determines the target of the given `ColonRef` that is already known to be
   // referencing a member with the name `attribute` of the given `struct_def`.
   // Associates the target node with the `ColonRef` in the `InferenceTable` for
@@ -2272,6 +2391,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     const StructDefBase* struct_def = struct_or_proc_ref->def;
+
+    bool old_in_fuzz_test_domain = in_fuzz_test_domain_;
+    const StructDef* concrete_struct_def =
+        dynamic_cast<const StructDef*>(struct_def);
+    if (concrete_struct_def != nullptr &&
+        concrete_struct_def->is_domain_struct()) {
+      in_fuzz_test_domain_ = true;
+    }
+    absl::Cleanup restore_in_fuzz_test_domain = [this,
+                                                 old_in_fuzz_test_domain] {
+      in_fuzz_test_domain_ = old_in_fuzz_test_domain;
+    };
+
     const NameRef* type_variable = *table_.GetTypeVariable(node);
     if (source.has_value()) {
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(*source, type_variable));
