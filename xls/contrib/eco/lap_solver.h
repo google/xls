@@ -16,5 +16,5 @@
 #include <utility>
 #include <vector>
 
-std::pair<std::vector<int>, std::vector<int>> linear_sum_assignment(
+std::pair<std::vector<int>, std::vector<int>> LinearSumAssignment(
     const std::vector<std::vector<double>>& cost_matrix);
