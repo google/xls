@@ -32,6 +32,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/scheduling/schedule_graph.h"
+#include "xls/scheduling/scheduler.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -48,7 +49,7 @@ class SDCSchedulingModel {
   static constexpr double kMaxStages = (1 << 20);
 
  public:
-  SDCSchedulingModel(ScheduleGraph graph, const DelayMap& delay_map,
+  SDCSchedulingModel(const ScheduleGraph& graph, const DelayMap& delay_map,
                      std::optional<int64_t> initiation_interval,
                      double sdc_solution_tolerance);
 
@@ -72,7 +73,8 @@ class SDCSchedulingModel {
 
   void SetClockPeriod(int64_t clock_period_ps);
 
-  absl::Status SetWorstCaseThroughput(int64_t worst_case_throughput);
+  absl::Status SetWorstCaseThroughput(
+      std::optional<int64_t> worst_case_throughput);
   std::optional<int64_t> initiation_interval() const {
     return initiation_interval_;
   }
@@ -133,6 +135,8 @@ class SDCSchedulingModel {
   operations_research::math_opt::LinearConstraint DiffEqualsConstraint(
       Node* x, Node* y, int64_t diff, std::string_view name);
 
+  const ScheduleGraph& graph() const { return graph_; }
+
  private:
   operations_research::math_opt::Variable AddUpperBoundSlack(
       operations_research::math_opt::LinearConstraint c,
@@ -168,7 +172,7 @@ class SDCSchedulingModel {
   absl::Status ScheduleDeadAfterSynthesisNodes(
       ScheduleCycleMap& cycle_map) const;
 
-  ScheduleGraph graph_;
+  const ScheduleGraph& graph_;
 
   operations_research::math_opt::Model model_;
   double sdc_solution_tolerance_;
@@ -235,20 +239,16 @@ class SDCSchedulingModel {
   absl::flat_hash_map<IOConstraint, SlackPair> io_slack_;
 };
 
-class SDCScheduler {
+class SDCScheduler final : public Scheduler {
   using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 
  public:
   static absl::StatusOr<std::unique_ptr<SDCScheduler>> Create(
-      FunctionBase* f, const DelayEstimator& delay_estimator,
-      const SchedulingOptions& options);
-
-  static absl::StatusOr<std::unique_ptr<SDCScheduler>> Create(
-      ScheduleGraph graph, const DelayEstimator& delay_estimator,
+      const ScheduleGraph& graph, const DelayEstimator& delay_estimator,
       const SchedulingOptions& options);
 
   absl::Status AddConstraints(
-      absl::Span<const SchedulingConstraint> constraints);
+      absl::Span<const SchedulingConstraint> constraints) override;
 
   // Schedule to minimize the total pipeline registers using SDC scheduling
   // the constraint matrix is totally unimodular, this ILP problem can be solved
@@ -262,10 +262,6 @@ class SDCScheduler {
   // with slack variables and give actionable feedback on how to update the
   // design to be feasible to schedule.
   //
-  // With `check_feasibility = true`, the objective function will be constant,
-  // and the LP solver will merely attempt to show that the generated set of
-  // constraints is feasible, rather than find an register-optimal schedule.
-  //
   // References:
   //   - Cong, Jason, and Zhiru Zhang. "An efficient and versatile scheduling
   //   algorithm based on SDC formulation." 2006 43rd ACM/IEEE Design Automation
@@ -273,21 +269,42 @@ class SDCScheduler {
   //   - Zhang, Zhiru, and Bin Liu. "SDC-based modulo scheduling for pipeline
   //   synthesis." 2013 IEEE/ACM International Conference on Computer-Aided
   //   Design (ICCAD). IEEE, 2013.
+  //
+  // TODO(allight): Calling this with failure_behavior.explain_infeasibility =
+  // true and getting an infeasible result will render the scheduler permanently
+  // unable to service any other schedule requests. This is because
+  // the process of explaining the infeasibility permanently alters the
+  // underlying SDC model in ways that prevent future schedulings from
+  // succeeding.
   absl::StatusOr<ScheduleCycleMap> Schedule(
       std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
       SchedulingFailureBehavior failure_behavior,
-      bool check_feasibility = false,
-      std::optional<int64_t> worst_case_throughput = std::nullopt,
-      std::optional<double> dynamic_throughput_objective_weight = std::nullopt);
+      std::optional<int64_t> worst_case_throughput = std::nullopt) override;
+
+  void SetDynamicThroughputObjectiveWeight(std::optional<double> weight) {
+    dynamic_throughput_objective_weight_ = weight;
+  }
+  std::optional<double> dynamic_throughput_objective_weight() const {
+    return dynamic_throughput_objective_weight_;
+  }
+  // If set to true then the objective will be ignored and a feasible solution
+  // will be returned. Defaults to false.
+  void SetCheckFeasibility(bool check_feasibility) {
+    check_feasibility_ = check_feasibility;
+  }
+  bool check_feasibility() const { return check_feasibility_; }
 
  private:
   SDCScheduler(
-      ScheduleGraph graph, double sdc_solution_tolerance,
+      const ScheduleGraph& graph, double sdc_solution_tolerance,
       ::operations_research::math_opt::SolverType solver_type,
       ::operations_research::math_opt::SolveParameters&& solve_parameters,
       std::optional<int64_t> initiation_interval, DelayMap&& delay_map);
   absl::Status Initialize();
 
+  // TODO(allight): Calling this with failure_behavior.explain_infeasibility =
+  // true will render the scheduler permanently unable to service any other
+  // schedule requests.
   absl::Status BuildError(
       const operations_research::math_opt::SolveResult& result,
       SchedulingFailureBehavior failure_behavior);
@@ -297,6 +314,8 @@ class SDCScheduler {
   ::operations_research::math_opt::SolveParameters solve_parameters_;
   SDCSchedulingModel model_;
   std::unique_ptr<operations_research::math_opt::IncrementalSolver> solver_;
+  std::optional<double> dynamic_throughput_objective_weight_;
+  bool check_feasibility_ = false;
 };
 
 }  // namespace xls

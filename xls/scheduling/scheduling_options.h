@@ -34,6 +34,7 @@
 #include "xls/common/visitor.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
@@ -69,6 +70,11 @@ SchedulingStrategy FromProtoSchedulingStrategy(
 bool AbslParseFlag(std::string_view text, SchedulingStrategy* strategy,
                    std::string* error);
 std::string AbslUnparseFlag(const SchedulingStrategy& strategy);
+std::ostream& operator<<(std::ostream& os, SchedulingStrategy strategy);
+template <typename Sink>
+void AbslStringify(Sink& sink, SchedulingStrategy strategy) {
+  absl::Format(&sink, "%s", AbslUnparseFlag(strategy));
+}
 
 enum class PathEvaluateStrategy : int8_t {
   PATH,
@@ -358,6 +364,8 @@ struct SchedulingFailureBehavior {
 
   // If scheduling fails, re-run scheduling with extra slack variables in an
   // attempt to explain why scheduling failed.
+  //
+  // Only used for SDC scheduler.
   bool explain_infeasibility = true;
 
   // If specified, the specified value must be > 0. Setting this configures how
@@ -370,6 +378,8 @@ struct SchedulingFailureBehavior {
   // value should give more specific information about how much slack each
   // failing backedge needs at the cost of less actionable and harder to
   // understand output.
+  //
+  // Only used for SDC scheduler.
   std::optional<double> infeasible_per_state_backedge_slack_pool;
 };
 
@@ -379,8 +389,10 @@ struct SchedulingFailureBehavior {
 class SchedulingOptions {
  public:
   explicit SchedulingOptions(
-      SchedulingStrategy strategy = SchedulingStrategy::SDC)
+      SchedulingStrategy strategy = SchedulingStrategy::SDC,
+      std::optional<SchedulingStrategy> find_bounds_strategy = std::nullopt)
       : strategy_(strategy),
+        find_bounds_strategy_(find_bounds_strategy.value_or(strategy_)),
         opt_level_(kMaxOptLevel),
         minimize_clock_on_failure_(true),
         recover_after_minimizing_clock_(false),
@@ -408,6 +420,15 @@ class SchedulingOptions {
   SchedulingOptions& strategy(SchedulingStrategy strategy) {
     strategy_ = strategy;
     return *this;
+  }
+
+  // Returns the find_bounds_strategy.
+  SchedulingOptions& find_bounds_strategy(SchedulingStrategy strategy) {
+    find_bounds_strategy_ = strategy;
+    return *this;
+  }
+  SchedulingStrategy find_bounds_strategy() const {
+    return find_bounds_strategy_;
   }
 
   // Sets/gets the target delay model
@@ -486,7 +507,7 @@ class SchedulingOptions {
     minimize_worst_case_throughput_ = value;
     return *this;
   }
-  std::optional<bool> minimize_worst_case_throughput() const {
+  bool minimize_worst_case_throughput() const {
     return minimize_worst_case_throughput_;
   }
 
@@ -758,6 +779,9 @@ class SchedulingOptions {
 
  private:
   SchedulingStrategy strategy_;
+  // Strategy used to find minimum clock-period and WCT bounds. This should
+  // usually be ASAP but can be SDC if needed.
+  SchedulingStrategy find_bounds_strategy_;
   int64_t opt_level_;
   std::optional<int64_t> clock_period_ps_;
   std::optional<std::string> delay_model_;
@@ -799,6 +823,17 @@ class SchedulingOptions {
 
 // A map from node to cycle as a bare-bones representation of a schedule.
 using ScheduleCycleMap = absl::flat_hash_map<Node*, int64_t>;
+class ScheduleCycleAnnotator final : public IrAnnotator {
+ public:
+  ScheduleCycleAnnotator(const ScheduleCycleMap& cycle_map)
+      : cycle_map_(cycle_map) {}
+  Annotation NodeAnnotation(Node* node) const override {
+    return Annotation{.suffix = absl::StrCat(" [", cycle_map_.at(node), "]")};
+  }
+
+ private:
+  const ScheduleCycleMap& cycle_map_;
+};
 
 absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
     const SchedulingOptionsFlagsProto& flags, const Package* p);

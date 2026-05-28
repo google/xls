@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <utility>
@@ -24,6 +25,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -39,6 +41,8 @@
 #include "xls/ir/proc.h"
 #include "xls/scheduling/function_partition.h"
 #include "xls/scheduling/schedule_bounds.h"
+#include "xls/scheduling/schedule_graph.h"
+#include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
@@ -118,35 +122,7 @@ std::vector<int64_t> MiddleFirstOrder(int64_t first, int64_t last) {
   return ret;
 }
 
-}  // namespace
-
-std::vector<std::vector<int64_t>> GetMinCutCycleOrders(int64_t length) {
-  if (length == 0) {
-    return {{}};
-  }
-  if (length == 1) {
-    return {{0}};
-  }
-  if (length == 2) {
-    return {{0, 1}, {1, 0}};
-  }
-  // For lengths greater than 2, return forward, reverse and middle first
-  // orderings.
-  std::vector<std::vector<int64_t>> orders;
-  std::vector<int64_t> forward(length);
-  std::iota(forward.begin(), forward.end(), 0);
-  orders.push_back(forward);
-
-  std::vector<int64_t> reverse(length);
-  std::iota(reverse.begin(), reverse.end(), 0);
-  std::reverse(reverse.begin(), reverse.end());
-  orders.push_back(reverse);
-
-  orders.push_back(MiddleFirstOrder(0, length - 1));
-  return orders;
-}
-
-absl::StatusOr<ScheduleCycleMap> MinCutScheduler(
+absl::StatusOr<ScheduleCycleMap> RunMinCutScheduler(
     FunctionBase* f, int64_t pipeline_stages, int64_t clock_period_ps,
     const DelayEstimator& delay_estimator, sched::ScheduleBounds* bounds,
     absl::Span<const SchedulingConstraint> constraints) {
@@ -227,6 +203,48 @@ absl::StatusOr<ScheduleCycleMap> MinCutScheduler(
     cycle_map[node] = bounds->lb(node);
   }
   return cycle_map;
+}
+}  // namespace
+
+std::vector<std::vector<int64_t>> GetMinCutCycleOrders(int64_t length) {
+  if (length == 0) {
+    return {{}};
+  }
+  if (length == 1) {
+    return {{0}};
+  }
+  if (length == 2) {
+    return {{0, 1}, {1, 0}};
+  }
+  // For lengths greater than 2, return forward, reverse and middle first
+  // orderings.
+  std::vector<std::vector<int64_t>> orders;
+  std::vector<int64_t> forward(length);
+  std::iota(forward.begin(), forward.end(), 0);
+  orders.push_back(forward);
+
+  std::vector<int64_t> reverse(length);
+  std::iota(reverse.begin(), reverse.end(), 0);
+  std::reverse(reverse.begin(), reverse.end());
+  orders.push_back(reverse);
+
+  orders.push_back(MiddleFirstOrder(0, length - 1));
+  return orders;
+}
+
+absl::StatusOr<ScheduleCycleMap> MinCutScheduler::Schedule(
+    std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
+    SchedulingFailureBehavior failure_behavior,
+    std::optional<int64_t> worst_case_throughput) {
+  XLS_ASSIGN_OR_RETURN(
+      sched::ScheduleBounds bounds,
+      ComputeBounds(pipeline_stages, clock_period_ps, worst_case_throughput));
+  XLS_RET_CHECK(std::holds_alternative<FunctionBase*>(graph().ir_scope()));
+  XLS_RET_CHECK(pipeline_stages.has_value())
+      << "Min cut does not support unspecified pipeline stages.";
+  auto* f = std::get<FunctionBase*>(graph().ir_scope());
+  return RunMinCutScheduler(f, pipeline_stages.value(), clock_period_ps,
+                            delay_estimator(), &bounds, constraints());
 }
 
 }  // namespace xls

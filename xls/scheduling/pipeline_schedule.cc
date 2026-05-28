@@ -310,6 +310,9 @@ absl::Status PipelineSchedule::Verify() const {
               << cycle(read) << " + WCT " << worst_case_throughput << ")";
         }
       }
+    } else {
+      VLOG(5) << "No worst-case throughput set for proc " << proc->name()
+              << ", skipping verification of Next nodes.";
     }
   }
   // Verify initial nodes in cycle 0. Final nodes in final cycle.

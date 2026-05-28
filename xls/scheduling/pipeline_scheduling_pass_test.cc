@@ -25,6 +25,8 @@
 #include "absl/status/statusor.h"
 #include "ortools/pdlp/solvers.pb.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/logging/scoped_record_logs.h"
+#include "xls/common/logging/scoped_vlog_level.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fdo/synthesizer.h"
@@ -268,6 +270,9 @@ TEST_F(PipelineSchedulingPassTest, FdoWithMultipleProcs) {
     fb.Add(fb.SMul(fb.Param("a", u64), fb.Param("b", u64)), fb.Param("c", u64));
     return fb.Build();
   };
+  ScopedRecordLogs srl;
+  ScopedSetVlogLevel ssvl{{"run_pipeline_schedule", 5},
+                          {"iterative_sdc_scheduler", 5}};
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func0, make_func("proc0"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func1, make_func("proc1"));

@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -118,6 +119,12 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     scheduling_options.strategy(
         FromProtoSchedulingStrategy(proto.scheduling_strategy()));
   }
+  if (proto.has_find_bounds_strategy() &&
+      proto.find_bounds_strategy() !=
+          ProtoSchedulingStrategy::SCHEDULER_TYPE_UNSPECIFIED) {
+    scheduling_options.find_bounds_strategy(
+        FromProtoSchedulingStrategy(proto.find_bounds_strategy()));
+  }
   if (proto.has_opt_level()) {
     scheduling_options.opt_level(proto.opt_level());
   }
@@ -138,9 +145,7 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
       proto.minimize_clock_on_failure());
   scheduling_options.recover_after_minimizing_clock(
       proto.recover_after_minimizing_clock());
-  if (proto.worst_case_throughput() != 1) {
-    scheduling_options.worst_case_throughput(proto.worst_case_throughput());
-  }
+  scheduling_options.worst_case_throughput(proto.worst_case_throughput());
   scheduling_options.minimize_worst_case_throughput(
       proto.minimize_worst_case_throughput());
   if (proto.has_dynamic_throughput_objective_weight()) {
@@ -377,6 +382,11 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
 }
 
 }  // namespace
+
+std::ostream& operator<<(std::ostream& os, SchedulingStrategy strategy) {
+  return os << ProtoSchedulingStrategy_Name(
+             ToProtoSchedulingStrategy(strategy));
+}
 
 absl::StatusOr<DelayEstimator*> SetUpDelayEstimator(
     const SchedulingOptionsFlagsProto& flags) {
