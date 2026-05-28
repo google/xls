@@ -35,7 +35,6 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -45,6 +44,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
@@ -844,13 +844,18 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleChannelDecl(const ChannelDecl* node) {
-    InterpValue ends = InterpValue::MakeTuple(std::vector<InterpValue>{
-        InterpValue::MakeChannelReference(ChannelDirection::kOut,
-                                          /*id=*/++*next_channel_id_,
-                                          /*definer=*/node),
-        InterpValue::MakeChannelReference(ChannelDirection::kIn,
-                                          /*id=*/++*next_channel_id_,
-                                          /*definer=*/node)});
+    auto* tuple_type = dynamic_cast<const TupleType*>(&type_);
+    XLS_RET_CHECK(tuple_type != nullptr);
+    XLS_RET_CHECK_EQ(tuple_type->size(), 2);
+
+    auto allocator = [&]() -> int64_t { return ++*next_channel_id_; };
+
+    XLS_ASSIGN_OR_RETURN(
+        auto in_out_channels,
+        CreateChannelReferencePair(&tuple_type->GetMemberType(0), allocator));
+
+    InterpValue ends =
+        InterpValue::MakeTuple({in_out_channels.first, in_out_channels.second});
     ti_->NoteConstExpr(node, ends);
     return absl::OkStatus();
   }

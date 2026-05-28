@@ -38,12 +38,14 @@
 #include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/channel_direction.h"
+#include "xls/dslx/conversion_record.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc_id.h"
+#include "xls/dslx/get_conversion_records.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/interp_value_utils.h"
+#include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -161,14 +163,10 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
                          get_parametric_type_info(spawn_functions->config));
   }
 
-  auto channel_instance_allocator = [&]() -> int64_t {
-    return hierarchy_interpreter->channel_manager().AllocateChannel();
-  };
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> config_bf,
       BytecodeEmitter::EmitProcConfig(
           import_data, type_info, proc->config(), callee_bindings,
-          channel_instance_allocator,
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
 
@@ -244,12 +242,142 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   }
 
   hierarchy_interpreter->AddProcInstance(ProcInstance{
-      proc, std::move(next_interpreter), std::move(next_bf), *proc_members,
-      initial_state, type_info, std::move(events), explicit_state_access});
+      proc->identifier(), /*is_proc_def=*/false, std::move(next_interpreter),
+      std::move(next_bf), *proc_members, initial_state, type_info,
+      std::move(events), explicit_state_access});
   return absl::OkStatus();
 }
 
 }  // namespace
+
+/* static */ absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>>
+ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
+                                 ProcDef* top_proc_def,
+                                 const BytecodeInterpreterOptions& options) {
+  XLS_ASSIGN_OR_RETURN(Function * config_fn,
+                       GetTopProcConstructor(top_proc_def, type_info));
+  auto hierarchy_interpreter = std::make_unique<ProcHierarchyInterpreter>();
+
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<ConversionRecord> records,
+      GetConversionRecordsForEntry(top_proc_def, type_info, std::nullopt));
+
+  const ConversionRecord* top_record = nullptr;
+  for (const ConversionRecord& record : records) {
+    if (record.proc_def().has_value() && record.IsTop()) {
+      top_record = &record;
+      break;
+    }
+  }
+
+  XLS_RET_CHECK(top_record != nullptr);
+  const InterpValue::ProcInitializer& initializer =
+      top_record->init_value()->GetProcInitializerOrDie();
+
+  // Allocate the channels for the top-level config interface.
+  for (int64_t index = 0; index < config_fn->params().size(); ++index) {
+    dslx::Param* param = config_fn->params().at(index);
+    std::optional<Type*> param_type = type_info->GetItem(param);
+    XLS_RET_CHECK(param_type.has_value());
+    dslx::ChannelType* channel_type =
+        dynamic_cast<dslx::ChannelType*>(param_type.value());
+    if (channel_type == nullptr) {
+      return absl::InternalError(
+          "Only channels are supported as parameters to the config function "
+          "of a proc");
+    }
+
+    // Find the channel reference in the initializer.
+    std::optional<int64_t> channel_id;
+    for (const auto& [f_param, value] : initializer.forwarded_values()) {
+      if (f_param == param) {
+        XLS_RET_CHECK(value.IsChannelReference());
+        channel_id = value.GetChannelReferenceOrDie().GetChannelId().value();
+        break;
+      }
+    }
+    if (!channel_id.has_value()) {
+      for (const StructMemberNode* member_node : top_proc_def->members()) {
+        if (member_node->name() == param->identifier()) {
+          const InterpValue& member_value =
+              initializer.GetMemberValue(member_node);
+          XLS_RET_CHECK(member_value.IsChannelReference());
+          channel_id =
+              member_value.GetChannelReferenceOrDie().GetChannelId().value();
+          break;
+        }
+      }
+    }
+    XLS_RET_CHECK(channel_id.has_value());
+
+    XLS_RETURN_IF_ERROR(hierarchy_interpreter->AddInterfaceChannelWithId(
+        param->identifier(), param_type.value(), &channel_type->payload_type(),
+        *channel_id));
+  }
+
+  for (const ConversionRecord& record : records) {
+    if (record.proc_def().has_value()) {
+      const ProcDef* proc_def = *record.proc_def();
+      const InterpValue::ProcInitializer& initializer =
+          record.init_value()->GetProcInitializerOrDie();
+      Function* next_fn = GetProcNextFunction(proc_def).value();
+
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<BytecodeFunction> next_bf,
+          BytecodeEmitter::Emit(
+              import_data, record.type_info(), *next_fn,
+              record.parametric_env(),
+              BytecodeEmitterOptions{.format_preference =
+                                         options.format_preference()}));
+
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<StructMemberNode*> state_elements,
+          GetProcDefStateMembers(proc_def, *import_data, *record.type_info()));
+
+      std::vector<InterpValue> self_members;
+      self_members.reserve(proc_def->members().size());
+      for (const StructMemberNode* member : proc_def->members()) {
+        bool is_state = false;
+        for (const StructMemberNode* state_member : state_elements) {
+          if (state_member == member) {
+            is_state = true;
+            break;
+          }
+        }
+        if (is_state) {
+          self_members.push_back(
+              InterpValue::MakeStateElementReference(member->name_def()));
+        } else {
+          self_members.push_back(initializer.GetMemberValue(member));
+        }
+      }
+      InterpValue self_val = InterpValue::MakeTuple(self_members);
+
+      auto events = std::make_unique<InfoLoggingDslxInterpreterEvents>();
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<BytecodeInterpreter> next_interpreter,
+          BytecodeInterpreter::CreateUnique(
+              import_data, record.proc_id().value(), next_bf.get(),
+              /*args=*/{self_val}, &hierarchy_interpreter->channel_manager(),
+              options, events.get()));
+
+      for (StructMemberNode* state_member : state_elements) {
+        const InterpValue& member_value =
+            initializer.GetMemberValue(state_member);
+        next_interpreter->SetStateValue(state_member->name_def(), member_value);
+      }
+
+      hierarchy_interpreter->AddProcInstance(ProcInstance(
+          proc_def->identifier(), /*is_proc_def=*/true,
+          std::move(next_interpreter), std::move(next_bf),
+          /*proc_members=*/{self_val},
+          /*initial_state=*/InterpValue::MakeUnit(), record.type_info(),
+          std::move(events), /*explicit_state_access=*/true));
+    }
+  }
+
+  return std::move(hierarchy_interpreter);
+}
 
 /* static */ absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>>
 ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
@@ -273,9 +401,16 @@ ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
           "a proc");
     }
 
-    XLS_RETURN_IF_ERROR(hierarchy_interpreter->AddInterfaceChannel(
-        param->identifier(), param_type.value(),
-        &channel_type->payload_type()));
+    std::optional<InterpValue> constexpr_val =
+        type_info->GetConstExprOption(param);
+    XLS_RET_CHECK(constexpr_val.has_value());
+    XLS_RET_CHECK(constexpr_val->IsChannelReference());
+    int64_t channel_id =
+        constexpr_val->GetChannelReferenceOrDie().GetChannelId().value();
+
+    XLS_RETURN_IF_ERROR(hierarchy_interpreter->AddInterfaceChannelWithId(
+        param->identifier(), param_type.value(), &channel_type->payload_type(),
+        channel_id));
   }
 
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::EvalSpawn(
@@ -326,8 +461,9 @@ absl::Span<ProcInstance> ProcHierarchyInterpreter::proc_instances() {
   return absl::MakeSpan(proc_instances_);
 }
 
-absl::Status ProcHierarchyInterpreter::AddInterfaceChannel(
-    std::string_view name, const Type* arg_type, const Type* payload_type) {
+absl::Status ProcHierarchyInterpreter::AddInterfaceChannelWithId(
+    std::string_view name, const Type* arg_type, const Type* payload_type,
+    int64_t channel_id) {
   const ChannelType* channel_type = dynamic_cast<const ChannelType*>(arg_type);
   if (channel_type == nullptr) {
     return absl::UnimplementedError(absl::StrFormat(
@@ -335,20 +471,15 @@ absl::Status ProcHierarchyInterpreter::AddInterfaceChannel(
         "of the top-level proc. Channel type of argument `%s`: %s",
         name, arg_type->ToString()));
   }
-  auto channel_instance_allocator = [&]() -> int64_t {
-    return channel_manager_.AllocateChannel();
-  };
 
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue channel_reference,
-      CreateChannelReference(channel_type->direction(), channel_type,
-                             channel_instance_allocator));
+  InterpValue channel_reference = InterpValue::MakeChannelReference(
+      channel_type->direction(), channel_id, /*definer=*/std::nullopt);
   interface_args_.push_back(channel_reference);
-  interface_channels_.push_back(InterfaceChannel{
-      .name = std::string{name},
-      .direction = channel_type->direction(),
-      .payload_type = &channel_type->payload_type(),
-      .channel = &channel_manager_.GetChannel(channel_manager_.size() - 1)});
+  interface_channels_.push_back(
+      InterfaceChannel{.name = std::string{name},
+                       .direction = channel_type->direction(),
+                       .payload_type = &channel_type->payload_type(),
+                       .channel = &channel_manager_.GetChannel(channel_id)});
   return absl::OkStatus();
 }
 
@@ -391,11 +522,11 @@ absl::StatusOr<int64_t> ProcHierarchyInterpreter::TickUntilOutput(
     bool found = false;
     for (int64_t i = 0; i < interface_channels_.size(); ++i) {
       const InterfaceChannel& channel = interface_channels_[i];
-      if (channel.direction != ChannelDirection::kOut) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Channel `%s` is not an output channel", arg_name));
-      }
       if (channel.name == arg_name) {
+        if (channel.direction != ChannelDirection::kOut) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Channel `%s` is not an output channel", arg_name));
+        }
         output_channels.push_back(channel.channel);
         expected_output_counts.push_back(count);
         found = true;
@@ -438,7 +569,7 @@ absl::StatusOr<int64_t> ProcHierarchyInterpreter::TickUntilOutput(
         blocked_channels.push_back(absl::StrFormat(
             "%s: proc `%s` is blocked on receive on channel `%s`",
             channel_info.span.ToString(p.interpreter().file_table()),
-            p.proc()->identifier(), channel_info.name));
+            p.proc_name(), channel_info.name));
       }
       progress_made |= run_result.progress_made;
     }

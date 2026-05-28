@@ -156,19 +156,28 @@ class InterpValueChannel {
 // A collection of all channel objects used by a proc network (elaboration).
 class InterpValueChannelManager {
  public:
-  explicit InterpValueChannelManager(int64_t size = 0) : channels_(size) {}
+  InterpValueChannelManager() : next_channel_id_(0) {}
 
   int64_t size() const { return channels_.size(); }
-  InterpValueChannel& GetChannel(int instance_id) {
-    return *channels_[instance_id];
+  InterpValueChannel& GetChannel(int64_t instance_id) {
+    auto& channel = channels_[instance_id];
+    if (channel == nullptr) {
+      channel = std::make_unique<InterpValueChannel>();
+    }
+    return *channel;
   }
   int64_t AllocateChannel() {
-    channels_.push_back(std::make_unique<InterpValueChannel>());
-    return channels_.size() - 1;
+    while (channels_.contains(next_channel_id_)) {
+      next_channel_id_++;
+    }
+    int64_t id = next_channel_id_++;
+    channels_[id] = std::make_unique<InterpValueChannel>();
+    return id;
   }
 
  private:
-  std::vector<std::unique_ptr<InterpValueChannel>> channels_;
+  absl::flat_hash_map<int64_t, std::unique_ptr<InterpValueChannel>> channels_;
+  int64_t next_channel_id_;
 };
 
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"
