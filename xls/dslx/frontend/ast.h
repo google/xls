@@ -4632,6 +4632,11 @@ class VerbatimNode : public Expr {
 // considered a constant value before type checking).
 bool IsConstant(AstNode* n);
 
+// Returns the first attribute of the given kind from the given node, or
+// `nullopt` if it does not have the requested kind of attribute. Note that
+// generally the parser does not permit multiple ones of the same kind.
+std::optional<Attribute*> GetAttribute(const AstNode* node, AttributeKind kind);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_H_

@@ -1750,6 +1750,19 @@ proc tester {
   RoundTrip(std::string(kModule));
 }
 
+TEST_F(ParserTest, ParseTestProcDef) {
+  RoundTrip(R"(#[test]
+proc P {
+    terminator: chan<u32> in,
+}
+impl P {
+    fn new(terminator: chan<u32> in) -> Self {
+        P { terminator: terminator }
+    }
+    fn next() {}
+})");
+}
+
 TEST_F(ParserTest, ParseProcWithCfgAttributeWithTestParameter) {
   constexpr std::string_view kModule = R"(#[cfg(test)]
 proc Tester {

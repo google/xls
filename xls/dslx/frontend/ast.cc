@@ -1860,7 +1860,9 @@ std::string StructDef::ToString() const {
 // -- class ProcDef
 
 std::string ProcDef::ToString() const {
-  return ToStringWithEntityKeywordAndAttribute("proc");
+  return ToStringWithEntityKeywordAndAttribute(
+      "proc",
+      GetAttribute(this, AttributeKind::kTest).has_value() ? "#[test]\n" : "");
 }
 
 // -- class Impl
@@ -3110,5 +3112,15 @@ Span ExprOrTypeSpan(const ExprOrType& expr_or_type) {
 // class GenericTypeAnnotation
 
 GenericTypeAnnotation::~GenericTypeAnnotation() = default;
+
+std::optional<Attribute*> GetAttribute(const AstNode* node,
+                                       AttributeKind kind) {
+  for (Attribute* next : node->attributes()) {
+    if (next->attribute_kind() == kind) {
+      return next;
+    }
+  }
+  return std::nullopt;
+}
 
 }  // namespace xls::dslx

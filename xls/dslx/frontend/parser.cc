@@ -954,7 +954,6 @@ absl::Status Parser::UnsupportedAttributeError(const Attribute& attribute) {
           absl::StrCat(attribute.ToString(), " is only valid on a struct."));
     case AttributeKind::kDslxFormatDisable:
     case AttributeKind::kExternVerilog:
-    case AttributeKind::kTest:
     case AttributeKind::kQuickcheck:
     case AttributeKind::kFuzzTest:
       return ParseErrorStatus(
@@ -966,6 +965,9 @@ absl::Status Parser::UnsupportedAttributeError(const Attribute& attribute) {
                               "type-alias, struct or enum definitions");
     case AttributeKind::kTestProc:
       return ParseErrorStatus(span, "#[test_proc] is only valid on a proc.");
+    case AttributeKind::kTest:
+      return ParseErrorStatus(
+          span, "#[test] is only valid on a function or impl-style proc.");
     default:
       return ParseErrorStatus(
           span, absl::StrCat("Unsupported attribute: ", attribute.ToString()));
@@ -1241,7 +1243,8 @@ absl::StatusOr<ModuleMember> Parser::ApplyProcAttributes(
 absl::Status Parser::ApplyProcDefAttributes(
     ProcDef* p, std::vector<Attribute*> attributes) {
   for (Attribute* next : attributes) {
-    if (next->attribute_kind() != AttributeKind::kDerive) {
+    if (next->attribute_kind() != AttributeKind::kDerive &&
+        next->attribute_kind() != AttributeKind::kTest) {
       return UnsupportedAttributeError(*next);
     }
   }
