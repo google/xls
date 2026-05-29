@@ -48,8 +48,6 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::SizeIs;
 
-namespace m = ::xls::op_matchers;
-
 TEST_F(IrConverterTest, ExplicitStateAccessU32) {
   constexpr std::string_view kModule = R"(#![feature(explicit_state_access)]
 proc Counter {
