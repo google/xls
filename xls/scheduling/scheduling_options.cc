@@ -375,6 +375,22 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     scheduling_options.set_solve_parameters(std::move(solve_parameters));
   }
 
+  if (proto.has_default_arc_worst_case_throughput()) {
+    scheduling_options.default_arc_worst_case_throughput(
+        proto.default_arc_worst_case_throughput());
+  }
+  if (!proto.arc_worst_case_throughput().empty()) {
+    absl::flat_hash_map<std::pair<std::string, std::string>, int64_t> arc_wct;
+    for (const auto& [write_label, inner_map_proto] :
+         proto.arc_worst_case_throughput()) {
+      for (const auto& [read_label, throughput] :
+           inner_map_proto.read_to_throughput()) {
+        arc_wct[{write_label, read_label}] = throughput;
+      }
+    }
+    scheduling_options.arc_worst_case_throughput(std::move(arc_wct));
+  }
+
   scheduling_options.merge_on_mutual_exclusion(
       proto.merge_on_mutual_exclusion());
 

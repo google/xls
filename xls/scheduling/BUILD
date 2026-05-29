@@ -119,6 +119,7 @@ cc_test(
         ":scheduling_pass",
         ":scheduling_pass_pipeline",
         "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
         "//xls/common/status:matchers",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",

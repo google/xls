@@ -57,6 +57,10 @@ message SchedulingFailureBehaviorProto {
       [(google.api.field_behavior) = OPTIONAL];
 }
 
+message ReadToThroughputProto {
+  map<string, int64> read_to_throughput = 1;
+}
+
 // Flags passed to the benchmark_codegen_main, codegen_main,
 // and sched_printer_main binary.
 //
@@ -105,4 +109,6 @@ message SchedulingOptionsFlagsProto {
   optional ProtoSchedulingStrategy scheduling_strategy = 38;
   // What sort of scheduler to use when finding bounds.
   optional ProtoSchedulingStrategy find_bounds_strategy = 39;
+  optional int64 default_arc_worst_case_throughput = 40;
+  map<string, ReadToThroughputProto> arc_worst_case_throughput = 41;
 }

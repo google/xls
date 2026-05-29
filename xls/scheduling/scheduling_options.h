@@ -413,6 +413,8 @@ class SchedulingOptions {
         sdc_solution_tolerance_(kDefaultSdcSolutionTolerance),
         solver_type_(operations_research::math_opt::SolverType::kGlop),
         solve_parameters_(),
+        default_arc_worst_case_throughput_(std::nullopt),
+        arc_worst_case_throughput_(),
         merge_on_mutual_exclusion_(true) {}
 
   // Returns the scheduling strategy.
@@ -771,6 +773,24 @@ class SchedulingOptions {
     return solve_parameters_;
   }
 
+  SchedulingOptions& default_arc_worst_case_throughput(int64_t value) {
+    default_arc_worst_case_throughput_ = value;
+    return *this;
+  }
+  std::optional<int64_t> default_arc_worst_case_throughput() const {
+    return default_arc_worst_case_throughput_;
+  }
+
+  SchedulingOptions& arc_worst_case_throughput(
+      absl::flat_hash_map<std::pair<std::string, std::string>, int64_t> map) {
+    arc_worst_case_throughput_ = std::move(map);
+    return *this;
+  }
+  const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
+  arc_worst_case_throughput() const {
+    return arc_worst_case_throughput_;
+  }
+
   SchedulingOptions& merge_on_mutual_exclusion(bool value) {
     merge_on_mutual_exclusion_ = value;
     return *this;
@@ -818,6 +838,9 @@ class SchedulingOptions {
   double sdc_solution_tolerance_;
   ::operations_research::math_opt::SolverType solver_type_;
   ::operations_research::math_opt::SolveParameters solve_parameters_;
+  std::optional<int64_t> default_arc_worst_case_throughput_;
+  absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>
+      arc_worst_case_throughput_;
   bool merge_on_mutual_exclusion_;
 };
 

@@ -183,6 +183,20 @@ SCHEDULING_FIELDS = {
                              "(full throughput).\n" +
                              "\n" +
                              "If zero or negative, no throughput bound will be enforced.",
+    "default_arc_worst_case_throughput": "Allow scheduling a pipeline with feedback arc " +
+                                         "worst-case throughput no slower than once per N " +
+                                         "cycles for all backedges by default. If the designer " +
+                                         "uses both flags, --worst_case_throughput is enforced " +
+                                         "as an upper bound for all configurations, and any " +
+                                         "arcs not otherwise configured will use " +
+                                         "--default_arc_worst_case_throughput.",
+    "arc_worst_case_throughput": "Allow scheduling specific feedback arcs with worst-case " +
+                                 "throughput no slower than once per N cycles. Specified as a " +
+                                 "comma-separated list of 'write_label:read_label=throughput' " +
+                                 "entries. If the designer uses both flags, " +
+                                 "--worst_case_throughput is enforced as an upper bound for " +
+                                 "all configurations, and any arcs not otherwise configured " +
+                                 "will use --default_arc_worst_case_throughput.",
     "dynamic_throughput_objective_weight": "If set, the scheduler will attempt to optimize for " +
                                            "dynamic throughput as well as for area; the value " +
                                            "controls how strongly this is prioritized. e.g., if " +

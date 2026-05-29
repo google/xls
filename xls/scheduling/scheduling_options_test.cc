@@ -15,9 +15,12 @@
 #include "xls/scheduling/scheduling_options.h"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
@@ -32,6 +35,8 @@
 namespace xls {
 namespace {
 
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 using SchedulingOptionsTest = IrTestBase;
 
 int64_t NumberOfOp(FunctionBase* f, Op op) {
@@ -107,6 +112,30 @@ INSTANTIATE_TEST_SUITE_P(
         MergeOnMutualExclusionAffectsPipelineTest::ParamType>& info) {
       return info.param ? "Merge" : "NoMerge";
     });
+
+TEST_F(SchedulingOptionsTest, SetUpSchedulingOptionsWithArcThroughput) {
+  SchedulingOptionsFlagsProto proto;
+  XLS_ASSERT_OK(
+      ParseTextProto(R"pb(
+                       default_arc_worst_case_throughput: 3
+                       arc_worst_case_throughput {
+                         key: "L_W1"
+                         value { read_to_throughput { key: "L_R1" value: 1 } }
+                       }
+                       arc_worst_case_throughput {
+                         key: "L_W2"
+                         value { read_to_throughput { key: "L_R2" value: 2 } }
+                       }
+                     )pb",
+                     "", &proto));
+
+  XLS_ASSERT_OK_AND_ASSIGN(SchedulingOptions options,
+                           SetUpSchedulingOptions(proto, /*p=*/nullptr));
+  EXPECT_EQ(options.default_arc_worst_case_throughput(), 3);
+  EXPECT_THAT(options.arc_worst_case_throughput(),
+              UnorderedElementsAre(Pair(Pair("L_W1", "L_R1"), 1),
+                                   Pair(Pair("L_W2", "L_R2"), 2)));
+}
 
 }  // namespace
 }  // namespace xls

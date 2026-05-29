@@ -14,16 +14,19 @@
 
 #include "xls/tools/scheduling_options_flags.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -66,6 +69,52 @@ bool AbslParseFlag(std::string_view text, ChannelDelayMap* map,
 
 std::string AbslUnparseFlag(const ChannelDelayMap& map) {
   return absl::StrJoin(map.delay, ",", absl::PairFormatter("="));
+}
+
+struct ArcThroughputMap {
+  absl::flat_hash_map<std::pair<std::string, std::string>, int64_t> throughputs;
+};
+
+bool AbslParseFlag(std::string_view text, ArcThroughputMap* map,
+                   std::string* error) {
+  if (text.empty()) {
+    return true;
+  }
+  for (const auto& entry : absl::StrSplit(text, ',')) {
+    std::vector<std::string_view> parts = absl::StrSplit(entry, '=');
+    if (parts.size() != 2) {
+      *error = absl::StrCat("Expected L_W:L_R=T format, but found: ", entry);
+      return false;
+    }
+    std::string_view arc_str = absl::StripAsciiWhitespace(parts[0]);
+    std::string_view throughput_str = absl::StripAsciiWhitespace(parts[1]);
+
+    std::vector<std::string_view> arc_parts = absl::StrSplit(arc_str, ':');
+    if (arc_parts.size() != 2) {
+      *error =
+          absl::StrCat("Expected L_W:L_R format for arc, but found: ", arc_str);
+      return false;
+    }
+    std::string_view l_w = absl::StripAsciiWhitespace(arc_parts[0]);
+    std::string_view l_r = absl::StripAsciiWhitespace(arc_parts[1]);
+
+    int64_t throughput;
+    if (!absl::SimpleAtoi(throughput_str, &throughput)) {
+      *error = absl::StrFormat("Invalid throughput value for arc %s:%s: %s",
+                               l_w, l_r, throughput_str);
+      return false;
+    }
+    map->throughputs[{std::string(l_w), std::string(l_r)}] = throughput;
+  }
+  return true;
+}
+
+std::string AbslUnparseFlag(const ArcThroughputMap& map) {
+  std::vector<std::string> entries;
+  for (const auto& [pair, t] : map.throughputs) {
+    entries.push_back(absl::StrCat(pair.first, ":", pair.second, "=", t));
+  }
+  return absl::StrJoin(entries, ",");
 }
 
 // LINT.IfChange
@@ -272,6 +321,23 @@ ABSL_FLAG(operations_research::math_opt::SolverType, solver_type,
           "The solver to use for scheduling.");
 ABSL_FLAG(std::string, solve_parameters_proto, "",
           "Path to a protobuf containing all solver parameters.");
+ABSL_FLAG(std::optional<int64_t>, default_arc_worst_case_throughput,
+          std::nullopt,
+          "Allow scheduling a pipeline with feedback arc worst-case throughput "
+          "no slower than once per N cycles for all backedges by default. "
+          "If the designer uses both flags, --worst_case_throughput is "
+          "enforced as an upper bound for all configurations, and any arcs "
+          "not otherwise configured will use "
+          "--default_arc_worst_case_throughput.");
+ABSL_FLAG(ArcThroughputMap, arc_worst_case_throughput, {},
+          "Allow scheduling specific feedback arcs with worst-case throughput "
+          "no slower than once per N cycles. Specified as a comma-separated "
+          "list of 'write_label:read_label=throughput' entries. "
+          "If the designer uses both flags, --worst_case_throughput is "
+          "enforced as an upper bound for all configurations, and any arcs "
+          "not otherwise configured will use "
+          "--default_arc_worst_case_throughput.");
+
 // LINT.ThenChange(
 //   //xls/build_rules/xls_providers.bzl,
 //   //docs_src/codegen_options.md
@@ -366,6 +432,25 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_FLAG(multi_proc);
   POPULATE_FLAG(merge_on_mutual_exclusion);
   POPULATE_FLAG(sdc_solution_tolerance);
+  {
+    any_flags_set |=
+        FLAGS_default_arc_worst_case_throughput.IsSpecifiedOnCommandLine();
+    if (absl::GetFlag(FLAGS_default_arc_worst_case_throughput).has_value()) {
+      proto.set_default_arc_worst_case_throughput(
+          *absl::GetFlag(FLAGS_default_arc_worst_case_throughput));
+    }
+  }
+  {
+    if (!absl::GetFlag(FLAGS_arc_worst_case_throughput).throughputs.empty()) {
+      any_flags_set |=
+          FLAGS_arc_worst_case_throughput.IsSpecifiedOnCommandLine();
+      for (const auto& [pair, t] :
+           absl::GetFlag(FLAGS_arc_worst_case_throughput).throughputs) {
+        (*(*proto.mutable_arc_worst_case_throughput())[pair.first]
+              .mutable_read_to_throughput())[pair.second] = t;
+      }
+    }
+  }
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
 

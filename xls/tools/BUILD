@@ -682,6 +682,21 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "scheduling_options_flags_test",
+    srcs = ["scheduling_options_flags_test.cc"],
+    deps = [
+        ":scheduling_options_flags",
+        ":scheduling_options_flags_cc_proto",
+        "//xls/common:proto_test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/flags:commandlineflag",
+        "@com_google_absl//absl/flags:reflection",
+        "@googletest//:gtest",
+    ],
+)
+
 proto_library(
     name = "codegen_flags_proto",
     srcs = ["codegen_flags.proto"],
@@ -1233,6 +1248,11 @@ pytype_strict_binary(
         "@abseil-py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
     ],
+)
+
+pytype_strict_binary(
+    name = "make_release",
+    srcs = ["make_release.py"],
 )
 
 pytype_strict_contrib_test(

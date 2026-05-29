@@ -104,6 +104,23 @@ control the scheduler.
     NOTE: If set to 0 or a negative value, no throughput minimum will be
     enforced.
 
+-   `--default_arc_worst_case_throughput=...` sets the default worst-case
+    throughput bound for feedback arcs when `--generator=pipeline`. If set,
+    allows scheduling a pipeline ensuring all backedges achieve worst-case
+    throughput no slower than once per N cycles by default. If the designer uses
+    both flags, `--worst_case_throughput` is enforced as an upper bound for all
+    configurations, and any arcs not otherwise configured will use
+    `--default_arc_worst_case_throughput`.
+
+-   `--arc_worst_case_throughput=...` sets specific worst-case throughput bounds
+    for labeled feedback arcs when `--generator=pipeline`. Specified as a
+    comma-separated list of `write_label:read_label=throughput` entries. If set,
+    forces those explicit backedge paths to achieve throughput no slower than
+    once per N cycles. If the designer uses both flags,
+    `--worst_case_throughput` is enforced as an upper bound for all
+    configurations, and any arcs not otherwise configured will use
+    `--default_arc_worst_case_throughput`.
+
 -   `--dynamic_throughput_objective_weight=...` is disabled by default. If set,
     the scheduler will attempt to optimize for dynamic throughput as well as for
     area; the value controls how strongly this is prioritized. e.g., if set to
