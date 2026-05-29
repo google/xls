@@ -525,7 +525,6 @@ cc_test(
         ":convert_options",
         ":function_converter",
         ":test_utils",
-        "//xls/common:attribute_data",
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -535,9 +534,7 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/ir",
         "//xls/ir:xls_ir_interface_cc_proto",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
-        "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
     ],
 )

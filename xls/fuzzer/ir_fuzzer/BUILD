@@ -158,7 +158,6 @@ cc_test(
         ":fuzz_program_cc_proto",
         ":ir_fuzz_test_library",
         "//xls/common:xls_gunit_main",
-        "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",

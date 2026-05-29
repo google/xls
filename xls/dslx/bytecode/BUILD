@@ -387,7 +387,6 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:virtualizable_file_system",
         "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:pos",
         "//xls/dslx/run_routines",
         "//xls/dslx/type_system:type_info",
         "//xls/ir:format_preference",
