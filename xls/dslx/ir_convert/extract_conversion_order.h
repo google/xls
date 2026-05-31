@@ -22,10 +22,10 @@
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "xls/dslx/conversion_record.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/proc_id.h"
-#include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 

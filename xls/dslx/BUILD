@@ -940,6 +940,58 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "conversion_record",
+    srcs = ["conversion_record.cc"],
+    hdrs = ["conversion_record.h"],
+    deps = [
+        ":interp_value",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:proc_id",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "get_conversion_records",
+    srcs = ["get_conversion_records.cc"],
+    hdrs = ["get_conversion_records.h"],
+    deps = [
+        ":conversion_record",
+        ":interp_value",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:builtin_stubs_utils",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:proc_id",
+        "//xls/dslx/ir_convert:ir_conversion_utils",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
+        "//xls/dslx/type_system_v2:import_utils",
+        "//xls/public:status_macros",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
 cc_test(
     name = "error_test_utils_test",
     srcs = ["error_test_utils_test.cc"],
@@ -949,6 +1001,28 @@ cc_test(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
         "@com_google_absl//absl/status",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "get_conversion_records_test",
+    srcs = ["get_conversion_records_test.cc"],
+    deps = [
+        ":conversion_record",
+        ":create_import_data",
+        ":get_conversion_records",
+        ":import_data",
+        ":interp_value",
+        ":parse_and_typecheck",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:parametric_env",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )

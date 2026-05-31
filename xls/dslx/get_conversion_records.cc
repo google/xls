@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/ir_convert/get_conversion_records.h"
+#include "xls/dslx/get_conversion_records.h"
 
 #include <cstdint>
 #include <ios>
@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/conversion_record.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
@@ -39,7 +40,6 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"

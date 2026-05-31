@@ -23,11 +23,11 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/conversion_record.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/ir_convert/conversion_record.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
 

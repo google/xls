@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/ir_convert/conversion_record.h"
+#include "xls/dslx/conversion_record.h"
 
 #include <memory>
 #include <optional>
