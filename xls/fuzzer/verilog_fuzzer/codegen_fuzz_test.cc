@@ -35,31 +35,11 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
 
-constexpr std::string_view kTop = "dut";
-
 MATCHER_P(HasVerilogText, text,
           absl::StrCat("Expected verilog text to match ",
                        testing::DescribeMatcher<std::string>(text))) {
   return testing::ExplainMatchResult(text, arg.codegen_result.verilog_text,
                                      result_listener);
-}
-
-SchedulingOptionsFlagsProto DefaultSchedulingOptions() {
-  SchedulingOptionsFlagsProto scheduling_options;
-  scheduling_options.set_delay_model("sky130");
-  scheduling_options.set_pipeline_stages(10);
-
-  return scheduling_options;
-}
-
-CodegenFlagsProto DefaultCodegenOptions() {
-  CodegenFlagsProto codegen_options = CodegenFlagsProto::default_instance();
-  codegen_options.clear_top();
-  codegen_options.set_generator(GENERATOR_KIND_PIPELINE);
-  codegen_options.set_module_name(kTop);
-  codegen_options.set_flop_inputs(false);
-  codegen_options.set_flop_outputs(false);
-  return codegen_options;
 }
 
 void CodegenSucceedsForEveryFunctionWithNoPipelineLimit(

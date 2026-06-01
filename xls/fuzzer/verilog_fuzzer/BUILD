@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
@@ -56,5 +57,25 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "reproducer_to_ir_main",
+    testonly = 1,
+    srcs = ["reproducer_to_ir_main.cc"],
+    deps = [
+        ":verilog_fuzz_domain",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
+        "//xls/fuzzer/ir_fuzzer:reproducer_repo_files",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
     ],
 )

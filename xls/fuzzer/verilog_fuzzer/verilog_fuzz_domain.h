@@ -63,11 +63,19 @@ fuzztest::Domain<VerilogGenerator> VerilogGeneratorDomain(
         NoFdoSchedulingOptionsFlagsDomain(),
     fuzztest::Domain<CodegenFlagsProto>&& codegen_options =
         CodegenFlagsDomain());
+
+constexpr std::string_view kTop = "dut";
+
+SchedulingOptionsFlagsProto DefaultSchedulingOptions();
+
+CodegenFlagsProto DefaultCodegenOptions();
+
 namespace internal {
 std::string UnwrapStatusOrVerilog(
     const absl::StatusOr<ScheduleAndCodegenResult>& verilog);
 absl::StatusOr<ScheduleAndCodegenResult> DoGenerateVerilog(
     VerilogGenerator verilog);
+
 }  // namespace internal
 
 }  // namespace xls

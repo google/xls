@@ -297,16 +297,27 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "reproducer_repo_files",
+    testonly = 1,
+    srcs = ["reproducer_repo_files.cc"],
+    hdrs = ["reproducer_repo_files.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
 cc_binary(
     name = "reproducer_to_ir_main",
     testonly = 1,
     srcs = [
-        "reproducer_repo_files.cc",
-        "reproducer_repo_files.h",
         "reproducer_to_ir_main.cc",
     ],
     deps = [
         ":fuzzer_arg_list_cc_proto",
+        ":reproducer_repo_files",
         ":reproducer_to_ir",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
@@ -319,7 +330,6 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
