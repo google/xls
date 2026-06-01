@@ -35,6 +35,9 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
 namespace {
@@ -172,8 +175,8 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
 
 class LambdaRewriter : public AstNodeVisitorWithDefault {
  public:
-  explicit LambdaRewriter(const FileTable& file_table)
-      : file_table_(file_table) {}
+  explicit LambdaRewriter(const ImportData& import_data)
+      : import_data_(import_data) {}
 
   absl::Status HandleLambda(const Lambda* node) override {
     XLS_RETURN_IF_ERROR(DefaultHandler(node));
@@ -237,11 +240,11 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
       }
     }
 
-    NameDef* struct_nd =
-        module->Make<NameDef>(span,
-                              absl::Substitute("lambda_capture_struct_at_$0",
-                                               span.ToString(file_table_)),
-                              /*definer=*/nullptr);
+    NameDef* struct_nd = module->Make<NameDef>(
+        span,
+        absl::Substitute("lambda_capture_struct_at_$0",
+                         span.ToString(import_data_.file_table())),
+        /*definer=*/nullptr);
     StructDef* full_struct_def =
         module->Make<StructDef>(span, struct_nd, struct_parametric_bindings,
                                 struct_members, /*is_public=*/false);
@@ -428,13 +431,25 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
 
     XLS_ASSIGN_OR_RETURN(TypeDefinition type_def,
                          ToTypeDefinition(original_nd->definer()));
-    TypeRef* lambda_type_ref =
+    TypeRef* instance_type_ref =
         module->Make<TypeRef>(original_nd->span(), type_def);
-
     struct_instance_parametrics.push_back(module->Make<TypeRefTypeAnnotation>(
-        original_nd->span(), lambda_type_ref, std::vector<ExprOrType>{}));
+        original_nd->span(), instance_type_ref, std::vector<ExprOrType>{}));
     parametric_nds.insert(original_nd);
+
+    TypeRef* lambda_type_ref = nullptr;
     for (const TypeRefTypeAnnotation* original_type_ref : trtas) {
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                           GetStructOrProcRef(original_type_ref, import_data_));
+      if (lambda_type_ref == nullptr) {
+        lambda_type_ref = module->Make<TypeRef>(original_nd->span(), type_def);
+        // TODO(https://github.com/google/xls/issues/4338): Once we can resolve
+        // a StructOrProcRef from a TVTA, don't set the definer here.
+        lambda_struct_nd->set_definer(module->Make<TypeRefTypeAnnotation>(
+            original_type_ref->span(), lambda_type_ref,
+            original_type_ref->parametrics(),
+            original_type_ref->instantiator()));
+      }
       node_replacements.emplace(
           original_type_ref,
           module->Make<TypeVariableTypeAnnotation>(
@@ -489,13 +504,13 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
     seen.insert(original_name_def);
   }
 
-  const FileTable& file_table_;
+  const ImportData& import_data_;
 };
 
 }  // namespace
 
-absl::Status RewriteLambdas(Module& module, const FileTable& file_table) {
-  LambdaRewriter visitor(file_table);
+absl::Status RewriteLambdas(Module& module, const ImportData& import_data) {
+  LambdaRewriter visitor(import_data);
   return module.Accept(&visitor);
 }
 

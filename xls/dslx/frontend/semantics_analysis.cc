@@ -651,7 +651,7 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
     ProcStateVisitor state_visitor(import_data, state_struct_def);
     XLS_RETURN_IF_ERROR(module.Accept(&state_visitor));
   }
-  XLS_RETURN_IF_ERROR(RewriteLambdas(module, import_data.file_table()));
+  XLS_RETURN_IF_ERROR(RewriteLambdas(module, import_data));
 
   AddSpawnTraitToProcDefs add_spawn_trait;
   XLS_RETURN_IF_ERROR(module.Accept(&add_spawn_trait));

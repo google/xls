@@ -2066,10 +2066,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     for (const StructMemberNode* member : node->members()) {
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(member, member->type()));
     }
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          node,
-          CreateStructOrProcAnnotation(
-              module_, const_cast<StructDefBase*>(node), {}, std::nullopt)));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node,
+        CreateStructOrProcAnnotation(module_, const_cast<StructDefBase*>(node),
+                                     {}, std::nullopt)));
 
     return DefaultHandler(node);
   }

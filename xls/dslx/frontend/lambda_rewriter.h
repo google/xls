@@ -17,7 +17,7 @@
 
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/module.h"
-#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 
 namespace xls::dslx {
 
@@ -40,7 +40,7 @@ namespace xls::dslx {
 //     let x = u32:2;
 //     map(arr, lambda_capture{x: x}.call)
 //   }
-absl::Status RewriteLambdas(Module& module, const FileTable& file_table);
+absl::Status RewriteLambdas(Module& module, const ImportData& import_data);
 
 }  // namespace xls::dslx
 

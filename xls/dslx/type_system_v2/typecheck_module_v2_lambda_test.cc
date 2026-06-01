@@ -735,10 +735,8 @@ const_assert!(ONE == [[u16:1, 1, 1, 1, 1],
                               HasNodeWithType("TWO", "uN[32][5][4]"))));
 }
 
-// TODO: erinzmoore - Support local struct types.
-TEST(TypecheckV2Test, DISABLED_LambdaUsesLocalStructType) {
-  EXPECT_THAT(
-      R"(
+TEST(TypecheckV2Test, LambdaUsesLocalStructType) {
+  EXPECT_THAT(R"(
 struct S<N: u32> {
   x: uN[N]
 }
@@ -751,7 +749,129 @@ fn main() -> S<8>[5] {
 const RES = main();
 const_assert!(RES[0] == S<8>{x: 0});
 )",
-      TypecheckSucceeds(HasNodeWithType("RES", "S { x: uN[8] }[5]")));
+              TypecheckSucceeds(HasNodeWithType("RES", "S { x: uN[8] }[5]")));
+}
+TEST(TypecheckV2Test, LambdaUsesLocalStructTypeExplicitReturn) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+
+fn main() -> S<8>[5] {
+  type MyS = S<8>;
+  map(u8:0..5, |i| -> MyS { MyS{x: i} })
+}
+
+const RES = main();
+const_assert!(RES[0] == S<8>{x: 0});
+)",
+              TypecheckSucceeds(HasNodeWithType("RES", "S { x: uN[8] }[5]")));
+}
+
+TEST(TypecheckV2Test, LambdaUsesLocalStructTypeWithParentParametric) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+
+fn main<N: u32>() -> S<N>[5] {
+  type MyS = S<N>;
+  map(uN[N]:0..5, |i| -> MyS { MyS{x: i} })
+}
+
+const ONE = main<16>();
+const TWO = main<8>();
+const_assert!(ONE[1] == S<16>{x: 1});
+const_assert!(TWO[4] == S<8>{x: 4});
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "S { x: uN[16] }[5]"),
+                              HasNodeWithType("TWO", "S { x: uN[8] }[5]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesLocalStructTypeAndParentParametricInBody) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+
+fn main<N: u32>() -> S<N>[5] {
+  type MyS = S;
+  map(uN[N]:0..5, |i| { MyS<N>{x: i} })
+}
+
+const ONE = main<16>();
+const TWO = main<8>();
+const_assert!(ONE[1] == S<16>{x: 1});
+const_assert!(TWO[4] == S<8>{x: 4});
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "S { x: uN[16] }[5]"),
+                              HasNodeWithType("TWO", "S { x: uN[8] }[5]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesLocalStructTypeWithParentGeneric) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<U: type> {
+  x: U
+}
+
+fn main<T: type>() -> S<T>[5] {
+  type MyS = S<T>;
+  map(u32:0..5, |i| { zero!<MyS>() })
+}
+
+const ONE = main<u16>();
+const TWO = main<u8>();
+const_assert!(ONE[1] == S<u16>{x: 0});
+const_assert!(TWO[4] == S<u8>{x: 0});
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "S { x: uN[16] }[5]"),
+                              HasNodeWithType("TWO", "S { x: uN[8] }[5]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesLocalStructTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+
+fn main() -> S<16>[5] {
+  type MyS = S<8>;
+  map(u16:0..5, |i| { MyS{x: i} })
+}
+
+const RES = main();
+)",
+      TypecheckFails(HasSizeMismatch("uN[16]", "uN[8]")));
+}
+
+// TODO(erinzmoore): Enable once generic struct instantiation is supported.
+TEST(TypecheckV2Test, DISABLED_LambdaUsesGenericTypeAsStruct) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<N: u32> {
+  x: uN[N]
+}
+
+fn main<T: type>() -> T[5] {
+  type MyS = T;
+  map(u32:0..5, |i| -> MyS { MyS{x: i} })
+}
+
+const ONE = main<S<16>>();
+const TWO = main<S<8>>();
+const_assert!(ONE[1] == S<u16>{x: 1});
+const_assert!(TWO[4] == S<u8>{x: 4});
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "S { x: uN[16] }[5]"),
+                              HasNodeWithType("TWO", "S { x: uN[8] }[5]"))));
 }
 
 }  // namespace

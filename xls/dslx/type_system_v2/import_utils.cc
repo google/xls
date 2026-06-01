@@ -66,6 +66,18 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return alias->type_annotation().Accept(this);
   }
 
+  // TODO(https://github.com/google/xls/issues/4338): Looking to the definer
+  // here is a workaround. We should be able to more cleanly resolve the
+  // type annotation.
+  absl::Status HandleTypeVariableTypeAnnotation(
+      const TypeVariableTypeAnnotation* annotation) override {
+    if (annotation->type_variable()->GetDefiner() != nullptr) {
+      return const_cast<AstNode*>(annotation->type_variable()->GetDefiner())
+          ->Accept(this);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleTypeRefTypeAnnotation(
       const TypeRefTypeAnnotation* annotation) override {
     if (!annotation->parametrics().empty() && !parametrics_.empty()) {
@@ -145,7 +157,8 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
 
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
-  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>() &&
+      !annotation->IsAnnotation<TypeVariableTypeAnnotation>()) {
     return std::nullopt;
   }
   TypeRefUnwrapper unwrapper(import_data);
@@ -234,7 +247,8 @@ GetContainingStructOrProcDef(const AstNode* node,
 
 absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
-  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>() &&
+      !annotation->IsAnnotation<TypeVariableTypeAnnotation>()) {
     return std::nullopt;
   }
   TypeRefUnwrapper unwrapper(import_data);

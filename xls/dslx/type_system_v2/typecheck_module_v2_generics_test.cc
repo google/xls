@@ -1089,5 +1089,25 @@ fn main() {
             HasSubstr("in bar\nin foo\nfrom fake.x:6:27-6:30")));
 }
 
+// TODO(erinzmoore): It should be possible to instantiate a generic type.
+TEST(TypecheckV2Test, DISABLED_InstantiateGenericTypeAsStruct) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S {
+  x: u32
+}
+
+fn main<T: type>() -> T {
+  T { x: u32:5 }
+}
+
+const RES = main<S>();
+const_assert!(RES == S{x: 5});
+)",
+      TypecheckSucceeds(HasNodeWithType("RES", "S { x: uN[32] }")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
