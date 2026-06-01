@@ -68,6 +68,11 @@ _TARGET_ENTITY = flags.DEFINE_string(
     help='target entity to visualize',
     required=False,
 )
+_LIVE_ONLY = flags.DEFINE_bool(
+    'live_only',
+    default=False,
+    help="Only include 'live' (ie not dead_after_synthesis) nodes.",
+)
 
 XLS_IR_TO_PROTO = runfiles.get_path('xls/visualization/ir_viz/ir_to_proto_main')
 
@@ -146,14 +151,20 @@ def main(argv: Sequence[str]) -> None:
 
   graph = nx.MultiDiGraph()
   for fb in proto.function_bases:
+    live_nodes = set()
     if _TARGET_ENTITY.value is not None and fb.name != _TARGET_ENTITY.value:
       continue
     for node in fb.nodes:
+      if _LIVE_ONLY.value and node.attributes.dead_after_synthesis:
+        # Skip dead nodes.
+        continue
+      live_nodes.add(node.id)
       graph.add_node(
           node.id, function=fb.name, function_kind=fb.kind, **node_attrs(node)
       )
     for edge in fb.edges:
-      graph.add_edge(edge.source_id, edge.target_id, **edge_attrs(edge))
+      if edge.source_id in live_nodes and edge.target_id in live_nodes:
+        graph.add_edge(edge.source_id, edge.target_id, **edge_attrs(edge))
 
   with open(_OUTPUT.value, 'w') as out:
     out.write(json.dumps(nx.readwrite.json_graph.cytoscape_data(graph)))
