@@ -312,14 +312,6 @@ Example usage:
 See also the
 [IR semantics for the `encode` op](./ir_semantics.md#encode).
 
-### `enumerate`
-
-Decorates elements of an array with indices. Has the following signature:
-
-```
-fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N]
-```
-
 ### `one_hot`
 
 Converts a value to one-hot form. Has the following signature:
@@ -1571,6 +1563,15 @@ fn test_distinct_with_invalid() {
     let valid = bool[4]:[true, true, true, false];
     assert_eq(std::distinct(items, valid), true);
 }
+```
+
+### `std::enumerate`
+
+Takes an array and produces an array of `(index, value)` tuples, where index is
+the position of each element in the input array. Has the following signature:
+
+```dslx-snippet
+pub fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N]
 ```
 
 ## Rounding functions: `import round`
