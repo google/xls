@@ -2695,6 +2695,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "literals_decoder_dslx_test",
+    size = "large",
     library = ":literals_decoder_dslx",
 )
 
