@@ -85,6 +85,52 @@ message PackageInterfaceProto {
     repeated string recv_channels = 4;
   }
 
+  // Common information for scheduled pipelines.
+  message PipelineInformation {
+    // How long the full pipeline is.
+    optional int32 pipeline_length = 1;
+    // What the initiation interval for this pipeline is. 1 is full throughput.
+    optional int32 initiation_interval = 2;
+  }
+
+  // Information about a function which has gone through scheduling.
+  message ScheduledFunction {
+    optional Function function = 1;
+    optional PipelineInformation pipeline_info = 2;
+  }
+
+  message ScheduledProc {
+    // Information about a send or receive.
+    message IO {
+      // The stage at which this IO is scheduled.
+      optional int32 stage = 1;
+      // Either a send/recv channel that is used in the given stage.
+      optional string channel_name = 2;
+      optional bool is_blocking = 4;
+    }
+    // Information about when state information is read or written which
+    // controls throughput and latency.
+    message StateAccess {
+      // The state element
+      optional string name = 1;
+      // The stage at which this state element is accessed (read or written).
+      optional int32 stage = 2;
+    }
+    optional Proc proc = 1;
+    optional PipelineInformation pipeline_info = 2;
+    repeated IO sends = 3;
+    repeated IO recvs = 4;
+    repeated StateAccess state_reads = 5;
+    repeated StateAccess state_writes = 6;
+  }
+
+  message ScheduledFunctionBase {
+    oneof type {
+      ScheduledFunction scheduled_function = 1;
+      ScheduledProc scheduled_proc = 2;
+    }
+  }
+
   message Block {
     optional FunctionBase base = 1;
     repeated NamedValue registers = 2;
@@ -126,4 +172,6 @@ message PackageInterfaceProto {
   repeated Function functions = 4;
   repeated Proc procs = 5;
   repeated Block blocks = 6;
+  repeated ScheduledFunction scheduled_functions = 7;
+  repeated ScheduledProc scheduled_procs = 8;
 }

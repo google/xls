@@ -15,8 +15,11 @@
 #ifndef XLS_DEV_TOOLS_EXTRACT_INTERFACE_H_
 #define XLS_DEV_TOOLS_EXTRACT_INTERFACE_H_
 
+#include <optional>
+
 #include "xls/ir/package.h"
 #include "xls/ir/xls_ir_interface.pb.h"
+#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
 
@@ -25,8 +28,13 @@ PackageInterfaceProto::Proc ExtractProcInterface(Proc* proc);
 PackageInterfaceProto::Block ExtractBlockInterface(Block* block);
 
 // Create a PackageInterfaceProto based on the given Package.
-PackageInterfaceProto ExtractPackageInterface(Package* package);
-
+absl::StatusOr<PackageInterfaceProto> TryExtractPackageInterface(
+    Package* package,
+    std::optional<PackageScheduleProto> schedule = std::nullopt);
+// Create a PackageInterfaceProto based on the given Package.
+PackageInterfaceProto ExtractPackageInterface(
+    Package* package,
+    std::optional<PackageScheduleProto> schedule = std::nullopt);
 }  // namespace xls
 
 #endif  // XLS_DEV_TOOLS_EXTRACT_INTERFACE_H_

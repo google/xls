@@ -28,6 +28,8 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/source_location.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 namespace {
@@ -135,6 +137,97 @@ top proc add(__token: token, init={token}) {
                       }
                     }
                   )pb"));
+}
+
+TEST_F(ExtractInterfaceTest, BasicProcWithSchedule) {
+  constexpr std::string_view kIr = R"(
+package sample
+
+file_number 0 "fake_file.x"
+
+chan sample__operand_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan sample__operand_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan sample__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
+
+top proc add(__token: token, init={token}) {
+  receive.4: (token, bits[32]) = receive(__token, channel=sample__operand_0, id=4)
+  receive.7: (token, bits[32]) = receive(__token, channel=sample__operand_1, id=7)
+  tok_operand_0_val: token = tuple_index(receive.4, index=0, id=5, pos=[(0,14,9)])
+  tok_operand_1_val: token = tuple_index(receive.7, index=0, id=8, pos=[(0,15,9)])
+  operand_0_val: bits[32] = tuple_index(receive.4, index=1, id=6, pos=[(0,14,28)])
+  operand_1_val: bits[32] = tuple_index(receive.7, index=1, id=9, pos=[(0,15,28)])
+  tok_recv: token = after_all(tok_operand_0_val, tok_operand_1_val, id=10)
+  result_val: bits[32] = add(operand_0_val, operand_1_val, id=11, pos=[(0,18,35)])
+  tok_send: token = send(tok_recv, result_val, channel=sample__result, id=12)
+  after_all.14: token = after_all(__token, tok_operand_0_val, tok_operand_1_val, tok_recv, tok_send, id=14)
+  next (after_all.14)
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(kIr));
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto schedule,
+      RunPipelineSchedule(
+          p->GetTop().value(), delay_estimator,
+          SchedulingOptions()
+              .pipeline_stages(2)
+              .worst_case_throughput(2)
+              .add_constraint(
+                  IOConstraint("sample__operand_0", IODirection::kReceive,
+                               "sample__result", IODirection::kSend,
+                               /*minimum_latency=*/1, /*maximum_latency=*/1))
+              .add_constraint(
+                  IOConstraint("sample__operand_1", IODirection::kReceive,
+                               "sample__result", IODirection::kSend,
+                               /*minimum_latency=*/1, /*maximum_latency=*/1))));
+  XLS_ASSERT_OK_AND_ASSIGN(auto proto, schedule.ToProto(delay_estimator));
+  PackageScheduleProto package_schedule_proto;
+  package_schedule_proto.mutable_schedules()->insert({"add", proto});
+  auto interface = ExtractPackageInterface(p.get(), package_schedule_proto);
+  RecordProperty("interface", interface.DebugString());
+  EXPECT_THAT(
+      interface,
+      ProtoEquivalent(
+          R"pb(
+            name: "sample"
+            files: "fake_file.x"
+            # Also includes channels and procs but those are tested by the
+            # BasicProc test.
+            scheduled_procs {
+              proc {
+                base { top: true name: "add" }
+                state {
+                  name: "__token"
+                  type { type_enum: TOKEN }
+                }
+                state_values {
+                  name {
+                    name: "__token"
+                    type { type_enum: TOKEN }
+                  }
+                  non_synthesizable: false
+                }
+              }
+              pipeline_info { pipeline_length: 2 initiation_interval: 2 }
+              sends {
+                stage: 1
+                channel_name: "sample__result"
+                is_blocking: false
+              }
+              recvs {
+                stage: 0
+                channel_name: "sample__operand_0"
+                is_blocking: true
+              }
+              recvs {
+                stage: 0
+                channel_name: "sample__operand_1"
+                is_blocking: true
+              }
+              state_reads { name: "__token" stage: 0 }
+              state_writes { name: "__token" stage: 1 }
+            }
+          )pb"));
 }
 
 TEST_F(ExtractInterfaceTest, BasicBlock) {

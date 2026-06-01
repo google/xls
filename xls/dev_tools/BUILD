@@ -120,12 +120,14 @@ cc_library(
     hdrs = ["extract_interface.h"],
     deps = [
         "//xls/common:attribute_data",
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:register",
         "//xls/ir:state_element",
         "//xls/ir:type",
         "//xls/ir:xls_ir_interface_cc_proto",
+        "//xls/scheduling:pipeline_schedule",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_protobuf//:protobuf",
@@ -164,6 +166,8 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
         "@googletest//:gtest",
     ],
 )

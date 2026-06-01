@@ -802,4 +802,59 @@ std::string PackageSchedule::ToString() const {
   }
   return result;
 }
+
+absl::StatusOr<PackageInterfaceProto::ScheduledFunctionBase>
+PackageSchedule::ToScheduledInterfaceProto(
+    FunctionBase* fb,
+    PackageSchedule::GenericFunctionInterfaceProto base_info) const {
+  XLS_RET_CHECK(fb->IsProc() || fb->IsFunction())
+      << "Expected proc or function";
+  PackageInterfaceProto::ScheduledFunctionBase proto;
+  PackageInterfaceProto::PipelineInformation pipeline_info;
+  const PipelineSchedule& sched = GetSchedule(fb);
+  pipeline_info.set_pipeline_length(sched.length());
+  if (fb->GetInitiationInterval().has_value()) {
+    pipeline_info.set_initiation_interval(*fb->GetInitiationInterval());
+  }
+  if (fb->IsFunction()) {
+    XLS_RET_CHECK(
+        std::holds_alternative<PackageInterfaceProto::Function>(base_info))
+        << "mismatched base info type";
+    *proto.mutable_scheduled_function()->mutable_function() =
+        std::get<PackageInterfaceProto::Function>(base_info);
+    *proto.mutable_scheduled_function()->mutable_pipeline_info() =
+        pipeline_info;
+  } else {
+    XLS_RET_CHECK(
+        std::holds_alternative<PackageInterfaceProto::Proc>(base_info))
+        << "mismatched base info type";
+    *proto.mutable_scheduled_proc()->mutable_proc() =
+        std::get<PackageInterfaceProto::Proc>(base_info);
+    *proto.mutable_scheduled_proc()->mutable_pipeline_info() = pipeline_info;
+    for (Node* n : fb->nodes()) {
+      if (n->Is<Next>()) {
+        auto* state_write = proto.mutable_scheduled_proc()->add_state_writes();
+        state_write->set_name(n->As<Next>()->state_element()->name());
+        state_write->set_stage(sched.cycle(n));
+
+      } else if (n->Is<StateRead>()) {
+        auto* state_read = proto.mutable_scheduled_proc()->add_state_reads();
+        state_read->set_name(n->As<StateRead>()->state_element()->name());
+        state_read->set_stage(sched.cycle(n));
+      } else if (n->Is<Receive>()) {
+        auto* recv = proto.mutable_scheduled_proc()->add_recvs();
+        recv->set_stage(sched.cycle(n));
+        recv->set_channel_name(n->As<Receive>()->channel_name());
+        recv->set_is_blocking(n->As<Receive>()->is_blocking());
+      } else if (n->Is<Send>()) {
+        auto* send = proto.mutable_scheduled_proc()->add_sends();
+        send->set_stage(sched.cycle(n));
+        send->set_channel_name(n->As<Send>()->channel_name());
+        send->set_is_blocking(false);
+      }
+    }
+  }
+  return std::move(proto);
+}
+
 }  // namespace xls

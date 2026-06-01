@@ -14,6 +14,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -38,14 +39,33 @@ const char kUsage[] = R"(
 
 ABSL_FLAG(bool, binary_proto, false, "Print as a binary proto");
 ABSL_FLAG(std::string, output_file, "/dev/stdout", "Output file");
+ABSL_FLAG(bool, binary_schedule_proto, false,
+          "schedule_file is a binary proto");
+ABSL_FLAG(std::optional<std::string>, schedule_file, std::nullopt,
+          "Optional schedule file to use.");
 
 namespace xls {
 namespace {
 
-absl::Status RealMain(bool binary_proto, const std::filesystem::path& path) {
+absl::Status RealMain(
+    bool binary_proto, const std::filesystem::path& path,
+    bool binary_schedule_proto,
+    const std::optional<std::filesystem::path>& schedule_path) {
   XLS_ASSIGN_OR_RETURN(auto ir_text, GetFileContents(path));
   XLS_ASSIGN_OR_RETURN(auto package, ParsePackage(ir_text, path.string()));
-  PackageInterfaceProto proto = ExtractPackageInterface(package.get());
+  std::optional<PackageScheduleProto> schedule_proto;
+  if (schedule_path.has_value()) {
+    XLS_ASSIGN_OR_RETURN(auto schedule_text, GetFileContents(*schedule_path));
+    schedule_proto.emplace();
+    if (binary_schedule_proto) {
+      schedule_proto->ParseFromString(schedule_text);
+    } else {
+      XLS_RET_CHECK(
+          google::protobuf::TextFormat::ParseFromString(schedule_text, &*schedule_proto));
+    }
+  }
+  PackageInterfaceProto proto =
+      ExtractPackageInterface(package.get(), schedule_proto);
 
   std::string output;
   if (binary_proto) {
@@ -69,6 +89,8 @@ int main(int argc, char** argv) {
     LOG(QFATAL) << "Expected invocation: " << argv[0] << " <ir_file>";
   }
 
-  return xls::ExitStatus(xls::RealMain(absl::GetFlag(FLAGS_binary_proto),
-                                       positional_arguments[0]));
+  return xls::ExitStatus(
+      xls::RealMain(absl::GetFlag(FLAGS_binary_proto), positional_arguments[0],
+                    absl::GetFlag(FLAGS_binary_schedule_proto),
+                    absl::GetFlag(FLAGS_schedule_file)));
 }

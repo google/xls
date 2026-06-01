@@ -14,13 +14,16 @@
 
 #include "xls/dev_tools/extract_interface.h"
 
+#include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/attribute_data.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
@@ -130,12 +133,23 @@ PackageInterfaceProto::Block ExtractBlockInterface(Block* block) {
   return proto;
 }
 
-PackageInterfaceProto ExtractPackageInterface(Package* package) {
+PackageInterfaceProto ExtractPackageInterface(
+    Package* package, std::optional<PackageScheduleProto> schedule) {
+  auto res = TryExtractPackageInterface(package, schedule);
+  CHECK_OK(res);
+  return *std::move(res);
+}
+absl::StatusOr<PackageInterfaceProto> TryExtractPackageInterface(
+    Package* package, std::optional<PackageScheduleProto> schedule) {
   PackageInterfaceProto proto;
   // Basic information
   proto.set_name(package->name());
   for (const auto& [_, f] : package->fileno_to_name()) {
     *proto.add_files() = f;
+  }
+  std::optional<PackageSchedule> sched;
+  if (schedule.has_value()) {
+    XLS_ASSIGN_OR_RETURN(sched, PackageSchedule::FromProto(package, *schedule));
   }
   // Fill in channels
   for (const Channel* c : package->channels()) {
@@ -186,10 +200,23 @@ PackageInterfaceProto ExtractPackageInterface(Package* package) {
     }
   }
   for (const auto& f : package->functions()) {
-    *proto.add_functions() = ExtractFunctionInterface(f.get());
+    auto func_proto = ExtractFunctionInterface(f.get());
+    if (sched && sched->HasSchedule(f.get())) {
+      XLS_ASSIGN_OR_RETURN(auto scheduled_fb, sched->ToScheduledInterfaceProto(
+                                                  f.get(), func_proto));
+      *proto.add_scheduled_functions() =
+          std::move(scheduled_fb).scheduled_function();
+    }
+    *proto.add_functions() = std::move(func_proto);
   }
   for (const auto& p : package->procs()) {
-    *proto.add_procs() = ExtractProcInterface(p.get());
+    auto proc_proto = ExtractProcInterface(p.get());
+    if (sched && sched->HasSchedule(p.get())) {
+      XLS_ASSIGN_OR_RETURN(auto scheduled_fb, sched->ToScheduledInterfaceProto(
+                                                  p.get(), proc_proto));
+      *proto.add_scheduled_procs() = std::move(scheduled_fb).scheduled_proc();
+    }
+    *proto.add_procs() = std::move(proc_proto);
   }
   for (const auto& b : package->blocks()) {
     *proto.add_blocks() = ExtractBlockInterface(b.get());

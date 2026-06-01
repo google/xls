@@ -287,6 +287,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:op",
+        "//xls/ir:xls_ir_interface_cc_proto",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

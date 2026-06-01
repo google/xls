@@ -1,3 +1,6 @@
+#include <variant>
+
+#include "xls/ir/xls_ir_interface.pb.h"
 // Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -246,13 +249,22 @@ class PackageSchedule {
       const DelayEstimator& delay_estimator) const;
   std::string ToString() const;
 
+  using GenericFunctionInterfaceProto =
+      std::variant<PackageInterfaceProto::Function,
+                   PackageInterfaceProto::Proc>;
+  // Generates an interface proto describing the results of scheduling for the
+  // given function base.
+  absl::StatusOr<PackageInterfaceProto::ScheduledFunctionBase>
+  ToScheduledInterfaceProto(FunctionBase* fb,
+                            GenericFunctionInterfaceProto base_info) const;
+
  private:
   Package* package_ = nullptr;
   ScheduleMap schedules_;
 
-  // If this package represents a synchronous schedule of FunctionBases (procs)
-  // in the package, this map contains the stage offset of each function base in
-  // the synchronous schedule.
+  // If this package represents a synchronous schedule of FunctionBases
+  // (procs) in the package, this map contains the stage offset of each
+  // function base in the synchronous schedule.
   std::optional<absl::flat_hash_map<FunctionBase*, int64_t>>
       synchronous_offsets_;
 };
