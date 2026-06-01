@@ -1250,11 +1250,6 @@ pytype_strict_binary(
     ],
 )
 
-pytype_strict_binary(
-    name = "make_release",
-    srcs = ["make_release.py"],
-)
-
 pytype_strict_contrib_test(
     name = "gather_design_stats_test",
     srcs = ["gather_design_stats_test.py"],
