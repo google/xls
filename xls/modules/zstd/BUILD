@@ -2696,6 +2696,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "literals_decoder_dslx_test",
     library = ":literals_decoder_dslx",
+    size = "large",
 )
 
 LITERALS_DECODER_CTRL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
