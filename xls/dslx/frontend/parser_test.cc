@@ -4964,4 +4964,48 @@ fn f(x: u32, y: u8) {}
   EXPECT_TRUE(second_member_tuple->members().empty());
 }
 
+TEST_F(ParserTest, FuzzDomainAttribute) {
+  std::string_view program = R"(
+#[fuzz_domain("MyDomain")]
+struct MyStruct {
+    x: u32,
+}
+)";
+  auto module = ExpectParsesSuccessfully(program);
+  ASSERT_NE(module, nullptr);
+
+  // Verify MyStruct exists.
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * my_struct,
+                           module->GetMemberOrError<StructDef>("MyStruct"));
+  EXPECT_FALSE(my_struct->is_domain_struct());
+
+  // Verify MyDomain exists and is linked.
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * my_domain,
+                           module->GetMemberOrError<StructDef>("MyDomain"));
+  EXPECT_TRUE(my_domain->is_domain_struct());
+  EXPECT_EQ(my_domain->name_def()->definer(), my_struct);
+}
+
+TEST_F(ParserTest, FuzzDomainAttributeImported) {
+  std::string_view program = R"(
+import imported;
+#[fuzz_domain("MyDomain")]
+struct MyStruct {
+    inner: imported::Inner,
+}
+)";
+  auto module = ExpectParsesSuccessfully(program);
+  ASSERT_NE(module, nullptr);
+
+  // Verify MyStruct exists.
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * my_struct,
+                           module->GetMemberOrError<StructDef>("MyStruct"));
+  EXPECT_FALSE(my_struct->is_domain_struct());
+
+  // Verify MyDomain exists and is linked.
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * my_domain,
+                           module->GetMemberOrError<StructDef>("MyDomain"));
+  EXPECT_TRUE(my_domain->is_domain_struct());
+  EXPECT_EQ(my_domain->name_def()->definer(), my_struct);
+}
 }  // namespace xls::dslx

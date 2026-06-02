@@ -3417,9 +3417,14 @@ class StructDef : public StructDefBase {
     return extern_type_name_;
   }
 
+  void set_is_domain_struct(bool v) { is_domain_struct_ = v; }
+  bool is_domain_struct() const { return is_domain_struct_; }
+
  private:
   // The external verilog type name
   std::optional<std::string> extern_type_name_;
+
+  bool is_domain_struct_ = false;
 };
 
 // Represents a proc declared with struct-like syntax, with the functions in an

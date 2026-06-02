@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -225,6 +226,7 @@ absl::StatusOr<AttributeKind> ParseAttributeKind(Token token,
       {"test_proc", AttributeKind::kTestProc},
       {"quickcheck", AttributeKind::kQuickcheck},
       {"fuzz_test", AttributeKind::kFuzzTest},
+      {"fuzz_domain", AttributeKind::kFuzzDomain},
       {"channel_strictness", AttributeKind::kChannelStrictness}};
 
   const auto it = map->find(token.GetStringValue());
@@ -605,7 +607,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
             TypeAlias * type_alias,
             ParseTypeAlias(*module_member_start_pos, is_public, *bindings));
         XLS_RETURN_IF_ERROR(
-            ApplyTypeAttributes(type_alias, pending_attributes));
+            ApplyTypeAttributes(type_alias, pending_attributes, *bindings));
         XLS_RETURN_IF_ERROR(module_->AddTop(type_alias, make_collision_error));
         break;
       }
@@ -614,7 +616,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
             StructDef * struct_def,
             ParseStruct(*module_member_start_pos, is_public, *bindings));
         XLS_RETURN_IF_ERROR(
-            ApplyTypeAttributes(struct_def, pending_attributes));
+            ApplyTypeAttributes(struct_def, pending_attributes, *bindings));
         XLS_RETURN_IF_ERROR(module_->AddTop(struct_def, make_collision_error));
         break;
       }
@@ -622,7 +624,8 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(
             EnumDef * enum_def,
             ParseEnumDef(*module_member_start_pos, is_public, *bindings));
-        XLS_RETURN_IF_ERROR(ApplyTypeAttributes(enum_def, pending_attributes));
+        XLS_RETURN_IF_ERROR(
+            ApplyTypeAttributes(enum_def, pending_attributes, *bindings));
         XLS_RETURN_IF_ERROR(module_->AddTop(enum_def, make_collision_error));
         break;
       }
@@ -949,6 +952,7 @@ absl::Status Parser::UnsupportedAttributeError(const Attribute& attribute) {
   Span span = *attribute.GetSpan();
   switch (attribute.attribute_kind()) {
     case AttributeKind::kDerive:
+    case AttributeKind::kFuzzDomain:
       return ParseErrorStatus(
           span,
           absl::StrCat(attribute.ToString(), " is only valid on a struct."));
@@ -1143,7 +1147,8 @@ absl::StatusOr<XlsTuple*> Parser::ParseFuzzTestDomains(
 
 template <typename T>
 absl::Status Parser::ApplyTypeAttributes(T* node,
-                                         std::vector<Attribute*> attributes) {
+                                         std::vector<Attribute*> attributes,
+                                         Bindings& bindings) {
   for (Attribute* next : attributes) {
     switch (next->attribute_kind()) {
       case AttributeKind::kDerive: {
@@ -1177,6 +1182,44 @@ absl::Status Parser::ApplyTypeAttributes(T* node,
         node->set_extern_type_name(
             std::get<AttributeData::StringLiteralArgument>(next->args()[0])
                 .text);
+        break;
+      }
+
+      case AttributeKind::kFuzzDomain: {
+        if (node->kind() != AstNodeKind::kStructDef) {
+          return UnsupportedAttributeError(*next);
+        }
+        if (next->args().size() != 1 ||
+            !std::holds_alternative<AttributeData::StringLiteralArgument>(
+                next->args()[0])) {
+          return ParseErrorStatus(
+              *next->GetSpan(),
+              "fuzz_domain attribute requires a string argument.");
+        }
+        std::string domain_name =
+            std::get<AttributeData::StringLiteralArgument>(next->args()[0])
+                .text;
+
+        StructDef* struct_def = dynamic_cast<StructDef*>(node);
+        XLS_RET_CHECK(struct_def != nullptr);
+        Span span = *next->GetSpan();
+        NameDef* domain_name_def =
+            module_->Make<NameDef>(span, domain_name, /*definer=*/nullptr);
+        std::vector<ParametricBinding*> parametric_bindings;
+        std::vector<StructMemberNode*> members;
+        StructDef* domain_struct = module_->Make<StructDef>(
+            span, domain_name_def, std::move(parametric_bindings),
+            std::move(members), struct_def->is_public());
+        domain_name_def->set_definer(struct_def);
+
+        domain_struct->set_is_domain_struct(true);
+
+        bindings.Add(domain_name, domain_struct);
+
+        auto make_collision_error =
+            absl::bind_front(&MakeModuleTopCollisionError, file_table());
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(domain_struct, make_collision_error));
         break;
       }
 
