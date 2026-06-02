@@ -87,7 +87,7 @@ struct Connector {
   std::optional<Node*> ready_port;
 
   absl::Status MakeOneShot(Node* new_reset_one_shot, Node* new_outgoing_valid,
-                           Node* visible_ready,
+                           std::optional<Node*> visible_ready,
                            std::pair<Node*, int64_t> incoming_valid_operand);
 
   // Replaces the value driving the data/ready/valid port with the given
@@ -215,7 +215,8 @@ absl::Status Connector::ReplaceReadySignal(Node* value) const {
 }
 
 absl::Status Connector::MakeOneShot(
-    Node* new_reset_one_shot, Node* new_outgoing_valid, Node* visible_ready,
+    Node* new_reset_one_shot, Node* new_outgoing_valid,
+    std::optional<Node*> visible_ready,
     std::pair<Node*, int64_t> incoming_valid_operand) {
   CHECK(!reset_one_shot.has_value());
   CHECK_EQ(direction, ChannelDirection::kSend);
@@ -352,10 +353,6 @@ absl::StatusOr<Connector> AddPortsForSend(
   std::optional<Node*> valid;
   std::optional<Node*> ready;
   if (ChannelRefKind(channel) == ChannelKind::kStreaming) {
-    if (ChannelRefFlowControl(channel) == FlowControl::kValidData) {
-      return absl::UnimplementedError(
-          "valid_data flow control is not yet supported.");
-    }
     XLS_ASSIGN_OR_RETURN(
         Node * placeholder_valid,
         block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
@@ -366,13 +363,15 @@ absl::StatusOr<Connector> AddPortsForSend(
                 ChannelRefName(channel),
                 options.codegen_options.streaming_channel_valid_suffix()),
             placeholder_valid));
-    XLS_ASSIGN_OR_RETURN(
-        ready,
-        block->AddInputPort(
-            absl::StrCat(
-                ChannelRefName(channel),
-                options.codegen_options.streaming_channel_ready_suffix()),
-            block->package()->GetBitsType(1)));
+    if (ChannelRefFlowControl(channel) != FlowControl::kValidData) {
+      XLS_ASSIGN_OR_RETURN(
+          ready,
+          block->AddInputPort(
+              absl::StrCat(
+                  ChannelRefName(channel),
+                  options.codegen_options.streaming_channel_ready_suffix()),
+              block->package()->GetBitsType(1)));
+    }
   }
 
   Connector connector{.direction = ChannelDirection::kSend,
@@ -420,10 +419,6 @@ absl::StatusOr<Connector> AddPortsForReceive(
   std::optional<Node*> valid;
   std::optional<Node*> ready;
   if (ChannelRefKind(channel) == ChannelKind::kStreaming) {
-    if (ChannelRefFlowControl(channel) == FlowControl::kValidData) {
-      return absl::UnimplementedError(
-          "valid_data flow control is not yet supported.");
-    }
     XLS_ASSIGN_OR_RETURN(
         valid,
         block->AddInputPort(
@@ -431,16 +426,18 @@ absl::StatusOr<Connector> AddPortsForReceive(
                 ChannelRefName(channel),
                 options.codegen_options.streaming_channel_valid_suffix()),
             block->package()->GetBitsType(1)));
-    XLS_ASSIGN_OR_RETURN(
-        Node * placeholder_ready,
-        block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
-    XLS_ASSIGN_OR_RETURN(
-        ready,
-        block->AddOutputPort(
-            absl::StrCat(
-                ChannelRefName(channel),
-                options.codegen_options.streaming_channel_ready_suffix()),
-            placeholder_ready));
+    if (ChannelRefFlowControl(channel) != FlowControl::kValidData) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * placeholder_ready,
+          block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
+      XLS_ASSIGN_OR_RETURN(
+          ready,
+          block->AddOutputPort(
+              absl::StrCat(
+                  ChannelRefName(channel),
+                  options.codegen_options.streaming_channel_ready_suffix()),
+              placeholder_ready));
+    }
   }
 
   Connector connector{.direction = ChannelDirection::kReceive,
@@ -1084,11 +1081,6 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
                              const BlockConversionPassOptions& options,
                              std::string_view channel_name = "") {
   XLS_RET_CHECK_EQ(connector.direction, ChannelDirection::kSend);
-  if (connector.valid.has_value() && !connector.ready.has_value()) {
-    return absl::UnimplementedError(
-        "valid_data flow control is not yet supported.");
-  }
-  XLS_RET_CHECK(connector.ready.has_value());
   XLS_RET_CHECK(connector.valid.has_value());
 
   std::string channel_prefix =
@@ -1114,7 +1106,7 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
   //       `OR(AND(outgoing_valid, incoming_ready), reset_one_shot)`.
 
   Node* incoming_valid = *connector.ValidSignal();
-  Node* incoming_ready = *connector.ready;
+  std::optional<Node*> incoming_ready = connector.ready;
 
   // 0. Placeholder node for the "reset_one_shot" signal.
   XLS_ASSIGN_OR_RETURN(
@@ -1143,18 +1135,23 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
   std::pair<Node*, int64_t> incoming_valid_location = {outgoing_valid, 0};
 
   // 3. Patch the visible "ready" signal.
-  XLS_ASSIGN_OR_RETURN(
-      Node * visible_ready,
-      block->MakeNode<NaryOp>(
-          SourceInfo(), absl::MakeConstSpan({incoming_ready, already_done}),
-          Op::kOr));
+  std::optional<Node*> visible_ready = std::nullopt;
+  if (incoming_ready.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        visible_ready,
+        block->MakeNode<NaryOp>(
+            SourceInfo(), absl::MakeConstSpan({*incoming_ready, already_done}),
+            Op::kOr));
+  }
 
   // 4. Add the `RegisterWrite` for "already_done".
+  std::vector<Node*> done_srcs = {outgoing_valid};
+  if (incoming_ready.has_value()) {
+    done_srcs.push_back(*incoming_ready);
+  }
   XLS_ASSIGN_OR_RETURN(
-      Node * done,
-      block->MakeNode<NaryOp>(
-          SourceInfo(), absl::MakeConstSpan({outgoing_valid, incoming_ready}),
-          Op::kAnd));
+      Node * done, block->MakeNode<NaryOp>(
+                       SourceInfo(), absl::MakeConstSpan(done_srcs), Op::kAnd));
   XLS_ASSIGN_OR_RETURN(
       Node * not_resetting,
       block->MakeNode<UnOp>(SourceInfo(), reset_one_shot, Op::kNot));
@@ -1277,10 +1274,13 @@ absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg, Block* block) {
 // Logic will be inserted immediately before from_rdy,
 //   from_rdy must be a node with a single operand.
 absl::Status AddZeroLatencyBufferToRDVNodes(Node* from_data, Node* from_valid,
-                                            Node* from_rdy,
+                                            std::optional<Node*> from_rdy,
                                             std::string_view name_prefix,
                                             Block* block) {
-  CHECK_EQ(from_rdy->operand_count(), 1);
+  bool has_ready = from_rdy.has_value();
+  if (has_ready) {
+    CHECK_EQ((*from_rdy)->operand_count(), 1);
+  }
 
   // Add a node for load_enables (will be removed later).
   XLS_ASSIGN_OR_RETURN(Node * literal_1, block->MakeNode<xls::Literal>(
@@ -1318,41 +1318,46 @@ absl::Status AddZeroLatencyBufferToRDVNodes(Node* from_data, Node* from_valid,
           /*name=*/absl::StrCat(name_prefix, "_select")));
   XLS_RETURN_IF_ERROR(data_skid_reg_read->ReplaceUsesWith(to_data));
 
-  // Input can be accepted whenever the skid registers
-  // are empty/invalid.
-  Node* to_is_ready = from_rdy->operand(0);
-
   XLS_ASSIGN_OR_RETURN(
       Node * from_skid_rdy,
       block->MakeNodeWithName<UnOp>(
           /*loc=*/SourceInfo(), data_valid_skid_reg_read, Op::kNot,
           absl::StrCat(name_prefix, "_from_skid_rdy")));
-  XLS_RETURN_IF_ERROR(from_rdy->ReplaceOperandNumber(0, from_skid_rdy));
 
   // Skid is loaded from 1st stage whenever
   //   a) the input is being read (input_ready_and_valid == 1) and
   //       --> which implies that the skid is invalid
-  //   b) the output is not ready (to_is_ready == 0) and
-  XLS_ASSIGN_OR_RETURN(Node * to_is_not_rdy,
-                       block->MakeNodeWithName<UnOp>(
-                           /*loc=*/SourceInfo(), to_is_ready, Op::kNot,
-                           absl::StrCat(name_prefix, "_to_is_not_rdy")));
+  //   b) the output is not ready (to_is_ready == 0), if available
+  std::vector<Node*> skid_data_load_en_srcs = {from_valid, from_skid_rdy};
+
+  // Skid is reset to invalid (valid is set to zero) whenever
+  //   a) skid is valid and
+  //   b) output is ready, if available
+  std::vector<Node*> skid_valid_set_zero_srcs = {data_valid_skid_reg_read};
+
+  if (has_ready) {
+    // Input can be accepted whenever the skid registers
+    // are empty/invalid.
+    Node* to_is_ready = (*from_rdy)->operand(0);
+    XLS_RETURN_IF_ERROR((*from_rdy)->ReplaceOperandNumber(0, from_skid_rdy));
+    XLS_ASSIGN_OR_RETURN(Node * to_is_not_rdy,
+                         block->MakeNodeWithName<UnOp>(
+                             /*loc=*/SourceInfo(), to_is_ready, Op::kNot,
+                             absl::StrCat(name_prefix, "_to_is_not_rdy")));
+    skid_data_load_en_srcs.push_back(to_is_not_rdy);
+    skid_valid_set_zero_srcs.push_back(to_is_ready);
+  }
 
   XLS_ASSIGN_OR_RETURN(
       Node * skid_data_load_en,
       block->MakeNodeWithName<NaryOp>(
-          /*loc=*/SourceInfo(),
-          std::vector<Node*>{from_valid, from_skid_rdy, to_is_not_rdy},
-          Op::kAnd, absl::StrCat(name_prefix, "_skid_data_load_en")));
+          /*loc=*/SourceInfo(), skid_data_load_en_srcs, Op::kAnd,
+          absl::StrCat(name_prefix, "_skid_data_load_en")));
 
-  // Skid is reset (valid set to zero) to invalid whenever
-  //   a) skid is valid and
-  //   b) output is ready
   XLS_ASSIGN_OR_RETURN(
       Node * skid_valid_set_zero,
       block->MakeNodeWithName<NaryOp>(
-          /*loc=*/SourceInfo(),
-          std::vector<Node*>{data_valid_skid_reg_read, to_is_ready}, Op::kAnd,
+          /*loc=*/SourceInfo(), skid_valid_set_zero_srcs, Op::kAnd,
           absl::StrCat(name_prefix, "_skid_valid_set_zero")));
 
   // Skid valid changes from 0 to 1 (load), or 1 to 0 (set zero).
@@ -1399,10 +1404,8 @@ absl::Status AddZeroLatencyBufferToRDVNodes(Node* from_data, Node* from_valid,
 //   from_rdy must be a node with a single operand.
 //
 absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
-                                   Node* from_rdy, std::string_view name_prefix,
-                                   Block* block) {
-  CHECK_EQ(from_rdy->operand_count(), 1);
-
+                                   std::optional<Node*> from_rdy,
+                                   std::string_view name_prefix, Block* block) {
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * data_reg_read,
       AddRegisterAfterNode(/*name_prefix=*/name_prefix,
@@ -1413,7 +1416,11 @@ absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
                            /*load_enable=*/std::nullopt, from_valid));
 
   // 2. Construct and update the ready signal.
-  Node* from_rdy_src = from_rdy->operand(0);
+  Node* from_rdy_src = nullptr;
+  if (from_rdy.has_value()) {
+    CHECK_EQ((*from_rdy)->operand_count(), 1);
+    from_rdy_src = (*from_rdy)->operand(0);
+  }
   Register* data_reg = data_reg_read->GetRegister();
   Register* valid_reg = valid_reg_read->GetRegister();
 
@@ -1424,11 +1431,13 @@ absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
                                     Op::kNot, not_valid_name));
 
   std::string valid_load_en_name = absl::StrCat(name_prefix, "_valid_load_en");
-  XLS_ASSIGN_OR_RETURN(
-      Node * valid_load_en,
-      block->MakeNodeWithName<NaryOp>(
-          /*loc=*/SourceInfo(), std::vector<Node*>({from_rdy_src, not_valid}),
-          Op::kOr, valid_load_en_name));
+  std::vector<Node*> valid_load_en_srcs =
+      from_rdy.has_value() ? std::vector<Node*>({from_rdy_src, not_valid})
+                           : std::vector<Node*>({not_valid});
+  XLS_ASSIGN_OR_RETURN(Node * valid_load_en,
+                       block->MakeNodeWithName<NaryOp>(
+                           /*loc=*/SourceInfo(), valid_load_en_srcs, Op::kOr,
+                           valid_load_en_name));
 
   std::string data_load_en_name = absl::StrCat(name_prefix, "_load_en");
   XLS_ASSIGN_OR_RETURN(
@@ -1437,7 +1446,9 @@ absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
           /*loc=*/SourceInfo(), std::vector<Node*>({from_valid, valid_load_en}),
           Op::kAnd, data_load_en_name));
 
-  CHECK(from_rdy->ReplaceOperand(from_rdy_src, data_load_en));
+  if (from_rdy.has_value()) {
+    CHECK((*from_rdy)->ReplaceOperand(from_rdy_src, data_load_en));
+  }
 
   // 3. Update load enables for the data and valid registers.
   XLS_RETURN_IF_ERROR(UpdateRegisterLoadEn(data_load_en, data_reg, block));
@@ -1458,7 +1469,7 @@ absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
 // Logic will be inserted immediately before from_rdy,
 //   from_rdy must be a node with a single operand.
 absl::Status AddSkidBufferToRDVNodes(Node* from_data, Node* from_valid,
-                                     Node* from_rdy,
+                                     std::optional<Node*> from_rdy,
                                      std::string_view name_prefix,
                                      Block* block) {
   // A skid buffer is composed of a zero-latency buffer (skid) fed by a
@@ -1483,8 +1494,8 @@ absl::Status AddSkidBufferToRDVNodes(Node* from_data, Node* from_valid,
 }
 
 absl::Status AddFlopToRDVNodes(FlopKind flop_kind, Node* data, Node* valid,
-                               Node* ready, std::string_view name_prefix,
-                               Block* block) {
+                               std::optional<Node*> ready,
+                               std::string_view name_prefix, Block* block) {
   switch (flop_kind) {
     case FlopKind::kZeroLatency:
       return AddZeroLatencyBufferToRDVNodes(data, valid, ready, name_prefix,
@@ -1517,16 +1528,11 @@ absl::Status AddIOFlopsForReceive(Connector& connector, FlopKind flop_kind,
     return absl::OkStatus();
   }
   CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
-  if (ChannelRefFlowControl(channel) == FlowControl::kValidData) {
-    return absl::UnimplementedError(
-        "Valid-data flow control is not yet supported.");
-  }
-
   if (flop_kind == FlopKind::kNone) {
     return absl::OkStatus();
   }
   return AddFlopToRDVNodes(flop_kind, connector.data, *connector.valid,
-                           *connector.ready, ChannelRefName(channel), block);
+                           connector.ready, ChannelRefName(channel), block);
 }
 
 absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
@@ -1574,23 +1580,26 @@ absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
         .status();
   }
   CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
-  if (ChannelRefFlowControl(channel) == FlowControl::kValidData) {
-    return absl::UnimplementedError(
-        "Valid-data flow control is not yet supported.");
-  }
   CHECK(connector.valid.has_value());
-  CHECK(connector.ready.has_value());
-
-  Node* ready_port = connector.ready_port.has_value() ? *connector.ready_port
-                                                      : *connector.ready;
-
   // Re-calculate the port name for valid/ready to match what
   // StreamingIOName does (suffixing based on port type/etc), or just
   // use the name of the node.
   std::string valid_buf_name =
       absl::StrFormat("__%s_buf", (*connector.valid)->GetName());
-  std::string ready_buf_name =
-      absl::StrFormat("__%s_buf", ready_port->GetName());
+  std::optional<Node*> output_port_ready_buf;
+  if (ChannelRefFlowControl(channel) != FlowControl::kValidData) {
+    CHECK(connector.ready.has_value());
+    Node* ready_port = connector.ready_port.has_value() ? *connector.ready_port
+                                                        : *connector.ready;
+    std::string ready_buf_name =
+        absl::StrFormat("__%s_buf", ready_port->GetName());
+    XLS_ASSIGN_OR_RETURN(
+        output_port_ready_buf,
+        block->MakeNodeWithName<UnOp>(
+            /*loc=*/SourceInfo(), ready_port, Op::kIdentity, ready_buf_name));
+
+    XLS_RETURN_IF_ERROR(ready_port->ReplaceUsesWith(*output_port_ready_buf));
+  }
 
   XLS_ASSIGN_OR_RETURN(Node * output_port_valid_buf,
                        block->MakeNodeWithName<UnOp>(
@@ -1598,13 +1607,6 @@ absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,
                            Op::kIdentity, valid_buf_name));
   XLS_RETURN_IF_ERROR(
       (*connector.valid)->ReplaceOperandNumber(0, output_port_valid_buf));
-
-  XLS_ASSIGN_OR_RETURN(
-      Node * output_port_ready_buf,
-      block->MakeNodeWithName<UnOp>(
-          /*loc=*/SourceInfo(), ready_port, Op::kIdentity, ready_buf_name));
-
-  XLS_RETURN_IF_ERROR(ready_port->ReplaceUsesWith(output_port_ready_buf));
 
   return AddFlopToRDVNodes(flop_kind, output_port_data_buf,
                            output_port_valid_buf, output_port_ready_buf,

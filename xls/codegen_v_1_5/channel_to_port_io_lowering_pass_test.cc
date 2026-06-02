@@ -102,6 +102,26 @@ TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleInputChannel) {
   EXPECT_THAT(block->GetOutputPort("a_in_rdy"), IsOk());
 }
 
+TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleInputChannelValidData) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto a_in,
+      pb.AddInputChannel("a_in", p->GetBitsType(32), ChannelKind::kStreaming,
+                         std::nullopt, FlowControl::kValidData));
+  BValue tkn = pb.Literal(Value::Token());
+  pb.Receive(a_in, tkn);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  EXPECT_THAT(block->GetInputPort("a_in"), IsOk());
+  EXPECT_THAT(block->GetInputPort("a_in_vld"), IsOk());
+  EXPECT_THAT(block->GetOutputPort("a_in_rdy"), Not(IsOk()));
+}
+
 TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleOutputChannel) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
@@ -119,6 +139,27 @@ TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleOutputChannel) {
   EXPECT_THAT(block->GetOutputPort("a_out"), IsOk());
   EXPECT_THAT(block->GetOutputPort("a_out_vld"), IsOk());
   EXPECT_THAT(block->GetInputPort("a_out_rdy"), IsOk());
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleOutputChannelValidData) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto a_out,
+      pb.AddOutputChannel("a_out", p->GetBitsType(32), ChannelKind::kStreaming,
+                          std::nullopt, FlowControl::kValidData));
+  BValue tkn = pb.Literal(Value::Token());
+  BValue lit = pb.Literal(Value(UBits(123, 32)));
+  pb.Send(a_out, tkn, lit);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  EXPECT_THAT(block->GetOutputPort("a_out"), IsOk());
+  EXPECT_THAT(block->GetOutputPort("a_out_vld"), IsOk());
+  EXPECT_THAT(block->GetInputPort("a_out_rdy"), Not(IsOk()));
 }
 
 TEST_F(ChannelToPortIoLoweringPassTest, LowerInternalLoopbackChannelOldStyle) {
@@ -318,6 +359,44 @@ TEST_F(ChannelToPortIoLoweringPassTest, LowerMultipleSendsSameChannel) {
   EXPECT_THAT(data_port_driver, m::OneHotSelect());
 }
 
+TEST_F(ChannelToPortIoLoweringPassTest,
+       LowerMultipleSendsSameChannelValidData) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto a_out,
+      pb.AddOutputChannel("a_out", p->GetBitsType(32), ChannelKind::kStreaming,
+                          std::nullopt, FlowControl::kValidData));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue lit1 = pb.Literal(Value(UBits(1, 32)));
+  BValue lit2 = pb.Literal(Value(UBits(2, 32)));
+  BValue p1 = pb.Literal(Value(UBits(1, 1)));
+  BValue p2 = pb.Literal(Value(UBits(0, 1)));
+  pb.SendIf(a_out, tkn, p1, lit1);
+  pb.SendIf(a_out, tkn, p2, lit2);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  // Check that we have the ports.
+  EXPECT_THAT(block->GetOutputPort("a_out"), IsOk());
+  EXPECT_THAT(block->GetOutputPort("a_out_vld"), IsOk());
+  EXPECT_THAT(block->GetInputPort("a_out_rdy"), Not(IsOk()));
+
+  // Check that the data port is driven by a OneHotSelect (multiplexer)
+  Node* data_port_driver =
+      block->GetOutputPort("a_out").value()->output_source();
+  EXPECT_THAT(data_port_driver, m::OneHotSelect());
+
+  // Check that valid port is driven by OR of predicates
+  Node* valid_port_driver =
+      block->GetOutputPort("a_out_vld").value()->output_source();
+  EXPECT_THAT(valid_port_driver, m::Or());
+}
+
 TEST_F(ChannelToPortIoLoweringPassTest, LowerMultipleReceivesSameChannel) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
@@ -343,6 +422,31 @@ TEST_F(ChannelToPortIoLoweringPassTest, LowerMultipleReceivesSameChannel) {
       block->GetOutputPort("a_in_rdy").value()->output_source();
   // It should be an NaryOp(kOr) because we have multiple receives.
   EXPECT_THAT(ready_port_driver, m::Or());
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest,
+       LowerMultipleReceivesSameChannelValidData) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto a_in,
+      pb.AddInputChannel("a_in", p->GetBitsType(32), ChannelKind::kStreaming,
+                         std::nullopt, FlowControl::kValidData));
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue p1 = pb.Literal(Value(UBits(1, 1)));
+  BValue p2 = pb.Literal(Value(UBits(0, 1)));
+  pb.ReceiveIf(a_in, tkn, p1);
+  pb.ReceiveIf(a_in, tkn, p2);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  EXPECT_THAT(block->GetInputPort("a_in"), IsOk());
+  EXPECT_THAT(block->GetInputPort("a_in_vld"), IsOk());
+  EXPECT_THAT(block->GetOutputPort("a_in_rdy"), Not(IsOk()));
 }
 
 TEST_F(ChannelToPortIoLoweringPassTest, LowerInternalChannelNewStyle) {
@@ -401,6 +505,46 @@ TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputFlop) {
               Contains(m::RegisterRead(HasSubstr("__a_in_reg"))));
   EXPECT_THAT(block->nodes(),
               Contains(m::RegisterRead(HasSubstr("__a_in_valid_reg"))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputFlopValidData) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto a_in,
+      pb.AddInputChannel("a_in", p->GetBitsType(32), ChannelKind::kStreaming,
+                         std::nullopt, FlowControl::kValidData));
+  a_in->SetFlopKind(FlopKind::kFlop);
+
+  BValue tkn = pb.Literal(Value::Token());
+  pb.Receive(a_in, tkn);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  // Find the register writes
+  RegisterWrite* data_write = nullptr;
+  RegisterWrite* valid_write = nullptr;
+  for (Node* node : block->nodes()) {
+    if (node->Is<RegisterWrite>()) {
+      RegisterWrite* w = node->As<RegisterWrite>();
+      if (w->GetRegister()->name() == "__a_in_reg") {
+        data_write = w;
+      } else if (w->GetRegister()->name() == "__a_in_valid_reg") {
+        valid_write = w;
+      }
+    }
+  }
+  ASSERT_NE(data_write, nullptr);
+  ASSERT_NE(valid_write, nullptr);
+
+  ASSERT_TRUE(valid_write->load_enable().has_value());
+  EXPECT_THAT(*valid_write->load_enable(), m::Or());
+
+  // Data register should be enabled by the input valid signal
+  ASSERT_TRUE(data_write->load_enable().has_value());
+  EXPECT_THAT(*data_write->load_enable(), m::And());
 }
 
 TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputZeroLatency) {
@@ -464,6 +608,45 @@ TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputFlop) {
               Contains(m::RegisterRead(HasSubstr("__a_out_reg"))));
   EXPECT_THAT(block->nodes(),
               Contains(m::RegisterRead(HasSubstr("__a_out_valid_reg"))));
+}
+
+TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputFlopValidData) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto a_out,
+      pb.AddOutputChannel("a_out", p->GetBitsType(32), ChannelKind::kStreaming,
+                          std::nullopt, FlowControl::kValidData));
+  a_out->SetFlopKind(FlopKind::kFlop);
+
+  BValue tkn = pb.Literal(Value::Token());
+  BValue lit = pb.Literal(Value(UBits(123, 32)));
+  pb.Send(a_out, tkn, lit);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock("test_main"));
+
+  // Find the register writes
+  RegisterWrite* data_write = nullptr;
+  RegisterWrite* valid_write = nullptr;
+  for (Node* node : block->nodes()) {
+    if (node->Is<RegisterWrite>()) {
+      RegisterWrite* w = node->As<RegisterWrite>();
+      if (w->GetRegister()->name() == "__a_out_reg") {
+        data_write = w;
+      } else if (w->GetRegister()->name() == "__a_out_valid_reg") {
+        valid_write = w;
+      }
+    }
+  }
+  ASSERT_NE(data_write, nullptr);
+  ASSERT_NE(valid_write, nullptr);
+
+  ASSERT_TRUE(valid_write->load_enable().has_value());
+
+  // Data register should be enabled by the valid signal
+  ASSERT_TRUE(data_write->load_enable().has_value());
 }
 
 TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputSkid) {
