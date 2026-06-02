@@ -99,7 +99,7 @@ from zero or more input parameters. May invoke other functions.
 A Proc is a stateful abstraction with an arbitrarily-typed recurrent state.
 Procs can communicate with other procs via channels which (abstractly) are
 infinite-depth FIFOs with flow control. Channel communication is handled via
-send and receive IR operations. Procs may invoke functions.
+send, receive and peek IR operations. Procs may invoke functions.
 
 TODO(meheff): 2021/11/04 Expand to include more details.
 
@@ -577,6 +577,37 @@ The type of `data` must match the type supported by the channel.
 | `channel_id` | `int64_t` | yes      |         | The ID of the channel to send data to.  |
 
 <!-- mdformat on -->
+
+#### **`peek`**
+
+Peeks a data value from a specified channel without dropping the value
+from the channel. The type of the data value is determined by the channel.
+An optional predicate value conditionally enables the peek operation.
+
+```
+result = peek(tkn, predicate=<pred>, channel_id=<ch>)
+```
+
+**Types**
+
+Value    | Type
+-------- | ---------------------------------------------------------------
+`tkn`    | `token`
+`pred`   | `bits[1]`
+`result` | `(token, T, bits[1])`
+
+**Keyword arguments**
+
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+| Keyword      | Type      | Required | Default | Description                                 |
+| ------------ | --------- | -------- | ------- | ------------------------------------------- |
+| `predicate`  | `bits[1]` | no       |         | A value is peeked iff `predicate` is true |
+| `channel_id` | `int64_t` | yes      |         | The ID of the channel to peek data from  |
+
+<!-- mdformat on -->
+
+If the predicate is false the data values in the result are zero-filled.
 
 ### Array operations
 
