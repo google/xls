@@ -72,6 +72,8 @@ class JitWrapperGeneratorToCTypeTest(absltest.TestCase):
     self.assertEqual(jit_wrapper_generator.to_c_type(u32), 'uint32_t')
     u64 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=64)
     self.assertEqual(jit_wrapper_generator.to_c_type(u64), 'uint64_t')
+    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    self.assertEqual(jit_wrapper_generator.to_c_type(u128), 'xls::Value')
 
   def test_float_tuple(self):
     u1 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=1)
@@ -134,24 +136,28 @@ class JitWrapperGeneratorToCTypeTest(absltest.TestCase):
         'std::tuple<std::tuple<uint8_t, uint32_t>, uint64_t>',
     )
 
-  def test_unsupported_bits(self):
+  def test_supported_wide_bits(self):
     u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
-    self.assertIsNone(jit_wrapper_generator.to_c_type(u128))
+    self.assertEqual(jit_wrapper_generator.to_c_type(u128), 'xls::Value')
 
-  def test_unsupported_array(self):
+  def test_supported_wide_bits_array(self):
     u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
     a128 = type_pb2.TypeProto(
         type_enum=type_pb2.TypeProto.ARRAY, array_size=4, array_element=u128
     )
-    self.assertIsNone(jit_wrapper_generator.to_c_type(a128))
+    self.assertEqual(
+        jit_wrapper_generator.to_c_type(a128), 'std::array<xls::Value, 4>'
+    )
 
-  def test_unsupported_tuple(self):
+  def test_supported_wide_bits_tuple(self):
     u8 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=8)
     u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
     tup = type_pb2.TypeProto(
         type_enum=type_pb2.TypeProto.TUPLE, tuple_elements=[u8, u128]
     )
-    self.assertIsNone(jit_wrapper_generator.to_c_type(tup))
+    self.assertEqual(
+        jit_wrapper_generator.to_c_type(tup), 'std::tuple<uint8_t, xls::Value>'
+    )
 
 
 class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
@@ -377,20 +383,20 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
     self.assertEqual(prop_func.params[0].name, 'a')
 
   def test_function_unsupported_param_fallback(self):
-    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    token = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.TOKEN)
     wrapped_ir = jit_wrapper_generator.WrappedIr(
         jit_type=jit_wrapper_generator.JitType.FUNCTION,
         ir_text='',
-        function_name='big_bits_func',
-        class_name='BigBitsFuncJit',
+        function_name='token_func',
+        class_name='TokenFuncJit',
         header_guard='HEADER_GUARD',
-        header_filename='big_bits_func_jit.h',
+        header_filename='token_func_jit.h',
         namespace='xls',
         aot_entrypoint=None,
         params=[
             jit_wrapper_generator.XlsNamedValue(
                 name='x',
-                type_proto=u128,
+                type_proto=token,
                 packed_type='',
                 unpacked_type='',
                 specialized_type=None,
@@ -399,7 +405,7 @@ class JitWrapperGeneratorWrappedToFuzztestTest(absltest.TestCase):
         result=None,
     )
     prop_func = jit_wrapper_generator.wrapped_to_fuzztest(
-        wrapped_ir, 'xls::BigBitsFuncJit', 'big_bits_func_jit.h'
+        wrapped_ir, 'xls::TokenFuncJit', 'token_func_jit.h'
     )
     self.assertLen(prop_func.params, 1)
     self.assertEqual(prop_func.params[0].cpp_type, 'xls::Value')
@@ -413,6 +419,13 @@ class JitWrapperGeneratorToValueConversionTest(absltest.TestCase):
     self.assertEqual(
         jit_wrapper_generator.to_value_conversion(u32, 'x'),
         'xls::Value(xls::UBits(x, 32))',
+    )
+
+  def test_wide_bits(self):
+    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    self.assertEqual(
+        jit_wrapper_generator.to_value_conversion(u128, 'x'),
+        'x',
     )
 
   def test_tuple_of_tuples(self):
@@ -783,6 +796,46 @@ class JitWrapperGeneratorRenderFuzztestTest(absltest.TestCase):
     )
     self.assertIn('fuzztest::Arbitrary<uint32_t>()', rendered_code)
 
+  def test_render_fuzztest_with_wide_bits(self):
+    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    wrapped_ir = jit_wrapper_generator.WrappedIr(
+        jit_type=jit_wrapper_generator.JitType.FUNCTION,
+        ir_text='',
+        function_name='my_func',
+        class_name='MyFuncJit',
+        header_guard='HEADER_GUARD',
+        header_filename='my_func_jit.h',
+        namespace='xls::test',
+        aot_entrypoint=None,
+        params=[
+            jit_wrapper_generator.XlsNamedValue(
+                name='a',
+                type_proto=u128,
+                packed_type='xls::PackedBitsView<128>',
+                unpacked_type='xls::BitsView<128>',
+                specialized_type=None,
+                fuzztest_info=jit_wrapper_generator.FuzzTestInfo(
+                    domain_snippet=(
+                        'fuzztest::Map([](const std::array<uint8_t, 16>& bytes)'
+                        '  { return xls::Value(xls::Bits::FromBytes(bytes,'
+                        ' 128)); },'
+                        ' fuzztest::ArrayOf<16>(fuzztest::Arbitrary<uint8_t>()))'
+                    )
+                ),
+            ),
+        ],
+        result=None,
+    )
+    rendered_code = jit_wrapper_generator.render_fuzztest(
+        wrapped_ir,
+        self.env,
+        self.template,
+        'xls::test::MyFuncJit',
+        'my_func_jit.h',
+    )
+    self.assertIn('xls::Value a', rendered_code)
+    self.assertIn('fuzztest::Map(', rendered_code)
+
 
 class JitWrapperGeneratorToDomainTest(absltest.TestCase):
 
@@ -808,9 +861,14 @@ class JitWrapperGeneratorToDomainTest(absltest.TestCase):
         'fuzztest::InRange<uint32_t>(0, 131071)',
     )
 
-  def test_bits_domain_too_wide(self):
+  def test_bits_domain_wide_bits(self):
     u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
-    self.assertIsNone(jit_wrapper_generator.to_domain(u128, None))
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(u128, None),
+        'fuzztest::Map([](const std::array<uint8_t, 16>& bytes)  { '
+        'return xls::Value(xls::Bits::FromBytes(bytes, 128)); }, '
+        'fuzztest::ArrayOf<16>(fuzztest::Arbitrary<uint8_t>()))',
+    )
 
   def test_range_domain(self):
     u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)

@@ -2880,5 +2880,25 @@ fn main() -> u32[3] {
                                             InterpValue::MakeU32(15)}));
 }
 
+TEST_F(BytecodeInterpreterTest, SymbolicRangeHuge) {
+  if (kDefaultTypeInferenceVersion == TypeInferenceVersion::kVersion2) {
+    // The range() builtin is deprecated and no longer supported in TIv2.
+    return;
+  }
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32[4294967295] {
+  range(u32:0, u32:4294967295)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_TRUE(value.is_range());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t len, value.GetLength());
+  EXPECT_EQ(len, 4294967295LL);
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue elem, value.Index(123456789));
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t val, elem.GetBitValueUnsigned());
+  EXPECT_EQ(val, 123456789);
+}
+
 }  // namespace
 }  // namespace xls::dslx

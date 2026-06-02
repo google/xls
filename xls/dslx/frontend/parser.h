@@ -674,7 +674,8 @@ class Parser : public TokenParser {
       const std::vector<Attribute*>& attributes);
 
   template <typename T>
-  absl::Status ApplyTypeAttributes(T* node, std::vector<Attribute*> attributes);
+  absl::Status ApplyTypeAttributes(T* node, std::vector<Attribute*> attributes,
+                                   Bindings& bindings);
 
   absl::StatusOr<QuickCheckTestCases> GetQuickCheckTestCases(
       const Attribute& attribute);

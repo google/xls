@@ -3334,6 +3334,11 @@ class StructDefBase : public AstNode {
 
   const std::vector<StructMemberNode*>& members() const { return members_; }
   std::vector<StructMember>& mutable_members() { return struct_members_; }
+  void AddMember(StructMemberNode* member) {
+    members_.push_back(member);
+    struct_members_.push_back(member->ToStructMemberStruct());
+    members_by_name_[member->name()] = member;
+  }
 
   bool is_public() const { return public_; }
   const Span& span() const { return span_; }
@@ -3417,9 +3422,14 @@ class StructDef : public StructDefBase {
     return extern_type_name_;
   }
 
+  void set_is_domain_struct(bool v) { is_domain_struct_ = v; }
+  bool is_domain_struct() const { return is_domain_struct_; }
+
  private:
   // The external verilog type name
   std::optional<std::string> extern_type_name_;
+
+  bool is_domain_struct_ = false;
 };
 
 // Represents a proc declared with struct-like syntax, with the functions in an
