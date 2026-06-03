@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/bytecode/bytecode.h"
@@ -65,8 +64,6 @@ class BytecodeEmitter : public ExprVisitor {
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitProcConfig(
       ImportData* import_data, const TypeInfo* type_info, const Function& f,
       const std::optional<ParametricEnv>& caller_bindings,
-      std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator =
-          std::nullopt,
       const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 
   // Emits a function, just as the above, but reserves the first N slots for
@@ -81,7 +78,6 @@ class BytecodeEmitter : public ExprVisitor {
   BytecodeEmitter(
       ImportData* import_data, const TypeInfo* type_info,
       const std::optional<ParametricEnv>& caller_bindings,
-      std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
       const BytecodeEmitterOptions& options);
   ~BytecodeEmitter() override;
 
@@ -89,7 +85,6 @@ class BytecodeEmitter : public ExprVisitor {
       ImportData* import_data, const TypeInfo* type_info, const Function& f,
       const std::optional<ParametricEnv>& caller_bindings,
       const std::vector<NameDef*>& proc_members,
-      std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
       const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 
   // Initializes namedef-to-slot mapping.
@@ -197,7 +192,6 @@ class BytecodeEmitter : public ExprVisitor {
   ImportData* import_data_;
   const TypeInfo* type_info_;
   const std::optional<ParametricEnv>& caller_bindings_;
-  std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator_;
   BytecodeEmitterOptions options_;
 
   std::vector<Bytecode> bytecode_;

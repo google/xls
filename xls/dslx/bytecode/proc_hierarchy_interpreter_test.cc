@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -30,7 +31,9 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -72,6 +75,21 @@ class ProcHierarchyInterpreterTest : public ::testing::Test {
     XLS_RETURN_IF_ERROR(tm.status());
     tm_.emplace(*tm);
     return tm_->module->GetTestProc(test_proc_name);
+  }
+
+  absl::StatusOr<ProcDef*> ParseAndGetProcDef(std::string_view program,
+                                              std::string_view proc_name) {
+    absl::StatusOr<TypecheckedModule> tm =
+        ParseAndTypecheckOrPrintError(program, &import_data_.value());
+    XLS_RETURN_IF_ERROR(tm.status());
+    tm_.emplace(*tm);
+    return tm_->module->GetMemberOrError<ProcDef>(proc_name);
+  }
+
+  absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> CreateForProcDef(
+      ProcDef* proc_def, const BytecodeInterpreterOptions& options) {
+    return ProcHierarchyInterpreter::Create(&import_data_.value(),
+                                            tm_->type_info, proc_def, options);
   }
 
   absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> Create(
@@ -1008,6 +1026,87 @@ proc Counter {
       ParseAndTest(kProgram, kModuleName, std::string{temp_file.path()},
                    options));
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, ProcDefStateless) {
+  constexpr std::string_view kProgram = R"(
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Main { c_in, c_out }
+  }
+  fn next(self) {
+    let (tok, val) = recv(join(), self.c_in);
+    send(tok, self.c_out, val);
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * proc_def,
+                           ParseAndGetProcDef(kProgram, "Main"));
+  BytecodeInterpreterOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      CreateForProcDef(proc_def, options));
+
+  interpreter->GetInterfaceChannel(0).Write(InterpValue::MakeU32(42));
+
+  std::string output_channel_name =
+      std::string{interpreter->GetInterfaceChannelName(1)};
+  XLS_ASSERT_OK(
+      interpreter->TickUntilOutput({{output_channel_name, 1}}).status());
+
+  InterpValue result = interpreter->GetInterfaceChannel(1).Read();
+  EXPECT_EQ(result, InterpValue::MakeU32(42));
+}
+
+TEST_F(ProcHierarchyInterpreterTest, ProcDefStateful) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+proc Main {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  i: u32,
+}
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Main { c_in: c_in, c_out: c_out, i: 10 }
+  }
+  fn next(self) {
+    let i_val = read(self.i);
+    let (tok, val) = recv(join(), self.c_in);
+    let next_val = i_val + val;
+    let tok = send(tok, self.c_out, next_val);
+    write(self.i, next_val);
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * proc_def,
+                           ParseAndGetProcDef(kProgram, "Main"));
+  BytecodeInterpreterOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      CreateForProcDef(proc_def, options));
+
+  std::string output_channel_name =
+      std::string{interpreter->GetInterfaceChannelName(1)};
+
+  interpreter->GetInterfaceChannel(0).Write(InterpValue::MakeU32(5));
+  XLS_ASSERT_OK(
+      interpreter->TickUntilOutput({{output_channel_name, 1}}).status());
+  EXPECT_EQ(interpreter->GetInterfaceChannel(1).Read(),
+            InterpValue::MakeU32(15));
+
+  interpreter->GetInterfaceChannel(0).Write(InterpValue::MakeU32(3));
+  XLS_ASSERT_OK(
+      interpreter->TickUntilOutput({{output_channel_name, 1}}).status());
+  EXPECT_EQ(interpreter->GetInterfaceChannel(1).Read(),
+            InterpValue::MakeU32(18));
 }
 
 }  // namespace

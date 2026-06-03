@@ -63,13 +63,15 @@ struct ProcRunResult {
 // ProcInstance : Proc :: Object : Class, roughly.
 class ProcInstance {
  public:
-  ProcInstance(Proc* proc, std::unique_ptr<BytecodeInterpreter> interpreter,
+  ProcInstance(std::string_view proc_name, bool is_proc_def,
+               std::unique_ptr<BytecodeInterpreter> interpreter,
                std::unique_ptr<BytecodeFunction> next_fn,
                std::vector<InterpValue> proc_members, InterpValue initial_state,
                const TypeInfo* type_info,
                std::unique_ptr<DslxInterpreterEvents> events,
                bool explicit_state_access)
-      : proc_(proc),
+      : proc_name_(proc_name),
+        is_proc_def_(is_proc_def),
         interpreter_(std::move(interpreter)),
         next_fn_(std::move(next_fn)),
         proc_members_(std::move(proc_members)),
@@ -81,7 +83,8 @@ class ProcInstance {
   // Executes a single "tick" of the ProcInstance. If a tick completes, then the
   // state is updated.
   absl::StatusOr<ProcRunResult> Run();
-  Proc* proc() const { return proc_; }
+  std::string_view proc_name() const { return proc_name_; }
+  bool is_proc_def() const { return is_proc_def_; }
   const BytecodeInterpreterOptions& options() const {
     return interpreter_->options();
   }
@@ -89,7 +92,8 @@ class ProcInstance {
   const DslxInterpreterEvents& events() const { return *events_; }
 
  private:
-  Proc* proc_;
+  std::string proc_name_;
+  bool is_proc_def_;
   std::unique_ptr<BytecodeInterpreter> interpreter_;
   std::unique_ptr<BytecodeFunction> next_fn_;
   std::vector<InterpValue> proc_members_;
@@ -106,6 +110,10 @@ class ProcHierarchyInterpreter {
  public:
   static absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> Create(
       ImportData* import_data, TypeInfo* type_info, Proc* top_proc,
+      const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
+
+  static absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> Create(
+      ImportData* import_data, TypeInfo* type_info, ProcDef* top_proc,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 
   // Execute at most a single iteration of every proc in the hierarchy. Upon
@@ -152,8 +160,10 @@ class ProcHierarchyInterpreter {
   absl::Span<ProcInstance> proc_instances();
   InterpValueChannelManager& channel_manager() { return channel_manager_; }
 
-  absl::Status AddInterfaceChannel(std::string_view name, const Type* arg_type,
-                                   const Type* payload_type);
+  absl::Status AddInterfaceChannelWithId(std::string_view name,
+                                         const Type* arg_type,
+                                         const Type* payload_type,
+                                         int64_t channel_id);
   void AddProcInstance(ProcInstance&& proc_instance);
 
  private:

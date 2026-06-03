@@ -1807,8 +1807,8 @@ proc Foo {
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 7);
   const std::vector<std::string> kConfigExpected = {
-      "literal (channel_reference(out, channel_instance_id=none), "
-      "channel_reference(in, channel_instance_id=none))",
+      "literal (channel_reference(out, channel_instance_id=1), "
+      "channel_reference(in, channel_instance_id=1))",
       "expand_tuple",
       "store 0",
       "store 1",
@@ -1880,8 +1880,8 @@ proc Parent {
   const std::vector<Bytecode>& parent_config_bytecodes =
       parent_config_bf->bytecodes();
   const std::vector<std::string> kParentConfigExpected = {
-      "literal (channel_reference(out, channel_instance_id=none), "
-      "channel_reference(in, channel_instance_id=none))",
+      "literal (channel_reference(out, channel_instance_id=2), "
+      "channel_reference(in, channel_instance_id=2))",
       "expand_tuple",
       "store 0",
       "store 1",
