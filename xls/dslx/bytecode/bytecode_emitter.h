@@ -167,6 +167,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleBuiltinDecode(const Invocation* node);
   absl::Status HandleBuiltinElementCount(const Invocation* node);
   absl::Status HandleBuiltinJoin(const Invocation* node);
+  absl::Status HandleBuiltinRead(const Invocation* node);
   absl::Status HandleBuiltinRecv(const Invocation* node);
   absl::Status HandleBuiltinRecvIf(const Invocation* node);
   absl::Status HandleBuiltinRecvIfNonBlocking(const Invocation* node);
@@ -176,6 +177,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleBuiltinToken(const Invocation* node);
   absl::Status HandleBuiltinTrace(const Invocation* node);
   absl::Status HandleBuiltinWideningCast(const Invocation* node);
+  absl::Status HandleBuiltinWrite(const Invocation* node);
   // keep-sorted end
 
   absl::StatusOr<InterpValue> HandleColonRefToEnum(const ColonRef* colon_ref,

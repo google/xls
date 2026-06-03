@@ -136,6 +136,9 @@ class Bytecode {
     kPop,
     // Creates an array of values [TOS1, TOS0).
     kRange,
+    // Reads a state element explicitly from an impl-style proc, or a legacy
+    // proc with explicit state access.
+    kRead,
     // Pulls TOS0 (a condition) and TOS1 (a channel).
     // If TOS0 is true, then
     //   pulls a value off of the channel or "blocks"
@@ -183,6 +186,9 @@ class Bytecode {
     // Slices out TOS0 bits of the array- or bits-typed value on TOS2,
     // starting at index TOS1.
     kWidthSlice,
+    // Writes a new value to a state element of an impl-style proc, or a legacy
+    // proc with explicit state access.
+    kWrite,
     // Performs a bitwise XOR of the top two values on the stack.
     kXor,
   };

@@ -68,6 +68,8 @@ std::string TagToString(InterpValueTag tag) {
       return "token";
     case InterpValueTag::kChannelReference:
       return "channel_reference";
+    case InterpValueTag::kStateElementReference:
+      return "state_element_reference";
     case InterpValueTag::kTypeReference:
       return "type_reference";
     case InterpValueTag::kProcInitializer:
@@ -201,7 +203,8 @@ std::string InterpValue::ToString(bool humanize,
       tag_ == InterpValueTag::kFunction || tag_ == InterpValueTag::kToken ||
       tag_ == InterpValueTag::kChannelReference ||
       tag_ == InterpValueTag::kTypeReference ||
-      tag_ == InterpValueTag::kProcInitializer) {
+      tag_ == InterpValueTag::kProcInitializer ||
+      tag_ == InterpValueTag::kStateElementReference) {
     return result;
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
@@ -247,6 +250,9 @@ std::string InterpValue::ToStringInternal(bool humanize,
           std::get<UserFnData>(GetFunctionOrDie()).function->identifier());
     case InterpValueTag::kToken:
       return absl::StrFormat("token:%p", GetTokenData().get());
+    case InterpValueTag::kStateElementReference:
+      return absl::StrCat(
+          "state:", GetStateElementReferenceOrDie().name_def()->ToString());
     case InterpValueTag::kChannelReference: {
       const ChannelReference& channel_ref =
           std::get<ChannelReference>(payload_);
@@ -512,6 +518,10 @@ bool InterpValue::Eq(const InterpValue& other) const {
     // same module and generic implementation.
     case InterpValueTag::kFunction:
       break;
+    case InterpValueTag::kStateElementReference:
+      return other.tag_ == InterpValueTag::kStateElementReference &&
+             GetStateElementReferenceOrDie().name_def() ==
+                 other.GetStateElementReferenceOrDie().name_def();
     case InterpValueTag::kChannelReference:
       return GetChannelReferenceOrDie().GetDirection() ==
                  other.GetChannelReferenceOrDie().GetDirection() &&
@@ -1105,6 +1115,9 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
     case InterpValueTag::kChannelReference:
       return absl::InvalidArgumentError(
           "Cannot convert channel-reference-typed values to IR.");
+    case InterpValueTag::kStateElementReference:
+      return absl::InvalidArgumentError(
+          "Cannot convert state-element-reference-typed values to IR.");
     case InterpValueTag::kTypeReference:
       return absl::InvalidArgumentError(
           "Cannot convert type-reference-typed values to IR.");
@@ -1128,6 +1141,20 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
     }
 
     return Lt(rhs).value().IsTrue();
+  }
+
+  if (IsStateElementReference()) {
+    if (!rhs.IsStateElementReference()) {
+      return true;
+    }
+    if (GetStateElementReferenceOrDie().name_def()->identifier() !=
+        rhs.GetStateElementReferenceOrDie().name_def()->identifier()) {
+      return GetStateElementReferenceOrDie().name_def()->identifier() <
+             rhs.GetStateElementReferenceOrDie().name_def()->identifier();
+    }
+
+    return GetStateElementReferenceOrDie().name_def() <
+           rhs.GetStateElementReferenceOrDie().name_def();
   }
 
   if (IsProcInitializer()) {

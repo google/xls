@@ -294,6 +294,8 @@ std::string OpToString(Bytecode::Op op) {
       return "pop";
     case Bytecode::Op::kRange:
       return "range";
+    case Bytecode::Op::kRead:
+      return "read";
     case Bytecode::Op::kRecv:
       return "recv";
     case Bytecode::Op::kRecvNonBlocking:
@@ -322,6 +324,8 @@ std::string OpToString(Bytecode::Op op) {
       return "trace_fmt";
     case Bytecode::Op::kWidthSlice:
       return "width_slice";
+    case Bytecode::Op::kWrite:
+      return "write";
     case Bytecode::Op::kXor:
       return "xor";
   }

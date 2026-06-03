@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -175,6 +176,8 @@ class InterpValueChannelManager {
 // until end result.
 class BytecodeInterpreter {
  public:
+  friend class ProcInstance;
+
   static absl::StatusOr<InterpValue> Interpret(
       ImportData* import_data, BytecodeFunction* bf,
       const std::vector<InterpValue>& args,
@@ -203,6 +206,10 @@ class BytecodeInterpreter {
     return blocked_channel_info_;
   }
   const std::optional<ProcId>& proc_id() const { return proc_id_; }
+
+  void SetStateValue(const NameDef* state_element, InterpValue value) {
+    state_values_.insert_or_assign(state_element, value);
+  }
 
   // Sets `progress_made` to true (if not null) if at least a single bytecode
   // executed.  Progress can be stalled on blocked receive operations.
@@ -287,6 +294,8 @@ class BytecodeInterpreter {
         "ProcConfigBytecodeInterpreter should be used for proc network "
         "config.");
   }
+  absl::Status EvalRead(const Bytecode& bytecode);
+  absl::Status EvalWrite(const Bytecode& bytecode);
   absl::Status EvalStore(const Bytecode& bytecode);
   absl::Status EvalSwap(const Bytecode& bytecode);
   absl::Status EvalTraceFmt(const Bytecode& bytecode);
@@ -344,6 +353,7 @@ class BytecodeInterpreter {
   // execution state including this value.
   std::optional<BlockedChannelInfo> blocked_channel_info_;
   std::optional<DslxInterpreterEvents*> events_;
+  absl::flat_hash_map<const NameDef*, InterpValue> state_values_;
 };
 
 }  // namespace xls::dslx

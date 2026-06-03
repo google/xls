@@ -47,9 +47,21 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 
 namespace xls::dslx {
 namespace {
+
+bool HasExplicitStateAccess(const Proc& proc, const TypeInfo* ti,
+                            const ImportData& import_data) {
+  const Function& fn = proc.next();
+  if (fn.params().empty()) {
+    return false;
+  }
+  std::optional<const Type*> type = ti->GetItem(fn.params()[0]);
+  CHECK(type.has_value());
+  return IsProcDefStateType(**type, import_data);
+}
 
 // Specialization of BytecodeInterpreter for executing Proc `config` functions.
 // These are special b/c they define a tree of ProcInstances that we need to
@@ -211,9 +223,29 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
       CreateUnique(import_data, callee_proc_id, next_bf.get(), full_next_args,
                    &hierarchy_interpreter->channel_manager(), options,
                    events.get()));
-  hierarchy_interpreter->AddProcInstance(
-      ProcInstance{proc, std::move(next_interpreter), std::move(next_bf),
-                   *proc_members, initial_state, type_info, std::move(events)});
+
+  bool explicit_state_access =
+      HasExplicitStateAccess(*proc, type_info, *import_data);
+  if (explicit_state_access) {
+    // Set the initial state element values in the interpreter, for use by
+    // explicit state access functions.
+    if (proc->next().params().size() == 1) {
+      next_interpreter->SetStateValue(proc->next().params()[0]->name_def(),
+                                      initial_state);
+    } else {
+      XLS_RET_CHECK(initial_state.IsTuple());
+      XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* values,
+                           initial_state.GetValues());
+      for (int i = 0; i < proc->next().params().size(); i++) {
+        const Param* param = proc->next().params()[i];
+        next_interpreter->SetStateValue(param->name_def(), (*values)[i]);
+      }
+    }
+  }
+
+  hierarchy_interpreter->AddProcInstance(ProcInstance{
+      proc, std::move(next_interpreter), std::move(next_bf), *proc_members,
+      initial_state, type_info, std::move(events), explicit_state_access});
   return absl::OkStatus();
 }
 
@@ -262,10 +294,16 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
   absl::Status result_status = interpreter_->Run(&progress_made);
 
   if (result_status.ok()) {
-    // The proc completed a tick. Update the state.
-    state_ = interpreter_->stack().PeekOrDie();
     std::vector<InterpValue> full_next_args = proc_members_;
-    full_next_args.push_back(state_);
+
+    // The proc completed a tick. Update the state.
+    if (explicit_state_access_) {
+      XLS_RETURN_IF_ERROR(interpreter_->Pop().status());
+    } else {
+      state_ = interpreter_->stack().PeekOrDie();
+      full_next_args.push_back(state_);
+    }
+
     XLS_RETURN_IF_ERROR(
         interpreter_->InitFrame(next_fn_.get(), full_next_args, type_info_));
     return ProcRunResult{.execution_state = ProcExecutionState::kCompleted,

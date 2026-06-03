@@ -823,6 +823,14 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleParam(const Param* node) {
+    if (IsProcDefStateType(type_, import_data_)) {
+      InterpValue value =
+          InterpValue::MakeStateElementReference(node->name_def());
+      ti_->NoteConstExpr(node, value);
+      ti_->NoteConstExpr(node->name_def(), value);
+      return absl::OkStatus();
+    }
+
     std::optional<const ChannelType*> channel_type =
         type_.GetDirectOrElementChannelType();
     if (channel_type.has_value()) {

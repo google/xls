@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -593,6 +594,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalRange(bytecode));
       break;
     }
+    case Bytecode::Op::kRead: {
+      XLS_RETURN_IF_ERROR(EvalRead(bytecode));
+      break;
+    }
     case Bytecode::Op::kRecv: {
       XLS_RETURN_IF_ERROR(EvalRecv(bytecode));
       break;
@@ -648,6 +653,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
     }
     case Bytecode::Op::kWidthSlice: {
       XLS_RETURN_IF_ERROR(EvalWidthSlice(bytecode));
+      break;
+    }
+    case Bytecode::Op::kWrite: {
+      XLS_RETURN_IF_ERROR(EvalWrite(bytecode));
       break;
     }
     case Bytecode::Op::kXor: {
@@ -1715,6 +1724,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kToken:
     case Builtin::kSend:
     case Builtin::kSendIf:
+    case Builtin::kRead:
+    case Builtin::kWrite:
     case Builtin::kRecv:
     case Builtin::kRecvIf:
     case Builtin::kRecvNonBlocking:
@@ -1837,6 +1848,26 @@ std::string BytecodeInterpreter::FormatChannelNameForTracing(
     return absl::StrCat(result, "::", channel.channel_name());
   }
   return std::string(channel.channel_name());
+}
+
+absl::Status BytecodeInterpreter::EvalRead(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue source, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue::StateElementReference element,
+                       source.GetStateElementReference());
+  auto it = state_values_.find(element.name_def());
+  XLS_RET_CHECK(it != state_values_.end());
+  stack_.Push(it->second);
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::EvalWrite(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue new_value, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue dest, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue::StateElementReference element,
+                       dest.GetStateElementReference());
+  state_values_.insert_or_assign(element.name_def(), new_value);
+  stack_.Push(InterpValue::MakeUnit());
+  return absl::OkStatus();
 }
 
 }  // namespace xls::dslx

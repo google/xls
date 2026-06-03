@@ -55,6 +55,7 @@ enum class InterpValueTag : uint8_t {
   kFunction,
   kToken,
   kChannelReference,
+  kStateElementReference,
   kTypeReference,
   kProcInitializer,
 };
@@ -101,6 +102,31 @@ class InterpValue {
     ChannelDirection direction_;
     std::optional<int64_t> channel_instance_id_;
     std::optional<const AstNode*> definer_;
+  };
+
+  // A reference to a state element in an impl-style proc, or a legacy proc with
+  // explicit state access.
+  class StateElementReference {
+   public:
+    StateElementReference(const NameDef* name_def) : name_def_(name_def) {}
+
+    const NameDef* name_def() const { return name_def_; }
+
+    bool Eq(const StateElementReference& other) const {
+      return name_def_ == other.name_def_;
+    }
+    bool operator==(const StateElementReference& other) const {
+      return Eq(other);
+    }
+
+    template <typename H>
+    friend H AbslHashValue(H state,
+                           const InterpValue::StateElementReference& v) {
+      return H::combine(std::move(state), v.name_def()->owner(), v.name_def());
+    }
+
+   private:
+    const NameDef* name_def_;
   };
 
   // An initializer for an impl-style proc, specifying which actual channels and
@@ -262,6 +288,11 @@ class InterpValue {
         ChannelReference(direction, channel_instance_id, definer));
   }
 
+  static InterpValue MakeStateElementReference(const NameDef* name_def) {
+    return InterpValue(InterpValueTag::kStateElementReference,
+                       StateElementReference(name_def));
+  }
+
   static InterpValue MakeProcInitializer(
       const ProcDef* proc_def, const AstNode* definer,
       std::vector<InterpValue> members,
@@ -321,6 +352,9 @@ class InterpValue {
   bool IsFunction() const { return tag_ == InterpValueTag::kFunction; }
   bool IsChannelReference() const {
     return tag_ == InterpValueTag::kChannelReference;
+  }
+  bool IsStateElementReference() const {
+    return tag_ == InterpValueTag::kStateElementReference;
   }
 
   bool IsBuiltinFunction() const {
@@ -513,6 +547,18 @@ class InterpValue {
     return std::get<ChannelReference>(payload_);
   }
 
+  absl::StatusOr<StateElementReference> GetStateElementReference() const {
+    if (!std::holds_alternative<StateElementReference>(payload_)) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Value does not hold a state element reference: ", ToString(), "."));
+    }
+    return std::get<StateElementReference>(payload_);
+  }
+
+  const StateElementReference& GetStateElementReferenceOrDie() const {
+    return std::get<StateElementReference>(payload_);
+  }
+
   // For enum values, returns the enum that the bit pattern is interpreted by is
   // referred to by the interpreter value, along with type metadata.
   struct EnumData {
@@ -606,7 +652,8 @@ class InterpValue {
 
   using Payload = std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
                                std::shared_ptr<TokenData>, ChannelReference,
-                               TypeReference, std::shared_ptr<ProcInitializer>>;
+                               StateElementReference, TypeReference,
+                               std::shared_ptr<ProcInitializer>>;
 
   InterpValue(InterpValueTag tag, Payload payload, bool is_range = false)
       : tag_(tag), payload_(std::move(payload)), is_range_(is_range) {}

@@ -944,5 +944,71 @@ fn test_assert_lt() {
   EXPECT_THAT(stdcerr, Not(HasSubstr("called from")));
 }
 
+TEST_F(ProcHierarchyInterpreterTest, SimpleExplicitStateAccess) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+#[test_proc]
+proc Counter {
+    terminator: chan<bool> out;
+
+    init { 0 }
+
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+
+    next(i: u32) {
+        let old_value = read(i);
+        send_if(token(), terminator, old_value > 1, true);
+        write(i, old_value + 1);
+    }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  constexpr std::string_view kModuleName = "test";
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, std::string{temp_file.path()},
+                   options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, MultiElementExplicitStateAccess) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+#[test_proc]
+proc Counter {
+    terminator: chan<bool> out;
+
+    init { (0, 1) }
+
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+
+    next(i: u32, j: u32) {
+        let old_i = read(i);
+        let old_j = read(j);
+        send_if(token(), terminator, old_j > 5 && old_j == old_i + 1, true);
+        write(i, old_i + 1);
+        write(j, old_j + 1);
+    }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  constexpr std::string_view kModuleName = "test";
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, std::string{temp_file.path()},
+                   options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
 }  // namespace
 }  // namespace xls::dslx

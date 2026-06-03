@@ -67,14 +67,16 @@ class ProcInstance {
                std::unique_ptr<BytecodeFunction> next_fn,
                std::vector<InterpValue> proc_members, InterpValue initial_state,
                const TypeInfo* type_info,
-               std::unique_ptr<DslxInterpreterEvents> events)
+               std::unique_ptr<DslxInterpreterEvents> events,
+               bool explicit_state_access)
       : proc_(proc),
         interpreter_(std::move(interpreter)),
         next_fn_(std::move(next_fn)),
         proc_members_(std::move(proc_members)),
         state_(std::move(initial_state)),
         type_info_(type_info),
-        events_(std::move(events)) {}
+        events_(std::move(events)),
+        explicit_state_access_(explicit_state_access) {}
 
   // Executes a single "tick" of the ProcInstance. If a tick completes, then the
   // state is updated.
@@ -94,6 +96,7 @@ class ProcInstance {
   InterpValue state_;
   const TypeInfo* type_info_;
   std::unique_ptr<DslxInterpreterEvents> events_;
+  bool explicit_state_access_;
 };
 
 // An interpreter which evaluates a hierarchy of procs elaborated from the top

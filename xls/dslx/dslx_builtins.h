@@ -68,12 +68,14 @@ namespace xls::dslx {
   X("token", kToken)                           \
   /* send/recv routines */                     \
   /* keep-sorted start */                   \
+  X("read", kRead)                             \
   X("recv", kRecv)                             \
   X("recv_if", kRecvIf)                        \
   X("recv_if_nonblocking", kRecvIfNonBlocking) \
   X("recv_nonblocking", kRecvNonBlocking)      \
   X("send", kSend)                             \
   X("send_if", kSendIf)                        \
+  X("write", kWrite)                           \
   /* keep-sorted end */
 
 // Enum that represents all the DSLX builtin functions.

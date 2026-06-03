@@ -538,6 +538,22 @@ absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleBuiltinRead(const Invocation* node) {
+  Expr* state_element = node->args()[0];
+  XLS_RETURN_IF_ERROR(state_element->AcceptExpr(this));
+  Add(Bytecode(node->span(), Bytecode::Op::kRead));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeEmitter::HandleBuiltinWrite(const Invocation* node) {
+  Expr* state_element = node->args()[0];
+  Expr* value = node->args()[1];
+  XLS_RETURN_IF_ERROR(state_element->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(value->AcceptExpr(this));
+  Add(Bytecode(node->span(), Bytecode::Op::kWrite));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleBuiltinRecv(const Invocation* node) {
   Expr* token = node->args()[0];
   Expr* channel = node->args()[1];
@@ -1142,6 +1158,9 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
     if (name_ref->identifier() == "join") {
       return HandleBuiltinJoin(node);
     }
+    if (name_ref->identifier() == "read") {
+      return HandleBuiltinRead(node);
+    }
     if (name_ref->identifier() == "recv") {
       return HandleBuiltinRecv(node);
     }
@@ -1168,6 +1187,9 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
     }
     if (name_ref->identifier() == "widening_cast") {
       return HandleBuiltinWideningCast(node);
+    }
+    if (name_ref->identifier() == "write") {
+      return HandleBuiltinWrite(node);
     }
   }
 
@@ -1484,6 +1506,11 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
 
 absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
 BytecodeEmitter::HandleNameDefInternal(const NameDef* node) {
+  std::optional<InterpValue> const_value = type_info_->GetConstExprOption(node);
+  if (const_value.has_value() && const_value->IsStateElementReference()) {
+    return *const_value;
+  }
+
   AstNode* definer = node->definer();
   // Emit function and constant refs directly so that they can be
   // stack elements without having to load slots with them.
