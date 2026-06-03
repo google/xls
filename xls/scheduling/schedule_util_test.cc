@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "xls/common/logging/scoped_vlog_level.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -41,6 +42,8 @@ namespace m = xls::op_matchers;
 namespace xls {
 namespace {
 
+using absl_testing::StatusIs;
+using testing::HasSubstr;
 using testing::UnorderedElementsAre;
 
 class ScheduleUtilTest : public IrTestBase {};
@@ -272,6 +275,78 @@ TEST_F(ScheduleUtilTest, GetFeedbackArcsTest) {
   EXPECT_EQ(pkg_arcs[0].read_node->label(), "my_read1");
   EXPECT_EQ(pkg_arcs[1].write_node->label(), "my_write2");
   EXPECT_EQ(pkg_arcs[1].read_node->label(), "my_read2");
+}
+
+TEST_F(ScheduleUtilTest, GetSpecificityScoreTest) {
+  EXPECT_EQ(GetSpecificityScore({"*", "*"}), 0);
+  EXPECT_EQ(GetSpecificityScore({"_", "*"}), 1);
+  EXPECT_EQ(GetSpecificityScore({"*", "_"}), 1);
+  EXPECT_EQ(GetSpecificityScore({"W1", "*"}), 2);
+  EXPECT_EQ(GetSpecificityScore({"*", "R1"}), 2);
+  EXPECT_EQ(GetSpecificityScore({"_", "_"}), 2);
+  EXPECT_EQ(GetSpecificityScore({"W1", "_"}), 3);
+  EXPECT_EQ(GetSpecificityScore({"_", "R1"}), 3);
+  EXPECT_EQ(GetSpecificityScore({"W1", "R1"}), 4);
+}
+
+TEST_F(ScheduleUtilTest, GetPatternIntersectionComponentTest) {
+  EXPECT_EQ(GetPatternIntersectionComponent("W1", "W1"), "W1");
+  EXPECT_EQ(GetPatternIntersectionComponent("*", "W1"), "W1");
+  EXPECT_EQ(GetPatternIntersectionComponent("W1", "*"), "W1");
+  EXPECT_EQ(GetPatternIntersectionComponent("W1", "W2"), std::nullopt);
+}
+
+TEST_F(ScheduleUtilTest, GetPatternIntersectionTest) {
+  // Disjoint
+  EXPECT_EQ(GetPatternIntersection({"W1", "R1"}, {"W2", "R2"}), std::nullopt);
+
+  // Partial overlap
+  auto inter1 = GetPatternIntersection({"W1", "*"}, {"*", "R1"});
+  ASSERT_TRUE(inter1.has_value());
+  EXPECT_EQ(*inter1, std::make_pair("W1", "R1"));
+
+  // Exact same
+  auto inter2 = GetPatternIntersection({"W1", "R1"}, {"W1", "R1"});
+  ASSERT_TRUE(inter2.has_value());
+  EXPECT_EQ(*inter2, std::make_pair("W1", "R1"));
+}
+
+TEST_F(ScheduleUtilTest, CheckAmbiguousArcWorstCaseThroughputTest) {
+  // 1. Empty / Single rule -> Success
+  EXPECT_TRUE(CheckAmbiguousArcWorstCaseThroughput({}).ok());
+  EXPECT_TRUE(CheckAmbiguousArcWorstCaseThroughput({{{"W1", "R1"}, 4}}).ok());
+
+  // 2. Disjoint rules -> Success
+  EXPECT_TRUE(CheckAmbiguousArcWorstCaseThroughput(
+                  {{{"W1", "R1"}, 4}, {{"W2", "R2"}, 2}})
+                  .ok());
+
+  // 3. Overlap but identical values (harmless tie) -> Success
+  EXPECT_TRUE(
+      CheckAmbiguousArcWorstCaseThroughput({{{"W1", "*"}, 3}, {{"*", "R1"}, 3}})
+          .ok());
+
+  // 4. Overlap but different specificity scores (higher wins) -> Success
+  EXPECT_TRUE(CheckAmbiguousArcWorstCaseThroughput(
+                  {{{"W1", "*"}, 3}, {{"W1", "R1"}, 4}})
+                  .ok());
+
+  // 5. Unresolvable tie (equal specificity score 2, disjoint rules overlapping,
+  // different values) -> Failure
+  EXPECT_THAT(
+      CheckAmbiguousArcWorstCaseThroughput(
+          {{{"W1", "*"}, 4}, {{"*", "R1"}, 2}}),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               testing::AllOf(
+                   HasSubstr("Ambiguous throughput configuration"),
+                   HasSubstr("W1,*"), HasSubstr("*,R1"),
+                   testing::AnyOf(HasSubstr("4 vs 2"), HasSubstr("2 vs 4")))));
+
+  // 6. Ambiguity tie is successfully overridden by a more specific rule
+  // (specificity 4 wins over specificity 2 tie) -> Success
+  EXPECT_TRUE(CheckAmbiguousArcWorstCaseThroughput(
+                  {{{"W1", "*"}, 4}, {{"*", "R1"}, 2}, {{"W1", "R1"}, 3}})
+                  .ok());
 }
 
 }  // namespace

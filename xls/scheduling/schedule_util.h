@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -97,6 +98,39 @@ std::vector<FeedbackArc> GetFeedbackArcsProc(const Proc* proc);
 // Collects all feedback arcs (pairs of Next and StateRead accessing the same
 // state element) across all procs in the package.
 std::vector<FeedbackArc> GetFeedbackArcsPackage(const Package* package);
+
+// Returns the static specificity score for a matching pattern pair:
+// - Exact Label Match (e.g., "my_label") = 2 points.
+// - Unlabeled Match ("_")                = 1 point.
+// - Wildcard Match ("*")                 = 0 points.
+// The total score is the sum of the write and read components. Range: [0, 4].
+int GetSpecificityScore(const std::pair<std::string, std::string>& pattern);
+
+// Returns the overlapping intersection of two pattern components:
+// - If they are identical (e.g. both are "L_W"), they intersect perfectly.
+// - If one component is a wildcard ("*"), it matches everything, so the
+//   intersection is the other component.
+// - If they are different and neither is "*", they are disjoint (nullopt).
+std::optional<std::string> GetPatternIntersectionComponent(std::string_view p1,
+                                                           std::string_view p2);
+
+// Returns the overlapping intersection between two pattern pairs.
+// Two pattern pairs intersect if both their write and read components
+// intersect. Returns std::nullopt if the patterns are completely disjoint.
+std::optional<std::pair<std::string, std::string>> GetPatternIntersection(
+    const std::pair<std::string, std::string>& pattern_a,
+    const std::pair<std::string, std::string>& pattern_b);
+
+// Returns true if two patterns have a non-empty intersection (overlap).
+bool HasPatternIntersection(const std::pair<std::string, std::string>& pattern,
+                            const std::pair<std::string, std::string>& target);
+
+// Validates the entire throughput override map for unresolvable conflicts.
+// Returns InvalidArgumentError if two rules can match the same label pair with
+// the same highest specificity score but specify different throughput bounds.
+absl::Status CheckAmbiguousArcWorstCaseThroughput(
+    const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
+        throughput_map);
 
 }  // namespace xls
 

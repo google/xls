@@ -26,7 +26,9 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
@@ -222,6 +224,120 @@ std::vector<FeedbackArc> GetFeedbackArcsPackage(const Package* package) {
     arcs.insert(arcs.end(), proc_arcs.begin(), proc_arcs.end());
   }
   return arcs;
+}
+
+int GetSpecificityScore(const std::pair<std::string, std::string>& pattern) {
+  auto get_component_score = [](std::string_view p) -> int {
+    if (p == "*") {
+      return 0;
+    }
+    if (p == "_") {
+      return 1;
+    }
+    return 2;  // Exact label
+  };
+  return get_component_score(pattern.first) +
+         get_component_score(pattern.second);
+}
+
+std::optional<std::string> GetPatternIntersectionComponent(
+    std::string_view p1, std::string_view p2) {
+  if (p1 == p2) {
+    return std::string(p1);
+  }
+  if (p1 == "*") {
+    return std::string(p2);
+  }
+  if (p2 == "*") {
+    return std::string(p1);
+  }
+  return std::nullopt;  // Disjoint
+}
+
+std::optional<std::pair<std::string, std::string>> GetPatternIntersection(
+    const std::pair<std::string, std::string>& pattern_a,
+    const std::pair<std::string, std::string>& pattern_b) {
+  auto w_int =
+      GetPatternIntersectionComponent(pattern_a.first, pattern_b.first);
+  auto r_int =
+      GetPatternIntersectionComponent(pattern_a.second, pattern_b.second);
+  if (w_int.has_value() && r_int.has_value()) {
+    return std::make_pair(*w_int, *r_int);
+  }
+  return std::nullopt;
+}
+
+bool HasPatternIntersection(const std::pair<std::string, std::string>& pattern,
+                            const std::pair<std::string, std::string>& target) {
+  return GetPatternIntersectionComponent(pattern.first, target.first)
+             .has_value() &&
+         GetPatternIntersectionComponent(pattern.second, target.second)
+             .has_value();
+}
+
+absl::Status CheckAmbiguousArcWorstCaseThroughput(
+    const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
+        throughput_map) {
+  // A single rule (or empty configuration) can never conflict with itself.
+  if (throughput_map.size() < 2) {
+    return absl::OkStatus();
+  }
+
+  std::vector<std::pair<std::pair<std::string, std::string>, int64_t>> rules(
+      throughput_map.begin(), throughput_map.end());
+  rules.reserve(throughput_map.size());
+
+  for (int i = 0; i < rules.size(); ++i) {
+    for (int j = i + 1; j < rules.size(); ++j) {
+      const auto& pattern_a = rules[i].first;
+      const auto& pattern_b = rules[j].first;
+      int64_t throughput_a = rules[i].second;
+      int64_t throughput_b = rules[j].second;
+
+      // 1. Harmless tie if they have the same throughput value.
+      if (throughput_a == throughput_b) {
+        continue;
+      }
+
+      // 2. Harmless if they have different specificity scores (higher score
+      // wins).
+      int score_a = GetSpecificityScore(pattern_a);
+      int score_b = GetSpecificityScore(pattern_b);
+      if (score_a != score_b) {
+        continue;
+      }
+
+      // 3. Check if they overlap (intersect). If they don't, they are disjoint.
+      auto intersection = GetPatternIntersection(pattern_a, pattern_b);
+      if (!intersection.has_value()) {
+        continue;
+      }
+
+      // 4. Overlap detected. Check if there's a strictly more specific rule
+      // in the map that overrides the overlap.
+      bool tie_is_overridden = false;
+      for (const auto& [pattern_c, throughput_c] : throughput_map) {
+        if (GetSpecificityScore(pattern_c) > score_a &&
+            HasPatternIntersection(pattern_c, *intersection)) {
+          tie_is_overridden = true;
+          break;
+        }
+      }
+
+      // 5. Unresolvable tie found.
+      if (!tie_is_overridden) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Ambiguous throughput configuration: patterns \"%s,%s\" and "
+            "\"%s,%s\" can both match target \"%s,%s\" with the same "
+            "specificity score %d but have different throughputs (%d vs %d).",
+            pattern_a.first, pattern_a.second, pattern_b.first,
+            pattern_b.second, intersection->first, intersection->second,
+            score_a, throughput_a, throughput_b));
+      }
+    }
+  }
+
+  return absl::OkStatus();
 }
 
 }  // namespace xls
