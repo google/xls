@@ -14,6 +14,15 @@
 
 #include "xls/scheduling/schedule_util.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
@@ -24,6 +33,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/node_dependency_analysis.h"
 
@@ -105,6 +115,113 @@ absl::StatusOr<absl::flat_hash_set<Node*>> GetDeadAfterSynthesisNodes(
     }
   }
   return dead_after_synthesis;
+}
+
+std::optional<int> GetLabelMatchScore(std::string_view pattern,
+                                      std::optional<std::string_view> label) {
+  // Wildcards always match any target with the lowest specificity score.
+  if (pattern == "*") {
+    return 0;
+  }
+
+  // Unlabeled operation check. Unlabeled operations are represented by
+  // nullopt or empty strings.
+  if (!label.has_value() || label->empty()) {
+    return (pattern == "_") ? std::optional<int>(1) : std::nullopt;
+  }
+
+  // Labeled operation exact match check.
+  return (pattern == *label) ? std::optional<int>(2) : std::nullopt;
+}
+
+std::optional<int> GetArcMatchScore(
+    const std::pair<std::string, std::string>& pattern_pair,
+    std::optional<std::string_view> label_w,
+    std::optional<std::string_view> label_r) {
+  std::optional<int> score_w = GetLabelMatchScore(pattern_pair.first, label_w);
+  std::optional<int> score_r = GetLabelMatchScore(pattern_pair.second, label_r);
+  if (score_w && score_r) {
+    return *score_w + *score_r;
+  }
+  return std::nullopt;
+}
+
+ResolvedThroughput GetResolvedThroughputLimit(
+    std::optional<std::string_view> write_label,
+    std::optional<std::string_view> read_label,
+    const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
+        arc_worst_case_throughput,
+    std::optional<int64_t> default_arc_worst_case_throughput,
+    std::optional<int64_t> worst_case_throughput) {
+  int64_t highest_pattern_score = -1;
+  std::optional<std::pair<std::string, std::string>> highest_priority_pattern =
+      std::nullopt;
+  int64_t highest_priority_pattern_throughput = 0;
+
+  // Find best match using specificity scoring.
+  for (const auto& [pattern, throughput] : arc_worst_case_throughput) {
+    std::optional<int> pattern_score =
+        GetArcMatchScore(pattern, write_label, read_label);
+    if (pattern_score.has_value()) {
+      if (*pattern_score > highest_pattern_score) {
+        highest_pattern_score = *pattern_score;
+        highest_priority_pattern = pattern;
+        highest_priority_pattern_throughput = throughput;
+      }
+    }
+  }
+
+  // Fallback and clamping logic (treating <= 0 as "not enforced")
+  std::optional<int64_t> throughput_limit = std::nullopt;
+
+  if (highest_priority_pattern.has_value()) {
+    // 1. Best matching specific pattern from arc_worst_case_throughput.
+    if (highest_priority_pattern_throughput > 0) {
+      throughput_limit = highest_priority_pattern_throughput;
+    } else {
+      throughput_limit = std::nullopt;
+    }
+  } else if (default_arc_worst_case_throughput.value_or(0) > 0) {
+    // 2. Fall back to default_arc_worst_case_throughput.
+    throughput_limit = default_arc_worst_case_throughput;
+  } else if (worst_case_throughput.has_value() && *worst_case_throughput > 0) {
+    // 3. Fall back to global worst_case_throughput.
+    throughput_limit = *worst_case_throughput;
+  }
+
+  // Enforce worst_case_throughput as strict upper bound (clamping), if
+  // globally enabled.
+  if (throughput_limit.has_value() && worst_case_throughput.value_or(0) > 0) {
+    throughput_limit = std::min(*throughput_limit, *worst_case_throughput);
+  }
+
+  return ResolvedThroughput{
+      .limit = throughput_limit,
+      .matched_pattern = highest_priority_pattern,
+  };
+}
+
+std::vector<FeedbackArc> GetFeedbackArcsProc(const Proc* proc) {
+  std::vector<FeedbackArc> arcs;
+  for (Next* next : proc->next_values()) {
+    for (StateRead* read :
+         proc->GetStateReadsByStateElement(next->state_element())) {
+      arcs.push_back(FeedbackArc{
+          .write_node = next,
+          .read_node = read,
+      });
+    }
+  }
+  return arcs;
+}
+
+std::vector<FeedbackArc> GetFeedbackArcsPackage(const Package* package) {
+  std::vector<FeedbackArc> arcs;
+  for (const auto& proc : package->procs()) {
+    std::vector<FeedbackArc> proc_arcs = GetFeedbackArcsProc(proc.get());
+    arcs.insert(arcs.end(), proc_arcs.begin(), proc_arcs.end());
+  }
+  return arcs;
 }
 
 }  // namespace xls

@@ -14,10 +14,15 @@
 
 #include "xls/scheduling/schedule_util.h"
 
+#include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "xls/common/logging/scoped_vlog_level.h"
 #include "xls/common/status/matchers.h"
@@ -26,6 +31,9 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 
 namespace m = xls::op_matchers;
@@ -108,6 +116,162 @@ TEST_F(ScheduleUtilTest, GetDeadAfterSynthesisStateChasing) {
   EXPECT_THAT(
       dead_after_synthesis,
       UnorderedElementsAre(assert.node(), cond.node(), m::TupleIndex()));
+}
+
+TEST_F(ScheduleUtilTest, GetLabelMatchScoreTest) {
+  // Exact match (score 2)
+  EXPECT_EQ(GetLabelMatchScore("my_label", "my_label"), 2);
+  EXPECT_EQ(GetLabelMatchScore("my_label", "other_label"), std::nullopt);
+
+  // Unlabeled match "_" (score 1)
+  EXPECT_EQ(GetLabelMatchScore("_", std::nullopt), 1);
+  EXPECT_EQ(GetLabelMatchScore("_", ""), 1);
+  EXPECT_EQ(GetLabelMatchScore("_", "some_label"), std::nullopt);
+
+  // Wildcard match "*" (score 0)
+  EXPECT_EQ(GetLabelMatchScore("*", "any_label"), 0);
+  EXPECT_EQ(GetLabelMatchScore("*", std::nullopt), 0);
+  EXPECT_EQ(GetLabelMatchScore("*", ""), 0);
+}
+
+TEST_F(ScheduleUtilTest, GetArcMatchScoreTest) {
+  // Exact-Exact match (score 4)
+  EXPECT_EQ(GetArcMatchScore({"W1", "R1"}, "W1", "R1"), 4);
+  EXPECT_EQ(GetArcMatchScore({"W1", "R1"}, "W1", "R2"), std::nullopt);
+
+  // Unlabeled-Exact match (score 3)
+  EXPECT_EQ(GetArcMatchScore({"_", "R1"}, std::nullopt, "R1"), 3);
+  EXPECT_EQ(GetArcMatchScore({"_", "R1"}, "some_write", "R1"), std::nullopt);
+
+  // Wildcard-Exact match (score 2)
+  EXPECT_EQ(GetArcMatchScore({"*", "R1"}, "any_write", "R1"), 2);
+  EXPECT_EQ(GetArcMatchScore({"*", "R1"}, std::nullopt, "R1"), 2);
+
+  // Wildcard-Wildcard match (score 0)
+  EXPECT_EQ(GetArcMatchScore({"*", "*"}, "W", "R"), 0);
+  EXPECT_EQ(GetArcMatchScore({"*", "*"}, std::nullopt, std::nullopt), 0);
+}
+
+TEST_F(ScheduleUtilTest, GetResolvedThroughputLimitTest) {
+  absl::flat_hash_map<std::pair<std::string, std::string>, int64_t> overrides =
+      {
+          {{"W1", "R1"}, 4},
+          {{"W1", "*"}, 3},
+          {{"*", "*"}, 2},
+      };
+
+  // 1. Exact-Exact match wins (score 4, limit 4)
+  {
+    ResolvedThroughput resolved =
+        GetResolvedThroughputLimit("W1", "R1", overrides, /*default_limit=*/5,
+                                   /*worst_case_throughput=*/std::nullopt);
+    EXPECT_EQ(resolved.limit, 4);
+    EXPECT_EQ(*resolved.matched_pattern, std::make_pair("W1", "R1"));
+  }
+
+  // 2. Exact-Wildcard match wins (score 2, limit 3)
+  {
+    ResolvedThroughput resolved =
+        GetResolvedThroughputLimit("W1", "R2", overrides, /*default_limit=*/5,
+                                   /*worst_case_throughput=*/std::nullopt);
+    EXPECT_EQ(resolved.limit, 3);
+    EXPECT_EQ(*resolved.matched_pattern, std::make_pair("W1", "*"));
+  }
+
+  // 3. Wildcard-Wildcard fallback (score 0, limit 2)
+  {
+    ResolvedThroughput resolved =
+        GetResolvedThroughputLimit("W2", "R2", overrides, /*default_limit=*/5,
+                                   /*worst_case_throughput=*/std::nullopt);
+    EXPECT_EQ(resolved.limit, 2);
+    EXPECT_EQ(*resolved.matched_pattern, std::make_pair("*", "*"));
+  }
+
+  // 4. Default limit fallback
+  {
+    ResolvedThroughput resolved = GetResolvedThroughputLimit(
+        "W2", "R2", /*arc_worst_case_throughput=*/{}, /*default_limit=*/5,
+        /*worst_case_throughput=*/std::nullopt);
+    EXPECT_EQ(resolved.limit, 5);
+    EXPECT_FALSE(resolved.matched_pattern.has_value());
+  }
+
+  // 5. Worst-case throughput fallback
+  {
+    ResolvedThroughput resolved =
+        GetResolvedThroughputLimit("W2", "R2", /*arc_worst_case_throughput=*/{},
+                                   /*default_limit=*/std::nullopt,
+                                   /*worst_case_throughput=*/6);
+    EXPECT_EQ(resolved.limit, 6);
+    EXPECT_FALSE(resolved.matched_pattern.has_value());
+  }
+
+  // 6. Clamping against worst-case throughput
+  {
+    // Resolved limit = 4, worst-case throughput = 2 -> Clamped to 2
+    ResolvedThroughput resolved =
+        GetResolvedThroughputLimit("W1", "R1", overrides, /*default_limit=*/5,
+                                   /*worst_case_throughput=*/2);
+    EXPECT_EQ(resolved.limit, 2);
+  }
+
+  // 7. Specific override of 0 (unconstrained) keeps it unconstrained despite
+  // default limit
+  {
+    absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>
+        overrides_with_unconstrained = {
+            {{"W1", "R1"}, 0},
+        };
+    ResolvedThroughput resolved = GetResolvedThroughputLimit(
+        "W1", "R1", overrides_with_unconstrained, /*default_limit=*/5,
+        /*worst_case_throughput=*/std::nullopt);
+    EXPECT_FALSE(resolved.limit.has_value());
+    EXPECT_EQ(*resolved.matched_pattern, std::make_pair("W1", "R1"));
+  }
+}
+
+TEST_F(ScheduleUtilTest, GetFeedbackArcsTest) {
+  auto p = CreatePackage();
+
+  // Proc 1
+  ProcBuilder pb1(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * se1,
+      pb1.UnreadStateElement("state1", Value(UBits(42, 32))));
+  BValue read1 = pb1.StateRead(se1, /*predicate=*/std::nullopt, "my_read1");
+  BValue add_val1 = pb1.Add(read1, pb1.Literal(UBits(1, 32)));
+  pb1.Next(se1, add_val1, /*predicate=*/std::nullopt, "my_write1");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, pb1.Build());
+
+  // Proc 2
+  ProcBuilder pb2("proc_2", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * se2,
+      pb2.UnreadStateElement("state2", Value(UBits(100, 32))));
+  BValue read2 = pb2.StateRead(se2, /*predicate=*/std::nullopt, "my_read2");
+  BValue add_val2 = pb2.Add(read2, pb2.Literal(UBits(5, 32)));
+  pb2.Next(se2, add_val2, /*predicate=*/std::nullopt, "my_write2");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc2, pb2.Build());
+
+  // Verify single proc 1 feedback arc discovery
+  std::vector<FeedbackArc> arcs1 = GetFeedbackArcsProc(proc1);
+  ASSERT_EQ(arcs1.size(), 1);
+  EXPECT_EQ(arcs1[0].write_node->label(), "my_write1");
+  EXPECT_EQ(arcs1[0].read_node->label(), "my_read1");
+
+  // Verify single proc 2 feedback arc discovery
+  std::vector<FeedbackArc> arcs2 = GetFeedbackArcsProc(proc2);
+  ASSERT_EQ(arcs2.size(), 1);
+  EXPECT_EQ(arcs2[0].write_node->label(), "my_write2");
+  EXPECT_EQ(arcs2[0].read_node->label(), "my_read2");
+
+  // Verify package-wide feedback arc discovery (finds all arcs from both procs)
+  std::vector<FeedbackArc> pkg_arcs = GetFeedbackArcsPackage(p.get());
+  ASSERT_EQ(pkg_arcs.size(), 2);
+  EXPECT_EQ(pkg_arcs[0].write_node->label(), "my_write1");
+  EXPECT_EQ(pkg_arcs[0].read_node->label(), "my_read1");
+  EXPECT_EQ(pkg_arcs[1].write_node->label(), "my_write2");
+  EXPECT_EQ(pkg_arcs[1].read_node->label(), "my_read2");
 }
 
 }  // namespace
