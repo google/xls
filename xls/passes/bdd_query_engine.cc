@@ -66,56 +66,92 @@ namespace xls {
 
 namespace {
 
+// BDD evaluation of very wide data paths (e.g., shift operations on 1000+
+// bits) can grow exponentially and hang the fuzzer or optimizer. We restrict
+// evaluations to nodes with a bit width below this threshold to prevent
+// explosion while keeping BDD optimization active for control logic and
+// standard integer paths.
+constexpr int64_t kMaxBddBitWidth = 128;
+
+// BDD evaluation of very wide data paths for complex operations can grow
+// exponentially. Restrict evaluations of these operations to nodes with a
+// bit width below a threshold. Cheap operations like logical operations
+// can be safely evaluated at any bit width.
+constexpr auto kComplexOps = std::to_array<Op>({
+    Op::kAdd,
+    Op::kSub,
+    Op::kShll,
+    Op::kShrl,
+    Op::kShra,
+    Op::kEq,
+    Op::kNe,
+    Op::kULt,
+    Op::kULe,
+    Op::kUGt,
+    Op::kUGe,
+    Op::kSLt,
+    Op::kSLe,
+    Op::kSGt,
+    Op::kSGe,
+    Op::kDynamicBitSlice,
+    Op::kBitSliceUpdate,
+});
+
+// Ops which don't really have any reasonable BDD interpretation or which we
+// otherwise wish to ignore (eg Gate, Map etc).
+constexpr auto kNonAnalyzableOps = std::to_array<Op>({
+    Op::kAfterAll,
+    Op::kMinDelay,
+    Op::kArray,
+    Op::kArrayConcat,
+    Op::kArrayIndex,
+    Op::kArraySlice,
+    Op::kArrayUpdate,
+    Op::kAssert,
+    Op::kCountedFor,
+    Op::kCover,
+    Op::kDynamicCountedFor,
+    Op::kGate,
+    Op::kInputPort,
+    Op::kInstantiationInput,
+    Op::kInstantiationOutput,
+    Op::kInvoke,
+    Op::kMap,
+    Op::kNewChannel,
+    Op::kOutputPort,
+    Op::kParam,
+    Op::kStateRead,
+    Op::kNext,
+    Op::kReceive,
+    Op::kRecvChannelEnd,
+    Op::kRegisterRead,
+    Op::kRegisterWrite,
+    Op::kSend,
+    Op::kSendChannelEnd,
+    Op::kTrace,
+    Op::kTuple,
+    Op::kTupleIndex,
+});
+
+constexpr auto kMultiplicationOps = std::to_array<Op>({
+    Op::kSMul,
+    Op::kUMul,
+    Op::kSMulp,
+    Op::kUMulp,
+    Op::kSDiv,
+    Op::kUDiv,
+    Op::kSMod,
+    Op::kUMod,
+});
+
 // Returns whether the given op should be included in BDD computations.
 bool ShouldEvaluate(const Node* node) {
   if (!node->GetType()->IsBits()) {
     return false;
   }
-  // Ops which don't really have any reasonable BDD interpretation or which we
-  // otherwise wish to ignore (eg Gate, Map etc).
-  static constexpr auto kNonAnalyzableOps = std::to_array<Op>({
-      Op::kAfterAll,
-      Op::kMinDelay,
-      Op::kArray,
-      Op::kArrayConcat,
-      Op::kArrayIndex,
-      Op::kArraySlice,
-      Op::kArrayUpdate,
-      Op::kAssert,
-      Op::kCountedFor,
-      Op::kCover,
-      Op::kDynamicCountedFor,
-      Op::kGate,
-      Op::kInputPort,
-      Op::kInstantiationInput,
-      Op::kInstantiationOutput,
-      Op::kInvoke,
-      Op::kMap,
-      Op::kNewChannel,
-      Op::kOutputPort,
-      Op::kParam,
-      Op::kStateRead,
-      Op::kNext,
-      Op::kReceive,
-      Op::kRecvChannelEnd,
-      Op::kRegisterRead,
-      Op::kRegisterWrite,
-      Op::kSend,
-      Op::kSendChannelEnd,
-      Op::kTrace,
-      Op::kTuple,
-      Op::kTupleIndex,
-  });
-  constexpr static auto kMultiplicationOps = std::to_array<Op>({
-      Op::kSMul,
-      Op::kUMul,
-      Op::kSMulp,
-      Op::kUMulp,
-      Op::kSDiv,
-      Op::kUDiv,
-      Op::kSMod,
-      Op::kUMod,
-  });
+  if (node->BitCountOrDie() > kMaxBddBitWidth && node->OpIn(kComplexOps)) {
+    return false;
+  }
   return !(node->OpIn(kNonAnalyzableOps) || node->OpIn(kMultiplicationOps));
 }
 
