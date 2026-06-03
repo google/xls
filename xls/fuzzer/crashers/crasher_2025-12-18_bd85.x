@@ -23,7 +23,7 @@
 //   optimize_ir: true
 //   use_jit: true
 //   codegen: true
-//   codegen_args: "--use_system_verilog"
+//   codegen_args: "--nouse_system_verilog"
 //   codegen_args: "--output_block_ir_path=sample.block.ir"
 //   codegen_args: "--generator=pipeline"
 //   codegen_args: "--pipeline_stages=7"
@@ -33,7 +33,7 @@
 //   codegen_args: "--reset_asynchronous=true"
 //   codegen_args: "--reset_data_path=true"
 //   simulate: true
-//   use_system_verilog: true
+//   use_system_verilog: false
 //   timeout_seconds: 1500
 //   calls_per_sample: 128
 //   proc_ticks: 0
