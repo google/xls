@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -232,6 +233,14 @@ std::string InterpValue::ToStringInternal(bool humanize,
       return InterpValueBitsToString(*this, format,
                                      /*include_type_prefix=*/!humanize);
     case InterpValueTag::kArray:
+      if (is_range() &&
+          std::holds_alternative<std::shared_ptr<RangeData>>(payload_)) {
+        const RangeData& range =
+            *std::get<std::shared_ptr<RangeData>>(payload_);
+        return absl::StrFormat(
+            "[%s..%s%s]", range.start.ToString(humanize, format),
+            range.inclusive ? "=" : "", range.end.ToString(humanize, format));
+      }
       return absl::StrFormat("[%s]", make_guts());
     case InterpValueTag::kTuple:
       return absl::StrFormat("(%s)", make_guts());
@@ -505,7 +514,36 @@ bool InterpValue::Eq(const InterpValue& other) const {
       if (!other.IsArray()) {
         return false;
       }
-      return values_equal();
+      bool self_range = is_range();
+      bool other_range = other.is_range();
+
+      if (self_range && other_range) {
+        bool self_symbolic =
+            std::holds_alternative<std::shared_ptr<RangeData>>(payload_);
+        bool other_symbolic =
+            std::holds_alternative<std::shared_ptr<RangeData>>(other.payload_);
+        if (self_symbolic && other_symbolic) {
+          return *std::get<std::shared_ptr<RangeData>>(payload_) ==
+                 *std::get<std::shared_ptr<RangeData>>(other.payload_);
+        }
+      }
+
+      if (!self_range && !other_range) {
+        return values_equal();
+      }
+
+      // Element-by-element comparison fallback.
+      int64_t self_len = GetLength().value();
+      int64_t other_len = other.GetLength().value();
+      if (self_len != other_len) {
+        return false;
+      }
+      for (int64_t i = 0; i < self_len; ++i) {
+        if (Index(i).value() != other.Index(i).value()) {
+          return false;
+        }
+      }
+      return true;
     }
     case InterpValueTag::kTuple: {
       if (!other.IsTuple()) {
@@ -751,6 +789,20 @@ absl::StatusOr<InterpValue> InterpValue::Slice(
 }
 
 absl::StatusOr<InterpValue> InterpValue::Index(int64_t index) const {
+  if (is_range() &&
+      std::holds_alternative<std::shared_ptr<RangeData>>(payload_)) {
+    const RangeData& range = *std::get<std::shared_ptr<RangeData>>(payload_);
+    XLS_ASSIGN_OR_RETURN(int64_t len, GetLength());
+    if (index >= len) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Index out of bounds; index: %d >= %d elements; lhs: %s", index, len,
+          ToString()));
+    }
+    XLS_ASSIGN_OR_RETURN(Bits start_bits, range.start.GetBits());
+    InterpValue index_value = InterpValue::MakeBits(
+        range.start.IsSBits(), UBits(index, start_bits.bit_count()));
+    return range.start.Add(index_value);
+  }
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* lhs, GetValues());
   if (lhs->size() <= index) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -762,15 +814,9 @@ absl::StatusOr<InterpValue> InterpValue::Index(int64_t index) const {
 
 absl::StatusOr<InterpValue> InterpValue::Index(const InterpValue& other) const {
   XLS_RET_CHECK(other.IsUBits());
-  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* lhs, GetValues());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
   XLS_ASSIGN_OR_RETURN(uint64_t index, rhs.ToUint64());
-  if (lhs->size() <= index) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Index out of bounds; index: %d >= %d elements; lhs: %s", index,
-        lhs->size(), ToString()));
-  }
-  return (*lhs)[index];
+  return Index(static_cast<int64_t>(index));
 }
 
 absl::StatusOr<InterpValue> InterpValue::Update(
@@ -788,6 +834,9 @@ absl::StatusOr<InterpValue> InterpValue::Update(
     if (!element->IsArray()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Update of non-array element: %s", element->ToString()));
+    }
+    if (element->is_range()) {
+      element->GetValuesOrDie();  // Forces expansion of the symbolic range
     }
     std::vector<InterpValue>& values =
         std::get<std::vector<InterpValue>>(element->payload_);
@@ -1243,6 +1292,91 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
 
 bool InterpValue::operator>=(const InterpValue& rhs) const {
   return !(*this < rhs);
+}
+
+absl::StatusOr<std::vector<InterpValue>> InterpValue::ExpandRange() const {
+  XLS_RET_CHECK(is_range());
+  const RangeData& range = *std::get<std::shared_ptr<RangeData>>(payload_);
+  std::vector<InterpValue> elements;
+  InterpValue cur = range.start;
+  XLS_ASSIGN_OR_RETURN(int64_t len, GetLength());
+  elements.reserve(len);
+
+  XLS_ASSIGN_OR_RETURN(int64_t cur_bits, cur.GetBitCount());
+  InterpValue one(cur.IsSigned() ? InterpValue::MakeSBits(cur_bits, 1)
+                                 : InterpValue::MakeUBits(cur_bits, 1));
+
+  for (int64_t i = 0; i < len; ++i) {
+    elements.push_back(cur);
+    XLS_ASSIGN_OR_RETURN(cur, cur.Add(one));
+  }
+  return elements;
+}
+
+/* static */ InterpValue InterpValue::MakeSymbolicRange(InterpValue start,
+                                                        InterpValue end,
+                                                        bool inclusive) {
+  return InterpValue(InterpValueTag::kArray,
+                     std::make_shared<RangeData>(RangeData{
+                         std::move(start), std::move(end), inclusive}),
+                     /*is_range=*/true);
+}
+
+absl::StatusOr<int64_t> InterpValue::GetLength() const {
+  if (is_range() &&
+      std::holds_alternative<std::shared_ptr<RangeData>>(payload_)) {
+    const RangeData& range = *std::get<std::shared_ptr<RangeData>>(payload_);
+    XLS_ASSIGN_OR_RETURN(Bits start_bits, range.start.GetBits());
+    XLS_ASSIGN_OR_RETURN(Bits end_bits, range.end.GetBits());
+
+    bool is_empty = range.start.IsSigned()
+                        ? bits_ops::SGreaterThan(start_bits, end_bits)
+                        : bits_ops::UGreaterThan(start_bits, end_bits);
+    if (is_empty) {
+      return 0;
+    }
+
+    Bits diff = bits_ops::Sub(end_bits, start_bits);
+    if (range.inclusive) {
+      diff = bits_ops::Add(diff, UBits(1, diff.bit_count()));
+    }
+
+    if (diff.bit_count() >= 63 &&
+        bits_ops::UGreaterThan(diff, UBits(std::numeric_limits<int64_t>::max(),
+                                           diff.bit_count()))) {
+      return absl::OutOfRangeError(
+          "Range length is too large to fit in int64_t");
+    }
+
+    Bits diff_64 = diff.bit_count() > 64 ? diff.Slice(0, 64) : diff;
+    XLS_ASSIGN_OR_RETURN(uint64_t len_val, diff_64.ToUint64());
+    return absl::implicit_cast<int64_t>(len_val);
+  }
+  if (IsTuple() || IsArray()) {
+    return GetValuesOrDie().size();
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Invalid tag for length query: ", TagToString(tag_)));
+}
+
+absl::StatusOr<const std::vector<InterpValue>*> InterpValue::GetValues() const {
+  if (is_range() &&
+      std::holds_alternative<std::shared_ptr<RangeData>>(payload_)) {
+    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> elements, ExpandRange());
+    payload_ = std::move(elements);
+  }
+  if (!std::holds_alternative<std::vector<InterpValue>>(payload_)) {
+    return absl::InvalidArgumentError("Value does not hold element values");
+  }
+  return &std::get<std::vector<InterpValue>>(payload_);
+}
+
+const std::vector<InterpValue>& InterpValue::GetValuesOrDie() const {
+  if (is_range() &&
+      std::holds_alternative<std::shared_ptr<RangeData>>(payload_)) {
+    payload_ = ExpandRange().value();
+  }
+  return std::get<std::vector<InterpValue>>(payload_);
 }
 
 }  // namespace xls::dslx

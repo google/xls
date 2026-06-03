@@ -156,23 +156,7 @@ absl::Status BuiltinRangeInternal(InterpreterStack& stack) {
          const InterpValue& end) -> absl::StatusOr<InterpValue> {
         XLS_RET_CHECK(start.IsBits());
         XLS_RET_CHECK(end.IsBits());
-        XLS_ASSIGN_OR_RETURN(InterpValue start_ge_end, start.Ge(end));
-        if (start_ge_end.IsTrue()) {
-          return InterpValue::MakeRange({});
-        }
-
-        std::vector<InterpValue> elements;
-        InterpValue cur = start;
-        XLS_ASSIGN_OR_RETURN(InterpValue done, cur.Ge(end));
-        XLS_ASSIGN_OR_RETURN(int64_t cur_bits, cur.GetBitCount());
-        InterpValue one(cur.IsSigned() ? InterpValue::MakeSBits(cur_bits, 1)
-                                       : InterpValue::MakeUBits(cur_bits, 1));
-        while (done.IsFalse()) {
-          elements.push_back(cur);
-          XLS_ASSIGN_OR_RETURN(cur, cur.Add(one));
-          XLS_ASSIGN_OR_RETURN(done, cur.Ge(end));
-        }
-        return InterpValue::MakeRange(elements);
+        return InterpValue::MakeSymbolicRange(start, end);
       },
       stack);
 }
