@@ -4986,6 +4986,32 @@ struct MyStruct {
   EXPECT_EQ(my_domain->name_def()->definer(), my_struct);
 }
 
+TEST_F(ParserTest, FuzzDomainAttributeParametricError) {
+  std::string_view program = R"(
+#[fuzz_domain("MyDomain")]
+struct MyStruct<N: u32> {
+    x: uN[N],
+}
+)";
+  EXPECT_THAT(Parse(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("fuzz_domain attribute is not supported on "
+                                 "parametric structs.")));
+}
+
+TEST_F(ParserTest, FuzzDomainAttributeParametricWithDefaultsError) {
+  std::string_view program = R"(
+#[fuzz_domain("MyDomain")]
+struct MyStruct<N: u32={u32:32}> {
+    x: uN[N],
+}
+)";
+  EXPECT_THAT(Parse(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("fuzz_domain attribute is not supported on "
+                                 "parametric structs.")));
+}
+
 TEST_F(ParserTest, FuzzDomainAttributeImported) {
   std::string_view program = R"(
 import imported;

@@ -1202,6 +1202,11 @@ absl::Status Parser::ApplyTypeAttributes(T* node,
 
         StructDef* struct_def = dynamic_cast<StructDef*>(node);
         XLS_RET_CHECK(struct_def != nullptr);
+        if (!struct_def->parametric_bindings().empty()) {
+          return ParseErrorStatus(
+              *next->GetSpan(),
+              "fuzz_domain attribute is not supported on parametric structs.");
+        }
         Span span = *next->GetSpan();
         NameDef* domain_name_def =
             module_->Make<NameDef>(span, domain_name, /*definer=*/nullptr);
