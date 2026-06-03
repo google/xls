@@ -55,6 +55,17 @@ std::optional<std::string> GetDataPortName(
   return std::nullopt;
 }
 
+ChannelFlowControlProto ConvertFlowControl(FlowControl flow_control) {
+  switch (flow_control) {
+    case FlowControl::kReadyValid:
+      return CHANNEL_FLOW_CONTROL_READY_VALID;
+    case FlowControl::kValidData:
+      return CHANNEL_FLOW_CONTROL_VALID_DATA;
+    default:
+      return CHANNEL_FLOW_CONTROL_NONE;
+  }
+}
+
 }  // namespace
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithClock(
@@ -171,13 +182,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
   ChannelProto* channel = proto_.add_channels();
   channel->set_name(name);
   channel->set_kind(CHANNEL_KIND_STREAMING);
-  CHECK_NE(flow_control, FlowControl::kValidData)
-      << "valid_data flow control not supported in codegen v1.0";
-  if (flow_control == FlowControl::kReadyValid) {
-    channel->set_flow_control(CHANNEL_FLOW_CONTROL_READY_VALID);
-  } else {
-    channel->set_flow_control(CHANNEL_FLOW_CONTROL_NONE);
-  }
+  channel->set_flow_control(ConvertFlowControl(flow_control));
   *channel->mutable_type() = type->ToProto();
   if (fifo_config.has_value()) {
     *channel->mutable_fifo_config() =
@@ -214,12 +219,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannelInterface(
   interface->set_direction(direction);
   *interface->mutable_type() = type->ToProto();
   interface->set_kind(CHANNEL_KIND_STREAMING);
-  CHECK_NE(flow_control, FlowControl::kValidData)
-      << "valid_data flow control not supported in codegen v1.0";
   interface->mutable_streaming()->set_flow_control(
-      flow_control == FlowControl::kReadyValid
-          ? CHANNEL_FLOW_CONTROL_READY_VALID
-          : CHANNEL_FLOW_CONTROL_NONE);
+      ConvertFlowControl(flow_control));
   interface->set_flop_kind(flop_kind);
   if (data_port_name.has_value()) {
     interface->mutable_streaming()->set_data_port_name(*data_port_name);
@@ -537,10 +538,11 @@ static absl::Status ValidateProto(const ModuleSignatureProto& proto) {
     if (channel.has_streaming()) {
       const StreamingChannelInterfaceProto& streaming = channel.streaming();
       if (streaming.has_valid_port_name()) {
-        if (streaming.flow_control() != CHANNEL_FLOW_CONTROL_READY_VALID) {
+        if (!(streaming.flow_control() == CHANNEL_FLOW_CONTROL_READY_VALID ||
+              streaming.flow_control() == CHANNEL_FLOW_CONTROL_VALID_DATA)) {
           return absl::InvalidArgumentError(
               absl::StrFormat("Channel '%s' has a valid port specified, but "
-                              "flow control is not ready-valid.",
+                              "flow control is not ready-valid or valid-data.",
                               channel.channel_name()));
         }
         if (!name_data_ports_map.contains(streaming.valid_port_name())) {

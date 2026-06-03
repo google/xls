@@ -444,6 +444,81 @@ TEST_F(SignatureGenerationPassTest, IOSignatureProcToPipelinedBLock) {
                            )pb")));
 }
 
+TEST_F(SignatureGenerationPassTest,
+       IOSignatureProcToPipelinedBLockWithValidData) {
+  Package package("test");
+  Type* u32 = package.GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_streaming_rv,
+      package.CreateStreamingChannel(
+          "in_streaming", ChannelOps::kReceiveOnly, u32,
+          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
+          FlowControl::kValidData));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_streaming_rv,
+      package.CreateStreamingChannel(
+          "out_streaming", ChannelOps::kSendOnly, u32,
+          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
+          FlowControl::kValidData));
+
+  ScheduledProcBuilder pb("test", &package);
+  BValue tkn = pb.AfterAll({});
+  BValue recv = pb.Receive(in_streaming_rv, tkn);
+  tkn = pb.TupleIndex(recv, 0);
+  BValue in1 = pb.TupleIndex(recv, 1);
+  tkn = pb.Send(out_streaming_rv, tkn, in1);
+  XLS_ASSERT_OK(pb.Build().status());
+
+  BlockConversionPassOptions options = {
+      .codegen_options = verilog::CodegenOptions()
+                             .flop_inputs(false)
+                             .flop_outputs(false)
+                             .clock_name("clk")
+                             .valid_control("input_valid", "output_valid")
+                             .reset("rst", false, false, false)
+                             .streaming_channel_data_suffix("_data")
+                             .streaming_channel_valid_suffix("_valid")
+                             .module_name("pipelined_proc"),
+  };
+
+  ASSERT_THAT(Run(&package, options), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package.GetBlock("test"));
+  ASSERT_NE(block->GetSignature(), std::nullopt);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::ModuleSignature sig,
+      verilog::ModuleSignature::FromProto(*block->GetSignature()));
+  ASSERT_EQ(sig.GetInputChannelInterfaces().size(), 1);
+  ASSERT_EQ(sig.GetOutputChannelInterfaces().size(), 1);
+
+  EXPECT_THAT(sig.GetInputChannelInterfaces().at(0), EqualsProto(R"pb(
+                channel_name: "in_streaming"
+                direction: CHANNEL_DIRECTION_RECEIVE
+                type { type_enum: BITS bit_count: 32 }
+                kind: CHANNEL_KIND_STREAMING
+                streaming {
+                  flow_control: CHANNEL_FLOW_CONTROL_VALID_DATA
+                  data_port_name: "in_streaming_data"
+                  valid_port_name: "in_streaming_valid"
+                }
+                flop_kind: FLOP_KIND_NONE
+              )pb"));
+
+  EXPECT_THAT(sig.GetOutputChannelInterfaces().at(0), EqualsProto(R"pb(
+                channel_name: "out_streaming"
+                direction: CHANNEL_DIRECTION_SEND
+                type { type_enum: BITS bit_count: 32 }
+                kind: CHANNEL_KIND_STREAMING
+                streaming {
+                  flow_control: CHANNEL_FLOW_CONTROL_VALID_DATA
+                  data_port_name: "out_streaming_data"
+                  valid_port_name: "out_streaming_valid"
+                }
+                flop_kind: FLOP_KIND_NONE
+              )pb"));
+}
+
 TEST_F(SignatureGenerationPassTest, BlockWithFifoInstantiationNoChannel) {
   constexpr std::string_view ir_text = R"(package test
 

@@ -152,16 +152,14 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
             : verilog::ChannelDirectionProto::CHANNEL_DIRECTION_RECEIVE;
     switch (metadata.channel_kind) {
       case ChannelKind::kStreaming: {
-        if (metadata.ready_port.has_value() !=
+        FlowControl flow_control = FlowControl::kNone;
+        if (metadata.ready_port.has_value() &&
             metadata.valid_port.has_value()) {
-          return absl::UnimplementedError(
-              "Channels with flow control other than ready_valid or none are "
-              "not yet supported.");
+          flow_control = FlowControl::kReadyValid;
+        } else if (!metadata.ready_port.has_value() &&
+                   metadata.valid_port.has_value()) {
+          flow_control = FlowControl::kValidData;
         }
-        FlowControl flow_control =
-            (metadata.ready_port.has_value() && metadata.valid_port.has_value())
-                ? FlowControl::kReadyValid
-                : FlowControl::kNone;
         b.AddStreamingChannelInterface(
             metadata.channel_name, direction_proto, metadata.type, flow_control,
             metadata.data_port, metadata.ready_port, metadata.valid_port,

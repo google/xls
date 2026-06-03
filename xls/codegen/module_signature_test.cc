@@ -235,6 +235,66 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   EXPECT_FALSE(output.has_stage());
 }
 
+TEST(ModuleSignatureTest, StreamingChannelsInterfaceValidData) {
+  Package p(TestName());
+  ModuleSignatureBuilder b(TestName());
+
+  // Add ports for streaming channels.
+  b.AddDataInputAsBits("streaming_in_data", 24);
+  b.AddDataInputAsBits("streaming_in_valid", 1);
+
+  b.AddDataOutputAsBits("streaming_out_data", 16);
+  b.AddDataOutputAsBits("streaming_out_valid", 1);
+
+  b.AddStreamingChannelInterface("streaming_in", CHANNEL_DIRECTION_RECEIVE,
+                                 p.GetBitsType(24), FlowControl::kValidData,
+                                 /*data_port=_name=*/"streaming_in_data",
+                                 /*ready_port=_name=*/std::nullopt,
+                                 /*valid_port=_name=*/"streaming_in_valid",
+                                 FLOP_KIND_NONE, /*stage=*/42);
+  b.AddStreamingChannelInterface("streaming_out", CHANNEL_DIRECTION_SEND,
+                                 p.GetBitsType(16), FlowControl::kValidData,
+                                 /*data_port=_name=*/"streaming_out_data",
+                                 /*ready_port=_name=*/std::nullopt,
+                                 /*valid_port=_name=*/"streaming_out_valid",
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  ASSERT_EQ(signature.proto().channel_interfaces().size(), 2);
+
+  ASSERT_EQ(signature.GetInputChannelInterfaces().size(), 1);
+  ASSERT_EQ(signature.GetOutputChannelInterfaces().size(), 1);
+
+  const ChannelInterfaceProto input =
+      signature.GetInputChannelInterfaces().front();
+  EXPECT_EQ(input.channel_name(), "streaming_in");
+  EXPECT_EQ(input.direction(), CHANNEL_DIRECTION_RECEIVE);
+  EXPECT_THAT(p.GetTypeFromProto(input.type()),
+              IsOkAndHolds(p.GetBitsType(24)));
+  EXPECT_EQ(input.kind(), CHANNEL_KIND_STREAMING);
+  ASSERT_TRUE(input.has_streaming());
+  EXPECT_EQ(input.streaming().flow_control(), CHANNEL_FLOW_CONTROL_VALID_DATA);
+  EXPECT_EQ(input.streaming().data_port_name(), "streaming_in_data");
+  EXPECT_FALSE(input.streaming().has_ready_port_name());
+  EXPECT_EQ(input.streaming().valid_port_name(), "streaming_in_valid");
+  EXPECT_EQ(input.stage(), 42);
+
+  const ChannelInterfaceProto output =
+      signature.GetOutputChannelInterfaces().front();
+  EXPECT_EQ(output.channel_name(), "streaming_out");
+  EXPECT_EQ(output.direction(), CHANNEL_DIRECTION_SEND);
+  EXPECT_THAT(p.GetTypeFromProto(output.type()),
+              IsOkAndHolds(p.GetBitsType(16)));
+  EXPECT_EQ(output.kind(), CHANNEL_KIND_STREAMING);
+  ASSERT_TRUE(output.has_streaming());
+  EXPECT_EQ(output.streaming().flow_control(), CHANNEL_FLOW_CONTROL_VALID_DATA);
+  EXPECT_EQ(output.streaming().data_port_name(), "streaming_out_data");
+  EXPECT_EQ(output.streaming().valid_port_name(), "streaming_out_valid");
+  EXPECT_FALSE(output.streaming().has_ready_port_name());
+  EXPECT_FALSE(output.has_stage());
+}
+
 TEST(ModuleSignatureTest, GetByName) {
   Package p(TestName());
   ModuleSignatureBuilder b(TestName());
@@ -614,6 +674,23 @@ TEST(ModuleSignatureTest, FifoInstantiation) {
               IsOkAndHolds(m::Type("bits[32]")));
   EXPECT_EQ(channel.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
   EXPECT_EQ(channel.fifo_config().depth(), 10);
+}
+
+TEST(ModuleSignatureTest, AddStreamingChannelValidData) {
+  Package p(TestName());
+  ModuleSignatureBuilder b(TestName());
+  b.AddStreamingChannel("valid_data_channel", p.GetBitsType(32),
+                        FlowControl::kValidData);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelProto channel,
+                           signature.GetChannel("valid_data_channel"));
+  EXPECT_EQ(channel.name(), "valid_data_channel");
+  EXPECT_EQ(channel.kind(), CHANNEL_KIND_STREAMING);
+  EXPECT_EQ(channel.flow_control(), CHANNEL_FLOW_CONTROL_VALID_DATA);
+  EXPECT_THAT(p.GetTypeFromProto(channel.type()),
+              IsOkAndHolds(m::Type("bits[32]")));
 }
 
 TEST(ModuleSignatureTest, RemoveChannel) {
