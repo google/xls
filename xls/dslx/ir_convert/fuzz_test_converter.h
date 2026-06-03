@@ -22,7 +22,6 @@
 #include "absl/status/statusor.h"
 #include "xls/common/attribute_data.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
@@ -33,11 +32,8 @@ namespace xls::dslx {
 
 class FuzzTestConverter {
  public:
-  FuzzTestConverter(Module* module, TypeInfo* type_info,
-                    ImportData* import_data)
-      : module_(module),
-        current_type_info_(type_info),
-        import_data_(import_data) {}
+  FuzzTestConverter(TypeInfo* type_info, ImportData* import_data)
+      : current_type_info_(type_info), import_data_(import_data) {}
 
   absl::StatusOr<std::optional<AttributeData>> LowerFuzzTestDomains(
       const Function* node);
@@ -66,7 +62,6 @@ class FuzzTestConverter {
                                PackageInterfaceProto::FuzzTestDomain& proto);
 
  private:
-  const Module* module_;
   TypeInfo* current_type_info_;
   ImportData* import_data_;
 };

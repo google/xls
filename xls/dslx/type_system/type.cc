@@ -46,19 +46,6 @@
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
-namespace {
-
-std::vector<std::unique_ptr<Type>> CloneStructMembers(
-    const std::vector<std::unique_ptr<Type>>& members) {
-  std::vector<std::unique_ptr<Type>> cloned_members;
-  cloned_members.reserve(members.size());
-  for (auto& next : members) {
-    cloned_members.push_back(next->CloneToUnique());
-  }
-  return cloned_members;
-}
-
-}  // namespace
 
 Type::~Type() = default;
 

@@ -466,7 +466,7 @@ class InferenceTableImpl : public InferenceTable {
 
   absl::Status AddStructBindingAnnotationsForContext(
       const StructDefBase* struct_def, ParametricEnv parametric_env,
-      const ParametricContext* context) {
+      const ParametricContext* context) override {
     for (const ParametricBinding* binding : struct_def->parametric_bindings()) {
       if (binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
         std::optional<InterpValue> value =

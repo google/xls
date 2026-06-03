@@ -822,7 +822,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleParam(const Param* node) {
+  absl::Status HandleParam(const Param* node) override {
     if (IsProcDefStateType(type_, import_data_)) {
       InterpValue value =
           InterpValue::MakeStateElementReference(node->name_def());
@@ -843,7 +843,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleChannelDecl(const ChannelDecl* node) {
+  absl::Status HandleChannelDecl(const ChannelDecl* node) override {
     InterpValue ends = InterpValue::MakeTuple(std::vector<InterpValue>{
         InterpValue::MakeChannelReference(ChannelDirection::kOut,
                                           /*id=*/++*next_channel_id_,
@@ -855,7 +855,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleStructInstance(const StructInstance* node) {
+  absl::Status HandleStructInstance(const StructInstance* node) override {
     if (!type_.IsProc()) {
       return absl::OkStatus();
     }
