@@ -1579,8 +1579,8 @@ TEST(TypecheckV2Test, FuzzTestDomainArrayMismatch) {
 #[fuzz_test(domains=`[u32:0, 16384]`)]
 fn f(x: u8) {}
 )",
-      TypecheckFails(HasSubstr("Fuzz test domain `[u32:0, 16384]` is not "
-                               "compatible with parameter `x: u8`")));
+      TypecheckFails(HasSubstr("Fuzz test domain bit count (32) does not "
+                               "match parameter bit count (8)")));
 }
 
 TEST(TypecheckV2Test, FuzzTestDomainsEmptyTupleAlwaysMatches) {
@@ -1633,8 +1633,9 @@ const D = (u32:0..1, u8:0..2, u16:0..3);
 #[fuzz_test(domains=`D`)]
 fn f(x: (u32, u8)) {}
 )",
-              TypecheckFails(HasSubstr("Fuzz test domain tuple size (3) does "
-                                       "not match parameter tuple size (2)")));
+              TypecheckFails(HasSubstr(
+                  "Fuzz test domain tuple size (3) does "
+                  "not match parameter 'x: (u32, u8)' tuple size (2)")));
 }
 
 TEST(TypecheckV2Test, FuzzTestTupleDomainTypeMismatch) {
@@ -1921,6 +1922,50 @@ const X = A..s8:3;
 )",
               TypecheckFails(HasSubstr("Range expr `A..s8:3` start value 4 "
                                        "is greater than end value 3")));
+}
+
+TEST(TypecheckV2Test, FuzzTestArrayDomainSuccess) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`[u32:0..5, u32:1..6]`)]
+fn f(x: u32[2]) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestArrayDomainSizeMismatch) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`[u32:0..5, u32:1..6, u32:2..7]`)]
+fn f(x: u32[2]) {}
+)",
+              TypecheckFails(
+                  HasSubstr("Fuzz test domain array size (3) does "
+                            "not match parameter 'x: u32[2]' array size (2)")));
+}
+
+TEST(TypecheckV2Test, FuzzTestArrayDomainElementTypeMismatch) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`[u8:0..5, u8:1..6]`)]
+fn f(x: u32[2]) {}
+)",
+              TypecheckFails(HasSubstr("is not compatible with parameter")));
+}
+
+TEST(TypecheckV2Test, FuzzTestArrayDomainIsARangeFailure) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`u32:0..5`)]
+fn f(x: u32[5]) {}
+)",
+              TypecheckFails(
+                  HasSubstr("Expected array of domains for array parameter")));
+}
+
+TEST(TypecheckV2Test, FuzzTestArrayDomainIsAScalarFailure) {
+  EXPECT_THAT(R"(
+#[fuzz_test(domains=`u32:42`)]
+fn f(x: u32[5]) {}
+)",
+              TypecheckFails(
+                  HasSubstr("Expected array of domains for array parameter")));
 }
 
 }  // namespace

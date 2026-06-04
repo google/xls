@@ -39,6 +39,7 @@
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/fuzz_domain_rewriter.h"
 #include "xls/dslx/frontend/lambda_rewriter.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -652,6 +653,7 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
     XLS_RETURN_IF_ERROR(module.Accept(&state_visitor));
   }
   XLS_RETURN_IF_ERROR(RewriteLambdas(module, import_data));
+  XLS_RETURN_IF_ERROR(RewriteDomainStructs(module, import_data));
 
   AddSpawnTraitToProcDefs add_spawn_trait;
   XLS_RETURN_IF_ERROR(module.Accept(&add_spawn_trait));
