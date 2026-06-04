@@ -1397,5 +1397,118 @@ fn f(o: Outer) -> u32 { o.x }
   EXPECT_EQ(a_domain.range().max().bits().data(), std::string{'\004'});
 }
 
+TEST(FunctionConverterFuzzTestTest, ConstantLargeRangeDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+const R = u32:0..u32:100000;
+#[fuzz_test(domains = `R`)]
+fn f(x: u32) -> u32 { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  ASSERT_EQ(function_proto.parameter_domains_size(), 1);
+  const auto& domain = function_proto.parameter_domains(0);
+  ASSERT_TRUE(domain.has_range());
+
+  EXPECT_EQ(domain.range().min().bits().bit_count(), 32);
+  EXPECT_EQ(domain.range().min().bits().data(),
+            std::string("\000\000\000\000", 4));
+
+  EXPECT_EQ(domain.range().max().bits().bit_count(), 32);
+  // 99999 in little endian bytes: 9F 86 01 00
+  char expected_max_bytes[] = {static_cast<char>(0x9F), static_cast<char>(0x86),
+                               0x01, 0x00};
+  EXPECT_EQ(domain.range().max().bits().data(),
+            std::string(expected_max_bytes, 4));
+}
+
+TEST(FunctionConverterFuzzTestTest, ImportedConstantLargeRangeDomain) {
+  ImportData import_data = CreateImportDataForTest();
+
+  // Parse imported module first.
+  XLS_ASSERT_OK(ParseAndTypecheck(R"(
+pub const R = u32:0..u32:100000;
+)",
+                                  "imported.x", "imported", &import_data)
+                    .status());
+
+  // Parse main module that imports 'imported'.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+import imported;
+#[fuzz_test(domains = `imported::R`)]
+fn f(x: u32) -> u32 { x }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const AttributeData::Argument& arg = attributes[0].args()[0];
+  const auto& skv = std::get<AttributeData::StringKeyValueArgument>(arg);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  ASSERT_EQ(function_proto.parameter_domains_size(), 1);
+  const auto& domain = function_proto.parameter_domains(0);
+  ASSERT_TRUE(domain.has_range());
+
+  EXPECT_EQ(domain.range().min().bits().bit_count(), 32);
+  EXPECT_EQ(domain.range().min().bits().data(),
+            std::string("\000\000\000\000", 4));
+
+  EXPECT_EQ(domain.range().max().bits().bit_count(), 32);
+  // 99999 in little endian bytes: 9F 86 01 00
+  char expected_max_bytes[] = {static_cast<char>(0x9F), static_cast<char>(0x86),
+                               0x01, 0x00};
+  EXPECT_EQ(domain.range().max().bits().data(),
+            std::string(expected_max_bytes, 4));
+}
+
 }  // namespace
 }  // namespace xls::dslx

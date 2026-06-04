@@ -37,6 +37,7 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
@@ -204,7 +205,13 @@ absl::Status FuzzTestConverter::LowerConstant(
 absl::Status FuzzTestConverter::LowerDomainExpr(
     const Type* param_type, const Expr* expr,
     PackageInterfaceProto::FuzzTestDomain& proto) {
-  if (expr->kind() == AstNodeKind::kStructInstance) {
+  ResolvedDomain resolved = ResolveDomainExpression(expr, current_type_info_);
+
+  const Expr* resolved_expr = resolved.expr;
+  TypeInfo* resolved_type_info = resolved.type_info != nullptr
+                                     ? const_cast<TypeInfo*>(resolved.type_info)
+                                     : current_type_info_;
+  if (resolved_expr->kind() == AstNodeKind::kStructInstance) {
     XLS_RET_CHECK(param_type != nullptr && param_type->IsStruct());
     const StructInstance* struct_domain =
         absl::down_cast<const StructInstance*>(expr);
@@ -212,32 +219,33 @@ absl::Status FuzzTestConverter::LowerDomainExpr(
     return LowerStructInstanceDomain(struct_type, *struct_domain, proto);
   }
 
-  if (expr->kind() == AstNodeKind::kRange) {
+  if (resolved_expr->kind() == AstNodeKind::kRange) {
     // Ranges get expanded into arrays by the constexpr evaluator, so if you
     // have a range of u32:0..u32:FFFFFFFF, it will try to turn it into an array
     // of 2^32 elements, which fills memory. So for ranges we perform the
     // lowering directly from the AST, without turning to InterpValue.
-    const Range* range_node = absl::down_cast<const Range*>(expr);
-    return LowerRangeExpr(range_node, proto);
+    const Range* range_node = absl::down_cast<const Range*>(resolved_expr);
+    return LowerRangeExpr(range_node, resolved_type_info, proto);
   }
   XLS_ASSIGN_OR_RETURN(
       InterpValue const_value,
-      ConstexprEvaluator::EvaluateToValue(import_data_, current_type_info_,
+      ConstexprEvaluator::EvaluateToValue(import_data_, resolved_type_info,
                                           /*warning_collector=*/nullptr,
-                                          /*bindings=*/{}, expr));
+                                          /*bindings=*/{}, resolved_expr));
   return LowerConstant(param_type, const_value, proto);
 }
 
 absl::Status FuzzTestConverter::LowerRangeExpr(
-    const Range* range_node, PackageInterfaceProto::FuzzTestDomain& proto) {
+    const Range* range_node, TypeInfo* type_info,
+    PackageInterfaceProto::FuzzTestDomain& proto) {
   XLS_ASSIGN_OR_RETURN(InterpValue min_val,
                        ConstexprEvaluator::EvaluateToValue(
-                           import_data_, current_type_info_,
+                           import_data_, type_info,
                            /*warning_collector=*/nullptr,
                            /*bindings=*/{}, range_node->start()));
   XLS_ASSIGN_OR_RETURN(
       InterpValue max_val,
-      ConstexprEvaluator::EvaluateToValue(import_data_, current_type_info_,
+      ConstexprEvaluator::EvaluateToValue(import_data_, type_info,
                                           /*warning_collector=*/nullptr,
                                           /*bindings=*/{}, range_node->end()));
   if (!range_node->inclusive_end()) {

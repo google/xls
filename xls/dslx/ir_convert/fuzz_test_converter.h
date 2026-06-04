@@ -55,7 +55,7 @@ class FuzzTestConverter {
       const StructType& struct_type, const StructInstance& struct_domain,
       PackageInterfaceProto::FuzzTestDomain& proto);
 
-  absl::Status LowerRangeExpr(const Range* range_node,
+  absl::Status LowerRangeExpr(const Range* range_node, TypeInfo* type_info,
                               PackageInterfaceProto::FuzzTestDomain& proto);
   // Main entry point
   absl::Status LowerDomainExpr(const Type* param_type, const Expr* expr,
