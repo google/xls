@@ -48,6 +48,37 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "codegen_scheduled_main",
+    srcs = ["codegen_scheduled_main.cc"],
+    deps = [
+        "//xls/codegen:codegen_result",
+        "//xls/codegen:module_signature",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dev_tools:tool_timeout",
+        "//xls/estimators",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:verifier",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
+        "//xls/tools:codegen",
+        "//xls/tools:codegen_flags",
+        "//xls/tools:codegen_flags_cc_proto",
+        "//xls/tools:scheduling_options_flags",
+        "//xls/tools:scheduling_options_flags_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
 pytype_strict_library(
     name = "xls_ir_to_networkx",
     srcs = ["xls_ir_to_networkx.py"],
