@@ -252,10 +252,8 @@ TEST_P(SideEffectConditionPassTest, CombinationalProc) {
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
   ScheduledBlockBuilder bb("g", &package);
-  Proc* source;
   {
     auto owned_source = std::make_unique<Proc>("__g_source", &package);
-    source = owned_source.get();
     bb.SetSource(std::move(owned_source));
   }
 

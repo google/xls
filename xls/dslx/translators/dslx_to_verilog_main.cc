@@ -147,16 +147,12 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
         continue;
       }
       AstNode* def_node = TypeDefinitionToAstNode(def);
-      Type* type = nullptr;
-      {
-        std::optional<Type*> type_from_type_info =
-            tm.type_info->GetItem(def_node);
-        if (!type_from_type_info.has_value()) {
-          VLOG(3) << absl::StreamFormat("Skipping %s with no type info.",
-                                        def_node->ToInlineString());
-          continue;
-        }
-        type = *type_from_type_info;
+      std::optional<Type*> type_from_type_info =
+          tm.type_info->GetItem(def_node);
+      if (!type_from_type_info.has_value()) {
+        VLOG(3) << absl::StreamFormat("Skipping %s with no type info.",
+                                      def_node->ToInlineString());
+        continue;
       }
 
       VLOG(3) << absl::StreamFormat("Converting definition %s to Verilog",

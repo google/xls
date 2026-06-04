@@ -113,8 +113,7 @@ TEST(AssignOrReturn, WorksWithStructureBindings) {
     EXPECT_EQ(2, t3);
     EXPECT_EQ(3, t4);
     EXPECT_EQ(4, t5);
-    XLS_ASSIGN_OR_RETURN(int t6, ReturnStatusOrError("EXPECTED"));
-    t6 = 0;
+    XLS_ASSIGN_OR_RETURN(int _, ReturnStatusOrError("EXPECTED"));
     return ReturnError("ERROR");
   };
 
