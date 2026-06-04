@@ -505,10 +505,15 @@ bool xls_vast_verilog_file_make_literal(struct xls_vast_verilog_file* f,
   if (!xls::FormatPreferenceFromC(format_preference, &cpp_pref, error_out)) {
     return false;
   }
-  xls::verilog::Literal* cpp_literal = cpp_file->Make<xls::verilog::Literal>(
-      xls::SourceInfo(), *cpp_bits, cpp_pref, emit_bit_count);
+  absl::StatusOr<xls::verilog::Literal*> cpp_literal =
+      cpp_file->Literal(*cpp_bits, xls::SourceInfo(), cpp_pref, emit_bit_count);
+  if (!cpp_literal.ok()) {
+    *error_out = xls::ToOwnedCString(cpp_literal.status().ToString());
+    *literal_out = nullptr;
+    return false;
+  }
   *error_out = nullptr;
-  *literal_out = reinterpret_cast<xls_vast_literal*>(cpp_literal);
+  *literal_out = reinterpret_cast<xls_vast_literal*>(cpp_literal.value());
   return true;
 }
 
