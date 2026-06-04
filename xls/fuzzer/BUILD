@@ -424,6 +424,8 @@ generate_crasher_regression_tests(
         # TODO: https://github.com/google/xls/issues/4302 - Remove when fixed.
         "crashers/crasher_2026-05-21_c47d.x",
         "crashers/crasher_2026-05-26_cf55.x",
+        # TODO: https://github.com/google/xls/issues/4361 - Remove when fixed.
+        "crashers/crasher_2026-06-03_919f.x",
     ],
     # Tests which are too slow in the unopt-ir interpreter.
     no_unopt_interpreter = [
@@ -1031,4 +1033,9 @@ proto_library(
 xls_dslx_library(
     name = "crashers/crasher_2025_07_07_6866",
     srcs = ["crashers/crasher_2025-07-07_6866.x"],
+)
+
+xls_dslx_library(
+    name = "crashers/crasher_2026_06_03_919f",
+    srcs = ["crashers/crasher_2026-06-03_919f.x"],
 )
