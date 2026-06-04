@@ -25,6 +25,7 @@ import jinja2
 
 from xls.ir import xls_ir_interface_pb2 as ir_interface_pb2
 from xls.ir import xls_type_pb2 as type_pb2
+from xls.ir import xls_value_pb2 as value_pb2
 from xls.jit import aot_entrypoint_pb2
 
 
@@ -241,7 +242,9 @@ def to_c_type(t: type_pb2.TypeProto) -> Optional[str]:
   if c_type is not None:
     return c_type
   the_type = t.type_enum
-  if the_type == type_pb2.TypeProto.TUPLE:
+  if the_type == type_pb2.TypeProto.BITS:
+    return "xls::Value"
+  elif the_type == type_pb2.TypeProto.TUPLE:
     elems = [to_c_type(e) for e in t.tuple_elements]
     if any(e is None for e in elems):
       return None
@@ -312,6 +315,46 @@ def can_use_uint64_range(
   return False
 
 
+def value_proto_to_cpp_literal(
+    t: type_pb2.TypeProto, v: value_pb2.ValueProto
+) -> str:
+  """Converts a ValueProto to its C++ representation based on the given TypeProto."""
+  if v.HasField("bits"):
+    c_type = to_specialized(t, int_only=True)
+    val = extract_int_from_bytes(v.bits.data)
+    if c_type is not None:
+      return str(val)
+    # Fallback to big-endian bytes vector construction for wide bits
+    bytes_str = ", ".join(f"0x{b:02x}" for b in v.bits.data[::-1])
+    return (
+        f"xls::Value(xls::Bits::FromBytes(std::vector<uint8_t>{{{bytes_str}}},"
+        f" {t.bit_count}))"
+    )
+
+  if v.HasField("tuple"):
+    if len(t.tuple_elements) != len(v.tuple.elements):
+      raise app.UsageError(
+          "Tuple element count mismatch for C++ literal conversion"
+      )
+    elems = [
+        value_proto_to_cpp_literal(te, ve)
+        for te, ve in zip(t.tuple_elements, v.tuple.elements)
+    ]
+    return f"std::make_tuple({', '.join(elems)})"
+
+  if v.HasField("array"):
+    elems = [
+        value_proto_to_cpp_literal(t.array_element, ve)
+        for ve in v.array.elements
+    ]
+    c_type = to_c_type(t)
+    return f"{c_type}{{{', '.join(elems)}}}"
+
+  raise app.UsageError(
+      f"Unsupported ValueProto for C++ literal conversion: {v}"
+  )
+
+
 def to_domain(
     t: type_pb2.TypeProto,
     d: Optional[ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain],
@@ -349,7 +392,14 @@ def to_domain(
     if t.type_enum == type_pb2.TypeProto.BITS:
       c_type = to_specialized(t, int_only=True)
       if c_type is None:
-        return None
+        # Support arbitrary domain for wide bits (>64) represented as xls::Value
+        byte_count = (t.bit_count + 7) // 8
+        return (
+            f"fuzztest::Map([](const std::array<uint8_t, {byte_count}>& bytes)"
+            " { return xls::Value(xls::Bits::FromBytes(bytes,"
+            f" {t.bit_count})); }},"
+            f" fuzztest::ArrayOf<{byte_count}>(fuzztest::Arbitrary<uint8_t>()))"
+        )
       if t.bit_count in (8, 16, 32, 64):
         return f"fuzztest::Arbitrary<{c_type}>()"
       else:
@@ -378,15 +428,13 @@ def to_domain(
     return f"fuzztest::InRange<{cpp_type}>({min_val}, {max_val})"
 
   if d.HasField("element_of"):
-    c_type = to_specialized(t, int_only=True)
+    c_type = to_c_type(t)
     if c_type is None:
       raise app.UsageError(
           "ElementOf domain only supported for specializable bits types in"
           " this CL"
       )
-    vals = [
-        str(extract_int_from_bytes(v.bits.data)) for v in d.element_of.values
-    ]
+    vals = [value_proto_to_cpp_literal(t, v) for v in d.element_of.values]
     return f"fuzztest::ElementOf(std::vector<{c_type}>{{{', '.join(vals)}}})"
 
   if d.HasField("tuple"):
@@ -405,6 +453,9 @@ def to_domain(
 def to_value_conversion(t: type_pb2.TypeProto, expr: str) -> str:
   """Generates C++ snippet to convert a native type to xls::Value."""
   if t.type_enum == type_pb2.TypeProto.BITS:
+    c_type = to_specialized(t, int_only=True)
+    if c_type is None:
+      return expr
     return f"xls::Value(xls::UBits({expr}, {t.bit_count}))"
   elif t.type_enum == type_pb2.TypeProto.TUPLE:
     elems = []
