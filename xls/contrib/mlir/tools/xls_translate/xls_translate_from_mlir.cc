@@ -68,11 +68,13 @@
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/contrib/mlir/util/conversion_utils.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -89,6 +91,7 @@ namespace {
 
 using ::llvm::zip;
 using ::mlir::func::FuncOp;
+using ::xls::BlockBuilder;
 using ::xls::BuilderBase;
 using ::xls::BValue;
 using ::xls::FunctionBuilder;
@@ -1204,6 +1207,29 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
           }
           return out = fb.Tuple(operands);
         })
+        .Case<BlockOutputOp>([&](BlockOutputOp block_out) {
+          // BlockOutputOp is handled separately by the block conversion.
+          // Just return a dummy valid BValue.
+          if (block_out.getNumOperands() > 0) {
+            return value_map[block_out.getOperand(0)];
+          }
+          return BValue();
+        })
+        .Case<RegisterOp>([&](RegisterOp reg_op) {
+          // RegisterOp declarations are handled during block setup.
+          // Return a dummy valid BValue.
+          return fb.Literal(::xls::UBits(0, 1));
+        })
+        .Case<RegisterReadOp>([&](RegisterReadOp read_op) {
+          // RegisterReadOp is handled by the block conversion path.
+          // Return a dummy; it's replaced in the block path.
+          return BValue();
+        })
+        .Case<RegisterWriteOp>([&](RegisterWriteOp write_op) {
+          // RegisterWriteOp is handled by the block conversion path.
+          // Return a dummy; it's replaced in the block path.
+          return BValue();
+        })
         .Case<NextValueOp>([&](NextValueOp next) {
           // We just skip the next value op here as its handled in the eproc
           // conversion.
@@ -1580,6 +1606,217 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
 
     // Currently this only works over functions and creates a new XLS function
     // for each function in the module.
+    // Handle BlockOp separately (it doesn't implement XlsRegionOpInterface).
+    if (auto block_op = dyn_cast<BlockOp>(op)) {
+      DenseMap<Value, std::string> valueNameMap;
+      llvm::StringMap<int> usedNames;
+      auto get_name = [&](Value v) -> std::string {
+        if (auto it = valueNameMap.find(v); it != valueNameMap.end()) {
+          return it->second;
+        }
+        std::string name;
+        if (auto loc = dyn_cast<NameLoc>(v.getLoc())) {
+          name = ::xls::verilog::SanitizeVerilogIdentifier(loc.getName().str());
+        } else {
+          name = ::xls::verilog::SanitizeVerilogIdentifier(
+              debugString(v.getLoc()));
+        }
+        auto& count = usedNames[name];
+        if (count > 0) {
+          name += std::to_string(count);
+        }
+        ++count;
+        return valueNameMap[v] = name;
+      };
+
+      DenseMap<Value, BValue> valueMap;
+      translation_state.setValueMap(valueMap);
+
+      // Translate MLIR BlockOp to XLS IR Block.
+      BlockBuilder bb(block_op.getSymName(), package.get());
+
+      // Add clock port if present.
+      if (auto clock_name = block_op.getClockName()) {
+        if (auto status = bb.AddClockPort(clock_name->str()); !status.ok()) {
+          block_op.emitOpError()
+              << "failed to add clock port: " << status.message();
+          return failure();
+        }
+      }
+
+      // Build reset behavior and add reset port if present.
+      std::optional<::xls::ResetBehavior> reset_behavior;
+      if (block_op.hasReset()) {
+        ::xls::ResetBehavior rb;
+        rb.asynchronous = block_op.getResetAsynchronous().value_or(false);
+        rb.active_low = block_op.getResetActiveLow().value_or(false);
+        reset_behavior = rb;
+
+        std::string reset_port_name = block_op.getResetName()->str();
+        BValue reset_bv = bb.ResetPort(reset_port_name, *reset_behavior);
+        valueMap[block_op.getResetValue()] = reset_bv;
+      }
+
+      // Add data input ports (from getDataPortArguments).
+      auto input_names = block_op.getInputNames();
+      auto input_types = block_op.getInputTypes();
+      for (auto [i, arg] : llvm::enumerate(block_op.getDataPortArguments())) {
+        std::string port_name =
+            cast<StringAttr>(input_names[i]).getValue().str();
+        if (port_name.empty()) {
+          port_name = get_name(arg);
+        }
+        ::xls::Type* xls_type = translation_state.getType(input_types[i]);
+        if (xls_type == nullptr) {
+          block_op.emitOpError() << "unsupported input type";
+          return failure();
+        }
+        BValue input_bv = bb.InputPort(port_name, xls_type);
+        valueMap[arg] = input_bv;
+      }
+
+      // Create registers.
+      llvm::StringMap<::xls::Register*> register_map;
+      bool register_creation_failed = false;
+      block_op.getBody().front().walk([&](RegisterOp reg_op) {
+        if (register_creation_failed) return;
+        ::xls::Type* reg_type = translation_state.getType(reg_op.getType());
+        std::optional<::xls::Value> reset_value;
+        if (auto reset_attr = reg_op.getResetValueAttr()) {
+          if (auto int_attr = dyn_cast<IntegerAttr>(reset_attr)) {
+            APInt val = int_attr.getValue();
+            reset_value = ::xls::Value(
+                ::xls::UBits(val.getZExtValue(), val.getBitWidth()));
+          }
+        }
+        auto reg_or = bb.block()->AddRegister(reg_op.getSymName().str(),
+                                              reg_type, reset_value);
+        if (reg_or.ok()) {
+          register_map[reg_op.getSymName()] = *reg_or;
+        } else {
+          reg_op.emitOpError()
+              << "failed to create register: " << reg_or.status().message();
+          register_creation_failed = true;
+        }
+      });
+      if (register_creation_failed) return failure();
+
+      // Walk body and translate ops.
+      for (auto& body_op : block_op.getBody().front().without_terminator()) {
+        // Skip RegisterOp declarations (handled above).
+        if (isa<RegisterOp>(body_op)) {
+          continue;
+        }
+
+        if (auto read_op = dyn_cast<RegisterReadOp>(body_op)) {
+          auto reg_name = read_op.getReg();
+          auto it = register_map.find(reg_name);
+          if (it == register_map.end()) {
+            read_op.emitOpError() << "register not found: " << reg_name;
+            return failure();
+          }
+          BValue read_bv =
+              bb.RegisterRead(it->second, translation_state.getLoc(&body_op),
+                              get_name(read_op.getResult()));
+          valueMap[read_op.getResult()] = read_bv;
+          continue;
+        }
+
+        if (auto write_op = dyn_cast<RegisterWriteOp>(body_op)) {
+          auto reg_name = write_op.getReg();
+          auto it = register_map.find(reg_name);
+          if (it == register_map.end()) {
+            write_op.emitOpError() << "register not found: " << reg_name;
+            return failure();
+          }
+          BValue data = valueMap[write_op.getData()];
+          std::optional<BValue> load_enable;
+          if (write_op.getLoadEnable()) {
+            load_enable = valueMap[write_op.getLoadEnable()];
+          }
+          std::optional<BValue> reset;
+          if (write_op.getReset()) {
+            reset = valueMap[write_op.getReset()];
+          }
+          bb.RegisterWrite(it->second, data, load_enable, reset,
+                           translation_state.getLoc(&body_op));
+          continue;
+        }
+
+        // For other ops, use the generic conversion.
+        // TODO(jpienaar): Extract this TypeSwitch into a shared helper to
+        // avoid duplicating the op list from convertFunction().
+        if (body_op.getNumResults() <= 1) {
+          auto convert_result =
+              TypeSwitch<Operation*, BValue>(&body_op)
+                  .Case<
+                      // Unary bitwise ops.
+                      IdentityOp, NotOp,
+                      // Variadic bitwise operations
+                      AndOp, NandOp, OrOp, NorOp, XorOp,
+                      // Bitwise reduction operations
+                      AndReductionOp, OrReductionOp, XorReductionOp,
+                      // Arithmetic unary operations
+                      NegOp,
+                      // Binary ops.
+                      AddOp, SdivOp, SmodOp, SmulOp, SmulpOp, SubOp, UdivOp,
+                      UmodOp, UmulOp, UmulpOp,
+                      // Comparison operations
+                      EqOp, NeOp, SgeOp, SgtOp, SleOp, SltOp, UgeOp, UgtOp,
+                      UleOp, UltOp,
+                      // Shift operations
+                      ShllOp, ShrlOp, ShraOp,
+                      // Extension operations
+                      ZeroExtOp, SignExtOp,
+                      // Array ops.
+                      ArrayOp, ArrayZeroOp, ArrayIndexOp, ArrayIndexStaticOp,
+                      ArraySliceOp, ArrayUpdateOp, ArrayConcatOp,
+                      // Tuple operations
+                      TupleOp, TupleIndexOp,
+                      // Bit-vector operations
+                      BitSliceOp, BitSliceUpdateOp, DynamicBitSliceOp, ConcatOp,
+                      ReverseOp, DecodeOp, EncodeOp, OneHotOp,
+                      // Control-oriented operations
+                      SelOp, OneHotSelOp, PrioritySelOp,
+                      // Constants
+                      ConstantScalarOp, arith::ConstantOp, LiteralOp,
+                      // Casts
+                      arith::BitcastOp, arith::IndexCastOp,
+                      // Misc
+                      GateOp>([&](auto t) {
+                    return convertOp(t, translation_state, bb);
+                  })
+                  .Default([&](auto op) {
+                    llvm::errs() << "Unsupported op in block: " << *op << "\n";
+                    return BValue();
+                  });
+          if (!convert_result.valid()) {
+            return failure();
+          }
+          if (body_op.getNumResults() == 1) {
+            valueMap[body_op.getResult(0)] = convert_result;
+          }
+        }
+      }
+
+      // Handle output ports from the BlockOutputOp terminator.
+      auto terminator =
+          cast<BlockOutputOp>(block_op.getBody().front().getTerminator());
+      auto output_names = block_op.getOutputNames();
+      for (auto [i, output] : llvm::enumerate(terminator.getOutputs())) {
+        std::string port_name =
+            cast<StringAttr>(output_names[i]).getValue().str();
+        bb.OutputPort(port_name, valueMap[output]);
+      }
+
+      if (absl::StatusOr<::xls::Block*> s = bb.Build(); !s.ok()) {
+        block_op.emitOpError()
+            << "failed to build block: " << s.status().message();
+        return failure();
+      }
+      continue;
+    }
+
     auto xls_region = dyn_cast<XlsRegionOpInterface>(op);
     if (!xls_region) {
       continue;

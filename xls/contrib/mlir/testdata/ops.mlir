@@ -628,3 +628,99 @@ xls.eproc @eproc(%pred: i1, %arg: i32) zeroinitializer {
   %0 = xls.next_value [%pred, %arg], [%pred, %arg] : (i32, i32) -> i32
   xls.yield %pred, %0 : i1, i32
 }
+
+// -----
+
+// CHECK-LABEL: xls.block @simple_block
+// CHECK-SAME: [clock: "clk"]
+// CHECK-SAME: (%in: i32) -> (%out : i32)
+// CHECK: xls.register @state : i32
+// CHECK: xls.register_read @state : i32
+// CHECK: xls.register_write @state
+// CHECK: xls.block_output
+xls.block @simple_block[clock: "clk"](%in : i32) -> (%out : i32) {
+  xls.register @state : i32
+  %q = xls.register_read @state : i32
+  %sum = xls.add %in, %q : i32
+  xls.register_write @state, %sum : i32
+  xls.block_output %sum : i32
+}
+
+// -----
+
+// CHECK-LABEL: xls.block @passthrough
+// CHECK-SAME: (%x: i32) -> (%y : i32)
+xls.block @passthrough(%x : i32) -> (%y : i32) {
+  xls.block_output %x : i32
+}
+
+// -----
+
+// CHECK-LABEL: xls.block @multi_port
+// CHECK-SAME: [clock: "clk"]
+// CHECK-SAME: (%a: i32, %b: i1) -> (%sum : i32, %flag : i1)
+xls.block @multi_port[clock: "clk"](%a : i32, %b : i1) -> (%sum : i32, %flag : i1) {
+  xls.block_output %a, %b : i32, i1
+}
+
+// -----
+
+// CHECK-LABEL: xls.block @with_reset
+// CHECK-SAME: [clock: "clk", reset: %rst]
+// CHECK-SAME: (%in: i32) -> (%out : i32)
+xls.block @with_reset[clock: "clk", reset: %rst](%in : i32) -> (%out : i32) {
+  xls.register @r {reset_value = 0 : i32} : i32
+  %q = xls.register_read @r : i32
+  xls.register_write @r, %in : i32
+  xls.block_output %q : i32
+}
+
+// -----
+
+// CHECK-LABEL: xls.block @register_write_with_le
+// CHECK: xls.register_write @r, %in load_enable %le : i32
+xls.block @register_write_with_le[clock: "clk"](%in : i32, %le : i1) -> (%out : i32) {
+  xls.register @r : i32
+  %q = xls.register_read @r : i32
+  xls.register_write @r, %in load_enable %le : i32
+  xls.block_output %q : i32
+}
+
+// -----
+
+// CHECK-LABEL: xls.block @register_write_with_reset
+// CHECK: xls.register_write @r, %in reset %rst : i32
+xls.block @register_write_with_reset[clock: "clk", reset: %rst](%in : i32) -> (%out : i32) {
+  xls.register @r {reset_value = 0 : i32} : i32
+  %q = xls.register_read @r : i32
+  xls.register_write @r, %in reset %rst : i32
+  xls.block_output %q : i32
+}
+
+// -----
+
+// CHECK-LABEL: xls.block @register_write_with_le_and_reset
+// CHECK: xls.register_write @r, %in load_enable %le reset %rst : i32
+xls.block @register_write_with_le_and_reset[clock: "clk", reset: %rst](%in : i32, %le : i1) -> (%out : i32) {
+  xls.register @r {reset_value = 0 : i32} : i32
+  %q = xls.register_read @r : i32
+  xls.register_write @r, %in load_enable %le reset %rst : i32
+  xls.block_output %q : i32
+}
+
+// -----
+
+xls.block @reg_type_mismatch(%in : i32) -> (%out : i32) {
+  xls.register @myreg : i32
+  // expected-error@+1 {{register type does not match element type ('i32' vs 'i8')}}
+  %val = xls.register_read @myreg : i8
+  xls.block_output %in : i32
+}
+
+// -----
+
+xls.block @reg_missing(%in : i32) -> (%out : i32) {
+  // expected-error@+1 {{register symbol not found: @nonexistent}}
+  %val = xls.register_read @nonexistent : i32
+  xls.block_output %in : i32
+}

@@ -941,6 +941,347 @@ LogicalResult SendOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
                               getData().getType(), symbolTable);
 }
 
+namespace {
+LogicalResult verifyRegisterUsingOp(Operation* op, SymbolRefAttr registerAttr,
+                                    Type elementType,
+                                    SymbolTableCollection& symbolTable) {
+  auto regOp =
+      symbolTable.lookupNearestSymbolFrom<RegisterOp>(op, registerAttr);
+  if (!regOp) {
+    return op->emitOpError("register symbol not found: ") << registerAttr;
+  }
+  if (regOp.getType() != elementType) {
+    return op->emitOpError("register type does not match element type (")
+           << regOp.getType() << " vs " << elementType << ")";
+  }
+  return success();
+}
+}  // namespace
+
+LogicalResult RegisterReadOp::verifySymbolUses(
+    SymbolTableCollection& symbolTable) {
+  return verifyRegisterUsingOp(getOperation(), getRegAttr(),
+                               getResult().getType(), symbolTable);
+}
+
+LogicalResult RegisterWriteOp::verifySymbolUses(
+    SymbolTableCollection& symbolTable) {
+  return verifyRegisterUsingOp(getOperation(), getRegAttr(),
+                               getData().getType(), symbolTable);
+}
+
+//===----------------------------------------------------------------------===//
+// BlockOp
+//===----------------------------------------------------------------------===//
+
+void BlockOp::print(OpAsmPrinter& printer) {
+  printer << ' ';
+  printer.printSymbolName(getSymName());
+
+  // Print optional [clock: "clk", reset: %rst async active_low] section.
+  bool hasClk = getClockName().has_value();
+  bool hasRst = hasReset();
+  if (hasClk || hasRst) {
+    printer << '[';
+    bool needComma = false;
+    if (hasClk) {
+      printer << "clock: ";
+      printer.printString(*getClockName());
+      needComma = true;
+    }
+    if (hasRst) {
+      if (needComma) printer << ", ";
+      printer << "reset: " << getResetValue();
+      if (auto async = getResetAsynchronous()) {
+        if (*async) printer << " async";
+      }
+      if (auto activeLow = getResetActiveLow()) {
+        if (*activeLow) printer << " active_low";
+      }
+    }
+    printer << ']';
+  }
+
+  // Print data input ports: (%a : i32, %b : i32)
+  printer << '(';
+  llvm::interleaveComma(getDataPortArguments(), printer.getStream(),
+                        [&](auto arg) { printer.printRegionArgument(arg); });
+  printer << ')';
+
+  // Print output ports: -> (%out : i32, ...)
+  auto outputNames = getOutputNames();
+  auto outputTypes = getFunctionType().getResults();
+  if (!outputTypes.empty()) {
+    printer << " -> (";
+    llvm::interleaveComma(
+        llvm::enumerate(outputTypes), printer.getStream(),
+        [&](auto indexedType) {
+          printer << '%';
+          auto name =
+              cast<StringAttr>(outputNames[indexedType.index()]).getValue();
+          printer.printKeywordOrString(name);
+          printer << " : ";
+          printer.printType(indexedType.value());
+        });
+    printer << ')';
+  }
+
+  // Print optional attributes (elide the ones in the signature).
+  SmallVector<StringRef> elideAttrNames = {
+      "sym_name",   "function_type", "input_names",        "output_names",
+      "clock_name", "reset_name",    "reset_asynchronous", "reset_active_low"};
+  printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
+                                           elideAttrNames);
+  printer << ' ';
+  printer.printRegion(getBody(), /*printEntryBlockArgs=*/false);
+}
+
+ParseResult BlockOp::parse(OpAsmParser& parser, OperationState& result) {
+  auto* ctx = parser.getContext();
+  auto builder = parser.getBuilder();
+
+  // Parse the name as a symbol.
+  StringAttr nameAttr;
+  if (parser.parseSymbolName(nameAttr, mlir::SymbolTable::getSymbolAttrName(),
+                             result.attributes)) {
+    return failure();
+  }
+
+  // Parse optional [clock: "clk", reset: %rst ...] section.
+  OpAsmParser::Argument resetArg;
+  bool hasReset = false;
+  if (succeeded(parser.parseOptionalLSquare())) {
+    // Parse comma-separated clock:/reset: entries.
+    while (failed(parser.parseOptionalRSquare())) {
+      if (succeeded(parser.parseOptionalKeyword("clock"))) {
+        if (parser.parseColon()) return failure();
+        std::string clockName;
+        if (parser.parseString(&clockName)) return failure();
+        result.addAttribute("clock_name", StringAttr::get(ctx, clockName));
+      } else if (succeeded(parser.parseOptionalKeyword("reset"))) {
+        if (parser.parseColon()) return failure();
+        if (parser.parseOperand(resetArg.ssaName)) return failure();
+        hasReset = true;
+        // Store reset port name from SSA name (drop leading %).
+        result.addAttribute(
+            "reset_name",
+            StringAttr::get(ctx, resetArg.ssaName.name.drop_front()));
+        resetArg.type = builder.getI1Type();
+        // Parse optional behavior flags.
+        if (succeeded(parser.parseOptionalKeyword("async"))) {
+          result.addAttribute("reset_asynchronous", BoolAttr::get(ctx, true));
+        }
+        if (succeeded(parser.parseOptionalKeyword("active_low"))) {
+          result.addAttribute("reset_active_low", BoolAttr::get(ctx, true));
+        }
+      } else {
+        return parser.emitError(parser.getCurrentLocation(),
+                                "expected 'clock' or 'reset'");
+      }
+      (void)parser.parseOptionalComma();
+    }
+  }
+
+  // Parse data input ports: (%a : i32, ...)
+  SmallVector<OpAsmParser::Argument> dataArgs;
+  if (parser.parseArgumentList(dataArgs, OpAsmParser::Delimiter::Paren,
+                               /*allowType=*/true)) {
+    return failure();
+  }
+
+  // Build input_names from SSA names (drop_front to strip %).
+  SmallVector<Attribute> inputNames;
+  SmallVector<Type> inputTypes;
+  for (auto& arg : dataArgs) {
+    inputTypes.push_back(arg.type);
+    inputNames.push_back(StringAttr::get(ctx, arg.ssaName.name.drop_front()));
+  }
+  result.addAttribute("input_names", ArrayAttr::get(ctx, inputNames));
+
+  // Parse optional output ports: -> (%out : i32, ...)
+  SmallVector<Attribute> outputNames;
+  SmallVector<Type> outputTypes;
+  if (succeeded(parser.parseOptionalArrow())) {
+    if (parser.parseLParen()) return failure();
+    if (failed(parser.parseOptionalRParen())) {
+      do {
+        // Parse %name : type — consume the % then parse keyword/string.
+        // The output name looks like an SSA value but isn't one.
+        OpAsmParser::UnresolvedOperand dummy;
+        if (parser.parseOperand(dummy)) return failure();
+        outputNames.push_back(StringAttr::get(ctx, dummy.name.drop_front()));
+        if (parser.parseColon()) return failure();
+        Type outType;
+        if (parser.parseType(outType)) return failure();
+        outputTypes.push_back(outType);
+      } while (succeeded(parser.parseOptionalComma()));
+      if (parser.parseRParen()) return failure();
+    }
+  }
+  result.addAttribute("output_names", ArrayAttr::get(ctx, outputNames));
+
+  // Build function type from data ports only.
+  auto funcType = FunctionType::get(ctx, inputTypes, outputTypes);
+  result.addAttribute("function_type", TypeAttr::get(funcType));
+
+  // Parse optional attribute dict.
+  if (parser.parseOptionalAttrDictWithKeyword(result.attributes)) {
+    return failure();
+  }
+
+  // Build the argument list: [reset,] data_args...
+  SmallVector<OpAsmParser::Argument> allArgs;
+  if (hasReset) {
+    allArgs.push_back(resetArg);
+  }
+  allArgs.append(dataArgs.begin(), dataArgs.end());
+
+  // Parse body region.
+  Region* body = result.addRegion();
+  return parser.parseRegion(*body, allArgs);
+}
+
+LogicalResult BlockOp::verify() {
+  auto funcType = getFunctionType();
+  unsigned resetOffset = hasReset() ? 1 : 0;
+
+  // Check input_names matches data input types.
+  if (static_cast<size_t>(getInputNames().size()) != funcType.getNumInputs()) {
+    return emitOpError() << "input_names size (" << getInputNames().size()
+                         << ") does not match number of data input types ("
+                         << funcType.getNumInputs() << ")";
+  }
+
+  // Check output_names matches output types.
+  if (static_cast<size_t>(getOutputNames().size()) !=
+      funcType.getNumResults()) {
+    return emitOpError() << "output_names size (" << getOutputNames().size()
+                         << ") does not match number of output types ("
+                         << funcType.getNumResults() << ")";
+  }
+
+  // Check total block arguments = resetOffset + data inputs.
+  auto& bodyBlock = getBody().front();
+  unsigned expectedArgs = resetOffset + funcType.getNumInputs();
+  if (bodyBlock.getNumArguments() != expectedArgs) {
+    return emitOpError() << "block argument count ("
+                         << bodyBlock.getNumArguments()
+                         << ") does not match expected (" << expectedArgs
+                         << " = " << resetOffset << " reset + "
+                         << funcType.getNumInputs() << " data)";
+  }
+
+  // If reset present, arg 0 must be i1.
+  if (hasReset()) {
+    auto resetType = bodyBlock.getArgument(0).getType();
+    if (!resetType.isInteger(1)) {
+      return emitOpError() << "reset port (arg 0) must be i1, got "
+                           << resetType;
+    }
+  }
+
+  // Check data argument types match function_type inputs.
+  for (unsigned i = 0; i < funcType.getNumInputs(); ++i) {
+    if (bodyBlock.getArgument(resetOffset + i).getType() !=
+        funcType.getInput(i)) {
+      return emitOpError() << "data port type mismatch at index " << i;
+    }
+  }
+
+  // Check terminator output types match.
+  auto outputOp = cast<BlockOutputOp>(bodyBlock.getTerminator());
+  if (outputOp.getOutputs().size() != funcType.getNumResults()) {
+    return emitOpError() << "block_output operand count ("
+                         << outputOp.getOutputs().size()
+                         << ") does not match output port count ("
+                         << funcType.getNumResults() << ")";
+  }
+  for (unsigned i = 0; i < funcType.getNumResults(); ++i) {
+    if (outputOp.getOutputs()[i].getType() != funcType.getResult(i)) {
+      return emitOpError() << "block_output type mismatch at index " << i
+                           << ": expected " << funcType.getResult(i) << ", got "
+                           << outputOp.getOutputs()[i].getType();
+    }
+  }
+
+  return success();
+}
+
+void BlockOp::getAsmBlockArgumentNames(::mlir::Region& region,
+                                       ::mlir::OpAsmSetValueNameFn setNameFn) {
+  if (region.empty()) return;
+  auto* block = &region.front();
+  unsigned argIdx = 0;
+
+  // Name reset arg from reset_name attribute.
+  if (hasReset() && block->getNumArguments() > 0) {
+    setNameFn(block->getArgument(argIdx), *getResetName());
+    argIdx++;
+  }
+
+  // Name data port args from input_names attribute.
+  auto inputNames = getInputNames();
+  for (unsigned i = 0;
+       i < inputNames.size() && argIdx < block->getNumArguments();
+       ++i, ++argIdx) {
+    auto name = cast<StringAttr>(inputNames[i]).getValue();
+    if (!name.empty()) {
+      setNameFn(block->getArgument(argIdx), name);
+    }
+  }
+}
+
+Region& BlockOp::getBodyRegion() { return getBody(); }
+
+::llvm::StringRef BlockOp::getName() { return getSymName(); }
+
+Operation* BlockOp::buildTerminator(Location loc, OpBuilder& builder,
+                                    ValueRange operands) {
+  return BlockOutputOp::create(builder, loc, operands);
+}
+
+namespace {
+struct BlockOpSignatureConversion : public ConversionPattern {
+  BlockOpSignatureConversion(mlir::MLIRContext* ctx,
+                             const TypeConverter& converter)
+      : ConversionPattern(BlockOp::getOperationName(), /*benefit=*/1, ctx),
+        regionTypeConverter(converter) {}
+
+  LogicalResult matchAndRewrite(
+      Operation* op, llvm::ArrayRef<Value> /*operands*/,
+      ConversionPatternRewriter& rewriter) const override {
+    Region& region = op->getRegion(0);
+    TypeConverter::SignatureConversion result(region.getNumArguments());
+    if (failed(regionTypeConverter.convertSignatureArgs(
+            region.getArgumentTypes(), result))) {
+      return failure();
+    }
+
+    if (failed(rewriter.convertRegionTypes(&region, regionTypeConverter,
+                                           &result))) {
+      return failure();
+    }
+
+    rewriter.modifyOpInPlace(op, [&] {});
+    return success();
+  }
+
+  const TypeConverter& regionTypeConverter;  // NOLINT
+};
+}  // namespace
+
+void BlockOp::addSignatureConversionPatterns(RewritePatternSet& patterns,
+                                             TypeConverter& typeConverter,
+                                             ConversionTarget& target) {
+  patterns.add<BlockOpSignatureConversion>(patterns.getContext(),
+                                           typeConverter);
+  target.addDynamicallyLegalOp(
+      OperationName(BlockOp::getOperationName(), patterns.getContext()),
+      [&](Operation* op) {
+        return typeConverter.isLegal(op->getRegion(0).getArgumentTypes());
+      });
+}
+
 LogicalResult SBlockingReceiveOp::verify() {
   if (!cast<SchanType>(getChannel().getType()).getIsInput()) {
     return emitOpError() << "channel is not an input channel";

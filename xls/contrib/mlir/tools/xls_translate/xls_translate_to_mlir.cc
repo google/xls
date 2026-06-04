@@ -46,6 +46,7 @@
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/contrib/mlir/util/conversion_utils.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/format_strings.h"
@@ -56,6 +57,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
@@ -1394,9 +1396,7 @@ absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
   } else if (dynamic_cast<::xls::Next*>(&xls_node)) {
     return absl::InternalError("Next not handeled during proc translation.");
   } else if (dynamic_cast<::xls::Cover*>(&xls_node) ||
-             dynamic_cast<::xls::MinDelay*>(&xls_node) ||
-             dynamic_cast<::xls::RegisterRead*>(&xls_node) ||
-             dynamic_cast<::xls::RegisterWrite*>(&xls_node)) {
+             dynamic_cast<::xls::MinDelay*>(&xls_node)) {
     return absl::InternalError(absl::StrCat(
         "Unsupported operation: ", ::xls::OpToString(xls_node.op()),
         " - Not yet available in XLS MLIR!"));
@@ -1656,6 +1656,206 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
 }
 
 //===----------------------------------------------------------------------===//
+// Block Translation
+//===----------------------------------------------------------------------===//
+
+absl::StatusOr<Operation*> translateBlock(::xls::Block& xls_block,
+                                          OpBuilder& builder,
+                                          TranslationState& state) {
+  MLIRContext* ctx = builder.getContext();
+  state.newFunctionBaseContext(/*is_proc=*/false);
+
+  // Identify reset port (if any).
+  std::optional<::xls::InputPort*> reset_port_node = xls_block.GetResetPort();
+
+  // Gather data input port names and types (excluding reset).
+  SmallVector<Attribute> inputNameAttrs;
+  SmallVector<Type> inputTypes;
+  for (auto* port : xls_block.GetInputPorts()) {
+    if (reset_port_node && port == *reset_port_node) continue;
+    inputNameAttrs.push_back(builder.getStringAttr(port->name()));
+    inputTypes.push_back(translateType(port->GetType(), builder));
+  }
+
+  // Gather output port names and types.
+  SmallVector<Attribute> outputNameAttrs;
+  SmallVector<Type> outputTypes;
+  for (auto* port : xls_block.GetOutputPorts()) {
+    outputNameAttrs.push_back(builder.getStringAttr(port->name()));
+    outputTypes.push_back(translateType(port->operand(0)->GetType(), builder));
+  }
+
+  // function_type describes data ports only.
+  auto funcType = FunctionType::get(ctx, inputTypes, outputTypes);
+
+  // Clock name.
+  StringAttr clockNameAttr = nullptr;
+  if (auto clock_port = xls_block.GetClockPort()) {
+    clockNameAttr = builder.getStringAttr(clock_port->name);
+  }
+
+  // Reset info.
+  StringAttr resetNameAttr = nullptr;
+  BoolAttr resetAsyncAttr = nullptr;
+  BoolAttr resetActiveLowAttr = nullptr;
+  if (reset_port_node) {
+    resetNameAttr = builder.getStringAttr((*reset_port_node)->name());
+    if (auto behavior = xls_block.GetResetBehavior()) {
+      resetAsyncAttr = builder.getBoolAttr(behavior->asynchronous);
+      resetActiveLowAttr = builder.getBoolAttr(behavior->active_low);
+    }
+  }
+
+  // Create BlockOp.
+  auto block_op =
+      BlockOp::create(builder, builder.getUnknownLoc(),
+                      /*sym_name=*/builder.getStringAttr(xls_block.name()),
+                      /*function_type=*/TypeAttr::get(funcType),
+                      /*input_names=*/builder.getArrayAttr(inputNameAttrs),
+                      /*output_names=*/builder.getArrayAttr(outputNameAttrs),
+                      /*clock_name=*/clockNameAttr,
+                      /*reset_name=*/resetNameAttr,
+                      /*reset_asynchronous=*/resetAsyncAttr,
+                      /*reset_active_low=*/resetActiveLowAttr);
+
+  auto* body = &block_op.getRegion().emplaceBlock();
+
+  // Add reset as block arg 0 if present.
+  if (reset_port_node) {
+    auto resetArg = body->addArgument(
+        builder.getI1Type(),
+        NameLoc::get(StringAttr::get(ctx, (*reset_port_node)->name())));
+    if (auto err = state.setMlirValue((*reset_port_node)->id(), resetArg);
+        !err.ok()) {
+      return err;
+    }
+  }
+
+  // Add data input port arguments.
+  int inputIdx = 0;
+  for (auto* port : xls_block.GetInputPorts()) {
+    if (reset_port_node && port == *reset_port_node) continue;
+    auto arg = body->addArgument(inputTypes[inputIdx], builder.getUnknownLoc());
+    arg.setLoc(NameLoc::get(StringAttr::get(ctx, port->name())));
+    if (auto err = state.setMlirValue(port->id(), arg); !err.ok()) {
+      return err;
+    }
+    inputIdx++;
+  }
+
+  builder.setInsertionPointToEnd(body);
+
+  // Create RegisterOps for all registers.
+  for (auto* reg : xls_block.GetRegisters()) {
+    auto regType = translateType(reg->type(), builder);
+    Attribute resetValueAttr;
+    if (reg->reset_value().has_value()) {
+      // Convert XLS Value to MLIR attribute.
+      // In practice, reset values are single-bit (i1) or at most 32-bit
+      // integer constants, so the 64-bit limit here is not a real constraint.
+      const auto& xls_val = *reg->reset_value();
+      if (xls_val.IsBits()) {
+        auto bits = xls_val.bits();
+        if (bits.bit_count() <= 64) {
+          resetValueAttr = builder.getIntegerAttr(
+              regType, APInt(bits.bit_count(), bits.IsZero() ? 0
+                                               : bits.IsAllOnes()
+                                                   ? -1
+                                                   : bits.ToUint64().value()));
+        }
+      }
+    }
+    RegisterOp::create(builder, builder.getUnknownLoc(),
+                       builder.getStringAttr(reg->name()),
+                       TypeAttr::get(regType), resetValueAttr);
+  }
+
+  // Track output port values.
+  absl::flat_hash_map<std::string, Value> output_port_values;
+
+  // Topo-sort and translate nodes.
+  XLS_ASSIGN_OR_RETURN(std::vector<::xls::Node*> sorted_nodes,
+                       ::xls::TopoSort(&xls_block));
+  for (auto* n : sorted_nodes) {
+    builder.setInsertionPointToEnd(body);
+
+    // InputPort: already mapped to block arguments above.
+    if (dynamic_cast<::xls::InputPort*>(n)) {
+      continue;
+    }
+
+    // OutputPort: collect the value for later.
+    if (auto* output_port = dynamic_cast<::xls::OutputPort*>(n)) {
+      auto val = state.getMlirValue(output_port->operand(0)->id());
+      if (!val.ok()) return val.status();
+      output_port_values[output_port->name()] = *val;
+      continue;
+    }
+
+    // RegisterRead: create RegisterReadOp.
+    if (auto* reg_read = dynamic_cast<::xls::RegisterRead*>(n)) {
+      auto resultType = translateType(reg_read->GetType(), builder);
+      auto regRef =
+          FlatSymbolRefAttr::get(ctx, reg_read->GetRegister()->name());
+      auto op = RegisterReadOp::create(builder, builder.getUnknownLoc(),
+                                       resultType, regRef);
+      if (auto err = state.setMlirValue(n->id(), op.getResult()); !err.ok()) {
+        return err;
+      }
+      continue;
+    }
+
+    // RegisterWrite: create RegisterWriteOp.
+    if (auto* reg_write = dynamic_cast<::xls::RegisterWrite*>(n)) {
+      auto regRef =
+          FlatSymbolRefAttr::get(ctx, reg_write->GetRegister()->name());
+      auto data = state.getMlirValue(reg_write->data()->id());
+      if (!data.ok()) return data.status();
+
+      Value loadEnable;
+      if (reg_write->load_enable().has_value()) {
+        auto le = state.getMlirValue(reg_write->load_enable().value()->id());
+        if (!le.ok()) return le.status();
+        loadEnable = *le;
+      }
+
+      Value reset;
+      if (reg_write->reset().has_value()) {
+        auto rst = state.getMlirValue(reg_write->reset().value()->id());
+        if (!rst.ok()) return rst.status();
+        reset = *rst;
+      }
+
+      RegisterWriteOp::create(builder, builder.getUnknownLoc(), regRef, *data,
+                              loadEnable, reset);
+      continue;
+    }
+
+    // All other ops: use the common translator.
+    auto op = translateAnyOp(*n, builder, state);
+    if (!op.ok()) {
+      return op;
+    }
+  }
+
+  // Create BlockOutputOp with output values in port order.
+  SmallVector<Value> outputValues;
+  for (auto* port : xls_block.GetOutputPorts()) {
+    auto it = output_port_values.find(port->name());
+    if (it == output_port_values.end()) {
+      return absl::InternalError(
+          absl::StrCat("Missing output port value: ", port->name()));
+    }
+    outputValues.push_back(it->second);
+  }
+  builder.setInsertionPointToEnd(body);
+  BlockOutputOp::create(builder, builder.getUnknownLoc(),
+                        ValueRange(outputValues));
+
+  return block_op;
+}
+
+//===----------------------------------------------------------------------===//
 // Channel Translation
 //===----------------------------------------------------------------------===//
 
@@ -1748,6 +1948,15 @@ absl::Status translatePackage(const ::xls::Package& xls_pkg, OpBuilder& builder,
     auto proc = translateProc(*p, builder, state);
     if (!proc.ok()) {
       return proc.status();
+    }
+  }
+
+  // Translate all blocks:
+  for (const auto& b : xls_pkg.blocks()) {
+    builder.setInsertionPointToEnd(module.getBody());
+    auto block = translateBlock(*b, builder, state);
+    if (!block.ok()) {
+      return block.status();
     }
   }
 

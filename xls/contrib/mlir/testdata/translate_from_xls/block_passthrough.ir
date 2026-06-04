@@ -1,0 +1,11 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_block
+
+// CHECK-LABEL: xls.block @passthrough
+// CHECK-SAME: (%a: i32) -> (%out : i32)
+// CHECK:   xls.block_output
+block passthrough(a: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a)
+  out: () = output_port(a, name=out)
+}
