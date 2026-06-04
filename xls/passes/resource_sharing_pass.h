@@ -28,6 +28,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/data_structures/union_find.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -448,6 +449,73 @@ class TimingAnalysis {
  private:
   absl::flat_hash_map<NaryFoldingAction*, int64_t> delay_increase_;
   absl::flat_hash_map<NaryFoldingAction*, double> delay_spread_;
+};
+
+// A helper class to encapsulate the legality checking logic for folding
+// actions. It maintains the current state of foldings and ensures that
+// subsequent foldings do not introduce any cycles, or overlap in an illegal
+// way.
+class FoldingLegalityChecker {
+ public:
+  FoldingLegalityChecker(
+      absl::Span<const std::unique_ptr<NaryFoldingAction>>
+          potential_folding_actions_to_perform,
+      const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+          mutual_exclusivity,
+      const NodeBackwardDependencyAnalysis& nda,
+      std::optional<const AreaEstimator*> area_estimator)
+      : mutual_exclusivity_(mutual_exclusivity),
+        nda_(nda),
+        area_estimator_(area_estimator) {
+    for (const std::unique_ptr<NaryFoldingAction>& folding :
+         potential_folding_actions_to_perform) {
+      for (auto& [from_node, _] : folding->GetFrom()) {
+        fold_representative_.Insert(from_node);
+        one_to_others_folded_[from_node].insert(from_node);
+      }
+      Node* to_node = folding->GetTo();
+      fold_representative_.Insert(to_node);
+      one_to_others_folded_[to_node].insert(to_node);
+    }
+  }
+
+  // Checks if the destination of the given folding action conflicts with any
+  // prior folding actions.
+  bool IsDestinationLegal(const NaryFoldingAction* folding) const;
+
+  // Filters the sources of the folding to those that are legal. Returns the
+  // legal sources and the updated area savings, or a flag indicating no valid
+  // sources.
+  absl::StatusOr<std::pair<
+      std::vector<std::pair<Node*, FoldingAction::VisibilityEdges>>, double>>
+  GetLegalSources(const NaryFoldingAction* folding) const;
+
+  // Checks if the current folding action is redundant because its destination
+  // is already part of a prior folding. Returns true if redundant.
+  bool IsDestinationAlreadyFolded(const NaryFoldingAction* folding) const;
+
+  // Updates the tracked state with the legally confirmed folding action and its
+  // sources.
+  void TrackFoldingAction(
+      NaryFoldingAction* new_folding,
+      absl::Span<const std::pair<Node*, FoldingAction::VisibilityEdges>>
+          legal_froms);
+
+ private:
+  // WillToUseFrom detects when a `to` node will depend on a `from` node after
+  // foldings are taken into account.
+  bool WillToUseFrom(Node* from, Node* to) const;
+
+  const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+      mutual_exclusivity_;
+  const NodeBackwardDependencyAnalysis& nda_;
+  std::optional<const AreaEstimator*> area_estimator_;
+
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> one_to_others_folded_;
+  UnionFind<Node*> fold_representative_;
+  absl::flat_hash_map<Node*, NaryFoldingAction*>
+      nodes_already_selected_as_folding_sources_;
+  absl::flat_hash_map<Node*, NaryFoldingAction*> prior_folding_of_destination_;
 };
 
 // Estimates the area of a single input selection (multiplexing) logic required
