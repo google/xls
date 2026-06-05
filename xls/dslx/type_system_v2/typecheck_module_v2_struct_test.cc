@@ -2437,5 +2437,50 @@ fn f(s: S) {}
               TypecheckSucceeds(::testing::_));
 }
 
+TEST(TypecheckV2StructTest, FuzzTestDerivedStructDomainSuccess) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32,
+}
+
+fn create_f_domain() -> MyStructDomain {
+   MyStructDomain {
+     x: u32:0..10,
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: MyStruct) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2StructTest, FuzzTestDerivedStructDomainNestedSuccess) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("InnerDomain")]
+struct Inner {
+    y: u32,
+}
+
+#[fuzz_domain("OuterDomain")]
+struct Outer {
+    x: Inner,
+}
+
+fn create_f_domain() -> OuterDomain {
+   OuterDomain {
+     x: InnerDomain {
+       y: u32:0..10,
+     },
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: Outer) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
 }  // namespace
 }  // namespace xls::dslx

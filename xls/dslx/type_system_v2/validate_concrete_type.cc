@@ -508,6 +508,34 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
+    if (domain_type->IsStruct()) {
+      if (!param_type->IsStruct()) {
+        return TypeInferenceErrorStatus(
+            span, param_type,
+            "Fuzz test domain implies a struct type, but parameter is not a "
+            "struct.",
+            file_table_);
+      }
+      const StructType& domain_struct = domain_type->AsStruct();
+      const StructType& param_struct = param_type->AsStruct();
+      if (domain_struct.size() != param_struct.size()) {
+        return TypeInferenceErrorStatus(
+            span, param_type,
+            absl::Substitute("Fuzz test domain struct size ($0) does not match "
+                             "parameter struct size ($1).",
+                             domain_struct.size(), param_struct.size()),
+            file_table_);
+      }
+      for (int i = 0; i < domain_struct.size(); ++i) {
+        const Type& domain_member = domain_struct.GetMemberType(i);
+        const Type& param_member = param_struct.GetMemberType(i);
+        XLS_RETURN_IF_ERROR(ValidateFuzzTestDomainType(
+            &domain_member, &param_member, span, domain_member.ToString(),
+            param_member.ToString()));
+      }
+      return absl::OkStatus();
+    }
+
     return TypeInferenceErrorStatus(
         span, param_type,
         absl::Substitute("Unsupported fuzz test domain `$0` of type `$1`.",

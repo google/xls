@@ -3334,6 +3334,11 @@ class StructDefBase : public AstNode {
 
   const std::vector<StructMemberNode*>& members() const { return members_; }
   std::vector<StructMember>& mutable_members() { return struct_members_; }
+  void AddMember(StructMemberNode* member) {
+    members_.push_back(member);
+    struct_members_.push_back(member->ToStructMemberStruct());
+    members_by_name_[member->name()] = member;
+  }
 
   bool is_public() const { return public_; }
   const Span& span() const { return span_; }
