@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_V_1_5_SIDE_EFFECT_CONDITION_PASS_H_
 #define XLS_CODEGEN_V_1_5_SIDE_EFFECT_CONDITION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/ir/package.h"
@@ -26,15 +28,18 @@ namespace xls::codegen {
 // (cond_pipeline_stage_valid->cond).
 class SideEffectConditionPass : public BlockConversionPass {
  public:
+  static constexpr std::string_view kName = "side_effect_condition";
+
   SideEffectConditionPass()
-      : BlockConversionPass("side_effect_condition",
+      : BlockConversionPass(kName,
                             "Rewrites side-effecting ops' conditions to be "
                             "gated by their activation.") {}
   ~SideEffectConditionPass() override = default;
 
   absl::StatusOr<bool> RunInternal(Package* package,
                                    const BlockConversionPassOptions& options,
-                                   PassResults* results) const final;
+                                   PassResults* results,
+                                   BlockConversionContext& context) const final;
 };
 
 }  // namespace xls::codegen

@@ -34,6 +34,7 @@ cc_library(
     hdrs = ["unit_test.h"],
     deps = [
         "//xls/codegen:module_signature_cc_proto",
+        "//xls/codegen_v_1_5:passes",
         "//xls/common:source_location",
         "//xls/common/file:get_runfile_path",
         "//xls/common/file:temp_directory",

@@ -93,25 +93,31 @@ class GlobalChannelRemovalPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p, int64_t pipeline_stages) {
     PassResults results;
+    BlockConversionContext context;
 
     XLS_ASSIGN_OR_RETURN(BlockConversionPassOptions options,
                          CreateOptions(p, pipeline_stages));
-    XLS_RETURN_IF_ERROR(SchedulingPass().Run(p, options, &results).status());
-
     XLS_RETURN_IF_ERROR(
-        ScheduledBlockConversionPass().Run(p, options, &results).status());
+        SchedulingPass().Run(p, options, &results, context).status());
 
-    XLS_RETURN_IF_ERROR(
-        StateToRegisterIoLoweringPass().Run(p, options, &results).status());
+    XLS_RETURN_IF_ERROR(ScheduledBlockConversionPass()
+                            .Run(p, options, &results, context)
+                            .status());
 
-    XLS_RETURN_IF_ERROR(
-        ChannelToPortIoLoweringPass().Run(p, options, &results).status());
+    XLS_RETURN_IF_ERROR(StateToRegisterIoLoweringPass()
+                            .Run(p, options, &results, context)
+                            .status());
 
-    XLS_RETURN_IF_ERROR(
-        GlobalChannelBlockStitchingPass().Run(p, options, &results).status());
+    XLS_RETURN_IF_ERROR(ChannelToPortIoLoweringPass()
+                            .Run(p, options, &results, context)
+                            .status());
 
-    XLS_ASSIGN_OR_RETURN(bool result,
-                         GlobalChannelRemovalPass().Run(p, options, &results));
+    XLS_RETURN_IF_ERROR(GlobalChannelBlockStitchingPass()
+                            .Run(p, options, &results, context)
+                            .status());
+
+    XLS_ASSIGN_OR_RETURN(bool result, GlobalChannelRemovalPass().Run(
+                                          p, options, &results, context));
     ran_pass_ = true;
 
     VLOG(5) << "IR after removal pass: " << p_->DumpIr();

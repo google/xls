@@ -47,6 +47,9 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/ram_configuration.h"
+#include "xls/codegen_v_1_5/block_conversion_pass.h"
+#include "xls/codegen_v_1_5/codegen_pass_pipeline.pb.h"
+#include "xls/codegen_v_1_5/codegen_pass_registry.h"
 #include "xls/codegen_v_1_5/convert_to_block.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
@@ -71,7 +74,6 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
@@ -149,11 +151,11 @@ class BlockConversionTest : public BlockConversionTestFixture {
     XLS_RETURN_IF_ERROR(fb->package()->SetTop(fb));
     TestDelayEstimator delay_estimator;
     Package* p = fb->package();
-    OptimizationContext opt_context;
+    codegen::BlockConversionContext context;
     PassResults results;
     XLS_RETURN_IF_ERROR(::xls::codegen::ConvertToBlock(
         fb->package(), codegen_options, scheduling_options, &delay_estimator,
-        &opt_context, &results, schedule_proto));
+        context, &results, schedule_proto));
     return p->GetTopAsBlock();
   }
 
@@ -162,10 +164,10 @@ class BlockConversionTest : public BlockConversionTestFixture {
       SchedulingOptions scheduling_options = SchedulingOptions(),
       std::optional<PackageScheduleProto> schedule_proto = std::nullopt) {
     TestDelayEstimator delay_estimator;
-    OptimizationContext opt_context;
+    codegen::BlockConversionContext context;
     PassResults results;
     XLS_RETURN_IF_ERROR(::xls::codegen::ConvertToBlock(
-        p, codegen_options, scheduling_options, &delay_estimator, &opt_context,
+        p, codegen_options, scheduling_options, &delay_estimator, context,
         &results, schedule_proto));
     return p->GetTopAsBlock();
   }
@@ -264,6 +266,17 @@ class ProcConversionTestFixture : public BlockConversionTest {
   // Name of the block created by BuildBlockInPackage().
   const std::string_view kBlockName = "the_proc";
 };
+
+TEST(CodegenPassRegistryTest, DefaultPipelineLoads) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto generator,
+      ::xls::codegen::GetCodegenPassRegistry().Generator("default_pipeline"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<::xls::codegen::BlockConversionPass> pipeline,
+      generator->Generate());
+
+  EXPECT_EQ(pipeline->short_name(), "default_pipeline");
+}
 
 TEST_F(BlockConversionTest, SimpleFunction) {
   auto p = CreatePackage();

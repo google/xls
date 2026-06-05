@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_V_1_5_IDLE_INSERTION_PASS_H_
 #define XLS_CODEGEN_V_1_5_IDLE_INSERTION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/ir/package.h"
@@ -43,13 +45,14 @@ namespace xls::codegen {
 //          function and proc I/O.
 class IdleInsertionPass : public BlockConversionPass {
  public:
-  IdleInsertionPass()
-      : BlockConversionPass("idle_insertion", "Idle insertion pass") {}
+  static constexpr std::string_view kName = "idle_insertion";
+
+  IdleInsertionPass() : BlockConversionPass(kName, "Idle insertion pass") {}
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* package,
-                                   const BlockConversionPassOptions& options,
-                                   PassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(
+      Package* package, const BlockConversionPassOptions& options,
+      PassResults* results, BlockConversionContext& context) const override;
 };
 
 }  // namespace xls::codegen

@@ -331,6 +331,34 @@ XlsOptimizationPassRegistryInfo = provider(
     },
 )
 
+XlsCodegenPassInfo = provider(
+    doc = "Information about a codegen pass and its registration.",
+    fields = {
+        "pass_impl": "The library containing the pass implementation.",
+        "pass_registration": "The library containing the pass registration.",
+    },
+)
+
+XlsCodegenPassRegistryConfigInfo = provider(
+    doc = "A provider containing the configuration of a codegen pass registry.",
+    fields = {
+        "pipeline_binpb": "File: binary proto of the pass pipeline used for this registry.",
+        "pass_infos": "List of XlsCodegenPassInfo: The pass-info for each pass.",
+    },
+)
+
+XlsCodegenPassRegistryInfo = provider(
+    doc = "A provider containing a set of codegen passes to add to a registry",
+    fields = {
+        "cc_library": "CcInfo: The CcInfo for the full registry library.",
+        "passes": "List of CcInfo: The cc info for the library which registers each pass with the injection system.",
+        "pipeline_binpb": "File: binary proto of the pass pipeline used for this registry.",
+        "pass_infos": "List of XlsCodegenPassInfo: The pass-info for each pass.",
+        "default_info": "DefaultInfo: The default info for the registry.",
+        "pipeline_src": "File: The source file for the pipeline used",
+    },
+)
+
 XlsEstimatorModelInfo = provider(
     doc = "A provider containing the implementation of a delay or area model",
     fields = {
@@ -352,5 +380,6 @@ XlsConfigurationToolchainInfo = provider(
         "pass_registry": "XlsOptimizationPassRegistryInfo: The pass registry to use.",
         "area_model_registry": "XlsEstimatorRegistryInfo: The area model registry to use.",
         "delay_model_registry": "XlsEstimatorRegistryInfo: The delay model registry to use.",
+        "codegen_pass_registry": "XlsCodegenPassRegistryInfo: The codegen pass registry to use.",
     },
 )

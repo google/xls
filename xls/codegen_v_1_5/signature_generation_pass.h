@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_V_1_5_SIGNATURE_GENERATION_PASS_H_
 #define XLS_CODEGEN_V_1_5_SIGNATURE_GENERATION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/ir/package.h"
@@ -26,14 +28,15 @@ namespace xls::codegen {
 // I/O lowering passes, but before dropping schedule information.
 class SignatureGenerationPass : public BlockConversionPass {
  public:
+  static constexpr std::string_view kName = "signature_generation";
+
   SignatureGenerationPass()
-      : BlockConversionPass("signature_generation",
-                            "Signature generation pass") {}
+      : BlockConversionPass(kName, "Signature generation pass") {}
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* package,
-                                   const BlockConversionPassOptions& options,
-                                   PassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(
+      Package* package, const BlockConversionPassOptions& options,
+      PassResults* results, BlockConversionContext& context) const override;
 };
 
 }  // namespace xls::codegen

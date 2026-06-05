@@ -51,8 +51,9 @@ class BlockFinalizationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
+    BlockConversionContext context;
     return BlockFinalizationPass().Run(p, BlockConversionPassOptions(),
-                                       &results);
+                                       &results, context);
   }
 };
 

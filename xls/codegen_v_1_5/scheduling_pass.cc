@@ -74,7 +74,7 @@ absl::Status ScheduleNodes(const BlockConversionPassOptions& options,
 
 absl::StatusOr<bool> SchedulingPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   NameUniquer uniquer("__");
   std::optional<FunctionBase*> top = package->GetTop();
   std::string top_name;

@@ -65,6 +65,7 @@ class ChannelToPortIoLoweringPassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Package* p, BlockConversionPassOptions options =
                                            BlockConversionPassOptions()) {
     PassResults results;
+    BlockConversionContext context;
 
     // Set default options if not provided
     if (!options.codegen_options.clock_name().has_value()) {
@@ -76,11 +77,12 @@ class ChannelToPortIoLoweringPassTest : public IrTestBase {
 
     // 1. Convert scheduled_proc -> scheduled_block
     // We assume the input package has a scheduled proc as top.
-    XLS_RETURN_IF_ERROR(
-        ScheduledBlockConversionPass().Run(p, options, &results).status());
+    XLS_RETURN_IF_ERROR(ScheduledBlockConversionPass()
+                            .Run(p, options, &results, context)
+                            .status());
 
     // 2. Run the pass under test
-    return ChannelToPortIoLoweringPass().Run(p, options, &results);
+    return ChannelToPortIoLoweringPass().Run(p, options, &results, context);
   }
 };
 

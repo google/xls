@@ -1,0 +1,67 @@
+# Copyright 2026 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The default compound passes and codegen v1.5 block conversion pipeline for XLS
+
+# proto-file: xls/codegen_v_1_5/codegen_pass_pipeline.proto
+# proto-message: CodegenPipelineProto
+
+compound_passes: [
+  {
+    long_name: "Scheduled IR Preparation"
+    short_name: "to_scheduled_ir"
+    passes: [
+      "scheduling",
+      "opt_pass<dce>"
+    ]
+    comment: "Convert the package to scheduled IR, trimming any dead code."
+  },
+  {
+    long_name: "Scheduled IR To Block Lowering"
+    short_name: "block_lowering"
+    passes: [
+      "scheduled_block_conversion",
+      "side_effect_condition",
+      "pipeline_register_insertion",
+      "state_to_register_io_lowering",
+      "channel_to_port_io_lowering",
+      "function_io_lowering",
+      "flow_control_insertion",
+      "idle_insertion",
+      "proc_instantiation_lowering",
+      "global_channel_block_stitching",
+      "global_channel_removal",
+      "signature_generation",
+      "block_finalization"
+    ]
+    comment: "Lower scheduled IR to a block."
+  },
+  {
+    long_name: "Block Cleanup and Optimization"
+    short_name: "block_cleanup_and_opt"
+    passes: [
+      "register_cleanup",
+      "opt_pass<ident_remove>",
+      "opt_pass<dataflow>",
+      "opt_pass<dce>"
+    ]
+    comment: "Clean up the block IR & run some useful optimizations."
+  }
+]
+
+default_pipeline: [
+  "to_scheduled_ir",
+  "block_lowering",
+  "block_cleanup_and_opt"
+]

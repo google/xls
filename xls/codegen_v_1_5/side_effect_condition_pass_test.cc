@@ -51,7 +51,6 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace m = xls::op_matchers;
@@ -71,11 +70,11 @@ enum class CodegenPassType {
   kSideEffectConditionPassOnly,
 };
 
-std::unique_ptr<BlockConversionPass> GetCodegenPass(
-    CodegenPassType type, OptimizationContext& context) {
+absl::StatusOr<std::unique_ptr<BlockConversionPass>> GetCodegenPass(
+    CodegenPassType type) {
   switch (type) {
     case CodegenPassType::kDefault:
-      return CreateBlockConversionPassPipeline(context);
+      return CreateBlockConversionPassPipeline();
     case CodegenPassType::kSideEffectConditionPassOnly:
       return std::make_unique<SideEffectConditionPass>();
   }
@@ -113,10 +112,10 @@ class SideEffectConditionPassTest
 
   static absl::StatusOr<bool> Run(Package* p,
                                   BlockConversionPassOptions options) {
-    OptimizationContext optimization_context;
     PassResults results;
-    return GetCodegenPass(GetParam(), optimization_context)
-        ->Run(p, options, &results);
+    BlockConversionContext context;
+    XLS_ASSIGN_OR_RETURN(auto pass, GetCodegenPass(GetParam()));
+    return pass->Run(p, options, &results, context);
   }
 
   static BlockConversionPassOptions CreateBlockConversionPassOptions(
@@ -126,9 +125,7 @@ class SideEffectConditionPassTest
       codegen_options.clock_name("clk");
     }
     return BlockConversionPassOptions{
-        .codegen_options = std::move(codegen_options),
-        .package_schedule = {},
-    };
+        .codegen_options = std::move(codegen_options), .package_schedule = {}};
   }
 
   static absl::StatusOr<std::vector<std::string>> RunInterpreterWithEvents(
@@ -233,11 +230,11 @@ TEST_F(SideEffectConditionPassTest, UnchangedIfCombinationalFunction) {
       verilog::CodegenOptions().clock_name("clk").reset("rst", false, false,
                                                         false));
   PassResults results;
-  OptimizationContext opt_context;
-  EXPECT_THAT(
-      GetCodegenPass(CodegenPassType::kSideEffectConditionPassOnly, opt_context)
-          ->Run(&package, options, &results),
-      IsOkAndHolds(false));
+  BlockConversionContext context;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto pass, GetCodegenPass(CodegenPassType::kSideEffectConditionPassOnly));
+  EXPECT_THAT(pass->Run(&package, options, &results, context),
+              IsOkAndHolds(false));
 }
 
 TEST_P(SideEffectConditionPassTest, CombinationalProc) {
@@ -275,13 +272,13 @@ TEST_P(SideEffectConditionPassTest, CombinationalProc) {
 
   XLS_ASSERT_OK(bb.Build().status());
 
-  BlockConversionPassOptions options = CreateBlockConversionPassOptions();
-  options.codegen_options.generate_combinational(true);
+  BlockConversionPassOptions options = CreateBlockConversionPassOptions(
+      verilog::CodegenOptions().generate_combinational(true));
   PassResults results;
-  OptimizationContext opt_context;
-  EXPECT_THAT(
-      GetCodegenPass(GetParam(), opt_context)->Run(&package, options, &results),
-      IsOkAndHolds(true));
+  BlockConversionContext context;
+  XLS_ASSERT_OK_AND_ASSIGN(auto pass, GetCodegenPass(GetParam()));
+  EXPECT_THAT(pass->Run(&package, options, &results, context),
+              IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package.GetBlock("g"));
 

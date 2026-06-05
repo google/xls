@@ -44,7 +44,8 @@ class RegisterCleanupPassTest : public IrTestBase {
                            const BlockConversionPassOptions& options =
                                BlockConversionPassOptions()) {
     PassResults results;
-    return RegisterCleanupPass().Run(p, options, &results);
+    BlockConversionContext context;
+    return RegisterCleanupPass().Run(p, options, &results, context);
   }
 };
 

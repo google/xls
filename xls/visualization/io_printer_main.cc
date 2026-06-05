@@ -63,11 +63,13 @@ absl::Status ConvertSchedulePbToScheduledIr(
     const PackageScheduleProto& schedule_pb, Package* package) {
   std::vector<FunctionBase*> function_bases = package->GetFunctionBases();
   codegen::SchedulingPass scheduling_pass;
-  PassResults pass_results;
   codegen::BlockConversionPassOptions pass_options;
   pass_options.package_schedule = schedule_pb;
+  PassResults pass_results;
+  codegen::BlockConversionContext context;
   XLS_RETURN_IF_ERROR(
-      scheduling_pass.Run(package, pass_options, &pass_results).status());
+      scheduling_pass.Run(package, pass_options, &pass_results, context)
+          .status());
   return absl::OkStatus();
 }
 

@@ -1,4 +1,3 @@
-#include "xls/codegen_v_1_5/convert_to_block.h"
 // Copyright 2025 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/codegen_v_1_5/convert_to_block.h"
+
 #include <memory>
 
 #include "gtest/gtest.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 
@@ -60,11 +61,11 @@ TEST_F(ConvertToBlockTest, SimpleFunction) {
   XLS_ASSERT_OK(p->SetTop(top));
   TestDelayEstimator delay_estimator;
 
-  OptimizationContext opt_context;
+  BlockConversionContext context;
   PassResults pass_results;
   XLS_ASSERT_OK(ConvertToBlock(p.get(), codegen_options().clock_name("clk"),
-                               scheduling_options(), &delay_estimator_,
-                               &opt_context, &pass_results));
+                               scheduling_options(), &delay_estimator_, context,
+                               &pass_results));
 
   // TODO: https://github.com/google/xls/issues/3356 - assert stuff.
 }
@@ -88,12 +89,12 @@ TEST_F(ConvertToBlockTest, ProcWithExplicitStateAccessNextValueStateElement) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build());
   XLS_ASSERT_OK(p->SetTop(top));
 
-  OptimizationContext opt_context;
+  BlockConversionContext context;
   PassResults pass_results;
   XLS_ASSERT_OK(ConvertToBlock(
       p.get(),
       codegen_options().clock_name("clk").reset("rst", false, false, false),
-      scheduling_options().opt_level(3), &delay_estimator_, &opt_context,
+      scheduling_options().opt_level(3), &delay_estimator_, context,
       &pass_results));
 }
 

@@ -177,7 +177,7 @@ absl::StatusOr<bool> RegisterCleanupPass::RemoveUnreadRegisters(
 
 absl::StatusOr<bool> RegisterCleanupPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   bool changed = false;
   for (const std::unique_ptr<Block>& block : package->blocks()) {
     PartialInfoQueryEngine query_engine;

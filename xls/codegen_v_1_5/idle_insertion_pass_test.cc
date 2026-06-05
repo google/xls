@@ -46,7 +46,8 @@ class IdleInsertionPassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Package* p,
                            const BlockConversionPassOptions& options) {
     PassResults results;
-    return IdleInsertionPass().Run(p, options, &results);
+    BlockConversionContext context;
+    return IdleInsertionPass().Run(p, options, &results, context);
   }
 };
 

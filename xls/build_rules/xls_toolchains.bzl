@@ -18,6 +18,7 @@ This module contains toolchains for XLS.
 
 load(
     "//xls/build_rules:xls_providers.bzl",
+    "XlsCodegenPassRegistryInfo",
     "XlsConfigurationToolchainInfo",
     "XlsEstimatorRegistryInfo",
     "XlsOptimizationPassRegistryInfo",
@@ -238,11 +239,16 @@ Examples:
 )
 
 def _xls_configuration_toolchain(ctx):
+    codegen_pass_registry = None
+    if ctx.attr.codegen_pass_registry:
+        codegen_pass_registry = ctx.attr.codegen_pass_registry[XlsCodegenPassRegistryInfo]
+
     toolchain_info = platform_common.ToolchainInfo(
         configuration = XlsConfigurationToolchainInfo(
             pass_registry = ctx.attr.pass_registry[XlsOptimizationPassRegistryInfo],
             area_model_registry = ctx.attr.area_models[XlsEstimatorRegistryInfo],
             delay_model_registry = ctx.attr.delay_models[XlsEstimatorRegistryInfo],
+            codegen_pass_registry = codegen_pass_registry,
         ),
     )
     return [toolchain_info]
@@ -253,6 +259,10 @@ xls_configuration_toolchain = rule(
         "pass_registry": attr.label(
             doc = "The pass registry to use.",
             providers = [XlsOptimizationPassRegistryInfo],
+        ),
+        "codegen_pass_registry": attr.label(
+            doc = "The codegen pass registry to use.",
+            providers = [XlsCodegenPassRegistryInfo],
         ),
         "area_models": attr.label(
             doc = "The delay model registry to use.",

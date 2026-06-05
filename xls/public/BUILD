@@ -77,6 +77,7 @@ cc_library(
     deps = [
         ":ir",
         "//xls/codegen:codegen_result",
+        "//xls/codegen_v_1_5:passes",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/scheduling:scheduling_result",
@@ -367,6 +368,7 @@ cc_library(
     name = "passes_and_estimators",
     tags = ["keep_dep"],
     deps = [
+        "//xls/codegen_v_1_5:passes",
         "//xls/estimators",
         "//xls/passes",
     ],

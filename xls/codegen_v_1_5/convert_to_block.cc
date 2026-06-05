@@ -27,7 +27,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
@@ -38,7 +37,7 @@ namespace xls::codegen {
 absl::Status ConvertToBlock(
     Package* p, verilog::CodegenOptions codegen_options,
     SchedulingOptions scheduling_options, const DelayEstimator* delay_estimator,
-    OptimizationContext* opt_context, PassResults* pass_results,
+    BlockConversionContext& context, PassResults* pass_results,
     std::optional<PackageScheduleProto> schedule_override) {
   XLS_RET_CHECK(!schedule_override.has_value() ||
                 schedule_override->schedules_size() == 0 ||
@@ -61,9 +60,10 @@ absl::Status ConvertToBlock(
       .package_schedule = std::move(schedule),
   };
 
-  std::unique_ptr<BlockConversionCompoundPass> pipeline =
-      CreateBlockConversionPassPipeline(*opt_context);
-  XLS_ASSIGN_OR_RETURN(bool result, pipeline->Run(p, options, pass_results));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockConversionPass> pipeline,
+                       CreateBlockConversionPassPipeline());
+  XLS_ASSIGN_OR_RETURN(bool result,
+                       pipeline->Run(p, options, pass_results, context));
   if (!result) {
     LOG(WARNING)
         << "Block conversion changed nothing; did you run codegen twice?";

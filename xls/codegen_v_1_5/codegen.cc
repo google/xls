@@ -38,6 +38,7 @@
 #include "xls/codegen/trace_verbosity_pass.h"
 #include "xls/codegen/verilog_conversion.h"
 #include "xls/codegen/verilog_line_map.pb.h"
+#include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/codegen_v_1_5/convert_to_block.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -202,14 +203,14 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
     options.emit_as_pipeline(false);
   }
 
-  OptimizationContext opt_context;
+  BlockConversionContext context;
   PassResults pass_results;
   XLS_RETURN_IF_ERROR(ConvertToBlock(package, options, scheduling_options,
-                                     delay_estimator, &opt_context,
-                                     &pass_results, schedule));
+                                     delay_estimator, context, &pass_results,
+                                     schedule));
 
-  return ConvertBlockToVerilog(package, options, delay_estimator, &opt_context,
-                               &pass_results);
+  return ConvertBlockToVerilog(package, options, delay_estimator,
+                               &context.opt_context, &pass_results);
 }
 
 }  // namespace xls::codegen

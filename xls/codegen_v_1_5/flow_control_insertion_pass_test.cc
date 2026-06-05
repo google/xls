@@ -58,13 +58,15 @@ class FlowControlInsertionPassTest : public IrTestBase {
                            const BlockConversionPassOptions& options =
                                BlockConversionPassOptions()) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         FlowControlInsertionPass().Run(p, options, &results));
+    BlockConversionContext context;
+    XLS_ASSIGN_OR_RETURN(bool changed, FlowControlInsertionPass().Run(
+                                           p, options, &results, context));
 
     // Run pipeline register insertion pass to add pipeline registers for easy
     // simulation.
-    XLS_RETURN_IF_ERROR(
-        PipelineRegisterInsertionPass().Run(p, options, &results).status());
+    XLS_RETURN_IF_ERROR(PipelineRegisterInsertionPass()
+                            .Run(p, options, &results, context)
+                            .status());
 
     return changed;
   }

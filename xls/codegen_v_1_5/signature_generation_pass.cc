@@ -257,7 +257,7 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
 
 absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   bool changed = false;
   for (const std::unique_ptr<Block>& block : package->blocks()) {
     if (block->GetSignature().has_value()) {

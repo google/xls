@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_V_1_5_REGISTER_CLEANUP_PASS_H_
 #define XLS_CODEGEN_V_1_5_REGISTER_CLEANUP_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/ir/package.h"
@@ -38,10 +40,11 @@ namespace xls::codegen {
 // and pipeline registers have been inserted.
 class RegisterCleanupPass : public BlockConversionPass {
  public:
+  static constexpr std::string_view kName = "register_cleanup";
+
   RegisterCleanupPass()
-      : BlockConversionPass("register_cleanup",
-                            "Remove dead registers & unused load-enable bits") {
-  }
+      : BlockConversionPass(
+            kName, "Remove dead registers & unused load-enable bits") {}
 
  protected:
   absl::StatusOr<bool> RemoveTrivialLoadEnables(
@@ -51,9 +54,9 @@ class RegisterCleanupPass : public BlockConversionPass {
   absl::StatusOr<bool> RemoveUnreadRegisters(Block* block,
                                              QueryEngine& query_engine) const;
 
-  absl::StatusOr<bool> RunInternal(Package* package,
-                                   const BlockConversionPassOptions& options,
-                                   PassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(
+      Package* package, const BlockConversionPassOptions& options,
+      PassResults* results, BlockConversionContext& context) const override;
 };
 
 }  // namespace xls::codegen

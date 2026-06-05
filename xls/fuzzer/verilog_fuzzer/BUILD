@@ -48,6 +48,7 @@ cc_test(
     srcs = ["codegen_fuzz_test.cc"],
     deps = [
         ":verilog_fuzz_domain",
+        "//xls/codegen_v_1_5:passes",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",

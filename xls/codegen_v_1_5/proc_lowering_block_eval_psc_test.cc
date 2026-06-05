@@ -162,8 +162,8 @@ absl::StatusOr<BlockConversionPassOptions> CreateOptions(
   };
 }
 
-absl::Status RunRequiredOptimizationPasses(Package* p) {
-  OptimizationContext opt_context;
+absl::Status RunRequiredOptimizationPasses(Package* p,
+                                           OptimizationContext& opt_context) {
   PassResults opt_results;
   return ChannelLegalizationPass()
       .Run(p, OptimizationPassOptions(), &opt_results, opt_context)
@@ -183,7 +183,9 @@ absl::StatusOr<bool> RunPasses(
     verified_package->AcceptInvalid();
   }
 
-  XLS_RETURN_IF_ERROR(RunRequiredOptimizationPasses(p));
+  BlockConversionContext context;
+
+  XLS_RETURN_IF_ERROR(RunRequiredOptimizationPasses(p, context.opt_context));
 
   codegen_options.module_name(top_name);
   if (!p->GetTop().has_value()) {
@@ -195,36 +197,42 @@ absl::StatusOr<bool> RunPasses(
 
   XLS_ASSIGN_OR_RETURN(BlockConversionPassOptions options,
                        CreateOptions(p, scheduling_options, codegen_options));
-  XLS_RETURN_IF_ERROR(SchedulingPass().Run(p, options, &results).status());
+  XLS_RETURN_IF_ERROR(
+      SchedulingPass().Run(p, options, &results, context).status());
+
+  XLS_RETURN_IF_ERROR(ScheduledBlockConversionPass()
+                          .Run(p, options, &results, context)
+                          .status());
 
   XLS_RETURN_IF_ERROR(
-      ScheduledBlockConversionPass().Run(p, options, &results).status());
+      SideEffectConditionPass().Run(p, options, &results, context).status());
+
+  XLS_RETURN_IF_ERROR(PipelineRegisterInsertionPass()
+                          .Run(p, options, &results, context)
+                          .status());
+
+  XLS_RETURN_IF_ERROR(StateToRegisterIoLoweringPass()
+                          .Run(p, options, &results, context)
+                          .status());
+
+  XLS_RETURN_IF_ERROR(ChannelToPortIoLoweringPass()
+                          .Run(p, options, &results, context)
+                          .status());
 
   XLS_RETURN_IF_ERROR(
-      SideEffectConditionPass().Run(p, options, &results).status());
+      FlowControlInsertionPass().Run(p, options, &results, context).status());
 
   XLS_RETURN_IF_ERROR(
-      PipelineRegisterInsertionPass().Run(p, options, &results).status());
-
-  XLS_RETURN_IF_ERROR(
-      StateToRegisterIoLoweringPass().Run(p, options, &results).status());
-
-  XLS_RETURN_IF_ERROR(
-      ChannelToPortIoLoweringPass().Run(p, options, &results).status());
-
-  XLS_RETURN_IF_ERROR(
-      FlowControlInsertionPass().Run(p, options, &results).status());
-
-  XLS_RETURN_IF_ERROR(IdleInsertionPass().Run(p, options, &results).status());
+      IdleInsertionPass().Run(p, options, &results, context).status());
 
   absl::StatusOr<bool> changed =
-      ProcInstantiationLoweringPass().Run(p, options, &results);
+      ProcInstantiationLoweringPass().Run(p, options, &results, context);
   if (!changed.ok()) {
     return changed;
   }
 
   XLS_RETURN_IF_ERROR(
-      SignatureGenerationPass().Run(p, options, &results).status());
+      SignatureGenerationPass().Run(p, options, &results, context).status());
 
   return changed;
 }

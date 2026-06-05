@@ -96,12 +96,14 @@ class FunctionIOLoweringPassTest : public IrTestBase {
       const BlockConversionPassOptions& options) {
     SchedulingPass scheduling_pass;
     PassResults scheduling_results;
+    BlockConversionContext context;
     XLS_RETURN_IF_ERROR(
-        scheduling_pass.Run(p, options, &scheduling_results).status());
+        scheduling_pass.Run(p, options, &scheduling_results, context).status());
 
     PassResults results;
-    XLS_RETURN_IF_ERROR(
-        ScheduledBlockConversionPass().Run(p, options, &results).status());
+    XLS_RETURN_IF_ERROR(ScheduledBlockConversionPass()
+                            .Run(p, options, &results, context)
+                            .status());
     XLS_ASSIGN_OR_RETURN(Block * block, p->GetBlock(function_name));
     return absl::down_cast<ScheduledBlock*>(block);
   }
@@ -114,14 +116,16 @@ class FunctionIOLoweringPassTest : public IrTestBase {
       FunctionalTestOptions options = {}) {
     std::string block_name = block->name();
     PassResults pass_results;
+    BlockConversionContext context;
     XLS_RETURN_IF_ERROR(PipelineRegisterInsertionPass()
-                            .Run(p, pass_options, &pass_results)
+                            .Run(p, pass_options, &pass_results, context)
                             .status());
     XLS_RETURN_IF_ERROR(FlowControlInsertionPass()
-                            .Run(p, pass_options, &pass_results)
+                            .Run(p, pass_options, &pass_results, context)
                             .status());
-    XLS_RETURN_IF_ERROR(
-        BlockFinalizationPass().Run(p, pass_options, &pass_results).status());
+    XLS_RETURN_IF_ERROR(BlockFinalizationPass()
+                            .Run(p, pass_options, &pass_results, context)
+                            .status());
     XLS_ASSIGN_OR_RETURN(Block * sim_block, p->GetBlock(block_name));
 
     std::vector<absl::flat_hash_map<std::string, Value>> in_values;
@@ -223,7 +227,8 @@ TEST_F(FunctionIOLoweringPassTest, SingleStage) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -264,7 +269,8 @@ TEST_F(FunctionIOLoweringPassTest, SingleStageWithInputValid) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -308,7 +314,8 @@ TEST_F(FunctionIOLoweringPassTest, SingleStageWithIOValid) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -354,7 +361,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStage) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -398,7 +406,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithInputValid) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -445,7 +454,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValidDelayed) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -496,7 +506,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithIOValid) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -546,7 +557,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithIOValid) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -596,7 +608,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithFloppedInputs) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -641,7 +654,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithFloppedOutputs) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -687,7 +701,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageMultiInputWithFloppedIO) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),
@@ -734,7 +749,8 @@ TEST_F(FunctionIOLoweringPassTest, MultiStageWithFloppedInputsAndValid) {
                            CreateScheduledBlock(p.get(), "id_func", options));
 
   PassResults results;
-  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results),
+  BlockConversionContext context;
+  ASSERT_THAT(FunctionIOLoweringPass().Run(p.get(), options, &results, context),
               IsOkAndHolds(true));
 
   EXPECT_THAT(sb->GetInputPorts(),

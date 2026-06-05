@@ -637,6 +637,7 @@ cc_binary(
     deps = [
         ":pass_metrics",
         "//xls/codegen:codegen_result",
+        "//xls/codegen_v_1_5:passes",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -708,6 +709,7 @@ cc_binary(
         "//xls/codegen:block_metrics",
         "//xls/codegen:codegen_result",
         "//xls/codegen:xls_metrics_cc_proto",
+        "//xls/codegen_v_1_5:passes",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",

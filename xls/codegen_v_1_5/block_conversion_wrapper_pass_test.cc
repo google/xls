@@ -26,7 +26,6 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/passes/dce_pass.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
@@ -40,11 +39,10 @@ class BlockConversionWrapperPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Block* block) {
     PassResults results;
-    OptimizationContext optimization_context;
+    BlockConversionContext context;
     return BlockConversionWrapperPass(
-               std::make_unique<DeadCodeEliminationPass>(),
-               optimization_context)
-        .Run(block->package(), BlockConversionPassOptions(), &results);
+               std::make_unique<DeadCodeEliminationPass>())
+        .Run(block->package(), BlockConversionPassOptions(), &results, context);
   }
 };
 

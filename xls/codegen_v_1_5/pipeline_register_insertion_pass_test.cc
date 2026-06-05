@@ -80,7 +80,8 @@ class PipelineRegisterInsertionPassTest : public IrTestBase {
                            const BlockConversionPassOptions& options =
                                BlockConversionPassOptions()) {
     PassResults results;
-    return PipelineRegisterInsertionPass().Run(p, options, &results);
+    BlockConversionContext context;
+    return PipelineRegisterInsertionPass().Run(p, options, &results, context);
   }
 };
 
@@ -232,8 +233,9 @@ TEST_F(PipelineRegisterInsertionPassTest, TestPipelineSimulation) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   PassResults results;
+  BlockConversionContext context;
   XLS_ASSERT_OK(BlockFinalizationPass().Run(
-      p.get(), BlockConversionPassOptions(), &results));
+      p.get(), BlockConversionPassOptions(), &results, context));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock(TestName()));
 
@@ -276,7 +278,9 @@ TEST_F(PipelineRegisterInsertionPassTest, TestResetSimulation) {
   EXPECT_THAT(Run(p.get(), options), IsOkAndHolds(true));
 
   PassResults results;
-  XLS_ASSERT_OK(BlockFinalizationPass().Run(p.get(), options, &results));
+  BlockConversionContext context;
+  XLS_ASSERT_OK(
+      BlockFinalizationPass().Run(p.get(), options, &results, context));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock(TestName()));
 
@@ -317,8 +321,9 @@ TEST_F(PipelineRegisterInsertionPassTest, TestStalledPipeline) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   PassResults results;
+  BlockConversionContext context;
   XLS_ASSERT_OK(BlockFinalizationPass().Run(
-      p.get(), BlockConversionPassOptions(), &results));
+      p.get(), BlockConversionPassOptions(), &results, context));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock(TestName()));
 
@@ -375,8 +380,9 @@ TEST_F(PipelineRegisterInsertionPassTest, TestPipelineBubble) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   PassResults results;
+  BlockConversionContext context;
   XLS_ASSERT_OK(BlockFinalizationPass().Run(
-      p.get(), BlockConversionPassOptions(), &results));
+      p.get(), BlockConversionPassOptions(), &results, context));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock(TestName()));
 

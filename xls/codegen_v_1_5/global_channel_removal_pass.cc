@@ -54,7 +54,7 @@ absl::StatusOr<absl::flat_hash_set<Channel*>> GetLivePackageScopedChannels(
 
 absl::StatusOr<bool> GlobalChannelRemovalPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Channel*> live_channels,
                        GetLivePackageScopedChannels(package));
   std::vector<Channel*> channels_to_remove;

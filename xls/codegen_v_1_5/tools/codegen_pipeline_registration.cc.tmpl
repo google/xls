@@ -1,0 +1,14 @@
+// {WARNING}
+
+#include "absl/log/check.h"
+#include "xls/codegen_v_1_5/codegen_pass_registry.h"
+#include "xls/common/module_initializer.h"
+#include "{HEADER}"
+
+namespace xls::codegen::pass_registration {
+
+XLS_REGISTER_MODULE_INITIALIZER(initializer_{MANGLED_LABEL}, {
+  CHECK_OK(::xls::codegen::RegisterCodegenPipelineProtoData({ACCESS_FN}(), "{FILE}"));
+});
+
+}  // namespace xls::codegen::pass_registration

@@ -48,7 +48,7 @@ namespace xls::codegen {
 
 absl::StatusOr<bool> IdleInsertionPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   if (!options.codegen_options.add_idle_output()) {
     return false;
   }

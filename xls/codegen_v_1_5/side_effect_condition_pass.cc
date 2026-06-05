@@ -126,7 +126,7 @@ absl::StatusOr<Node*> MakeGuardedConditionForOp(Op op, Node* condition,
 
 absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   bool changed = false;
   for (std::unique_ptr<Block>& block : package->blocks()) {
     if (!block->IsScheduled()) {

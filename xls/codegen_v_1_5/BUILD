@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//xls/build_rules:xls_pass_rules.bzl", "xls_codegen_pass", "xls_codegen_pass_registry", "xls_default_codegen_pass_registry")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -25,11 +28,40 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+xls_default_codegen_pass_registry(
+    name = "passes",
+    tags = ["keep_dep"],
+)
+
+xls_codegen_pass_registry(
+    name = "codegen_passes",
+    passes = [
+        ":scheduling_pass",
+        ":scheduled_block_conversion_pass",
+        ":side_effect_condition_pass",
+        ":pipeline_register_insertion_pass",
+        ":state_to_register_io_lowering_pass",
+        ":channel_to_port_io_lowering_pass",
+        ":function_io_lowering_pass",
+        ":idle_insertion_pass",
+        ":flow_control_insertion_pass",
+        ":proc_instantiation_lowering_pass",
+        ":global_channel_block_stitching_pass",
+        ":global_channel_removal_pass",
+        ":signature_generation_pass",
+        ":block_finalization_pass",
+        ":register_cleanup_pass",
+    ],
+    pipeline = "codegen_pass_pipeline.txtpb",
+    tags = ["keep_dep"],
+)
+
 cc_library(
     name = "block_conversion_pass",
     hdrs = ["block_conversion_pass.h"],
     deps = [
         "//xls/codegen:codegen_options",
+        "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule_cc_proto",
     ],
@@ -41,26 +73,41 @@ cc_library(
     hdrs = ["block_conversion_pass_pipeline.h"],
     deps = [
         ":block_conversion_pass",
+        ":codegen_pass_registry",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+proto_library(
+    name = "codegen_pass_pipeline_proto",
+    srcs = ["codegen_pass_pipeline.proto"],
+)
+
+cc_proto_library(
+    name = "codegen_pass_pipeline_cc_proto",
+    deps = [":codegen_pass_pipeline_proto"],
+)
+
+cc_library(
+    name = "codegen_pass_registry",
+    srcs = ["codegen_pass_registry.cc"],
+    hdrs = ["codegen_pass_registry.h"],
+    deps = [
+        ":block_conversion_pass",
         ":block_conversion_wrapper_pass",
-        ":block_finalization_pass",
-        ":channel_to_port_io_lowering_pass",
-        ":flow_control_insertion_pass",
-        ":function_io_lowering_pass",
-        ":global_channel_block_stitching_pass",
-        ":global_channel_removal_pass",
-        ":idle_insertion_pass",
-        ":pipeline_register_insertion_pass",
-        ":proc_instantiation_lowering_pass",
-        ":register_cleanup_pass",
-        ":scheduled_block_conversion_pass",
-        ":scheduling_pass",
-        ":side_effect_condition_pass",
-        ":signature_generation_pass",
-        ":state_to_register_io_lowering_pass",
-        "//xls/passes:dataflow_simplification_pass",
-        "//xls/passes:dce_pass",
-        "//xls/passes:identity_removal_pass",
+        ":codegen_pass_pipeline_cc_proto",
+        "//xls/common:module_initializer",
+        "//xls/common/status:status_macros",
         "//xls/passes:optimization_pass",
+        "//xls/passes:optimization_pass_registry",
+        "//xls/passes:pass_registry",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -78,10 +125,11 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "block_finalization_pass",
     srcs = ["block_finalization_pass.cc"],
     hdrs = ["block_finalization_pass.h"],
+    pass_class = "BlockFinalizationPass",
     deps = [
         ":block_conversion_pass",
         "//xls/common/status:status_macros",
@@ -116,10 +164,11 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "register_cleanup_pass",
     srcs = ["register_cleanup_pass.cc"],
     hdrs = ["register_cleanup_pass.h"],
+    pass_class = "RegisterCleanupPass",
     deps = [
         ":block_conversion_pass",
         "//xls/common/status:status_macros",
@@ -165,7 +214,6 @@ cc_test(
 
 cc_library(
     name = "block_conversion_wrapper_pass",
-    srcs = ["block_conversion_wrapper_pass.cc"],
     hdrs = ["block_conversion_wrapper_pass.h"],
     deps = [
         ":block_conversion_pass",
@@ -174,7 +222,6 @@ cc_library(
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -191,17 +238,17 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/passes:dce_pass",
-        "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "channel_to_port_io_lowering_pass",
     srcs = ["channel_to_port_io_lowering_pass.cc"],
     hdrs = ["channel_to_port_io_lowering_pass.h"],
+    pass_class = "ChannelToPortIoLoweringPass",
     deps = [
         ":block_conversion_pass",
         "//xls/codegen:codegen_options",
@@ -278,7 +325,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
-        "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule_cc_proto",
         "//xls/scheduling:scheduling_options",
@@ -293,7 +339,9 @@ cc_test(
     name = "convert_to_block_test",
     srcs = ["convert_to_block_test.cc"],
     deps = [
+        ":block_conversion_pass",
         ":convert_to_block",
+        ":passes",  # build_cleaner: keep
         "//xls/codegen:codegen_options",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -302,17 +350,18 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "//xls/passes:optimization_pass",
+        "//xls/passes",  # build_cleaner: keep
         "//xls/passes:pass_base",
         "//xls/scheduling:scheduling_options",
         "@googletest//:gtest",
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "flow_control_insertion_pass",
     srcs = ["flow_control_insertion_pass.cc"],
     hdrs = ["flow_control_insertion_pass.h"],
+    pass_class = "FlowControlInsertionPass",
     deps = [
         ":block_conversion_pass",
         "//xls/common/status:status_macros",
@@ -358,10 +407,11 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "function_io_lowering_pass",
     srcs = ["function_io_lowering_pass.cc"],
     hdrs = ["function_io_lowering_pass.h"],
+    pass_class = "FunctionIOLoweringPass",
     deps = [
         ":block_conversion_pass",
         "//xls/codegen:conversion_utils",
@@ -423,10 +473,11 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "idle_insertion_pass",
     srcs = ["idle_insertion_pass.cc"],
     hdrs = ["idle_insertion_pass.h"],
+    pass_class = "IdleInsertionPass",
     deps = [
         ":block_conversion_pass",
         "//xls/codegen:codegen_options",
@@ -496,10 +547,11 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "pipeline_register_insertion_pass",
     srcs = ["pipeline_register_insertion_pass.cc"],
     hdrs = ["pipeline_register_insertion_pass.h"],
+    pass_class = "PipelineRegisterInsertionPass",
     deps = [
         ":block_conversion_pass",
         "//xls/codegen:codegen_options",
@@ -556,10 +608,11 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "proc_instantiation_lowering_pass",
     srcs = ["proc_instantiation_lowering_pass.cc"],
     hdrs = ["proc_instantiation_lowering_pass.h"],
+    pass_class = "ProcInstantiationLoweringPass",
     deps = [
         ":block_conversion_pass",
         ":block_conversion_utils",
@@ -628,10 +681,11 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "global_channel_block_stitching_pass",
     srcs = ["global_channel_block_stitching_pass.cc"],
     hdrs = ["global_channel_block_stitching_pass.h"],
+    pass_class = "GlobalChannelBlockStitchingPass",
     deps = [
         ":block_conversion_pass",
         ":block_conversion_utils",
@@ -679,7 +733,6 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "//xls/ir:value",
         "//xls/ir:verifier",
         "//xls/passes:pass_base",
         "//xls/scheduling:scheduling_options",
@@ -692,10 +745,11 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "global_channel_removal_pass",
     srcs = ["global_channel_removal_pass.cc"],
     hdrs = ["global_channel_removal_pass.h"],
+    pass_class = "GlobalChannelRemovalPass",
     deps = [
         ":block_conversion_pass",
         "//xls/common/status:status_macros",
@@ -871,10 +925,11 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "state_to_register_io_lowering_pass",
     srcs = ["state_to_register_io_lowering_pass.cc"],
     hdrs = ["state_to_register_io_lowering_pass.h"],
+    pass_class = "StateToRegisterIoLoweringPass",
     deps = [
         ":block_conversion_pass",
         "//xls/common/status:ret_check",
@@ -916,10 +971,11 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "scheduling_pass",
     srcs = ["scheduling_pass.cc"],
     hdrs = ["scheduling_pass.h"],
+    pass_class = "SchedulingPass",
     deps = [
         ":block_conversion_pass",
         ":block_conversion_utils",
@@ -956,10 +1012,11 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "scheduled_block_conversion_pass",
     srcs = ["scheduled_block_conversion_pass.cc"],
     hdrs = ["scheduled_block_conversion_pass.h"],
+    pass_class = "ScheduledBlockConversionPass",
     deps = [
         ":block_conversion_pass",
         ":block_conversion_utils",
@@ -981,10 +1038,11 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "side_effect_condition_pass",
     srcs = ["side_effect_condition_pass.cc"],
     hdrs = ["side_effect_condition_pass.h"],
+    pass_class = "SideEffectConditionPass",
     deps = [
         ":block_conversion_pass",
         "//xls/codegen:conversion_utils",
@@ -1011,7 +1069,8 @@ cc_test(
     deps = [
         ":block_conversion_pass",
         ":block_conversion_pass_pipeline",
-        ":side_effect_condition_pass",
+        ":passes",  # build_cleaner: keep
+        ":side_effect_condition_pass_impl",
         "//xls/codegen:codegen_options",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -1027,7 +1086,7 @@ cc_test(
         "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/passes:optimization_pass",
+        "//xls/passes",  # build_cleaner: keep
         "//xls/passes:pass_base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
@@ -1039,10 +1098,11 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_codegen_pass(
     name = "signature_generation_pass",
     srcs = ["signature_generation_pass.cc"],
     hdrs = ["signature_generation_pass.h"],
+    pass_class = "SignatureGenerationPass",
     deps = [
         ":block_conversion_pass",
         "//xls/codegen:codegen_options",
@@ -1121,7 +1181,11 @@ cc_test(
     srcs = ["block_conversion_pass_pipeline_test.cc"],
     shard_count = 50,
     deps = [
+        ":block_conversion_pass",
+        ":codegen_pass_pipeline_cc_proto",
+        ":codegen_pass_registry",
         ":convert_to_block",
+        ":passes",  # build_cleaner: keep
         "//xls/codegen:block_conversion",
         "//xls/codegen:block_conversion_test_fixture",
         "//xls/codegen:codegen_options",
@@ -1148,7 +1212,7 @@ cc_test(
         "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/ir:verifier",
-        "//xls/passes:optimization_pass",
+        "//xls/passes",  # build_cleaner: keep
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
@@ -1177,6 +1241,7 @@ cc_library(
     srcs = ["codegen.cc"],
     hdrs = ["codegen.h"],
     deps = [
+        ":block_conversion_pass",
         ":convert_to_block",
         "//xls/codegen:block_metrics",
         "//xls/codegen:codegen_options",
@@ -1227,6 +1292,7 @@ cc_test(
     shard_count = 50,
     deps = [
         ":codegen",
+        ":passes",  # build_cleaner: keep
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_result",
         "//xls/codegen:module_signature",
@@ -1251,6 +1317,7 @@ cc_test(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:value",
+        "//xls/passes",  # build_cleaner: keep
         "//xls/scheduling:scheduling_options",
         "//xls/simulation:module_simulator",
         "//xls/simulation:module_testbench",

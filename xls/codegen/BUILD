@@ -829,6 +829,7 @@ cc_test(
     ],
     deps = [
         ":module_signature_cc_proto",
+        "//xls/codegen_v_1_5:passes",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -1159,6 +1160,7 @@ cc_test(
         ":codegen_pass",
         ":codegen_result",
         ":ram_configuration",
+        "//xls/codegen_v_1_5:passes",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -1331,6 +1333,7 @@ cc_test(
         ":signature_generator",
         ":test_fifos",
         ":verilog_conversion",
+        "//xls/codegen_v_1_5:passes",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",

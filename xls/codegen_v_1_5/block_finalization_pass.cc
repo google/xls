@@ -74,7 +74,7 @@ absl::StatusOr<Block*> BlockFinalizationPass::RemoveStages(
 
 absl::StatusOr<bool> BlockFinalizationPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   std::vector<Block*> blocks_to_process;
   for (const std::unique_ptr<Block>& block : package->blocks()) {
     if (block->IsScheduled()) {

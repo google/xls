@@ -16,6 +16,7 @@
 #define XLS_CODEGEN_V_1_5_BLOCK_CONVERSION_PASS_H_
 
 #include "xls/codegen/codegen_options.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 
@@ -29,11 +30,16 @@ struct BlockConversionPassOptions : public PassOptionsBase {
   PackageScheduleProto package_schedule;
 };
 
-using BlockConversionPass = PassBase<BlockConversionPassOptions>;
+struct BlockConversionContext {
+  OptimizationContext opt_context;
+};
+
+using BlockConversionPass =
+    PassBase<BlockConversionPassOptions, BlockConversionContext>;
 using BlockConversionFunctionBasePass =
-    FunctionBasePass<BlockConversionPassOptions>;
+    FunctionBasePass<BlockConversionPassOptions, BlockConversionContext>;
 using BlockConversionCompoundPass =
-    CompoundPassBase<BlockConversionPassOptions>;
+    CompoundPassBase<BlockConversionPassOptions, BlockConversionContext>;
 
 }  // namespace xls::codegen
 

@@ -819,6 +819,7 @@ cc_binary(
         ":scheduling_options_flags_cc_proto",
         "//xls/codegen:codegen_result",
         "//xls/codegen:module_signature",
+        "//xls/codegen_v_1_5:passes",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -1193,6 +1194,7 @@ cc_binary(
     srcs = ["proto2bin_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "//xls/codegen_v_1_5:codegen_pass_pipeline_cc_proto",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",

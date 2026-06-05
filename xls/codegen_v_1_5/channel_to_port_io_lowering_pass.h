@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_V_1_5_CHANNEL_TO_PORT_IO_LOWERING_PASS_H_
 #define XLS_CODEGEN_V_1_5_CHANNEL_TO_PORT_IO_LOWERING_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/ir/package.h"
@@ -24,14 +26,15 @@ namespace xls::codegen {
 
 class ChannelToPortIoLoweringPass : public BlockConversionPass {
  public:
+  static constexpr std::string_view kName = "channel_to_port_io_lowering";
+
   ChannelToPortIoLoweringPass()
-      : BlockConversionPass("channel_to_port_io_lowering",
-                            "Channel I/O to port lowering pass") {}
+      : BlockConversionPass(kName, "Channel I/O to port lowering pass") {}
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* package,
-                                   const BlockConversionPassOptions& options,
-                                   PassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(
+      Package* package, const BlockConversionPassOptions& options,
+      PassResults* results, BlockConversionContext& context) const override;
 };
 
 }  // namespace xls::codegen

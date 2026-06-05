@@ -19,9 +19,9 @@
 
 #include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -33,7 +33,7 @@ namespace xls::codegen {
 absl::Status ConvertToBlock(
     Package* p, verilog::CodegenOptions codegen_options,
     SchedulingOptions scheduling_options, const DelayEstimator* delay_estimator,
-    OptimizationContext* opt_context, PassResults* pass_results,
+    BlockConversionContext& context, PassResults* pass_results,
     std::optional<PackageScheduleProto> schedule_override = std::nullopt);
 
 }  // namespace xls::codegen

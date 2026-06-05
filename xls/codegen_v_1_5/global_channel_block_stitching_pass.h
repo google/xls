@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_V_1_5_GLOBAL_CHANNEL_BLOCK_STITCHING_PASS_H_
 #define XLS_CODEGEN_V_1_5_GLOBAL_CHANNEL_BLOCK_STITCHING_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/ir/package.h"
@@ -28,6 +30,8 @@ namespace xls::codegen {
 // counterpart.
 class GlobalChannelBlockStitchingPass : public BlockConversionPass {
  public:
+  static constexpr std::string_view kName = "global_channel_block_stitching";
+
   GlobalChannelBlockStitchingPass()
       : BlockConversionPass(
             "global_channel_block_stitching",
@@ -36,7 +40,8 @@ class GlobalChannelBlockStitchingPass : public BlockConversionPass {
 
   absl::StatusOr<bool> RunInternal(Package* package,
                                    const BlockConversionPassOptions& options,
-                                   PassResults* results) const final;
+                                   PassResults* results,
+                                   BlockConversionContext& context) const final;
 };
 
 }  // namespace xls::codegen

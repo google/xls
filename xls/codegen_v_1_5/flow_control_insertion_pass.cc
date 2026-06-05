@@ -221,7 +221,7 @@ absl::StatusOr<bool> FlowControlInsertionPass::InsertFlowControl(
 
 absl::StatusOr<bool> FlowControlInsertionPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   bool changed = false;
   for (const std::unique_ptr<Block>& block : package->blocks()) {
     if (block->IsScheduled()) {

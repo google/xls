@@ -15,12 +15,12 @@
 #ifndef XLS_CODEGEN_V_1_5_BLOCK_CONVERSION_WRAPPER_PASS_H_
 #define XLS_CODEGEN_V_1_5_BLOCK_CONVERSION_WRAPPER_PASS_H_
 
+#include <concepts>
 #include <memory>
 #include <utility>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/span.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
@@ -28,34 +28,36 @@
 
 namespace xls::codegen {
 
-// A codegen pass wrapper which wraps a OptimizationFunctionBasePass. This is
+// A codegen pass wrapper which wraps a OptimizationPass. This is
 // useful for adding an optimization or transformation pass (most passes in
-// xls/passes are OptimizationFunctionBasePasses) to the codegen pipeline. The
+// xls/passes are OptimizationPasses) to the codegen pipeline. The
 // wrapped pass is run on the block being lowered to Verilog.
-//
-// Takes the OptimizationContext object at construction, since it's specific to
-// optimization passes & cannot be passed via a codegen pass's Run function.
 class BlockConversionWrapperPass : public BlockConversionPass {
  public:
   explicit BlockConversionWrapperPass(
-      std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass,
-      OptimizationContext& opt_context)
+      std::unique_ptr<OptimizationPass> wrapped_pass)
       : BlockConversionPass(
-            absl::StrFormat("codegen_%s", wrapped_pass->short_name()),
+            absl::StrFormat("opt_pass<%s>", wrapped_pass->short_name()),
             absl::StrFormat("%s (codegen)", wrapped_pass->long_name())),
-        wrapped_pass_(std::move(wrapped_pass)),
-        opt_context_(opt_context) {}
+        wrapped_pass_(std::move(wrapped_pass)) {}
   ~BlockConversionWrapperPass() override = default;
+
+  template <std::derived_from<OptimizationPass> OptPassT, typename... Args>
+  static BlockConversionWrapperPass Create(Args... args) {
+    return BlockConversionWrapperPass(std::make_unique<OptPassT>(args...));
+  }
 
   bool IsCompound() const override { return wrapped_pass_->IsCompound(); }
 
-  absl::StatusOr<bool> RunInternal(Package* package,
-                                   const BlockConversionPassOptions& options,
-                                   PassResults* results) const final;
+  absl::StatusOr<bool> RunInternal(
+      Package* package, const BlockConversionPassOptions& options,
+      PassResults* results, BlockConversionContext& context) const final {
+    return wrapped_pass_->Run(package, OptimizationPassOptions(options),
+                              results, context.opt_context);
+  }
 
  private:
-  std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass_;
-  OptimizationContext& opt_context_;
+  std::unique_ptr<OptimizationPass> wrapped_pass_;
 };
 
 }  // namespace xls::codegen

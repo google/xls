@@ -1,0 +1,15 @@
+// {WARNING}
+
+{HEADERS}
+
+#include "absl/log/check.h"
+#include "xls/codegen_v_1_5/codegen_pass_registry.h"
+#include "xls/common/module_initializer.h"
+
+namespace xls::codegen::pass_registration {
+
+XLS_REGISTER_MODULE_INITIALIZER({REGISTRATION_NAME}, {
+  CHECK_OK(::xls::codegen::RegisterCodegenPass<{NAME}>({SHORT_NAME}));
+});
+
+}  // namespace xls::codegen::pass_registration

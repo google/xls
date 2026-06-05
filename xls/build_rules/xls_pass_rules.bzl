@@ -26,6 +26,9 @@ load(
 )
 load(
     "//xls/build_rules:xls_providers.bzl",
+    "XlsCodegenPassInfo",
+    "XlsCodegenPassRegistryConfigInfo",
+    "XlsCodegenPassRegistryInfo",
     "XlsOptimizationPassInfo",
     "XlsOptimizationPassRegistryConfigInfo",
     "XlsOptimizationPassRegistryInfo",
@@ -47,7 +50,7 @@ def _generate_registration_impl(ctx):
         headers += "\n"
         headers += '#include "%s"' % h.path
     ctx.actions.expand_template(
-        template = ctx.file._registration_template,
+        template = ctx.file.registration_template,
         output = output_file,
         substitutions = {
             "{REGISTRATION_NAME}": ctx.attr.name,
@@ -64,9 +67,9 @@ def _generate_registration_impl(ctx):
 _generate_registration = rule(
     implementation = _generate_registration_impl,
     attrs = {
-        "_registration_template": attr.label(
-            default = Label("//xls/passes/tools:pass_registration.cc.tmpl"),
+        "registration_template": attr.label(
             allow_single_file = True,
+            mandatory = True,
         ),
         "pass_class": attr.string(
             doc = "String name (with namespace) of the pass being created.",
@@ -106,12 +109,93 @@ _xls_pass_and_registration = rule(
             providers = [CcInfo],
         ),
         "pass_reg": attr.label(
-            doc = "library we are generating for",
+            doc = "The library containing the pass registration code.",
             mandatory = True,
             providers = [CcInfo],
         ),
     },
 )
+
+def _xls_codegen_pass_and_registration_impl(ctx):
+    return [
+        ctx.attr.pass_lib[CcInfo],
+        ctx.attr.pass_lib[DefaultInfo],
+        XlsCodegenPassInfo(
+            pass_impl = ctx.attr.pass_lib,
+            pass_registration = ctx.attr.pass_reg,
+        ),
+    ]
+
+_xls_codegen_pass_and_registration = rule(
+    implementation = _xls_codegen_pass_and_registration_impl,
+    doc = """Helper rule to note the actual codegen pass and registration libraries in a provider.
+
+        This lets it be used in both cc-library deps positions and in the pass_registry.""",
+    attrs = {
+        "pass_lib": attr.label(
+            doc = "library we are generating for",
+            mandatory = True,
+            providers = [CcInfo],
+        ),
+        "pass_reg": attr.label(
+            doc = "The library containing the pass registration code.",
+            mandatory = True,
+            providers = [CcInfo],
+        ),
+    },
+)
+
+def _xls_pass_impl_macro(
+        name,
+        pass_class,
+        registration_template,
+        registry_dep,
+        pass_and_registration_rule,
+        tags = [],
+        **kwargs):
+    # Ensure only the pass-and-registration target has a visibility.
+    if "visibility" in kwargs:
+        # The internal pass-target should not be visible. Only the external
+        # pass-and-reg provider should be potentially public.
+        visibility = kwargs["visibility"]
+        kwargs.pop("visibility")
+    else:
+        visibility = None
+
+    # Force build-automation stuff to choose the pass-and-reg target for direct users.
+    impl_tags = tags + ["alt_dep=%s" % name, "avoid_dep"]
+    cc_library(
+        name = "%s_impl" % name,
+        visibility = ["//visibility:private"],
+        tags = impl_tags,
+        **kwargs
+    )
+    _generate_registration(
+        name = "%s_registration_cc" % name,
+        lib = "%s_impl" % name,
+        visibility = ["//visibility:private"],
+        pass_class = pass_class,
+        registration_template = registration_template,
+    )
+    cc_library(
+        name = "%s_registration" % name,
+        srcs = ["%s_registration_cc" % name],
+        visibility = ["//visibility:private"],
+        tags = tags,
+        deps = [
+            "%s_impl" % name,
+            registry_dep,
+            "//xls/common:module_initializer",
+            "@com_google_absl//absl/log:check",
+        ],
+        alwayslink = True,
+    )
+    pass_and_registration_rule(
+        name = name,
+        pass_lib = "%s_impl" % name,
+        pass_reg = "%s_registration" % name,
+        visibility = visibility,
+    )
 
 # TODO(allight): We could make this a 'rule' but we need a macro solely to make
 # sure that build-rule automation still works so might as well leave it as a
@@ -146,48 +230,14 @@ def xls_pass(name, pass_class, tags = [], **kwargs):
       tags: Any tags to put on generated libraries.
       **kwargs: Keyword arguments to pass to the cc_library.
     """
-
-    # Ensure only the pass-and-registration target has a visibility.
-    if "visibility" in kwargs:
-        # The internal pass-target should not be visible. Only the external
-        # pass-and-reg provider should be potentially public.
-        visibility = kwargs["visibility"]
-        kwargs.pop("visibility")
-    else:
-        visibility = None
-
-    # Force build-automation stuff to choose the pass-and-reg target for direct users.
-    impl_tags = tags + ["alt_dep=%s" % name, "avoid_dep"]
-    cc_library(
-        name = "%s_impl" % name,
-        visibility = ["//visibility:private"],
-        tags = impl_tags,
-        **kwargs
-    )
-    _generate_registration(
-        name = "%s_registration_cc" % name,
-        lib = "%s_impl" % name,
-        visibility = ["//visibility:private"],
-        pass_class = pass_class,
-    )
-    cc_library(
-        name = "%s_registration" % name,
-        srcs = ["%s_registration_cc" % name],
-        visibility = ["//visibility:private"],
-        tags = tags,
-        deps = [
-            "%s_impl" % name,
-            "//xls/passes:optimization_pass_registry",
-            "//xls/common:module_initializer",
-            "@com_google_absl//absl/log:check",
-        ],
-        alwayslink = True,
-    )
-    _xls_pass_and_registration(
+    _xls_pass_impl_macro(
         name = name,
-        pass_lib = "%s_impl" % name,
-        pass_reg = "%s_registration" % name,
-        visibility = visibility,
+        pass_class = pass_class,
+        registration_template = "//xls/passes/tools:pass_registration.cc.tmpl",
+        registry_dep = "//xls/passes:optimization_pass_registry",
+        pass_and_registration_rule = _xls_pass_and_registration,
+        tags = tags,
+        **kwargs
     )
 
 register_extension_info(
@@ -195,7 +245,48 @@ register_extension_info(
     label_regex_for_dep = "{extension_name}_impl",
 )
 
-def _xls_pass_registry_impl(ctx):
+def xls_codegen_pass(name, pass_class, tags = [], **kwargs):
+    """A rule to build an xls codegen pass library and the registration library.
+
+    Example:
+    ```
+    xls_codegen_pass(
+      name = "clock_gating_pass",
+      pass_class = "ClockGatingPass",
+      srcs = ["clock_gating_pass.cc"],
+      hdrs = ["clock_gating_pass.h"],
+      deps = [...],
+    )
+    ```
+
+    Args:
+      name: The name of the pass library.
+      pass_class: String name (with namespace) of the pass being created.
+      tags: Any tags to put on generated libraries.
+      **kwargs: Keyword arguments to pass to the cc_library.
+    """
+    _xls_pass_impl_macro(
+        name = name,
+        pass_class = pass_class,
+        registration_template = "//xls/codegen_v_1_5/tools:codegen_pass_registration.cc.tmpl",
+        registry_dep = "//xls/codegen_v_1_5:codegen_pass_registry",
+        pass_and_registration_rule = _xls_codegen_pass_and_registration,
+        tags = tags,
+        **kwargs
+    )
+
+register_extension_info(
+    extension = xls_codegen_pass,
+    label_regex_for_dep = "{extension_name}_impl",
+)
+
+def _xls_pass_registry_impl_helper(
+        ctx,
+        pass_info_type,
+        registry_info_type,
+        config_info_type,
+        proto_name,
+        namespace):
     out_files = []
     if ctx.file.pipeline_binpb and ctx.file.pipeline:
         fail("At most one of pipeline and pipeline_binpb may be present.")
@@ -219,7 +310,7 @@ def _xls_pass_registry_impl(ctx):
             ctx = ctx,
             src_file = ctx.file.pipeline,
             output_file = pipeline_binpb,
-            proto_name = "xls.OptimizationPipelineProto",
+            proto_name = proto_name,
         )
     else:
         pipeline_binpb = None
@@ -234,24 +325,24 @@ def _xls_pass_registry_impl(ctx):
     existing_binpbs = []
     existing_pipeline_src = []
     for c in ctx.attr.passes:
-        if XlsOptimizationPassInfo in c:
-            inputs.append(c[XlsOptimizationPassInfo].pass_registration[CcInfo].linking_context)
-            passes.append(c[XlsOptimizationPassInfo].pass_registration[CcInfo])
-            pass_infos.append(XlsOptimizationPassInfo(
-                pass_impl = c[XlsOptimizationPassInfo].pass_impl[CcInfo],
-                pass_registration = c[XlsOptimizationPassInfo].pass_registration[CcInfo],
+        if pass_info_type in c:
+            inputs.append(c[pass_info_type].pass_registration[CcInfo].linking_context)
+            passes.append(c[pass_info_type].pass_registration[CcInfo])
+            pass_infos.append(pass_info_type(
+                pass_impl = c[pass_info_type].pass_impl[CcInfo],
+                pass_registration = c[pass_info_type].pass_registration[CcInfo],
             ))
-        elif XlsOptimizationPassRegistryInfo in c:
-            for x in c[XlsOptimizationPassRegistryInfo].passes:
+        elif registry_info_type in c:
+            for x in c[registry_info_type].passes:
                 inputs.append(x.linking_context)
-            passes.extend(c[XlsOptimizationPassRegistryInfo].passes)
-            pass_infos.extend(c[XlsOptimizationPassRegistryInfo].pass_infos)
-            existing_binpbs.append(c[XlsOptimizationPassRegistryInfo].pipeline_binpb)
-            existing_pipeline_src.append(c[XlsOptimizationPassRegistryInfo].pipeline_src)
+            passes.extend(c[registry_info_type].passes)
+            pass_infos.extend(c[registry_info_type].pass_infos)
+            existing_binpbs.append(c[registry_info_type].pipeline_binpb)
+            existing_pipeline_src.append(c[registry_info_type].pipeline_src)
         else:
             inputs.append(c[CcInfo].linking_context)
             passes.append(c[CcInfo])
-            pass_infos.append(XlsOptimizationPassInfo(
+            pass_infos.append(pass_info_type(
                 pass_impl = c[CcInfo],
                 pass_registration = c[CcInfo],
             ))
@@ -271,7 +362,7 @@ def _xls_pass_registry_impl(ctx):
             ctx.label.name,
         ))))
         accessor = "get_%s_pipeline" % mangled_label
-        proto_data_fn = "xls::pass_registry::%s" % accessor
+        proto_data_fn = "%s::%s" % (namespace, accessor)
         emb_header = ctx.actions.declare_file("%s_embedded_pipeline.h" % ctx.attr.name)
         emb_cc = ctx.actions.declare_file("%s_embedded_pipeline.cc" % ctx.attr.name)
         files_out.append(emb_header)
@@ -281,7 +372,7 @@ def _xls_pass_registry_impl(ctx):
             name = ctx.attr.name + "_embedded_pipeline_binpb",
             hdr_file = emb_header,
             cpp_file = emb_cc,
-            namespace = "xls::pass_registry",
+            namespace = namespace,
             accessor = accessor,
             data_file = pipeline_binpb,
         )
@@ -347,7 +438,7 @@ def _xls_pass_registry_impl(ctx):
     return [
         cc_info,
         default_info,
-        XlsOptimizationPassRegistryInfo(
+        registry_info_type(
             cc_library = cc_info,
             passes = passes,
             pipeline_binpb = pipeline_binpb,
@@ -355,18 +446,28 @@ def _xls_pass_registry_impl(ctx):
             default_info = default_info,
             pipeline_src = ctx.file.pipeline,
         ),
-        XlsOptimizationPassRegistryConfigInfo(
+        config_info_type(
             pipeline_binpb = pipeline_binpb,
             pass_infos = pass_infos,
         ),
     ]
 
+def _xls_pass_registry_impl(ctx):
+    return _xls_pass_registry_impl_helper(
+        ctx = ctx,
+        pass_info_type = XlsOptimizationPassInfo,
+        registry_info_type = XlsOptimizationPassRegistryInfo,
+        config_info_type = XlsOptimizationPassRegistryConfigInfo,
+        proto_name = "xls.OptimizationPipelineProto",
+        namespace = "xls::pass_registry",
+    )
+
 xls_pass_registry = rule(
     implementation = _xls_pass_registry_impl,
     doc = """Registry library that registers the given passes.
-    
+
     NB Pass-registry dependencies do not add the compound passes etc to the namespace.
-    
+
     TODO(allight): This would be a nice thing to do. Ensuring that overrides
     work reasonably would be required however.
     """,
@@ -410,6 +511,59 @@ xls_pass_registry = rule(
     ),
 )
 
+def _xls_codegen_pass_registry_impl(ctx):
+    return _xls_pass_registry_impl_helper(
+        ctx = ctx,
+        pass_info_type = XlsCodegenPassInfo,
+        registry_info_type = XlsCodegenPassRegistryInfo,
+        config_info_type = XlsCodegenPassRegistryConfigInfo,
+        proto_name = "xls.codegen.CodegenPipelineProto",
+        namespace = "xls::codegen::pass_registry",
+    )
+
+xls_codegen_pass_registry = rule(
+    implementation = _xls_codegen_pass_registry_impl,
+    doc = """Registry library that registers the given codegen passes.""",
+    provides = [CcInfo, XlsCodegenPassRegistryInfo, XlsCodegenPassRegistryConfigInfo],
+    fragments = ["cpp"],
+    toolchains = use_cpp_toolchain(),
+    attrs = dicts.add(
+        {
+            "passes": attr.label_list(
+                doc = "List of pass infos, libraries or other pass_registry rules to register.",
+                providers = [[XlsCodegenPassRegistryInfo], [XlsCodegenPassInfo], [CcInfo]],
+            ),
+            "pipeline": attr.label(
+                doc = """Text proto CodegenPipeline defining any compound passes and the default pipeline.
+
+            At most one of this and pipeline_binpb may be present.""",
+                allow_single_file = True,
+                mandatory = False,
+            ),
+            "pipeline_binpb": attr.label(
+                doc = """Binary proto CodegenPipeline defining any compound passes and the default pipeline.
+
+            At most one of this and pipeline may be present.""",
+                allow_single_file = True,
+                mandatory = False,
+            ),
+            "_register_pipeline_template": attr.label(
+                default = Label("//xls/codegen_v_1_5/tools:codegen_pipeline_registration.cc.tmpl"),
+                allow_single_file = True,
+            ),
+            "_register_pipeline_deps": attr.label_list(
+                default = [
+                    Label("//xls/codegen_v_1_5:codegen_pass_registry"),
+                    Label("//xls/common:module_initializer"),
+                    Label("@com_google_absl//absl/log:check"),
+                ],
+            ),
+        },
+        _proto_data_tool_attrs,
+        _embed_data_attrs,
+    ),
+)
+
 def _xls_default_pass_registry(ctx):
     config = ctx.toolchains["//xls/common/toolchains:toolchain_type"].configuration
     return [
@@ -426,5 +580,24 @@ xls_default_pass_registry = rule(
     implementation = _xls_default_pass_registry,
     doc = """A pass registry with the default pipeline.""",
     provides = [XlsOptimizationPassRegistryInfo, XlsOptimizationPassRegistryConfigInfo, CcInfo],
+    toolchains = ["//xls/common/toolchains:toolchain_type"],
+)
+
+def _xls_default_codegen_pass_registry(ctx):
+    config = ctx.toolchains["//xls/common/toolchains:toolchain_type"].configuration
+    return [
+        config.codegen_pass_registry,
+        config.codegen_pass_registry.cc_library,
+        config.codegen_pass_registry.default_info,
+        XlsCodegenPassRegistryConfigInfo(
+            pipeline_binpb = config.codegen_pass_registry.pipeline_binpb,
+            pass_infos = config.codegen_pass_registry.pass_infos,
+        ),
+    ]
+
+xls_default_codegen_pass_registry = rule(
+    implementation = _xls_default_codegen_pass_registry,
+    doc = """A pass registry with the default codegen pipeline.""",
+    provides = [CcInfo, XlsCodegenPassRegistryInfo, XlsCodegenPassRegistryConfigInfo],
     toolchains = ["//xls/common/toolchains:toolchain_type"],
 )

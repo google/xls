@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_V_1_5_BLOCK_FINALIZATION_PASS_H_
 #define XLS_CODEGEN_V_1_5_BLOCK_FINALIZATION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/ir/block.h"
@@ -25,14 +27,16 @@ namespace xls::codegen {
 
 class BlockFinalizationPass : public BlockConversionPass {
  public:
+  static constexpr std::string_view kName = "block_finalization";
+
   BlockFinalizationPass()
-      : BlockConversionPass("block_finalization",
+      : BlockConversionPass(kName,
                             "Convert all scheduled blocks to normal blocks") {}
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* package,
-                                   const BlockConversionPassOptions& options,
-                                   PassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(
+      Package* package, const BlockConversionPassOptions& options,
+      PassResults* results, BlockConversionContext& context) const override;
 
  private:
   absl::StatusOr<Block*> RemoveStages(ScheduledBlock* block, Package* package,

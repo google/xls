@@ -61,6 +61,7 @@ class SignatureGenerationPassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Package* p, BlockConversionPassOptions options =
                                            BlockConversionPassOptions()) {
     PassResults results;
+    BlockConversionContext context;
 
     // Set default options if not provided
     if (!options.codegen_options.clock_name().has_value()) {
@@ -70,15 +71,17 @@ class SignatureGenerationPassTest : public IrTestBase {
       options.codegen_options.reset("rst", false, false, false);
     }
 
+    XLS_RETURN_IF_ERROR(ScheduledBlockConversionPass()
+                            .Run(p, options, &results, context)
+                            .status());
+    XLS_RETURN_IF_ERROR(ChannelToPortIoLoweringPass()
+                            .Run(p, options, &results, context)
+                            .status());
     XLS_RETURN_IF_ERROR(
-        ScheduledBlockConversionPass().Run(p, options, &results).status());
-    XLS_RETURN_IF_ERROR(
-        ChannelToPortIoLoweringPass().Run(p, options, &results).status());
-    XLS_RETURN_IF_ERROR(
-        FunctionIOLoweringPass().Run(p, options, &results).status());
+        FunctionIOLoweringPass().Run(p, options, &results, context).status());
 
-    XLS_ASSIGN_OR_RETURN(bool result,
-                         SignatureGenerationPass().Run(p, options, &results));
+    XLS_ASSIGN_OR_RETURN(bool result, SignatureGenerationPass().Run(
+                                          p, options, &results, context));
 
     XLS_RET_CHECK_OK(Parser::ParsePackageNoVerify(p->DumpIr()).status());
     return result;

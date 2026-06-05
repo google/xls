@@ -398,7 +398,7 @@ absl::StatusOr<bool> LowerStateIoForBlock(ScheduledBlock* block) {
 
 absl::StatusOr<bool> StateToRegisterIoLoweringPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   bool changed = false;
   for (FunctionBase* fb : package->GetFunctionBases()) {
     if (fb->IsBlock() && fb->IsScheduled()) {

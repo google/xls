@@ -41,7 +41,6 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -84,22 +83,27 @@ class GlobalChannelBlockStitchingPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p, int64_t pipeline_stages) {
     PassResults results;
+    BlockConversionContext context;
 
     XLS_ASSIGN_OR_RETURN(BlockConversionPassOptions options,
                          CreateOptions(p, pipeline_stages));
-    XLS_RETURN_IF_ERROR(SchedulingPass().Run(p, options, &results).status());
-
     XLS_RETURN_IF_ERROR(
-        ScheduledBlockConversionPass().Run(p, options, &results).status());
+        SchedulingPass().Run(p, options, &results, context).status());
 
-    XLS_RETURN_IF_ERROR(
-        StateToRegisterIoLoweringPass().Run(p, options, &results).status());
+    XLS_RETURN_IF_ERROR(ScheduledBlockConversionPass()
+                            .Run(p, options, &results, context)
+                            .status());
 
-    XLS_RETURN_IF_ERROR(
-        ChannelToPortIoLoweringPass().Run(p, options, &results).status());
+    XLS_RETURN_IF_ERROR(StateToRegisterIoLoweringPass()
+                            .Run(p, options, &results, context)
+                            .status());
+
+    XLS_RETURN_IF_ERROR(ChannelToPortIoLoweringPass()
+                            .Run(p, options, &results, context)
+                            .status());
 
     XLS_ASSIGN_OR_RETURN(bool result, GlobalChannelBlockStitchingPass().Run(
-                                          p, options, &results));
+                                          p, options, &results, context));
 
     VLOG(5) << "IR after instantiation lowering: " << p_->DumpIr();
     return result;

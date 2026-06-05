@@ -22,6 +22,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "xls/codegen_v_1_5/codegen_pass_pipeline.pb.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -39,7 +40,8 @@ interfaces that utilize binary protos for configuration (ex. xlscc).
 
 ABSL_FLAG(std::string, message, "",
           "Message to read textproto as.  Supported: [xlscc.HLSBlock, "
-          "xls.RamRewritesProto, xls.OptimizationPipelineProto]");
+          "xls.RamRewritesProto, xls.OptimizationPipelineProto, "
+          "xls.codegen.CodegenPipelineProto]");
 ABSL_FLAG(std::string, output, "", "Output file to write binary proto to.");
 
 namespace xls {
@@ -55,6 +57,9 @@ absl::StatusOr<std::unique_ptr<google::protobuf::Message>> MakeProtoForMessageTy
   }
   if (message_type == "xls.OptimizationPipelineProto") {
     return std::make_unique<xls::OptimizationPipelineProto>();
+  }
+  if (message_type == "xls.codegen.CodegenPipelineProto") {
+    return std::make_unique<xls::codegen::CodegenPipelineProto>();
   }
 
   return absl::UnimplementedError(

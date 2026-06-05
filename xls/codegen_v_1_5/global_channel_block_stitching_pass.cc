@@ -480,7 +480,7 @@ absl::StatusOr<Block*> AddBlockWithName(Package* package,
 
 absl::StatusOr<bool> GlobalChannelBlockStitchingPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   // No need to stitch blocks when we don't have 2+ blocks, channels are
   // proc-scoped, or the top is not a proc.
   std::vector<std::pair<ScheduledBlock*, Proc*>> blocks_with_proc_sources =

@@ -169,7 +169,7 @@ absl::StatusOr<bool> LowerProcInstantiations(
 
 absl::StatusOr<bool> ProcInstantiationLoweringPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   bool changed = false;
   std::vector<std::pair<ScheduledBlock*, Proc*>> blocks =
       GetScheduledBlocksWithProcSources(package, /*new_style_only=*/true);

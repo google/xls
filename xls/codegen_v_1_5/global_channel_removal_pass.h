@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_V_1_5_GLOBAL_CHANNEL_REMOVAL_PASS_H_
 #define XLS_CODEGEN_V_1_5_GLOBAL_CHANNEL_REMOVAL_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/ir/package.h"
@@ -25,14 +27,15 @@ namespace xls::codegen {
 // A pass that removes global channels from the package.
 class GlobalChannelRemovalPass : public BlockConversionPass {
  public:
+  static constexpr std::string_view kName = "global_channel_removal";
+
   GlobalChannelRemovalPass()
-      : BlockConversionPass("global_channel_removal",
-                            "Global channel removal") {}
+      : BlockConversionPass(kName, "Global channel removal") {}
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* package,
-                                   const BlockConversionPassOptions& options,
-                                   PassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(
+      Package* package, const BlockConversionPassOptions& options,
+      PassResults* results, BlockConversionContext& context) const override;
 };
 
 }  // namespace xls::codegen

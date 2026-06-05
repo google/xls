@@ -90,7 +90,7 @@ class PassRegistry {
       std::unique_ptr<PassGenerator<OptionsT, ContextT...>>;
   using GeneratorPtr = PassGenerator<OptionsT, ContextT...>*;
   constexpr PassRegistry() = default;
-  constexpr ~PassRegistry() = default;
+  virtual constexpr ~PassRegistry() = default;
   PassRegistry& operator=(const PassRegistry& o ABSL_ATTRIBUTE_LIFETIME_BOUND) {
     absl::MutexLock mu(registry_lock_);
     absl::MutexLock mu2(o.registry_lock_);
@@ -169,9 +169,16 @@ class PassRegistry {
     allow_overwrite_ = allow_overwrite;
   }
 
- private:
+  // Hook for subclasses to initialize themselves lazily before the first access
+  // to the registry. Should be a no-op after the first call.
+  //
+  // Can be used to (e.g.) register one registry's passes in another without
+  // risk of static initialization order issues.
+  virtual void InitBeforeAccessLocked() const
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {}
+
   // Register a generator with a given name.
-  absl::Status RegisterLocked(std::string_view name, GeneratorPtr gen)
+  absl::Status RegisterLocked(std::string_view name, GeneratorPtr gen) const
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
     if (!allow_overwrite_ && generators_.contains(name)) {
       return absl::AlreadyExistsError(
@@ -182,7 +189,8 @@ class PassRegistry {
   }
 
   // Register a generator with a given name.
-  absl::Status RegisterLocked(std::string_view name, GeneratorUniquePtr gen)
+  absl::Status RegisterLocked(std::string_view name,
+                              GeneratorUniquePtr gen) const
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
     if (!allow_overwrite_ && generators_.contains(name)) {
       return absl::AlreadyExistsError(
@@ -193,10 +201,23 @@ class PassRegistry {
     return absl::OkStatus();
   }
 
+  void AddRegistrationInfoLocked(std::string_view name,
+                                 std::string_view class_name,
+                                 std::string_view header_file) const
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
+    registration_info_[name] = {
+        .short_name = std::string(name),
+        .class_name = std::string(class_name),
+        .header_file = std::string(header_file),
+    };
+  }
+
+ private:
   // Get a pass generator of the given name.
   absl::StatusOr<PassGenerator<OptionsT, ContextT...>*> GeneratorLocked(
       std::string_view name) const
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
+    InitBeforeAccessLocked();
     if (!generators_.contains(name)) {
       return absl::NotFoundError(
           absl::StrFormat("%s is not registered. Have [%s]", name,
@@ -207,6 +228,7 @@ class PassRegistry {
 
   std::vector<std::string_view> GetRegisteredNamesLocked() const
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
+    InitBeforeAccessLocked();
     std::vector<std::string_view> res;
     res.reserve(generators_.size());
     for (const auto& [k, _] : generators_) {
@@ -218,6 +240,7 @@ class PassRegistry {
 
   std::vector<RegistrationInfo> GetRegisteredInfosLocked() const
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
+    InitBeforeAccessLocked();
     std::vector<RegistrationInfo> res;
     res.reserve(registration_info_.size());
     for (const auto& [_, v] : registration_info_) {
@@ -238,27 +261,20 @@ class PassRegistry {
     return res;
   }
 
-  void AddRegistrationInfoLocked(std::string_view name,
-                                 std::string_view class_name,
-                                 std::string_view header_file)
-      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
-    registration_info_[name] = {
-        .short_name = std::string(name),
-        .class_name = std::string(class_name),
-        .header_file = std::string(header_file),
-    };
-  }
-
   bool allow_overwrite_ = false;
+
+ protected:
   mutable absl::Mutex registry_lock_;
-  absl::flat_hash_map<std::string, GeneratorPtr> generators_
+
+ private:
+  mutable absl::flat_hash_map<std::string, GeneratorPtr> generators_
       ABSL_GUARDED_BY(registry_lock_);
 
   // List of all the unique-ptrs ever registered. This is never cleared to
   // avoid issues with dangling references.
-  std::vector<GeneratorUniquePtr> generators_owned_
+  mutable std::vector<GeneratorUniquePtr> generators_owned_
       ABSL_GUARDED_BY(registry_lock_);
-  absl::flat_hash_map<std::string, RegistrationInfo> registration_info_
+  mutable absl::flat_hash_map<std::string, RegistrationInfo> registration_info_
       ABSL_GUARDED_BY(registry_lock_);
 };
 

@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_V_1_5_SCHEDULED_BLOCK_CONVERSION_PASS_H_
 #define XLS_CODEGEN_V_1_5_SCHEDULED_BLOCK_CONVERSION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/ir/package.h"
@@ -24,15 +26,16 @@ namespace xls::codegen {
 
 class ScheduledBlockConversionPass : public BlockConversionPass {
  public:
+  static constexpr std::string_view kName = "scheduled_block_conversion";
+
   ScheduledBlockConversionPass()
       : BlockConversionPass(
-            "scheduled_block_conversion",
-            "ScheduledFunction/ScheduledProc to ScheduledBlock pass") {}
+            kName, "ScheduledFunction/ScheduledProc to ScheduledBlock pass") {}
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* package,
-                                   const BlockConversionPassOptions& options,
-                                   PassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(
+      Package* package, const BlockConversionPassOptions& options,
+      PassResults* results, BlockConversionContext& context) const override;
 };
 
 }  // namespace xls::codegen

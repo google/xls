@@ -74,7 +74,7 @@ absl::Status AddClockAndResetPorts(const verilog::CodegenOptions& options,
 
 absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
     Package* package, const BlockConversionPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, BlockConversionContext& context) const {
   // Original proc to vestigial `source proc` inside the corresponding
   // `scheduled_block`.
   absl::flat_hash_map<Proc*, Proc*> proc_map;

@@ -60,6 +60,7 @@ class PassTestBase : public IrTestBase {
 
     PassType pass;
     PassResults results;
+    BlockConversionContext context;
 
     BlockConversionPassOptions options;
     if (codegen_options.has_value()) {
@@ -77,7 +78,7 @@ class PassTestBase : public IrTestBase {
     }
 
     XLS_ASSIGN_OR_RETURN(bool result,
-                         pass.Run(package.get(), options, &results));
+                         pass.Run(package.get(), options, &results, context));
 
     XLS_RET_CHECK_EQ(expect_change, result);
 
