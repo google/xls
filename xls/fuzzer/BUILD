@@ -397,36 +397,19 @@ generate_crasher_regression_tests(
         "crashers/crasher_2025-05-07_2d16.x",
         # TODO: https://github.com/google/xls/issues/2989 - Remove when fixed.
         "crashers/crasher_2025-09-03_c1e3.x",
-        # TODO: https://github.com/google/xls/issues/2998 - Remove when fixed.
-        "crashers/crasher_2025-09-04_54f4.x",
-        # TODO: https://github.com/google/xls/issues/3577 - Remove when fixed.
-        "crashers/crasher_2025-12-18_bd85.x",
-        # TODO: https://github.com/google/xls/issues/686 - Remove when fixed.
-        "crashers/crasher_2022-09-01_f672.x",
-        # TODO: https://github.com/google/xls/issues/4044 - Remove when fixed.
-        "crashers/crasher_2026-04-03_4e72.x",
-        # TODO: https://github.com/google/xls/issues/4063 - Remove when fixed.
-        "crashers/crasher_2026-04-07_86e7.x",
+
         # TODO: https://github.com/google/xls/issues/4076 - Remove when fixed.
         "crashers/crasher_2026-04-08_85f2.x",
-        # TODO: https://github.com/google/xls/issues/4095 - Remove when fixed.
-        "crashers/crasher_2026-04-10_7b7e.x",
+
         # TODO: https://github.com/google/xls/issues/4142 - Remove when fixed.
         "crashers/crasher_2026-04-22_2292.x",
-        # TODO: https://github.com/google/xls/issues/4209 - Remove when fixed.
-        "crashers/crasher_2026-05-05_45c4.x",
-        # TODO: https://github.com/google/xls/issues/4213 - Remove when fixed.
-        "crashers/crasher_2026-05-06_cad8.x",
-        # TODO: https://github.com/google/xls/issues/4214 - Remove when fixed.
-        "crashers/crasher_2026-05-06_cbc5.x",
-        # TODO: https://github.com/google/xls/issues/4305 - Remove when fixed.
-        "crashers/crasher_2026-05-19_8c9c.x",
+
         # TODO: https://github.com/google/xls/issues/4302 - Remove when fixed.
         "crashers/crasher_2026-05-21_c47d.x",
-        "crashers/crasher_2026-05-26_cf55.x",
         # TODO: https://github.com/google/xls/issues/4361 - Remove when fixed.
         "crashers/crasher_2026-06-03_919f.x",
     ],
+
     # Tests which are too slow in the unopt-ir interpreter.
     no_unopt_interpreter = [
         # TODO(https://github.com/google/xls/issues/2263): Enormous copies of

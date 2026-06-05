@@ -66,56 +66,83 @@ namespace xls {
 
 namespace {
 
+// BDD evaluation of very wide data paths for shifts and dynamic slices can
+// grow exponentially and hang the fuzzer or optimizer. We restrict evaluations
+// of these operations to nodes below this bit width threshold to prevent
+// explosion.
+constexpr int64_t kMaxBddShiftAndSliceBitWidth = 128;
+
+// Ops which can cause BDD explosion when evaluated at very large bit widths
+// due to O(N^2) expansion, and which do not benefit from early saturation.
+constexpr auto kShiftAndSliceOps = std::to_array<Op>({
+    Op::kShll,
+    Op::kShrl,
+    Op::kShra,
+    Op::kDynamicBitSlice,
+    Op::kBitSliceUpdate,
+});
+
+// Ops which don't really have any reasonable BDD interpretation or which we
+// otherwise wish to ignore (eg Gate, Map etc).
+constexpr auto kNonAnalyzableOps = std::to_array<Op>({
+    Op::kAfterAll,
+    Op::kMinDelay,
+    Op::kArray,
+    Op::kArrayConcat,
+    Op::kArrayIndex,
+    Op::kArraySlice,
+    Op::kArrayUpdate,
+    Op::kAssert,
+    Op::kCountedFor,
+    Op::kCover,
+    Op::kDynamicCountedFor,
+    Op::kGate,
+    Op::kInputPort,
+    Op::kInstantiationInput,
+    Op::kInstantiationOutput,
+    Op::kInvoke,
+    Op::kMap,
+    Op::kNewChannel,
+    Op::kOutputPort,
+    Op::kParam,
+    Op::kStateRead,
+    Op::kNext,
+    Op::kReceive,
+    Op::kRecvChannelEnd,
+    Op::kRegisterRead,
+    Op::kRegisterWrite,
+    Op::kSend,
+    Op::kSendChannelEnd,
+    Op::kTrace,
+    Op::kTuple,
+    Op::kTupleIndex,
+});
+
+constexpr auto kMultiplicationOps = std::to_array<Op>({
+    Op::kSMul,
+    Op::kUMul,
+    Op::kSMulp,
+    Op::kUMulp,
+    Op::kSDiv,
+    Op::kUDiv,
+    Op::kSMod,
+    Op::kUMod,
+});
+
 // Returns whether the given op should be included in BDD computations.
 bool ShouldEvaluate(const Node* node) {
   if (!node->GetType()->IsBits()) {
     return false;
   }
-  // Ops which don't really have any reasonable BDD interpretation or which we
-  // otherwise wish to ignore (eg Gate, Map etc).
-  static constexpr auto kNonAnalyzableOps = std::to_array<Op>({
-      Op::kAfterAll,
-      Op::kMinDelay,
-      Op::kArray,
-      Op::kArrayConcat,
-      Op::kArrayIndex,
-      Op::kArraySlice,
-      Op::kArrayUpdate,
-      Op::kAssert,
-      Op::kCountedFor,
-      Op::kCover,
-      Op::kDynamicCountedFor,
-      Op::kGate,
-      Op::kInputPort,
-      Op::kInstantiationInput,
-      Op::kInstantiationOutput,
-      Op::kInvoke,
-      Op::kMap,
-      Op::kNewChannel,
-      Op::kOutputPort,
-      Op::kParam,
-      Op::kStateRead,
-      Op::kNext,
-      Op::kReceive,
-      Op::kRecvChannelEnd,
-      Op::kRegisterRead,
-      Op::kRegisterWrite,
-      Op::kSend,
-      Op::kSendChannelEnd,
-      Op::kTrace,
-      Op::kTuple,
-      Op::kTupleIndex,
-  });
-  constexpr static auto kMultiplicationOps = std::to_array<Op>({
-      Op::kSMul,
-      Op::kUMul,
-      Op::kSMulp,
-      Op::kUMulp,
-      Op::kSDiv,
-      Op::kUDiv,
-      Op::kSMod,
-      Op::kUMod,
-  });
+  if (node->OpIn(kShiftAndSliceOps)) {
+    int64_t width = node->BitCountOrDie();
+    if (node->op() == Op::kDynamicBitSlice) {
+      width = std::max(width, node->operand(0)->BitCountOrDie());
+    }
+    if (width > kMaxBddShiftAndSliceBitWidth) {
+      return false;
+    }
+  }
   return !(node->OpIn(kNonAnalyzableOps) || node->OpIn(kMultiplicationOps));
 }
 
