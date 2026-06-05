@@ -193,6 +193,12 @@ bool CanMapOpInto(Node* node_to_map, Node* folding_destination) {
     }
   }
 
+  if (node_to_map->OpIn(NaryOp::kOps)) {
+    if (node_to_map->operand_count() != folding_destination->operand_count()) {
+      return false;
+    }
+  }
+
   // Check the source bit-widths are not larger than the destination bit-widths
   if (node_to_map->BitCountOrDie() > folding_destination->BitCountOrDie()) {
     return false;
@@ -211,7 +217,8 @@ bool CanMapOpInto(Node* node_to_map, Node* folding_destination) {
 // input for folding.
 bool CanTarget(Node* n) {
   if (n->OpIn({Op::kUMul, Op::kSMul, Op::kAdd, Op::kSub, Op::kShrl, Op::kShra,
-               Op::kShll, Op::kDynamicBitSlice})) {
+               Op::kShll, Op::kDynamicBitSlice}) ||
+      n->OpIn(NaryOp::kOps)) {
     return true;
   }
 
@@ -1900,7 +1907,7 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
       new_operands.push_back(operand_select);
       VLOG(3) << "          " << operand_select->ToString();
     }
-    XLS_RET_CHECK_EQ(new_operands.size(), 2);
+    XLS_RET_CHECK_EQ(new_operands.size(), to_node->operand_count());
 
     // Ensure the priority selects do not depend on any of the folded nodes.
     // This is to avoid creating a cycle and producing an unrecoverable error.

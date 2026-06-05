@@ -117,12 +117,18 @@ uint64_t NumberOfShifts(Function* f) {
 
 void InterpretAndCheck(Function* f, const std::vector<int32_t>& inputs,
                        const std::vector<uint32_t>& input_bitwidths,
+                       const std::vector<bool>& input_signs,
                        int32_t expected_output,
                        int32_t expected_output_bitwidth) {
   // Translate the inputs to IR values
   std::vector<Value> IR_inputs;
-  for (auto [input, input_bitwidth] : iter::zip(inputs, input_bitwidths)) {
-    IR_inputs.push_back(Value(SBits(input, input_bitwidth)));
+  for (auto [input, input_bitwidth, input_sign] :
+       iter::zip(inputs, input_bitwidths, input_signs)) {
+    if (input_sign) {
+      IR_inputs.push_back(Value(SBits(input, input_bitwidth)));
+    } else {
+      IR_inputs.push_back(Value(UBits(input, input_bitwidth)));
+    }
   }
 
   // Interpret the function with the specified inputs
@@ -131,6 +137,18 @@ void InterpretAndCheck(Function* f, const std::vector<int32_t>& inputs,
 
   // Check the output
   EXPECT_EQ(r.value, Value(UBits(expected_output, expected_output_bitwidth)));
+}
+
+void InterpretAndCheck(Function* f, const std::vector<int32_t>& inputs,
+                       const std::vector<uint32_t>& input_bitwidths,
+                       int32_t expected_output,
+                       int32_t expected_output_bitwidth) {
+  // Prepare the list of default signs, one per input
+  std::vector<bool> signs(inputs.size(), true);
+
+  // Run the IR and check the result
+  InterpretAndCheck(f, inputs, input_bitwidths, signs, expected_output,
+                    expected_output_bitwidth);
 }
 
 void InterpretAndCheck(Function* f, const std::vector<int32_t>& inputs,
@@ -421,6 +439,85 @@ TEST_F(ResourceSharingPassTest, MergeMultipleSignedMultiplications) {
   InterpretAndCheck(f, {0, 2, 3, 0, 0, 0, 0, 0, 0}, 6);
 }
 
+TEST_F(ResourceSharingPassTest, MergeMutuallyExclusiveAnds) {
+  // Define the IR code
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  Type* u8_type = p->GetBitsType(8);
+  Type* u1_type = p->GetBitsType(1);
+
+  BValue cond = fb.Param("cond", u1_type);
+  BValue a1 = fb.Param("a1", u8_type);
+  BValue b1 = fb.Param("b1", u8_type);
+  BValue c1 = fb.Param("c1", u8_type);
+  BValue a2 = fb.Param("a2", u8_type);
+  BValue b2 = fb.Param("b2", u8_type);
+  BValue c2 = fb.Param("c2", u8_type);
+
+  BValue and1 = fb.And({a1, b1, c1});
+  BValue and2 = fb.And({a2, b2, c2});
+
+  BValue select = fb.PrioritySelect(cond, {and1}, and2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  // Run the transformation and check that it succeeded.
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(100));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  uint64_t number_of_ands = NumberOfNodes(f, {Op::kAnd});
+  EXPECT_EQ(number_of_ands, 1);
+
+  InterpretAndCheck(f, {1, 7, 3, 15, 0, 0, 0}, {1, 8, 8, 8, 8, 8, 8},
+                    {false, false, false, false, false, false, false}, 3, 8);
+  InterpretAndCheck(f, {0, 0, 0, 0, 7, 3, 15}, {1, 8, 8, 8, 8, 8, 8},
+                    {false, false, false, false, false, false, false}, 3, 8);
+}
+
+TEST_F(ResourceSharingPassTest, NoFoldAndsDifferentOperandCount) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+  Type* u1_type = p->GetBitsType(1);
+  BValue cond = fb.Param("cond", u1_type);
+  BValue a1 = fb.Param("a1", u32_type);
+  BValue b1 = fb.Param("b1", u32_type);
+  BValue a2 = fb.Param("a2", u32_type);
+  BValue b2 = fb.Param("b2", u32_type);
+  BValue c2 = fb.Param("c2", u32_type);
+
+  BValue and1 = fb.And({a1, b1});
+  BValue and2 = fb.And({a2, b2, c2});
+  BValue select = fb.PrioritySelect(cond, {and1}, and2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ResourceSharingPassTest, MergeAndsDifferentWidth) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u16_type = p->GetBitsType(16);
+  Type* u32_type = p->GetBitsType(32);
+  Type* u1_type = p->GetBitsType(1);
+  BValue cond = fb.Param("cond", u1_type);
+  BValue a1 = fb.Param("a1", u16_type);
+  BValue b1 = fb.Param("b1", u16_type);
+  BValue a2 = fb.Param("a2", u32_type);
+  BValue b2 = fb.Param("b2", u32_type);
+
+  BValue and1 = fb.And({a1, b1});
+  BValue and1_ext = fb.ZeroExtend(and1, 32);
+  BValue and2 = fb.And({a2, b2});
+  BValue select = fb.PrioritySelect(cond, {and1_ext}, and2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(100));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfNodes(f, {Op::kAnd}), 1);
+}
+
 TEST_F(ResourceSharingPassTest, NotPossibleFolding0) {
   // The next IR has been generated from the following DSLX code:
   /*
@@ -637,7 +734,7 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding4) {
 
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
-  InterpretAndCheck(f, {-2 /* bits = 10 */, 3}, {2, 32}, 24, 32);
+  InterpretAndCheck(f, {2, 3}, {2, 32}, {false, false}, 24, 32);
   InterpretAndCheck(f,
                     {
                         1,      // bits = 01
