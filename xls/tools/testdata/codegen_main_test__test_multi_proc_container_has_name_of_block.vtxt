@@ -130,13 +130,13 @@ module proc0(
   output wire [31:0] out,
   output wire out_vld
 );
-  wire instantiation_output_152;
+  wire instantiation_output_154;
   wire [31:0] instantiation_output_157;
   wire instantiation_output_158;
-  wire instantiation_output_165;
+  wire instantiation_output_167;
   wire [31:0] instantiation_output_169;
   wire instantiation_output_170;
-  wire instantiation_output_159;
+  wire instantiation_output_161;
   wire [31:0] instantiation_output_163;
   wire instantiation_output_164;
 
@@ -145,8 +145,8 @@ module proc0(
     .rst(rst),
     .in(in),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_159),
-    .in_rdy(instantiation_output_152),
+    .internal_rdy(instantiation_output_161),
+    .in_rdy(instantiation_output_154),
     .internal(instantiation_output_157),
     .internal_vld(instantiation_output_158),
     .clk(clk)
@@ -156,7 +156,7 @@ module proc0(
     .internal(instantiation_output_163),
     .internal_vld(instantiation_output_164),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_165),
+    .internal_rdy(instantiation_output_167),
     .out(instantiation_output_169),
     .out_vld(instantiation_output_170),
     .clk(clk)
@@ -172,12 +172,12 @@ module proc0(
     .rst(rst),
     .push_data(instantiation_output_157),
     .push_valid(instantiation_output_158),
-    .pop_ready(instantiation_output_165),
-    .push_ready(instantiation_output_159),
+    .pop_ready(instantiation_output_167),
+    .push_ready(instantiation_output_161),
     .pop_data(instantiation_output_163),
     .pop_valid(instantiation_output_164)
   );
-  assign in_rdy = instantiation_output_152;
+  assign in_rdy = instantiation_output_154;
   assign out = instantiation_output_169;
   assign out_vld = instantiation_output_170;
 endmodule

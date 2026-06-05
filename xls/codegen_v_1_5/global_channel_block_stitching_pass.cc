@@ -15,18 +15,15 @@
 #include "xls/codegen_v_1_5/global_channel_block_stitching_pass.h"
 
 #include <cstdint>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -39,6 +36,7 @@
 #include "xls/codegen_v_1_5/global_channel_map.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
@@ -48,6 +46,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::codegen {
@@ -132,10 +131,6 @@ absl::Status StitchStreamingOutputToFifo(
       xls::Node * block_valid,
       caller->MakeNode<xls::InstantiationOutput>(
           SourceInfo(), callee_instantiation, *output.valid_port));
-  XLS_ASSIGN_OR_RETURN(
-      xls::Node * fifo_ready,
-      caller->MakeNode<xls::InstantiationOutput>(
-          SourceInfo(), fifo, FifoInstantiation::kPushReadyPortName));
   XLS_RETURN_IF_ERROR(caller
                           ->MakeNode<xls::InstantiationInput>(
                               SourceInfo(), block_data, fifo,
@@ -146,17 +141,20 @@ absl::Status StitchStreamingOutputToFifo(
                               SourceInfo(), block_valid, fifo,
                               FifoInstantiation::kPushValidPortName)
                           .status());
-  if (!output.ready_port.has_value()) {
-    return absl::UnimplementedError(
-        "Channels with flow control other than ready_valid are not yet "
-        "supported.");
+
+  // TODO(erinzmoore): If no output.ready_port, then we need to explicitly mark
+  // the `fifo_ready` as no-connect.
+  if (output.ready_port.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        xls::Node * fifo_ready,
+        caller->MakeNode<xls::InstantiationOutput>(
+            SourceInfo(), fifo, FifoInstantiation::kPushReadyPortName));
+    XLS_RETURN_IF_ERROR(caller
+                            ->MakeNode<xls::InstantiationInput>(
+                                SourceInfo(), fifo_ready, callee_instantiation,
+                                *output.ready_port)
+                            .status());
   }
-  XLS_RET_CHECK(output.ready_port.has_value());
-  XLS_RETURN_IF_ERROR(caller
-                          ->MakeNode<xls::InstantiationInput>(
-                              SourceInfo(), fifo_ready, callee_instantiation,
-                              *output.ready_port)
-                          .status());
   return absl::OkStatus();
 }
 
@@ -173,18 +171,6 @@ absl::Status StitchStreamingInputToFifo(
       xls::Node * fifo_valid,
       caller->MakeNode<xls::InstantiationOutput>(
           SourceInfo(), fifo, FifoInstantiation::kPopValidPortName));
-  if (!input.ready_port.has_value()) {
-    return absl::UnimplementedError(
-        "Channels with flow control other than ready_valid are not yet "
-        "supported.");
-  }
-  XLS_RET_CHECK(input.ready_port.has_value());
-
-  XLS_ASSIGN_OR_RETURN(
-      xls::Node * block_ready,
-      caller->MakeNode<xls::InstantiationOutput>(
-          SourceInfo(), callee_instantiation, *input.ready_port));
-
   XLS_RETURN_IF_ERROR(
       caller
           ->MakeNode<xls::InstantiationInput>(
@@ -196,6 +182,20 @@ absl::Status StitchStreamingInputToFifo(
           ->MakeNode<xls::InstantiationInput>(
               SourceInfo(), fifo_valid, callee_instantiation, *input.valid_port)
           .status());
+
+  xls::Node* block_ready;
+  if (input.ready_port.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        block_ready,
+        caller->MakeNode<xls::InstantiationOutput>(
+            SourceInfo(), callee_instantiation, *input.ready_port));
+
+  } else {
+    // If there is no ready port coming in, then send always-on signal to the
+    // FIFO ready port.
+    XLS_ASSIGN_OR_RETURN(block_ready, caller->MakeNode<xls::Literal>(
+                                          SourceInfo(), Value(UBits(1, 1))));
+  }
   XLS_RETURN_IF_ERROR(caller
                           ->MakeNode<xls::InstantiationInput>(
                               SourceInfo(), block_ready, fifo, "pop_ready")
@@ -215,13 +215,7 @@ absl::Status ExposeStreamingOutput(
   VLOG(5) << "Exposing output port valid: " << name_or_none(output.valid_port);
   VLOG(5) << "Exposing output port ready: " << name_or_none(output.ready_port);
 
-  if (!output.ready_port.has_value()) {
-    return absl::UnimplementedError(
-        "Channels with flow control other than ready_valid are not yet "
-        "supported.");
-  }
   XLS_RET_CHECK(output.data_port.has_value());
-  XLS_RET_CHECK(output.ready_port.has_value());
   XLS_RET_CHECK(output.valid_port.has_value());
 
   XLS_ASSIGN_OR_RETURN(
@@ -233,25 +227,28 @@ absl::Status ExposeStreamingOutput(
       block->MakeNode<xls::InstantiationOutput>(
           SourceInfo(), block_instantiation, *output.valid_port));
 
-  XLS_ASSIGN_OR_RETURN(InputPort * ready_port,
-                       block_instantiation->instantiated_block()->GetInputPort(
-                           *output.ready_port));
-  XLS_ASSIGN_OR_RETURN(
-      xls::Node * ext_ready,
-      block->AddInputPort(*output.ready_port, ready_port->port_type()));
+  if (output.ready_port.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        InputPort * ready_port,
+        block_instantiation->instantiated_block()->GetInputPort(
+            *output.ready_port));
+    XLS_ASSIGN_OR_RETURN(
+        xls::Node * ext_ready,
+        block->AddInputPort(*output.ready_port, ready_port->port_type()));
+    XLS_RETURN_IF_ERROR(block
+                            ->MakeNode<xls::InstantiationInput>(
+                                SourceInfo(), ext_ready, block_instantiation,
+                                *output.ready_port)
+                            .status());
+  }
   XLS_RETURN_IF_ERROR(
       block->AddOutputPort(*output.data_port, block_data).status());
   XLS_RETURN_IF_ERROR(
       block->AddOutputPort(*output.valid_port, block_valid).status());
-  XLS_RETURN_IF_ERROR(
-      block
-          ->MakeNode<xls::InstantiationInput>(
-              SourceInfo(), ext_ready, block_instantiation, *output.ready_port)
-          .status());
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
       channel, ChannelDirection::kSend, *output.data_port, *output.valid_port,
-      *output.ready_port, /*stage=*/std::nullopt));
+      output.ready_port, /*stage=*/std::nullopt));
 
   return absl::OkStatus();
 }
@@ -261,13 +258,7 @@ absl::Status ExposeStreamingOutput(
 absl::Status ExposeStreamingInput(
     StreamingChannel* channel, const ChannelPortMetadata& input, Block* block,
     ::xls::BlockInstantiation* block_instantiation) {
-  if (!input.ready_port.has_value()) {
-    return absl::UnimplementedError(
-        "Channels with flow control other than ready_valid are not yet "
-        "supported.");
-  }
   XLS_RET_CHECK(input.data_port.has_value());
-  XLS_RET_CHECK(input.ready_port.has_value());
   XLS_RET_CHECK(input.valid_port.has_value());
 
   Block* instantiated_block = block_instantiation->instantiated_block();
@@ -283,10 +274,6 @@ absl::Status ExposeStreamingInput(
       xls::Node * ext_valid,
       block->AddInputPort(*input.valid_port, valid_port->port_type()));
 
-  XLS_ASSIGN_OR_RETURN(
-      xls::Node * block_ready,
-      block->MakeNode<xls::InstantiationOutput>(
-          SourceInfo(), block_instantiation, *input.ready_port));
   XLS_RETURN_IF_ERROR(
       block
           ->MakeNode<xls::InstantiationInput>(
@@ -297,12 +284,18 @@ absl::Status ExposeStreamingInput(
           ->MakeNode<xls::InstantiationInput>(
               SourceInfo(), ext_valid, block_instantiation, *input.valid_port)
           .status());
-  XLS_RETURN_IF_ERROR(
-      block->AddOutputPort(*input.ready_port, block_ready).status());
+  if (input.ready_port.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        xls::Node * block_ready,
+        block->MakeNode<xls::InstantiationOutput>(
+            SourceInfo(), block_instantiation, *input.ready_port));
+    XLS_RETURN_IF_ERROR(
+        block->AddOutputPort(*input.ready_port, block_ready).status());
+  }
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
       channel, ChannelDirection::kReceive, *input.data_port, *input.valid_port,
-      *input.ready_port, /*stage=*/std::nullopt));
+      input.ready_port, /*stage=*/std::nullopt));
 
   return absl::OkStatus();
 }

@@ -26,7 +26,6 @@
 #include "absl/strings/str_cat.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
-#include "xls/codegen_v_1_5/block_conversion_utils.h"
 #include "xls/codegen_v_1_5/channel_to_port_io_lowering_pass.h"
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 #include "xls/codegen_v_1_5/scheduling_pass.h"
@@ -254,6 +253,270 @@ TEST_F(GlobalChannelBlockStitchingPassTest, OneInstantiation) {
                                    m::InstantiationOutput("pop_valid")));
 }
 
+TEST_F(GlobalChannelBlockStitchingPassTest, OneInstantiationInputValidData) {
+  ChannelConfig channel_config = ChannelConfig()
+                                     .WithFifoConfig(FifoConfig(
+                                         /*depth=*/1,
+                                         /*bypass=*/false,
+                                         /*register_push_outputs=*/true,
+                                         /*register_pop_outputs=*/false))
+                                     .WithInputFlopKind(FlopKind::kNone)
+                                     .WithOutputFlopKind(FlopKind::kNone);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p_->CreateStreamingChannel(
+          "in_ch", ChannelOps::kReceiveOnly, p_->GetBitsType(32),
+          /*initial_values=*/{}, channel_config, FlowControl::kValidData));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p_->CreateStreamingChannel("out_ch", ChannelOps::kSendOnly,
+                                 p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * internal_ch_to_leaf,
+      p_->CreateStreamingChannel("internal_ch_to_leaf",
+                                 ChannelOps::kSendReceive, p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * internal_ch_from_leaf,
+      p_->CreateStreamingChannel("internal_ch_from_leaf",
+                                 ChannelOps::kSendReceive, p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config));
+
+  TokenlessProcBuilder pb_leaf(absl::StrCat(TestName(), "_leaf"),
+                               /*token_name=*/"tkn", p_.get());
+  pb_leaf.Send(internal_ch_from_leaf, pb_leaf.Receive(internal_ch_to_leaf));
+  XLS_ASSERT_OK(pb_leaf.Build().status());
+
+  TokenlessProcBuilder pb_main(TestName(), /*token_name=*/"tkn", p_.get());
+  pb_main.Send(internal_ch_to_leaf, pb_main.Receive(in_ch));
+  pb_main.Send(out_ch, pb_main.Receive(internal_ch_from_leaf));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * main, pb_main.Build());
+
+  XLS_ASSERT_OK(p_->SetTop(main));
+  XLS_ASSERT_OK(VerifyPackage(p_.get()));
+  p_->AcceptInvalid();
+
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p_.get(), /*pipeline_stages=*/2));
+  EXPECT_TRUE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p_->GetTopAsBlock());
+
+  EXPECT_THAT(
+      block->GetInstantiations(),
+      UnorderedElementsAre(
+          m::Instantiation(HasSubstr("fifo_internal_ch_to_leaf"),
+                           InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr("fifo_internal_ch_from_leaf"),
+                           InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr(absl::StrCat(TestName(), "__1_inst0")),
+                           InstantiationKind::kBlock),
+          m::Instantiation(HasSubstr(absl::StrCat(TestName(), "_leaf_inst1")),
+                           InstantiationKind::kBlock)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Instantiation * fifo_internal_ch_to_leaf,
+                           block->GetInstantiation("fifo_internal_ch_to_leaf"));
+  EXPECT_THAT(block->GetInstantiationInputs(fifo_internal_ch_to_leaf),
+              UnorderedElementsAre(m::InstantiationInput(_, "rst"),
+                                   m::InstantiationInput(_, "push_data"),
+                                   m::InstantiationInput(_, "push_valid"),
+                                   m::InstantiationInput(_, "pop_ready")));
+  EXPECT_THAT(block->GetInstantiationOutputs(fifo_internal_ch_to_leaf),
+              UnorderedElementsAre(m::InstantiationOutput("push_ready"),
+                                   m::InstantiationOutput("pop_data"),
+                                   m::InstantiationOutput("pop_valid")));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Instantiation * fifo_internal_ch_from_leaf,
+      block->GetInstantiation("fifo_internal_ch_from_leaf"));
+  EXPECT_THAT(block->GetInstantiationInputs(fifo_internal_ch_from_leaf),
+              UnorderedElementsAre(m::InstantiationInput(_, "rst"),
+                                   m::InstantiationInput(_, "push_data"),
+                                   m::InstantiationInput(_, "push_valid"),
+                                   m::InstantiationInput(_, "pop_ready")));
+  EXPECT_THAT(block->GetInstantiationOutputs(fifo_internal_ch_from_leaf),
+              UnorderedElementsAre(m::InstantiationOutput("push_ready"),
+                                   m::InstantiationOutput("pop_data"),
+                                   m::InstantiationOutput("pop_valid")));
+}
+
+TEST_F(GlobalChannelBlockStitchingPassTest, OneInstantiationOutputValidData) {
+  ChannelConfig channel_config = ChannelConfig()
+                                     .WithFifoConfig(FifoConfig(
+                                         /*depth=*/1,
+                                         /*bypass=*/false,
+                                         /*register_push_outputs=*/true,
+                                         /*register_pop_outputs=*/false))
+                                     .WithInputFlopKind(FlopKind::kNone)
+                                     .WithOutputFlopKind(FlopKind::kNone);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p_->CreateStreamingChannel("in_ch", ChannelOps::kReceiveOnly,
+                                 p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p_->CreateStreamingChannel(
+          "out_ch", ChannelOps::kSendOnly, p_->GetBitsType(32),
+          /*initial_values=*/{}, channel_config, FlowControl::kValidData));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * internal_ch_to_leaf,
+      p_->CreateStreamingChannel("internal_ch_to_leaf",
+                                 ChannelOps::kSendReceive, p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * internal_ch_from_leaf,
+      p_->CreateStreamingChannel("internal_ch_from_leaf",
+                                 ChannelOps::kSendReceive, p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config));
+
+  TokenlessProcBuilder pb_leaf(absl::StrCat(TestName(), "_leaf"),
+                               /*token_name=*/"tkn", p_.get());
+  pb_leaf.Send(internal_ch_from_leaf, pb_leaf.Receive(internal_ch_to_leaf));
+  XLS_ASSERT_OK(pb_leaf.Build().status());
+
+  TokenlessProcBuilder pb_main(TestName(), /*token_name=*/"tkn", p_.get());
+  pb_main.Send(internal_ch_to_leaf, pb_main.Receive(in_ch));
+  pb_main.Send(out_ch, pb_main.Receive(internal_ch_from_leaf));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * main, pb_main.Build());
+
+  XLS_ASSERT_OK(p_->SetTop(main));
+  XLS_ASSERT_OK(VerifyPackage(p_.get()));
+  p_->AcceptInvalid();
+
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p_.get(), /*pipeline_stages=*/2));
+  EXPECT_TRUE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p_->GetTopAsBlock());
+
+  EXPECT_THAT(
+      block->GetInstantiations(),
+      UnorderedElementsAre(
+          m::Instantiation(HasSubstr("fifo_internal_ch_to_leaf"),
+                           InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr("fifo_internal_ch_from_leaf"),
+                           InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr(absl::StrCat(TestName(), "__1_inst0")),
+                           InstantiationKind::kBlock),
+          m::Instantiation(HasSubstr(absl::StrCat(TestName(), "_leaf_inst1")),
+                           InstantiationKind::kBlock)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Instantiation * fifo_internal_ch_to_leaf,
+                           block->GetInstantiation("fifo_internal_ch_to_leaf"));
+  EXPECT_THAT(block->GetInstantiationInputs(fifo_internal_ch_to_leaf),
+              UnorderedElementsAre(m::InstantiationInput(_, "rst"),
+                                   m::InstantiationInput(_, "push_data"),
+                                   m::InstantiationInput(_, "push_valid"),
+                                   m::InstantiationInput(_, "pop_ready")));
+  EXPECT_THAT(block->GetInstantiationOutputs(fifo_internal_ch_to_leaf),
+              UnorderedElementsAre(m::InstantiationOutput("push_ready"),
+                                   m::InstantiationOutput("pop_data"),
+                                   m::InstantiationOutput("pop_valid")));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Instantiation * fifo_internal_ch_from_leaf,
+      block->GetInstantiation("fifo_internal_ch_from_leaf"));
+  EXPECT_THAT(block->GetInstantiationInputs(fifo_internal_ch_from_leaf),
+              UnorderedElementsAre(m::InstantiationInput(_, "rst"),
+                                   m::InstantiationInput(_, "push_data"),
+                                   m::InstantiationInput(_, "push_valid"),
+                                   m::InstantiationInput(_, "pop_ready")));
+  EXPECT_THAT(block->GetInstantiationOutputs(fifo_internal_ch_from_leaf),
+              UnorderedElementsAre(m::InstantiationOutput("push_ready"),
+                                   m::InstantiationOutput("pop_data"),
+                                   m::InstantiationOutput("pop_valid")));
+}
+
+TEST_F(GlobalChannelBlockStitchingPassTest,
+       OneInstantiationInternalChsValidData) {
+  ChannelConfig channel_config = ChannelConfig()
+                                     .WithFifoConfig(FifoConfig(
+                                         /*depth=*/1,
+                                         /*bypass=*/false,
+                                         /*register_push_outputs=*/true,
+                                         /*register_pop_outputs=*/false))
+                                     .WithInputFlopKind(FlopKind::kNone)
+                                     .WithOutputFlopKind(FlopKind::kNone);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p_->CreateStreamingChannel("in_ch", ChannelOps::kReceiveOnly,
+                                 p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p_->CreateStreamingChannel("out_ch", ChannelOps::kSendOnly,
+                                 p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * internal_ch_to_leaf,
+      p_->CreateStreamingChannel(
+          "internal_ch_to_leaf", ChannelOps::kSendReceive, p_->GetBitsType(32),
+          /*initial_values=*/{}, channel_config, FlowControl::kValidData));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * internal_ch_from_leaf,
+      p_->CreateStreamingChannel("internal_ch_from_leaf",
+                                 ChannelOps::kSendReceive, p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config,
+                                 FlowControl::kValidData));
+
+  TokenlessProcBuilder pb_leaf(absl::StrCat(TestName(), "_leaf"),
+                               /*token_name=*/"tkn", p_.get());
+  pb_leaf.Send(internal_ch_from_leaf, pb_leaf.Receive(internal_ch_to_leaf));
+  XLS_ASSERT_OK(pb_leaf.Build().status());
+
+  TokenlessProcBuilder pb_main(TestName(), /*token_name=*/"tkn", p_.get());
+  pb_main.Send(internal_ch_to_leaf, pb_main.Receive(in_ch));
+  pb_main.Send(out_ch, pb_main.Receive(internal_ch_from_leaf));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * main, pb_main.Build());
+
+  XLS_ASSERT_OK(p_->SetTop(main));
+  XLS_ASSERT_OK(VerifyPackage(p_.get()));
+  p_->AcceptInvalid();
+
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p_.get(), /*pipeline_stages=*/2));
+  EXPECT_TRUE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p_->GetTopAsBlock());
+
+  EXPECT_THAT(
+      block->GetInstantiations(),
+      UnorderedElementsAre(
+          m::Instantiation(HasSubstr("fifo_internal_ch_to_leaf"),
+                           InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr("fifo_internal_ch_from_leaf"),
+                           InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr(absl::StrCat(TestName(), "__1_inst0")),
+                           InstantiationKind::kBlock),
+          m::Instantiation(HasSubstr(absl::StrCat(TestName(), "_leaf_inst1")),
+                           InstantiationKind::kBlock)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Instantiation * fifo_internal_ch_to_leaf,
+                           block->GetInstantiation("fifo_internal_ch_to_leaf"));
+  EXPECT_THAT(block->GetInstantiationInputs(fifo_internal_ch_to_leaf),
+              UnorderedElementsAre(m::InstantiationInput(_, "rst"),
+                                   m::InstantiationInput(_, "push_data"),
+                                   m::InstantiationInput(_, "pop_ready"),
+                                   m::InstantiationInput(_, "push_valid")));
+  EXPECT_THAT(block->GetInstantiationOutputs(fifo_internal_ch_to_leaf),
+              UnorderedElementsAre(m::InstantiationOutput("pop_data"),
+                                   m::InstantiationOutput("pop_valid")));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Instantiation * fifo_internal_ch_from_leaf,
+      block->GetInstantiation("fifo_internal_ch_from_leaf"));
+  EXPECT_THAT(block->GetInstantiationInputs(fifo_internal_ch_from_leaf),
+              UnorderedElementsAre(m::InstantiationInput(_, "rst"),
+                                   m::InstantiationInput(_, "push_data"),
+                                   m::InstantiationInput(_, "pop_ready"),
+                                   m::InstantiationInput(_, "push_valid")));
+  EXPECT_THAT(block->GetInstantiationOutputs(fifo_internal_ch_from_leaf),
+              UnorderedElementsAre(m::InstantiationOutput("pop_data"),
+                                   m::InstantiationOutput("pop_valid")));
+}
+
 TEST_F(GlobalChannelBlockStitchingPassTest, MultiInstantiation) {
   ChannelConfig channel_config = ChannelConfig()
                                      .WithFifoConfig(FifoConfig(
@@ -365,6 +628,121 @@ TEST_F(GlobalChannelBlockStitchingPassTest, MultiInstantiation) {
     EXPECT_THAT(block->GetInstantiationOutputs(fifo_internal_ch_from_leaf),
                 UnorderedElementsAre(m::InstantiationOutput("push_ready"),
                                      m::InstantiationOutput("pop_data"),
+                                     m::InstantiationOutput("pop_valid")));
+  }
+}
+
+TEST_F(GlobalChannelBlockStitchingPassTest, MultiInstantiationValidData) {
+  ChannelConfig channel_config = ChannelConfig()
+                                     .WithFifoConfig(FifoConfig(
+                                         /*depth=*/1,
+                                         /*bypass=*/false,
+                                         /*register_push_outputs=*/true,
+                                         /*register_pop_outputs=*/false))
+                                     .WithInputFlopKind(FlopKind::kNone)
+                                     .WithOutputFlopKind(FlopKind::kNone);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p_->CreateStreamingChannel("in_ch", ChannelOps::kReceiveOnly,
+                                 p_->GetBitsType(32), /*initial_values=*/{},
+                                 channel_config, FlowControl::kValidData));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p_->CreateStreamingChannel("out_ch", ChannelOps::kSendOnly,
+                                 p_->GetBitsType(32), /*initial_values=*/{},
+                                 channel_config, FlowControl::kValidData));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * internal_ch_to_leaf1,
+      p_->CreateStreamingChannel(
+          "internal_ch_to_leaf1", ChannelOps::kSendReceive, p_->GetBitsType(32),
+          /*initial_values=*/{}, channel_config, FlowControl::kValidData));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * internal_ch_from_leaf1,
+      p_->CreateStreamingChannel("internal_ch_from_leaf1",
+                                 ChannelOps::kSendReceive, p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config,
+                                 FlowControl::kValidData));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * internal_ch_to_leaf2,
+      p_->CreateStreamingChannel(
+          "internal_ch_to_leaf2", ChannelOps::kSendReceive, p_->GetBitsType(32),
+          /*initial_values=*/{}, channel_config, FlowControl::kValidData));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * internal_ch_from_leaf2,
+      p_->CreateStreamingChannel("internal_ch_from_leaf2",
+                                 ChannelOps::kSendReceive, p_->GetBitsType(32),
+                                 /*initial_values=*/{}, channel_config,
+                                 FlowControl::kValidData));
+
+  TokenlessProcBuilder pb_leaf1(absl::StrCat(TestName(), "_leaf1"),
+                                /*token_name=*/"tkn", p_.get());
+  pb_leaf1.Send(internal_ch_from_leaf1, pb_leaf1.Receive(internal_ch_to_leaf1));
+  XLS_ASSERT_OK(pb_leaf1.Build().status());
+
+  TokenlessProcBuilder pb_leaf2(absl::StrCat(TestName(), "_leaf2"),
+                                /*token_name=*/"tkn", p_.get());
+  pb_leaf2.Send(internal_ch_from_leaf2, pb_leaf2.Receive(internal_ch_to_leaf2));
+  XLS_ASSERT_OK(pb_leaf2.Build().status());
+
+  TokenlessProcBuilder pb_main(TestName(), /*token_name=*/"tkn", p_.get());
+  pb_main.Send(internal_ch_to_leaf1, pb_main.Receive(in_ch));
+  pb_main.Send(internal_ch_to_leaf2, pb_main.Receive(internal_ch_from_leaf1));
+  pb_main.Send(out_ch, pb_main.Receive(internal_ch_from_leaf2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * main, pb_main.Build());
+
+  XLS_ASSERT_OK(p_->SetTop(main));
+  XLS_ASSERT_OK(VerifyPackage(p_.get()));
+  p_->AcceptInvalid();
+
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p_.get(), /*pipeline_stages=*/3));
+  EXPECT_TRUE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p_->GetTopAsBlock());
+  EXPECT_THAT(
+      block->GetInstantiations(),
+      UnorderedElementsAre(
+          m::Instantiation(HasSubstr("fifo_internal_ch_to_leaf1"),
+                           InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr("fifo_internal_ch_from_leaf1"),
+                           InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr("fifo_internal_ch_to_leaf2"),
+                           InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr("fifo_internal_ch_from_leaf2"),
+                           InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr(absl::StrCat(TestName(), "__1_inst0")),
+                           InstantiationKind::kBlock),
+          m::Instantiation(HasSubstr(absl::StrCat(TestName(), "_leaf1_inst1")),
+                           InstantiationKind::kBlock),
+          m::Instantiation(HasSubstr(absl::StrCat(TestName(), "_leaf2_inst2")),
+                           InstantiationKind::kBlock)));
+
+  for (int i = 1; i <= 2; i++) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Instantiation * fifo_internal_ch_to_leaf,
+        block->GetInstantiation(absl::StrCat("fifo_internal_ch_to_leaf", i)));
+    EXPECT_THAT(block->GetInstantiationInputs(fifo_internal_ch_to_leaf),
+                UnorderedElementsAre(m::InstantiationInput(_, "rst"),
+                                     m::InstantiationInput(_, "push_data"),
+                                     m::InstantiationInput(_, "pop_ready"),
+                                     m::InstantiationInput(_, "push_valid")));
+    EXPECT_THAT(block->GetInstantiationOutputs(fifo_internal_ch_to_leaf),
+                UnorderedElementsAre(m::InstantiationOutput("pop_data"),
+                                     m::InstantiationOutput("pop_valid")));
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Instantiation * fifo_internal_ch_from_leaf,
+        block->GetInstantiation(absl::StrCat("fifo_internal_ch_from_leaf", i)));
+    EXPECT_THAT(block->GetInstantiationInputs(fifo_internal_ch_from_leaf),
+                UnorderedElementsAre(m::InstantiationInput(_, "rst"),
+                                     m::InstantiationInput(_, "push_data"),
+                                     m::InstantiationInput(_, "pop_ready"),
+                                     m::InstantiationInput(_, "push_valid")));
+    EXPECT_THAT(block->GetInstantiationOutputs(fifo_internal_ch_from_leaf),
+                UnorderedElementsAre(m::InstantiationOutput("pop_data"),
                                      m::InstantiationOutput("pop_valid")));
   }
 }

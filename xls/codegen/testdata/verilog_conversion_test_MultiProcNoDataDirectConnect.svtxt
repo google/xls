@@ -106,19 +106,19 @@ module pipelined_proc(
   output wire in_rdy,
   output wire out_vld
 );
-  wire instantiation_output_126;
+  wire instantiation_output_128;
   wire instantiation_output_132;
-  wire instantiation_output_139;
+  wire instantiation_output_141;
   wire instantiation_output_144;
-  wire instantiation_output_133;
+  wire instantiation_output_135;
   wire instantiation_output_138;
 
   // ===== Instantiations
   pipelined_proc__1 pipelined_proc__1_inst0 (
     .rst(rst),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_133),
-    .in_rdy(instantiation_output_126),
+    .internal_rdy(instantiation_output_135),
+    .in_rdy(instantiation_output_128),
     .internal_vld(instantiation_output_132),
     .clk(clk)
   );
@@ -126,7 +126,7 @@ module pipelined_proc(
     .rst(rst),
     .internal_vld(instantiation_output_138),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_139),
+    .internal_rdy(instantiation_output_141),
     .out_vld(instantiation_output_144),
     .clk(clk)
   );
@@ -139,10 +139,10 @@ module pipelined_proc(
     .clk(clk),
     .rst(rst),
     .push_valid(instantiation_output_132),
-    .pop_ready(instantiation_output_139),
-    .push_ready(instantiation_output_133),
+    .pop_ready(instantiation_output_141),
+    .push_ready(instantiation_output_135),
     .pop_valid(instantiation_output_138)
   );
-  assign in_rdy = instantiation_output_126;
+  assign in_rdy = instantiation_output_128;
   assign out_vld = instantiation_output_144;
 endmodule
