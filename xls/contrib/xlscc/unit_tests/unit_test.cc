@@ -180,7 +180,7 @@ absl::StatusOr<std::string> XlsccTestBase::CreateAcDatatypesIncludeDir() const {
     }
   }
 
-  return include_dir.string();
+  return (include_dir / "ac_datatypes" / "include").string();
 }
 
 absl::StatusOr<std::vector<std::string>> XlsccTestBase::GetClangArgForIntTest()
@@ -196,7 +196,7 @@ absl::StatusOr<std::vector<std::string>> XlsccTestBase::GetClangArgForIntTest()
 
   std::vector<std::string> argv;
   argv.push_back(std::string("-I") + xls_int_dir.string());
-  argv.push_back(std::string("-I") + ac_include_dir);
+  argv.push_back(std::string("-isystem") + ac_include_dir);
   argv.push_back("-D__SYNTHESIS__");
   return argv;
 }

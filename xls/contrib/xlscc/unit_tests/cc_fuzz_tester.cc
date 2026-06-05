@@ -30,6 +30,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_replace.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_result.h"
@@ -177,14 +178,14 @@ class GeneratedTester : public XlsccTestBase {
 
     XLS_ASSIGN_OR_RETURN(std::string ac_include_dir,
                          CreateAcDatatypesIncludeDir());
-    std::string ac_include = std::string("-I") + ac_include_dir;
+    std::string ac_include = absl::StrCat("-isystem", ac_include_dir);
 
     std::string xls_int_dir = std::filesystem::path(xls_int_path).parent_path();
-    std::string xls_include = std::string("-I") + xls_int_dir;
+    std::string xls_include = absl::StrCat("-I", xls_int_dir);
 
     std::string xls_compat_dir =
         std::filesystem::path(xls_compat_path).parent_path();
-    std::string xls_compat_include = std::string("-I") + xls_compat_dir;
+    std::string xls_compat_include = absl::StrCat("-I", xls_compat_dir);
 
     std::vector<std::string_view> argv;
     argv.push_back(xls_include);
