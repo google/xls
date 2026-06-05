@@ -15,7 +15,8 @@
 #ifndef __AC_FIXED_COMPAT_H__
 #define __AC_FIXED_COMPAT_H__
 
-#include "ac_int.h"
+#include <ac_int.h>
+
 #include "xls_fixed.h"
 
 template <int Width, int IntegerWidth, bool Signed,
@@ -23,4 +24,4 @@ template <int Width, int IntegerWidth, bool Signed,
           ac_datatypes::ac_o_mode Overflow = AC_WRAP>
 using ac_fixed = XlsFixed<Width, IntegerWidth, Signed, Quantization, Overflow>;
 
-#endif  //__AC_FIXED_COMPAT_H__
+#endif  // __AC_FIXED_COMPAT_H__
