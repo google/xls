@@ -29,8 +29,6 @@
 #include "xls/ir/node.h"
 #include "xls/ir/source_location.h"
 
-#define DEBUG_SAVE_BACKTRACES 0
-
 namespace xlscc {
 
 // The TrackedBValue class is a wrapper for xls::BValue that enables getting an

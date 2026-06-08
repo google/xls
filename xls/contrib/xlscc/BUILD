@@ -107,6 +107,7 @@ cc_library(
     name = "tracked_bvalue",
     srcs = ["tracked_bvalue.cc"],
     hdrs = ["tracked_bvalue.h"],
+    defines = ["DEBUG_SAVE_BACKTRACES=0"],
     deps = [
         "//xls/ir",
         "//xls/ir:function_builder",
