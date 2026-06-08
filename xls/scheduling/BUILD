@@ -240,6 +240,7 @@ cc_library(
     srcs = ["schedule_util.cc"],
     hdrs = ["schedule_util.h"],
     deps = [
+        ":scheduling_options",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",

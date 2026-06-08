@@ -443,8 +443,8 @@ absl::StatusOr<PipelineSchedule> RunIterativeSDCSchedule(
       PipelineSchedule::Create(f, cycle_map, options.pipeline_stages()));
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, delay_manager));
-  XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
-                                                 f->GetInitiationInterval()));
+  XLS_RETURN_IF_ERROR(
+      schedule.VerifyConstraints(options.constraints(), options));
 
   XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
   return schedule;
@@ -497,9 +497,17 @@ std::optional<int64_t> GetWorstCaseThroughputSetting(
                  "and MinimizeWorstCaseThroughput is true.";
       worst_case_throughput = std::nullopt;
     } else {
-      VLOG(4) << "Setting II to 1 since no options or proc setting and "
-                 "MinimizeWorstCaseThroughput is false.";
-      worst_case_throughput = 1;
+      if (!options.arc_worst_case_throughput().empty() ||
+          options.default_arc_worst_case_throughput().has_value()) {
+        VLOG(4) << "Setting II to unconstrained since custom arc throughput "
+                   "options are present and worst_case_throughput is "
+                   "unspecified.";
+        worst_case_throughput = std::nullopt;
+      } else {
+        VLOG(4) << "Setting II to 1 since no options or proc setting and "
+                   "MinimizeWorstCaseThroughput is false.";
+        worst_case_throughput = 1;
+      }
     }
   } else {
     VLOG(4) << "Setting II to " << *worst_case_throughput
@@ -551,6 +559,9 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         "Pipeline scheduling of a proc with proc-scoped channels requires an "
         "elaboration.");
   }
+
+  XLS_RETURN_IF_ERROR(
+      VerifyArcWorstCaseThroughputViability(f->package(), options));
 
   // NB For backwards compatibility reasons the flag options for worst case
   // throughput/II are rather confusing. Specifically, a value of 0 means that
@@ -635,8 +646,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
                          PipelineSchedule::Create(f, std::move(cycle_map),
                                                   options.pipeline_stages()));
     XLS_RETURN_IF_ERROR(schedule.Verify());
-    XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
-                                                   f->GetInitiationInterval()));
+    XLS_RETURN_IF_ERROR(
+        schedule.VerifyConstraints(options.constraints(), options));
 
     XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
     return schedule;
@@ -876,8 +887,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
   XLS_VLOG_LINES(5, "Schedule\n" + schedule.ToString());
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, io_delay_added));
-  XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
-                                                 f->GetInitiationInterval()));
+  XLS_RETURN_IF_ERROR(
+      schedule.VerifyConstraints(options.constraints(), options));
 
   return schedule;
 }

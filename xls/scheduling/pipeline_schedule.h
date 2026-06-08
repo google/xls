@@ -120,7 +120,7 @@ class PipelineSchedule {
   // Verifies that all scheduling constraints are followed.
   absl::Status VerifyConstraints(
       absl::Span<const SchedulingConstraint> constraints,
-      std::optional<int64_t> worst_case_throughput) const;
+      const SchedulingOptions& options) const;
 
   // Returns a protobuf holding this object's scheduling info.
   absl::StatusOr<PipelineScheduleProto> ToProto(

@@ -132,6 +132,12 @@ absl::Status CheckAmbiguousArcWorstCaseThroughput(
     const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
         throughput_map);
 
+// Verify that every pattern specified in options.arc_worst_case_throughput()
+// matches at least one feedback arc in the package. Returns
+// InvalidArgumentError if any pattern is unused (to catch typos).
+absl::Status VerifyArcWorstCaseThroughputViability(
+    const Package* package, const SchedulingOptions& options);
+
 }  // namespace xls
 
 #endif  // XLS_SCHEDULING_SCHEDULE_UTIL_H_

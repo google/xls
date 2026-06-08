@@ -2608,5 +2608,114 @@ TEST_F(PipelineScheduleTest,
   EXPECT_LE(
       schedule.cycle(setup.next.node()) - schedule.cycle(setup.read.node()), 1);
 }
+
+TEST_F(PipelineScheduleTest, ProcFeedbackArcThroughputUnusedPattern) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("W1", "R1"));
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  // Typo in pattern: "W2" doesn't exist
+  options.arc_worst_case_throughput({{{"W2", "R1"}, 2}});
+
+  EXPECT_THAT(RunPipelineSchedule(setup.proc, TestDelayEstimator(), options),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr(
+                      "Throughput override pattern \"W2,R1\" did not match any "
+                      "feedback arc in the package test_package")));
+}
+
+TEST_F(PipelineScheduleTest, VerifyConstraintsSucceedsWithUnlabeledArc) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LabeledFeedbackArcProc setup,
+      BuildLabeledFeedbackArcProc(std::nullopt, std::nullopt));
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  options.arc_worst_case_throughput({{{"_", "_"}, 2}});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+  XLS_EXPECT_OK(schedule.VerifyConstraints(options.constraints(), options));
+}
+
+TEST_F(PipelineScheduleTest, VerifyConstraintsSucceedsWithCustomArcThroughput) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("W1", "R1"));
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  options.arc_worst_case_throughput({{{"W1", "R1"}, 2}, {{"*", "*"}, 5}});
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+
+  XLS_EXPECT_OK(schedule.VerifyConstraints(options.constraints(), options));
+}
+
+TEST_F(PipelineScheduleTest, ProcFeedbackArcThroughputMultiProc) {
+  auto package = CreatePackage();
+
+  // Proc 1: has ("W1", "R1")
+  ProcBuilder pb1("proc_1", package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto se1,
+                           pb1.UnreadStateElement("st1", Value(UBits(0, 32))));
+  BValue read1 = pb1.StateRead(se1, /*predicate=*/std::nullopt, "R1");
+  BValue add1 = pb1.Add(read1, pb1.Literal(UBits(1, 32)));
+  pb1.Next(se1, add1, /*pred=*/std::nullopt, "W1");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, pb1.Build());
+
+  // Proc 2: has ("W2", "R2")
+  ProcBuilder pb2("proc_2", package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto se2,
+                           pb2.UnreadStateElement("st2", Value(UBits(0, 32))));
+  BValue read2 = pb2.StateRead(se2, /*predicate=*/std::nullopt, "R2");
+  BValue add2 = pb2.Add(read2, pb2.Literal(UBits(1, 32)));
+  pb2.Next(se2, add2, /*pred=*/std::nullopt, "W2");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc2, pb2.Build());
+
+  // Pattern ("W1", "*") matches in proc_1.
+  // Pattern ("W2", "*") matches in proc_2.
+  // Pattern ("*", "R1") matches in proc_1 (ambiguous pattern but throughput
+  // is the same).
+  // Pattern ("*", "*") matches in both procs but should be masked by more
+  // specific rules
+  // In package-wide checking, all of these are used across the package.
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  options.arc_worst_case_throughput(
+      {{{"W1", "*"}, 2}, {{"W2", "*"}, 2}, {{"*", "R1"}, 2}, {{"*", "*"}, 4}});
+
+  // Scheduling both should succeed because package-wide validation passes
+  XLS_EXPECT_OK(RunPipelineSchedule(proc1, TestDelayEstimator(), options));
+  XLS_EXPECT_OK(RunPipelineSchedule(proc2, TestDelayEstimator(), options));
+}
+
+TEST_F(PipelineScheduleTest, VerifyConstraintsFailsWithViolatedArcThroughput) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("W1", "R1"));
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  options.arc_worst_case_throughput({{{"W1", "R1"}, 2}});
+  // Force read to cycle 0 and next to cycle 1 to ensure backedge length is
+  // exactly 1.
+  options.add_constraint(NodeInCycleConstraint(setup.read.node(), 0));
+  options.add_constraint(NodeInCycleConstraint(setup.next.node(), 1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+
+  // Create a tighter constraint manually that is violated by the schedule
+  SchedulingOptions tighter_options;
+  tighter_options.clock_period_ps(2);
+  tighter_options.arc_worst_case_throughput({{{"W1", "R1"}, 1}});
+
+  EXPECT_THAT(schedule.VerifyConstraints(tighter_options.constraints(),
+                                         tighter_options),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kResourceExhausted,
+                  testing::HasSubstr("Scheduling constraint violated")));
+}
+
 }  // namespace
 }  // namespace xls

@@ -38,6 +38,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/node_dependency_analysis.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 
@@ -337,6 +338,34 @@ absl::Status CheckAmbiguousArcWorstCaseThroughput(
     }
   }
 
+  return absl::OkStatus();
+}
+
+absl::Status VerifyArcWorstCaseThroughputViability(
+    const Package* package, const SchedulingOptions& options) {
+  if (options.arc_worst_case_throughput().empty()) {
+    return absl::OkStatus();
+  }
+
+  std::vector<FeedbackArc> arcs = GetFeedbackArcsPackage(package);
+
+  for (const auto& [pattern, _] : options.arc_worst_case_throughput()) {
+    bool matched = false;
+    for (const auto& arc : arcs) {
+      if (GetArcMatchScore(pattern, arc.write_node->label(),
+                           arc.read_node->label())
+              .has_value()) {
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Throughput override pattern \"%s,%s\" did not match any feedback "
+          "arc in the package %s.",
+          pattern.first, pattern.second, package->name()));
+    }
+  }
   return absl::OkStatus();
 }
 

@@ -420,7 +420,7 @@ absl::Status PipelineSchedule::VerifyTiming(
 
 absl::Status PipelineSchedule::VerifyConstraints(
     absl::Span<const SchedulingConstraint> constraints,
-    std::optional<int64_t> worst_case_throughput) const {
+    const SchedulingOptions& options) const {
   absl::flat_hash_map<std::string, std::vector<Node*>> channel_to_nodes;
   absl::flat_hash_map<Node*, absl::btree_set<Node*>> send_predecessors;
   absl::flat_hash_map<Node*, absl::btree_set<Node*>> io_predecessors;
@@ -562,29 +562,47 @@ absl::Status PipelineSchedule::VerifyConstraints(
       if (!function_base_->IsProc()) {
         continue;
       }
-      const int64_t max_backedge = worst_case_throughput.value_or(1) - 1;
-      if (max_backedge < 0) {
-        // Worst-case throughput constraint is disabled.
-        continue;
-      }
       Proc* proc = function_base_->AsProcOrDie();
-      for (Next* next : proc->next_values()) {
-        absl::Span<StateRead* const> reads =
-            proc->GetStateReadsByStateElement(next->state_element());
-        for (StateRead* read : reads) {
-          int64_t backedge_length = cycle_map_.at(next) - cycle_map_.at(read);
-          if (backedge_length > max_backedge) {
-            return absl::ResourceExhaustedError(absl::StrFormat(
-                "Scheduling constraint violated: state read %s was scheduled "
-                "%d "
-                "cycle%s before node %s, its next value, which violates the "
-                "constraint that we can achieve a worst-case throughput of "
-                "one "
-                "iteration per %d cycle%s without external stalls.",
-                read->GetName(), backedge_length, plural_s(backedge_length),
-                next->ToString(), worst_case_throughput.value_or(1),
-                plural_s(worst_case_throughput.value_or(1))));
-          }
+      std::optional<int64_t> worst_case_throughput = std::nullopt;
+      std::optional<int64_t> proc_wct = proc->GetInitiationInterval();
+      if (!proc_wct.has_value()) {
+        worst_case_throughput = 1;  // Legacy default
+      } else if (*proc_wct == 0) {
+        worst_case_throughput = std::nullopt;  // Unconstrained
+      } else {
+        worst_case_throughput = proc_wct;
+      }
+
+      for (const FeedbackArc& arc : GetFeedbackArcsProc(proc)) {
+        Next* next = arc.write_node;
+        StateRead* read = arc.read_node;
+
+        // Resolve throughput limit using specificity scorer
+        std::optional<int64_t> throughput_limit =
+            GetResolvedThroughputLimit(
+                next->label(), read->label(),
+                options.arc_worst_case_throughput(),
+                options.default_arc_worst_case_throughput(),
+                worst_case_throughput)
+                .limit;
+
+        if (!throughput_limit.has_value()) {
+          continue;
+        }
+
+        // Assert SDC difference bound is satisfied: next_cycle - read_cycle <=
+        // throughput_limit - 1
+        const int64_t max_backedge = *throughput_limit - 1;
+        int64_t backedge_length = cycle_map_.at(next) - cycle_map_.at(read);
+        if (backedge_length > max_backedge) {
+          return absl::ResourceExhaustedError(absl::StrFormat(
+              "Scheduling constraint violated: state read %s was scheduled %d "
+              "cycle%s before node %s, its next value, which violates the "
+              "constraint that we can achieve a worst-case throughput of one "
+              "iteration per %d cycle%s without external stalls.",
+              read->GetName(), backedge_length, plural_s(backedge_length),
+              next->ToString(), *throughput_limit,
+              plural_s(*throughput_limit)));
         }
       }
     } else if (std::holds_alternative<SendThenRecvConstraint>(constraint)) {
