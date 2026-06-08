@@ -19,6 +19,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -49,9 +50,12 @@ class SDCSchedulingModel {
   static constexpr double kMaxStages = (1 << 20);
 
  public:
-  SDCSchedulingModel(const ScheduleGraph& graph, const DelayMap& delay_map,
-                     std::optional<int64_t> initiation_interval,
-                     double sdc_solution_tolerance);
+  SDCSchedulingModel(
+      const ScheduleGraph& graph, const DelayMap& delay_map,
+      std::optional<int64_t> initiation_interval, double sdc_solution_tolerance,
+      absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>
+          arc_worst_case_throughput = {},
+      std::optional<int64_t> default_arc_worst_case_throughput = std::nullopt);
 
   absl::Status AddAllDefUseConstraints();
   absl::Status AddDefUseConstraints(Node* node, std::optional<Node*> user);
@@ -178,6 +182,9 @@ class SDCSchedulingModel {
   double sdc_solution_tolerance_;
   const DelayMap& delay_map_;
   std::optional<int64_t> initiation_interval_;
+  absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>
+      arc_worst_case_throughput_;
+  std::optional<int64_t> default_arc_worst_case_throughput_;
 
   // Stores the critical-path distances between all pairs of Nodes; if there is
   // a path from `x` to `y`, `distances_to_node_[y][x]` is the length of the
@@ -299,7 +306,10 @@ class SDCScheduler final : public Scheduler {
       const ScheduleGraph& graph, double sdc_solution_tolerance,
       ::operations_research::math_opt::SolverType solver_type,
       ::operations_research::math_opt::SolveParameters&& solve_parameters,
-      std::optional<int64_t> initiation_interval, DelayMap&& delay_map);
+      std::optional<int64_t> initiation_interval, DelayMap&& delay_map,
+      const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
+          arc_worst_case_throughput = {},
+      std::optional<int64_t> default_arc_worst_case_throughput = std::nullopt);
   absl::Status Initialize();
 
   // TODO(allight): Calling this with failure_behavior.explain_infeasibility =

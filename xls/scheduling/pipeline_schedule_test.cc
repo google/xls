@@ -16,7 +16,9 @@
 
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -32,6 +34,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/fdo/delay_manager.h"
@@ -41,6 +44,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -171,6 +175,39 @@ class SdcPipelineScheduleTest : public PipelineScheduleTestBase {};
 class SdcPrimaryPipelineScheduleTest : public PipelineScheduleTestBase {};
 // Random scheduler only.
 class RandomPipelineScheduleTest : public PipelineScheduleTestBase {};
+
+struct LabeledFeedbackArcProc {
+  std::unique_ptr<Package> package;
+  Proc* proc;
+  BValue read;
+  BValue next;
+};
+
+absl::StatusOr<LabeledFeedbackArcProc> BuildLabeledFeedbackArcProc(
+    std::optional<std::string> write_label,
+    std::optional<std::string> read_label) {
+  auto package = std::make_unique<Package>("test_package");
+  Type* u32 = package->GetBitsType(32);
+  XLS_ASSIGN_OR_RETURN(auto out_ch, package->CreateStreamingChannel(
+                                        "out_ch", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb("the_proc", package.get());
+  BValue tkn = pb.Literal(Value::Token());
+  XLS_ASSIGN_OR_RETURN(auto se,
+                       pb.UnreadStateElement("state", Value(UBits(0, 32))));
+  BValue read = pb.StateRead(se, /*predicate=*/std::nullopt, read_label);
+  BValue add_val = pb.Add(read, pb.Literal(UBits(1, 32)));
+  pb.Send(out_ch, tkn, add_val);
+  BValue next = pb.Next(se, add_val, /*pred=*/std::nullopt, write_label);
+  XLS_ASSIGN_OR_RETURN(auto proc, pb.Build());
+
+  return LabeledFeedbackArcProc{
+      .package = std::move(package),
+      .proc = proc,
+      .read = read,
+      .next = next,
+  };
+}
 
 TEST_P(PipelineScheduleTest, SelectsEntry) {
   auto p = CreatePackage();
@@ -2402,5 +2439,174 @@ INSTANTIATE_TEST_SUITE_P(SdcPrimaryPipelineScheduleTest,
                                          Strategies{SchedulingStrategy::SDC,
                                                     SchedulingStrategy::ASAP}),
                          testing::PrintToStringParamName());
+
+TEST_F(PipelineScheduleTest,
+       ProcFeedbackArcThroughputLabeledArcClampedByWorstCase) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("W1", "R1"));
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  // Clamps to 2 (Next - Read <= 1)
+  options.worst_case_throughput(2);
+  options.arc_worst_case_throughput({{{"W1", "R1"}, 3}});
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+
+  EXPECT_LE(
+      schedule.cycle(setup.next.node()) - schedule.cycle(setup.read.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest,
+       ProcFeedbackArcThroughputDefaultClampedByWorstCase) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("W1", "R1"));
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  // Clamps to 2 (Next - Read <= 1)
+  options.worst_case_throughput(2);
+  options.default_arc_worst_case_throughput(4);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+
+  EXPECT_LE(
+      schedule.cycle(setup.next.node()) - schedule.cycle(setup.read.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest,
+       ProcFeedbackArcThroughputUsesDefaultWhenNoWorstCaseSpecified) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("W1", "R1"));
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  options.worst_case_throughput(0);
+  // Fallback (Next - Read <= 1)
+  options.default_arc_worst_case_throughput(2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+
+  EXPECT_LE(
+      schedule.cycle(setup.next.node()) - schedule.cycle(setup.read.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest,
+       ProcFeedbackArcThroughputUnlabeledWinsOverWildcardPattern) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LabeledFeedbackArcProc setup,
+      BuildLabeledFeedbackArcProc(std::nullopt, std::nullopt));
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  options.worst_case_throughput(0);
+  // Unlabeled (2) wins over wildcard (5) due to specificity score
+  options.arc_worst_case_throughput({{{"_", "_"}, 2}, {{"*", "*"}, 5}});
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+
+  EXPECT_LE(
+      schedule.cycle(setup.next.node()) - schedule.cycle(setup.read.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest,
+       ProcFeedbackArcThroughputSpecificWinsOverWorstCase) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("W1", "R1"));
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  options.worst_case_throughput(4);
+  // Specific (2) wins over Worst Case (4)
+  options.arc_worst_case_throughput({{{"W1", "R1"}, 2}});
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+
+  EXPECT_LE(
+      schedule.cycle(setup.next.node()) - schedule.cycle(setup.read.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest, ProcFeedbackArcThroughputAmbiguousMatch) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("L_W", "L_R"));
+
+  // Tie between (L_W, * = 4) and (*, L_R = 2). Both have score 2 but different
+  // values. Should fail with ambiguous match error.
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  options.arc_worst_case_throughput({{{"L_W", "*"}, 4}, {{"*", "L_R"}, 2}});
+
+  EXPECT_THAT(RunPipelineSchedule(setup.proc, TestDelayEstimator(), options),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("Ambiguous throughput configuration")));
+}
+
+TEST_F(PipelineScheduleTest,
+       ProcFeedbackArcThroughputAmbiguousMatchButSameValueSucceeds) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("L_W", "L_R"));
+  // Overlap between ("L_W", "*") and ("*", "L_R"). Both have the same
+  // specificity score (2) and the same throughput value (3).
+  // This is a harmless tie and should succeed without errors.
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  options.arc_worst_case_throughput({{{"L_W", "*"}, 3}, {{"*", "L_R"}, 3}});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+  // Throughput limit 3 allows backedge length <= 2.
+  EXPECT_LE(
+      schedule.cycle(setup.next.node()) - schedule.cycle(setup.read.node()), 2);
+}
+
+TEST_F(PipelineScheduleTest,
+       ProcFeedbackArcThroughputAmbiguousMatchButSpecificityWins) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("L_W", "L_R"));
+
+  // Rules ("L_W", "*") and ("*", "L_R") overlap at ("L_W", "L_R").
+  // Because they have the same specificity score (2) but different values (4
+  // vs 3), they would normally conflict. However, the more specific rule
+  // ("L_W", "L_R") (score 4, value 2) successfully masks/resolves the tie.
+  // SDC check must pass, and the solver clamps to 2 (Next - Read <= 1).
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  options.arc_worst_case_throughput(
+      {{{"L_W", "*"}, 4}, {{"*", "L_R"}, 3}, {{"L_W", "L_R"}, 2}});
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+
+  EXPECT_LE(
+      schedule.cycle(setup.next.node()) - schedule.cycle(setup.read.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest,
+       ProcFeedbackArcThroughputWorstCaseZeroNotEnforced) {
+  XLS_ASSERT_OK_AND_ASSIGN(LabeledFeedbackArcProc setup,
+                           BuildLabeledFeedbackArcProc("L_W", "L_R"));
+
+  // worst_case = 0 (not enforced), specific = 2 (enforced).
+  // Effective limit should be 2 (Next - Read <= 1).
+  SchedulingOptions options;
+  options.clock_period_ps(2);
+  // Not enforced
+  options.worst_case_throughput(0);
+  options.arc_worst_case_throughput({{{"L_W", "L_R"}, 2}});
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(setup.proc, TestDelayEstimator(), options));
+
+  EXPECT_LE(
+      schedule.cycle(setup.next.node()) - schedule.cycle(setup.read.node()), 1);
+}
 }  // namespace
 }  // namespace xls

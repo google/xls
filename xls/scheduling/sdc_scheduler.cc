@@ -47,7 +47,6 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
-#include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/scheduling/schedule_bounds.h"
@@ -206,12 +205,17 @@ ComputeCombinationalDelayConstraints(
 
 SDCSchedulingModel::SDCSchedulingModel(
     const ScheduleGraph& graph, const DelayMap& delay_map,
-    std::optional<int64_t> initiation_interval, double sdc_solution_tolerance)
+    std::optional<int64_t> initiation_interval, double sdc_solution_tolerance,
+    absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>
+        arc_worst_case_throughput,
+    std::optional<int64_t> default_arc_worst_case_throughput)
     : graph_(graph),
       model_(absl::StrCat("sdc_model:", graph_.name())),
       sdc_solution_tolerance_(sdc_solution_tolerance),
       delay_map_(delay_map),
       initiation_interval_(initiation_interval),
+      arc_worst_case_throughput_(std::move(arc_worst_case_throughput)),
+      default_arc_worst_case_throughput_(default_arc_worst_case_throughput),
       last_stage_(model_.AddContinuousVariable(0.0, kMaxStages, "last_stage")),
       cycle_at_sinknode_(model_.AddContinuousVariable(-kInfinity, kInfinity,
                                                       "cycle_at_sinknode")) {
@@ -406,13 +410,8 @@ absl::Status SDCSchedulingModel::AddThroughputConstraint(StateRead* state_read,
 // necessary while enforcing a target II.
 absl::Status SDCSchedulingModel::AddBackedgeConstraints(
     const BackedgeConstraint& constraint) {
-  if (!initiation_interval_.has_value()) {
-    // Distance of backedge is constrained by the II, but the worst-case
-    // throughput constraint is not set.
-    return absl::OkStatus();
-  }
-
-  const int64_t II = *initiation_interval_;
+  XLS_RETURN_IF_ERROR(
+      CheckAmbiguousArcWorstCaseThroughput(arc_worst_case_throughput_));
 
   for (const ScheduleBackedge& backedge : graph_.backedges()) {
     if (!backedge.distance.has_value() ||
@@ -422,14 +421,33 @@ absl::Status SDCSchedulingModel::AddBackedgeConstraints(
           "Unsupported backedge type in SDC schedule");
     }
 
-    VLOG(2) << "Setting backedge constraint (II): "
-            << absl::StrFormat("cycle[%s] - cycle[%s] < %d",
-                               backedge.source->GetName(),
-                               backedge.destination->GetName(), II);
-    backedge_constraint_.emplace(
-        std::make_pair(backedge.destination, backedge.source),
-        DiffLessThanConstraint(backedge.source, backedge.destination, II,
-                               "backedge"));
+    XLS_RET_CHECK(backedge.source->Is<Next>()) << absl::StreamFormat(
+        "Backedge source is not a next node: %v", *backedge.source);
+    XLS_RET_CHECK(backedge.destination->Is<StateRead>()) << absl::StreamFormat(
+        "Backedge destination is not a state_read node: %v",
+        *backedge.destination);
+
+    Next* next = backedge.source->As<Next>();
+    StateRead* read = backedge.destination->As<StateRead>();
+    std::optional<std::string> L_W = next->label();
+    std::optional<std::string> L_R = read->label();
+
+    std::optional<int64_t> throughput_limit =
+        GetResolvedThroughputLimit(L_W, L_R, arc_worst_case_throughput_,
+                                   default_arc_worst_case_throughput_,
+                                   initiation_interval_)
+            .limit;
+
+    if (throughput_limit.has_value()) {
+      VLOG(2) << "Setting backedge constraint: "
+              << absl::StrFormat(
+                     "cycle[%s] - cycle[%s] < %d", backedge.source->GetName(),
+                     backedge.destination->GetName(), *throughput_limit);
+      backedge_constraint_.emplace(
+          std::make_pair(backedge.destination, backedge.source),
+          DiffLessThanConstraint(backedge.source, backedge.destination,
+                                 *throughput_limit, "backedge"));
+    }
   }
 
   return absl::OkStatus();
@@ -1251,7 +1269,9 @@ absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
                        ComputeNodeDelays(graph, delay_estimator));
   std::unique_ptr<SDCScheduler> scheduler(new SDCScheduler(
       graph, options.sdc_solution_tolerance(), options.solver_type(),
-      options.solve_parameters(), std::nullopt, std::move(delay_map)));
+      options.solve_parameters(), std::nullopt, std::move(delay_map),
+      options.arc_worst_case_throughput(),
+      options.default_arc_worst_case_throughput()));
   XLS_RETURN_IF_ERROR(scheduler->Initialize());
   return std::move(scheduler);
 }
@@ -1260,12 +1280,16 @@ SDCScheduler::SDCScheduler(
     const ScheduleGraph& graph, double sdc_solution_tolerance,
     ::operations_research::math_opt::SolverType solver_type,
     ::operations_research::math_opt::SolveParameters&& solve_parameters,
-    std::optional<int64_t> initiation_interval, DelayMap&& delay_map)
+    std::optional<int64_t> initiation_interval, DelayMap&& delay_map,
+    const absl::flat_hash_map<std::pair<std::string, std::string>, int64_t>&
+        arc_worst_case_throughput,
+    std::optional<int64_t> default_arc_worst_case_throughput)
     : Scheduler("SDCScheduler"),
       delay_map_(std::move(delay_map)),
       solver_type_(solver_type),
       solve_parameters_(std::move(solve_parameters)),
-      model_(graph, delay_map_, initiation_interval, sdc_solution_tolerance) {}
+      model_(graph, delay_map_, initiation_interval, sdc_solution_tolerance,
+             arc_worst_case_throughput, default_arc_worst_case_throughput) {}
 
 absl::Status SDCScheduler::Initialize() {
   XLS_ASSIGN_OR_RETURN(solver_, math_opt::NewIncrementalSolver(
