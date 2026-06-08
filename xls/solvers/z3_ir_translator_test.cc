@@ -1315,6 +1315,214 @@ fn f() -> bits[32] {
   EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
+TEST_F(Z3IrTranslatorTest, ArrayEqualityWithOOB) {
+  const std::string program = R"(
+package p
+
+fn f(a1: bits[32][3], a2: bits[32][3]) -> bits[1] {
+  idx_0: bits[32] = literal(value=0)
+  idx_1: bits[32] = literal(value=1)
+  idx_2: bits[32] = literal(value=2)
+
+  a1_0: bits[32] = array_index(a1, indices=[idx_0])
+  a2_0: bits[32] = array_index(a2, indices=[idx_0])
+  eq_0: bits[1] = eq(a1_0, a2_0)
+
+  a1_1: bits[32] = array_index(a1, indices=[idx_1])
+  a2_1: bits[32] = array_index(a2, indices=[idx_1])
+  eq_1: bits[1] = eq(a1_1, a2_1)
+
+  a1_2: bits[32] = array_index(a1, indices=[idx_2])
+  a2_2: bits[32] = array_index(a2, indices=[idx_2])
+  eq_2: bits[1] = eq(a1_2, a2_2)
+
+  and_0: bits[1] = and(eq_0, eq_1)
+  precondition: bits[1] = and(and_0, eq_2)
+
+  postcondition: bits[1] = eq(a1, a2)
+
+  not_pre: bits[1] = not(precondition)
+  ret result: bits[1] = or(not_pre, postcondition)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, IsProvenTrue());
+}
+
+TEST_F(Z3IrTranslatorTest, Z3NativeArrayEqualityWithOOB) {
+  const std::string program = R"(
+package p
+
+fn f(a1: bits[32][3], a2: bits[32][3]) -> bits[32][3] {
+  ret result: bits[32][3] = identity(a1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                           IrTranslator::CreateAndTranslate(f));
+  Z3_context ctx = translator->ctx();
+
+  // Get the translated parameters a1 and a2. Both are sanitized!
+  Z3_ast a1 = translator->GetTranslation(f->param(0));
+  Z3_ast a2 = translator->GetTranslation(f->param(1));
+
+  Z3_sort array_sort = Z3_get_sort(ctx, a1);
+  Z3_sort index_sort = Z3_get_array_sort_domain(ctx, array_sort);
+
+  // Construct the precondition: a1[i] == a2[i] for i in 0..2.
+  std::vector<Z3_ast> eq_elements;
+  for (int i = 0; i < 3; ++i) {
+    Z3_ast idx = Z3_mk_unsigned_int64(ctx, i, index_sort);
+    Z3_ast a1_i = Z3_mk_select(ctx, a1, idx);
+    Z3_ast a2_i = Z3_mk_select(ctx, a2, idx);
+    eq_elements.push_back(Z3_mk_eq(ctx, a1_i, a2_i));
+  }
+  Z3_ast precondition = Z3_mk_and(ctx, eq_elements.size(), eq_elements.data());
+
+  // Construct the postcondition: Z3 native equality!
+  Z3_ast postcondition = Z3_mk_eq(ctx, a1, a2);
+
+  Z3_solver solver = solvers::z3::CreateSolver(ctx, 1);
+  auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
+
+  Z3_solver_assert(ctx, solver, precondition);
+  Z3_solver_assert(ctx, solver, Z3_mk_not(ctx, postcondition));
+
+  Z3_lbool status = Z3_solver_check(ctx, solver);
+
+  // With sanitization: UNSAT (L_FALSE).
+  // Without sanitization: SAT (L_TRUE).
+  EXPECT_EQ(status, Z3_L_FALSE);
+}
+
+TEST_F(Z3IrTranslatorTest, ArraySliceEqualityWithOOB) {
+  const std::string program = R"(
+package p
+
+fn f(a1: bits[32][4], a2: bits[32][4]) -> bits[1] {
+  idx_0: bits[32] = literal(value=0)
+  idx_1: bits[32] = literal(value=1)
+  idx_2: bits[32] = literal(value=2)
+
+  a1_0: bits[32] = array_index(a1, indices=[idx_0])
+  a2_0: bits[32] = array_index(a2, indices=[idx_0])
+  eq_0: bits[1] = eq(a1_0, a2_0)
+
+  a1_1: bits[32] = array_index(a1, indices=[idx_1])
+  a2_1: bits[32] = array_index(a2, indices=[idx_1])
+  eq_1: bits[1] = eq(a1_1, a2_1)
+
+  a1_2: bits[32] = array_index(a1, indices=[idx_2])
+  a2_2: bits[32] = array_index(a2, indices=[idx_2])
+  eq_2: bits[1] = eq(a1_2, a2_2)
+
+  and_0: bits[1] = and(eq_0, eq_1)
+  precondition: bits[1] = and(and_0, eq_2)
+
+  s1: bits[32][3] = array_slice(a1, idx_0, width=3)
+  s2: bits[32][3] = array_slice(a2, idx_0, width=3)
+  postcondition: bits[1] = eq(s1, s2)
+
+  not_pre: bits[1] = not(precondition)
+  ret result: bits[1] = or(not_pre, postcondition)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, IsProvenTrue());
+}
+
+TEST_F(Z3IrTranslatorTest, ArrayConcatEqualityWithOOB) {
+  const std::string program = R"(
+package p
+
+fn f(a1: bits[32][1], a2: bits[32][1], b1: bits[32][2], b2: bits[32][2]) -> bits[1] {
+  idx_0: bits[32] = literal(value=0)
+  idx_1: bits[32] = literal(value=1)
+
+  b1_0: bits[32] = array_index(b1, indices=[idx_0])
+  b2_0: bits[32] = array_index(b2, indices=[idx_0])
+  eq_b0: bits[1] = eq(b1_0, b2_0)
+
+  b1_1: bits[32] = array_index(b1, indices=[idx_1])
+  b2_1: bits[32] = array_index(b2, indices=[idx_1])
+  eq_b1: bits[1] = eq(b1_1, b2_1)
+
+  eq_b: bits[1] = and(eq_b0, eq_b1)
+
+  a1_0: bits[32] = array_index(a1, indices=[idx_0])
+  a2_0: bits[32] = array_index(a2, indices=[idx_0])
+  eq_a: bits[1] = eq(a1_0, a2_0)
+
+  precondition: bits[1] = and(eq_a, eq_b)
+
+  c1: bits[32][3] = array_concat(a1, b1)
+  c2: bits[32][3] = array_concat(a2, b2)
+  postcondition: bits[1] = eq(c1, c2)
+
+  not_pre: bits[1] = not(precondition)
+  ret result: bits[1] = or(not_pre, postcondition)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, IsProvenTrue());
+}
+
+TEST_F(Z3IrTranslatorTest, ArrayUpdateEqualityWithOOB) {
+  const std::string program = R"(
+package p
+
+fn f(a: bits[32][3], b: bits[5], c: bits[32]) -> bits[1] {
+  a_prime: bits[32][3] = array_update(a, c, indices=[b])
+  three: bits[5] = literal(value=3)
+  b_ge_3: bits[1] = uge(b, three)
+  eq_a: bits[1] = eq(a, a_prime)
+  ne_a: bits[1] = ne(a, a_prime)
+  a_b: bits[32] = array_index(a, indices=[b])
+  a_b_eq_c: bits[1] = eq(a_b, c)
+  or_part: bits[1] = or(ne_a, a_b_eq_c)
+  ret result: bits[1] = sel(b_ge_3, cases=[or_part, eq_a])
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, IsProvenTrue());
+}
+
 TEST_F(Z3IrTranslatorTest, IndexSingleElementArray) {
   const std::string program = R"(
 package p

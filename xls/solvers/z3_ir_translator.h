@@ -220,6 +220,10 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Translates if the translation is not yet stored.
   Z3_ast GetTranslation(const Node* source);
 
+  // Returns the unsanitized translation (Z3 constant) for the given parameter.
+  // Useful for binding parameters in top-level lambdas, and not much else.
+  Z3_ast GetRawParam(Param* param) const;
+
   // Re-translates the function from scratch, using fixed mappings for the
   // values in "replacements", i.e., when any node in "replacements" is
   // encountered, the fixed Z3_ast is used instead of using a translation from
@@ -432,17 +436,24 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Extracts a value from an array type.
   Z3_ast GetArrayElement(ArrayType* type, Z3_ast array, Z3_ast index);
 
-  // Conditionally (based on 'cond') replaces the element in 'array' indexed by
-  // 'indices' with 'value' and returns the result. 'array' may be a
-  // multi-dimensional array in which case 'indices' may have more than one
-  // element. In the sequence of indices 'indices' the first element is the
-  // outermost index as in ArrayIndex and ArrayUpdate. 'type' is the
-  // XLS type corresponding to 'array'.
-  Z3_ast UpdateArrayElement(Type* type, Z3_ast array, Z3_ast value, Z3_ast cond,
+  // Replaces the element in `array` indexed by `indices` with `value` and
+  // returns the result. If any index is out of bounds, the original array is
+  // returned.
+  //
+  // `array` may be a multi-dimensional array in which case `indices` may have
+  // more than one element. In the sequence of `indices`, the first element is
+  // the outermost index as in ArrayIndex and ArrayUpdate.
+  //
+  // `type` is the XLS type corresponding to 'array'.
+  Z3_ast UpdateArrayElement(Type* type, Z3_ast array, Z3_ast value,
                             absl::Span<const Z3_ast> indices);
 
   // Z3 version of xls::ZeroOfType() - creates a zero-valued element.
   Z3_ast ZeroOfSort(Z3_sort sort);
+
+  // Recursively wraps any array term (including those nested inside tuples)
+  // in a sanitizing lambda that forces out-of-bounds indices to zero.
+  Z3_ast SanitizeValue(Type* type, Z3_ast value);
 
   // Get a new Z3_symbol.
   Z3_symbol GetNewSymbol();
@@ -483,6 +494,9 @@ class IrTranslator : public DfsVisitorWithDefault {
   // we shouldn't delete our context, etc.!
   bool borrowed_context_;
   absl::flat_hash_map<const Node*, Z3_ast> translations_;
+  // Maps each Param node to its unsanitized Z3 constant, its external
+  // interface.
+  absl::flat_hash_map<Param*, Z3_ast> raw_params_;
   // Params specified in the context-borrowing CreateAndTranslate() builder.
   // Parameters already translated in a separate function traversal that should
   // be used as this translation's parameter set.

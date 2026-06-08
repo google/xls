@@ -219,6 +219,20 @@ Z3_ast GetAsFormattedArrayIndex(Z3_context ctx, Z3_ast index,
   return index;
 }
 
+bool HasArray(Type* type) {
+  if (type->IsArray()) {
+    return true;
+  }
+  if (type->IsTuple()) {
+    for (Type* element_type : type->AsTupleOrDie()->element_types()) {
+      if (HasArray(element_type)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
@@ -757,6 +771,11 @@ absl::Status IrTranslator::HandleParam(Param* param) {
   } else {
     XLS_ASSIGN_OR_RETURN(value, CreateZ3Param(type, param->name()));
   }
+
+  // Store the unsanitized value for direct reference later.
+  raw_params_[param] = value;
+
+  value = SanitizeValue(type, value);
   NoteTranslation(param, value);
   return seh.status();
 }
@@ -787,6 +806,52 @@ Z3_ast IrTranslator::ZeroOfSort(Z3_sort sort) {
       LOG(FATAL) << "Unknown/unsupported sort kind: "
                  << static_cast<int>(sort_kind);
   }
+}
+
+Z3_ast IrTranslator::SanitizeValue(Type* type, Z3_ast value) {
+  if (!HasArray(type)) {
+    return value;
+  }
+  if (type->IsArray()) {
+    ArrayType* array_type = type->AsArrayOrDie();
+    Z3_sort index_sort = GetArrayIndexSort(ctx_, array_type);
+    Z3_sort element_sort = TypeToSort(ctx_, *array_type->element_type());
+
+    Z3_symbol index_symbol = Z3_mk_string_symbol(ctx_, "sanitize_idx");
+    Z3_ast index_var = Z3_mk_const(ctx_, index_symbol, index_sort);
+
+    Z3_ast selected = Z3_mk_select(ctx_, value, index_var);
+    Z3_ast sanitized_element =
+        SanitizeValue(array_type->element_type(), selected);
+
+    Z3_ast size_ast =
+        Z3_mk_unsigned_int64(ctx_, array_type->size(), index_sort);
+    Z3_ast is_oob = Z3_mk_bvuge(ctx_, index_var, size_ast);
+    Z3_ast zero_element = ZeroOfSort(element_sort);
+
+    Z3_ast body = Z3_mk_ite(ctx_, is_oob, zero_element, sanitized_element);
+
+    Z3_app bound_apps[] = {reinterpret_cast<Z3_app>(index_var)};
+    return Z3_mk_lambda_const(ctx_, 1, bound_apps, body);
+  }
+  if (type->IsTuple()) {
+    TupleType* tuple_type = type->AsTupleOrDie();
+    Z3_sort tuple_sort = TypeToSort(ctx_, *tuple_type);
+    int num_fields = tuple_type->size();
+    std::vector<Z3_ast> elements;
+    elements.reserve(num_fields);
+    for (int i = 0; i < num_fields; ++i) {
+      Z3_func_decl proj_fn = Z3_get_tuple_sort_field_decl(ctx_, tuple_sort, i);
+      Z3_ast field_val = Z3_mk_app(ctx_, proj_fn, 1, &value);
+      elements.push_back(SanitizeValue(tuple_type->element_type(i), field_val));
+    }
+    return CreateTuple(tuple_sort, elements);
+  }
+  LOG(FATAL) << "Unsupported type for sanitization: " << type->ToString();
+}
+
+Z3_ast IrTranslator::GetRawParam(Param* param) const {
+  return raw_params_.at(param);
 }
 
 Z3_symbol IrTranslator::GetNewSymbol() {
@@ -883,31 +948,29 @@ absl::Status IrTranslator::HandleArrayIndex(ArrayIndex* array_index) {
 }
 
 Z3_ast IrTranslator::UpdateArrayElement(Type* type, Z3_ast array, Z3_ast value,
-                                        Z3_ast cond,
                                         absl::Span<const Z3_ast> indices) {
   if (indices.empty()) {
-    return Z3_mk_ite(ctx_, cond, value, array);
+    return value;
   }
   ArrayType* array_type = type->AsArrayOrDie();
-  std::vector<Z3_ast> elements;
+
+  Z3_ast index = indices.front();
   Z3_ast is_out_of_bounds = nullptr;
-  Z3_ast updated_index = GetAsFormattedArrayIndex(
-      ctx_, indices.front(), array_type, &is_out_of_bounds);
-  Z3_ast is_in_bounds = Z3_mk_not(ctx_, is_out_of_bounds);
-  for (int64_t i = 0; i < array_type->size(); ++i) {
-    Z3_ast this_index = GetAsFormattedArrayIndex(ctx_, i, array_type);
-    // In the recursive call, the condition is updated by whether the current
-    // index is in bounds and matches; following XLS semantics, if the index is
-    // out of bounds, then no update is made.
-    Z3_ast and_args[] = {cond, is_in_bounds,
-                         Z3_mk_eq(ctx_, this_index, updated_index)};
-    Z3_ast new_cond = Z3_mk_and(ctx_, 3, and_args);
-    elements.push_back(UpdateArrayElement(
-        /*type=*/array_type->element_type(),
-        /*array=*/Z3_mk_select(ctx_, array, this_index),
-        /*value=*/value, /*cond=*/new_cond, indices.subspan(1)));
-  }
-  return CreateArray(array_type, elements);
+  Z3_ast formatted_index =
+      GetAsFormattedArrayIndex(ctx_, index, array_type, &is_out_of_bounds);
+
+  // We do not need to clamp the index for the select here.
+  // If the index is out of bounds, the outer ITE at the end of this function
+  // will discard the updated array and return the original.
+  Z3_ast sub_array = Z3_mk_select(ctx_, array, formatted_index);
+
+  Z3_ast new_sub_array = UpdateArrayElement(
+      array_type->element_type(), sub_array, value, indices.subspan(1));
+
+  Z3_ast updated_array =
+      Z3_mk_store(ctx_, array, formatted_index, new_sub_array);
+
+  return Z3_mk_ite(ctx_, is_out_of_bounds, array, updated_array);
 }
 
 absl::Status IrTranslator::HandleArrayUpdate(ArrayUpdate* array_update) {
@@ -921,7 +984,6 @@ absl::Status IrTranslator::HandleArrayUpdate(ArrayUpdate* array_update) {
       /*type=*/array_update->GetType(),
       /*array=*/GetValue(array_update->array_to_update()),
       /*value=*/GetValue(array_update->update_value()),
-      /*cond=*/Z3_mk_true(ctx_),
       /*indices=*/indices);
   NoteTranslation(array_update, new_array);
   return seh.status();
@@ -929,25 +991,90 @@ absl::Status IrTranslator::HandleArrayUpdate(ArrayUpdate* array_update) {
 
 absl::Status IrTranslator::HandleArrayConcat(ArrayConcat* array_concat) {
   ScopedErrorHandler seh(ctx_);
+  ArrayType* result_type = array_concat->GetType()->AsArrayOrDie();
+  Z3_sort result_index_sort = GetArrayIndexSort(ctx_, result_type);
 
-  std::vector<Z3_ast> elements;
+  // We represent the concatenation symbolically as a Z3 lambda to avoid
+  // unrolling the elements, taking advantage of the fact that Z3 lambdas are
+  // actually symbolic Arrays. We build a nested ITE chain in a single forward
+  // pass, where each step checks if the index belongs to the prefix of operands
+  // already processed.
+  //
+  // For example, concatenating A (size 1), B (size 2), and C (size 3) yields a
+  // size-6 array:
+  //   if idx < 6 (in-bounds):
+  //     if idx < 3 (in A or B):
+  //       if idx < 1 (in A):
+  //         A[idx]
+  //       else (in B):
+  //         B[idx - 1]
+  //     else (in C):
+  //       C[idx - 3]
+  //   else (OOB padding):
+  //     0
+  //
+  // Which translates to the Z3 AST:
+  //   ITE(idx < 6, ITE(idx < 3, ITE(idx < 1, A[idx], B[idx-1]), C[idx-3]), 0)
+
+  // 1. Create a bound variable for the lambda index.
+  Z3_symbol index_symbol = Z3_mk_string_symbol(ctx_, "concat_idx");
+  Z3_ast index_var = Z3_mk_const(ctx_, index_symbol, result_index_sort);
+
+  // 2. Build the nested ITE chain in a single forward pass.
+  int64_t current_offset = 0;
+  Z3_ast element = nullptr;
+
   for (Node* operand : array_concat->operands()) {
-    // Get number of elements in this operand (which is an array)
-    ArrayType* array_type = operand->GetType()->AsArrayOrDie();
-    int64_t element_count = array_type->size();
+    ArrayType* operand_type = operand->GetType()->AsArrayOrDie();
 
-    Z3_ast array = GetValue(operand);
-
-    for (int64_t i = 0; i < element_count; ++i) {
-      Z3_ast index = GetAsFormattedArrayIndex(ctx_, i, array_type);
-      Z3_ast element = Z3_mk_select(ctx_, array, index);
-      elements.push_back(element);
+    // Local index: index_var - current_offset
+    Z3_ast local_index = index_var;
+    if (current_offset > 0) {
+      Z3_ast current_offset_ast =
+          Z3_mk_unsigned_int64(ctx_, current_offset, result_index_sort);
+      local_index = Z3_mk_bvsub(ctx_, index_var, current_offset_ast);
     }
-  }
+    Z3_ast formatted_index =
+        GetAsFormattedArrayIndex(ctx_, local_index, operand_type);
 
-  NoteTranslation(
-      array_concat,
-      CreateArray(array_concat->GetType()->AsArrayOrDie(), elements));
+    // Use raw select instead of GetArrayElement. We're already guaranteeing
+    // that the index is in-bounds when this branch is taken, avoiding redundant
+    // clamping.
+    Z3_ast op_val = Z3_mk_select(ctx_, GetValue(operand), formatted_index);
+
+    if (element == nullptr) {
+      // Base case: the first operand is the start of our chain.
+      element = op_val;
+    } else {
+      // If index < offset, it belongs to the prefix; otherwise, to this
+      // operand.
+      Z3_ast current_offset_ast =
+          Z3_mk_unsigned_int64(ctx_, current_offset, result_index_sort);
+      Z3_ast in_prev_operands =
+          Z3_mk_bvult(ctx_, index_var, current_offset_ast);
+      element = Z3_mk_ite(ctx_, in_prev_operands, element, op_val);
+    }
+
+    current_offset += operand_type->size();
+  }
+  CHECK_EQ(current_offset, result_type->size());
+
+  // 3. Guard the entire chain with an OOB check. We standardize on zero-padding
+  //    for out-of-bounds entries, which should be easier for Z3 to reason
+  //    about. XLS semantics (clamping) will be handled as appropriate by the
+  //    value-accessing operations.
+  Z3_ast total_size_ast =
+      Z3_mk_unsigned_int64(ctx_, result_type->size(), result_index_sort);
+  Z3_ast in_bounds = Z3_mk_bvult(ctx_, index_var, total_size_ast);
+  Z3_ast zero_element =
+      ZeroOfSort(TypeToSort(ctx_, *result_type->element_type()));
+  element = Z3_mk_ite(ctx_, in_bounds, element, zero_element);
+
+  // 4. Bind the index variable into the lambda.
+  Z3_app bound_apps[] = {Z3_to_app(ctx_, index_var)};
+  Z3_ast lambda = Z3_mk_lambda_const(ctx_, 1, bound_apps, element);
+
+  NoteTranslation(array_concat, lambda);
   return seh.status();
 }
 
@@ -956,26 +1083,55 @@ absl::Status IrTranslator::HandleArraySlice(ArraySlice* array_slice) {
   Z3_ast array_ast = GetValue(array_slice->array());
   Z3_ast start_ast = GetValue(array_slice->start());
   ArrayType* input_type = array_slice->array()->GetType()->AsArrayOrDie();
-  ArrayType result_type(array_slice->width(), input_type->element_type());
-  int64_t min_offset_bits = Bits::MinBitCountUnsigned(array_slice->width());
-  // Make sure we don't overflow.
-  int64_t offset_width =
-      1 + std::max<int64_t>(
-              min_offset_bits,
-              Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, start_ast)));
-  Z3_sort index_sort = Z3_mk_bv_sort(ctx_, offset_width);
-  Z3_ast start_ext = Z3_mk_zero_ext(
-      ctx_,
-      offset_width - Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, start_ast)),
-      start_ast);
-  std::vector<Z3_ast> elements;
-  for (uint64_t i = 0; i < array_slice->width(); ++i) {
-    Z3_ast i_ast = Z3_mk_int64(ctx_, i, index_sort);
-    Z3_ast index_ast = Z3_mk_bvadd(ctx_, start_ext, i_ast);
-    elements.push_back(GetArrayElement(input_type, array_ast, index_ast));
-  }
 
-  NoteTranslation(array_slice, CreateArray(&result_type, elements));
+  ArrayType result_type(array_slice->width(), input_type->element_type());
+  Z3_sort result_index_sort = GetArrayIndexSort(ctx_, &result_type);
+
+  // We represent the array slice symbolically using a Z3 lambda, taking
+  // advantage of the fact that Z3's lambdas are actually Array sorts.
+  // This avoids unrolling the slice elements.
+  //
+  // The lambda has the form:
+  //   lambda idx: ITE(idx >= width, 0, select(array, start + idx))
+
+  // 1. Create a bound variable for the lambda index.
+  Z3_symbol index_symbol = Z3_mk_string_symbol(ctx_, "slice_idx");
+  Z3_ast index_var = Z3_mk_const(ctx_, index_symbol, result_index_sort);
+
+  // 2. Perform width extension and addition symbolically to calculate
+  //    the absolute index: start + index_var. We extend both operands
+  //    to a common width to prevent overflow.
+  int64_t min_offset_bits = Bits::MinBitCountUnsigned(array_slice->width());
+  int64_t start_width = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, start_ast));
+  int64_t offset_width = 1 + std::max<int64_t>(min_offset_bits, start_width);
+
+  Z3_ast start_ext =
+      Z3_mk_zero_ext(ctx_, offset_width - start_width, start_ast);
+  Z3_ast index_ext = Z3_mk_zero_ext(
+      ctx_, offset_width - Z3_get_bv_sort_size(ctx_, result_index_sort),
+      index_var);
+
+  // 3. Select from the input array. We pass the raw absolute_index (which is
+  //    adequately sized to prevent overflow) directly to GetArrayElement.
+  //    GetArrayElement will internally handle formatting and OOB clamping.
+  Z3_ast absolute_index = Z3_mk_bvadd(ctx_, start_ext, index_ext);
+  Z3_ast val = GetArrayElement(input_type, array_ast, absolute_index);
+
+  // We standardize on zero-padding for out-of-bounds entries, which should be
+  // easier for Z3 to reason about. XLS semantics (clamping) will be handled as
+  // appropriate by the value-accessing operations.
+  Z3_ast slice_width_ast =
+      Z3_mk_unsigned_int64(ctx_, array_slice->width(), result_index_sort);
+  Z3_ast is_oob = Z3_mk_bvuge(ctx_, index_var, slice_width_ast);
+  Z3_ast zero_element =
+      ZeroOfSort(TypeToSort(ctx_, *result_type.element_type()));
+  Z3_ast body = Z3_mk_ite(ctx_, is_oob, zero_element, val);
+
+  // 4. Bind the index variable into the lambda.
+  Z3_app bound_apps[] = {reinterpret_cast<Z3_app>(index_var)};
+  Z3_ast lambda = Z3_mk_lambda_const(ctx_, 1, bound_apps, body);
+
+  NoteTranslation(array_slice, lambda);
   return seh.status();
 }
 
@@ -2103,7 +2259,7 @@ absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function) {
   std::vector<Z3_app> bound_params;
   bound_params.reserve(function->params().size());
   for (Param* p : function->params()) {
-    Z3_ast v_ast = translator->GetTranslation(p);
+    Z3_ast v_ast = translator->GetRawParam(p);
     bound_params.push_back(reinterpret_cast<Z3_app>(v_ast));
   }
 

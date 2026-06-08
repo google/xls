@@ -147,6 +147,8 @@ Z3_ast DoUnsignedMul(Z3_context ctx, Z3_ast lhs, Z3_ast rhs, int result_size);
 
 Z3_ast BitVectorToBoolean(Z3_context c, Z3_ast bit_vector);
 
+Z3_ast BooleanToBitVector(Z3_context c, Z3_ast boolean);
+
 }  // namespace z3
 }  // namespace solvers
 }  // namespace xls
