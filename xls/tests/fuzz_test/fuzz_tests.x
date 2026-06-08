@@ -34,3 +34,8 @@ fn test_element_of(x: u32) -> bool {
 fn test_tuple(t: (u32, u8)) -> bool {
     t.0 <= u32:10 && (t.1 == u8:1 || t.1 == u8:2)
 }
+
+#[fuzz_test(domains=`(u32:0..10,)`)]
+fn test_1_tuple(t: (u32,)) -> bool {
+    t.0 <= u32:10
+}

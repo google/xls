@@ -84,13 +84,15 @@ absl::Status FuzzTestConverter::LowerTuple(
     return absl::OkStatus();
   }
   auto* tuple_proto = proto.mutable_tuple();
-  const TupleType* tuple_type = nullptr;
-  if (param_type != nullptr && param_type->IsTuple()) {
-    tuple_type = &param_type->AsTuple();
-  }
   for (size_t i = 0; i < elements.size(); ++i) {
-    const Type* member_type =
-        (tuple_type != nullptr) ? tuple_type->members()[i].get() : nullptr;
+    const Type* member_type = nullptr;
+    if (param_type != nullptr) {
+      if (param_type->IsTuple()) {
+        member_type = &param_type->AsTuple().GetMemberType(i);
+      } else if (param_type->IsStruct()) {
+        member_type = &param_type->AsStruct().GetMemberType(i);
+      }
+    }
     const InterpValue& element = elements[i];
     XLS_RETURN_IF_ERROR(
         LowerConstant(member_type, element, *tuple_proto->add_elements()));
@@ -166,9 +168,23 @@ absl::Status FuzzTestConverter::LowerConstant(
     const Type* param_type, const InterpValue& val,
     PackageInterfaceProto::FuzzTestDomain& proto) {
   if (val.is_range()) {
-    // InterpValues that originated as ranges are stored as an array of
-    // elements, so we need to get the first and last entries in the array
-    // (the min and max of the range).
+    std::optional<std::shared_ptr<RangeData>> range_data = val.GetRangeData();
+    if (range_data.has_value()) {
+      const RangeData& range = **range_data;
+      XLS_ASSIGN_OR_RETURN(int64_t len, val.GetLength());
+      if (len == 0) {
+        return absl::InvalidArgumentError(
+            "Empty ranges are unsupported as fuzztest domains");
+      }
+      InterpValue max_val = range.end;
+      if (!range.inclusive) {
+        std::optional<InterpValue> dec = range.end.Decrement();
+        XLS_RET_CHECK(dec.has_value());
+        max_val = *dec;
+      }
+      return LowerRange(range.start, max_val, proto);
+    }
+    // Fallback for expanded ranges.
     XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
                          val.GetValues());
     if (elements->empty()) {
@@ -293,7 +309,6 @@ FuzzTestConverter::LowerFuzzTestDomains(const Function* node) {
     google::protobuf::TextFormat::Printer printer;
     printer.SetSingleLineMode(true);
     XLS_RET_CHECK(printer.PrintToString(temp_func, &proto_str));
-
     std::vector<AttributeData::Argument> args;
     args.push_back(
         AttributeData::StringKeyValueArgument{.first = "domains",
