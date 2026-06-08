@@ -42,10 +42,9 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/interpreter/ir_interpreter.h"
-#include "xls/ir/abstract_evaluator.h"
-#include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/events.h"
@@ -53,6 +52,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/ir_annotator.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -143,29 +143,6 @@ std::string Predicate::ToString() const {
 }
 
 namespace {
-
-// Helper class for using the AbstractNodeEvaluator to enqueue Z3 expressions.
-class Z3AbstractEvaluator
-    : public AbstractEvaluator<Z3_ast, Z3AbstractEvaluator> {
- public:
-  explicit Z3AbstractEvaluator(Z3_context z3_ctx) : translator_(z3_ctx) {}
-  Element One() const { return translator_.Fill(true, 1); }
-  Element Zero() const { return translator_.Fill(false, 1); }
-  Element Not(const Element& a) const { return translator_.Not(a); }
-  Element And(const Element& a, const Element& b) const {
-    return translator_.And(a, b);
-  }
-  Element Or(const Element& a, const Element& b) const {
-    return translator_.Or(a, b);
-  }
-  Element If(const Element& sel, const Element& consequent,
-             const Element& alternate) const {
-    return translator_.If(sel, consequent, alternate);
-  }
-
- private:
-  mutable Z3OpTranslator translator_;
-};
 
 Z3_sort GetArrayIndexSort(Z3_context ctx, ArrayType* array_type) {
   uint32_t target_width = static_cast<uint32_t>(
@@ -991,35 +968,6 @@ absl::Status IrTranslator::HandleTupleIndex(TupleIndex* tuple_index) {
   return seh.status();
 }
 
-// Handles the translation of unary node "op" by using the abstract node
-// evaluator.
-absl::Status IrTranslator::HandleUnaryViaAbstractEval(Node* op) {
-  CHECK_EQ(op->operand_count(), 1);
-  ScopedErrorHandler seh(ctx_);
-  Z3AbstractEvaluator evaluator(ctx_);
-
-  Z3_ast operand = GetBitVec(op->operand(0));
-  Z3OpTranslator t(ctx_);
-  CHECK_EQ(op->operand(0)->BitCountOrDie(), t.GetBvBitCount(operand));
-  std::vector<Z3_ast> input_bits = t.ExplodeBits(operand);
-
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<Z3_ast> output_bits,
-      AbstractEvaluate(op, std::vector<Z3AbstractEvaluator::Vector>{input_bits},
-                       &evaluator, nullptr));
-  // The "output_bits" we are given have LSb in index 0, but ConcatN puts
-  // argument 0 in the MSb position, so we must reverse.
-  std::reverse(output_bits.begin(), output_bits.end());
-  if (output_bits.empty()) {
-    NoteTranslation(op, CreateZeroBitsValue());
-    return seh.status();
-  }
-  Z3_ast result = t.ConcatN(output_bits);
-  CHECK_EQ(op->BitCountOrDie(), t.GetBvBitCount(result));
-  NoteTranslation(op, result);
-  return seh.status();
-}
-
 // Translates a unary `UnOp` or `BitwiseReductionOp` operator to a Z3 AST format
 // by invoking `f`, the Z3 AST-node generator corresponding to the desired op.
 template <typename FnT>
@@ -1036,15 +984,139 @@ absl::Status IrTranslator::HandleUnary(Node* op, FnT f) {
 }
 
 absl::Status IrTranslator::HandleDecode(Decode* decode) {
-  return HandleUnaryViaAbstractEval(decode);
+  ScopedErrorHandler seh(ctx_);
+  Z3_ast x = GetBitVec(decode->operand(0));
+  int64_t input_width = decode->operand(0)->BitCountOrDie();
+  int64_t output_width = decode->width();
+
+  // We represent the decode operation as (1 << x).
+  // This avoids bit-blasting the decoder into O(2^N) individual bit operations,
+  // reducing the translation complexity to O(1) symbolic operations.
+  //
+  // To handle potential overflow and mismatch in widths, we perform the shift
+  // at max_width = max(input_width, output_width) and then truncate the result
+  // to the output_width if necessary.
+
+  int64_t max_width = std::max(input_width, output_width);
+  Z3_sort max_sort = Z3_mk_bv_sort(ctx_, max_width);
+
+  // 1. Create "1" of max_width.
+  Z3_ast one = Z3_mk_unsigned_int64(ctx_, 1, max_sort);
+
+  // 2. Zero-extend x to max_width so it matches the shift operand sort.
+  Z3_ast x_ext = Z3_mk_zero_ext(ctx_, max_width - input_width, x);
+
+  // 3. Shift left: 1 << x_ext.
+  //
+  // In Z3, shifting by a value >= width returns 0, matching XLS's out-of-bounds
+  // decode semantics.
+  Z3_ast shifted = Z3_mk_bvshl(ctx_, one, x_ext);
+
+  // 4. Truncate to output_width if we padded it.
+  Z3_ast result = shifted;
+  if (max_width > output_width) {
+    result = Z3_mk_extract(ctx_, output_width - 1, 0, shifted);
+  }
+
+  NoteTranslation(decode, result);
+  return seh.status();
 }
 
 absl::Status IrTranslator::HandleEncode(Encode* encode) {
-  return HandleUnaryViaAbstractEval(encode);
+  ScopedErrorHandler seh(ctx_);
+  Z3_ast x = GetBitVec(encode->operand(0));
+  int64_t input_width = encode->operand(0)->BitCountOrDie();
+  int64_t output_width = encode->BitCountOrDie();
+  Z3_sort input_sort = Z3_get_sort(ctx_, x);
+
+  // XLS Encode returns the bitwise OR of the indices of all set bits in x.
+  //
+  // For each bit j of the output index, index[j] is 1 if any set bit in x
+  // has its j-th index bit set. This is equivalent to:
+  //     index[j] = (x & mask_j) != 0
+  // where mask_j has a 1 at position k if the j-th bit of k is 1.
+
+  Z3_sort bit_sort = Z3_mk_bv_sort(ctx_, 1);
+  Z3_ast zero = Z3_mk_unsigned_int64(ctx_, 0, input_sort);
+
+  std::vector<Z3_ast> index_bits;
+  index_bits.reserve(output_width);
+
+  for (int64_t j = 0; j < output_width; ++j) {
+    // Construct mask_j using XLS InlineBitmap as a builder.
+    InlineBitmap bitmap(input_width);
+    for (int64_t k = 0; k < input_width; ++k) {
+      if ((k >> j) & 1) {
+        bitmap.Set(k, true);
+      }
+    }
+    Bits mask_bits = Bits::FromBitmap(std::move(bitmap));
+    Z3_ast mask = BitsToZ3(ctx_, mask_bits);
+
+    Z3_ast masked = Z3_mk_bvand(ctx_, x, mask);
+    Z3_ast is_not_zero = Z3_mk_not(ctx_, Z3_mk_eq(ctx_, masked, zero));
+
+    Z3_ast bit =
+        Z3_mk_ite(ctx_, is_not_zero, Z3_mk_unsigned_int64(ctx_, 1, bit_sort),
+                  Z3_mk_unsigned_int64(ctx_, 0, bit_sort));
+    index_bits.push_back(bit);
+  }
+
+  // Concat all index bits (MSB first).
+  std::reverse(index_bits.begin(), index_bits.end());
+
+  Z3_ast result = index_bits.empty() ? CreateZeroBitsValue()
+                                     : Z3OpTranslator(ctx_).ConcatN(index_bits);
+
+  NoteTranslation(encode, result);
+  return seh.status();
 }
 
 absl::Status IrTranslator::HandleOneHot(OneHot* one_hot) {
-  return HandleUnaryViaAbstractEval(one_hot);
+  ScopedErrorHandler seh(ctx_);
+  int64_t width = one_hot->operand(0)->BitCountOrDie();
+  if (width == 0) {
+    NoteTranslation(one_hot,
+                    Z3_mk_unsigned_int64(ctx_, 1, Z3_mk_bv_sort(ctx_, 1)));
+    return absl::OkStatus();
+  }
+  Z3_ast x = GetBitVec(one_hot->operand(0));
+  Z3_sort x_sort = Z3_get_sort(ctx_, x);
+
+  if (width == 1) {
+    // The output is 2 bits:
+    //     10 if x == 0,
+    //     01 if x == 1.
+    Z3_ast result = Z3_mk_concat(ctx_, Z3_mk_bvnot(ctx_, x), x);
+    NoteTranslation(one_hot, result);
+    return seh.status();
+  }
+
+  Z3OpTranslator op_translator(ctx_);
+
+  // For LSB priority, we can use the arithmetic trick for isolating the LSB:
+  //     lsb(x) = x & -x.
+  // For MSB priority, we convert into an LSB problem: we reverse the input,
+  // use the trick, and then reverse the result.
+
+  Z3_ast input =
+      one_hot->priority() == LsbOrMsb::kLsb ? x : op_translator.Reverse(x);
+
+  Z3_ast neg_input = Z3_mk_bvneg(ctx_, input);
+  Z3_ast one_hot_input = Z3_mk_bvand(ctx_, input, neg_input);
+
+  Z3_ast hot_bits = one_hot->priority() == LsbOrMsb::kLsb
+                        ? one_hot_input
+                        : op_translator.Reverse(one_hot_input);
+
+  // The extra bit (MSB of the output) is 1 iff x == 0.
+  Z3_ast zero = Z3_mk_unsigned_int64(ctx_, 0, x_sort);
+  Z3_ast is_zero = Z3_mk_eq(ctx_, x, zero);
+  Z3_ast result =
+      Z3_mk_concat(ctx_, BooleanToBitVector(ctx_, is_zero), hot_bits);
+
+  NoteTranslation(one_hot, result);
+  return seh.status();
 }
 
 absl::Status IrTranslator::HandleNeg(UnOp* neg) {
@@ -1063,7 +1135,23 @@ absl::Status IrTranslator::HandleNot(UnOp* not_op) {
 }
 
 absl::Status IrTranslator::HandleReverse(UnOp* reverse) {
-  return HandleUnaryViaAbstractEval(reverse);
+  ScopedErrorHandler seh(ctx_);
+  Z3_ast x = GetBitVec(reverse->operand(0));
+  int64_t width = reverse->operand(0)->BitCountOrDie();
+
+  // We directly extract each bit and concatenate them in reverse order.
+  //
+  // ConcatN({bits[0], bits[1], ..., bits[width-1]}) puts bits[0] at the MSB and
+  // bits[width-1] at the LSB.
+  std::vector<Z3_ast> bits;
+  bits.reserve(width);
+  for (int64_t i = 0; i < width; ++i) {
+    bits.push_back(Z3_mk_extract(ctx_, i, i, x));
+  }
+
+  Z3_ast result = Z3OpTranslator(ctx_).ConcatN(bits);
+  NoteTranslation(reverse, result);
+  return seh.status();
 }
 
 absl::Status IrTranslator::HandleIdentity(UnOp* identity) {
@@ -1379,9 +1467,13 @@ absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot) {
         XLS_ASSIGN_OR_RETURN(
             Z3_ast base,
             TranslateLiteralValue(one_hot->GetType(), ltt_base_val.Get(idx)));
-        Z3_ast res = base;
         std::vector<Z3_ast> sel_bits =
             FlattenValue(one_hot->selector()->GetType(), selector);
+        if (sel_bits.empty()) {
+          return base;
+        }
+
+        Z3_ast res = base;
         for (int64_t i = 0; i < sel_bits.size(); ++i) {
           res = op_translator.Or(res,
                                  op_translator.If(sel_bits[i], cases[i], base));
@@ -1390,21 +1482,50 @@ absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot) {
       });
 }
 
+absl::StatusOr<Z3_ast> IrTranslator::BuildBalancedPrioritySel(
+    Z3OpTranslator& op_translator, Z3_ast selector,
+    absl::Span<const Z3_ast> cases, Z3_ast default_val) {
+  int64_t bit_count = op_translator.GetBvBitCount(selector);
+  CHECK_EQ(bit_count, cases.size());
+  if (bit_count == 0) {
+    return default_val;
+  }
+  if (bit_count == 1) {
+    return op_translator.If(selector, cases[0], default_val);
+  }
+
+  int64_t mid = bit_count / 2;
+  Z3_ast sel_left = op_translator.Extract(selector, mid - 1, 0);
+  Z3_ast sel_right = op_translator.Extract(selector, bit_count - 1, mid);
+  auto cases_left = cases.subspan(0, mid);
+  auto cases_right = cases.subspan(mid);
+
+  // 1. Recurse on each half
+  XLS_ASSIGN_OR_RETURN(Z3_ast right_val,
+                       BuildBalancedPrioritySel(op_translator, sel_right,
+                                                cases_right, default_val));
+  XLS_ASSIGN_OR_RETURN(Z3_ast left_val,
+                       BuildBalancedPrioritySel(op_translator, sel_left,
+                                                cases_left, default_val));
+
+  // 2. Determine if any bit in the left (higher-priority) half is active.
+  Z3_ast left_active = op_translator.ReduceOr(sel_left);
+
+  // 3. Combine; the left (less significant) half of the selector has priority.
+  return op_translator.If(left_active, left_val, right_val);
+}
+
 absl::Status IrTranslator::HandlePrioritySel(PrioritySelect* sel) {
   Z3OpTranslator op_translator(ctx_);
   return HandleSelect(
       sel,
       [&](Z3_ast selector, absl::Span<Z3_ast const> cases,
           absl::Span<int64_t const> idx) -> absl::StatusOr<Z3_ast> {
-        std::vector<Z3_ast> sel_bits =
-            FlattenValue(sel->selector()->GetType(), selector);
         XLS_ASSIGN_OR_RETURN(
             Z3_ast otherwise,
             GetLttElement(sel->GetType(), GetValue(sel->default_value()), idx));
-        for (int64_t i = cases.size() - 1; i >= 0; --i) {
-          otherwise = op_translator.If(sel_bits[i], cases[i], otherwise);
-        }
-        return otherwise;
+        return BuildBalancedPrioritySel(op_translator, selector, cases,
+                                        otherwise);
       });
 }
 
@@ -1506,7 +1627,38 @@ absl::Status IrTranslator::HandleOrReduce(BitwiseReductionOp* or_reduce) {
 }
 
 absl::Status IrTranslator::HandleXorReduce(BitwiseReductionOp* xor_reduce) {
-  return HandleUnaryViaAbstractEval(xor_reduce);
+  ScopedErrorHandler seh(ctx_);
+  Z3_ast x = GetBitVec(xor_reduce->operand(0));
+  int64_t width = xor_reduce->operand(0)->BitCountOrDie();
+
+  if (width == 0) {
+    NoteTranslation(xor_reduce, CreateZeroBitsValue());
+    return absl::OkStatus();
+  }
+
+  // Extract all bits.
+  std::vector<Z3_ast> bits;
+  bits.reserve(width);
+  for (int64_t i = 0; i < width; ++i) {
+    bits.push_back(Z3_mk_extract(ctx_, i, i, x));
+  }
+
+  // Build a balanced binary tree of XORs to keep the AST depth O(log width).
+  // The old abstract evaluator built a linear chain of depth O(width).
+  auto build_xor_tree = [this](auto& self,
+                               absl::Span<const Z3_ast> span) -> Z3_ast {
+    if (span.size() == 1) {
+      return span[0];
+    }
+    int64_t mid = span.size() / 2;
+    Z3_ast left = self(self, span.subspan(0, mid));
+    Z3_ast right = self(self, span.subspan(mid));
+    return Z3_mk_bvxor(ctx_, left, right);
+  };
+
+  Z3_ast result = build_xor_tree(build_xor_tree, absl::MakeConstSpan(bits));
+  NoteTranslation(xor_reduce, result);
+  return seh.status();
 }
 
 static Z3_ast DoMul(Z3_context ctx, Z3_ast lhs, Z3_ast rhs, bool is_signed,

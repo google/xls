@@ -90,6 +90,15 @@ Z3_ast Z3OpTranslator::Extract(Z3_ast arg, int64_t bitno) {
   return Z3_mk_extract(z3_ctx_, unsigned_bitno, unsigned_bitno, arg);
 }
 
+Z3_ast Z3OpTranslator::Extract(Z3_ast arg, int64_t high, int64_t low) {
+  unsigned int unsigned_high = static_cast<unsigned int>(high);
+  unsigned int unsigned_low = static_cast<unsigned int>(low);
+  CHECK_EQ(unsigned_high, high);
+  CHECK_EQ(unsigned_low, low);
+  CHECK_GE(unsigned_high, unsigned_low);
+  return Z3_mk_extract(z3_ctx_, unsigned_high, unsigned_low, arg);
+}
+
 Z3_ast Z3OpTranslator::Fill(bool value, int64_t bit_count) {
   unsigned int ubit_count = static_cast<unsigned int>(bit_count);
   CHECK_EQ(bit_count, ubit_count);

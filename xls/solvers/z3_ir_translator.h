@@ -178,6 +178,8 @@ void AbslStringify(Sink& sink, const ProverResult& p) {
   absl::Format(&sink, "[ProvenFalse: %s]", std::get<ProvenFalse>(p).message);
 }
 
+class Z3OpTranslator;
+
 // Translates a function into its Z3 equivalent bit-vector circuit for use in
 // theorem proving.
 class IrTranslator : public DfsVisitorWithDefault {
@@ -380,6 +382,11 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Recursive call to translate XLS literals into Z3 form.
   absl::StatusOr<Z3_ast> TranslateLiteralValue(Type* type, const Value& value);
 
+  // Recursive helper to build a balanced binary tree for PrioritySelect.
+  absl::StatusOr<Z3_ast> BuildBalancedPrioritySel(
+      Z3OpTranslator& op_translator, Z3_ast selector,
+      absl::Span<const Z3_ast> cases, Z3_ast default_val);
+
   // Common multiply handling.
   absl::Status HandleMul(ArithOp* mul, bool is_signed);
   absl::Status HandleMulp(PartialProductOp* mul, bool is_signed);
@@ -411,9 +418,6 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   absl::StatusOr<Z3_ast> HandleBitSlice(Z3_ast value, int64_t start,
                                         int64_t width);
-
-  // Handles the translation of the given unary op using the AbstractEvaluator.
-  absl::Status HandleUnaryViaAbstractEval(Node* op);
 
   // Converts a XLS param decl into a Z3 param type.
   absl::StatusOr<Z3_ast> CreateZ3Param(Type* type, std::string_view param_name);
