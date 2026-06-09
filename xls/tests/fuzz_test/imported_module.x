@@ -12,32 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[fuzz_test(domains=`()`)]
-fn arbitrary_array(x: u32[3]) -> bool {
-    true
-}
-
-#[fuzz_test(domains=`()`)]
-fn array_of_tuples(x: (u32, u32)[2]) -> bool {
-    true
-}
-
-#[fuzz_test(domains=`((), u32:0..9)`)]
-fn tuple_with_array(x: (u32[2], u32)) -> bool {
-    true
-}
-
-#[fuzz_test(domains=`()`)]
-fn big_array(x: uN[128][3]) -> bool {
-    true
-}
-
-#[fuzz_test(domains=`()`)]
-fn tuple_with_big_array(x: (uN[128][2], u32)) -> bool {
-    true
-}
-
-#[fuzz_test(domains=`()`)]
-fn nested_big_array(x: uN[128][2][3]) -> bool {
-    true
+#[fuzz_domain("SDomain")]
+pub struct S {
+    x: u32,
 }

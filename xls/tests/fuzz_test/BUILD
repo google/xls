@@ -66,6 +66,12 @@ dslx_fuzz_test(
     test_function = "test_tuple",
 )
 
+dslx_fuzz_test(
+    name = "test_1_tuple_fuzz_test",
+    library = ":fuzz_test_dslx",
+    test_function = "test_1_tuple",
+)
+
 xls_dslx_library(
     name = "enum_tests_dslx",
     srcs = ["enum_tests.x"],
@@ -116,4 +122,81 @@ dslx_fuzz_test(
     name = "tuple_with_big_array_fuzz_test",
     library = ":array_tests_dslx",
     test_function = "tuple_with_big_array",
+)
+
+xls_dslx_library(
+    name = "imported_module_dslx",
+    srcs = ["imported_module.x"],
+)
+
+xls_dslx_library(
+    name = "struct_tests_dslx",
+    srcs = ["struct_tests.x"],
+    deps = [":imported_module_dslx"],
+)
+
+dslx_fuzz_test(
+    name = "arbitrary_struct_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "arbitrary_struct",
+)
+
+dslx_fuzz_test(
+    name = "struct_range_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "struct_range",
+)
+
+dslx_fuzz_test(
+    name = "struct_element_of_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "struct_element_of",
+)
+
+dslx_fuzz_test(
+    name = "struct_arbitrary_field_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "struct_arbitrary_field",
+)
+
+dslx_fuzz_test(
+    name = "flat_struct_domain_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "test_flat_struct_domain",
+)
+
+dslx_fuzz_test(
+    name = "nested_struct_domain_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "test_nested_struct_domain",
+)
+
+dslx_fuzz_test(
+    name = "imported_struct_domain_fn_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "test_imported_struct_domain",
+)
+
+dslx_fuzz_test(
+    name = "nested_big_array_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "nested_big_array",
+)
+
+dslx_fuzz_test(
+    name = "inline_nested_struct_domain_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "test_inline_nested_struct_domain",
+)
+
+dslx_fuzz_test(
+    name = "first_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "first",
+)
+
+dslx_fuzz_test(
+    name = "second_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "second",
 )
