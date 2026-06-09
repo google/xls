@@ -823,10 +823,42 @@ cc_library(
 )
 
 cc_library(
+    name = "fuzz_test_domain_validator",
+    srcs = ["fuzz_test_domain_validator.cc"],
+    hdrs = ["fuzz_test_domain_validator.h"],
+    deps = [
+        ":import_utils",
+        ":inference_table",
+        ":type_annotation_utils",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:constexpr_evaluator",
+        "//xls/dslx:errors",
+        "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
+        "//xls/dslx:warning_collector",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "validate_concrete_type",
     srcs = ["validate_concrete_type.cc"],
     hdrs = ["validate_concrete_type.h"],
     deps = [
+        ":fuzz_test_domain_validator",
         ":import_utils",
         ":inference_table",
         "//xls/common:visitor",

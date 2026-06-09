@@ -36,3 +36,13 @@ fn big_array(x: uN[128][3]) -> bool {
 fn tuple_with_big_array(x: (uN[128][2], u32)) -> bool {
     true
 }
+
+#[fuzz_test(domains=`()`)]
+fn nested_big_array(x: uN[128][2][3]) -> bool {
+    true
+}
+
+#[fuzz_test(domains=`()`)]
+fn array_of_tuples_with_wide_bits(x: (uN[128], u32)[2]) -> bool {
+    true
+}

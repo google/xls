@@ -374,6 +374,7 @@ pytype_strict_library(
         ":aot_entrypoint_py_pb2",
         "//xls/ir:xls_ir_interface_py_pb2",
         "//xls/ir:xls_type_py_pb2",
+        "//xls/ir:xls_value_py_pb2",
         "@abseil-py//absl:app",
         "@xls_pip_deps//jinja2",
     ],
