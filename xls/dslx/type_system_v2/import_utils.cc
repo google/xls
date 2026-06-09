@@ -29,6 +29,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -346,6 +347,40 @@ bool IsProcConstructor(const Function* function, const ProcDef* proc_def,
                        const FunctionType& function_type) {
   return function_type.return_type().IsProc() &&
          &function_type.return_type().AsProc().struct_def_base() == proc_def;
+}
+
+std::optional<const Function*> GetBuiltinIoFunction(
+    const Expr* expr, const TypeInfo* ti) {
+  if (expr->kind() != AstNodeKind::kInvocation) {
+    return std::nullopt;
+  }
+  const Invocation* invocation = absl::down_cast<const Invocation*>(expr);
+  const Function* function = ti->GetCallee(invocation).value_or(nullptr);
+  if (!function || !IsBuiltin(function)) {
+    return std::nullopt;
+  }
+
+  static const absl::flat_hash_set<std::string> io_functions = {
+      "join",
+      "recv",
+      "recv_if",
+      "recv_non_blocking",
+      "recv_if_non_blocking",
+      "send",
+      "send_if",
+  };
+  if (std::string called_name = function->identifier();
+      !io_functions.contains(called_name)) {
+    return std::nullopt;
+  }
+
+  return function;
+}
+
+bool IsBuiltinSendVariant(const Function* function) {
+  const std::string& identifier = function->identifier();
+  return IsBuiltin(function) && (identifier == "send" ||
+                                 identifier == "send_if");
 }
 
 }  // namespace xls::dslx

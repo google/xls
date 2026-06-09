@@ -50,6 +50,10 @@ class WarningCollector {
 
   bool empty() const { return warnings_.empty(); }
 
+  bool IsWarningEnabled(WarningKind kind) const {
+    return WarningIsEnabled(enabled_, kind);
+  }
+
  private:
   const WarningKindSet enabled_;
   std::vector<Entry> warnings_;
