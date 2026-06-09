@@ -228,7 +228,8 @@ FoldingGraph::GetConnectedComponents() {
   }
 
   // Find the connected components
-  std::vector<std::vector<NodeIndex>> components = cc.FindConnectedComponents();
+  std::vector<std::vector<NodeIndex>> components =
+      cc.FindConnectedComponents(NodeOrderInsideComponent::kByValue);
   std::vector<absl::flat_hash_set<BinaryFoldingAction*>>
       connected_components_edges;
   connected_components_edges.reserve(components.size());
