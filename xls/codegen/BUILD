@@ -1724,6 +1724,7 @@ cc_test(
         "//xls/ir:channel",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/ir:op",
         "//xls/ir:verifier",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",

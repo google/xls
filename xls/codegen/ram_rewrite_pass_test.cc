@@ -53,9 +53,11 @@
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/verifier.h"
@@ -1531,6 +1533,178 @@ TEST(RamRewritePassInvalidInputsTest, ReadResponseElementNotBits1R1W) {
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("rd_resp element rd_data (idx=0) must not "
                                  "contain token, got token.")));
+}
+
+// Helper function to create a 1RW block and run codegen pass with custom
+// active_low reset.
+absl::StatusOr<Block*> MakeBlockAndRunPassesWithReset(Package* package,
+                                                      std::string_view ram_kind,
+                                                      bool active_low) {
+  std::vector<RamConfiguration> ram_configurations;
+  if (ram_kind == "1RW") {
+    ram_configurations.push_back(
+        Ram1RWConfiguration("ram", 1, "req", "resp", "wr_comp"));
+  } else {
+    return absl::InvalidArgumentError("Only 1RW is supported for this helper");
+  }
+
+  const CodegenOptions codegen_options =
+      CodegenOptions()
+          .flop_inputs(false)
+          .flop_outputs(false)
+          .clock_name("clk")
+          .reset("rst", false, active_low, false)
+          .streaming_channel_data_suffix("_data")
+          .streaming_channel_valid_suffix("_valid")
+          .streaming_channel_ready_suffix("_ready")
+          .module_name("pipelined_proc")
+          .ram_configurations(ram_configurations);
+  const CodegenPassOptions pass_options{
+      .codegen_options = codegen_options,
+  };
+
+  XLS_ASSIGN_OR_RETURN(Proc * proc, package->GetProc("my_proc"));
+
+  auto scheduling_options = SchedulingOptions();
+  scheduling_options.pipeline_stages(2)
+      .add_constraint(
+          IOConstraint("req", IODirection::kSend, "resp", IODirection::kReceive,
+                       /*minimum_latency=*/1, /*maximum_latency=*/1))
+      .add_constraint(IOConstraint(
+          "req", IODirection::kSend, "wr_comp", IODirection::kReceive,
+          /*minimum_latency=*/1, /*maximum_latency=*/1));
+
+  XLS_ASSIGN_OR_RETURN(auto delay_estimator, GetDelayEstimator("unit"));
+  XLS_ASSIGN_OR_RETURN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator, scheduling_options));
+  XLS_ASSIGN_OR_RETURN(
+      CodegenContext context,
+      FunctionBaseToPipelinedBlock(schedule, codegen_options, proc));
+  OptimizationContext opt_context;
+  XLS_RET_CHECK_OK(
+      RunCodegenPassPipeline(pass_options, context.top_block(), opt_context));
+  return context.top_block();
+}
+
+TEST(RamRewritePassFifoTest, FifoHasRightConfigAndPorts) {
+  std::string ir_text = MakeTestProc1RW({});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block, MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"));
+
+  // Retrieve the FIFO instantiation.
+  absl::Span<Instantiation* const> instantiations = block->GetInstantiations();
+  ASSERT_EQ(instantiations.size(), 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(FifoInstantiation * fifo_instantiation,
+                           instantiations[0]->AsFifoInstantiation());
+
+  EXPECT_EQ(fifo_instantiation->fifo_config().depth(), 1);
+  EXPECT_TRUE(fifo_instantiation->fifo_config().bypass());
+  EXPECT_FALSE(fifo_instantiation->fifo_config().register_push_outputs());
+  EXPECT_FALSE(fifo_instantiation->fifo_config().register_pop_outputs());
+}
+
+TEST(RamRewritePassFifoTest, FifoRouting1RW) {
+  std::string ir_text = MakeTestProc1RW({});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block, MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"));
+
+  absl::Span<Instantiation* const> instantiations = block->GetInstantiations();
+  ASSERT_EQ(instantiations.size(), 1);
+  Instantiation* fifo = instantiations[0];
+
+  // Check inputs into the FIFO
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InstantiationInput * push_data_in,
+      block->GetInstantiationInput(fifo, FifoInstantiation::kPushDataPortName));
+  XLS_ASSERT_OK_AND_ASSIGN(InstantiationInput * push_valid_in,
+                           block->GetInstantiationInput(
+                               fifo, FifoInstantiation::kPushValidPortName));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InstantiationInput * pop_ready_in,
+      block->GetInstantiationInput(fifo, FifoInstantiation::kPopReadyPortName));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InstantiationInput * rst_in,
+      block->GetInstantiationInput(fifo, FifoInstantiation::kResetPortName));
+
+  // The data signal driving kPushDataPortName should be the RAM read data input
+  // port.
+  EXPECT_EQ(push_data_in->operand(0)->op(), Op::kInputPort);
+  EXPECT_EQ(push_data_in->operand(0)->As<InputPort>()->name(), "ram_rd_data");
+
+  // The valid signal driving kPushValidPortName should be a register read.
+  EXPECT_EQ(push_valid_in->operand(0)->op(), Op::kRegisterRead);
+
+  // The ready signal driving kPopReadyPortName should be the folded logic.
+  EXPECT_EQ(pop_ready_in->operand(0)->op(), Op::kAnd);
+
+  // The rst signal driving kResetPortName should be the block's reset input
+  // port.
+  EXPECT_EQ(rst_in->operand(0)->op(), Op::kInputPort);
+  EXPECT_EQ(rst_in->operand(0)->As<InputPort>()->name(), "rst");
+
+  // Check outputs from the FIFO
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InstantiationOutput * pop_data_out,
+      block->GetInstantiationOutput(fifo, FifoInstantiation::kPopDataPortName));
+  XLS_ASSERT_OK_AND_ASSIGN(InstantiationOutput * pop_valid_out,
+                           block->GetInstantiationOutput(
+                               fifo, FifoInstantiation::kPopValidPortName));
+  XLS_ASSERT_OK_AND_ASSIGN(InstantiationOutput * push_ready_out,
+                           block->GetInstantiationOutput(
+                               fifo, FifoInstantiation::kPushReadyPortName));
+
+  EXPECT_TRUE(pop_data_out->GetType()->IsBits());
+  EXPECT_TRUE(pop_valid_out->GetType()->IsBits());
+  EXPECT_TRUE(push_ready_out->GetType()->IsBits());
+}
+
+TEST(RamRewritePassFifoTest, ResetCorrectedIfActiveLow) {
+  std::string ir_text = MakeTestProc1RW({});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           MakeBlockAndRunPassesWithReset(package.get(), "1RW",
+                                                          /*active_low=*/true));
+
+  absl::Span<Instantiation* const> instantiations = block->GetInstantiations();
+  ASSERT_EQ(instantiations.size(), 1);
+  Instantiation* fifo = instantiations[0];
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InstantiationInput * rst_in,
+      block->GetInstantiationInput(fifo, FifoInstantiation::kResetPortName));
+
+  // Since active_low is true, the reset node to FIFO should be negated
+  // (Op::kNot) of block's reset input port.
+  Node* reset_operand = rst_in->operand(0);
+  EXPECT_EQ(reset_operand->op(), Op::kNot);
+  EXPECT_EQ(reset_operand->operand(0)->op(), Op::kInputPort);
+  EXPECT_EQ(reset_operand->operand(0)->As<InputPort>()->name(), "rst");
+}
+
+TEST(RamRewritePassFifoTest, ResetUnmodifiedIfActiveHigh) {
+  std::string ir_text = MakeTestProc1RW({});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block, MakeBlockAndRunPassesWithReset(package.get(), "1RW",
+                                                    /*active_low=*/false));
+
+  absl::Span<Instantiation* const> instantiations = block->GetInstantiations();
+  ASSERT_EQ(instantiations.size(), 1);
+  Instantiation* fifo = instantiations[0];
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InstantiationInput * rst_in,
+      block->GetInstantiationInput(fifo, FifoInstantiation::kResetPortName));
+
+  // Since active_low is false, the reset node to FIFO should be exactly the
+  // block's reset input port.
+  Node* reset_operand = rst_in->operand(0);
+  EXPECT_EQ(reset_operand->op(), Op::kInputPort);
+  EXPECT_EQ(reset_operand->As<InputPort>()->name(), "rst");
 }
 
 }  // namespace
