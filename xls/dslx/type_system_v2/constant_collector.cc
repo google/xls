@@ -91,6 +91,21 @@ class Visitor : public AstNodeVisitorWithDefault {
         trace_(std::move(trace)),
         next_channel_id_(next_channel_id) {}
 
+  absl::Status HandleBinop(const Binop* binop) override {
+    // See TODO comment in ConstexprEvaluator::InterpretExpr(const Expr*).
+    bool warn_rollover =
+        binop->parent() && binop->parent()->kind() ==
+                           AstNodeKind::kParametricBinding;
+    absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+        &import_data_, ti_, &warning_collector_,
+        table_.GetParametricEnv(parametric_context_), binop, warn_rollover);
+    if (value.ok()) {
+      trace_.SetResult(*value);
+      ti_->NoteConstExpr(binop, *value);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleConstantDef(const ConstantDef* constant_def) override {
     VLOG(6) << "Checking constant def value: " << constant_def->ToString()
             << " with type: " << type_.ToString();
@@ -345,6 +360,13 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleIndex(const Index* index) override {
+    if (type_.IsChannel() && std::holds_alternative<Expr*>(index->rhs()) &&
+        !Evaluate(std::get<Expr*>(index->rhs())).ok()) {
+      return xls::dslx::TypeInferenceErrorStatus(
+          index->span(), &type_,
+          "Non-constexpr value used in channel array indexing", file_table_);
+    }
+
     // A `Slice` actually has its bounds stored in `TypeInfo` out-of-band from
     // the real type info, mirroring the `StartAndWidthExprs` that we store in
     // the `InferenceTable`.
