@@ -432,6 +432,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
   POPULATE_FLAG(streaming_channel_ready_suffix);
   POPULATE_REPEATED_FLAG(ram_configurations);
   POPULATE_FLAG(add_invariant_assertions);
+  POPULATE_FLAG(max_trace_verbosity);
 
   // Optimizations
   POPULATE_FLAG(gate_recvs);

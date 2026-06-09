@@ -1041,9 +1041,18 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
 
   CHECK(node->macro() == "trace_fmt!" || node->macro() == "vtrace_fmt!")
       << "Expected trace_fmt! or vtrace_fmt! but got: " << node->macro();
+
+  int64_t verbosity = 0;
+  if (node->verbosity().has_value()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue verbosity_val,
+                         type_info_->GetConstExpr(*node->verbosity()));
+    XLS_ASSIGN_OR_RETURN(verbosity, verbosity_val.GetBitsOrDie().ToInt64());
+  }
+
   Bytecode::TraceData trace_data(
       std::vector<FormatStep>(node->format().begin(), node->format().end()),
-      std::move(value_fmt_descs));
+      std::move(value_fmt_descs), verbosity);
+
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kTraceFmt, std::move(trace_data)));
   return absl::OkStatus();

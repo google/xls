@@ -65,7 +65,7 @@ struct InstanceContextVTable {
   // event.
   const RecordTraceFn record_trace;
 
-  using CreateTraceBufferFn = std::string* (*)(InstanceContext * thiz);
+  using CreateTraceBufferFn = std::string* (*)(InstanceContext* thiz);
   // This is a shim to let JIT code create a buffer for accumulating trace
   // fragments.
   const CreateTraceBufferFn create_trace_buffer;
@@ -101,7 +101,7 @@ struct InstanceContextVTable {
   // information for the node.
   const RecordNodeResultFn record_node_result;
 
-  using AllocateBufferFn = void* (*)(InstanceContext * thiz, int64_t byte_size,
+  using AllocateBufferFn = void* (*)(InstanceContext* thiz, int64_t byte_size,
                                      int64_t alignment);
   // This is a shim to let the JIT allocate a large buffer on the heap for cases
   // where its required to avoid blowing out the stack.
@@ -124,13 +124,25 @@ struct InstanceContextVTable {
 // execution-relevant information and function pointers. Used for JITted procs.
 struct InstanceContext {
  public:
-  static InstanceContext CreateForFunc() { return InstanceContext(); }
-  static InstanceContext CreateForBlock() { return InstanceContext(); }
-  static InstanceContext CreateForProc(ProcInstance* inst,
-                                       std::vector<JitChannelQueue*> queues) {
+  static InstanceContext CreateForFunc(
+      int64_t max_trace_verbosity = 0) {
+    InstanceContext ctx;
+    ctx.max_trace_verbosity_ = max_trace_verbosity;
+    return ctx;
+  }
+  static InstanceContext CreateForBlock(
+      int64_t max_trace_verbosity = 0) {
+    InstanceContext ctx;
+    ctx.max_trace_verbosity_ = max_trace_verbosity;
+    return ctx;
+  }
+  static InstanceContext CreateForProc(
+      ProcInstance* inst, std::vector<JitChannelQueue*> queues,
+      int64_t max_trace_verbosity = 0) {
     InstanceContext ret;
     ret.instance = inst;
     ret.channel_queues = std::move(queues);
+    ret.max_trace_verbosity_ = max_trace_verbosity;
     return ret;
   }
 
@@ -197,6 +209,7 @@ struct InstanceContext {
   std::unique_ptr<TypeManager> type_manager = std::make_unique<TypeManager>();
 
   RuntimeObserver* observer = nullptr;
+  int64_t max_trace_verbosity_ = 0;
 };
 
 static_assert(offsetof(InstanceContext, vtable) == 0);

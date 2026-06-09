@@ -75,13 +75,15 @@ class BlockJit {
   };
 
   static absl::StatusOr<std::unique_ptr<BlockJit>> Create(
-      Block* block, bool support_observer_callbacks = false);
+      Block* block, bool support_observer_callbacks = false,
+      int64_t max_trace_verbosity = 0);
   static absl::StatusOr<std::unique_ptr<BlockJit>> Create(
-      const BlockElaboration& elab, bool support_observer_callbacks = false);
+      const BlockElaboration& elab, bool support_observer_callbacks = false,
+      int64_t max_trace_verbosity = 0);
 
   static absl::StatusOr<std::unique_ptr<BlockJit>> CreateFromAot(
       const AotEntrypointProto& entrypoint, std::string_view data_layout,
-      JitFunctionType func_ptr);
+      JitFunctionType func_ptr, int64_t max_trace_verbosity = 0);
 
   // Returns the bytes of an object file containing the compiled XLS function.
   static absl::StatusOr<JitObjectCode> CreateObjectCode(
@@ -131,16 +133,19 @@ class BlockJit {
   }
 
   bool supports_observer() const { return supports_observer_; }
+  int64_t max_trace_verbosity() const { return max_trace_verbosity_; }
+  void SetMaxTraceVerbosity(int64_t value) { max_trace_verbosity_ = value; }
 
  protected:
   BlockJit(InterfaceMetadata&& metadata, std::unique_ptr<JitRuntime>&& runtime,
            std::unique_ptr<OrcJit>&& jit, JittedFunctionBase&& function,
-           bool supports_observer)
+           bool supports_observer, int64_t max_trace_verbosity)
       : metadata_(std::move(metadata)),
         runtime_(std::move(runtime)),
         jit_(std::move(jit)),
         function_(std::move(function)),
-        supports_observer_(supports_observer) {}
+        supports_observer_(supports_observer),
+        max_trace_verbosity_(max_trace_verbosity) {}
 
   // A register may have multiple writes. Reconcile the potentially multiple
   // writes and copy the value from the active register write into the write
@@ -154,6 +159,7 @@ class BlockJit {
   std::unique_ptr<OrcJit> jit_;
   JittedFunctionBase function_;
   bool supports_observer_;
+  int64_t max_trace_verbosity_ = 0;
 };
 
 class BlockJitContinuation {
@@ -232,6 +238,11 @@ class BlockJitContinuation {
     callbacks_.observer = obs;
     return absl::OkStatus();
   }
+
+  void SetMaxTraceVerbosity(int64_t value) {
+    callbacks_.max_trace_verbosity_ = value;
+  }
+
   void ClearObserver() { callbacks_.observer = nullptr; }
   RuntimeObserver* observer() const { return callbacks_.observer; }
 

@@ -1041,6 +1041,7 @@ pytype_strict_contrib_test(
         "//xls/tools/testdata:eval_proc_main_test_broken.block.ir",
         "//xls/tools/testdata:eval_proc_main_test_memory.block.ir",
         "//xls/tools/testdata:eval_proc_main_test_memory.ir",
+        "//xls/tools/testdata:eval_proc_main_test_vtrace_fmt.ir",
         "//xls/tools/testdata:eval_proc_main_test_memory.opt.ir",
         "//xls/tools/testdata:eval_proc_main_test_memory.ram_rewrites.textproto",
         "//xls/tools/testdata:eval_proc_main_test_memory.sig.textproto",

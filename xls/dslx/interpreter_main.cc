@@ -96,6 +96,9 @@ ABSL_FLAG(bool, trace_calls, false,
 ABSL_FLAG(int64_t, max_ticks, 100000,
           "If non-zero, the maximum number of ticks to execute on any proc. If "
           "exceeded an error is returned.");
+ABSL_FLAG(int64_t, max_trace_verbosity, 100,
+          "Maximum verbosity for traces. Traces with higher verbosity are "
+          "stripped from the output. 100 by default.");
 ABSL_FLAG(std::string, evaluator, "dslx-interpreter",
           "What evaluator should be used to actually execute the dslx test. "
           "'dslx-interpreter' is the DSLX bytecode interpreter. 'ir-jit' is "
@@ -123,11 +126,6 @@ enum class CompareFlag : uint8_t {
   kNone,
   kJit,
   kInterpreter,
-};
-enum class EvaluatorType : uint8_t {
-  kDslxInterpreter,
-  kIrInterpreter,
-  kIrJit,
 };
 
 absl::StatusOr<EvaluatorType> GetEvaluatorType(std::string_view text) {
@@ -256,6 +254,8 @@ absl::StatusOr<TestResult> RealMain(
       .trace_channels = trace_channels,
       .trace_calls = trace_calls,
       .max_ticks = max_ticks,
+      .max_trace_verbosity = absl::GetFlag(FLAGS_max_trace_verbosity),
+      .evaluator = evaluator,
   };
 
   // Create a results proto if requested and plumb it through options.
