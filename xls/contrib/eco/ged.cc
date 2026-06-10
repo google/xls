@@ -837,22 +837,22 @@ AssignmentResult SolveLSAP(const RawCostMatrix& M, int m, int n,
 }
 
 // Returns a pruning function that checks cost, timeout, and upper bound.
-static std::function<bool(int64_t)> MakePruneFunction(
-    const GEDOptions& options, xls::SteadyTime start_time, bool& timed_out,
-    int maxcost_value, int& best_cost) {
+static std::function<bool(int64_t)> MakePruneFunction(const GEDOptions& options,
+                                                      bool& timed_out,
+                                                      int maxcost_value,
+                                                      int& best_cost) {
   const double timeout = options.timeout;
   const bool optimal = options.optimal;
   const int upper_bound = options.upper_bound;
   const bool strictly_decreasing = options.strictly_decreasing;
-  return [start_time, timeout, optimal, upper_bound, strictly_decreasing,
+  const xls::Stopwatch stopwatch;
+  return [stopwatch, timeout, optimal, upper_bound, strictly_decreasing,
           maxcost_value, &timed_out, &best_cost](int64_t cost) -> bool {
-    if (timeout == -1 && !optimal &&
-        best_cost < RawCostMatrix::INF) {
+    if (timeout == -1 && !optimal && best_cost < RawCostMatrix::INF) {
       return true;
     }
     if (timeout > 0 && !optimal) {
-      double elapsed = absl::ToDoubleSeconds(xls::SteadyTime::Now() - start_time);
-      if (elapsed > timeout) {
+      if (stopwatch.GetElapsedTime() > absl::Seconds(timeout)) {
         timed_out = true;
         return true;
       }
@@ -935,11 +935,9 @@ GEDResult SolveGED(const XLSGraph& G1, const XLSGraph& G2,
       (maxcost_ll > RawCostMatrix::INF) ? RawCostMatrix::INF : (int)maxcost_ll;
 
   int best_cost = RawCostMatrix::INF;
-  const xls::Stopwatch stopwatch;
   bool timed_out = false;
 
-  auto prune = MakePruneFunction(options, stopwatch.GetStartTime(), timed_out,
-                                 maxcost_value, best_cost);
+  auto prune = MakePruneFunction(options, timed_out, maxcost_value, best_cost);
   int expansion_count = 0;
 
   GetEditPaths(state, Cv, Ce, G1, G2, prune, maxcost_value, best_cost, result,
