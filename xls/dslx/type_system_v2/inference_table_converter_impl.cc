@@ -34,6 +34,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -702,11 +703,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * base_type_info,
         GetTypeInfo(function->owner(), caller_or_target_struct_context));
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * invocation_type_info,
-        import_data_.type_info_owner().New(
-            function->owner(), CreateInvocationTypeInfoName(function),
-            base_type_info));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * invocation_type_info,
+                         import_data_.type_info_owner().New(
+                             function->owner(),
+                             CreateInvocationTypeInfoName(
+                                 function, caller_or_target_struct_context),
+                             base_type_info));
 
     std::optional<const StructDefBase*> target_struct = std::nullopt;
     if (caller_or_target_struct_context.has_value()) {
@@ -953,6 +955,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (IsProcConstructor(function,
                             absl::down_cast<const ProcDef*>(*struct_def),
                             function_type->AsFunction())) {
+        ParametricEnv env;
+        if (caller_or_target_struct_context.has_value() &&
+            (*caller_or_target_struct_context)->is_struct()) {
+          env = table_.GetParametricEnv(caller_or_target_struct_context);
+        }
+
         const std::optional<ImplMember> next_member =
             (*(*struct_def)->impl())->GetMember("next");
         XLS_RET_CHECK(next_member.has_value());
@@ -960,7 +968,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_ASSIGN_OR_RETURN(const Invocation* next_invocation,
                              GetOrCreateProcDefNextInvocation(
                                  absl::down_cast<const ProcDef*>(*struct_def),
-                                 const_cast<Invocation*>(invocation),
+                                 env, const_cast<Invocation*>(invocation),
                                  parametric_free_function_type->return_type()));
 
         // Note: the callee of the synthetic next invocation is a throw-away
@@ -1025,8 +1033,19 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
   // Generates a name for a `TypeInfo` object to be used for an invocation of
   // `f`.
-  std::string CreateInvocationTypeInfoName(const Function* f) {
+  std::string CreateInvocationTypeInfoName(
+      const Function* f,
+      std::optional<const ParametricContext*> caller_or_target_struct_context) {
     if (f->impl().has_value()) {
+      // Name struct TI's more verbosely if VLOG is on at least level 3. In
+      // optimized use, it's not worth spending time on this.
+      if (VLOG_IS_ON(3) && caller_or_target_struct_context.has_value() &&
+          (*caller_or_target_struct_context)->is_struct()) {
+        return absl::Substitute(
+            "invocation_of_$0<$1>::$2", (*f->impl())->struct_ref()->ToString(),
+            table_.GetParametricEnv(caller_or_target_struct_context).ToString(),
+            f->identifier());
+      }
       return absl::Substitute("invocation_of_$0::$1",
                               (*f->impl())->struct_ref()->ToString(),
                               f->identifier());
@@ -1354,9 +1373,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // Invocation node in order to use it. For legacy procs, we had a similar
   // thing in the parser.
   absl::StatusOr<const Invocation*> GetOrCreateProcDefNextInvocation(
-      const ProcDef* proc_def, Expr* constructor_invocation,
+      const ProcDef* proc_def, ParametricEnv env, Expr* constructor_invocation,
       const TypeAnnotation* target_object_type) {
-    auto it = proc_def_next_invocations_.find(proc_def);
+    auto key = std::make_pair(proc_def, std::move(env));
+    auto it = proc_def_next_invocations_.find(key);
     if (it != proc_def_next_invocations_.end()) {
       return it->second;
     }
@@ -1369,7 +1389,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     Invocation* invocation = constructor_invocation->owner()->Make<Invocation>(
         constructor_invocation->span(), callee, std::vector<Expr*>{});
     invocation->SetParentNonLexical(constructor_invocation->parent());
-    proc_def_next_invocations_.emplace_hint(it, proc_def, invocation);
+    proc_def_next_invocations_.emplace_hint(it, key, invocation);
     std::unique_ptr<PopulateTableVisitor> visitor =
         CreatePopulateTableVisitor(&module_, &table_, &import_data_,
                                    /*typecheck_imported_module=*/nullptr);
@@ -2368,8 +2388,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               CleanseGenericTypeArgument(
                   actual_arg_context, *actual_arg_ti,
                   std::get<const TypeAnnotation*>(value_or_type)));
-          values.emplace(binding->identifier(),
-                         InterpValue::MakeTypeReference(type));
+          InterpValue type_ref = InterpValue::MakeTypeReference(type);
+          values.emplace(binding->identifier(), type_ref);
+          output_ti->NoteConstExpr(binding->name_def(), type_ref);
           if (target_context.has_value()) {
             XLS_RETURN_IF_ERROR(
                 table_.AddTypeAnnotationToVariableForParametricContext(
@@ -2504,6 +2525,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                              value.GetTypeReference());
         resolved_parametrics.emplace(binding->identifier(),
                                      const_cast<TypeAnnotation*>(type));
+        instance_type_info->NoteConstExpr(binding->name_def(), value);
         return absl::OkStatus();
       }
       XLS_ASSIGN_OR_RETURN(
@@ -3128,7 +3150,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::flat_hash_set<const Proc*> converted_procs_;
 
   // Fabricated invocations for the next() functions of ProcDefs.
-  absl::flat_hash_map<const ProcDef*, const Invocation*>
+  absl::flat_hash_map<std::pair<const ProcDef*, ParametricEnv>,
+                      const Invocation*>
       proc_def_next_invocations_;
 
   SimplifiedTypeAnnotationCache simplified_type_annotation_cache_;

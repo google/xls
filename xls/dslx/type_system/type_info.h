@@ -18,6 +18,7 @@
 #define XLS_DSLX_TYPE_SYSTEM_TYPE_INFO_H_
 
 #include <cstdint>
+#include <list>
 #include <memory>
 #include <optional>
 #include <string>
@@ -609,7 +610,7 @@ class TypeInfo {
   absl::flat_hash_map<const Proc*, std::vector<SpawnData>> spawns_;
 
   // Initializers for each callee proc.
-  absl::node_hash_map<const ProcDef*, std::vector<ProcInitializerWithTypeInfo>>
+  absl::node_hash_map<const ProcDef*, std::list<ProcInitializerWithTypeInfo>>
       proc_def_initializers_by_callee_proc_;
 
   // The same objects in `proc_def_initializers_by_callee_proc`, but with the

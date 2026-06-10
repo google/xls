@@ -1125,5 +1125,63 @@ impl CounterTest {
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
 }
 
+TEST_F(ProcHierarchyInterpreterTest, ParametricProcDef) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Counter<T: type> {
+  ch_out: chan<T> out,
+  i: T,
+}
+
+impl Counter {
+  fn new(ch_out: chan<T> out) -> Self {
+    Counter<T> { ch_out: ch_out, i: 0 }
+  }
+
+  fn next(self) {
+    let old_value = read(self.i);
+    send(token(), self.ch_out, old_value);
+    write(self.i, old_value + 1);
+  }
+}
+
+#[test]
+proc CounterTest {
+  terminator: chan<bool> out,
+  ch_in0: chan<u32> in,
+  ch_in1: chan<s16> in,
+}
+
+impl CounterTest {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (counter_out0, counter_in0) = chan<u32>("counter0");
+    let (counter_out1, counter_in1) = chan<s16>("counter1");
+    Counter<u32>::new(counter_out0).spawn();
+    Counter<s16>::new(counter_out1).spawn();
+    CounterTest {
+      terminator: terminator,
+      ch_in0: counter_in0,
+      ch_in1: counter_in1
+    }
+  }
+
+  fn next(self) {
+    let (_, value0) = recv(token(), self.ch_in0);
+    let (_, value1) = recv(token(), self.ch_in1);
+    send_if(token(), self.terminator, value0 > 2 && value1 > 2, true);
+  }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
 }  // namespace
 }  // namespace xls::dslx

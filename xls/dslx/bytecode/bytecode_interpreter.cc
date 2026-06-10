@@ -357,6 +357,9 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
       const std::vector<Bytecode>& bytecodes = frame->bf()->bytecodes();
       const Bytecode& bytecode = bytecodes.at(frame->pc());
       VLOG(2) << "Bytecode: " << bytecode.ToString(file_table());
+      if (proc_id_.has_value()) {
+        VLOG(2) << "Proc: " << proc_id_->ToString();
+      }
       VLOG(2) << std::hex << "PC: " << frame->pc() << " : "
               << bytecode.ToString(file_table());
       VLOG(3) << absl::StreamFormat(" - stack depth %d [%s]", stack_.size(),

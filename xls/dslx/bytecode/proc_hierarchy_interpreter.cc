@@ -398,7 +398,7 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
                          ti->GetCanonicalProcInitializer(external_initializer));
     XLS_RETURN_IF_ERROR(AddProcDefInstance(
         external_initializer.GetProcInitializerOrDie().proc_def(),
-        external_initializer, canonical_initializer.constructor_type_info,
+        external_initializer, canonical_initializer.next_type_info,
         canonical_initializer.constructor_env, import_data, options));
   }
 

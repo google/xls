@@ -757,6 +757,7 @@ class Visitor : public AstNodeVisitorWithDefault {
         invocation, table_.GetParametricEnv(parametric_context_),
         InterpValue::MakeProcInitializer(
             internal_initializer.proc_def(), internal_initializer.definer(),
+            internal_initializer.parametrics(),
             std::move(external_instance_args),
             std::move(external_instance_forwarded_values))));
     return absl::OkStatus();
@@ -931,9 +932,18 @@ class Visitor : public AstNodeVisitorWithDefault {
       }
     }
 
+    std::vector<InterpValue> parametrics;
+    parametrics.reserve(type.struct_def_base().parametric_bindings().size());
+    for (const ParametricBinding* binding :
+         type.struct_def_base().parametric_bindings()) {
+      XLS_ASSIGN_OR_RETURN(InterpValue value,
+                           ti_->GetConstExpr(binding->name_def()));
+      parametrics.push_back(value);
+    }
+
     auto inst = InterpValue::MakeProcInitializer(
         &absl::down_cast<const ProcDef&>(type.struct_def_base()), node,
-        member_values, std::move(forwarded_values));
+        parametrics, member_values, std::move(forwarded_values));
 
     ti_->NoteCanonicalProcInitializer(
         node, table_.GetParametricEnv(parametric_context_), inst);

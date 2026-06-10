@@ -284,6 +284,11 @@ std::string InterpValue::ToStringInternal(bool humanize,
     case InterpValueTag::kProcInitializer:
       const auto& initializer =
           std::get<std::shared_ptr<ProcInitializer>>(payload_);
+      std::vector<std::string> parametric_strings;
+      parametric_strings.reserve(initializer->parametrics().size());
+      for (const InterpValue& parametric : initializer->parametrics()) {
+        parametric_strings.push_back(parametric.ToString());
+      }
       std::vector<std::string> member_strings;
       for (const InterpValue& member : initializer->members()) {
         member_strings.push_back(member.ToString());
@@ -292,8 +297,12 @@ std::string InterpValue::ToStringInternal(bool humanize,
         member_strings.push_back(absl::Substitute(
             "fwd $0: $1", param->identifier(), value.ToString()));
       }
-      return absl::Substitute("$0($1)", initializer->proc_def()->identifier(),
-                              absl::StrJoin(member_strings, ", "));
+      return absl::Substitute(
+          "$0$1($2)", initializer->proc_def()->identifier(),
+          parametric_strings.empty()
+              ? ""
+              : absl::StrCat("<", absl::StrJoin(parametric_strings, ", "), ">"),
+          absl::StrJoin(member_strings, ", "));
   }
   return "<INVALID>";
 }
@@ -456,6 +465,13 @@ bool InterpValue::ProcInitializer::Eq(const ProcInitializer& other) const {
   if (proc_def_ != other.proc_def_) {
     return false;
   }
+  CHECK_EQ(parametrics_.size(), other.parametrics_.size());
+  for (int i = 0; i < parametrics_.size(); i++) {
+    if (parametrics_[i] != other.parametrics_[i]) {
+      return false;
+    }
+  }
+
   if (members_.size() != other.members_.size()) {
     return false;
   }
@@ -473,6 +489,7 @@ bool InterpValue::ProcInitializer::Eq(const ProcInitializer& other) const {
       return false;
     }
   }
+
   return true;
 }
 
@@ -1223,6 +1240,14 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
              rhs_inst.proc_def()->owner()->name();
     }
 
+    if (inst.parametrics().size() != rhs_inst.parametrics().size()) {
+      return inst.parametrics().size() < rhs_inst.parametrics().size();
+    }
+    for (int i = 0; i < inst.parametrics().size(); i++) {
+      if (!inst.parametrics()[i].Eq(rhs_inst.parametrics()[i])) {
+        return inst.parametrics()[i] < rhs_inst.parametrics()[i];
+      }
+    }
     if (inst.members().size() != rhs_inst.members().size()) {
       return inst.members().size() < rhs_inst.members().size();
     }
@@ -1248,6 +1273,13 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
     }
 
     return false;
+  }
+
+  if (IsTypeReference()) {
+    if (!rhs.IsTypeReference()) {
+      return false;
+    }
+    return Lt(rhs).value().IsTrue();
   }
 
   if (IsTuple()) {

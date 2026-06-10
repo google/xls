@@ -165,28 +165,32 @@ class InterpValue {
    public:
     ProcInitializer(
         const ProcDef* proc_def, const AstNode* definer,
-        std::vector<InterpValue> members,
+        std::vector<InterpValue> parametrics, std::vector<InterpValue> members,
         std::vector<std::pair<const Param*, InterpValue>> forwarded_values)
         : proc_def_(proc_def),
           definer_(definer),
+          parametrics_(std::move(parametrics)),
           members_(std::move(members)),
           forwarded_values_(std::move(forwarded_values)) {
+      CHECK_EQ(parametrics_.size(), proc_def->parametric_bindings().size());
       InitMemberMap();
     }
 
     ProcInitializer(const ProcInitializer& other)
-        : ProcInitializer(other.proc_def_, other.definer_, other.members_,
-                          std::move(other.forwarded_values_)) {}
+        : ProcInitializer(other.proc_def_, other.definer_, other.parametrics_,
+                          other.members_, other.forwarded_values_) {}
 
     ProcInitializer(ProcInitializer&& other)
         : ProcInitializer(other.proc_def_, other.definer_,
                           std::move(other.members_),
+                          std::move(other.parametrics_),
                           std::move(other.forwarded_values_)) {
       other.member_map_.clear();
     }
 
     ProcInitializer& operator=(const ProcInitializer& other) {
       proc_def_ = other.proc_def_;
+      parametrics_ = other.parametrics_;
       members_ = other.members_;
       forwarded_values_ = other.forwarded_values_;
       definer_ = other.definer_;
@@ -200,6 +204,7 @@ class InterpValue {
       }
       proc_def_ = other.proc_def_;
       members_ = std::move(other.members_);
+      parametrics_ = std::move(other.parametrics_);
       forwarded_values_ = std::move(other.forwarded_values_);
       definer_ = other.definer_;
       InitMemberMap();
@@ -209,6 +214,7 @@ class InterpValue {
 
     const ProcDef* proc_def() const { return proc_def_; }
     const AstNode* definer() const { return definer_; }
+    const std::vector<InterpValue>& parametrics() const { return parametrics_; }
     const std::vector<InterpValue>& members() const { return members_; }
     const std::vector<std::pair<const Param*, InterpValue>>& forwarded_values()
         const {
@@ -232,6 +238,7 @@ class InterpValue {
 
     const ProcDef* proc_def_;
     const AstNode* definer_;
+    std::vector<InterpValue> parametrics_;
     std::vector<InterpValue> members_;
     std::vector<std::pair<const Param*, InterpValue>> forwarded_values_;
 
@@ -298,12 +305,12 @@ class InterpValue {
 
   static InterpValue MakeProcInitializer(
       const ProcDef* proc_def, const AstNode* definer,
-      std::vector<InterpValue> members,
+      std::vector<InterpValue> parametrics, std::vector<InterpValue> members,
       std::vector<std::pair<const Param*, InterpValue>> forwarded_values) {
-    return InterpValue(
-        InterpValueTag::kProcInitializer,
-        std::make_shared<ProcInitializer>(proc_def, definer, std::move(members),
-                                          std::move(forwarded_values)));
+    return InterpValue(InterpValueTag::kProcInitializer,
+                       std::make_shared<ProcInitializer>(
+                           proc_def, definer, std::move(parametrics),
+                           std::move(members), std::move(forwarded_values)));
   }
 
   static absl::StatusOr<InterpValue> MakeArray(
