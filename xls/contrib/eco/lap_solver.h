@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#pragma once
+#ifndef XLS_ECO_LAP_SOLVER_H_
+#define XLS_ECO_LAP_SOLVER_H_
+
 #include <utility>
 #include <vector>
 
 std::pair<std::vector<int>, std::vector<int>> LinearSumAssignment(
     const std::vector<std::vector<double>>& cost_matrix);
+
+#endif  // XLS_ECO_LAP_SOLVER_H_
