@@ -263,7 +263,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       std::variant<const NameDef*, BuiltinNameDef*> any_name_def =
           std::get<NameRef*>(node->subject())->name_def();
       if (const NameDef** name_def = std::get_if<const NameDef*>(&any_name_def);
-          name_def && (*name_def)->definer()->kind() == AstNodeKind::kEnumDef) {
+          name_def && (*name_def)->definer() != nullptr &&
+          (*name_def)->definer()->kind() == AstNodeKind::kEnumDef) {
         const auto* enum_def =
             absl::down_cast<const EnumDef*>((*name_def)->definer());
         const TypeAnnotation* type_ref_annotation =

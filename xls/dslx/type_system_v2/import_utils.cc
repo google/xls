@@ -117,7 +117,10 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleNameDef(const NameDef* name_def) override {
-    return name_def->definer()->Accept(this);
+    if (name_def->definer() != nullptr) {
+      return name_def->definer()->Accept(this);
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleNameRef(const NameRef* name_ref) override {
