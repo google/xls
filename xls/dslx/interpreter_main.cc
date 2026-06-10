@@ -108,8 +108,12 @@ ABSL_FLAG(
     "this flag is off because the IR interpreter is too slow.");
 ABSL_FLAG(std::string, configured_values, "",
           "Configured values to use in DSLX parsing.");
-ABSL_FLAG(std::optional<bool>, lower_to_ir, true,
+
+// TODO: https://github.com/google/xls/issues/4376 - This should be true by
+// default when the performance issue is solved.
+ABSL_FLAG(std::optional<bool>, lower_to_ir, false,
           "Enable checking if the code cannot be lowered to IR.");
+
 ABSL_FLAG(std::optional<bool>, convert_tests, false,
           "Include tests in the IR conversion test. Has effect only when "
           "'lower_to_ir' flag is set.");

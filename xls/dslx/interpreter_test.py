@@ -1006,7 +1006,12 @@ class OutOfTreeInterpreterTest(test_base.TestCase):
     # Note: we have to supply `env` to avoid the Python testbridge setting
     # seeping in.
     p = subp.run(
-        [self.interpreter_path.full_path, temp_file.full_path],
+        [
+            self.interpreter_path.full_path,
+            temp_file.full_path,
+            '--lower_to_ir',
+            'true',
+        ],
         stdout=subp.PIPE,
         stderr=subp.PIPE,
         encoding='utf-8',
