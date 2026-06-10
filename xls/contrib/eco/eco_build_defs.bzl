@@ -332,3 +332,7 @@ def xls_patch_ir(
         name = name,
         **rule_kwargs
     )
+
+# TODO(xls-eco): Add a scheduled code-generation rule that lowers the patched,
+# schedule-constrained IR to Verilog/SystemVerilog, plus a single end-to-end
+# target taking two DSLX sources to verified, schedule-preserving patched RTL.

@@ -579,6 +579,9 @@ absl::Status PatchIr::ApplyInsertPath(
       patch_to_ir_node_map_[patch_node.name()] = n->GetName();
       break;
     }
+    // TODO(xls-eco): Regenerate channel declarations when a patch changes
+    // channel types, so Send/Receive need not assume the channel already
+    // exists (removes the manual fixup step).
     case (Op::kSend): {
       absl::Span<Node*> all_dummy_operands = absl::MakeSpan(dummy_operands);
       std::optional<Node*> predicate;

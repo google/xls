@@ -143,6 +143,9 @@ absl::StatusOr<XLSGraph> XlsIrToGraph(FunctionBase* function_base) {
     graph.add_node(graph_node);
   }
 
+  // TODO(xls-eco): Model channels as first-class graph nodes so channel
+  // additions, removals, and type changes are detected by the differencer
+  // instead of requiring the manual fixup documented in test/BUILD.
   for (Node* node : function_base->nodes()) {
     XLS_RET_CHECK(graph.node_name_to_index.contains(node->GetName()))
         << "Missing graph node for IR node " << node->GetName();
