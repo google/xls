@@ -15,7 +15,6 @@
 #include "xls/contrib/eco/mcs.h"
 
 #include <algorithm>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -29,6 +28,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
+#include "absl/time/time.h"
+#include "xls/common/stopwatch.h"
 
 // Maximum Common Subgraph search based on the RRSplit paper:
 //   Kaiqiang Yu, Kaixin Wang, Cheng Long, Laks Lakshmanan, and Reynold Cheng.
@@ -66,7 +67,7 @@ struct SearchContext {
   int plateau_search_node_threshold = 0;
   int total_nodes = 0;
   int search_nodes_since_best = 0;
-  std::chrono::steady_clock::time_point start_time;
+  xls::SteadyTime start_time;
   State best_mapping;
 };
 
@@ -534,15 +535,14 @@ bool MaybeStopForTimeout(SearchContext& ctx, int depth) {
     return false;
   }
 
-  const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-                           std::chrono::steady_clock::now() - ctx.start_time)
-                           .count();
+  const int64_t elapsed =
+      absl::ToInt64Seconds(xls::SteadyTime::Now() - ctx.start_time);
   if (elapsed < ctx.mcs_timeout_sec) {
     return false;
   }
 
   ctx.stop = true;
-  VLOG(0) << Indent(depth) << "[timeout-stop] approximate MCS stop after "
+  LOG(INFO) << Indent(depth) << "[timeout-stop] approximate MCS stop after "
           << elapsed << "s (timeout=" << ctx.mcs_timeout_sec << "s)";
   return true;
 }
@@ -558,7 +558,7 @@ bool MaybeStopForPlateau(SearchContext& ctx, int depth) {
   }
 
   ctx.stop = true;
-  VLOG(0) << Indent(depth) << "[plateau-stop] approximate MCS stop after "
+  LOG(INFO) << Indent(depth) << "[plateau-stop] approximate MCS stop after "
           << ctx.search_nodes_since_best
           << " search nodes without improvement (threshold="
           << ctx.plateau_search_node_threshold << ")";
@@ -584,7 +584,7 @@ bool MaybeUpdateBest(const State& current, const XLSGraph& query,
     const int remaining = ctx.total_nodes - ctx.best_size;
     if (remaining <= ctx.mcs_cutoff) {
       ctx.stop = true;
-      VLOG(0) << "[cutoff] MCS cutoff reached: remaining nodes (" << remaining
+      LOG(INFO) << "[cutoff] MCS cutoff reached: remaining nodes (" << remaining
               << ") <= cutoff (" << ctx.mcs_cutoff << "), stopping search";
       return true;
     }
@@ -834,14 +834,14 @@ int ComputeUpperBoundForTesting(const State& partial_mapping,
 // query-side equivalence classes once, and then run the recursive search.
 MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
                    int mcs_cutoff, bool mcs_optimal, int mcs_timeout_sec) {
-  const auto start = std::chrono::steady_clock::now();
+  const xls::Stopwatch stopwatch;
   const bool swapped = graph1.nodes.size() > graph2.nodes.size();
   const XLSGraph& query = swapped ? graph2 : graph1;
   const XLSGraph& target = swapped ? graph1 : graph2;
   const int smaller_graph_nodes = static_cast<int>(query.nodes.size());
   const int plateau_search_node_threshold =
       smaller_graph_nodes * kPlateauSearchNodeMultiplier;
-  VLOG(0) << "MCS start: G1 nodes=" << graph1.nodes.size()
+  LOG(INFO) << "MCS start: G1 nodes=" << graph1.nodes.size()
           << " edges=" << graph1.edges.size()
           << " | G2 nodes=" << graph2.nodes.size()
           << " edges=" << graph2.edges.size() << " | cutoff=" << mcs_cutoff
@@ -866,7 +866,7 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
   VLOG(1) << "Initial candidate classes=" << initial_candidates.size();
 
   if (mcs_cutoff >= 0 && total_nodes <= mcs_cutoff) {
-    VLOG(0) << "MCS cutoff: total nodes (" << total_nodes << ") <= cutoff ("
+    LOG(INFO) << "MCS cutoff: total nodes (" << total_nodes << ") <= cutoff ("
             << mcs_cutoff << "), skipping MCS (will use GED for all nodes)";
 
     MCSResult empty_result;
@@ -890,7 +890,7 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
       .plateau_search_node_threshold = plateau_search_node_threshold,
       .total_nodes = total_nodes,
       .search_nodes_since_best = 0,
-      .start_time = start,
+      .start_time = stopwatch.GetStartTime(),
       .best_mapping = {},
   };
 
@@ -912,7 +912,7 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
 
   const int remaining_nodes = total_nodes - result.size;
   if (mcs_cutoff >= 0 && remaining_nodes <= mcs_cutoff) {
-    VLOG(0) << "MCS cutoff reached: remaining unmatched nodes ("
+    LOG(INFO) << "MCS cutoff reached: remaining unmatched nodes ("
             << remaining_nodes << ") <= cutoff (" << mcs_cutoff
             << "), stopping MCS early";
   }
@@ -942,11 +942,9 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
     }
   }
 
-  const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                           std::chrono::steady_clock::now() - start)
-                           .count();
+  const int64_t elapsed = absl::ToInt64Milliseconds(stopwatch.GetElapsedTime());
 
-  VLOG(0) << "MCS done: size=" << result.size
+  LOG(INFO) << "MCS done: size=" << result.size
           << " unmatched_g1=" << result.unmatched_g1.size()
           << " unmatched_g2=" << result.unmatched_g2.size()
           << " time_ms=" << elapsed;
