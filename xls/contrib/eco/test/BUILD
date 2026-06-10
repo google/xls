@@ -16,6 +16,10 @@ load("//xls/contrib/eco:eco_build_defs.bzl", "xls_dslx_ir_diff", "xls_patch_ir")
 
 package(default_visibility = ["//xls:xls_internal"])
 
+# TODO(xls-eco): Expand the benchmark suite — complete FIR/ZSTD hybrid coverage
+# and add larger industrial-scale IRs (5k-50k nodes) to characterize the hybrid
+# pipeline's scalability ceiling.
+
 xls_dslx_ir_diff(
     name = "crc32_diff",
     srcs = [
@@ -103,7 +107,7 @@ xls_patch_ir(
 # 1. replace the header channel defs  in the patched ir with the after ir ones.
 # 2. replace top receive nodes with the after ir ones while keeping their ids
 # 3. run lec manually and it should pass.
-# 4. TODO: Treat channels as nodes and automatically re-generate channels if needed.
+# 4. TODO(xls-eco): Treat channels as nodes and automatically re-generate channels if needed.
 #
 # xls_patch_ir(
 #     name = "apfloat_patched_opt_ir",

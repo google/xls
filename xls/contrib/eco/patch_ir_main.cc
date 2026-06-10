@@ -46,8 +46,6 @@ ABSL_FLAG(std::optional<std::string>, input_schedule_path, std::nullopt,
           "Path to the schedule file.");
 namespace {
 
-using namespace xls;
-
 static constexpr std::string_view kUsage =
     R"(patch_ir_main - Apply an IrPatchProto to XLS IR.
 
@@ -65,10 +63,10 @@ Examples:
   patch_ir_main --input_ir_path=a.ir --input_patch_path=patch.bin --output_ir_path=patched.ir --input_schedule_path=schedule.textproto
 )";
 
-using PackagePipelineSchedulesProto = PackageScheduleProto;
+using PackagePipelineSchedulesProto = xls::PackageScheduleProto;
 
-static absl::StatusOr<PipelineSchedule> PipelineScheduleFromProto(
-    FunctionBase* function,
+static absl::StatusOr<xls::PipelineSchedule> PipelineScheduleFromProto(
+    xls::FunctionBase* function,
     const PackagePipelineSchedulesProto& package_schedules_proto) {
   // This the modified version of PipelineSchedule::FromProto that ignores
   // extra nodes in the proto.
@@ -77,12 +75,13 @@ static absl::StatusOr<PipelineSchedule> PipelineScheduleFromProto(
   if (schedule_it == package_schedules_proto.schedules().end()) {
     return absl::InvalidArgumentError("Function does not have a schedule.");
   }
-  ScheduleCycleMap cycle_map;
+  xls::ScheduleCycleMap cycle_map;
   for (const auto& stage : schedule_it->second.stages()) {
     for (const auto& timed_node : stage.timed_nodes()) {
       // check if function has node
       if (function->GetNode(timed_node.node()).ok()) {
-        XLS_ASSIGN_OR_RETURN(Node * node, function->GetNode(timed_node.node()));
+        XLS_ASSIGN_OR_RETURN(xls::Node * node,
+                             function->GetNode(timed_node.node()));
         cycle_map[node] = stage.stage();
       }
     }
@@ -91,7 +90,7 @@ static absl::StatusOr<PipelineSchedule> PipelineScheduleFromProto(
   if (schedule_it->second.has_min_clock_period_ps()) {
     min_clock_period_ps = schedule_it->second.min_clock_period_ps();
   }
-  return PipelineSchedule::Create(function, std::move(cycle_map),
+  return xls::PipelineSchedule::Create(function, std::move(cycle_map),
                                   /*length=*/std::nullopt, min_clock_period_ps);
 }
 static absl::Status RealMain(
@@ -108,19 +107,19 @@ static absl::Status RealMain(
     return absl::InvalidArgumentError("Missing --output_ir_path flag.");
   }
 
-  XLS_ASSIGN_OR_RETURN(std::string ir_data, GetFileContents(ir_path));
-  XLS_ASSIGN_OR_RETURN(std::string patch_data, GetFileContents(patch_path));
+  XLS_ASSIGN_OR_RETURN(std::string ir_data, xls::GetFileContents(ir_path));
+  XLS_ASSIGN_OR_RETURN(std::string patch_data, xls::GetFileContents(patch_path));
   xls_eco::IrPatchProto patch;
   patch.ParseFromString(patch_data);
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
-                       Parser::ParsePackage(ir_data));
-  FunctionBase* function_base = package->GetTop().value();
-  std::optional<PipelineSchedule> schedule;
-  PatchIr patch_ir(function_base, patch);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<xls::Package> package,
+                       xls::Parser::ParsePackage(ir_data));
+  xls::FunctionBase* function_base = package->GetTop().value();
+  std::optional<xls::PipelineSchedule> schedule;
+  xls::PatchIr patch_ir(function_base, patch);
   XLS_RETURN_IF_ERROR(patch_ir.ApplyPatch());
   if (input_schedule_path.has_value()) {
     XLS_ASSIGN_OR_RETURN(PackagePipelineSchedulesProto schedule_proto,
-                         ParseTextProtoFile<PackagePipelineSchedulesProto>(
+                         xls::ParseTextProtoFile<PackagePipelineSchedulesProto>(
                              input_schedule_path.value()));
     XLS_ASSIGN_OR_RETURN(
         schedule, PipelineScheduleFromProto(function_base, schedule_proto));
@@ -128,8 +127,8 @@ static absl::Status RealMain(
     XLS_RETURN_IF_ERROR(patch_ir.ExportScheduleProto());
   }
   auto output_dir = output_path.substr(0, output_path.find_last_of("/\\"));
-  XLS_RETURN_IF_ERROR(!FileExists(output_dir).ok()
-                          ? RecursivelyCreateDir(output_dir)
+  XLS_RETURN_IF_ERROR(!xls::FileExists(output_dir).ok()
+                          ? xls::RecursivelyCreateDir(output_dir)
                           : absl::OkStatus());
   XLS_RETURN_IF_ERROR(patch_ir.ExportIr(output_path));
   return absl::OkStatus();

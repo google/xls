@@ -162,10 +162,12 @@ cc_library(
     deps = [
         ":graph",
         ":lap_solver",
+        "//xls/common:stopwatch",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/time",
     ],
 )
 
@@ -175,10 +177,12 @@ cc_library(
     hdrs = ["mcs.h"],
     deps = [
         ":graph",
+        "//xls/common:stopwatch",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/time",
     ],
 )
 
@@ -232,6 +236,7 @@ cc_binary(
         ":xls_ir_to_graph",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
+        "//xls/common:stopwatch",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -239,5 +244,6 @@ cc_binary(
         "@com_google_absl//absl/log:vlog_is_on",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
     ],
 )
