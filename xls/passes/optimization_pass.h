@@ -394,9 +394,13 @@ class OptimizationContext {
         : target_(target), options_(nullptr) {}
 
     bool operator==(const ConstructorArguments& other) const {
-      return target_ == other.target_ &&
-             ((options_ == nullptr && other.options_ == nullptr) ||
-              *options_ == *other.options_);
+      if (target_ != other.target_) {
+        return false;
+      }
+      if (options_ == nullptr || other.options_ == nullptr) {
+        return options_ == nullptr && other.options_ == nullptr;
+      }
+      return *options_ == *other.options_;
     }
     bool operator!=(const ConstructorArguments& other) const {
       return !(*this == other);

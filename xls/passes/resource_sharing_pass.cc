@@ -2009,6 +2009,49 @@ bool ResourceSharingPass::ShouldTargetNodeForMutualExclusion(Node* node) const {
   return true;
 }
 
+// static
+absl::StatusOr<ResourceSharingPass::VisibilityAnalyses>
+ResourceSharingPass::VisibilityAnalyses::Create(FunctionBase* f,
+                                                const Config& config) {
+  auto nda = std::make_unique<NodeForwardDependencyAnalysis>();
+  XLS_RETURN_IF_ERROR(nda->Attach(f).status());
+
+  auto post_dom = std::make_unique<LazyPostDominatorAnalysis>();
+  XLS_RETURN_IF_ERROR(post_dom->Attach(f).status());
+
+  auto bdd_engine =
+      std::make_unique<BddQueryEngine>(config.max_path_count_for_bdd_engine);
+  XLS_RETURN_IF_ERROR(bdd_engine->Populate(f).status());
+
+  XLS_ASSIGN_OR_RETURN(
+      auto op_visibility,
+      OperandVisibilityAnalysis::Create(
+          config.max_path_count_for_edge_in_general_visibility_analysis,
+          nda.get(), bdd_engine.get()));
+  auto op_visibility_ptr =
+      std::make_unique<OperandVisibilityAnalysis>(std::move(op_visibility));
+
+  XLS_ASSIGN_OR_RETURN(auto visibility, VisibilityAnalysis::Create(
+                                            op_visibility_ptr.get(),
+                                            bdd_engine.get(), post_dom.get()));
+
+  XLS_ASSIGN_OR_RETURN(auto op_vis_large, OperandVisibilityAnalysis::Create(
+                                              bdd_engine->path_limit(),
+                                              nda.get(), bdd_engine.get()));
+  auto op_vis_large_ptr =
+      std::make_unique<OperandVisibilityAnalysis>(std::move(op_vis_large));
+
+  XLS_ASSIGN_OR_RETURN(
+      auto single_select_visibility,
+      SingleSelectVisibilityAnalysis::Create(op_vis_large_ptr.get(), nda.get(),
+                                             bdd_engine.get()));
+
+  return VisibilityAnalyses(std::move(nda), std::move(post_dom),
+                            std::move(bdd_engine), std::move(op_visibility_ptr),
+                            std::move(visibility), std::move(op_vis_large_ptr),
+                            std::move(single_select_visibility));
+}
+
 // This function computes the resource sharing optimization for multiplication
 // instructions. In more detail, this function folds a multiplication
 // instruction into another multiplication instruction that has the same
@@ -2041,39 +2084,11 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
       std::make_unique<CriticalPathDelayAnalysis>(options.delay_estimator);
   XLS_RETURN_IF_ERROR(critical_path_delay->Attach(f).status());
 
-  NodeForwardDependencyAnalysis nda;
   NodeBackwardDependencyAnalysis nda_backwards;
-  XLS_RETURN_IF_ERROR(nda.Attach(f).status());
   XLS_RETURN_IF_ERROR(nda_backwards.Attach(f).status());
 
-  LazyPostDominatorAnalysis post_dom;
-  XLS_RETURN_IF_ERROR(post_dom.Attach(f).status());
-
-  // Run the BDD analysis
-  std::unique_ptr<BddQueryEngine> bdd_engine =
-      std::make_unique<BddQueryEngine>(config_.max_path_count_for_bdd_engine);
-  XLS_RETURN_IF_ERROR(bdd_engine->Populate(f).status());
-
-  XLS_ASSIGN_OR_RETURN(
-      auto op_visibility,
-      OperandVisibilityAnalysis::Create(
-          config_.max_path_count_for_edge_in_general_visibility_analysis, &nda,
-          bdd_engine.get()));
-  XLS_ASSIGN_OR_RETURN(
-      auto visibility,
-      VisibilityAnalysis::Create(&op_visibility, bdd_engine.get(), &post_dom));
-
-  XLS_ASSIGN_OR_RETURN(auto op_vis_large,
-                       OperandVisibilityAnalysis::Create(
-                           bdd_engine->path_limit(), &nda, bdd_engine.get()));
-  XLS_ASSIGN_OR_RETURN(auto single_select_visibility,
-                       SingleSelectVisibilityAnalysis::Create(
-                           &op_vis_large, &nda, bdd_engine.get()));
-
-  VisibilityAnalyses visibilities = {
-      .general = *visibility,
-      .single_select = *single_select_visibility,
-  };
+  XLS_ASSIGN_OR_RETURN(VisibilityAnalyses visibilities,
+                       VisibilityAnalyses::Create(f, config_));
 
   int64_t next_node_id = 0;
   for (auto node : f->nodes()) {
@@ -2090,9 +2105,9 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
           visibilities));
 
   BitProvenanceAnalysis bpa;
-  VisibilityEstimator visibility_estimator(next_node_id - 1, bdd_engine.get(),
-                                           nda, bpa, options.area_estimator,
-                                           options.delay_estimator);
+  VisibilityEstimator visibility_estimator(
+      next_node_id - 1, visibilities.bdd_engine.get(), *visibilities.nda, bpa,
+      options.area_estimator, options.delay_estimator);
 
   // Identify the set of legal folding actions
   XLS_ASSIGN_OR_RETURN(
