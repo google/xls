@@ -67,7 +67,7 @@ struct SearchContext {
   int plateau_search_node_threshold = 0;
   int total_nodes = 0;
   int search_nodes_since_best = 0;
-  xls::SteadyTime start_time;
+  xls::Stopwatch stopwatch;
   State best_mapping;
 };
 
@@ -535,15 +535,15 @@ bool MaybeStopForTimeout(SearchContext& ctx, int depth) {
     return false;
   }
 
-  const int64_t elapsed =
-      absl::ToInt64Seconds(xls::SteadyTime::Now() - ctx.start_time);
-  if (elapsed < ctx.mcs_timeout_sec) {
+  const absl::Duration elapsed = ctx.stopwatch.GetElapsedTime();
+  if (elapsed < absl::Seconds(ctx.mcs_timeout_sec)) {
     return false;
   }
 
   ctx.stop = true;
   LOG(INFO) << Indent(depth) << "[timeout-stop] approximate MCS stop after "
-          << elapsed << "s (timeout=" << ctx.mcs_timeout_sec << "s)";
+            << absl::ToInt64Seconds(elapsed) << "s (timeout="
+            << ctx.mcs_timeout_sec << "s)";
   return true;
 }
 
@@ -890,7 +890,7 @@ MCSResult SolveMCS(const XLSGraph& graph1, const XLSGraph& graph2,
       .plateau_search_node_threshold = plateau_search_node_threshold,
       .total_nodes = total_nodes,
       .search_nodes_since_best = 0,
-      .start_time = stopwatch.GetStartTime(),
+      .stopwatch = stopwatch,
       .best_mapping = {},
   };
 
