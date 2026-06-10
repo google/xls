@@ -29,6 +29,7 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/node_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -450,7 +451,7 @@ class TypeInfo {
   absl::Status NoteProcNextInvocation(const Invocation* invocation,
                                       ParametricEnv env,
                                       InterpValue external_proc_initializer);
-  absl::StatusOr<InterpValue> GetCanonicalProcInitializer(
+  absl::StatusOr<ProcInitializerWithTypeInfo> GetCanonicalProcInitializer(
       const InterpValue& external_initializer);
 
   bool IsKnownConstExpr(const AstNode* node) const;
@@ -608,7 +609,7 @@ class TypeInfo {
   absl::flat_hash_map<const Proc*, std::vector<SpawnData>> spawns_;
 
   // Initializers for each callee proc.
-  absl::flat_hash_map<const ProcDef*, std::vector<ProcInitializerWithTypeInfo>>
+  absl::node_hash_map<const ProcDef*, std::vector<ProcInitializerWithTypeInfo>>
       proc_def_initializers_by_callee_proc_;
 
   // The same objects in `proc_def_initializers_by_callee_proc`, but with the

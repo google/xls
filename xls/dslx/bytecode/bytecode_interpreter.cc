@@ -1855,7 +1855,13 @@ absl::Status BytecodeInterpreter::EvalRead(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue::StateElementReference element,
                        source.GetStateElementReference());
   auto it = state_values_.find(element.name_def());
-  XLS_RET_CHECK(it != state_values_.end());
+  if (it == state_values_.end()) {
+    // This happens normally when e.g. ConstexprEvaluator is asked to do a spot
+    // evaluation of a read() call without having set up the proc context.
+    return absl::NotFoundError(
+        "Evaluating a read instruction in a context where the state element is "
+        "not registered.");
+  }
   stack_.Push(it->second);
   return absl::OkStatus();
 }

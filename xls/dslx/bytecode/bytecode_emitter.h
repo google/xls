@@ -74,7 +74,7 @@ class BytecodeEmitter : public ExprVisitor {
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitProcNext(
       ImportData* import_data, const TypeInfo* type_info, const Function& f,
       const std::optional<ParametricEnv>& caller_bindings,
-      const std::vector<NameDef*>& proc_members,
+      const std::vector<NameDef*>& legacy_proc_members,
       const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 
  private:
@@ -88,7 +88,7 @@ class BytecodeEmitter : public ExprVisitor {
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitInternal(
       ImportData* import_data, const TypeInfo* type_info, const Function& f,
       const std::optional<ParametricEnv>& caller_bindings,
-      const std::vector<NameDef*>& proc_members,
+      const std::vector<NameDef*>& legacy_proc_members,
       std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
       const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 

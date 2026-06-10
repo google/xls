@@ -4165,10 +4165,10 @@ absl::Status FunctionConverter::ConvertProcDef(
                        constructor_ti->GetProcDefSpawnsFrom(proc_def));
   for (const InterpValue& spawnee : spawnees) {
     XLS_ASSIGN_OR_RETURN(
-        InterpValue canonical_initializer,
+        ProcInitializerWithTypeInfo canonical_initializer,
         current_type_info_->GetCanonicalProcInitializer(spawnee));
-    XLS_RETURN_IF_ERROR(
-        AddProcDefInstantiation(proc_def, spawnee, canonical_initializer));
+    XLS_RETURN_IF_ERROR(AddProcDefInstantiation(
+        proc_def, spawnee, canonical_initializer.initializer));
   }
 
   std::optional<Function*> next_fn = GetProcNextFunction(proc_def);

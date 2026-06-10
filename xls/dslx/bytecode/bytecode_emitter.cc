@@ -179,9 +179,10 @@ BytecodeEmitter::EmitProcConfig(
 BytecodeEmitter::EmitProcNext(
     ImportData* import_data, const TypeInfo* type_info, const Function& f,
     const std::optional<ParametricEnv>& caller_bindings,
-    const std::vector<NameDef*>& proc_members,
+    const std::vector<NameDef*>& legacy_proc_members,
     const BytecodeEmitterOptions& options) {
-  return EmitInternal(import_data, type_info, f, caller_bindings, proc_members,
+  return EmitInternal(import_data, type_info, f, caller_bindings,
+                      legacy_proc_members,
                       /*channel_instance_allocator=*/std::nullopt, options);
 }
 
@@ -189,14 +190,14 @@ BytecodeEmitter::EmitProcNext(
 BytecodeEmitter::EmitInternal(
     ImportData* import_data, const TypeInfo* type_info, const Function& f,
     const std::optional<ParametricEnv>& caller_bindings,
-    const std::vector<NameDef*>& proc_members,
+    const std::vector<NameDef*>& legacy_proc_members,
     std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
     const BytecodeEmitterOptions& options) {
   XLS_RET_CHECK(type_info != nullptr);
 
   BytecodeEmitter emitter(import_data, type_info, caller_bindings,
                           channel_instance_allocator, options);
-  for (const NameDef* name_def : proc_members) {
+  for (const NameDef* name_def : legacy_proc_members) {
     emitter.namedef_to_slot_[name_def] = emitter.next_slotno_++;
   }
   XLS_RETURN_IF_ERROR(emitter.Init(f));
@@ -284,6 +285,13 @@ absl::Status BytecodeEmitter::HandleArray(const Array* node) {
 }
 
 absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
+  // Use the type inference result for ProcDef state elements.
+  std::optional<InterpValue> const_value = type_info_->GetConstExprOption(node);
+  if (const_value.has_value() && (*const_value).IsStateElementReference()) {
+    Add(Bytecode::MakeLiteral(node->span(), *const_value));
+    return absl::OkStatus();
+  }
+
   // Will place a struct instance on the stack.
   XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
 

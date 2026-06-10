@@ -26,8 +26,10 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
@@ -157,18 +159,66 @@ class InterpValueChannel {
 class InterpValueChannelManager {
  public:
   explicit InterpValueChannelManager(int64_t size = 0) : channels_(size) {}
+  virtual ~InterpValueChannelManager() = default;
 
   int64_t size() const { return channels_.size(); }
   InterpValueChannel& GetChannel(int instance_id) {
     return *channels_[instance_id];
   }
-  int64_t AllocateChannel() {
-    channels_.push_back(std::make_unique<InterpValueChannel>());
-    return channels_.size() - 1;
+
+  // Allocates a channel using the next available ID. This is for legacy procs.
+  virtual int64_t AllocateLegacyChannel() = 0;
+
+  // Allocates a channel using the passed in ID, which should have been provided
+  // by type inference. The definer is the `Param` or `ChannelDecl` node where
+  // the channel originates (`Param` only for top boundary channels).
+  virtual absl::StatusOr<InterpValueChannel*> AllocateChannel(
+      int64_t channel_id, const AstNode* definer) = 0;
+
+ protected:
+  absl::flat_hash_map<int64_t, std::unique_ptr<InterpValueChannel>> channels_;
+};
+
+class LegacyChannelManager : public InterpValueChannelManager {
+ public:
+  int64_t AllocateLegacyChannel() override {
+    const int64_t channel_id = channels_.size();
+    channels_.emplace(channel_id, std::make_unique<InterpValueChannel>());
+    return channel_id;
+  }
+
+  absl::StatusOr<InterpValueChannel*> AllocateChannel(int64_t,
+                                                      const AstNode*) override {
+    return absl::UnimplementedError(
+        "This channel manager is for legacy procs and does not implement "
+        "allocation with external IDs.");
+  }
+};
+
+class ProcDefChannelManager : public InterpValueChannelManager {
+ public:
+  int64_t AllocateLegacyChannel() override {
+    CHECK(false) << "This channel manager is for impl-style procs and does not "
+                    "implement legacy allocation.";
+  }
+
+  absl::StatusOr<InterpValueChannel*> AllocateChannel(
+      int64_t channel_id, const AstNode* definer) override {
+    XLS_RET_CHECK(definer->kind() == AstNodeKind::kParam ||
+                  definer->kind() == AstNodeKind::kChannelDecl);
+    auto& value = channels_[channel_id];
+    if (value == nullptr) {
+      value = std::make_unique<InterpValueChannel>();
+      definers_[channel_id] = definer;
+    } else if (definers_.at(channel_id) != definer) {
+      return absl::AlreadyExistsError(absl::StrCat(
+          "There is already a channel allocated to ID: ", channel_id));
+    }
+    return value.get();
   }
 
  private:
-  std::vector<std::unique_ptr<InterpValueChannel>> channels_;
+  absl::flat_hash_map<int64_t, const AstNode*> definers_;
 };
 
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"

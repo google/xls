@@ -822,6 +822,22 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleAttr(const Attr* node) override {
+    XLS_ASSIGN_OR_RETURN(const Type* lhs_type,
+                         ti_->GetItemOrError(node->lhs()));
+    if (lhs_type->IsProc()) {
+      std::optional<StructMemberNode*> member =
+          lhs_type->AsProc().struct_def_base().GetMemberByName(node->attr());
+      if (member.has_value() && IsProcDefStateType(type_, import_data_)) {
+        InterpValue value =
+            InterpValue::MakeStateElementReference((*member)->name_def());
+        ti_->NoteConstExpr(node, value);
+      }
+    }
+
+    return absl::OkStatus();
+  }
+
   absl::Status HandleParam(const Param* node) override {
     if (IsProcDefStateType(type_, import_data_)) {
       InterpValue value =
@@ -844,12 +860,13 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleChannelDecl(const ChannelDecl* node) override {
+    int64_t channel_id = ++*next_channel_id_;
     InterpValue ends = InterpValue::MakeTuple(std::vector<InterpValue>{
         InterpValue::MakeChannelReference(ChannelDirection::kOut,
-                                          /*id=*/++*next_channel_id_,
+                                          /*id=*/channel_id,
                                           /*definer=*/node),
         InterpValue::MakeChannelReference(ChannelDirection::kIn,
-                                          /*id=*/++*next_channel_id_,
+                                          /*id=*/channel_id,
                                           /*definer=*/node)});
     ti_->NoteConstExpr(node, ends);
     return absl::OkStatus();

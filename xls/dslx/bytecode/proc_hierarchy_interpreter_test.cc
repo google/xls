@@ -17,11 +17,13 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -30,6 +32,7 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/run_routines.h"
@@ -1007,6 +1010,118 @@ proc Counter {
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, std::string{temp_file.path()},
                    options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, SimpleProcDef) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+#[test]
+proc Counter {
+  terminator: chan<bool> out,
+  i: u32,
+}
+
+impl Counter {
+  fn new(terminator: chan<bool> out) -> Self {
+    Counter { terminator: terminator, i: 0 }
+  }
+
+  fn next(self) {
+    let old_value = read(self.i);
+    send_if(token(), self.terminator, old_value > 1, true);
+    write(self.i, old_value + 1);
+  }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, FailingProcDef) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+#[test]
+proc Counter {
+  terminator: chan<bool> out,
+  i: u32,
+}
+
+impl Counter {
+  fn new(terminator: chan<bool> out) -> Self {
+    Counter { terminator: terminator, i: 0 }
+  }
+
+  fn next(self) {
+    let old_value = read(self.i);
+    assert_eq(old_value, 1);
+    send_if(token(), self.terminator, old_value > 1, true);
+    write(self.i, old_value + 1);
+  }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
+  EXPECT_EQ(result.result(), TestResult::kSomeFailed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, MultiLevelProcDef) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+proc Counter {
+  ch_out: chan<u32> out,
+  i: u32,
+}
+
+impl Counter {
+  fn new(ch_out: chan<u32> out) -> Self {
+    Counter { ch_out: ch_out, i: 0 }
+  }
+
+  fn next(self) {
+    let old_value = read(self.i);
+    send(token(), self.ch_out, old_value);
+    write(self.i, old_value + 1);
+  }
+}
+
+#[test]
+proc CounterTest {
+  terminator: chan<bool> out,
+  ch_in: chan<u32> in,
+}
+
+impl CounterTest {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (counter_out, counter_in) = chan<u32>("counter");
+    Counter::new(counter_out).spawn();
+    CounterTest { terminator: terminator, ch_in: counter_in }
+  }
+
+  fn next(self) {
+    let (_, value) = recv(token(), self.ch_in);
+    send_if(token(), self.terminator, value > 1, true);
+  }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
 }
 

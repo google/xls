@@ -183,18 +183,17 @@ absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
       .status();
 }
 
-absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
-                             const Module* module, TestProc* tp,
+template <typename ProcType>
+absl::Status RunDslxTestProc(ImportData* import_data, const Module* module,
+                             ProcType* tp, TypeInfo* ti,
+                             std::optional<std::string> expected_fail_label,
                              const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
 
-  XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
-                       type_info->GetTopLevelProcTypeInfo(tp->proc()));
-
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ProcHierarchyInterpreter> hierarchy_interpreter,
-      ProcHierarchyInterpreter::Create(import_data, ti, tp->proc(), options));
+      ProcHierarchyInterpreter::Create(import_data, ti, tp, options));
 
   // There should be a single top config argument: the terminator
   // channel. Determine the actual channel object.
@@ -210,15 +209,15 @@ absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
           .status();
   std::optional<std::string> fail_label_opt =
       GetAssertionLabelFromError(status);
-  if (!status.ok() && tp->expected_fail_label().has_value() &&
+  if (!status.ok() && expected_fail_label.has_value() &&
       fail_label_opt.has_value()) {
-    if (*fail_label_opt == *tp->expected_fail_label()) {
+    if (*fail_label_opt == *expected_fail_label) {
       return absl::OkStatus();
     }
     return FailureErrorStatus(
-        tp->proc()->span(),
+        tp->span(),
         absl::StrFormat("Proc failed on '%s', but expected to fail on '%s'",
-                        *fail_label_opt, *tp->expected_fail_label()),
+                        *fail_label_opt, *expected_fail_label),
         import_data->file_table());
   }
   XLS_RETURN_IF_ERROR(status);
@@ -226,8 +225,7 @@ absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
   InterpValue ret_val = terminal_channel.Read();
   XLS_RET_CHECK(ret_val.IsBool());
   if (!ret_val.IsTrue()) {
-    return FailureErrorStatus(tp->proc()->span(),
-                              "Proc reported failure upon exit.",
+    return FailureErrorStatus(tp->span(), "Proc reported failure upon exit.",
                               import_data->file_table());
   }
   return absl::OkStatus();
@@ -303,9 +301,27 @@ absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestFunction(
 
 absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestProc(
     std::string_view name, const BytecodeInterpreterOptions& options) {
-  XLS_ASSIGN_OR_RETURN(TestProc * tp, entry_module_->GetTestProc(name));
-  return RunResult{.result = RunDslxTestProc(import_data_, type_info_,
-                                             entry_module_, tp, options)};
+  if (std::optional<TestProc*> tp = entry_module_->GetMember<TestProc>(name);
+      tp.has_value()) {
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                         type_info_->GetTopLevelProcTypeInfo((*tp)->proc()));
+    return RunResult{
+        .result = RunDslxTestProc(import_data_, entry_module_, (*tp)->proc(),
+                                  ti, (*tp)->expected_fail_label(), options)};
+  }
+
+  XLS_ASSIGN_OR_RETURN(ProcDef * proc_def,
+                       entry_module_->GetMemberOrError<ProcDef>(name));
+  XLS_ASSIGN_OR_RETURN(std::vector<ProcInitializerWithTypeInfo> initializers,
+                       type_info_->GetCanonicalProcInitializers(proc_def));
+  XLS_RET_CHECK_EQ(initializers.size(), 1);
+
+  // TODO: https://github.com/google/xls/issues/4125 - Support an expected fail
+  // label.
+  return RunResult{
+      .result = RunDslxTestProc(import_data_, entry_module_, proc_def,
+                                initializers[0].next_type_info,
+                                /*expected_fail_label=*/std::nullopt, options)};
 }
 
 TestResultData::TestResultData(absl::Time start_time,

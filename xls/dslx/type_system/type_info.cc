@@ -263,21 +263,24 @@ absl::Status TypeInfo::NoteProcNextInvocation(
 
   XLS_RET_CHECK(invocation_ti.has_value());
   TypeInfo* root = GetRoot();
-  XLS_ASSIGN_OR_RETURN(InterpValue canonical_initializer,
+  XLS_ASSIGN_OR_RETURN(ProcInitializerWithTypeInfo canonical_initializer,
                        GetCanonicalProcInitializer(external_proc_initializer));
-  const auto it =
-      root->decorated_canonical_proc_initializer_.find(canonical_initializer);
+  const auto it = root->decorated_canonical_proc_initializer_.find(
+      canonical_initializer.initializer);
   XLS_RET_CHECK(it != root->decorated_canonical_proc_initializer_.end());
   it->second->next_type_info = *invocation_ti;
   return absl::OkStatus();
 }
 
-absl::StatusOr<InterpValue> TypeInfo::GetCanonicalProcInitializer(
-    const InterpValue& external_initializer) {
+absl::StatusOr<ProcInitializerWithTypeInfo>
+TypeInfo::GetCanonicalProcInitializer(const InterpValue& external_initializer) {
   const auto it =
       external_to_canonical_proc_initializer_.find(external_initializer);
   XLS_RET_CHECK(it != external_to_canonical_proc_initializer_.end());
-  return it->second;
+  const auto decorated_it =
+      decorated_canonical_proc_initializer_.find(it->second);
+  XLS_RET_CHECK(decorated_it != decorated_canonical_proc_initializer_.end());
+  return *decorated_it->second;
 }
 
 absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(

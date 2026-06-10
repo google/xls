@@ -20,19 +20,24 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/channel_direction.h"
+#include "xls/dslx/conversion_record.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/proc.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -63,25 +68,30 @@ struct ProcRunResult {
 // ProcInstance : Proc :: Object : Class, roughly.
 class ProcInstance {
  public:
-  ProcInstance(Proc* proc, std::unique_ptr<BytecodeInterpreter> interpreter,
+  using ProcVariant = std::variant<const Proc*, const ProcDef*>;
+
+  ProcInstance(ProcVariant proc,
+               std::unique_ptr<BytecodeInterpreter> interpreter,
                std::unique_ptr<BytecodeFunction> next_fn,
                std::vector<InterpValue> proc_members, InterpValue initial_state,
                const TypeInfo* type_info,
                std::unique_ptr<DslxInterpreterEvents> events,
                bool explicit_state_access)
-      : proc_(proc),
+      : proc_name_(std::visit(
+            Visitor{[](auto* proc) { return proc->identifier(); }}, proc)),
         interpreter_(std::move(interpreter)),
         next_fn_(std::move(next_fn)),
         proc_members_(std::move(proc_members)),
         state_(std::move(initial_state)),
         type_info_(type_info),
         events_(std::move(events)),
-        explicit_state_access_(explicit_state_access) {}
+        explicit_state_access_(explicit_state_access),
+        impl_style_(std::holds_alternative<const ProcDef*>(proc)) {}
 
   // Executes a single "tick" of the ProcInstance. If a tick completes, then the
   // state is updated.
   absl::StatusOr<ProcRunResult> Run();
-  Proc* proc() const { return proc_; }
+  std::string_view proc_name() const { return proc_name_; }
   const BytecodeInterpreterOptions& options() const {
     return interpreter_->options();
   }
@@ -89,7 +99,7 @@ class ProcInstance {
   const DslxInterpreterEvents& events() const { return *events_; }
 
  private:
-  Proc* proc_;
+  std::string proc_name_;
   std::unique_ptr<BytecodeInterpreter> interpreter_;
   std::unique_ptr<BytecodeFunction> next_fn_;
   std::vector<InterpValue> proc_members_;
@@ -97,6 +107,7 @@ class ProcInstance {
   const TypeInfo* type_info_;
   std::unique_ptr<DslxInterpreterEvents> events_;
   bool explicit_state_access_;
+  bool impl_style_;
 };
 
 // An interpreter which evaluates a hierarchy of procs elaborated from the top
@@ -106,6 +117,10 @@ class ProcHierarchyInterpreter {
  public:
   static absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> Create(
       ImportData* import_data, TypeInfo* type_info, Proc* top_proc,
+      const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
+
+  static absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> Create(
+      ImportData* import_data, TypeInfo* type_info, ProcDef* top_proc,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 
   // Execute at most a single iteration of every proc in the hierarchy. Upon
@@ -129,7 +144,7 @@ class ProcHierarchyInterpreter {
   InterpValueChannel& GetInterfaceChannel(int64_t index) {
     InterpValue::ChannelReference channel_reference =
         interface_args_[index].GetChannelReference().value();
-    return channel_manager_.GetChannel(
+    return channel_manager_->GetChannel(
         channel_reference.GetChannelId().value());
   }
   std::string_view GetInterfaceChannelName(int64_t index) const {
@@ -150,14 +165,24 @@ class ProcHierarchyInterpreter {
   }
 
   absl::Span<ProcInstance> proc_instances();
-  InterpValueChannelManager& channel_manager() { return channel_manager_; }
+  InterpValueChannelManager& channel_manager() { return *channel_manager_; }
 
   absl::Status AddInterfaceChannel(std::string_view name, const Type* arg_type,
                                    const Type* payload_type);
+  absl::Status AddProcDefInterfaceChannel(std::string_view name,
+                                          const ChannelType& channel_type,
+                                          const InterpValue& channel_reference);
+
   void AddProcInstance(ProcInstance&& proc_instance);
 
  private:
-  InterpValueChannelManager channel_manager_;
+  absl::Status AddProcDefInstance(const ProcDef* proc,
+                                  const InterpValue& initializer, TypeInfo* ti,
+                                  const ParametricEnv& env,
+                                  ImportData* import_data,
+                                  const BytecodeInterpreterOptions& options);
+
+  std::unique_ptr<InterpValueChannelManager> channel_manager_;
   std::vector<ProcInstance> proc_instances_;
   std::vector<InterpValue> interface_args_;
 
@@ -169,6 +194,7 @@ class ProcHierarchyInterpreter {
     InterpValueChannel* channel;
   };
   std::vector<InterfaceChannel> interface_channels_;
+  ProcIdFactory proc_id_factory_;
 };
 
 }  // namespace xls::dslx

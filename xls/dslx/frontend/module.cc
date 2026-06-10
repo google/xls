@@ -33,6 +33,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/variant.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -159,6 +160,10 @@ std::vector<std::string> Module::GetTestNames() const {
     } else if (std::holds_alternative<TestProc*>(member)) {
       TestProc* tp = std::get<TestProc*>(member);
       result.push_back(tp->proc()->identifier());
+    } else if (std::holds_alternative<ProcDef*>(member) &&
+               GetAttribute(ToAstNode(member), AttributeKind::kTest)
+                   .has_value()) {
+      result.push_back(std::get<ProcDef*>(member)->identifier());
     }
   }
   return result;

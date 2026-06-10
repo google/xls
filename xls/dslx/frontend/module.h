@@ -37,6 +37,9 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/attribute_data.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc.h"
@@ -222,6 +225,12 @@ class Module : public AstNode {
   }
   absl::StatusOr<TestProc*> GetTestProc(std::string_view target_name) const {
     return GetMemberOrError<TestProc>(target_name);
+  }
+  absl::StatusOr<ProcDef*> GetTestProcDef(std::string_view target_name) const {
+    XLS_ASSIGN_OR_RETURN(ProcDef * proc,
+                         GetMemberOrError<ProcDef>(target_name));
+    XLS_RET_CHECK(GetAttribute(proc, AttributeKind::kTest).has_value());
+    return proc;
   }
 
   absl::Span<ModuleMember const> top() const { return top_; }
