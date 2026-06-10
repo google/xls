@@ -2717,5 +2717,161 @@ TEST_F(PipelineScheduleTest, VerifyConstraintsFailsWithViolatedArcThroughput) {
                   testing::HasSubstr("Scheduling constraint violated")));
 }
 
+TEST_F(PipelineScheduleTest, ProcStateReadBeforeWriteSucceeds) {
+  Package p(TestName());
+  Type* u32 = p.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out_ch", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb("the_proc", &p);
+  BValue tkn = pb.Literal(Value::Token());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
+                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+
+  // Read state value, add logic to force it late in the pipeline
+  BValue read = pb.StateRead(se);
+  BValue neg1 = pb.Negate(read);
+  BValue neg2 = pb.Negate(neg1);
+  BValue neg3 = pb.Negate(neg2);
+  pb.Send(out_ch, tkn, neg3);
+
+  // Next-state update is just a constant, completely independent!
+  // This would normally be scheduled at cycle 0 if not constrained.
+  BValue next = pb.Next(se, pb.Literal(UBits(42, 32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  // Configure SDC with NodeInCycleConstraint to push StateRead to stage 2.
+  // SDC must be forced to schedule Next at stage >= 2 to satisfy
+  // read-before-write constraint.
+  SchedulingOptions options;
+  options.clock_period_ps(1);
+  options.pipeline_stages(5);
+  options.add_constraint(NodeInCycleConstraint(read.node(), 2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), options));
+
+  EXPECT_GE(schedule.cycle(next.node()), schedule.cycle(read.node()));
+}
+
+TEST_F(PipelineScheduleTest,
+       ProcStateReadBeforeWriteConstraintMutualExclusion) {
+  Package p(TestName());
+  Type* u1 = p.GetBitsType(1);
+  Type* u32 = p.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p.CreateStreamingChannel("in_ch", ChannelOps::kReceiveOnly, u1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out_ch", ChannelOps::kSendOnly, u32));
+  ProcBuilder pb("the_proc", &p);
+  BValue tkn = pb.Literal(Value::Token());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
+                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+  BValue rcv = pb.Receive(in_ch, tkn);
+  BValue rcv_tkn = pb.TupleIndex(rcv, 0);
+  BValue cond = pb.TupleIndex(rcv, 1);
+  BValue cond_not = pb.Not(cond);
+  // StateRead triggers only when cond is TRUE
+  BValue read_mutually_exclusive = pb.StateRead(se, cond);
+  pb.Send(out_ch, rcv_tkn, read_mutually_exclusive);
+
+  // ADDED: StateRead triggers when cond is FALSE (cond_not is TRUE)
+  // This satisfies the "read before write" check for the write path.
+  BValue read_for_write = pb.StateRead(se, cond_not);
+  // Next-state update triggers only when cond is FALSE (cond_not is TRUE)
+  BValue next = pb.Next(se, pb.Literal(UBits(42, 32)), cond_not);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  // Constraints:
+  // - Force the main read (when cond is TRUE) to stage 2.
+  // - Force the dummy read (when cond is FALSE) to stage 0.
+  // - Force the write (when cond is FALSE) to stage 1.
+  SchedulingOptions options;
+  options.clock_period_ps(1);
+  options.pipeline_stages(5);
+  options.worst_case_throughput(2);
+  options.add_constraint(
+      NodeInCycleConstraint(read_mutually_exclusive.node(), 2));
+  options.add_constraint(NodeInCycleConstraint(read_for_write.node(), 0));
+  options.add_constraint(NodeInCycleConstraint(next.node(), 1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), options));
+  // Verify schedule:
+  // - next (1) is scheduled after read_for_write (0) -> OK (same activation)
+  // - next (1) is scheduled before read (2) -> OK (mutually exclusive)
+  EXPECT_EQ(schedule.cycle(read_for_write.node()), 0);
+  EXPECT_EQ(schedule.cycle(next.node()), 1);
+  EXPECT_EQ(schedule.cycle(read_mutually_exclusive.node()), 2);
+}
+
+TEST_F(PipelineScheduleTest, ProcWriteBeforeReadFailsVerification) {
+  Package p(TestName());
+  ProcBuilder pb("the_proc", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
+                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+  BValue read = pb.StateRead(se);
+  BValue next = pb.Next(se, pb.Literal(UBits(42, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  // Run scheduler to get a valid base schedule first.
+  SchedulingOptions options;
+  options.clock_period_ps(1);
+  options.pipeline_stages(3);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule valid_schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), options));
+
+  // Modify the valid cycle map to violate sequential safety.
+  ScheduleCycleMap cycle_map = valid_schedule.GetCycleMap();
+  cycle_map[read.node()] = 2;
+  cycle_map[next.node()] = 0;
+
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
+                           PipelineSchedule::Create(proc, cycle_map));
+
+  // Verification should fail because next (0) is scheduled before read (2).
+  EXPECT_THAT(schedule.Verify(),
+              StatusIs(absl::StatusCode::kInternal,
+                       testing::HasSubstr("scheduled before state read")));
+}
+
+TEST_F(PipelineScheduleTest, ProcFeedbackArcTooLongFailsVerification) {
+  Package p(TestName());
+  ProcBuilder pb("the_proc", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
+                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+  pb.StateRead(se);
+  BValue next = pb.Next(se, pb.Literal(UBits(42, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  // Run scheduler to get a valid base schedule first.
+  SchedulingOptions options;
+  options.clock_period_ps(1);
+  options.pipeline_stages(3);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule valid_schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), options));
+
+  // Set worst-case throughput to 2.
+  // So we need: cycle(next) - cycle(read) < 2.
+  proc->SetInitiationInterval(2);
+
+  // Modify the valid cycle map.
+  ScheduleCycleMap cycle_map = valid_schedule.GetCycleMap();
+  cycle_map[next.node()] = 2;
+
+  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
+                           PipelineSchedule::Create(proc, cycle_map));
+
+  // Verification should fail because next (2) - read (0) = 2
+  EXPECT_THAT(schedule.Verify(),
+              StatusIs(absl::StatusCode::kInternal,
+                       testing::HasSubstr("scheduled too late after")));
+}
 }  // namespace
 }  // namespace xls

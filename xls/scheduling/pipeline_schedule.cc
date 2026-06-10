@@ -296,25 +296,37 @@ absl::Status PipelineSchedule::Verify() const {
   if (function_base()->IsProc()) {
     Proc* proc = function_base()->AsProcOrDie();
     int64_t worst_case_throughput = proc->GetInitiationInterval().value_or(1);
-    if (worst_case_throughput >= 1) {
-      for (Next* next : proc->next_values()) {
-        absl::Span<StateRead* const> reads =
-            proc->GetStateReadsByStateElement(next->state_element());
-        for (StateRead* read : reads) {
+    for (Next* next : proc->next_values()) {
+      absl::Span<StateRead* const> reads =
+          proc->GetStateReadsByStateElement(next->state_element());
+      for (StateRead* read : reads) {
+        bool mutually_exclusive = false;
+        if (read->predicate().has_value() && next->predicate().has_value()) {
+          Node* a = read->predicate().value();
+          Node* b = next->predicate().value();
+          if ((a->op() == Op::kNot && a->operand(0) == b) ||
+              (b->op() == Op::kNot && b->operand(0) == a)) {
+            mutually_exclusive = true;
+          }
+        }
+        if (!mutually_exclusive) {
           XLS_RET_CHECK_LE(cycle(read), cycle(next))
               << "Next node " << next << " scheduled before state read "
               << read;
+        }
+        if (worst_case_throughput >= 1) {
           XLS_RET_CHECK_LT(cycle(next), cycle(read) + worst_case_throughput)
               << "Next node " << next << " scheduled too late after " << read
               << " (stage " << cycle(next) << " is not less than "
               << cycle(read) << " + WCT " << worst_case_throughput << ")";
+        } else {
+          VLOG(5) << "No worst-case throughput set for proc " << proc->name()
+                  << ", skipping verification of Next nodes.";
         }
       }
-    } else {
-      VLOG(5) << "No worst-case throughput set for proc " << proc->name()
-              << ", skipping verification of Next nodes.";
     }
   }
+
   // Verify initial nodes in cycle 0. Final nodes in final cycle.
   return absl::OkStatus();
 }

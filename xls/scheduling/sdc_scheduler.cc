@@ -286,6 +286,54 @@ absl::Status SDCSchedulingModel::AddAllDefUseConstraints() {
       XLS_RETURN_IF_ERROR(AddDefUseConstraints(node, std::nullopt));
     }
   }
+
+  // Enforce sequential read-before-write constraints on state elements.
+  for (const ScheduleNode& schedule_node : graph_.nodes()) {
+    Node* node = schedule_node.node;
+    if (node->Is<StateRead>()) {
+      StateRead* read = node->As<StateRead>();
+      if (schedule_node.is_dead_after_synthesis) {
+        continue;
+      }
+      StateElement* state_element = read->state_element();
+      Proc* proc = read->function_base()->AsProcOrDie();
+
+      // Loop over all Next nodes writing to this state element in the parent
+      // proc.
+      for (Next* next : proc->next_values(state_element)) {
+        if (graph_.GetScheduleNode(next).is_dead_after_synthesis) {
+          continue;
+        }
+
+        bool mutually_exclusive = false;
+        if (read->predicate().has_value() && next->predicate().has_value()) {
+          Node* a = read->predicate().value();
+          Node* b = next->predicate().value();
+          if ((a->op() == Op::kNot && a->operand(0) == b) ||
+              (b->op() == Op::kNot && b->operand(0) == a)) {
+            mutually_exclusive = true;
+          }
+        }
+        if (mutually_exclusive) {
+          continue;
+        }
+
+        math_opt::Variable cycle_at_read = cycle_var_.at(read);
+        math_opt::Variable cycle_at_next = cycle_var_.at(next);
+
+        // Enforce LP constraint: cycle(Next) - cycle(StateRead) >= 0
+        model_.AddLinearConstraint(
+            cycle_at_next - cycle_at_read >= 0.0,
+            absl::StrFormat("state_read_before_write_%s_%s", read->GetName(),
+                            next->GetName()));
+
+        VLOG(2) << "Setting state read-before-write constraint: "
+                << absl::StrFormat("cycle[%s] - cycle[%s] >= 0",
+                                   next->GetName(), read->GetName());
+      }
+    }
+  }
+
   return absl::OkStatus();
 }
 
