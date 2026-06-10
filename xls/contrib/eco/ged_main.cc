@@ -14,7 +14,6 @@
 
 #include <sys/resource.h>
 
-#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -29,9 +28,11 @@
 #include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/stopwatch.h"
 #include "xls/contrib/eco/ged.h"
 #include "xls/contrib/eco/ged_cost_functions.h"
 #include "xls/contrib/eco/ir_patch_gen.h"
@@ -184,12 +185,12 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
         "positional arguments.");
   }
 
-  VLOG(0) << "Starting GED run: file1=" << before_ir << " file2=" << after_ir
-          << " use_mcs=" << (use_mcs ? 1 : 0) << " mcs_cutoff=" << mcs_cutoff
-          << " mcs_optimal=" << (mcs_optimal ? 1 : 0)
-          << (mcs_timeout >= 0 ? absl::StrCat(" mcs_timeout=", mcs_timeout)
-                               : "")
-          << " timeout=" << timeout << " optimal=" << optimal;
+  LOG(INFO) << "Starting GED run: file1=" << before_ir << " file2=" << after_ir
+            << " use_mcs=" << (use_mcs ? 1 : 0) << " mcs_cutoff=" << mcs_cutoff
+            << " mcs_optimal=" << (mcs_optimal ? 1 : 0)
+            << (mcs_timeout >= 0 ? absl::StrCat(" mcs_timeout=", mcs_timeout)
+                                 : "")
+            << " timeout=" << timeout << " optimal=" << optimal;
 
   XLS_ASSIGN_OR_RETURN(XLSGraph graph1, xls::ParseIrFileToGraph(before_ir));
   XLS_ASSIGN_OR_RETURN(XLSGraph graph2, xls::ParseIrFileToGraph(after_ir));
@@ -206,13 +207,12 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
           << " edges=" << graph2.edges.size();
 
   if (use_mcs) {
-    VLOG(0) << "MCS preprocessing enabled";
-    auto t_mcs_start = std::chrono::high_resolution_clock::now();
+    LOG(INFO) << "MCS preprocessing enabled";
+    xls::Stopwatch mcs_stopwatch;
     mcs::MCSResult mcs =
         mcs::SolveMCS(graph1, graph2, mcs_cutoff, mcs_optimal, mcs_timeout);
-    auto t_mcs_end = std::chrono::high_resolution_clock::now();
     stats.mcs_runtime_sec =
-        std::chrono::duration<double>(t_mcs_end - t_mcs_start).count();
+        absl::ToDoubleSeconds(mcs_stopwatch.GetElapsedTime());
 
     stats.mcs_matched_nodes = mcs.mapping.size();
     stats.mcs_matched_edges = mcs.edge_size;
@@ -281,16 +281,18 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
         100.0 * (1.0 - (double)stats.residual_g1_edges / stats.g1_edges);
   }
 
+  // TODO(xls-eco): Prune unbalanced residuals before GED with a single LSAP
+  // over the residual node sets (reusing lap_solver) to pair compatible
+  // leftovers and expose the rest as pure inserts/deletes, leaving only the
+  // balanced, ambiguous remainder for the exact search.
   ged::GEDOptions options = CreateUserCosts();
   options.timeout = timeout;
   options.optimal = optimal;
 
-  VLOG(0) << "Running GED solver";
-  auto t_ged_start = std::chrono::high_resolution_clock::now();
+  LOG(INFO) << "Running GED solver";
+  xls::Stopwatch ged_stopwatch;
   ged::GEDResult result = ged::SolveGED(graph1, graph2, options);
-  auto t_ged_end = std::chrono::high_resolution_clock::now();
-  stats.ged_runtime_sec =
-      std::chrono::duration<double>(t_ged_end - t_ged_start).count();
+  stats.ged_runtime_sec = absl::ToDoubleSeconds(ged_stopwatch.GetElapsedTime());
 
   stats.ged_total_cost = result.total_cost;
   stats.ged_node_dels = result.node_deletions.size();
@@ -301,15 +303,15 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
   stats.ged_edge_subs = result.edge_substitutions.size();
   stats.ged_rss_peak_bytes = GetRSSBytes();
 
-  VLOG(0) << "GED finished: total_cost=" << result.total_cost
-          << " node_cost=" << result.node_cost
-          << " edge_cost=" << result.edge_cost;
-  VLOG(0) << "Node ops: " << "subs=" << result.node_substitutions.size()
-          << " dels=" << result.node_deletions.size()
-          << " ins=" << result.node_insertions.size()
-          << " | Edge ops: subs=" << result.edge_substitutions.size()
-          << " dels=" << result.edge_deletions.size()
-          << " ins=" << result.edge_insertions.size();
+  LOG(INFO) << "GED finished: total_cost=" << result.total_cost
+            << " node_cost=" << result.node_cost
+            << " edge_cost=" << result.edge_cost;
+  LOG(INFO) << "Node ops: " << "subs=" << result.node_substitutions.size()
+            << " dels=" << result.node_deletions.size()
+            << " ins=" << result.node_insertions.size()
+            << " | Edge ops: subs=" << result.edge_substitutions.size()
+            << " dels=" << result.edge_deletions.size()
+            << " ins=" << result.edge_insertions.size();
 
   if (VLOG_IS_ON(2)) {
     for (int idx : result.node_deletions) {
@@ -405,8 +407,8 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
       return absl::InternalError(
           absl::StrCat("Failed to write patch proto to '", patch_path, "'."));
     }
-    VLOG(0) << "Wrote patch proto: " << patch_path << " (" << serialized.size()
-            << " bytes)";
+    LOG(INFO) << "Wrote patch proto: " << patch_path << " ("
+              << serialized.size() << " bytes)";
   }
 
   if (!report_path.empty()) {
@@ -430,7 +432,7 @@ absl::Status RealMain(const std::vector<std::string_view>& positional_args,
       return absl::InternalError(
           absl::StrCat("Failed to write report to '", report_path, "'."));
     }
-    VLOG(0) << "Wrote execution report: " << report_path;
+    LOG(INFO) << "Wrote execution report: " << report_path;
   }
 
   return absl::OkStatus();
