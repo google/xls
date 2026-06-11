@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <limits>
 #include <list>
+#include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -46,6 +47,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
@@ -1131,6 +1133,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   absl::flat_hash_map<int64_t, TrackedBValue>
       jump_conditions_by_begin_slice_index;
 
+  std::vector<SharedFunctionCall> shared_function_calls;
+
   for (int64_t slice_index = 0; slice_index < func.slices.size();
        ++slice_index) {
     const GeneratedFunctionSlice& slice =
@@ -1293,6 +1297,7 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       const IOOp* after_op = slice.after_op;
       XLSCC_CHECK(after_op->op != OpType::kLoopBegin, body_loc);
       XLSCC_CHECK(after_op->op != OpType::kLoopEndJump, body_loc);
+
       std::optional<ChannelBundle> optional_bundle =
           translator_io_.GetChannelBundleForOp(*after_op, body_loc);
       // Do not generate an explicit token network.
@@ -1312,12 +1317,19 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       // but the received value is only valid in the activation in which the IO
       // op happens, so it must be consumed in that same activation by the slice
       // after it.
-      XLS_ASSIGN_OR_RETURN(
-          GenerateIOReturn io_return,
-          translator_io_.GenerateIO(*after_op, token, last_op_out_value, pb,
-                                    optional_bundle,
-                                    /*extra_condition=*/
-                                    io_active));
+      GenerateIOReturn io_return;
+
+      if (after_op->op == OpType::kSharedCall) {
+        XLS_RETURN_IF_ERROR(
+            InterceptSharedCall(*after_op, last_op_out_value, io_active,
+                                &shared_function_calls, &io_return, pb));
+      } else {
+        XLS_ASSIGN_OR_RETURN(io_return, translator_io_.GenerateIO(
+                                            *after_op, token, last_op_out_value,
+                                            pb, optional_bundle,
+                                            /*extra_condition=*/
+                                            io_active));
+      }
 
       // Add IO parameter if applicable
       if (io_return.received_value.valid()) {
@@ -1420,6 +1432,9 @@ NewFSMGenerator::GenerateNewFSMInvocation(
     }
   }  // slices
 
+  // Shared function calls
+  XLS_RETURN_IF_ERROR(GenerateSharedCalls(shared_function_calls, pb));
+
   for (auto& [key, or_nodes] :
        next_value_conditions_by_state_element_and_value) {
     xls::StateElement* state_elem = std::get<0>(key);
@@ -1488,6 +1503,139 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       .return_value = return_value,
       .returns_this_activation = finished_iteration,
       .extra_next_state_values = extra_next_state_values};
+}
+
+absl::Status NewFSMGenerator::InterceptSharedCall(
+    const IOOp& op, TrackedBValue op_out_value, TrackedBValue io_active,
+    std::vector<SharedFunctionCall>* shared_function_calls,
+    GenerateIOReturn* io_return, xls::ProcBuilder& pb) {
+  const GeneratedFunction* shared_call_func = op.shared_call_func;
+  const std::shared_ptr<CType>& shared_call_param_type =
+      op.shared_call_param_type;
+
+  const xls::SourceInfo& func_loc =
+      translator_types().GetLoc(*shared_call_func->clang_decl);
+
+  XLSCC_CHECK(shared_call_func != nullptr, func_loc);
+  XLSCC_CHECK(shared_call_param_type != nullptr, func_loc);
+
+  io_return->io_condition = io_active;
+
+  TrackedBValue val =
+      pb.TupleIndex(op_out_value, 0, func_loc,
+                    /*name=*/
+                    absl::StrFormat("%s_value", Debug_OpName(op)));
+  XLSCC_CHECK(val.valid(), func_loc);
+
+  XLS_ASSIGN_OR_RETURN(
+      xls::Type * ret_type,
+      translator_types().TranslateTypeToXLS(shared_call_param_type, func_loc));
+
+  io_return->received_value = pb.Literal(xls::ZeroOfType(ret_type), func_loc);
+
+  shared_function_calls->push_back(
+      SharedFunctionCall{.func = shared_call_func,
+                         .input = val,
+                         .output = io_return->received_value,
+                         .condition = io_active});
+
+  return absl::OkStatus();
+}
+
+absl::Status NewFSMGenerator::GenerateSharedCalls(
+    const std::vector<SharedFunctionCall>& shared_function_calls,
+    xls::ProcBuilder& pb) {
+  absl::flat_hash_map<const GeneratedFunction*,
+                      std::vector<const SharedFunctionCall*>>
+      shared_calls_by_func;
+  std::vector<const GeneratedFunction*> shared_funcs_in_order;
+  for (const SharedFunctionCall& call : shared_function_calls) {
+    if (!shared_calls_by_func.contains(call.func)) {
+      shared_funcs_in_order.push_back(call.func);
+    }
+    shared_calls_by_func[call.func].push_back(&call);
+  }
+  // Ordered for determinism
+  for (const GeneratedFunction* shared_func : shared_funcs_in_order) {
+    if (shared_func->slices.size() != 1) {
+      return absl::InternalError(
+          absl::StrFormat("Shared function's should have exactly 1 slice (no "
+                          "side effects), %s has %li slices",
+                          shared_func->clang_decl->getNameAsString().c_str(),
+                          shared_func->slices.size()));
+    }
+
+    const GeneratedFunctionSlice& only_slice = shared_func->slices.front();
+    const xls::SourceInfo& func_loc =
+        translator_types().GetLoc(*shared_func->clang_decl);
+
+    // Route input
+    std::vector<TrackedBValue> input_conditions;
+    std::vector<TrackedBValue> input_values;
+
+    for (const SharedFunctionCall* call : shared_calls_by_func[shared_func]) {
+      input_conditions.push_back(call->condition);
+      input_values.push_back(call->input);
+    }
+
+    std::reverse(input_values.begin(), input_values.end());
+
+    TrackedBValue selector =
+        pb.Concat(ToNativeBValues(input_conditions), func_loc);
+
+    (void)pb.Assert(
+        pb.Literal(xls::Value::Token(), func_loc),
+        /*condition=*/
+        pb.Eq(
+            selector,
+            pb.BitSlice(pb.OneHot(selector, /*priority=*/xls::LsbOrMsb::kLsb),
+                        /*start=*/0, /*end=*/input_conditions.size(), func_loc),
+            func_loc),
+        /*message=*/
+        "Shared function input selector is not one hot, two calls in one "
+        "activation?",
+        /*label=*/std::nullopt, func_loc);
+
+    TrackedBValue input_select = pb.PrioritySelect(
+        selector, ToNativeBValues(input_values),
+        /*default_value=*/
+        pb.Literal(xls::ZeroOfType(input_values.at(0).GetType()), func_loc),
+        func_loc,
+        /*name=*/
+        absl::StrFormat("shared_input_select_%s",
+                        shared_func->clang_decl->getNameAsString()));
+
+    xls::Type* input_type = input_select.GetType();
+    XLSCC_CHECK(input_type->IsTuple(), func_loc);
+    xls::TupleType* input_tuple_type = input_type->AsTupleOrDie();
+
+    std::vector<TrackedBValue> expanded_args;
+    XLSCC_CHECK_EQ(only_slice.function->params().size(),
+                   input_tuple_type->size(), func_loc);
+    for (int64_t i = 0; i < only_slice.function->params().size(); ++i) {
+      expanded_args.push_back(
+          pb.TupleIndex(input_select, i, func_loc,
+                        /*name=*/
+                        absl::StrFormat("expanded_arg_%li", i)));
+    }
+
+    TrackedBValue invoke =
+        pb.Invoke(ToNativeBValues(expanded_args), only_slice.function, func_loc,
+                  /*name*/
+                  absl::StrFormat("shared_invoke_%s",
+                                  shared_func->clang_decl->getNameAsString()));
+
+    // Route output
+    for (const SharedFunctionCall* call : shared_calls_by_func[shared_func]) {
+      xls::Node* output_node = call->output.node();
+      XLSCC_CHECK_NE(output_node, nullptr, func_loc);
+      XLSCC_CHECK(output_node->GetType()->IsEqualTo(invoke.node()->GetType()),
+                  func_loc);
+      XLS_RETURN_IF_ERROR(output_node->ReplaceUsesWith(invoke.node()));
+    }
+  }
+
+  return absl::OkStatus();
 }
 
 absl::Status NewFSMGenerator::GenerateTransitionFromThisSlice(

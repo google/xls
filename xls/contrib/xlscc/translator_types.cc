@@ -1343,6 +1343,9 @@ std::string Debug_OpName(OpType op) {
     case OpType::kActivationBarrier:
       op_type_name = "barrier";
       break;
+    case OpType::kSharedCall:
+      op_type_name = "shared_call";
+      break;
   }
   return op_type_name;
 }

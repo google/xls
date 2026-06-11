@@ -92,6 +92,7 @@ struct TranslationContext;
 
 struct FunctionInProgress {
   bool add_this_return;
+  bool generate_shared_functions;
   // Destroy the builder last to avoid TrackedBValue errors
   std::unique_ptr<TrackedFunctionBuilder> builder;
   std::vector<const clang::NamedDecl*> ref_returns;
@@ -369,6 +370,11 @@ class Translator final : public GeneratorBase,
   absl::Status GenerateIR_SubBlock(GeneratedFunction* gen_func,
                                    xls::Package* package,
                                    int top_level_init_interval);
+
+  // Generates the stub function that invokes a shared function via IO ops.
+  absl::Status GenerateIR_SharedFunctionStub(
+      GeneratedFunction& sf, const clang::FunctionDecl* funcdecl,
+      const FunctionInProgress& header);
 
   // Generate some useful metadata after either GenerateIR_Top_Function() or
   //  GenerateIR_Block() has run.
@@ -655,6 +661,10 @@ class Translator final : public GeneratorBase,
   absl::flat_hash_map<const clang::NamedDecl*,
                       std::unique_ptr<GeneratedFunction>>
       inst_functions_;
+
+  absl::flat_hash_map<const clang::NamedDecl*, SharedFunctionImpl>
+      shared_function_impls_;
+
   // Functions are put into this map between GenerateIR_Function_Header
   //  and GenerateIR_Function_Body
   absl::flat_hash_map<const clang::NamedDecl*,
@@ -1382,7 +1392,8 @@ class Translator final : public GeneratorBase,
   absl::StatusOr<FunctionInProgress> GenerateIR_Function_Header(
       GeneratedFunction& sf, const clang::FunctionDecl* funcdecl,
       std::string_view name_override = "", bool force_static = false,
-      bool member_references_become_channels = false);
+      bool member_references_become_channels = false,
+      bool generate_shared_functions = false);
   absl::Status GenerateIR_Function_Body(GeneratedFunction& sf,
                                         const clang::FunctionDecl* funcdecl,
                                         const FunctionInProgress& header);
