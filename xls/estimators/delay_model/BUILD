@@ -36,6 +36,7 @@ cc_library(
     name = "delay_estimator",
     srcs = ["delay_estimator.cc"],
     hdrs = ["delay_estimator.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         "//xls/common:math_util",
         "//xls/common/status:status_macros",
@@ -131,6 +132,7 @@ cc_library(
     name = "analyze_critical_path",
     srcs = ["analyze_critical_path.cc"],
     hdrs = ["analyze_critical_path.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":delay_estimator",
         ":delay_info_cc_proto",
@@ -192,6 +194,7 @@ cc_library(
     name = "delay_estimators",
     srcs = ["delay_estimators.cc"],
     hdrs = ["delay_estimators.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":delay_estimator",
         "//xls/ir",

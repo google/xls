@@ -812,6 +812,9 @@ absl::StatusOr<Operation*> translateOp(::xls::Literal& node, OpBuilder& builder,
   switch (node.GetType()->kind()) {
     case ::xls::TypeKind::kBits:
       return translateBitsLiteral(node.value().bits(), *loc, builder, state);
+    case ::xls::TypeKind::kToken:
+      return xls::AfterAllOp::create(builder, *loc, ValueRange{})
+          .getOperation();
     default: {
       auto result_type = translateType(node.GetType(), builder);
 
