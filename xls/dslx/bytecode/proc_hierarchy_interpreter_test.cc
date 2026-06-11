@@ -1211,8 +1211,6 @@ impl CounterDelegate {
     Counter::new(ch_out).spawn();
     CounterDelegate {}
   }
-
-  fn next(self) {}
 }
 
 #[test]

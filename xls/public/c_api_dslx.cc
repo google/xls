@@ -766,6 +766,8 @@ xls_dslx_attribute_kind xls_dslx_attribute_get_kind(
       return xls_dslx_attribute_kind_test_proc;
     case xls::AttributeKind::kQuickcheck:
       return xls_dslx_attribute_kind_quickcheck;
+    case xls::AttributeKind::kTrivialNext:
+      return xls_dslx_attribute_kind_trivial_next;
     default:
       CHECK(false) << "Unhandled attribute kind";
   }

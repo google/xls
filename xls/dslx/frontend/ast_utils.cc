@@ -675,4 +675,23 @@ std::vector<ParametricBinding*> GetRequiredParametricBindings(
   return result;
 }
 
+std::optional<Function*> GetProcNextFunction(const ProcDef* proc) {
+  if (!proc->impl().has_value()) {
+    return std::nullopt;
+  }
+
+  for (ImplMember member : (*proc->impl())->members()) {
+    if (!std::holds_alternative<Function*>(member)) {
+      continue;
+    }
+
+    Function* fn = std::get<Function*>(member);
+    if (fn->identifier() == "next") {
+      return fn;
+    }
+  }
+
+  return std::nullopt;
+}
+
 }  // namespace xls::dslx

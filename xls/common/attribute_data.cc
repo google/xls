@@ -42,6 +42,8 @@ std::string AttributeKindToString(AttributeKind kind) {
       return "fuzz_test";
     case AttributeKind::kFuzzDomain:
       return "fuzz_domain";
+    case AttributeKind::kTrivialNext:
+      return "trivial_next";
   }
 }
 

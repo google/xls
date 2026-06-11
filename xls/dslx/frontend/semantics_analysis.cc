@@ -32,6 +32,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/attribute_data.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -636,6 +637,62 @@ class ProcStateVisitor : public AstNodeVisitorWithDefault {
   absl::flat_hash_set<const Function*> processed_fns_;
 };
 
+// Generates a trivial `fn next(self) {}` in a ProcDef that does not have one.
+// Such a proc may just be stitching subprocs together and not doing any runtime
+// work itself. The generated `next` function has an attribute of kind
+// `kTrivialNext` for downstream recognition. For example, IR conversion
+// requires the top proc to have a real next function.
+class ProcDefTrivialNextGenerator : public AstNodeVisitorWithDefault {
+ public:
+  absl::Status HandleProcDef(const ProcDef* node) override {
+    if (!node->impl().has_value()) {
+      return absl::OkStatus();
+    }
+    if (GetProcNextFunction(node).has_value()) {
+      return absl::OkStatus();
+    }
+
+    Module* module = node->owner();
+    XLS_RET_CHECK(node->impl().has_value());
+    Impl* impl = *node->impl();
+
+    NameDef* fn_name_def =
+        module->Make<NameDef>(node->span(), "next", /*definer=*/nullptr);
+    SelfTypeAnnotation* self_type = module->Make<SelfTypeAnnotation>(
+        node->span(), /*explicit_type=*/false, impl->struct_ref());
+    NameDef* self_name_def =
+        module->Make<NameDef>(node->span(), "self", /*definer=*/nullptr);
+    Param* param = module->Make<Param>(self_name_def, self_type);
+    self_name_def->set_definer(param);
+    std::vector<Param*> params = {param};
+    StatementBlock* body = module->Make<StatementBlock>(
+        node->span(), std::vector<Statement*>{}, /*trailing_semi=*/true,
+        /*has_braces=*/true);
+    Function* next_fn = module->Make<Function>(
+        node->span(), fn_name_def, std::vector<ParametricBinding*>{}, params,
+        /*return_type=*/nullptr, body, FunctionTag::kNormal,
+        /*is_public=*/false, /*is_stub=*/false);
+    next_fn->set_impl(impl);
+    fn_name_def->set_definer(next_fn);
+
+    Attribute* trivial_next_attr = module->Make<Attribute>(
+        Span::None(), Span::None(),
+        AttributeData(AttributeKind::kTrivialNext,
+                      std::vector<AttributeData::Argument>{}));
+    next_fn->AddAttribute(trivial_next_attr);
+
+    impl->AddMember(next_fn);
+    return absl::OkStatus();
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+};
+
 }  // namespace
 
 SemanticsAnalysis::SemanticsAnalysis(bool suppress_warnings)
@@ -644,6 +701,9 @@ SemanticsAnalysis::SemanticsAnalysis(bool suppress_warnings)
 absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
     Module& module, WarningCollector& warning_collector,
     ImportData& import_data) {
+  ProcDefTrivialNextGenerator next_generator;
+  XLS_RETURN_IF_ERROR(module.Accept(&next_generator));
+
   if (module.attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
     XLS_ASSIGN_OR_RETURN(Module * builtins,
                          import_data.GetBuiltinStubsModule());

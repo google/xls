@@ -150,21 +150,6 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
   return v.retval();
 }
 
-std::optional<Function*> GetProcNextFunction(const ProcDef* proc) {
-  for (ImplMember member : (*proc->impl())->members()) {
-    if (!std::holds_alternative<Function*>(member)) {
-      continue;
-    }
-
-    Function* fn = std::get<Function*>(member);
-    if (fn->identifier() == "next") {
-      return fn;
-    }
-  }
-
-  return std::nullopt;
-}
-
 absl::StatusOr<std::vector<Function*>> GetProcConstructors(const ProcDef* p,
                                                            TypeInfo* ti) {
   XLS_RET_CHECK(p->impl().has_value());

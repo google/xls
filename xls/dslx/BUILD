@@ -971,6 +971,7 @@ cc_library(
     deps = [
         ":conversion_record",
         ":interp_value",
+        "//xls/common:attribute_data",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
@@ -979,7 +980,6 @@ cc_library(
         "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:proc_id",
-        "//xls/dslx/ir_convert:ir_conversion_utils",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system_v2:import_utils",

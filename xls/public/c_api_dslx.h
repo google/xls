@@ -72,6 +72,7 @@ enum {
   xls_dslx_attribute_kind_test,
   xls_dslx_attribute_kind_test_proc,
   xls_dslx_attribute_kind_quickcheck,
+  xls_dslx_attribute_kind_trivial_next,
 };
 
 typedef int32_t xls_dslx_attribute_argument_kind;

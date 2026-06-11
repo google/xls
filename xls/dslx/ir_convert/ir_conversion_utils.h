@@ -18,7 +18,6 @@
 // tree traversal (which is the main concern of ir_converter.h/cc.
 
 #include <cstdint>
-#include <optional>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -41,9 +40,6 @@ absl::StatusOr<int64_t> ResolveDimToInt(const TypeDim& dim,
 // case, and if so, remove the argument.
 absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
                                     const ParametricEnv& bindings);
-
-// Returns the `next` function of the given proc, if it has one.
-std::optional<Function*> GetProcNextFunction(const ProcDef* proc);
 
 // Returns the one function in `proc` that is a constructor by signature. This
 // errors unless there is one and only one constructor, because currently there

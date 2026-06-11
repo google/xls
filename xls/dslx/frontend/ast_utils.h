@@ -286,6 +286,9 @@ class ParametricBindings {
 std::vector<ParametricBinding*> GetRequiredParametricBindings(
     const std::vector<ParametricBinding*>& bindings);
 
+// Returns the `next` function of the given proc, if it has one.
+std::optional<Function*> GetProcNextFunction(const ProcDef* proc);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

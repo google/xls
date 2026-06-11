@@ -627,5 +627,25 @@ impl Main {
                           "chan(uN[32], dir=out) }")));
 }
 
+TEST(TypecheckV2Test, ProcDefWithoutNextFunction) {
+  EXPECT_THAT(
+      R"(
+proc Loopback {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Loopback {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Loopback { c_in, c_out }
+  }
+}
+)",
+      TypecheckSucceeds(
+          HasNodeWithType("fn next(self) {}",
+                          "(Loopback { c_in: chan(uN[32], dir=in), c_out: "
+                          "chan(uN[32], dir=out) }) -> ()")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
