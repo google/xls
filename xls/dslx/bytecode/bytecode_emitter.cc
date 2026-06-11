@@ -30,6 +30,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -203,8 +204,28 @@ BytecodeEmitter::EmitInternal(
   XLS_RETURN_IF_ERROR(emitter.Init(f));
   XLS_RETURN_IF_ERROR(f.body()->AcceptExpr(&emitter));
 
+  LogEmittedFunction(f, type_info, emitter.bytecode_);
+
   return BytecodeFunction::Create(f.owner(), &f, type_info,
                                   std::move(emitter.bytecode_));
+}
+
+void BytecodeEmitter::LogEmittedFunction(const Function& f, const TypeInfo* ti,
+                                         const std::vector<Bytecode>& content) {
+  if (!VLOG_IS_ON(5)) {
+    return;
+  }
+
+  std::string fn_name = f.identifier();
+  if (f.impl().has_value()) {
+    fn_name =
+        absl::StrCat((*f.impl())->struct_ref()->ToString(), "::", fn_name);
+  }
+
+  VLOG(5) << "Emitted " << fn_name << " with TI " << ti->name() << ":";
+  for (const Bytecode& bytecode : content) {
+    VLOG(5) << "\t" << bytecode.ToString(*f.owner()->file_table());
+  }
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>

@@ -92,6 +92,9 @@ class BytecodeEmitter : public ExprVisitor {
       std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
       const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 
+  static void LogEmittedFunction(const Function& f, const TypeInfo* ti,
+                                 const std::vector<Bytecode>& content);
+
   // Initializes namedef-to-slot mapping.
   absl::Status Init(const Function& f);
 

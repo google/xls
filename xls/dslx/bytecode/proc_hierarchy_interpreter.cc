@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -164,7 +165,9 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   }
 
   auto channel_instance_allocator = [&]() -> int64_t {
-    return hierarchy_interpreter->channel_manager().AllocateLegacyChannel();
+    return hierarchy_interpreter->channel_manager()
+        .AllocateLegacyChannel()
+        .GetId();
   };
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> config_bf,
@@ -385,6 +388,19 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
     }
   }
 
+  for (const auto& [param, forwarded_value] :
+       initializer.GetProcInitializerOrDie().forwarded_values()) {
+    if (forwarded_value.IsChannelReference()) {
+      const InterpValue::ChannelReference& channel_ref =
+          forwarded_value.GetChannelReferenceOrDie();
+      VLOG(5) << "Binding forwarded channel " << forwarded_value.ToString()
+              << " in proc " << proc->identifier()
+              << " with param: " << param->ToString();
+      absl::down_cast<ProcDefChannelManager*>(channel_manager_.get())
+          ->Forward(*channel_ref.GetChannelId(), ti, param);
+    }
+  }
+
   AddProcInstance(ProcInstance(proc, std::move(next_interpreter),
                                std::move(next_bf), member_values, self_object,
                                ti, std::move(events),
@@ -460,20 +476,25 @@ absl::Status ProcHierarchyInterpreter::AddInterfaceChannel(
         "of the top-level proc. Channel type of argument `%s`: %s",
         name, arg_type->ToString()));
   }
+
+  InterpValueChannel* channel = nullptr;
   auto channel_instance_allocator = [&]() -> int64_t {
-    return channel_manager_->AllocateLegacyChannel();
+    channel = &channel_manager_->AllocateLegacyChannel();
+    return channel->GetId();
   };
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue channel_reference,
       CreateChannelReference(channel_type->direction(), channel_type,
                              channel_instance_allocator));
+
+  XLS_RET_CHECK(channel != nullptr);
   interface_args_.push_back(channel_reference);
-  interface_channels_.push_back(InterfaceChannel{
-      .name = std::string{name},
-      .direction = channel_type->direction(),
-      .payload_type = &channel_type->payload_type(),
-      .channel = &channel_manager_->GetChannel(channel_manager_->size() - 1)});
+  interface_channels_.push_back(
+      InterfaceChannel{.name = std::string{name},
+                       .direction = channel_type->direction(),
+                       .payload_type = &channel_type->payload_type(),
+                       .channel = channel});
   return absl::OkStatus();
 }
 

@@ -1321,10 +1321,10 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
                        channel_value.GetChannelReference());
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
 
-  XLS_RET_CHECK(channel_reference.GetChannelId().has_value());
-  int64_t channel_id = channel_reference.GetChannelId().value();
   XLS_RET_CHECK(channel_manager_.has_value());
-  InterpValueChannel& channel = (*channel_manager_)->GetChannel(channel_id);
+  InterpValueChannel& channel =
+      (*channel_manager_)
+          ->GetChannel(frames_.back().type_info(), channel_reference);
 
   XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
                        bytecode.channel_data());
@@ -1355,10 +1355,10 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
                        bytecode.channel_data());
 
-  XLS_RET_CHECK(channel_reference.GetChannelId().has_value());
-  int64_t channel_id = channel_reference.GetChannelId().value();
   XLS_RET_CHECK(channel_manager_.has_value());
-  InterpValueChannel& channel = (*channel_manager_)->GetChannel(channel_id);
+  InterpValueChannel& channel =
+      (*channel_manager_)
+          ->GetChannel(frames_.back().type_info(), channel_reference);
 
   if (condition.IsTrue()) {
     if (channel.IsEmpty()) {
@@ -1398,10 +1398,10 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
                        channel_value.GetChannelReference());
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
 
-  XLS_RET_CHECK(channel_reference.GetChannelId().has_value());
-  int64_t channel_id = channel_reference.GetChannelId().value();
   XLS_RET_CHECK(channel_manager_.has_value());
-  InterpValueChannel& channel = (*channel_manager_)->GetChannel(channel_id);
+  InterpValueChannel& channel =
+      (*channel_manager_)
+          ->GetChannel(frames_.back().type_info(), channel_reference);
 
   if (condition.IsTrue()) {
     if (options_.trace_channels() && events_.has_value()) {

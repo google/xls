@@ -27,10 +27,12 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/bytecode/frame.h"
@@ -138,10 +140,11 @@ struct BlockedChannelInfo {
 // A FIFO which backs channel instances in the bytecode interpreter.
 class InterpValueChannel {
  public:
-  InterpValueChannel() = default;
+  InterpValueChannel(int64_t id) : id_(id) {}
   InterpValueChannel(const InterpValueChannel&) = delete;
   InterpValueChannel(InterpValueChannel&&) = default;
 
+  int64_t GetId() const { return id_; }
   bool IsEmpty() const { return queue_.empty(); }
   int64_t GetSize() const { return queue_.size(); }
   InterpValue Read() {
@@ -152,6 +155,7 @@ class InterpValueChannel {
   void Write(InterpValue v) { queue_.push_back(std::move(v)); }
 
  private:
+  const int64_t id_;
   std::deque<InterpValue> queue_;
 };
 
@@ -162,12 +166,11 @@ class InterpValueChannelManager {
   virtual ~InterpValueChannelManager() = default;
 
   int64_t size() const { return channels_.size(); }
-  InterpValueChannel& GetChannel(int instance_id) {
-    return *channels_[instance_id];
-  }
+  virtual InterpValueChannel& GetChannel(
+      const TypeInfo* ti, const InterpValue::ChannelReference& channel_ref) = 0;
 
   // Allocates a channel using the next available ID. This is for legacy procs.
-  virtual int64_t AllocateLegacyChannel() = 0;
+  virtual InterpValueChannel& AllocateLegacyChannel() = 0;
 
   // Allocates a channel using the passed in ID, which should have been provided
   // by type inference. The definer is the `Param` or `ChannelDecl` node where
@@ -181,10 +184,12 @@ class InterpValueChannelManager {
 
 class LegacyChannelManager : public InterpValueChannelManager {
  public:
-  int64_t AllocateLegacyChannel() override {
+  InterpValueChannel& AllocateLegacyChannel() override {
     const int64_t channel_id = channels_.size();
-    channels_.emplace(channel_id, std::make_unique<InterpValueChannel>());
-    return channel_id;
+    return *channels_
+                .emplace(channel_id,
+                         std::make_unique<InterpValueChannel>(channel_id))
+                .first->second;
   }
 
   absl::StatusOr<InterpValueChannel*> AllocateChannel(int64_t,
@@ -193,22 +198,31 @@ class LegacyChannelManager : public InterpValueChannelManager {
         "This channel manager is for legacy procs and does not implement "
         "allocation with external IDs.");
   }
+
+  InterpValueChannel& GetChannel(
+      const TypeInfo*,
+      const InterpValue::ChannelReference& channel_ref) override {
+    CHECK(channel_ref.GetChannelId().has_value());
+    return *channels_[*channel_ref.GetChannelId()];
+  }
 };
 
 class ProcDefChannelManager : public InterpValueChannelManager {
  public:
-  int64_t AllocateLegacyChannel() override {
+  InterpValueChannel& AllocateLegacyChannel() override {
     CHECK(false) << "This channel manager is for impl-style procs and does not "
                     "implement legacy allocation.";
   }
 
   absl::StatusOr<InterpValueChannel*> AllocateChannel(
       int64_t channel_id, const AstNode* definer) override {
+    VLOG(5) << "Allocating channel ID " << channel_id
+            << " from definer: " << definer->ToString();
     XLS_RET_CHECK(definer->kind() == AstNodeKind::kParam ||
                   definer->kind() == AstNodeKind::kChannelDecl);
     auto& value = channels_[channel_id];
     if (value == nullptr) {
-      value = std::make_unique<InterpValueChannel>();
+      value = std::make_unique<InterpValueChannel>(channel_id);
       definers_[channel_id] = definer;
     } else if (definers_.at(channel_id) != definer) {
       return absl::AlreadyExistsError(absl::StrCat(
@@ -217,8 +231,33 @@ class ProcDefChannelManager : public InterpValueChannelManager {
     return value.get();
   }
 
+  // When a ProcDef constructor forwards a channel to another ProcDef
+  // constructor, this function should be used to associate the original channel
+  // ID with the Param that is the definer of the forwarded ChannelReference.
+  void Forward(int64_t channel_id, const TypeInfo* ti, const Param* param) {
+    InterpValueChannel* channel = channels_.at(channel_id).get();
+    forwarded_channels_.insert_or_assign(std::make_pair(ti, param), channel);
+  }
+
+  InterpValueChannel& GetChannel(
+      const TypeInfo* ti,
+      const InterpValue::ChannelReference& channel_ref) override {
+    CHECK(channel_ref.GetChannelId().has_value());
+    const auto it_by_id = channels_.find(*channel_ref.GetChannelId());
+    if (it_by_id != channels_.end()) {
+      return *it_by_id->second;
+    }
+
+    CHECK(channel_ref.GetDefiner().has_value());
+    return *forwarded_channels_.at(
+        std::make_pair(ti, *channel_ref.GetDefiner()));
+  }
+
  private:
   absl::flat_hash_map<int64_t, const AstNode*> definers_;
+  absl::flat_hash_map<std::pair<const TypeInfo*, const AstNode*>,
+                      InterpValueChannel*>
+      forwarded_channels_;
 };
 
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"

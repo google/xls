@@ -144,8 +144,8 @@ class ProcHierarchyInterpreter {
   InterpValueChannel& GetInterfaceChannel(int64_t index) {
     InterpValue::ChannelReference channel_reference =
         interface_args_[index].GetChannelReference().value();
-    return channel_manager_->GetChannel(
-        channel_reference.GetChannelId().value());
+    return channel_manager_->GetChannel(/*type_info=*/nullptr,
+                                        channel_reference);
   }
   std::string_view GetInterfaceChannelName(int64_t index) const {
     return interface_channels_[index].name;
