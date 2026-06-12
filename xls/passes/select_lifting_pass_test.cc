@@ -35,7 +35,9 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -45,8 +47,9 @@
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 
-namespace xls {
+namespace m = ::xls::op_matchers;
 
+namespace xls {
 namespace {
 
 class FakeDelayEstimator : public DelayEstimator {
@@ -945,6 +948,384 @@ TEST_F(SelectLiftingPassTest, DontLiftMulWithIdentityIfLatencyIncreases) {
   OptimizationPassOptions opts;
   XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("unit"));
   EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(false));
+}
+
+TEST_F(SelectLiftingPassTest, LiftCompareIfLatencyPermits) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+
+  BValue x_ne_y = fb.Ne(x, y);
+  BValue zero = fb.Literal(UBits(0, 32));
+  BValue x_ne_zero = fb.Ne(x, zero);
+
+  // sel(s, [x != y, x != 0]) -> should lift to Ne(x, sel(s, [y, 0]))
+  BValue sel = fb.Select(s, {x_ne_y, x_ne_zero});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  // Force latency check by providing a delay estimator
+  OptimizationPassOptions opts;
+  XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("unit"));
+
+  // This should fail/crash initially with the production error!
+  EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(true));
+}
+
+TEST_F(SelectLiftingPassTest, LiftThroughOneHotSelectWithOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue x = fb.Param("x", u32_type);
+  BValue y = fb.Param("y", u32_type);
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+
+  BValue oh_selector = fb.OneHot(selector, LsbOrMsb::kLsb);
+
+  BValue zero = fb.Literal(UBits(0, 32));
+  BValue x_add_zero = fb.Add(x, zero);
+  BValue x_add_y = fb.Add(x, y);
+
+  BValue ohs = fb.OneHotSelect(oh_selector, {x_add_zero, x_add_y, x_add_zero});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Add(m::Param("x"),
+             m::OneHotSelect(m::OneHot(m::Param("selector"), LsbOrMsb::kLsb),
+                             {m::Literal(0), m::Param("y"), m::Literal(0)})));
+}
+
+TEST_F(SelectLiftingPassTest, NoLiftThroughOneHotSelectWithoutOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue x = fb.Param("x", u32_type);
+  BValue y = fb.Param("y", u32_type);
+  BValue selector = fb.Param("selector", p->GetBitsType(3));
+
+  BValue zero = fb.Literal(UBits(0, 32));
+  BValue x_add_zero = fb.Add(x, zero);
+  BValue x_add_y = fb.Add(x, y);
+
+  BValue ohs = fb.OneHotSelect(selector, {x_add_zero, x_add_y, x_add_zero});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+}
+
+TEST_F(SelectLiftingPassTest, LiftAndThroughOneHotSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue x = fb.Param("x", u32_type);
+  BValue y = fb.Param("y", u32_type);
+  BValue z = fb.Param("z", u32_type);
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+
+  BValue x_and_y = fb.And(x, y);
+  BValue x_and_z = fb.And(x, z);
+
+  BValue ohs = fb.OneHotSelect(selector, {x_and_y, x_and_z});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::And(m::Param("x"), m::OneHotSelect(m::Param("selector"),
+                                            {m::Param("y"), m::Param("z")})));
+}
+
+TEST_F(SelectLiftingPassTest, LiftSubThroughOneHotSelectWithOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue val = fb.Param("val", u32_type);
+  BValue x = fb.Param("x", u32_type);
+  BValue y = fb.Param("y", u32_type);
+  BValue selector = fb.Param("selector", p->GetBitsType(1));
+
+  BValue oh_selector = fb.OneHot(selector, LsbOrMsb::kLsb);
+
+  BValue sub_x = fb.Subtract(val, x);
+  BValue sub_y = fb.Subtract(val, y);
+
+  BValue ohs = fb.OneHotSelect(oh_selector, {sub_x, sub_y});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Sub(m::Param("val"),
+             m::OneHotSelect(m::OneHot(m::Param("selector"), LsbOrMsb::kLsb),
+                             {m::Param("x"), m::Param("y")})));
+}
+
+TEST_F(SelectLiftingPassTest,
+       LiftMulThroughOneHotSelectWithAtMostOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue val = fb.Param("val", u32_type);
+  BValue x = fb.Param("x", u32_type);
+  BValue a = fb.Param("a", u32_type);
+  BValue b = fb.Param("b", u32_type);
+
+  BValue eq_1 = fb.Eq(x, fb.Literal(UBits(1, 32)));
+  BValue eq_2 = fb.Eq(x, fb.Literal(UBits(2, 32)));
+  BValue selector = fb.Concat({eq_2, eq_1});
+
+  BValue mul_a = fb.UMul(val, a);
+  BValue mul_b = fb.UMul(val, b);
+
+  BValue ohs = fb.OneHotSelect(selector, {mul_a, mul_b});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::UMul(m::Param("val"),
+              m::OneHotSelect(m::Concat(m::Eq(m::Param("x"), m::Literal(2)),
+                                        m::Eq(m::Param("x"), m::Literal(1))),
+                              {m::Param("a"), m::Param("b")})));
+}
+
+TEST_F(SelectLiftingPassTest,
+       NoLiftMulThroughOneHotSelectWithNonOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue val = fb.Param("val", u32_type);
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+  BValue a = fb.Param("a", u32_type);
+  BValue b = fb.Param("b", u32_type);
+
+  BValue mul_a = fb.UMul(val, a);
+  BValue mul_b = fb.UMul(val, b);
+
+  BValue ohs = fb.OneHotSelect(selector, {mul_a, mul_b});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+}
+
+TEST_F(SelectLiftingPassTest, LiftOrThroughOneHotSelectWithNonzeroSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue a = fb.Param("a", u32_type);
+  BValue b = fb.Param("b", u32_type);
+  BValue param_p = fb.Param("p", p->GetBitsType(2));
+
+  BValue selector = fb.Or(param_p, fb.Literal(UBits(1, 2)));
+
+  BValue constant = fb.Literal(UBits(42, 32));
+  BValue or_a = fb.Or(a, constant);
+  BValue or_b = fb.Or(b, constant);
+
+  BValue ohs = fb.OneHotSelect(selector, {or_a, or_b});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  // This should fail initially (RED state)
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Or(m::Literal(42), m::OneHotSelect(m::Or(m::Param("p"), m::Literal(1)),
+                                            {m::Param("a"), m::Param("b")})));
+}
+
+TEST_F(SelectLiftingPassTest,
+       NoLiftOrThroughOneHotSelectWithMaybeZeroSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue a = fb.Param("a", u32_type);
+  BValue b = fb.Param("b", u32_type);
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+
+  BValue constant = fb.Literal(UBits(42, 32));
+  BValue or_a = fb.Or(a, constant);
+  BValue or_b = fb.Or(b, constant);
+
+  BValue ohs = fb.OneHotSelect(selector, {or_a, or_b});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+}
+
+TEST_F(SelectLiftingPassTest,
+       LiftArrayIndexThroughOneHotSelectWithAtMostOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue zero = fb.Literal(UBits(0, 32));
+  BValue val1 = fb.Param("val1", u32_type);
+  BValue val2 = fb.Param("val2", u32_type);
+  BValue array = fb.Array({zero, val1, val2}, u32_type);
+
+  BValue x = fb.Param("x", u32_type);
+  BValue eq_1 = fb.Eq(x, fb.Literal(UBits(1, 32)));
+  BValue eq_2 = fb.Eq(x, fb.Literal(UBits(2, 32)));
+  BValue selector = fb.Concat({eq_2, eq_1});
+
+  BValue idx0 = fb.Param("idx0", u32_type);
+  BValue idx1 = fb.Param("idx1", u32_type);
+  BValue access0 = fb.ArrayIndex(array, {idx0});
+  BValue access1 = fb.ArrayIndex(array, {idx1});
+  BValue ohs = fb.OneHotSelect(selector, {access0, access1});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  // This should fail initially (RED state)
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayIndex(
+          m::Array(m::Literal(0), m::Param("val1"), m::Param("val2")),
+          {m::OneHotSelect(m::Concat(m::Eq(m::Param("x"), m::Literal(2)),
+                                     m::Eq(m::Param("x"), m::Literal(1))),
+                           {m::Param("idx0"), m::Param("idx1")})}));
+}
+
+TEST_F(SelectLiftingPassTest,
+       NoLiftArrayIndexThroughOneHotSelectWithAtMostOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue non_zero = fb.Literal(UBits(42, 32));
+  BValue val1 = fb.Param("val1", u32_type);
+  BValue val2 = fb.Param("val2", u32_type);
+  BValue array = fb.Array({non_zero, val1, val2}, u32_type);
+
+  BValue x = fb.Param("x", u32_type);
+  BValue eq_1 = fb.Eq(x, fb.Literal(UBits(1, 32)));
+  BValue eq_2 = fb.Eq(x, fb.Literal(UBits(2, 32)));
+  BValue selector = fb.Concat({eq_2, eq_1});
+
+  BValue idx0 = fb.Param("idx0", u32_type);
+  BValue idx1 = fb.Param("idx1", u32_type);
+  BValue access0 = fb.ArrayIndex(array, {idx0});
+  BValue access1 = fb.ArrayIndex(array, {idx1});
+  BValue ohs = fb.OneHotSelect(selector, {access0, access1});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+}
+
+TEST_F(SelectLiftingPassTest,
+       LiftShllValueThroughOneHotSelectWithAtMostOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue a = fb.Param("a", u32_type);
+  BValue b = fb.Param("b", u32_type);
+  BValue shift_amount = fb.Param("shift_amount", u32_type);
+
+  BValue shll_a = fb.Shll(a, shift_amount);
+  BValue shll_b = fb.Shll(b, shift_amount);
+
+  BValue x = fb.Param("x", u32_type);
+  BValue eq_1 = fb.Eq(x, fb.Literal(UBits(1, 32)));
+  BValue eq_2 = fb.Eq(x, fb.Literal(UBits(2, 32)));
+  BValue selector = fb.Concat({eq_2, eq_1});
+
+  BValue ohs = fb.OneHotSelect(selector, {shll_a, shll_b});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Shll(m::OneHotSelect(m::Concat(m::Eq(m::Param("x"), m::Literal(2)),
+                                        m::Eq(m::Param("x"), m::Literal(1))),
+                              {m::Param("a"), m::Param("b")}),
+              m::Param("shift_amount")));
+}
+
+TEST_F(SelectLiftingPassTest,
+       LiftEqThroughOneHotSelectWithAtMostOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue a = fb.Param("a", u32_type);
+  BValue b = fb.Param("b", u32_type);
+  BValue const_42 = fb.Literal(UBits(42, 32));
+
+  BValue eq_a = fb.Eq(const_42, a);
+  BValue eq_b = fb.Eq(const_42, b);
+
+  BValue x = fb.Param("x", u32_type);
+  BValue eq_1 = fb.Eq(x, fb.Literal(UBits(1, 32)));
+  BValue eq_2 = fb.Eq(x, fb.Literal(UBits(2, 32)));
+  BValue selector = fb.Concat({eq_2, eq_1});
+
+  BValue ohs = fb.OneHotSelect(selector, {eq_a, eq_b});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Eq(m::Literal(42),
+            m::OneHotSelect(m::Concat(m::Eq(m::Param("x"), m::Literal(2)),
+                                      m::Eq(m::Param("x"), m::Literal(1))),
+                            {m::Param("a"), m::Param("b")})));
+}
+
+TEST_F(SelectLiftingPassTest,
+       NoLiftEqThroughOneHotSelectWithAtMostOneHotSelectorAndUnknownShared) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue a = fb.Param("a", u32_type);
+  BValue b = fb.Param("b", u32_type);
+  BValue unknown_val = fb.Param("unknown_val", u32_type);
+
+  BValue eq_a = fb.Eq(unknown_val, a);
+  BValue eq_b = fb.Eq(unknown_val, b);
+
+  BValue x = fb.Param("x", u32_type);
+  BValue eq_1 = fb.Eq(x, fb.Literal(UBits(1, 32)));
+  BValue eq_2 = fb.Eq(x, fb.Literal(UBits(2, 32)));
+  BValue selector = fb.Concat({eq_2, eq_1});
+
+  BValue ohs = fb.OneHotSelect(selector, {eq_a, eq_b});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
 
 FUZZ_TEST(IrFuzzTest, IrFuzzSelectLifting)
