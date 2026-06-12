@@ -40,7 +40,6 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -53,15 +52,6 @@
 namespace xls::verilog {
 
 namespace {
-
-// We internalize the channel flow control by adding a FIFO that catches the
-// response data from the SRAM and drives the flow control of the
-// request/response channels. For now, we do not provide a mechanism to
-// configure this FIFO.
-// TODO: google/xls#1053 - Provide a mechanism to configure the internal FIFOs.
-constexpr FifoConfig kResponseChannelFifoConfig(/*depth=*/1, /*bypass=*/true,
-                                                /*register_push_outputs=*/false,
-                                                /*register_pop_inputs=*/false);
 
 struct ReqBlockPorts {
   OutputPort* req_data;
@@ -187,65 +177,6 @@ absl::StatusOr<RespBlockPorts> GetRespBlockPorts(
   return RespBlockPorts{.resp_data = resp_data_port,
                         .resp_valid = resp_valid_port,
                         .resp_ready = resp_ready_port};
-}
-
-absl::Status AddFifo(Node* from_data, Node* from_valid, Node* from_rdy,
-                     std::string_view name_prefix, Block* block,
-                     const FifoConfig& fifo_config) {
-  XLS_ASSIGN_OR_RETURN(
-      FifoInstantiation * fifo_instantiation,
-      block->AddFifoInstantiation(absl::StrCat(name_prefix, "_fifo"),
-                                  fifo_config, from_data->GetType()));
-  XLS_RET_CHECK(block->GetResetPort().has_value() &&
-                block->GetResetBehavior().has_value());
-  Node* corrected_reset = *block->GetResetPort();
-  // TODO: google/xls#1391 - the fifo implementation should have a way to
-  // express its reset behavior, so we should eventually not assume the fifo's
-  // reset is active-high.
-  if (block->GetResetBehavior()->active_low) {
-    XLS_ASSIGN_OR_RETURN(
-        corrected_reset,
-        block->MakeNode<UnOp>(from_data->loc(), corrected_reset, Op::kNot));
-  }
-  XLS_RETURN_IF_ERROR(
-      block
-          ->MakeNode<InstantiationInput>(from_data->loc(), corrected_reset,
-                                         fifo_instantiation,
-                                         FifoInstantiation::kResetPortName)
-          .status());
-  XLS_RETURN_IF_ERROR(
-      from_data
-          ->ReplaceUsesWithNew<InstantiationOutput>(
-              fifo_instantiation, FifoInstantiation::kPopDataPortName)
-          .status());
-  XLS_RETURN_IF_ERROR(
-      from_valid
-          ->ReplaceUsesWithNew<InstantiationOutput>(
-              fifo_instantiation, FifoInstantiation::kPopValidPortName)
-          .status());
-  XLS_RETURN_IF_ERROR(
-      from_rdy
-          ->ReplaceUsesWithNew<InstantiationOutput>(
-              fifo_instantiation, FifoInstantiation::kPushReadyPortName)
-          .status());
-
-  XLS_RETURN_IF_ERROR(block
-                          ->MakeNode<InstantiationInput>(
-                              from_data->loc(), from_data, fifo_instantiation,
-                              FifoInstantiation::kPushDataPortName)
-                          .status());
-  XLS_RETURN_IF_ERROR(block
-                          ->MakeNode<InstantiationInput>(
-                              from_data->loc(), from_valid, fifo_instantiation,
-                              FifoInstantiation::kPushValidPortName)
-                          .status());
-  XLS_RETURN_IF_ERROR(block
-                          ->MakeNode<InstantiationInput>(
-                              from_data->loc(), from_rdy, fifo_instantiation,
-                              FifoInstantiation::kPopReadyPortName)
-                          .status());
-
-  return absl::OkStatus();
 }
 
 absl::StatusOr<RamRWPortBlockPorts> GetRWBlockPorts(
@@ -561,13 +492,15 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
   XLS_RETURN_IF_ERROR(
       rw_block_ports.req_ports.req_ready->ReplaceUsesWith(resp_ready_port_buf));
 
-  // Add fifo at output of ram- the idea is to use the fifo to manage the flow
-  // control in the event that the req or resp side stalls.
+  // Add zero-latency buffer at output of ram
+  std::vector<std::optional<Node*>> valid_nodes;
   std::string zero_latency_buffer_name =
       absl::StrCat(ram_name, "_ram_zero_latency0");
-  XLS_RETURN_IF_ERROR(AddFifo(resp_rd_data_port, ram_resp_valid,
-                              resp_ready_port_buf, zero_latency_buffer_name,
-                              block, kResponseChannelFifoConfig));
+  XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
+                          resp_rd_data_port, ram_resp_valid,
+                          resp_ready_port_buf, zero_latency_buffer_name, block,
+                          valid_nodes)
+                          .status());
 
   // Add output ports for expanded req.data.
   XLS_ASSIGN_OR_RETURN(auto* req_addr_port,
@@ -741,13 +674,13 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
       r_block_ports.req_ports.req_ready->ReplaceUsesWith(resp_ready_port_buf));
 
   // Add zero-latency buffer at output of ram
+  std::vector<std::optional<Node*>> valid_nodes;
   std::string zero_latency_buffer_name =
       absl::StrCat(ram_name, "_ram_zero_latency0");
-  // Add fifo at output of ram- the idea is to use the fifo to manage the flow
-  // control in the event that the req or resp side stalls.
-  XLS_RETURN_IF_ERROR(AddFifo(rd_data_port, rd_resp_valid, resp_ready_port_buf,
-                              zero_latency_buffer_name, block,
-                              kResponseChannelFifoConfig));
+  XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
+                          rd_data_port, rd_resp_valid, resp_ready_port_buf,
+                          zero_latency_buffer_name, block, valid_nodes)
+                          .status());
   // Replace write ready with literal 1 (RAM is always ready for write).
   // TODO(rigge): should this signal check for hazards?
   XLS_ASSIGN_OR_RETURN(
