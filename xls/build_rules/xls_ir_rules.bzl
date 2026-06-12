@@ -235,7 +235,7 @@ def _convert_to_ir(ctx, src):
     )
     return runfiles, ir_file, interface_proto
 
-def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = []):
+def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = [], basename = None, pass_pipeline_info = None, opt_ir_args = None):
     """Returns the runfiles and a File referencing the optimized IR file.
 
     Creates an action in the context to optimize an IR file.
@@ -247,6 +247,9 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
       extra_flags: Extra flags to pass to the optimizer in addition to those passed using the bazel
                    flag.
       extra_outs: Extra output files to return (such as those produced by the extra_flags).
+      basename: Optional custom prefix for generated File objects to avoid action collisions.
+      pass_pipeline_info: Optional custom XlsOptimizationPassRegistryConfigInfo provider override.
+      opt_ir_args: Optional execution argument override.
     Returns:
       A tuple with the following elements in the order presented:
         1. The runfiles to optimize the IR file.
@@ -256,9 +259,12 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
 
     # Accept the option being missing.
     emit_pprof = hasattr(ctx.attr, "_profile_opt_passes") and ctx.attr._profile_opt_passes[BuildSettingInfo].value
-    opt_ir_args = dict(ctx.attr.opt_ir_args)
-    if "delay_model" not in opt_ir_args:
-        opt_ir_args["delay_model"] = DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL
+    if opt_ir_args == None:
+        my_opt_ir_args = dict(ctx.attr.opt_ir_args)
+    else:
+        my_opt_ir_args = dict(opt_ir_args)
+    if "delay_model" not in my_opt_ir_args:
+        my_opt_ir_args["delay_model"] = DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL
     IR_OPT_FLAGS = (
         "ir_dump_path",
         "passes",
@@ -277,21 +283,24 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
         "area_model",
     )
 
-    is_args_valid(opt_ir_args, IR_OPT_FLAGS)
+    is_args_valid(my_opt_ir_args, IR_OPT_FLAGS)
 
     if ctx.attr.top:
-        opt_ir_args.setdefault("top", ctx.attr.top)
+        my_opt_ir_args.setdefault("top", ctx.attr.top)
 
     args = ctx.actions.args()
     args.add(src.ir_file)
 
-    for flag, value in opt_ir_args.items():
+    for flag, value in my_opt_ir_args.items():
         # Need to handle that some flag values are things like 'true' and
         # 'false' that need to be handled carefully.
         args.add("--{}={}".format(flag, value))
 
     extra_ins = []
-    if ctx.attr.pass_pipeline != ctx.attr._default_pass_pipeline:
+    pipeline_cfg = None
+    if pass_pipeline_info:
+        pipeline_cfg = pass_pipeline_info
+    elif ctx.attr.pass_pipeline != ctx.attr._default_pass_pipeline:
         if XlsOptimizationPassRegistryConfigInfo in ctx.attr.pass_pipeline:
             pipeline_cfg = ctx.attr.pass_pipeline[XlsOptimizationPassRegistryConfigInfo]
         else:
@@ -318,6 +327,8 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
                 "You need to create a toolchain with the following additional passes : " +
                 "[" + ", ".join(extra_passes) + "]",
             )
+
+    if pipeline_cfg:
         args.add("-pipeline_proto", pipeline_cfg.pipeline_binpb.path)
         extra_ins.append(pipeline_cfg.pipeline_binpb)
 
@@ -327,11 +338,14 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
             ram_rewrites.extend([file.path for file in ram_rewrite.files.to_list()])
         args.add_joined("--ram_rewrites_pb", ram_rewrites, join_with = ",")
 
-    opt_ir_filename = get_output_filename_value(
-        ctx,
-        "opt_ir_file",
-        ctx.attr.name + _OPT_IR_FILE_EXTENSION,
-    )
+    if basename != None:
+        opt_ir_filename = basename + _OPT_IR_FILE_EXTENSION
+    else:
+        opt_ir_filename = get_output_filename_value(
+            ctx,
+            "opt_ir_file",
+            ctx.attr.name + _OPT_IR_FILE_EXTENSION,
+        )
     opt_ir_file = ctx.actions.declare_file(opt_ir_filename)
     args.add("--output_path", opt_ir_file)
 
@@ -344,19 +358,25 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
     for debug_src in ctx.attr.debug_srcs:
         debug_src_files.extend(debug_src.files.to_list())
 
-    opt_log_filename = get_output_filename_value(
-        ctx,
-        "opt_log_file",
-        ctx.attr.name + _OPT_LOG_FILE_EXTENSION,
-    )
+    if basename != None:
+        opt_log_filename = basename + _OPT_LOG_FILE_EXTENSION
+    else:
+        opt_log_filename = get_output_filename_value(
+            ctx,
+            "opt_log_file",
+            ctx.attr.name + _OPT_LOG_FILE_EXTENSION,
+        )
     log_file = ctx.actions.declare_file(opt_log_filename)
     args.add("--alsologto", log_file)
 
-    opt_options_used_textproto_filename = get_output_filename_value(
-        ctx,
-        "opt_options_used_textproto_file",
-        ctx.attr.name + _OPT_OPTIONS_USED_FILE_EXTENSION,
-    )
+    if basename != None:
+        opt_options_used_textproto_filename = basename + _OPT_OPTIONS_USED_FILE_EXTENSION
+    else:
+        opt_options_used_textproto_filename = get_output_filename_value(
+            ctx,
+            "opt_options_used_textproto_file",
+            ctx.attr.name + _OPT_OPTIONS_USED_FILE_EXTENSION,
+        )
     opt_options_used_textproto_file = ctx.actions.declare_file(opt_options_used_textproto_filename)
     args.add("--opt_options_used_textproto_file", opt_options_used_textproto_file)
 
@@ -368,7 +388,7 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
     outs = [opt_ir_file, log_file, opt_options_used_textproto_file]
     extra_outs = list(extra_outs)
     if emit_pprof:
-        pprof_filename = ctx.attr.name + _PPROF_FILE_EXTENSION
+        pprof_filename = (basename if basename != None else ctx.attr.name) + _PPROF_FILE_EXTENSION
         pprof_file = ctx.actions.declare_file(pprof_filename)
         args.add("--passes_profile", pprof_file)
         extra_outs.append(pprof_file)
@@ -389,7 +409,7 @@ def _optimize_ir(ctx, src, original_input_files, extra_flags = [], extra_outs = 
         progress_message = "Optimizing IR %s" % src.ir_file.short_path,
         toolchain = None,
     )
-    return runfiles, opt_ir_file, extra_outs
+    return runfiles, opt_ir_file, outs[1:]
 
 def get_ir_equivalence_test_cmd(
         ctx,
@@ -840,7 +860,7 @@ An IR conversion with a top entity defined.
     ),
 )
 
-def xls_ir_opt_ir_impl(ctx, src, original_input_files, extra_flags = [], extra_outs = []):
+def xls_ir_opt_ir_impl(ctx, src, original_input_files, extra_flags = [], extra_outs = [], basename = None, pass_pipeline_info = None, opt_ir_args = None):
     """The implementation of the 'xls_ir_opt_ir' rule.
 
     Optimizes an IR file.
@@ -849,6 +869,11 @@ def xls_ir_opt_ir_impl(ctx, src, original_input_files, extra_flags = [], extra_o
       ctx: The current rule's context object.
       src: The source IrFileInfo.
       original_input_files: All original source files that produced this IR file (used for errors).
+      extra_flags: Extra flags to pass to the optimizer in addition to those passed using the bazel flag.
+      extra_outs: Extra output files to return (such as those produced by the extra_flags).
+      basename: Optional custom prefix for generated File objects to avoid action collisions.
+      pass_pipeline_info: Optional custom XlsOptimizationPassRegistryConfigInfo provider override.
+      opt_ir_args: Optional execution argument override.
 
     Returns:
       A tuple with the following elements in the order presented:
@@ -857,12 +882,12 @@ def xls_ir_opt_ir_impl(ctx, src, original_input_files, extra_flags = [], extra_o
         1. The list of built files.
         1. The runfiles.
     """
-    runfiles, opt_ir_file, extra = _optimize_ir(ctx, src, original_input_files, extra_flags, extra_outs)
+    runfiles, opt_ir_file, extra = _optimize_ir(ctx, src, original_input_files, extra_flags, extra_outs, basename = basename, pass_pipeline_info = pass_pipeline_info, opt_ir_args = opt_ir_args)
     return [
         IrFileInfo(ir_file = opt_ir_file),
         OptIrArgInfo(
             unopt_ir = src,
-            opt_ir_args = ctx.attr.opt_ir_args,
+            opt_ir_args = opt_ir_args if opt_ir_args != None else ctx.attr.opt_ir_args,
         ),
         [opt_ir_file] + extra,
         runfiles,
