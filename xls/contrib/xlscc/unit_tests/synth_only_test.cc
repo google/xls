@@ -131,6 +131,19 @@ TEST_F(SynthOnlyTest, StdMakePairExists) {
   RunAcDatatypeTest({{"a", 100}}, 100, content);
 }
 
+TEST_F(SynthOnlyTest, StdArraySupport) {
+  const std::string content = R"(
+    #include <array>
+
+    int my_package(int a) {
+      std::array<int, 3> arr = {1, 2, 3};
+      arr[0] = a;
+      arr[1] = arr[1] + 10;
+      return arr[0] + arr[1] + arr[2] + arr.size();
+    })";
+  RunAcDatatypeTest({{"a", 5}}, 23, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

@@ -339,6 +339,7 @@ filegroup(
         "synth_only/ac_compat/ac_reg.h",
         "synth_only/ac_compat/ac_wait.h",
         "synth_only/algorithm",
+        "synth_only/array",
         "synth_only/assert.h",
         "synth_only/atomic",
         "synth_only/cassert",

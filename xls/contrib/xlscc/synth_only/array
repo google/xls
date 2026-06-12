@@ -1,0 +1,85 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef XLS_CONTRIB_XLSCC_SYNTH_ONLY_ARRAY_
+#define XLS_CONTRIB_XLSCC_SYNTH_ONLY_ARRAY_
+
+#include <cstddef>
+
+namespace std {
+
+template <typename T, size_t N>
+struct array {
+  T _M_elems[N];
+
+  typedef T value_type;
+  typedef T* iterator;
+  typedef const T* const_iterator;
+
+  constexpr size_t size() const { return N; }
+  constexpr bool empty() const { return N == 0; }
+
+  // ReferenceProxy is used to intercept assignment to std::array elements.
+  // Leveraged by Translator::ApplyArrayAssignHack() in translator.cc.
+  struct ReferenceProxy {
+    T val;
+    ReferenceProxy(T v) : val(v) {}
+    void operator=(const T& new_val) {}
+    void operator=(const ReferenceProxy& other) {}
+    operator T() const { return val; }
+  };
+
+  ReferenceProxy operator[](size_t index) {
+    // NOP to ensure that clang parses the set_element functions
+    set_element_bitref(0, _M_elems[0]);
+    set_element_xlsint(0, _M_elems[0]);
+    set_element_int(0, _M_elems[0]);
+    return ReferenceProxy(_M_elems[index]);
+  }
+  const T& operator[](size_t index) const {
+    return _M_elems[index];
+  }
+
+  T* data() { return _M_elems; }
+  const T* data() const { return _M_elems; }
+
+  iterator begin() { return _M_elems; }
+  const_iterator begin() const { return _M_elems; }
+  iterator end() { return _M_elems + N; }
+  const_iterator end() const { return _M_elems + N; }
+
+  ReferenceProxy at(size_t index) { return ReferenceProxy(_M_elems[index]); }
+  const T& at(size_t index) const { return _M_elems[index]; }
+
+  ReferenceProxy front() { return ReferenceProxy(_M_elems[0]); }
+  const T& front() const { return _M_elems[0]; }
+  ReferenceProxy back() { return ReferenceProxy(_M_elems[N - 1]); }
+  const T& back() const { return _M_elems[N - 1]; }
+
+  // These are leveraged by Translator::ApplyArrayAssignHack() to implement
+  // assignment via operator.
+  void set_element_int(size_t index, const T& val) {
+    _M_elems[index] = val;
+  }
+  void set_element_xlsint(size_t index, const T& val) {
+    _M_elems[index] = val;
+  }
+  void set_element_bitref(size_t index, const T& val) {
+    _M_elems[index] = val;
+  }
+};
+
+}  // namespace std
+
+#endif  // XLS_CONTRIB_XLSCC_SYNTH_ONLY_ARRAY_

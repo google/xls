@@ -840,8 +840,12 @@ class Translator final : public GeneratorBase,
 
   static void CleanUpBValuesInTopFunction(GeneratedFunction& func);
 
-  // This is a work-around for non-const operator [] needing to return
-  //  a reference to the object being modified.
+  // Wworkaround for C++ classes where `operator[]` would normally need to
+  // return a reference to allow assignment (e.g., `obj[idx] = val`).
+  // Instead of returning a reference, `operator[]` returns a proxy object,
+  // and this hack intercepts the assignment to call `set_element_*` instead.
+  // Used by `ac_int` and `std::array` (in xlscc/synth_only/array).
+  // TODO: b/279602078 - Translate LValues in structs across calls properly.
   absl::StatusOr<bool> ApplyArrayAssignHack(
       const clang::CXXOperatorCallExpr* op_call, const xls::SourceInfo& loc,
       CValue* output);
