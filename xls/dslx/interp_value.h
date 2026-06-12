@@ -31,7 +31,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/frontend/ast.h"
@@ -139,10 +138,10 @@ class InterpValue {
    private:
     void Validate();
 
-    ChannelDirection direction_;
-    int64_t channel_array_id_;
-    const AstNode* definer_;
-    std::vector<InterpValue> elements_;
+    const ChannelDirection direction_;
+    const int64_t channel_array_id_;
+    const AstNode* const definer_;
+    const std::vector<InterpValue> elements_;
   };
 
   // A reference to a state element in an impl-style proc, or a legacy proc with
@@ -211,44 +210,14 @@ class InterpValue {
           members_(std::move(members)),
           forwarded_values_(std::move(forwarded_values)) {
       CHECK_EQ(parametrics_.size(), proc_def->parametric_bindings().size());
-      InitMemberMap();
+      for (int i = 0; i < proc_def_->members().size(); i++) {
+        member_map_[proc_def_->members()[i]] = &members_[i];
+      }
     }
 
     ProcInitializer(const ProcInitializer& other)
         : ProcInitializer(other.proc_def_, other.definer_, other.parametrics_,
                           other.members_, other.forwarded_values_) {}
-
-    ProcInitializer(ProcInitializer&& other)
-        : ProcInitializer(other.proc_def_, other.definer_,
-                          std::move(other.members_),
-                          std::move(other.parametrics_),
-                          std::move(other.forwarded_values_)) {
-      other.member_map_.clear();
-    }
-
-    ProcInitializer& operator=(const ProcInitializer& other) {
-      proc_def_ = other.proc_def_;
-      parametrics_ = other.parametrics_;
-      members_ = other.members_;
-      forwarded_values_ = other.forwarded_values_;
-      definer_ = other.definer_;
-      InitMemberMap();
-      return *this;
-    }
-
-    ProcInitializer& operator=(ProcInitializer&& other) {
-      if (this == &other) {
-        return *this;
-      }
-      proc_def_ = other.proc_def_;
-      members_ = std::move(other.members_);
-      parametrics_ = std::move(other.parametrics_);
-      forwarded_values_ = std::move(other.forwarded_values_);
-      definer_ = other.definer_;
-      InitMemberMap();
-      other.member_map_.clear();
-      return *this;
-    }
 
     const ProcDef* proc_def() const { return proc_def_; }
     const AstNode* definer() const { return definer_; }
@@ -267,18 +236,11 @@ class InterpValue {
     bool operator==(const ProcInitializer& other) const { return Eq(other); }
 
    private:
-    void InitMemberMap() {
-      member_map_.clear();
-      for (int i = 0; i < proc_def_->members().size(); i++) {
-        member_map_[proc_def_->members()[i]] = &members_[i];
-      }
-    }
-
-    const ProcDef* proc_def_;
-    const AstNode* definer_;
-    std::vector<InterpValue> parametrics_;
-    std::vector<InterpValue> members_;
-    std::vector<std::pair<const Param*, InterpValue>> forwarded_values_;
+    const ProcDef* const proc_def_;
+    const AstNode* const definer_;
+    const std::vector<InterpValue> parametrics_;
+    const std::vector<InterpValue> members_;
+    const std::vector<std::pair<const Param*, InterpValue>> forwarded_values_;
 
     // The same values in `members_`, as a map.
     absl::flat_hash_map<const StructMemberNode*, const InterpValue*>
