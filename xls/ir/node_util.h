@@ -636,6 +636,9 @@ class GenericSelect {
   GenericSelect& operator=(const GenericSelect&) = default;
   GenericSelect& operator=(GenericSelect&&) = default;
   static absl::StatusOr<GenericSelect> From(Node* n);
+  static bool IsSelect(const Node* n) {
+    return n->OpIn({Op::kSel, Op::kPrioritySel, Op::kOneHotSel});
+  }
 
   // Assignment operators from underlying types.
   GenericSelect& operator=(Select* select) {
