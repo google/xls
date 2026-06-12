@@ -372,6 +372,12 @@ Z3_ast BitVectorToBoolean(Z3_context c, Z3_ast bit_vector) {
   return Z3_mk_eq(c, bit_vector, Z3_mk_bv_numeral(c, 1, &bits[0]));
 }
 
+Z3_ast BooleanToBitVector(Z3_context c, Z3_ast boolean) {
+  Z3_sort bit_sort = Z3_mk_bv_sort(c, 1);
+  return Z3_mk_ite(c, boolean, Z3_mk_unsigned_int64(c, 1, bit_sort),
+                   Z3_mk_unsigned_int64(c, 0, bit_sort));
+}
+
 Z3_ast BitsToZ3(Z3_context ctx, const Bits& value) {
   std::unique_ptr<bool[]> bools(new bool[value.bit_count()]);
   for (int64_t i = 0; i < value.bit_count(); ++i) {
