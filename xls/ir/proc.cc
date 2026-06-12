@@ -481,6 +481,36 @@ absl::StatusOr<Proc*> Proc::Clone(
         original_to_clone[node] = cloned_state_read;
         break;
       }
+      case Op::kPeek: {
+        Peek* src = node->As<Peek>();
+        std::string_view channel = new_chan_name(src->channel_name());
+        XLS_ASSIGN_OR_RETURN(
+            ChannelRef channel_ref,
+            cloned_proc->GetChannelRef(channel, ChannelDirection::kReceive));
+        XLS_ASSIGN_OR_RETURN(Type * payload_type,
+                             cloned_proc->package()->MapTypeFromOtherPackage(
+                                 ChannelRefType(channel_ref)));
+        if (is_new_style_proc()) {
+          XLS_ASSIGN_OR_RETURN(
+              original_to_clone[node],
+              cloned_proc->MakeNodeWithName<Peek>(
+                  src->loc(), cloned_operands[0],
+                  cloned_operands.size() == 2
+                      ? std::optional<Node*>(cloned_operands[1])
+                      : std::nullopt,
+                  channel, payload_type, src->GetName()));
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              original_to_clone[node],
+              cloned_proc->MakeNodeWithName<Peek>(
+                  src->loc(), cloned_operands[0],
+                  cloned_operands.size() == 2
+                      ? std::optional<Node*>(cloned_operands[1])
+                      : std::nullopt,
+                  channel, payload_type, src->GetName()));
+        }
+        break;
+      }
       case Op::kReceive: {
         Receive* src = node->As<Receive>();
         std::string_view channel = new_chan_name(src->channel_name());

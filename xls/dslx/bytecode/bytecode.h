@@ -132,6 +132,14 @@ class Bytecode {
     kNegate,
     // Performs a bitwise OR of the top two values on the stack.
     kOr,
+    // Peeks a value off of the channel at TOS0, but does not block if empty.
+    // A tuple containing
+    //   0. A token.
+    //   1. Peeked value (or a zero value if the channel is empty).
+    //     and
+    //   2. A valid flag (false if the channel is empty).
+    // is pushed on the stack.
+    kPeek,
     // Pops the value at TOS0.
     kPop,
     // Creates an array of values [TOS1, TOS0).
@@ -396,6 +404,7 @@ class Bytecode {
   static Bytecode MakeLoad(Span span, SlotIndex slot_index);
   static Bytecode MakeLogicalOr(Span span);
   static Bytecode MakeMatchArm(Span span, MatchArmItem item);
+  static Bytecode MakePeek(Span span, ChannelData channel_data);
   static Bytecode MakePop(Span span);
   static Bytecode MakeRecv(Span span, ChannelData channel_data);
   static Bytecode MakeRecvNonBlocking(Span span, ChannelData channel_data);

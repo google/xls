@@ -1,0 +1,27 @@
+module Peek(
+  input wire clk,
+  input wire [31:0] _req_r,
+  input wire _req_r_vld,
+  input wire _resp_s_rdy,
+  output wire _req_r_rdy,
+  output wire [31:0] _resp_s,
+  output wire _resp_s_vld
+);
+  wire ugt_216;
+  wire packet__1;
+  wire [31:0] sel_215;
+  wire [31:0] and_227;
+  wire [30:0] add_237;
+  wire stage_outputs_valid_0;
+  wire [31:0] data__1;
+  assign ugt_216 = (_req_r_vld ? _req_r : 32'h0000_0000) > 32'h0000_0004;
+  assign packet__1 = _req_r_vld & ugt_216;
+  assign sel_215 = _req_r_vld ? _req_r : 32'h0000_0000;
+  assign and_227 = sel_215 & {32{packet__1}};
+  assign add_237 = and_227[31:1] + 31'h0000_0005;
+  assign stage_outputs_valid_0 = _resp_s_rdy | ~_req_r_vld;
+  assign data__1 = ugt_216 ? {add_237, and_227[0]} : sel_215 & {32{~(~_req_r_vld | ugt_216)}};
+  assign _req_r_rdy = stage_outputs_valid_0 & _req_r_vld;
+  assign _resp_s = data__1;
+  assign _resp_s_vld = _req_r_vld;
+endmodule

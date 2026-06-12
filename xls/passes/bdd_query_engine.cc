@@ -107,6 +107,7 @@ constexpr auto kNonAnalyzableOps = std::to_array<Op>({
     Op::kParam,
     Op::kStateRead,
     Op::kNext,
+    Op::kPeek,
     Op::kReceive,
     Op::kRecvChannelEnd,
     Op::kRegisterRead,

@@ -158,8 +158,8 @@ class CloneNodesIntoBlockHandler {
   // Replace next values with a RegisterWrite.
   absl::Status HandleNextValue(Node* node, Stage stage);
 
-  // Don't clone Receive operations. Instead replace with a tuple
-  // containing the Receive's token operand and an InputPort operation.
+  // Don't clone receive operations. Instead replace with a tuple
+  // containing the receive's token operand and an InputPort operation.
   //
   // Both data and valid ports are created in this function.  See
   // MakeInputValidPortsForInputChannels() for additional handling of
@@ -167,8 +167,12 @@ class CloneNodesIntoBlockHandler {
   //
   // In the case of handling non-blocking receives, the logic to adapt
   // data to a tuple of (data, valid) is added here.
+  absl::StatusOr<Node*> HandleReceivingNode(
+      ChannelNode* node, int64_t stage, const ChannelConnection& connection);
   absl::StatusOr<Node*> HandleReceiveNode(Receive* receive, int64_t stage,
                                           const ChannelConnection& connection);
+  absl::StatusOr<Node*> HandlePeekNode(Peek* peek, int64_t stage,
+                                       const ChannelConnection& connection);
 
   // Don't clone Send operations. Instead replace with an OutputPort
   // operation in the block.

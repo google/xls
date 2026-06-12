@@ -655,6 +655,19 @@ class BuilderBase {
   BValue Gate(BValue condition, BValue data,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
+  // Add a non-blocking peek operation. The type of the peeked data value is
+  // determined by the channel.
+  BValue Peek(ReceiveChannelRef channel, BValue token,
+              const SourceInfo& loc = SourceInfo(),
+              std::string_view name = "");
+
+  // Add a conditional non-blocking peek operation. The peek execution is
+  // determined by the value of predicate `pred`. The type of the peeked data
+  // value is determined by the channel.
+  BValue PeekIf(ReceiveChannelRef channel, BValue token,
+                BValue pred, const SourceInfo& loc = SourceInfo(),
+                std::string_view name = "");
+
   // Add a receive operation. The type of the data value received is
   // determined by the channel.
   BValue Receive(ReceiveChannelRef channel, BValue token,
@@ -998,6 +1011,14 @@ class TokenlessProcBuilder : public ProcBuilder {
   std::pair<BValue, BValue> ReceiveNonBlocking(
       ReceiveChannelRef channel, const SourceInfo& loc = SourceInfo(),
       std::string_view name = "");
+
+  // Add a peek operation. The type of the data value received
+  // is determined by the channel. The returned BValue is a pair of
+  // the peeked data itself along with a valid bit.
+  using ProcBuilder::Peek;
+  std::pair<BValue, BValue> Peek(ReceiveChannelRef channel,
+                                 const SourceInfo& loc = SourceInfo(),
+                                 std::string_view name = "");
 
   // Add a conditinal receive operation. The receive executes conditionally on
   // the value of the predicate "pred". The type of the data value received is

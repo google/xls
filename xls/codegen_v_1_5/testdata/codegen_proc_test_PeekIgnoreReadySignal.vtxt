@@ -1,0 +1,21 @@
+module Peek(
+  input wire clk,
+  input wire [31:0] _req_r,
+  input wire _req_r_vld,
+  input wire _resp_s_rdy,
+  output wire _req_r_rdy,
+  output wire [31:0] _resp_s,
+  output wire _resp_s_vld
+);
+  wire and_101;
+  wire active_inputs_valid_0;
+  wire stage_outputs_valid_0;
+  wire [31:0] packet__1;
+  assign and_101 = _req_r_vld & (_req_r_vld ? _req_r : 32'h0000_0000) > 32'h0000_0004;
+  assign active_inputs_valid_0 = _req_r_vld | ~and_101;
+  assign stage_outputs_valid_0 = active_inputs_valid_0 & (_resp_s_rdy | ~_req_r_vld);
+  assign packet__1 = and_101 ? _req_r : 32'h0000_0000;
+  assign _req_r_rdy = stage_outputs_valid_0 & and_101;
+  assign _resp_s = packet__1;
+  assign _resp_s_vld = active_inputs_valid_0 & _req_r_vld;
+endmodule

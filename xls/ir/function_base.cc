@@ -139,6 +139,7 @@ class StageSectioner : public DfsVisitorWithDefault {
 
 bool Stage::contains(Node* node) const {
   switch (node->op()) {
+    case Op::kPeek:
     case Op::kReceive:
     case Op::kStateRead:
     case Op::kRegisterRead:
@@ -154,6 +155,7 @@ bool Stage::contains(Node* node) const {
 
 bool Stage::AddNode(Node* node) {
   switch (node->op()) {
+    case Op::kPeek:
     case Op::kReceive:
     case Op::kStateRead:
     case Op::kRegisterRead:
