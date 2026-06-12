@@ -138,6 +138,8 @@ class OperandVisibilityAnalysis : public ChangeListener {
   BddNodeIndex ConditionOfUseWithPrioritySelect(Node* node,
                                                 PrioritySelect* select) const;
   BddNodeIndex ConditionOfUseWithSelect(Node* node, Select* select) const;
+  BddNodeIndex ConditionOfUseWithOneHotSelect(Node* node,
+                                              OneHotSelect* select) const;
   BddNodeIndex ConditionOnPredicate(Node* node,
                                     std::optional<Node*> predicate) const;
   BddNodeIndex ConditionOfUseWithAnd(Node* node, NaryOp* and_node) const;

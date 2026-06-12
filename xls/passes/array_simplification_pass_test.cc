@@ -1722,6 +1722,83 @@ TEST_F(ArraySimplificationPassTest, IndexOfOneHotSelect) {
               m::ArrayIndex(m::Param("b"), {m::Param("i"), m::Param("j")})}));
 }
 
+TEST_F(ArraySimplificationPassTest,
+       SimplifyConditionalAssignWithOneHotSelectAndOneHotSelector) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u32 = p->GetBitsType(32);
+  BValue a_param = fb.Param("a", u32);
+  BValue b_param = fb.Param("b", u32);
+  BValue c_param = fb.Param("c", u32);
+  BValue A = fb.Array({a_param, b_param, c_param}, u32);
+
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue selector = fb.Concat({x, fb.Not(x)});
+
+  BValue v = fb.Param("v", u32);
+  BValue idx = fb.Literal(UBits(1, 32));
+  BValue A_updated = fb.ArrayUpdate(A, v, {idx});
+
+  BValue ohs = fb.OneHotSelect(selector, {A, A_updated});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Array(m::Param("a"),
+               m::OneHotSelect(m::Concat(m::Param("x"), m::Not(m::Param("x"))),
+                               {m::Param("b"), m::Param("v")}),
+               m::Param("c")));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       NoSimplifyConditionalAssignWithOneHotSelectAndNonOneHotSelector) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u32 = p->GetBitsType(32);
+  BValue a_param = fb.Param("a", u32);
+  BValue b_param = fb.Param("b", u32);
+  BValue c_param = fb.Param("c", u32);
+  BValue A = fb.Array({a_param, b_param, c_param}, u32);
+
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+
+  BValue v = fb.Param("v", u32);
+  BValue idx = fb.Literal(UBits(1, 32));
+  BValue A_updated = fb.ArrayUpdate(A, v, {idx});
+
+  BValue ohs = fb.OneHotSelect(selector, {A, A_updated});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ArraySimplificationPassTest, SimplifySelectOfArraysWithOneHotSelect) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue d = fb.Param("d", u32);
+
+  BValue A = fb.Array({a, b}, u32);
+  BValue B = fb.Array({c, d}, u32);
+
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+  BValue ohs = fb.OneHotSelect(selector, {A, B});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Array(m::OneHotSelect(m::Param("selector"),
+                                       {m::Param("a"), m::Param("c")}),
+                       m::OneHotSelect(m::Param("selector"),
+                                       {m::Param("b"), m::Param("d")})));
+}
+
 void IrFuzzArraySimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ArraySimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
