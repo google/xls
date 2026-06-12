@@ -426,7 +426,8 @@ absl::StatusOr<InterpValue> CreateChannelReference(
 
 absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
     const Type* type,
-    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator) {
+    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
+    std::optional<const AstNode*> definer) {
   if (auto* array_type = dynamic_cast<const ArrayType*>(type)) {
     XLS_ASSIGN_OR_RETURN(int dim_int, array_type->size().GetAsInt64());
     std::vector<InterpValue> lhs_elements;
@@ -435,27 +436,54 @@ absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
     rhs_elements.reserve(dim_int);
     for (int i = 0; i < dim_int; i++) {
       XLS_ASSIGN_OR_RETURN(
-          auto lhs_rhs, CreateChannelReferencePair(&array_type->element_type(),
-                                                   channel_instance_allocator));
+          auto lhs_rhs,
+          CreateChannelReferencePair(&array_type->element_type(),
+                                     channel_instance_allocator, definer));
       lhs_elements.push_back(lhs_rhs.first);
       rhs_elements.push_back(lhs_rhs.second);
     }
-    XLS_ASSIGN_OR_RETURN(InterpValue lhs, InterpValue::MakeArray(lhs_elements));
-    XLS_ASSIGN_OR_RETURN(InterpValue rhs, InterpValue::MakeArray(rhs_elements));
-    return std::make_pair(lhs, rhs);
+    int64_t array_id = (*channel_instance_allocator)();
+    return std::make_pair(
+        InterpValue::MakeChannelArray(ChannelDirection::kOut, array_id,
+                                      definer.has_value() ? *definer : nullptr,
+                                      lhs_elements),
+        InterpValue::MakeChannelArray(ChannelDirection::kIn, array_id,
+                                      definer.has_value() ? *definer : nullptr,
+                                      rhs_elements));
   }
 
   // `type` must be either an array or ChannelType.
   const ChannelType* ct = dynamic_cast<const ChannelType*>(type);
-  XLS_RET_CHECK_NE(ct, nullptr);
+  XLS_RET_CHECK_NE(ct, nullptr)
+      << "Expected channel type but got: " << type->ToString();
   std::optional<int64_t> channel_instance_id =
       channel_instance_allocator.has_value()
           ? std::make_optional((*channel_instance_allocator)())
           : std::nullopt;
-  return std::make_pair(InterpValue::MakeChannelReference(
-                            ChannelDirection::kOut, channel_instance_id),
-                        InterpValue::MakeChannelReference(ChannelDirection::kIn,
-                                                          channel_instance_id));
+  return std::make_pair(
+      InterpValue::MakeChannelReference(ChannelDirection::kOut,
+                                        channel_instance_id, definer),
+      InterpValue::MakeChannelReference(ChannelDirection::kIn,
+                                        channel_instance_id, definer));
+}
+
+const AstNode* GetChannelOrArrayDefiner(const InterpValue& channel_or_array) {
+  return channel_or_array.IsChannelArray()
+             ? channel_or_array.GetChannelArrayOrDie().definer()
+             : *channel_or_array.GetChannelReferenceOrDie().GetDefiner();
+}
+
+int64_t GetChannelOrArrayId(const InterpValue& channel_or_array) {
+  return channel_or_array.IsChannelArray()
+             ? channel_or_array.GetChannelArrayOrDie().channel_array_id()
+             : *channel_or_array.GetChannelReferenceOrDie().GetChannelId();
+}
+
+ChannelDirection GetChannelOrArrayDirection(
+    const InterpValue& channel_or_array) {
+  return channel_or_array.IsChannelArray()
+             ? channel_or_array.GetChannelArrayOrDie().direction()
+             : channel_or_array.GetChannelReferenceOrDie().GetDirection();
 }
 
 absl::StatusOr<std::string> FormatInterpValue(const InterpValue& value,

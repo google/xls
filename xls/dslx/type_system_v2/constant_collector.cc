@@ -45,6 +45,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
@@ -861,14 +862,19 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleChannelDecl(const ChannelDecl* node) override {
-    int64_t channel_id = ++*next_channel_id_;
-    InterpValue ends = InterpValue::MakeTuple(std::vector<InterpValue>{
-        InterpValue::MakeChannelReference(ChannelDirection::kOut,
-                                          /*id=*/channel_id,
-                                          /*definer=*/node),
-        InterpValue::MakeChannelReference(ChannelDirection::kIn,
-                                          /*id=*/channel_id,
-                                          /*definer=*/node)});
+    XLS_RET_CHECK(type_.IsTuple());
+    XLS_RET_CHECK_EQ(type_.AsTuple().size(), 2);
+
+    // Note that `GetChannelReferencePair` doesn't consider the channel
+    // direction of the passed-in type, so we arbitrarily pick the out side of
+    // the tuple here.
+    XLS_ASSIGN_OR_RETURN((std::pair<InterpValue, InterpValue> pair),
+                         CreateChannelReferencePair(
+                             &type_.AsTuple().GetMemberType(0),
+                             [this] { return ++*next_channel_id_; }, node));
+
+    InterpValue ends = InterpValue::MakeTuple(
+        std::vector<InterpValue>{pair.first, pair.second});
     ti_->NoteConstExpr(node, ends);
     return absl::OkStatus();
   }

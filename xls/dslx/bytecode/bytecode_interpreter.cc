@@ -860,9 +860,9 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
 
   if (!from_value.IsBits()) {
     return absl::InvalidArgumentError(
-        "Bytecode interpreter only supports casts from arrays, enums, and "
-        "bits; got: " +
-        from_value.ToString());
+        absl::StrCat("Bytecode interpreter only supports casts from arrays, "
+                     "enums, and bits; got: ",
+                     from_value.ToString()));
   }
 
   int64_t from_bit_count = from_value.GetBits().value().bit_count();
@@ -1053,9 +1053,9 @@ absl::Status BytecodeInterpreter::EvalTupleIndex(const Bytecode& bytecode) {
 
   if (!basis.IsTuple()) {
     return absl::InternalError(
-        "BytecodeInterpreter type error: tuple_index bytecode can only index "
-        "on tuple value; got: " +
-        basis.ToString());
+        absl::StrCat("BytecodeInterpreter type error: tuple_index bytecode can "
+                     "only index on tuple value; got: ",
+                     basis.ToString()));
   }
 
   XLS_ASSIGN_OR_RETURN(
@@ -1069,11 +1069,11 @@ absl::Status BytecodeInterpreter::EvalIndex(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue index, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
 
-  if (!basis.IsArray() && !basis.IsTuple()) {
+  if (!basis.IsArray() && !basis.IsTuple() && !basis.IsChannelArray()) {
     return absl::InternalError(
-        "BytecodeInterpreter type error: can only index on array or tuple "
-        "values; got: " +
-        basis.ToString());
+        absl::StrCat("BytecodeInterpreter type error: can only index on array "
+                     "or tuple values; got: ",
+                     basis.ToString()));
   }
 
   XLS_ASSIGN_OR_RETURN(

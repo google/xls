@@ -75,6 +75,8 @@ std::string TagToString(InterpValueTag tag) {
       return "type_reference";
     case InterpValueTag::kProcInitializer:
       return "proc_initializer";
+    case InterpValueTag::kChannelArray:
+      return "channel_array";
   }
   return absl::StrFormat("<invalid InterpValueTag(%d)>",
                          static_cast<int64_t>(tag));
@@ -83,6 +85,23 @@ std::string TagToString(InterpValueTag tag) {
 /* static */ InterpValue InterpValue::MakeTuple(
     std::vector<InterpValue> members) {
   return InterpValue{InterpValueTag::kTuple, std::move(members)};
+}
+
+void InterpValue::ChannelArray::Validate() {
+  CHECK(!elements_.empty());
+  bool all_reference = true;
+  bool all_array = true;
+  for (const auto& el : elements_) {
+    if (!el.IsChannelReference()) {
+      all_reference = false;
+    }
+    if (!el.IsChannelArray()) {
+      all_array = false;
+    }
+  }
+  CHECK(all_reference || all_array)
+      << "ChannelArray elements must be either all ChannelArray or all "
+         "ChannelReference";
 }
 
 /* static */ absl::StatusOr<InterpValue> InterpValue::MakeArray(
@@ -205,7 +224,8 @@ std::string InterpValue::ToString(bool humanize,
       tag_ == InterpValueTag::kChannelReference ||
       tag_ == InterpValueTag::kTypeReference ||
       tag_ == InterpValueTag::kProcInitializer ||
-      tag_ == InterpValueTag::kStateElementReference) {
+      tag_ == InterpValueTag::kStateElementReference ||
+      tag_ == InterpValueTag::kChannelArray) {
     return result;
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
@@ -281,7 +301,7 @@ std::string InterpValue::ToStringInternal(bool humanize,
     }
     case InterpValueTag::kTypeReference:
       return std::get<TypeReference>(payload_).string;
-    case InterpValueTag::kProcInitializer:
+    case InterpValueTag::kProcInitializer: {
       const auto& initializer =
           std::get<std::shared_ptr<ProcInitializer>>(payload_);
       std::vector<std::string> parametric_strings;
@@ -303,6 +323,23 @@ std::string InterpValue::ToStringInternal(bool humanize,
               ? ""
               : absl::StrCat("<", absl::StrJoin(parametric_strings, ", "), ">"),
           absl::StrJoin(member_strings, ", "));
+    }
+    case InterpValueTag::kChannelArray: {
+      const ChannelArray& channel_array = GetChannelArrayOrDie();
+      std::string guts = absl::StrJoin(
+          channel_array.elements(), ", ",
+          [humanize, format](std::string* out, const InterpValue& v) {
+            absl::StrAppend(out, v.ToString(humanize, format));
+          });
+      return absl::Substitute(
+          "channel_array($0, channel_array_id=$1, definer=$2, elements=[$3])",
+          ChannelDirectionToString(channel_array.direction()),
+          channel_array.channel_array_id(),
+          channel_array.definer() != nullptr
+              ? channel_array.definer()->ToString()
+              : "none",
+          guts);
+    }
   }
   return "<INVALID>";
 }
@@ -586,6 +623,10 @@ bool InterpValue::Eq(const InterpValue& other) const {
     case InterpValueTag::kProcInitializer:
       return other.IsProcInitializer() &&
              GetProcInitializerOrDie() == other.GetProcInitializerOrDie();
+    case InterpValueTag::kChannelArray:
+      return other.IsChannelArray() &&
+             GetChannelArrayOrDie().channel_array_id() ==
+                 other.GetChannelArrayOrDie().channel_array_id();
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
 }
@@ -926,6 +967,14 @@ absl::StatusOr<InterpValue::ChannelReference> InterpValue::GetChannelReference()
       "Value does not contain a channel reference.");
 }
 
+absl::StatusOr<const InterpValue::ChannelArray*> InterpValue::GetChannelArray()
+    const {
+  if (std::holds_alternative<std::shared_ptr<ChannelArray>>(payload_)) {
+    return std::get<std::shared_ptr<ChannelArray>>(payload_).get();
+  }
+  return absl::InvalidArgumentError("Value does not contain a channel array.");
+}
+
 // Returns the minimum of the given bits value interpreted as an unsigned
 // number and limit.
 static int64_t ClampedUnsignedValue(const Bits& bits, int64_t limit) {
@@ -1191,6 +1240,9 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
       return absl::InvalidArgumentError(
           "Cannot convert proc-initializer-typed values to IR.");
     }
+    case InterpValueTag::kChannelArray:
+      return absl::InvalidArgumentError(
+          "Cannot convert channel-array-typed values to IR.");
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
 }
@@ -1280,6 +1332,17 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
       return false;
     }
     return Lt(rhs).value().IsTrue();
+  }
+
+  if (IsChannelArray()) {
+    if (!rhs.IsChannelArray()) {
+      return tag_ < rhs.tag_;
+    }
+    return GetChannelArrayOrDie().channel_array_id() <
+           rhs.GetChannelArrayOrDie().channel_array_id();
+  }
+  if (rhs.IsChannelArray()) {
+    return tag_ < rhs.tag_;
   }
 
   if (IsTuple()) {
@@ -1384,7 +1447,7 @@ absl::StatusOr<int64_t> InterpValue::GetLength() const {
     XLS_ASSIGN_OR_RETURN(uint64_t len_val, diff_64.ToUint64());
     return absl::implicit_cast<int64_t>(len_val);
   }
-  if (IsTuple() || IsArray()) {
+  if (IsTuple() || IsArray() || IsChannelArray()) {
     return GetValuesOrDie().size();
   }
   return absl::InvalidArgumentError(
@@ -1397,6 +1460,9 @@ absl::StatusOr<const std::vector<InterpValue>*> InterpValue::GetValues() const {
     XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> elements, ExpandRange());
     payload_ = std::move(elements);
   }
+  if (IsChannelArray()) {
+    return &GetChannelArrayOrDie().elements();
+  }
   if (!std::holds_alternative<std::vector<InterpValue>>(payload_)) {
     return absl::InvalidArgumentError("Value does not hold element values");
   }
@@ -1407,6 +1473,9 @@ const std::vector<InterpValue>& InterpValue::GetValuesOrDie() const {
   if (is_range() &&
       std::holds_alternative<std::shared_ptr<RangeData>>(payload_)) {
     payload_ = ExpandRange().value();
+  }
+  if (IsChannelArray()) {
+    return GetChannelArrayOrDie().elements();
   }
   return std::get<std::vector<InterpValue>>(payload_);
 }

@@ -550,8 +550,7 @@ class FunctionConverter {
 
   template <typename NodeType>
   absl::Status DefineProcDefChannelOrArray(
-      const NodeType* node, const InterpValue::ChannelReference& channel_ref,
-      const Type* type,
+      const NodeType* node, const InterpValue& value, const Type* type,
       absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>& channel_decls);
 
   absl::Status InitProcDefChannels(
@@ -563,8 +562,7 @@ class FunctionConverter {
   absl::StatusOr<std::unique_ptr<ProcDefInstance>> CreateProcDefInstance(
       const ProcDef* proc_def);
   absl::Status ExpandProcDefChannelReference(
-      const InterpValue::ChannelReference& ref,
-      std::vector<ChannelInterface*>& out);
+      const InterpValue& ref, std::vector<ChannelInterface*>& out);
   absl::Status AddProcDefInstantiation(
       const ProcDef* proc_def, const InterpValue& external_initializer,
       const InterpValue& canonical_initializer);
@@ -659,9 +657,9 @@ class FunctionConverter {
   // Mapping from AST node to its corresponding IR value.
   absl::flat_hash_map<const AstNode*, IrValue> node_to_ir_;
 
-  // Each channel ID dealt out in a `ChannelReference` by type inference, mapped
-  // to its IR counterpart.
-  absl::flat_hash_map<int64_t, IrValue> channel_id_to_channel_or_array_;
+  // Each channel ID dealt out in a `ChannelReference` or `ChannelArray` by type
+  // inference, mapped to its IR counterpart.
+  absl::flat_hash_map<int64_t, ChannelOrArray> channel_or_array_id_to_object_;
 
   // Various conversion options; e.g. whether or not to emit source code
   // positions into the XLS IR.

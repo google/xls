@@ -248,6 +248,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/type_system:type",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
@@ -344,6 +345,7 @@ cc_test(
     name = "interp_value_test",
     srcs = ["interp_value_test.cc"],
     deps = [
+        ":channel_direction",
         ":interp_value",
         ":parse_and_typecheck",
         ":value_format_descriptor",

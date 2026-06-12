@@ -61,6 +61,7 @@ enum class InterpValueTag : uint8_t {
   kStateElementReference,
   kTypeReference,
   kProcInitializer,
+  kChannelArray,
 };
 
 std::string TagToString(InterpValueTag tag);
@@ -105,6 +106,43 @@ class InterpValue {
     ChannelDirection direction_;
     std::optional<int64_t> channel_instance_id_;
     std::optional<const AstNode*> definer_;
+  };
+
+  // An array of channels, where the elements are represented as either
+  // ChannelArray or ChannelReference values.
+  class ChannelArray {
+   public:
+    ChannelArray(ChannelDirection direction, int64_t channel_array_id,
+                 const AstNode* definer, std::vector<InterpValue> elements)
+        : direction_(direction),
+          channel_array_id_(channel_array_id),
+          definer_(definer),
+          elements_(std::move(elements)) {
+      Validate();
+    }
+
+    ChannelDirection direction() const { return direction_; }
+    int64_t channel_array_id() const { return channel_array_id_; }
+    const AstNode* definer() const { return definer_; }
+    const std::vector<InterpValue>& elements() const { return elements_; }
+
+    bool operator==(const ChannelArray& other) const {
+      return direction_ == other.direction_ &&
+             channel_array_id_ == other.channel_array_id_;
+    }
+    bool operator<(const ChannelArray& other) const {
+      return direction_ < other.direction_ ||
+             (direction_ == other.direction_ &&
+              channel_array_id_ < other.channel_array_id_);
+    }
+
+   private:
+    void Validate();
+
+    ChannelDirection direction_;
+    int64_t channel_array_id_;
+    const AstNode* definer_;
+    std::vector<InterpValue> elements_;
   };
 
   // A reference to a state element in an impl-style proc, or a legacy proc with
@@ -297,6 +335,15 @@ class InterpValue {
         InterpValueTag::kChannelReference,
         ChannelReference(direction, channel_instance_id, definer));
   }
+  static InterpValue MakeChannelArray(ChannelDirection direction,
+                                      int64_t channel_array_id,
+                                      const AstNode* definer,
+                                      std::vector<InterpValue> elements) {
+    return InterpValue(
+        InterpValueTag::kChannelArray,
+        std::make_shared<ChannelArray>(direction, channel_array_id, definer,
+                                       std::move(elements)));
+  }
 
   static InterpValue MakeStateElementReference(const NameDef* name_def) {
     return InterpValue(InterpValueTag::kStateElementReference,
@@ -365,6 +412,7 @@ class InterpValue {
   bool IsChannelReference() const {
     return tag_ == InterpValueTag::kChannelReference;
   }
+  bool IsChannelArray() const { return tag_ == InterpValueTag::kChannelArray; }
   bool IsStateElementReference() const {
     return tag_ == InterpValueTag::kStateElementReference;
   }
@@ -546,6 +594,11 @@ class InterpValue {
     return std::get<ChannelReference>(payload_);
   }
 
+  absl::StatusOr<const ChannelArray*> GetChannelArray() const;
+  const ChannelArray& GetChannelArrayOrDie() const {
+    return *std::get<std::shared_ptr<ChannelArray>>(payload_);
+  }
+
   absl::StatusOr<StateElementReference> GetStateElementReference() const {
     if (!std::holds_alternative<StateElementReference>(payload_)) {
       return absl::InvalidArgumentError(absl::StrCat(
@@ -650,11 +703,12 @@ class InterpValue {
     Bits bits;
   };
 
-  using Payload = std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
-                               std::shared_ptr<TokenData>, ChannelReference,
-                               StateElementReference, TypeReference,
-                               std::shared_ptr<ProcInitializer>,
-                               std::shared_ptr<RangeData>>;
+  using Payload =
+      std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
+                   std::shared_ptr<TokenData>, ChannelReference,
+                   StateElementReference, TypeReference,
+                   std::shared_ptr<ProcInitializer>, std::shared_ptr<RangeData>,
+                   std::shared_ptr<ChannelArray>>;
 
   InterpValue(InterpValueTag tag, Payload payload, bool is_range = false)
       : tag_(tag), payload_(std::move(payload)), is_range_(is_range) {}

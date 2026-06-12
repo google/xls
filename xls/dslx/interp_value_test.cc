@@ -26,6 +26,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -467,6 +468,112 @@ TEST(InterpValueTest, RangeGetLengthWideBitsCrashInclusive) {
       InterpValue::MakeSymbolicRange(start, end, /*inclusive=*/true);
   EXPECT_TRUE(range.is_range());
   EXPECT_THAT(range.GetLength(), IsOkAndHolds(11));
+}
+
+TEST(InterpValueTest, ChannelArrayBasicProperties) {
+  auto chan_ref1 = InterpValue::MakeChannelReference(ChannelDirection::kIn, 1);
+  auto chan_ref2 = InterpValue::MakeChannelReference(ChannelDirection::kOut, 2);
+
+  auto chan_arr = InterpValue::MakeChannelArray(
+      ChannelDirection::kIn, 42, nullptr, {chan_ref1, chan_ref2});
+
+  EXPECT_TRUE(chan_arr.IsChannelArray());
+  EXPECT_FALSE(chan_arr.IsArray());
+  EXPECT_FALSE(chan_arr.IsChannelReference());
+
+  EXPECT_THAT(chan_arr.GetLength(), IsOkAndHolds(2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const InterpValue::ChannelArray* ca,
+                           chan_arr.GetChannelArray());
+  EXPECT_EQ(ca->channel_array_id(), 42);
+  EXPECT_EQ(ca->definer(), nullptr);
+  EXPECT_EQ(ca->elements().size(), 2);
+  EXPECT_EQ(ca->elements()[0], chan_ref1);
+  EXPECT_EQ(ca->elements()[1], chan_ref2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* values,
+                           chan_arr.GetValues());
+  EXPECT_EQ(values->size(), 2);
+  EXPECT_EQ((*values)[0], chan_ref1);
+}
+
+TEST(InterpValueTest, ChannelArrayIndexing) {
+  auto chan_ref1 = InterpValue::MakeChannelReference(ChannelDirection::kIn, 1);
+  auto chan_ref2 = InterpValue::MakeChannelReference(ChannelDirection::kOut, 2);
+
+  auto chan_arr = InterpValue::MakeChannelArray(
+      ChannelDirection::kIn, 42, nullptr, {chan_ref1, chan_ref2});
+
+  EXPECT_THAT(chan_arr.Index(0), IsOkAndHolds(chan_ref1));
+  EXPECT_THAT(chan_arr.Index(1), IsOkAndHolds(chan_ref2));
+  EXPECT_FALSE(chan_arr.Index(2).ok());
+}
+
+TEST(InterpValueTest, ChannelArrayEqualityAndComparison) {
+  auto chan_ref1 = InterpValue::MakeChannelReference(ChannelDirection::kIn, 1);
+  auto chan_ref2 = InterpValue::MakeChannelReference(ChannelDirection::kOut, 2);
+
+  auto chan_arr = InterpValue::MakeChannelArray(
+      ChannelDirection::kIn, 42, nullptr, {chan_ref1, chan_ref2});
+
+  auto chan_arr_same_id = InterpValue::MakeChannelArray(
+      ChannelDirection::kIn, 42, nullptr, {chan_ref1});
+  auto chan_arr_diff_id = InterpValue::MakeChannelArray(
+      ChannelDirection::kIn, 43, nullptr, {chan_ref1, chan_ref2});
+  EXPECT_EQ(chan_arr, chan_arr_same_id);
+  EXPECT_NE(chan_arr, chan_arr_diff_id);
+
+  EXPECT_LT(chan_arr, chan_arr_diff_id);
+  EXPECT_FALSE(chan_arr_diff_id < chan_arr);
+
+  auto reg_array = InterpValue::MakeArray({chan_ref1}).value();
+  EXPECT_LT(reg_array, chan_arr);
+  EXPECT_FALSE(chan_arr < reg_array);
+}
+
+TEST(InterpValueTest, ChannelArrayToString) {
+  auto chan_ref1 = InterpValue::MakeChannelReference(ChannelDirection::kIn, 1);
+  auto chan_ref2 = InterpValue::MakeChannelReference(ChannelDirection::kOut, 2);
+
+  auto chan_arr = InterpValue::MakeChannelArray(
+      ChannelDirection::kIn, 42, nullptr, {chan_ref1, chan_ref2});
+
+  EXPECT_EQ(chan_arr.ToString(),
+            "channel_array(in, channel_array_id=42, definer=none, "
+            "elements=[channel_reference(in, "
+            "channel_instance_id=1), "
+            "channel_reference(out, channel_instance_id=2)])");
+}
+
+TEST(InterpValueTest, ChannelArrayConvertToIr) {
+  auto chan_ref1 = InterpValue::MakeChannelReference(ChannelDirection::kIn, 1);
+  auto chan_ref2 = InterpValue::MakeChannelReference(ChannelDirection::kOut, 2);
+
+  auto chan_arr = InterpValue::MakeChannelArray(
+      ChannelDirection::kIn, 42, nullptr, {chan_ref1, chan_ref2});
+
+  EXPECT_FALSE(chan_arr.ConvertToIr().ok());
+}
+
+TEST(InterpValueTest, ChannelArrayValidationMismatchedTypesDeathTest) {
+  auto chan_ref1 = InterpValue::MakeChannelReference(ChannelDirection::kIn, 1);
+
+  auto bits_val = InterpValue::MakeU32(1);
+  EXPECT_DEATH(InterpValue::MakeChannelArray(ChannelDirection::kIn, 1, nullptr,
+                                             {chan_ref1, bits_val}),
+               "ChannelArray elements must be either all ChannelArray or all "
+               "ChannelReference");
+
+  auto inner_arr = InterpValue::MakeChannelArray(ChannelDirection::kIn, 2,
+                                                 nullptr, {chan_ref1});
+  auto nested_arr = InterpValue::MakeChannelArray(ChannelDirection::kIn, 3,
+                                                  nullptr, {inner_arr});
+  EXPECT_TRUE(nested_arr.IsChannelArray());
+
+  EXPECT_DEATH(InterpValue::MakeChannelArray(ChannelDirection::kIn, 4, nullptr,
+                                             {inner_arr, chan_ref1}),
+               "ChannelArray elements must be either all ChannelArray or all "
+               "ChannelReference");
 }
 
 }  // namespace

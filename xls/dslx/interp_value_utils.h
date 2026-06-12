@@ -25,6 +25,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/dslx/channel_direction.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/ir/format_preference.h"
@@ -130,7 +131,18 @@ absl::StatusOr<InterpValue> CreateChannelReference(
 absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
     const Type* type,
     std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator =
-        std::nullopt);
+        std::nullopt,
+    std::optional<const AstNode*> definer = std::nullopt);
+
+// Gets the definer of the given channel or channel array.
+const AstNode* GetChannelOrArrayDefiner(const InterpValue& channel_or_array);
+
+// Gets the ID of a channel or channel array.
+int64_t GetChannelOrArrayId(const InterpValue& channel_or_array);
+
+// Gets the direction of a channel or channel array.
+ChannelDirection GetChannelOrArrayDirection(
+    const InterpValue& channel_or_array);
 
 // Formats an InterpValue to a string according to format preference.
 absl::StatusOr<std::string> FormatInterpValue(const InterpValue& value,
