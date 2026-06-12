@@ -1221,6 +1221,34 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceCannotReachAllBits) {
                                            }));
 }
 
+TEST_F(
+    BitSliceSimplificationPassTest,
+    SimplifySelectOfLiteralsDynamicBitSliceWithOneHotSelectAndOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue to_slice = fb.Param("to_slice", p->GetBitsType(30));
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue selector = fb.Concat({x, fb.Not(x)});
+  BValue start_index = fb.OneHotSelect(
+      selector, {fb.Literal(UBits(5, 32)), fb.Literal(UBits(25, 32))});
+  fb.DynamicBitSlice(to_slice, start_index, /*width=*/15);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  solvers::z3::ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::OneHotSelect(
+          m::Concat(m::Param("x"), m::Not(m::Param("x"))),
+          {
+              m::BitSlice(m::Param("to_slice"), /*start=*/5, /*width=*/15),
+              m::ZeroExt(
+                  m::BitSlice(m::Param("to_slice"), /*start=*/25, /*width=*/5)),
+          }));
+}
+
 void IrFuzzBitSliceSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   BitSliceSimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

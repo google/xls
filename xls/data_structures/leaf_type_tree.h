@@ -940,6 +940,18 @@ LeafTypeTree<T> Map(LeafTypeTreeView<R> ltt,
   }
   return LeafTypeTree<T>::CreateFromVector(ltt.type(), std::move(result));
 }
+template <typename T, typename R>
+absl::StatusOr<LeafTypeTree<T>> MapStatus(
+    LeafTypeTreeView<R> ltt,
+    std::function<absl::StatusOr<T>(const R& element)> function) {
+  typename LeafTypeTree<T>::DataContainerT result;
+  result.reserve(ltt.size());
+  for (const R& element : ltt.elements()) {
+    XLS_ASSIGN_OR_RETURN(T value, function(element));
+    result.push_back(std::move(value));
+  }
+  return LeafTypeTree<T>::CreateFromVector(ltt.type(), std::move(result));
+}
 
 // Use the given function to update each leaf element in this `LeafTypeTree`
 // using the corresponding element in the `other`. Return an error if the given

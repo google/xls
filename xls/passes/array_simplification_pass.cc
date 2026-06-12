@@ -1381,14 +1381,13 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(
     Node* select, const QueryEngine& query_engine) {
   absl::Span<Node* const> original_cases;
   std::optional<Node*> original_default_value;
-  if (select->Is<Select>()) {
-    original_cases = select->As<Select>()->cases();
-    original_default_value = select->As<Select>()->default_value();
-  } else {
-    XLS_RET_CHECK(select->Is<PrioritySelect>());
-    original_cases = select->As<PrioritySelect>()->cases();
-    original_default_value = select->As<PrioritySelect>()->default_value();
+  XLS_ASSIGN_OR_RETURN(GenericSelect sel, GenericSelect::From(select));
+  if (select->Is<OneHotSelect>() &&
+      !query_engine.ExactlyOneBitTrue(sel.selector())) {
+    return SimplifyResult{.changed = false};
   }
+  original_cases = sel.cases();
+  original_default_value = sel.default_value();
 
   struct IdentityValue : std::monostate {};
   Node* array_to_update = nullptr;
@@ -1497,24 +1496,9 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(
   }
 
   Node* selected_value;
-  if (select->Is<Select>()) {
-    XLS_ASSIGN_OR_RETURN(selected_value,
-                         select->function_base()->MakeNode<Select>(
-                             select->loc(), select->As<Select>()->selector(),
-                             /*cases=*/
-                             case_values,
-                             /*default_value=*/default_value));
-  } else {
-    XLS_RET_CHECK(select->Is<PrioritySelect>());
-    XLS_RET_CHECK(default_value.has_value());
-    XLS_ASSIGN_OR_RETURN(
-        selected_value,
-        select->function_base()->MakeNode<PrioritySelect>(
-            select->loc(), select->As<PrioritySelect>()->selector(),
-            /*cases=*/
-            case_values,
-            /*default_value=*/*default_value));
-  }
+  XLS_ASSIGN_OR_RETURN(
+      selected_value,
+      sel.CloneSelectLike(sel.selector(), case_values, default_value));
 
   XLS_ASSIGN_OR_RETURN(
       ArrayUpdate * overall_update,
@@ -1535,16 +1519,9 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(
 // further optimization.  On the other hand, this can replicate the select
 // logic, which can be expensive in area, so we limit by the number of cases.
 absl::StatusOr<SimplifyResult> SimplifySelectOfArrays(Node* select) {
-  absl::Span<Node* const> original_cases;
-  std::optional<Node*> original_default_value;
-  if (select->Is<Select>()) {
-    original_cases = select->As<Select>()->cases();
-    original_default_value = select->As<Select>()->default_value();
-  } else {
-    XLS_RET_CHECK(select->Is<PrioritySelect>());
-    original_cases = select->As<PrioritySelect>()->cases();
-    original_default_value = select->As<PrioritySelect>()->default_value();
-  }
+  XLS_ASSIGN_OR_RETURN(GenericSelect sel, GenericSelect::From(select));
+  absl::Span<Node* const> original_cases = sel.cases();
+  std::optional<Node*> original_default_value = sel.default_value();
 
   for (Node* sel_case : original_cases) {
     if (!sel_case->Is<Array>()) {
@@ -1578,21 +1555,9 @@ absl::StatusOr<SimplifyResult> SimplifySelectOfArrays(Node* select) {
       default_element = original_default_value.value()->operand(i);
     }
     Node* selected_element;
-    if (select->Is<Select>()) {
-      XLS_ASSIGN_OR_RETURN(
-          selected_element,
-          select->function_base()->MakeNode<Select>(
-              select->loc(), select->As<Select>()->selector(),
-              /*cases=*/elements, /*default=*/default_element));
-    } else {
-      XLS_RET_CHECK(select->Is<PrioritySelect>());
-      XLS_RET_CHECK(default_element.has_value());
-      XLS_ASSIGN_OR_RETURN(
-          selected_element,
-          select->function_base()->MakeNode<PrioritySelect>(
-              select->loc(), select->As<PrioritySelect>()->selector(),
-              /*cases=*/elements, /*default=*/*default_element));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        selected_element,
+        sel.CloneSelectLike(sel.selector(), elements, default_element));
     selected_elements.push_back(selected_element);
   }
   XLS_ASSIGN_OR_RETURN(Array * new_array,
@@ -1655,7 +1620,7 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
 // Simplify various forms of a select of array-typed values.
 absl::StatusOr<SimplifyResult> SimplifySelect(Node* select,
                                               const QueryEngine& query_engine) {
-  XLS_RET_CHECK(select->Is<Select>() || select->Is<PrioritySelect>());
+  XLS_RET_CHECK(GenericSelect::IsSelect(select));
 
   XLS_ASSIGN_OR_RETURN(SimplifyResult conditional_assign_result,
                        SimplifyConditionalAssign(select, query_engine));
@@ -1740,7 +1705,7 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   for (Node* node : reverse_topo_sort_nodes) {
     if (!node->IsDead() &&
         node->OpIn({Op::kArray, Op::kArrayIndex, Op::kArrayUpdate, Op::kSel,
-                    Op::kPrioritySel, Op::kArraySlice})) {
+                    Op::kPrioritySel, Op::kOneHotSel, Op::kArraySlice})) {
       add_to_worklist(node, false);
     }
   }
@@ -1766,7 +1731,7 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     } else if (node->Is<Array>()) {
       XLS_ASSIGN_OR_RETURN(result,
                            SimplifyArray(node->As<Array>(), query_engine));
-    } else if (node->Is<Select>() || node->Is<PrioritySelect>()) {
+    } else if (GenericSelect::IsSelect(node)) {
       XLS_ASSIGN_OR_RETURN(result, SimplifySelect(node, query_engine));
     } else if (node->Is<ArraySlice>()) {
       XLS_ASSIGN_OR_RETURN(
