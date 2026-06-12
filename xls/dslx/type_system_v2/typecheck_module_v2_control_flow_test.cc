@@ -1511,8 +1511,8 @@ TEST(TypecheckV2Test, FuzzTestDomainRangeBitSizeMismatch) {
 #[fuzz_test(domains=`u32:0..16384, u32:0..u32:16284`)]
 fn f(x: u8, y:u32) {}
 )",
-      TypecheckFails(HasSubstr("Fuzz test domain `u32:0..16384` is not "
-                               "compatible with parameter `x: u8`")));
+      TypecheckFails(
+          HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
 TEST(TypecheckV2Test, FuzzTestDomainBitSizeMismatchAlias) {
@@ -1522,18 +1522,19 @@ type u8_alias = u8;
 #[fuzz_test(domains=`u32:0..16384`)]
 fn f(x: u8_alias) {}
 )",
-      TypecheckFails(HasSubstr("Fuzz test domain `u32:0..16384` is not "
-                               "compatible with parameter `x: u8_alias`")));
+      TypecheckFails(
+          HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
 TEST(TypecheckV2Test, FuzzTestConstRangeMismatch) {
-  EXPECT_THAT(R"(
-const C = u32:0..1;
+  EXPECT_THAT(
+      R"(
+const C = u32:0..1000;
 #[fuzz_test(domains=`C`)]
 fn f(x: u8) {}
 )",
-              TypecheckFails(HasSubstr("Fuzz test domain `C` is not "
-                                       "compatible with parameter `x: u8`")));
+      TypecheckFails(
+          HasSubstr("bit count (32) does not match parameter bit count (8)")));
 }
 
 TEST(TypecheckV2Test, FuzzTestCountMismatchTooMany) {

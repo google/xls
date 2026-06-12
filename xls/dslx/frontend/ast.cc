@@ -2020,6 +2020,18 @@ absl::StatusOr<Expr*> StructInstanceBase::GetExpr(std::string_view name) const {
       absl::StrFormat("Name is not present in struct instance: \"%s\"", name));
 }
 
+absl::Status StructInstanceBase::AddMember(std::string name, Expr* expr) {
+  for (const auto& [existing_name, _] : members_) {
+    if (existing_name == name) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("Duplicate member added: \"$0\"", name));
+    }
+  }
+  members_.push_back({std::move(name), expr});
+  expr->SetParentNonLexical(this);
+  return absl::OkStatus();
+}
+
 // -- class StructInstance
 
 StructInstance::~StructInstance() = default;

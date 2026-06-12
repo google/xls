@@ -3668,6 +3668,10 @@ class StructInstanceBase : public Expr {
   // single member of the corresponding struct definition.
   virtual bool requires_all_members() const = 0;
 
+  // Adds a member to the struct instance. If the member already exists,
+  // returns an error.
+  absl::Status AddMember(std::string name, Expr* expr);
+
  private:
   // The struct being instantiated.
   TypeAnnotation* struct_ref_;

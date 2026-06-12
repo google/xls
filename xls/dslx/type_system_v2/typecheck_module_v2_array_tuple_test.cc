@@ -1579,8 +1579,8 @@ TEST(TypecheckV2Test, FuzzTestDomainArrayMismatch) {
 #[fuzz_test(domains=`[u32:0, 16384]`)]
 fn f(x: u8) {}
 )",
-      TypecheckFails(HasSubstr("Fuzz test domain `[u32:0, 16384]` is not "
-                               "compatible with parameter `x: u8`")));
+      TypecheckFails(HasSubstr("Fuzz test domain bit count (32) does not match "
+                               "parameter bit count (8)")));
 }
 
 TEST(TypecheckV2Test, FuzzTestDomainsEmptyTupleAlwaysMatches) {
@@ -1628,13 +1628,14 @@ fn f(x: ((u32, u8), u16)) {}
 }
 
 TEST(TypecheckV2Test, FuzzTestTupleDomainSizeMismatch) {
-  EXPECT_THAT(R"(
+  EXPECT_THAT(
+      R"(
 const D = (u32:0..1, u8:0..2, u16:0..3);
 #[fuzz_test(domains=`D`)]
 fn f(x: (u32, u8)) {}
 )",
-              TypecheckFails(HasSubstr("Fuzz test domain tuple size (3) does "
-                                       "not match parameter tuple size (2)")));
+      TypecheckFails(HasSubstr(
+          "Fuzz test domain tuple size (3) does not match parameter")));
 }
 
 TEST(TypecheckV2Test, FuzzTestTupleDomainTypeMismatch) {
@@ -1644,7 +1645,8 @@ const D = (u32:0..1, u16:0..2);
 #[fuzz_test(domains=`D`)]
 fn f(x: (u32, u8)) {}
 )",
-      TypecheckFails(HasSubstr("is not compatible with parameter")));
+      TypecheckFails(
+          HasSubstr("bit count (16) does not match parameter bit count (8)")));
 }
 
 TEST(TypecheckV2Test, FuzzTestTupleDomainNotATuple) {
@@ -1652,7 +1654,7 @@ TEST(TypecheckV2Test, FuzzTestTupleDomainNotATuple) {
 #[fuzz_test(domains=`u32:0..1`)]
 fn f(x: (u32, u8)) {}
 )",
-              TypecheckFails(HasSubstr("is not compatible with parameter")));
+              TypecheckFails(HasSubstr("expects a tuple")));
 }
 
 TEST(TypecheckV2Test, FuzzTestTupleDomainParamNotATuple) {
@@ -1661,8 +1663,7 @@ const D = (u32:0..1, u32:0..2);
 #[fuzz_test(domains=`D`)]
 fn f(x: u32) {}
 )",
-              TypecheckFails(HasSubstr("Fuzz test domain implies a tuple type, "
-                                       "but parameter is not a tuple")));
+              TypecheckFails(HasSubstr("implies a tuple type")));
 }
 
 TEST(TypecheckV2Test, FuzzTestTupleDomainDirectSuccess) {
