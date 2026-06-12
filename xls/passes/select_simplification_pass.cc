@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -41,6 +42,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -57,6 +59,7 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -1288,6 +1291,47 @@ absl::StatusOr<bool> TryHoistCompareThroughSelectLike(
   return true;
 }
 
+absl::StatusOr<Node*> ElementwiseOr(absl::Span<Node* const> inputs, Type* type,
+                                    FunctionBase* fb, SourceInfo loc) {
+  XLS_RET_CHECK(!TypeHasToken(type));
+
+  if (inputs.empty()) {
+    return fb->MakeNode<Literal>(loc, ZeroOfType(type));
+  }
+  if (inputs.size() == 1) {
+    return inputs[0];
+  }
+
+  // For simple types, this reduces to NaryOrIfNeeded.
+  if (type->IsBits()) {
+    return NaryOrIfNeeded(fb, inputs);
+  }
+
+  // First, decompose each active case into a tree of nodes, collecting the
+  // leaves into a tree of vectors.
+  LeafTypeTree<std::vector<Node*>> accumulator(type, std::vector<Node*>{});
+  for (std::vector<Node*>& leaf_vector : accumulator.elements()) {
+    leaf_vector.reserve(inputs.size());
+  }
+  for (Node* input : inputs) {
+    XLS_RET_CHECK_EQ(input->GetType(), type);
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<Node*> input_tree, ToTreeOfNodes(input));
+    for (size_t i = 0; i < accumulator.elements().size(); ++i) {
+      accumulator.elements()[i].push_back(input_tree.elements()[i]);
+    }
+  }
+
+  // Now that all the leaves are aligned, OR the leaves together at each
+  // position, then reconstruct the complex-typed node from the resulting tree.
+  XLS_ASSIGN_OR_RETURN(
+      LeafTypeTree<Node*> result_tree,
+      (leaf_type_tree::MapStatus<Node*, std::vector<Node*>>(
+          accumulator.AsView(), [&](const std::vector<Node*>& cases) {
+            return NaryOrIfNeeded(fb, cases);
+          })));
+  return FromTreeOfNodes(fb, result_tree.AsView(), "", loc);
+}
+
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                   BitProvenanceAnalysis& provenance,
                                   int64_t opt_level, bool range_analysis) {
@@ -1379,36 +1423,55 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
-  // One-hot-select with a constant selector can be replaced with OR of the
-  // activated cases.
+  // One-hot-select with a constant selector.
   if (node->Is<OneHotSelect>() &&
-      query_engine.IsFullyKnown(node->As<OneHotSelect>()->selector()) &&
-      node->GetType()->IsBits()) {
+      query_engine.IsFullyKnown(node->As<OneHotSelect>()->selector())) {
     OneHotSelect* sel = node->As<OneHotSelect>();
     const Bits selector = *query_engine.KnownValueAsBits(sel->selector());
-    Node* replacement = nullptr;
-    for (int64_t i = 0; i < selector.bit_count(); ++i) {
-      if (selector.Get(i)) {
-        if (replacement == nullptr) {
-          replacement = sel->get_case(i);
-        } else {
-          XLS_ASSIGN_OR_RETURN(
-              replacement,
-              node->function_base()->MakeNode<NaryOp>(
-                  node->loc(),
-                  std::vector<Node*>{replacement, sel->get_case(i)}, Op::kOr));
+
+    // Case 1: Zero-active (zero-hot); returns a constant zero of the same type.
+    if (selector.IsZero()) {
+      VLOG(2) << absl::StrFormat(
+          "Simplifying one-hot-select with constant zero selector: %s",
+          node->ToString());
+      XLS_ASSIGN_OR_RETURN(Node * zero,
+                           node->function_base()->MakeNode<Literal>(
+                               node->loc(), ZeroOfType(node->GetType())));
+      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(zero));
+      return true;
+    }
+
+    // Case 2: Exactly one active bit (one-hot); returns the corresponding case.
+    if (selector.PopCount() == 1) {
+      int64_t active_bit = -1;
+      for (int64_t i = 0; i < selector.bit_count(); ++i) {
+        if (selector.Get(i)) {
+          active_bit = i;
+          break;
         }
       }
+      XLS_RET_CHECK_NE(active_bit, -1);
+      VLOG(2) << absl::StrFormat(
+          "Simplifying one-hot-select with constant one-active selector: %s",
+          node->ToString());
+      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(sel->get_case(active_bit)));
+      return true;
     }
-    if (replacement == nullptr) {
-      XLS_ASSIGN_OR_RETURN(
-          replacement,
-          node->function_base()->MakeNode<Literal>(
-              node->loc(), Value(UBits(0, node->BitCountOrDie()))));
-    }
+
+    // Case 3: Multi-active (multi-hot); returns the OR of the active cases.
     VLOG(2) << absl::StrFormat(
-        "Simplifying one-hot-select with constant selector: %s",
+        "Simplifying one-hot-select with constant multi-active selector: %s",
         node->ToString());
+    std::vector<Node*> active_cases;
+    active_cases.reserve(selector.PopCount());
+    for (auto [bit, case_node] : iter::zip(selector, sel->cases())) {
+      if (bit) {
+        active_cases.push_back(case_node);
+      }
+    }
+    XLS_ASSIGN_OR_RETURN(Node * replacement,
+                         ElementwiseOr(active_cases, node->GetType(),
+                                       node->function_base(), node->loc()));
     XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(replacement));
     return true;
   }
@@ -1426,10 +1489,12 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   }
 
   // OneHotSelect with identical cases can be replaced with a select between one
-  // of the identical case and the default value where the selector is: original
-  // selector == 0
-  if (node->Is<OneHotSelect>() && node->GetType()->IsBits() &&
-      node->BitCountOrDie() > 1) {
+  // of the identical case and the default value where the selector is replaced
+  // with "original selector != 0".
+  //
+  // Skip 1-bit or empty Bits selects to avoid bloating the IR.
+  if (node->Is<OneHotSelect>() &&
+      (!node->GetType()->IsBits() || node->BitCountOrDie() > 1)) {
     Node* selector = node->As<OneHotSelect>()->selector();
     absl::Span<Node* const> cases = node->As<OneHotSelect>()->cases();
     if (absl::c_all_of(cases, [&](Node* c) { return c == cases[0]; })) {
