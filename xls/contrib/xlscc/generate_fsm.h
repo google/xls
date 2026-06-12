@@ -223,6 +223,21 @@ class NewFSMGenerator : public GeneratorBase {
       TrackedBValue slice_is_current, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
 
+  struct SharedFunctionCall {
+    const GeneratedFunction* func;
+    TrackedBValue input;
+    TrackedBValue output;
+    TrackedBValue condition;
+  };
+
+  absl::Status InterceptSharedCall(
+      const IOOp& op, TrackedBValue op_out_value, TrackedBValue io_active,
+      std::vector<SharedFunctionCall>* shared_function_calls,
+      GenerateIOReturn* io_return, xls::ProcBuilder& pb);
+  absl::Status GenerateSharedCalls(
+      const std::vector<SharedFunctionCall>& shared_function_calls,
+      xls::ProcBuilder& pb);
+
   absl::Status SetupNewFSMGenerationContext(
       const std::list<GeneratedFunctionSlice>& slices, NewFSMLayout& layout,
       const xls::SourceInfo& body_loc);

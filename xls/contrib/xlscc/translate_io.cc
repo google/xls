@@ -95,7 +95,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
 
   CHECK(op.op == OpType::kTrace || op.op == OpType::kLoopBegin ||
         op.op == OpType::kLoopEndJump || op.op == OpType::kActivationBarrier ||
-        channel != nullptr);
+        op.op == OpType::kSharedCall || channel != nullptr);
   CHECK_EQ(op.channel, nullptr);
 
   const bool masked = OpIsMasked(op);
@@ -169,6 +169,10 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
 
   std::shared_ptr<CType> param_type = channel_item_type;
 
+  if (op.op == OpType::kSharedCall) {
+    param_type = op.shared_call_param_type;
+  }
+
   xls::Type* xls_param_type = nullptr;
   if (param_type != nullptr) {
     XLS_ASSIGN_OR_RETURN(xls_param_type, TranslateTypeToXLS(param_type, loc));
@@ -199,9 +203,9 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
 
     TrackedBValue input_io_value = pbval;
 
-    if (channel_item_type) {
+    if (param_type) {
       XLSCC_CHECK(input_io_value.valid(), loc);
-      op.input_value = CValue(input_io_value, channel_item_type);
+      op.input_value = CValue(input_io_value, param_type);
     }
   }
 
@@ -862,6 +866,7 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
     case OpType::kSend:
     case OpType::kWrite:
     case OpType::kRead:
+    case OpType::kSharedCall:
     case OpType::kExplicitReadRequest:
       op_condition = context().fb->TupleIndex(retval, /*idx=*/1, loc);
       break;
@@ -919,6 +924,7 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
     case OpType::kSend:
     case OpType::kWrite:
     case OpType::kRead:
+    case OpType::kSharedCall:
     case OpType::kExplicitReadRequest: {
       TrackedBValue data = context().fb->TupleIndex(retval, /*idx=*/0, loc);
       new_retval = context().fb->Tuple({data, op_condition}, loc);
@@ -949,10 +955,6 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
       }
       break;
     }
-      if (!new_retval.valid()) {
-        return absl::UnimplementedError(ErrorMessage(
-            loc, "Unsupported IO op %i in AddConditionToIOReturn", op.op));
-      }
   }
 
   return new_retval;
@@ -992,6 +994,7 @@ absl::StatusOr<TrackedBValue> Translator::GetOpCondition(
       break;
     }
     case OpType::kRead:
+    case OpType::kSharedCall:
     case OpType::kWrite:
     case OpType::kSend:
     case OpType::kExplicitReadRequest: {
