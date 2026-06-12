@@ -1843,9 +1843,10 @@ std::string BytecodeInterpreter::FormatChannelNameForTracing(
     std::string result;
     for (auto [proc, instance] : proc_id()->proc_instance_stack) {
       if (result.empty()) {
-        result += proc->identifier();
+        absl::StrAppend(&result, GetProcIdentifier(proc));
       } else {
-        absl::StrAppendFormat(&result, "->%s#%d", proc->identifier(), instance);
+        absl::StrAppendFormat(&result, "->%s#%d", GetProcIdentifier(proc),
+                              instance);
       }
     }
     return absl::StrCat(result, "::", channel.channel_name());

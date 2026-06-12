@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -25,11 +26,18 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/substitute.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/proc.h"
 
 namespace xls::dslx {
+
+using ProcOrProcDef = std::variant<const Proc*, const ProcDef*>;
+
+inline std::string GetProcIdentifier(ProcOrProcDef proc) {
+  return std::visit(Visitor{[](auto* proc) { return proc->identifier(); }},
+                    proc);
+}
 
 // ProcId is used to represent a unique instantiation of a Proc, that is, to
 // differentiate the instance of Proc Foo spawned from Proc Bar from the one
@@ -37,9 +45,6 @@ namespace xls::dslx {
 // different constants or channels, so we need to be able to identify each
 // separately.
 struct ProcId {
-  // TODO: https://github.com/google/xls/issues/4125 - Get rid of this field
-  // when we stop supporting global channels and legacy procs.
-  //
   // Contains the "spawn chain": the series of Procs through which this Proc was
   // spawned, with the oldest/"root" proc as element 0.  Contains the current
   // proc, as well. The second element of each pair is a zero-based spawn index
@@ -55,25 +60,17 @@ struct ProcId {
   //    [{A, 0}, {B, 0}, {C, 0}]
   //    [{A, 0}, {B, 1}, {C, 0}]
   //    [{A, 0}, {E, 0}, {B, 0}, {C, 0}]
-  std::vector<std::pair<Proc*, int>> proc_instance_stack;
+  std::vector<std::pair<ProcOrProcDef, int>> proc_instance_stack;
 
   // The name of the proc alias, in a situation where we are converting a proc
   // to IR via an alias to it.
   std::optional<std::string> alias_name;
 
-  // Used for impl-style procs instead of `proc_instance_stack`; the latter is
-  // now a relic of global channels.
-  const ProcDef* proc_def = nullptr;
-  int proc_def_instance = 0;
-
   std::string ToString() const {
     if (proc_instance_stack.size() == 1 && alias_name.has_value()) {
       return *alias_name;
     }
-    if (proc_def != nullptr) {
-      return absl::Substitute("$0:$1", proc_def->identifier(),
-                              proc_def_instance);
-    }
+
     if (proc_instance_stack.empty()) {
       return "";
     }
@@ -87,43 +84,43 @@ struct ProcId {
     std::string part_with_instance_counts = absl::StrJoin(
         proc_instance_stack.begin() + (omit_first_instance_count ? 1 : 0),
         proc_instance_stack.end(), "->",
-        [](std::string* out, const std::pair<Proc*, int> p) {
-          absl::StrAppendFormat(out, "%s:%d", p.first->identifier(), p.second);
+        [](std::string* out, const std::pair<ProcOrProcDef, int> p) {
+          absl::StrAppendFormat(out, "%s:%d", GetProcIdentifier(p.first),
+                                p.second);
         });
     return omit_first_instance_count
-               ? absl::StrCat(proc_instance_stack[0].first->identifier(), "->",
-                              part_with_instance_counts)
+               ? absl::StrCat(GetProcIdentifier(proc_instance_stack[0].first),
+                              "->", part_with_instance_counts)
                : part_with_instance_counts;
   }
 
   bool operator==(const ProcId& other) const {
-    return proc_def == other.proc_def &&
-           proc_def_instance == other.proc_def_instance &&
-           proc_instance_stack == other.proc_instance_stack;
+    return proc_instance_stack == other.proc_instance_stack;
   }
 
   template <typename H>
   friend H AbslHashValue(H h, const ProcId& pid) {
-    return pid.proc_def != nullptr
-               ? H::combine(std::move(h), pid.proc_def, pid.proc_def_instance)
-               : H::combine(std::move(h), pid.proc_instance_stack);
+    return H::combine(std::move(h), pid.proc_instance_stack);
   }
 };
 
 // An object that deals out `ProcId` instances.
 class ProcIdFactory {
  public:
-  // Creates an ID for an impl-style proc.
-  ProcId CreateProcId(const ProcDef* proc);
-
   // Creates a `ProcId` representing the given `spawnee` spawned by the given
   // `parent` context. If `parent` is `nullopt` then the `spawnee` is the root
   // of the proc network. If `count_as_new_instance` is true, then subsequent
   // calls with the same `parent` and `spawnee` will get a new instance count
   // value. Otherwise, subsequent calls will get an equivalent `ProcId` to the
   // one returned by this call.
-  ProcId CreateProcId(const std::optional<ProcId>& parent, Proc* spawnee,
-                      bool count_as_new_instance = true);
+  ProcId CreateProcId(const std::optional<ProcId>& parent,
+                      ProcOrProcDef spawnee, bool count_as_new_instance = true);
+
+  // Creates an ID for an impl-style proc, for use in a context where the spawn
+  // graph is unknown or irrelevant.
+  ProcId CreateProcId(const ProcDef* proc) {
+    return CreateProcId(std::nullopt, proc);
+  }
 
   // Returns whether any `spawnee` ever passed to `CreateProcId` in this
   // factory has been passed more than once with the `count_as_new_instance`
@@ -138,10 +135,6 @@ class ProcIdFactory {
   // `parent` and `spawnee` have been passed in with `true` for
   // `count_as_new_instance`.
   absl::flat_hash_map<std::pair<ProcId, std::string>, int> instance_counts_;
-
-  // The instance counts of impl-style procs.
-  absl::flat_hash_map<const ProcDef*, int> proc_def_instance_counts_;
-
   bool has_multiple_instances_of_any_proc_ = false;
 };
 

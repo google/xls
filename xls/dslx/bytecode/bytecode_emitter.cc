@@ -36,6 +36,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
@@ -99,7 +100,7 @@ absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
                        MakeValueFormatDescriptor(*channel_payload_type.get(),
                                                  format_preference));
 
-  return Bytecode::ChannelData(channel->ToString(),
+  return Bytecode::ChannelData(absl::StripPrefix(channel->ToString(), "self."),
                                std::move(channel_payload_type),
                                std::move(struct_fmt_desc));
 }

@@ -18,25 +18,17 @@
 #include <utility>
 #include <vector>
 
-#include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/proc.h"
-
 namespace xls::dslx {
 
-ProcId ProcIdFactory::CreateProcId(const ProcDef* proc_def) {
-  int instance_count = ++proc_def_instance_counts_[proc_def];
-  has_multiple_instances_of_any_proc_ |= instance_count > 1;
-  return ProcId{.proc_def = proc_def, .proc_def_instance = instance_count - 1};
-}
-
 ProcId ProcIdFactory::CreateProcId(const std::optional<ProcId>& parent,
-                                   Proc* spawnee, bool count_as_new_instance) {
+                                   ProcOrProcDef spawnee,
+                                   bool count_as_new_instance) {
   ProcId parent_or_empty =
       parent.has_value() ? *parent : ProcId{.proc_instance_stack = {}};
-  std::vector<std::pair<Proc*, int>> new_stack =
+  std::vector<std::pair<ProcOrProcDef, int>> new_stack =
       parent_or_empty.proc_instance_stack;
-  int& instance_count =
-      instance_counts_[std::make_pair(parent_or_empty, spawnee->identifier())];
+  int& instance_count = instance_counts_[std::make_pair(
+      parent_or_empty, GetProcIdentifier(spawnee))];
   new_stack.push_back(std::make_pair(spawnee, instance_count));
   if (count_as_new_instance && ++instance_count > 1) {
     has_multiple_instances_of_any_proc_ = true;

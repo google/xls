@@ -77,12 +77,27 @@ class ProcHierarchyInterpreterTest : public ::testing::Test {
     return tm_->module->GetTestProc(test_proc_name);
   }
 
+  absl::StatusOr<ProcDef*> ParseAndGetTestProcDef(
+      std::string_view program, std::string_view test_proc_name) {
+    absl::StatusOr<TypecheckedModule> tm =
+        ParseAndTypecheckOrPrintError(program, &import_data_.value());
+    XLS_RETURN_IF_ERROR(tm.status());
+    tm_.emplace(*tm);
+    return tm_->module->GetTestProcDef(test_proc_name);
+  }
+
   absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> Create(
       TestProc* test_proc, const BytecodeInterpreterOptions& options) {
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, tm_->type_info->GetTopLevelProcTypeInfo(
                                             test_proc->proc()));
     return ProcHierarchyInterpreter::Create(&import_data_.value(), ti,
                                             test_proc->proc(), options);
+  }
+
+  absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> Create(
+      ProcDef* test_proc, const BytecodeInterpreterOptions& options) {
+    return ProcHierarchyInterpreter::Create(&import_data_.value(),
+                                            tm_->type_info, test_proc, options);
   }
 
   absl::Status Run(ProcHierarchyInterpreter& hierarchy_interpreter,
@@ -678,26 +693,32 @@ proc incrementer {
 
 #[test_proc]
 proc tester_proc {
-  data_out: chan<u32>[1] out;
-  data_in: chan<u32>[1] in;
+  data_out: chan<u32>[2] out;
+  data_in: chan<u32>[2] in;
   terminator: chan<bool> out;
 
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_p, input_c) = chan<u32>[1]("input");
-    let (output_p, output_c) = chan<u32>[1]("output");
+    let (input_p, input_c) = chan<u32>[2]("input");
+    let (output_p, output_c) = chan<u32>[2]("output");
     spawn incrementer(input_c[0], output_p[0]);
+    spawn incrementer(input_c[1], output_p[1]);
     (input_p, output_c, terminator)
   }
 
   next(state: ()) {
-
     let tok = send(join(), data_out[0], u32:42);
     let (tok, result) = recv(tok, data_in[0]);
 
+    let tok = send(join(), data_out[1], u32:42);
+    let (tok, result) = recv(tok, data_in[1]);
+
     let tok = send(tok, data_out[0], u32:100);
     let (tok, result) = recv(tok, data_in[0]);
+
+    let tok = send(tok, data_out[1], u32:100);
+    let (tok, result) = recv(tok, data_in[1]);
 
     let tok = send(tok, terminator, true);
  }
@@ -718,8 +739,12 @@ proc tester_proc {
       testing::ElementsAre(
           "Sent data on channel `tester_proc::data_out[0]`:\n  u32:42",
           "Received data on channel `tester_proc::data_in[0]`:\n  u32:43",
+          "Sent data on channel `tester_proc::data_out[1]`:\n  u32:42",
+          "Received data on channel `tester_proc::data_in[1]`:\n  u32:43",
           "Sent data on channel `tester_proc::data_out[0]`:\n  u32:100",
           "Received data on channel `tester_proc::data_in[0]`:\n  u32:101",
+          "Sent data on channel `tester_proc::data_out[1]`:\n  u32:100",
+          "Received data on channel `tester_proc::data_in[1]`:\n  u32:101",
           "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
   EXPECT_THAT(
       GetProcInstance(*interpreter, "tester_proc->incrementer:0")
@@ -1239,6 +1264,144 @@ impl CounterTest {
       TestResultData result,
       ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, ProcDefSpawnWithChannelArray) {
+  constexpr std::string_view kProgram = R"(
+proc SomeProc {
+  ins: chan<u32>[2] in,
+}
+
+impl SomeProc {
+  fn new(ins: chan<u32>[2] in) -> Self {
+    SomeProc { ins }
+  }
+
+  fn next(self) {
+    const for (i, _) in u32:0..2 {
+      let (_, v) = recv(token(), self.ins[i]);
+      trace_fmt!("recv: {}", v);
+    }(());
+  }
+}
+
+#[test]
+proc TopProc {
+  terminator: chan<bool> out,
+  outs: chan<u32>[2] out,
+}
+
+impl TopProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (outs, ins) = chan<u32>[2]("ins_outs");
+    SomeProc::new(ins).spawn();
+    TopProc { terminator, outs }
+  }
+
+  fn next(self) {
+    let t = const for (i, t) in u32:0..2 {
+      send(t, self.outs[i], i)
+    }(token());
+    send(t, self.terminator, true);
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, TraceProcDefChannelArray) {
+  constexpr std::string_view kProgram = R"(
+proc Incrementer {
+  in_ch: chan<u32> in,
+  out_ch: chan<u32> out,
+}
+
+impl Incrementer {
+  fn new(in_ch: chan<u32> in,
+         out_ch: chan<u32> out) -> Self {
+    Incrementer { in_ch, out_ch }
+  }
+
+  fn next(self) {
+    let (tok, i) = recv(join(), self.in_ch);
+    let tok = send(tok, self.out_ch, i + u32:1);
+  }
+}
+
+#[test]
+proc TestProc {
+  data_out: chan<u32>[2] out,
+  data_in: chan<u32>[2] in,
+  terminator: chan<bool> out,
+}
+
+impl TestProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (input_p, input_c) = chan<u32>[2]("input");
+    let (output_p, output_c) = chan<u32>[2]("output");
+    Incrementer::new(input_c[0], output_p[0]).spawn();
+    Incrementer::new(input_c[1], output_p[1]).spawn();
+    TestProc { data_out: input_p, data_in: output_c, terminator: terminator }
+  }
+
+  fn next(self) {
+    let tok = send(join(), self.data_out[0], u32:42);
+    let (tok, result) = recv(tok, self.data_in[0]);
+
+    let tok = send(join(), self.data_out[1], u32:42);
+    let (tok, result) = recv(tok, self.data_in[1]);
+
+    let tok = send(tok, self.data_out[0], u32:100);
+    let (tok, result) = recv(tok, self.data_in[0]);
+
+    let tok = send(tok, self.data_out[1], u32:100);
+    let (tok, result) = recv(tok, self.data_in[1]);
+
+    let tok = send(tok, self.terminator, true);
+ }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * test_proc,
+                           ParseAndGetTestProcDef(kProgram, "TestProc"));
+  auto options = BytecodeInterpreterOptions().trace_channels(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
+  EXPECT_THAT(GetProcInstance(*interpreter, "TestProc:0")
+                  .value()
+                  ->events()
+                  .GetTraceMessageStrings(),
+              testing::ElementsAre(
+                  "Sent data on channel `TestProc::data_out[0]`:\n  u32:42",
+                  "Received data on channel `TestProc::data_in[0]`:\n  u32:43",
+                  "Sent data on channel `TestProc::data_out[1]`:\n  u32:42",
+                  "Received data on channel `TestProc::data_in[1]`:\n  u32:43",
+                  "Sent data on channel `TestProc::data_out[0]`:\n  u32:100",
+                  "Received data on channel `TestProc::data_in[0]`:\n  u32:101",
+                  "Sent data on channel `TestProc::data_out[1]`:\n  u32:100",
+                  "Received data on channel `TestProc::data_in[1]`:\n  u32:101",
+                  "Sent data on channel `TestProc::terminator`:\n  u1:1"));
+  EXPECT_THAT(
+      GetProcInstance(*interpreter, "TestProc->Incrementer:0")
+          .value()
+          ->events()
+          .GetTraceMessageStrings(),
+      testing::ElementsAre("Received data on channel "
+                           "`TestProc->Incrementer#0::in_ch`:\n  u32:42",
+                           "Sent data on channel "
+                           "`TestProc->Incrementer#0::out_ch`:\n  u32:43",
+                           "Received data on channel "
+                           "`TestProc->Incrementer#0::in_ch`:\n  u32:100",
+                           "Sent data on channel "
+                           "`TestProc->Incrementer#0::out_ch`:\n  u32:101"));
 }
 
 }  // namespace
