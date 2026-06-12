@@ -518,6 +518,13 @@ class InterpValue {
 
   absl::StatusOr<const std::vector<InterpValue>*> GetValues() const;
   const std::vector<InterpValue>& GetValuesOrDie() const;
+  std::optional<std::shared_ptr<RangeData>> GetRangeData() const {
+    if (is_range() &&
+        std::holds_alternative<std::shared_ptr<RangeData>>(payload_)) {
+      return std::get<std::shared_ptr<RangeData>>(payload_);
+    }
+    return std::nullopt;
+  }
   absl::StatusOr<const FnData*> GetFunction() const {
     if (!std::holds_alternative<FnData>(payload_)) {
       return absl::InvalidArgumentError(
