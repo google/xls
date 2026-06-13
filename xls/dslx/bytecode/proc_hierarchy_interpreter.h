@@ -182,6 +182,9 @@ class ProcHierarchyInterpreter {
                                   ImportData* import_data,
                                   const BytecodeInterpreterOptions& options);
 
+  absl::Status AllocateChannelOrArray(const ProcDef* proc,
+                                      const InterpValue& value);
+
   std::unique_ptr<InterpValueChannelManager> channel_manager_;
   std::vector<ProcInstance> proc_instances_;
   std::vector<InterpValue> interface_args_;

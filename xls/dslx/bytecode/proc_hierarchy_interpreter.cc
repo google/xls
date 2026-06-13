@@ -368,20 +368,7 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
     VLOG(5) << "Initializing member " << member->name() << " of proc "
             << proc->identifier();
     if (member_type->GetDirectOrElementChannelType().has_value()) {
-      const InterpValue::ChannelReference& channel_ref =
-          member_values[i].GetChannelReferenceOrDie();
-      if (channel_ref.GetDefiner().has_value() &&
-          (*channel_ref.GetDefiner())->kind() == AstNodeKind::kChannelDecl) {
-        VLOG(5) << "Allocating channel " << member_values[i].ToString()
-                << " in proc " << proc->identifier();
-
-        const InterpValue::ChannelReference& channel_ref =
-            member_values[i].GetChannelReferenceOrDie();
-        XLS_RETURN_IF_ERROR(channel_manager_
-                                ->AllocateChannel(*channel_ref.GetChannelId(),
-                                                  *channel_ref.GetDefiner())
-                                .status());
-      }
+      XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, member_values[i]));
     } else {
       VLOG(5) << "Setting state value for " << member->name() << " in proc "
               << proc->identifier() << " to " << member_values[i].ToString();
@@ -419,6 +406,33 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
         canonical_initializer.constructor_env, import_data, options));
   }
 
+  return absl::OkStatus();
+}
+
+absl::Status ProcHierarchyInterpreter::AllocateChannelOrArray(
+    const ProcDef* proc, const InterpValue& value) {
+  if (value.IsChannelReference()) {
+    const InterpValue::ChannelReference& channel_ref =
+        value.GetChannelReferenceOrDie();
+    if (channel_ref.GetDefiner().has_value() &&
+        (*channel_ref.GetDefiner())->kind() == AstNodeKind::kChannelDecl) {
+      VLOG(5) << "Allocating channel " << value.ToString() << " in proc "
+              << proc->identifier();
+
+      const InterpValue::ChannelReference& channel_ref =
+          value.GetChannelReferenceOrDie();
+      XLS_RETURN_IF_ERROR(channel_manager_
+                              ->AllocateChannel(*channel_ref.GetChannelId(),
+                                                *channel_ref.GetDefiner())
+                              .status());
+    }
+    return absl::OkStatus();
+  }
+
+  XLS_RET_CHECK(value.IsChannelArray());
+  for (const InterpValue& element : value.GetChannelArrayOrDie().elements()) {
+    XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, element));
+  }
   return absl::OkStatus();
 }
 
