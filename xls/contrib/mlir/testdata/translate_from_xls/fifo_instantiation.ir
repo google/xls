@@ -1,0 +1,41 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_fifo_inst
+
+// CHECK-LABEL: xls.block @child_block
+block child_block(in: bits[32], out: bits[32]) {
+  in: bits[32] = input_port(name=in)
+  out: () = output_port(in, name=out)
+}
+
+// CHECK-LABEL: xls.block @parent_block
+// CHECK-SAME: [clock: "clk", reset: %rst]
+// CHECK-SAME: (%x: i32, %pv: i1, %pr: i1) -> (%y : i32)
+// CHECK:   xls.block_instantiate "child_inst" @child_block(%x) : (i32) -> (i32)
+// CHECK:   xls.fifo_instantiate "my_fifo"(%{{.*}}, %pv, %pr, %rst)
+// CHECK-SAME: bypass = false
+// CHECK-SAME: depth = 10
+// CHECK-SAME: register_pop_outputs = true
+// CHECK-SAME: register_push_outputs = true
+// CHECK-SAME: (i32, i1, i1, i1) -> (i1, i32, i1)
+// CHECK:   xls.block_output
+
+block parent_block(clk: clock, rst: bits[1], x: bits[32], pv: bits[1], pr: bits[1], y: bits[32]) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  instantiation child_inst(block=child_block, kind=block)
+  instantiation my_fifo(data_type=bits[32], depth=10, bypass=false, register_push_outputs=true, register_pop_outputs=true, kind=fifo)
+  rst: bits[1] = input_port(name=rst, id=1)
+  x: bits[32] = input_port(name=x, id=2)
+  pv: bits[1] = input_port(name=pv, id=3)
+  pr: bits[1] = input_port(name=pr, id=4)
+  child_out: bits[32] = instantiation_output(instantiation=child_inst, port_name=out, id=10)
+  child_in: () = instantiation_input(x, instantiation=child_inst, port_name=in, id=11)
+  fifo_push_ready: bits[1] = instantiation_output(instantiation=my_fifo, port_name=push_ready, id=20)
+  fifo_pop_data: bits[32] = instantiation_output(instantiation=my_fifo, port_name=pop_data, id=21)
+  fifo_pop_valid: bits[1] = instantiation_output(instantiation=my_fifo, port_name=pop_valid, id=22)
+  fifo_push_data: () = instantiation_input(child_out, instantiation=my_fifo, port_name=push_data, id=30)
+  fifo_push_valid: () = instantiation_input(pv, instantiation=my_fifo, port_name=push_valid, id=31)
+  fifo_pop_ready: () = instantiation_input(pr, instantiation=my_fifo, port_name=pop_ready, id=32)
+  fifo_rst: () = instantiation_input(rst, instantiation=my_fifo, port_name=rst, id=33)
+  y: () = output_port(fifo_pop_data, name=y, id=40)
+}

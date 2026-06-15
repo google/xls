@@ -1,0 +1,71 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_block_inst
+
+// CHECK-LABEL: xls.block @child_block
+// CHECK-SAME: (%in: i32) -> (%out : i32)
+// CHECK:   xls.block_output
+
+// CHECK-LABEL: xls.block @parent_block
+// CHECK-SAME: (%x: i32) -> (%y : i32)
+// CHECK:   xls.block_instantiate "child_inst" @child_block(%x) : (i32) -> (i32)
+// CHECK:   xls.block_output
+
+block child_block(in: bits[32], out: bits[32]) {
+  in: bits[32] = input_port(name=in)
+  out: () = output_port(in, name=out)
+}
+
+block parent_block(x: bits[32], y: bits[32]) {
+  instantiation child_inst(block=child_block, kind=block)
+  x: bits[32] = input_port(name=x)
+  child_in: () = instantiation_input(x, instantiation=child_inst, port_name=in)
+  child_out: bits[32] = instantiation_output(instantiation=child_inst, port_name=out)
+  y: () = output_port(child_out, name=y)
+}
+
+// CHECK-LABEL: xls.block @child_block_reset
+// CHECK-SAME: [clock: "clk", reset: %rst]
+// CHECK-SAME: (%in: i32) -> (%out : i32)
+// CHECK:   xls.block_output
+
+// CHECK-LABEL: xls.block @parent_block_reset
+// CHECK-SAME: [clock: "clk", reset: %rst]
+// CHECK-SAME: (%x: i32) -> (%y : i32)
+// CHECK:   xls.block_instantiate "child_inst" @child_block_reset[reset: %rst](%x) : (i32) -> (i32)
+// CHECK:   xls.block_output
+
+block child_block_reset(clk: clock, rst: bits[1], in: bits[32], out: bits[32]) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  rst: bits[1] = input_port(name=rst)
+  in: bits[32] = input_port(name=in)
+  out: () = output_port(in, name=out)
+}
+
+block parent_block_reset(clk: clock, rst: bits[1], x: bits[32], y: bits[32]) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  instantiation child_inst(block=child_block_reset, kind=block)
+  rst: bits[1] = input_port(name=rst)
+  x: bits[32] = input_port(name=x)
+  child_rst: () = instantiation_input(rst, instantiation=child_inst, port_name=rst)
+  child_in: () = instantiation_input(x, instantiation=child_inst, port_name=in)
+  child_out: bits[32] = instantiation_output(instantiation=child_inst, port_name=out)
+  y: () = output_port(child_out, name=y)
+}
+
+// This is regression test for wrong initial translate ordering.
+
+// CHECK-LABEL: xls.block @parent_block_with_op
+// CHECK-SAME: (%x: i32) -> (%y : i32)
+// CHECK:   %[[CHILD_OUT:.*]] = xls.block_instantiate "child_inst" @child_block(%x) : (i32) -> (i32)
+// CHECK:   %[[INV:.*]] = xls.not %[[CHILD_OUT]] : i32
+// CHECK:   xls.block_output %[[INV]] : i32
+
+block parent_block_with_op(x: bits[32], y: bits[32]) {
+  instantiation child_inst(block=child_block, kind=block)
+  x: bits[32] = input_port(name=x)
+  child_in: () = instantiation_input(x, instantiation=child_inst, port_name=in)
+  child_out: bits[32] = instantiation_output(instantiation=child_inst, port_name=out)
+  inv: bits[32] = not(child_out)
+  y: () = output_port(inv, name=y)
+}

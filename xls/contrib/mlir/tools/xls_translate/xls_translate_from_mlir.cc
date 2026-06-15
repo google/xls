@@ -68,11 +68,14 @@
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/contrib/mlir/util/conversion_utils.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/foreign_function_data.pb.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -89,6 +92,7 @@ namespace {
 
 using ::llvm::zip;
 using ::mlir::func::FuncOp;
+using ::xls::BlockBuilder;
 using ::xls::BuilderBase;
 using ::xls::BValue;
 using ::xls::FunctionBuilder;
@@ -191,6 +195,18 @@ class TranslationState {
 
   SymbolTableCollection& getSymbolTable() const { return symbol_table_; }
 
+  void setRegisterMap(llvm::StringMap<::xls::Register*>* reg_map) {
+    register_map_ = reg_map;
+  }
+
+  ::xls::Register* getRegister(StringRef name) const {
+    if (!register_map_) {
+      return nullptr;
+    }
+    auto it = register_map_->find(name);
+    return it == register_map_->end() ? nullptr : it->second;
+  }
+
  private:
   DenseMap<Value, BValue>* value_map_;
   DenseMap<ChanOp, ::xls::Channel*> channel_map_;
@@ -203,6 +219,7 @@ class TranslationState {
   // Acts as a cache for symbol lookups, should be available even in const
   // functions.
   mutable SymbolTableCollection symbol_table_;
+  llvm::StringMap<::xls::Register*>* register_map_ = nullptr;
 };
 
 ::xls::SourceInfo TranslationState::getLoc(Operation* op) const {
@@ -646,7 +663,7 @@ absl::StatusOr<::xls::Function*> getFunction(TranslationState& state,
 
   // Handle function instantiations.
   if (func_name.starts_with("fn ")) {
-    if (!func_name.ends_with("}")) {
+    if (!func_name.ends_with('}')) {
       return absl::InvalidArgumentError(
           "Invalid DSLX snippet, must be a function ending with `}`");
     }
@@ -1204,6 +1221,185 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
           }
           return out = fb.Tuple(operands);
         })
+        .Case<BlockOutputOp>([&](BlockOutputOp block_out) {
+          // BlockOutputOp is handled separately by the block conversion.
+          // Just return a dummy valid BValue.
+          if (block_out.getNumOperands() > 0) {
+            return value_map[block_out.getOperand(0)];
+          }
+          return BValue();
+        })
+        .Case<RegisterOp>([&](RegisterOp reg_op) {
+          // RegisterOp declarations are handled during block setup.
+          // Return a dummy valid BValue.
+          return fb.Literal(::xls::UBits(0, 1));
+        })
+        .Case<RegisterReadOp>([&](RegisterReadOp read_op) {
+          auto* bb = dynamic_cast<BlockBuilder*>(&fb);
+          if (!bb) {
+            llvm::errs() << "RegisterReadOp only supported in blocks\n";
+            return BValue();
+          }
+          auto* reg = translation_state.getRegister(read_op.getReg());
+          if (!reg) {
+            read_op.emitOpError() << "register not found: " << read_op.getReg();
+            return BValue();
+          }
+          return bb->RegisterRead(reg, translation_state.getLoc(read_op));
+        })
+        .Case<RegisterWriteOp>([&](RegisterWriteOp write_op) {
+          auto* bb = dynamic_cast<BlockBuilder*>(&fb);
+          if (!bb) {
+            llvm::errs() << "RegisterWriteOp only supported in blocks\n";
+            return BValue();
+          }
+          auto* reg = translation_state.getRegister(write_op.getReg());
+          if (!reg) {
+            write_op.emitOpError()
+                << "register not found: " << write_op.getReg();
+            return BValue();
+          }
+          BValue data = value_map[write_op.getData()];
+          std::optional<BValue> load_enable;
+          if (write_op.getLoadEnable()) {
+            load_enable = value_map[write_op.getLoadEnable()];
+          }
+          std::optional<BValue> reset;
+          if (write_op.getReset()) {
+            reset = value_map[write_op.getReset()];
+          }
+          bb->RegisterWrite(reg, data, load_enable, reset,
+                            translation_state.getLoc(write_op));
+          return fb.Literal(::xls::UBits(0, 1));
+        })
+        .Case<BlockInstantiateOp>([&](BlockInstantiateOp inst_op) {
+          auto* bb = dynamic_cast<BlockBuilder*>(&fb);
+          if (!bb) {
+            llvm::errs() << "BlockInstantiateOp only supported in blocks\n";
+            return BValue();
+          }
+          auto child_block_or = translation_state.getPackage().GetBlock(
+              std::string(inst_op.getCallee()));
+          if (!child_block_or.ok()) {
+            inst_op.emitOpError()
+                << "child block not found: " << inst_op.getCallee();
+            return BValue();
+          }
+          ::xls::Block* child_block = *child_block_or;
+          auto inst_or = bb->block()->AddBlockInstantiation(
+              inst_op.getInstName().str(), child_block);
+          if (!inst_or.ok()) {
+            inst_op.emitOpError() << "failed to create instantiation: "
+                                  << inst_or.status().message();
+            return BValue();
+          }
+          ::xls::Instantiation* inst = *inst_or;
+
+          // Create InstantiationInputs.
+          int input_idx = 0;
+          for (auto* port : child_block->GetInputPorts()) {
+            if (child_block->GetResetPort().has_value() &&
+                port == *child_block->GetResetPort()) {
+              if (inst_op.getReset()) {
+                BValue rst_data = value_map[inst_op.getReset()];
+                bb->InstantiationInput(inst, port->name(), rst_data,
+                                       translation_state.getLoc(inst_op));
+              }
+              continue;
+            }
+            BValue data = value_map[inst_op.getInputs()[input_idx]];
+            bb->InstantiationInput(inst, port->name(), data,
+                                   translation_state.getLoc(inst_op));
+            input_idx++;
+          }
+
+          // Create InstantiationOutputs.
+          int output_idx = 0;
+          for (auto* port : child_block->GetOutputPorts()) {
+            BValue out_bv = bb->InstantiationOutput(
+                inst, port->name(), translation_state.getLoc(inst_op));
+            value_map[inst_op.getOutputs()[output_idx]] = out_bv;
+            output_idx++;
+          }
+          return fb.Literal(::xls::UBits(0, 1));
+        })
+        .Case<FifoInstantiateOp>([&](FifoInstantiateOp inst_op) {
+          auto* bb = dynamic_cast<BlockBuilder*>(&fb);
+          if (!bb) {
+            llvm::errs() << "fifoInstantiateOp only supported in blocks\n";
+            return BValue();
+          }
+
+          // Build XLS FifoConfig from MLIR attributes.
+          ::xls::FifoConfig fifo_config(inst_op.getDepth(), inst_op.getBypass(),
+                                        inst_op.getRegisterPushOutputs(),
+                                        inst_op.getRegisterPopOutputs());
+
+          // Translate the data type.
+          ::xls::Type* data_type =
+              translation_state.getType(inst_op.getDataType());
+          if (!data_type) {
+            inst_op.emitOpError() << "unsupported FIFO data type";
+            return BValue();
+          }
+
+          // Get optional channel name.
+          std::optional<std::string_view> channel_name;
+          std::string channel_name_storage;
+          if (inst_op.getChannelName()) {
+            channel_name_storage = inst_op.getChannelName()->str();
+            channel_name = channel_name_storage;
+          }
+
+          auto inst_or = bb->block()->AddFifoInstantiation(
+              inst_op.getInstName().str(), fifo_config, data_type,
+              channel_name);
+          if (!inst_or.ok()) {
+            inst_op.emitOpError() << "failed to create FIFO instantiation: "
+                                  << inst_or.status().message();
+            return BValue();
+          }
+          ::xls::Instantiation* inst = *inst_or;
+
+          // FIFO input port order: push_data, push_valid, pop_ready, rst.
+          // Note: Port connection logic is not shared with BlockInstantiateOp
+          // because FifoInstantiation does not expose an ordered list of ports
+          // (unlike Block), and FifoInstantiateOp includes the reset value in
+          // its variadic inputs rather than as a separate optional operand.
+          int input_idx = 0;
+          auto connectInput = [&](std::string_view port_name) {
+            if (input_idx < static_cast<int>(inst_op.getInputs().size())) {
+              BValue data = value_map[inst_op.getInputs()[input_idx]];
+              bb->InstantiationInput(inst, port_name, data,
+                                     translation_state.getLoc(inst_op));
+              input_idx++;
+            }
+          };
+
+          if (data_type->GetFlatBitCount() > 0) {
+            connectInput(::xls::FifoInstantiation::kPushDataPortName);
+          }
+          connectInput(::xls::FifoInstantiation::kPushValidPortName);
+          connectInput(::xls::FifoInstantiation::kPopReadyPortName);
+          connectInput(::xls::FifoInstantiation::kResetPortName);
+
+          // FIFO output port order: push_ready, pop_data, pop_valid.
+          int output_idx = 0;
+          auto connectOutput = [&](std::string_view port_name) {
+            BValue out_bv = bb->InstantiationOutput(
+                inst, port_name, translation_state.getLoc(inst_op));
+            value_map[inst_op.getOutputs()[output_idx]] = out_bv;
+            output_idx++;
+          };
+
+          connectOutput(::xls::FifoInstantiation::kPushReadyPortName);
+          if (data_type->GetFlatBitCount() > 0) {
+            connectOutput(::xls::FifoInstantiation::kPopDataPortName);
+          }
+          connectOutput(::xls::FifoInstantiation::kPopValidPortName);
+
+          return fb.Literal(::xls::UBits(0, 1));
+        })
         .Case<NextValueOp>([&](NextValueOp next) {
           // We just skip the next value op here as its handled in the eproc
           // conversion.
@@ -1235,7 +1431,8 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
     // Receives and partial products have multiple results but are explicitly
     // supported.
     if (!isa<BlockingReceiveOp, func::CallOp, NonblockingReceiveOp, UmulpOp,
-             SmulpOp>(op)) {
+             SmulpOp, BlockInstantiateOp, FifoInstantiateOp, RegisterWriteOp,
+             RegisterOp>(op)) {
       assert(op->getNumResults() <= 1 && "Multiple results not supported");
     }
 
@@ -1245,7 +1442,10 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
     }
 
     if (BValue r = convert(op); r.valid()) {
-      if (op->getNumResults() == 1) {
+      // BlockInstantiateOp/FifoInstantiateOp manage their own value_map
+      // entries for multiple results, so skip automatic assignment.
+      if (op->getNumResults() == 1 &&
+          !isa<BlockInstantiateOp, FifoInstantiateOp>(op)) {
         value_map[op->getResult(0)] = r;
       }
       return WalkResult::advance();
@@ -1578,8 +1778,136 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
       continue;
     }
 
-    // Currently this only works over functions and creates a new XLS function
-    // for each function in the module.
+    // Handle BlockOp separately: it implements XlsRegionOpInterface and uses
+    // convertFunction for its body, but needs special setup for ports,
+    // registers, clock, and reset before conversion.
+    if (auto block_op = dyn_cast<BlockOp>(op)) {
+      DenseMap<Value, std::string> valueNameMap;
+      llvm::StringMap<int> usedNames;
+      auto get_name = [&](Value v) -> std::string {
+        if (auto it = valueNameMap.find(v); it != valueNameMap.end()) {
+          return it->second;
+        }
+        std::string name;
+        if (auto loc = dyn_cast<NameLoc>(v.getLoc())) {
+          name = ::xls::verilog::SanitizeVerilogIdentifier(loc.getName().str());
+        } else {
+          name = ::xls::verilog::SanitizeVerilogIdentifier(
+              debugString(v.getLoc()));
+        }
+        auto& count = usedNames[name];
+        if (count > 0) {
+          name += std::to_string(count);
+        }
+        ++count;
+        return valueNameMap[v] = name;
+      };
+
+      DenseMap<Value, BValue> valueMap;
+      translation_state.setValueMap(valueMap);
+
+      // Translate MLIR BlockOp to XLS IR Block.
+      BlockBuilder bb(block_op.getSymName(), package.get());
+
+      // Add clock port if present.
+      if (auto clock_name = block_op.getClockName()) {
+        if (auto status = bb.AddClockPort(clock_name->str()); !status.ok()) {
+          block_op.emitOpError()
+              << "failed to add clock port: " << status.message();
+          return failure();
+        }
+      }
+
+      // Build reset behavior and add reset port if present.
+      std::optional<::xls::ResetBehavior> reset_behavior;
+      if (block_op.hasReset()) {
+        ::xls::ResetBehavior rb;
+        rb.asynchronous = block_op.getResetAsynchronous().value_or(false);
+        rb.active_low = block_op.getResetActiveLow().value_or(false);
+        reset_behavior = rb;
+
+        std::string reset_port_name = block_op.getResetName()->str();
+        BValue reset_bv = bb.ResetPort(reset_port_name, *reset_behavior);
+        valueMap[block_op.getResetValue()] = reset_bv;
+      }
+
+      // Add data input ports (from getDataPortArguments).
+      auto input_names = block_op.getInputNames();
+      auto input_types = block_op.getInputTypes();
+      for (auto [i, arg] : llvm::enumerate(block_op.getDataPortArguments())) {
+        std::string port_name =
+            cast<StringAttr>(input_names[i]).getValue().str();
+        if (port_name.empty()) {
+          port_name = get_name(arg);
+        }
+        ::xls::Type* xls_type = translation_state.getType(input_types[i]);
+        if (xls_type == nullptr) {
+          block_op.emitOpError() << "unsupported input type";
+          return failure();
+        }
+        BValue input_bv = bb.InputPort(port_name, xls_type);
+        valueMap[arg] = input_bv;
+      }
+
+      // Create registers.
+      llvm::StringMap<::xls::Register*> register_map;
+      WalkResult walk_result =
+          block_op.getBody().front().walk([&](RegisterOp reg_op) {
+            ::xls::Type* reg_type = translation_state.getType(reg_op.getType());
+            std::optional<::xls::Value> reset_value;
+            if (auto reset_attr = reg_op.getResetValueAttr()) {
+              if (auto int_attr = dyn_cast<IntegerAttr>(reset_attr)) {
+                APInt val = int_attr.getValue();
+                reset_value = ::xls::Value(
+                    ::xls::UBits(val.getZExtValue(), val.getBitWidth()));
+              }
+            }
+            auto reg_or = bb.block()->AddRegister(reg_op.getSymName().str(),
+                                                  reg_type, reset_value);
+            if (!reg_or.ok()) {
+              reg_op.emitOpError()
+                  << "failed to create register: " << reg_or.status().message();
+              return WalkResult::interrupt();
+            }
+            register_map[reg_op.getSymName()] = *reg_or;
+            return WalkResult::advance();
+          });
+      if (walk_result.wasInterrupted()) {
+        return failure();
+      }
+
+      translation_state.setRegisterMap(&register_map);
+
+      // Use convertFunction to handle all body ops including block-specific
+      // ones (RegisterRead/Write, BlockInstantiate). These ops cast the
+      // BuilderBase to BlockBuilder internally.
+      auto xls_region = cast<XlsRegionOpInterface>(*block_op);
+      auto out = convertFunction(translation_state, xls_region, valueMap, bb);
+      if (failed(out)) {
+        block_op.emitOpError() << "unable to convert block body";
+        translation_state.setRegisterMap(nullptr);
+        return failure();
+      }
+      translation_state.setRegisterMap(nullptr);
+
+      // Handle output ports from the BlockOutputOp terminator.
+      auto terminator =
+          cast<BlockOutputOp>(block_op.getBody().front().getTerminator());
+      auto output_names = block_op.getOutputNames();
+      for (auto [i, output] : llvm::enumerate(terminator.getOutputs())) {
+        std::string port_name =
+            cast<StringAttr>(output_names[i]).getValue().str();
+        bb.OutputPort(port_name, valueMap[output]);
+      }
+
+      if (absl::StatusOr<::xls::Block*> s = bb.Build(); !s.ok()) {
+        block_op.emitOpError()
+            << "failed to build block: " << s.status().message();
+        return failure();
+      }
+      continue;
+    }
+
     auto xls_region = dyn_cast<XlsRegionOpInterface>(op);
     if (!xls_region) {
       continue;

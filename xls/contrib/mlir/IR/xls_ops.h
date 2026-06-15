@@ -26,6 +26,7 @@
 #include "mlir/include/mlir/IR/OpDefinition.h"
 #include "mlir/include/mlir/IR/Operation.h"
 #include "mlir/include/mlir/IR/OperationSupport.h"
+#include "mlir/include/mlir/IR/RegionKindInterface.h"
 #include "mlir/include/mlir/IR/TypeUtilities.h"
 #include "mlir/include/mlir/IR/Types.h"
 #include "mlir/include/mlir/Support/LLVM.h"

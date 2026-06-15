@@ -19,12 +19,15 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "llvm/include/llvm/Support/SourceMgr.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
@@ -46,16 +49,19 @@
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/contrib/mlir/util/conversion_utils.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
@@ -1397,9 +1403,7 @@ absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
   } else if (dynamic_cast<::xls::Next*>(&xls_node)) {
     return absl::InternalError("Next not handeled during proc translation.");
   } else if (dynamic_cast<::xls::Cover*>(&xls_node) ||
-             dynamic_cast<::xls::MinDelay*>(&xls_node) ||
-             dynamic_cast<::xls::RegisterRead*>(&xls_node) ||
-             dynamic_cast<::xls::RegisterWrite*>(&xls_node)) {
+             dynamic_cast<::xls::MinDelay*>(&xls_node)) {
     return absl::InternalError(absl::StrCat(
         "Unsupported operation: ", ::xls::OpToString(xls_node.op()),
         " - Not yet available in XLS MLIR!"));
@@ -1659,6 +1663,415 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
 }
 
 //===----------------------------------------------------------------------===//
+// Block Translation
+//===----------------------------------------------------------------------===//
+
+absl::StatusOr<Operation*> translateBlock(::xls::Block& xls_block,
+                                          OpBuilder& builder,
+                                          TranslationState& state) {
+  MLIRContext* ctx = builder.getContext();
+  state.newFunctionBaseContext(/*is_proc=*/false);
+
+  // Identify reset port (if any).
+  std::optional<::xls::InputPort*> reset_port_node = xls_block.GetResetPort();
+
+  // Gather data input port names and types (excluding reset).
+  SmallVector<Attribute> inputNameAttrs;
+  SmallVector<Type> inputTypes;
+  for (auto* port : xls_block.GetInputPorts()) {
+    if (reset_port_node && port == *reset_port_node) {
+      continue;
+    }
+    inputNameAttrs.push_back(builder.getStringAttr(port->name()));
+    inputTypes.push_back(translateType(port->GetType(), builder));
+  }
+
+  // Gather output port names and types.
+  SmallVector<Attribute> outputNameAttrs;
+  SmallVector<Type> outputTypes;
+  outputNameAttrs.reserve(xls_block.GetOutputPorts().size());
+  outputTypes.reserve(xls_block.GetOutputPorts().size());
+  for (auto* port : xls_block.GetOutputPorts()) {
+    outputNameAttrs.push_back(builder.getStringAttr(port->name()));
+    outputTypes.push_back(translateType(port->operand(0)->GetType(), builder));
+  }
+
+  // function_type describes data ports only.
+  auto funcType = FunctionType::get(ctx, inputTypes, outputTypes);
+
+  // Clock name.
+  StringAttr clockNameAttr = nullptr;
+  if (auto clock_port = xls_block.GetClockPort()) {
+    clockNameAttr = builder.getStringAttr(clock_port->name);
+  }
+
+  // Reset info.
+  StringAttr resetNameAttr = nullptr;
+  BoolAttr resetAsyncAttr = nullptr;
+  BoolAttr resetActiveLowAttr = nullptr;
+  if (reset_port_node) {
+    resetNameAttr = builder.getStringAttr((*reset_port_node)->name());
+    if (auto behavior = xls_block.GetResetBehavior()) {
+      resetAsyncAttr = builder.getBoolAttr(behavior->asynchronous);
+      resetActiveLowAttr = builder.getBoolAttr(behavior->active_low);
+    }
+  }
+
+  // Create BlockOp.
+  auto block_op =
+      BlockOp::create(builder, builder.getUnknownLoc(),
+                      /*sym_name=*/builder.getStringAttr(xls_block.name()),
+                      /*function_type=*/TypeAttr::get(funcType),
+                      /*input_names=*/builder.getArrayAttr(inputNameAttrs),
+                      /*output_names=*/builder.getArrayAttr(outputNameAttrs),
+                      /*clock_name=*/clockNameAttr,
+                      /*reset_name=*/resetNameAttr,
+                      /*reset_asynchronous=*/resetAsyncAttr,
+                      /*reset_active_low=*/resetActiveLowAttr);
+
+  auto* body = &block_op.getRegion().emplaceBlock();
+
+  // Add reset as block arg 0 if present.
+  if (reset_port_node) {
+    auto resetArg = body->addArgument(
+        builder.getI1Type(),
+        NameLoc::get(StringAttr::get(ctx, (*reset_port_node)->name())));
+    if (auto err = state.setMlirValue((*reset_port_node)->id(), resetArg);
+        !err.ok()) {
+      return err;
+    }
+  }
+
+  // Add data input port arguments.
+  unsigned dataPortIdx = 0;
+  for (auto* port : xls_block.GetInputPorts()) {
+    if (reset_port_node && port == *reset_port_node) {
+      continue;
+    }
+    auto arg =
+        body->addArgument(inputTypes[dataPortIdx],
+                          NameLoc::get(StringAttr::get(ctx, port->name())));
+    if (auto err = state.setMlirValue(port->id(), arg); !err.ok()) {
+      return err;
+    }
+    ++dataPortIdx;
+  }
+
+  builder.setInsertionPointToEnd(body);
+
+  // Create RegisterOps for all registers.
+  for (auto* reg : xls_block.GetRegisters()) {
+    auto regType = translateType(reg->type(), builder);
+    Attribute resetValueAttr;
+    if (reg->reset_value().has_value()) {
+      // Convert XLS Value to MLIR attribute.
+      // In practice, reset values are single-bit (i1) or at most 32-bit
+      // integer constants, so the 64-bit limit here is not a real constraint.
+      const auto& xls_val = *reg->reset_value();
+      if (xls_val.IsBits()) {
+        auto bits = xls_val.bits();
+        if (bits.bit_count() <= 64) {
+          resetValueAttr = builder.getIntegerAttr(
+              regType, APInt(bits.bit_count(), bits.IsZero() ? 0
+                                               : bits.IsAllOnes()
+                                                   ? -1
+                                                   : bits.ToUint64().value()));
+        }
+      }
+    }
+    RegisterOp::create(builder, builder.getUnknownLoc(),
+                       builder.getStringAttr(reg->name()),
+                       TypeAttr::get(regType), resetValueAttr);
+  }
+
+  // Track output port values.
+  absl::flat_hash_map<std::string, Value> output_port_values;
+
+  // Topo-sort and translate nodes.
+  XLS_ASSIGN_OR_RETURN(std::vector<::xls::Node*> sorted_nodes,
+                       ::xls::TopoSort(&xls_block));
+
+  absl::flat_hash_set<int64_t> inst_node_ids;
+  for (auto* inst : xls_block.GetInstantiations()) {
+    for (auto* inp : xls_block.GetInstantiationInputs(inst)) {
+      inst_node_ids.insert(inp->id());
+    }
+    for (auto* outp : xls_block.GetInstantiationOutputs(inst)) {
+      inst_node_ids.insert(outp->id());
+    }
+  }
+
+  // Instantiation pass: create instantiation ops.
+  // Instantiation outputs may feed into inputs of other instantiations or
+  // normal ops. To handle this:
+  //   Phase A: Create all instantiation ops with empty inputs, map outputs.
+  //   Phase B: Translate all non-instantiation nodes now that instantiation
+  //   outputs are available. Phase C: Set inputs on each instantiation op now
+  //   that all inputs are available.
+  builder.setInsertionPointToEnd(body);
+
+  // Phase A: Create ops with proper output types but no inputs, map outputs.
+  struct InstInfo {
+    ::xls::Instantiation* inst;
+    Operation* op;
+    SmallVector<std::string> outputPortNames;
+  };
+  SmallVector<InstInfo> inst_infos;
+
+  for (auto* inst : xls_block.GetInstantiations()) {
+    if (auto* block_inst = dynamic_cast<::xls::BlockInstantiation*>(inst)) {
+      auto* child_block = block_inst->instantiated_block();
+
+      // Gather output types and port names.
+      SmallVector<Type> outputTypes;
+      SmallVector<std::string> outputPortNames;
+      for (auto* port : child_block->GetOutputPorts()) {
+        outputTypes.push_back(
+            translateType(port->operand(0)->GetType(), builder));
+        outputPortNames.push_back(std::string(port->name()));
+      }
+
+      auto calleeRef = FlatSymbolRefAttr::get(ctx, child_block->name());
+      auto instOp = BlockInstantiateOp::create(
+          builder, builder.getUnknownLoc(), outputTypes,
+          builder.getStringAttr(std::string(inst->name())), calleeRef,
+          /*inputs=*/ValueRange(), /*reset=*/Value());
+
+      // Map outputs.
+      for (auto [outputIdx, port_name] : llvm::enumerate(outputPortNames)) {
+        for (auto* outp : xls_block.GetInstantiationOutputs(inst)) {
+          if (outp->port_name() == port_name) {
+            XLS_RETURN_IF_ERROR(
+                state.setMlirValue(outp->id(), instOp->getResult(outputIdx)));
+            break;
+          }
+        }
+      }
+      inst_infos.push_back({inst, instOp.getOperation(), outputPortNames});
+
+    } else if (auto* fifo_inst =
+                   dynamic_cast<::xls::FifoInstantiation*>(inst)) {
+      // FIFO output port order: push_ready, pop_data, pop_valid.
+      SmallVector<Type> outputTypes;
+      SmallVector<std::string> outputPortNames;
+
+      outputTypes.push_back(builder.getI1Type());
+      outputPortNames.push_back(
+          std::string(::xls::FifoInstantiation::kPushReadyPortName));
+
+      auto dataType = translateType(fifo_inst->data_type(), builder);
+      if (fifo_inst->data_type()->GetFlatBitCount() > 0) {
+        outputTypes.push_back(dataType);
+        outputPortNames.push_back(
+            std::string(::xls::FifoInstantiation::kPopDataPortName));
+      }
+
+      outputTypes.push_back(builder.getI1Type());
+      outputPortNames.push_back(
+          std::string(::xls::FifoInstantiation::kPopValidPortName));
+
+      const auto& config = fifo_inst->fifo_config();
+      // TODO(jpienaar): propagate source location when xls::Instantiation
+      // exposes it.
+      auto instOp = FifoInstantiateOp::create(
+          builder, builder.getUnknownLoc(), outputTypes,
+          builder.getStringAttr(std::string(inst->name())),
+          TypeAttr::get(dataType), builder.getI64IntegerAttr(config.depth()),
+          builder.getBoolAttr(config.bypass()),
+          builder.getBoolAttr(config.register_push_outputs()),
+          builder.getBoolAttr(config.register_pop_outputs()),
+          fifo_inst->channel_name()
+              ? builder.getStringAttr(std::string(*fifo_inst->channel_name()))
+              : StringAttr(),
+          /*inputs=*/ValueRange());
+
+      // Map outputs.
+      for (auto [outputIdx, port_name] : llvm::enumerate(outputPortNames)) {
+        for (auto* outp : xls_block.GetInstantiationOutputs(inst)) {
+          if (outp->port_name() == port_name) {
+            XLS_RETURN_IF_ERROR(
+                state.setMlirValue(outp->id(), instOp->getResult(outputIdx)));
+            break;
+          }
+        }
+      }
+      inst_infos.push_back({inst, instOp.getOperation(), outputPortNames});
+
+    } else {
+      return absl::UnimplementedError(
+          absl::StrCat("Unsupported instantiation type: ", inst->ToString()));
+    }
+  }
+
+  // Phase B: Translate all non-instantiation nodes so that InstantiationInput
+  // data operands are available.
+  for (auto* n : sorted_nodes) {
+    builder.setInsertionPointToEnd(body);
+
+    // Skip instantiation-related nodes (handled above/below).
+    if (inst_node_ids.contains(n->id())) {
+      continue;
+    }
+
+    // InputPort: already mapped to block arguments above.
+    if (dynamic_cast<::xls::InputPort*>(n)) {
+      continue;
+    }
+
+    // OutputPort: skip here, collected after instantiation pass.
+    if (dynamic_cast<::xls::OutputPort*>(n)) {
+      continue;
+    }
+
+    // RegisterRead: create RegisterReadOp.
+    if (auto* reg_read = dynamic_cast<::xls::RegisterRead*>(n)) {
+      auto resultType = translateType(reg_read->GetType(), builder);
+      auto regRef =
+          FlatSymbolRefAttr::get(ctx, reg_read->GetRegister()->name());
+      XLS_ASSIGN_OR_RETURN(auto loc, translateLoc(n->loc(), builder, state));
+      auto op = RegisterReadOp::create(builder, loc, resultType, regRef);
+      if (auto err = state.setMlirValue(n->id(), op.getResult()); !err.ok()) {
+        return err;
+      }
+      continue;
+    }
+
+    // RegisterWrite: create RegisterWriteOp.
+    if (auto* reg_write = dynamic_cast<::xls::RegisterWrite*>(n)) {
+      auto regRef =
+          FlatSymbolRefAttr::get(ctx, reg_write->GetRegister()->name());
+      auto data = state.getMlirValue(reg_write->data()->id());
+      if (!data.ok()) {
+        return data.status();
+      }
+
+      Value loadEnable;
+      if (reg_write->load_enable().has_value()) {
+        auto le = state.getMlirValue(reg_write->load_enable().value()->id());
+        if (!le.ok()) {
+          return le.status();
+        }
+        loadEnable = *le;
+      }
+
+      Value reset;
+      if (reg_write->reset().has_value()) {
+        auto rst = state.getMlirValue(reg_write->reset().value()->id());
+        if (!rst.ok()) {
+          return rst.status();
+        }
+        reset = *rst;
+      }
+
+      XLS_ASSIGN_OR_RETURN(auto loc, translateLoc(n->loc(), builder, state));
+      RegisterWriteOp::create(builder, loc, regRef, *data, loadEnable, reset);
+      continue;
+    }
+
+    // All other ops: use the common translator.
+    auto op = translateAnyOp(*n, builder, state);
+    if (!op.ok()) {
+      return op;
+    }
+  }
+
+  // Phase C: Set inputs on each instantiation op.
+  for (auto& info : inst_infos) {
+    if (auto* block_inst =
+            dynamic_cast<::xls::BlockInstantiation*>(info.inst)) {
+      auto* child_block = block_inst->instantiated_block();
+
+      // Build input port name -> value map, then re-order to child block's
+      // input port order (skip reset).
+      SmallVector<Value> orderedInputs;
+      absl::flat_hash_map<std::string, Value> input_map;
+      for (auto* inp : xls_block.GetInstantiationInputs(info.inst)) {
+        XLS_ASSIGN_OR_RETURN(auto data, state.getMlirValue(inp->data()->id()));
+        input_map[inp->port_name()] = data;
+      }
+
+      for (auto* port : child_block->GetInputPorts()) {
+        if (child_block->GetResetPort().has_value() &&
+            port == *child_block->GetResetPort()) {
+          continue;
+        }
+        auto it = input_map.find(port->name());
+        if (it == input_map.end()) {
+          return absl::InternalError(absl::StrCat(
+              "Missing instantiation input for port: ", port->name()));
+        }
+        orderedInputs.push_back(it->second);
+      }
+      bool hasReset = false;
+      if (child_block->GetResetPort().has_value()) {
+        auto it = input_map.find((*child_block->GetResetPort())->name());
+        if (it != input_map.end()) {
+          orderedInputs.push_back(it->second);
+          hasReset = true;
+        }
+      }
+      info.op->setOperands(orderedInputs);
+      info.op->setAttr(
+          "operandSegmentSizes",
+          builder.getDenseI32ArrayAttr(
+              {static_cast<int32_t>(orderedInputs.size() - (hasReset ? 1 : 0)),
+               hasReset ? 1 : 0}));
+
+    } else if (auto* fifo_inst =
+                   dynamic_cast<::xls::FifoInstantiation*>(info.inst)) {
+      absl::flat_hash_map<std::string, Value> input_map;
+      for (auto* inp : xls_block.GetInstantiationInputs(info.inst)) {
+        XLS_ASSIGN_OR_RETURN(auto data, state.getMlirValue(inp->data()->id()));
+        input_map[inp->port_name()] = data;
+      }
+
+      // FIFO input port order: push_data, push_valid, pop_ready, rst.
+      SmallVector<Value> orderedInputs;
+      // Missing ports are silently skipped because some FIFO ports (e.g.,
+      // reset) are optional.
+      auto addInputPort = [&](std::string_view port_name) {
+        auto it = input_map.find(std::string(port_name));
+        if (it != input_map.end()) {
+          orderedInputs.push_back(it->second);
+        }
+      };
+
+      addInputPort(::xls::FifoInstantiation::kPushDataPortName);
+      addInputPort(::xls::FifoInstantiation::kPushValidPortName);
+      addInputPort(::xls::FifoInstantiation::kPopReadyPortName);
+      addInputPort(::xls::FifoInstantiation::kResetPortName);
+      info.op->setOperands(orderedInputs);
+    }
+  }
+
+  // Collect output port values (deferred from pass 1 since output ports
+  // may reference InstantiationOutput values created in pass 2).
+  for (auto* port : xls_block.GetOutputPorts()) {
+    auto val = state.getMlirValue(port->operand(0)->id());
+    if (!val.ok()) {
+      return val.status();
+    }
+    output_port_values[port->name()] = *val;
+  }
+
+  // Create BlockOutputOp with output values in port order.
+  SmallVector<Value> outputValues;
+  for (auto* port : xls_block.GetOutputPorts()) {
+    auto it = output_port_values.find(port->name());
+    if (it == output_port_values.end()) {
+      return absl::InternalError(
+          absl::StrCat("Missing output port value: ", port->name()));
+    }
+    outputValues.push_back(it->second);
+  }
+  builder.setInsertionPointToEnd(body);
+  BlockOutputOp::create(builder, builder.getUnknownLoc(),
+                        ValueRange(outputValues));
+
+  return block_op;
+}
+
+//===----------------------------------------------------------------------===//
 // Channel Translation
 //===----------------------------------------------------------------------===//
 
@@ -1751,6 +2164,15 @@ absl::Status translatePackage(const ::xls::Package& xls_pkg, OpBuilder& builder,
     auto proc = translateProc(*p, builder, state);
     if (!proc.ok()) {
       return proc.status();
+    }
+  }
+
+  // Translate all blocks:
+  for (const auto& b : xls_pkg.blocks()) {
+    builder.setInsertionPointToEnd(module.getBody());
+    auto block = translateBlock(*b, builder, state);
+    if (!block.ok()) {
+      return block.status();
     }
   }
 

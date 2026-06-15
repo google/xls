@@ -1,0 +1,22 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_block_reset
+
+// CHECK-LABEL: xls.block @pipeline
+// CHECK-SAME: [clock: "clk", reset: %rst]
+// CHECK-SAME: (%a: i32) -> (%out : i32)
+// CHECK:   xls.register @state {reset_value = 0 : i32} : i32
+// CHECK:   xls.register_read @state
+// CHECK:   xls.add
+// CHECK:   xls.register_write @state, %{{.*}} reset %rst : i32
+// CHECK:   xls.block_output
+block pipeline(clk: clock, rst: bits[1], a: bits[32], out: bits[32]) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  reg state(bits[32], reset_value=0)
+  a: bits[32] = input_port(name=a)
+  rst: bits[1] = input_port(name=rst)
+  state_q: bits[32] = register_read(register=state)
+  sum: bits[32] = add(a, state_q)
+  state_d: () = register_write(sum, register=state, reset=rst)
+  out: () = output_port(state_q, name=out)
+}

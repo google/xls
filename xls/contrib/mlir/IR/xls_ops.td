@@ -7,6 +7,7 @@ include "mlir/IR/CommonTypeConstraints.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/OpBase.td"
+include "mlir/IR/RegionKindInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/FunctionInterfaces.td"
@@ -2387,6 +2388,302 @@ def Xls_GateOp :
 }
 
 //===----------------------------------------------------------------------===//
+// Block-level operations
+//
+// These ops correspond to the XLS IR Block-level constructs: input/output ports
+// and pipeline registers. In XLS, a Block is an RTL-level representation
+// (Verilog module) with explicit ports and registers. Procs/Functions are
+// lowered to Blocks during codegen.
+//===----------------------------------------------------------------------===//
+
+def Xls_RegisterOp : Xls_Op<"register", [Symbol]> {
+  let summary = "Declares a hardware register";
+  let description = [{
+    Declares a named hardware register with a given type and optional reset
+    value. Registers are referenced by `register_read` and `register_write`
+    operations via their symbol name.
+
+    This is analogous to the XLS IR `reg` declaration within a Block:
+      `reg foo(bits[32], reset_value=42)`
+
+    Example:
+    ```mlir
+    xls.register @foo : i32
+    xls.register @bar {reset_value = 42 : i32} : i32
+    ```
+  }];
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    TypeAttr:$type,
+    OptionalAttr<AnyAttr>:$reset_value
+  );
+  let assemblyFormat = [{
+    $sym_name attr-dict `:` $type
+  }];
+  let extraClassDeclaration = [{
+    // Register declarations use symbol references, which aren't tracked by
+    // use-def chains. Returning false prevents DCE from removing registers
+    // that are still referenced by register_read/register_write ops.
+    bool canDiscardOnUseEmpty() const { return false; }
+  }];
+}
+
+def Xls_BlockOutputOp : Xls_Op<"block_output", [
+  Pure,
+  ReturnLike,
+  Terminator,
+  HasParent<"BlockOp">
+]> {
+  let summary = "Terminates a block, specifying output port values";
+  let description = [{
+    Terminates the body of an `xls.block` op. Each operand corresponds to an
+    output port of the block. The number and types of operands must match the
+    block's declared output ports.
+
+    Example:
+    ```mlir
+    xls.block_output %val : i32
+    ```
+  }];
+
+  let arguments = (ins Variadic<AnyType>:$outputs);
+
+  let assemblyFormat = "attr-dict ($outputs^ `:` type($outputs))?";
+
+  let builders = [
+    OpBuilder<(ins), [{
+      build($_builder, $_state, ::ValueRange{});
+    }]>
+  ];
+}
+
+def Xls_BlockOp : Xls_Op<"block", [
+  Symbol,
+  SymbolTable,
+  SingleBlockImplicitTerminator<"BlockOutputOp">,
+  IsolatedFromAbove,
+  RegionKindInterface,
+  HasOnlyGraphRegion,
+  DeclareOpInterfaceMethods<XlsRegionOpInterface>,
+  DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmBlockArgumentNames"]>
+]> {
+  let summary = "Hardware block (RTL module)";
+  let description = [{
+    Represents an XLS IR Block - an RTL-level hardware module with explicit
+    input/output ports, clock, and pipeline registers.
+
+    Clock is metadata only (not a value in the IR). Reset is a real `i1` block
+    argument (always arg 0 when present). Data input ports follow as the
+    remaining block arguments.  `function_type` and `input_names` describe
+    only the data ports.
+
+    Output ports are represented by the `xls.block_output` terminator's
+    operands (named via `output_names`).
+
+    Registers are declared inside the body using `xls.register` and accessed
+    via `xls.register_read` / `xls.register_write`.
+
+    Example:
+    ```mlir
+    xls.block @pipeline[clock: "clk", reset: %rst](
+        %a : i32) -> (%out : i32) {
+      xls.register @state {reset_value = 0 : i32} : i32
+      %q = xls.register_read @state : i32
+      %sum = xls.add %a, %q : i32
+      xls.register_write @state, %sum reset %rst : i32
+      xls.block_output %sum : i32
+    }
+    ```
+  }];
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    TypeAttrOf<FunctionType>:$function_type,
+    StrArrayAttr:$input_names,
+    StrArrayAttr:$output_names,
+    OptionalAttr<StrAttr>:$clock_name,
+    OptionalAttr<StrAttr>:$reset_name,
+    OptionalAttr<BoolAttr>:$reset_asynchronous,
+    OptionalAttr<BoolAttr>:$reset_active_low
+  );
+  let regions = (region
+    SizedRegion<1>:$body
+  );
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    // Returns true if this block has a reset port.
+    bool hasReset() { return getResetName().has_value(); }
+
+    // Returns the reset value (block arg 0). Only valid when hasReset().
+    ::mlir::Value getResetValue() {
+      assert(hasReset());
+      return getBody().getArgument(0);
+    }
+
+    // Returns the data port arguments (skipping reset arg if present).
+    ::mlir::Block::BlockArgListType getDataPortArguments() {
+      unsigned offset = hasReset() ? 1 : 0;
+      return getBody().getArguments().drop_front(offset);
+    }
+
+    ::mlir::ValueRange getOutputValues() {
+      return getBody().getBlocks().front().getTerminator()->getOperands();
+    }
+    bool canDiscardOnUseEmpty() const { return false; }
+
+    // Get the data port types from the function type (excludes reset).
+    ::llvm::ArrayRef<::mlir::Type> getInputTypes() {
+      return getFunctionType().getInputs();
+    }
+    ::llvm::ArrayRef<::mlir::Type> getOutputTypes() {
+      return getFunctionType().getResults();
+    }
+  }];
+}
+
+
+
+def Xls_RegisterReadOp : Xls_Op<"register_read", [
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "Reads the current value of a hardware register";
+  let description = [{
+    Reads the output value of a named hardware register. The register must be
+    declared with `xls.register`. The result type must match the register's
+    type.
+
+    This corresponds to the XLS IR `register_read` node:
+      `foo_q: bits[32] = register_read(register=foo)`
+
+    Example:
+    ```mlir
+    %val = xls.register_read @foo : i32
+    ```
+  }];
+  let arguments = (ins
+    FlatSymbolRefAttr:$reg
+  );
+  let results = (outs
+    Xls_BitsOrTuple:$result
+  );
+  let assemblyFormat = [{
+    $reg attr-dict `:` type($result)
+  }];
+}
+
+def Xls_RegisterWriteOp : Xls_Op<"register_write", [
+  AttrSizedOperandSegments,
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "Writes a value to a hardware register";
+  let description = [{
+    Writes a data value to a named hardware register. The register must be
+    declared with `xls.register`. An optional `load_enable` operand (i1)
+    conditionally enables the write. An optional `reset` operand (i1) triggers
+    the register's reset behavior.
+
+    This corresponds to the XLS IR `register_write` node:
+      `foo_d: () = register_write(data, register=foo, load_enable=le, reset=rst)`
+
+    Example:
+    ```mlir
+    xls.register_write @foo, %data : i32
+    xls.register_write @foo, %data load_enable %le : i32
+    xls.register_write @foo, %data reset %rst : i32
+    xls.register_write @foo, %data load_enable %le reset %rst : i32
+    ```
+  }];
+  let arguments = (ins
+    FlatSymbolRefAttr:$reg,
+    Xls_BitsOrTuple:$data,
+    Optional<I1>:$load_enable,
+    Optional<I1>:$reset
+  );
+  let assemblyFormat = [{
+    $reg `,` $data (`load_enable` $load_enable^)? (`reset` $reset^)? attr-dict `:` type($data)
+  }];
+}
+
+def Xls_BlockInstantiateOp : Xls_Op<"block_instantiate", [
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>,
+  AttrSizedOperandSegments]> {
+  let summary = "Instantiates another block within the current block";
+  let description = [{
+    Instantiates another `xls.block` within the current block body. Operands
+    are positionally mapped to the instantiated block's data input ports, and
+    results are positionally mapped to its output ports.
+
+    This corresponds to the XLS IR `instantiation` declaration plus all
+    associated `instantiation_input` and `instantiation_output` nodes, bundled
+    into a single op.
+
+    The `inst_name` string identifies this instantiation (used in the XLS IR
+    output). The `block` symbol references the `xls.block` being instantiated.
+
+    Example:
+    ```mlir
+    %x, %y = xls.block_instantiate "inst" @child(%a, %b) : (i32, i32) -> (i32, i32)
+    ```
+  }];
+  let arguments = (ins
+    StrAttr:$inst_name,
+    FlatSymbolRefAttr:$callee,
+    Variadic<AnyType>:$inputs,
+    Optional<I1>:$reset
+  );
+  let results = (outs
+    Variadic<AnyType>:$outputs
+  );
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
+
+def Xls_FifoInstantiateOp : Xls_Op<"fifo_instantiate", []> {
+  let summary = "Instantiates a FIFO within the current block";
+  let description = [{
+    Instantiates an abstract FIFO within the current block body. The FIFO has
+    fixed input ports (push_data, push_valid, rst) and output ports
+    (push_ready, pop_data, pop_valid). Additional handshake ports (pop_ready)
+    are provided as inputs.
+
+    This corresponds to the XLS IR `instantiation` declaration with
+    `kind=fifo`, plus all associated `instantiation_input` and
+    `instantiation_output` nodes, bundled into a single op.
+
+    The `inst_name` string identifies this instantiation.  The `data_type`
+    attribute records the FIFO element type. FIFO configuration attributes
+    (`depth`, `bypass`, `register_push_outputs`, `register_pop_outputs`)
+    mirror the XLS `FifoConfig`.
+
+    Inputs are ordered: push_data, push_valid, pop_ready, rst.
+    Outputs are ordered: push_ready, pop_data, pop_valid.
+
+    Example:
+    ```mlir
+    %push_ready, %pop_data, %pop_valid =
+      xls.fifo_instantiate "my_fifo"(%push_data, %push_valid, %pop_ready, %rst)
+        {depth = 10, bypass = false, register_push_outputs = false,
+         register_pop_outputs = false}
+        : (i32, i1, i1, i1) -> (i1, i32, i1)
+    ```
+  }];
+  let arguments = (ins
+    StrAttr:$inst_name,
+    TypeAttr:$data_type,
+    I64Attr:$depth,
+    BoolAttr:$bypass,
+    BoolAttr:$register_push_outputs,
+    BoolAttr:$register_pop_outputs,
+    OptionalAttr<StrAttr>:$channel_name,
+    Variadic<AnyType>:$inputs
+  );
+  let results = (outs
+    Variadic<AnyType>:$outputs
+  );
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
 // Lowering internal operations
 //===----------------------------------------------------------------------===//
 
@@ -2487,3 +2784,4 @@ def Xls_ImportVerilogFileOp : Xls_Op<"import_verilog_file", [Symbol,
 }
 
 #endif
+
