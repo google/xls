@@ -33,9 +33,9 @@ from typing import Optional
 from absl import app
 from absl import flags
 from absl import logging
+from google.protobuf import text_format
 import numpy as np
 
-from google.protobuf import text_format
 from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2
 

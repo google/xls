@@ -26,8 +26,8 @@ Usage:
 
 from absl import app
 from absl import flags
-
 from google.protobuf import text_format
+
 from xls.common import gfile
 from xls.estimators import estimator_model_pb2
 

@@ -18,9 +18,9 @@ import os
 import struct
 import subprocess
 
+from google.protobuf import text_format
 import riegeli
 
-from google.protobuf import text_format
 from absl.testing import parameterized
 from xls.common import runfiles
 from xls.common import test_base

@@ -28,8 +28,8 @@ from typing import Any, Dict
 
 from absl import flags
 from absl import logging
-
 from google.protobuf import text_format
+
 from xls.common import gfile
 from xls.common import runfiles
 from xls.estimators import estimator_model_pb2

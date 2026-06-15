@@ -173,8 +173,8 @@ pytype_strict_binary(
     name = "estimator_model_stats",
     srcs = ["estimator_model_stats.py"],
     deps = [
-        "//xls/estimators:estimator_model",
-        "//xls/estimators:estimator_model_py_pb2",
+        ":estimator_model",
+        ":estimator_model_py_pb2",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
         "@abseil-py//absl/logging",

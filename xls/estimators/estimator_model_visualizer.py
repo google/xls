@@ -29,11 +29,11 @@ from typing import Text, Optional
 from absl import app
 from absl import flags
 
+from google.protobuf import text_format
 from matplotlib import pyplot
 from mpl_toolkits import mplot3d  # pylint: disable=unused-import
 import numpy as np
 
-from google.protobuf import text_format
 from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2
 

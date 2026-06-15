@@ -17,9 +17,8 @@
 
 from absl import app
 from absl import flags
-import jinja2
-
 from google.protobuf import text_format
+import jinja2
 from xls.common import runfiles
 from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2

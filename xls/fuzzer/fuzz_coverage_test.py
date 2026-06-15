@@ -18,8 +18,8 @@ import os
 import subprocess
 
 from absl import logging
-
 from google.protobuf import text_format
+
 from absl.testing import absltest
 from xls.common import runfiles
 from xls.common import test_base

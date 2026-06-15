@@ -17,9 +17,9 @@
 import subprocess
 import time
 
+from google.protobuf import text_format
 import portpicker
 
-from google.protobuf import text_format
 from absl.testing import absltest
 from xls.common import runfiles
 from xls.synthesis import synthesis_pb2

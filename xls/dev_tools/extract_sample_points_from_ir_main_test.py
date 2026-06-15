@@ -17,6 +17,7 @@
 import subprocess
 
 from google.protobuf import text_format
+
 from xls.common import gfile
 from xls.common import runfiles
 from xls.common import test_base

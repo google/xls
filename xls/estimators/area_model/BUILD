@@ -120,10 +120,10 @@ pytype_strict_binary(
     srcs = ["generate_area_lookup.py"],
     data = ["generate_area_lookup.tmpl"],
     deps = [
+        ":area_model_utils",
         "//xls/common:runfiles",
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
-        "//xls/estimators/area_model:area_model_utils",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
         "@com_google_protobuf//:protobuf_python",

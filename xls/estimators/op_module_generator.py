@@ -22,6 +22,7 @@ import textwrap
 from typing import Optional, Sequence, Tuple
 
 from google.protobuf import text_format
+
 from xls.codegen import module_signature_pb2
 from xls.common import runfiles
 

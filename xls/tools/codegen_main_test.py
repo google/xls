@@ -20,8 +20,8 @@ import os
 import subprocess
 
 from absl import flags
-
 from google.protobuf import text_format
+
 from absl.testing import absltest
 from absl.testing import parameterized
 from xls.codegen import codegen_residual_data_pb2

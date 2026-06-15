@@ -26,8 +26,8 @@ import re
 
 from absl import app
 from absl import flags
-
 from google.protobuf import text_format
+
 from xls.common import gfile
 from xls.tools import design_stats_pb2
 

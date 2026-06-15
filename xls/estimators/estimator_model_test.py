@@ -18,6 +18,7 @@
 import re
 
 from google.protobuf import text_format
+
 from absl.testing import absltest
 from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2

@@ -22,13 +22,12 @@ import dataclasses
 
 from absl import app
 from absl import flags
+from google.protobuf import text_format
 import jinja2
 
-from google.protobuf import text_format
 from xls.common import runfiles
 from xls.jit import aot_entrypoint_pb2
 from xls.jit import type_layout_pb2
-
 
 _READ_TEXTPROTO = flags.DEFINE_bool(
     "read_textproto",
