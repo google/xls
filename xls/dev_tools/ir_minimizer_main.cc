@@ -927,7 +927,10 @@ absl::StatusOr<ClonedNodeInfo> SliceOperandsAndCloneNode(Node* node,
   // Assert that all operands are bits and have sufficient width.
   for (Node* operand : node->operands()) {
     XLS_RET_CHECK(operand->GetType()->IsBits());
-    XLS_RET_CHECK(operand->BitCountOrDie() >= start + new_width);
+    XLS_RET_CHECK(operand->BitCountOrDie() >= start + new_width)
+        << "node: " << node->ToString() << " operand "
+        << operand->ToStringWithOperandTypes() << " start: " << start
+        << " new_width: " << new_width;
   }
 
   FunctionBase* f = node->function_base();
@@ -982,9 +985,18 @@ absl::StatusOr<SimplificationResult> TrimBitsOfNode(Node* node,
   if (op == Op::kParam && !absl::GetFlag(FLAGS_can_remove_params)) {
     return SimplificationResult::kDidNotChange;
   }
-  if (!node->Is<Literal>() && !node->Is<Param>() && !node->Is<ArithOp>() &&
-      !node->Is<CompareOp>() && !node->Is<BinOp>() && !node->Is<NaryOp>() &&
-      !node->Is<UnOp>() && !node->Is<PartialProductOp>()) {
+  // TODO(allight): Support shift etc nodes in this transform. We do this
+  // because the actual slice operation we do needs all the operands to have the
+  // same width.
+  bool supported_op = node->OpIn(NaryOp::kOps) || node->OpIn(ArithOp::kOps) ||
+                      node->OpIn(PartialProductOp::kOps) ||
+                      node->OpIn(Param::kOps) || node->OpIn(CompareOp::kOps) ||
+                      node->OpIn(UnOp::kOps) || node->OpIn(Literal::kOps) ||
+                      // NB does not include shifts since the RHS does not need
+                      // to be same bit width.
+                      node->OpIn({Op::kAdd, Op::kSub, Op::kUDiv, Op::kSDiv,
+                                  Op::kUMul, Op::kSMul, Op::kUMod, Op::kSMod});
+  if (!supported_op) {
     return SimplificationResult::kDidNotChange;
   }
 
