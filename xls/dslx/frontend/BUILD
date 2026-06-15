@@ -756,6 +756,7 @@ cc_library(
         ":token",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:errors",
         "//xls/dslx:import_data",
         "//xls/dslx/type_system_v2:import_utils",
         "//xls/dslx/type_system_v2:type_annotation_utils",

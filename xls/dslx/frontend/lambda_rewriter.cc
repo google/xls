@@ -27,6 +27,7 @@
 #include "absl/strings/substitute.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -336,8 +337,13 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
     std::optional<ModuleMember> containing_member =
         GetContainingModuleMember(node);
     XLS_RET_CHECK(containing_member.has_value());
-    auto* parent_inv = absl::down_cast<Invocation*>(node->parent());
-    XLS_RET_CHECK(parent_inv != nullptr);
+    auto* parent_inv = dynamic_cast<Invocation*>(node->parent());
+    if (parent_inv == nullptr) {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          "Lambdas are currently only supported as arguments to invocations.",
+          import_data_.file_table());
+    }
     if (parent_inv->callee() == node) {
       parent_inv->set_callee(instance_invocation);
     } else {
