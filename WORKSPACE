@@ -42,7 +42,3 @@ rules_hdl_init(python_interpreter_target = "@project_python_host//:python")
 load("@rules_7zip//:setup.bzl", "setup_7zip")  # needed by rules_hdl
 
 setup_7zip()
-
-load("//dependency_support/llvm:initialize.bzl", initialize_llvm = "initialize")
-
-initialize_llvm()

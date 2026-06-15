@@ -94,6 +94,24 @@ bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "verible", version = "0.0.3933")
 bazel_dep(name = "with_cfg.bzl", version = "0.14.6")
 
+# LLVM project
+llvm_raw_ext = use_extension("//dependency_support/llvm:extension.bzl", "llvm_raw_ext")
+use_repo(llvm_raw_ext, "llvm-raw")
+
+llvm_configure = use_repo_rule("@llvm-raw//utils/bazel:configure.bzl", "llvm_configure")
+
+llvm_configure(
+    name = "llvm-project",
+    targets = [
+        "AArch64",
+        "X86",
+    ],
+)
+
+# Use Bzlmod (BCR) to supply zlib and zstd for LLVM
+bazel_dep(name = "zlib-ng", version = "2.3.3", repo_name = "llvm_zlib")
+bazel_dep(name = "zstd", version = "1.5.7.bcr.1", repo_name = "llvm_zstd")
+
 # pprof is not in BCR.
 pprof_ext = use_extension("//dependency_support/pprof:extension.bzl", "pprof_extension")
 use_repo(pprof_ext, "pprof")
