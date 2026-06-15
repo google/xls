@@ -42,7 +42,7 @@ namespace xls {
 std::optional<bool> StatelessQueryEngine::KnownValue(
     const TreeBitLocation& bit) const {
   if (!bit.node()->Is<Literal>()) {
-    return std::nullopt;
+    return QueryEngine::KnownValue(bit);
   }
   auto value_tree = ValueToLeafTypeTree(bit.node()->As<Literal>()->value(),
                                         bit.node()->GetType());
@@ -55,11 +55,10 @@ std::optional<bool> StatelessQueryEngine::KnownValue(
   return value.bits().Get(bit.bit_index());
 }
 std::optional<Value> StatelessQueryEngine::KnownValue(Node* node) const {
-  if (node->Is<Literal>()) {
-    return node->As<Literal>()->value();
+  if (!node->Is<Literal>()) {
+    return QueryEngine::KnownValue(node);
   }
-
-  return std::nullopt;
+  return node->As<Literal>()->value();
 }
 
 bool StatelessQueryEngine::IsAllZeros(Node* node) const {
