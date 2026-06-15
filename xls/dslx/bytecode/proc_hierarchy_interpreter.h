@@ -176,7 +176,8 @@ class ProcHierarchyInterpreter {
   void AddProcInstance(ProcInstance&& proc_instance);
 
  private:
-  absl::Status AddProcDefInstance(const ProcDef* proc,
+  absl::Status AddProcDefInstance(std::optional<ProcId> spawner_id,
+                                  const ProcDef* proc,
                                   const InterpValue& initializer, TypeInfo* ti,
                                   const ParametricEnv& env,
                                   ImportData* import_data,

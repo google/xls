@@ -646,6 +646,7 @@ cc_library(
     deps = [
         ":ast",
         ":proc",
+        "//xls/common:visitor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",

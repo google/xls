@@ -327,16 +327,16 @@ ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
                        type_info->GetCanonicalProcInitializers(top_proc));
   for (const ProcInitializerWithTypeInfo& variant : variants) {
     XLS_RETURN_IF_ERROR(hierarchy_interpreter->AddProcDefInstance(
-        top_proc, variant.initializer, variant.next_type_info,
-        variant.constructor_env, import_data, options));
+        /*spawner_id=*/std::nullopt, top_proc, variant.initializer,
+        variant.next_type_info, variant.constructor_env, import_data, options));
   }
   return hierarchy_interpreter;
 }
 
 absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
-    const ProcDef* proc, const InterpValue& initializer, TypeInfo* ti,
-    const ParametricEnv& env, ImportData* import_data,
-    const BytecodeInterpreterOptions& options) {
+    std::optional<ProcId> spawner_id, const ProcDef* proc,
+    const InterpValue& initializer, TypeInfo* ti, const ParametricEnv& env,
+    ImportData* import_data, const BytecodeInterpreterOptions& options) {
   VLOG(5) << "Adding proc instance for: " << proc->identifier()
           << " with initializer " << initializer.ToString();
 
@@ -356,11 +356,11 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
 
   auto events = std::make_unique<InfoLoggingDslxInterpreterEvents>();
   InterpValue self_object = InterpValue::MakeTuple(member_values);
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BytecodeInterpreter> next_interpreter,
-      BytecodeInterpreter::CreateUnique(
-          import_data, proc_id_factory_.CreateProcId(proc), next_bf.get(),
-          {self_object}, channel_manager_.get(), options, events.get()));
+  ProcId proc_id = proc_id_factory_.CreateProcId(spawner_id, proc);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeInterpreter> next_interpreter,
+                       BytecodeInterpreter::CreateUnique(
+                           import_data, proc_id, next_bf.get(), {self_object},
+                           channel_manager_.get(), options, events.get()));
 
   for (int i = 0; i < proc->members().size(); i++) {
     const StructMemberNode* member = proc->members()[i];
@@ -401,7 +401,7 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
     XLS_ASSIGN_OR_RETURN(ProcInitializerWithTypeInfo canonical_initializer,
                          ti->GetCanonicalProcInitializer(external_initializer));
     XLS_RETURN_IF_ERROR(AddProcDefInstance(
-        external_initializer.GetProcInitializerOrDie().proc_def(),
+        proc_id, external_initializer.GetProcInitializerOrDie().proc_def(),
         external_initializer, canonical_initializer.next_type_info,
         canonical_initializer.constructor_env, import_data, options));
   }

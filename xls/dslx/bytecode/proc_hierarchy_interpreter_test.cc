@@ -77,12 +77,27 @@ class ProcHierarchyInterpreterTest : public ::testing::Test {
     return tm_->module->GetTestProc(test_proc_name);
   }
 
+  absl::StatusOr<ProcDef*> ParseAndGetTestProcDef(
+      std::string_view program, std::string_view test_proc_name) {
+    absl::StatusOr<TypecheckedModule> tm =
+        ParseAndTypecheckOrPrintError(program, &import_data_.value());
+    XLS_RETURN_IF_ERROR(tm.status());
+    tm_.emplace(*tm);
+    return tm_->module->GetTestProcDef(test_proc_name);
+  }
+
   absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> Create(
       TestProc* test_proc, const BytecodeInterpreterOptions& options) {
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, tm_->type_info->GetTopLevelProcTypeInfo(
                                             test_proc->proc()));
     return ProcHierarchyInterpreter::Create(&import_data_.value(), ti,
                                             test_proc->proc(), options);
+  }
+
+  absl::StatusOr<std::unique_ptr<ProcHierarchyInterpreter>> Create(
+      ProcDef* test_proc, const BytecodeInterpreterOptions& options) {
+    return ProcHierarchyInterpreter::Create(&import_data_.value(),
+                                            tm_->type_info, test_proc, options);
   }
 
   absl::Status Run(ProcHierarchyInterpreter& hierarchy_interpreter,
@@ -1353,16 +1368,40 @@ impl TestProc {
  }
 })";
 
-  // TODO: https://github.com/google/xls/issues/4125 - Check what the legacy
-  // version of this test is checking. Currently the automatic descriptions of
-  // channels are less clear in a ProcDef.
-  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
-                           TempFile::CreateWithContent(kProgram, "_test.x"));
-  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * test_proc,
+                           ParseAndGetTestProcDef(kProgram, "TestProc"));
+  auto options = BytecodeInterpreterOptions().trace_channels(true);
   XLS_ASSERT_OK_AND_ASSIGN(
-      TestResultData result,
-      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
-  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
+  EXPECT_THAT(GetProcInstance(*interpreter, "TestProc:0")
+                  .value()
+                  ->events()
+                  .GetTraceMessageStrings(),
+              testing::ElementsAre(
+                  "Sent data on channel `TestProc::data_out[0]`:\n  u32:42",
+                  "Received data on channel `TestProc::data_in[0]`:\n  u32:43",
+                  "Sent data on channel `TestProc::data_out[1]`:\n  u32:42",
+                  "Received data on channel `TestProc::data_in[1]`:\n  u32:43",
+                  "Sent data on channel `TestProc::data_out[0]`:\n  u32:100",
+                  "Received data on channel `TestProc::data_in[0]`:\n  u32:101",
+                  "Sent data on channel `TestProc::data_out[1]`:\n  u32:100",
+                  "Received data on channel `TestProc::data_in[1]`:\n  u32:101",
+                  "Sent data on channel `TestProc::terminator`:\n  u1:1"));
+  EXPECT_THAT(
+      GetProcInstance(*interpreter, "TestProc->Incrementer:0")
+          .value()
+          ->events()
+          .GetTraceMessageStrings(),
+      testing::ElementsAre("Received data on channel "
+                           "`TestProc->Incrementer#0::in_ch`:\n  u32:42",
+                           "Sent data on channel "
+                           "`TestProc->Incrementer#0::out_ch`:\n  u32:43",
+                           "Received data on channel "
+                           "`TestProc->Incrementer#0::in_ch`:\n  u32:100",
+                           "Sent data on channel "
+                           "`TestProc->Incrementer#0::out_ch`:\n  u32:101"));
 }
 
 }  // namespace
