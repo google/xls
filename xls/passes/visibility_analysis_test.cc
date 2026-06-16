@@ -33,6 +33,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
@@ -383,6 +384,82 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughSelect) {
   EXPECT_EQ(
       bdd.Implies(selector_bits[1], bdd.Not(bdd.Or(add_visible, sub_visible))),
       bdd.one());
+}
+
+TEST_F(VisibilityAnalysisTest, NodeImpactOnVisibilityViaOneHotSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue op = fb.Param("op", p->GetBitsType(2));
+  BValue ohs_guard = fb.OneHotSelect(op, {x, x});
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(ohs_guard));
+
+  NodeImpactOnVisibilityAnalysis nia;
+  XLS_ASSERT_OK(nia.Attach(f));
+  EXPECT_EQ(nia.NodeImpactOnVisibility(x.node()), 0);
+  EXPECT_EQ(nia.NodeImpactOnVisibility(op.node()), 2);  // impact = 2 cases
+  EXPECT_EQ(nia.NodeImpactOnVisibility(ohs_guard.node()), 0);
+}
+
+TEST_F(VisibilityAnalysisTest, VisibilityThroughOneHotSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+  BValue add = fb.Add(x, fb.Literal(UBits(1, 4)));
+  BValue sub = fb.Subtract(x, fb.Literal(UBits(1, 4)));
+  BValue ohs = fb.OneHotSelect(selector, {add, sub});
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(ohs));
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
+                                                  bdd_engine.get(), &post_dom));
+  BddNodeIndex add_visible = *visibility->GetInfo(add.node());
+  BddNodeIndex sub_visible = *visibility->GetInfo(sub.node());
+
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex selector_bit_0,
+                           GetNodeBit(selector.node(), 0, *bdd_engine));
+  XLS_ASSERT_OK_AND_ASSIGN(BddNodeIndex selector_bit_1,
+                           GetNodeBit(selector.node(), 1, *bdd_engine));
+
+  EXPECT_EQ(add_visible, selector_bit_0);
+  EXPECT_EQ(sub_visible, selector_bit_1);
+}
+
+TEST_F(VisibilityAnalysisTest, MutualExclusivityThroughOneHotSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue y = fb.Param("y", p->GetBitsType(1));
+  BValue selector = fb.OneHot(y, LsbOrMsb::kLsb);
+  BValue add = fb.Add(x, fb.Literal(UBits(1, 4)));
+  BValue sub = fb.Subtract(x, fb.Literal(UBits(1, 4)));
+  BValue ohs = fb.OneHotSelect(selector, {add, sub});
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, fb.BuildWithReturnValue(ohs));
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
+                                                  bdd_engine.get(), &post_dom));
+
+  EXPECT_TRUE(visibility->IsMutuallyExclusive(add.node(), sub.node()));
 }
 
 TEST_F(VisibilityAnalysisTest, VisibilityThroughAnd) {

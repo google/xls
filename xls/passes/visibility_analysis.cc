@@ -87,6 +87,11 @@ int64_t NodeImpactOnVisibilityAnalysis::ComputeInfo(
         // acceptable amplification.
         impact += select->cases().size() + 1;
       }
+    } else if (user->Is<OneHotSelect>()) {
+      auto select = user->As<OneHotSelect>();
+      if (select->selector() == node) {
+        impact += select->cases().size();
+      }
     } else if (user->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
       // Does not count the node itself towards impact
       impact += user->operands().size() - 1;
@@ -397,6 +402,24 @@ BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithSelect(
   return OrAggregate(or_cases, bdd_query_engine_);
 }
 
+BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithOneHotSelect(
+    Node* node, OneHotSelect* select) const {
+  Node* selector = select->selector();
+  // If the selector uses the node, then the node is always used.
+  if (nda_->IsDependent(node, selector)) {
+    return bdd_query_engine_->bdd().one();
+  }
+  std::vector<BddNodeIndex> or_cases;
+  absl::Span<Node* const> cases = select->cases();
+  for (int i = 0; i < cases.size(); ++i) {
+    if (cases[i] != node) {
+      continue;
+    }
+    or_cases.push_back(GetNodeBit(selector, i));
+  }
+  return OrAggregate(or_cases, bdd_query_engine_);
+}
+
 BddNodeIndex OperandVisibilityAnalysis::ConditionOnNextUse(Next* next,
                                                            Node* node) const {
   if (next->state_read() == node &&
@@ -534,6 +557,8 @@ BddNodeIndex OperandVisibilityAnalysis::ConditionOfUse(Node* node,
     return ConditionOfUseWithPrioritySelect(node, user->As<PrioritySelect>());
   } else if (user->Is<Select>()) {
     return ConditionOfUseWithSelect(node, user->As<Select>());
+  } else if (user->Is<OneHotSelect>()) {
+    return ConditionOfUseWithOneHotSelect(node, user->As<OneHotSelect>());
   } else if (user->Is<Send>()) {
     return ConditionOnPredicate(node, user->As<Send>()->predicate());
   } else if (user->Is<Next>()) {

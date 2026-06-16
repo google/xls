@@ -41,6 +41,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
@@ -1851,6 +1852,70 @@ TEST_P(SelectSimplificationPassTest, PredicatedStateReadFeedSelector) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       SimplifyOneHotSelectConstantSelectorZeroActiveTuple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* tuple_type = p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)});
+  BValue selector = fb.Literal(UBits(0, 2));
+  BValue t0 = fb.Param("t0", tuple_type);
+  BValue t1 = fb.Param("t1", tuple_type);
+  fb.OneHotSelect(selector, {t0, t1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(ZeroOfType(tuple_type)));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       SimplifyOneHotSelectConstantSelectorOneActiveArray) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* array_type = p->GetArrayType(3, p->GetBitsType(32));
+  BValue selector = fb.Literal(UBits(2, 2));
+  BValue a0 = fb.Param("a0", array_type);
+  BValue a1 = fb.Param("a1", array_type);
+  fb.OneHotSelect(selector, {a0, a1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("a1"));
+}
+
+TEST_P(SelectSimplificationPassTest, SimplifyOneHotSelectIdenticalCasesTuple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* tuple_type = p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)});
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+  BValue t0 = fb.Param("t0", tuple_type);
+  fb.OneHotSelect(selector, {t0, t0});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Ne(m::Param("selector"), m::Literal(UBits(0, 2))),
+                        {m::Literal(ZeroOfType(tuple_type)), m::Param("t0")}));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       SimplifyOneHotSelectConstantSelectorMultiActiveTuple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* tuple_type = p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)});
+  BValue selector = fb.Literal(UBits(3, 2));  // Both bits active (11b)
+  BValue t0 = fb.Param("t0", tuple_type);
+  BValue t1 = fb.Param("t1", tuple_type);
+  fb.OneHotSelect(selector, {t0, t1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Or(m::TupleIndex(m::Param("t0"), 0),
+                             m::TupleIndex(m::Param("t1"), 0)),
+                       m::Or(m::TupleIndex(m::Param("t0"), 1),
+                             m::TupleIndex(m::Param("t1"), 1))));
 }
 
 INSTANTIATE_TEST_SUITE_P(SelectSimplificationPassTest,
