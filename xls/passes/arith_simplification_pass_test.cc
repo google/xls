@@ -2577,6 +2577,22 @@ TEST_F(ArithSimplificationPassTest, SDivByShiftedVariablePowerOfTwoWideShift) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
+TEST_F(ArithSimplificationPassTest, FuzzTestInvalidSDivTransform) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue literal_10 = fb.Literal(UBits(127, 7));
+  Bits all_ones_1000 = Bits::AllOnes(1000);
+  BValue literal_16 = fb.Literal(all_ones_1000);
+  BValue zero_ext_6 = fb.ZeroExtend(literal_10, 64);
+  BValue shrl_7 = fb.Shrl(literal_16, zero_ext_6);
+  BValue shll_8 = fb.Shll(shrl_7, zero_ext_6);
+  BValue sdiv_9 = fb.SDiv(shll_8, shll_8);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sdiv_9));
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOk());
+}
+
 void IrFuzzArithSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ArithSimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
