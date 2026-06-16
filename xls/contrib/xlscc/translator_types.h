@@ -460,6 +460,7 @@ enum class OpType {
   kLoopBegin,
   kLoopEndJump,
   kActivationBarrier,
+  kSharedCall,
 };
 enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory, kTrace };
 enum class TraceType { kNull = 0, kAssert, kTrace };
@@ -789,6 +790,8 @@ class TranslatorTypeInterface {
   virtual absl::StatusOr<std::shared_ptr<CType>> TranslateTypeFromClang(
       clang::QualType t, const xls::SourceInfo& loc,
       bool array_as_tuple = false) = 0;
+  virtual absl::StatusOr<xls::Type*> TranslateTypeToXLS(
+      std::shared_ptr<CType> t, const xls::SourceInfo& loc) = 0;
 
   virtual std::shared_ptr<CType> GetCTypeForAlias(
       const std::shared_ptr<CInstantiableTypeAlias>& alias) = 0;
@@ -911,6 +914,8 @@ struct IOChannel {
   bool internal_to_function = false;
 };
 
+struct GeneratedFunction;
+
 // Tracks information about an IO op on an __xls_channel parameter to a function
 struct IOOp {
   // --- Preserved across calls ---
@@ -948,6 +953,10 @@ struct IOOp {
   ActivationBarrierType activation_barrier_type = ActivationBarrierType::kNone;
   const IOOp* barrier_begin_op = nullptr;
 
+  std::shared_ptr<CType> shared_call_param_type = nullptr;
+  // Lifetime is managed by Translator's shared_function_impls_
+  const GeneratedFunction* shared_call_func = nullptr;
+
   // --- Not preserved across calls ---
 
   std::string final_param_name;
@@ -984,8 +993,6 @@ struct SideEffectingParameter {
   const clang::NamedDecl* static_value = nullptr;
   xls::Type* xls_io_param_type = nullptr;
 };
-
-struct GeneratedFunction;
 
 // Encapsulates values needed to generate procs for a pipelined loop body
 // TODO(seanhaskell): Remove with old FSM
@@ -1157,6 +1164,20 @@ struct GeneratedFunctionSlice {
       continuation_inputs_by_decl_top_context;
 };
 
+// TODO(seanhaskell): Use this more instead of repeatedly deriving param info.
+struct GeneratedParamInfo {
+  const clang::ParmVarDecl* param = nullptr;
+  // Takes input value?
+  bool has_func_param = false;
+  // Call by reference
+  bool return_val = false;
+};
+
+struct SharedFunctionImpl {
+  std::unique_ptr<GeneratedFunction> generated_function;
+  IOChannel* channel = nullptr;
+};
+
 // Encapsulates values produced when generating IR for a function
 struct GeneratedFunction {
   const clang::FunctionDecl* clang_decl = nullptr;
@@ -1165,6 +1186,8 @@ struct GeneratedFunction {
   xls::Function* xls_func = nullptr;
 
   std::list<GeneratedFunctionSlice> slices;
+
+  std::vector<GeneratedParamInfo> param_infos;
 
   // If a decl is declared multiple times, it will still increment this count,
   // keeping the order of most recent declarations.

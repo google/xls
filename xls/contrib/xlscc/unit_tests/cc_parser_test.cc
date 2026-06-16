@@ -1087,4 +1087,28 @@ TEST_F(CCParserTest, SubBlockChannelDepthWorks) {
                                /*arg_expected=*/33);
 }
 
+TEST_F(CCParserTest, SharedFunctionWorks) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+
+    [[hls_top]]
+    [[hls_shared_function]]
+    void foo(__xls_channel<int>& chan,
+            __xls_channel<int>& chan2) {
+      int in = chan.read();
+      chan2.write(in);
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"));
+
+  const clang::FunctionDecl* top_ptr = nullptr;
+  XLS_ASSERT_OK_AND_ASSIGN(top_ptr, parser.GetTopFunction());
+
+  ExpectAnnotateWithoutArgs(top_ptr->getAttrs(), "hls_top");
+  ExpectAnnotateWithoutArgs(top_ptr->getAttrs(), "hls_shared_function");
+}
+
 }  // namespace
