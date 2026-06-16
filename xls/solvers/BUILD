@@ -354,6 +354,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
@@ -602,6 +603,35 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "solver_benchmark",
+    testonly = True,
+    srcs = ["solver_benchmark.cc"],
+    data = [
+        "//xls/examples:bitonic_sort.opt.ir",
+        "//xls/examples:fp32_fmac.opt.ir",
+        "//xls/examples:riscv_simple.opt.ir",
+        "//xls/examples:sha256.opt.ir",
+        "//xls/examples:sha256_scaled.opt.ir",
+    ],
+    deps = [
+        ":bitwuzla_ir_translator",
+        ":solver",
+        ":z3_ir_translator",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest",
     ],
 )
