@@ -643,7 +643,8 @@ def wrapped_to_fuzztest(
         conversion_snippet = to_value_conversion(p.type_proto, p.name)
 
       if (
-          p.type_proto.type_enum == type_pb2.TypeProto.TUPLE
+          len(wrapped.params) == 1
+          and p.type_proto.type_enum == type_pb2.TypeProto.TUPLE
           and domain_snippet is not None
       ):
         domain_snippet = f"fuzztest::TupleOf({domain_snippet})"
