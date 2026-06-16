@@ -1771,6 +1771,14 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
       int64_t stage_count, const CodegenOptions& options) override {
+    return BuildBlockInPackageWithFlowControl(stage_count, options,
+                                              FlowControl::kReadyValid,
+                                              FlowControl::kReadyValid);
+  }
+
+  absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackageWithFlowControl(
+      int64_t stage_count, const CodegenOptions& options,
+      FlowControl in_flow_control, FlowControl out_flow_control) {
     // Simple streaming one input and one output pipeline.
     auto package_ptr = std::make_unique<Package>(TestName());
     Package& package = *package_ptr;
@@ -1778,10 +1786,14 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
     Type* u32 = package.GetBitsType(32);
     XLS_ASSIGN_OR_RETURN(
         Channel * ch_in,
-        package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+        package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32,
+                                       absl::Span<const Value>{},
+                                       ChannelConfig(), in_flow_control));
     XLS_ASSIGN_OR_RETURN(
         Channel * ch_out,
-        package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+        package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32,
+                                       absl::Span<const Value>{},
+                                       ChannelConfig(), out_flow_control));
 
     TokenlessProcBuilder pb(TestName(),
                             /*token_name=*/"tkn", &package);
@@ -1938,6 +1950,299 @@ TEST_F(SimplePipelinedProcTest, BasicDatapathResetAndInputFlop) {
                               {"out_vld", SignalType::kExpectedOutput},
                               {"out_vld", SignalType::kOutput},
                               {"out_rdy", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs, expected_outputs));
+
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    EXPECT_EQ(outputs.at(i), expected_outputs.at(i))
+        << "Mismatch at cycle " << i;
+  }
+}
+
+TEST_F(SimplePipelinedProcTest, BasicPipelineWithReadyValid) {
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           BuildBlockInPackage(/*stage_count=*/4, options));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
+
+  VLOG(2) << "Simple streaming pipelined block";
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> expected_outputs;
+
+  uint64_t running_in_val = 1;
+  uint64_t running_out_val = 1;
+
+  // Phase 1, Cycles 0-9: Input increments and is valid, but out_rdy is off.
+  // Expect output to initially increment, but hold until out_rdy is on.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(0, 9, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(0, 9, {{"in_vld", 1}, {"out_rdy", 0}}, inputs));
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 2, {{"in_rdy", 1}, {"out_vld", 0}, {"out", 0}}, expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      3, 9, {{"in_rdy", 0}, {"out_vld", 1}, {"out", 1}}, expected_outputs));
+
+  // Phase 2, Cycles 10-19: out_rdy is on, but in_vld flips off. Output
+  // increments until stages fill and in_vld is read.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(10, 19, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(10, 19, {{"in_vld", 0}, {"out_rdy", 1}}, inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_out_val, SetIncrementingSignalOverCycles(
+                           10, 12, "out", running_out_val, expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(10, 12, {{"in_rdy", 0}, {"out_vld", 1}},
+                                     expected_outputs));
+  running_out_val -= 1;
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      13, 19, {{"in_rdy", 0}, {"out_vld", 0}, {"out", running_out_val}},
+      expected_outputs));
+
+  // Phase 3, Cycles 20-29: both out_rdy and out_vld are on, continue to
+  // increment once in_vld signal propagates through pipeline.
+  uint64_t prior_running_out_val = running_out_val;
+  running_out_val = running_in_val;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(20, 29, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(20, 29, {{"in_vld", 1}, {"out_rdy", 1}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      20, 22, {{"in_rdy", 1}, {"out_vld", 0}, {"out", prior_running_out_val}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(23, 29, "out", running_out_val,
+                                                expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(23, 29, {{"in_rdy", 1}, {"out_vld", 1}},
+                                     expected_outputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, expected_outputs.size() - 1,
+                                                "cycle", 0, expected_outputs));
+  ASSERT_EQ(inputs.size(), expected_outputs.size());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  ASSERT_EQ(outputs.size(), expected_outputs.size());
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"in", SignalType::kInput},
+                              {"in_vld", SignalType::kInput},
+                              {"in_rdy", SignalType::kExpectedOutput},
+                              {"in_rdy", SignalType::kOutput},
+                              {"out", SignalType::kExpectedOutput},
+                              {"out", SignalType::kOutput},
+                              {"out_vld", SignalType::kExpectedOutput},
+                              {"out_vld", SignalType::kOutput},
+                              {"out_rdy", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs, expected_outputs));
+
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    EXPECT_EQ(outputs.at(i), expected_outputs.at(i))
+        << "Mismatch at cycle " << i;
+  }
+}
+
+TEST_F(SimplePipelinedProcTest, BasicPipelineWithValidDataIn) {
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           BuildBlockInPackageWithFlowControl(
+                               /*stage_count=*/4, options,
+                               /*in_flow_control=*/FlowControl::kValidData,
+                               /*out_flow_control=*/FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
+
+  VLOG(2) << "Simple streaming pipelined block";
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> expected_outputs;
+
+  uint64_t running_in_val = 1;
+  uint64_t running_out_val = 1;
+
+  // Phase 1, Cycles 0-9: Input increments and is valid, but out_rdy is off.
+  // Expect output to initially increment, but hold until out_rdy is on.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(0, 9, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(0, 9, {{"in_vld", 1}, {"out_rdy", 0}}, inputs));
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 2, {{"out_vld", 0}, {"out", 0}},
+                                     expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(3, 9, {{"out_vld", 1}, {"out", 1}},
+                                     expected_outputs));
+
+  // Phase 2, Cycles 10-19: out_rdy is on, but in_vld flips off. Output
+  // increments until stages fill and in_vld is read.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(10, 19, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(10, 19, {{"in_vld", 0}, {"out_rdy", 1}}, inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_out_val, SetIncrementingSignalOverCycles(
+                           10, 12, "out", running_out_val, expected_outputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(10, 12, {{"out_vld", 1}}, expected_outputs));
+  running_out_val -= 1;
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      13, 19, {{"out_vld", 0}, {"out", running_out_val}}, expected_outputs));
+
+  // Phase 3, Cycles 20-29: both out_rdy and out_vld are on, continue to
+  // increment once in_vld signal propagates through pipeline.
+  uint64_t prior_running_out_val = running_out_val;
+  running_out_val = running_in_val;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(20, 29, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(20, 29, {{"in_vld", 1}, {"out_rdy", 1}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      20, 22, {{"out_vld", 0}, {"out", prior_running_out_val}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(23, 29, "out", running_out_val,
+                                                expected_outputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(23, 29, {{"out_vld", 1}}, expected_outputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, expected_outputs.size() - 1,
+                                                "cycle", 0, expected_outputs));
+  ASSERT_EQ(inputs.size(), expected_outputs.size());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  ASSERT_EQ(outputs.size(), expected_outputs.size());
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"in", SignalType::kInput},
+                              {"in_vld", SignalType::kInput},
+                              {"out", SignalType::kExpectedOutput},
+                              {"out", SignalType::kOutput},
+                              {"out_vld", SignalType::kExpectedOutput},
+                              {"out_vld", SignalType::kOutput},
+                              {"out_rdy", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs, expected_outputs));
+
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    EXPECT_EQ(outputs.at(i), expected_outputs.at(i))
+        << "Mismatch at cycle " << i;
+  }
+}
+
+TEST_F(SimplePipelinedProcTest, BasicPipelineWithValidDataOut) {
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           BuildBlockInPackageWithFlowControl(
+                               /*stage_count=*/4, options,
+                               /*in_flow_control=*/FlowControl::kReadyValid,
+                               /*out_flow_control=*/FlowControl::kValidData));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
+
+  VLOG(2) << "Simple streaming pipelined block";
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> expected_outputs;
+
+  uint64_t running_in_val = 1;
+  uint64_t running_out_val = 1;
+
+  // Phase 1, Cycles 0-9: Input increments and is valid. No out_rdy port since
+  // output is valid-data.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(0, 9, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{"in_vld", 1}}, inputs));
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 2, {{"in_rdy", 1}, {"out_vld", 0}, {"out", 0}}, expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(3, 9, {{"in_rdy", 1}, {"out_vld", 1}},
+                                     expected_outputs));
+  XLS_ASSERT_OK_AND_ASSIGN(running_out_val,
+                           SetIncrementingSignalOverCycles(
+                               3, 9, "out", running_out_val, expected_outputs));
+
+  // Phase 2, Cycles 10-19: in_vld flips off. Output increments until stages
+  // fill and in_vld is read.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(10, 19, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(10, 19, {{"in_vld", 0}}, inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_out_val, SetIncrementingSignalOverCycles(
+                           10, 12, "out", running_out_val, expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(10, 12, {{"in_rdy", 0}, {"out_vld", 1}},
+                                     expected_outputs));
+  running_out_val -= 1;
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      13, 19, {{"in_rdy", 0}, {"out_vld", 0}, {"out", running_out_val}},
+      expected_outputs));
+
+  // Phase 3, Cycles 20-29: out_vld flips back on, continue to increment once
+  // in_vld signal propagates through pipeline.
+  uint64_t prior_running_out_val = running_out_val;
+  running_out_val = running_in_val;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(20, 29, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(20, 29, {{"in_vld", 1}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      20, 22, {{"in_rdy", 1}, {"out_vld", 0}, {"out", prior_running_out_val}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(23, 29, "out", running_out_val,
+                                                expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(23, 29, {{"in_rdy", 1}, {"out_vld", 1}},
+                                     expected_outputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, expected_outputs.size() - 1,
+                                                "cycle", 0, expected_outputs));
+  ASSERT_EQ(inputs.size(), expected_outputs.size());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  ASSERT_EQ(outputs.size(), expected_outputs.size());
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"in", SignalType::kInput},
+                              {"in_vld", SignalType::kInput},
+                              {"in_rdy", SignalType::kExpectedOutput},
+                              {"in_rdy", SignalType::kOutput},
+                              {"out", SignalType::kExpectedOutput},
+                              {"out", SignalType::kOutput},
+                              {"out_vld", SignalType::kExpectedOutput},
+                              {"out_vld", SignalType::kOutput}},
       /*column_width=*/10, inputs, outputs, expected_outputs));
 
   for (int64_t i = 0; i < outputs.size(); ++i) {

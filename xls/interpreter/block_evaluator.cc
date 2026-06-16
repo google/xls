@@ -102,6 +102,12 @@ absl::StatusOr<absl::flat_hash_map<std::string, Value>> ConvertInputsToValues(
     XLS_ASSIGN_OR_RETURN(input_values[port->GetName()],
                          ConvertInputUint64ToValue(input, port, block));
   }
+  for (const auto& [port_name, _] : inputs) {
+    if (!input_values.contains(port_name)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Missing input port for input '%s'", port_name));
+    }
+  }
   return std::move(input_values);
 }
 
