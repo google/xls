@@ -81,6 +81,12 @@ class Z3OpTranslator {
   // and similar) is at `bitno = bit_count - 1`.
   Z3_ast Extract(Z3_ast arg, int64_t bitno);
 
+  // Extracts bits from `high` down to `low` from the given argument, returning
+  // a bitvector of width `high - low + 1`.
+  //
+  // Note that this is an *inclusive* range.
+  Z3_ast Extract(Z3_ast arg, int64_t high, int64_t low);
+
   // Returns the kind of the sort of the AST node, e.g. Z3_BOOL_SORT,
   // Z3_BV_SORT, etc.
   Z3_sort_kind GetSortKind(Z3_ast a) {
@@ -160,6 +166,12 @@ class Z3OpTranslator {
       accum = Z3_mk_concat(z3_ctx_, accum, args[i]);
     }
     return accum;
+  }
+
+  // Reverses the order of bits in arg.
+  Z3_ast Reverse(Z3_ast arg) {
+    std::vector<Z3_ast> bits = ExplodeBits(arg);
+    return ConcatN(bits);
   }
 
   // Returns whether lhs < rhs -- this is determined by zero-extending the

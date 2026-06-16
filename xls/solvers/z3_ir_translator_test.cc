@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
@@ -52,6 +53,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -3098,6 +3100,159 @@ fn f(x: (bits[8], bits[8])) -> bits[8] {
 
   EXPECT_THAT(res, IsProvenTrue());
 }
+
+// //
+// =============================================================================
+// Z3 Translation Benchmarks (Google Benchmark)
+// =============================================================================
+
+static void BM_OneHotLsb(benchmark::State& state) {
+  int64_t w = state.range(0);
+  Package package("p");
+  FunctionBuilder fb("f", &package);
+  Type* bits_w = package.GetBitsType(w);
+  BValue x = fb.Param("x", bits_w);
+
+  // oh = OneHot(x) (width w + 1)
+  BValue oh = fb.OneHot(x, LsbOrMsb::kLsb);
+
+  // Hard Property: PopCount(oh) == 1
+  // Represented as: (oh & (oh - 1)) == 0
+  // Since oh != 0 is guaranteed (MSb is 1 if x == 0, else one of lower bits is
+  // 1), this proves exactly one bit is active.
+  BValue oh_minus_1 = fb.Subtract(oh, fb.Literal(UBits(1, w + 1)));
+  BValue oh_and_oh_minus_1 = fb.And(oh, oh_minus_1);
+  fb.Eq(oh_and_oh_minus_1, fb.Literal(UBits(0, w + 1)));
+
+  auto f_or = fb.Build();
+  CHECK(f_or.ok()) << f_or.status();
+  Function* f = f_or.value();
+
+  for (auto _ : state) {
+    auto proven_or = TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                              absl::InfiniteDuration());
+    CHECK(proven_or.ok()) << proven_or.status();
+    benchmark::DoNotOptimize(proven_or.value());
+  }
+}
+BENCHMARK(BM_OneHotLsb)->Arg(64)->Arg(128)->Arg(256);
+
+static void BM_OneHotMsb(benchmark::State& state) {
+  int64_t w = state.range(0);
+  Package package("p");
+  FunctionBuilder fb("f", &package);
+  Type* bits_w = package.GetBitsType(w);
+  BValue x = fb.Param("x", bits_w);
+
+  // oh = OneHot(x) (width w + 1)
+  BValue oh = fb.OneHot(x, LsbOrMsb::kMsb);
+
+  // Hard Property: PopCount(oh) == 1
+  BValue oh_minus_1 = fb.Subtract(oh, fb.Literal(UBits(1, w + 1)));
+  BValue oh_and_oh_minus_1 = fb.And(oh, oh_minus_1);
+  fb.Eq(oh_and_oh_minus_1, fb.Literal(UBits(0, w + 1)));
+
+  auto f_or = fb.Build();
+  CHECK(f_or.ok()) << f_or.status();
+  Function* f = f_or.value();
+
+  for (auto _ : state) {
+    auto proven_or = TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                              absl::InfiniteDuration());
+    CHECK(proven_or.ok()) << proven_or.status();
+    benchmark::DoNotOptimize(proven_or.value());
+  }
+}
+BENCHMARK(BM_OneHotMsb)->Arg(64)->Arg(128)->Arg(256);
+
+static void BM_OneHotSelect(benchmark::State& state) {
+  int64_t n = state.range(0);
+  Package package("p");
+  FunctionBuilder fb("f", &package);
+
+  Type* bits_8 = package.GetBitsType(8);
+  BValue sel = fb.Param("sel", package.GetBitsType(n));
+
+  // Build cases with UNIQUE parameters to prevent Z3 constant-simplification.
+  std::vector<BValue> cases;
+  cases.reserve(n);
+  for (int64_t i = 0; i < n; ++i) {
+    cases.push_back(fb.Param(absl::StrCat("case_", i), bits_8));
+  }
+
+  // oh_sel = OneHotSelect(sel, cases)
+  BValue oh_sel = fb.OneHotSelect(sel, cases);
+
+  // We prove the non-trivial property:
+  // Implies(PopCount(sel) <= 1, oh_sel is either 0 or one of the cases)
+  // PopCount(sel) <= 1  is represented as  (sel & (sel - 1)) == 0.
+  // Implies(A, B) is represented as Or(Not(A), B).
+  BValue one_or_zero_hot =
+      fb.Eq(fb.And(sel, fb.Subtract(sel, fb.Literal(UBits(1, n)))),
+            fb.Literal(UBits(0, n)));
+  BValue not_one_or_zero_hot = fb.Not(one_or_zero_hot);
+
+  std::vector<BValue> or_terms;
+  or_terms.push_back(not_one_or_zero_hot);
+  or_terms.push_back(
+      fb.Eq(oh_sel, fb.Literal(UBits(0, 8))));  // base case (all zeros)
+  for (const auto& c : cases) {
+    or_terms.push_back(fb.Eq(oh_sel, c));
+  }
+  fb.Or(or_terms);
+
+  auto f_or = fb.Build();
+  CHECK(f_or.ok()) << f_or.status();
+  Function* f = f_or.value();
+
+  for (auto _ : state) {
+    auto proven_or = TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                              absl::InfiniteDuration());
+    CHECK(proven_or.ok()) << proven_or.status();
+    benchmark::DoNotOptimize(proven_or.value());
+  }
+}
+BENCHMARK(BM_OneHotSelect)->Arg(16)->Arg(32)->Arg(64);
+
+static void BM_PrioritySelect(benchmark::State& state) {
+  int64_t n = state.range(0);
+  Package package("p");
+  FunctionBuilder fb("f", &package);
+
+  Type* bits_8 = package.GetBitsType(8);
+  BValue sel = fb.Param("sel", package.GetBitsType(n));
+  BValue default_val = fb.Param("default_val", bits_8);
+
+  // Build cases with UNIQUE parameters.
+  std::vector<BValue> cases;
+  cases.reserve(n);
+  for (int64_t i = 0; i < n; ++i) {
+    cases.push_back(fb.Param(absl::StrCat("case_", i), bits_8));
+  }
+
+  BValue pri_sel = fb.PrioritySelect(sel, cases, default_val);
+
+  // We prove the non-trivial property:
+  // pri_sel must be equal to either default_val or one of the cases.
+  std::vector<BValue> or_terms;
+  or_terms.push_back(fb.Eq(pri_sel, default_val));
+  for (const auto& c : cases) {
+    or_terms.push_back(fb.Eq(pri_sel, c));
+  }
+  fb.Or(or_terms);
+
+  auto f_or = fb.Build();
+  CHECK(f_or.ok()) << f_or.status();
+  Function* f = f_or.value();
+
+  for (auto _ : state) {
+    auto proven_or = TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                              absl::InfiniteDuration());
+    CHECK(proven_or.ok()) << proven_or.status();
+    benchmark::DoNotOptimize(proven_or.value());
+  }
+}
+BENCHMARK(BM_PrioritySelect)->Arg(16)->Arg(32)->Arg(64);
 
 }  // namespace
 }  // namespace xls
