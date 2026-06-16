@@ -778,6 +778,7 @@ cc_library(
         ":ast_node",
         ":ast_node_visitor_with_default",
         ":module",
+        ":pos",
         "//xls/common:attribute_data",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

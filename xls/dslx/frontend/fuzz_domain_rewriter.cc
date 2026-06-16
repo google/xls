@@ -30,6 +30,7 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -51,12 +52,13 @@ std::optional<std::string> GetFuzzDomainName(const StructDef* struct_def) {
   return std::nullopt;
 }
 
-// Derives the type annotation for a domain member based on the original struct
-// member's type, recursively populating nested domain structs if necessary.
-absl::StatusOr<TypeAnnotation*> DeriveDomainMemberTypeAnnotation(
+// Derives the type annotation for a domain type recursively, populating nested
+// domain structs if necessary.
+absl::StatusOr<TypeAnnotation*> DeriveDomainTypeAnnotation(
     Module& module, ImportData& import_data, const StructMemberNode* member,
     absl::FunctionRef<absl::Status(StructDef*)> populate_domain_fn) {
   TypeAnnotation* member_type = member->type();
+
   XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_ref,
                        GetStructOrProcRef(member_type, import_data));
   if (!struct_ref.has_value()) {
@@ -87,25 +89,22 @@ absl::StatusOr<TypeAnnotation*> DeriveDomainMemberTypeAnnotation(
       member_type->AsAnnotation<const TypeRefTypeAnnotation>();
   TypeRef* type_ref = type_ref_type->type_ref();
   TypeDefinition def = type_ref->type_definition();
+  Span span = member->span();
   if (std::holds_alternative<ColonRef*>(def)) {
     const ColonRef* colon_ref = std::get<ColonRef*>(def);
     ColonRef* domain_colon_ref = module.Make<ColonRef>(
         colon_ref->span(), colon_ref->subject(), *domain_name);
     return module.Make<TypeRefTypeAnnotation>(
-        member->span(),
-        module.Make<TypeRef>(member->span(), TypeDefinition(domain_colon_ref)),
+        span, module.Make<TypeRef>(span, TypeDefinition(domain_colon_ref)),
         std::vector<ExprOrType>(), std::nullopt);
   }
 
-  if (std::holds_alternative<StructDef*>(def)) {
+  if (std::holds_alternative<StructDef*>(def) ||
+      std::holds_alternative<TypeAlias*>(def)) {
     return module.Make<TypeRefTypeAnnotation>(
-        member->span(),
-        module.Make<TypeRef>(member->span(),
-                             TypeDefinition(nested_domain_struct)),
+        span, module.Make<TypeRef>(span, TypeDefinition(nested_domain_struct)),
         std::vector<ExprOrType>(), std::nullopt);
   }
-
-  // TODO(davidplass): also handle TypeAlias
 
   return nullptr;
 }
@@ -123,7 +122,7 @@ absl::Status MaybePopulateDomainStruct(StructDef* struct_def, Module& module,
 
   for (const StructMemberNode* member : original->members()) {
     XLS_ASSIGN_OR_RETURN(TypeAnnotation * domain_member_type,
-                         DeriveDomainMemberTypeAnnotation(
+                         DeriveDomainTypeAnnotation(
                              module, import_data, member,
                              [&module, &import_data](StructDef* sd) {
                                return MaybePopulateDomainStruct(sd, module,

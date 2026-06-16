@@ -200,3 +200,15 @@ dslx_fuzz_test(
     library = ":struct_tests_dslx",
     test_function = "second",
 )
+
+dslx_fuzz_test(
+    name = "struct_domain_type_alias_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "test_struct_domain_type_alias",
+)
+
+dslx_fuzz_test(
+    name = "struct_domain_tuple_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "test_struct_domain_tuple",
+)

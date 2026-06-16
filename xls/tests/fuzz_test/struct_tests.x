@@ -125,3 +125,51 @@ fn second_domain() -> Domain {
 
 #[fuzz_test(domains=`second_domain()`)]
 fn second(s: S) -> bool { s.x < 2 }
+
+// Test for type aliases inside domain structs.
+#[fuzz_domain("AliasInnerDomain")]
+struct AliasInner {
+    y: u32,
+}
+
+type StructAlias = AliasInner;
+
+#[fuzz_domain("AliasOuterDomain")]
+struct AliasOuter {
+    a: StructAlias,
+}
+
+fn create_alias_outer_domain() -> AliasOuterDomain {
+   AliasOuterDomain {
+     a: AliasInnerDomain {
+       y: u32:0..10,
+     },
+   }
+}
+
+#[fuzz_test(domains=`create_alias_outer_domain()`)]
+fn test_struct_domain_type_alias(s: AliasOuter) -> bool {
+    s.a.y < u32:10
+}
+
+// Test for nested struct domains with tuples.
+#[fuzz_domain("TupleInnerDomain")]
+struct TupleInner {
+    y: u32,
+}
+
+#[fuzz_domain("TupleOuterDomain")]
+struct TupleOuter {
+    c: (TupleInner, u8),
+}
+
+fn create_tuple_outer_domain() -> TupleOuterDomain {
+   TupleOuterDomain {
+     c: (TupleInnerDomain { y: u32:0..10 }, u8:0..11),
+   }
+}
+
+#[fuzz_test(domains=`create_tuple_outer_domain()`)]
+fn test_struct_domain_tuple(s: TupleOuter) -> bool {
+    s.c.0.y < u32:10 && s.c.1 < u8:11
+}

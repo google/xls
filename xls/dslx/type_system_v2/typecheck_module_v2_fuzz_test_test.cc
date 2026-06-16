@@ -814,5 +814,108 @@ fn f<N: u32>(x: uN[N]) {
       TypecheckFails(HasSubstr("Cannot fuzz test parametric function `f`")));
 }
 
+TEST(TypecheckV2Test, FuzzTestDerivedStructDomainPartiallyNestedSuccess) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("InnerDomain")]
+struct Inner {
+    y: u32,
+    z: u8,
+}
+
+#[fuzz_domain("OuterDomain")]
+struct Outer {
+    x: Inner,
+}
+
+fn create_f_domain() -> OuterDomain {
+   OuterDomain {
+     x: InnerDomain {
+       y: u32:0..10,
+     },
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: Outer) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestStructDomainTypeAlias) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("InnerDomain")]
+struct Inner {
+    y: u32,
+}
+
+type MyAlias = Inner;
+
+#[fuzz_domain("OuterDomain")]
+struct Outer {
+    a: MyAlias,
+}
+
+fn create_f_domain() -> OuterDomain {
+   OuterDomain {
+     a: InnerDomain {
+       y: u32:0..10,
+     },
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: Outer) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestStructDomainArray) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("InnerDomain")]
+struct Inner {
+    y: u32,
+}
+
+#[fuzz_domain("OuterDomain")]
+struct Outer {
+    b: Inner[2],
+}
+
+fn create_f_domain() -> OuterDomain {
+   OuterDomain {
+     b: [InnerDomain { y: u32:0..10 }, InnerDomain { y: u32:0..10 }],
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: Outer) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2Test, FuzzTestStructDomainTuple) {
+  EXPECT_THAT(R"(
+#[fuzz_domain("InnerDomain")]
+struct Inner {
+    y: u32,
+}
+
+#[fuzz_domain("OuterDomain")]
+struct Outer {
+    c: (Inner, u8),
+}
+
+fn create_f_domain() -> OuterDomain {
+   OuterDomain {
+     c: (InnerDomain { y: u32:0..10 }, u8:0..10),
+   }
+}
+
+#[fuzz_test(domains=`create_f_domain()`)]
+fn f(s: Outer) {}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
 }  // namespace
 }  // namespace xls::dslx
