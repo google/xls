@@ -35,7 +35,9 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -45,8 +47,9 @@
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 
-namespace xls {
+namespace m = ::xls::op_matchers;
 
+namespace xls {
 namespace {
 
 class FakeDelayEstimator : public DelayEstimator {
@@ -945,6 +948,54 @@ TEST_F(SelectLiftingPassTest, DontLiftMulWithIdentityIfLatencyIncreases) {
   OptimizationPassOptions opts;
   XLS_ASSERT_OK_AND_ASSIGN(opts.delay_estimator, GetDelayEstimator("unit"));
   EXPECT_THAT(Run(f, opts), absl_testing::IsOkAndHolds(false));
+}
+
+TEST_F(SelectLiftingPassTest, LiftThroughOneHotSelectWithOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue x = fb.Param("x", u32_type);
+  BValue y = fb.Param("y", u32_type);
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+
+  BValue oh_selector = fb.OneHot(selector, LsbOrMsb::kLsb);
+
+  BValue zero = fb.Literal(UBits(0, 32));
+  BValue x_add_zero = fb.Add(x, zero);
+  BValue x_add_y = fb.Add(x, y);
+
+  BValue ohs = fb.OneHotSelect(oh_selector, {x_add_zero, x_add_y, x_add_zero});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Add(m::Param("x"),
+             m::OneHotSelect(m::OneHot(m::Param("selector"), LsbOrMsb::kLsb),
+                             {m::Literal(0), m::Param("y"), m::Literal(0)})));
+}
+
+TEST_F(SelectLiftingPassTest, NoLiftThroughOneHotSelectWithoutOneHotSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32_type = p->GetBitsType(32);
+
+  BValue x = fb.Param("x", u32_type);
+  BValue y = fb.Param("y", u32_type);
+  BValue selector = fb.Param("selector", p->GetBitsType(3));
+
+  BValue zero = fb.Literal(UBits(0, 32));
+  BValue x_add_zero = fb.Add(x, zero);
+  BValue x_add_y = fb.Add(x, y);
+
+  BValue ohs = fb.OneHotSelect(selector, {x_add_zero, x_add_y, x_add_zero});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ohs));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
 
 FUZZ_TEST(IrFuzzTest, IrFuzzSelectLifting)

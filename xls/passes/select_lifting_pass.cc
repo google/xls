@@ -15,6 +15,7 @@
 #include "xls/passes/select_lifting_pass.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -43,9 +44,15 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/critical_path_delay_analysis.h"
+#include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 
@@ -369,9 +376,34 @@ std::optional<LiftedOpInfo> GetLiftableOperationInfo(
   return std::nullopt;
 }
 
+std::unique_ptr<QueryEngine> GetQueryEngine(
+    FunctionBase* f, const OptimizationPassOptions& options,
+    OptimizationContext& context) {
+  if (options.opt_level < 3) {
+    return std::make_unique<UnionQueryEngine>(UnionQueryEngine::Of(
+        StatelessQueryEngine(),
+        context.SharedQueryEngine<LazyTernaryQueryEngine>(f)));
+  }
+  return std::make_unique<UnionQueryEngine>(
+      UnionQueryEngine::Of(StatelessQueryEngine(),
+                           context.SharedQueryEngine<PartialInfoQueryEngine>(f),
+                           context.SharedQueryEngine<BddQueryEngine>(f)));
+}
+
 absl::StatusOr<std::optional<LiftedOpInfo>> CanLiftSelect(
-    FunctionBase* func, GenericSelect select_to_optimize) {
+    FunctionBase* func, GenericSelect select_to_optimize,
+    const QueryEngine& query_engine) {
   VLOG(3) << "  Checking the applicability guard";
+
+  if (select_to_optimize.kind() == GenericSelect::Kind::kOneHotSel) {
+    if (!query_engine.ExactlyOneBitTrue(select_to_optimize.selector())) {
+      VLOG(3) << "    OneHotSelect selector is not provably strictly one-hot. "
+                 "Not liftable.";
+      return std::nullopt;
+    }
+    VLOG(3) << "    OneHotSelect selector is provably strictly one-hot. "
+               "Proceeding.";
+  }
 
   absl::Span<Node* const> cases = select_to_optimize.cases();
   std::optional<Node*> default_case = select_to_optimize.default_value();
@@ -827,7 +859,7 @@ absl::StatusOr<TransformationResult> LiftSelectForArrayIndex(
   // the new arrayIndex node
   VLOG(3) << "    Step 4: check if more \"select\" nodes should be considered";
   for (Node* user : new_array_index->users()) {
-    if (user->OpIn({Op::kSel, Op::kPrioritySel})) {
+    if (user->OpIn({Op::kSel, Op::kPrioritySel, Op::kOneHotSel})) {
       result.new_selects_to_consider.insert(user);
     }
   }
@@ -941,7 +973,7 @@ absl::StatusOr<TransformationResult> LiftSelectForBinaryOperation(
 
   VLOG(3) << "    Step 6: check if more \"select\" nodes should be considered";
   for (Node* user : new_binop->users()) {
-    if (user->OpIn({Op::kSel, Op::kPrioritySel})) {
+    if (user->OpIn({Op::kSel, Op::kPrioritySel, Op::kOneHotSel})) {
       result.new_selects_to_consider.insert(user);
     }
   }
@@ -991,7 +1023,8 @@ absl::StatusOr<TransformationResult> LiftSelect(
 
 absl::StatusOr<TransformationResult> LiftSelect(
     FunctionBase* func, Node* select_to_optimize,
-    const OptimizationPassOptions& options, OptimizationContext& context) {
+    const OptimizationPassOptions& options, OptimizationContext& context,
+    QueryEngine& query_engine) {
   TransformationResult result;
 
   XLS_ASSIGN_OR_RETURN(GenericSelect sel,
@@ -999,7 +1032,7 @@ absl::StatusOr<TransformationResult> LiftSelect(
 
   // Check if it is safe to apply the transformation
   XLS_ASSIGN_OR_RETURN(std::optional<LiftedOpInfo> applicability_guard_result,
-                       CanLiftSelect(func, sel));
+                       CanLiftSelect(func, sel, query_engine));
   if (!applicability_guard_result) {
     VLOG(3) << "  It is not safe to apply the transformation for this select";
 
@@ -1032,7 +1065,8 @@ absl::StatusOr<TransformationResult> LiftSelect(
 absl::StatusOr<TransformationResult> LiftSelects(
     FunctionBase* func,
     const absl::btree_set<Node*, Node::NodeIdLessThan>& selects_to_consider,
-    const OptimizationPassOptions& options, OptimizationContext& context) {
+    const OptimizationPassOptions& options, OptimizationContext& context,
+    QueryEngine& query_engine) {
   TransformationResult result;
 
   // Try to optimize all "select" nodes
@@ -1045,8 +1079,9 @@ absl::StatusOr<TransformationResult> LiftSelects(
     VLOG(3) << "Select: " << select_node->ToString();
 
     // Try to optimize the current "select" node
-    XLS_ASSIGN_OR_RETURN(TransformationResult current_transformation_result,
-                         LiftSelect(func, select_node, options, context));
+    XLS_ASSIGN_OR_RETURN(
+        TransformationResult current_transformation_result,
+        LiftSelect(func, select_node, options, context, query_engine));
 
     // Accumulate the result of the transformation
     result.was_code_modified |= current_transformation_result.was_code_modified;
@@ -1086,9 +1121,11 @@ absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
 
   // Collect the "select" nodes that might be optimizable
   VLOG(3) << "Optimizing the function at level " << options.opt_level;
+  std::unique_ptr<QueryEngine> query_engine =
+      GetQueryEngine(func, options, context);
   for (Node* node : func->nodes()) {
     // Only consider selects.
-    if (!node->OpIn({Op::kSel, Op::kPrioritySel})) {
+    if (!node->OpIn({Op::kSel, Op::kPrioritySel, Op::kOneHotSel})) {
       continue;
     }
 
@@ -1107,9 +1144,9 @@ absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
     VLOG(3) << "  New optimization iteration";
 
     // Optimize all "select" nodes.
-    XLS_ASSIGN_OR_RETURN(
-        TransformationResult current_result,
-        LiftSelects(func, selects_to_consider, options, context));
+    XLS_ASSIGN_OR_RETURN(TransformationResult current_result,
+                         LiftSelects(func, selects_to_consider, options,
+                                     context, *query_engine));
 
     // Check if we have modified the code.
     was_code_modified |= current_result.was_code_modified;
