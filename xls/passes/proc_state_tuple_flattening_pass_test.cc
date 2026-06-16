@@ -15,6 +15,7 @@
 #include "xls/passes/proc_state_tuple_flattening_pass.h"
 
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -51,6 +52,7 @@ using ::absl_testing::IsOkAndHolds;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Contains;
+using ::testing::ElementsAre;
 using ::testing::StartsWith;
 using ::testing::UnorderedElementsAre;
 
@@ -411,6 +413,42 @@ proc regression(state_1: bits[1], state_2: bits[1], state_3: (bits[1], bits[1]),
                                                 /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
+TEST_F(ProcStateFlatteningPassTest,
+       ExplicitStateAccessLabelPropagationThroughTupleFlattening) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), "simple_proc", "tkn", p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * state,
+      pb.UnreadStateElement(
+          "state", Value::Tuple({Value(UBits(10, 32)), Value(UBits(20, 32))})));
+  BValue read = pb.StateRead(state, /*predicate=*/std::nullopt,
+                             /*label=*/"my_read_label");
+
+  BValue elem0 = pb.TupleIndex(read, 0);
+  BValue elem1 = pb.TupleIndex(read, 1);
+  BValue next0 = pb.Add(elem0, pb.Literal(UBits(1, 32)));
+  BValue next1 = pb.Add(elem1, pb.Literal(UBits(2, 32)));
+  BValue next_val = pb.Tuple({next0, next1});
+
+  pb.Next(read, next_val, /*predicate=*/std::nullopt,
+          /*label=*/"my_write_label");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  PassResults results;
+  OptimizationContext context;
+  ASSERT_THAT(ProcStateTupleFlatteningPass().Run(
+                  p.get(), OptimizationPassOptions(), &results, context),
+              IsOkAndHolds(true));
+  EXPECT_THAT(proc->nodes(),
+              Contains(m::StateRead(
+                  "state_0", std::optional<std::string>("my_read_label"))));
+  EXPECT_THAT(
+      proc->nodes(),
+      Contains(m::NextWithLabel(m::StateRead(), _,
+                                std::optional<std::string>("my_write_label"))));
 }
 
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateFlatteningPassTest,

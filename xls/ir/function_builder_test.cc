@@ -979,9 +979,10 @@ TEST(FunctionBuilderTest, ProcWithNextValueWithLabel) {
                         /*label=*/"y_next_label");
 
   XLS_ASSERT_OK(pb.Build());
-  EXPECT_THAT(next.node(),
-              m::Next(m::StateRead("y"), m::StateRead("z"), m::StateRead("x"),
-                      Optional(StrEq("y_next_label"))));
+  EXPECT_THAT(
+      next.node(),
+      m::NextWithLabel(m::StateRead("y"), m::StateRead("z"), m::StateRead("x"),
+                       Optional(StrEq("y_next_label"))));
   EXPECT_THAT(y.node(), m::StateRead("y", Optional(StrEq("y_label"))));
 }
 

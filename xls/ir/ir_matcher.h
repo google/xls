@@ -1360,7 +1360,13 @@ inline ::testing::Matcher<const ::xls::Node*> Next(
     ::testing::Matcher<const Node*> predicate) {
   return NextMatcher({state_read, value, predicate});
 }
-inline ::testing::Matcher<const ::xls::Node*> Next(
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    ::testing::Matcher<const Node*> state_read,
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const std::optional<std::string>&> label) {
+  return NextMatcher({state_read, value}, label);
+}
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
     ::testing::Matcher<const Node*> state_read,
     ::testing::Matcher<const Node*> value,
     ::testing::Matcher<const Node*> predicate,

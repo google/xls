@@ -951,6 +951,7 @@ absl::StatusOr<StateElement*> Proc::TransformStateElement(
                          init_value, read_predicate,
                          /*next_state=*/std::nullopt));
   new_state_read->SetLoc(old_state_read->loc());
+  new_state_read->set_label(old_state_read->label());
   if (old_state_read->state_element()->non_synthesizable()) {
     new_state_read->state_element()->SetNonSynthesizable();
   }

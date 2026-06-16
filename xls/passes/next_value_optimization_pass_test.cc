@@ -130,21 +130,23 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLabels) {
                                                 /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(
-      proc->next_values(),
-      UnorderedElementsAre(
-          m::Next(m::StateRead(), m::Literal(2),
-                  m::Eq(m::BitSlice(m::StateRead(), 0, 1), m::Literal(1)),
-                  Optional(StrEq("label"))),
-          m::Next(m::StateRead(), m::Literal(1),
-                  m::Eq(m::BitSlice(m::StateRead(), 0, 2), m::Literal(2)),
-                  Optional(StrEq("label"))),
-          m::Next(m::StateRead(), m::Literal(2),
-                  m::Eq(m::BitSlice(m::StateRead(), 0, 3), m::Literal(4)),
-                  Optional(StrEq("label"))),
-          m::Next(m::StateRead(), m::Literal(0),
-                  m::Eq(m::StateRead(), m::Literal(0)),
-                  Optional(StrEq("label")))));
+  EXPECT_THAT(proc->next_values(),
+              UnorderedElementsAre(
+                  m::NextWithLabel(
+                      m::StateRead(), m::Literal(2),
+                      m::Eq(m::BitSlice(m::StateRead(), 0, 1), m::Literal(1)),
+                      Optional(StrEq("label"))),
+                  m::NextWithLabel(
+                      m::StateRead(), m::Literal(1),
+                      m::Eq(m::BitSlice(m::StateRead(), 0, 2), m::Literal(2)),
+                      Optional(StrEq("label"))),
+                  m::NextWithLabel(
+                      m::StateRead(), m::Literal(2),
+                      m::Eq(m::BitSlice(m::StateRead(), 0, 3), m::Literal(4)),
+                      Optional(StrEq("label"))),
+                  m::NextWithLabel(m::StateRead(), m::Literal(0),
+                                   m::Eq(m::StateRead(), m::Literal(0)),
+                                   Optional(StrEq("label")))));
 }
 
 TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {

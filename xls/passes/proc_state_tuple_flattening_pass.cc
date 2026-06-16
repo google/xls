@@ -145,6 +145,7 @@ struct AbstractStateElement {
   Value initial_value;
   Node* placeholder;
   std::optional<Node*> read_predicate;
+  std::optional<std::string> read_label;
   std::vector<NextValue> next_values;
   bool non_synthesizable;
 };
@@ -170,6 +171,9 @@ absl::Status ReplaceProcState(Proc* proc,
                                  element.read_predicate,
                                  /*next_state=*/std::nullopt));
     read->SetLoc(element.placeholder->loc());
+    if (element.read_label.has_value()) {
+      read->set_label(element.read_label);
+    }
     if (element.non_synthesizable) {
       read->state_element()->SetNonSynthesizable();
     }
@@ -223,6 +227,7 @@ absl::Status FlattenState(Proc* proc) {
           element.placeholder,
           proc->MakeNode<Literal>(state_read->loc(), init_values[i]));
       element.read_predicate = state_read->predicate();
+      element.read_label = state_read->label();
 
       placeholders.push_back(element.placeholder);
       elements.push_back(std::move(element));
@@ -265,6 +270,7 @@ absl::Status FlattenState(Proc* proc) {
             .loc = next->loc(),
             .value = value,
             .predicate = predicate,
+            .label = next->label(),
         });
       }
     }

@@ -14,6 +14,7 @@
 
 #include "xls/passes/proc_state_array_flattening_pass.h"
 
+#include <optional>
 #include <utility>
 
 #include "gmock/gmock.h"
@@ -47,6 +48,9 @@ namespace {
 using ProcStateArrayFlatteningPassTest = IrTestBase;
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::_;
+using ::testing::Contains;
+using ::testing::ElementsAre;
 
 absl::StatusOr<bool> RunArrayFlattening(Proc* p) {
   PassResults results;
@@ -118,6 +122,41 @@ TEST_F(ProcStateArrayFlatteningPassTest, FlattenSize2ArrayParams) {
       ElementsAre(m::StateElement("state",
                                   // After flattening, state should be a 2-tuple
                                   "(bits[8], bits[8])")));
+}
+
+TEST_F(ProcStateArrayFlatteningPassTest,
+       ExplicitStateAccessLabelPropagationThroughArrayFlattening) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), "simple_proc", "tkn", p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * state,
+      pb.UnreadStateElement(
+          "state",
+          Value::ArrayOrDie({Value(UBits(10, 32)), Value(UBits(20, 32))})));
+  BValue read = pb.StateRead(state, /*predicate=*/std::nullopt,
+                             /*label=*/"my_read_label");
+
+  BValue zero = pb.Literal(UBits(0, 32));
+  BValue one = pb.Literal(UBits(1, 32));
+  BValue elem0 = pb.ArrayIndex(read, {zero});
+  BValue elem1 = pb.ArrayIndex(read, {one});
+  BValue next0 = pb.Add(elem0, pb.Literal(UBits(1, 32)));
+  BValue next1 = pb.Add(elem1, pb.Literal(UBits(2, 32)));
+  BValue next_val = pb.Array({next0, next1}, p->GetBitsType(32));
+
+  pb.Next(read, next_val, /*predicate=*/std::nullopt,
+          /*label=*/"my_write_label");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  EXPECT_THAT(RunArrayFlattening(proc), IsOkAndHolds(true));
+  EXPECT_THAT(proc->nodes(),
+              Contains(m::StateRead(
+                  "state", std::optional<std::string>("my_read_label"))));
+  EXPECT_THAT(
+      proc->nodes(),
+      Contains(m::NextWithLabel(m::StateRead(), _,
+                                std::optional<std::string>("my_write_label"))));
 }
 
 void IrFuzzProcStateArrayFlattening(
