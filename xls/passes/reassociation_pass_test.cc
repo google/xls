@@ -858,6 +858,27 @@ TEST_F(ReassociationPassTest, SubtractOfAddsWithLiterals) {
                                         m::Literal(UBits(58, 32))));
 }
 
+TEST_F(ReassociationPassTest, FuzzFailure523881460Reassociate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p1 = fb.Param("p1", p->GetBitsType(64));
+  BValue literal_1 = fb.Literal(UBits(0x9393939393939393ULL, 64));
+  BValue zero_ext_4 = fb.ZeroExtend(p1, 807);
+  BValue zero_ext_5 = fb.ZeroExtend(literal_1, 807);
+  BValue add_6 = fb.Add(zero_ext_4, zero_ext_5);
+  BValue sign_ext_8 = fb.SignExtend(literal_1, 592);
+  BValue bit_slice_9 = fb.BitSlice(add_6, 0, 592);
+  BValue sub_10 = fb.Subtract(sign_ext_8, bit_slice_9);
+  BValue zero_ext_11 = fb.ZeroExtend(add_6, 1000);
+  BValue zero_ext_12 = fb.ZeroExtend(sub_10, 1000);
+  fb.Add(zero_ext_11, zero_ext_12);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
 TEST_F(ReassociationPassTest, SubOfSub) {
   // Actual delay models see no difference between add and sub so no need to
   // make any changes since this is already balanced.

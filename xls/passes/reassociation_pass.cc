@@ -1140,8 +1140,17 @@ class Reassociation {
     absl::c_sort(variable_elements, elements_cmp);
     std::string associative_sum_name =
         NodeNameConcat(elements.node(), "_associative_element");
+    bool has_negated =
+        absl::c_any_of(elements.variables(),
+                       [](const NodeData& nd) { return nd.needs_negate; }) ||
+        absl::c_any_of(elements.constants(),
+                       [](const NodeData& nd) { return nd.needs_negate; });
+    bool disable_narrowing = has_negated && !is_signed;
     auto sum_width = [&](int64_t lhs_width, int64_t rhs_width) -> int64_t {
       int64_t max = elements.node()->BitCountOrDie();
+      if (disable_narrowing) {
+        return max;
+      }
       switch (*elements.op()) {
         case Op::kAdd:
         case Op::kSub: {
