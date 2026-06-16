@@ -2111,9 +2111,6 @@ properties, the Google FuzzTest framework uses **coverage guidance** to actively
 search for inputs that trigger new behaviors or code paths. Fuzz tests are
 typically run for longer durations to explore a much larger state space.
 
-IMPORTANT: You can only fuzz test parameters that are numeric (bits), or tuples
-of them at this time.
-
 #### Property function
 
 The property function is the core of the fuzz test. It takes the
@@ -2140,34 +2137,59 @@ In this example:
 *   `pair` is a tuple where the first element is in the range `u32:1..10` and
     the second element is arbitrary.
 
+Another example with a struct parameter:
+
+```dslx-snippet
+struct Point {
+  x: u32,
+  y: u32,
+}
+
+#[fuzz_test(domains=`Point { x: u32:0..10, y: u32:10..20 }`)]
+fn fuzz_point(p: Point) -> bool {
+  p.x < p.y
+}
+```
+
+In this example, `p` is a `Point` struct where `x` is restricted to the range
+`u32:0..10` and `y` is restricted to the range `u32:10..20`.
+
 You can define multiple fuzz test property functions within the same DSLX file.
 However, each property function must have its own corresponding `dslx_fuzz_test`
 build target in the [BUILD file](#build-targets).
 
-Note: If the `fuzz_test` attribute itself or the `domains` parameter is omitted,
-all parameter domains are considered "arbitrary".
+Note: If the `fuzz_test` attribute or its `domains` parameter is omitted, all
+parameter domains are considered "arbitrary".
 
 #### Domain specifiers
 
 The following domain specifiers are available.
 
-| Name      | Syntax example  | Description                                  |
-| --------- | --------------- | -------------------------------------------- |
-| Arbitrary | `()`            | Any possible value for this parameter may be |
-:           :                 : generated, within its bit-size               :
-| Range     | `u32:1..99`     | End-exclusive range of values will be        |
-:           :                 : generated for this parameter                 :
-| Range     | `u32:1..=99`    | End-inclusive range of values will be        |
-:           :                 : generated for this parameter                 :
-| ElementOf | `[u32:1, 2, 4]` | One of the provided values will be used for  |
-:           :                 : this parameter                               :
+| Name      | Syntax example           | Description                           |
+| --------- | ------------------------ | ------------------------------------- |
+| Arbitrary | `()`                     | Any possible value for this parameter |
+:           :                          : may be generated, within its bit-size :
+| Range     | `u32:1..99`              | End-exclusive range of values will be |
+:           :                          : generated for this parameter          :
+| Range     | `u32:1..=99`             | End-inclusive range of values will be |
+:           :                          : generated for this parameter          :
+| ElementOf | `[u32:1, 2, 4]`          | One of the provided values will be    |
+:           :                          : used for this parameter               :
+| Tuple     | `(u32:1..10, ())`        | Recursive domain for a tuple          |
+:           :                          : parameter                             :
+| Struct    | `Point { x: u32:0..10 }` | Recursive domain for a struct         |
+:           :                          : parameter                             :
 
-You can also specify domains for tuples. This specification is recursive, and
-you can use `()` to denote an "Arbitrary" domain for a specific slot in the
-tuple. The fuzzer will generate tuples where each element respects its defined
-domain. For example, `(u32:0..10, ())` specifies a domain for a pair where the
-first element is restricted to 0..10 and the second can be any value of its
-type.
+You can specify domains for tuples. This specification is recursive, and you can
+use `()` to denote an "Arbitrary" domain for a specific slot in the tuple. The
+fuzzer will generate tuples where each element respects its defined domain. For
+example, `(u32:0..10, ())` specifies a domain for a pair where the first element
+is restricted to 0..10 and the second can be any value of its type.
+
+Similarly, you can specify recursive domains for structs, using the syntax
+`StructName { field_name: domain, ... }`. Omit fields to leave them as
+"Arbitrary". For example, `Point { x: u32:0..10 }` specifies a domain for a
+`Point` where `x` is restricted to `0..10` and `y`, omitted, is arbitrary.
 
 Currently only the "Arbitrary" domain can be applied to array parameters of fuzz
 test property functions.
