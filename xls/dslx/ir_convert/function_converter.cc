@@ -199,8 +199,7 @@ bool GetRequiresImplicitToken(const dslx::Function& f, ImportData* import_data,
     return true;
   }
   std::optional<bool> requires_opt =
-      import_data->GetRootTypeInfo(f.owner()).value()->GetRequiresImplicitToken(
-          f);
+      import_data->GetRootTypeInfo().value()->GetRequiresImplicitToken(f);
 
   CHECK(requires_opt.has_value());
   bool requires_for_test = options.convert_tests && f.parent() != nullptr &&
@@ -213,18 +212,6 @@ bool GetRequiresImplicitToken(const dslx::Function& f, ImportData* import_data,
 // temporarily traverse to emit things in other modules than the module
 // containing the function being converted.
 struct ScopedTypeInfoSwap {
-  static absl::StatusOr<std::optional<ScopedTypeInfoSwap>> ForNode(
-      FunctionConverter* converter, AstNode* node) {
-    if (node->owner() == converter->current_type_info_->module()) {
-      return std::nullopt;
-    }
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * type_info,
-        converter->import_data_->GetRootTypeInfo(node->owner()));
-    XLS_RET_CHECK_EQ(type_info->module(), node->owner());
-    return ScopedTypeInfoSwap(converter, type_info);
-  }
-
   ScopedTypeInfoSwap(FunctionConverter* converter, TypeInfo* new_type_info)
       : converter_(converter),
         original_type_info_(converter_->current_type_info_),
@@ -907,8 +894,6 @@ absl::Status FunctionConverter::HandleExternNameRef(
 }
 
 absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
-  XLS_RET_CHECK_EQ(node->owner(), current_type_info_->module());
-
   AstNode* from = ToAstNode(node->name_def());
 
   if (std::optional<const UseTreeEntry*> tree_entry = IsExternNameRef(*node);
@@ -951,13 +936,6 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
 }
 
 absl::Status FunctionConverter::HandleConstantDef(const ConstantDef* node) {
-  XLS_RET_CHECK_EQ(node->owner(), current_type_info_->module())
-      << absl::StreamFormat(
-             "handling ConstantDef `%s` from module `%s` but current type info "
-             "is for module `%s`",
-             node->ToString(), node->owner()->name(),
-             current_type_info_->module()->name());
-
   // We've already evaluated constants to their values; we don't need to dive
   // into them for [useless] IR conversion.
   VLOG(5) << "Visiting ConstantDef expr: " << node->value()->ToString();
@@ -3565,14 +3543,6 @@ absl::Status FunctionConverter::HandleFunction(
 
     // The constant dep may be from a different module than the module for the
     // function we're currently converting.
-    XLS_ASSIGN_OR_RETURN(std::optional<ScopedTypeInfoSwap> stis,
-                         ScopedTypeInfoSwap::ForNode(this, dep));
-    XLS_RET_CHECK_EQ(current_type_info_->module(), dep->owner())
-        << absl::StreamFormat(
-               "handling ConstantDef `%s` from module `%s` but current type "
-               "info is for module `%s`",
-               dep->ToString(), dep->owner()->name(),
-               current_type_info_->module()->name());
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
@@ -3810,8 +3780,6 @@ absl::Status FunctionConverter::InitProcDefBuilder(const ProcDef* proc_def,
 
     // The constant dep may be from a different module than the module for the
     // function we're currently converting.
-    XLS_ASSIGN_OR_RETURN(std::optional<ScopedTypeInfoSwap> stis,
-                         ScopedTypeInfoSwap::ForNode(this, dep));
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
@@ -4357,8 +4325,6 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
     // The constant dep may be from a different module than the module for the
     // function we're currently converting.
-    XLS_ASSIGN_OR_RETURN(std::optional<ScopedTypeInfoSwap> stis,
-                         ScopedTypeInfoSwap::ForNode(this, dep));
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
@@ -4527,15 +4493,9 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
         std::vector<ConstantDef*> constant_deps,
         GetConstantDepFreevars(constant_def, *imported.value()->type_info));
     for (ConstantDef* dep : constant_deps) {
-      XLS_ASSIGN_OR_RETURN(std::optional<ScopedTypeInfoSwap> stis,
-                           ScopedTypeInfoSwap::ForNode(this, dep));
       XLS_RETURN_IF_ERROR(Visit(dep));
     }
-    {
-      XLS_ASSIGN_OR_RETURN(std::optional<ScopedTypeInfoSwap> stis,
-                           ScopedTypeInfoSwap::ForNode(this, constant_def));
-      XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def));
-    }
+    XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def));
     return DefAlias(constant_def->name_def(), /*to=*/node);
   }
 
@@ -5383,7 +5343,6 @@ absl::StatusOr<EnumDef*> FunctionConverter::DerefEnum(TypeDefinition node) {
 absl::StatusOr<std::unique_ptr<Type>> FunctionConverter::ResolveType(
     const AstNode* node) {
   XLS_RET_CHECK_NE(current_type_info_, nullptr);
-  XLS_RET_CHECK_EQ(current_type_info_->module(), node->owner());
   std::optional<const Type*> t = current_type_info_->GetItem(node);
   if (!t.has_value()) {
     return IrConversionErrorStatus(
@@ -5424,7 +5383,6 @@ absl::StatusOr<xls::Type*> FunctionConverter::ResolveTypeToIr(
 absl::StatusOr<std::optional<ConstantDef*>> TryResolveConstantDef(
     std::string_view identifier, UseTreeEntry* use_tree_entry,
     TypeInfo& type_info) {
-  XLS_RET_CHECK_EQ(use_tree_entry->owner(), type_info.module());
   XLS_ASSIGN_OR_RETURN(ImportedInfo * info,
                        type_info.GetImportedOrError(use_tree_entry));
   std::optional<ModuleMember*> member =

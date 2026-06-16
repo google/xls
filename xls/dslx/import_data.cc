@@ -108,7 +108,7 @@ absl::StatusOr<ModuleInfo*> ImportData::Put(
 absl::StatusOr<TypeInfo*> ImportData::GetRootTypeInfoForNode(
     const AstNode* node) {
   XLS_RET_CHECK(node != nullptr);
-  return type_info_owner().GetRootTypeInfo(node->owner());
+  return type_info_owner().GetRootTypeInfo();
 }
 
 absl::StatusOr<const TypeInfo*> ImportData::GetRootTypeInfoForNode(
@@ -119,8 +119,8 @@ absl::StatusOr<const TypeInfo*> ImportData::GetRootTypeInfoForNode(
   return ti;
 }
 
-absl::StatusOr<TypeInfo*> ImportData::GetRootTypeInfo(const Module* module) {
-  return type_info_owner().GetRootTypeInfo(module);
+absl::StatusOr<TypeInfo*> ImportData::GetRootTypeInfo() {
+  return type_info_owner().GetRootTypeInfo();
 }
 
 InterpBindings& ImportData::GetOrCreateTopLevelBindings(Module* module) {

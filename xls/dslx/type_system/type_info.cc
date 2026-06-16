@@ -145,41 +145,36 @@ absl::Status InvocationData::ValidateEnvForCaller(
 
 // -- class TypeInfoOwner
 
-absl::StatusOr<TypeInfo*> TypeInfoOwner::New(Module* module,
+absl::StatusOr<TypeInfo*> TypeInfoOwner::New(const FileTable& file_table,
                                              std::string_view name,
                                              TypeInfo* parent) {
-  // Note: private constructor so not using make_unique.
-  type_infos_.push_back(absl::WrapUnique(new TypeInfo(module, name, parent)));
-  TypeInfo* result = type_infos_.back().get();
   if (parent == nullptr) {
-    // Check we only have a single nullptr-parent TypeInfo for a given module.
-    XLS_RET_CHECK(!module_to_root_.contains(module))
-        << "module " << module->name() << " already has a root TypeInfo";
-    VLOG(5) << "Making root type info for module: " << module->name() << " @ "
-            << result;
-    module_to_root_[module] = result;
-  } else {
-    // Check that we don't have parent links that traverse modules.
-    XLS_RET_CHECK_EQ(parent->module(), module);
-    VLOG(5) << "Making derived type info for module: " << module->name()
-            << " parent: " << parent << " @ " << result;
+    if (root_type_info_ != nullptr) {
+      return root_type_info_;
+    }
+    // Note: private constructor so not using make_unique.
+    type_infos_.push_back(
+        absl::WrapUnique(new TypeInfo(file_table, name, parent)));
+    root_type_info_ = type_infos_.back().get();
+    VLOG(5) << "Making root type info @ " << root_type_info_;
+    return root_type_info_;
   }
+
+  // Note: private constructor so not using make_unique.
+  type_infos_.push_back(
+      absl::WrapUnique(new TypeInfo(file_table, name, parent)));
+  TypeInfo* result = type_infos_.back().get();
+  VLOG(5) << "Making derived type info parent: " << parent << " @ " << result;
   return result;
 }
 
-absl::StatusOr<TypeInfo*> TypeInfoOwner::GetRootTypeInfo(const Module* module) {
-  auto it = module_to_root_.find(module);
-  if (it == module_to_root_.end()) {
-    std::string available = absl::StrJoin(
-        module_to_root_, ", ", [](std::string* out, const auto& item) {
-          absl::StrAppend(out, "`", item.first->name(), "`");
-        });
+absl::StatusOr<TypeInfo*> TypeInfoOwner::GetRootTypeInfo() {
+  if (root_type_info_ == nullptr) {
     return absl::NotFoundError(absl::StrCat(
-        "Could not find (root) type information for module: ", module->name(),
-        "; available: [", available, "] @ ",
+        "Could not find root type information; none has been created @ ",
         GetSymbolizedStackTraceAsString()));
   }
-  return it->second;
+  return root_type_info_;
 }
 
 // -- class TypeInfo
@@ -288,10 +283,6 @@ TypeInfo::GetCanonicalProcInitializer(const InterpValue& external_initializer) {
 
 absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
     const AstNode* const_expr) const {
-  CHECK_EQ(const_expr->owner(), module_)
-      << const_expr->owner()->name() << " vs " << module_->name()
-      << " node: " << const_expr->ToString();
-
   if (auto it = const_exprs_.find(const_expr); it != const_exprs_.end()) {
     return it->second.value();
   }
@@ -303,20 +294,15 @@ absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
     return parent_->GetConstExpr(const_expr);
   }
 
-  return absl::NotFoundError(
-      absl::Substitute("No constexpr value found for node `$0` ($1) @ $2 in "
-                       "TypeInfo $3 for module $4",
-                       const_expr->ToString(), const_expr->GetNodeTypeName(),
-                       SpanToString(const_expr->GetSpan(), file_table()),
-                       name(), module_->name()));
+  return absl::NotFoundError(absl::Substitute(
+      "No constexpr value found for node `$0` ($1) @ $2 in "
+      "TypeInfo $3",
+      const_expr->ToString(), const_expr->GetNodeTypeName(),
+      SpanToString(const_expr->GetSpan(), file_table()), name()));
 }
 
 std::optional<InterpValue> TypeInfo::GetConstExprOption(
     const AstNode* const_expr) const {
-  CHECK_EQ(const_expr->owner(), module_)
-      << const_expr->owner()->name() << " vs " << module_->name()
-      << " node: " << const_expr->ToString();
-
   if (auto it = const_exprs_.find(const_expr); it != const_exprs_.end()) {
     return it->second;
   }
@@ -402,10 +388,6 @@ void TypeInfo::NoteArmSelectionResult(const Match* expr, uint32_t value) {
 
 absl::StatusOr<uint32_t> TypeInfo::GetArmSelectionResult(
     const Match* expr) const {
-  CHECK_EQ(expr->owner(), module_)
-      << expr->owner()->name() << " vs " << module_->name()
-      << " node: " << expr->ToString();
-
   if (auto it = arm_selection_indices_.find(expr);
       it != arm_selection_indices_.end()) {
     return it->second;
@@ -504,13 +486,12 @@ absl::StatusOr<std::optional<std::string>> TypeInfo::FindSvType(
 }
 
 bool TypeInfo::Contains(AstNode* key) const {
-  CHECK_EQ(key->owner(), module_);
   return dict_.contains(key) || (parent_ != nullptr && parent_->Contains(key));
 }
 
 std::string TypeInfo::GetImportsDebugString() const {
   return absl::StrFormat(
-      "module %s imports:\n  %s", module()->name(),
+      "TypeInfo %s imports:\n  %s", name(),
       absl::StrJoin(imports_, "\n  ", [](std::string* out, const auto& item) {
         absl::StrAppend(out, item.second.module->name());
       }));
@@ -539,7 +520,8 @@ std::string TypeInfo::GetTypeInfoTreeString() const {
 }
 
 absl::flat_hash_map<const Function*, std::vector<const Function*>>
-TypeInfo::GetFunctionCallGraph() const {
+TypeInfo::GetFunctionCallGraph(const Module* module) const {
+  CHECK_NE(module, nullptr);
   const TypeInfo* top = GetRoot();
   absl::flat_hash_map<const Function*, absl::flat_hash_set<const Function*>>
       grouped;
@@ -554,7 +536,7 @@ TypeInfo::GetFunctionCallGraph() const {
 
   absl::flat_hash_map<const Function*, std::vector<const Function*>> result;
   // Ensure that all top-level functions are in the graph.
-  for (const ModuleMember& member : module()->top()) {
+  for (const ModuleMember& member : module->top()) {
     if (std::holds_alternative<Function*>(member)) {
       const Function* function = std::get<Function*>(member);
       result[function] = {};
@@ -648,14 +630,6 @@ std::vector<InvocationCalleeData> TypeInfo::GetAllInvocationCalleeData(
 }
 
 std::optional<Type*> TypeInfo::GetItem(const AstNode* key) const {
-  CHECK_EQ(key->owner(), module_) << absl::Substitute(
-      "attempted to get type information for AST node: `$0` at `$1`; but it is "
-      "from module `$2` and type information is $3 for module `$4`",
-      key->ToString(),
-      key->GetSpan().has_value()
-          ? key->GetSpan()->ToString(*key->owner()->file_table())
-          : "<unknown>",
-      key->owner()->name(), name(), module_->name());
   auto it = dict_.find(key);
   if (it != dict_.end()) {
     return it->second.get();
@@ -687,8 +661,6 @@ absl::Status TypeInfo::AddInvocation(const Invocation& invocation,
                                      const Function* callee,
                                      const Function* caller,
                                      TypeInfo* derived_type_info) {
-  CHECK_EQ(invocation.owner(), module_);
-
   // We keep most instantiation info on the top-level type info. The "context
   // stack" doesn't matter so it creates a more understandable tree to flatten
   // it all against the top level. The exception is impl functions, because if
@@ -722,8 +694,6 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
                                              const ParametricEnv& caller_env,
                                              const ParametricEnv& callee_env,
                                              TypeInfo* derived_type_info) {
-  CHECK_EQ(invocation.owner(), module_);
-
   // The rationale for this is the same as in AddInvocation().
   TypeInfo* ti =
       callee != nullptr && callee->impl().has_value() ? this : GetRoot();
@@ -762,8 +732,6 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
 
 std::optional<bool> TypeInfo::GetRequiresImplicitToken(
     const Function& f) const {
-  CHECK_EQ(f.owner(), module_) << "function owner: " << f.owner()->name()
-                               << " module: " << module_->name();
   const TypeInfo* root = GetRoot();
   const absl::flat_hash_map<const Function*, bool>& map =
       root->requires_implicit_token_;
@@ -788,9 +756,6 @@ void TypeInfo::NoteRequiresImplicitToken(const Function& f, bool is_required) {
 
 std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
     const Invocation* invocation, const ParametricEnv& caller) const {
-  CHECK_EQ(invocation->owner(), module_)
-      << invocation->owner()->name() << " vs " << module_->name();
-
   // Find the data for this invocation node.
   std::optional<const InvocationData*> invocation_data_opt =
       GetInvocationData(invocation);
@@ -831,7 +796,6 @@ absl::Status TypeInfo::AddSpawn(const Proc* proc, ParametricEnv env, bool test,
                                 TypeInfo* config_type_info,
                                 TypeInfo* next_type_info,
                                 InterpValue init_value) {
-  XLS_RET_CHECK_EQ(proc->owner(), module_);
   spawns_[proc].push_back(
       SpawnData{proc, std::move(env), test, config_invocation, next_invocation,
                 config_type_info, next_type_info, std::move(init_value)});
@@ -843,7 +807,6 @@ absl::StatusOr<std::vector<SpawnData>> TypeInfo::GetSpawns(
   if (parent_ != nullptr) {
     return parent_->GetSpawns(proc);
   }
-  XLS_RET_CHECK_EQ(proc->owner(), module_);
   const auto it = spawns_.find(proc);
   return it == spawns_.end() ? std::vector<SpawnData>{} : it->second;
 }
@@ -853,7 +816,6 @@ absl::StatusOr<std::vector<SpawnData>> TypeInfo::GetUniqueSpawns(
   if (parent_ != nullptr) {
     return parent_->GetUniqueSpawns(proc);
   }
-  XLS_RET_CHECK_EQ(proc->owner(), module_);
   const auto it = spawns_.find(proc);
   if (it == spawns_.end()) {
     return std::vector<SpawnData>{};
@@ -877,7 +839,6 @@ TypeInfo::GetCanonicalProcInitializers(const ProcDef* proc) const {
   if (parent_ != nullptr) {
     return parent_->GetCanonicalProcInitializers(proc);
   }
-  XLS_RET_CHECK_EQ(proc->owner(), module_);
   const auto it = proc_def_initializers_by_callee_proc_.find(proc);
   if (it == proc_def_initializers_by_callee_proc_.end()) {
     return std::vector<ProcInitializerWithTypeInfo>{};
@@ -913,7 +874,6 @@ absl::Status TypeInfo::SetTopLevelProcTypeInfo(const Proc* p, TypeInfo* ti) {
         "SetTopLevelTypeInfo may only be called on a module top-level type "
         "info.");
   }
-  XLS_RET_CHECK_EQ(p->owner(), module_);
   top_level_proc_type_info_[p] = ti;
   return absl::OkStatus();
 }
@@ -977,12 +937,6 @@ TypeInfo::GetResolvedColonRefSubject(const ColonRef* node) const {
 
 std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
     const Invocation* invocation, const ParametricEnv& caller) const {
-  CHECK_EQ(invocation->owner(), module_)
-      << "attempting to get callee bindings for invocation `"
-      << invocation->ToString()
-      << "` which is owned by module: " << invocation->owner()->name()
-      << " but this type information relates to module: " << module_->name();
-
   const TypeInfo* top = GetRoot();
   VLOG(3) << absl::StreamFormat(
       "TypeInfo %p getting instantiation symbolic bindings: %p %s @ %s %s", top,
@@ -1014,7 +968,6 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
 void TypeInfo::AddSliceStartAndWidth(Slice* node,
                                      const ParametricEnv& parametric_env,
                                      StartAndWidth start_width) {
-  CHECK_EQ(node->owner(), module_);
   TypeInfo* top = GetRoot();
   auto it = top->slices_.find(node);
   if (it == top->slices_.end()) {
@@ -1027,7 +980,6 @@ void TypeInfo::AddSliceStartAndWidth(Slice* node,
 
 std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
     Slice* node, const ParametricEnv& parametric_env) const {
-  CHECK_EQ(node->owner(), module_);
   const TypeInfo* top = GetRoot();
   auto it = top->slices_.find(node);
   if (it == top->slices_.end()) {
@@ -1043,14 +995,20 @@ std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
 
 void TypeInfo::AddImport(ImportSubject import, Module* module,
                          TypeInfo* type_info) {
-  CHECK_EQ(ToAstNode(import)->owner(), module_);
   GetRoot()->imports_[import] = ImportedInfo{module, type_info};
 }
 
+std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(
+    const Module* module) const {
+  for (auto& [import_node, imported_info] : GetRoot()->imports_) {
+    if (imported_info.module == module) {
+      return imported_info.type_info;
+    }
+  }
+  return std::nullopt;
+}
+
 std::optional<ImportedInfo*> TypeInfo::GetImported(Import* import) {
-  CHECK_EQ(import->owner(), module_) << absl::StreamFormat(
-      "Import node is owned by: `%s` vs this TypeInfo is for `%s`",
-      import->owner()->name(), module_->name());
   auto* self = GetRoot();
   auto it = self->imports_.find(import);
   if (it == self->imports_.end()) {
@@ -1149,26 +1107,11 @@ absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
   return const_cast<TypeInfo*>(this)->GetImportedOrError(import);
 }
 
-std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {
-  TypeInfo* root = GetRoot();
-  if (root != this) {
-    return root->GetImportedTypeInfo(m);
-  }
-  if (m == module()) {
-    return this;
-  }
-  for (auto& [import, info] : imports_) {
-    if (info.module == m) {
-      return info.type_info;
-    }
-  }
-  return std::nullopt;
-}
-
-TypeInfo::TypeInfo(Module* module, std::string_view name, TypeInfo* parent)
-    : module_(module), name_(name), parent_(parent) {
-  VLOG(6) << "Created type info for module \"" << module_->name() << "\" @ "
-          << this << " parent " << parent << " root " << GetRoot();
+TypeInfo::TypeInfo(const FileTable& file_table, std::string_view name,
+                   TypeInfo* parent)
+    : file_table_(file_table), name_(name), parent_(parent) {
+  VLOG(6) << "Created type info @ " << this << " parent " << parent << " root "
+          << GetRoot();
 }
 
 TypeInfo::~TypeInfo() {
@@ -1182,8 +1125,6 @@ TypeInfo::~TypeInfo() {
   }
 }
 
-const FileTable& TypeInfo::file_table() const { return *module_->file_table(); }
-
-FileTable& TypeInfo::file_table() { return *module_->file_table(); }
+const FileTable& TypeInfo::file_table() const { return file_table_; }
 
 }  // namespace xls::dslx

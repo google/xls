@@ -63,7 +63,7 @@ TEST(TypeInfoTest, Instantiate) {
   Module module("test", /*fs_path=*/std::nullopt, file_table);
   TypeInfoOwner owner;
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info,
-                           owner.New(&module, TypeInfo::kRootName));
+                           owner.New(file_table, TypeInfo::kRootName));
   EXPECT_EQ(type_info->parent(), nullptr);
 }
 
@@ -159,7 +159,7 @@ fn unused(x: u32) -> u32 { x }
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "graph.x", "graph", &import_data));
 
-  auto graph = tm.type_info->GetFunctionCallGraph();
+  auto graph = tm.type_info->GetFunctionCallGraph(tm.module);
   const Function* leaf = tm.module->GetFunction("leaf").value();
   const Function* caller = tm.module->GetFunction("caller").value();
   ASSERT_TRUE(graph.contains(caller));
@@ -188,7 +188,7 @@ fn uses_builtin(x: u32) -> u32 { clz(x) }
       ParseAndTypecheck(kProgram, "graph_map.x", "graph_map", &import_data,
                         nullptr));
 
-  auto graph = tm.type_info->GetFunctionCallGraph();
+  auto graph = tm.type_info->GetFunctionCallGraph(tm.module);
   const Function* inc = tm.module->GetFunction("inc").value();
   const Function* apply = tm.module->GetFunction("apply").value();
   ASSERT_TRUE(graph.contains(apply));
@@ -224,7 +224,7 @@ fn entry(x: u32) -> u32 { local_call(x) }
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "main.x", "main", &import_data));
 
-  auto graph = tm.type_info->GetFunctionCallGraph();
+  auto graph = tm.type_info->GetFunctionCallGraph(tm.module);
   const Function* local_call = tm.module->GetFunction("local_call").value();
   const Function* entry = tm.module->GetFunction("entry").value();
   const Function* imported_increment =
@@ -259,7 +259,7 @@ proc main {
                            ParseAndTypecheck(kProgram, "spawn_graph.x",
                                              "spawn_graph", &import_data));
 
-  auto graph = tm.type_info->GetFunctionCallGraph();
+  auto graph = tm.type_info->GetFunctionCallGraph(tm.module);
   const Function* main_config = tm.module->GetFunction("main.config").value();
   const Function* worker_config =
       tm.module->GetFunction("worker.config").value();

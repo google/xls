@@ -27,7 +27,8 @@ namespace xls::dslx {
 
 // Converts the given type information object to protobuf form for
 // serialization.
-absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info);
+absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info,
+                                              const Module* module);
 
 // Converts the given protobuf representation of an AST node in module "m" into
 // a human readable string suitable for debugging and convenient testing.

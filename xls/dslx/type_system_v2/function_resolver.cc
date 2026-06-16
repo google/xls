@@ -190,9 +190,8 @@ class FunctionResolverImpl : public FunctionResolver {
 
       // The function may be in a derived trait.
       std::string function_name(attr->attr());
-      XLS_ASSIGN_OR_RETURN(
-          TypeInfo * ti,
-          converter_.GetTypeInfo((*target_object)->owner(), caller_context));
+      XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                           converter_.GetTypeInfo(caller_context));
       std::optional<Type*> struct_type = ti->GetItem(*target_object);
       XLS_RET_CHECK(struct_type.has_value());
       XLS_RET_CHECK((*struct_type)->IsStruct() || (*struct_type)->IsProc());

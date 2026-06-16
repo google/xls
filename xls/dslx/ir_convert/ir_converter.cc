@@ -407,7 +407,7 @@ absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
                                       const ConvertOptions& options,
                                       PackageConversionData* package) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
-                       import_data->GetRootTypeInfo(module));
+                       import_data->GetRootTypeInfo());
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
                        GetConversionRecords(module, root_type_info, options));
   PackageData package_data{.conversion_info = package};
@@ -559,7 +559,7 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
   absl::StatusOr<ProcDef*> proc_def =
       module->GetMemberOrError<ProcDef>(entry_function_name);
   if (proc_def.ok()) {
-    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo(module));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo());
     XLS_RETURN_IF_ERROR(CheckAcceptableTopProcDef(*proc_def, ti));
     return ConvertOneFunctionIntoPackageInternal(*proc_def, import_data,
                                                  options, conv);
@@ -568,7 +568,7 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
   absl::StatusOr<ProcAlias*> proc_alias =
       module->GetMemberOrError<ProcAlias>(entry_function_name);
   if (proc_alias.ok()) {
-    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo((module)));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data->GetRootTypeInfo());
     ResolvedProcAlias resolved_alias = ti->GetResolvedProcAlias(*proc_alias);
     XLS_RETURN_IF_ERROR(CheckAcceptableTopProc(resolved_alias.proc));
     return ConvertOneFunctionIntoPackageInternal(

@@ -846,8 +846,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
     Module* module, const ColonRef* colon_ref) {
   // TODO(rspringer): We'll need subject resolution to return the appropriate
   // TypeInfo for parametrics.
-  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       import_data_->GetRootTypeInfo(module));
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, import_data_->GetRootTypeInfo());
 
   std::optional<ModuleMember*> member =
       module->FindMemberWithName(colon_ref->attr());

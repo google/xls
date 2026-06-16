@@ -60,7 +60,7 @@ absl::StatusOr<TypecheckResult> Typecheck(
   }
   // Ensure that we can convert all the type information in the unit tests into
   // its protobuf form.
-  XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm->type_info).status());
+  XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm->type_info, tm->module).status());
 
   return TypecheckResult{std::move(owned_import_data), std::move(*tm)};
 }

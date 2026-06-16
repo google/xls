@@ -109,10 +109,9 @@ dslx::CommentData CommentAtBeginning(const dslx::AstNode* node,
   return dslx::CommentData{.span = comment_span, .text = comment};
 }
 
-dslx::TypeInfo* GetTypeInfoOrDie(dslx::ImportData& import_data,
-                                 dslx::Module* module) {
-  absl::StatusOr<dslx::TypeInfo*> result =
-      import_data.type_info_owner().New(module, dslx::TypeInfo::kRootName);
+dslx::TypeInfo* GetTypeInfoOrDie(dslx::ImportData& import_data) {
+  absl::StatusOr<dslx::TypeInfo*> result = import_data.type_info_owner().New(
+      import_data.file_table(), dslx::TypeInfo::kRootName);
   CHECK_OK(result);
   return *result;
 }
@@ -292,7 +291,7 @@ DslxBuilder::DslxBuilder(
               import_data_.file_table()),
       resolver_(resolver),
       warnings_(warnings),
-      type_info_(GetTypeInfoOrDie(import_data_, &module_)),
+      type_info_(GetTypeInfoOrDie(import_data_)),
       vast_type_map_(vast_type_map) {}
 
 absl::StatusOr<dslx::Expr*> DslxBuilder::MakeNameRefAndCast(

@@ -112,8 +112,7 @@ class EvaluatorImpl : public Evaluator {
     // is in a non-parametric caller and therefore cannot possibly refer to any
     // parametrics.
     XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                         converter_.GetTypeInfo(scoped_expr.expr()->owner(),
-                                                scoped_expr.context()));
+                         converter_.GetTypeInfo(scoped_expr.context()));
     return Evaluate(scoped_expr.context(), type_info,
                     scoped_expr.type_annotation(), scoped_expr.expr());
   }
@@ -135,7 +134,7 @@ class EvaluatorImpl : public Evaluator {
       XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
           expr, /*function=*/std::nullopt, parametric_context));
     }
-    if (type_annotation->owner() == type_info->module()) {
+    if (type_annotation->owner() == &module_) {
       // Prevent bleed-over from a different module.
       type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
     }

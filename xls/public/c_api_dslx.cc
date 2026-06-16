@@ -905,20 +905,34 @@ char* xls_dslx_expr_to_string(struct xls_dslx_expr* expr) {
 bool xls_dslx_type_info_build_function_call_graph(
     struct xls_dslx_type_info* type_info, char** error_out,
     struct xls_dslx_call_graph** result_out) {
+  CHECK_NE(error_out, nullptr);
+  CHECK_NE(result_out, nullptr);
+  *result_out = nullptr;
+  *error_out = xls::ToOwnedCString(
+      "xls_dslx_type_info_build_function_call_graph is deprecated because "
+      "TypeInfo is now module-independent. Use "
+      "xls_dslx_type_info_build_function_call_graph_for_module instead.");
+  return false;
+}
+
+bool xls_dslx_type_info_build_function_call_graph_for_module(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_module* module,
+    char** error_out, struct xls_dslx_call_graph** result_out) {
   CHECK_NE(type_info, nullptr);
+  CHECK_NE(module, nullptr);
   CHECK_NE(error_out, nullptr);
   CHECK_NE(result_out, nullptr);
   *error_out = nullptr;
   *result_out = nullptr;
 
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
-  auto graph = cpp_type_info->GetFunctionCallGraph();
+  auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
+  auto graph = cpp_type_info->GetFunctionCallGraph(cpp_module);
   auto holder = std::make_unique<CallGraphHolder>();
   holder->type_info = cpp_type_info;
   holder->graph = std::move(graph);
 
-  xls::dslx::Module* module = cpp_type_info->module();
-  for (xls::dslx::ModuleMember& member : module->top()) {
+  for (xls::dslx::ModuleMember& member : cpp_module->top()) {
     if (std::holds_alternative<xls::dslx::Function*>(member)) {
       const xls::dslx::Function* fn = std::get<xls::dslx::Function*>(member);
       holder->functions.push_back(fn);

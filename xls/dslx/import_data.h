@@ -214,8 +214,7 @@ class ImportData {
   absl::StatusOr<const TypeInfo*> GetRootTypeInfoForNode(
       const AstNode* node) const;
 
-  // As above but gets the type info for a directly-provided `module`.
-  absl::StatusOr<TypeInfo*> GetRootTypeInfo(const Module* module);
+  absl::StatusOr<TypeInfo*> GetRootTypeInfo();
 
   // The "top level bindings" for a given module are the values that get
   // resolved at module scope on import. Keeping these on the ImportData avoids

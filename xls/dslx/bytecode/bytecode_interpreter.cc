@@ -328,7 +328,7 @@ absl::Status BytecodeInterpreter::InitFrame(BytecodeFunction* bf,
   // In "mission mode" we expect type_info to be non-null in the frame, but for
   // bytecode-level testing we may not have an AST.
   if (type_info == nullptr && bf->owner() != nullptr) {
-    type_info = import_data_->GetRootTypeInfo(bf->owner()).value();
+    type_info = import_data_->GetRootTypeInfo().value();
   }
   frames_.push_back(Frame(bf,
                           std::vector<InterpValue>(args.begin(), args.end()),
@@ -728,9 +728,6 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
   const TypeInfo* effective_type_info = caller_type_info;
   if (callee_type_info.has_value()) {
     effective_type_info = *callee_type_info;
-  } else if (f.owner() != caller_type_info->module()) {
-    XLS_ASSIGN_OR_RETURN(effective_type_info,
-                         import_data_->GetRootTypeInfo(f.owner()));
   }
 
   return cache->GetOrCreateBytecodeFunction(

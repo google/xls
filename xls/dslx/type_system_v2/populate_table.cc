@@ -58,7 +58,6 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
   XLS_RETURN_IF_ERROR(
       builtins_visitor->PopulateFromModule(builtins_module.get()));
 
-  Module* builtins_ptr = builtins_module.get();
   // Do not emit unused variable warnings for builtins.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<InferenceTableConverter> builtins_converter,
@@ -69,7 +68,7 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
                                     /*error_handler=*/nullptr,
                                     /*trait_deriver=*/std::nullopt));
   XLS_ASSIGN_OR_RETURN(TypeInfo * builtins_type_info,
-                       import_data->GetRootTypeInfo(builtins_ptr));
+                       import_data->GetRootTypeInfo());
 
   XLS_ASSIGN_OR_RETURN(std::filesystem::path builtins_path, BuiltinStubsPath());
   std::unique_ptr<ModuleInfo> builtins_module_info =

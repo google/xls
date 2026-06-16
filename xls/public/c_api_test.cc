@@ -113,9 +113,11 @@ fn apply_map(xs: u32[2]) -> u32[2] {
 
   xls_dslx_type_info* type_info = xls_dslx_typechecked_module_get_type_info(tm);
   ASSERT_NE(type_info, nullptr);
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  ASSERT_NE(module, nullptr);
   xls_dslx_call_graph* graph = nullptr;
-  ASSERT_TRUE(xls_dslx_type_info_build_function_call_graph(type_info,
-                                                           &error_out, &graph));
+  ASSERT_TRUE(xls_dslx_type_info_build_function_call_graph_for_module(
+      type_info, module, &error_out, &graph));
   absl::Cleanup free_graph([graph] { xls_dslx_call_graph_free(graph); });
   ASSERT_EQ(error_out, nullptr);
   ASSERT_NE(graph, nullptr);
@@ -155,6 +157,47 @@ fn apply_map(xs: u32[2]) -> u32[2] {
   ASSERT_NE(mapped_fn, nullptr);
   EXPECT_EQ(get_fn_name(mapped_fn), "callee");
 
+  xls_c_str_free(error_out);
+}
+
+TEST(XlsCApiTest, DslxBuildFunctionCallGraphDeprecatedErrors) {
+  constexpr std::string_view kProgram = R"DSLX(
+fn callee(x: u32) -> u32 {
+  x
+}
+fn caller(x: u32) -> u32 {
+  callee(x)
+}
+)DSLX";
+
+  const char* additional_search_paths[] = {};
+  std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      dslx_stdlib_path.c_str(), additional_search_paths, 0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [import_data] { xls_dslx_import_data_free(import_data); });
+
+  char* error_out = nullptr;
+  xls_dslx_typechecked_module* tm = nullptr;
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck(std::string(kProgram).c_str(),
+                                           "call_graph.x", "call_graph",
+                                           import_data, &error_out, &tm));
+  absl::Cleanup free_tm([tm] { xls_dslx_typechecked_module_free(tm); });
+  xls_c_str_free(error_out);
+  error_out = nullptr;
+
+  xls_dslx_type_info* type_info = xls_dslx_typechecked_module_get_type_info(tm);
+  ASSERT_NE(type_info, nullptr);
+  xls_dslx_call_graph* graph = nullptr;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+  ASSERT_FALSE(xls_dslx_type_info_build_function_call_graph(
+      type_info, &error_out, &graph));
+#pragma clang diagnostic pop
+  ASSERT_EQ(graph, nullptr);
+  ASSERT_NE(error_out, nullptr);
+  EXPECT_THAT(error_out, HasSubstr("is deprecated"));
   xls_c_str_free(error_out);
 }
 

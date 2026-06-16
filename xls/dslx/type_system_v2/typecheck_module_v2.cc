@@ -124,9 +124,8 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     return status;
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      TypeInfo * type_info,
-      import_data->type_info_owner().GetRootTypeInfo(module.get()));
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                       import_data->type_info_owner().GetRootTypeInfo());
 
   // Enforce `#[test]` function signature `() -> ()`.
   for (const ModuleMember& member : module->top()) {

@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
@@ -848,7 +849,9 @@ absl::StatusOr<std::string> ToHumanString(const AstNodeTypeInfoProto& antip,
                          ToHumanString(antip.kind()), node_str, type_str);
 }
 
-absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info) {
+absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info,
+                                              const Module* module) {
+  XLS_RET_CHECK_NE(module, nullptr);
   TypeInfoProto tip;
   // We have to sort the items in a stable way before adding them to the
   // repeated field in the proto.
@@ -858,10 +861,9 @@ absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info) {
     const AstNode* node;
     const Type* type;
   };
-  Module* module = type_info.module();
   std::vector<Item> items;
   for (const auto& [node, type] : type_info.dict()) {
-    if (!module->IsSyntheticNode(node)) {
+    if (node->owner() == module && !module->IsSyntheticNode(node)) {
       items.push_back(
           Item{node->GetSpan().value(), node->kind(), node, type.get()});
     }

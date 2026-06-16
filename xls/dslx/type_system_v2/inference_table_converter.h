@@ -69,10 +69,9 @@ class InferenceTableConverter {
   // Returns the resulting base type info for the entire conversion.
   virtual TypeInfo* GetBaseTypeInfo() = 0;
 
-  // Returns the appropriate TypeInfo for a node owned by `module` when analyzed
-  // in the given `parametric_context`.
+  // Returns the appropriate TypeInfo when analyzed in the given
+  // `parametric_context`.
   virtual absl::StatusOr<TypeInfo*> GetTypeInfo(
-      const Module* module,
       std::optional<const ParametricContext*> parametric_context) = 0;
 
   virtual SemanticsAnalysis* GetSemanticsAnalysis() = 0;

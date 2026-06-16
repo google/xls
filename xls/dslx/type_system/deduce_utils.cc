@@ -573,20 +573,6 @@ absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
   return absl::OkStatus();
 }
 
-const TypeInfo& GetTypeInfoForNodeIfDifferentModule(
-    AstNode* node, const TypeInfo& current_type_info,
-    const ImportData& import_data) {
-  if (node->owner() == current_type_info.module()) {
-    return current_type_info;
-  }
-  absl::StatusOr<const TypeInfo*> type_info =
-      import_data.GetRootTypeInfoForNode(node);
-  CHECK_OK(type_info.status())
-      << "Must be able to get root type info for node " << node->ToString();
-  CHECK(type_info.value() != nullptr);
-  return *type_info.value();
-}
-
 void WarnOnInappropriateConstantName(std::string_view identifier,
                                      const Span& span, const Module& module,
                                      WarningCollector* warning_collector) {
@@ -644,14 +630,12 @@ absl::StatusOr<InterpValue> GetConfiguredValueAsInterpValue(
     XLS_RET_CHECK(type_info != nullptr);
     XLS_RET_CHECK(import_data != nullptr);
     const EnumDef* enum_def = &enum_type->nominal_type();
-    const TypeInfo& enum_type_info = GetTypeInfoForNodeIfDifferentModule(
-        const_cast<EnumDef*>(enum_def), *type_info, *import_data);
     std::vector<std::string_view> parts = absl::StrSplit(override_value, "::");
     std::string_view enum_identifier = parts.back();
     for (const EnumMember& member : enum_def->values()) {
       if (member.name_def->identifier() == enum_identifier) {
         XLS_ASSIGN_OR_RETURN(InterpValue value,
-                             enum_type_info.GetConstExpr(member.value));
+                             type_info->GetConstExpr(member.value));
         return InterpValue::MakeEnum(value.GetBitsOrDie(), enum_type, enum_def);
       }
     }

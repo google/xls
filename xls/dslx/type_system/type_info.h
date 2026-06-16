@@ -174,18 +174,17 @@ class TypeInfoOwner {
  public:
   // Returns an error status iff parent is nullptr and "module" already has a
   // root type info.
-  absl::StatusOr<TypeInfo*> New(Module* module, std::string_view name,
+  absl::StatusOr<TypeInfo*> New(const FileTable& file_table,
+                                std::string_view name,
                                 TypeInfo* parent = nullptr);
 
-  // Retrieves the root type information for the given module, or a not-found
-  // status error if it is not present.
-  absl::StatusOr<TypeInfo*> GetRootTypeInfo(const Module* module);
+  // Retrieves the root type information, or a not-found status error if it is
+  // not present.
+  absl::StatusOr<TypeInfo*> GetRootTypeInfo();
 
  private:
-  // Mapping from module to the "root" (or "parentmost") type info -- these have
-  // nullptr as their parent. There should only be one of these for any given
-  // module.
-  absl::flat_hash_map<const Module*, TypeInfo*> module_to_root_;
+  // The single root (parentmost) type info across all modules.
+  TypeInfo* root_type_info_ = nullptr;
 
   // Owned type information objects -- TypeInfoOwner is the lifetime owner for
   // these.
@@ -322,11 +321,9 @@ class TypeInfo {
 
   // Sets the type associated with the given AST node.
   void SetItem(const AstNode* key, const Type& value) {
-    CHECK_EQ(key->owner(), module_) << key->ToString();
     dict_[key] = value.CloneToUnique();
   }
   void SetItem(const AstNode* key, std::unique_ptr<Type> value) {
-    CHECK_EQ(key->owner(), module_);
     dict_[key] = std::move(value);
   }
 
@@ -379,6 +376,8 @@ class TypeInfo {
   // import cache.
   void AddImport(ImportSubject import, Module* module, TypeInfo* type_info);
 
+  std::optional<TypeInfo*> GetImportedTypeInfo(const Module* module) const;
+
   // Returns information on the imported module (its module AST node and
   // top-level type information).
   std::optional<const ImportedInfo*> GetImported(Import* import) const;
@@ -407,10 +406,6 @@ class TypeInfo {
   absl::StatusOr<const ImportedInfo*> GetImportedOrError(
       ImportSubject import) const;
 
-  // Returns the type information for m, if it is available either as this
-  // module or an import of this module.
-  std::optional<TypeInfo*> GetImportedTypeInfo(Module* m);
-
   // Returns whether function "f" requires an implicit token parameter; i.e. it
   // contains a `fail!()` or `cover!()` as determined during type inferencing.
   std::optional<bool> GetRequiresImplicitToken(const Function& f) const;
@@ -428,8 +423,6 @@ class TypeInfo {
   // When calling a non-parametric callee, the record will be absent.
   std::optional<const ParametricEnv*> GetInvocationCalleeBindings(
       const Invocation* invocation, const ParametricEnv& caller) const;
-
-  Module* module() const { return module_; }
 
   // Notes the evaluation of a constexpr to a value, as discovered during type
   // checking. Some constructs *require* constexprs, e.g. slice bounds or
@@ -517,10 +510,9 @@ class TypeInfo {
   }
 
   absl::flat_hash_map<const Function*, std::vector<const Function*>>
-  GetFunctionCallGraph() const;
+  GetFunctionCallGraph(const Module* module = nullptr) const;
 
   const FileTable& file_table() const;
-  FileTable& file_table();
 
   // Traverses to the 'root' (AKA 'most parent') TypeInfo. This is a place to
   // stash context-free information (e.g. that is found in a parametric
@@ -555,7 +547,7 @@ class TypeInfo {
   //  parent: Type information that should be queried from the same scope (i.e.
   //    if an AST node is not resolved in the local member maps, the lookup is
   //    then performed in the parent, and so on transitively).
-  explicit TypeInfo(Module* module, std::string_view name,
+  explicit TypeInfo(const FileTable& file_table, std::string_view name,
                     TypeInfo* parent = nullptr);
 
   // Returns whether this is the root type information for the module (vs. a
@@ -566,7 +558,7 @@ class TypeInfo {
     return imports_;
   }
 
-  Module* module_;
+  const FileTable& file_table_;
   const std::string name_;
 
   // Node to type mapping -- this is present on "derived" type info (i.e. for

@@ -112,8 +112,9 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
   name_def->set_definer(original_proc);
 
   TypeInfoOwner type_info_owner;
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info,
-                           type_info_owner.New(&module, TypeInfo::kRootName));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * type_info,
+      type_info_owner.New(file_table, TypeInfo::kRootName));
 
   NameRef* name_ref = module.Make<NameRef>(Span::Fake(), "proc_name", name_def);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p, ResolveProc(name_ref, type_info));
@@ -193,11 +194,12 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
       module.Make<ColonRef>(Span::Fake(), module_ref, "proc_name");
 
   TypeInfoOwner type_info_owner;
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info,
-                           type_info_owner.New(&module, TypeInfo::kRootName));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * type_info,
+      type_info_owner.New(file_table, TypeInfo::kRootName));
   XLS_ASSERT_OK_AND_ASSIGN(
       TypeInfo * imported_type_info,
-      type_info_owner.New(import_module, TypeInfo::kRootName));
+      type_info_owner.New(file_table, TypeInfo::kRootName));
   type_info->AddImport(import, import_module, imported_type_info);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p, ResolveProc(colon_ref, type_info));

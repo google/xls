@@ -211,9 +211,8 @@ class Visitor : public AstNodeVisitorWithDefault {
         return UndefinedNameErrorStatus(colon_ref->span(), direct_colon_ref,
                                         direct_colon_ref->attr(), file_table_);
       }
-      XLS_ASSIGN_OR_RETURN(
-          TypeInfo * eval_ti,
-          converter_.GetTypeInfo((*enum_value)->owner(), parametric_context_));
+      XLS_ASSIGN_OR_RETURN(TypeInfo * eval_ti,
+                           converter_.GetTypeInfo(parametric_context_));
       XLS_ASSIGN_OR_RETURN(InterpValue value,
                            eval_ti->GetConstExpr(*enum_value));
       trace_.SetResult(value);

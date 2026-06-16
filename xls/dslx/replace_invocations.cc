@@ -183,13 +183,6 @@ absl::StatusOr<std::string> ResolveEnumMemberName(const EnumDef* enum_def,
   XLS_ASSIGN_OR_RETURN(Bits want_bits, iv.GetBits());
   for (const EnumMember& em : enum_def->values()) {
     TypeInfo* ti_used = &type_info;
-    if (em.value->owner() != type_info.module()) {
-      std::optional<TypeInfo*> imported =
-          type_info.GetImportedTypeInfo(em.value->owner());
-      if (imported.has_value() && *imported != nullptr) {
-        ti_used = *imported;
-      }
-    }
     std::optional<InterpValue> mv = ti_used->GetConstExprOption(em.value);
     if (!mv.has_value()) {
       continue;

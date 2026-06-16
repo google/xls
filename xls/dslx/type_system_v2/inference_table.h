@@ -267,7 +267,7 @@ class ParametricContext {
         self_type_.has_value() ? (*self_type_)->ToString() : "none",
         node_->ToString(), DetailsToString(details_),
         type_info_ != nullptr ? type_info_->name() : "none",
-        type_info_ != nullptr ? type_info_->module()->name() : "none");
+        node_->owner()->name());
   }
 
   // Intended to be used only from the owning table, upon canonicalization.

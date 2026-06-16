@@ -419,9 +419,15 @@ char* xls_dslx_expr_to_string(struct xls_dslx_expr* expr);
 
 // -- call_graph
 
+[[deprecated(
+    "Use xls_dslx_type_info_build_function_call_graph_for_module instead.")]]
 bool xls_dslx_type_info_build_function_call_graph(
     struct xls_dslx_type_info* type_info, char** error_out,
     struct xls_dslx_call_graph** result_out);
+
+bool xls_dslx_type_info_build_function_call_graph_for_module(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_module* module,
+    char** error_out, struct xls_dslx_call_graph** result_out);
 
 void xls_dslx_call_graph_free(struct xls_dslx_call_graph* call_graph);
 

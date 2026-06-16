@@ -53,7 +53,8 @@ class TypeInfoToProtoWithBothTypecheckVersionsTest : public ::testing::Test {
         TypecheckedModule tm,
         ParseAndTypecheck(program, "fake.x", "fake", import_data, nullptr));
 
-    XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
+    XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip,
+                             TypeInfoToProto(*tm.type_info, tm.module));
     XLS_ASSERT_OK_AND_ASSIGN(
         std::string nodes_text,
         ToHumanString(tip, *import_data, import_data->file_table()));
@@ -181,7 +182,8 @@ fn bit_update() -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "fake.x", "fake", &import_data, nullptr));
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip,
+                           TypeInfoToProto(*tm.type_info, tm.module));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string nodes_text,
       ToHumanString(tip, import_data, import_data.file_table()));

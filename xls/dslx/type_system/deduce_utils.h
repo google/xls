@@ -139,13 +139,6 @@ absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
                                             TypeInfo* ti,
                                             ImportData* import_data);
 
-// Returns the TypeInfo for the given node, preferring the current TypeInfo if
-// the node is in the same module, otherwise giving the root TypeInfo for
-// the node's module.
-const TypeInfo& GetTypeInfoForNodeIfDifferentModule(
-    AstNode* node, const TypeInfo& current_type_info,
-    const ImportData& import_data);
-
 // It's common to accidentally use different constant naming conventions
 // coming from other environments -- warn folks if it's not following
 // https://doc.rust-lang.org/1.0.0/style/style/naming/README.html

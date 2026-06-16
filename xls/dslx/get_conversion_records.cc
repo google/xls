@@ -152,11 +152,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     return next_record;
   }
 
-  TypeInfo* GetTypeInfo(const AstNode* node) {
-    return node->owner() == module_
-               ? type_info_
-               : *type_info_->GetImportedTypeInfo(node->owner());
-  }
+  TypeInfo* GetTypeInfo(const AstNode* node) { return type_info_; }
 
   absl::Status HandleConditional(const Conditional* expr) override {
     if (expr->IsConst()) {

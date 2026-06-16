@@ -106,8 +106,7 @@ namespace {
 
 %s%s%s
 )";
-  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       import_data->GetRootTypeInfo(module));
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, import_data->GetRootTypeInfo());
   std::vector<std::string> header;
   std::vector<std::string> source;
 

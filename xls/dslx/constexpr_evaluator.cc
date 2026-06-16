@@ -631,10 +631,6 @@ absl::StatusOr<ConstexprEnvData> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const Expr* node,
     const ParametricEnv& parametric_env) {
-  CHECK_EQ(node->owner(), type_info->module())
-      << "expr `" << node->ToString()
-      << "` from module: " << node->owner()->name()
-      << " vs type info module: " << type_info->module()->name();
   VLOG(5) << "Creating constexpr environment for node: `" << node->ToString()
           << "`";
 

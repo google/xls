@@ -167,9 +167,9 @@ std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
         absl::StrCat("context: ", (*impl.parametric_context)->ToString()));
     pieces.push_back(absl::StrFormat(
         "context_TI: %s", ((*impl.parametric_context)->type_info()->name())));
-    pieces.push_back(absl::StrFormat(
-        "context_owner: %s",
-        ((*impl.parametric_context)->type_info()->module()->name())));
+    pieces.push_back(
+        absl::StrFormat("context_owner: %s",
+                        ((*impl.parametric_context)->node()->owner()->name())));
   }
   if (impl.result_annotation.has_value()) {
     pieces.push_back(

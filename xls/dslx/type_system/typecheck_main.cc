@@ -118,7 +118,8 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(TypeInfoProto tip, TypeInfoToProto(*tm->type_info));
+  XLS_ASSIGN_OR_RETURN(TypeInfoProto tip,
+                       TypeInfoToProto(*tm->type_info, tm->module));
   if (output_path.has_value()) {
     std::string output;
     QCHECK(tip.SerializeToString(&output));

@@ -321,10 +321,6 @@ absl::StatusOr<std::optional<const ProcDef*>> GetProcConstructedByFunction(
     return std::nullopt;
   }
 
-  if (f->owner() != ti->module()) {
-    ti = *ti->GetImportedTypeInfo(f->owner());
-  }
-
   // TODO: https://github.com/google/xls/issues/4125 - We should use
   // GetItemOrError here, but being able to do this is part of parametric proc
   // support (we will not have the right `TypeInfo` in all cases currently).
