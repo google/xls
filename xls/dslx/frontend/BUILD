@@ -775,6 +775,8 @@ cc_library(
     hdrs = ["fuzz_domain_rewriter.h"],
     deps = [
         ":ast",
+        ":ast_node",
+        ":ast_node_visitor_with_default",
         ":module",
         "//xls/common:attribute_data",
         "//xls/common/status:ret_check",
@@ -834,6 +836,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
+        "@com_google_absl//absl/base",
         "@googletest//:gtest",
     ],
 )

@@ -27,6 +27,8 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
@@ -145,6 +147,80 @@ absl::Status MaybePopulateDomainStruct(StructDef* struct_def, Module& module,
   return absl::OkStatus();
 }
 
+// For instances of struct domains, populates "missing members" with the
+// "arbitrary" domain (i.e., empty tuple.)
+class StructInstanceCompleter : public AstNodeVisitorWithDefault {
+ public:
+  StructInstanceCompleter(Module& module, const ImportData& import_data)
+      : module_(module), import_data_(import_data) {}
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    for (auto* child : node->GetChildren(/*want_types=*/false)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleFuzzTestFunction(const FuzzTestFunction* node) override {
+    if (node->domains().has_value()) {
+      is_inside_fuzz_test_domain_ = true;
+      XLS_RETURN_IF_ERROR((*node->domains())->Accept(this));
+      is_inside_fuzz_test_domain_ = false;
+    }
+    // Don't need to recurse into the function body, as the struct completion
+    // doesn't apply there.
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleStructInstance(const StructInstance* node) override {
+    auto* mutable_node = const_cast<StructInstance*>(node);
+    auto struct_or_proc_ref_status =
+        GetStructOrProcRef(node->struct_ref(), import_data_);
+    if (!struct_or_proc_ref_status.ok()) {
+      return absl::OkStatus();
+    }
+
+    std::optional<StructOrProcRef> struct_or_proc_ref =
+        *struct_or_proc_ref_status;
+    if (!struct_or_proc_ref.has_value() ||
+        struct_or_proc_ref->def->kind() != AstNodeKind::kStructDef) {
+      return absl::OkStatus();
+    }
+
+    const StructDef* struct_def =
+        absl::down_cast<const StructDef*>(struct_or_proc_ref->def);
+    bool is_domain_struct = struct_def->is_domain_struct();
+    if (!is_domain_struct) {
+      is_domain_struct = is_inside_fuzz_test_domain_;
+    }
+    if (!is_domain_struct) {
+      return absl::OkStatus();
+    }
+
+    for (const StructMemberNode* member : struct_def->members()) {
+      std::string member_name = member->name();
+      if (node->GetExpr(member_name).status().code() ==
+          absl::StatusCode::kNotFound) {
+        // This struct field hasn't been added to this instance yet, so add it
+        // with an empty tuple as its value to indicate "arbitrary" domain.
+        Expr* unit_expr =
+            module_.Make<XlsTuple>(node->span(), std::vector<Expr*>(),
+                                   /*has_trailing_comma=*/false);
+        XLS_RETURN_IF_ERROR(mutable_node->AddMember(member_name, unit_expr));
+      }
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  // True if `node` is inside a fuzz_test function's domain
+  // expression.
+  bool is_inside_fuzz_test_domain_ = false;
+
+  Module& module_;
+  const ImportData& import_data_;
+};
+
 }  // namespace
 
 absl::Status RewriteDomainStructs(Module& module, ImportData& import_data) {
@@ -155,7 +231,9 @@ absl::Status RewriteDomainStructs(Module& module, ImportData& import_data) {
           MaybePopulateDomainStruct(struct_def, module, import_data));
     }
   }
-  return absl::OkStatus();
+
+  StructInstanceCompleter completer(module, import_data);
+  return WalkPostOrder(&module, &completer, /*want_types=*/false);
 }
 
 }  // namespace xls::dslx
