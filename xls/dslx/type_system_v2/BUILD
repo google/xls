@@ -601,6 +601,22 @@ cc_test(
 )
 
 cc_test(
+    name = "typecheck_module_v2_fuzz_test_test",
+    srcs = ["typecheck_module_v2_fuzz_test_test.cc"],
+    deps = [
+        ":matchers",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "typecheck_module_v2_function_test",
     srcs = ["typecheck_module_v2_function_test.cc"],
     deps = [
@@ -1019,7 +1035,6 @@ cc_test(
     srcs = ["typecheck_module_v2_enum_test.cc"],
     deps = [
         ":matchers",
-        ":type_system_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",

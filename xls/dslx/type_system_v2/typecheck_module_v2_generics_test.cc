@@ -888,17 +888,6 @@ fn main() -> u32 {
   EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
 }
 
-TEST(TypecheckV2Test, FuzzTestParametric) {
-  EXPECT_THAT(
-      R"(
-#[fuzz_test(domains=`u32:0..1`)]
-fn f<N: u32>(x: uN[N]) {
-   x+uN[N]:1
-}
-)",
-      TypecheckFails(HasSubstr("Cannot fuzz test parametric function `f`")));
-}
-
 TEST(TypecheckV2Test, XnAnnotationWithNonBoolLiteralSignednessFails) {
   EXPECT_THAT("const Y = xN[2][32]:1;",
               TypecheckFails(HasSizeMismatch("bool", "u2")));

@@ -1505,57 +1505,5 @@ fn tuple_match(input: u32, sign: bool) -> u32 {
           HasNodeWithType("tuple_match", "(uN[32], uN[1]) -> uN[32]")));
 }
 
-TEST(TypecheckV2Test, FuzzTestDomainRangeBitSizeMismatch) {
-  EXPECT_THAT(
-      R"(
-#[fuzz_test(domains=`u32:0..16384, u32:0..u32:16284`)]
-fn f(x: u8, y:u32) {}
-)",
-      TypecheckFails(
-          HasSubstr("bit count (32) does not match parameter bit count (8)")));
-}
-
-TEST(TypecheckV2Test, FuzzTestDomainBitSizeMismatchAlias) {
-  EXPECT_THAT(
-      R"(
-type u8_alias = u8;
-#[fuzz_test(domains=`u32:0..16384`)]
-fn f(x: u8_alias) {}
-)",
-      TypecheckFails(
-          HasSubstr("bit count (32) does not match parameter bit count (8)")));
-}
-
-TEST(TypecheckV2Test, FuzzTestConstRangeMismatch) {
-  EXPECT_THAT(
-      R"(
-const C = u32:0..1000;
-#[fuzz_test(domains=`C`)]
-fn f(x: u8) {}
-)",
-      TypecheckFails(
-          HasSubstr("bit count (32) does not match parameter bit count (8)")));
-}
-
-TEST(TypecheckV2Test, FuzzTestCountMismatchTooMany) {
-  EXPECT_THAT(
-      R"(
-#[fuzz_test(domains=`u32:0..1, u32:0..2`)]
-fn f(x: u32) {}
-)",
-      TypecheckFails(HasSubstr("fuzz_test attribute has 2 domain arguments, "
-                               "but function `f` has 1 parameter")));
-}
-
-TEST(TypecheckV2Test, FuzzTestCountMismatchTooFew) {
-  EXPECT_THAT(
-      R"(
-#[fuzz_test(domains=`u32:0..1`)]
-fn g(x: u32, y: u32) {}
-)",
-      TypecheckFails(HasSubstr("fuzz_test attribute has 1 domain argument, "
-                               "but function `g` has 2 parameters")));
-}
-
 }  // namespace
 }  // namespace xls::dslx

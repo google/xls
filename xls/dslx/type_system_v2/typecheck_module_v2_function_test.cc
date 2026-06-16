@@ -1203,23 +1203,5 @@ fn f(x: u32) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2Test, FuzzTestNoParameters) {
-  EXPECT_THAT(
-      R"(
-#[fuzz_test]
-fn f() {}
-)",
-      TypecheckFails(HasSubstr("Can only fuzz test functions with at least 1 "
-                               "parameter; function `f` has 0")));
-}
-
-TEST(TypecheckV2Test, FuzzTestAttributeWithZeroArguments) {
-  EXPECT_THAT(R"(
-#[fuzz_test]
-fn f(x: u32) {}
-)",
-              TypecheckSucceeds(::testing::_));
-}
-
 }  // namespace
 }  // namespace xls::dslx

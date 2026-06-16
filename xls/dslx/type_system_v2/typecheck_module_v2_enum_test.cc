@@ -22,12 +22,10 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
-#include "xls/dslx/type_system_v2/type_system_test_utils.h"
 
 namespace xls::dslx {
 namespace {
 
-using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
@@ -437,35 +435,6 @@ fn f() -> u32 {
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected a type, got `imported::A::A1`")));
-}
-
-TEST(TypecheckV2Test, FuzzTestEnum) {
-  EXPECT_THAT(R"(
-enum E {
-  E0 = 0,
-  E1 = 1,
-}
-#[fuzz_test(domains=`[E::E0, E::E1]`)]
-fn f(x: E) {}
-)",
-              TypecheckSucceeds(::testing::_));
-}
-
-TEST(TypecheckV2Test, FuzzTestImportedEnum) {
-  constexpr std::string_view kImported = R"(
-pub enum E {
-  E0 = 0,
-  E1 = 1,
-}
-)";
-  constexpr std::string_view kProgram = R"(
-import imported;
-#[fuzz_test(domains=`[imported::E::E0, imported::E::E1]`)]
-fn f(x: imported::E) {}
-)";
-  ImportData import_data = CreateImportDataForTest();
-  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
-  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data), IsOk());
 }
 
 TEST(TypecheckV2Test, EnumInvalidImplicitCastToInt) {
