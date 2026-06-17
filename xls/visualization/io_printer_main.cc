@@ -18,6 +18,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -34,6 +35,9 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
+#include "xls/tools/codegen.h"
+#include "xls/tools/codegen_flags.h"
+#include "xls/tools/scheduling_options_flags.h"
 
 static constexpr std::string_view kUsage = R"(
 Dump io-related scheduling result to stdout.
@@ -44,12 +48,17 @@ This only includes IO nodes (send, receive, etc.).
 
 Top must be a proc.
 
-If --schedule_proto is not specified, the IR file must contain a
-'scheduled_{proc,func}' for each proc/function.
+If --schedule_proto is specified, use the schedule in the proto file.
+
+If --schedule_proto is not specified and the IR file contains a
+'scheduled_{proc,func}' for any proc/function that 'scheduled_proc' is used.
+
+Otherwise use the passed scheduler options to schedule the IR.
 
 Example invocation:
   io_printer_main \
        [--schedule_proto=...] \
+       [--<scheduler options>...] \
        IR_FILE
 )";
 
@@ -85,6 +94,18 @@ absl::Status RealMain(std::string_view ir_path,
     XLS_RETURN_IF_ERROR(ParseTextProtoFile(*schedule_proto_path, &schedule_pb));
     XLS_RETURN_IF_ERROR(
         ConvertSchedulePbToScheduledIr(schedule_pb, package.get()));
+  }
+  // Do we already have scheduled procs?
+  if (absl::c_none_of(package->GetFunctionBases(),
+                      [](FunctionBase* fb) { return fb->IsScheduled(); })) {
+    // Use scheduler to schedule all procs.
+    XLS_ASSIGN_OR_RETURN(SchedulingOptionsFlagsProto scheduling_options,
+                         GetSchedulingOptionsFlagsProto());
+    XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags, GetCodegenFlags());
+    XLS_ASSIGN_OR_RETURN(
+        auto res, Schedule(package.get(), scheduling_options, codegen_flags));
+    XLS_RETURN_IF_ERROR(
+        ConvertSchedulePbToScheduledIr(res.package_schedule, package.get()));
   }
   for (FunctionBase* fb : package->GetFunctionBases()) {
     if (!fb->IsProc() || !fb->IsScheduled()) {
