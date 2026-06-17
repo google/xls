@@ -16,6 +16,7 @@
 #define XLS_PASSES_VISIBILITY_EXPR_BUILDER_H_
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <tuple>
 
@@ -100,38 +101,55 @@ class VisibilityBuilder : public ExpressionBuilder {
   absl::StatusOr<Node*> BuildVisibilityIRExpr(
       FunctionBase* func, Node* node,
       const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
-          conditional_edges);
+          conditional_edges,
+      std::function<bool(Node*)> is_live_source = nullptr,
+      std::function<int64_t(Node*)> get_remaining_delay = nullptr,
+      std::optional<int64_t> target_stage = std::nullopt);
+
+  // Cleans up any nodes created by this builder that have no users.
+  // This is useful for removing dead visibility expressions.
+  absl::Status CleanUpUnusedNodes(FunctionBase* fb);
 
  private:
   absl::StatusOr<Node*> MakeParamIfTmpFunc(Node* node, FunctionBase* func) {
     return func == TmpFunc() ? TmpFuncNodeOrParam(node) : node;
   }
 
-  absl::StatusOr<Node*> GetSelectorIfIndependent(Node* node, Node* select,
-                                                 Node* source,
-                                                 FunctionBase* func);
+  absl::StatusOr<Node*> GetSelectorIfIndependent(
+      Node* node, Node* select, Node* source, FunctionBase* func,
+      const std::function<bool(Node*)>& is_live_source);
   bool DoesCaseImplyNoPrevCase(PrioritySelect* select, int64_t case_index);
 
   absl::StatusOr<Node*> GetVisibilityExprForPrioritySelect(
-      Node* node, PrioritySelect* select, Node* source, FunctionBase* func);
-  absl::StatusOr<Node*> GetVisibilityExprForSelect(Node* node, Select* select,
-                                                   Node* source,
-                                                   FunctionBase* func);
-  absl::StatusOr<Node*> GetVisibilityExprForAnd(Node* node, NaryOp* and_node,
-                                                Node* source,
-                                                FunctionBase* func);
-  absl::StatusOr<Node*> GetVisibilityExprForOr(Node* node, NaryOp* or_node,
-                                               Node* source,
-                                               FunctionBase* func);
+      Node* node, PrioritySelect* select, Node* source, FunctionBase* func,
+      const std::function<bool(Node*)>& is_live_source,
+      const std::function<int64_t(Node*)>& get_remaining_delay);
+  absl::StatusOr<Node*> GetVisibilityExprForSelect(
+      Node* node, Select* select, Node* source, FunctionBase* func,
+      const std::function<bool(Node*)>& is_live_source,
+      const std::function<int64_t(Node*)>& get_remaining_delay);
+  absl::StatusOr<Node*> GetVisibilityExprForAnd(
+      Node* node, NaryOp* and_node, Node* source, FunctionBase* func,
+      const std::function<bool(Node*)>& is_live_source,
+      const std::function<int64_t(Node*)>& get_remaining_delay);
+  absl::StatusOr<Node*> GetVisibilityExprForOr(
+      Node* node, NaryOp* or_node, Node* source, FunctionBase* func,
+      const std::function<bool(Node*)>& is_live_source,
+      const std::function<int64_t(Node*)>& get_remaining_delay);
   absl::StatusOr<Node*> GetVisibilityExprForPredicate(
-      std::optional<Node*> predicate, Node* source, FunctionBase* func);
+      std::optional<Node*> predicate, Node* source, FunctionBase* func,
+      const std::function<bool(Node*)>& is_live_source,
+      const std::function<int64_t(Node*)>& get_remaining_delay);
 
-  absl::StatusOr<Node*> BuildVisibilityExprHelper(Node* node, Node* user,
-                                                  Node* source,
-                                                  FunctionBase* func);
+  absl::StatusOr<Node*> BuildVisibilityExprHelper(
+      Node* node, Node* user, Node* source, FunctionBase* func,
+      const std::function<bool(Node*)>& is_live_source,
+      const std::function<int64_t(Node*)>& get_remaining_delay);
   // Builds predicate for node `u` being used by `v` on `func`.
-  absl::StatusOr<Node*> BuildVisibilityExpr(Node* node, Node* user,
-                                            Node* source, FunctionBase* func);
+  absl::StatusOr<Node*> BuildVisibilityExpr(
+      Node* node, Node* user, Node* source, FunctionBase* func,
+      const std::function<bool(Node*)>& is_live_source,
+      const std::function<int64_t(Node*)>& get_remaining_delay);
   absl::StatusOr<Node*> BuildNodeAndUserVisibleExpr(FunctionBase* func,
                                                     Node* user_uses_node,
                                                     Node* user_is_used,
@@ -142,10 +160,12 @@ class VisibilityBuilder : public ExpressionBuilder {
       const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
           conditional_edges,
       absl::flat_hash_map<Node*, Node*>& node_to_visibility_ir_cache,
-      Literal* always_visible);
+      Literal* always_visible, const std::function<bool(Node*)>& is_live_source,
+      const std::function<int64_t(Node*)>& get_remaining_delay);
 
-  absl::StatusOr<Node*> GetNonRepeatedSourceOf(Node* operand,
-                                               FunctionBase* func);
+  absl::StatusOr<Node*> GetNonRepeatedSourceOf(
+      Node* operand, FunctionBase* func,
+      const std::function<bool(Node*)>& is_live_source);
 };
 
 class VisibilityEstimator : public VisibilityBuilder {

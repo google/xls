@@ -25,6 +25,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
@@ -538,6 +539,8 @@ BddNodeIndex OperandVisibilityAnalysis::ConditionOfUse(Node* node,
     return ConditionOnPredicate(node, user->As<Send>()->predicate());
   } else if (user->Is<Next>()) {
     return ConditionOnNextUse(user->As<Next>(), node);
+  } else if (user->Is<Gate>()) {
+    return ConditionOnPredicate(node, user->As<Gate>()->condition());
   } else if (user->OpIn({Op::kAnd, Op::kNand})) {
     return ConditionOfUseWithAnd(node, user->As<NaryOp>());
   } else if (user->OpIn({Op::kOr, Op::kNor})) {
@@ -796,8 +799,10 @@ bool VisibilityAnalysis::IsMutuallyExclusive(Node* one, Node* other) const {
   return bdd.Implies(*GetInfo(one), bdd.Not(*GetInfo(other))) == bdd.one();
 }
 
-absl::StatusOr<bool> OperandVisibilityAnalysis::IsVisibilityIndependentOf(
-    Node* operand, Node* node, std::vector<Node*>& sources) const {
+namespace {
+
+std::vector<Node*> GetVisibilityControlConditions(const Node* operand,
+                                                  const Node* node) {
   std::vector<Node*> conditions;
   if (node->Is<PrioritySelect>()) {
     conditions.push_back(node->As<PrioritySelect>()->selector());
@@ -807,16 +812,31 @@ absl::StatusOr<bool> OperandVisibilityAnalysis::IsVisibilityIndependentOf(
     conditions.push_back(*node->As<Send>()->predicate());
   } else if (node->Is<Next>() && node->As<Next>()->predicate().has_value()) {
     conditions.push_back(*node->As<Next>()->predicate());
+  } else if (node->Is<Gate>()) {
+    conditions.push_back(node->As<Gate>()->condition());
   } else if (node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
     for (Node* other_op : node->operands()) {
       if (other_op != operand) {
         conditions.push_back(other_op);
       }
     }
-  } else {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Unsupported node type for visibility expression: %s",
-                        node->ToString()));
+  }
+  return conditions;
+}
+
+}  // namespace
+
+absl::StatusOr<bool> OperandVisibilityAnalysis::IsVisibilityIndependentOf(
+    Node* operand, Node* node, std::vector<Node*>& sources) const {
+  std::vector<Node*> conditions = GetVisibilityControlConditions(operand, node);
+  if (conditions.empty()) {
+    if (!node->Is<PrioritySelect>() && !node->Is<Select>() &&
+        !node->Is<Send>() && !node->Is<Next>() &&
+        !node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Unsupported node type for visibility expression: %s",
+                          node->ToString()));
+    }
   }
 
   for (Node* condition : conditions) {
@@ -973,6 +993,55 @@ VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
     // is visible and NOT true when any 'other' is visible.
     exclusions.erase(edge);
     kept_edges.insert(edge);
+  }
+  return kept_edges;
+}
+
+absl::StatusOr<absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>>
+VisibilityAnalysis::GetEdgesForConservativeVisibilityExpr(
+    Node* one, absl::AnyInvocable<bool(Node*) const> is_live_source,
+    int64_t max_edges_to_handle) const {
+  absl::flat_hash_set<OperandNode> kept_edges;
+  std::queue<Node*> worklist;
+  worklist.push(one);
+  absl::flat_hash_set<Node*> visited = {one};
+
+  while (!worklist.empty()) {
+    Node* node = worklist.front();
+    worklist.pop();
+
+    for (Node* user : node->users()) {
+      std::vector<Node*> conditions =
+          GetVisibilityControlConditions(node, user);
+
+      bool any_condition_live = false;
+      for (Node* condition : conditions) {
+        if (is_live_source(condition)) {
+          any_condition_live = true;
+          break;
+        }
+      }
+
+      const bool live_conditions = absl::c_any_of(
+          conditions,
+          [&](Node* condition) { return is_live_source(condition); });
+
+      if (conditions.empty() || live_conditions) {
+        if (operand_visibility_->OperandVisibilityThroughNode(node, user) !=
+            bdd_query_engine_->bdd().one()) {
+          kept_edges.insert({node, user});
+        }
+      }
+      if (visited.contains(user)) {
+        continue;
+      }
+      visited.insert(user);
+      worklist.push(user);
+    }
+  }
+
+  if (max_edges_to_handle >= 0 && kept_edges.size() > max_edges_to_handle) {
+    return absl::flat_hash_set<OperandNode>{};
   }
   return kept_edges;
 }
