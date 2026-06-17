@@ -662,6 +662,16 @@ class BuilderBase {
   // Adds a gate operation. The output of the operation is `data` if `cond` is
   // true and zero-valued otherwise. Gates are side-effecting.
   BValue Gate(BValue condition, BValue data,
+              const SourceInfo& loc = SourceInfo(),
+              std::string_view name = "") {
+    return Gate(condition, data, GateType::kZeroGate, loc, name);
+  }
+
+  // Adds a gate operation with a specified gate type. The output of the
+  // operation is `data` if `cond` is true and otherwise depends on the gate
+  // type. Gates are side-effecting.
+  // are side-effecting.
+  BValue Gate(BValue condition, BValue data, GateType gate_type,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Add a receive operation. The type of the data value received is

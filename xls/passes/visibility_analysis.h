@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -228,6 +229,15 @@ class VisibilityAnalysis : public LazyNodeData<BddNodeIndex> {
   GetEdgesForMutuallyExclusiveVisibilityExpr(Node* one,
                                              absl::Span<Node* const> others,
                                              int64_t max_edges_to_handle) const;
+
+  // Returns the (node -> user) edges necessary to compute a conservative
+  // visibility expression for 'one' such that only source nodes satisfying the
+  // given liveness predicate are included. Invalid edges are dynamically
+  // pruned to fold the expression conservatively.
+  absl::StatusOr<absl::flat_hash_set<OperandNode>>
+  GetEdgesForConservativeVisibilityExpr(
+      Node* one, absl::AnyInvocable<bool(Node*) const> is_live_source,
+      int64_t max_edges_to_handle) const;
 
   BddNodeIndex VisibilityOfNearestPostDominator(Node* node) const;
 

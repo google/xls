@@ -1378,8 +1378,16 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kGate: {
+      std::optional<IdentifierString>* gate_type_str =
+          arg_parser.AddOptionalKeywordArg<IdentifierString>("gate_type");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
-      bvalue = fb->Gate(operands[0], operands[1], *loc, node_name);
+      if (gate_type_str->has_value()) {
+        XLS_ASSIGN_OR_RETURN(GateType gate_type,
+                             ParseGateType(gate_type_str->value().value));
+        bvalue = fb->Gate(operands[0], operands[1], gate_type, *loc, node_name);
+      } else {
+        bvalue = fb->Gate(operands[0], operands[1], *loc, node_name);
+      }
       break;
     }
     case Op::kInstantiationInput: {

@@ -102,6 +102,10 @@ class Stage {
     active_outputs_.erase(node);
   }
 
+  bool empty() const {
+    return active_inputs_.empty() && logic_.empty() && active_outputs_.empty();
+  }
+
   inline auto begin() {
     return iter::chain(active_inputs_, logic_, active_outputs_).begin();
   }
