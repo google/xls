@@ -14,6 +14,8 @@
 
 #include "xls/data_structures/algorithm.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -46,6 +48,51 @@ TEST(NodeUtilTest, GatherFromSequence) {
   EXPECT_THAT(GatherFromSequence<char>({'a', 'b', 'c', 'd', 'e'}, {}),
               ElementsAre());
   EXPECT_THAT(GatherFromSequence<char>({}, {}), ElementsAre());
+}
+
+TEST(NodeUtilTest, SortByKeyTriviallyCopyable) {
+  std::vector<int> v = {10, 5, 20, 15};
+  int key_call_count = 0;
+  SortByKey(
+      v,
+      [&](int x) {
+        ++key_call_count;
+        return -x;
+      },
+      std::greater<>{});
+
+  EXPECT_EQ(key_call_count, 4);
+  EXPECT_THAT(v, ElementsAre(5, 10, 15, 20));
+}
+
+struct HeavyObject {
+  int id;
+  int key;
+  int data[1024];
+
+  HeavyObject(int id, int key) : id(id), key(key) {}
+
+  bool operator==(const HeavyObject& o) const {
+    return id == o.id && key == o.key;
+  }
+};
+
+TEST(NodeUtilTest, SortByKeyInPlaceLargeType) {
+  std::vector<HeavyObject> vec;
+  vec.push_back(HeavyObject(1, 30));
+  vec.push_back(HeavyObject(2, 10));
+  vec.push_back(HeavyObject(3, 20));
+
+  int key_call_count = 0;
+  SortByKey(vec, [&](const HeavyObject& item) {
+    ++key_call_count;
+    return item.key;
+  });
+
+  EXPECT_EQ(key_call_count, 3);
+  EXPECT_EQ(vec[0].id, 2);
+  EXPECT_EQ(vec[1].id, 3);
+  EXPECT_EQ(vec[2].id, 1);
 }
 
 }  // namespace
