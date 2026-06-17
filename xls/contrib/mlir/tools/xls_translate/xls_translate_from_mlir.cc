@@ -1800,7 +1800,8 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
           name += std::to_string(count);
         }
         ++count;
-        return valueNameMap[v] = name;
+        auto it = valueNameMap.try_emplace(v, name).first;
+        return it->second;
       };
 
       DenseMap<Value, BValue> valueMap;
@@ -1933,7 +1934,8 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
         name += std::to_string(count);
       }
       ++count;
-      return valueNameMap[v] = name;
+      auto it = valueNameMap.try_emplace(v, name).first;
+      return it->second;
     };
 
     bool isImportedVerilog =

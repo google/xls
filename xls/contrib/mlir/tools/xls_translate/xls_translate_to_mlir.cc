@@ -1806,8 +1806,9 @@ absl::StatusOr<Operation*> translateBlock(::xls::Block& xls_block,
   // normal ops. To handle this:
   //   Phase A: Create all instantiation ops with empty inputs, map outputs.
   //   Phase B: Translate all non-instantiation nodes now that instantiation
-  //   outputs are available. Phase C: Set inputs on each instantiation op now
-  //   that all inputs are available.
+  //   outputs are available.
+  //   Phase C: Set inputs on each instantiation op now that all inputs are
+  //   available.
   builder.setInsertionPointToEnd(body);
 
   // Phase A: Create ops with proper output types but no inputs, map outputs.
