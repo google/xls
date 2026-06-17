@@ -28,6 +28,8 @@ def _llvm_raw_ext_impl(_ctx):
             Label("@//dependency_support/llvm:llvm.patch"),
             Label("@//dependency_support/llvm:zlib-header.patch"),
             Label("@//dependency_support/llvm:run_lit.patch"),
+            # TODO: mikex - Remove this patch once the bug is fixed.
+            Label("@//dependency_support/llvm:llvm_repo_metadata.patch"),
         ],
         patch_args = ["-p1"],
         strip_prefix = "llvm-project-" + LLVM_COMMIT,
