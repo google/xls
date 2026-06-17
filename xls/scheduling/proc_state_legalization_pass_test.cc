@@ -23,16 +23,20 @@
 #include "absl/algorithm/container.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc_conversion.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
@@ -547,6 +551,59 @@ TEST_P(ProcStateLegalizationPassTest,
                              m::Not(m::Not(m::Eq(
                                  m::UMod(m::StateRead("x"), m::Literal(3)),
                                  m::Literal(0))))))));
+}
+
+TEST_P(ProcStateLegalizationPassTest,
+       VerifyDefaultNextValueFallbackValuePicksUnconditionalRead) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * x_se,
+      pb.proc()->AppendUnreadStateElement("x", Value(UBits(0, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * y_se,
+      pb.proc()->AppendUnreadStateElement("y", Value(UBits(0, 32))));
+
+  // Read 1: conditional, with distinct source location
+  SourceInfo loc1(SourceLocation(Fileno(1), Lineno(10), Colno(5)));
+  BValue p_read = pb.Literal(UBits(1, 1));
+  pb.StateRead(x_se, p_read, /*label=*/std::nullopt, loc1);
+
+  // Read 2: unconditional, with distinct source location
+  SourceInfo loc2(SourceLocation(Fileno(1), Lineno(20), Colno(15)));
+  pb.StateRead(x_se, /*predicate=*/std::nullopt,
+               /*label=*/std::nullopt, loc2);
+
+  // Explicit user write gated by a dynamic condition to ensure the write
+  // suppression logic isn't constant-folded away by redundant node filters.
+  BValue p_write = pb.Eq(pb.StateRead(y_se), pb.Literal(UBits(5, 32)));
+  pb.Next(x_se, pb.Literal(UBits(5, 32)), p_write);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
+
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+
+  // Find the base NOR/NOT node generated for the write suppression tree.
+  Node* base_nor = nullptr;
+  for (Node* node : proc->nodes()) {
+    if (node->OpIn({Op::kNor, Op::kNot}) &&
+        node->operand(0) == p_write.node()) {
+      base_nor = node;
+      break;
+    }
+  }
+  ASSERT_NE(base_nor, nullptr);
+  EXPECT_EQ(base_nor->loc().ToString(), loc2.ToString());
+
+  // Verify that the independent read mutual exclusion sub-pass successfully
+  // generates safety checks guaranteeing at most one read fires per cycle.
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(asserts, Contains(m::Assert(
+                           _, m::Eq(m::Concat(p_read.node(), m::Literal(1)),
+                                    m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 INSTANTIATE_TEST_SUITE_P(ProcStateLegalizationPassTestSuite,
