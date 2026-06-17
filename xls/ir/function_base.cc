@@ -64,10 +64,33 @@ namespace {
 // sections may be empty after it runs.
 class StageSectioner : public DfsVisitorWithDefault {
  public:
-  explicit StageSectioner(const FunctionBase* fb)
-      : fb_(fb), sections_(fb->stages().size() * 2 + 1) {}
+  struct Section {
+    std::optional<int64_t> stage_index = std::nullopt;
+    std::list<Node*> nodes;
 
-  absl::Status Run() {
+    bool IsStage() const { return stage_index.has_value(); }
+
+    bool empty() const { return nodes.empty(); }
+
+    auto begin() const { return nodes.begin(); }
+    auto end() const { return nodes.end(); }
+
+    auto cbegin() const { return nodes.cbegin(); }
+    auto cend() const { return nodes.cend(); }
+
+    void push_back(Node* node) { nodes.push_back(node); }
+  };
+
+  explicit StageSectioner(const FunctionBase* fb) : fb_(fb) {
+    sections_.reserve(fb->stages().size() * 2 + 1);
+    for (int i = 0; i < fb_->stages().size(); i++) {
+      sections_.push_back(Section{.stage_index = std::nullopt});
+      sections_.push_back(Section{.stage_index = i});
+    }
+    sections_.push_back(Section{.stage_index = std::nullopt});
+  }
+
+  absl::Status Run(std::optional<std::vector<Node*>> order = std::nullopt) {
     // Capture stages and their deps.
     for (int i = 0; i < fb_->stages().size(); i++) {
       const Stage& stage = fb_->stages()[i];
@@ -107,6 +130,26 @@ class StageSectioner : public DfsVisitorWithDefault {
         XLS_RETURN_IF_ERROR(node->Accept(this));
       }
     }
+
+    // If provided, we use the given order to sort within each section.
+    if (order.has_value()) {
+      std::optional<absl::flat_hash_map<Node*, int>> node_to_index;
+      node_to_index.emplace();
+      node_to_index->reserve(order->size());
+      for (int i = 0; i < order->size(); ++i) {
+        node_to_index->emplace(order->at(i), i);
+      }
+
+      for (Section& section : sections_) {
+        CHECK(absl::c_all_of(section.nodes, [&](Node* node) {
+          return node_to_index->contains(node);
+        })) << "Some nodes not found in order";
+        section.nodes.sort([&](Node* a, Node* b) {
+          return node_to_index->at(a) < node_to_index->at(b);
+        });
+      }
+    }
+
     return absl::OkStatus();
   }
 
@@ -126,11 +169,11 @@ class StageSectioner : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  const std::vector<std::list<Node*>>& sections() const { return sections_; }
+  const std::vector<Section>& sections() const { return sections_; }
 
  private:
   const FunctionBase* fb_;
-  std::vector<std::list<Node*>> sections_;
+  std::vector<Section> sections_;
   int64_t current_stage_;
   absl::flat_hash_set<Node*> handled_;
 };
@@ -266,15 +309,12 @@ std::string FunctionBase::DumpFunctionBaseNodes(
     const IrAnnotator& annotate) const {
   std::string res;
   if (IsScheduled()) {
-    CHECK(!annotate.NodeOrder(const_cast<FunctionBase*>(this)))
-        << "Cannot use custom node order for scheduled entities";
     StageSectioner sectioner(this);
-    CHECK(sectioner.Run().ok());
-    for (const std::list<Node*>& section : sectioner.sections()) {
-      if (section.empty()) {
-        continue;
-      }
-
+    // In a scheduled entity, we use the annotator's order to sort within each
+    // section.
+    CHECK(sectioner.Run(annotate.NodeOrder(const_cast<FunctionBase*>(this)))
+              .ok());
+    for (const StageSectioner::Section& section : sectioner.sections()) {
       struct ScheduledAnnotations : public IrAnnotator {
        public:
         ScheduledAnnotations(Node* outputs_valid, Node* active_inputs_valid)
@@ -294,9 +334,8 @@ std::string FunctionBase::DumpFunctionBaseNodes(
         Node* active_inputs_valid_;
       };
 
-      Node* first = *section.begin();
-      if (IsStaged(first)) {
-        const Stage& stage = stages()[*GetStageIndex(first)];
+      if (section.IsStage()) {
+        const Stage& stage = stages()[*section.stage_index];
         IrAnnotatorJoiner joiner(
             ScheduledAnnotations(stage.outputs_valid(),
                                  stage.active_inputs_valid()),

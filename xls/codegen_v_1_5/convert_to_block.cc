@@ -58,6 +58,7 @@ absl::Status ConvertToBlock(
   BlockConversionPassOptions options{
       .codegen_options = std::move(codegen_options),
       .package_schedule = std::move(schedule),
+      .delay_estimator = delay_estimator,
   };
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockConversionPass> pipeline,
