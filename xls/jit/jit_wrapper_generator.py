@@ -21,6 +21,7 @@ import itertools
 from typing import Optional
 
 from absl import app
+from google.protobuf import text_format
 import jinja2
 
 from xls.ir import xls_ir_interface_pb2 as ir_interface_pb2
@@ -32,7 +33,6 @@ from xls.jit import aot_entrypoint_pb2
 class FuzzTestInfo:
   """FuzzTest specific information for a value."""
 
-  domain_snippet: Optional[str] = None
   domain_proto: Optional[
       ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain
   ] = None
@@ -312,30 +312,89 @@ def can_use_uint64_range(
   return False
 
 
+def _combine_tuple_domains(
+    t: type_pb2.TypeProto,
+    child_domains: list[tuple[Optional[str], bool]],
+    type_expr: str,
+) -> tuple[str, bool]:
+  """Combines child domains of a tuple into a single FuzzTest domain snippet.
+
+  Args:
+    t: The XLS type proto.
+    child_domains: The results of calling to_domain on each child type.
+    type_expr: C++ expression representing the TypeProto of this type.
+
+  Returns:
+    A tuple (domain_snippet, is_native).
+    - domain_snippet: A string representing the combined C++ FuzzTest domain, or
+    None.
+    - is_native: True if the domain produces a native C++ type, False if it
+      produces xls::Value.
+  """
+  if all(domain[1] and domain[0] is not None for domain in child_domains):
+    # All children are "native", so just use fuzztest::TupleOf.
+    elems = [domain[0] for domain in child_domains]
+    return f"fuzztest::TupleOf({', '.join(elems)})", True
+
+  # Some children are not "native", so use fuzztest::Map to convert them to
+  # xls::Value.
+  elem_value_domains = []
+  for i, (e, (elem_d, elem_is_native)) in enumerate(
+      zip(t.tuple_elements, child_domains)
+  ):
+    child_type_expr = f"{type_expr}.tuple_elements({i})"
+    if elem_d is None:
+      elem_value_domains.append(f"xls::ArbitraryValue({child_type_expr})")
+    elif elem_is_native:
+      c_type = to_c_type(e)
+      conv = to_value_conversion(e, "v")
+      elem_value_domains.append(
+          f"fuzztest::Map([]({c_type} v) {{ return {conv}; }}, {elem_d})"
+      )
+    else:
+      elem_value_domains.append(elem_d)
+
+  lambda_args = ", ".join(
+      f"const xls::Value& v{i}" for i in range(len(t.tuple_elements))
+  )
+  lambda_body = ", ".join(f"v{i}" for i in range(len(t.tuple_elements)))
+  snippet = (
+      f"fuzztest::Map([]({lambda_args}) {{ "
+      f"return xls::Value::Tuple({{{lambda_body}}}); }}, "
+      f"{', '.join(elem_value_domains)})"
+  )
+  return snippet, False
+
+
 def to_domain(
     t: type_pb2.TypeProto,
     d: Optional[ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain],
-) -> Optional[str]:
+    type_expr: str,
+) -> tuple[Optional[str], bool]:
   """Converts an XLS type and domain spec to a FuzzTest domain string.
 
   Args:
     t: The XLS type proto.
     d: The optional FuzzTest domain specification from the package interface.
+    type_expr: C++ expression representing the TypeProto of this type.
 
   Returns:
-    A string representing the C++ FuzzTest domain (e.g.,
-    "fuzztest::Arbitrary<uint32_t>()"), or None if it should fallback to
-    xls::ArbitraryValue.
+    A tuple (domain_snippet, is_native).
+    - domain_snippet: A string representing the C++ FuzzTest domain, or None.
+    - is_native: True if the domain produces the native C++ type, False if it
+      produces xls::Value.
 
   Raises:
     app.UsageError: If the domain specification is invalid or unsupported for
        the given type.
   """
   if t.type_enum == type_pb2.TypeProto.ARRAY:
-    elem_domain = to_domain(t.array_element, None)
-    if elem_domain is None:
-      return None
-    return f"fuzztest::ArrayOf<{t.array_size}>({elem_domain})"
+    elem_domain, elem_is_native = to_domain(
+        t.array_element, None, f"{type_expr}.array_element()"
+    )
+    if elem_domain is None or not elem_is_native:
+      return None, False
+    return f"fuzztest::ArrayOf<{t.array_size}>({elem_domain})", True
 
   if (
       d is None
@@ -349,55 +408,68 @@ def to_domain(
     if t.type_enum == type_pb2.TypeProto.BITS:
       c_type = to_specialized(t, int_only=True)
       if c_type is None:
-        return None
+        return None, False
       if t.bit_count in (8, 16, 32, 64):
-        return f"fuzztest::Arbitrary<{c_type}>()"
+        return f"fuzztest::Arbitrary<{c_type}>()", True
       else:
         max_val = (1 << t.bit_count) - 1
-        return f"fuzztest::InRange<{c_type}>(0, {max_val})"
+        return f"fuzztest::InRange<{c_type}>(0, {max_val})", True
     elif t.type_enum == type_pb2.TypeProto.TUPLE:
-      elems = [to_domain(e, None) for e in t.tuple_elements]
-      if any(e is None for e in elems):
-        return None
-      return f"fuzztest::TupleOf({', '.join(elems)})"
-
+      child_results = [
+          to_domain(e, None, f"{type_expr}.tuple_elements({i})")
+          for i, e in enumerate(t.tuple_elements)
+      ]
+      return _combine_tuple_domains(t, child_results, type_expr)
     else:
-      return None
+      return None, False
 
   if d.HasField("range"):
     cpp_type = to_specialized(t, int_only=True)
     if cpp_type is None:
       if not can_use_uint64_range(t, d):
-        raise app.UsageError(
-            "Range domain is only supported for specializable bits types or"
-            " ranges fitting in 64 bits"
-        )
+        return None, False
       cpp_type = "uint64_t"
     min_val = extract_int_from_bytes(d.range.min.bits.data)
     max_val = extract_int_from_bytes(d.range.max.bits.data)
-    return f"fuzztest::InRange<{cpp_type}>({min_val}, {max_val})"
+    return f"fuzztest::InRange<{cpp_type}>({min_val}, {max_val})", True
 
   if d.HasField("element_of"):
     c_type = to_specialized(t, int_only=True)
-    if c_type is None:
-      raise app.UsageError(
-          "ElementOf domain only supported for specializable bits types in"
-          " this CL"
+    if c_type is not None:
+      vals = [
+          str(extract_int_from_bytes(v.bits.data)) for v in d.element_of.values
+      ]
+      return (
+          f"fuzztest::ElementOf(std::vector<{c_type}>{{{', '.join(vals)}}})",
+          True,
       )
-    vals = [
-        str(extract_int_from_bytes(v.bits.data)) for v in d.element_of.values
-    ]
-    return f"fuzztest::ElementOf(std::vector<{c_type}>{{{', '.join(vals)}}})"
+    else:
+      proto_bytes = d.element_of.SerializeToString()
+      bytes_str = ", ".join(str(b) for b in proto_bytes)
+      # Proto in two formats: text (for the human-readable comment) and binary
+      # (to be parsed by the C++ helper).
+      proto_text = text_format.MessageToString(d.element_of).replace(
+          "\n", "\n// "
+      )
+      return (
+          (
+              f"// {proto_text}\n"
+              f"xls::ElementOfDomain(xls::ParseElementOfProto(std::vector<uint8_t>{{{bytes_str}}}))"
+          ),
+          False,
+      )
 
   if d.HasField("tuple"):
     if t.type_enum != type_pb2.TypeProto.TUPLE:
       raise app.UsageError("Tuple domain requires Tuple type")
     if len(d.tuple.elements) != len(t.tuple_elements):
       raise app.UsageError("Tuple domain and type element count mismatch")
-    elems = [
-        to_domain(te, de) for te, de in zip(t.tuple_elements, d.tuple.elements)
+
+    child_results = [
+        to_domain(te, de, f"{type_expr}.tuple_elements({i})")
+        for i, (te, de) in enumerate(zip(t.tuple_elements, d.tuple.elements))
     ]
-    return f"fuzztest::TupleOf({', '.join(elems)})"
+    return _combine_tuple_domains(t, child_results, type_expr)
 
   raise app.UsageError(f"Unsupported domain: {d}")
 
@@ -443,9 +515,7 @@ def to_param(
       unpacked_type=to_unpacked(p.type),
       specialized_type=to_specialized(p.type),
       type_proto=p.type,
-      fuzztest_info=FuzzTestInfo(
-          domain_snippet=to_domain(p.type, d), domain_proto=d
-      ),
+      fuzztest_info=FuzzTestInfo(domain_proto=d),
   )
 
 
@@ -622,30 +692,42 @@ def wrapped_to_fuzztest(
 ) -> PropertyFunction:
   """Converts a WrappedIr object to a dictionary for fuzztest template."""
   params = []
+  can_be_specialized = wrapped.can_be_specialized
+
   if wrapped.params:
     for idx, p in enumerate(wrapped.params):
-      is_native = p.specialized_type is not None
       domain_proto = p.fuzztest_info.domain_proto if p.fuzztest_info else None
-      domain_snippet = (
-          p.fuzztest_info.domain_snippet if p.fuzztest_info else None
+      type_expr = f"{lib_class_name}::GetParamType({idx}).value()"
+      domain_snippet, is_native_domain = to_domain(
+          p.type_proto, domain_proto, type_expr
       )
 
+      is_native = p.specialized_type is not None
       if not is_native and can_use_uint64_range(p.type_proto, domain_proto):
         cpp_type = "uint64_t"
         is_native = True
       else:
         cpp_type = to_c_type(p.type_proto)
 
-      if cpp_type is None:
+      if not is_native_domain:
         cpp_type = "xls::Value"
+        is_native = False
+
+      if cpp_type is None or cpp_type == "xls::Value":
+        cpp_type = "xls::Value"
+        is_native = False
         conversion_snippet = None
       else:
         conversion_snippet = to_value_conversion(p.type_proto, p.name)
+
+      if not is_native:
+        can_be_specialized = False
 
       if (
           len(wrapped.params) == 1
           and p.type_proto.type_enum == type_pb2.TypeProto.TUPLE
           and domain_snippet is not None
+          and is_native_domain
       ):
         domain_snippet = f"fuzztest::TupleOf({domain_snippet})"
 
@@ -676,7 +758,7 @@ def wrapped_to_fuzztest(
       namespace=wrapped.namespace,
       params=params,
       return_type=wrapped.result is not None,
-      can_be_specialized=wrapped.can_be_specialized,
+      can_be_specialized=can_be_specialized,
       result_width=result_width,
   )
 

@@ -15,10 +15,13 @@
 #include "xls/ir/value_test_util.h"
 
 #include <cstdint>
+#include <utility>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_test_utils.h"
 #include "xls/ir/fuzz_type_domain.h"
@@ -26,6 +29,7 @@
 #include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_flattening.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/ir/xls_type.pb.h"
 
 namespace xls {
@@ -73,6 +77,27 @@ fuzztest::Domain<Value> ArbitraryValue(int64_t max_bit_count,
 
 fuzztest::Domain<Value> ArbitraryValue(TypeProto type) {
   return ArbitraryValue(fuzztest::Just(type));
+}
+
+// Parses the binary-format serialized proto of type ElementOfProto and returns
+// the proto.
+ElementOfProto ParseElementOfProto(absl::Span<const uint8_t> bytes) {
+  ElementOfProto proto;
+  CHECK(proto.ParseFromArray(bytes.data(), bytes.size()));
+  return proto;
+}
+
+// Note to self: ElementOfProto is a 'using' alias defined in the header.
+fuzztest::Domain<Value> ElementOfDomain(ElementOfProto proto) {
+  std::vector<Value> values;
+  values.reserve(proto.values_size());
+  for (const auto& value_proto : proto.values()) {
+    auto value_or = Value::FromProto(value_proto);
+    CHECK_OK(value_or.status()) << "Failed to parse Value from proto: "
+                                << value_proto.ShortDebugString();
+    values.push_back(std::move(value_or.value()));
+  }
+  return fuzztest::ElementOf(values);
 }
 
 }  // namespace xls
