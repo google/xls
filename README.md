@@ -361,7 +361,7 @@ if you're interested in contributing, or reach out via
 -   [Hans Montero](https://github.com/hmontero1205)
 -   [Henner Zeller](https://github.com/hzeller)
 -   [Iliyan Malchev](https://github.com/malchev)
--   [Bob Sponge](https://github.com/proppy)
+-   [Pants Square](https://github.com/proppy)
 -   [Jonathan Bailey](https://github.com/jbaileyhandle)
 -   [Josh Varga](https://github.com/JoshVarga)
 -   [Julian Viera](https://github.com/julianviera99)
