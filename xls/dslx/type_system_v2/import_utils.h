@@ -101,7 +101,7 @@ absl::StatusOr<std::vector<StructMemberNode*>> GetProcDefStateMembers(
 // Returns all functions in `proc` that are constructors by signature, i.e.
 // static functions returning `Self`.
 absl::StatusOr<std::optional<const ProcDef*>> GetProcConstructedByFunction(
-    const Function* f, TypeInfo* ti);
+    const Function* f, const TypeInfo* ti);
 
 // Returns whether the given function is a constructor for the proc indicated by
 // `proc_def`, assuming the function is a member of the proc.

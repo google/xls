@@ -1404,5 +1404,69 @@ impl TestProc {
                            "`TestProc->Incrementer#0::out_ch`:\n  u32:101"));
 }
 
+TEST_F(ProcHierarchyInterpreterTest, ProcDefDealingOutBothEndsOfChannel) {
+  std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+pub proc P {
+    c_out: chan<u32> out,
+    i: u32,
+}
+
+impl P {
+    fn new(c_out: chan<u32> out) -> Self {
+        P { c_out: c_out, i: 0 }
+    }
+
+    fn next(self) {
+        let last_i = read(self.i);
+        send(join(), self.c_out, last_i);
+        write(self.i, last_i + 1);
+    }
+}
+
+proc C {
+    c_in: chan<u32> in,
+    terminator: chan<bool> out,
+    i: u32,
+}
+
+impl C {
+    fn new(c_in: chan<u32> in, terminator: chan<bool> out) -> Self {
+        C { c_in: c_in, terminator: terminator, i: 0 }
+    }
+    fn next(self) {
+        let last_i = read(self.i);
+        let (tok1, e) = recv(join(), self.c_in);
+        write(self.i, e + last_i);
+        send_if(token(), self.terminator, last_i > 1, true);
+    }
+}
+
+#[test]
+proc TestProc {}
+
+impl TestProc {
+    fn new(terminator: chan<bool> out) -> Self {
+        let (c_out, c_in) = chan<u32>("my_chan");
+        P::new(c_out).spawn();
+        let c = C::new(c_in, terminator);
+        c.spawn();
+        TestProc {}
+    }
+
+    fn next(self) {}
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
 }  // namespace
 }  // namespace xls::dslx

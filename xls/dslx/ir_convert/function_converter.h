@@ -550,22 +550,29 @@ class FunctionConverter {
 
   template <typename NodeType>
   absl::Status DefineProcDefChannelOrArray(
-      const NodeType* node, const InterpValue& value, const Type* type,
+      const NodeType* node, std::optional<const NameDef*> name_def,
+      const InterpValue& value, const Type* type,
       absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>& channel_decls);
 
   absl::Status InitProcDefChannels(
       const ProcDef* proc_def,
-      const InterpValue::ProcInitializer& canonical_initializer);
+      const InterpValue::ProcInitializer& canonical_initializer,
+      const TypeInfo* constructor_ti);
   absl::Status InitProcDefStateElements(
       const ProcDef* proc_def,
       const InterpValue::ProcInitializer& canonical_initializer);
   absl::StatusOr<std::unique_ptr<ProcDefInstance>> CreateProcDefInstance(
       const ProcDef* proc_def);
+  absl::Status DefineProcDefChannelOrArrayIfLocal(const ProcDef* proc_def,
+                                                  const InterpValue& value,
+                                                  const TypeInfo* ti);
   absl::Status ExpandProcDefChannelReference(
-      const InterpValue& ref, std::vector<ChannelInterface*>& out);
-  absl::Status AddProcDefInstantiation(
-      const ProcDef* proc_def, const InterpValue& external_initializer,
-      const InterpValue& canonical_initializer);
+      const InterpValue& channel_or_array_value,
+      std::vector<ChannelInterface*>& out);
+  absl::Status AddProcDefInstantiation(const ProcDef* proc_def,
+                                       const InterpValue& external_initializer,
+                                       const InterpValue& canonical_initializer,
+                                       const TypeInfo* constructor_ti);
   absl::StatusOr<ChannelArray*> GetChannelArrayForAttr(const Attr* attr);
 
   absl::Status HandleProcDefSpawn(ProcDefInstance* instance);

@@ -138,9 +138,8 @@ class ChannelScope {
   // The owner (IR converter driving the overall procedure) should invoke this
   // with the `type_info` and `bindings` for the function, before converting
   // each function to IR. All other functions assume this has been done.
-  void EnterFunctionContext(TypeInfo* type_info,
-                            const ParametricEnv& bindings) {
-    function_context_.emplace(type_info, bindings);
+  void EnterFunctionContext(TypeInfo* type_info, ParametricEnv bindings) {
+    function_context_.emplace(type_info, std::move(bindings));
   }
 
   // Creates the channel object, or array of channel objects, indicated by the
@@ -249,12 +248,11 @@ class ChannelScope {
   // Set by the caller via `EnterContext()` before the conversion of each
   // function.
   struct FunctionContext {
-    FunctionContext(TypeInfo* type_info_value,
-                    const ParametricEnv& bindings_value)
-        : type_info(type_info_value), bindings(bindings_value) {}
+    FunctionContext(TypeInfo* type_info_value, ParametricEnv bindings_value)
+        : type_info(type_info_value), bindings(std::move(bindings_value)) {}
 
     TypeInfo* const type_info;
-    const ParametricEnv& bindings;
+    ParametricEnv bindings;
   };
   std::optional<FunctionContext> function_context_;
 

@@ -3809,9 +3809,49 @@ absl::StatusOr<ChannelArray*> FunctionConverter::GetChannelArrayForAttr(
       absl::Substitute("Not a channel or array: `$0`", attr->ToString()));
 }
 
+absl::Status FunctionConverter::DefineProcDefChannelOrArrayIfLocal(
+    const ProcDef* proc_def, const InterpValue& value, const TypeInfo* ti) {
+  if (channel_or_array_id_to_object_.contains(GetChannelOrArrayId(value))) {
+    return absl::OkStatus();
+  }
+
+  const AstNode* definer = GetChannelOrArrayDefiner(value);
+  if (definer->kind() != AstNodeKind::kChannelDecl) {
+    return absl::OkStatus();
+  }
+
+  std::optional<const Function*> containing_fn = GetContainingFunction(definer);
+  if (!containing_fn.has_value()) {
+    return absl::OkStatus();
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::optional<const ProcDef*> containing_proc,
+                       GetProcConstructedByFunction(*containing_fn, ti));
+  if (!containing_proc.has_value() || *containing_proc != proc_def) {
+    return absl::OkStatus();
+  }
+
+  VLOG(5) << "Defining channel: " << value.ToString()
+          << ", which is created locally in " << proc_def->identifier()
+          << " and only used to construct sub-procs.";
+
+  XLS_ASSIGN_OR_RETURN(const Type* channel_decl_type,
+                       ti->GetItemOrError(definer));
+  ChannelDirection direction = GetChannelOrArrayDirection(value);
+  XLS_RET_CHECK(channel_decl_type->IsTuple());
+  XLS_RET_CHECK_EQ(channel_decl_type->AsTuple().size(), 2);
+  const Type& direction_type = channel_decl_type->AsTuple().GetMemberType(
+      direction == ChannelDirection::kOut ? 0 : 1);
+  absl::flat_hash_map<const ChannelDecl*, ChannelOrArray> channel_decls;
+  return DefineProcDefChannelOrArray<ChannelDecl>(
+      absl::down_cast<const ChannelDecl*>(definer),
+      /*name_def=*/std::nullopt, value, &direction_type, channel_decls);
+}
+
 template <typename NodeType>
 absl::Status FunctionConverter::DefineProcDefChannelOrArray(
-    const NodeType* node, const InterpValue& value, const Type* type,
+    const NodeType* node, std::optional<const NameDef*> name_def,
+    const InterpValue& value, const Type* type,
     absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>& channel_decls) {
   std::optional<const AstNode*> definer_opt = GetChannelOrArrayDefiner(value);
   XLS_RET_CHECK(definer_opt.has_value());
@@ -3841,13 +3881,17 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
     }
 
     SetNodeToChannelOrArray(node, it->second);
-    SetNodeToChannelOrArray(node->name_def(), it->second);
+
+    if (name_def.has_value()) {
+      SetNodeToChannelOrArray(*name_def, it->second);
+    }
     return absl::OkStatus();
   }
 
   XLS_RET_CHECK(definer->kind() == AstNodeKind::kParam);
   const auto* param = absl::down_cast<const Param*>(definer);
-  VLOG(5) << "Generating channel interface: " << param->ToString();
+  VLOG(5) << "Generating channel interface: " << param->ToString()
+          << " with reference " << value.ToString();
 
   ChannelOrArray channel_or_array;
   const ChannelType* channel_type = nullptr;
@@ -3874,7 +3918,10 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
       channel_or_array,
       channel_scope_->DefineBoundaryChannelOrArray(param, current_type_info_));
   SetNodeToChannelOrArray(node, channel_or_array);
-  SetNodeToChannelOrArray(node->name_def(), channel_or_array);
+
+  if (name_def.has_value()) {
+    SetNodeToChannelOrArray(*name_def, channel_or_array);
+  }
   VLOG(10) << "Populating channel for " << value.ToString() << " in conv "
            << std::hex << (uint64_t)this;
   channel_or_array_id_to_object_[*value.GetChannelReferenceOrDie()
@@ -3886,13 +3933,15 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
 
 absl::Status FunctionConverter::InitProcDefChannels(
     const ProcDef* proc_def,
-    const InterpValue::ProcInitializer& canonical_initializer) {
+    const InterpValue::ProcInitializer& canonical_initializer,
+    const TypeInfo* constructor_ti) {
   ParametricEnv env;
   proc_def_channel_scope_ = std::make_unique<ProcScopedChannelScope>(
       package_data_.conversion_info, import_data_, options_,
       absl::down_cast<ProcBuilder*>(function_builder_.get()),
       [this](const Attr* attr) { return GetChannelArrayForAttr(attr); });
-  proc_def_channel_scope_->EnterFunctionContext(current_type_info_, env);
+  proc_def_channel_scope_->EnterFunctionContext(current_type_info_,
+                                                std::move(env));
   channel_scope_ = proc_def_channel_scope_.get();
 
   XLS_ASSIGN_OR_RETURN(const Type* type,
@@ -3915,7 +3964,7 @@ absl::Status FunctionConverter::InitProcDefChannels(
     }
 
     XLS_RETURN_IF_ERROR(DefineProcDefChannelOrArray<StructMemberNode>(
-        member, initializer, member_type, channel_decls));
+        member, member->name_def(), initializer, member_type, channel_decls));
   }
 
   for (const auto& [param, initializer] :
@@ -3930,7 +3979,7 @@ absl::Status FunctionConverter::InitProcDefChannels(
       continue;
     }
     XLS_RETURN_IF_ERROR(DefineProcDefChannelOrArray<Param>(
-        param, initializer, param_type, channel_decls));
+        param, param->name_def(), initializer, param_type, channel_decls));
   }
 
   return absl::OkStatus();
@@ -4028,7 +4077,7 @@ absl::Status FunctionConverter::ExpandProcDefChannelReference(
 
 absl::Status FunctionConverter::AddProcDefInstantiation(
     const ProcDef* proc_def, const InterpValue& external_initializer,
-    const InterpValue& canonical_initializer) {
+    const InterpValue& canonical_initializer, const TypeInfo* constructor_ti) {
   std::vector<ChannelInterface*> channel_args;
 
   const std::vector<InterpValue>& external_members =
@@ -4048,6 +4097,8 @@ absl::Status FunctionConverter::AddProcDefInstantiation(
     VLOG(10) << "Passing channel or array `" << external_arg.ToString()
              << "` in proc instantiation `" << canonical_initializer.ToString()
              << "`";
+    XLS_RETURN_IF_ERROR(DefineProcDefChannelOrArrayIfLocal(
+        proc_def, external_arg, constructor_ti));
     XLS_RETURN_IF_ERROR(
         ExpandProcDefChannelReference(external_arg, channel_args));
   }
@@ -4118,7 +4169,8 @@ absl::Status FunctionConverter::ConvertProcDef(
   proc_data_->id_to_members[proc_id] = {};
 
   XLS_RETURN_IF_ERROR(InitProcDefBuilder(proc_def, env));
-  XLS_RETURN_IF_ERROR(InitProcDefChannels(proc_def, canonical_initializer));
+  XLS_RETURN_IF_ERROR(
+      InitProcDefChannels(proc_def, canonical_initializer, constructor_ti));
   XLS_RETURN_IF_ERROR(
       InitProcDefStateElements(proc_def, canonical_initializer));
 
@@ -4129,7 +4181,7 @@ absl::Status FunctionConverter::ConvertProcDef(
         ProcInitializerWithTypeInfo canonical_initializer,
         current_type_info_->GetCanonicalProcInitializer(spawnee));
     XLS_RETURN_IF_ERROR(AddProcDefInstantiation(
-        proc_def, spawnee, canonical_initializer.initializer));
+        proc_def, spawnee, canonical_initializer.initializer, constructor_ti));
   }
 
   std::optional<Function*> next_fn = GetProcNextFunction(proc_def);

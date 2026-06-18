@@ -316,7 +316,7 @@ absl::StatusOr<std::vector<StructMemberNode*>> GetProcDefStateMembers(
 }
 
 absl::StatusOr<std::optional<const ProcDef*>> GetProcConstructedByFunction(
-    const Function* f, TypeInfo* ti) {
+    const Function* f, const TypeInfo* ti) {
   if (!f->impl().has_value()) {
     return std::nullopt;
   }
