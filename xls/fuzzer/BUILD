@@ -1053,3 +1053,8 @@ xls_dslx_library(
     name = "crashers/crasher_2026_06_03_919f",
     srcs = ["crashers/crasher_2026-06-03_919f.x"],
 )
+
+xls_dslx_library(
+    name = "crashers/crasher_2026_06_18_9131",
+    srcs = ["crashers/crasher_2026-06-18_9131.x"],
+)
