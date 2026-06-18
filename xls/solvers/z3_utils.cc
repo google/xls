@@ -111,6 +111,7 @@ Z3_solver CreateSolver(Z3_context ctx, int num_threads) {
                      num_threads);
   Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "threads"),
                      num_threads);
+  Z3_params_set_bool(ctx, params, Z3_mk_string_symbol(ctx, "ctrl_c"), false);
 
   Z3_solver solver = Z3_mk_solver(ctx);
   Z3_solver_inc_ref(ctx, solver);
@@ -126,6 +127,7 @@ ScopedSolverParams::ScopedSolverParams(Z3_context ctx, Z3_solver solver,
     : ctx_(ctx) {
   params_ = Z3_mk_params(ctx);
   Z3_params_inc_ref(ctx, params_);
+  Z3_params_set_bool(ctx, params_, Z3_mk_string_symbol(ctx, "ctrl_c"), false);
   if (timeout.has_value()) {
     Z3_symbol timeout_sym = Z3_mk_string_symbol(ctx, "timeout");
     Z3_params_set_uint(ctx, params_, timeout_sym,
