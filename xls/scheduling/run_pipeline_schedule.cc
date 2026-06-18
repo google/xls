@@ -440,7 +440,8 @@ absl::StatusOr<PipelineSchedule> RunIterativeSDCSchedule(
   // Use delay manager for scheduling timing verification.
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
-      PipelineSchedule::Create(f, cycle_map, options.pipeline_stages()));
+      PipelineSchedule::Create(f, cycle_map,
+                               {.length = options.pipeline_stages()}));
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, delay_manager));
   XLS_RETURN_IF_ERROR(
@@ -642,9 +643,10 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         cycle_map[node] = 0;
       }
     }
-    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
-                         PipelineSchedule::Create(f, std::move(cycle_map),
-                                                  options.pipeline_stages()));
+    XLS_ASSIGN_OR_RETURN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Create(f, std::move(cycle_map),
+                                 {.length = options.pipeline_stages()}));
     XLS_RETURN_IF_ERROR(schedule.Verify());
     XLS_RETURN_IF_ERROR(
         schedule.VerifyConstraints(options.constraints(), options));
@@ -882,8 +884,11 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
 
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
-      PipelineSchedule::Create(f, cycle_map, options.pipeline_stages(),
-                               min_clock_period_ps_for_tracing));
+      PipelineSchedule::Create(
+          f, cycle_map,
+          {.length = options.pipeline_stages(),
+           .min_clock_period_ps = min_clock_period_ps_for_tracing,
+           .target_clock_period_ps = clock_period_ps}));
   XLS_VLOG_LINES(5, "Schedule\n" + schedule.ToString());
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, io_delay_added));

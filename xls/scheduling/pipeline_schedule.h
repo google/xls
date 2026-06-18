@@ -59,13 +59,18 @@ class PipelineSchedule {
   // Builds trivial pipeline schedule with all nodes in a single stage
   static absl::StatusOr<PipelineSchedule> SingleStage(FunctionBase* function);
 
+  struct Options {
+    std::optional<int64_t> length;
+    std::optional<int64_t> min_clock_period_ps;
+    std::optional<int64_t> target_clock_period_ps;
+  };
+
   // Constructs a schedule for the given function with the given cycle map. If
-  // length is not given, then the length equal to the largest cycle in cycle
-  // map minus one.
-  static absl::StatusOr<PipelineSchedule> Create(
-      FunctionBase* function_base, ScheduleCycleMap cycle_map,
-      std::optional<int64_t> length = std::nullopt,
-      std::optional<int64_t> min_clock_period_ps = std::nullopt);
+  // length is not given in `options`, then the length is equal to the largest
+  // cycle in cycle map minus one.
+  static absl::StatusOr<PipelineSchedule> Create(FunctionBase* function_base,
+                                                 ScheduleCycleMap cycle_map,
+                                                 Options options = {});
 
   FunctionBase* function_base() const { return function_base_; }
 
@@ -106,6 +111,10 @@ class PipelineSchedule {
     return min_clock_period_ps_;
   }
 
+  const std::optional<int64_t>& target_clock_period_ps() const {
+    return target_clock_period_ps_;
+  }
+
   // Verifies various invariants of the schedule (each node scheduled exactly
   // once, node not scheduled before operands, etc.).
   absl::Status Verify() const;
@@ -134,7 +143,8 @@ class PipelineSchedule {
 
  private:
   PipelineSchedule(FunctionBase* function_base, ScheduleCycleMap cycle_map,
-                   std::optional<int64_t> min_clock_period_ps);
+                   std::optional<int64_t> min_clock_period_ps,
+                   std::optional<int64_t> target_clock_period_ps);
 
   FunctionBase* function_base_ = nullptr;
 
@@ -146,6 +156,9 @@ class PipelineSchedule {
 
   // The minimum possible clock period, if known.
   std::optional<int64_t> min_clock_period_ps_;
+
+  // The actual target clock period used for scheduling.
+  std::optional<int64_t> target_clock_period_ps_;
 };
 
 // A collection of FunctionBase schedules necessary to generate pipelined

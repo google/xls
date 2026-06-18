@@ -66,24 +66,26 @@ int64_t MaximumCycle(const ScheduleCycleMap& cycle_map) {
 
 }  // namespace
 
-PipelineSchedule::PipelineSchedule(FunctionBase* function_base,
-                                   ScheduleCycleMap cycle_map,
-                                   std::optional<int64_t> min_clock_period_ps)
+PipelineSchedule::PipelineSchedule(
+    FunctionBase* function_base, ScheduleCycleMap cycle_map,
+    std::optional<int64_t> min_clock_period_ps,
+    std::optional<int64_t> target_clock_period_ps)
     : function_base_(function_base),
       cycle_map_(std::move(cycle_map)),
-      min_clock_period_ps_(min_clock_period_ps) {}
+      min_clock_period_ps_(min_clock_period_ps),
+      target_clock_period_ps_(target_clock_period_ps) {}
 
 /* static */ absl::StatusOr<PipelineSchedule> PipelineSchedule::Create(
-    FunctionBase* function_base, ScheduleCycleMap cycle_map,
-    std::optional<int64_t> length, std::optional<int64_t> min_clock_period_ps) {
+    FunctionBase* function_base, ScheduleCycleMap cycle_map, Options options) {
   PipelineSchedule schedule(function_base, std::move(cycle_map),
-                            min_clock_period_ps);
+                            options.min_clock_period_ps,
+                            options.target_clock_period_ps);
 
   // Build the mapping from cycle to the vector of nodes in that cycle.
   int64_t max_cycle = MaximumCycle(schedule.cycle_map_);
-  if (length.has_value()) {
-    CHECK_GT(*length, max_cycle);
-    max_cycle = *length - 1;
+  if (options.length.has_value()) {
+    CHECK_GT(*options.length, max_cycle);
+    max_cycle = *options.length - 1;
   }
   // max_cycle is the latest cycle in which any node is scheduled so add one to
   // get the capacity because cycle numbers start at zero.
@@ -157,9 +159,15 @@ absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
   if (schedule_it->second.has_min_clock_period_ps()) {
     min_clock_period_ps = schedule_it->second.min_clock_period_ps();
   }
-  return PipelineSchedule::Create(function, std::move(cycle_map),
-                                  schedule_it->second.length(),
-                                  min_clock_period_ps);
+  std::optional<int64_t> target_clock_period_ps;
+  if (schedule_it->second.has_target_clock_period_ps()) {
+    target_clock_period_ps = schedule_it->second.target_clock_period_ps();
+  }
+  return PipelineSchedule::Create(
+      function, std::move(cycle_map),
+      Options{.length = schedule_it->second.length(),
+              .min_clock_period_ps = min_clock_period_ps,
+              .target_clock_period_ps = target_clock_period_ps});
 }
 
 absl::StatusOr<PipelineSchedule> PipelineSchedule::SingleStage(
@@ -731,6 +739,9 @@ absl::StatusOr<PipelineScheduleProto> PipelineSchedule::ToProto(
 
   if (min_clock_period_ps_.has_value()) {
     proto.set_min_clock_period_ps(*min_clock_period_ps_);
+  }
+  if (target_clock_period_ps_.has_value()) {
+    proto.set_target_clock_period_ps(*target_clock_period_ps_);
   }
   proto.set_length(length());
   return proto;

@@ -139,7 +139,7 @@ absl::StatusOr<std::string> Synthesizer::FunctionBaseToVerilog(
       options.reset("rst", false, false, false);
     }
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
-                         PipelineSchedule::Create(f, cycle_map, 1));
+                         PipelineSchedule::Create(f, cycle_map, {.length = 1}));
     XLS_ASSIGN_OR_RETURN(
         verilog::CodegenContext context,
         verilog::FunctionBaseToPipelinedBlock(schedule, options, f));

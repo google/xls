@@ -757,7 +757,7 @@ TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
                                                  {min_delay.node(), 1},
                                                  {send_q.node(), 1},
                                                  {next_q.node(), 1}}),
-                               /*length=*/3));
+                               {.length = 3}));
 
   // Verify that we really did schedule the param after the next-state node.
   ASSERT_GT(schedule.cycle(q.node()), schedule.cycle(received_data.node()));
@@ -5869,7 +5869,7 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveRegions) {
                                                      {nxt_a.node(), 2},
                                                      {nxt_b.node(), 2},
                                                      {nxt_c.node(), 2}},
-                                                    3));
+                                                    {.length = 3}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -5902,7 +5902,7 @@ TEST_F(BlockConversionTest, NodeToStageMapSimple) {
            {a.node(), 0},
            {na.node(), 1},
            {nxt_a.node(), 1}},  // stage 0 can activate again
-          2));
+          {.length = 2}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -5964,7 +5964,7 @@ TEST_F(BlockConversionTest, NodeToStageMapMulti) {
            {nxt_c.node(), 3},  // stage 2 can activate again
            {sv.node(), 4},
            {send.node(), 4}},
-          5));
+          {.length = 5}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -6027,7 +6027,7 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveAndConcurrentRegions) {
                                                      {nxt_c.node(), 1},
                                                      {sv.node(), 2},
                                                      {send.node(), 2}},
-                                                    3));
+                                                    {.length = 3}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -6079,7 +6079,7 @@ TEST_F(BlockConversionTest, SimpleConcurrentRegions) {
                                                      {nxt_c.node(), 0},
                                                      {sv.node(), 1},
                                                      {send.node(), 2}},
-                                                    3));
+                                                    {.length = 3}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -6133,7 +6133,7 @@ TEST_F(BlockConversionTest, MultipleConcurrentRegions) {
            {nxt_c.node(), 3},  // stage 2 can activate again
            {sv.node(), 4},
            {send.node(), 4}},
-          5));
+          {.length = 5}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
@@ -6209,7 +6209,7 @@ TEST_F(BlockConversionTest, CoveringRegions) {
                                                      {nxt_c.node(), 2},
                                                      {sv.node(), 4},
                                                      {send.node(), 4}},
-                                                    5));
+                                                    {.length = 5}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,

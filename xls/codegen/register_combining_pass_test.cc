@@ -144,7 +144,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
                                                         {send.node(), 10},
                                                         {nxt.node(), 12},
                                                     },
-                                                    13));
+                                                    {.length = 13}));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto context,
       FunctionBaseToPipelinedBlock(sched,
@@ -237,7 +237,7 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
                                                         {snd_add.node(), 11},
                                                         {nxt2.node(), 14},
                                                     },
-                                                    15));
+                                                    {.length = 15}));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto context,
       FunctionBaseToPipelinedBlock(sched,
@@ -341,7 +341,7 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
                                                         {snd_add.node(), 13},
                                                         {nxt2.node(), 15},
                                                     },
-                                                    16));
+                                                    {.length = 16}));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto context,
       FunctionBaseToPipelinedBlock(sched,
@@ -437,7 +437,7 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
                                                         {nxt_pred.node(), 12},
                                                         {nxt.node(), 12},
                                                     },
-                                                    13));
+                                                    {.length = 13}));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto context,
       FunctionBaseToPipelinedBlock(sched,
@@ -519,7 +519,7 @@ TEST_F(RegisterCombiningPassTest, DoesntApplyToPredicatedReads) {
                                    {always_false_3.node(), 12},
                                    {nxt.node(), 12},
                                },
-                               13));
+                               {.length = 13}));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto context,
       FunctionBaseToPipelinedBlock(sched,

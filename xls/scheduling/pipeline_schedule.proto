@@ -55,6 +55,9 @@ message PipelineScheduleProto {
 
   // The number of stages in the schedule.
   optional int64 length = 4;
+
+  // The actual target clock period used for scheduling and timing verification.
+  optional int64 target_clock_period_ps = 5;
 }
 
 // Holds pipeline schedules for a subset of functions/procs in a package.

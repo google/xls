@@ -244,7 +244,7 @@ absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule result,
       PipelineSchedule::Create(schedule.function_base(), cycle_map,
-                               schedule.length() + cycle_offset));
+                               {.length = schedule.length() + cycle_offset}));
   return std::move(result);
 }
 
