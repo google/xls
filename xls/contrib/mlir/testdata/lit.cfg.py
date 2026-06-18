@@ -25,7 +25,7 @@ from lit.llvm import llvm_config
 # Populate Lit configuration with the minimal required metadata.
 # Some metadata is populated in lit.site.cfg.py.in.
 config.name = 'MLIR_TESTS_SUITE'
-config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
+config.test_format = lit.formats.ShTest()
 config.suffixes = ['.mlir', '.ir']
 config.test_source_root = os.path.dirname(__file__)
 

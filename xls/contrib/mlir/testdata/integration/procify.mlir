@@ -23,7 +23,7 @@
 
 // RUN: eval_proc_main  %t \
 // RUN:   --backend=ir_interpreter --ticks=10 --show_trace --logtostderr \
-// RUN: |& FileCheck --check-prefix=CHECK-RUNTIME %s
+// RUN: 2>&1 | FileCheck --check-prefix=CHECK-RUNTIME %s
 
 // CHECK-RUNTIME: sum_next: 0, 0
 // CHECK-RUNTIME: sum_next: 1, 1
