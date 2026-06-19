@@ -2177,8 +2177,6 @@ impl PassthroughProc {
     SomeProc::new(ins).spawn();
     PassthroughProc {}
   }
-
-  fn next(self) {}
 }
 
 proc TopProc {
@@ -2600,7 +2598,7 @@ impl Main {
                        HasSubstr("Proc 'Main' does not have a constructor")));
 }
 
-TEST_F(IrConverterTest, TopProcDefWithNoNextFails) {
+TEST_F(IrConverterTest, TopProcDefWithNoNext) {
   constexpr std::string_view program = R"(
 #![feature(explicit_state_access)]
 
@@ -2618,10 +2616,10 @@ impl Main {
 )";
 
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(
-      ConvertOneFunctionForTest(program, "Main", import_data).status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("A proc with no 'next' function cannot be top.")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Main", import_data));
+  ExpectIr(converted);
 }
 
 TEST_F(IrConverterTest, ProcDefDealingOutBothEndsOfChannel) {
@@ -2671,8 +2669,6 @@ impl Main {
         c.spawn();
         Main {}
     }
-
-    fn next(self) {}
 }
 )";
 

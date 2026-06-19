@@ -632,12 +632,9 @@ absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
     XLS_RET_CHECK(!resolved_proc_alias.has_value());
     ProcDef* p = std::get<ProcDef*>(entry);
     std::optional<Function*> next_fn = GetProcNextFunction(p);
-    if (!next_fn.has_value() ||
-        GetAttribute(*next_fn, AttributeKind::kTrivialNext).has_value()) {
-      return absl::InvalidArgumentError(
-          "A proc with no 'next' function cannot be top.");
-    }
-
+    XLS_RET_CHECK(next_fn.has_value())
+        << "There should be either a user-written next function or a trivial "
+           "one generated within the compiler.";
     top_fn = *next_fn;
     visit_target = p;
   }
