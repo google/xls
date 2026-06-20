@@ -37,6 +37,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/codegen_flags_handler_registry.h"
 
 // LINT.IfChange
 ABSL_FLAG(
@@ -438,6 +439,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
   POPULATE_FLAG(array_index_bounds_checking);
   POPULATE_FLAG(fifo_module);
   POPULATE_FLAG(nodata_fifo_module);
+
   if (absl::GetFlag(FLAGS_materialize_internal_fifos)) {
     any_flags_set = true;
     if (!FLAGS_fifo_module.IsSpecifiedOnCommandLine()) {
@@ -451,6 +453,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
              "--materialize_internal_fifos.";
     }
   }
+
   XLS_ASSIGN_OR_RETURN(
       RegisterMergeStrategyProto merge_strategy,
       MergeStrategyFromString(absl::GetFlag(FLAGS_register_merge_strategy)));
@@ -514,6 +517,7 @@ absl::StatusOr<CodegenFlagsProto> GetCodegenFlags() {
     XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(
         absl::GetFlag(FLAGS_codegen_options_proto), &proto));
   }
+  XLS_RETURN_IF_ERROR(CodegenFlagsHandlerRegistry::ParseFlags(proto));
   if (absl::GetFlag(FLAGS_codegen_options_used_textproto_file)) {
     XLS_RETURN_IF_ERROR(SetTextProtoFile(
         *absl::GetFlag(FLAGS_codegen_options_used_textproto_file), proto));

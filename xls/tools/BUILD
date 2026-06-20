@@ -725,6 +725,7 @@ cc_library(
     hdrs = ["codegen_flags.h"],
     deps = [
         ":codegen_flags_cc_proto",
+        ":codegen_flags_handler_registry",
         "//xls/codegen:codegen_residual_data_cc_proto",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
@@ -766,11 +767,24 @@ cc_library(
 )
 
 cc_library(
+    name = "codegen_flags_handler_registry",
+    srcs = ["codegen_flags_handler_registry.cc"],
+    hdrs = ["codegen_flags_handler_registry.h"],
+    deps = [
+        ":codegen_flags_cc_proto",
+        "//xls/codegen:codegen_options",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
     name = "codegen",
     srcs = ["codegen.cc"],
     hdrs = ["codegen.h"],
     deps = [
         ":codegen_flags_cc_proto",
+        ":codegen_flags_handler_registry",
         ":schedule",
         ":scheduling_options_flags_cc_proto",
         "//xls/codegen:block_metrics",

@@ -2400,12 +2400,15 @@ class ZeroWidthVerilogConversionTest
   }
   std::filesystem::path GoldenFilePath(
       std::string_view test_file_name,
-      const std::filesystem::path& testdata_dir) override {
+      const std::filesystem::path& testdata_dir,
+      std::optional<std::string_view> forced_test_base_name =
+          std::nullopt) override {
     // We suffix the golden reference files with "txt" on top of the extension
     // just to indicate they're compiler byproduct comparison points and not
     // Verilog files that have been written by hand.
     std::string filename = absl::StrCat(
-        test_file_name, "_", TestBaseName(), "Input",
+        test_file_name, "_", forced_test_base_name.value_or(TestBaseName()),
+        "Input",
         ParameterizedFloppingName(std::get<0>(std::get<1>(GetParam()))),
         "Output",
         ParameterizedFloppingName(std::get<1>(std::get<1>(GetParam()))), ".",

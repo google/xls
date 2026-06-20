@@ -16,6 +16,7 @@
 #define XLS_CODEGEN_CODEGEN_OPTIONS_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -37,10 +38,31 @@
 
 namespace xls::verilog {
 
+class CodegenOptionExtension {
+ public:
+  virtual ~CodegenOptionExtension() = default;
+  virtual std::string_view extension_name() const = 0;
+};
+
 // Options describing how codegen should be performed.
 class CodegenOptions {
  public:
   explicit CodegenOptions() = default;
+
+  template <typename T>
+  const T* get_extension() const {
+    for (const auto& ext : extensions_) {
+      if (ext->extension_name() == T::kExtensionName) {
+        return static_cast<const T*>(ext.get());
+      }
+    }
+    return nullptr;
+  }
+
+  CodegenOptions& add_extension(std::unique_ptr<CodegenOptionExtension> ext) {
+    extensions_.push_back(std::move(ext));
+    return *this;
+  }
 
   // Enum to describe which codegen version to use.
   enum class Version : uint8_t {
@@ -461,6 +483,7 @@ class CodegenOptions {
   int64_t max_trace_verbosity_ = 0;
   RegisterMergeStrategy register_merge_strategy_ =
       RegisterMergeStrategy::kDefault;
+
   SourceAnnotationStrategy source_annotation_strategy_ =
       SourceAnnotationStrategy::kNone;
   std::optional<PackageInterfaceProto> package_interface_;
@@ -474,6 +497,8 @@ class CodegenOptions {
   std::vector<int32_t> randomize_order_seed_;
   std::optional<CodegenResidualData> residual_data_;
   std::optional<std::string> ir_dump_path_;
+
+  std::vector<std::shared_ptr<CodegenOptionExtension>> extensions_;
 };
 
 template <typename Sink>

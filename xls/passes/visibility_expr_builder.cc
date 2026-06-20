@@ -14,19 +14,20 @@
 
 #include "xls/passes/visibility_expr_builder.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <tuple>
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
@@ -50,14 +51,16 @@
 namespace xls {
 
 absl::StatusOr<Node*> VisibilityBuilder::GetSelectorIfIndependent(
-    Node* node, Node* select, Node* source, FunctionBase* func) {
+    Node* node, Node* select, Node* source, FunctionBase* func,
+    const std::function<bool(Node*)>& is_live_source) {
   Node* selector = nullptr;
   if (select->Is<Select>()) {
     selector = select->As<Select>()->selector();
   } else if (select->Is<PrioritySelect>()) {
     selector = select->As<PrioritySelect>()->selector();
   }
-  if (!selector || nda_.IsDependent(source, selector)) {
+  if (!selector || nda_.IsDependent(source, selector) ||
+      (is_live_source && !is_live_source(selector))) {
     return nullptr;
   }
   return MakeParamIfTmpFunc(selector, func);
@@ -91,9 +94,12 @@ bool VisibilityBuilder::DoesCaseImplyNoPrevCase(PrioritySelect* select,
 }
 
 absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForPrioritySelect(
-    Node* node, PrioritySelect* select, Node* source, FunctionBase* func) {
-  XLS_ASSIGN_OR_RETURN(Node * selector,
-                       GetSelectorIfIndependent(node, select, source, func));
+    Node* node, PrioritySelect* select, Node* source, FunctionBase* func,
+    const std::function<bool(Node*)>& is_live_source,
+    const std::function<int64_t(Node*)>& get_remaining_delay) {
+  XLS_ASSIGN_OR_RETURN(
+      Node * selector,
+      GetSelectorIfIndependent(node, select, source, func, is_live_source));
   if (!selector) {
     return nullptr;
   }
@@ -138,13 +144,22 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForPrioritySelect(
         func->MakeNode<CompareOp>(select->loc(), selector, zero, Op::kEq));
     or_cases.push_back(selector_is_zero);
   }
-  return OrOperands(or_cases);
+
+  XLS_ASSIGN_OR_RETURN(Node * result, OrOperands(or_cases));
+  if (get_remaining_delay && get_remaining_delay(result) < 0) {
+    // This would push the condition over the acceptable delay.
+    return nullptr;
+  }
+  return result;
 }
 
 absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForSelect(
-    Node* node, Select* select, Node* source, FunctionBase* func) {
-  XLS_ASSIGN_OR_RETURN(Node * selector,
-                       GetSelectorIfIndependent(node, select, source, func));
+    Node* node, Select* select, Node* source, FunctionBase* func,
+    const std::function<bool(Node*)>& is_live_source,
+    const std::function<int64_t(Node*)>& get_remaining_delay) {
+  XLS_ASSIGN_OR_RETURN(
+      Node * selector,
+      GetSelectorIfIndependent(node, select, source, func, is_live_source));
   if (!selector) {
     return nullptr;
   }
@@ -175,12 +190,18 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForSelect(
                                                    value_num_cases, Op::kUGe));
     or_cases.push_back(is_default);
   }
-  return OrOperands(or_cases);
+  XLS_ASSIGN_OR_RETURN(Node * result, OrOperands(or_cases));
+  if (get_remaining_delay && get_remaining_delay(result) < 0) {
+    // This would push the condition over the acceptable delay.
+    return nullptr;
+  }
+  return result;
 }
 
 // Find the source bits of operand, and if unknown, use the operand itself.
 absl::StatusOr<Node*> VisibilityBuilder::GetNonRepeatedSourceOf(
-    Node* operand, FunctionBase* func) {
+    Node* operand, FunctionBase* func,
+    const std::function<bool(Node*)>& is_live_source) {
   XLS_ASSIGN_OR_RETURN(auto bit_sources_tree, bpa_.GetBitSources(operand));
   LeafTypeTree<TreeBitSources> trimmed_bit_sources_tree =
       BitProvenanceAnalysis::TrimRepeatedSourceBits(
@@ -189,6 +210,9 @@ absl::StatusOr<Node*> VisibilityBuilder::GetNonRepeatedSourceOf(
   if (source_ranges.size() == 1) {
     const TreeBitSources::BitRange& single_range = source_ranges[0];
     Node* source = single_range.source_node();
+    if (is_live_source && !is_live_source(source)) {
+      return operand;
+    }
     // Clone the source node if building expressions in a temp function.
     XLS_ASSIGN_OR_RETURN(source, MakeParamIfTmpFunc(source, func));
     // If derived from a single range of contiguous bits, find or create a bit
@@ -210,8 +234,36 @@ absl::StatusOr<Node*> VisibilityBuilder::GetNonRepeatedSourceOf(
   return MakeParamIfTmpFunc(operand, func);
 }
 
+namespace {
+
+absl::StatusOr<Node*> FilterByDelay(
+    FunctionBase* func, const SourceInfo& loc, std::vector<Node*>& operands,
+    const std::function<int64_t(Node*)>& get_remaining_delay,
+    const std::function<absl::StatusOr<Node*>(const SourceInfo&)>& build_empty,
+    const std::function<absl::StatusOr<Node*>(std::vector<Node*>&)>& build_fn) {
+  XLS_ASSIGN_OR_RETURN(Node * result, build_fn(operands));
+  if (get_remaining_delay && get_remaining_delay(result) < 0) {
+    std::sort(operands.begin(), operands.end(), [&](Node* a, Node* b) {
+      return get_remaining_delay(a) > get_remaining_delay(b);
+    });
+    while (!operands.empty() && get_remaining_delay(result) < 0) {
+      operands.pop_back();
+      if (operands.empty()) {
+        XLS_ASSIGN_OR_RETURN(result, build_empty(loc));
+        break;
+      }
+      XLS_ASSIGN_OR_RETURN(result, build_fn(operands));
+    }
+  }
+  return result;
+}
+
+}  // namespace
+
 absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForAnd(
-    Node* node, NaryOp* and_node, Node* source, FunctionBase* func) {
+    Node* node, NaryOp* and_node, Node* source, FunctionBase* func,
+    const std::function<bool(Node*)>& is_live_source,
+    const std::function<int64_t(Node*)>& get_remaining_delay) {
   std::vector<Node*> others_not_zero;
   for (Node* operand : and_node->operands()) {
     if (nda_.IsDependent(source, operand)) {
@@ -219,10 +271,8 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForAnd(
     }
 
     XLS_ASSIGN_OR_RETURN(Node * compare_val,
-                         GetNonRepeatedSourceOf(operand, func));
+                         GetNonRepeatedSourceOf(operand, func, is_live_source));
 
-    // If operand is derived from a single bit, we can simply check that the
-    // source bit is set to determine that @node is visible
     if (compare_val->GetType()->GetFlatBitCount() == 1) {
       others_not_zero.push_back(compare_val);
       continue;
@@ -238,11 +288,30 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForAnd(
                                                    value_zero, Op::kNe));
     others_not_zero.push_back(is_not_zero);
   }
-  return AndOperands(others_not_zero);
+
+  if (others_not_zero.empty()) {
+    return AndOperands(others_not_zero);
+  }
+  if (others_not_zero.size() == 1) {
+    return others_not_zero[0];
+  }
+
+  return FilterByDelay(
+      func, and_node->loc(), others_not_zero, get_remaining_delay,
+      /*build_empty=*/
+      [&](const SourceInfo& loc) -> absl::StatusOr<Node*> {
+        return func->MakeNode<Literal>(loc, Value(UBits(1, 1)));
+      },
+      /*build_fn=*/
+      [&](std::vector<Node*>& ops) -> absl::StatusOr<Node*> {
+        return AndOperands(ops);
+      });
 }
 
 absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForOr(
-    Node* node, NaryOp* or_node, Node* source, FunctionBase* func) {
+    Node* node, NaryOp* or_node, Node* source, FunctionBase* func,
+    const std::function<bool(Node*)>& is_live_source,
+    const std::function<int64_t(Node*)>& get_remaining_delay) {
   std::vector<Node*> others_not_ones;
   for (Node* operand : or_node->operands()) {
     if (nda_.IsDependent(source, operand)) {
@@ -250,10 +319,8 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForOr(
     }
 
     XLS_ASSIGN_OR_RETURN(Node * compare_val,
-                         GetNonRepeatedSourceOf(operand, func));
+                         GetNonRepeatedSourceOf(operand, func, is_live_source));
 
-    // If operand is derived from a single bit, we can simply check that the
-    // source bit is NOT set to determine that @node is visible
     if (compare_val->GetType()->GetFlatBitCount() == 1) {
       XLS_ASSIGN_OR_RETURN(
           Node * not_single_bit_value,
@@ -272,48 +339,81 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForOr(
                                                    value_ones, Op::kNe));
     others_not_ones.push_back(is_not_ones);
   }
-  return AndOperands(others_not_ones);
+
+  if (others_not_ones.empty()) {
+    return AndOperands(others_not_ones);
+  }
+
+  return FilterByDelay(
+      func, or_node->loc(), others_not_ones, get_remaining_delay,
+      /*build_empty=*/
+      [&](const SourceInfo& loc) -> absl::StatusOr<Node*> {
+        return func->MakeNode<Literal>(loc, Value(UBits(1, 1)));
+      },
+      /*build_fn=*/
+      [&](std::vector<Node*>& ops) -> absl::StatusOr<Node*> {
+        return AndOperands(ops);
+      });
 }
 
 absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForPredicate(
-    std::optional<Node*> predicate, Node* source, FunctionBase* func) {
-  if (!predicate.has_value() || nda_.IsDependent(source, *predicate)) {
+    std::optional<Node*> predicate, Node* source, FunctionBase* func,
+    const std::function<bool(Node*)>& is_live_source,
+    const std::function<int64_t(Node*)>& get_remaining_delay) {
+  if (!predicate.has_value() || nda_.IsDependent(source, *predicate) ||
+      (is_live_source && !is_live_source(*predicate))) {
     return nullptr;
   }
   return MakeParamIfTmpFunc(*predicate, func);
 }
 
 absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityExprHelper(
-    Node* node, Node* user, Node* source, FunctionBase* func) {
+    Node* node, Node* user, Node* source, FunctionBase* func,
+    const std::function<bool(Node*)>& is_live_source,
+    const std::function<int64_t(Node*)>& get_remaining_delay) {
   if (user->Is<Select>()) {
-    return GetVisibilityExprForSelect(node, user->As<Select>(), source, func);
+    return GetVisibilityExprForSelect(node, user->As<Select>(), source, func,
+                                      is_live_source, get_remaining_delay);
   } else if (user->Is<PrioritySelect>()) {
     return GetVisibilityExprForPrioritySelect(node, user->As<PrioritySelect>(),
-                                              source, func);
+                                              source, func, is_live_source,
+                                              get_remaining_delay);
   } else if (user->Is<Send>()) {
     return GetVisibilityExprForPredicate(user->As<Send>()->predicate(), source,
-                                         func);
+                                         func, is_live_source,
+                                         get_remaining_delay);
   } else if (user->Is<Next>()) {
     return GetVisibilityExprForPredicate(user->As<Next>()->predicate(), source,
-                                         func);
+                                         func, is_live_source,
+                                         get_remaining_delay);
+  } else if (user->Is<Gate>()) {
+    return GetVisibilityExprForPredicate(user->As<Gate>()->condition(), source,
+                                         func, is_live_source,
+                                         get_remaining_delay);
   } else if (user->OpIn({Op::kAnd, Op::kNand})) {
-    return GetVisibilityExprForAnd(node, user->As<NaryOp>(), source, func);
+    return GetVisibilityExprForAnd(node, user->As<NaryOp>(), source, func,
+                                   is_live_source, get_remaining_delay);
   } else if (user->OpIn({Op::kOr, Op::kNor})) {
-    return GetVisibilityExprForOr(node, user->As<NaryOp>(), source, func);
+    return GetVisibilityExprForOr(node, user->As<NaryOp>(), source, func,
+                                  is_live_source, get_remaining_delay);
   }
   return nullptr;
 }
 
 // Builds predicate for node `u` being used by `v` on `func`.
 absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityExpr(
-    Node* node, Node* user, Node* source, FunctionBase* func) {
+    Node* node, Node* user, Node* source, FunctionBase* func,
+    const std::function<bool(Node*)>& is_live_source,
+    const std::function<int64_t(Node*)>& get_remaining_delay) {
   auto cache_key = std::make_tuple(node, user, func);
   if (auto it = visibility_expr_cache_.find(cache_key);
       it != visibility_expr_cache_.end()) {
     return it->second;
   }
-  XLS_ASSIGN_OR_RETURN(Node * visibility,
-                       BuildVisibilityExprHelper(node, user, source, func));
+  XLS_ASSIGN_OR_RETURN(
+      Node * visibility,
+      BuildVisibilityExprHelper(node, user, source, func, is_live_source,
+                                get_remaining_delay));
   return visibility_expr_cache_[cache_key] = visibility;
 }
 
@@ -339,7 +439,11 @@ absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityIRExprFromEdges(
     const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
         conditional_edges,
     absl::flat_hash_map<Node*, Node*>& node_to_visibility_ir_cache,
-    Literal* always_visible) {
+    Literal* always_visible, const std::function<bool(Node*)>& is_live_source,
+    const std::function<int64_t(Node*)>& get_remaining_delay) {
+  if (is_live_source && !is_live_source(node)) {
+    return always_visible;
+  }
   if (node->users().empty()) {
     return always_visible;
   }
@@ -348,39 +452,81 @@ absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityIRExprFromEdges(
     return it->second;
   }
 
-  absl::flat_hash_set<Node*> user_visibilities;
+  absl::btree_set<Node*, Node::NodeIdLessThan> user_visibilities;
   for (Node* user : node->users()) {
     if (user->id() > prior_existing_id_) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(Node * user_is_used,
-                         BuildVisibilityIRExprFromEdges(
-                             func, user, source, conditional_edges,
-                             node_to_visibility_ir_cache, always_visible));
+    XLS_ASSIGN_OR_RETURN(
+        Node * user_is_used,
+        BuildVisibilityIRExprFromEdges(
+            func, user, source, conditional_edges, node_to_visibility_ir_cache,
+            always_visible, is_live_source, get_remaining_delay));
     Node* user_uses_node = always_visible;
     if (conditional_edges.contains({node, user})) {
-      XLS_ASSIGN_OR_RETURN(user_uses_node,
-                           BuildVisibilityExpr(node, user, source, func));
+      XLS_ASSIGN_OR_RETURN(
+          user_uses_node,
+          BuildVisibilityExpr(node, user, source, func, is_live_source,
+                              get_remaining_delay));
       if (!user_uses_node) {
-        return absl::InternalError(absl::StrCat(
-            "conditional edge exists but visibility expression could NOT be "
-            "made between ",
-            node->GetName(), " and ", user->GetName()));
+        user_uses_node = always_visible;
       }
     }
     if (user_uses_node == always_visible && user_is_used == always_visible) {
       return node_to_visibility_ir_cache[node] = always_visible;
     }
 
+    std::vector<Node*> and_operands;
+    if (user_uses_node != always_visible) {
+      if (user_uses_node->op() == Op::kAnd) {
+        and_operands.insert(and_operands.end(),
+                            user_uses_node->operands().begin(),
+                            user_uses_node->operands().end());
+      } else {
+        and_operands.push_back(user_uses_node);
+      }
+    }
+    if (user_is_used != always_visible) {
+      if (user_is_used->op() == Op::kAnd) {
+        and_operands.insert(and_operands.end(),
+                            user_is_used->operands().begin(),
+                            user_is_used->operands().end());
+      } else {
+        and_operands.push_back(user_is_used);
+      }
+    }
+
     Node* node_and_user_visible;
-    if (user_uses_node == always_visible) {
-      node_and_user_visible = user_is_used;
-    } else if (user_is_used == always_visible) {
-      node_and_user_visible = user_uses_node;
+    if (and_operands.empty()) {
+      node_and_user_visible = always_visible;
+    } else if (and_operands.size() == 1) {
+      node_and_user_visible = and_operands[0];
     } else {
       XLS_ASSIGN_OR_RETURN(
           node_and_user_visible,
-          FindOrMakeBinaryNode(Op::kAnd, user_uses_node, user_is_used));
+          func->MakeNode<NaryOp>(SourceInfo(), and_operands, Op::kAnd));
+      if (get_remaining_delay &&
+          get_remaining_delay(node_and_user_visible) < 0) {
+        std::sort(and_operands.begin(), and_operands.end(),
+                  [&](Node* a, Node* b) {
+                    return get_remaining_delay(a) > get_remaining_delay(b);
+                  });
+        while (!and_operands.empty() &&
+               get_remaining_delay(node_and_user_visible) < 0) {
+          and_operands.pop_back();
+          if (and_operands.empty()) {
+            node_and_user_visible = always_visible;
+            break;
+          }
+          if (and_operands.size() == 1) {
+            node_and_user_visible = and_operands[0];
+          } else {
+            XLS_ASSIGN_OR_RETURN(
+                node_and_user_visible,
+                func->MakeNode<NaryOp>(SourceInfo(), and_operands, Op::kAnd));
+          }
+        }
+      }
     }
     user_visibilities.insert(node_and_user_visible);
   }
@@ -391,15 +537,30 @@ absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityIRExprFromEdges(
   if (user_visibilities.size() == 1) {
     return node_to_visibility_ir_cache[node] = *user_visibilities.begin();
   }
-  std::vector<Node*> user_vis_vec{user_visibilities.begin(),
-                                  user_visibilities.end()};
-  absl::c_sort(user_vis_vec,
-               [&](Node* a, Node* b) { return a->id() < b->id(); });
-  Node* any_user_visible = user_vis_vec[0];
-  for (int64_t i = 1; i < user_vis_vec.size(); ++i) {
+  std::vector<Node*> user_vis_vec;
+  for (Node* n : user_visibilities) {
+    if (n != always_visible) {
+      if (n->op() == Op::kOr) {
+        user_vis_vec.insert(user_vis_vec.end(), n->operands().begin(),
+                            n->operands().end());
+      } else {
+        user_vis_vec.push_back(n);
+      }
+    }
+  }
+
+  Node* any_user_visible;
+  if (user_vis_vec.empty()) {
+    any_user_visible = always_visible;
+  } else if (user_vis_vec.size() == 1) {
+    any_user_visible = user_vis_vec[0];
+  } else {
     XLS_ASSIGN_OR_RETURN(
         any_user_visible,
-        FindOrMakeBinaryNode(Op::kOr, any_user_visible, user_vis_vec[i]));
+        func->MakeNode<NaryOp>(SourceInfo(), user_vis_vec, Op::kOr));
+    if (get_remaining_delay && get_remaining_delay(any_user_visible) < 0) {
+      any_user_visible = always_visible;
+    }
   }
   return node_to_visibility_ir_cache[node] = any_user_visible;
 }
@@ -407,22 +568,80 @@ absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityIRExprFromEdges(
 absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityIRExpr(
     FunctionBase* func, Node* node,
     const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
-        conditional_edges) {
+        conditional_edges,
+    std::function<bool(Node*)> is_live_source,
+    std::function<int64_t(Node*)> get_remaining_delay,
+    std::optional<int64_t> target_stage) {
+  int64_t max_id_before = 0;
+  if (target_stage.has_value()) {
+    for (Node* n : func->nodes()) {
+      max_id_before = std::max(max_id_before, n->id());
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(
       Literal * always_visible,
       func->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+
+  Node* result_expr = nullptr;
   if (conditional_edges.size() == 1) {
     XLS_ASSIGN_OR_RETURN(
         Node * user_uses_node,
         BuildVisibilityExpr(conditional_edges.begin()->operand,
-                            conditional_edges.begin()->node, node, func));
-    return user_uses_node ? user_uses_node : always_visible;
+                            conditional_edges.begin()->node, node, func,
+                            is_live_source, get_remaining_delay));
+    result_expr = user_uses_node ? user_uses_node : always_visible;
+  } else {
+    absl::flat_hash_map<Node*, Node*> node_to_visibility_ir_cache;
+    absl::flat_hash_map<std::tuple<Op, Node*, Node*>, Node*> binary_op_cache;
+    XLS_ASSIGN_OR_RETURN(
+        result_expr,
+        BuildVisibilityIRExprFromEdges(
+            func, node, node, conditional_edges, node_to_visibility_ir_cache,
+            always_visible, is_live_source, get_remaining_delay));
   }
-  absl::flat_hash_map<Node*, Node*> node_to_visibility_ir_cache;
-  absl::flat_hash_map<std::tuple<Op, Node*, Node*>, Node*> binary_op_cache;
-  return BuildVisibilityIRExprFromEdges(func, node, node, conditional_edges,
-                                        node_to_visibility_ir_cache,
-                                        always_visible);
+
+  if (target_stage.has_value()) {
+    for (Node* n : func->nodes()) {
+      if (n->id() > max_id_before) {
+        XLS_RETURN_IF_ERROR(func->AddNodeToStage(*target_stage, n).status());
+      }
+    }
+  }
+
+  return result_expr;
+}
+
+absl::Status VisibilityBuilder::CleanUpUnusedNodes(FunctionBase* fb) {
+  std::vector<Node*> worklist;
+  absl::flat_hash_set<Node*> dead_nodes;
+
+  for (Node* n : fb->nodes()) {
+    if (n->id() > prior_existing_id_ && n->IsDead()) {
+      dead_nodes.insert(n);
+      worklist.push_back(n);
+    }
+  }
+
+  while (!worklist.empty()) {
+    Node* n = worklist.back();
+    worklist.pop_back();
+
+    std::vector<Node*> operands(n->operands().begin(), n->operands().end());
+
+    CHECK_GT(dead_nodes.erase(n), 0);
+    XLS_RETURN_IF_ERROR(fb->RemoveNode(n));
+
+    for (Node* operand : operands) {
+      if (operand->id() > prior_existing_id_ && operand->IsDead()) {
+        if (auto [_, inserted] = dead_nodes.insert(operand); inserted) {
+          worklist.push_back(operand);
+        }
+      }
+    }
+  }
+
+  return absl::OkStatus();
 }
 
 absl::StatusOr<VisibilityEstimator::AreaDelay>
