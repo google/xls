@@ -56,7 +56,7 @@ TEST(BuiltAstFmtTest, FormatCastThatNeedsParens) {
   Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Formatter(empty_comments, arena).Format(*lt);
+  DocRef doc = Formatter(empty_comments, arena).FormatExpr(*lt);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x as t) < x");
 }
 
@@ -65,7 +65,7 @@ TEST(BuiltAstFmtTest, FormatIndexThatNeedsParens) {
   Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Formatter(empty_comments, arena).Format(*index);
+  DocRef doc = Formatter(empty_comments, arena).FormatExpr(*index);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x as u32[42])[i]");
 }
 
@@ -75,7 +75,7 @@ TEST(BuiltAstFmtTest, FormatTupleIndexThatNeedsParens) {
   Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Formatter(empty_comments, arena).Format(*tuple_index);
+  DocRef doc = Formatter(empty_comments, arena).FormatExpr(*tuple_index);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x[i]).2");
 }
 
@@ -85,7 +85,7 @@ TEST(BuiltAstFmtTest, FormatSingleElementTuple) {
   Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
+  DocRef doc = Formatter(empty_comments, arena).FormatExpr(*tuple);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0,)");
 }
 
@@ -95,7 +95,7 @@ TEST(BuiltAstFmtTest, FormatShortTupleWithoutTrailingComma) {
   Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
+  DocRef doc = Formatter(empty_comments, arena).FormatExpr(*tuple);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
 }
 
@@ -105,7 +105,7 @@ TEST(BuiltAstFmtTest, FormatShortTupleWithTrailingComma) {
   Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
+  DocRef doc = Formatter(empty_comments, arena).FormatExpr(*tuple);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
 }
 
@@ -116,7 +116,7 @@ TEST(BuiltAstFmtTest, FormatLongTupleShouldAddTrailingComma) {
         MakeNElementTupleExpression(40, /*has_trailing_comma=*/true);
 
     DocArena arena(file_table);
-    DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
+    DocRef doc = Formatter(empty_comments, arena).FormatExpr(*tuple);
     EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
               R"((
     x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20,
@@ -129,8 +129,8 @@ TEST(BuiltAstFmtTest, FormatLongTupleShouldAddTrailingComma) {
         MakeNElementTupleExpression(40, /*has_trailing_comma=*/false);
 
     DocArena arena(file_table);
-    DocRef doc =
-        Formatter(empty_comments, arena).Format(*tuple_without_trailing_comma);
+    DocRef doc = Formatter(empty_comments, arena)
+                     .FormatExpr(*tuple_without_trailing_comma);
     EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
               R"((
     x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20,
@@ -144,7 +144,7 @@ TEST(BuiltAstFmtTest, FormatUnopThatNeedsParensOnOperand) {
   Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Formatter(empty_comments, arena).Format(*unop);
+  DocRef doc = Formatter(empty_comments, arena).FormatExpr(*unop);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "-(x as u32)");
 }
 
@@ -153,7 +153,7 @@ TEST(BuiltAstFmtTest, FormatAttrThatNeedsParensOnOperand) {
   Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Formatter(empty_comments, arena).Format(*attr);
+  DocRef doc = Formatter(empty_comments, arena).FormatExpr(*attr);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x * y).my_attr");
 }
 
@@ -170,7 +170,7 @@ TEST(AstFmtTest, FormatLet) {
 
   DocArena arena(file_table);
   Formatter fmt(comments, arena);
-  DocRef doc = fmt.Format(*stmt, /*trailing_semi=*/false);
+  DocRef doc = fmt.FormatStatement(*stmt, /*trailing_semi=*/false);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "let x: u32 = u32:42");
 }
 
@@ -185,7 +185,7 @@ TEST(AstFmtTest, FormatVerbatimNodeTop) {
 
   DocArena arena(file_table);
   XLS_ASSERT_OK_AND_ASSIGN(DocRef doc,
-                           Formatter(empty_comments, arena).Format(m));
+                           Formatter(empty_comments, arena).FormatModule(m));
 
   // Intentionally small text width, should still be formatted verbatim.
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10), verbatim_text);
@@ -202,7 +202,7 @@ TEST(AstFmtTest, FormatVerbatimNodeStatement) {
 
   DocArena arena(file_table);
   DocRef doc = Formatter(empty_comments, arena)
-                   .Format(statement, /*trailing_semi=*/false);
+                   .FormatStatement(statement, /*trailing_semi=*/false);
 
   // Intentionally small text width, should still be formatted verbatim.
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10), verbatim_text);
@@ -237,7 +237,7 @@ class FunctionFmtTest : public testing::Test {
         f_, parser_->ParseFunction(Pos(), /*is_public=*/false, bindings_));
     Comments comments = Comments::Create(scanner_->comments());
 
-    DocRef doc = Formatter(comments, arena_).Format(*f_);
+    DocRef doc = Formatter(comments, arena_).FormatFunction(*f_);
     std::string formatted = PrettyPrint(arena_, doc, kDslxDefaultTextWidth);
 
     std::optional<AutoFmtPostconditionViolation> maybe_violation =
@@ -1442,7 +1442,7 @@ class ModuleFmtTest : public testing::Test {
                 StatusIs(code, HasSubstr(error_substr)));
   }
 
- private:
+ protected:
   FileTable file_table_;
 };
 
@@ -3937,6 +3937,33 @@ TEST_F(ModuleFmtTest, LongConstAssertMultilineBinopExpression) {
 const_assert!(m::AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ==
               m::BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB);
 )");
+}
+
+class CustomTestFormatter : public Formatter {
+ public:
+  using Formatter::Formatter;
+
+  DocRef FormatFunction(const Function& n, bool is_test = false) override {
+    return arena().MakeText("// CUSTOM_FUNCTION_FORMAT");
+  }
+};
+
+TEST_F(ModuleFmtTest, CustomFormatterOverriddenMethodUsed) {
+  std::string_view input = R"(fn f() {
+    u32:42
+}
+)";
+  std::vector<CommentData> comments_vec;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> m,
+      ParseModule(input, "fake.x", "fake", file_table_, &comments_vec));
+  Comments comments = Comments::Create(comments_vec);
+  DocArena arena(file_table_);
+  CustomTestFormatter custom_formatter(comments, arena);
+  AllErrorsFilesystem vfs;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string got, AutoFmt(vfs, *m, custom_formatter, std::string(input)));
+  EXPECT_EQ(got, "// CUSTOM_FUNCTION_FORMAT\n");
 }
 
 }  // namespace
