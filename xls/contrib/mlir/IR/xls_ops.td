@@ -1250,6 +1250,9 @@ def Xls_SelOp : Xls_Op<"sel", [
   ];
 }
 
+// TODO: OneHotSelOp restricts cases to Xls_Bits, but upstream XLS allows tuple
+// types for one_hot_sel (like PrioritySelOp uses Xls_BitsOrTuple). This should
+// be extended to Xls_BitsOrTuple to match XLS semantics.
 def Xls_OneHotSelOp : Xls_Op<"one_hot_sel", [
   Pure,
   ShapesAreConsistent<["cases", "result"]>,
