@@ -30,16 +30,16 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_testutils.h"
 #include "xls/ir/value.h"
-#include "xls/solvers/z3_ir_equivalence.h"
-#include "xls/solvers/z3_ir_translator_matchers.h"
+#include "xls/solvers/ir_equivalence.h"
+#include "xls/solvers/prover_matchers.h"
 
 namespace m = xls::op_matchers;
 
 namespace xls {
 namespace {
 using ::absl_testing::IsOkAndHolds;
-using ::xls::solvers::z3::IsProvenTrue;
-using ::xls::solvers::z3::TryProveEquivalence;
+using ::xls::solvers::IsProvenTrue;
+using ::xls::solvers::TryProveEquivalence;
 
 class ClonePackageTest : public IrTestBase {};
 

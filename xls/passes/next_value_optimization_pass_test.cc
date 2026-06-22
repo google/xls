@@ -38,7 +38,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_test_helpers.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -105,8 +105,8 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
   pb.Next(/*state_read=*/x, /*value=*/pb.Literal(UBits(3, 32)),
           /*pred=*/pb.Literal(UBits(1, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
-                                                /*include_state=*/true);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                            /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
@@ -126,8 +126,8 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLabels) {
   pb.Next(/*state_read=*/x, /*value=*/priority_select,
           /*pred=*/std::nullopt, "label");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
-                                                /*include_state=*/true);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                            /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
@@ -160,8 +160,8 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
       pb.Literal(UBits(0, 3)));
   pb.Next(/*state_read=*/x, /*value=*/priority_select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
-                                                /*include_state=*/true);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                            /*include_state=*/true);
 
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -188,8 +188,8 @@ TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
                              pb.Literal(UBits(2, 3)), pb.Literal(UBits(3, 3))});
   pb.Next(/*state_read=*/x, /*value=*/one_hot_select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
-                                                /*include_state=*/true);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                            /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
@@ -213,8 +213,8 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
                      pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
   pb.Next(/*state_read=*/x, /*value=*/select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
-                                                /*include_state=*/true);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                            /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
   EXPECT_THAT(
@@ -240,8 +240,8 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
                 /*default_value=*/pb.Literal(UBits(3, 2)));
   pb.Next(/*state_read=*/x, /*value=*/select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
-                                                /*include_state=*/true);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                            /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
   EXPECT_THAT(

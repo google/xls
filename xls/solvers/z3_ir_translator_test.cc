@@ -67,7 +67,8 @@
 #include "xls/passes/inlining_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_translator_matchers.h"
+#include "xls/solvers/prover_matchers.h"
+#include "xls/solvers/solver.h"
 #include "xls/solvers/z3_utils.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
 #include "z3/src/api/z3_api.h"
@@ -78,17 +79,18 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::xls::solvers::Predicate;
+using ::xls::solvers::PredicateOfNode;
+using ::xls::solvers::ProverResult;
 using ::xls::solvers::z3::IrTranslator;
-using ::xls::solvers::z3::Predicate;
-using ::xls::solvers::z3::PredicateOfNode;
-using ::xls::solvers::z3::ProverResult;
 using ::xls::solvers::z3::TryProve;
+using ::xls::solvers::z3::TryProveConjunction;
 
 using ::testing::AllOf;
 using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
-using ::xls::solvers::z3::IsProvenFalse;
-using ::xls::solvers::z3::IsProvenTrue;
+using ::xls::solvers::IsProvenFalse;
+using ::xls::solvers::IsProvenTrue;
 
 class Z3IrTranslatorTest : public IrTestBase {};
 
@@ -2772,8 +2774,8 @@ TEST_F(Z3IrTranslatorTest, DumpWithNodeValues) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   absl::flat_hash_map<Node*, Value> counterexample{
       {x.node(), Value(UBits(1, 32))}};
-  solvers::z3::ProvenFalse proven_false{.counterexample = counterexample};
-  EXPECT_THAT(f->DumpIr(solvers::z3::CounterExampleAnnotator(proven_false)),
+  solvers::ProvenFalse proven_false{.counterexample = counterexample};
+  EXPECT_THAT(f->DumpIr(solvers::CounterExampleAnnotator(proven_false)),
               AllOf(ContainsRegex("x: bits\\[32\\] id=[0-9]+ \\(1\\)"),
                     ContainsRegex("y: bits\\[32\\] id=[0-9]+ \\(0\\)")));
 }
@@ -2819,9 +2821,8 @@ TEST_F(Z3IrTranslatorTest, EquivArraySlice) {
       ProverResult res,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(res, IsProvenTrue())
-      << f->DumpIr(solvers::z3::CounterExampleAnnotator(
-             std::get<solvers::z3::ProvenFalse>(res)));
+  EXPECT_THAT(res, IsProvenTrue()) << f->DumpIr(
+      solvers::CounterExampleAnnotator(std::get<solvers::ProvenFalse>(res)));
   RecordProperty("smtlib", solvers::z3::EmitFunctionAsSmtLib(f).value_or(
                                "Unable to emit smtlib"));
 }
@@ -2839,9 +2840,8 @@ TEST_F(Z3IrTranslatorTest, ArraySliceBigger) {
       ProverResult res,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(res, IsProvenTrue())
-      << f->DumpIr(solvers::z3::CounterExampleAnnotator(
-             std::get<solvers::z3::ProvenFalse>(res)));
+  EXPECT_THAT(res, IsProvenTrue()) << f->DumpIr(
+      solvers::CounterExampleAnnotator(std::get<solvers::ProvenFalse>(res)));
   RecordProperty("smtlib", solvers::z3::EmitFunctionAsSmtLib(f).value_or(
                                "Unable to emit smtlib"));
 }
@@ -2878,9 +2878,8 @@ TEST_F(Z3IrTranslatorTest, ArraySliceTranslate) {
       ProverResult res,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(res, IsProvenTrue())
-      << f->DumpIr(solvers::z3::CounterExampleAnnotator(
-             std::get<solvers::z3::ProvenFalse>(res)));
+  EXPECT_THAT(res, IsProvenTrue()) << f->DumpIr(
+      solvers::CounterExampleAnnotator(std::get<solvers::ProvenFalse>(res)));
   RecordProperty("smtlib", solvers::z3::EmitFunctionAsSmtLib(f).value_or(
                                "Unable to emit smtlib"));
 }
@@ -2917,9 +2916,8 @@ TEST_F(Z3IrTranslatorTest, EquivArrayIndex) {
       ProverResult res,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(res, IsProvenTrue())
-      << f->DumpIr(solvers::z3::CounterExampleAnnotator(
-             std::get<solvers::z3::ProvenFalse>(res)));
+  EXPECT_THAT(res, IsProvenTrue()) << f->DumpIr(
+      solvers::CounterExampleAnnotator(std::get<solvers::ProvenFalse>(res)));
   RecordProperty("smtlib", solvers::z3::EmitFunctionAsSmtLib(f).value_or(
                                "Unable to emit smtlib"));
 }
@@ -2932,9 +2930,8 @@ void Z3TranslationTest(std::shared_ptr<Package> package) {
       ProverResult res,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(res, IsProvenTrue())
-      << f->DumpIr(solvers::z3::CounterExampleAnnotator(
-             std::get<solvers::z3::ProvenFalse>(res)));
+  EXPECT_THAT(res, IsProvenTrue()) << f->DumpIr(
+      solvers::CounterExampleAnnotator(std::get<solvers::ProvenFalse>(res)));
 }
 namespace {
 absl::Status AddResultChecks(std::shared_ptr<Package> package) {
@@ -3084,27 +3081,22 @@ fn f(x: (bits[8], bits[8])) -> bits[8] {
   Node* i0 = FindNode("i0", package.get());
   Node* i1 = FindNode("i1", package.get());
 
-  std::vector<solvers::z3::PredicateOfNode> assumptions = {
-      {i0, solvers::z3::Predicate::UnsignedGreaterOrEqual(UBits(10, 8))},
-      {i0, solvers::z3::Predicate::UnsignedLessOrEqual(UBits(20, 8))},
-      {i1, solvers::z3::Predicate::UnsignedGreaterOrEqual(UBits(30, 8))},
-      {i1, solvers::z3::Predicate::UnsignedLessOrEqual(UBits(40, 8))},
+  std::vector<solvers::PredicateOfNode> assumptions = {
+      {i0, solvers::Predicate::UnsignedGreaterOrEqual(UBits(10, 8))},
+      {i0, solvers::Predicate::UnsignedLessOrEqual(UBits(20, 8))},
+      {i1, solvers::Predicate::UnsignedGreaterOrEqual(UBits(30, 8))},
+      {i1, solvers::Predicate::UnsignedLessOrEqual(UBits(40, 8))},
   };
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      solvers::z3::ProverResult res,
+      solvers::ProverResult res,
       solvers::z3::TryProve(
           f, f->return_value(),
-          solvers::z3::Predicate::UnsignedGreaterOrEqual(UBits(35, 8)),
+          solvers::Predicate::UnsignedGreaterOrEqual(UBits(35, 8)),
           absl::InfiniteDuration(), false, assumptions));
 
   EXPECT_THAT(res, IsProvenTrue());
 }
-
-// //
-// =============================================================================
-// Z3 Translation Benchmarks (Google Benchmark)
-// =============================================================================
 
 static void BM_OneHotLsb(benchmark::State& state) {
   int64_t w = state.range(0);

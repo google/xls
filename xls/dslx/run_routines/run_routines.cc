@@ -90,6 +90,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/solver.h"
 #include "xls/solvers/z3_ir_translator.h"
 
 namespace xls::dslx {
@@ -864,20 +865,19 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
 
     VLOG(1) << "Found IR function: " << (*ir_function)->name();
 
-    absl::StatusOr<solvers::z3::ProverResult> proven = solvers::z3::TryProve(
+    absl::StatusOr<solvers::ProverResult> proven = solvers::z3::TryProve(
         *ir_function, (*ir_function)->return_value(),
-        solvers::z3::Predicate::NotEqualToZero(), absl::InfiniteDuration());
+        solvers::Predicate::NotEqualToZero(), absl::InfiniteDuration());
 
     if (handle_if_error(proven.status())) {
       continue;
     }
 
     VLOG(1) << "Proven? "
-            << (std::holds_alternative<solvers::z3::ProvenTrue>(*proven)
-                    ? "true"
-                    : "false");
+            << (std::holds_alternative<solvers::ProvenTrue>(*proven) ? "true"
+                                                                     : "false");
 
-    if (std::holds_alternative<solvers::z3::ProvenTrue>(*proven)) {
+    if (std::holds_alternative<solvers::ProvenTrue>(*proven)) {
       absl::Time test_case_end = absl::Now();
       absl::Duration duration = test_case_end - test_case_start;
       result.AddTestCase(test_xml::TestCase{
@@ -893,7 +893,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
       continue;
     }
 
-    const auto& proven_false = std::get<solvers::z3::ProvenFalse>(*proven);
+    const auto& proven_false = std::get<solvers::ProvenFalse>(*proven);
 
     // Extract the counterexample, and collapse it back into sequential order.
     std::vector<Value> counterexample;

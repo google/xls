@@ -43,13 +43,14 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/ternary.h"
+#include "xls/solvers/prover_matchers.h"
+#include "xls/solvers/solver.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_ir_translator_matchers.h"
 
 namespace xls::interval_ops {
 
 namespace {
-using ::xls::solvers::z3::IsProvenTrue;
+using ::xls::solvers::IsProvenTrue;
 
 IntervalSet SetOf(absl::Span<const Interval> intervals) {
   IntervalSet is(intervals.front().BitCount());
@@ -281,7 +282,7 @@ void OpFuzz(
   ScopedMaybeRecord smr_out("output_ranges", res);
   ScopedMaybeRecord smr_ir("ir", p.DumpIr());
   EXPECT_THAT(solvers::z3::TryProve(f, implication.node(),
-                                    solvers::z3::Predicate::NotEqualToZero(),
+                                    solvers::Predicate::NotEqualToZero(),
                                     absl::InfiniteDuration()),
               absl_testing::IsOkAndHolds(IsProvenTrue()));
 }

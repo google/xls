@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/solvers/z3_ir_equivalence.h"
+#include "xls/solvers/ir_equivalence.h"
 
 #include <cstdint>
 #include <functional>
@@ -43,9 +43,9 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/solver.h"
 
-namespace xls::solvers::z3 {
+namespace xls::solvers {
 
 namespace {
 
@@ -166,7 +166,8 @@ class RemoveAssertsPass : public OptimizationFunctionBasePass {
 }  // namespace
 absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
                                                  bool ignore_asserts,
-                                                 absl::Duration timeout) {
+                                                 SolverKind kind,
+                                                 SolverLimit limit) {
   std::unique_ptr<Package> to_test = std::make_unique<Package>(
       absl::StrFormat("%s_tester", a->package()->name()));
   XLS_ASSIGN_OR_RETURN(
@@ -200,7 +201,7 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
 
   // Patch b into to_test. Wire up parameters to those at the same index in the
   // to_test_function.  We do this so we can test whether the two functions are
-  // semantically equivalent by making a single Z3-AST function and checking a
+  // semantically equivalent by making a single AST function and checking a
   // single eq node's value.
   absl::flat_hash_map<Node*, Node*> node_map;
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(b));
@@ -236,7 +237,7 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
   }
   XLS_ASSIGN_OR_RETURN(Node * new_ret, CombineChecks(to_test_func, checks));
   XLS_RETURN_IF_ERROR(to_test_func->set_return_value(new_ret));
-  // Remove asserts prior to Z3 translation (the solver does not understand
+  // Remove asserts prior to translation (the solver does not understand
   // them yet). If assert semantics are being checked, those checks have been
   // encoded into the return value already.
   OptimizationContext ctx;
@@ -245,9 +246,10 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
   XLS_RETURN_IF_ERROR(rap.Run(to_test.get(), {}, &res, ctx).status())
       << "Unable to remove asserts from function!";
   // Run prover
-  XLS_ASSIGN_OR_RETURN(
-      ProverResult base_result,
-      TryProve(to_test_func, new_ret, Predicate::NotEqualToZero(), timeout));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Solver> solver, CreateSolver(kind));
+  XLS_ASSIGN_OR_RETURN(ProverResult base_result,
+                       solver->TryProve(to_test_func, new_ret,
+                                        Predicate::NotEqualToZero(), limit));
   // remap parameters back to the originals.
   return std::visit(
       Visitor{
@@ -281,7 +283,7 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
 absl::StatusOr<ProverResult> TryProveEquivalence(
     Function* original,
     const std::function<absl::Status(Package*, Function*)>& run_pass,
-    absl::Duration timeout) {
+    SolverKind kind, SolverLimit limit) {
   std::unique_ptr<Package> to_transform = std::make_unique<Package>(
       absl::StrFormat("%s_copy", original->package()->name()));
   XLS_ASSIGN_OR_RETURN(
@@ -290,7 +292,7 @@ absl::StatusOr<ProverResult> TryProveEquivalence(
                       to_transform.get()));
   XLS_RETURN_IF_ERROR(run_pass(to_transform.get(), to_transform_func));
 
-  return TryProveEquivalence(original, to_transform_func, timeout);
+  return TryProveEquivalence(original, to_transform_func, kind, limit);
 }
 
-}  // namespace xls::solvers::z3
+}  // namespace xls::solvers

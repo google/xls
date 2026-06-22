@@ -50,7 +50,8 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence.h"
+#include "xls/solvers/ir_equivalence.h"
+#include "xls/solvers/solver.h"
 #include "xls/solvers/z3_ir_translator.h"
 
 static constexpr std::string_view kUsage = R"(
@@ -87,11 +88,11 @@ ABSL_FLAG(int, match_exit_code, 0,
 namespace xls {
 namespace {
 
-absl::StatusOr<solvers::z3::ProverResult> CheckFunctionEquivalence(
-    Function* f1, Function* f2) {
-  return solvers::z3::TryProveEquivalence(f1, f2);
+absl::StatusOr<solvers::ProverResult> CheckFunctionEquivalence(Function* f1,
+                                                               Function* f2) {
+  return solvers::TryProveEquivalence(f1, f2);
 }
-absl::StatusOr<solvers::z3::ProverResult> CheckProcEquivalence(
+absl::StatusOr<solvers::ProverResult> CheckProcEquivalence(
     Proc* p1, Proc* p2, int64_t activation_count) {
   XLS_ASSIGN_OR_RETURN(
       Function * f1,
@@ -105,7 +106,7 @@ absl::StatusOr<solvers::z3::ProverResult> CheckProcEquivalence(
 }
 
 absl::StatusOr<std::vector<std::string>> CounterexampleParams(
-    FunctionBase* f, const solvers::z3::ProvenFalse& proven_false) {
+    FunctionBase* f, const solvers::ProvenFalse& proven_false) {
   std::vector<std::string> counterexample;
   using InputValues = absl::flat_hash_map<Node*, Value>;
   XLS_ASSIGN_OR_RETURN(InputValues counterexample_map,
@@ -182,7 +183,7 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
     functions.push_back(top.value());
   }
 
-  solvers::z3::ProverResult result;
+  solvers::ProverResult result;
   if (functions[0]->IsFunction()) {
     if (!functions[1]->IsFunction()) {
       return absl::InvalidArgumentError("Both inputs must be functions");
@@ -207,14 +208,14 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
         "Block equivalence checking not supported currently.");
   }
 
-  if (std::holds_alternative<solvers::z3::ProvenTrue>(result)) {
+  if (std::holds_alternative<solvers::ProvenTrue>(result)) {
     std::cout << "Verified equivalent\n";
   } else {
-    XLS_RET_CHECK(std::holds_alternative<solvers::z3::ProvenFalse>(result));
+    XLS_RET_CHECK(std::holds_alternative<solvers::ProvenFalse>(result));
     XLS_ASSIGN_OR_RETURN(
         std::vector<std::string> params,
         CounterexampleParams(functions[0],
-                             std::get<solvers::z3::ProvenFalse>(result)));
+                             std::get<solvers::ProvenFalse>(result)));
     std::cout << "Verified NOT equivalent; results differ for input: "
               << absl::StrJoin(params, ", ") << "\n";
     return false;

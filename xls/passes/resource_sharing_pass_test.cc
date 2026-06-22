@@ -53,7 +53,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/visibility_analysis.h"
 #include "xls/passes/visibility_expr_builder.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace xls {
 
@@ -62,7 +62,7 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
-using ::xls::solvers::z3::ScopedVerifyEquivalence;
+using ::xls::solvers::ScopedVerifyEquivalence;
 
 class ResourceSharingPassTest : public IrTestBase {
  protected:

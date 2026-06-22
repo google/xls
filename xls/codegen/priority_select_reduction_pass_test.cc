@@ -35,15 +35,15 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
-#include "xls/solvers/z3_assert_testutils.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_assert_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace xls::verilog {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
-using solvers::z3::IsAssertClean;
-using solvers::z3::ScopedVerifyBlockEquivalence;
+using solvers::IsAssertClean;
+using solvers::ScopedVerifyBlockEquivalence;
 
 class PrioritySelectReductionPassTest
     : public IrTestBase,

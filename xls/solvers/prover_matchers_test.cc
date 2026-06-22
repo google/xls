@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/solvers/z3_ir_translator_matchers.h"
+#include "xls/solvers/prover_matchers.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
-#include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/solver.h"
 
-namespace xls::solvers::z3 {
+namespace xls::solvers {
 namespace {
 using ::testing::Not;
 using ::testing::StrEq;
@@ -42,4 +42,4 @@ TEST(ProverResultTest, Matchers) {
 }
 
 }  // namespace
-}  // namespace xls::solvers::z3
+}  // namespace xls::solvers

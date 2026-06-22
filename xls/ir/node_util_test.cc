@@ -60,7 +60,7 @@
 #include "xls/ir/xls_type.pb.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -1114,7 +1114,7 @@ void RemoveRestoreKnownBits(const RemoveRestoreKnownBitsTy& arg) {
                            FromTreeOfNodes(fb.function(), new_tree.AsView()));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(BValue(forced_nd, &fb)));
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   KnownBitsRoundTripPass kbrtp(forced_nd, mask);
   PassResults res;
   OptimizationContext ctx;

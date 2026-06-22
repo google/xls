@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 #include <cstdint>
 
@@ -30,7 +30,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
 
-namespace xls::solvers::z3 {
+namespace xls::solvers {
 namespace {
 
 class Z3IrEquivalenceTestutilsTest : public IrTestBase {};
@@ -94,4 +94,4 @@ TEST_F(Z3IrEquivalenceTestutilsTest, EquivArraySlice) {
 }
 
 }  // namespace
-}  // namespace xls::solvers::z3
+}  // namespace xls::solvers

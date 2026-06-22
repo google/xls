@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_SOLVERS_Z3_IR_TRANSLATOR_MATCHERS_H_
-#define XLS_SOLVERS_Z3_IR_TRANSLATOR_MATCHERS_H_
+#ifndef XLS_SOLVERS_PROVER_MATCHERS_H_
+#define XLS_SOLVERS_PROVER_MATCHERS_H_
 
 #include <ostream>
 #include <string>
@@ -22,9 +22,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
-#include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/solver.h"
 
-namespace xls::solvers::z3 {
+namespace xls::solvers {
 
 MATCHER(IsProvenTrue,
         absl::StrFormat("Value is %sProvenTrue", negation ? "not " : "")) {
@@ -76,6 +76,6 @@ IsProvenFalseMatcher<T> IsProvenFalse(T t) {
   return IsProvenFalseMatcher<T>(t);
 }
 
-}  // namespace xls::solvers::z3
+}  // namespace xls::solvers
 
-#endif  // XLS_SOLVERS_Z3_IR_TRANSLATOR_MATCHERS_H_
+#endif  // XLS_SOLVERS_PROVER_MATCHERS_H_

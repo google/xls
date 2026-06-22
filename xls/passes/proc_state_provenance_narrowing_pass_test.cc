@@ -38,7 +38,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/proc_state_optimization_pass.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 namespace xls {
@@ -107,8 +107,8 @@ TEST_F(ProcStateProvenanceNarrowingPassTest, BasicJoin) {
   fb.Next(st, fb.Literal(near_end2), fb.Eq(choice, fb.Literal(UBits(3, 2))));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, fb.Build());
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/6,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/6,
+                                            /*include_state=*/false);
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
   EXPECT_THAT(proc->StateElements(),

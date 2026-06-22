@@ -50,6 +50,11 @@ enum ProtoSchedulingStrategy {
   SCHEDULER_TYPE_RANDOM = 4;
 }
 
+enum SolverKind {
+  SOLVER_KIND_UNSPECIFIED = 0;
+  SOLVER_KIND_Z3 = 1;
+}
+
 message SchedulingFailureBehaviorProto {
   optional bool explain_infeasibility = 1
       [(google.api.field_behavior) = REQUIRED];
@@ -109,6 +114,9 @@ message SchedulingOptionsFlagsProto {
   optional ProtoSchedulingStrategy scheduling_strategy = 38;
   // What sort of scheduler to use when finding bounds.
   optional ProtoSchedulingStrategy find_bounds_strategy = 39;
+  // What sort of SMT solver to use for logical analysis (e.g., mutual
+  // exclusion).
+  optional SolverKind solver_kind = 42;
   optional int64 default_arc_worst_case_throughput = 40;
   map<string, ReadToThroughputProto> arc_worst_case_throughput = 41;
 }

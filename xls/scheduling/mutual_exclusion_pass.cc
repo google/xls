@@ -63,9 +63,7 @@
 #include "xls/passes/token_provenance_analysis.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
-#include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_utils.h"
-#include "z3/src/api/z3_api.h"
+#include "xls/solvers/solver.h"
 
 namespace xls {
 
@@ -76,22 +74,21 @@ namespace {
 //
 // TODO(allight): This might be generally useful enough to move it (or something
 // with a similar function) to the solvers namespace.
-class LazyZ3Translator {
+class LazySolver {
  public:
-  LazyZ3Translator(FunctionBase* f, int64_t z3_rlimit)
-      : f_(f), z3_rlimit_(z3_rlimit) {}
+  LazySolver(FunctionBase* f, solvers::SolverKind solver_kind, int64_t limit)
+      : f_(f), solver_kind_(solver_kind), limit_(limit) {}
 
-  absl::StatusOr<solvers::z3::IrTranslator*> Translator() const {
-    if (!translator_) {
-      XLS_ASSIGN_OR_RETURN(translator_,
-                           solvers::z3::IrTranslator::CreateAndTranslate(
-                               f_, /*allow_unsupported=*/true));
+  absl::StatusOr<solvers::SolverInstance*> Instance() const {
+    if (!instance_) {
+      XLS_ASSIGN_OR_RETURN(solver_, solvers::CreateSolver(solver_kind_));
+      XLS_ASSIGN_OR_RETURN(instance_, solver_->CreateSolverInstance(
+                                          f_, /*allow_unsupported=*/true));
     }
-    translator_->SetRlimit(z3_rlimit_);
-    return translator_.get();
+    return instance_.get();
   }
 
-  absl::StatusOr<absl::Span<const solvers::z3::PredicateOfNode>> Assumptions()
+  absl::StatusOr<absl::Span<const solvers::PredicateOfNode>> Assumptions()
       const {
     if (!assumptions_.has_value()) {
       if (f_->IsProc()) {
@@ -102,13 +99,15 @@ class LazyZ3Translator {
     return *assumptions_;
   }
 
-  int64_t z3_rlimit() const { return z3_rlimit_; }
+  int64_t limit() const { return limit_; }
 
  private:
   FunctionBase* f_;
-  int64_t z3_rlimit_;
-  mutable std::unique_ptr<solvers::z3::IrTranslator> translator_;
-  mutable std::optional<std::vector<solvers::z3::PredicateOfNode>> assumptions_;
+  solvers::SolverKind solver_kind_;
+  int64_t limit_;
+  mutable std::unique_ptr<solvers::Solver> solver_;
+  mutable std::unique_ptr<solvers::SolverInstance> instance_;
+  mutable std::optional<std::vector<solvers::PredicateOfNode>> assumptions_;
 };
 
 // This stores a mapping from nodes in a FunctionBase to 1-bit nodes that are
@@ -149,7 +148,7 @@ class Predicates {
   // For all `P` and `Q`,
   // `QueryMutuallyExclusive(P, Q) == QueryMutuallyExclusive(Q, P)`.
   absl::StatusOr<std::optional<bool>> QueryMutuallyExclusive(
-      const LazyZ3Translator& translator, Node* pred_a, Node* pred_b);
+      const LazySolver& lazy_solver, Node* pred_a, Node* pred_b);
 
   // Returns all neighbors of the given predicate in the mutual exclusion graph.
   // The return value of `MutualExclusionNeighbors(P)` should be all `Q` such
@@ -391,7 +390,7 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
 // size 1 including only themselves.
 // A merge class is a set of nodes that are all jointly mutually exclusive.
 absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
-    Predicates* p, LazyZ3Translator& lazy_solver, FunctionBase* f,
+    Predicates* p, LazySolver& lazy_solver, FunctionBase* f,
     const ScheduleCycleMap& scm) {
   XLS_ASSIGN_OR_RETURN(NodeRelation mergable_effects,
                        ComputeMergableEffects(f));
@@ -921,7 +920,7 @@ absl::Status Predicates::MarkUnknownMutuallyExclusive(Node* pred_a,
 }
 
 absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
-    const LazyZ3Translator& translator, Node* pred_a, Node* pred_b) {
+    const LazySolver& lazy_solver, Node* pred_a, Node* pred_b) {
   if (pred_a == pred_b) {
     // Never mutex with yourself.
     return false;
@@ -933,10 +932,8 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
   }
 
   // Actually do the mutex calculations
-  XLS_ASSIGN_OR_RETURN(solvers::z3::IrTranslator * solver,
-                       translator.Translator());
-  Z3_context ctx = solver->ctx();
-  solvers::z3::ScopedErrorHandler seh(ctx);
+  XLS_ASSIGN_OR_RETURN(solvers::SolverInstance * solver,
+                       lazy_solver.Instance());
   XLS_ASSIGN_OR_RETURN(
       absl::flat_hash_set<ChannelRef> channels_a,
       GetControlledProvenMutuallyExclusiveChannels(pred_a, *this));
@@ -948,39 +945,44 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
   // NB We could check if a or b is always false but since we do this lazily
   // theres no benefit there.
 
-  int64_t rlimit = translator.z3_rlimit();
+  int64_t limit = lazy_solver.limit();
   if (required_for_compilation) {
-    VLOG(1) << "Removing Z3's rlimit for mutex check on " << pred_a->GetName()
-            << " and " << pred_b->GetName()
+    VLOG(1) << "Removing solver's limit for mutex check on "
+            << pred_a->GetName() << " and " << pred_b->GetName()
             << " as mutual exclusion is required for compilation.";
-    rlimit = 0;
+    limit = 0;
   }
   std::optional<Stopwatch> timer;
   if (VLOG_IS_ON(2)) {
     timer.emplace();
   }
   VLOG(2) << "START: Checking mutex between " << pred_a << " and " << pred_b;
-  XLS_ASSIGN_OR_RETURN(
-      absl::Span<const solvers::z3::PredicateOfNode> assumptions,
-      translator.Assumptions());
-  absl::StatusOr<solvers::z3::ProverResult> result =
-      solvers::z3::TryProveWithTranslator(
-          solver, pred_a, solvers::z3::Predicate::IsExclusiveWith(pred_b),
-          rlimit, assumptions);
+  XLS_ASSIGN_OR_RETURN(absl::Span<const solvers::PredicateOfNode> assumptions,
+                       lazy_solver.Assumptions());
+
+  solvers::SolverLimit solver_limit;
+  if (limit > 0) {
+    solver_limit.deterministic_limit = limit;
+  }
+  solver->SetLimit(solver_limit);
+
+  absl::StatusOr<solvers::ProverResult> result = solver->TryProve(
+      pred_a, solvers::Predicate::IsExclusiveWith(pred_b), assumptions);
+
   VLOG(2) << "END: Took " << timer->GetElapsedTime() << " to "
           << (!result.ok()
                   ? "give up proving"
-                  : (std::holds_alternative<solvers::z3::ProvenTrue>(*result)
+                  : (std::holds_alternative<solvers::ProvenTrue>(*result)
                          ? "prove"
                          : "disprove"))
           << " mutex between " << pred_a << " and " << pred_b;
   if (!result.ok()) {
-    VLOG(3) << "Z3 ran out of time checking mutual exclusion of "
+    VLOG(3) << "Solver ran out of time checking mutual exclusion of "
             << pred_a->GetName() << " and " << pred_b->GetName();
     XLS_RETURN_IF_ERROR(MarkUnknownMutuallyExclusive(pred_a, pred_b));
     if (required_for_compilation) {
       return absl::FailedPreconditionError(absl::StrFormat(
-          "Z3 failed to prove that %s and %s, which control operations on "
+          "Solver failed to prove that %s and %s, which control operations on "
           "proven-mutually-exclusive channels (%s), are mutually "
           "exclusive: %v",
           pred_a->GetName(), pred_b->GetName(),
@@ -991,11 +993,11 @@ absl::StatusOr<std::optional<bool>> Predicates::QueryMutuallyExclusive(
           result.status()));
     }
     return std::nullopt;
-  } else if (std::holds_alternative<solvers::z3::ProvenTrue>(*result)) {
+  } else if (std::holds_alternative<solvers::ProvenTrue>(*result)) {
     XLS_RETURN_IF_ERROR(MarkMutuallyExclusive(pred_a, pred_b));
     return true;
   } else {
-    CHECK(std::holds_alternative<solvers::z3::ProvenFalse>(*result));
+    CHECK(std::holds_alternative<solvers::ProvenFalse>(*result));
     XLS_RETURN_IF_ERROR(MarkNotMutuallyExclusive(pred_a, pred_b));
     if (required_for_compilation) {
       return absl::FailedPreconditionError(absl::StrFormat(
@@ -1093,13 +1095,13 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
     }
   }
 
-  // Sets limit on z3 "solver resources", so that the pass doesn't take too long
-  const int64_t z3_rlimit =
+  // Sets limit on solver resources, so that the pass doesn't take too long
+  const int64_t limit =
       options.scheduling_options.mutual_exclusion_z3_rlimit().value_or(5000);
 
   Predicates p;
   XLS_RETURN_IF_ERROR(AddSendReceivePredicates(&p, f));
-  LazyZ3Translator solver(f, z3_rlimit);
+  LazySolver solver(f, options.scheduling_options.solver_kind(), limit);
   XLS_ASSIGN_OR_RETURN(std::vector<absl::flat_hash_set<Node*>> merge_classes,
                        ComputeMergeClasses(&p, solver, f, scm));
 

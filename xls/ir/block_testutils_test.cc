@@ -28,17 +28,17 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
-#include "xls/solvers/z3_ir_equivalence.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence.h"
+#include "xls/solvers/prover_matchers.h"
+#include "xls/solvers/solver.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_ir_translator_matchers.h"
 
 namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
-using ::xls::solvers::z3::IsProvenTrue;
-using ::xls::solvers::z3::TryProveEquivalence;
+using ::xls::solvers::IsProvenTrue;
+using ::xls::solvers::TryProveEquivalence;
 
 class UnrollBlockTest : public IrTestBase {};
 
@@ -91,13 +91,13 @@ TEST_F(UnrollBlockTest, BasicBlockEquivalence) {
   RecordProperty("converted", converted->DumpIr());
   auto equiv = TryProveEquivalence(f, converted);
   EXPECT_THAT(equiv, IsOkAndHolds(IsProvenTrue()));
-  if (equiv.ok() && std::holds_alternative<solvers::z3::ProvenFalse>(*equiv)) {
+  if (equiv.ok() && std::holds_alternative<solvers::ProvenFalse>(*equiv)) {
     RecordProperty("counterexample",
-                   converted->DumpIr(solvers::z3::CounterExampleAnnotator(
-                       std::get<solvers::z3::ProvenFalse>(*equiv))));
+                   converted->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(*equiv))));
     RecordProperty("counterexample_func",
-                   f->DumpIr(solvers::z3::CounterExampleAnnotator(
-                       std::get<solvers::z3::ProvenFalse>(*equiv))));
+                   f->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(*equiv))));
   }
 }
 
@@ -161,13 +161,13 @@ TEST_F(UnrollBlockTest, BasicBlockEquivalenceWithState) {
   RecordProperty("converted", converted->DumpIr());
   auto equiv = TryProveEquivalence(f, converted);
   EXPECT_THAT(equiv, IsOkAndHolds(IsProvenTrue()));
-  if (equiv.ok() && std::holds_alternative<solvers::z3::ProvenFalse>(*equiv)) {
+  if (equiv.ok() && std::holds_alternative<solvers::ProvenFalse>(*equiv)) {
     RecordProperty("counterexample",
-                   converted->DumpIr(solvers::z3::CounterExampleAnnotator(
-                       std::get<solvers::z3::ProvenFalse>(*equiv))));
+                   converted->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(*equiv))));
     RecordProperty("counterexample_func",
-                   f->DumpIr(solvers::z3::CounterExampleAnnotator(
-                       std::get<solvers::z3::ProvenFalse>(*equiv))));
+                   f->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(*equiv))));
   }
 }
 

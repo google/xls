@@ -28,6 +28,35 @@ package(
 )
 
 cc_library(
+    name = "solver",
+    srcs = ["solver.cc"],
+    hdrs = ["solver.h"],
+    deps = [
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:events",
+        "//xls/ir:format_preference",
+        "//xls/ir:interval_set",
+        "//xls/ir:op",
+        "//xls/ir:ternary",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
+        "//xls/passes:query_engine",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "z3_op_translator",
     srcs = ["z3_op_translator.cc"],
     hdrs = ["z3_op_translator.h"],
@@ -53,10 +82,11 @@ cc_test(
 )
 
 cc_library(
-    name = "z3_ir_equivalence",
-    srcs = ["z3_ir_equivalence.cc"],
-    hdrs = ["z3_ir_equivalence.h"],
+    name = "ir_equivalence",
+    srcs = ["ir_equivalence.cc"],
+    hdrs = ["ir_equivalence.h"],
     deps = [
+        ":solver",
         ":z3_ir_translator",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
@@ -79,22 +109,22 @@ cc_library(
 )
 
 cc_library(
-    name = "z3_ir_translator_matchers",
+    name = "prover_matchers",
     testonly = True,
-    hdrs = ["z3_ir_translator_matchers.h"],
+    hdrs = ["prover_matchers.h"],
     deps = [
-        ":z3_ir_translator",
+        ":solver",
         "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
     ],
 )
 
 cc_test(
-    name = "z3_ir_translator_matchers_test",
-    srcs = ["z3_ir_translator_matchers_test.cc"],
+    name = "prover_matchers_test",
+    srcs = ["prover_matchers_test.cc"],
     deps = [
-        ":z3_ir_translator",
-        ":z3_ir_translator_matchers",
+        ":prover_matchers",
+        ":solver",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/strings",
         "@googletest//:gtest",
@@ -102,13 +132,13 @@ cc_test(
 )
 
 cc_test(
-    name = "z3_ir_equivalence_test",
-    srcs = ["z3_ir_equivalence_test.cc"],
+    name = "ir_equivalence_test",
+    srcs = ["ir_equivalence_test.cc"],
     deps = [
-        ":z3_ir_equivalence",
-        ":z3_ir_equivalence_testutils",
+        ":ir_equivalence",
+        ":ir_equivalence_testutils",
+        ":prover_matchers",
         ":z3_ir_translator",
-        ":z3_ir_translator_matchers",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -127,14 +157,15 @@ cc_test(
 )
 
 cc_library(
-    name = "z3_ir_equivalence_testutils",
+    name = "ir_equivalence_testutils",
     testonly = True,
-    srcs = ["z3_ir_equivalence_testutils.cc"],
-    hdrs = ["z3_ir_equivalence_testutils.h"],
+    srcs = ["ir_equivalence_testutils.cc"],
+    hdrs = ["ir_equivalence_testutils.h"],
     deps = [
-        ":z3_ir_equivalence",
+        ":ir_equivalence",
+        ":prover_matchers",
+        ":solver",
         ":z3_ir_translator",
-        ":z3_ir_translator_matchers",
         "//xls/common:source_location",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -152,10 +183,10 @@ cc_library(
 )
 
 cc_test(
-    name = "z3_ir_equivalence_testutils_test",
-    srcs = ["z3_ir_equivalence_testutils_test.cc"],
+    name = "ir_equivalence_testutils_test",
+    srcs = ["ir_equivalence_testutils_test.cc"],
     deps = [
-        ":z3_ir_equivalence_testutils",
+        ":ir_equivalence_testutils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -178,6 +209,7 @@ cc_library(
     srcs = ["z3_ir_translator.cc"],
     hdrs = ["z3_ir_translator.h"],
     deps = [
+        ":solver",
         ":z3_op_translator",
         ":z3_utils",
         "//xls/common/status:ret_check",
@@ -189,7 +221,6 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:events",
-        "//xls/ir:format_preference",
         "//xls/ir:interval_set",
         "//xls/ir:op",
         "//xls/ir:ternary",
@@ -212,14 +243,16 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@z3//:api",
     ],
+    alwayslink = 1,
 )
 
 cc_test(
     name = "z3_ir_translator_test",
     srcs = ["z3_ir_translator_test.cc"],
     deps = [
+        ":prover_matchers",
+        ":solver",
         ":z3_ir_translator",
-        ":z3_ir_translator_matchers",
         ":z3_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
@@ -421,25 +454,6 @@ cc_test(
 )
 
 cc_binary(
-    name = "solver",
-    srcs = ["solver.cc"],
-    deps = [
-        ":z3_ir_translator",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-    ],
-)
-
-cc_binary(
     name = "smtlib_emitter_main",
     srcs = ["smtlib_emitter_main.cc"],
     deps = [
@@ -456,14 +470,14 @@ cc_binary(
 )
 
 cc_library(
-    name = "z3_assert_testutils",
+    name = "ir_assert_testutils",
     testonly = True,
-    srcs = ["z3_assert_testutils.cc"],
-    hdrs = ["z3_assert_testutils.h"],
+    srcs = ["ir_assert_testutils.cc"],
+    hdrs = ["ir_assert_testutils.h"],
     deps = [
-        ":z3_ir_equivalence_testutils",
+        ":prover_matchers",
+        ":solver",
         ":z3_ir_translator",
-        ":z3_ir_translator_matchers",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/dev_tools:extract_segment",
@@ -482,10 +496,10 @@ cc_library(
 )
 
 cc_test(
-    name = "z3_assert_testutils_test",
-    srcs = ["z3_assert_testutils_test.cc"],
+    name = "ir_assert_testutils_test",
+    srcs = ["ir_assert_testutils_test.cc"],
     deps = [
-        ":z3_assert_testutils",
+        ":ir_assert_testutils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",

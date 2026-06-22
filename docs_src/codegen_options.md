@@ -597,17 +597,17 @@ response-receive are scheduled to match the RAM's latency.
 
 -   `--mutual_exclusion_z3_rlimit` controls how hard the mutual exclusion pass
     will work to attempt to prove that sends and receives are mutually
-    exclusive. Concretely, this roughly limits the number of `malloc` calls done
-    by the Z3 solver, so the output should be deterministic across machines for
-    a given rlimit.
+    exclusive. The output should be deterministic across machines.
 
 -   `--default_next_value_z3_rlimit` controls how hard our scheduling passes
     will work to prove that state params are fully covered by their `next_value`
     nodes, so that we can skip special handling for the case where no
     `next_value` node triggers. This is purely an optimization; everything will
-    work correctly even if this is disabled (omitted, or set to -1). Concretely,
-    this roughly limits the number of `malloc` calls done by the Z3 solver, so
-    the output should be deterministic across machines for a given rlimit.
+    work correctly even if this is disabled (omitted, or set to -1). The output
+    should be deterministic across machines.
+
+-   `--solver_kind=z3` controls which SAT/SMT solver is used for analyses that
+    use one. Currently only Z3 is supported.
 
 -   `--register_merge_strategy` controls how we merge registers between stages
     which may be shared. The options are `identity` which merges registers which

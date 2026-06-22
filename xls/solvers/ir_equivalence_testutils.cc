@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 #include <cstdint>
 #include <memory>
@@ -41,11 +41,11 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_testutils.h"
-#include "xls/solvers/z3_ir_equivalence.h"
-#include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_ir_translator_matchers.h"
+#include "xls/solvers/ir_equivalence.h"
+#include "xls/solvers/prover_matchers.h"
+#include "xls/solvers/solver.h"
 
-namespace xls::solvers::z3 {
+namespace xls::solvers {
 
 namespace {
 
@@ -61,12 +61,16 @@ using ::absl_testing::IsOkAndHolds;
 
 using ::testing::_;
 using ::testing::VariantWith;
+using ::xls::solvers::IsProvenTrue;
 
 ScopedVerifyEquivalence::ScopedVerifyEquivalence(Function* f,
                                                  bool ignore_asserts,
                                                  absl::Duration timeout,
                                                  xabsl::SourceLocation loc)
     : f_(f), ignore_asserts_(ignore_asserts), timeout_(timeout), loc_(loc) {
+  if (timeout != absl::InfiniteDuration()) {
+    limit_.timeout = timeout;
+  }
   clone_p_ = std::make_unique<Package>(
       absl::StrFormat("%s_original", f->package()->name()));
   absl::StatusOr<Function*> cloned =
@@ -88,7 +92,7 @@ ScopedVerifyEquivalence::~ScopedVerifyEquivalence() {
             "ScopedVerifyEquivalence failed to prove equivalence of function ",
             f_->name(), " before & after changes"));
     absl::StatusOr<ProverResult> result =
-        TryProveEquivalence(original_f_, f_, ignore_asserts_, timeout_);
+        TryProveEquivalence(original_f_, f_, ignore_asserts_, kind_, limit_);
     EXPECT_THAT(result, IsOkAndHolds(VariantWith<ProvenTrue>(_)));
     if (result.ok() && std::holds_alternative<ProvenFalse>(*result)) {
       testing::Test::RecordProperty("original",
@@ -112,6 +116,9 @@ ScopedVerifyProcEquivalence::ScopedVerifyProcEquivalence(
       include_state_(include_state),
       timeout_(timeout),
       loc_(loc) {
+  if (timeout != absl::InfiniteDuration()) {
+    limit_.timeout = timeout;
+  }
   clone_package_ = std::make_unique<Package>(
       absl::StrFormat("%s_original", p->package()->name()));
   if (!p_->is_new_style_proc()) {
@@ -148,8 +155,9 @@ void ScopedVerifyProcEquivalence::RunProcVerification() {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       UnrollProcToFunction(final_p_cloned, activation_count_, include_state_));
-  EXPECT_THAT(TryProveEquivalence(original_f, f, ignore_asserts_, timeout_),
-              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(
+      TryProveEquivalence(original_f, f, ignore_asserts_, kind_, limit_),
+      IsOkAndHolds(IsProvenTrue()));
   if (testing::Test::HasFailure()) {
     testing::Test::RecordProperty("original",
                                   original_ir.value_or(original_p_->DumpIr()));
@@ -166,6 +174,9 @@ ScopedVerifyBlockEquivalence::ScopedVerifyBlockEquivalence(
       include_reg_state_(include_reg_state),
       timeout_(timeout),
       loc_(loc) {
+  if (timeout != absl::InfiniteDuration()) {
+    limit_.timeout = timeout;
+  }
   clone_package_ = std::make_unique<Package>(
       absl::StrFormat("%s_original", b->package()->name()));
   absl::StatusOr<Block*> cloned = b_->Clone(
@@ -197,7 +208,8 @@ void ScopedVerifyBlockEquivalence::RunBlockVerification() {
       Function * f,
       UnrollBlockToFunction(final_b_cloned, tick_count_, include_reg_state_,
                             zero_invalid_channel_data_));
-  auto equiv = TryProveEquivalence(original_f, f, ignore_asserts_, timeout_);
+  auto equiv =
+      TryProveEquivalence(original_f, f, ignore_asserts_, kind_, limit_);
   EXPECT_THAT(equiv, IsOkAndHolds(IsProvenTrue()));
   if (testing::Test::HasFailure()) {
     testing::Test::RecordProperty("original", original_b_->DumpIr());
@@ -213,4 +225,4 @@ void ScopedVerifyBlockEquivalence::RunBlockVerification() {
   }
 }
 
-}  // namespace xls::solvers::z3
+}  // namespace xls::solvers

@@ -62,6 +62,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/query_engine.h"
+#include "xls/solvers/solver.h"
 #include "xls/solvers/z3_op_translator.h"
 #include "xls/solvers/z3_utils.h"
 #include "z3/src/api/z3_api.h"
@@ -71,76 +72,6 @@ namespace xls {
 namespace solvers {
 namespace z3 {
 
-/* static */ Predicate Predicate::IsEqualTo(Node* other) {
-  return Predicate(PredicateKind::kEqualToNode, other);
-}
-/* static */ Predicate Predicate::IsExclusiveWith(Node* other) {
-  return Predicate(PredicateKind::kExclusiveWithNode, other);
-}
-/* static */ Predicate Predicate::EqualToZero() {
-  return Predicate(PredicateKind::kEqualToZero);
-}
-/* static */ Predicate Predicate::NotEqualToZero() {
-  return Predicate(PredicateKind::kNotEqualToZero);
-}
-/* static */ Predicate Predicate::UnsignedGreaterOrEqual(Bits lower_bound) {
-  return Predicate(PredicateKind::kUnsignedGreaterOrEqual, nullptr,
-                   std::move(lower_bound));
-}
-/* static */ Predicate Predicate::UnsignedLessOrEqual(Bits upper_bound) {
-  return Predicate(PredicateKind::kUnsignedLessOrEqual, nullptr,
-                   std::move(upper_bound));
-}
-/* static */ Predicate Predicate::IsCompatibleWith(
-    SharedTernaryTree ternaries) {
-  return Predicate(PredicateKind::kCompatibleWithTernary, std::move(ternaries));
-}
-/* static */ Predicate Predicate::IsCompatibleWith(IntervalSetTree intervals) {
-  return Predicate(PredicateKind::kCompatibleWithIntervalSet, intervals);
-}
-
-Predicate::Predicate(PredicateKind kind) : kind_(kind) {}
-
-Predicate::Predicate(PredicateKind kind, Node* node)
-    : kind_(kind), node_(node) {}
-
-Predicate::Predicate(PredicateKind kind, Node* node, Bits value)
-    : kind_(kind), node_(node), value_(std::move(value)) {}
-
-Predicate::Predicate(PredicateKind kind, SharedTernaryTree ternaries)
-    : kind_(kind), ternaries_(std::move(ternaries).ToOwned()) {}
-
-Predicate::Predicate(PredicateKind kind, IntervalSetTree intervals)
-    : kind_(kind), intervals_(std::move(intervals)) {}
-
-std::string Predicate::ToString() const {
-  switch (kind_) {
-    case PredicateKind::kEqualToZero:
-      return "eq zero";
-    case PredicateKind::kNotEqualToZero:
-      return "ne zero";
-    case PredicateKind::kEqualToNode:
-      return "eq " + node()->GetName();
-    case PredicateKind::kExclusiveWithNode:
-      return "nand " + node()->GetName();
-    case PredicateKind::kUnsignedGreaterOrEqual:
-      return "uge " + value_->ToDebugString();
-    case PredicateKind::kUnsignedLessOrEqual:
-      return "ule " + value_->ToDebugString();
-    case PredicateKind::kCompatibleWithTernary:
-      return "compatible with " +
-             ternaries_->ToString([](const TernaryVector& ternary) {
-               return ::xls::ToString(ternary);
-             });
-    case PredicateKind::kCompatibleWithIntervalSet:
-      return "compatible with " +
-             intervals_->ToString([](const IntervalSet& interval) {
-               return interval.ToString();
-             });
-  }
-  return absl::StrFormat("<invalid predicate kind %d>",
-                         static_cast<int>(kind_));
-}
 
 namespace {
 
@@ -1743,7 +1674,7 @@ absl::Status IrTranslator::HandleMulp(PartialProductOp* mul, bool is_signed) {
     Z3_sort op_sort = Z3_mk_bv_sort(ctx_, mul->width());
     Z3_ast offset = Z3_mk_const(ctx_, offset_symbol, op_sort);
     Z3_ast neg_offset = Z3_mk_bvneg(ctx_, offset);
-    NoteTranslation(mul, CreateTuple(mul->GetType(), {neg_offset, offset}));
+    NoteTranslation(mul, CreateTuple(mul->GetType(), {offset, neg_offset}));
     return absl::OkStatus();
   }
   Z3_ast lhs = GetValue(mul->operand(0));
@@ -1759,7 +1690,7 @@ absl::Status IrTranslator::HandleMulp(PartialProductOp* mul, bool is_signed) {
   Z3_ast offset = Z3_mk_const(ctx_, offset_symbol, op_sort);
 
   Z3_ast diff = Z3_mk_bvsub(ctx_, result, offset);
-  NoteTranslation(mul, CreateTuple(mul->GetType(), {diff, offset}));
+  NoteTranslation(mul, CreateTuple(mul->GetType(), {offset, diff}));
   return absl::OkStatus();
 }
 
@@ -2282,49 +2213,101 @@ absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function) {
   return std::string(smt_cstr);
 }
 
-std::optional<std::vector<Node*>> CounterExampleAnnotator::NodeOrder(
-    FunctionBase* fb) const {
-  absl::StatusOr<std::vector<Node*>> topo_sort_nodes = TopoSort(fb);
-  CHECK_OK(topo_sort_nodes);
-  return *topo_sort_nodes;
+void Z3SolverInstance::SetLimit(const SolverLimit& limit) {
+  if (limit.timeout.has_value()) {
+    translator_->SetTimeout(*limit.timeout);
+  } else {
+    translator_->SetTimeout(std::nullopt);
+  }
+  if (limit.deterministic_limit.has_value()) {
+    translator_->SetRlimit(*limit.deterministic_limit);
+  } else {
+    translator_->SetRlimit(std::nullopt);
+  }
 }
 
-std::optional<Value> CounterExampleAnnotator::CounterExampleValue(
-    Node* node) const {
-  auto it = absl::c_find_if(*fail_.counterexample, [&](const auto& pair) {
-    const Node* counter_node = pair.first;
-    return node->GetName() == counter_node->GetName();
-  });
-  if (it == fail_.counterexample->end()) {
-    if (node->OpIn({Op::kParam, Op::kRegisterRead, Op::kStateRead, Op::kReceive,
-                    Op::kInputPort, Op::kInstantiationInput})) {
-      VLOG(1) << "No counterexample info found for input: " << node->GetName();
-      return ZeroOfType(node->GetType());
-    }
-    return std::nullopt;
+absl::StatusOr<ProverResult> Z3SolverInstance::TryProve(
+    Node* subject, const Predicate& p,
+    absl::Span<const PredicateOfNode> assumptions) {
+  if (translator_->timeout().has_value()) {
+    return TryProveWithTranslator(translator_.get(), subject, p,
+                                  *translator_->timeout(), assumptions);
   }
-  return it->second;
+  if (translator_->rlimit().has_value()) {
+    return TryProveWithTranslator(translator_.get(), subject, p,
+                                  *translator_->rlimit(), assumptions);
+  }
+  return TryProveWithTranslator(translator_.get(), subject, p,
+                                absl::InfiniteDuration(), assumptions);
 }
 
-Annotation CounterExampleAnnotator::NodeAnnotation(Node* node) const {
-  if (!fail_.counterexample.ok()) {
-    return {};
+absl::StatusOr<ProverResult> Z3SolverInstance::TryProveCombination(
+    absl::Span<const PredicateOfNode> terms, PredicateCombination combination,
+    absl::Span<const PredicateOfNode> assumptions) {
+  if (translator_->timeout().has_value()) {
+    return combination == PredicateCombination::kConjunction
+               ? TryProveConjunctionWithTranslator(translator_.get(), terms,
+                                                   *translator_->timeout(),
+                                                   assumptions)
+               : TryProveDisjunctionWithTranslator(translator_.get(), terms,
+                                                   *translator_->timeout(),
+                                                   assumptions);
   }
-  auto paren = [](std::string_view sv) -> std::string {
-    return absl::StrCat("(", sv, ")");
-  };
-  if (auto counter = CounterExampleValue(node); counter.has_value()) {
-    counterexamples_[node] = *counter;
-    return Annotation{.suffix = paren(counter->ToHumanString(format_))};
+  if (translator_->rlimit().has_value()) {
+    return combination == PredicateCombination::kConjunction
+               ? TryProveConjunctionWithTranslator(translator_.get(), terms,
+                                                   *translator_->rlimit(),
+                                                   assumptions)
+               : TryProveDisjunctionWithTranslator(translator_.get(), terms,
+                                                   *translator_->rlimit(),
+                                                   assumptions);
   }
-  InterpreterEvents events;
-  IrInterpreter interpreter(&counterexamples_, &events);
-  if (!node->VisitSingleNode(&interpreter).ok()) {
-    return {};
-  }
-  return Annotation{
-      .suffix = paren(interpreter.ResolveAsValue(node).ToHumanString(format_))};
+  return combination == PredicateCombination::kConjunction
+             ? TryProveConjunctionWithTranslator(translator_.get(), terms,
+                                                 absl::InfiniteDuration(),
+                                                 assumptions)
+             : TryProveDisjunctionWithTranslator(translator_.get(), terms,
+                                                 absl::InfiniteDuration(),
+                                                 assumptions);
 }
+
+absl::StatusOr<std::unique_ptr<xls::solvers::SolverInstance>>
+Z3Solver::CreateSolverInstance(FunctionBase* f, bool allow_unsupported) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
+                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+  return std::make_unique<Z3SolverInstance>(std::move(translator));
+}
+
+absl::StatusOr<ProverResult> Z3Solver::TryProve(
+    FunctionBase* f, Node* subject, const Predicate& p,
+    const SolverLimit& limit, bool allow_unsupported,
+    absl::Span<const PredicateOfNode> assumptions) {
+  XLS_ASSIGN_OR_RETURN(auto instance,
+                       CreateSolverInstance(f, allow_unsupported));
+  instance->SetLimit(limit);
+  return instance->TryProve(subject, p, assumptions);
+}
+
+absl::StatusOr<ProverResult> Z3Solver::TryProveCombination(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    PredicateCombination combination, const SolverLimit& limit,
+    bool allow_unsupported, absl::Span<const PredicateOfNode> assumptions) {
+  XLS_ASSIGN_OR_RETURN(auto instance,
+                       CreateSolverInstance(f, allow_unsupported));
+  instance->SetLimit(limit);
+  return instance->TryProveCombination(terms, combination, assumptions);
+}
+
+// Static registration block
+static bool RegisterZ3Solver() {
+  xls::solvers::SolverFactoryRegistry::Get().Register(
+      xls::solvers::SolverKind::kZ3,
+      []() -> absl::StatusOr<std::unique_ptr<xls::solvers::Solver>> {
+        return std::make_unique<Z3Solver>();
+      });
+  return true;
+}
+static bool z3_solver_registered = RegisterZ3Solver();
 
 }  // namespace z3
 }  // namespace solvers

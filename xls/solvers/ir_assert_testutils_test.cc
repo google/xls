@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/solvers/z3_assert_testutils.h"
+#include "xls/solvers/ir_assert_testutils.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -23,7 +23,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 
-namespace xls::solvers::z3 {
+namespace xls::solvers {
 namespace {
 
 using ::testing::Not;
@@ -68,4 +68,4 @@ TEST_F(AssertCleanTest, TriggeredAssert) {
 }
 
 }  // namespace
-}  // namespace xls::solvers::z3
+}  // namespace xls::solvers

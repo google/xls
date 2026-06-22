@@ -37,7 +37,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/proc_state_optimization_pass.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 namespace xls {
@@ -155,8 +155,8 @@ TEST_F(ProcStateNarrowingPassTest, BasicLoop) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -182,8 +182,8 @@ TEST_F(ProcStateNarrowingPassTest, BasicHalt) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -221,8 +221,8 @@ TEST_F(ProcStateNarrowingPassTest, MultiPath) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -251,8 +251,8 @@ TEST_F(ProcStateNarrowingPassTest, SignedCompareUnreachableNegatives) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -285,8 +285,8 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationIsPerformed) {
   pb.Next(state, pb.Literal(UBits(0, 32)),
           pb.Eq(state, pb.Literal(UBits(128, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -326,8 +326,8 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPauses) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -357,8 +357,8 @@ TEST_F(ProcStateNarrowingPassTest, NegativeNumbersAreNotRemoved) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -403,8 +403,8 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPartialBackProp) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/8,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/8,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -426,8 +426,8 @@ TEST_F(ProcStateNarrowingPassTest, DecrementToZeroUnsigned) {
   pb.Next(state, pb.Subtract(state, pb.Literal(UBits(1, 32))), cont);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -449,8 +449,8 @@ TEST_F(ProcStateNarrowingPassTest, DecrementToZeroSigned) {
   pb.Next(state, pb.Subtract(state, pb.Literal(UBits(1, 32))), cont);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -474,8 +474,8 @@ TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPoints) {
   pb.Next(state, pb.Literal(UBits(8, 32)), pb.Not(cont));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -511,8 +511,8 @@ TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPointsNoLiteralNexts) {
   pb.Next(state, state, pb.Not(cont));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
@@ -573,8 +573,8 @@ proc __sample__main_0_next(__state: bits[54], init={12009599006321322}) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(kProc, p.get()));
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(false));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(false));

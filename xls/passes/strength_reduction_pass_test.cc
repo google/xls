@@ -36,8 +36,9 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
+#include "xls/solvers/solver.h"
 #include "xls/solvers/z3_ir_translator.h"
 
 namespace m = ::xls::op_matchers;
@@ -46,7 +47,7 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
-using ::xls::solvers::z3::ScopedVerifyEquivalence;
+using ::xls::solvers::ScopedVerifyEquivalence;
 
 using ::testing::_;
 using ::testing::AnyOf;
@@ -81,12 +82,12 @@ class StrengthReductionPassSemanticsTest : public StrengthReductionPassTest {
     TestReductionIsEquivalent(f);
   }
   void TestReductionIsEquivalent(Function* f) {
-    EXPECT_THAT(solvers::z3::TryProveEquivalence(
+    EXPECT_THAT(solvers::TryProveEquivalence(
                     f,
                     [&](auto package, auto function) {
                       return StrengthReductionPassTest::Run(function).status();
                     }),
-                IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)))
+                IsOkAndHolds(VariantWith<solvers::ProvenTrue>(_)))
         << "Pass changed meaning of the function";
   }
 };

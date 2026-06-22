@@ -51,7 +51,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -62,7 +62,7 @@ constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
-using ::xls::solvers::z3::ScopedVerifyEquivalence;
+using ::xls::solvers::ScopedVerifyEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
@@ -590,7 +590,7 @@ TEST_F(ArithSimplificationPassTest, MulBy5) {
      }
   )",
                                                        p.get()));
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Add(m::Param("x"),
@@ -606,7 +606,7 @@ TEST_F(ArithSimplificationPassTest, MulBy6) {
      }
   )",
                                                        p.get()));
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Add(m::Concat(m::BitSlice(m::Param("x")), m::Literal(0, 1)),
@@ -622,7 +622,7 @@ TEST_F(ArithSimplificationPassTest, MulBy7) {
      }
   )",
                                                        p.get()));
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Sub(m::Concat(m::BitSlice(m::Param("x")), m::Literal(0, 3)),
@@ -1720,7 +1720,7 @@ TEST_F(ArithSimplificationPassTest, UMulWithSlicedResult) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Tuple(m::BitSlice(AllOf(m::UMul(), m::Type("bits[12]"))),
@@ -1770,7 +1770,7 @@ TEST_F(ArithSimplificationPassTest, SMulWithSlicedResult) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Tuple(m::BitSlice(AllOf(m::SMul(), m::Type("bits[12]"))),

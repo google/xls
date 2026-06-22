@@ -43,7 +43,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -147,7 +147,7 @@ TEST_P(SelectSimplificationPassTest, BinaryTuplePrioritySelect) {
 
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -191,7 +191,7 @@ TEST_P(SelectSimplificationPassTest,
       Function * f, fb.BuildWithReturnValue(fb.Tuple({eq_pr, eq_se, eq_ohs})));
   EXPECT_TRUE(f->return_value()->Is<Tuple>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -223,7 +223,7 @@ TEST_P(SelectSimplificationPassTest,
                            fb.BuildWithReturnValue(fb.ULt(lit0, se)));
   EXPECT_TRUE(f->return_value()->Is<CompareOp>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Param("s"),
@@ -259,7 +259,7 @@ TEST_P(SelectSimplificationPassTest,
       Function * f, fb.BuildWithReturnValue(fb.Tuple({eq_pr, eq_se, eq_ohs})));
   EXPECT_TRUE(f->return_value()->Is<Tuple>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // Key invariant: after pushdown, no compare should directly compare a
@@ -293,7 +293,7 @@ TEST_P(SelectSimplificationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Eq(se, lit0)));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(),
               m::Eq(m::Select(m::Param("s"),
@@ -371,7 +371,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithConstantZeroSelector) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("d"));
 }
@@ -387,7 +387,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithConstantOneSelector) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
@@ -403,7 +403,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithConstantTwoSelector) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("y"));
 }
@@ -419,7 +419,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithConstantThreeSelector) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
@@ -436,7 +436,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorLowBitSet) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
@@ -453,7 +453,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitSet) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -472,7 +472,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorHighBitSet) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::BitSlice(m::Or()),
@@ -491,7 +491,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorLowBitUnset) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::BitSlice(m::And()),
@@ -510,7 +510,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitUnset) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(
@@ -531,7 +531,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorHighBitUnset) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::BitSlice(m::And()),
@@ -550,7 +550,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorBitsUnset) {
                                                        p.get()));
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -603,7 +603,7 @@ TEST_P(SelectSimplificationPassTest, OneHotSelectWithIdenticalCases) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Ne(m::Param("s"), m::Literal("bits[2]:0")),
@@ -619,7 +619,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithTwoDistinctCases) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -637,7 +637,7 @@ TEST_P(SelectSimplificationPassTest,
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -716,7 +716,7 @@ TEST_P(SelectSimplificationPassTest, Meaningful3ArySelectViaDefault) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value(),
@@ -734,7 +734,7 @@ TEST_P(SelectSimplificationPassTest, MeaningfulArrayTyped3ArySelectViaDefault) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -873,7 +873,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectCommoning) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(
@@ -933,7 +933,7 @@ TEST_P(SelectSimplificationPassTest,
      }
   )",
                                                        p.get()));
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(
@@ -971,7 +971,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithOnlyLiteralZeroArms) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
 }
@@ -1022,7 +1022,7 @@ TEST_P(SelectSimplificationPassTest, SelectWithOnlyNonzeroCaseZero) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::And(m::Param("x"), m::SignExt(m::Not(m::Param("p")))));
@@ -1038,7 +1038,7 @@ TEST_P(SelectSimplificationPassTest, SelectWithOnlyNonzeroCaseOne) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::And(m::Param("x"), m::SignExt(m::Param("p"))));
@@ -1054,7 +1054,7 @@ TEST_P(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseZero) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1071,7 +1071,7 @@ TEST_P(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseTwo) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1088,7 +1088,7 @@ TEST_P(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseDefault) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1105,7 +1105,7 @@ TEST_P(SelectSimplificationPassTest, OneHotSelectWithOnlyNonzeroCaseZero) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::And(m::Param("x"),
@@ -1123,7 +1123,7 @@ TEST_P(SelectSimplificationPassTest, OneHotSelectWithOnlyNonzeroCaseOne) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::And(m::Param("x"),
@@ -1142,7 +1142,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseZero) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::And(m::Param("x"),
@@ -1161,7 +1161,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseOne) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::And(m::Param("x"),
@@ -1179,7 +1179,7 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseDefault) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::And(m::Param("x"),
@@ -1207,7 +1207,7 @@ TEST_P(SelectSimplificationPassTest, LsbOneHotFeedingOneHotSelect) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::Param("p"),
@@ -1242,7 +1242,7 @@ TEST_P(SelectSimplificationPassTest, LsbOneHotFeedingMultipleOneHotSelects) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1264,7 +1264,7 @@ TEST_P(SelectSimplificationPassTest, MsbOneHotFeedingOneHotSelect) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::Reverse(m::Param("p")),
@@ -1299,7 +1299,7 @@ TEST_P(SelectSimplificationPassTest, MsbOneHotFeedingMultipleOneHotSelects) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1476,7 +1476,7 @@ TEST_P(SelectSimplificationPassTest, OneHotWithSingleUnknownBit) {
   (void)one_hot;  // retval
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
 
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   // Note: this doesn't simplify the concat/slice but if it did the selector
@@ -1498,7 +1498,7 @@ TEST_P(SelectSimplificationPassTest, ReorderableAffineSelect) {
                        fb.Param("c", u32), fb.Param("d", u32)});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Param("p1"), {m::Param("c"), m::Param("b"),
@@ -1516,7 +1516,7 @@ TEST_P(SelectSimplificationPassTest, ReorderableSelectWithOperandReuse) {
                        fb.Param("c", u32), fb.Param("d", u32)});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Param("p1"), {m::Param("a"), m::Param("b"),
@@ -1550,7 +1550,7 @@ TEST_P(SelectSimplificationPassTest, UnchangedBitsSelSqueeze) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   ScopedRecordIr sri(p.get());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
 
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
@@ -1591,7 +1591,7 @@ TEST_P(SelectSimplificationPassTest, NarrowWithRangeAnalysis) {
   fb.Select(fb.Param("d", u1), s3, fb.Literal(UBits(3, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedRecordIr sri(p.get());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
 
   if (GetParam() == AnalysisType::kTernary) {
     ASSERT_THAT(Run(f), IsOkAndHolds(false));
@@ -1643,7 +1643,7 @@ fn FuzzTest(p0: bits[1] id=1, p6: bits[64] id=12) -> bits[1] {
   FunctionBuilder fb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(f), IsOk());
 }
@@ -1664,7 +1664,7 @@ TEST_P(SelectSimplificationPassTest, NormalThreeWayCompareWithSelect) {
   BValue sub_select = fb.Select(ult, {eq_result, ult_result});
   fb.Select(ugt, {sub_select, ugt_result});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1688,7 +1688,7 @@ TEST_P(SelectSimplificationPassTest, ThreeWayCompareWithSameCompare) {
   BValue sub_select = fb.Select(ugt, {eq_result, ugt_result_2});
   fb.Select(ugt, {sub_select, ugt_result_1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::UGt(m::Param("a"), m::Param("a")),
@@ -1712,7 +1712,7 @@ TEST_P(SelectSimplificationPassTest,
   BValue sub_select = fb.Select(ugt_2, {eq_result, ugt_2_result});
   fb.Select(ugt_1, {sub_select, ugt_1_result});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1739,7 +1739,7 @@ TEST_P(SelectSimplificationPassTest,
   BValue sub_select = fb.Select(uge, {ult_result, eq_result});
   fb.Select(ule, {ugt_result, sub_select});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1765,7 +1765,7 @@ TEST_P(SelectSimplificationPassTest, ThreeWayCompareWithSinglePrioritySelect) {
   BValue concat = fb.Concat({ugt, ult});
   fb.PrioritySelect(concat, {ult_result, ugt_result}, eq_result);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::Concat(m::UGt(m::Param("a"), m::Param("b")),
@@ -1791,7 +1791,7 @@ TEST_P(SelectSimplificationPassTest, ThreeWayCompareWithNestedPrioritySelects) {
   BValue sub_select = fb.PrioritySelect(ult, {ult_result}, eq_result);
   fb.PrioritySelect(ugt, {ugt_result}, sub_select);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1819,7 +1819,7 @@ TEST_P(SelectSimplificationPassTest,
   BValue sub_select = fb.PrioritySelect(uge, {eq_result}, ult_result);
   fb.PrioritySelect(ule, {sub_select}, ugt_result);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),

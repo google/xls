@@ -29,7 +29,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace xls {
 namespace {
@@ -82,7 +82,7 @@ TEST_F(LutConversionPassTest, DoubledSelector) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -106,7 +106,7 @@ TEST_F(LutConversionPassTest, TripledSelector) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -130,7 +130,7 @@ TEST_F(LutConversionPassTest, AffineSelector) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -155,7 +155,7 @@ TEST_F(LutConversionPassTest, IneligibleDominator) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::BitSlice(), {m::Literal(3), m::Literal(0),
@@ -182,7 +182,7 @@ TEST_F(LutConversionPassTest, MultipleSources) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -207,7 +207,7 @@ TEST_F(LutConversionPassTest, ComplexExample) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Param("x"), {m::Literal(0), m::Literal(0),

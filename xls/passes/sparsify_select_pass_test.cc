@@ -35,7 +35,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -408,7 +408,7 @@ TEST_F(SparsifySelectPassTest, LargeSelector) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   testing::Matcher<const Node*> selector =
       m::OneHotSelect(m::Param("x1"),

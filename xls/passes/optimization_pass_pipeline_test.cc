@@ -41,7 +41,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -51,7 +51,7 @@ namespace {
 constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
 using ::absl_testing::IsOkAndHolds;
-using ::xls::solvers::z3::ScopedVerifyEquivalence;
+using ::xls::solvers::ScopedVerifyEquivalence;
 
 class OptimizationPipelineTest : public IrTestBase {
  protected:

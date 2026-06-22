@@ -41,7 +41,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -51,7 +51,7 @@ namespace {
 constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
 using ::absl_testing::IsOkAndHolds;
-using ::xls::solvers::z3::ScopedVerifyEquivalence;
+using ::xls::solvers::ScopedVerifyEquivalence;
 
 using ::testing::AllOf;
 
@@ -899,7 +899,7 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceWithScaledIndex) {
   fb.DynamicBitSlice(x, index, /*width=*/10);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
   ASSERT_THAT(
@@ -926,7 +926,7 @@ TEST_F(BitSliceSimplificationPassTest,
   fb.DynamicBitSlice(x, index, /*width=*/4);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
   ASSERT_THAT(
@@ -956,7 +956,7 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceWithShiftedIndex) {
   fb.DynamicBitSlice(x, index, /*width=*/4);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
   ASSERT_THAT(
@@ -987,7 +987,7 @@ TEST_F(BitSliceSimplificationPassTest,
   fb.DynamicBitSlice(x, index, /*width=*/4);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
   ASSERT_THAT(
@@ -1018,7 +1018,7 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateWithScaledIndex) {
   fb.BitSliceUpdate(x, index, y);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
   auto array = m::Array(
@@ -1066,7 +1066,7 @@ TEST_F(BitSliceSimplificationPassTest,
   fb.BitSliceUpdate(x, index, y);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
   auto array = m::Array(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/4),
@@ -1106,7 +1106,7 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateWithShiftedIndex) {
   fb.BitSliceUpdate(x, index, y);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
   auto array = m::Array(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/4),
@@ -1146,7 +1146,7 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateWithShiftedIndexByConcat) {
   fb.BitSliceUpdate(x, index, y);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
   auto array = m::Array(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/4),
@@ -1181,7 +1181,7 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceSelectorMassive) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value(), m::Select(m::Concat(m::Param("x")),
@@ -1209,7 +1209,7 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceCannotReachAllBits) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value(), m::Select(m::Concat(m::Param("x")),

@@ -40,7 +40,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -409,8 +409,8 @@ proc regression(state_1: bits[1], state_2: bits[1], state_3: (bits[1], bits[1]),
           .status());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(kProc, p.get()));
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 }

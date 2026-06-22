@@ -46,7 +46,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -103,7 +103,7 @@ TEST_F(ArrayUntuplePassTest, BasicIndex) {
              fb.ArrayIndex(lit, {fb.Subtract(i, fb.Literal(UBits(1, 8)))}), 2));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ScopedRecordIr sri(p.get());
 
   ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
@@ -135,7 +135,7 @@ TEST_F(ArrayUntuplePassTest, EmptyTupleArray) {
   fb.Tuple({fb.ArrayIndex(lit, {i}), fb.ArrayIndex(lit, {i})});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ScopedRecordIr sri(p.get());
 
   // No point doing anything with empty tuple arrays.
@@ -168,7 +168,7 @@ TEST_F(ArrayUntuplePassTest, MaybeUpdate) {
       {rd_idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedRecordIr sri(p.get());
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
   auto tup_0_lit_match = m::Literal(Value::UBitsArray({1, 0, 1, 0}, 1).value());
   auto tup_1_lit_match = m::Literal(Value::UBitsArray({1, 2, 3, 4}, 8).value());
@@ -208,7 +208,7 @@ TEST_F(ArrayUntuplePassTest, Compare) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedRecordIr sri(p.get());
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
 
   auto tup_0_lit_match = m::Literal(Value::UBitsArray({1, 0, 1, 0}, 1).value());
@@ -234,7 +234,7 @@ TEST_F(ArrayUntuplePassTest, Gate) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedRecordIr sri(p.get());
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value(),
@@ -255,7 +255,7 @@ TEST_F(ArrayUntuplePassTest, ArrayConcat) {
   fb.ArrayIndex(arr, {fb.Param("idx", p->GetBitsType(32))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedRecordIr sri(p.get());
-  solvers::z3::ScopedVerifyEquivalence sve(f);
+  solvers::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value(),
@@ -346,8 +346,8 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayWithNext) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build());
   ScopedRecordIr sri(p.get());
-  solvers::z3::ScopedVerifyProcEquivalence svpe(pr, /*activation_count=*/4,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(pr, /*activation_count=*/4,
+                                            /*include_state=*/false);
   ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(pr->StateElements(),
               IsSupersetOf({m::StateElement(_, m::Type("bits[1][4]")),
@@ -457,8 +457,8 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayImplicitNext) {
                                         state);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build({next_state}));
-  solvers::z3::ScopedVerifyProcEquivalence svpe(pr, /*activation_count=*/4,
-                                                /*include_state=*/false);
+  solvers::ScopedVerifyProcEquivalence svpe(pr, /*activation_count=*/4,
+                                            /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(pr->StateElements(),

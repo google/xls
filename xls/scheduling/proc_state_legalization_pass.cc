@@ -15,6 +15,7 @@
 #include "xls/scheduling/proc_state_legalization_pass.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -42,7 +43,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_pass.h"
-#include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/solver.h"
 
 namespace xls {
 
@@ -363,21 +364,27 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
 
     // Try to prove that at least one of our predicates must be true at all
     // times; if we can prove this, we don't need a default.
-    std::vector<solvers::z3::PredicateOfNode> z3_predicates;
+    std::vector<solvers::PredicateOfNode> solver_predicates;
+    solver_predicates.reserve(predicates.size());
     for (Node* predicate : predicates) {
-      z3_predicates.push_back({
+      solver_predicates.push_back({
           .subject = predicate,
-          .p = solvers::z3::Predicate::NotEqualToZero(),
+          .p = solvers::Predicate::NotEqualToZero(),
       });
     }
 
-    absl::StatusOr<solvers::z3::ProverResult> no_default_needed =
-        solvers::z3::TryProveDisjunction(
-            proc, z3_predicates,
-            /*rlimit=*/*default_next_value_z3_rlimit,
-            /*allow_unsupported=*/true);
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<solvers::Solver> solver,
+        solvers::CreateSolver(options.scheduling_options.solver_kind()));
+    solvers::SolverLimit solver_limit;
+    solver_limit.deterministic_limit = *default_next_value_z3_rlimit;
+
+    absl::StatusOr<solvers::ProverResult> no_default_needed =
+        solver->TryProveCombination(proc, solver_predicates,
+                                    solvers::PredicateCombination::kDisjunction,
+                                    solver_limit, /*allow_unsupported=*/true);
     if (no_default_needed.ok() &&
-        std::holds_alternative<solvers::z3::ProvenTrue>(*no_default_needed)) {
+        std::holds_alternative<solvers::ProvenTrue>(*no_default_needed)) {
       return false;
     }
   }

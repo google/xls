@@ -38,14 +38,14 @@
 #include "xls/ir/state_element.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = xls::op_matchers;
 namespace xls::verilog {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
-using solvers::z3::ScopedVerifyBlockEquivalence;
+using solvers::ScopedVerifyBlockEquivalence;
 using ::testing::AnyOf;
 using ::testing::MatchesRegex;
 using ::testing::UnorderedElementsAre;

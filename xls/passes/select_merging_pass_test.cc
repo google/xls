@@ -32,7 +32,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -98,7 +98,7 @@ TEST_F(SelectMergingPassTest, PrioritySelectFeedingPrioritySelect) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -143,7 +143,7 @@ TEST_F(SelectMergingPassTest, PrioritySelectFeedingPrioritySelectDefault) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(
@@ -200,7 +200,7 @@ TEST_F(SelectMergingPassTest, SimpleMergeablePrioritySelects) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::Concat(m::Param("q"), m::Param("p")),
@@ -218,7 +218,7 @@ TEST_F(SelectMergingPassTest, SimpleMergeablePrioritySelectsAfterSwap) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::Concat(m::Param("q"), m::Not(m::Param("p"))),
@@ -237,7 +237,7 @@ TEST_F(SelectMergingPassTest, ComplexMergeablePrioritySelects) {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),

@@ -40,7 +40,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_test_helpers.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = xls::op_matchers;
 
@@ -48,8 +48,8 @@ namespace xls {
 namespace {
 using absl_testing::IsOkAndHolds;
 
-using solvers::z3::ScopedVerifyEquivalence;
-using solvers::z3::ScopedVerifyProcEquivalence;
+using solvers::ScopedVerifyEquivalence;
+using solvers::ScopedVerifyProcEquivalence;
 
 class DecomposeDataflowPassTest : public IrTestBase {
  protected:

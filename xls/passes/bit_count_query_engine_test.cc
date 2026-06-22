@@ -44,8 +44,9 @@
 #include "xls/ir/value_builder.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_query_engine_test_common.h"
+#include "xls/solvers/prover_matchers.h"
+#include "xls/solvers/solver.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_ir_translator_matchers.h"
 
 namespace xls {
 namespace {
@@ -583,9 +584,9 @@ void NegFuzzZ3(int8_t sign_cnt) {
   testing::Test::RecordProperty("known_sign", known_signs);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto res, solvers::z3::TryProve(check, all_same.node(),
-                                      solvers::z3::Predicate::NotEqualToZero(),
+                                      solvers::Predicate::NotEqualToZero(),
                                       /*rlimit=*/0));
-  EXPECT_THAT(res, solvers::z3::IsProvenTrue());
+  EXPECT_THAT(res, solvers::IsProvenTrue());
 }
 
 FUZZ_TEST(BitCountQueryEngineFuzzTest, NegFuzzZ3)
@@ -1046,9 +1047,9 @@ void Z3BinOpFuzzTest(Fn make_combine, int8_t sign_lhs, int8_t sign_rhs) {
   testing::Test::RecordProperty("known_sign", known_signs);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto res, solvers::z3::TryProve(check, all_same.node(),
-                                      solvers::z3::Predicate::NotEqualToZero(),
+                                      solvers::Predicate::NotEqualToZero(),
                                       /*rlimit=*/0));
-  EXPECT_THAT(res, solvers::z3::IsProvenTrue());
+  EXPECT_THAT(res, solvers::IsProvenTrue());
 }
 
 void AddFuzzZ3(int8_t lhs, int8_t rhs) {

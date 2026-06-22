@@ -230,6 +230,8 @@ SCHEDULING_FIELDS = {
     "default_next_value_z3_rlimit": "Resource limit for solver when optimizing " +
                                     "default next_value omission; skipped if " +
                                     "negative or omitted.",
+    "solver_kind": "The solver backend to use for logical analysis (e.g., mutual exclusion); " +
+                   "currently only z3 is supported.",
     "explain_infeasibility": "If scheduling fails, re-run scheduling with " +
                              "extra slack variables in an attempt to explain " +
                              "why scheduling failed.",

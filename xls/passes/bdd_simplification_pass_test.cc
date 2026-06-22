@@ -35,7 +35,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -139,7 +139,7 @@ TEST_F(BddSimplificationPassTest, RemoveRedundantInputsToAnd) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.And(x_ne_0, x_eq_42)));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::And(m::Literal(1), m::Eq(m::Param("x"), m::Literal(42))));
@@ -155,7 +155,7 @@ TEST_F(BddSimplificationPassTest, RemoveRedundantInputsToNand) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Nand(x_ne_0, x_eq_42)));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Nand(m::Literal(1), m::Eq(m::Param("x"), m::Literal(42))));
@@ -171,7 +171,7 @@ TEST_F(BddSimplificationPassTest, RemoveRedundantInputsToOr) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Or(x_ne_0, x_eq_42)));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -188,7 +188,7 @@ TEST_F(BddSimplificationPassTest, RemoveRedundantInputsToNor) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Nor(x_ne_0, x_eq_42)));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -210,7 +210,7 @@ TEST_F(BddSimplificationPassTest, RemoveRedundantPrioritySelectCases) {
                     /*default_value=*/d);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::BitSlice(m::Concat()), {m::Param("a")},

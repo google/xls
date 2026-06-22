@@ -38,6 +38,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/solvers/solver.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -618,6 +619,13 @@ class SchedulingOptions {
     return mutual_exclusion_z3_rlimit_;
   }
 
+  // The solver backend used for logical analysis.
+  SchedulingOptions& solver_kind(solvers::SolverKind value) {
+    solver_kind_ = value;
+    return *this;
+  }
+  solvers::SolverKind solver_kind() const { return solver_kind_; }
+
   // The rlimit used for default next-value omission optimization.
   SchedulingOptions& default_next_value_z3_rlimit(int64_t value) {
     default_next_value_z3_rlimit_ = value;
@@ -820,6 +828,7 @@ class SchedulingOptions {
   std::vector<SchedulingConstraint> constraints_;
   std::optional<int32_t> seed_;
   std::optional<int64_t> mutual_exclusion_z3_rlimit_;
+  solvers::SolverKind solver_kind_ = solvers::SolverKind::kZ3;
   std::optional<int64_t> default_next_value_z3_rlimit_;
   SchedulingFailureBehavior failure_behavior_;
   bool use_fdo_;

@@ -24,159 +24,31 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <variant>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
-#include "xls/ir/format_preference.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/passes/query_engine.h"
+#include "xls/solvers/solver.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
 #include "z3/src/api/z3_api.h"
 
 namespace xls {
 namespace solvers {
 namespace z3 {
-
-// Kinds of predicates we can compute about a subject node.
-enum class PredicateKind : uint8_t {
-  kEqualToZero,                // subject is zero
-  kNotEqualToZero,             // subject is not zero
-  kEqualToNode,                // subject and node are equal
-  kExclusiveWithNode,          // at least one of subject and node is zero
-  kUnsignedGreaterOrEqual,     // subject >= some given (constant) value
-  kUnsignedLessOrEqual,        // subject <= some given (constant) value
-  kCompatibleWithTernary,      // subject is compatible with given ternaries
-  kCompatibleWithIntervalSet,  // subject is compatible with given interval sets
-};
-
-// Describes a predicate to compute about a subject node in an XLS IR function.
-//
-// Note: predicates currently implicitly refer to an (unreferenced) subject,
-// like a return value, so you can make fairly context-free constructs like
-// `Predicate::EqualToZero()`. (See `PredicateOfNode` for ways to explicitly
-// provide a subject node for the predicate to act upon.)
-class Predicate {
- public:
-  // Returns a predicate that is true iff the subject is equal to `other`.
-  static Predicate IsEqualTo(Node* other);
-
-  // Returns a predicate that is true iff the subject is never true at the same
-  // time as `other`.
-  static Predicate IsExclusiveWith(Node* other);
-
-  // Returns a predicate that is true iff the subject is compatible with the
-  // given ternary; i.e., where the leaf ternaries have known bits, the subject
-  // matches those bits.
-  static Predicate IsCompatibleWith(SharedTernaryTree ternaries);
-
-  // Returns a predicate that is true iff the subject is compatible with the
-  // given interval sets; i.e., the value of each leaf is contained in the
-  // corresponding interval set.
-  static Predicate IsCompatibleWith(IntervalSetTree intervals);
-
-  static Predicate EqualToZero();
-  static Predicate NotEqualToZero();
-  static Predicate UnsignedGreaterOrEqual(Bits lower_bound);
-  static Predicate UnsignedLessOrEqual(Bits upper_bound);
-
-  PredicateKind kind() const { return kind_; }
-
-  // For predicates that refer to another node; e.g.
-  // `Predicate::IsEqualTo(other)`, returns the node the predicate is comparing
-  // to (`other` in this example).
-  Node* node() const {
-    CHECK(node_.has_value());
-    return node_.value();
-  }
-
-  std::string ToString() const;
-
-  // For predicates that have a bits value as part of the predicate payload,
-  // returns the bits value; e.g. for
-  // `Predicate::UnsignedGreaterOrEqual(my_bits)` returns the value of
-  // `my_bits`.
-  const Bits& value() const {
-    CHECK(value_.has_value());
-    return value_.value();
-  }
-
-  // For predicates that have a ternary tree as part of the predicate payload,
-  // returns the ternary.
-  TernaryTreeView ternaries() const {
-    CHECK(ternaries_.has_value());
-    return ternaries_->AsView();
-  }
-
-  // For predicates that have an interval set tree as part of the
-  // predicate payload, returns the interval set tree view.
-  IntervalSetTreeView intervals() const {
-    CHECK(intervals_.has_value());
-    return intervals_->AsView();
-  }
-
- private:
-  explicit Predicate(PredicateKind kind);
-  Predicate(PredicateKind kind, Node* node);
-  Predicate(PredicateKind kind, Node* node, Bits value);
-  Predicate(PredicateKind kind, SharedTernaryTree ternaries);
-  Predicate(PredicateKind kind, IntervalSetTree intervals);
-
-  PredicateKind kind_;
-  std::optional<Node*> node_;
-  std::optional<Bits> value_;
-  std::optional<TernaryTree> ternaries_;
-  std::optional<IntervalSetTree> intervals_;
-};
-
-// Predicates generally don't encode a subject, they say things like "should be
-// greater than zero" but the subject is implicit, e.g. a return value.
-//
-// This struct wraps a predicate with an explicit subject (that must be present
-// inside of the associated function).
-struct PredicateOfNode {
-  Node* subject;
-  Predicate p;
-};
-
-enum class PredicateCombination : std::uint8_t { kDisjunction, kConjunction };
-
-using ProvenTrue = std::true_type;
-struct ProvenFalse {
-  // If available, a set of Values for the function's Params that implement the
-  // counterexample; otherwise, an absl::Status documenting the failure to
-  // translate the counterexample.
-  absl::StatusOr<absl::flat_hash_map<Node*, Value>> counterexample =
-      absl::UnimplementedError("no counterexample analysis attempted");
-
-  // Typically contains the encoded Z3 solver result (which usually includes the
-  // counterexample).
-  std::string message;
-};
-using ProverResult = std::variant<ProvenTrue, ProvenFalse>;
-
-template <typename Sink>
-void AbslStringify(Sink& sink, const ProverResult& p) {
-  if (std::holds_alternative<ProvenTrue>(p)) {
-    absl::Format(&sink, "[ProvenTrue]");
-    return;
-  }
-  absl::Format(&sink, "[ProvenFalse: %s]", std::get<ProvenFalse>(p).message);
-}
 
 class Z3OpTranslator;
 
@@ -583,28 +455,43 @@ absl::StatusOr<ProverResult> TryProveWithTranslator(
 // printing internally.
 absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function);
 
-// Annotator that prints counterexample values for nodes in an IR entity;
-// supports functions, procs, and blocks.
-class CounterExampleAnnotator : public IrAnnotator {
+class Z3SolverInstance : public xls::solvers::SolverInstance {
  public:
-  explicit CounterExampleAnnotator(
-      const ProvenFalse& fail,
-      FormatPreference format = FormatPreference::kDefault)
-      : fail_(fail), format_(format) {}
+  explicit Z3SolverInstance(std::unique_ptr<IrTranslator> translator)
+      : translator_(std::move(translator)) {}
 
-  std::optional<std::vector<Node*>> NodeOrder(FunctionBase* fb) const final;
-  Annotation NodeAnnotation(Node* node) const final;
+  void SetLimit(const SolverLimit& limit) override;
 
-  // Takes a node and if there is an explicit counter example value for it,
-  // returns that value. By default returns nullopt for everything except Param
-  // nodes where it returns the counterexample value of any param with the same
-  // name or ZeroOfType if not available.
-  virtual std::optional<Value> CounterExampleValue(Node* node) const;
+  absl::StatusOr<ProverResult> TryProve(
+      Node* subject, const Predicate& p,
+      absl::Span<const PredicateOfNode> assumptions = {}) override;
+
+  absl::StatusOr<ProverResult> TryProveCombination(
+      absl::Span<const PredicateOfNode> terms, PredicateCombination combination,
+      absl::Span<const PredicateOfNode> assumptions = {}) override;
 
  private:
-  const ProvenFalse& fail_;
-  FormatPreference format_;
-  mutable absl::flat_hash_map<Node*, Value> counterexamples_;
+  std::unique_ptr<IrTranslator> translator_;
+};
+
+class Z3Solver : public xls::solvers::Solver {
+ public:
+  SolverKind kind() const override { return SolverKind::kZ3; }
+
+  absl::StatusOr<std::unique_ptr<xls::solvers::SolverInstance>>
+  CreateSolverInstance(FunctionBase* f,
+                       bool allow_unsupported = false) override;
+
+  absl::StatusOr<ProverResult> TryProve(
+      FunctionBase* f, Node* subject, const Predicate& p,
+      const SolverLimit& limit, bool allow_unsupported = false,
+      absl::Span<const PredicateOfNode> assumptions = {}) override;
+
+  absl::StatusOr<ProverResult> TryProveCombination(
+      FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+      PredicateCombination combination, const SolverLimit& limit,
+      bool allow_unsupported = false,
+      absl::Span<const PredicateOfNode> assumptions = {}) override;
 };
 
 }  // namespace z3

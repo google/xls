@@ -19,14 +19,14 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/proc.h"
-#include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/solver.h"
 
 namespace xls {
 
 // Analyzes the state elements of a Proc and returns a set of PredicateOfNode
 // assumptions characterizing the ranges and known bits of those state elements.
-absl::StatusOr<std::vector<solvers::z3::PredicateOfNode>>
-GetProcStateAssumptions(Proc* proc);
+absl::StatusOr<std::vector<solvers::PredicateOfNode>> GetProcStateAssumptions(
+    Proc* proc);
 
 }  // namespace xls
 

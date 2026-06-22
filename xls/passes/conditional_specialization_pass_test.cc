@@ -38,7 +38,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -322,7 +322,7 @@ fn f(a: bits[2], b: bits[30], case0: bits[32], case_d: bits[32]) -> bits[32] {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -352,7 +352,7 @@ fn f(a: bits[3], x: bits[32], y: bits[32], z: bits[32], q: bits[32]) -> bits[32]
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::Param("a"),
@@ -376,7 +376,7 @@ fn f(a: bits[32], x: bits[1]) -> bits[1] {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(
@@ -398,7 +398,7 @@ fn f(a: bits[32], x: bits[1]) -> bits[1] {
   )",
                                                        p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(
@@ -752,7 +752,7 @@ TEST_F(ConditionalSpecializationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, sel1, r_or_s})));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value()->operand(0),
@@ -797,7 +797,7 @@ TEST_F(ConditionalSpecializationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, sel1, r_and_s})));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value()->operand(0),
@@ -841,7 +841,7 @@ TEST_F(ConditionalSpecializationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, sel1, r_or_s})));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value()->operand(0),
@@ -885,7 +885,7 @@ TEST_F(ConditionalSpecializationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, sel1, r_and_s})));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value()->operand(0),
@@ -921,7 +921,7 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedValueThroughAnd) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Concat({sel0, r_and_a})));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value()->operand(0),
@@ -955,7 +955,7 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedValueThroughOr) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Concat({sel0, r_or_a})));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value()->operand(0),
@@ -1121,7 +1121,7 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughNot) {
   BValue result = fb.Select(s, {a, b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Not(m::Param("a")), {m::Literal(1), m::Param("b")}));
@@ -1137,7 +1137,7 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughEq) {
   BValue result = fb.Select(s, {a, b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Select(m::Eq(m::Param("b"), m::Literal(1)),
                                            {m::Param("a"), m::Literal(1)}));
@@ -1153,7 +1153,7 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughNe) {
   BValue result = fb.Select(s, {a, b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Select(m::Ne(m::Param("a"), m::Literal(1)),
                                            {m::Literal(1), m::Param("b")}));
@@ -1169,7 +1169,7 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughOr) {
   BValue result = fb.Select(s, {a, b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Select(m::Or(m::Param("a"), m::Param("b")),
                                            {m::Literal(0), m::Param("b")}));
@@ -1185,7 +1185,7 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughAnd) {
   BValue result = fb.Select(s, {a, b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Select(m::And(m::Param("a"), m::Param("b")),
                                            {m::Param("a"), m::Literal(1)}));
@@ -1201,7 +1201,7 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughNor) {
   BValue result = fb.Select(s, {a, b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Select(m::Nor(m::Param("a"), m::Param("b")),
                                            {m::Param("a"), m::Literal(0)}));
@@ -1217,7 +1217,7 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughNand) {
   BValue result = fb.Select(s, {a, b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Nand(m::Param("a"), m::Param("b")),
@@ -1234,7 +1234,7 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughIteratedNot) {
   BValue result = fb.Select(s, {a, b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Select(m::Not(m::Not(m::Param("b"))),
                                            {m::Param("a"), m::Literal(1)}));
@@ -1393,7 +1393,7 @@ fn f(state: bits[4], r0: bits[1], something_else: bits[1]) -> bits[1] {
   // Since 0 is the identity element for OR, `term2 = r0_sel || something_else`
   // simplifies to `something_else` in this context.
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::And(m::Name("range_check"), m::Param("something_else")));
@@ -1414,7 +1414,7 @@ fn f(a: bits[1], b: bits[1]) -> bits[1] {
   // otherwise end up changing the meaning by accidentally removing all of the
   // inputs; e.g., `and(term1, term2)` would become `and(1, 1)`.
 
-  solvers::z3::ScopedVerifyEquivalence sve{f};
+  solvers::ScopedVerifyEquivalence sve{f};
   XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(f));
   EXPECT_TRUE(changed);
   EXPECT_THAT(f->return_value(),

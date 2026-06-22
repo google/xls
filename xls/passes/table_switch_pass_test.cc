@@ -42,7 +42,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -130,7 +130,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({1, 2, 3, 4, 5, 6, 0}, 32));
@@ -168,7 +168,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({1, 2, 3, 4, 5, 6, 0}, 32));
@@ -218,7 +218,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value array, Value::UBitsArray({1, 2, 3, 4, 5, 6, 7, 8, 9, 0}, 32));
@@ -262,7 +262,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({0, 1, 2, 3, 4, 6, 5}, 32));
@@ -300,7 +300,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({0, 1, 2, 3, 4, 6, 5}, 32));
@@ -350,7 +350,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(
       pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
       IsOkAndHolds(true));
@@ -398,7 +398,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(
       pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
       IsOkAndHolds(true));
@@ -516,7 +516,7 @@ fn main(index: bits[32]) -> bits[32] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value array, Value::UBitsArray({0, 111, 222, 333, 0, 555, 0}, 32));
@@ -555,7 +555,7 @@ fn main(index: bits[32]) -> bits[32] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({111, 222, 0, 333, 0}, 32));
@@ -1109,7 +1109,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({1, 2, 3, 4, 5, 6, 0}, 32));

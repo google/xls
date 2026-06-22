@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/solvers/z3_ir_equivalence.h"
+#include "xls/solvers/ir_equivalence.h"
 
 #include <cstdint>
 #include <memory>
@@ -38,12 +38,12 @@
 #include "xls/ir/package.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
+#include "xls/solvers/prover_matchers.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_ir_translator_matchers.h"
 
 namespace m = xls::op_matchers;
-namespace xls::solvers::z3 {
+namespace xls::solvers {
 namespace {
 
 using ::absl_testing::IsOk;
@@ -53,6 +53,8 @@ using ::testing::AnyOf;
 using ::testing::Not;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
+using ::xls::solvers::IsProvenFalse;
+using ::xls::solvers::IsProvenTrue;
 
 static constexpr bool kHasMsan =
 #if defined(ABSL_HAVE_MEMORY_SANITIZER)
@@ -498,4 +500,4 @@ TEST_F(EquivalenceTest, ExtraAssertThatIsTautologyPasses) {
 }
 
 }  // namespace
-}  // namespace xls::solvers::z3
+}  // namespace xls::solvers

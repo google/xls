@@ -39,7 +39,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -49,7 +49,7 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::testing::Each;
 using ::testing::Not;
-using ::xls::solvers::z3::ScopedVerifyEquivalence;
+using ::xls::solvers::ScopedVerifyEquivalence;
 
 class ArraySimplificationPassTest : public IrTestBase {
  protected:
@@ -148,7 +148,7 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayOperation) {
   BValue index = fb.Param("i", u16);
   fb.ArrayIndex(a, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -166,7 +166,7 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayOperationExactFit) {
   BValue index = fb.Param("i", u2);
   fb.ArrayIndex(a, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Param("i"), {m::Param("x"), m::Param("y"),
@@ -185,7 +185,7 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayOperationUndersizedIndex) {
   BValue index = fb.Param("i", u2);
   fb.ArrayIndex(a, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Param("i"), {m::Param("x"), m::Param("y"),
@@ -201,7 +201,7 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayOperationWithLiteralIndex) {
   BValue index = fb.Literal(Value(UBits(2, 16)));
   fb.ArrayIndex(a, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("z"));
 }
@@ -215,7 +215,7 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayOperationWithOobLiteralIndex) {
   BValue index = fb.Literal(Value(UBits(5, 16)));
   fb.ArrayIndex(a, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("z"));
 }
@@ -525,7 +525,7 @@ TEST_F(ArraySimplificationPassTest,
  }
   )",
                                                        p));
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1712,7 +1712,7 @@ TEST_F(ArraySimplificationPassTest, IndexOfOneHotSelect) {
   BValue j = fb.Param("j", p->GetBitsType(10));
   fb.ArrayIndex(one_hot, {i, j});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),

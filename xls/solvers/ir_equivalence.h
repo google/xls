@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_SOLVERS_Z3_IR_EQUIVALENCE_H_
-#define XLS_SOLVERS_Z3_IR_EQUIVALENCE_H_
+#ifndef XLS_SOLVERS_IR_EQUIVALENCE_H_
+#define XLS_SOLVERS_IR_EQUIVALENCE_H_
 
 #include <functional>
 
@@ -22,9 +22,9 @@
 #include "absl/time/time.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
-#include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/solver.h"
 
-namespace xls::solvers::z3 {
+namespace xls::solvers {
 
 // Verifies that the original function's behavior stays the same after running
 // 'run_pass' on it. The callback *must* use the provided package and function
@@ -38,7 +38,7 @@ namespace xls::solvers::z3 {
 absl::StatusOr<ProverResult> TryProveEquivalence(
     Function* original,
     const std::function<absl::Status(Package*, Function*)>& run_pass,
-    absl::Duration timeout = absl::InfiniteDuration());
+    SolverKind kind = SolverKind::kZ3, SolverLimit limit = {});
 
 // Verifies that both functions have the same behaviors. Both functions must
 // have exactly the same signatures, or an invalid argument error is returned.
@@ -48,13 +48,13 @@ absl::StatusOr<ProverResult> TryProveEquivalence(
 // Returns 'true' if the pass does not cause the result to change.
 absl::StatusOr<ProverResult> TryProveEquivalence(
     Function* a, Function* b, bool ignore_asserts,
-    absl::Duration timeout = absl::InfiniteDuration());
+    SolverKind kind = SolverKind::kZ3, SolverLimit limit = {});
 inline absl::StatusOr<ProverResult> TryProveEquivalence(
-    Function* a, Function* b,
-    absl::Duration timeout = absl::InfiniteDuration()) {
-  return TryProveEquivalence(a, b, /*ignore_asserts=*/false, timeout);
+    Function* a, Function* b, SolverKind kind = SolverKind::kZ3,
+    SolverLimit limit = {}) {
+  return TryProveEquivalence(a, b, /*ignore_asserts=*/false, kind, limit);
 }
 
-}  // namespace xls::solvers::z3
+}  // namespace xls::solvers
 
-#endif  // XLS_SOLVERS_Z3_IR_EQUIVALENCE_H_
+#endif  // XLS_SOLVERS_IR_EQUIVALENCE_H_

@@ -51,7 +51,7 @@
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace xls {
 namespace {
@@ -1019,7 +1019,7 @@ TEST_F(ChannelLegalizationPassIrTest, LegalizeWithTokenSel) {
   pb.Next(tok, pb.Select(st, tok_new_a1, tok_new_b1));
   XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
   XLS_ASSERT_OK(p->SetTop(f));
-  solvers::z3::ScopedVerifyProcEquivalence svpe(f, /*activation_count=*/5);
+  solvers::ScopedVerifyProcEquivalence svpe(f, /*activation_count=*/5);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 }

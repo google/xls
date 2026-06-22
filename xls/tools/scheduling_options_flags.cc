@@ -14,7 +14,6 @@
 
 #include "xls/tools/scheduling_options_flags.h"
 
-#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -250,6 +249,8 @@ ABSL_FLAG(std::vector<std::string>, io_constraints, {},
 ABSL_FLAG(bool, receives_first_sends_last, false,
           "If true, this forces receives into the first cycle and sends into "
           "the last cycle.");
+ABSL_FLAG(xls::SolverKind, solver_kind, xls::SolverKind::SOLVER_KIND_Z3,
+          "The solver backend to use for logical analysis (z3).");
 ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
           "Resource limit for solver in mutual exclusion pass.");
 ABSL_FLAG(int64_t, default_next_value_z3_rlimit, -1,
@@ -349,6 +350,31 @@ ABSL_FLAG(std::optional<std::string>, scheduling_options_used_textproto_file,
 
 namespace xls {
 
+bool AbslParseFlag(std::string_view text, SolverKind* solver_kind,
+                   std::string* error) {
+  if (text.empty()) {
+    *solver_kind = SolverKind::SOLVER_KIND_UNSPECIFIED;
+    return true;
+  }
+  if (text == "z3" || text == "Z3") {
+    *solver_kind = SolverKind::SOLVER_KIND_Z3;
+    return true;
+  }
+  *error = absl::StrCat("Unknown solver kind: ", text);
+  return false;
+}
+
+std::string AbslUnparseFlag(const SolverKind& solver_kind) {
+  switch (solver_kind) {
+    case SolverKind::SOLVER_KIND_UNSPECIFIED:
+      return "";
+    case SolverKind::SOLVER_KIND_Z3:
+      return "z3";
+    default:
+      return "<unknown>";
+  }
+}
+
 static absl::StatusOr<bool> SetOptionsFromFlags(
     SchedulingOptionsFlagsProto& proto) {
 #define POPULATE_FLAG(__x)                                   \
@@ -415,6 +441,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_FLAG(ffi_fallback_delay_ps);
   POPULATE_REPEATED_FLAG(io_constraints);
   POPULATE_FLAG(receives_first_sends_last);
+  POPULATE_FLAG(solver_kind);
   POPULATE_FLAG(mutual_exclusion_z3_rlimit);
   POPULATE_FLAG(default_next_value_z3_rlimit);
   POPULATE_FLAG(use_fdo);

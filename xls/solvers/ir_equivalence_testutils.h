@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_SOLVERS_Z3_IR_EQUIVALENCE_TESTUTILS_H_
-#define XLS_SOLVERS_Z3_IR_EQUIVALENCE_TESTUTILS_H_
+#ifndef XLS_SOLVERS_IR_EQUIVALENCE_TESTUTILS_H_
+#define XLS_SOLVERS_IR_EQUIVALENCE_TESTUTILS_H_
 
 #include <cstdint>
 #include <memory>
@@ -25,9 +25,9 @@
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
-#include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/solver.h"
 
-namespace xls::solvers::z3 {
+namespace xls::solvers {
 
 class ScopedVerifyEquivalence {
  public:
@@ -47,12 +47,24 @@ class ScopedVerifyEquivalence {
     return *this;
   }
 
+  ScopedVerifyEquivalence& SetSolverKind(SolverKind kind) {
+    kind_ = kind;
+    return *this;
+  }
+
+  ScopedVerifyEquivalence& SetLimit(SolverLimit limit) {
+    limit_ = limit;
+    return *this;
+  }
+
   ~ScopedVerifyEquivalence();
 
  private:
   Function* const f_;
   bool ignore_asserts_;
   absl::Duration timeout_;
+  SolverKind kind_ = SolverKind::kZ3;
+  SolverLimit limit_ = {};
   const xabsl::SourceLocation loc_;
 
   std::unique_ptr<Package> clone_p_;
@@ -105,6 +117,16 @@ class ScopedVerifyProcEquivalence {
     return *this;
   }
 
+  ScopedVerifyProcEquivalence& SetSolverKind(SolverKind kind) {
+    kind_ = kind;
+    return *this;
+  }
+
+  ScopedVerifyProcEquivalence& SetLimit(SolverLimit limit) {
+    limit_ = limit;
+    return *this;
+  }
+
  private:
   void RunProcVerification();
 
@@ -113,6 +135,8 @@ class ScopedVerifyProcEquivalence {
   bool include_state_;
   bool ignore_asserts_ = false;
   absl::Duration timeout_;
+  SolverKind kind_ = SolverKind::kZ3;
+  SolverLimit limit_ = {};
   const xabsl::SourceLocation loc_;
 
   std::unique_ptr<Package> clone_package_;
@@ -182,6 +206,16 @@ class ScopedVerifyBlockEquivalence {
     return *this;
   }
 
+  ScopedVerifyBlockEquivalence& SetSolverKind(SolverKind kind) {
+    kind_ = kind;
+    return *this;
+  }
+
+  ScopedVerifyBlockEquivalence& SetLimit(SolverLimit limit) {
+    limit_ = limit;
+    return *this;
+  }
+
  private:
   void RunBlockVerification();
 
@@ -191,12 +225,14 @@ class ScopedVerifyBlockEquivalence {
   bool include_reg_state_;
   bool ignore_asserts_ = false;
   absl::Duration timeout_;
+  SolverKind kind_ = SolverKind::kZ3;
+  SolverLimit limit_ = {};
   const xabsl::SourceLocation loc_;
 
   std::unique_ptr<Package> clone_package_;
   Block* original_b_;
 };
 
-}  // namespace xls::solvers::z3
+}  // namespace xls::solvers
 
-#endif  // XLS_SOLVERS_Z3_IR_EQUIVALENCE_TESTUTILS_H_
+#endif  // XLS_SOLVERS_IR_EQUIVALENCE_TESTUTILS_H_

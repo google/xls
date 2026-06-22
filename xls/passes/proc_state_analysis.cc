@@ -27,13 +27,14 @@
 #include "xls/ir/proc.h"
 #include "xls/passes/proc_state_range_query_engine.h"
 #include "xls/passes/query_engine.h"
+#include "xls/solvers/solver.h"
 #include "xls/solvers/z3_ir_translator.h"
 
 namespace xls {
 
-absl::StatusOr<std::vector<solvers::z3::PredicateOfNode>>
-GetProcStateAssumptions(Proc* proc) {
-  std::vector<solvers::z3::PredicateOfNode> assumptions;
+absl::StatusOr<std::vector<solvers::PredicateOfNode>> GetProcStateAssumptions(
+    Proc* proc) {
+  std::vector<solvers::PredicateOfNode> assumptions;
   ProcStateRangeQueryEngine query_engine;
   XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
   for (Node* node : proc->nodes()) {
@@ -45,12 +46,12 @@ GetProcStateAssumptions(Proc* proc) {
           return !range.IsMaximal();
         })) {
       assumptions.emplace_back(
-          node, solvers::z3::Predicate::IsCompatibleWith(std::move(ranges)));
+          node, solvers::Predicate::IsCompatibleWith(std::move(ranges)));
     }
     std::optional<SharedTernaryTree> ternaries = query_engine.GetTernary(node);
     if (ternaries.has_value()) {
-      assumptions.emplace_back(node, solvers::z3::Predicate::IsCompatibleWith(
-                                         std::move(*ternaries)));
+      assumptions.emplace_back(
+          node, solvers::Predicate::IsCompatibleWith(std::move(*ternaries)));
     }
   }
   return assumptions;

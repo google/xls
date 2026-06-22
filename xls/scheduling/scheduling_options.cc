@@ -37,6 +37,7 @@
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
+#include "xls/solvers/solver.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -222,6 +223,16 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
       proto.mutual_exclusion_z3_rlimit() >= 0) {
     scheduling_options.mutual_exclusion_z3_rlimit(
         proto.mutual_exclusion_z3_rlimit());
+  }
+  if (proto.has_solver_kind()) {
+    switch (proto.solver_kind()) {
+      case SolverKind::SOLVER_KIND_Z3:
+        scheduling_options.solver_kind(solvers::SolverKind::kZ3);
+        break;
+      default:
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Unknown solver kind: %v", proto.solver_kind()));
+    }
   }
   if (proto.has_default_next_value_z3_rlimit() &&
       proto.default_next_value_z3_rlimit() >= 0) {

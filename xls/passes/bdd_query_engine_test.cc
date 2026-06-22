@@ -34,8 +34,9 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/passes/query_engine.h"
+#include "xls/solvers/prover_matchers.h"
+#include "xls/solvers/solver.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_ir_translator_matchers.h"
 
 namespace m = xls::op_matchers;
 
@@ -403,10 +404,10 @@ TEST_F(BddQueryEngineTest, DetectKeepLsbsLeavesHighBitsZero) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto z3_result,
       solvers::z3::TryProve(f, top_zeros.node(),
-                            solvers::z3::Predicate::EqualToZero(), -1));
-  EXPECT_THAT(z3_result, solvers::z3::IsProvenTrue())
-      << f->DumpIr(solvers::z3::CounterExampleAnnotator(
-             std::get<solvers::z3::ProvenFalse>(z3_result),
+                            solvers::Predicate::EqualToZero(), -1));
+  EXPECT_THAT(z3_result, solvers::IsProvenTrue())
+      << f->DumpIr(solvers::CounterExampleAnnotator(
+             std::get<solvers::ProvenFalse>(z3_result),
              FormatPreference::kZeroPaddedHex));
   XLS_ASSERT_OK(query_engine.Populate(f).status());
   EXPECT_THAT(query_engine.KnownLeadingZeros(rev_lz_one_hot.node()),

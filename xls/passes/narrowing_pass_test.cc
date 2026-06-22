@@ -44,7 +44,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -54,8 +54,8 @@ namespace {
 using ::absl::ScopedMockLog;
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
-using ::xls::solvers::z3::ScopedVerifyEquivalence;
-using ::xls::solvers::z3::ScopedVerifyProcEquivalence;
+using ::xls::solvers::ScopedVerifyEquivalence;
+using ::xls::solvers::ScopedVerifyProcEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
@@ -737,7 +737,7 @@ TEST_P(NarrowingPassTest, ExtendedUMulSignAgnosticToUMul) {
           fb.SignExtend(fb.Param("rhs", u20), 21),
           /*result_width=*/21);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // The zero-extended operand should be sliced down.
   EXPECT_THAT(f->return_value(),
@@ -753,7 +753,7 @@ TEST_P(NarrowingPassTest, ExtendedUMulSignAgnosticToSMul) {
           fb.SignExtend(fb.Param("rhs", u17), 21),
           /*result_width=*/21);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // The sign-extended operand should be sliced down to the sign bit, and the
   // product switched to an SMul.
@@ -787,7 +787,7 @@ TEST_P(NarrowingPassTest, ExtendedSMulSignAgnosticToUMul) {
           fb.SignExtend(fb.Param("rhs", u20), 21),
           /*result_width=*/21);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // The zero-extended operand should be sliced down, and the product switched
   // to a UMul.
@@ -804,7 +804,7 @@ TEST_P(NarrowingPassTest, ExtendedSMulSignAgnosticToSMul) {
           fb.SignExtend(fb.Param("rhs", u17), 21),
           /*result_width=*/21);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // The sign-extended operand should be sliced down to the sign bit.
   EXPECT_THAT(f->return_value(),
@@ -883,7 +883,7 @@ TEST_P(NarrowingPassTest, ExtendedUMulpSignAgnosticToUMulp) {
                          /*result_width=*/21);
   fb.Add(fb.TupleIndex(prod, 0), fb.TupleIndex(prod, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // The zero-extended operand should be sliced down.
   EXPECT_THAT(f->return_value(),
@@ -902,7 +902,7 @@ TEST_P(NarrowingPassTest, ExtendedUMulpSignAgnosticToSMulp) {
                          /*result_width=*/21);
   fb.Add(fb.TupleIndex(prod, 0), fb.TupleIndex(prod, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // The sign-extended operand should be sliced down to the sign bit, and the
   // product switched to an SMulp.
@@ -942,7 +942,7 @@ TEST_P(NarrowingPassTest, ExtendedSMulpSignAgnosticToUMulp) {
                          /*result_width=*/21);
   fb.Add(fb.TupleIndex(prod, 0), fb.TupleIndex(prod, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // The zero-extended operand should be sliced down, and the product switched
   // to a UMulp.
@@ -962,7 +962,7 @@ TEST_P(NarrowingPassTest, ExtendedSMulpSignAgnosticToSMulp) {
                          /*result_width=*/21);
   fb.Add(fb.TupleIndex(prod, 0), fb.TupleIndex(prod, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  solvers::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // The sign-extended operand should be sliced down to the sign bit.
   EXPECT_THAT(f->return_value(),

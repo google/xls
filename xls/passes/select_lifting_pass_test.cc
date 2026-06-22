@@ -45,7 +45,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -519,7 +519,7 @@ TEST_F(SelectLiftingPassTest, LiftUnaryAndInDefaultCase) {
   BValue select = fb.PrioritySelect(s, {and_b}, and_a);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
   VLOG(3) << "After transformation:" << f->DumpIr();
   EXPECT_EQ(f->node_count(), 6);
@@ -537,7 +537,7 @@ TEST_F(SelectLiftingPassTest, LiftUnaryXorInDefaultCase) {
   BValue select = fb.PrioritySelect(s, {xor_b}, xor_a);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
   VLOG(3) << "After transformation:" << f->DumpIr();
   EXPECT_EQ(f->node_count(), 6);

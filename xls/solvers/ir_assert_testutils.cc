@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/solvers/z3_assert_testutils.h"
+#include "xls/solvers/ir_assert_testutils.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -35,14 +36,14 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc_testutils.h"
 #include "xls/ir/value.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
-#include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_ir_translator_matchers.h"
+#include "xls/solvers/prover_matchers.h"
+#include "xls/solvers/solver.h"
 
-namespace xls::solvers::z3 {
+namespace xls::solvers {
 namespace internal {
 
 bool DoIsAssertClean(FunctionBase* fb, std::optional<int64_t> activations,
+                     SolverKind kind, SolverLimit limit,
                      testing::MatchResultListener* result_listener) {
   if (!activations && !fb->IsFunction()) {
     *result_listener << fb->name()
@@ -83,7 +84,7 @@ bool DoIsAssertClean(FunctionBase* fb, std::optional<int64_t> activations,
     }
     arg = *block_or;
   }
-  absl::StatusOr<ProverResult> result = TryProveAssertClean(arg);
+  absl::StatusOr<ProverResult> result = TryProveAssertClean(arg, kind, limit);
   bool matches = testing::ExplainMatchResult(
       absl_testing::IsOkAndHolds(IsProvenTrue()), result, result_listener);
   if (!matches && result.ok() && fb->IsFunction()) {
@@ -95,7 +96,9 @@ bool DoIsAssertClean(FunctionBase* fb, std::optional<int64_t> activations,
   return matches;
 }
 
-absl::StatusOr<ProverResult> TryProveAssertClean(Function* func) {
+absl::StatusOr<ProverResult> TryProveAssertClean(Function* func,
+                                                 SolverKind kind,
+                                                 SolverLimit limit) {
   Package test_pkg("TestPackage");
   FunctionBuilder fb("assert_checker", &test_pkg);
   std::vector<Node*> assert_predicates;
@@ -137,9 +140,10 @@ absl::StatusOr<ProverResult> TryProveAssertClean(Function* func) {
     fb.And(vals);
     XLS_ASSIGN_OR_RETURN(z3_func, fb.Build());
   }
+  XLS_ASSIGN_OR_RETURN(auto solver, CreateSolver(kind));
   XLS_ASSIGN_OR_RETURN(ProverResult res,
-                       TryProve(z3_func, z3_func->return_value(),
-                                Predicate::NotEqualToZero(), 0));
+                       solver->TryProve(z3_func, z3_func->return_value(),
+                                        Predicate::NotEqualToZero(), limit));
   return std::visit(
       Visitor{
           [&](ProvenFalse f) -> absl::StatusOr<ProverResult> {
@@ -168,4 +172,4 @@ absl::StatusOr<ProverResult> TryProveAssertClean(Function* func) {
 
 }  // namespace internal
 
-}  // namespace xls::solvers::z3
+}  // namespace xls::solvers

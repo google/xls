@@ -57,7 +57,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_test_helpers.h"
-#include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -71,7 +71,7 @@ using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Contains;
 
-using ::xls::solvers::z3::ScopedVerifyEquivalence;
+using ::xls::solvers::ScopedVerifyEquivalence;
 
 class ReassociationPassTest : public IrTestBase {
  protected:
