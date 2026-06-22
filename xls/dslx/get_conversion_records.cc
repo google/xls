@@ -390,6 +390,28 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       VLOG(5) << "No calls to parametric proc " << p->name_def()->ToString();
       return absl::OkStatus();
     }
+
+    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> spawns,
+                         proc_owner_ti->GetProcDefSpawnsFrom(p));
+    for (const InterpValue& external_initializer : spawns) {
+      const ProcDef* spawnee =
+          external_initializer.GetProcInitializerOrDie().proc_def();
+      if (spawnee->owner() == p->owner()) {
+        continue;
+      }
+
+      // Proc is outside this module; get additional conversion records from
+      // its spawning and add to our list of records.
+      XLS_ASSIGN_OR_RETURN(
+          ProcInitializerWithTypeInfo canonical_initializer,
+          proc_owner_ti->GetCanonicalProcInitializer(external_initializer));
+      ConversionRecordVisitor visitor(
+          spawnee->owner(), canonical_initializer.next_type_info,
+          include_tests_, proc_id_factory_, top_, resolved_proc_alias_,
+          records_, processed_invocations_);
+      XLS_RETURN_IF_ERROR(spawnee->Accept(&visitor));
+    }
+
     for (const ProcInitializerWithTypeInfo& canonical_initializer :
          canonical_initializers) {
       // TODO: https://github.com/google/xls/issues/4125 - Exclude test-only
@@ -409,6 +431,7 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
                                canonical_initializer));
       records_.push_back(std::move(cr));
     }
+
     return absl::OkStatus();
   }
 

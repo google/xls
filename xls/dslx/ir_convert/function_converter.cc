@@ -3749,7 +3749,7 @@ absl::Status FunctionConverter::InitProcDefBuilder(const ProcDef* proc_def,
 
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
-      MangleDslxName(module_->name(), proc_def->identifier(),
+      MangleDslxName(proc_def->owner()->name(), proc_def->identifier(),
                      CallingConvention::kProcNext, parametric_keys, &env));
   auto unique_builder =
       std::make_unique<ProcBuilder>(NewStyleProc{}, mangled_name, package());

@@ -647,5 +647,65 @@ impl Loopback {
                           "chan(uN[32], dir=out) }) -> ()")));
 }
 
+TEST(TypecheckV2Test, SpawnImportedProcDef) {
+  std::string_view kImported = R"(
+#![feature(explicit_state_access)]
+
+pub proc P {
+    c_out: chan<u32> out,
+    i: u32,
+}
+
+impl P {
+    fn new(c_out: chan<u32> out) -> Self {
+        P { c_out: c_out, i: 0 }
+    }
+
+    fn next(self) {
+        let last_i = read(self.i);
+        send(join(), self.c_out, last_i);
+        write(self.i, last_i + 1);
+    }
+}
+)";
+
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+import imported;
+proc C {
+    c_in: chan<u32> in,
+    i: u32,
+}
+
+impl C {
+    fn new(c_in: chan<u32> in) -> Self {
+        C { c_in: c_in, i: 0 }
+    }
+    fn next(self) {
+        let last_i = read(self.i);
+        let (tok1, e) = recv(join(), self.c_in);
+        write(self.i, e + last_i);
+    }
+}
+
+proc Main {}
+
+impl Main {
+    fn new() -> Self {
+        let (c_out, c_in) = chan<u32>("my_chan");
+        imported::P::new(c_out).spawn();
+        let c = C::new(c_in);
+        c.spawn();
+        Main {}
+    }
+}
+)";
+
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
 }  // namespace
 }  // namespace xls::dslx

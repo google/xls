@@ -2679,6 +2679,75 @@ impl Main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, SpawnImportedProcDef) {
+  auto import_data = CreateImportDataForTest();
+
+  std::string_view kImported = R"(
+#![feature(explicit_state_access)]
+
+pub proc P {
+    c_out: chan<u32> out,
+    i: u32,
+}
+
+impl P {
+    fn new(c_out: chan<u32> out) -> Self {
+        P { c_out: c_out, i: 0 }
+    }
+
+    fn next(self) {
+        let last_i = read(self.i);
+        send(join(), self.c_out, last_i);
+        write(self.i, last_i + 1);
+    }
+}
+)";
+
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+import imported;
+
+proc C {
+    c_in: chan<u32> in,
+    i: u32,
+}
+
+impl C {
+    fn new(c_in: chan<u32> in) -> Self {
+        C { c_in: c_in, i: 0 }
+    }
+    fn next(self) {
+        let last_i = read(self.i);
+        let (tok1, e) = recv(join(), self.c_in);
+        write(self.i, e + last_i);
+    }
+}
+
+proc Main {}
+
+impl Main {
+    fn new() -> Self {
+        let (c_out, c_in) = chan<u32>("my_chan");
+        imported::P::new(c_out).spawn();
+        let c = C::new(c_in);
+        c.spawn();
+        Main {}
+    }
+
+    fn next(self) {}
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, kProcScopedChannelOptions, &import_data));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, SendIfRecvIf) {
   constexpr std::string_view program = R"(proc producer {
   c: chan<u32> out;
