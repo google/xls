@@ -53,6 +53,7 @@
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/codegen_flags_handler_registry.h"
 #include "xls/tools/schedule.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -455,6 +456,7 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options.set_ir_dump_path(p.ir_dump_path());
   }
 
+  XLS_RETURN_IF_ERROR(CodegenFlagsHandlerRegistry::Process(p, options));
   return options;
 }
 

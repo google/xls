@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2023";
 
 package xls;
 
@@ -56,55 +56,55 @@ enum CodegenVersionProto {
 //
 // See codegen_flags.cc ABSL_FLAG() definitions for the meaning of these fields.
 message CodegenFlagsProto {
-  optional string top = 1;
-  optional GeneratorKind generator = 2;
-  optional string input_valid_signal = 3;
-  optional string output_valid_signal = 4;
-  optional string manual_load_enable_signal = 5;
-  optional bool flop_inputs = 6;
-  optional bool flop_outputs = 7;
-  optional IOKindProto flop_inputs_kind = 8;
-  optional IOKindProto flop_outputs_kind = 9;
-  optional bool flop_single_value_channels = 10;
-  optional bool add_idle_output = 11;
-  optional string module_name = 12;
-  optional string output_port_name = 13;
-  optional string reset = 14;
-  optional bool reset_active_low = 15;
-  optional bool reset_asynchronous = 16;
-  optional bool reset_data_path = 17;
-  optional bool use_system_verilog = 18;
-  optional bool separate_lines = 19;
-  optional int64 max_inline_depth = 35;
-  optional string gate_format = 20;
-  optional string assert_format = 21;
-  optional string smulp_format = 22;
-  optional string umulp_format = 23;
-  optional string streaming_channel_data_suffix = 24;
-  optional string streaming_channel_valid_suffix = 25;
-  optional string streaming_channel_ready_suffix = 26;
+  string top = 1;
+  GeneratorKind generator = 2;
+  string input_valid_signal = 3;
+  string output_valid_signal = 4;
+  string manual_load_enable_signal = 5;
+  bool flop_inputs = 6;
+  bool flop_outputs = 7;
+  IOKindProto flop_inputs_kind = 8;
+  IOKindProto flop_outputs_kind = 9;
+  bool flop_single_value_channels = 10;
+  bool add_idle_output = 11;
+  string module_name = 12;
+  string output_port_name = 13;
+  string reset = 14;
+  bool reset_active_low = 15;
+  bool reset_asynchronous = 16;
+  bool reset_data_path = 17;
+  bool use_system_verilog = 18;
+  bool separate_lines = 19;
+  int64 max_inline_depth = 35;
+  string gate_format = 20;
+  string assert_format = 21;
+  string smulp_format = 22;
+  string umulp_format = 23;
+  string streaming_channel_data_suffix = 24;
+  string streaming_channel_valid_suffix = 25;
+  string streaming_channel_ready_suffix = 26;
   repeated string ram_configurations = 27;
-  optional bool gate_recvs = 28;
-  optional bool array_index_bounds_checking = 29;
-  optional RegisterMergeStrategyProto register_merge_strategy = 30;
-  optional int64 max_trace_verbosity = 31;
+  bool gate_recvs = 28;
+  bool array_index_bounds_checking = 29;
+  RegisterMergeStrategyProto register_merge_strategy = 30;
+  int64 max_trace_verbosity = 31;
   // If present details about the interface requested. Eg specific sv types to
   // use for arguments etc. Only the 'top' and channels are interpreted. Unknown
   // interface elements are ignored.
-  optional PackageInterfaceProto package_interface = 32;
+  PackageInterfaceProto package_interface = 32;
   // Should annotated arguments be emitted with the sv_types they are annotated
   // with.
-  optional bool emit_sv_types = 33;
+  bool emit_sv_types = 33;
 
-  optional string simulation_macro_name = 34;
+  string simulation_macro_name = 34;
   repeated string assertion_macro_names = 39;
 
-  optional CodegenVersionProto codegen_version = 36;
+  CodegenVersionProto codegen_version = 36;
 
   // Which module to use for FIFOs. If empty, will materialize an internal
   // implementation.
-  optional string fifo_module = 40;
-  optional string nodata_fifo_module = 41;
+  string fifo_module = 40;
+  string nodata_fifo_module = 41;
 
   // If present, the seed used to randomize the order of lines in the output. If
   // empty, will use a default order. This can be useful for creating multiple
@@ -113,14 +113,17 @@ message CodegenFlagsProto {
 
   // If false, runtime invariant assertions (e.g. one-hot selector checks)
   // are omitted from generated RTL.  Default is true.
-  optional bool add_invariant_assertions = 42;
+  bool add_invariant_assertions = 42;
 
   // Parsed reference residual data. When present, codegen uses this to
   // influence emission order; preferred over reading from a path at runtime.
-  optional verilog.CodegenResidualData reference_residual_data = 43;
+  verilog.CodegenResidualData reference_residual_data = 43;
 
-  optional SourceAnnotationStrategyProto source_annotation_strategy = 44;
+  SourceAnnotationStrategyProto source_annotation_strategy = 44;
 
   // Debugging flag to cause the block conversion to dump its pass results.
-  optional string ir_dump_path = 45;
+  string ir_dump_path = 45;
+
+  // Space for pass-specific configuration extensions.
+  extensions 20000 to max;
 }
