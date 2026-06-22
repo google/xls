@@ -537,9 +537,16 @@ absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
   // parametric argument rather than a value.
   if (fn_name == "bit_count" || fn_name == "element_count") {
     XLS_RET_CHECK_EQ(invocation->explicit_parametrics().size(), 1);
+    AstNode* parametric_node = ToAstNode(invocation->explicit_parametrics()[0]);
     std::optional<const Type*> explicit_parametric_type =
-        ti->GetItem(ToAstNode(invocation->explicit_parametrics()[0]));
-    XLS_RET_CHECK(explicit_parametric_type.has_value());
+        ti->GetItem(parametric_node);
+    if (!explicit_parametric_type.has_value()) {
+      return TypeInferenceErrorStatus(
+          invocation->span(), nullptr,
+          absl::StrCat("Type of explicit parametric for ", fn_name,
+                       " is not fully known yet."),
+          import_data->file_table());
+    }
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         fn_name == "element_count"
