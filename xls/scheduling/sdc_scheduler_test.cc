@@ -17,7 +17,10 @@
 #include <cstdint>
 #include <optional>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -145,6 +148,58 @@ TEST_F(SDCSchedulerTest, WithIOConstraint) {
                           /*clock_period_ps=*/2, SchedulingFailureBehavior{}));
   EXPECT_EQ(cycle_map.at(rcv.node()), 0);
   EXPECT_EQ(cycle_map.at(send.node()), 1);
+}
+
+TEST_F(SDCSchedulerTest, DecoupledFeedbackLoopInfeasible) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
+                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue x_read = pb.StateRead(x_element);
+  // Create a long chain of adds to increase the critical path length
+  // to 5. This means that for worst_case_throughput = 1, the constraint will be
+  // violated This test will fail for worst_case_throughput = 1, but pass for
+  // worst_case_throughput = 4
+
+  BValue add1 = pb.Add(x_read, pb.Literal(UBits(1, 32)));
+  BValue add2 = pb.Add(add1, pb.Literal(UBits(1, 32)));
+  BValue add3 = pb.Add(add2, pb.Literal(UBits(1, 32)));
+  BValue add4 = pb.Add(add3, pb.Literal(UBits(1, 32)));
+  BValue add5 = pb.Add(add4, pb.Literal(UBits(1, 32)));
+  pb.Next(x_element, add5);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduleGraph graph,
+                           ScheduleGraph::Create(proc, {}));
+  TestDelayEstimator delay_estimator;
+  SchedulingOptions options;
+
+  // 1. Verify scheduling fails under tight worst_case_throughput = 1 (requires
+  // cycle difference <= 0, but min is 3)
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto infeasible_scheduler,
+      SDCScheduler::Create(graph, delay_estimator, options));
+  auto infeasible_result = infeasible_scheduler->Schedule(
+      std::nullopt, 2,
+      SchedulingFailureBehavior{.explain_infeasibility = false}, 1);
+  EXPECT_THAT(infeasible_result,
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInternal,
+                  testing::HasSubstr("does not have an optimal solution")));
+
+  // 2. Verify scheduling succeeds under relaxed worst_case_throughput = 4
+  // (allows cycle difference <= 3, which matches min of 3)
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto feasible_scheduler,
+      SDCScheduler::Create(graph, delay_estimator, options));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleCycleMap feasible_cycle_map,
+      feasible_scheduler->Schedule(
+          std::nullopt, 2,
+          SchedulingFailureBehavior{.explain_infeasibility = false}, 4));
+  EXPECT_EQ(feasible_cycle_map.at(*proc->next_values().begin()) -
+                feasible_cycle_map.at(x_read.node()),
+            3);
 }
 
 }  // namespace
