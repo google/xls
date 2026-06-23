@@ -655,6 +655,9 @@ class InterpValue {
       int64_t indentation) const;
   absl::StatusOr<std::string> ToEnumString(
       const ValueFormatDescriptor& fmt_desc) const;
+  absl::StatusOr<std::string> ToSumString(const ValueFormatDescriptor& fmt_desc,
+                                          bool include_type_prefix,
+                                          int64_t indentation) const;
 
   std::string ToStringInternal(
       bool humanize = false,
@@ -711,6 +714,22 @@ struct RangeData {
            inclusive == other.inclusive;
   }
 };
+
+namespace internal {
+
+// Borrowed view of the current semantic-sum `(tag, payload_slots)` carrier.
+struct EncodedSumView {
+  const InterpValue& tag;
+  absl::Span<const InterpValue> payload_slots;
+};
+
+absl::StatusOr<EncodedSumView> GetEncodedSumView(const InterpValue& value);
+
+// Constructs the interpreter-owned tuple carrier for an encoded semantic sum.
+InterpValue CreateEncodedSumTuple(InterpValue tag,
+                                  std::vector<InterpValue> payload_slots);
+
+}  // namespace internal
 
 }  // namespace xls::dslx
 

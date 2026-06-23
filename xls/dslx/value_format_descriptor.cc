@@ -29,6 +29,29 @@
 
 namespace xls::dslx {
 
+ValueFormatSumVariantDescriptor ValueFormatSumVariantDescriptor::MakeUnit(
+    std::string name) {
+  return ValueFormatSumVariantDescriptor(
+      std::move(name), ValueFormatSumVariantKind::kUnit,
+      /*field_names=*/{}, /*payload_formats=*/{});
+}
+
+ValueFormatSumVariantDescriptor ValueFormatSumVariantDescriptor::MakeTuple(
+    std::string name, std::vector<ValueFormatDescriptor> payload_formats) {
+  return ValueFormatSumVariantDescriptor(
+      std::move(name), ValueFormatSumVariantKind::kTuple,
+      /*field_names=*/{}, std::move(payload_formats));
+}
+
+ValueFormatSumVariantDescriptor ValueFormatSumVariantDescriptor::MakeStruct(
+    std::string name, std::vector<std::string> field_names,
+    std::vector<ValueFormatDescriptor> payload_formats) {
+  CHECK_EQ(field_names.size(), payload_formats.size());
+  return ValueFormatSumVariantDescriptor(
+      std::move(name), ValueFormatSumVariantKind::kStruct,
+      std::move(field_names), std::move(payload_formats));
+}
+
 ValueFormatDescriptor ValueFormatDescriptor::MakeLeafValue(
     FormatPreference format) {
   ValueFormatDescriptor vfd(ValueFormatDescriptorKind::kLeafValue);
@@ -40,8 +63,9 @@ ValueFormatDescriptor ValueFormatDescriptor::MakeEnum(
     std::string_view enum_name,
     absl::flat_hash_map<Bits, std::string> value_to_name) {
   ValueFormatDescriptor vfd(ValueFormatDescriptorKind::kEnum);
-  vfd.enum_name_ = enum_name;
-  vfd.value_to_name_ = std::move(value_to_name);
+  EnumFormat& enum_format = vfd.nominal_format_.emplace<EnumFormat>();
+  enum_format.name = enum_name;
+  enum_format.value_to_name = std::move(value_to_name);
   return vfd;
 }
 
@@ -67,13 +91,51 @@ ValueFormatDescriptor ValueFormatDescriptor::MakeStruct(
     absl::Span<const ValueFormatDescriptor> field_formats) {
   CHECK_EQ(field_names.size(), field_formats.size());
   ValueFormatDescriptor vfd(ValueFormatDescriptorKind::kStruct);
-  vfd.struct_name_ = struct_name;
+  StructFormat& struct_format = vfd.nominal_format_.emplace<StructFormat>();
+  struct_format.name = struct_name;
   vfd.children_ = std::vector<ValueFormatDescriptor>(field_formats.begin(),
                                                      field_formats.end());
   vfd.size_ = field_names.size();
-  vfd.struct_field_names_ =
+  struct_format.field_names =
       std::vector<std::string>(field_names.begin(), field_names.end());
   return vfd;
+}
+
+ValueFormatDescriptor ValueFormatDescriptor::MakeSum(
+    std::string_view sum_name,
+    absl::Span<const ValueFormatSumVariantDescriptor> variants,
+    absl::Span<const size_t> payload_starts, size_t payload_slot_count) {
+  CHECK_EQ(variants.size(), payload_starts.size());
+  ValueFormatDescriptor vfd(ValueFormatDescriptorKind::kSum);
+  SumFormat& sum_format = vfd.nominal_format_.emplace<SumFormat>();
+  sum_format.name = sum_name;
+
+  sum_format.variants.reserve(variants.size());
+  for (size_t i = 0; i < variants.size(); ++i) {
+    const ValueFormatSumVariantDescriptor& variant = variants[i];
+    const size_t payload_start = payload_starts[i];
+    CHECK_LE(payload_start, payload_slot_count);
+    CHECK_LE(variant.payload_formats().size(),
+             payload_slot_count - payload_start);
+    sum_format.variants.emplace_back(
+        std::string(variant.name()), variant.kind(), payload_start,
+        std::vector<std::string>(variant.field_names().begin(),
+                                 variant.field_names().end()),
+        std::vector<ValueFormatDescriptor>(variant.payload_formats().begin(),
+                                           variant.payload_formats().end()));
+  }
+  sum_format.payload_slot_count = payload_slot_count;
+  return vfd;
+}
+
+ValueFormatSumVariantView ValueFormatDescriptor::sum_variant(size_t i) const {
+  CHECK(IsSum());
+  const SumVariantFormat& variant =
+      std::get<SumFormat>(nominal_format_).variants.at(i);
+  return ValueFormatSumVariantView(
+      variant.name, variant.kind, variant.payload_start,
+      absl::MakeConstSpan(variant.field_names),
+      absl::MakeConstSpan(variant.payload_formats));
 }
 
 absl::Status ValueFormatDescriptor::Accept(ValueFormatVisitor& v) const {
@@ -88,6 +150,8 @@ absl::Status ValueFormatDescriptor::Accept(ValueFormatVisitor& v) const {
       return v.HandleTuple(*this);
     case ValueFormatDescriptorKind::kStruct:
       return v.HandleStruct(*this);
+    case ValueFormatDescriptorKind::kSum:
+      return v.HandleSum(*this);
   }
 }
 
