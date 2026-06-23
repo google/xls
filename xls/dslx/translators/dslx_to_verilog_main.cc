@@ -63,6 +63,7 @@ bool TypeDefinitionSourceIsPublic(const TypeInfo::TypeSource& def_source) {
           [](const TypeAlias* type_alias) { return type_alias->is_public(); },
           [](const ProcDef* proc_def) { return proc_def->is_public(); },
           [](const EnumDef* enum_def) { return enum_def->is_public(); },
+          [](const SumDef* sum_def) { return sum_def->is_public(); },
           [](const StructDef* struct_def) { return struct_def->is_public(); },
       },
       def_source.definition);

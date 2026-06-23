@@ -545,6 +545,9 @@ xls_dslx_module_member_kind xls_dslx_module_member_get_kind(
           [](xls::dslx::EnumDef*&) -> xls_dslx_module_member_kind {
             return xls_dslx_module_member_kind_enum_def;
           },
+          [](xls::dslx::SumDef*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_sum_def;
+          },
           [](xls::dslx::Import*&) -> xls_dslx_module_member_kind {
             return xls_dslx_module_member_kind_import;
           },
@@ -1204,6 +1207,9 @@ xls_dslx_type_definition_kind xls_dslx_module_get_type_definition_kind(
                          },
                          [](const xls::dslx::EnumDef*) {
                            return xls_dslx_type_definition_kind_enum_def;
+                         },
+                         [](const xls::dslx::SumDef*) {
+                           return xls_dslx_type_definition_kind_sum_def;
                          },
                          [](const xls::dslx::TypeAlias*) {
                            return xls_dslx_type_definition_kind_type_alias;

@@ -644,6 +644,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
+  absl::Status HandleSumVariantPayloadPattern(
+      const SumVariantPayloadPattern* node) override {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "Constructor patterns are not supported before semantic-sum "
+        "pattern typechecking is enabled.",
+        file_table_);
+  }
+
   absl::Status HandleXlsTuple(const XlsTuple* node) override {
     VLOG(5) << "HandleXlsTuple: " << node->ToString();
 

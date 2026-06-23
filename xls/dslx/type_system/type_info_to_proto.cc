@@ -101,8 +101,12 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_STRING;
     case AstNodeKind::kStructInstance:
       return AST_NODE_KIND_STRUCT_INSTANCE;
+    case AstNodeKind::kSumInstance:
+      return AST_NODE_KIND_SUM_INSTANCE;
     case AstNodeKind::kStructMember:
       return AST_NODE_KIND_STRUCT_MEMBER;
+    case AstNodeKind::kStructPattern:
+      return AST_NODE_KIND_STRUCT_PATTERN;
     case AstNodeKind::kTuplePattern:
       return AST_NODE_KIND_TUPLE_PATTERN;
     case AstNodeKind::kSplatStructInstance:
@@ -155,6 +159,10 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_SLICE;
     case AstNodeKind::kEnumDef:
       return AST_NODE_KIND_ENUM_DEF;
+    case AstNodeKind::kSumDef:
+      return AST_NODE_KIND_SUM_DEF;
+    case AstNodeKind::kSumVariant:
+      return AST_NODE_KIND_SUM_VARIANT;
     case AstNodeKind::kStructDef:
       return AST_NODE_KIND_STRUCT_DEF;
     case AstNodeKind::kProcDef:
@@ -189,6 +197,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_PROC_MEMBER;
     case AstNodeKind::kRestOfTuple:
       return AST_NODE_KIND_REST_OF_TUPLE;
+    case AstNodeKind::kSumVariantPayloadPattern:
+      return AST_NODE_KIND_SUM_VARIANT_PAYLOAD_PATTERN;
     case AstNodeKind::kImpl:
       return AST_NODE_KIND_IMPL;
     case AstNodeKind::kVerbatimNode:
@@ -723,8 +733,12 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kString;
     case AST_NODE_KIND_STRUCT_INSTANCE:
       return AstNodeKind::kStructInstance;
+    case AST_NODE_KIND_SUM_INSTANCE:
+      return AstNodeKind::kSumInstance;
     case AST_NODE_KIND_STRUCT_MEMBER:
       return AstNodeKind::kStructMember;
+    case AST_NODE_KIND_STRUCT_PATTERN:
+      return AstNodeKind::kStructPattern;
     case AST_NODE_KIND_TUPLE_PATTERN:
       return AstNodeKind::kTuplePattern;
     case AST_NODE_KIND_SPLAT_STRUCT_INSTANCE:
@@ -773,6 +787,10 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kSlice;
     case AST_NODE_KIND_ENUM_DEF:
       return AstNodeKind::kEnumDef;
+    case AST_NODE_KIND_SUM_DEF:
+      return AstNodeKind::kSumDef;
+    case AST_NODE_KIND_SUM_VARIANT:
+      return AstNodeKind::kSumVariant;
     case AST_NODE_KIND_STRUCT_DEF:
       return AstNodeKind::kStructDef;
     case AST_NODE_KIND_PROC_DEF:
@@ -813,6 +831,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kProcMember;
     case AST_NODE_KIND_REST_OF_TUPLE:
       return AstNodeKind::kRestOfTuple;
+    case AST_NODE_KIND_SUM_VARIANT_PAYLOAD_PATTERN:
+      return AstNodeKind::kSumVariantPayloadPattern;
     case AST_NODE_KIND_IMPL:
       return AstNodeKind::kImpl;
     case AST_NODE_KIND_VERBATIM_NODE:
