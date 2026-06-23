@@ -634,6 +634,9 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kShrl:
       return EmitShift(node, inputs[0], inputs[1], file);
     case Op::kSignExt: {
+      if (node->BitCountOrDie() == node->operand(0)->BitCountOrDie()) {
+        return inputs[0];
+      }
       if (node->operand(0)->BitCountOrDie() == 1) {
         // A sign extension of a single-bit value is just replication.
         return file->Concat(
@@ -709,6 +712,9 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kXorReduce:
       return file->XorReduce(inputs[0], node->loc());
     case Op::kZeroExt: {
+      if (node->BitCountOrDie() == node->operand(0)->BitCountOrDie()) {
+        return inputs[0];
+      }
       int64_t bits_added =
           node->BitCountOrDie() - node->operand(0)->BitCountOrDie();
 
