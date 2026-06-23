@@ -269,6 +269,7 @@ class ImportData {
   absl::StatusOr<const EnumDef*> FindEnumDef(const Span& span) const;
   absl::StatusOr<const StructDef*> FindStructDef(const Span& span) const;
   absl::StatusOr<const ProcDef*> FindProcDef(const Span& span) const;
+  absl::StatusOr<const SumDef*> FindSumDef(const Span& span) const;
   absl::StatusOr<const AstNode*> FindNode(AstNodeKind kind,
                                           const Span& span) const;
 
