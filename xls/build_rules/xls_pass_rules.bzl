@@ -414,6 +414,10 @@ def _xls_pass_registry_impl_helper(
             cc_toolchain = cc_toolchain,
             compilation_outputs = comp_out,
             linking_contexts = link_deps,
+            disallow_dynamic_library = not cc_common.is_enabled(
+                feature_configuration = cc_features,
+                feature_name = "supports_dynamic_linker",
+            ),
             alwayslink = True,
         )
         linking_ctxs.append(link_ctx)
