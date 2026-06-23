@@ -39,6 +39,7 @@ enum {
   xls_dslx_type_definition_kind_colon_ref,
   xls_dslx_type_definition_kind_proc_def,
   xls_dslx_type_definition_kind_use_tree_entry,
+  xls_dslx_type_definition_kind_sum_def,
 };
 
 typedef int32_t xls_dslx_module_member_kind;
@@ -61,6 +62,7 @@ enum {
   xls_dslx_module_member_kind_use,
   xls_dslx_module_member_kind_proc_alias,
   xls_dslx_module_member_kind_fuzz_test_function,
+  xls_dslx_module_member_kind_sum_def,
 };
 
 typedef int32_t xls_dslx_attribute_kind;

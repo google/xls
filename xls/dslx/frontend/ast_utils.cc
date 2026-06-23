@@ -235,6 +235,9 @@ absl::Status VerifyParentage(const Module* module) {
     if (std::holds_alternative<EnumDef*>(member)) {
       return VerifyParentage(std::get<EnumDef*>(member));
     }
+    if (std::holds_alternative<SumDef*>(member)) {
+      return VerifyParentage(std::get<SumDef*>(member));
+    }
     if (std::holds_alternative<Import*>(member)) {
       return VerifyParentage(std::get<Import*>(member));
     }

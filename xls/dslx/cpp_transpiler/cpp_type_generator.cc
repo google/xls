@@ -753,6 +753,11 @@ CppTypeGenerator::Create(const TypeDefinition& type_definition,
             return EnumCppTypeGenerator::Create(enum_def, type_info,
                                                 import_data, namespaces);
           },
+          [&](const SumDef* sum_def)
+              -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
+            return absl::UnimplementedError(
+                absl::StrFormat("Unsupported type: %s", sum_def->ToString()));
+          },
           [&](const ColonRef* colon_ref)
               -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
             return absl::UnimplementedError(

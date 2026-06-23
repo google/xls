@@ -57,6 +57,22 @@
 namespace xls::dslx {
 namespace {
 
+bool ContainsConstructorPattern(const PatternTree& pattern) {
+  bool contains_constructor = false;
+  if (std::holds_alternative<SumVariantPayloadPattern*>(pattern)) {
+    contains_constructor = true;
+  } else if (const auto* tuple = std::get_if<TuplePattern*>(&pattern)) {
+    for (const PatternTree& member : (*tuple)->members()) {
+      contains_constructor |= ContainsConstructorPattern(member);
+    }
+  } else if (const auto* fields = std::get_if<StructPattern*>(&pattern)) {
+    for (const auto& [name, member] : (*fields)->fields()) {
+      contains_constructor |= ContainsConstructorPattern(member);
+    }
+  }
+  return contains_constructor;
+}
+
 absl::StatusOr<BitsLikeProperties> GetBitsLikeOrError(
     const Expr* node, const Type* type, const FileTable& file_table) {
   std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type);
@@ -378,12 +394,22 @@ class TypeValidator : public AstNodeVisitorWithDefault {
 
     for (MatchArm* arm : node->arms()) {
       for (const PatternTree& pattern : arm->patterns()) {
-        bool exhaustive_before = exhaustiveness_checker.IsExhaustive();
-        exhaustiveness_checker.AddPattern(pattern);
-        if (exhaustive_before) {
-          warning_collector_.Add(
-              GetPatternSpan(pattern), WarningKind::kAlreadyExhaustiveMatch,
-              "Match is already exhaustive before this pattern");
+        const bool has_constructor_pattern =
+            ContainsConstructorPattern(pattern);
+        if (has_constructor_pattern) {
+          return TypeInferenceErrorStatus(
+              GetPatternSpan(pattern), matched,
+              "Constructor patterns are not supported before semantic-sum "
+              "pattern typechecking is enabled.",
+              file_table_);
+        } else {
+          bool exhaustive_before = exhaustiveness_checker.IsExhaustive();
+          exhaustiveness_checker.AddPattern(pattern);
+          if (exhaustive_before) {
+            warning_collector_.Add(
+                GetPatternSpan(pattern), WarningKind::kAlreadyExhaustiveMatch,
+                "Match is already exhaustive before this pattern");
+          }
         }
       }
     }

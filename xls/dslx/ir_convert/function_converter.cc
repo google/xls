@@ -415,6 +415,8 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(ProcAlias)
   INVALID(RestOfTuple)
   INVALID(Slice)
+  INVALID(StructPattern)
+  INVALID(SumVariantPayloadPattern)
   INVALID(TestFunction)
   INVALID(TestProc)
   INVALID(TuplePattern)
@@ -458,6 +460,9 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(QuickCheck)
   INVALID(StructDef)
   INVALID(StructMemberNode)
+  INVALID(SumDef)
+  INVALID(SumInstance)
+  INVALID(SumVariant)
   INVALID(Trait)
   INVALID(TypeAlias)
   INVALID(Use)
@@ -1563,6 +1568,10 @@ absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
             return absl::InternalError(
                 "Induction variable cannot be a colon-reference");
           },
+          [&](SumVariantPayloadPattern*) -> absl::StatusOr<BValue> {
+            return absl::InternalError(
+                "Induction variable cannot be a constructor pattern");
+          },
           [&](NameRef*) -> absl::StatusOr<BValue> {
             return absl::InternalError(
                 "Induction variable cannot be a name-reference");
@@ -1570,6 +1579,10 @@ absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
           [&](RestOfTuple*) -> absl::StatusOr<BValue> {
             return absl::InternalError(
                 "Induction variable cannot be a \"rest of tuple\"");
+          },
+          [&](StructPattern*) -> absl::StatusOr<BValue> {
+            return absl::InternalError(
+                "Induction variable cannot be a struct pattern");
           },
           [&](TuplePattern*) -> absl::StatusOr<BValue> {
             return absl::InternalError(
@@ -1914,6 +1927,10 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
                 return function_builder_->Literal(UBits(1, 1), loc);
               });
             },
+            [&](SumVariantPayloadPattern*) -> absl::StatusOr<BValue> {
+              return absl::UnimplementedError(
+                  "Semantic sum patterns are not supported by IR conversion.");
+            },
             [&](RestOfTuple* n) -> absl::StatusOr<BValue> {
               return Def(matcher_node, [&](const SourceInfo& loc) {
                 return function_builder_->Literal(UBits(1, 1), loc);
@@ -1977,6 +1994,9 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
               });
               SetNodeToIr(matcher_node, matched_value);
               return ok;
+            },
+            [&](StructPattern*) -> absl::StatusOr<BValue> {
+              return absl::InternalError("Struct pattern reached leaf handler");
             },
             [&](TuplePattern*) -> absl::StatusOr<BValue> {
               return absl::InternalError("Tuple pattern reached leaf handler");
