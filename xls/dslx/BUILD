@@ -234,6 +234,40 @@ cc_test(
     ],
 )
 
+# Shared internal semantic-sum storage layout for interpreter value
+# construction and validation. This target does not define a stable encoding.
+cc_library(
+    name = "sum_type_encoding",
+    srcs = ["sum_type_encoding.cc"],
+    hdrs = ["sum_type_encoding.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/dslx/type_system:type",
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "sum_type_encoding_test",
+    srcs = ["sum_type_encoding_test.cc"],
+    deps = [
+        ":sum_type_encoding",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:type",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "interp_value_utils",
     srcs = ["interp_value_utils.cc"],
@@ -241,6 +275,7 @@ cc_library(
     deps = [
         ":channel_direction",
         ":interp_value",
+        ":sum_type_encoding",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
@@ -268,6 +303,8 @@ cc_test(
         ":channel_direction",
         ":interp_value",
         ":interp_value_utils",
+        ":make_value_format_descriptor",
+        ":value_format_descriptor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/frontend:ast",
@@ -275,6 +312,7 @@ cc_test(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
         "//xls/ir:bits",
+        "//xls/ir:format_preference",
         "//xls/ir:value",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
@@ -842,6 +880,7 @@ cc_library(
     hdrs = ["make_value_format_descriptor.h"],
     deps = [
         ":interp_value",
+        ":sum_type_encoding",
         ":value_format_descriptor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

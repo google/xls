@@ -50,7 +50,7 @@
 
 // Higher-order macro for all the Expr node leaf types (non-abstract).
 #define XLS_DSLX_EXPR_NODE_EACH(X) \
-  /* keep-sorted start */       \
+  /* keep-sorted start */          \
   X(AllOnesMacro)                  \
   X(Array)                         \
   X(Attr)                          \
@@ -88,7 +88,7 @@
 // (Note that this includes all the Expr node leaf kinds listed in
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X)   \
-  /* keep-sorted start */        \
+  /* keep-sorted start */           \
   X(Attribute)                      \
   X(BuiltinNameDef)                 \
   X(ConstAssert)                    \
@@ -128,9 +128,9 @@
   X(UseTreeEntry)                   \
   X(WidthSlice)                     \
   X(WildcardPattern)                \
-  /* keep-sorted end */          \
+  /* keep-sorted end */             \
   /* type annotations */            \
-  /* keep-sorted start */        \
+  /* keep-sorted start */           \
   X(AnyTypeAnnotation)              \
   X(ArrayTypeAnnotation)            \
   X(BuiltinTypeAnnotation)          \
@@ -148,7 +148,7 @@
   X(TupleTypeAnnotation)            \
   X(TypeRefTypeAnnotation)          \
   X(TypeVariableTypeAnnotation)     \
-  /* keep-sorted end */          \
+  /* keep-sorted end */             \
   XLS_DSLX_EXPR_NODE_EACH(X)
 
 namespace xls::dslx {
@@ -3362,6 +3362,16 @@ class SumVariant : public AstNode {
   bool is_unit() const { return payload_shape_ == PayloadShape::kUnit; }
   bool is_tuple() const { return payload_shape_ == PayloadShape::kTuple; }
   bool is_struct() const { return payload_shape_ == PayloadShape::kStruct; }
+  // Returns the number of members for the variant's declared payload shape.
+  int64_t payload_member_count() const {
+    if (is_unit()) {
+      return 0;
+    } else if (is_tuple()) {
+      return tuple_members_.size();
+    } else {
+      return struct_members_.size();
+    }
+  }
   std::optional<Expr*> discriminant() const { return discriminant_; }
   // These source-only spans are absent for synthesized variants.
   const std::optional<Span>& payload_span() const { return payload_span_; }
