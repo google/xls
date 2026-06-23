@@ -219,10 +219,8 @@ cc_library(
     deps = [
         ":bytecode",
         "//xls/dslx:interp_value",
-        "//xls/dslx/frontend:module",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
-        "@com_google_absl//absl/log:check",
     ],
 )
 

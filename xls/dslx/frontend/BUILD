@@ -814,7 +814,6 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
-        "//xls/dslx/ir_convert:ir_conversion_utils",
         "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system_v2:import_utils",
