@@ -654,8 +654,18 @@ bool NextMatcher::MatchAndExplain(
   if (!NodeMatcher::MatchAndExplain(node, listener)) {
     return false;
   }
-  if (label_.has_value() &&
-      !label_->MatchAndExplain(node->As<xls::Next>()->label(), listener)) {
+  const xls::Next* next = node->As<xls::Next>();
+  if (state_element_.has_value()) {
+    if (next->has_state_read()) {
+      *listener << " is a coupled Next node, but expected decoupled";
+      return false;
+    }
+    if (!state_element_->MatchAndExplain(next->state_element(), listener)) {
+      *listener << " has incorrect state element";
+      return false;
+    }
+  }
+  if (label_.has_value() && !label_->MatchAndExplain(next->label(), listener)) {
     *listener << " has incorrect label";
     return false;
   }
@@ -664,6 +674,12 @@ bool NextMatcher::MatchAndExplain(
 
 void NextMatcher::DescribeTo(::std::ostream* os) const {
   std::vector<std::string> additional_fields;
+  if (state_element_.has_value()) {
+    std::stringstream ss;
+    ss << "state_element=";
+    state_element_->DescribeTo(&ss);
+    additional_fields.push_back(ss.str());
+  }
   if (label_.has_value()) {
     std::stringstream ss;
     ss << "label=";

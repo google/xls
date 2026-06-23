@@ -15,7 +15,6 @@
 #include "xls/ir/proc.h"
 
 #include <array>
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -57,7 +56,36 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
-class ProcTest : public IrTestBase {};
+class ProcTest : public IrTestBase {
+ protected:
+  struct TestTransformer : public Proc::StateElementTransformer {
+   public:
+    absl::StatusOr<Node*> TransformStateRead(
+        Proc* proc, StateRead* new_state_read,
+        StateRead* old_state_read) override {
+      return proc->MakeNode<UnOp>(new_state_read->loc(), new_state_read,
+                                  Op::kNeg);
+    }
+    absl::StatusOr<Node*> TransformNextValue(Proc* proc,
+                                             StateRead* new_state_read,
+                                             Next* old_next) override {
+      return proc->MakeNode<UnOp>(old_next->value()->loc(), old_next->value(),
+                                  Op::kNeg);
+    }
+    absl::StatusOr<std::optional<Node*>> TransformNextPredicate(
+        Proc* proc, StateRead* new_state_read, Next* old_next) override {
+      XLS_ASSIGN_OR_RETURN(
+          Node * true_const,
+          proc->MakeNode<Literal>(old_next->loc(), Value::Bool(true)));
+      if (old_next->predicate()) {
+        return proc->MakeNode<NaryOp>(
+            old_next->predicate().value()->loc(),
+            std::array<Node*, 2>{true_const, *old_next->predicate()}, Op::kAnd);
+      }
+      return true_const;
+    }
+  };
+};
 
 TEST_F(ProcTest, SimpleProc) {
   auto p = CreatePackage();
@@ -512,33 +540,6 @@ TEST_F(ProcTest, TransformStateElement) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   // Test transformer that inverts the param.
-  struct TestTransformer : public Proc::StateElementTransformer {
-   public:
-    absl::StatusOr<Node*> TransformStateRead(
-        Proc* proc, StateRead* new_state_read,
-        StateRead* old_state_read) override {
-      return proc->MakeNode<UnOp>(new_state_read->loc(), new_state_read,
-                                  Op::kNeg);
-    }
-    absl::StatusOr<Node*> TransformNextValue(Proc* proc,
-                                             StateRead* new_state_read,
-                                             Next* old_next) override {
-      return proc->MakeNode<UnOp>(old_next->value()->loc(), old_next->value(),
-                                  Op::kNeg);
-    }
-    absl::StatusOr<std::optional<Node*>> TransformNextPredicate(
-        Proc* proc, StateRead* new_state_read, Next* old_next) override {
-      XLS_ASSIGN_OR_RETURN(
-          Node * true_const,
-          proc->MakeNode<Literal>(old_next->loc(), Value::Bool(true)));
-      if (old_next->predicate()) {
-        return proc->MakeNode<NaryOp>(
-            old_next->predicate().value()->loc(),
-            std::array<Node*, 2>{true_const, *old_next->predicate()}, Op::kAnd);
-      }
-      return true_const;
-    }
-  };
   TestTransformer tt;
   ScopedRecordIr sri(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -570,6 +571,67 @@ TEST_F(ProcTest, TransformStateElement) {
 
   // Make sure that user is updated.
   EXPECT_THAT(user.node(), m::Tuple(m::Neg(new_st)));
+}
+
+TEST_F(ProcTest, TransformStateElementDecoupled) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  auto cond = pb.StateElement("cond", UBits(0, 1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element,
+                           pb.UnreadStateElement("st", Value(UBits(0b1010, 4)),
+                                                 /*non_synthesizable=*/false));
+
+  BValue st_read = pb.StateRead(state_element, std::nullopt, "my_read_label");
+
+  // Labeled next node
+  BValue add_st =
+      pb.Next(state_element, pb.Add(st_read, pb.Literal(UBits(1, 4))), cond,
+              /*label=*/"my_next_label");
+  // Unlabeled next node
+  BValue sub_st =
+      pb.Next(state_element, pb.Subtract(st_read, pb.Literal(UBits(1, 4))),
+              pb.Not(cond));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  // Test transformer that inverts the param.
+  TestTransformer tt;
+  ScopedRecordIr sri(p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * new_st_element,
+      proc->TransformStateElement(state_element, Value(UBits(0b0101, 4)), tt));
+  StateRead* new_st = proc->GetStateReadByStateElement(new_st_element);
+
+  // Make sure the st next has been identity-ified (dummy value Zero is set
+  // for decoupled)
+  EXPECT_THAT(st_read.node(), m::StateRead(testing::Not("st")));
+  EXPECT_THAT(st_read.node()->users(), ::testing::IsEmpty());
+
+  // Verify old next nodes are identity-ified (labeled and unlabeled)
+  EXPECT_THAT(add_st.node(), m::NextWithStateElementWithLabel(
+                                 state_element, m::Literal(0), cond.node(),
+                                 std::optional<std::string>("my_next_label")));
+  EXPECT_THAT(sub_st.node(),
+              m::NextWithStateElement(state_element, m::Literal(0),
+                                      m::Not(cond.node())));
+
+  // Make sure that 'new_state_read' takes over the name and everything.
+  EXPECT_THAT(new_st,
+              m::StateRead("st", std::optional<std::string>("my_read_label")));
+  EXPECT_THAT(new_st->users(), UnorderedElementsAre(m::Neg(new_st)));
+
+  // Verify new next nodes (labeled and unlabeled)
+  EXPECT_THAT(proc->next_values(new_st_element),
+              UnorderedElementsAre(
+                  m::NextWithStateElementWithLabel(
+                      new_st_element,
+                      m::Neg(m::Add(m::Neg(new_st), m::Literal(UBits(1, 4)))),
+                      m::And(m::Literal(UBits(1, 1)), cond.node()),
+                      std::optional<std::string>("my_next_label")),
+                  m::NextWithStateElement(
+                      new_st_element,
+                      m::Neg(m::Sub(m::Neg(new_st), m::Literal(UBits(1, 4)))),
+                      m::And(m::Literal(UBits(1, 1)), m::Not(cond.node())))));
 }
 
 class ScheduledProcTest : public IrTestBase {

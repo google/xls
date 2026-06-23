@@ -180,6 +180,37 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithDeadElements) {
   EXPECT_EQ(proc->GetStateElement(0)->name(), "x");
 }
 
+TEST_F(BaseProcStateOptimizationPassTest, DecoupledDeadElements) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                               p->GetBitsType(32)));
+
+  TokenlessProcBuilder pb("p", "tkn", p.get());
+
+  // Register 'x': Live (read is sent to channel)
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
+                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue x_read = pb.StateRead(x_element);
+  pb.Send(out, x_read);
+  pb.Next(x_element, pb.Not(x_read));
+
+  // Register 'y': Dead (has 1 read but it is unused, write is a constant)
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * y_element,
+                           pb.UnreadStateElement("y", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  pb.StateRead(y_element);
+  pb.Next(y_element, pb.Literal(UBits(5, 32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  EXPECT_EQ(proc->GetStateElementCount(), 2);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // State element y gets cleaned up
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "x");
+}
+
 TEST_P(ProcStateOptimizationPassTest, CrissCrossDeadElements) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb("p", "tkn", p.get());

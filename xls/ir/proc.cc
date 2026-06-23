@@ -1004,22 +1004,42 @@ absl::StatusOr<StateElement*> Proc::TransformStateElement(
 
   // Identity-ify the old next nodes and create new ones.
   for (const NextTransformation& nt : transforms) {
-    // Make the next
-    XLS_ASSIGN_OR_RETURN(
-        Next * nxt,
-        MakeNodeWithName<Next>(nt.old_next->loc(), new_state_read, nt.new_value,
-                               nt.new_predicate, nt.old_next->label(),
-                               nt.old_next->GetName()));
+    Next* nxt;
+    if (nt.old_next->has_state_read()) {
+      // Coupled: use the matched new_state_read
+      XLS_ASSIGN_OR_RETURN(
+          nxt,
+          MakeNodeWithName<Next>(nt.old_next->loc(), new_state_read,
+                                 nt.new_value, nt.new_predicate,
+                                 nt.old_next->label(), nt.old_next->GetName()));
+    } else {
+      // Decoupled: use new_state_element directly
+      XLS_ASSIGN_OR_RETURN(
+          nxt,
+          MakeNodeWithName<Next>(nt.old_next->loc(), new_state_element,
+                                 nt.new_value, nt.new_predicate,
+                                 nt.old_next->label(), nt.old_next->GetName()));
+    }
     to_replace.push_back({nt.old_next, nxt});
     // Identity-ify the old next.
-    XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(
-        Next::kValueOperand, nt.old_next->state_read()));
+    if (nt.old_next->has_state_read()) {
+      XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(
+          Next::kValueOperand, nt.old_next->state_read()));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          Node * placeholder,
+          MakeNode<Literal>(nt.old_next->loc(),
+                            ZeroOfType(old_state_element->type())));
+      XLS_RET_CHECK(
+          nt.old_next->ReplaceOperand(nt.old_next->value(), placeholder));
+    }
   }
   for (const auto& [old_n, new_n] : to_replace) {
     XLS_RETURN_IF_ERROR(old_n->ReplaceUsesWith(
         new_n,
         [&](Node* n) {
-          if (n->Is<Next>() && n->As<Next>()->state_read() == old_n) {
+          if (n->Is<Next>() && n->As<Next>()->has_state_read() &&
+              n->As<Next>()->state_read() == old_n) {
             return false;
           }
           return true;

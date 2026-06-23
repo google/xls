@@ -1328,17 +1328,28 @@ inline ::testing::Matcher<const ::xls::Node*> StateRead() {
 //
 //   EXPECT_THAT(x, m::Next());
 //   EXPECT_THAT(x, m::Next(m::StateRead("foo"), m::Literal(1)));
-//   EXPECT_THAT(x, m::Next(m::StateRead("foo"), m::Literal(1),
-//   m::Literal(1)))
-//   EXPECT_THAT(x, m::Next(m::StateRead("foo"), m::Literal(1),
-//   m::Literal(1), "some_label"))
+//   EXPECT_THAT(x, m::Next(m::StateRead("foo"), m::Literal(1), m::Literal(1)));
+//   EXPECT_THAT(x, m::NextWithLabel(m::StateRead("foo"), m::Literal(1),
+//   "label"));
+//
+//   Decoupled forms (asserts that the next node has no StateRead operand):
+//   EXPECT_THAT(x, m::NextWithStateElement(se, m::Literal(1)));
+//   EXPECT_THAT(x, m::NextWithStateElement(se, m::Literal(1), m::Literal(1)));
+//   EXPECT_THAT(x, m::NextWithStateElementWithLabel(se, m::Literal(1),
+//   "label"));
+//   EXPECT_THAT(x, m::NextWithStateElementWithLabel(se, m::Literal(1),
+//   m::Literal(1), "label"));
 class NextMatcher : public NodeMatcher {
  public:
   explicit NextMatcher(
       absl::Span<const ::testing::Matcher<const Node*>> operands = {},
       std::optional<::testing::Matcher<const std::optional<std::string>&>>
-          label = std::nullopt)
-      : NodeMatcher(Op::kNext, operands), label_(std::move(label)) {}
+          label = std::nullopt,
+      std::optional<::testing::Matcher<const ::xls::StateElement*>>
+          state_element = std::nullopt)
+      : NodeMatcher(Op::kNext, operands),
+        label_(std::move(label)),
+        state_element_(std::move(state_element)) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -1346,6 +1357,7 @@ class NextMatcher : public NodeMatcher {
 
  private:
   std::optional<::testing::Matcher<const std::optional<std::string>&>> label_;
+  std::optional<::testing::Matcher<const ::xls::StateElement*>> state_element_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Next() { return NextMatcher(); }
@@ -1372,6 +1384,31 @@ inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
     ::testing::Matcher<const Node*> predicate,
     ::testing::Matcher<const std::optional<std::string>&> label) {
   return NextMatcher({state_read, value, predicate}, label);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> NextWithStateElement(
+    ::testing::Matcher<const ::xls::StateElement*> state_element,
+    ::testing::Matcher<const Node*> value) {
+  return NextMatcher({value}, std::nullopt, state_element);
+}
+inline ::testing::Matcher<const ::xls::Node*> NextWithStateElement(
+    ::testing::Matcher<const ::xls::StateElement*> state_element,
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate) {
+  return NextMatcher({value, predicate}, std::nullopt, state_element);
+}
+inline ::testing::Matcher<const ::xls::Node*> NextWithStateElementWithLabel(
+    ::testing::Matcher<const ::xls::StateElement*> state_element,
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const std::optional<std::string>&> label) {
+  return NextMatcher({value}, label, state_element);
+}
+inline ::testing::Matcher<const ::xls::Node*> NextWithStateElementWithLabel(
+    ::testing::Matcher<const ::xls::StateElement*> state_element,
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate,
+    ::testing::Matcher<const std::optional<std::string>&> label) {
+  return NextMatcher({value, predicate}, label, state_element);
 }
 
 // RegisterRead matcher. Matches register name only. Supported forms:

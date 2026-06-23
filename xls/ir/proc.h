@@ -199,8 +199,8 @@ class Proc : public FunctionBase {
   // switch users of the old param to the new one.
   //
   // The old state element will continue to exist with a new name and all
-  // identity next nodes. It should be cleaned up using the
-  // NextValueOptimizationPass.
+  // identity next nodes with all users removed. It should be cleaned up by
+  // ProcStateOptimizationPass in RemoveUnobservableStateElements.
   //
   // The proc must only use 'next' nodes to call this function.
   absl::StatusOr<StateElement*> TransformStateElement(
