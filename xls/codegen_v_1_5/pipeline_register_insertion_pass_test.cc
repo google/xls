@@ -889,7 +889,8 @@ TEST_F(PipelineRegisterInsertionPassTest,
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       StateElement * source_se,
-      source->AppendUnreadStateElement("acc", Value(UBits(0, 32))));
+      source->AppendUnreadStateElement("acc", Value(UBits(0, 32)),
+                                       /*non_synthesizable=*/false));
   XLS_ASSERT_OK_AND_ASSIGN(StateRead * source_read,
                            source->AddStateRead(source_se));
   BValue acc = sbb.SourceNode(source_read);

@@ -46,7 +46,6 @@ class StateElement {
 
   void SetName(std::string_view name) { name_ = name; }
   void SetName(std::string&& name) { name_ = std::move(name); }
-  void SetNonSynthesizable() { non_synthesizable_ = true; }
 
   std::string ToString() const;
 

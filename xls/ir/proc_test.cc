@@ -119,7 +119,8 @@ TEST_F(ProcTest, AddAndRemoveState) {
 
   XLS_ASSERT_OK(proc->AppendStateElement("y", Value(UBits(100, 32)),
                                          /*read_predicate=*/std::nullopt,
-                                         /*next_state=*/std::nullopt));
+                                         /*next_state=*/std::nullopt,
+                                         /*non_synthesizable=*/false));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "tkn");
   EXPECT_EQ(proc->GetStateElement(1)->name(), "x");
@@ -134,7 +135,8 @@ TEST_F(ProcTest, AddAndRemoveState) {
                                SourceInfo(), Value(UBits(0, 32)), "zero"));
   XLS_ASSERT_OK(proc->AppendStateElement("z", Value(UBits(123, 32)),
                                          /*read_predicate=*/std::nullopt,
-                                         /*next_state=*/zero_literal));
+                                         /*next_state=*/zero_literal,
+                                         /*non_synthesizable=*/false));
   EXPECT_EQ(proc->GetStateElementCount(), 4);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "tkn");
   EXPECT_EQ(proc->GetStateElement(1)->name(), "x");
@@ -161,7 +163,8 @@ TEST_F(ProcTest, AddAndRemoveState) {
 
   XLS_ASSERT_OK(proc->InsertStateElement(0, "foo", Value(UBits(123, 32)),
                                          /*read_predicate=*/std::nullopt,
-                                         /*next_state=*/std::nullopt));
+                                         /*next_state=*/std::nullopt,
+                                         /*non_synthesizable=*/false));
   EXPECT_EQ(proc->GetStateElementCount(), 4);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "foo");
   EXPECT_EQ(proc->GetStateElement(1)->name(), "tkn");
@@ -170,7 +173,8 @@ TEST_F(ProcTest, AddAndRemoveState) {
 
   XLS_ASSERT_OK(proc->InsertStateElement(4, "bar", Value(UBits(1, 64)),
                                          /*read_predicate=*/std::nullopt,
-                                         /*next_state=*/std::nullopt));
+                                         /*next_state=*/std::nullopt,
+                                         /*non_synthesizable=*/false));
   EXPECT_EQ(proc->GetStateElementCount(), 5);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "foo");
   EXPECT_EQ(proc->GetStateElement(1)->name(), "tkn");

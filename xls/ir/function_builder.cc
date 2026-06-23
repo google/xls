@@ -1507,12 +1507,13 @@ absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
 BValue ProcBuilder::StateElement(std::string_view name,
                                  const Value& initial_value,
                                  std::optional<BValue> read_predicate,
+                                 bool non_synthesizable,
                                  const SourceInfo& loc) {
   absl::StatusOr<xls::StateRead*> state_read = proc()->AppendStateElement(
       name, initial_value,
       read_predicate.has_value() ? std::make_optional(read_predicate->node())
                                  : std::nullopt,
-      /*next_state=*/std::nullopt, loc);
+      /*next_state=*/std::nullopt, non_synthesizable, loc);
   if (!state_read.ok()) {
     return SetError(absl::StrFormat("Unable to add state element: %s",
                                     state_read.status().message()),
@@ -1525,10 +1526,11 @@ BValue ProcBuilder::StateElement(std::string_view name,
 BValue ProcBuilder::StateElement(std::string_view name,
                                  const ValueBuilder& initial_value,
                                  std::optional<BValue> read_predicate,
+                                 bool non_synthesizable,
                                  const SourceInfo& loc) {
   absl::StatusOr<Value> built = initial_value.Build();
   if (built.ok()) {
-    return StateElement(name, *built, read_predicate, loc);
+    return StateElement(name, *built, read_predicate, non_synthesizable, loc);
   }
   return SetError(absl::StrFormat("Unable to create initial value due to %s",
                                   built.status().ToString()),
@@ -1536,11 +1538,13 @@ BValue ProcBuilder::StateElement(std::string_view name,
 }
 
 absl::StatusOr<class StateElement*> ProcBuilder::UnreadStateElement(
-    std::string_view name, const Value& initial_value, const SourceInfo& loc) {
+    std::string_view name, const Value& initial_value, bool non_synthesizable,
+    const SourceInfo& loc) {
   if (ErrorPending()) {
     return GetError();
   }
-  return proc()->AppendUnreadStateElement(name, initial_value, loc);
+  return proc()->AppendUnreadStateElement(name, initial_value,
+                                          non_synthesizable, loc);
 }
 
 BValue ProcBuilder::StateRead(class StateElement* state_element,

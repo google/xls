@@ -95,8 +95,9 @@ class FSMLayoutTest : public XlsccTestBase {
         DeclLeaf decl_leaf = {.decl = decl, .leaf_index = i};
         const std::string& name = decl->getNameAsString();
         std::string decomposed_name = absl::StrFormat("%s_%d", name, i);
-        NATIVE_BVAL state_read_bval = pb.StateElement(
-            decomposed_name, decomposed_value, xls::SourceInfo());
+        NATIVE_BVAL state_read_bval =
+            pb.StateElement(decomposed_name, decomposed_value,
+                            /*non_synthesizable=*/false, xls::SourceInfo());
         state_element_for_static[decl_leaf] =
             state_read_bval.node()->As<xls::StateRead>()->state_element();
       }

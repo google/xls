@@ -992,9 +992,10 @@ NewFSMGenerator::GenerateNewFSMInvocation(
         pb.Literal(xls::ZeroOfType(top_return_type), body_loc));
   }
 
-  TrackedBValue next_activation_slice_index = pb.StateElement(
-      "__next_activation_slice",
-      xls::Value(xls::UBits(0, num_slice_index_bits)), body_loc);
+  TrackedBValue next_activation_slice_index =
+      pb.StateElement("__next_activation_slice",
+                      xls::Value(xls::UBits(0, num_slice_index_bits)),
+                      /*non_synthesizable=*/false, body_loc);
 
   TrackedBValue first_slice_index =
       pb.Literal(xls::UBits(0, num_slice_index_bits), body_loc);
@@ -1014,7 +1015,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
 
     TrackedBValue state_element =
         pb.StateElement(absl::StrFormat("__jump_state_%li", jump_slice_index),
-                        xls::Value(xls::UBits(0, 1)), body_loc);
+                        xls::Value(xls::UBits(0, 1)),
+                        /*non_synthesizable=*/false, body_loc);
 
     state_element_by_jump_slice_index[jump_slice_index] = state_element;
   }
@@ -1055,7 +1057,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
 
     if (state_element.existing_state_element == nullptr) {
       xls_state_element = pb.StateElement(
-          state_element.name, xls::ZeroOfType(state_element.type), body_loc);
+          state_element.name, xls::ZeroOfType(state_element.type),
+          /*non_synthesizable=*/false, body_loc);
     } else {
       xls::StateRead* state_read = pb.proc()->GetStateReadByStateElement(
           state_element.existing_state_element);

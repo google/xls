@@ -4306,8 +4306,10 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       state_name = absl::StrCat("__", p->identifier());
       Value init = f->params().size() > 1 ? initial_element.elements()[i]
                                           : initial_element;
-      XLS_ASSIGN_OR_RETURN(xls::StateElement * unread_state_element,
-                           builder_ptr->UnreadStateElement(state_name, init));
+      XLS_ASSIGN_OR_RETURN(
+          xls::StateElement * unread_state_element,
+          builder_ptr->UnreadStateElement(state_name, init,
+                                          /*non_synthesizable=*/false));
       state_name_proto->set_name(state_name);
       XLS_ASSIGN_OR_RETURN(auto type, ResolveTypeToIr(p->type_annotation()));
       *state_name_proto->mutable_type() = type->ToProto();

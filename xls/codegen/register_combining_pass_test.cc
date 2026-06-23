@@ -492,7 +492,8 @@ TEST_F(RegisterCombiningPassTest, DoesntApplyToPredicatedReads) {
   auto tok = pb.InitialToken();
   auto always_false = pb.Literal(UBits(0, 1));
   auto st = pb.StateElement("foo", UBits(1, 32),
-                            /*read_predicate=*/always_false);
+                            /*read_predicate=*/always_false,
+                            /*non_synthesizable=*/false);
   auto lit_1 = pb.Literal(UBits(1, 32));
   auto always_false_2 = pb.Literal(UBits(0, 1));
   auto st_v = pb.Select(always_false_2, /*cases=*/{lit_1, st});

@@ -1075,7 +1075,7 @@ Translator::GenerateOldFSMInvocation(PreparedBlock& prepared,
     xls::Value initial_exited_last_activation = xls::Value(xls::UBits(1, 1));
     changed_state_last_activation = pb.StateElement(
         absl::StrFormat("%s_exited_last_activation", fsm_prefix),
-        initial_exited_last_activation, body_loc);
+        initial_exited_last_activation, /*non_synthesizable=*/false, body_loc);
   }
 
   // Set up state with wrap-around, if needed
@@ -1107,8 +1107,9 @@ Translator::GenerateOldFSMInvocation(PreparedBlock& prepared,
                                                       initial_args_val};
 
     xls::Value initial_state = xls::Value::Tuple(initial_state_elements);
-    state_read = pb.StateElement(absl::StrFormat("%s_state", fsm_prefix),
-                                 initial_state, body_loc);
+    state_read =
+        pb.StateElement(absl::StrFormat("%s_state", fsm_prefix), initial_state,
+                        /*non_synthesizable=*/false, body_loc);
     state_index =
         pb.TupleIndex(state_read, /*idx=*/0, body_loc,
                       /*name=*/absl::StrFormat("%s_state_index", fsm_prefix));
@@ -2092,7 +2093,8 @@ Translator::GenerateIRBlockPrepare(
         decl_leaf.leaf_index = i;
       }
       TrackedBValue elem_bval =
-          pb.StateElement(decomposed_name, decomposed_value, body_loc);
+          pb.StateElement(decomposed_name, decomposed_value,
+                          /*non_synthesizable=*/false, body_loc);
       xls::StateElement* state_elem =
           elem_bval.node()->As<xls::StateRead>()->state_element();
       prepared.state_element_for_variable[decl_leaf] = state_elem;

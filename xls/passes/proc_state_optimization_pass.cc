@@ -376,16 +376,22 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
   CHECK(!chain.empty());
 
   std::string state_machine_name = "state_machine";
+  bool non_synthesizable = false;
   for (int64_t state_index : chain) {
     absl::StrAppend(&state_machine_name, "_",
                     proc->GetStateElement(state_index)->name());
+    if (proc->GetStateElement(state_index)->non_synthesizable()) {
+      non_synthesizable = true;
+    }
   }
 
   int64_t state_machine_width = CeilOfLog2(chain.size()) + 1;
   Type* state_machine_type = proc->package()->GetBitsType(state_machine_width);
   XLS_ASSIGN_OR_RETURN(StateRead * state_machine_read,
                        proc->AppendStateElement(
-                           state_machine_name, ZeroOfType(state_machine_type)));
+                           state_machine_name, ZeroOfType(state_machine_type),
+                           /*read_predicate=*/std::nullopt,
+                           /*next_state=*/std::nullopt, non_synthesizable));
 
   {
     XLS_ASSIGN_OR_RETURN(

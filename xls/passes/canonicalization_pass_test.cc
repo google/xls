@@ -345,7 +345,8 @@ TEST_F(CanonicalizePassTest, StateReadWithAlwaysTruePredicate) {
   auto p = CreatePackage();
   ProcBuilder pb("test", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)),
-                             /*read_predicate=*/pb.Literal(UBits(1, 1)));
+                             /*read_predicate=*/pb.Literal(UBits(1, 1)),
+                             /*non_synthesizable=*/false);
   pb.Next(x, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   EXPECT_THAT(proc->GetStateRead(0)->predicate(), Optional(m::Literal(1)));

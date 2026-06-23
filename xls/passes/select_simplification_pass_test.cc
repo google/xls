@@ -1834,9 +1834,11 @@ TEST_P(SelectSimplificationPassTest, PredicatedStateReadFeedSelector) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element1,
-                           pb.UnreadStateElement("state1", Value(UBits(0, 1))));
+                           pb.UnreadStateElement("state1", Value(UBits(0, 1)),
+                                                 /*non_synthesizable=*/false));
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element2,
-                           pb.UnreadStateElement("state2", Value(UBits(0, 1))));
+                           pb.UnreadStateElement("state2", Value(UBits(0, 1)),
+                                                 /*non_synthesizable=*/false));
   XLS_ASSERT_OK_AND_ASSIGN(auto in1,
                            pb.AddInputChannel("in1", p->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(auto in2,

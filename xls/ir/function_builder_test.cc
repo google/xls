@@ -510,7 +510,8 @@ TEST(FunctionBuilderTest, UnreadStateElementAndStateRead) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       StateElement * state_element,
-      b.UnreadStateElement("my_state", Value(UBits(42, 32))));
+      b.UnreadStateElement("my_state", Value(UBits(42, 32)),
+                           /*non_synthesizable=*/false));
 
   BValue cond = b.Literal(UBits(1, 1));
   BValue not_cond = b.Not(cond);
@@ -991,11 +992,14 @@ TEST(FunctionBuilderTest, StateReadIsDefinitelyEqualTo) {
   ProcBuilder pb("the_proc", &p);
   BValue pred = pb.Literal(UBits(1, 1));
   Value v = Value(UBits(0, 32));
-  BValue y_pred_label0 = pb.StateElement("y_pred_label0", v, pred);
-  BValue y_pred_label1 = pb.StateElement("y_pred_label1", v, pred);
+  BValue y_pred_label0 = pb.StateElement("y_pred_label0", v, pred,
+                                         /*non_synthesizable=*/false);
+  BValue y_pred_label1 = pb.StateElement("y_pred_label1", v, pred,
+                                         /*non_synthesizable=*/false);
   BValue y_pred_nolabel = pb.StateElement("y_nolabel_nopred", v);
   BValue y_nopred_label0 = pb.StateElement("y_nopred_label0", v);
-  BValue y_pred_label0_copy = pb.StateElement("y_nopred_copy", v, pred);
+  BValue y_pred_label0_copy = pb.StateElement("y_nopred_copy", v, pred,
+                                              /*non_synthesizable=*/false);
 
   y_pred_label0.node()->As<StateRead>()->set_label("label0");
   y_pred_label1.node()->As<StateRead>()->set_label("label1");

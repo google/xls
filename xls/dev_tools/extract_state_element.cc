@@ -163,7 +163,7 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
             s->predicate()
                 ? std::make_optional(BValue(old_to_new[*s->predicate()], &pb))
                 : std::nullopt,
-            n->loc());
+            s->state_element()->non_synthesizable(), n->loc());
 
         old_to_new[n] = copied_state.node();
         if (send_state_values) {

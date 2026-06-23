@@ -319,7 +319,8 @@ class UntupleVisitor : public DfsVisitorWithDefault {
           *std::back_inserter(res),
           proc->AppendStateElement(
               absl::StrFormat("%s_tuple_element_%d", state_element->name(), i),
-              std::move(element_array)));
+              std::move(element_array), /*read_predicate=*/std::nullopt,
+              /*next_state=*/std::nullopt, state_element->non_synthesizable()));
     }
     return RecordUntuple(state_read, std::move(res));
   }

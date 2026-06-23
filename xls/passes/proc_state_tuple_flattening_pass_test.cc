@@ -423,7 +423,8 @@ TEST_F(ProcStateFlatteningPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       StateElement * state,
       pb.UnreadStateElement(
-          "state", Value::Tuple({Value(UBits(10, 32)), Value(UBits(20, 32))})));
+          "state", Value::Tuple({Value(UBits(10, 32)), Value(UBits(20, 32))}),
+          /*non_synthesizable=*/false));
   BValue read = pb.StateRead(state, /*predicate=*/std::nullopt,
                              /*label=*/"my_read_label");
 

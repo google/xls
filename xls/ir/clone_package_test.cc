@@ -117,5 +117,23 @@ TEST_F(ClonePackageTest, BasicBlock) {
       absl_testing::IsOkAndHolds(m::OutputPort(m::InstantiationOutput("foo"))));
 }
 
+TEST_F(ClonePackageTest, CloneProcWithNonSynthesizableState) {
+  auto p = CreatePackage();
+  ProcBuilder pb("prc", p.get());
+  auto st_synth = pb.StateElement("synth", UBits(32, 32));
+  auto st_non_synth =
+      pb.StateElement("non_synth", UBits(32, 32), /*non_synthesizable=*/true);
+  pb.Next(st_synth, st_synth);
+  pb.Next(st_non_synth, st_non_synth);
+  XLS_ASSERT_OK(pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto p2, ClonePackage(p.get(), "foobar"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * cp, p2->GetProc("prc"));
+
+  ASSERT_EQ(cp->GetStateElementCount(), 2);
+  EXPECT_FALSE(cp->GetStateElement(0)->non_synthesizable());
+  EXPECT_TRUE(cp->GetStateElement(1)->non_synthesizable());
+}
+
 }  // namespace
 }  // namespace xls

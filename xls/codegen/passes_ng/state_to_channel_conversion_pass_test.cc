@@ -311,8 +311,9 @@ class CounterProcWithMaxHelper : public CounterProcHelper {
                                   uint32_t start_value,
                                   uint32_t delta_each_round) override {
     BValue enable = pb.StateElement("enable", Value(UBits(1, 1)));
-    BValue counter = pb.StateElement(kCounterStateElementName,
-                                     Value(UBits(start_value, 32)), enable);
+    BValue counter =
+        pb.StateElement(kCounterStateElementName, Value(UBits(start_value, 32)),
+                        enable, /*non_synthesizable=*/false);
     pb.SendIf(out_channel, pb.Literal(Value::Token()), enable, counter);
     pb.Next(counter, pb.Add(counter, pb.Literal(UBits(delta_each_round, 32))),
             enable);

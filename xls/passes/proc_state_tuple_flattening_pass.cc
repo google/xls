@@ -167,15 +167,12 @@ absl::Status ReplaceProcState(Proc* proc,
   for (const AbstractStateElement& element : elements) {
     XLS_ASSIGN_OR_RETURN(
         StateRead * read,
-        proc->AppendStateElement(element.name, element.initial_value,
-                                 element.read_predicate,
-                                 /*next_state=*/std::nullopt));
+        proc->AppendStateElement(
+            element.name, element.initial_value, element.read_predicate,
+            /*next_state=*/std::nullopt, element.non_synthesizable));
     read->SetLoc(element.placeholder->loc());
     if (element.read_label.has_value()) {
       read->set_label(element.read_label);
-    }
-    if (element.non_synthesizable) {
-      read->state_element()->SetNonSynthesizable();
     }
     for (const NextValue& next_value : element.next_values) {
       XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(

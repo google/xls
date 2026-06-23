@@ -893,34 +893,43 @@ class ProcBuilder : public BuilderBase {
   // predicate if provided). Returns the newly added state read.
   BValue StateElement(std::string_view name, const Value& initial_value,
                       std::optional<BValue> read_predicate,
+                      bool non_synthesizable,
                       const SourceInfo& loc = SourceInfo());
   BValue StateElement(std::string_view name, const ValueBuilder& initial_value,
                       std::optional<BValue> read_predicate,
+                      bool non_synthesizable,
                       const SourceInfo& loc = SourceInfo());
   BValue StateElement(std::string_view name, const Bits& initial_value,
                       std::optional<BValue> read_predicate,
+                      bool non_synthesizable,
                       const SourceInfo& loc = SourceInfo()) {
-    return StateElement(name, Value(initial_value), read_predicate, loc);
+    return StateElement(name, Value(initial_value), read_predicate,
+                        non_synthesizable, loc);
   }
   BValue StateElement(std::string_view name, const Value& initial_value,
+                      bool non_synthesizable = false,
                       const SourceInfo& loc = SourceInfo()) {
-    return StateElement(name, initial_value, /*read_predicate=*/std::nullopt,
+    return StateElement(name, initial_value,
+                        /*read_predicate=*/std::nullopt, non_synthesizable,
                         loc);
   }
   BValue StateElement(std::string_view name, const ValueBuilder& initial_value,
+                      bool non_synthesizable = false,
                       const SourceInfo& loc = SourceInfo()) {
     return StateElement(name, initial_value, /*read_predicate=*/std::nullopt,
-                        loc);
+                        non_synthesizable, loc);
   }
   BValue StateElement(std::string_view name, const Bits& initial_value,
+                      bool non_synthesizable = false,
                       const SourceInfo& loc = SourceInfo()) {
     return StateElement(name, Value(initial_value),
-                        /*read_predicate=*/std::nullopt, loc);
+                        /*read_predicate=*/std::nullopt, non_synthesizable,
+                        loc);
   }
 
   // Adds a state element to the proc without creating a state read.
   absl::StatusOr<class StateElement*> UnreadStateElement(
-      std::string_view name, const Value& initial_value,
+      std::string_view name, const Value& initial_value, bool non_synthesizable,
       const SourceInfo& loc = SourceInfo());
 
   // Adds a state read node for an existing state element.

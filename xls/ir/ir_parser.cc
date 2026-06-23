@@ -2246,16 +2246,12 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
                                             /*should_verify=*/false);
   }
   for (int64_t i = 0; i < state_params.size(); ++i) {
-    BValue param_bvalue =
-        builder->StateElement(state_params[i].name, init_values[i]);
+    bool non_synthesizable =
+        non_synthesizable_states.contains(state_params[i].name);
+    BValue param_bvalue = builder->StateElement(
+        state_params[i].name, init_values[i], non_synthesizable);
     (*name_to_value)[state_params[i].name] = param_bvalue;
     param_bvalue.node()->SetId(state_params[i].id.value_or(kUnassignedNodeId));
-    if (non_synthesizable_states.contains(state_params[i].name)) {
-      param_bvalue.node()
-          ->As<StateRead>()
-          ->state_element()
-          ->SetNonSynthesizable();
-    }
   }
 
   return std::move(builder);

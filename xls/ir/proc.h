@@ -16,7 +16,6 @@
 #define XLS_IR_PROC_H_
 
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -223,13 +222,14 @@ class Proc : public FunctionBase {
   absl::StatusOr<StateRead*> AppendStateElement(
       std::string_view requested_state_name, const Value& init_value,
       std::optional<Node*> read_predicate, std::optional<Node*> next_state,
-      const SourceInfo& loc = SourceInfo());
+      bool non_synthesizable, const SourceInfo& loc = SourceInfo());
   absl::StatusOr<StateRead*> AppendStateElement(
       std::string_view requested_state_name, const Value& init_value,
       const SourceInfo& loc = SourceInfo()) {
     return AppendStateElement(requested_state_name, init_value,
                               /*read_predicate=*/std::nullopt,
-                              /*next_state=*/std::nullopt, loc);
+                              /*next_state=*/std::nullopt,
+                              /*non_synthesizable=*/false, loc);
   }
 
   // Adds a state read node for an existing state element.
@@ -243,12 +243,13 @@ class Proc : public FunctionBase {
   // be added separately before verification.
   absl::StatusOr<StateElement*> InsertUnreadStateElement(
       int64_t index, std::string_view requested_state_name,
-      const Value& init_value);
+      const Value& init_value, bool non_synthesizable);
   absl::StatusOr<StateElement*> AppendUnreadStateElement(
       std::string_view requested_state_name, const Value& init_value,
-      const SourceInfo& loc = SourceInfo()) {
+      bool non_synthesizable, const SourceInfo& loc = SourceInfo()) {
     return InsertUnreadStateElement(GetStateElementCount(),
-                                    requested_state_name, init_value);
+                                    requested_state_name, init_value,
+                                    non_synthesizable);
   }
 
   // Adds a state element at the given index. Current state elements at the
@@ -257,13 +258,15 @@ class Proc : public FunctionBase {
   absl::StatusOr<StateRead*> InsertStateElement(
       int64_t index, std::string_view requested_state_name,
       const Value& init_value, std::optional<Node*> read_predicate,
-      std::optional<Node*> next_state, const SourceInfo& loc = SourceInfo());
+      std::optional<Node*> next_state, bool non_synthesizable,
+      const SourceInfo& loc = SourceInfo());
   absl::StatusOr<StateRead*> InsertStateElement(
       int64_t index, std::string_view requested_state_name,
       const Value& init_value, const SourceInfo& loc = SourceInfo()) {
     return InsertStateElement(index, requested_state_name, init_value,
                               /*read_predicate=*/std::nullopt,
-                              /*next_state=*/std::nullopt, loc);
+                              /*next_state=*/std::nullopt,
+                              /*non_synthesizable=*/false, loc);
   }
 
   bool HasImplicitUse(Node* node) const override;

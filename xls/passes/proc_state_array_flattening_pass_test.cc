@@ -133,7 +133,8 @@ TEST_F(ProcStateArrayFlatteningPassTest,
       StateElement * state,
       pb.UnreadStateElement(
           "state",
-          Value::ArrayOrDie({Value(UBits(10, 32)), Value(UBits(20, 32))})));
+          Value::ArrayOrDie({Value(UBits(10, 32)), Value(UBits(20, 32))}),
+          /*non_synthesizable=*/false));
   BValue read = pb.StateRead(state, /*predicate=*/std::nullopt,
                              /*label=*/"my_read_label");
 

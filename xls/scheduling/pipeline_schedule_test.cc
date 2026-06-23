@@ -194,7 +194,8 @@ absl::StatusOr<LabeledFeedbackArcProc> BuildLabeledFeedbackArcProc(
   ProcBuilder pb("the_proc", package.get());
   BValue tkn = pb.Literal(Value::Token());
   XLS_ASSIGN_OR_RETURN(auto se,
-                       pb.UnreadStateElement("state", Value(UBits(0, 32))));
+                       pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                             /*non_synthesizable=*/false));
   BValue read = pb.StateRead(se, /*predicate=*/std::nullopt, read_label);
   BValue add_val = pb.Add(read, pb.Literal(UBits(1, 32)));
   pb.Send(out_ch, tkn, add_val);
@@ -2316,7 +2317,8 @@ TEST_P(PipelineScheduleTest, ProcWithExplicitStateAccess) {
 
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
-                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+                           pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
   BValue current = pb.StateRead(se);
   BValue add_val = pb.Add(current, pb.Literal(UBits(1, 32)));
 
@@ -2345,7 +2347,8 @@ TEST_P(PipelineScheduleTest, ProcWithMultipleStateReads) {
 
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
-                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+                           pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
   BValue read1 = pb.StateRead(se);
 
   // Create a second read with a predicate
@@ -2373,7 +2376,8 @@ TEST_P(PipelineScheduleErrorTest, ProcWithZeroReadsErrors) {
   Package p(TestName());
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
-                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+                           pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
 
   BValue add_val = pb.Literal(UBits(42, 32));
   pb.Next(se, add_val);
@@ -2658,7 +2662,8 @@ TEST_F(PipelineScheduleTest, ProcFeedbackArcThroughputMultiProc) {
   // Proc 1: has ("W1", "R1")
   ProcBuilder pb1("proc_1", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(auto se1,
-                           pb1.UnreadStateElement("st1", Value(UBits(0, 32))));
+                           pb1.UnreadStateElement("st1", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false));
   BValue read1 = pb1.StateRead(se1, /*predicate=*/std::nullopt, "R1");
   BValue add1 = pb1.Add(read1, pb1.Literal(UBits(1, 32)));
   pb1.Next(se1, add1, /*pred=*/std::nullopt, "W1");
@@ -2667,7 +2672,8 @@ TEST_F(PipelineScheduleTest, ProcFeedbackArcThroughputMultiProc) {
   // Proc 2: has ("W2", "R2")
   ProcBuilder pb2("proc_2", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(auto se2,
-                           pb2.UnreadStateElement("st2", Value(UBits(0, 32))));
+                           pb2.UnreadStateElement("st2", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false));
   BValue read2 = pb2.StateRead(se2, /*predicate=*/std::nullopt, "R2");
   BValue add2 = pb2.Add(read2, pb2.Literal(UBits(1, 32)));
   pb2.Next(se2, add2, /*pred=*/std::nullopt, "W2");
@@ -2727,7 +2733,8 @@ TEST_F(PipelineScheduleTest, ProcStateReadBeforeWriteSucceeds) {
   ProcBuilder pb("the_proc", &p);
   BValue tkn = pb.Literal(Value::Token());
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
-                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+                           pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
 
   // Read state value, add logic to force it late in the pipeline
   BValue read = pb.StateRead(se);
@@ -2771,7 +2778,8 @@ TEST_F(PipelineScheduleTest,
   ProcBuilder pb("the_proc", &p);
   BValue tkn = pb.Literal(Value::Token());
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
-                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+                           pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
   BValue rcv = pb.Receive(in_ch, tkn);
   BValue rcv_tkn = pb.TupleIndex(rcv, 0);
   BValue cond = pb.TupleIndex(rcv, 1);
@@ -2813,7 +2821,8 @@ TEST_F(PipelineScheduleTest, ProcWriteBeforeReadFailsVerification) {
   Package p(TestName());
   ProcBuilder pb("the_proc", &p);
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
-                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+                           pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
   BValue read = pb.StateRead(se);
   BValue next = pb.Next(se, pb.Literal(UBits(42, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -2844,7 +2853,8 @@ TEST_F(PipelineScheduleTest, ProcFeedbackArcTooLongFailsVerification) {
   Package p(TestName());
   ProcBuilder pb("the_proc", &p);
   XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
-                           pb.UnreadStateElement("state", Value(UBits(0, 32))));
+                           pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
   pb.StateRead(se);
   BValue next = pb.Next(se, pb.Literal(UBits(42, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());

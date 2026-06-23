@@ -375,7 +375,8 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
   BValue x_multiple_of_3 =
       pb.Eq(pb.UMod(x, pb.Literal(UBits(3, 32))), pb.Literal(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)),
-                             /*read_predicate=*/x_even);
+                             /*read_predicate=*/x_even,
+                             /*non_synthesizable=*/false);
   pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
   pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))), x_multiple_of_3);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -431,7 +432,8 @@ TEST_P(ProcStateLegalizationPassTest,
   BValue x_multiple_of_3 =
       pb.Eq(pb.UMod(x, pb.Literal(UBits(3, 32))), pb.Literal(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)),
-                             /*read_predicate=*/x_even);
+                             /*read_predicate=*/x_even,
+                             /*non_synthesizable=*/false);
   BValue y_even =
       pb.Eq(pb.UMod(y, pb.Literal(UBits(2, 32))), pb.Literal(UBits(0, 32)));
   pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
@@ -503,7 +505,8 @@ TEST_P(ProcStateLegalizationPassTest,
   BValue x_not_multiple_of_3 = pb.Not(x_multiple_of_3);
   BValue disjunction = pb.Or(x_multiple_of_3, x_not_multiple_of_3);
   BValue y = pb.StateElement("y", Value(UBits(0, 32)),
-                             /*read_predicate=*/disjunction);
+                             /*read_predicate=*/disjunction,
+                             /*non_synthesizable=*/false);
   pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
   pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))), x_multiple_of_3);
   pb.Next(y, y, x_not_multiple_of_3);

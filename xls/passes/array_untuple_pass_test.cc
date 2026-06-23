@@ -536,8 +536,9 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayNextWithStateElement) {
            ValueBuilder::Tuple({Value(UBits(0, 4)), Value(UBits(0, 8))})})
           .Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_elem,
-                           pb.UnreadStateElement("my_state", init_val));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * state_elem,
+      pb.UnreadStateElement("my_state", init_val, /*non_synthesizable=*/false));
   BValue state_read = pb.StateRead(state_elem);
 
   BValue updated = pb.ArrayUpdate(
