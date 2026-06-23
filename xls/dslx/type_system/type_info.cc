@@ -423,6 +423,9 @@ absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
           [this](EnumDef* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
             return TypeInfo::TypeSource{.type_info = this, .definition = sd};
           },
+          [this](SumDef* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
+            return TypeInfo::TypeSource{.type_info = this, .definition = sd};
+          },
           [this](ColonRef* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
             return ResolveTypeDefinition(sd);
           },
@@ -472,6 +475,7 @@ absl::StatusOr<std::optional<std::string>> TypeInfo::FindSvType(
           [](StructDef* sd) -> Res { return sd->extern_type_name(); },
           [](ProcDef* pd) -> Res { return std::nullopt; },
           [](EnumDef* sd) -> Res { return sd->extern_type_name(); },
+          [](SumDef* sd) -> Res { return sd->extern_type_name(); },
           [src](TypeAlias* ta) -> Res {
             std::optional<std::string> sv_type = ta->extern_type_name();
             if (sv_type) {

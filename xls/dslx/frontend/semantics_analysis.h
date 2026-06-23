@@ -46,6 +46,8 @@ class SemanticsAnalysis {
 
   void SetNameDefType(const NameDef* def, const Type* type);
 
+  bool suppress_warnings() const { return suppress_warnings_; }
+
  private:
   // Used by kUnusedDefinition. We cannot completely determine whether a
   // definition is truly unused at RunPreTypeCheckPass, because (1) tokens are

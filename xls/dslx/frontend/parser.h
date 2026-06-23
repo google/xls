@@ -328,7 +328,7 @@ class Parser : public TokenParser {
                                           const Span& subject_span);
 
   absl::StatusOr<Expr*> ParseCastOrEnumRefOrStructInstanceOrToken(
-      Bindings& bindings);
+      Bindings& bindings, ExprRestrictions restrictions);
 
   absl::StatusOr<Expr*> ParseStructInstance(Bindings& bindings,
                                             TypeAnnotation* type = nullptr);
@@ -414,8 +414,9 @@ class Parser : public TokenParser {
 
   // Attempts to parse a parenthetical and falls back to parsing as cast on
   // failure.
-  absl::StatusOr<Expr*> ParseParentheticalOrCastLhs(Bindings& outer_bindings,
-                                                    const Pos& start_pos);
+  absl::StatusOr<Expr*> ParseParentheticalOrCastLhs(
+      Bindings& outer_bindings, const Pos& start_pos,
+      ExprRestrictions restrictions);
 
   absl::StatusOr<Expr*> ParseTermLhsParenthesized(Bindings& bindings,
                                                   const Pos& start_pos);
@@ -544,6 +545,10 @@ class Parser : public TokenParser {
 
   absl::StatusOr<NameDefTree*> ParseTuplePattern(const Pos& start_pos,
                                                  Bindings& bindings);
+  absl::StatusOr<SumVariantPayloadPattern*> ParseTupleSumVariantPayloadPattern(
+      Bindings& bindings, ColonRef* constructor_ref);
+  absl::StatusOr<SumVariantPayloadPattern*> ParseStructSumVariantPayloadPattern(
+      Bindings& bindings, ColonRef* constructor_ref);
 
   // Returns a parsed pattern; e.g. one that would guard a match arm.
   //
@@ -574,14 +579,20 @@ class Parser : public TokenParser {
   // ultimately the loop terminates and the final accum value is returned.
   absl::StatusOr<ForLoopBase*> ParseFor(Bindings& bindings);
 
-  // Parses an enum definition; e.g.
+  // Parses either a numeric enum definition or a semantic sum declaration using
+  // the shared `enum` introducer; e.g.
   //
   //  enum Foo : u2 {
   //    A = 0,
   //    B = 1,
   //  }
-  absl::StatusOr<EnumDef*> ParseEnumDef(const Pos& start_pos, bool is_public,
-                                        Bindings& bindings);
+  //
+  //  enum Maybe {
+  //    None,
+  //    Some(u32),
+  //  }
+  absl::StatusOr<std::variant<EnumDef*, SumDef*>> ParseEnumDef(
+      const Pos& start_pos, bool is_public, Bindings& bindings);
 
   absl::StatusOr<StructDef*> ParseStruct(const Pos& start_pos, bool is_public,
                                          Bindings& bindings);

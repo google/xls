@@ -1300,6 +1300,12 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
             [&](WildcardPattern* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               return Bytecode::MatchArmItem::MakeWildcard();
             },
+            [&](SumVariantPayloadPattern* /*n*/)
+                -> absl::StatusOr<Bytecode::MatchArmItem> {
+              return absl::UnimplementedError(
+                  "Semantic sum patterns are not supported by the bytecode "
+                  "runtime.");
+            },
             [&](RestOfTuple* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               return Bytecode::MatchArmItem::MakeRestOfTuple();
             },
@@ -1674,6 +1680,11 @@ absl::Status BytecodeEmitter::HandleStructInstance(const StructInstance* node) {
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
                                Bytecode::NumElements(struct_def.size())));
   return absl::OkStatus();
+}
+
+absl::Status BytecodeEmitter::HandleSumInstance(const SumInstance*) {
+  return absl::UnimplementedError(
+      "Semantic sum execution is not supported by the bytecode runtime.");
 }
 
 absl::Status BytecodeEmitter::HandleSplatStructInstance(

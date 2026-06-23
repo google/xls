@@ -58,6 +58,25 @@ class DslxFmtTest(absltest.TestCase):
     """)
     self.assertEqual(self._run(contents, in_place=True), want)
 
+  def test_semantic_sum_payload_comment_is_preserved(self):
+    contents = textwrap.dedent("""\
+    enum Option {
+      Some(
+        // Payload comment.
+        u32,
+      ),
+    }
+    """)
+    want = textwrap.dedent("""\
+    enum Option {
+        Some(
+            // Payload comment.
+            u32
+        ),
+    }
+    """)
+    self.assertEqual(self._run(contents), want)
+
   def test_multi_file_in_place_fmt(self):
     contents0 = 'fn f()->u32{u32:42}'
     contents1 = 'fn g()->u32{u32:42}'

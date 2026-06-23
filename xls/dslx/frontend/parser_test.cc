@@ -22,9 +22,6 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest-spi.h"
-#include "gtest/gtest.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -32,6 +29,9 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest-spi.h"
+#include "gtest/gtest.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -683,6 +683,13 @@ impl Foo {
 }
 fn foo() -> Foo {
     Foo {  }
+})",
+            /*target=*/R"(proc Foo {
+}
+impl Foo {
+}
+fn foo() -> Foo {
+    Foo { }
 })");
 }
 
@@ -2568,6 +2575,273 @@ fn f(x: u32) {
       "`..` patterns are not allowed outside of a tuple pattern");
 }
 
+TEST_F(ParserTest, MatchWithSemanticSumConstructors) {
+  std::unique_ptr<Module> module = RoundTrip(R"(#![feature(generics)]
+
+enum Option<T: type> {
+    None,
+    Some(T),
+    Point { x: u32, y: u32 },
+}
+fn f(x: Option<u32>) -> Option<u32> {
+    match x {
+        Option::Some(v) => Option::Some(v),
+        Option::Point { x: px, y: py } => Option::Point { x: px, y: py },
+        Option<u32>::None => Option<u32>::None,
+    }
+})");
+  std::optional<ModuleMember*> maybe_member =
+      module->FindMemberWithName("Option");
+  ASSERT_TRUE(maybe_member.has_value());
+  EXPECT_TRUE(std::holds_alternative<SumDef*>(*maybe_member.value()));
+}
+
+TEST_F(ParserTest, SemanticSumSupportsExplicitDiscriminants) {
+  std::unique_ptr<Module> module = RoundTrip(R"(enum Message : u3 {
+    Idle() = 0,
+    Request(u8) = 3,
+    Response { field: u8 } = 7,
+})");
+  std::optional<ModuleMember*> maybe_member =
+      module->FindMemberWithName("Message");
+  ASSERT_TRUE(maybe_member.has_value());
+  ASSERT_TRUE(std::holds_alternative<SumDef*>(*maybe_member.value()));
+  const auto* sum_def = std::get<SumDef*>(*maybe_member.value());
+  ASSERT_TRUE(sum_def->GetVariant("Idle").has_value());
+  const SumVariant* idle = *sum_def->GetVariant("Idle");
+  const SumVariant* request = *sum_def->GetVariant("Request");
+  EXPECT_NE(idle->discriminant(), nullptr);
+  EXPECT_TRUE(idle->payload_span().has_value());
+  EXPECT_TRUE(idle->discriminant_equals_span().has_value());
+  EXPECT_TRUE(request->payload_span().has_value());
+  EXPECT_TRUE(request->discriminant_equals_span().has_value());
+  EXPECT_EQ(sum_def->tag_type_annotation()->ToString(), "u3");
+}
+
+TEST_F(ParserTest, SemanticSumRejectsMixedDiscriminants) {
+  constexpr std::string_view kProgram = R"(enum Message {
+    Idle(),
+    Request(u8) = 3,
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("must use either all implicit or all explicit "
+                                 "discriminants")));
+}
+
+TEST_F(ParserTest, SemanticSumRejectsImplicitDiscriminantsWithTagAnnotation) {
+  constexpr std::string_view kProgram = R"(enum Option : u1 {
+    None(),
+    Some(u8),
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("with a tag type annotation requires explicit "
+                                 "discriminants on every variant")));
+}
+
+TEST_F(ParserTest, BareUnitEnumWithoutValuesIsStillRejected) {
+  EXPECT_THAT(Parse("enum E { A, B }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("requires a value for every member")));
+}
+
+TEST_F(ParserTest, MatchOrPatternRejectsBindingInLaterAlternative) {
+  constexpr std::string_view kProgram = R"(enum Option {
+    None,
+    Some(u32),
+}
+
+fn f(x: Option) -> u32 {
+    match x {
+        Option::None | Option::Some(v) => v,
+        _ => u32:0,
+    }
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::AllOf(HasSubstr("Cannot bind names in a match "
+                                                "arm with multiple patterns"),
+                                      HasSubstr("bound: v"))));
+}
+
+TEST_F(ParserTest, MatchOrPatternRejectsBindingInFirstAlternative) {
+  constexpr std::string_view kProgram = R"(enum Option {
+    None,
+    Some(u32),
+}
+
+fn f(x: Option) -> u32 {
+    match x {
+        Option::Some(v) | Option::None => v,
+        _ => u32:0,
+    }
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::AllOf(HasSubstr("Cannot bind names in a match "
+                                                "arm with multiple patterns"),
+                                      HasSubstr("bound: v"))));
+}
+
+TEST_F(ParserTest, MatchOrPatternAllowsBindingFreeAlternatives) {
+  constexpr std::string_view kProgram = R"(enum Option {
+    None,
+    Some(u32),
+}
+
+fn f(x: Option) -> u32 {
+    match x {
+        Option::None | Option::Some(_) => u32:1,
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  EXPECT_TRUE(module->GetFunction("f").has_value());
+}
+
+TEST_F(ParserTest, SumRemainsValidIdentifierOutsideTypeDeclarations) {
+  std::unique_ptr<Module> module = RoundTrip(R"(fn f(x: u32) -> u32 {
+    let sum = x + u32:1;
+    sum
+})");
+  EXPECT_TRUE(module->GetFunction("f").has_value());
+}
+
+TEST_F(ParserTest, EmptyEnumWithTagAnnotationIsNumericEnum) {
+  std::unique_ptr<Module> module = RoundTrip(R"(enum Never : u3 {
+})");
+  std::optional<ModuleMember*> maybe_member =
+      module->FindMemberWithName("Never");
+  ASSERT_TRUE(maybe_member.has_value());
+  EXPECT_TRUE(std::holds_alternative<EnumDef*>(*maybe_member.value()));
+}
+
+TEST_F(ParserTest, EmptyEnumWithoutTagAnnotationIsSemanticSum) {
+  std::unique_ptr<Module> module = RoundTrip(R"(enum Never {
+})");
+  std::optional<ModuleMember*> maybe_member =
+      module->FindMemberWithName("Never");
+  ASSERT_TRUE(maybe_member.has_value());
+  EXPECT_TRUE(std::holds_alternative<SumDef*>(*maybe_member.value()));
+}
+
+TEST_F(ParserTest, PreserveEmptySemanticSumPayloadShapes) {
+  std::unique_ptr<Module> module = RoundTrip(R"(enum Option {
+    None,
+    EmptyTuple(),
+    EmptyStruct { },
+    Some(u32),
+    Point { x: u32 },
+}
+fn f(x: Option) -> Option {
+    match x {
+        Option::EmptyTuple() => Option::EmptyTuple(),
+        Option::EmptyStruct { } => Option::EmptyStruct { },
+        Option::Some(v) => Option::Some(v),
+        Option::Point { x: px } => Option::Point { x: px },
+        Option::None => Option::None,
+    }
+})");
+  std::optional<ModuleMember*> maybe_member =
+      module->FindMemberWithName("Option");
+  ASSERT_TRUE(maybe_member.has_value());
+  ASSERT_TRUE(std::holds_alternative<SumDef*>(*maybe_member.value()));
+  auto* sum_def = std::get<SumDef*>(*maybe_member.value());
+
+  ASSERT_TRUE(sum_def->GetVariant("None").has_value());
+  ASSERT_TRUE(sum_def->GetVariant("EmptyTuple").has_value());
+  ASSERT_TRUE(sum_def->GetVariant("EmptyStruct").has_value());
+  EXPECT_TRUE((*sum_def->GetVariant("None"))->is_unit());
+  EXPECT_TRUE((*sum_def->GetVariant("EmptyTuple"))->is_tuple());
+  EXPECT_TRUE((*sum_def->GetVariant("EmptyTuple"))->tuple_members().empty());
+  EXPECT_TRUE((*sum_def->GetVariant("EmptyStruct"))->is_struct());
+  EXPECT_TRUE((*sum_def->GetVariant("EmptyStruct"))->struct_members().empty());
+
+  std::optional<Function*> maybe_f = module->GetFunction("f");
+  ASSERT_TRUE(maybe_f.has_value());
+  StatementBlock* body = maybe_f.value()->body();
+  ASSERT_EQ(body->statements().size(), 1);
+  auto* match = dynamic_cast<Match*>(
+      std::get<Expr*>(body->statements().at(0)->wrapped()));
+  ASSERT_NE(match, nullptr);
+
+  ASSERT_EQ(match->arms().size(), 5);
+
+  const NameDefTree* tuple_tree = match->arms().at(0)->patterns().at(0);
+  ASSERT_TRUE(tuple_tree->is_leaf());
+  ASSERT_TRUE(
+      std::holds_alternative<SumVariantPayloadPattern*>(tuple_tree->leaf()));
+  const auto* tuple_pattern =
+      std::get<SumVariantPayloadPattern*>(tuple_tree->leaf());
+  EXPECT_TRUE(tuple_pattern->is_tuple());
+  EXPECT_TRUE(tuple_pattern->tuple_payload_patterns().empty());
+
+  const NameDefTree* struct_tree = match->arms().at(1)->patterns().at(0);
+  ASSERT_TRUE(struct_tree->is_leaf());
+  ASSERT_TRUE(
+      std::holds_alternative<SumVariantPayloadPattern*>(struct_tree->leaf()));
+  const auto* struct_pattern =
+      std::get<SumVariantPayloadPattern*>(struct_tree->leaf());
+  EXPECT_TRUE(struct_pattern->is_struct());
+  EXPECT_TRUE(struct_pattern->struct_payload_field_patterns().empty());
+}
+
+TEST_F(ParserTest, RejectsConstructorLevelParametricsOnSemanticSums) {
+  constexpr std::string_view kExplicitOnConstructor = R"(#![feature(generics)]
+
+enum Option<T: type> {
+  None,
+  Some(T),
+}
+
+fn f(x: u32) -> Option<u32> {
+  Option::Some<u32>(x)
+}
+)";
+  EXPECT_THAT(
+      Parse(kExplicitOnConstructor),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("ParseError")));
+
+  constexpr std::string_view kTurbofishOnConstructor = R"(#![feature(generics)]
+
+enum Option<T: type> {
+  None,
+  Some(T),
+}
+
+fn f(x: u32) -> Option<u32> {
+  Option::<u32>::Some(x)
+}
+)";
+  EXPECT_THAT(
+      Parse(kTurbofishOnConstructor),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("ParseError")));
+}
+
+TEST_F(ParserTest, RejectsDuplicateSemanticSumConstructors) {
+  constexpr std::string_view kProgram = R"(enum Option {
+    Some,
+    Some(u32),
+  })";
+  EXPECT_THAT(
+      Parse(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Sum variant `Some` is defined more than once in sum `Option`")));
+}
+
+TEST_F(ParserTest, RejectsDuplicateSemanticSumStructPayloadFields) {
+  constexpr std::string_view kProgram = R"(enum S {
+    V { x: u32, x: u64 },
+  })";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("Sum variant `V`"),
+                             HasSubstr("field `x` is defined more than once"),
+                             HasSubstr("sum `S`"))));
+}
+
 TEST_F(ParserTest, ArrayTypeAnnotation) {
   std::string s = "u8[2]";
   scanner_.emplace(file_table_, Fileno(0), s);
@@ -3199,6 +3473,23 @@ TEST_F(ParserTest, TernaryWithComparisonTest) {
 
 TEST_F(ParserTest, TernaryWithComparisonToColonRefTest) {
   RoundTripExpr("if a <= m::b { u32:42 } else { u32:24 }", {"a", "m"});
+}
+
+TEST_F(ParserTest, ConditionalWithEnumColonRefTest) {
+  constexpr std::string_view kProgram = R"(enum Foo : u32 {
+  THING = 0,
+  OTHER = 1,
+}
+
+fn f(x: Foo) -> Foo {
+  if x == Foo::THING { Foo::OTHER } else { Foo::THING }
+})";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_TRUE(module != nullptr);
+  ASSERT_TRUE(module->GetFunction("f").has_value());
+  EXPECT_THAT(
+      (*module->GetFunction("f"))->body()->ToString(),
+      HasSubstr("if x == Foo::THING { Foo::OTHER } else { Foo::THING }"));
 }
 
 TEST_F(ParserTest, ForInWithColonRefAsRangeLimit) {
@@ -4092,10 +4383,11 @@ TEST(ParserErrorTest, BadTestTarget) {
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
   absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
-  EXPECT_THAT(module.status(),
-              IsPosError("ParseError",
-                         HasSubstr("Attributes are only supported for a "
-                                   "function, proc, struct, enum, or type.")));
+  EXPECT_THAT(
+      module.status(),
+      IsPosError("ParseError", HasSubstr("Attributes are only supported for a "
+                                         "function, proc, struct, enum, or "
+                                         "type.")));
 }
 
 TEST(ParserErrorTest, BadAttributeTokenType) {

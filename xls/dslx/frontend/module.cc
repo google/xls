@@ -218,6 +218,10 @@ const EnumDef* Module::FindEnumDef(const Span& span) const {
   return absl::down_cast<const EnumDef*>(FindNode(AstNodeKind::kEnumDef, span));
 }
 
+const SumDef* Module::FindSumDef(const Span& span) const {
+  return absl::down_cast<const SumDef*>(FindNode(AstNodeKind::kSumDef, span));
+}
+
 bool Module::IsPublicMember(const AstNode& node) const {
   for (const ModuleMember& member : top_) {
     const AstNode* member_node = ToAstNode(member);
@@ -287,6 +291,9 @@ Module::GetTypeDefinitionByName() const {
     } else if (std::holds_alternative<EnumDef*>(member)) {
       EnumDef* enum_def = std::get<EnumDef*>(member);
       result[enum_def->identifier()] = enum_def;
+    } else if (std::holds_alternative<SumDef*>(member)) {
+      SumDef* sum_def = std::get<SumDef*>(member);
+      result[sum_def->identifier()] = sum_def;
     } else if (std::holds_alternative<StructDef*>(member)) {
       StructDef* struct_def = std::get<StructDef*>(member);
       result[struct_def->identifier()] = struct_def;
@@ -307,6 +314,9 @@ std::vector<TypeDefinition> Module::GetTypeDefinitions() const {
     } else if (std::holds_alternative<EnumDef*>(member)) {
       EnumDef* enum_def = std::get<EnumDef*>(member);
       results.push_back(enum_def);
+    } else if (std::holds_alternative<SumDef*>(member)) {
+      SumDef* sum_def = std::get<SumDef*>(member);
+      results.push_back(sum_def);
     } else if (std::holds_alternative<StructDef*>(member)) {
       StructDef* struct_def = std::get<StructDef*>(member);
       results.push_back(struct_def);
@@ -436,6 +446,7 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](Impl*) { return "impl"; },
                          [](ConstantDef*) { return "constant-definition"; },
                          [](EnumDef*) { return "enum-definition"; },
+                         [](SumDef*) { return "sum-definition"; },
                          [](Import*) { return "import"; },
                          [](Use*) { return "use"; },
                          [](Trait*) { return "trait"; },

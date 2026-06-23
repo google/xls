@@ -21,14 +21,14 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -1644,6 +1644,146 @@ SECOND = 1,
 // This is a trailing comment.
 })",
         kWant);
+}
+
+TEST_F(ModuleFmtTest, SemanticSumEmptyPayloadShapes) {
+  DoFmt(R"(enum Option{None,EmptyTuple(),EmptyStruct{},Some(u32),Point{x:u32}}
+fn f(x:Option)->Option{match x{Option::EmptyTuple()=>Option::EmptyTuple(),Option::EmptyStruct{}=>Option::EmptyStruct{},Option::Some(v)=>Option::Some(v),Option::Point{x:px}=>Option::Point{x:px},Option::None=>Option::None,}}
+)",
+        R"(enum Option {
+    None,
+    EmptyTuple(),
+    EmptyStruct { },
+    Some(u32),
+    Point { x: u32 },
+}
+
+fn f(x: Option) -> Option {
+    match x {
+        Option::EmptyTuple() => Option::EmptyTuple(),
+        Option::EmptyStruct { } => Option::EmptyStruct {},
+        Option::Some(v) => Option::Some(v),
+        Option::Point { x: px } => Option::Point { x: px },
+        Option::None => Option::None,
+    }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SemanticSumCommentsAroundVariants) {
+  DoFmt(R"(enum Option {
+    // Before the first variant.
+    None,  // Inline unit comment.
+    // Before the payload variant.
+    Some(u32),
+    // After the last variant.
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, EmptySemanticSumWithComment) {
+  DoFmt(R"(enum Never {
+    // No value can inhabit this type.
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SemanticSumTuplePayloadComments) {
+  DoFmt(
+      R"(enum Option {
+    Some(
+        // Before the first tuple member.
+        u32,
+        // Before the second tuple member.
+        u64,  // After the final tuple member.
+    ),
+    Empty(
+        // Comment in an empty tuple payload.
+    ),
+    Inline(
+        u32,  // After the first tuple member.
+        u64,
+    ),
+    Trailing(
+        u32,
+        // After the final tuple member.
+    ),
+}
+)",
+      R"(enum Option {
+    Some(
+        // Before the first tuple member.
+        u32,
+        // Before the second tuple member.
+        u64, // After the final tuple member.
+    ),
+    Empty(
+        // Comment in an empty tuple payload.
+    ),
+    Inline(
+        u32, // After the first tuple member.
+        u64
+    ),
+    Trailing(
+        u32,
+        // After the final tuple member.
+    ),
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SemanticSumStructPayloadComments) {
+  DoFmt(R"(enum Option {
+    Point {
+        // Before the first struct field.
+        x: u32,  // Inline field comment.
+        // Before the second struct field.
+        y: u64,
+        // After the final struct field.
+    },
+    Empty {
+        // Comment in an empty struct payload.
+    },
+    Separated {
+        value
+        // Before the colon.
+        :
+        // Before the type.
+        u8,
+    },
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SemanticSumCommentsAroundExplicitDiscriminants) {
+  DoFmt(
+      R"(enum Message : u3 {
+    Idle // Before unit equals.
+    = // After unit equals.
+    u3:0,
+    Request // Before tuple payload.
+    (u8) // Before equals.
+    = // After equals.
+    u3:1,
+    Empty() = u3:2,
+}
+)",
+      R"(enum Message : u3 {
+    Idle
+    // Before unit equals.
+    =
+    // After unit equals.
+    u3:0,
+    Request
+    // Before tuple payload.
+    (u8)
+    // Before equals.
+    =
+    // After equals.
+    u3:1,
+    Empty() = u3:2,
+}
+)");
 }
 
 TEST_F(ModuleFmtTest, FunctionRefWithExplicitParametrics) {

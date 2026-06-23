@@ -14,9 +14,9 @@
 
 #include <string_view>
 
+#include "absl/status/status_matchers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
@@ -139,13 +139,13 @@ enum MyEnum : u8 {
       TypecheckFails(HasTypeMismatch("u8[u32:1]", "u8")));
 }
 
-TEST(TypecheckV2Test, EnumNoTypeOrValue) {
+TEST(TypecheckV2Test, EmptyEnumIsSemanticSum) {
   EXPECT_THAT(
       R"(
-enum MyEnum {
+enum Never {
 }
 )",
-      TypecheckFails(HasSubstr("has no type annotation and no value")));
+      TypecheckSucceeds(::testing::_));
 }
 
 TEST(TypecheckV2Test, EnumTypeAlias) {
@@ -199,6 +199,19 @@ const_assert!(y as u8 == 2);
 )",
       TypecheckSucceeds(AllOf(HasNodeWithType("x", "MyEnum"),
                               HasNodeWithType("y", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, SumVariantPayloadPatternOnNumericEnumReturnsDiagnostic) {
+  EXPECT_THAT(
+      R"(
+enum E : u1 { A = 0 }
+fn f(x: E) -> u32 {
+  match x {
+    E::A() => u32:0,
+  }
+}
+)",
+      TypecheckFails(HasSubstr("Constructor pattern")));
 }
 
 TEST(TypecheckV2Test, EnumInvalidNameRef) {

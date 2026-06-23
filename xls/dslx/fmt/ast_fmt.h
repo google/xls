@@ -151,6 +151,10 @@ class Formatter {
       const StructDefBase& n, Keyword keyword,
       const std::optional<std::string>& extern_type_name);
   virtual DocRef FormatStructInstance(const StructInstance& n);
+  virtual DocRef FormatSumDef(const SumDef& n);
+  virtual DocRef FormatSumInstance(const SumInstance& n);
+  virtual DocRef FormatSumVariantPayloadPattern(
+      const SumVariantPayloadPattern& n);
   virtual DocRef FormatTestFunction(const TestFunction& n);
   virtual DocRef FormatTestProc(const TestProc& n);
   virtual DocRef FormatTrait(const Trait& n);
@@ -204,6 +208,16 @@ class Formatter {
       absl::Span<const std::pair<std::string, Expr*>> members);
   DocRef FormatStructMembersFlat(
       absl::Span<const std::pair<std::string, Expr*>> members);
+  bool FormatAppendSumCommentsBetween(const Pos& start_pos,
+                                      const Pos& limit_pos,
+                                      std::vector<DocRef>& pieces);
+  void FormatSumStructMembers(absl::Span<StructMemberNode* const> members,
+                              const Span& body_span,
+                              std::vector<DocRef>& pieces,
+                              bool place_internal_comments = false);
+  void FormatSumTuplePayloadMembers(const SumVariant& variant,
+                                    const Span& payload_span,
+                                    std::vector<DocRef>& pieces);
   DocRef FormatTuple(const XlsTuple& n);
   DocRef FormatTupleWithoutComments(const XlsTuple& n);
   template <typename T>
