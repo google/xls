@@ -2651,7 +2651,14 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
       }
 
       XLS_ASSIGN_OR_RETURN(bool found_colon, PeekTokenIs(TokenKind::kColon));
-      if (type != nullptr && found_colon) {
+      XLS_ASSIGN_OR_RETURN(bool found_double_colon,
+                           PeekTokenIs(TokenKind::kDoubleColon));
+      auto* type_ref_annotation = dynamic_cast<TypeRefTypeAnnotation*>(type);
+      if (type_ref_annotation != nullptr && found_double_colon) {
+        parse_oangle_txn.Commit();
+        return ParseColonRef(outer_bindings, type_ref_annotation,
+                             type_ref_annotation->span());
+      } else if (type != nullptr && found_colon) {
         VLOG(5) << "ParseTerm, kind is ColonRef then oColon";
         // Probably a literal array. Commit the parsing of the LHS so far, and
         // continue processing as if it's a cast.

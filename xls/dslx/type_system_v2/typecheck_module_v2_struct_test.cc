@@ -546,6 +546,46 @@ const Y = zero!<imported::S32<32>>();
                                  "annotation: `S<32>`")));
 }
 
+TEST(TypecheckV2StructTest, ImportedParametricStructStaticMethodCall) {
+  constexpr std::string_view kImported = R"(
+pub struct S<N: u32> { field: uN[N] }
+impl S {
+    pub fn new(x: uN[N]) -> Self {
+        S { field: x }
+    }
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+fn main() -> imported::S<32> {
+    imported::S<32>::new(42)
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
+TEST(TypecheckV2StructTest, ImportedParametricStructInstance) {
+  constexpr std::string_view kImported = R"(
+pub struct S<N: u32> { field: uN[N] }
+impl S {
+    pub fn new(x: uN[N]) -> Self {
+        S { field: x }
+    }
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+fn main() -> imported::S<32> {
+    imported::S<32> { field: 2 }
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
 TEST(TypecheckV2StructTest, AllOnesMacroEmptyStruct) {
   EXPECT_THAT(R"(
 struct S { }

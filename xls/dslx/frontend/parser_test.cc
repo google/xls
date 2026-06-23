@@ -2846,6 +2846,14 @@ TEST_F(ParserTest, ParametricColonRefInvocation) {
   RoundTripExpr("f<BuiltinEnum::VALUE>()", {"f", "BuiltinEnum"});
 }
 
+TEST_F(ParserTest, ImportedParametricStructMethodCall) {
+  RoundTripExpr("imported::Foo<32>::new(1)", {"imported"});
+}
+
+TEST_F(ParserTest, ImportedParametricStructInstance) {
+  RoundTripExpr("imported::Foo<32> { a: 1 }", {"imported"});
+}
+
 TEST_F(ParserTest, ModuleWithTypeAlias) { RoundTrip("type MyType = u32;"); }
 
 TEST_F(ParserTest, ModuleWithProcAlias) {
