@@ -15,6 +15,7 @@
 #include "xls/ir/proc.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <memory>
@@ -940,84 +941,149 @@ absl::Status Proc::ConvertToNewStyle() {
 absl::StatusOr<StateElement*> Proc::TransformStateElement(
     StateElement* old_state_element, const Value& init_value,
     Proc::StateElementTransformer& transform) {
-  StateRead* old_state_read = GetStateReadByStateElement(old_state_element);
+  absl::Span<StateRead* const> old_state_reads =
+      GetStateReadsByStateElement(old_state_element);
   std::string orig_name(old_state_element->name());
-  std::string orig_read_name(old_state_read->GetNameView());
-  XLS_ASSIGN_OR_RETURN(std::optional<Node*> read_predicate,
-                       transform.TransformReadPredicate(this, old_state_read));
-  XLS_ASSIGN_OR_RETURN(
-      StateRead * new_state_read,
-      AppendStateElement(absl::StrFormat("TEMP_NAME__%s__", orig_name),
-                         init_value, read_predicate,
-                         /*next_state=*/std::nullopt));
-  new_state_read->SetLoc(old_state_read->loc());
-  new_state_read->set_label(old_state_read->label());
-  if (old_state_read->state_element()->non_synthesizable()) {
-    new_state_read->state_element()->SetNonSynthesizable();
+
+  std::vector<std::string> orig_read_names;
+  orig_read_names.reserve(old_state_reads.size());
+  for (StateRead* old_state_read : old_state_reads) {
+    orig_read_names.push_back(std::string(old_state_read->GetNameView()));
   }
-  StateElement* new_state_element = new_state_read->state_element();
+
+  // Create new state element (unread initially).
+  XLS_ASSIGN_OR_RETURN(
+      StateElement * new_state_element,
+      InsertUnreadStateElement(GetStateElementCount(),
+                               absl::StrFormat("TEMP_NAME__%s__", orig_name),
+                               init_value));
+  if (old_state_element->non_synthesizable()) {
+    new_state_element->SetNonSynthesizable();
+  }
   std::string temp_name = new_state_element->name();
 
-  XLS_ASSIGN_OR_RETURN(
-      Node * new_state_value,
-      transform.TransformStateRead(this, new_state_read, old_state_read));
-  std::vector<std::pair<Node*, Node*>> to_replace{
-      {old_state_read, new_state_value}};
+  std::vector<std::pair<Node*, Node*>> to_replace;
+  std::vector<StateRead*> new_state_reads;
+  new_state_reads.reserve(old_state_reads.size());
+  // We track the first state read because we need to check the return type of
+  // the state read after transformation. The type is identical across all
+  // state reads.
+  StateRead* first_new_read = nullptr;
+
+  // Transform and create new reads for each old read.
+  for (StateRead* old_state_read : old_state_reads) {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Node*> read_predicate,
+        transform.TransformReadPredicate(this, old_state_read));
+    XLS_ASSIGN_OR_RETURN(
+        StateRead * new_state_read,
+        AddStateRead(new_state_element, read_predicate, old_state_read->label(),
+                     old_state_read->loc()));
+    new_state_reads.push_back(new_state_read);
+    if (first_new_read == nullptr) {
+      first_new_read = new_state_read;
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_state_value,
+        transform.TransformStateRead(this, new_state_read, old_state_read));
+    to_replace.push_back({old_state_read, new_state_value});
+  }
+
   struct NextTransformation {
     Next* old_next;
     Node* new_value;
     std::optional<Node*> new_predicate;
+    StateRead* new_state_read;
   };
   std::vector<NextTransformation> transforms;
   for (Next* nxt : next_values(old_state_element)) {
     NextTransformation& new_next = transforms.emplace_back();
     new_next.old_next = nxt;
-    XLS_ASSIGN_OR_RETURN(new_next.new_value, transform.TransformNextValue(
-                                                 this, new_state_read, nxt));
-    XLS_RET_CHECK(new_next.new_value->GetType() == new_state_read->GetType())
+
+    // Find the corresponding new state read.
+    new_next.new_state_read = first_new_read;
+    if (nxt->has_state_read()) {
+      StateRead* old_read = nxt->state_read()->As<StateRead>();
+      for (size_t i = 0; i < old_state_reads.size(); ++i) {
+        if (old_state_reads[i] == old_read) {
+          new_next.new_state_read = new_state_reads[i];
+          break;
+        }
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        new_next.new_value,
+        transform.TransformNextValue(this, new_next.new_state_read, nxt));
+    XLS_RET_CHECK(new_next.new_value->GetType() ==
+                  new_next.new_state_read->GetType())
         << "New value is not compatible type. Expected: "
-        << new_state_read->GetType() << " got " << new_next.new_value;
+        << new_next.new_state_read->GetType() << " got " << new_next.new_value;
     XLS_ASSIGN_OR_RETURN(
         new_next.new_predicate,
-        transform.TransformNextPredicate(this, new_state_read, nxt));
+        transform.TransformNextPredicate(this, new_next.new_state_read, nxt));
   }
 
-  // We've transformed all the graph elements. Start replacing them.
-
-  // Switch old_state_read's name to a temporary to-remove name
+  // Rename old element & reads to a temporary to-remove name.
   std::string to_remove_name = UniquifyStateName(
       absl::StrFormat("TO_REMOVE_TRANSFORMED_STATE__%s__", orig_name));
   auto orig_storage = state_elements_.extract(orig_name);
   orig_storage.key() = to_remove_name;
   old_state_element->SetName(to_remove_name);
-  old_state_read->SetName(to_remove_name);
+  for (StateRead* old_state_read : old_state_reads) {
+    old_state_read->SetName(to_remove_name);
+  }
   CHECK(state_elements_.insert(std::move(orig_storage)).inserted);
 
   // Take over the old state element & read names.
   auto new_storage = state_elements_.extract(temp_name);
   new_storage.key() = orig_name;
   new_state_element->SetName(orig_name);
-  new_state_read->SetNameDirectly(orig_read_name);
+  for (size_t i = 0; i < new_state_reads.size(); ++i) {
+    new_state_reads[i]->SetNameDirectly(orig_read_names[i]);
+  }
   CHECK(state_elements_.insert(std::move(new_storage)).inserted);
 
   // Identity-ify the old next nodes and create new ones.
   for (const NextTransformation& nt : transforms) {
-    // Make the next
-    XLS_ASSIGN_OR_RETURN(
-        Next * nxt,
-        MakeNodeWithName<Next>(nt.old_next->loc(), new_state_read, nt.new_value,
-                               nt.new_predicate, nt.old_next->label(),
-                               nt.old_next->GetName()));
+    Next* nxt;
+    if (nt.old_next->has_state_read()) {
+      // Coupled: use the matched new_state_read
+      XLS_ASSIGN_OR_RETURN(
+          nxt,
+          MakeNodeWithName<Next>(nt.old_next->loc(), nt.new_state_read,
+                                 nt.new_value, nt.new_predicate,
+                                 nt.old_next->label(), nt.old_next->GetName()));
+    } else {
+      // Decoupled: use new_state_element directly
+      XLS_ASSIGN_OR_RETURN(
+          nxt,
+          MakeNodeWithName<Next>(nt.old_next->loc(), new_state_element,
+                                 nt.new_value, nt.new_predicate,
+                                 nt.old_next->label(), nt.old_next->GetName()));
+    }
     to_replace.push_back({nt.old_next, nxt});
     // Identity-ify the old next.
-    XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(
-        Next::kValueOperand, nt.old_next->state_read()));
+    if (nt.old_next->has_state_read()) {
+      XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(
+          Next::kValueOperand, nt.old_next->state_read()));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          Node * dummy,
+          MakeNode<Literal>(nt.old_next->loc(),
+                            ZeroOfType(old_state_element->type())));
+      XLS_RET_CHECK(nt.old_next->ReplaceOperand(nt.old_next->value(), dummy));
+    }
   }
+
+  // Replace uses.
   for (const auto& [old_n, new_n] : to_replace) {
     XLS_RETURN_IF_ERROR(old_n->ReplaceUsesWith(
         new_n,
         [&](Node* n) {
-          if (n->Is<Next>() && n->As<Next>()->state_read() == old_n) {
+          if (n->Is<Next>() && n->As<Next>()->has_state_read() &&
+              n->As<Next>()->state_read() == old_n) {
             return false;
           }
           return true;
