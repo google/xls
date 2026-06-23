@@ -757,7 +757,7 @@
             "ruleClassName": "http_archive",
             "attributes": {
               "build_file_content": "# empty",
-              "sha256": "849452cc51d3994aaff858e607d1148cd38b84ebae18f4b00b028c09879caec4",
+              "sha256": "de1e67f7290d93340a408ba5841966d129127de2104c304d7f761a4de101ece2",
               "patches": [
                 "@@//dependency_support/llvm:llvm.patch",
                 "@@//dependency_support/llvm:zlib-header.patch",
@@ -766,9 +766,9 @@
               "patch_args": [
                 "-p1"
               ],
-              "strip_prefix": "llvm-project-0b1fe74f079fd330e4d4d85ce33b7f5702da1be7",
+              "strip_prefix": "llvm-project-93b1f81e03ef4c717a9d222b46f78c38bcff0a3f",
               "urls": [
-                "https://github.com/llvm/llvm-project/archive/0b1fe74f079fd330e4d4d85ce33b7f5702da1be7.tar.gz"
+                "https://github.com/llvm/llvm-project/archive/93b1f81e03ef4c717a9d222b46f78c38bcff0a3f.tar.gz"
               ]
             }
           }
