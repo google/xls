@@ -32,6 +32,7 @@ cc_library(
     srcs = ["solver.cc"],
     hdrs = ["solver.h"],
     deps = [
+        "//xls/common/status:status_macros",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:bits",
@@ -86,9 +87,11 @@ cc_library(
     srcs = ["ir_equivalence.cc"],
     hdrs = ["ir_equivalence.h"],
     deps = [
+        ":bitwuzla_ir_translator",
         ":solver",
         ":z3_ir_translator",
         "//xls/common:visitor",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:function_builder",
@@ -295,6 +298,93 @@ cc_test(
         "@google_benchmark//:benchmark",
         "@googletest//:gtest",
         "@z3//:api",
+    ],
+)
+
+cc_library(
+    name = "bitwuzla_ir_translator",
+    srcs = ["bitwuzla_ir_translator.cc"],
+    hdrs = ["bitwuzla_ir_translator.h"],
+    deps = [
+        ":solver",
+        "//xls/common:stopwatch",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:format_preference",
+        "//xls/ir:interval",
+        "//xls/ir:interval_set",
+        "//xls/ir:number_parser",
+        "//xls/ir:op",
+        "//xls/ir:ternary",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
+        "@bitwuzla",
+        "@bitwuzla//:bitwuzla_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+    alwayslink = 1,
+)
+
+cc_test(
+    name = "bitwuzla_ir_translator_test",
+    srcs = ["bitwuzla_ir_translator_test.cc"],
+    deps = [
+        ":bitwuzla_ir_translator",
+        ":prover_matchers",
+        ":solver",
+        ":z3_ir_translator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@google_benchmark//:benchmark",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "bitwuzla_ir_equivalence_test",
+    srcs = ["bitwuzla_ir_equivalence_test.cc"],
+    deps = [
+        ":bitwuzla_ir_translator",
+        ":ir_equivalence",
+        ":prover_matchers",
+        ":solver",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "solvers",
+    deps = [
+        ":bitwuzla_ir_translator",
+        ":z3_ir_translator",
     ],
 )
 

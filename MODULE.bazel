@@ -77,6 +77,8 @@ bazel_dep(name = "nlohmann_json", version = "3.12.0.bcr.1")
 bazel_dep(name = "or-tools", version = "9.12", repo_name = "com_google_ortools")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "protobuf", version = "33.0", repo_name = "com_google_protobuf")
+bazel_dep(name = "mpfr", version = "4.2.2")
+bazel_dep(name = "gmp", version = "6.3.0.bcr.1")
 bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "riegeli", version = "0.0.0-20250822-9f2744d")
 bazel_dep(name = "rules_cc", version = "0.2.11")
@@ -122,6 +124,9 @@ use_repo(ac_types_ext, "ac_datatypes")
 
 z3_ext = use_extension("//dependency_support/z3:extension.bzl", "z3_extension")
 use_repo(z3_ext, "z3")
+
+bitwuzla_ext = use_extension("//dependency_support/bitwuzla:extension.bzl", "bitwuzla_extension")
+use_repo(bitwuzla_ext, "bitwuzla", "cadical", "symfpu")
 
 # zstd is in BCR, but does not currently expose decodecorpus
 zstd_ext = use_extension("//dependency_support/com_github_facebook_zstd:extension.bzl", "zstd_extension")

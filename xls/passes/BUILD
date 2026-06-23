@@ -1925,9 +1925,9 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/solvers",
         "//xls/solvers:prover_matchers",
         "//xls/solvers:solver",
-        "//xls/solvers:z3_ir_translator",
         "@googletest//:gtest",
     ],
 )

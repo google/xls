@@ -1,0 +1,23 @@
+diff --git a/src/config.h b/src/config.h
+new file mode 100644
+index 0000000..64af9fe
+--- /dev/null
++++ b/src/config.h
+@@ -0,0 +1,16 @@
++#ifndef BZLA_CONFIG_H_INCLUDED
++#define BZLA_CONFIG_H_INCLUDED
++
++namespace bzla::config {
++
++static constexpr bool is_debug_build = false;
++static constexpr const char* git_id = "oss";
++static constexpr const char* version = "0.9.1";
++static constexpr const char* license = "MIT";
++static constexpr const char* os = "linux";
++static constexpr const char* cc = "clang";
++static constexpr const char* cxx = "clang++";
++
++}  // namespace bzla::config
++
++#endif
+

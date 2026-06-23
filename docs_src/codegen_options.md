@@ -607,7 +607,7 @@ response-receive are scheduled to match the RAM's latency.
     should be deterministic across machines.
 
 -   `--solver_kind=z3` controls which SAT/SMT solver is used for analyses that
-    use one. Currently only Z3 is supported.
+    use one. Z3 and Bitwuzla are currently supported.
 
 -   `--register_merge_strategy` controls how we merge registers between stages
     which may be shared. The options are `identity` which merges registers which

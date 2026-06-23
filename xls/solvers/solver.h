@@ -51,12 +51,29 @@ struct SolverLimit {
 enum class SolverKind : uint8_t {
   kUnspecified,
   kZ3,
+  kBitwuzla,
 };
 
 bool AbslParseFlag(std::string_view text, SolverKind* solver_kind,
                    std::string* error);
 
 std::string AbslUnparseFlag(const SolverKind& solver_kind);
+
+template <typename Sink>
+void AbslStringify(Sink& sink, SolverKind value) {
+  switch (value) {
+    case SolverKind::kZ3:
+      absl::Format(&sink, "Z3");
+      return;
+    case SolverKind::kBitwuzla:
+      absl::Format(&sink, "Bitwuzla");
+      return;
+    case SolverKind::kUnspecified:
+      absl::Format(&sink, "SolverKind(unspecified)");
+      return;
+  }
+  absl::Format(&sink, "SolverKind(%d)", static_cast<int>(value));
+}
 
 // Kinds of predicates we can compute about a subject node.
 enum class PredicateKind : uint8_t {
@@ -264,6 +281,33 @@ class CounterExampleAnnotator : public IrAnnotator {
   FormatPreference format_;
   mutable absl::flat_hash_map<Node*, Value> counterexamples_;
 };
+
+// High-level, one-off helper functions.
+
+absl::StatusOr<ProverResult> TryProve(
+    FunctionBase* f, Node* subject, const Predicate& p,
+    const SolverLimit& limit, bool allow_unsupported = false,
+    absl::Span<const PredicateOfNode> assumptions = {},
+    SolverKind kind = SolverKind::kZ3);
+
+absl::StatusOr<ProverResult> TryProveCombination(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    PredicateCombination combination, const SolverLimit& limit,
+    bool allow_unsupported = false,
+    absl::Span<const PredicateOfNode> assumptions = {},
+    SolverKind kind = SolverKind::kZ3);
+
+absl::StatusOr<ProverResult> TryProveDisjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    const SolverLimit& limit, bool allow_unsupported = false,
+    absl::Span<const PredicateOfNode> assumptions = {},
+    SolverKind kind = SolverKind::kZ3);
+
+absl::StatusOr<ProverResult> TryProveConjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    const SolverLimit& limit, bool allow_unsupported = false,
+    absl::Span<const PredicateOfNode> assumptions = {},
+    SolverKind kind = SolverKind::kZ3);
 
 }  // namespace xls::solvers
 

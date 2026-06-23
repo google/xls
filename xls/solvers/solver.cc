@@ -29,6 +29,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
@@ -203,6 +204,71 @@ Annotation CounterExampleAnnotator::NodeAnnotation(Node* node) const {
   }
   return Annotation{
       .suffix = paren(interpreter.ResolveAsValue(node).ToHumanString(format_))};
+}
+
+bool AbslParseFlag(std::string_view text, SolverKind* solver_kind,
+                   std::string* error) {
+  if (text == "unspecified" || text == "kUnspecified" ||
+      text == "UNSPECIFIED") {
+    *solver_kind = SolverKind::kUnspecified;
+    return true;
+  }
+  if (text == "z3" || text == "kZ3" || text == "Z3") {
+    *solver_kind = SolverKind::kZ3;
+    return true;
+  }
+  if (text == "bitwuzla" || text == "kBitwuzla" || text == "BITWUZLA") {
+    *solver_kind = SolverKind::kBitwuzla;
+    return true;
+  }
+  *error = absl::StrCat("Unknown SolverKind: ", text);
+  return false;
+}
+
+std::string AbslUnparseFlag(const SolverKind& solver_kind) {
+  switch (solver_kind) {
+    case SolverKind::kUnspecified:
+      return "unspecified";
+    case SolverKind::kZ3:
+      return "z3";
+    case SolverKind::kBitwuzla:
+      return "bitwuzla";
+  }
+  return absl::StrCat(static_cast<int>(solver_kind));
+}
+
+absl::StatusOr<ProverResult> TryProve(
+    FunctionBase* f, Node* subject, const Predicate& p,
+    const SolverLimit& limit, bool allow_unsupported,
+    absl::Span<const PredicateOfNode> assumptions, SolverKind kind) {
+  XLS_ASSIGN_OR_RETURN(auto solver, CreateSolver(kind));
+  return solver->TryProve(f, subject, p, limit, allow_unsupported, assumptions);
+}
+
+absl::StatusOr<ProverResult> TryProveCombination(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    PredicateCombination combination, const SolverLimit& limit,
+    bool allow_unsupported, absl::Span<const PredicateOfNode> assumptions,
+    SolverKind kind) {
+  XLS_ASSIGN_OR_RETURN(auto solver, CreateSolver(kind));
+  return solver->TryProveCombination(f, terms, combination, limit,
+                                     allow_unsupported, assumptions);
+}
+
+absl::StatusOr<ProverResult> TryProveDisjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    const SolverLimit& limit, bool allow_unsupported,
+    absl::Span<const PredicateOfNode> assumptions, SolverKind kind) {
+  return TryProveCombination(f, terms, PredicateCombination::kDisjunction,
+                             limit, allow_unsupported, assumptions, kind);
+}
+
+absl::StatusOr<ProverResult> TryProveConjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    const SolverLimit& limit, bool allow_unsupported,
+    absl::Span<const PredicateOfNode> assumptions, SolverKind kind) {
+  return TryProveCombination(f, terms, PredicateCombination::kConjunction,
+                             limit, allow_unsupported, assumptions, kind);
 }
 
 }  // namespace xls::solvers

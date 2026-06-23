@@ -26,6 +26,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -250,7 +251,7 @@ ABSL_FLAG(bool, receives_first_sends_last, false,
           "If true, this forces receives into the first cycle and sends into "
           "the last cycle.");
 ABSL_FLAG(xls::SolverKind, solver_kind, xls::SolverKind::SOLVER_KIND_Z3,
-          "The solver backend to use for logical analysis (z3).");
+          "The solver backend to use for logical analysis (z3, bitwuzla).");
 ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
           "Resource limit for solver in mutual exclusion pass.");
 ABSL_FLAG(int64_t, default_next_value_z3_rlimit, -1,
@@ -356,8 +357,12 @@ bool AbslParseFlag(std::string_view text, SolverKind* solver_kind,
     *solver_kind = SolverKind::SOLVER_KIND_UNSPECIFIED;
     return true;
   }
-  if (text == "z3" || text == "Z3") {
+  if (absl::EqualsIgnoreCase(text, "z3")) {
     *solver_kind = SolverKind::SOLVER_KIND_Z3;
+    return true;
+  }
+  if (absl::EqualsIgnoreCase(text, "bitwuzla")) {
+    *solver_kind = SolverKind::SOLVER_KIND_BITWUZLA;
     return true;
   }
   *error = absl::StrCat("Unknown solver kind: ", text);
@@ -370,6 +375,8 @@ std::string AbslUnparseFlag(const SolverKind& solver_kind) {
       return "";
     case SolverKind::SOLVER_KIND_Z3:
       return "z3";
+    case SolverKind::SOLVER_KIND_BITWUZLA:
+      return "bitwuzla";
     default:
       return "<unknown>";
   }

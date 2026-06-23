@@ -1,0 +1,138 @@
+# Copyright 2026 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+cc_library(
+    name = "bitwuzla_headers",
+    hdrs = glob([
+        "include/bitwuzla/*.h",
+        "include/bitwuzla/c/*.h",
+        "include/bitwuzla/cpp/*.h",
+    ]),
+    strip_include_prefix = "include",
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "bitwuzla_internal",
+    srcs = glob(
+        [
+            "src/**/*.cpp",
+            "src/**/*.c",
+        ],
+        exclude = [
+            "src/main/**/*.cpp",
+            "src/api/c/**/*.cpp",
+            "src/api/cpp/**/*.cpp",
+            "src/api/python/**/*.cpp",
+        ],
+    ),
+    hdrs = glob(
+        [
+            "src/**/*.h",
+            "src/**/*.hpp",
+        ],
+        exclude = [
+            "src/main/**/*.h",
+            "src/api/c/**/*.h",
+            "src/api/cpp/**/*.h",
+            "src/api/python/**/*.h",
+        ],
+    ),
+    copts = [
+        "-fexceptions",
+        "-Wno-ctad-maybe-unsupported",
+        "-include",
+        "src/type/type.h",
+    ],
+    defines = [
+        "BZLA_IS_SAT_SOLVER_CONFIGURED",
+        "BZLA_USE_CADICAL",
+        "MPFR_USE_C99_FEATURE=1",
+    ],
+    includes = [
+        "src",
+        "src/lib",
+    ],
+    deps = [
+        ":bitwuzla_headers",
+        "@cadical//:cadical_lib",
+        "@gmp//:gmpxx",
+        "@mpfr",
+        "@symfpu",
+    ],
+)
+
+cc_library(
+    name = "bitwuzla_api_c",
+    srcs = glob([
+        "src/api/c/**/*.cpp",
+        "src/api/c/**/*.c",
+    ]),
+    hdrs = glob([
+        "src/api/c/**/*.h",
+        "src/api/c/**/*.hpp",
+    ]),
+    copts = [
+        "-fexceptions",
+        "-Wno-ctad-maybe-unsupported",
+        "-include",
+        "src/type/type.h",
+    ],
+    includes = [
+        "src",
+        "src/lib",
+    ],
+    deps = [
+        ":bitwuzla_headers",
+        ":bitwuzla_internal",
+    ],
+    alwayslink = 1,
+)
+
+cc_library(
+    name = "bitwuzla_api_cpp",
+    srcs = glob([
+        "src/api/cpp/**/*.cpp",
+        "src/api/cpp/**/*.c",
+    ]),
+    hdrs = glob([
+        "src/api/cpp/**/*.h",
+        "src/api/cpp/**/*.hpp",
+    ]),
+    copts = [
+        "-fexceptions",
+        "-Wno-ctad-maybe-unsupported",
+        "-include",
+        "src/type/type.h",
+    ],
+    includes = [
+        "src",
+        "src/lib",
+    ],
+    deps = [
+        ":bitwuzla_headers",
+        ":bitwuzla_internal",
+    ],
+    alwayslink = 1,
+)
+
+cc_library(
+    name = "bitwuzla",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":bitwuzla_api_c",
+        ":bitwuzla_api_cpp",
+        ":bitwuzla_internal",
+    ],
+)

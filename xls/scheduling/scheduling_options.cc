@@ -229,6 +229,9 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
       case SolverKind::SOLVER_KIND_Z3:
         scheduling_options.solver_kind(solvers::SolverKind::kZ3);
         break;
+      case SolverKind::SOLVER_KIND_BITWUZLA:
+        scheduling_options.solver_kind(solvers::SolverKind::kBitwuzla);
+        break;
       default:
         return absl::InvalidArgumentError(
             absl::StrFormat("Unknown solver kind: %v", proto.solver_kind()));

@@ -35,6 +35,7 @@ ALLOWED_INCLUDE_STARTS = frozenset([
     'verible/',
     're2/',
     'z3/',
+    'bitwuzla/',
     'google/protobuf/',
     'grpcpp/',
     'grpc/',

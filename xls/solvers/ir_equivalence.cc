@@ -18,6 +18,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -28,8 +29,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/function.h"
@@ -164,6 +165,7 @@ class RemoveAssertsPass : public OptimizationFunctionBasePass {
 };
 
 }  // namespace
+
 absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
                                                  bool ignore_asserts,
                                                  SolverKind kind,

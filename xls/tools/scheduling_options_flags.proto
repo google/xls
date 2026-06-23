@@ -53,6 +53,7 @@ enum ProtoSchedulingStrategy {
 enum SolverKind {
   SOLVER_KIND_UNSPECIFIED = 0;
   SOLVER_KIND_Z3 = 1;
+  SOLVER_KIND_BITWUZLA = 2;
 }
 
 message SchedulingFailureBehaviorProto {

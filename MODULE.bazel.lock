@@ -298,6 +298,9 @@
     "https://bcr.bazel.build/modules/gazelle/0.46.0/source.json": "f255441117f6c63a3cbc0d4fd84c09c047e54a9bdaaf6aedf66e3b4218ddebd4",
     "https://bcr.bazel.build/modules/glpk/5.0.bcr.2/MODULE.bazel": "d539aa4b146ae743e51eba2e42851e27580a34edd51d82fec4738edc20e3d1d8",
     "https://bcr.bazel.build/modules/glpk/5.0.bcr.2/source.json": "624382187f52acfb739e560922ec6c3b6d7ca0036c82c8333c810505273970cf",
+    "https://bcr.bazel.build/modules/gmp/6.3.0.bcr.1/MODULE.bazel": "f9a5442767c9082f25d05c01e20040ea06302d654f2ca9da50674d15b3d1a2dd",
+    "https://bcr.bazel.build/modules/gmp/6.3.0.bcr.1/source.json": "a98a4d4944ca1d45d4c860bfe41d217fb0dc9734af357ed78d8b522c5bba4b37",
+    "https://bcr.bazel.build/modules/gmp/6.3.0/MODULE.bazel": "81e36099789b2a1160372f73155be37ae382c1e593b4a2ce51348bb722735a59",
     "https://bcr.bazel.build/modules/google_bazel_common/0.0.1/MODULE.bazel": "5b364f7ca35cc87851b625cd9ec2b86bd6d3fbe9724646f28a5254d213f1c05b",
     "https://bcr.bazel.build/modules/google_bazel_common/0.0.1/source.json": "399a40d8acfb3a592f38717d27457900cc9540da8ddcff936584d0b590e3386d",
     "https://bcr.bazel.build/modules/google_benchmark/1.8.2/MODULE.bazel": "a70cf1bba851000ba93b58ae2f6d76490a9feb74192e57ab8e8ff13c34ec50cb",
@@ -362,8 +365,12 @@
     "https://bcr.bazel.build/modules/linenoise/2.0.0/source.json": "046b7e7d9f384a1d7fd9b65e0aa97a12d2835f351d5fab918f91b30262d37633",
     "https://bcr.bazel.build/modules/lz4/1.9.4/MODULE.bazel": "e3d307b1d354d70f6c809167eafecf5d622c3f27e3971ab7273410f429c7f83a",
     "https://bcr.bazel.build/modules/lz4/1.9.4/source.json": "233f0bdfc21f254e3dda14683ddc487ca68c6a3a83b7d5db904c503f85bd089b",
+    "https://bcr.bazel.build/modules/m4/1.4.21.bcr.1/MODULE.bazel": "d89395ff2ea032b3aaf0a6c08bbddbccdbbfd6644dbafd946f65c487cdf060b3",
+    "https://bcr.bazel.build/modules/m4/1.4.21.bcr.1/source.json": "6693ed9c3380e29bbe5200c0e2fa4635b38b2b7cf8c1cb527fc3109456d3ca69",
     "https://bcr.bazel.build/modules/mbedtls/3.6.0/MODULE.bazel": "8e380e4698107c5f8766264d4df92e36766248447858db28187151d884995a09",
     "https://bcr.bazel.build/modules/mbedtls/3.6.0/source.json": "1dbe7eb5258050afcc3806b9d43050f71c6f539ce0175535c670df606790b30c",
+    "https://bcr.bazel.build/modules/mpfr/4.2.2/MODULE.bazel": "a27d7763535094f9fb14c9d8e7e559e2b5a66b8beaa1b361e46da79a0783616f",
+    "https://bcr.bazel.build/modules/mpfr/4.2.2/source.json": "23c8cc076a26015225ec2da01b963df77181e1bff134a9b30f93d259f443bff6",
     "https://bcr.bazel.build/modules/nlohmann_json/3.11.3.bcr.1/MODULE.bazel": "83bbe365b1eb640ef903df2240f11e7df8f70563199bc17085816033bc36da89",
     "https://bcr.bazel.build/modules/nlohmann_json/3.11.3/MODULE.bazel": "87023db2f55fc3a9949c7b08dc711fae4d4be339a80a99d04453c4bb3998eefc",
     "https://bcr.bazel.build/modules/nlohmann_json/3.12.0.bcr.1/MODULE.bazel": "a1c8bb07b5b91d971727c635f449d05623ac9608f6fe4f5f04254ea12f08e349",
@@ -484,6 +491,9 @@
     "https://bcr.bazel.build/modules/rules_buf/0.1.1/MODULE.bazel": "6189aec18a4f7caff599ad41b851ab7645d4f1e114aa6431acf9b0666eb92162",
     "https://bcr.bazel.build/modules/rules_cc/0.2.11/MODULE.bazel": "e94f24f065bf2191dba2dace951814378b66a94bb3bcc48077492fe0508059b5",
     "https://bcr.bazel.build/modules/rules_cc/0.2.11/source.json": "4d555dc20c9c135b21b2e403cf0ce8393fb65711b2305979ce053df4ee3e78de",
+    "https://bcr.bazel.build/modules/rules_cc_autoconf/0.10.1/MODULE.bazel": "9d437cf6abd311a8cbb464bdb987411ed441714074444ae3963ee94baffb3522",
+    "https://bcr.bazel.build/modules/rules_cc_autoconf/0.10.3/MODULE.bazel": "936257270b147ea6c17633a7f682a87a915782c45059263811ed895375f2dba9",
+    "https://bcr.bazel.build/modules/rules_cc_autoconf/0.10.3/source.json": "a025eecbbaceb6b8d1d578b382b6f2ebd4b108cd1e02c375d22397b422747b5f",
     "https://bcr.bazel.build/modules/rules_closure/0.15.0/MODULE.bazel": "2346f8f2daefe805bb12d5a97218d33cd02fd10732eb2de8e94ca88b00efdd68",
     "https://bcr.bazel.build/modules/rules_closure/0.15.0/source.json": "c477734278ed50eef6d698fbbb2ac0ef8583257a7c0b05ea55d145da4acadb4e",
     "https://bcr.bazel.build/modules/rules_flex/0.3/MODULE.bazel": "7a8d6cfb459c0368014a8305c406de69d18a3f7d0c1ae45df829af7da6d4c195",
@@ -684,6 +694,70 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//dependency_support/bitwuzla:extension.bzl%bitwuzla_extension": {
+      "general": {
+        "bzlTransitiveDigest": "+F1jQc3G+VvtEAnQFxQK5+xH7M3KMtbGSDJfvEDbjDo=",
+        "usagesDigest": "PN9ToO8V5otkYkA5UnAzURX+LBirU5veji+2wrYsjK4=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "cadical": {
+            "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
+            "ruleClassName": "http_archive",
+            "attributes": {
+              "urls": [
+                "https://github.com/arminbiere/cadical/archive/3ff42f04384489916f017acd6d5e7cbfa7257be7.tar.gz"
+              ],
+              "strip_prefix": "cadical-3ff42f04384489916f017acd6d5e7cbfa7257be7",
+              "integrity": "sha256-+w7OK9Q2I6/HOPqUXFfRMM7ipu9lFoNcUQWoUDGSogU=",
+              "build_file": "@@//dependency_support/bitwuzla:cadical.BUILD.bazel"
+            }
+          },
+          "symfpu": {
+            "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
+            "ruleClassName": "http_archive",
+            "attributes": {
+              "urls": [
+                "https://github.com/martin-cs/symfpu/archive/8fbe139bf0071cbe0758d2f6690a546c69ff0053.tar.gz"
+              ],
+              "strip_prefix": "symfpu-8fbe139bf0071cbe0758d2f6690a546c69ff0053",
+              "integrity": "sha256-2guu77hPsArUStaZPZfC5sw1aPmu0NnoaTqmtZl1Lls=",
+              "build_file": "@@//dependency_support/bitwuzla:symfpu.BUILD.bazel"
+            }
+          },
+          "bitwuzla": {
+            "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
+            "ruleClassName": "http_archive",
+            "attributes": {
+              "urls": [
+                "https://github.com/bitwuzla/bitwuzla/archive/3f5d9cd11dda80626b23bc2b353768abd6906f58.tar.gz"
+              ],
+              "strip_prefix": "bitwuzla-3f5d9cd11dda80626b23bc2b353768abd6906f58",
+              "build_file": "@@//dependency_support/bitwuzla:bundled.BUILD.bazel",
+              "integrity": "sha256-8EoJYNCds0Fkuw9jKEHL47LsdCJ9d03750w+TFHSquA=",
+              "patches": [
+                "@@//dependency_support/bitwuzla:config.patch",
+                "@@//dependency_support/bitwuzla:msan.patch"
+              ],
+              "patch_args": [
+                "-p1"
+              ],
+              "patch_cmds": [
+                "\n  find . -type f \\( -name \"*.cpp\" -o -name \"*.h\" \\) | while read -r file; do\n    # Avoid self-patching config.h\n    if [ \"$file\" = \"./src/config.h\" ]; then continue; fi\n  \n    if grep -q '#include \"config.h\"' \"$file\"; then\n      # Construct the relative path to the repository root:\n      #   strip \"./\", then create a string with a \"../\" for each slash in the path.\n      clean_path=${file#./}\n      relative_root=$(echo \"$clean_path\" | tr -cd '/' | sed 's|/|../|g')\n      \n      sed 's|#include \"config.h\"|#include \"'\"${relative_root}\"'src/config.h\"|g' \"$file\" > \"$file.tmp\" && mv \"$file.tmp\" \"$file\"\n    fi\n  done\n"
+              ]
+            }
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "",
+            "bazel_tools",
+            "bazel_tools"
+          ]
+        ]
+      }
+    },
     "//dependency_support/com_github_facebook_zstd:extension.bzl%zstd_extension": {
       "general": {
         "bzlTransitiveDigest": "3Gk4jrDeuAvwC/9h5g6ke9hYB6B8hmi3VlRx/Fvx5+U=",
@@ -746,7 +820,7 @@
     },
     "//dependency_support/llvm:extension.bzl%llvm_raw_ext": {
       "general": {
-        "bzlTransitiveDigest": "2/8H9EID63cgZ1X7ELUdp+P5aBbRuqDJBN0wT3ZnRrY=",
+        "bzlTransitiveDigest": "yDyvvV65EuVA/p2C1UAFCbxOdUmKwZQP8HvCzi66dYE=",
         "usagesDigest": "RRrequOfgwo6eIf1sG5DKJ5RMOK/Amf3nxP0UZMhsHE=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -757,7 +831,7 @@
             "ruleClassName": "http_archive",
             "attributes": {
               "build_file_content": "# empty",
-              "sha256": "849452cc51d3994aaff858e607d1148cd38b84ebae18f4b00b028c09879caec4",
+              "sha256": "de1e67f7290d93340a408ba5841966d129127de2104c304d7f761a4de101ece2",
               "patches": [
                 "@@//dependency_support/llvm:llvm.patch",
                 "@@//dependency_support/llvm:zlib-header.patch",
@@ -766,9 +840,9 @@
               "patch_args": [
                 "-p1"
               ],
-              "strip_prefix": "llvm-project-0b1fe74f079fd330e4d4d85ce33b7f5702da1be7",
+              "strip_prefix": "llvm-project-93b1f81e03ef4c717a9d222b46f78c38bcff0a3f",
               "urls": [
-                "https://github.com/llvm/llvm-project/archive/0b1fe74f079fd330e4d4d85ce33b7f5702da1be7.tar.gz"
+                "https://github.com/llvm/llvm-project/archive/93b1f81e03ef4c717a9d222b46f78c38bcff0a3f.tar.gz"
               ]
             }
           }
