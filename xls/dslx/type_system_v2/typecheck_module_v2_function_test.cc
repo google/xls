@@ -1145,7 +1145,7 @@ fn f() -> IntAlias { IntAlias:0 }
 
 TEST(TypecheckV2FunctionTest, ImportedEnumInFunction) {
   constexpr std::string_view kImported = R"(
-pub enum MyEnum {
+pub enum MyEnum : s8 {
   A = s8:0,
   B = -128,
   C = 127,

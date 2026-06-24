@@ -740,6 +740,20 @@ const Y = map([u32:1], X);)",
       TypecheckFails(HasSubstr(R"(Invocation callee `X` is not a function)")));
 }
 
+TEST(TypecheckV2BuiltinTest, MapSecondArgNonUnitSumConstructor) {
+  EXPECT_THAT(
+      R"(
+enum Option {
+  None,
+  Some(u32),
+}
+
+const Y = map([u32:1, u32:2], Option::Some);
+)",
+      TypecheckFails(AllOf(HasSubstr("Option::Some"),
+                           HasSubstr("cannot be used as a value"))));
+}
+
 TEST(TypecheckV2BuiltinTest, Map) {
   EXPECT_THAT(
       R"(

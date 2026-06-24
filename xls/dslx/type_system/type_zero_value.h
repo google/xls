@@ -33,6 +33,9 @@ namespace xls::dslx {
 // implicit, or the variant whose source discriminant is zero when they are
 // explicit. Recursively constructs zero values for that variant's payload.
 // Returns an error when no zero variant exists or its payload has no zero.
+// Parametric sums with explicit discriminants require an evaluated zero
+// selection on their concrete SumType; an unknown selection fails with
+// FailedPrecondition.
 absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
                                           const ImportData& import_data,
                                           const Span& span);

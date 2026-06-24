@@ -21,6 +21,7 @@
 #include <optional>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -82,7 +83,17 @@ absl::StatusOr<bool> HasKnownAllOnesValue(const EnumType& t,
 
 absl::StatusOr<const SumTypeVariant*> GetZeroDiscriminantVariant(
     const SumType& type, const ImportData& import_data) {
-  if (type.variant_count() == 0) {
+  if (const auto* selected =
+          std::get_if<std::reference_wrapper<const SumVariant>>(
+              &type.zero_selection())) {
+    auto it = std::find_if(type.variants().begin(), type.variants().end(),
+                           [&](const SumTypeVariant& variant) {
+                             return &variant.variant() == &selected->get();
+                           });
+    return &*it;
+  } else if (std::holds_alternative<SumType::NoZeroVariant>(
+                 type.zero_selection()) ||
+             type.variant_count() == 0) {
     return static_cast<const SumTypeVariant*>(nullptr);
   }
 
@@ -93,8 +104,14 @@ absl::StatusOr<const SumTypeVariant*> GetZeroDiscriminantVariant(
                   });
   if (!has_explicit_discriminants) {
     return &type.variants().front();
+  } else if (type.nominal_type().IsParametric()) {
+    return absl::FailedPreconditionError(absl::StrFormat(
+        "Zero-discriminant selection is unavailable for parametric sum '%s'.",
+        type.nominal_type().identifier()));
   }
 
+  // Manually constructed nonparametric types may not carry an evaluation
+  // result, so retain their declaration-based lookup.
   const SumDef& def = type.nominal_type();
   XLS_ASSIGN_OR_RETURN(const TypeInfo* type_info,
                        import_data.GetRootTypeInfoForNode(&def));

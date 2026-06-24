@@ -14,11 +14,15 @@
 
 #include "xls/dslx/type_system/type_zero_value.h"
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
@@ -31,6 +35,10 @@
 
 namespace xls::dslx {
 namespace {
+
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
+
 SumType MakeOuterSumWithInhabitedNestedSumPayload(Module& module) {
   const Span kFakeSpan = Span::Fake();
 
@@ -188,15 +196,19 @@ TEST(TypeZeroValueTest, UsesExplicitZeroDiscriminantInsteadOfDenseStorageTag) {
   sum_name->set_definer(sum_def);
   XLS_ASSERT_OK(tm.module->AddTop(sum_def, /*make_collision_error=*/nullptr));
 
-  std::vector<SumTypeVariant> variants;
-  std::vector<std::unique_ptr<Type>> request_members;
-  request_members.push_back(BitsType::MakeU8());
-  variants.push_back(
-      SumTypeVariant::MakeTuple(*request, std::move(request_members)));
-  std::vector<std::unique_ptr<Type>> idle_members;
-  idle_members.push_back(std::make_unique<BitsType>(false, 16));
-  variants.push_back(SumTypeVariant::MakeTuple(*idle, std::move(idle_members)));
-  SumType sum_type(*sum_def, std::move(variants));
+  auto make_type = [&](SumType::ZeroSelection selection) {
+    std::vector<SumTypeVariant> variants;
+    std::vector<std::unique_ptr<Type>> request_members;
+    request_members.push_back(BitsType::MakeU8());
+    variants.push_back(
+        SumTypeVariant::MakeTuple(*request, std::move(request_members)));
+    std::vector<std::unique_ptr<Type>> idle_members;
+    idle_members.push_back(std::make_unique<BitsType>(false, 16));
+    variants.push_back(
+        SumTypeVariant::MakeTuple(*idle, std::move(idle_members)));
+    return SumType(*sum_def, std::move(variants), selection);
+  };
+  SumType sum_type = make_type(SumType::UnknownZeroSelection{});
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue result,
                            MakeZeroValue(sum_type, import_data, span));
@@ -211,8 +223,55 @@ TEST(TypeZeroValueTest, UsesExplicitZeroDiscriminantInsteadOfDenseStorageTag) {
   EXPECT_TRUE(payload.at(1).GetBitsOrDie().IsZero());
   EXPECT_FALSE(MakeAllOnesValue(sum_type, import_data, span).ok());
 
+  SumType validated = make_type(std::cref(*idle));
+  tm.type_info->SetItem(sum_def, MetaType(validated.CloneToUnique()));
   tm.type_info->NoteConstExpr(idle_discriminant, InterpValue::MakeUBits(2, 2));
   EXPECT_FALSE(MakeZeroValue(sum_type, import_data, span).ok());
+
+  // TypeInfo and the zero macro both clone types. The validated choice must
+  // survive those copies without rereading changed declaration constants.
+  std::optional<Type*> stored_type = tm.type_info->GetItem(sum_def);
+  ASSERT_TRUE(stored_type.has_value());
+  const auto* stored = dynamic_cast<const MetaType*>(*stored_type);
+  ASSERT_NE(stored, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue copied_result,
+      MakeZeroValue(*stored->wrapped()->CloneToUnique(), import_data, span));
+  EXPECT_EQ(copied_result, result);
+
+  SumType absent = make_type(SumType::NoZeroVariant{});
+  tm.type_info->NoteConstExpr(idle_discriminant, InterpValue::MakeUBits(2, 0));
+  EXPECT_THAT(MakeZeroValue(*absent.CloneToUnique(), import_data, span),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("does not have a known zero value")));
+}
+
+TEST(TypeZeroValueTest, RejectsUnknownExplicitGenericZeroSelection) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+#![feature(type_inference_v2)]
+#![feature(generics)]
+enum E<N: u32>: u32 { A(u8) = N }
+)",
+                        "fake.x", "fake", &import_data, nullptr));
+  ASSERT_EQ(tm.module->GetSumDefs().size(), 1);
+  SumDef* def = tm.module->GetSumDefs().front();
+  const SumVariant* variant = def->variants().front();
+  std::vector<std::unique_ptr<Type>> members;
+  members.push_back(BitsType::MakeU8());
+  std::vector<SumTypeVariant> variants;
+  variants.push_back(SumTypeVariant::MakeTuple(*variant, std::move(members)));
+  SumType unknown(*def, std::move(variants));
+
+  // Even an available declaration value cannot identify this instantiation.
+  tm.type_info->NoteConstExpr(*variant->discriminant(),
+                              InterpValue::MakeU32(0));
+  EXPECT_THAT(
+      MakeZeroValue(unknown, import_data, tm.module->span()),
+      StatusIs(absl::StatusCode::kFailedPrecondition,
+               HasSubstr("Zero-discriminant selection is unavailable")));
 }
 
 TEST(TypeZeroValueTest, RejectsAnEmptySumWithoutAZeroVariant) {

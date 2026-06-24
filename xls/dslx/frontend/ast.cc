@@ -1166,11 +1166,13 @@ TypeAnnotation::~TypeAnnotation() = default;
 TypeRefTypeAnnotation::TypeRefTypeAnnotation(
     Module* owner, Span span, TypeRef* type_ref,
     std::vector<ExprOrType> parametrics,
-    std::optional<const StructInstanceBase*> instantiator)
+    std::optional<const StructInstanceBase*> instantiator,
+    std::optional<const SumInstance*> sum_instantiator)
     : TypeAnnotation(owner, std::move(span), kAnnotationKind),
       type_ref_(type_ref),
       parametrics_(std::move(parametrics)),
-      instantiator_(instantiator) {}
+      instantiator_(instantiator),
+      sum_instantiator_(sum_instantiator) {}
 
 TypeRefTypeAnnotation::~TypeRefTypeAnnotation() = default;
 

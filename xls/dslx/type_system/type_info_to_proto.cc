@@ -680,7 +680,11 @@ absl::StatusOr<std::unique_ptr<Type>> FromProto(const TypeProto& ctp,
       const SumType* expected_sum_type = nullptr;
       if (std::optional<Type*> nominal_type = root_type_info->GetItem(sum_def);
           nominal_type.has_value()) {
-        expected_sum_type = dynamic_cast<const SumType*>(*nominal_type);
+        const Type* type = *nominal_type;
+        if (type->IsMeta()) {
+          type = type->AsMeta().wrapped().get();
+        }
+        expected_sum_type = dynamic_cast<const SumType*>(type);
       }
       if (stp.variants_size() != sum_def->variants().size()) {
         return absl::InvalidArgumentError(absl::StrFormat(

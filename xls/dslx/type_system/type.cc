@@ -807,7 +807,8 @@ std::unique_ptr<Type> SumType::CloneToUnique() const {
   for (const SumTypeVariant& variant : variants_) {
     variants.push_back(variant.Clone());
   }
-  return std::make_unique<SumType>(sum_def_, std::move(variants));
+  return std::make_unique<SumType>(sum_def_, std::move(variants),
+                                   zero_selection_);
 }
 
 TypeDim SumType::storage_tag_bit_count() const {

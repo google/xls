@@ -724,7 +724,6 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
 
   AddSpawnTraitToProcDefs add_spawn_trait;
   XLS_RETURN_IF_ERROR(module.Accept(&add_spawn_trait));
-
   if (suppress_warnings_) {
     return absl::OkStatus();
   }

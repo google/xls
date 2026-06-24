@@ -14,14 +14,20 @@
 
 #include <string>
 #include <string_view>
+#include <variant>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 
@@ -219,6 +225,35 @@ struct S<M: u32, N: u32 = {M * 2}> {
 const X = S<16>{x: u16:4, y: u32:5};
 )",
       TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[16], y: uN[32] }")));
+}
+
+TEST(TypecheckV2StructTest, ReusesUnchangedComputedParametricDefault) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn calc() -> u32 { u32:2 + u32:2 }
+struct S<N: u32 = {calc()}> { x: uN[N] }
+const X = S { x: u4:1 };
+const Y = S { x: u4:2 };
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * def,
+                           result.tm.module->GetMemberOrError<StructDef>("S"));
+  const ParametricBinding* binding = def->parametric_bindings().front();
+  ASSERT_TRUE(binding->default_expr_or_type().has_value());
+  ASSERT_TRUE(std::holds_alternative<Expr*>(*binding->default_expr_or_type()));
+  const Expr* default_expr = std::get<Expr*>(*binding->default_expr_or_type());
+  ASSERT_EQ(default_expr->kind(), AstNodeKind::kInvocation);
+
+  // Clones retain their source span. Reusing the declaration's invocation
+  // preserves the constexpr cache key instead of converting one clone per use.
+  int converted_defaults = 0;
+  for (const auto& [node, type] : result.tm.type_info->dict()) {
+    if (node->kind() == AstNodeKind::kInvocation &&
+        node->GetSpan() == default_expr->GetSpan()) {
+      ++converted_defaults;
+    }
+  }
+  EXPECT_EQ(converted_defaults, 1);
+  EXPECT_THAT(result.tm.type_info->GetConstExpr(default_expr),
+              IsOkAndHolds(InterpValue::MakeU32(4)));
 }
 
 TEST(TypecheckV2StructTest, ParametricStructAsFunctionArgument) {

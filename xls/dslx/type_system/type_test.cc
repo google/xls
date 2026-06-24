@@ -16,17 +16,18 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -169,6 +170,42 @@ TEST(TypeTest, TestEnum) {
   EXPECT_EQ("MyEnum", t.ToString());
   EXPECT_EQ("MyEnum", t.ToInlayHintString());
   EXPECT_EQ("<no-file>:MyEnum", t.ToStringFullyQualified(file_table));
+}
+
+TEST(TypeTest, ZeroSelectionDoesNotChangeSumIdentityOrFormatting) {
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
+  auto* name = module.Make<NameDef>(kFakeSpan, "E", nullptr);
+  auto* a = module.Make<SumVariant>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "A", nullptr),
+      SumVariant::PayloadShape::kUnit, std::vector<TypeAnnotation*>{},
+      std::vector<StructMemberNode*>{});
+  auto* b = module.Make<SumVariant>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "B", nullptr),
+      SumVariant::PayloadShape::kUnit, std::vector<TypeAnnotation*>{},
+      std::vector<StructMemberNode*>{});
+  auto* def =
+      module.Make<SumDef>(kFakeSpan, name, std::vector<ParametricBinding*>{},
+                          std::vector<SumVariant*>{a, b}, /*is_public=*/false);
+  name->set_definer(def);
+  auto make_type = [&](SumType::ZeroSelection selection) {
+    std::vector<SumTypeVariant> variants;
+    variants.push_back(SumTypeVariant::MakeUnit(*a));
+    variants.push_back(SumTypeVariant::MakeUnit(*b));
+    return SumType(*def, std::move(variants), selection);
+  };
+
+  SumType first = make_type(std::cref(*a));
+  SumType second = make_type(std::cref(*b));
+  SumType absent = make_type(SumType::NoZeroVariant{});
+  SumType unknown = make_type(SumType::UnknownZeroSelection{});
+  EXPECT_EQ(first, second);
+  EXPECT_EQ(first, absent);
+  EXPECT_EQ(first, unknown);
+  EXPECT_EQ(first.ToString(), "E { A | B }");
+  EXPECT_EQ(second.ToString(), first.ToString());
+  EXPECT_EQ(absent.ToString(), first.ToString());
+  EXPECT_EQ(unknown.ToString(), first.ToString());
 }
 
 TEST(TypeTest, FunctionTypeU32ToS32) {

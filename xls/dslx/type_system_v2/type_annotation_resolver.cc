@@ -18,6 +18,8 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -51,6 +53,7 @@
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/inference_table_utils.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/parametric_type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/simplified_type_annotation_cache.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -61,6 +64,32 @@
 
 namespace xls::dslx {
 namespace {
+
+// Substitutes explicit sum parametrics into a payload member type using the
+// sum definition's binding order. Returns the original `member_type` for a
+// non-parametric sum or a reference with no parametric arguments.
+absl::StatusOr<const TypeAnnotation*> GetParametricFreeSumMemberType(
+    const TypeAnnotation* member_type, const SumRef& sum_ref,
+    InferenceTable& table, ImportData& import_data) {
+  if (!sum_ref.def->IsParametric() || sum_ref.parametrics.empty()) {
+    return member_type;
+  } else {
+    CHECK_GE(sum_ref.def->parametric_bindings().size(),
+             sum_ref.parametrics.size());
+    absl::flat_hash_map<const NameDef*, ExprOrType> actual_values;
+    for (int i = 0; i < sum_ref.parametrics.size(); ++i) {
+      const ParametricBinding* binding = sum_ref.def->parametric_bindings()[i];
+      XLS_ASSIGN_OR_RETURN(
+          ExprOrType argument,
+          NormalizeParametricArgument(*binding, sum_ref.parametrics[i], table,
+                                      import_data.file_table()));
+      actual_values.emplace(binding->name_def(), argument);
+    }
+    return GetParametricFreeType(member_type, actual_values, table, import_data,
+                                 /*real_self_type=*/std::nullopt,
+                                 /*clone_if_no_parametrics=*/false);
+  }
+}
 
 // A visitor that traverses a `TypeAnnotation` recursively until an annotation
 // is found of a kind which needs resolution (e.g. member or element type). If
@@ -374,7 +403,10 @@ class StatefulResolver : public TypeAnnotationResolver {
     absl::StatusOr<const TypeAnnotation*> result = UnifyTypeAnnotations(
         module_, table_, file_table_, error_generator_, evaluator_,
         parametric_struct_instantiator_, parametric_context, annotations, span,
-        import_data_);
+        import_data_, [&](const TypeAnnotation* annotation) {
+          return ResolveIndirectTypeAnnotations(
+              parametric_context, context_node, annotation, filter);
+        });
     if (!result.ok() && error_handler_ && context_node.has_value()) {
       absl::StatusOr<const TypeAnnotation*> handler_result =
           error_handler_(parametric_context, result.status(), *context_node,
@@ -590,6 +622,75 @@ class StatefulResolver : public TypeAnnotationResolver {
     return *final;
   }
 
+  absl::StatusOr<std::optional<SumConstructorRef>> GetSumConstructorTypeRef(
+      const TypeAnnotation* annotation) {
+    return ResolveSumConstructor(annotation, import_data_);
+  }
+
+  absl::StatusOr<const TypeAnnotation*> CreateSumConstructorTypeAnnotation(
+      const TypeAnnotation* sum_type, std::string_view constructor_name) {
+    XLS_RET_CHECK(sum_type->IsAnnotation<TypeRefTypeAnnotation>());
+    XLS_ASSIGN_OR_RETURN(AstNode * cloned_sum_type,
+                         table_.Clone(sum_type, &NoopCloneReplacer, &module_));
+    auto* constructor_ref = module_.Make<ColonRef>(
+        sum_type->span(),
+        absl::down_cast<TypeRefTypeAnnotation*>(cloned_sum_type),
+        std::string(constructor_name));
+    return module_.Make<TypeRefTypeAnnotation>(
+        sum_type->span(),
+        module_.Make<TypeRef>(sum_type->span(), constructor_ref),
+        std::vector<ExprOrType>{}, std::nullopt);
+  }
+
+  absl::StatusOr<SumRef> InstantiateSumRefForConstructorPayload(
+      std::optional<const ParametricContext*> parametric_context,
+      const TypeAnnotation* annotation, const SumRef& sum_ref) {
+    if (!sum_ref.def->IsParametric() ||
+        sum_ref.parametrics.size() ==
+            sum_ref.def->parametric_bindings().size() ||
+        !sum_ref.instantiator.has_value()) {
+      return sum_ref;
+    }
+
+    std::vector<InterpValue> explicit_parametrics;
+    explicit_parametrics.reserve(sum_ref.parametrics.size());
+    absl::flat_hash_map<const NameDef*, ExprOrType> prior_arguments;
+    for (int i = 0; i < sum_ref.parametrics.size(); ++i) {
+      const ParametricBinding* binding = sum_ref.def->parametric_bindings()[i];
+      XLS_ASSIGN_OR_RETURN(
+          ExprOrType parametric,
+          NormalizeParametricArgument(*binding, sum_ref.parametrics[i], table_,
+                                      file_table_));
+      if (std::holds_alternative<TypeAnnotation*>(parametric)) {
+        explicit_parametrics.push_back(InterpValue::MakeTypeReference(
+            std::get<TypeAnnotation*>(parametric)));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* binding_type,
+            GetParametricFreeType(binding->type_annotation(), prior_arguments,
+                                  table_, import_data_,
+                                  /*real_self_type=*/std::nullopt,
+                                  /*clone_if_no_parametrics=*/false));
+        XLS_ASSIGN_OR_RETURN(InterpValue value,
+                             evaluator_.Evaluate(ParametricContextScopedExpr(
+                                 parametric_context, binding_type,
+                                 std::get<Expr*>(parametric))));
+        explicit_parametrics.push_back(std::move(value));
+      }
+      prior_arguments.emplace(binding->name_def(), parametric);
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* instantiated_annotation,
+        parametric_struct_instantiator_.InstantiateParametricSum(
+            module_, annotation->span(), parametric_context, *sum_ref.def,
+            explicit_parametrics, {*sum_ref.instantiator}));
+    XLS_ASSIGN_OR_RETURN(std::optional<SumRef> instantiated_sum_ref,
+                         GetSumRef(instantiated_annotation, import_data_));
+    XLS_RET_CHECK(instantiated_sum_ref.has_value());
+    return *instantiated_sum_ref;
+  }
+
   // Converts `member_type` into a regular `TypeAnnotation` that expresses the
   // type of the given struct member independently of the struct type. For
   // example, if `member_type` refers to `SomeStruct.foo`, and the type
@@ -635,6 +736,74 @@ class StatefulResolver : public TypeAnnotationResolver {
                          GetEnumDef(object_type, import_data_));
     if (enum_def.has_value()) {
       return object_type;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<SumConstructorRef> sum_constructor_type_ref,
+        GetSumConstructorTypeRef(object_type));
+    if (sum_constructor_type_ref.has_value()) {
+      if (!sum_constructor_type_ref->variant->is_struct()) {
+        return TypeInferenceErrorStatus(
+            member_type->span(), nullptr,
+            absl::Substitute("No member `$0` in constructor `$1`.",
+                             member_type->member_name(),
+                             sum_constructor_type_ref->variant->identifier()),
+            file_table_);
+      }
+      XLS_ASSIGN_OR_RETURN(SumRef instantiated_sum_ref,
+                           InstantiateSumRefForConstructorPayload(
+                               parametric_context, object_type,
+                               sum_constructor_type_ref->sum_ref));
+      for (const StructMemberNode* member :
+           sum_constructor_type_ref->variant->struct_members()) {
+        if (member->name() == member_type->member_name()) {
+          return GetParametricFreeSumMemberType(
+              member->type(), instantiated_sum_ref, table_, import_data_);
+        }
+      }
+      return TypeInferenceErrorStatus(
+          member_type->span(), nullptr,
+          absl::Substitute("No member `$0` in constructor `$1`.",
+                           member_type->member_name(),
+                           sum_constructor_type_ref->variant->identifier()),
+          file_table_);
+    }
+    XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                         GetSumRef(object_type, import_data_));
+    if (sum_ref.has_value()) {
+      XLS_ASSIGN_OR_RETURN(SumRef instantiated_sum_ref,
+                           InstantiateSumRefForConstructorPayload(
+                               parametric_context, object_type, *sum_ref));
+      std::optional<const SumVariant*> variant =
+          instantiated_sum_ref.def->GetVariant(member_type->member_name());
+      if (!variant.has_value()) {
+        return TypeInferenceErrorStatus(
+            member_type->span(), nullptr,
+            absl::Substitute("No constructor `$0` in sum `$1`.",
+                             member_type->member_name(),
+                             instantiated_sum_ref.def->identifier()),
+            file_table_);
+      }
+      if ((*variant)->is_unit()) {
+        return object_type;
+      }
+      if ((*variant)->is_tuple()) {
+        std::vector<const TypeAnnotation*> param_types;
+        param_types.reserve((*variant)->tuple_members().size());
+        for (const TypeAnnotation* tuple_member : (*variant)->tuple_members()) {
+          XLS_ASSIGN_OR_RETURN(
+              const TypeAnnotation* param_type,
+              GetParametricFreeSumMemberType(tuple_member, instantiated_sum_ref,
+                                             table_, import_data_));
+          param_types.push_back(param_type);
+        }
+        TypeAnnotation* instantiated_sum_type =
+            CreateSumAnnotation(module_, instantiated_sum_ref);
+        return module_.Make<FunctionTypeAnnotation>(param_types,
+                                                    instantiated_sum_type);
+      }
+      return CreateSumConstructorTypeAnnotation(
+          CreateSumAnnotation(module_, instantiated_sum_ref),
+          (*variant)->identifier());
     }
     // It must be a struct then.
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,

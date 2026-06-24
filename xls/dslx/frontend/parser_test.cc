@@ -2816,6 +2816,226 @@ fn f(x: Option<u32>) -> Option<u32> {
   EXPECT_TRUE(std::holds_alternative<SumDef*>(*maybe_member.value()));
 }
 
+TEST_F(ParserTest, ParametricSemanticSumNamedConstructor) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+enum E<A: u32, B: u32> {
+    V { x: uN[A], y: uN[B] },
+}
+const X = E<u32:8>::V { y: u16:2, x: u8:1 };
+)";
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, ImportedParametricSemanticSumNamedConstructor) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+import imported;
+const X = imported::E<u32:8>::V { y: u16:2, x: u8:1 };
+)";
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, ParametricSemanticSumMatchSubjectPreservesBraces) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+enum E<N: u32> {
+    Unit,
+    V(uN[N]),
+}
+fn f() -> u32 {
+    match E<u32:8>::Unit {
+        E::Unit => u32:1,
+        _ => u32:0,
+    }
+}
+)";
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, ImportedParametricSemanticSumMatchSubjectPreservesBraces) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+import imported;
+fn f() -> u32 {
+    const match imported::E<u32:8>::Unit {
+        _ => u32:0,
+    }
+}
+)";
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, ParametricSemanticSumMatchSubjectWithNoArms) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+enum E<N: u32> {
+    Unit,
+    V(uN[N]),
+}
+fn f() {
+    match E<u32:8>::Unit {}
+}
+)";
+  // Exhaustiveness is checked after parsing. These braces belong to the match.
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, MatchWithAggregateLiteralSubjects) {
+  constexpr std::string_view kProgram = R"(#![feature(generics)]
+
+import imported;
+struct S<N: u32> {
+    x: uN[N],
+}
+enum E<N: u32> {
+    V { x: uN[N] },
+}
+fn local_struct() -> u32 {
+    match S<u32:8> { x: u8:1 } { _ => u32:0 }
+}
+fn imported_struct() -> u32 {
+    match imported::S<u32:8> { x: u8:1 } { _ => u32:0 }
+}
+fn local_sum() -> u32 {
+    match E<u32:8>::V { x: u8:1 } { _ => u32:0 }
+}
+fn imported_sum() -> u32 {
+    match imported::E<u32:8>::V { x: u8:1 } { _ => u32:0 }
+}
+fn empty() -> u32 {
+    match imported::Empty {} { _ => u32:0 }
+}
+fn shorthand(x: u32) -> u32 {
+    match imported::S { x } { _ => u32:0 }
+}
+fn splat(x: imported::S) -> u32 {
+    match imported::S { ..x } { _ => u32:0 }
+}
+)";
+  XLS_EXPECT_OK(Parse(kProgram));
+}
+
+TEST_F(ParserTest, EmptyMatchArmsLeaveOuterContinuations) {
+  const std::vector<std::pair<std::string_view, AstNodeKind>> continuations = {
+      {"+ u32:1", AstNodeKind::kBinop},
+      {"as u32", AstNodeKind::kCast},
+      {".member", AstNodeKind::kAttr},
+      {"[u32:0]", AstNodeKind::kIndex},
+  };
+  for (const auto& [suffix, kind] : continuations) {
+    std::string program = "import imported; fn f() { match imported::ZERO {} " +
+                          std::string(suffix) + " }";
+    SCOPED_TRACE(program);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(program));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             module->GetMemberOrError<Function>("f"));
+    Expr* expression =
+        std::get<Expr*>(f->body()->statements().back()->wrapped());
+    ASSERT_EQ(expression->kind(), kind);
+    std::vector<AstNode*> children = expression->GetChildren(false);
+    ASSERT_FALSE(children.empty());
+    auto* match = dynamic_cast<Match*>(children.front());
+    ASSERT_NE(match, nullptr);
+    EXPECT_TRUE(match->arms().empty());
+    EXPECT_EQ(match->matched()->ToString(), "imported::ZERO");
+  }
+}
+
+TEST_F(ParserTest, NestedMatchParsingAvoidsExponentialGrowth) {
+  struct MatchCase {
+    std::string_view prefix;
+    std::string_view suffix;
+    std::string_view leaf;
+    bool should_parse;
+  };
+  const MatchCase cases[] = {
+      {"match ", " + imported::ZERO { _ => u32:0 }", "u32:0", true},
+      {"match ", " { _ => u32:0 }", "u32:0 + missing", false},
+      {"match imported::S {} + ", " { _ => u32:0 }", "u32:0 + missing", false},
+  };
+  for (const MatchCase& input : cases) {
+    SCOPED_TRACE(input.prefix);
+    SCOPED_TRACE(input.leaf);
+    std::vector<int64_t> counts;
+    for (int64_t depth : {4, 8}) {
+      std::string expression(input.leaf);
+      for (int64_t i = 0; i < depth; ++i) {
+        expression =
+            std::string(input.prefix) + expression + std::string(input.suffix);
+      }
+      std::string program = "import imported; fn f() { " + expression + " }";
+      SCOPED_TRACE(program);
+      absl::StatusOr<std::unique_ptr<Module>> parsed = Parse(program);
+      if (input.should_parse) {
+        XLS_EXPECT_OK(parsed);
+      } else {
+        EXPECT_THAT(
+            parsed,
+            StatusIs(
+                absl::StatusCode::kInvalidArgument,
+                HasSubstr("Cannot find a definition for name: \"missing\"")));
+      }
+      Module* module = parsed.ok() ? parsed->get() : &parser_->module();
+      Span source_span(Pos(Fileno(0), 0, 0), Pos(Fileno(0), 0, program.size()));
+      counts.push_back(module->FindContained(source_span).size());
+    }
+    // Include abandoned trial nodes, not just nodes reachable from the final
+    // AST. This loose growth bound permits reparsing but rejects doubling the
+    // work for each added match, on both accepted and rejected input.
+    EXPECT_GT(counts.front(), 0);
+    EXPECT_LT(counts.back(), 12 * counts.front());
+  }
+}
+
+TEST_F(ParserTest, MatchRetryRebindsNestedBlockReferences) {
+  constexpr std::string_view kProgram = R"(
+import imported;
+fn f() {
+    match ({
+        let x = u32:1;
+        match x + imported::ZERO { _ => x }
+    }) + imported::ZERO { _ => u32:0 }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("f"));
+  auto* outer = dynamic_cast<Match*>(
+      std::get<Expr*>(f->body()->statements().back()->wrapped()));
+  ASSERT_NE(outer, nullptr);
+  auto* outer_subject = dynamic_cast<Binop*>(outer->matched());
+  ASSERT_NE(outer_subject, nullptr);
+  auto* block = dynamic_cast<StatementBlock*>(outer_subject->lhs());
+  ASSERT_NE(block, nullptr);
+  ASSERT_EQ(block->statements().size(), 2);
+  auto* let = std::get<Let*>(block->statements().front()->wrapped());
+  NameDef* name_def = std::get<NameDef*>(let->pattern());
+  auto* inner = dynamic_cast<Match*>(
+      std::get<Expr*>(block->statements().back()->wrapped()));
+  ASSERT_NE(inner, nullptr);
+  auto* inner_subject = dynamic_cast<Binop*>(inner->matched());
+  ASSERT_NE(inner_subject, nullptr);
+  auto* ref = dynamic_cast<NameRef*>(inner_subject->lhs());
+  ASSERT_NE(ref, nullptr);
+  EXPECT_EQ(std::get<const NameDef*>(ref->name_def()), name_def);
+  ASSERT_EQ(inner->arms().size(), 1);
+  auto* arm_ref = dynamic_cast<NameRef*>(inner->arms().front()->expr());
+  ASSERT_NE(arm_ref, nullptr);
+  EXPECT_EQ(std::get<const NameDef*>(arm_ref->name_def()), name_def);
+}
+
+TEST_F(ParserTest, MatchRetriesTupleCastAtShallowerDepth) {
+  // The tuple-cast fallback visits the array dimension with more available
+  // depth than the initial parenthesized-expression trial.
+  std::string program =
+      "import imported; fn f(x: u32) { "
+      "match (u32[match imported::S { field: " +
+      std::string(23, '!') +
+      "x } { _ => u32:1 }],):(u32[1]:[u32:0],) { _ => u32:0 } }";
+  XLS_EXPECT_OK(Parse(program));
+}
+
 TEST_F(ParserTest, SemanticSumSupportsExplicitDiscriminants) {
   std::unique_ptr<Module> module = RoundTrip(R"(enum Message : u3 {
     Idle() = 0,

@@ -1263,7 +1263,6 @@ TEST(InterpValueHelpersTest, ValueToInterpValueSumRejectsInvalidTag) {
   EXPECT_THAT(
       ValueToInterpValue(raw, &sum_type),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("invalid tag")));
-
   Value narrow_tag =
       Value::Tuple({Value(UBits(0, 1)),
                     Value::Tuple({Value(UBits(0, 8)), Value(UBits(0, 16))})});

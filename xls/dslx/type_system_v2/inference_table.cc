@@ -747,7 +747,8 @@ class InferenceTableImpl : public InferenceTable {
                 absl::down_cast<const TypeAnnotation*>(new_node), flag);
           }
         }
-        if (old_node->kind() == AstNodeKind::kColonRef) {
+        if (old_node->kind() == AstNodeKind::kColonRef &&
+            new_node->kind() == AstNodeKind::kColonRef) {
           const auto* old_node_as_colon_ref =
               absl::down_cast<const ColonRef*>(old_node);
           std::optional<const AstNode*> target =

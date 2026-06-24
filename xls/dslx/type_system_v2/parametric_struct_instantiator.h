@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -54,6 +55,15 @@ class ParametricStructInstantiator {
       const StructDefBase& def,
       const std::vector<InterpValue>& explicit_parametrics,
       std::optional<const StructInstanceBase*> instantiator_node) = 0;
+
+  // Instantiates a parametric semantic sum, inferring implicit parametrics from
+  // all constructor payloads associated with the same type variable.
+  virtual absl::StatusOr<const TypeAnnotation*> InstantiateParametricSum(
+      Module& module, const Span& span,
+      std::optional<const ParametricContext*> parent_context,
+      const SumDef& sum_def,
+      const std::vector<InterpValue>& explicit_parametrics,
+      absl::Span<const SumInstance* const> instantiator_nodes) = 0;
 
   // Converts the `member_type` of some member of the entity referenced by
   // `struct_or_proc_ref` into a form that has any struct parametrics replaced

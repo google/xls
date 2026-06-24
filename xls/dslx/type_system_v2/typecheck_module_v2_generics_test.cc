@@ -1492,7 +1492,7 @@ impl S<T, C> {
 
 const FIVE = S<u16, u32:5>::CONST;
 )",
-      TypecheckFails(HasSizeMismatch("uN[32]", "uN[16]")));
+      TypecheckFails(HasSizeMismatch("u32", "u16")));
 }
 
 TEST(TypecheckV2GenericsTest,
@@ -1509,7 +1509,7 @@ impl S<T, C> {
 
 const FIVE_STRUCT = S<u16, u32:5>{};
 )",
-      TypecheckFails(HasSizeMismatch("uN[32]", "uN[16]")));
+      TypecheckFails(HasSizeMismatch("u32", "u16")));
 }
 
 TEST(TypecheckV2GenericsTest,
@@ -1527,7 +1527,7 @@ impl S<T, C> {
 const FIVE = u32:5;
 const FIVE_STRUCT = S<u16, FIVE>{};
 )",
-      TypecheckFails(HasSizeMismatch("uN[32]", "uN[16]")));
+      TypecheckFails(HasSizeMismatch("u32", "u16")));
 }
 
 TEST(TypecheckV2GenericsTest, StructConstantAndTypeDefinedByNestedParametrics) {

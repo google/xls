@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/dslx/type_system_v2/inference_table_utils.h"
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -54,7 +56,250 @@ bool IsAbstractStructOrProcRef(const StructOrProcRef& ref) {
          ref.parametrics.size();
 }
 
+bool IsAbstractSumRef(const SumRef& ref) {
+  return GetRequiredParametricBindings(ref.def->parametric_bindings()).size() >
+         ref.parametrics.size();
+}
+
+absl::StatusOr<const TypeAnnotation*> GetTypeArgumentAnnotation(
+    ExprOrType argument, const InferenceTable& table,
+    const FileTable& file_table) {
+  if (std::holds_alternative<TypeAnnotation*>(argument)) {
+    return std::get<TypeAnnotation*>(argument);
+  } else {
+    const Expr* expr = std::get<Expr*>(argument);
+    if (IsColonRefWithTypeTarget(table, expr)) {
+      std::optional<const TypeAnnotation*> annotation =
+          table.GetTypeAnnotation(expr);
+      if (annotation.has_value()) {
+        return *annotation;
+      }
+    }
+    return TypeInferenceErrorStatus(
+        expr->span(), nullptr,
+        absl::Substitute("Expected parametric type, saw `$0`",
+                         expr->ToString()),
+        file_table);
+  }
+}
+
 }  // namespace
+
+absl::StatusOr<ExprOrType> NormalizeParametricArgument(
+    const ParametricBinding& binding, ExprOrType argument,
+    const InferenceTable& table, const FileTable& file_table) {
+  if (binding.type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* type,
+        GetTypeArgumentAnnotation(argument, table, file_table));
+    return ExprOrType(const_cast<TypeAnnotation*>(type));
+  } else if (std::holds_alternative<TypeAnnotation*>(argument) ||
+             IsColonRefWithTypeTarget(table, std::get<Expr*>(argument))) {
+    const AstNode* node = ToAstNode(argument);
+    return TypeInferenceErrorStatus(
+        *node->GetSpan(), nullptr,
+        absl::Substitute("Expected parametric value, saw `$0`",
+                         node->ToString()),
+        file_table);
+  } else {
+    return argument;
+  }
+}
+
+absl::StatusOr<const TypeAnnotation*> SubstituteTypeParametrics(
+    const TypeAnnotation* type,
+    const absl::flat_hash_map<const NameDef*, ExprOrType>& actual_values,
+    InferenceTable& table, std::optional<const TypeAnnotation*> real_self_type,
+    bool clone_if_no_parametrics) {
+  // Whole-type replacements do not necessarily have traversable NameRefs.
+  // Use the same lookup when checking for substitutions and applying them.
+  auto get_type_replacement =
+      [&](const AstNode* node) -> absl::StatusOr<const AstNode*> {
+    const AstNode* replacement = nullptr;
+    if (node->kind() == AstNodeKind::kTypeAnnotation) {
+      const auto* annotation = absl::down_cast<const TypeAnnotation*>(node);
+      if (real_self_type.has_value() &&
+          annotation->IsAnnotation<SelfTypeAnnotation>()) {
+        replacement = *real_self_type;
+      } else {
+        const NameDef* name_def = nullptr;
+        if (annotation->IsAnnotation<TypeVariableTypeAnnotation>()) {
+          name_def = std::get<const NameDef*>(
+              annotation->AsAnnotation<TypeVariableTypeAnnotation>()
+                  ->type_variable()
+                  ->name_def());
+        } else if (annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+          // Type aliases in impls use TypeRefTypeAnnotations, not TVTAs.
+          TypeDefinition definition =
+              annotation->AsAnnotation<TypeRefTypeAnnotation>()
+                  ->type_ref()
+                  ->type_definition();
+          if (std::holds_alternative<TypeAlias*>(definition)) {
+            name_def = &std::get<TypeAlias*>(definition)->name_def();
+          }
+        }
+        if (name_def != nullptr) {
+          const auto it = actual_values.find(name_def);
+          if (it != actual_values.end()) {
+            XLS_ASSIGN_OR_RETURN(
+                replacement,
+                GetTypeArgumentAnnotation(it->second, table,
+                                          *type->owner()->file_table()));
+          }
+        }
+      }
+    }
+    return replacement;
+  };
+
+  if (!clone_if_no_parametrics) {
+    XLS_ASSIGN_OR_RETURN(std::vector<const AstNode*> nodes,
+                         CollectUnder(type, /*want_types=*/true));
+    bool needs_substitution = false;
+    for (const AstNode* node : nodes) {
+      XLS_ASSIGN_OR_RETURN(const AstNode* replacement,
+                           get_type_replacement(node));
+      if (replacement != nullptr) {
+        needs_substitution = true;
+      } else if (node->kind() == AstNodeKind::kNameRef) {
+        const auto* ref = absl::down_cast<const NameRef*>(node);
+        needs_substitution =
+            std::holds_alternative<const NameDef*>(ref->name_def()) &&
+            actual_values.contains(std::get<const NameDef*>(ref->name_def()));
+      }
+      if (needs_substitution) {
+        break;
+      }
+    }
+    if (!needs_substitution) {
+      return type;
+    }
+  }
+
+  CloneReplacer replacer = ChainCloneReplacers(
+      &PreserveTypeDefinitionsReplacer,
+      ChainCloneReplacers(
+          NameRefMapper(table, actual_values, type->owner(),
+                        /*add_parametric_binding_type_annotation=*/true),
+          [&](const AstNode* node, Module*,
+              const absl::flat_hash_map<const AstNode*, AstNode*>&)
+              -> absl::StatusOr<std::optional<AstNode*>> {
+            // Leave attrs in place; they never need parametric replacement
+            // here.
+            if (node->kind() == AstNodeKind::kAttr) {
+              return const_cast<AstNode*>(node);
+            }
+            return std::nullopt;
+          }));
+
+  replacer = ChainCloneReplacers(
+      std::move(replacer),
+      [&](const AstNode* node, Module* module,
+          const absl::flat_hash_map<const AstNode*, AstNode*>&)
+          -> absl::StatusOr<std::optional<AstNode*>> {
+        if (const auto* colon_ref = dynamic_cast<const ColonRef*>(node)) {
+          XLS_ASSIGN_OR_RETURN(
+              const AstNode* subject_replacement,
+              get_type_replacement(ToAstNode(colon_ref->subject())));
+          if (subject_replacement != nullptr) {
+            const auto* subject =
+                absl::down_cast<const TypeAnnotation*>(subject_replacement);
+            const auto* type_ref_annotation =
+                dynamic_cast<const TypeRefTypeAnnotation*>(subject);
+            const TypeAlias* subject_alias = nullptr;
+            if (type_ref_annotation != nullptr &&
+                std::holds_alternative<TypeAlias*>(
+                    type_ref_annotation->type_ref()->type_definition())) {
+              subject_alias = std::get<TypeAlias*>(
+                  type_ref_annotation->type_ref()->type_definition());
+            }
+            if (subject->IsAnnotation<BuiltinTypeAnnotation>()) {
+              // A primitive annotation cannot itself be a ColonRef subject.
+              // Keep the ordinary builtin reference and defer member semantics
+              // to the same population and evaluation path as u32::ZERO.
+              const auto* builtin =
+                  subject->AsAnnotation<BuiltinTypeAnnotation>();
+              const auto& name = builtin->builtin_name_def()->identifier();
+              auto* name_ref = module->Make<NameRef>(
+                  colon_ref->span(), name,
+                  module->GetOrCreateBuiltinNameDef(name));
+              return module->Make<ColonRef>(colon_ref->span(), name_ref,
+                                            colon_ref->attr(),
+                                            colon_ref->in_parens());
+            } else if (subject_alias != nullptr &&
+                       type_ref_annotation->parametrics().empty()) {
+              // Use the ordinary alias member form so later alias resolution
+              // cannot replace a ColonRef subject with a primitive annotation.
+              auto* name_ref = module->Make<NameRef>(
+                  colon_ref->span(), subject_alias->name_def().identifier(),
+                  &subject_alias->name_def());
+              return module->Make<ColonRef>(colon_ref->span(), name_ref,
+                                            colon_ref->attr(),
+                                            colon_ref->in_parens());
+            } else if ((subject->IsAnnotation<ArrayTypeAnnotation>() &&
+                        GetSignednessAndBitCount(subject).ok()) ||
+                       subject_alias != nullptr) {
+              // Keep dimension expressions and alias arguments reachable for
+              // subsequent substitution, population, and evaluation. A
+              // detached alias would hide them behind the NameRef's borrowed
+              // definition.
+              XLS_ASSIGN_OR_RETURN(
+                  subject, SubstituteTypeParametrics(
+                               subject, actual_values, table, real_self_type,
+                               /*clone_if_no_parametrics=*/false));
+              XLS_ASSIGN_OR_RETURN(
+                  (absl::flat_hash_map<const AstNode*, AstNode*>
+                       subject_clones),
+                  CloneAstAndGetAllPairs(subject, module,
+                                         &PreserveTypeDefinitionsReplacer));
+              auto* name_def = module->Make<NameDef>(
+                  colon_ref->span(), "Subject", /*definer=*/nullptr);
+              auto* alias = module->Make<TypeAlias>(
+                  colon_ref->span(), *name_def,
+                  *absl::down_cast<TypeAnnotation*>(subject_clones.at(subject)),
+                  /*is_public=*/false);
+              name_def->set_definer(alias);
+              auto* member = module->Make<ColonRef>(
+                  colon_ref->span(),
+                  module->Make<NameRef>(colon_ref->span(),
+                                        name_def->identifier(), name_def),
+                  colon_ref->attr());
+              auto* block = module->Make<StatementBlock>(
+                  colon_ref->span(),
+                  std::vector<Statement*>{module->Make<Statement>(alias),
+                                          module->Make<Statement>(member)},
+                  /*trailing_semi=*/false);
+              block->set_in_parens(colon_ref->in_parens());
+              return block;
+            } else if (!subject->IsAnnotation<TypeRefTypeAnnotation>() &&
+                       !subject->IsAnnotation<TypeVariableTypeAnnotation>() &&
+                       !subject->IsAnnotation<SelfTypeAnnotation>()) {
+              return TypeInferenceErrorStatusForAnnotation(
+                  colon_ref->span(), subject,
+                  absl::Substitute("Type `$0` has no member `$1`.",
+                                   subject->ToString(), colon_ref->attr()),
+                  *module->file_table());
+            }
+          }
+        }
+        XLS_ASSIGN_OR_RETURN(const AstNode* replacement,
+                             get_type_replacement(node));
+        if (replacement == nullptr) {
+          return std::nullopt;
+        } else if (absl::down_cast<const TypeAnnotation*>(node)
+                       ->IsAnnotation<SelfTypeAnnotation>()) {
+          return table.Clone(replacement, &NoopCloneReplacer, type->owner());
+        } else {
+          return const_cast<AstNode*>(replacement);
+        }
+      });
+
+  XLS_ASSIGN_OR_RETURN(
+      (absl::flat_hash_map<const AstNode*, AstNode*> clones),
+      CloneAstAndGetAllPairs(type, type->owner(), std::move(replacer)));
+  AstNode* result = clones.at(type);
+  return absl::down_cast<const TypeAnnotation*>(result);
+}
 
 absl::StatusOr<Number*> MakeTypeCheckedNumber(
     Module& module, InferenceTable& table, const Span& span,
@@ -158,6 +403,7 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr) {
   return colon_ref_target.has_value() &&
          ((*colon_ref_target)->kind() == AstNodeKind::kTypeAlias ||
           (*colon_ref_target)->kind() == AstNodeKind::kEnumDef ||
+          (*colon_ref_target)->kind() == AstNodeKind::kSumDef ||
           (*colon_ref_target)->kind() == AstNodeKind::kTypeAnnotation);
 }
 
@@ -189,26 +435,42 @@ CloneReplacer NameRefMapper(
         table->Clone(ToAstNode(it->second), &PreserveTypeDefinitionsReplacer,
                      module_for_clone));
 
-    if (!add_parametric_binding_type_annotation ||
-        name_def->parent()->kind() != AstNodeKind::kParametricBinding) {
-      return clone;
-    }
-
-    // Note that within direct children of type annotations or indices, we
-    // generally do not need the `add_parametric_binding_type_annotation`
-    // behavior in order to infer the correct type for the literal. Since adding
-    // it hurts error message readability, we filter out those cases here, even
-    // though adding the annotation would technically be equally correct. For
-    // example, we filter out `uN[5]` from the behavior but not `uN[5 + X]`.
-    if (clone->kind() == AstNodeKind::kNumber &&
-        (ref->parent() == nullptr ||
-         (ref->parent()->kind() != AstNodeKind::kIndex &&
-          ref->parent()->kind() != AstNodeKind::kTypeAnnotation))) {
-      absl::down_cast<Number*>(clone)->SetTypeAnnotation(
-          absl::down_cast<TypeAnnotation*>(
-              absl::down_cast<ParametricBinding*>(name_def->parent())
-                  ->type_annotation()),
-          /*update_span=*/false);
+    if (clone->kind() == AstNodeKind::kNumber) {
+      auto* number = absl::down_cast<Number*>(clone);
+      auto* binding =
+          name_def->parent()->kind() == AstNodeKind::kParametricBinding
+              ? absl::down_cast<ParametricBinding*>(name_def->parent())
+              : nullptr;
+      const bool add_binding_type =
+          add_parametric_binding_type_annotation && binding != nullptr &&
+          (ref->parent() == nullptr ||
+           (ref->parent()->kind() != AstNodeKind::kIndex &&
+            ref->parent()->kind() != AstNodeKind::kTypeAnnotation));
+      auto* binding_type =
+          add_binding_type ? binding->type_annotation() : nullptr;
+      if (binding_type != nullptr &&
+          binding_type->IsAnnotation<BuiltinTypeAnnotation>() &&
+          binding_type->AsAnnotation<BuiltinTypeAnnotation>()->GetBitCount() >
+              0) {
+        // A concrete declared width takes precedence over a cloned default's
+        // incidental minimal width. Dependent types retain the actual's type.
+        number->SetTypeAnnotation(binding_type, /*update_span=*/false);
+      } else if (number->type_annotation() == nullptr) {
+        std::optional<const TypeAnnotation*> known_type =
+            table->GetTypeAnnotation(number);
+        if (known_type.has_value()) {
+          // MakeTypeCheckedNumber may record its concrete type only in the
+          // table. Preserve it in the AST through later cloning/population,
+          // rather than reattaching an unresolved formal binding type.
+          number->SetTypeAnnotation(const_cast<TypeAnnotation*>(*known_type),
+                                    /*update_span=*/false);
+        } else if (binding_type != nullptr) {
+          // Untyped values still need the binding's width in expressions like
+          // `uN[5 + X]`. Direct dimensions such as `uN[5]` do not need the
+          // prefix.
+          number->SetTypeAnnotation(binding_type, /*update_span=*/false);
+        }
+      }
     }
     return clone;
   };
@@ -217,12 +479,17 @@ CloneReplacer NameRefMapper(
 absl::StatusOr<bool> IsReferenceToAbstractType(const AstNode* node,
                                                const ImportData& import_data,
                                                const InferenceTable& table) {
-  std::optional<StructOrProcRef> ref;
+  std::optional<StructOrProcRef> struct_or_proc_ref;
+  std::optional<SumRef> sum_ref;
   if (node->kind() == AstNodeKind::kColonRef &&
       IsColonRefWithTypeTarget(table, absl::down_cast<const ColonRef*>(node))) {
     XLS_ASSIGN_OR_RETURN(
-        ref, GetStructOrProcRef(absl::down_cast<const ColonRef*>(node),
-                                import_data));
+        struct_or_proc_ref,
+        GetStructOrProcRef(absl::down_cast<const ColonRef*>(node),
+                           import_data));
+    XLS_ASSIGN_OR_RETURN(
+        sum_ref,
+        GetSumRef(absl::down_cast<const ColonRef*>(node), import_data));
   } else if (node->kind() == AstNodeKind::kTypeAlias ||
              (node->kind() == AstNodeKind::kNameDef &&
               node->parent() != nullptr &&
@@ -232,9 +499,14 @@ absl::StatusOr<bool> IsReferenceToAbstractType(const AstNode* node,
             ? absl::down_cast<const TypeAlias*>(node)
             : absl::down_cast<const TypeAlias*>(node->parent());
     XLS_ASSIGN_OR_RETURN(
-        ref, GetStructOrProcRef(&alias->type_annotation(), import_data));
+        struct_or_proc_ref,
+        GetStructOrProcRef(&alias->type_annotation(), import_data));
+    XLS_ASSIGN_OR_RETURN(sum_ref,
+                         GetSumRef(&alias->type_annotation(), import_data));
   }
-  return ref.has_value() && IsAbstractStructOrProcRef(*ref);
+  return (struct_or_proc_ref.has_value() &&
+          IsAbstractStructOrProcRef(*struct_or_proc_ref)) ||
+         (sum_ref.has_value() && IsAbstractSumRef(*sum_ref));
 }
 
 absl::StatusOr<std::optional<ColonRef*>> ConvertGenericColonRefToDirect(
@@ -273,6 +545,19 @@ absl::StatusOr<std::optional<ColonRef*>> ConvertGenericColonRefToDirect(
                 const_cast<StructDef*>(absl::down_cast<const StructDef*>(
                     struct_or_proc_ref->def))),
             struct_or_proc_ref->parametrics),
+        colon_ref->attr());
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::optional<SumRef> sum_ref,
+                       GetSumRef(actual_type, import_data));
+  if (sum_ref.has_value()) {
+    return name_def->owner()->Make<ColonRef>(
+        Span::None(),
+        name_def->owner()->Make<TypeRefTypeAnnotation>(
+            Span::None(),
+            name_def->owner()->Make<TypeRef>(Span::None(),
+                                             const_cast<SumDef*>(sum_ref->def)),
+            sum_ref->parametrics),
         colon_ref->attr());
   }
 

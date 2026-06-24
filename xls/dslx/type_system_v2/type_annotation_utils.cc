@@ -111,6 +111,19 @@ TypeAnnotation* CreateStructOrProcAnnotation(Module& module,
                                       ref.parametrics, std::nullopt);
 }
 
+TypeAnnotation* CreateSumAnnotation(
+    Module& module, SumDef* def, std::vector<ExprOrType> parametrics,
+    std::optional<const SumInstance*> instantiator) {
+  return module.Make<TypeRefTypeAnnotation>(
+      def->span(), module.Make<TypeRef>(def->span(), def),
+      std::move(parametrics), std::nullopt, instantiator);
+}
+
+TypeAnnotation* CreateSumAnnotation(Module& module, const SumRef& ref) {
+  return CreateSumAnnotation(module, const_cast<SumDef*>(ref.def),
+                             ref.parametrics, ref.instantiator);
+}
+
 ChannelTypeAnnotation* GetChannelArrayElementType(
     Module& module, const ChannelTypeAnnotation* channel_array_type) {
   std::optional<std::vector<Expr*>> rest_of_dims;
@@ -242,18 +255,18 @@ absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
   switch (number.number_kind()) {
     case NumberKind::kCharacter:
       return module.Make<BuiltinTypeAnnotation>(
-          Span::None(), BuiltinType::kU8,
+          number.span(), BuiltinType::kU8,
           module.GetOrCreateBuiltinNameDef("u8"));
     case NumberKind::kBool:
       return module.Make<BuiltinTypeAnnotation>(
-          Span::None(), BuiltinType::kBool,
+          number.span(), BuiltinType::kBool,
           module.GetOrCreateBuiltinNameDef("bool"));
     case NumberKind::kOther:
       XLS_ASSIGN_OR_RETURN((auto [sign, magnitude]),
                            GetSignAndMagnitude(number.text()));
       XLS_ASSIGN_OR_RETURN(Bits raw_bits, ParseNumber(number.text()));
       const bool is_negative = sign == Sign::kNegative;
-      return CreateUnOrSnAnnotation(module, Span::None(), is_negative,
+      return CreateUnOrSnAnnotation(module, number.span(), is_negative,
                                     raw_bits.bit_count());
   }
 }
