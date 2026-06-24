@@ -846,14 +846,38 @@ class SumTypeVariant {
 // variant.
 class SumType : public Type {
  public:
+  enum class ZeroSelectionState {
+    kUnspecified,
+    kNoZeroVariant,
+  };
+
+  // The variant selected for zero for this concrete type: the first variant
+  // with implicit discriminants, or the one with explicit discriminant zero.
+  // kUnspecified means no evaluation result was supplied; kNoZeroVariant means
+  // validation proved that none exists. A selected variant still requires a
+  // zero-constructible payload. Its original declaration must outlive this
+  // type. For parametric sums with explicit discriminants, zero construction
+  // requires an evaluated result; kUnspecified is insufficient.
+  using ZeroSelection = std::variant<ZeroSelectionState,
+                                     std::reference_wrapper<const SumVariant>>;
+
   // `variants` must be in the same declaration order as `sum_def.variants()`.
   // `SumType` uses the vector order exactly as supplied when deriving tag
-  // numbering and payload-slot layout.
-  SumType(const SumDef& sum_def, std::vector<SumTypeVariant> variants)
-      : sum_def_(sum_def), variants_(std::move(variants)) {
+  // numbering and payload-slot layout. A known zero selection must refer to
+  // one of the original variants of `sum_def`.
+  SumType(const SumDef& sum_def, std::vector<SumTypeVariant> variants,
+          ZeroSelection zero_selection = ZeroSelectionState::kUnspecified)
+      : sum_def_(sum_def),
+        variants_(std::move(variants)),
+        zero_selection_(zero_selection) {
     CHECK_EQ(variants_.size(), sum_def_.variants().size());
     for (int64_t i = 0; i < variants_.size(); ++i) {
       CHECK_EQ(&variants_[i].variant(), sum_def_.variants()[i]);
+    }
+    if (const auto* selected =
+            std::get_if<std::reference_wrapper<const SumVariant>>(
+                &zero_selection_)) {
+      CHECK(absl::c_linear_search(sum_def_.variants(), &selected->get()));
     }
   }
 
@@ -880,6 +904,7 @@ class SumType : public Type {
 
   const SumDef& nominal_type() const { return sum_def_; }
   const std::vector<SumTypeVariant>& variants() const { return variants_; }
+  const ZeroSelection& zero_selection() const { return zero_selection_; }
 
   int64_t variant_count() const { return variants_.size(); }
   // Returns the dense storage-tag width, not the source discriminant width.
@@ -888,6 +913,7 @@ class SumType : public Type {
  private:
   const SumDef& sum_def_;
   std::vector<SumTypeVariant> variants_;
+  const ZeroSelection zero_selection_;
 };
 
 // This represents the type of annotations like:

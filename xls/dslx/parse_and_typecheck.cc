@@ -111,7 +111,6 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   std::string_view module_name = module->name();
 
   WarningCollector warnings(import_data->enabled_warnings());
-  Module* module_ptr = module.get();
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(module_name));
 
@@ -125,11 +124,10 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
                             ? std::nullopt
                             : std::make_optional(trait_deriver)));
 
-  TypeInfo* type_info = module_info->type_info();
-  XLS_RETURN_IF_ERROR(
-      import_data->Put(subject, std::move(module_info)).status());
-  return TypecheckedModule{.module = module_ptr,
-                           .type_info = type_info,
+  XLS_ASSIGN_OR_RETURN(ModuleInfo * stored,
+                       import_data->Put(subject, std::move(module_info)));
+  return TypecheckedModule{.module = &stored->module(),
+                           .type_info = stored->type_info(),
                            .warnings = std::move(warnings)};
 }
 

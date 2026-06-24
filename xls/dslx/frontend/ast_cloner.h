@@ -45,6 +45,13 @@ using CloneReplacer =
         const AstNode*, Module*,
         const absl::flat_hash_map<const AstNode*, AstNode*>&)>;
 
+// Rewrites an ordinary clone after its children have been cloned and rewritten.
+// The arguments are the original node and its clone. Return the clone unchanged
+// or a replacement allocated in the clone's module. The result must preserve
+// the node type required by its parents and references.
+using ClonePostReplacer =
+    absl::AnyInvocable<absl::StatusOr<AstNode*>(const AstNode*, AstNode*)>;
+
 // This function is directly usable as the `replacer` argument for `CloneAst`
 // when a direct clone with no replacements is desired.
 inline std::optional<AstNode*> NoopCloneReplacer(
@@ -110,8 +117,14 @@ CloneAstAndGetAllPairs(const AstNode* root,
                        std::optional<Module*> target_module,
                        CloneReplacer replacer = &NoopCloneReplacer);
 
+// Clones the module with one shared node mapping. When supplied,
+// `post_replacer` runs after each ordinary node clone, before its parent
+// consumes the result. Already-mapped nodes and wholesale `replacer`
+// replacements do not invoke it. Cloned attributes are applied to the final
+// result of `post_replacer`.
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(
-    const Module& module, CloneReplacer replacer = &NoopCloneReplacer);
+    const Module& module, CloneReplacer replacer = &NoopCloneReplacer,
+    ClonePostReplacer post_replacer = nullptr);
 
 // Returns a clone of `module` that omits any top-level members whose
 // definitions appear in `members_to_remove`. References to those members are

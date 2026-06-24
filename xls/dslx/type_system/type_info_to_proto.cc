@@ -589,6 +589,8 @@ absl::Status ValidateSumVariantProto(const SumVariant& variant,
   return absl::OkStatus();
 }
 
+// Reconstructs the type shape needed by ToHumanString(). This is not a semantic
+// type round trip: SumTypeProto, for example, omits evaluated zero selection.
 absl::StatusOr<std::unique_ptr<Type>> FromProto(const TypeProto& ctp,
                                                 const ImportData& import_data,
                                                 FileTable& file_table) {
@@ -680,7 +682,11 @@ absl::StatusOr<std::unique_ptr<Type>> FromProto(const TypeProto& ctp,
       const SumType* expected_sum_type = nullptr;
       if (std::optional<Type*> nominal_type = root_type_info->GetItem(sum_def);
           nominal_type.has_value()) {
-        expected_sum_type = dynamic_cast<const SumType*>(*nominal_type);
+        const Type* type = *nominal_type;
+        if (type->IsMeta()) {
+          type = type->AsMeta().wrapped().get();
+        }
+        expected_sum_type = dynamic_cast<const SumType*>(type);
       }
       if (stp.variants_size() != sum_def->variants().size()) {
         return absl::InvalidArgumentError(absl::StrFormat(

@@ -24,13 +24,14 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -895,8 +896,47 @@ TEST(AstClonerTest, Procs) {
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p, module->GetMemberOrError<Proc>("MyProc"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(p));
+  auto* cloned_proc = absl::down_cast<Proc*>(clone);
+  ASSERT_TRUE(cloned_proc->config().proc().has_value());
+  ASSERT_TRUE(cloned_proc->next().proc().has_value());
+  ASSERT_TRUE(cloned_proc->init().proc().has_value());
+  EXPECT_EQ(cloned_proc->config().proc().value(), cloned_proc);
+  EXPECT_EQ(cloned_proc->next().proc().value(), cloned_proc);
+  EXPECT_EQ(cloned_proc->init().proc().value(), cloned_proc);
   EXPECT_EQ(kProgram, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(p, clone, *module->file_table()));
+}
+
+TEST(AstClonerTest, CloneModuleBindsEarlyProcMemberReferences) {
+  constexpr std::string_view kProgram = R"(proc P {
+    member: u32;
+    config() { (u32:7,) }
+    init { u32:0 }
+    next(state: u32) { member }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto module, ParseModule(kProgram, "proc.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * original,
+                           module->GetMemberOrError<Proc>("P"));
+  // The parser places next before the Proc that owns the member definition.
+  ASSERT_EQ(module->top().size(), 4);
+  ASSERT_EQ(ToAstNode(module->top()[2]), &original->next());
+  ASSERT_EQ(ToAstNode(module->top()[3]), original);
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto clone, CloneModule(*module));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * cloned, clone->GetMemberOrError<Proc>("P"));
+  ASSERT_EQ(cloned->members().size(), 1);
+  ProcMember* member = cloned->members()[0];
+  std::optional<NameRef*> reference =
+      FindFirstNameRefWithId(cloned->next().body(), "member");
+  ASSERT_TRUE(reference.has_value());
+  ASSERT_TRUE(std::holds_alternative<const NameDef*>((*reference)->name_def()));
+  EXPECT_EQ(std::get<const NameDef*>((*reference)->name_def()),
+            member->name_def());
+  EXPECT_NE(member->name_def(), original->members()[0]->name_def());
+  EXPECT_EQ(member->name_def()->definer(), member);
 }
 
 TEST(AstClonerTest, TestFunctions) {
@@ -1394,6 +1434,129 @@ TEST(AstClonerTest, ReplacerUsesOldToNewMappingForNameRef) {
   EXPECT_EQ(mapped_b->owner(), &dst_module);
 }
 
+TEST(AstClonerTest, PostReplacerUsesClonedChildrenAndSharedDefinitions) {
+  constexpr std::string_view kProgram = R"(
+type T = u32;
+const X = (T:1) + T:2;
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * original, module->GetConstantDef("X"));
+  auto* original_sum = absl::down_cast<Binop*>(original->value());
+  Attribute* attribute = module->Make<Attribute>(
+      Span::Fake(), std::nullopt, AttributeData(AttributeKind::kTest, {}));
+  original_sum->lhs()->AddAttribute(attribute);
+
+  absl::flat_hash_set<const AstNode*> visited;
+  Number* replacement = nullptr;
+  bool parent_saw_replacement = false;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> clone,
+      CloneModule(*module, &NoopCloneReplacer,
+                  [&](const AstNode* node,
+                      AstNode* cloned) -> absl::StatusOr<AstNode*> {
+                    EXPECT_TRUE(visited.insert(node).second);
+                    EXPECT_NE(node, cloned);
+                    EXPECT_NE(cloned->owner(), module.get());
+                    AstNode* result = cloned;
+                    if (node == original_sum->lhs()) {
+                      auto* number = absl::down_cast<Number*>(cloned);
+                      replacement = cloned->owner()->Make<Number>(
+                          number->span(), "3", NumberKind::kOther,
+                          number->type_annotation(), number->in_parens());
+                      result = replacement;
+                    } else if (node == original_sum) {
+                      auto* sum = absl::down_cast<Binop*>(cloned);
+                      EXPECT_EQ(sum->lhs(), replacement);
+                      parent_saw_replacement = true;
+                    }
+                    return result;
+                  }));
+
+  EXPECT_TRUE(parent_saw_replacement);
+  ASSERT_NE(replacement, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant, clone->GetConstantDef("X"));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeAlias * alias,
+                           clone->GetMemberOrError<TypeAlias>("T"));
+  auto* sum = absl::down_cast<Binop*>(constant->value());
+  EXPECT_EQ(sum->ToString(), "(T:3) + T:2");
+  EXPECT_EQ(sum->lhs(), replacement);
+  EXPECT_EQ(replacement->span(), original_sum->lhs()->span());
+  ASSERT_EQ(replacement->attributes().size(), 1);
+  EXPECT_NE(replacement->attributes().front(), attribute);
+  EXPECT_EQ(replacement->attributes().front()->owner(), clone.get());
+  EXPECT_EQ(replacement->attributes().front()->ToString(),
+            attribute->ToString());
+  for (Expr* operand : {sum->lhs(), sum->rhs()}) {
+    EXPECT_EQ(operand->parent(), sum);
+    auto* number = absl::down_cast<Number*>(operand);
+    auto* annotation =
+        absl::down_cast<TypeRefTypeAnnotation*>(number->type_annotation());
+    EXPECT_EQ(std::get<TypeAlias*>(annotation->type_ref()->type_definition()),
+              alias);
+  }
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
+}
+
+TEST(AstClonerTest, PostReplacerSkipsWholesaleReplacements) {
+  constexpr std::string_view kProgram = R"(
+const X = u32:1 + u32:2;
+const Y = u32:3;
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * original, module->GetConstantDef("X"));
+  auto* original_sum = absl::down_cast<Binop*>(original->value());
+  Number* replacement = nullptr;
+  absl::flat_hash_set<const AstNode*> visited;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> clone,
+      CloneModule(
+          *module,
+          [&](const AstNode* node, Module* target,
+              const absl::flat_hash_map<const AstNode*, AstNode*>&)
+              -> absl::StatusOr<std::optional<AstNode*>> {
+            if (node == original_sum) {
+              replacement =
+                  target->Make<Number>(Span::Fake(), "42", NumberKind::kOther,
+                                       /*type_annotation=*/nullptr);
+              return replacement;
+            } else {
+              return std::nullopt;
+            }
+          },
+          [&](const AstNode* node,
+              AstNode* cloned) -> absl::StatusOr<AstNode*> {
+            visited.insert(node);
+            return cloned;
+          }));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant, clone->GetConstantDef("X"));
+  EXPECT_EQ(constant->value(), replacement);
+  EXPECT_FALSE(visited.contains(original_sum));
+  EXPECT_FALSE(visited.contains(original_sum->lhs()));
+  EXPECT_FALSE(visited.contains(original_sum->rhs()));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * other, module->GetConstantDef("Y"));
+  EXPECT_TRUE(visited.contains(other->value()));
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
+}
+
+TEST(AstClonerTest, PostReplacerPropagatesErrors) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto module,
+      ParseModule("const X = u32:0;", "fake_path.x", "the_module", file_table));
+  EXPECT_THAT(
+      CloneModule(*module, &NoopCloneReplacer,
+                  [](const AstNode*, AstNode*) -> absl::StatusOr<AstNode*> {
+                    return absl::InvalidArgumentError("rewrite failed");
+                  }),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("rewrite failed")));
+}
+
 TEST(AstClonerTest, ZeroMacro) {
   constexpr std::string_view kProgram = R"(const ZEROS = zero!<u32>();
 const MORE_ZEROS = (zero!<u64>());)";
@@ -1879,7 +2042,7 @@ proc MyProc {
   EXPECT_EQ(kExpected, clone->ToString());
 }
 
-// A NameRef doesn't own its underlying NameDef. So don't clone it.
+// A narrow clone of a NameRef borrows its underlying NameDef.
 TEST(AstClonerTest, DoesntCloneNameRefNameDefs) {
   constexpr std::string_view kProgram = R"(
 const FOO = u32:42;
@@ -2469,6 +2632,23 @@ fn main() -> u32 { foo::D }
   EXPECT_EQ(subjects[0].name_def().definer(), &subjects[0].use_tree_entry());
 }
 
+TEST(AstClonerTest, ModuleClonesPreserveConfiguredValues) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto module,
+      ParseModule("const DROP = u32:0;", "config.x", "config", file_table));
+  XLS_ASSERT_OK(
+      module->SetConfiguredValues({"K:7", "empty:", "qualified:Thing::Value"}));
+  XLS_ASSERT_OK_AND_ASSIGN(auto clone, CloneModule(*module));
+  EXPECT_EQ(clone->configured_values(), module->configured_values());
+
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * drop, module->GetConstantDef("DROP"));
+  const std::array<const AstNode*, 1> removed = {drop};
+  XLS_ASSERT_OK_AND_ASSIGN(auto pruned,
+                           CloneModuleRemovingMembers(*module, removed));
+  EXPECT_EQ(pruned->configured_values(), module->configured_values());
+}
+
 TEST(AstClonerTest, CloneModuleRemovingMembersDropsRequestedMembers) {
   constexpr std::string_view kProgram = R"(
 const CONST_KEEP = u32:1;
@@ -2487,6 +2667,8 @@ fn main() -> u32 {
   const std::array<const AstNode*, 1> removed = {const_drop};
   XLS_ASSERT_OK_AND_ASSIGN(auto clone,
                            CloneModuleRemovingMembers(*module, removed));
+  ASSERT_TRUE(module->GetSpan().has_value());
+  EXPECT_EQ(clone->GetSpan(), module->GetSpan());
   EXPECT_THAT(clone->ToString(), HasSubstr("const CONST_KEEP"));
   EXPECT_THAT(clone->ToString(), Not(HasSubstr("CONST_DROP")));
   EXPECT_THAT(clone->GetConstantDef("CONST_KEEP"),
@@ -2714,8 +2896,39 @@ fn unwrap_or_sum(x: Option) -> u32 {
       ParseModule(kProgram, "fake_path.x", "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
+  ASSERT_TRUE(module->GetSpan().has_value());
+  EXPECT_EQ(clone->GetSpan(), module->GetSpan());
   EXPECT_EQ(kExpected, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
+}
+
+TEST(AstClonerTest, CloneModuleBindsEarlySumTagParametricReferences) {
+  constexpr std::string_view kProgram = R"(
+#![feature(generics)]
+enum E<N: u32>: uN[N] {
+    Value(u32) = 0,
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto module, ParseModule(kProgram, "sum.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(SumDef * original,
+                           module->GetMemberOrError<SumDef>("E"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto clone, CloneModule(*module));
+  XLS_ASSERT_OK_AND_ASSIGN(SumDef * cloned,
+                           clone->GetMemberOrError<SumDef>("E"));
+  ASSERT_EQ(cloned->parametric_bindings().size(), 1);
+  ASSERT_NE(cloned->tag_type_annotation(), nullptr);
+  ParametricBinding* binding = cloned->parametric_bindings()[0];
+  std::optional<NameRef*> reference =
+      FindFirstNameRefWithId(cloned->tag_type_annotation(), "N");
+  ASSERT_TRUE(reference.has_value());
+  ASSERT_TRUE(std::holds_alternative<const NameDef*>((*reference)->name_def()));
+  EXPECT_EQ(std::get<const NameDef*>((*reference)->name_def()),
+            binding->name_def());
+  EXPECT_NE(binding->name_def(),
+            original->parametric_bindings()[0]->name_def());
 }
 
 TEST(AstClonerTest, ParametricFunctionClonesParamTypeDefiner) {

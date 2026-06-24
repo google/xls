@@ -84,6 +84,25 @@ class Flattener : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleSumInstance(const SumInstance* node) override {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<SumConstructorRef> constructor,
+        ResolveSumConstructor(node->constructor_ref(), import_data_));
+    XLS_RET_CHECK(constructor.has_value());
+    for (const ExprOrType& argument : constructor->sum_ref.parametrics) {
+      XLS_RETURN_IF_ERROR(ToAstNode(argument)->Accept(this));
+    }
+    // The constructor reference is syntax, like an invocation's callee. Its
+    // standalone annotation lacks context supplied to the owning instance.
+    for (AstNode* child : node->GetChildren(/*want_types=*/true)) {
+      if (child != node->constructor_ref()) {
+        XLS_RETURN_IF_ERROR(child->Accept(this));
+      }
+    }
+    nodes_.push_back(node);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleInvocation(const Invocation* node) override {
     // Do the equivalent `DefaultHandler`, but exclude most of the arguments.
     // We exclude the arguments because when an argument should
@@ -196,6 +215,14 @@ class Flattener : public AstNodeVisitorWithDefault {
 
   absl::Status HandleProcDef(const ProcDef* node) override {
     return HandleStructDefBaseInternal(node);
+  }
+
+  absl::Status HandleSumDef(const SumDef* node) override {
+    if (node->IsParametric() && node != root_) {
+      return absl::OkStatus();
+    } else {
+      return DefaultHandler(node);
+    }
   }
 
   absl::Status HandleTypeRef(const TypeRef* node) override {
