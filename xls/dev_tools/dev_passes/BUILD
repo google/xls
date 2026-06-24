@@ -97,7 +97,7 @@ xls_pass(
         "//xls/ir",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -113,7 +113,7 @@ xls_pass(
         "//xls/passes:pass_base",
         "//xls/scheduling:proc_state_legalization_pass",
         "//xls/scheduling:scheduling_pass",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -129,7 +129,7 @@ xls_pass(
         "//xls/ir:value",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -146,7 +146,7 @@ xls_pass(
         "//xls/passes:optimization_pass",
         "//xls/passes:partial_info_query_engine",
         "//xls/passes:pass_base",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -164,7 +164,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
@@ -178,7 +178,7 @@ cc_library(
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_registry",
         "//xls/tools:opt",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -203,7 +203,7 @@ cc_test(
         "//xls/passes:optimization_pass_registry",
         "//xls/passes:pass_base",
         "//xls/tools:opt",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
@@ -228,11 +228,11 @@ xls_pass(
         "//xls/passes:pass_base",
         "//xls/passes:query_engine",
         "//xls/passes:stateless_query_engine",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
         "@cppitertools",
     ],
 )
@@ -261,8 +261,8 @@ cc_test(
         "//xls/passes:pass_base",
         "//xls/passes:pass_test_helpers",
         "//xls/solvers:ir_equivalence_testutils",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
@@ -280,9 +280,9 @@ xls_pass(
         "//xls/ir:value_utils",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@cppitertools",
     ],
 )
@@ -301,9 +301,9 @@ cc_test(
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "//xls/solvers:ir_equivalence_testutils",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest",
     ],
 )
@@ -319,8 +319,8 @@ xls_pass(
         "//xls/ir",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -338,8 +338,8 @@ cc_test(
         "//xls/ir:value",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )

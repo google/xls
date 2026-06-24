@@ -138,8 +138,8 @@ cc_test(
         "//xls/ir:value",
         "//xls/ir:value_utils",
         "//xls/ir:value_view",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:status_matchers",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )

@@ -70,10 +70,10 @@ cc_binary(
     srcs = ["adler32_reference.cc"],
     deps = [
         "//xls/common:init_xls",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 

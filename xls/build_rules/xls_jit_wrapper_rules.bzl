@@ -350,12 +350,12 @@ _BASE_JIT_WRAPPER_DEPS = {
     ],
     PROC_WRAPPER_TYPE: [
         "//xls/jit:proc_base_jit_wrapper",
-        "@com_google_absl//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_map",
     ],
     BLOCK_WRAPPER_TYPE: [
         "//xls/jit:block_base_jit_wrapper",
         "//xls/ir:bits",
-        "@com_google_absl//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_map",
     ],
 }
 
@@ -463,8 +463,8 @@ def cc_xls_ir_jit_wrapper(
         tags = tags,
         deps = extra_lib_deps +
                _BASE_JIT_WRAPPER_DEPS[wrapper_type] + [
-            "@com_google_absl//absl/status",
-            "@com_google_absl//absl/status:statusor",
+            "@abseil-cpp//absl/status",
+            "@abseil-cpp//absl/status:statusor",
             "//xls/common/status:status_macros",
             "//xls/interpreter:evaluator_options",
             "//xls/public:value",

@@ -44,16 +44,16 @@ cc_library(
     srcs = ["timeout_support.cc"],
     hdrs = ["timeout_support.h"],
     deps = [
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/time",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
     ],
 )
 
 cc_library(
     name = "iter_util",
     hdrs = ["iter_util.h"],
-    deps = ["@com_google_absl//absl/types:span"],
+    deps = ["@abseil-cpp//absl/types:span"],
 )
 
 cc_test(
@@ -62,7 +62,7 @@ cc_test(
     deps = [
         ":iter_util",
         ":xls_gunit_main",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
     ],
 )
@@ -71,8 +71,8 @@ cc_library(
     name = "bits_util",
     hdrs = ["bits_util.h"],
     deps = [
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -80,8 +80,8 @@ cc_library(
     name = "random_util",
     hdrs = ["random_util.h"],
     deps = [
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/random:bit_gen_ref",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/random:bit_gen_ref",
     ],
 )
 
@@ -90,7 +90,7 @@ cc_library(
     testonly = True,
     hdrs = ["proto_test_utils.h"],
     deps = [
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/strings:str_format",
         "@com_google_protobuf//:differencer",
         "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
@@ -124,7 +124,7 @@ cc_library(
     srcs = ["case_converters.cc"],
     hdrs = ["case_converters.h"],
     deps = [
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -152,7 +152,7 @@ cc_library(
     srcs = ["indent.cc"],
     hdrs = ["indent.h"],
     deps = [
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -174,7 +174,7 @@ cc_library(
     hdrs = ["benchmark_support.h"],
     visibility = ["//xls:xls_utility_users"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
+        "@abseil-cpp//absl/flags:flag",
         "@google_benchmark//:benchmark",
     ],
 )
@@ -189,12 +189,12 @@ cc_library(
     linkstamp = "build_embed.cc",
     visibility = ["//xls:xls_utility_users"],
     deps = [
-        "@com_google_absl//absl/flags:config",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/flags:usage",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/log:flags",
-        "@com_google_absl//absl/log:initialize",
+        "@abseil-cpp//absl/flags:config",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/log:initialize",
     ],
 )
 
@@ -203,7 +203,7 @@ cc_library(
     srcs = ["exit_status.cc"],
     hdrs = ["exit_status.h"],
     visibility = ["//xls:xls_utility_users"],
-    deps = ["@com_google_absl//absl/status"],
+    deps = ["@abseil-cpp//absl/status"],
 )
 
 cc_library(
@@ -212,8 +212,8 @@ cc_library(
     hdrs = ["math_util.h"],
     visibility = ["//xls:xls_utility_users"],
     deps = [
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -224,7 +224,7 @@ cc_test(
         ":math_util",
         ":xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
-        "@com_google_absl//absl/base:core_headers",
+        "@abseil-cpp//absl/base:core_headers",
         "@googletest//:gtest",
     ],
 )
@@ -282,16 +282,16 @@ cc_library(
         "//xls/common/file:file_descriptor",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/container:fixed_array",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/container:fixed_array",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -302,10 +302,10 @@ cc_test(
         ":subprocess",
         ":xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/time",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
         "@googletest//:gtest",
     ],
 )
@@ -314,7 +314,7 @@ cc_library(
     name = "strerror",
     srcs = ["strerror.cc"],
     hdrs = ["strerror.h"],
-    deps = ["@com_google_absl//absl/strings:str_format"],
+    deps = ["@abseil-cpp//absl/strings:str_format"],
 )
 
 cc_test(
@@ -331,8 +331,8 @@ cc_library(
     name = "strong_int",
     hdrs = ["strong_int.h"],
     deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/meta:type_traits",
     ],
 )
 
@@ -343,12 +343,12 @@ cc_library(
     deps = [
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/numeric:int128",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/numeric:int128",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -359,9 +359,9 @@ cc_test(
         ":string_to_int",
         ":xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest",
     ],
 )
@@ -372,8 +372,8 @@ cc_test(
     deps = [
         ":strong_int",
         ":xls_gunit_main",
-        "@com_google_absl//absl/container:node_hash_map",
-        "@com_google_absl//absl/hash:hash_testing",
+        "@abseil-cpp//absl/container:node_hash_map",
+        "@abseil-cpp//absl/hash:hash_testing",
         "@googletest//:gtest",
     ],
 )
@@ -383,9 +383,9 @@ cc_library(
     srcs = ["symbolized_stacktrace.cc"],
     hdrs = ["symbolized_stacktrace.h"],
     deps = [
-        "@com_google_absl//absl/debugging:stacktrace",
-        "@com_google_absl//absl/debugging:symbolize",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/debugging:stacktrace",
+        "@abseil-cpp//absl/debugging:symbolize",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -416,7 +416,7 @@ cc_test(
     deps = [
         ":visitor",
         ":xls_gunit_main",
-        "@com_google_absl//absl/types:variant",
+        "@abseil-cpp//absl/types:variant",
         "@googletest//:gtest",
     ],
 )
@@ -432,7 +432,7 @@ cc_test(
     deps = [
         ":type_traits_utils",
         ":xls_gunit_main",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
     ],
 )
@@ -443,7 +443,7 @@ cc_library(
     hdrs = ["to_string_utils.h"],
     deps = [
         ":type_traits_utils",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -453,8 +453,8 @@ cc_test(
     deps = [
         ":to_string_utils",
         ":xls_gunit_main",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
     ],
 )
@@ -465,8 +465,8 @@ cc_library(
     deps = [
         ":to_string_utils",
         ":type_traits_utils",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -476,9 +476,9 @@ cc_test(
     deps = [
         ":comparison_utils",
         ":xls_gunit_main",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
     ],
 )
@@ -492,7 +492,7 @@ cc_test(
     deps = [
         ":golden_files",
         ":xls_gunit_main",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest",
     ],
 )
@@ -549,7 +549,7 @@ cc_library(
     name = "update_golden_files_flag",
     testonly = True,
     hdrs = ["update_golden_files_flag.inc"],
-    deps = ["@com_google_absl//absl/flags:flag"],
+    deps = ["@abseil-cpp//absl/flags:flag"],
 )
 
 pytype_strict_library(
@@ -588,10 +588,10 @@ cc_library(
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest",
     ],
 )
@@ -601,9 +601,9 @@ cc_library(
     srcs = ["stopwatch.cc"],
     hdrs = ["stopwatch.h"],
     deps = [
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/time",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -614,7 +614,7 @@ cc_test(
         ":stopwatch",
         ":xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
-        "@com_google_absl//absl/time",
+        "@abseil-cpp//absl/time",
         "@googletest//:gtest",
     ],
 )

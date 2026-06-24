@@ -33,9 +33,9 @@ cc_test(
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_builder_options_cc_proto",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest",
     ],
 )

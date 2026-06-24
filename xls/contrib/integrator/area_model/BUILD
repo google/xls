@@ -53,7 +53,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -68,7 +68,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
-        "@com_google_absl//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )

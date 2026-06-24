@@ -37,9 +37,9 @@ cc_library(
         "//xls/public:runtime_codegen_actions",
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:scheduling_options_flags_cc_proto",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -54,9 +54,9 @@ cc_test(
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:scheduling_options_flags_cc_proto",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
@@ -75,8 +75,8 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
         "//xls/fuzzer/ir_fuzzer:reproducer_repo_files",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
     ],
 )

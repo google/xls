@@ -40,10 +40,10 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:source_location",
         "//xls/ir:value_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -61,9 +61,9 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:source_location",
         "//xls/ir:value",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
     ],
 )
 

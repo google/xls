@@ -92,10 +92,10 @@ To understand why, for example, the combinational verilog generator depends on
 the ABSL container algorithm library, one could run:
 
 ```
-$ bazel query 'somepath(//xls/codegen:combinational_generator, @com_google_absl//absl/algorithm:container)'
+$ bazel query 'somepath(//xls/codegen:combinational_generator, @abseil-cpp//absl/algorithm:container)'
 //xls/codegen:combinational_generator
 //xls/codegen:vast
-@com_google_absl//absl/algorithm:container
+@abseil-cpp//absl/algorithm:container
 ```
 
 This result shows that one such path goes through the `:vast` target. Another

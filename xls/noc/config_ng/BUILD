@@ -86,7 +86,7 @@ cc_library(
     hdrs = ["topology_endpoint_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -107,7 +107,7 @@ cc_library(
     hdrs = ["dimension_order_entry_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -130,7 +130,7 @@ cc_library(
         ":dimension_order_entry_options_proto_builder",
         ":topology_endpoint_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -153,7 +153,7 @@ cc_library(
     hdrs = ["unidirectional_butterfly_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -174,7 +174,7 @@ cc_library(
     hdrs = ["bidirectional_butterfly_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -197,7 +197,7 @@ cc_library(
         ":bidirectional_butterfly_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_butterfly_options_proto_builder",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -220,7 +220,7 @@ cc_library(
     hdrs = ["level_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -241,7 +241,7 @@ cc_library(
     hdrs = ["unidirectional_tree_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -262,7 +262,7 @@ cc_library(
     hdrs = ["bidirectional_tree_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -286,8 +286,8 @@ cc_library(
         ":level_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_tree_options_proto_builder",
-        "@com_google_absl//absl/log:die_if_null",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/log:die_if_null",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -312,7 +312,7 @@ cc_library(
     deps = [
         ":topology_endpoint_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -334,7 +334,7 @@ cc_library(
     hdrs = ["coordinate_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -356,7 +356,7 @@ cc_library(
     deps = [
         ":coordinate_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -378,7 +378,7 @@ cc_library(
     hdrs = ["channel_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -401,7 +401,7 @@ cc_library(
         ":channel_options_proto_builder",
         ":node_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -423,8 +423,8 @@ cc_library(
     srcs = ["network_component_port.cc"],
     hdrs = ["network_component_port.h"],
     deps = [
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -448,9 +448,9 @@ cc_library(
         ":network_component_port",
         "//xls/common:iterator_range",
         "//xls/ir:unwrapping_iterator",
-        "@com_google_absl//absl/log:die_if_null",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/log:die_if_null",
+        "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -472,7 +472,7 @@ cc_library(
     hdrs = ["network_connection.h"],
     deps = [
         ":network_component_port",
-        "@com_google_absl//absl/log:die_if_null",
+        "@abseil-cpp//absl/log:die_if_null",
     ],
 )
 
@@ -498,7 +498,7 @@ cc_library(
         ":network_connection",
         "//xls/common:iterator_range",
         "//xls/ir:unwrapping_iterator",
-        "@com_google_absl//absl/memory",
+        "@abseil-cpp//absl/memory",
     ],
 )
 
@@ -520,7 +520,7 @@ cc_library(
     hdrs = ["fake_network_component.h"],
     deps = [
         ":network_component",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -532,10 +532,10 @@ cc_library(
         ":network_component_port",
         ":network_connection",
         "//xls/common/status:ret_check",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -563,8 +563,8 @@ cc_library(
         ":network_connection",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -578,7 +578,7 @@ cc_test(
         ":network_view",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@googletest//:gtest",
     ],
 )
@@ -590,7 +590,7 @@ cc_library(
     deps = [
         ":network_component_port",
         ":network_connection",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -605,7 +605,7 @@ cc_test(
         ":network_view",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )
@@ -619,7 +619,7 @@ cc_library(
         ":network_connection_utils",
         ":network_view",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -641,8 +641,8 @@ cc_library(
     hdrs = ["arbitrary_base_number.h"],
     deps = [
         "//xls/ir:bits",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -653,8 +653,8 @@ cc_test(
         ":arbitrary_base_number",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:status_matchers",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )
@@ -665,8 +665,8 @@ cc_library(
     hdrs = ["dimension_bounds.h"],
     deps = [
         "//xls/ir:bits",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -688,8 +688,8 @@ cc_library(
         ":dimension_bounds",
         "//xls/data_structures:inline_bitmap",
         "//xls/ir:bits",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -713,9 +713,9 @@ cc_library(
     deps = [
         ":coordinate",
         ":dimension_bounds",
-        "@com_google_absl//absl/container:inlined_vector",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/container:inlined_vector",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -741,7 +741,7 @@ cc_library(
     deps = [
         ":coordinate",
         ":network_component",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -767,8 +767,8 @@ cc_library(
         ":network_topology_component",
         ":network_view",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 

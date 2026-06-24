@@ -42,9 +42,9 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:format_preference",
         "//xls/ir:source_location",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -65,7 +65,7 @@ cc_test(
         "//xls/simulation:module_testbench_thread",
         "//xls/simulation:verilog_include",
         "//xls/simulation:verilog_test_base",
-        "@com_google_absl//absl/log",
+        "@abseil-cpp//absl/log",
         "@googletest//:gtest",
     ],
 )
@@ -83,8 +83,8 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir:source_location",
         "//xls/simulation:verilog_include",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -103,10 +103,10 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/ir:source_location",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -136,11 +136,11 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -159,13 +159,13 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:type",
         "//xls/ir:value",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -190,8 +190,8 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir:source_location",
         "//xls/simulation:verilog_include",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -201,9 +201,9 @@ cc_library(
     deps = [
         "//xls/ir:type",
         "//xls/ir:value",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -213,11 +213,11 @@ cc_library(
     hdrs = ["device_rpc_strategy_factory.h"],
     deps = [
         ":device_rpc_strategy",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -227,8 +227,8 @@ cc_library(
     deps = [
         "//xls/codegen/vast",
         "//xls/simulation:verilog_include",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -239,10 +239,10 @@ cc_library(
     deps = [
         ":io_strategy",
         "//xls/codegen/vast",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )

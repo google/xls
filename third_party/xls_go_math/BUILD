@@ -87,9 +87,9 @@ cc_test(
         "//xls/ir:value_utils",
         "//xls/ir:value_view_utils",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -159,10 +159,10 @@ cc_test(
         "//xls/ir:value_utils",
         "//xls/ir:value_view_utils",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -225,11 +225,11 @@ cc_test(
         "//xls/ir:value_utils",
         "//xls/ir:value_view_utils",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/numeric:int128",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/numeric:int128",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -289,8 +289,8 @@ cc_test(
         "//xls/ir:value_utils",
         "//xls/ir:value_view_utils",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
     ],
 )

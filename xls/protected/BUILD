@@ -32,8 +32,8 @@ cc_library(
     hdrs = ["call_graph.h"],
     deps = [
         "//xls/ir",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 

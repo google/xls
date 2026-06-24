@@ -270,8 +270,8 @@ def xls_ir_cc_library_macro(
         # The XLS AOT compiler does not currently support cross-compilation.
         deps = [
             ":" + aot_name,
-            "@com_google_absl//absl/status:statusor",
-            "@com_google_absl//absl/types:span",
+            "@abseil-cpp//absl/status:statusor",
+            "@abseil-cpp//absl/types:span",
             "//xls/ir:events",
             "//xls/ir:value",
             "//xls/jit:aot_runtime",

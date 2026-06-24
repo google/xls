@@ -23,7 +23,7 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
 embed_data_attrs = {
     "_absl_span": attr.label(
-        default = Label("@com_google_absl//absl/types:span"),
+        default = Label("@abseil-cpp//absl/types:span"),
         providers = [CcInfo],
     ),
     "_embed_data": attr.label(

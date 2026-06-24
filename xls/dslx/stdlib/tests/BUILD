@@ -100,7 +100,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value_view",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest",
     ],
 )
@@ -129,8 +129,8 @@ cc_test(
         "//xls/dslx/stdlib:float32_add_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -149,8 +149,8 @@ cc_test(
         "//xls/dslx/stdlib:float32_mul_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -170,9 +170,9 @@ cc_test(
         "//xls/ir:value",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/types:span",
         "@eigen",
     ],
 )
@@ -208,7 +208,7 @@ cc_test(
         ":float32_downcast_jit_wrapper",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
-        "@com_google_absl//absl/base",
+        "@abseil-cpp//absl/base",
         "@googletest//:gtest",
     ],
 )
@@ -251,8 +251,8 @@ cc_test(
         "//xls/common:init_xls",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -274,9 +274,9 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx/stdlib:float32_from_int32_wrapper",
         "//xls/dslx/stdlib:float32_to_int32_wrapper",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/random",
         "@googletest//:gtest",
     ],
 )
@@ -299,11 +299,11 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/time",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
         "@z3//:api",
     ],
 )
@@ -323,11 +323,11 @@ cc_test(
         "//xls/dslx/stdlib:float32_fma_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -346,12 +346,12 @@ cc_test(
         "//xls/dslx/stdlib:float32_ldexp_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -370,8 +370,8 @@ cc_test(
         "//xls/dslx/stdlib:float32_fast_rsqrt_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -380,7 +380,7 @@ cc_library(
     testonly = True,
     hdrs = ["float32_test_utils.h"],
     deps = [
-        "@com_google_absl//absl/base",
+        "@abseil-cpp//absl/base",
     ],
 )
 
@@ -399,9 +399,9 @@ cc_test(
         "//xls/dslx/stdlib:float64_add_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -420,8 +420,8 @@ cc_test(
         "//xls/dslx/stdlib:float64_mul_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -440,11 +440,11 @@ cc_test(
         "//xls/dslx/stdlib:float64_fma_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -463,8 +463,8 @@ cc_test(
         "//xls/dslx/stdlib:float32_ceil_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -483,8 +483,8 @@ cc_test(
         "//xls/dslx/stdlib:float32_floor_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -503,8 +503,8 @@ cc_test(
         "//xls/dslx/stdlib:float32_trunc_jit_wrapper",
         "//xls/tests:testbench",
         "//xls/tests:testbench_builder",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -546,9 +546,9 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:value",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status:statusor",
         "@eigen",
         "@googletest//:gtest",
     ] + [":bfloat16_" + top + "_jit_wrapper" for top in BFLOAT16_CMP_TOPS],
@@ -581,10 +581,10 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:value",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status:statusor",
         "@eigen",
         "@googletest//:gtest",
     ],

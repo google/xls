@@ -41,9 +41,9 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:op",
         "//xls/visualization/ir_viz:node_attribute_visitor",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@com_google_protobuf//:json_util",
     ],
 )
