@@ -434,7 +434,7 @@ TEST_F(ProcStateFlatteningPassTest,
   BValue next1 = pb.Add(elem1, pb.Literal(UBits(2, 32)));
   BValue next_val = pb.Tuple({next0, next1});
 
-  pb.Next(read, next_val, /*predicate=*/std::nullopt,
+  pb.Next(state, next_val, /*predicate=*/std::nullopt,
           /*label=*/"my_write_label");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
@@ -446,10 +446,9 @@ TEST_F(ProcStateFlatteningPassTest,
   EXPECT_THAT(proc->nodes(),
               Contains(m::StateRead(
                   "state_0", std::optional<std::string>("my_read_label"))));
-  EXPECT_THAT(
-      proc->nodes(),
-      Contains(m::NextWithLabel(m::StateRead(), _,
-                                std::optional<std::string>("my_write_label"))));
+  EXPECT_THAT(proc->nodes(),
+              Contains(m::NextWithStateElementWithLabel(
+                  _, _, std::optional<std::string>("my_write_label"))));
 }
 
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateFlatteningPassTest,

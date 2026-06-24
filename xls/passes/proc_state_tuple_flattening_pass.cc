@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -139,6 +140,7 @@ struct NextValue {
   Node* value;
   std::optional<Node*> predicate;
   std::optional<std::string> label;
+  bool has_state_read;
 };
 struct AbstractStateElement {
   std::string name;
@@ -175,13 +177,23 @@ absl::Status ReplaceProcState(Proc* proc,
       read->set_label(element.read_label);
     }
     for (const NextValue& next_value : element.next_values) {
-      XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                  next_value.loc,
-                                  /*state_read=*/read,
-                                  /*value=*/next_value.value,
-                                  /*predicate=*/next_value.predicate,
-                                  /*label=*/next_value.label, next_value.name)
-                              .status());
+      if (next_value.has_state_read) {
+        XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
+                                    next_value.loc,
+                                    /*state_read=*/read,
+                                    /*value=*/next_value.value,
+                                    /*predicate=*/next_value.predicate,
+                                    /*label=*/next_value.label, next_value.name)
+                                .status());
+      } else {
+        XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
+                                    next_value.loc,
+                                    /*state_element=*/read->state_element(),
+                                    /*value=*/next_value.value,
+                                    /*predicate=*/next_value.predicate,
+                                    /*label=*/next_value.label, next_value.name)
+                                .status());
+      }
       XLS_RETURN_IF_ERROR(element.placeholder->ReplaceUsesWith(read));
     }
   }
@@ -192,6 +204,16 @@ absl::Status ReplaceProcState(Proc* proc,
 // array typed elements) in the proc state are flattened into their constituent
 // components.
 absl::Status FlattenState(Proc* proc) {
+  // Currently this pass assumes exactly one state read per state element. In
+  // the future, we could support multiple reads per state element.
+  for (StateElement* state_element : proc->StateElements()) {
+    XLS_RET_CHECK_EQ(proc->GetStateReadsByStateElement(state_element).size(), 1)
+        << absl::StreamFormat(
+               "State element '%s' has %d reads, but this pass only supports "
+               "exactly one read per state element.",
+               state_element->name(),
+               proc->GetStateReadsByStateElement(state_element).size());
+  }
   std::vector<Node*> identities;
   std::vector<AbstractStateElement> elements;
 
@@ -268,6 +290,7 @@ absl::Status FlattenState(Proc* proc) {
             .value = value,
             .predicate = predicate,
             .label = next->label(),
+            .has_state_read = next->has_state_read(),
         });
       }
     }
