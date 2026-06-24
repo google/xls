@@ -327,6 +327,12 @@ class Parser : public TokenParser {
                                           ColonRef::Subject subject,
                                           const Span& subject_span);
 
+  // Parses a colon reference and a following named payload, when permitted.
+  // Precondition: token cursor should be over a double colon '::' token.
+  absl::StatusOr<Expr*> ParseColonRefOrStructInstance(
+      Bindings& bindings, ColonRef::Subject subject, const Span& subject_span,
+      ExprRestrictions restrictions);
+
   absl::StatusOr<Expr*> ParseCastOrEnumRefOrStructInstanceOrToken(
       Bindings& bindings, ExprRestrictions restrictions);
 
@@ -782,6 +788,13 @@ class Parser : public TokenParser {
   // deeply nested.
   static constexpr int64_t kApproximateExpressionDepthLimit = 64;
   int64_t approximate_expression_depth_ = 0;
+
+  // Failed unrestricted match-subject trials in the current expression parse.
+  // Depth is part of the key because a shallower tuple-cast retry can succeed
+  // where a speculative parenthesized expression exceeded the depth limit.
+  absl::flat_hash_set<std::pair<ScannerCheckpoint, int64_t>>
+      failed_match_subject_trials_;
+  int64_t active_expression_parses_ = 0;
 
   // When true, we expect no function bodies, and a semicolon after
   // the return type of a function.

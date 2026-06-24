@@ -19,6 +19,7 @@
 #include <optional>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
@@ -29,6 +30,31 @@
 #include "xls/dslx/type_system_v2/inference_table.h"
 
 namespace xls::dslx {
+
+// Rejects payload member types not supported by phase-one semantic sums.
+absl::Status ValidatePhase1SumPayloadMemberType(
+    const SumDef& sum_def, const SumVariant& variant,
+    const TypeAnnotation* member_annotation, const Type& member_type,
+    const FileTable& file_table);
+
+// Validates the formal type/value kind and returns a type annotation for a
+// type argument, including a ColonRef to an imported type. Expression arguments
+// must already be populated in `table`; returned type annotations are borrowed.
+absl::StatusOr<ExprOrType> NormalizeParametricArgument(
+    const ParametricBinding& binding, ExprOrType argument,
+    const InferenceTable& table, const FileTable& file_table);
+
+// Substitutes mapped references and optional Self annotations without
+// populating the resulting subtree. Cloned nodes belong to type->owner();
+// mapped whole-type replacements are borrowed from their original Modules.
+// When cloning is optional and no substitution is found, returns `type`.
+// The caller must populate the result before resolving indirect annotations.
+absl::StatusOr<const TypeAnnotation*> SubstituteTypeParametrics(
+    const TypeAnnotation* type,
+    const absl::flat_hash_map<const NameDef*, ExprOrType>& actual_values,
+    InferenceTable& table,
+    std::optional<const TypeAnnotation*> real_self_type = std::nullopt,
+    bool clone_if_no_parametrics = true);
 
 // Fabricates a `Number` node and sets the given type annotation for it in the
 // inference table.
@@ -57,22 +83,23 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr);
 // parametric variables with values. Each time the returned replacer uses a node
 // that is value in `map`, it clones it via `table.Clone()`.
 
-// If `add_parametric_binding_type_annotation` is true, then any replacement
-// whose `NameDef` belongs to a parametric binding will be prefixed with the
-// type annotation of the parametric binding. This behavior should be used when
-// replacing parametric bindings with their actual literal values. Otherwise
-// subsequent type inference would in some contexts presume the literals are the
-// minimum size needed to fit their values.
+// A mapped Number retains its syntax type annotation, or materializes its
+// inference-table annotation when it has no syntax annotation. If neither is
+// present and `add_parametric_binding_type_annotation` is true, use the formal
+// parametric binding's type where needed to preserve the literal's width.
+// Otherwise subsequent inference can presume the minimum width that fits the
+// value. Existing concrete annotations take precedence over a formal type that
+// may still contain parametric references.
 CloneReplacer NameRefMapper(
     InferenceTable& table,
     const absl::flat_hash_map<const NameDef*, ExprOrType>& map,
     std::optional<Module*> target_module = std::nullopt,
     bool add_parametric_binding_type_annotation = false);
 
-// Returns whether the given node is a reference to a parametric struct or proc
-// without sufficient parametrics specified (i.e. abstract and non-concretizable
-// in the parametric sense). A node meeting the criteria can be a `TypeAlias`,
-// the `NameDef` of a `TypeAlias`, or a `ColonRef`.
+// Returns whether the given node is a reference to a parametric struct, proc,
+// or sum without sufficient parametrics specified (i.e. abstract and
+// non-concretizable in the parametric sense). A node meeting the criteria can
+// be a `TypeAlias`, the `NameDef` of a `TypeAlias`, or a `ColonRef`.
 absl::StatusOr<bool> IsReferenceToAbstractType(const AstNode* node,
                                                const ImportData& import_data,
                                                const InferenceTable& table);

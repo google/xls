@@ -16,10 +16,13 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_IMPORT_UTILS_H_
 
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -64,6 +67,53 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(
 absl::StatusOr<std::optional<const TypeVariableTypeAnnotation*>>
 GetTypeVariableTypeAnnotationForSubject(const ColonRef* ref,
                                         const ImportData& import_data);
+
+// Resolves the definition and parametrics for the sum type referred to by
+// `annotation`.
+absl::StatusOr<std::optional<SumRef>> GetSumRef(
+    const TypeAnnotation* annotation, const ImportData& import_data);
+
+// Variant that takes a `ColonRef`. This will only yield a sum ref if the
+// `ColonRef` itself refers to an actual sum or alias of one. It will yield
+// `nullopt` for a `ColonRef` to a constructor of a sum.
+absl::StatusOr<std::optional<SumRef>> GetSumRef(const ColonRef* colon_ref,
+                                                const ImportData& import_data);
+
+struct SumConstructorRef {
+  SumRef sum_ref;
+  const SumVariant* variant;
+};
+
+// Resolves a `ColonRef` that may refer to a sum constructor.
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const ColonRef* colon_ref, const ImportData& import_data);
+
+// Resolves a type annotation that may refer to a sum constructor.
+absl::StatusOr<std::optional<SumConstructorRef>> ResolveSumConstructor(
+    const TypeAnnotation* annotation, const ImportData& import_data);
+
+// A borrowed view of resolved constructor syntax. It derives the reference,
+// spelling, and payloads from the original expression without copying them.
+class SumConstructorView {
+ public:
+  explicit SumConstructorView(SumConstructorExpr expression)
+      : expression_(expression) {}
+
+  const Expr* expression() const;
+  const ColonRef* constructor_ref() const;
+  SumInstance::PayloadShape payload_shape() const;
+  absl::Span<Expr* const> tuple_args() const;
+  absl::Span<const std::pair<std::string, Expr*>> struct_args() const;
+
+ private:
+  SumConstructorExpr expression_;
+};
+
+// Classifies invocations in place before semantic analysis or inference-table
+// population. Imports must already be loaded. Also validates constructor
+// spelling and constructor-local explicit parametrics.
+absl::Status ClassifySumConstructors(AstNode* root,
+                                     const ImportData& import_data);
 
 // Resolves the struct base definition for the struct or proc type referred to
 // by `annotation`.
@@ -113,6 +163,10 @@ absl::StatusOr<bool> IsProcDefNextFunction(const Function* f,
 // Returns whether `f` is an auto-generated `spawn` function in an impl-style
 // proc.
 absl::StatusOr<bool> IsProcDefSpawnFunction(const Function* f);
+
+// Gets the sum definition for the sum type referred to by `annotation`.
+absl::StatusOr<std::optional<const SumDef*>> GetSumDef(
+    const TypeAnnotation* annotation, const ImportData& import_data);
 
 // Returns whether `colon_ref` is imported from a different module.
 bool IsImport(const ColonRef* colon_ref);

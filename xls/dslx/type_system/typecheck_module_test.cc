@@ -3550,6 +3550,48 @@ proc Counter {
                HasSubstr("Cannot format an expression with channel type")));
 }
 
+TEST_F(TypecheckV2Test, BadTraceFmtWithUseOfSemanticSum) {
+  constexpr std::string_view kProgram =
+      R"(
+enum Option {
+  None,
+  Pair { lhs: u32, rhs: u32 },
+}
+
+fn main(x: Option) {
+  trace_fmt!("{}", x);
+}
+)";
+
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Formatting semantic sum values is not supported")));
+}
+
+TEST_F(TypecheckV2Test, BadTraceFmtWithAggregateContainingSemanticSum) {
+  constexpr std::string_view kProgram =
+      R"(
+enum Option {
+  None,
+  Some(u32),
+}
+
+struct Wrapper {
+  value: Option,
+}
+
+fn main(x: Wrapper) {
+  trace_fmt!("x is {}", x);
+}
+)";
+
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Formatting semantic sum values is not supported")));
+}
+
 TEST_F(TypecheckV2Test, BadTraceFmtWithUseOfFunction) {
   constexpr std::string_view kProgram =
       R"(
@@ -4581,6 +4623,23 @@ fn main() -> u32 {
 })"));
 }
 
+TEST_F(TypecheckV2Test, BitCountWithSemanticSumFailsInPhase1) {
+  EXPECT_THAT(
+      Typecheck(R"(
+enum Option {
+  None,
+  Some(u32),
+}
+
+fn main() -> u32 {
+  bit_count<Option>()
+}
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Querying bit_count for types containing semantic "
+                         "sums is not supported")));
+}
+
 TEST_F(TypecheckV2Test, ElementCount) {
   XLS_ASSERT_OK(Typecheck(R"(
 struct S {
@@ -4608,6 +4667,26 @@ fn main() -> u32 {
   element_count<A>() +
   element_count<B<u32:5>>()
 })"));
+}
+
+TEST_F(TypecheckV2Test, ElementCountWithSemanticSumFailsInPhase1) {
+  EXPECT_THAT(Typecheck(R"(
+enum Option {
+  None,
+  Some(u32),
+}
+
+struct Wrapper {
+  value: Option,
+}
+
+fn main() -> u32 {
+  element_count<Wrapper>()
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Querying element_count for types containing "
+                                 "semantic sums is not supported")));
 }
 
 TEST_F(TypecheckV2Test, ConfiguredValueOr) {

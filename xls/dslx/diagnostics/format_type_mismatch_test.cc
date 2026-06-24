@@ -14,6 +14,7 @@
 
 #include "xls/dslx/diagnostics/format_type_mismatch.h"
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -55,7 +56,9 @@ TEST(FormatTypeMismatchTest, DistinctSumDeclarationsProduceTypeMismatch) {
 
     std::vector<SumTypeVariant> variants;
     variants.push_back(SumTypeVariant::MakeUnit(*variant));
-    return std::make_unique<SumType>(*sum_def, std::move(variants));
+    return std::make_unique<SumType>(
+        *sum_def, std::move(variants),
+        SumType::SelectedZeroVariant{std::cref(*variant)});
   };
 
   std::unique_ptr<SumType> lhs = make_sum_type("A");
@@ -108,8 +111,10 @@ TEST(FormatTypeMismatchTest, SumPayloadMismatch) {
   rhs_variants.push_back(
       SumTypeVariant::MakeTuple(*some, std::move(rhs_some_members)));
 
-  SumType lhs(*option, std::move(lhs_variants));
-  SumType rhs(*option, std::move(rhs_variants));
+  SumType lhs(*option, std::move(lhs_variants),
+              SumType::SelectedZeroVariant{std::cref(*none)});
+  SumType rhs(*option, std::move(rhs_variants),
+              SumType::SelectedZeroVariant{std::cref(*none)});
   XLS_ASSERT_OK_AND_ASSIGN(std::string got,
                            FormatTypeMismatch(lhs, rhs, file_table));
 
@@ -150,7 +155,8 @@ TEST(FormatTypeMismatchTest, NestedAggregateSumPayloadMismatch) {
   std::vector<SumTypeVariant> lhs_variants;
   lhs_variants.push_back(
       SumTypeVariant::MakeTuple(*some, std::move(lhs_members)));
-  SumType lhs(*option, std::move(lhs_variants));
+  SumType lhs(*option, std::move(lhs_variants),
+              SumType::SelectedZeroVariant{std::cref(*some)});
 
   std::vector<std::unique_ptr<Type>> rhs_members;
   rhs_members.push_back(
@@ -158,7 +164,8 @@ TEST(FormatTypeMismatchTest, NestedAggregateSumPayloadMismatch) {
   std::vector<SumTypeVariant> rhs_variants;
   rhs_variants.push_back(
       SumTypeVariant::MakeTuple(*some, std::move(rhs_members)));
-  SumType rhs(*option, std::move(rhs_variants));
+  SumType rhs(*option, std::move(rhs_variants),
+              SumType::SelectedZeroVariant{std::cref(*some)});
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string got,
                            FormatTypeMismatch(lhs, rhs, file_table));
@@ -219,7 +226,8 @@ TEST(FormatTypeMismatchTest,
     variants.push_back(SumTypeVariant::MakeStruct(
         *empty_struct, std::vector<std::unique_ptr<Type>>{}));
     variants.push_back(SumTypeVariant::MakeUnit(*none));
-    return SumType(*option, std::move(variants));
+    return SumType(*option, std::move(variants),
+                   SumType::SelectedZeroVariant{std::cref(*pair)});
   };
   SumType lhs = make_type(std::make_unique<BitsType>(false, 16));
   SumType rhs = make_type(BitsType::MakeU32());

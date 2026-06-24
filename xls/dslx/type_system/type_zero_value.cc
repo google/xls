@@ -16,11 +16,11 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -80,34 +80,18 @@ absl::StatusOr<bool> HasKnownAllOnesValue(const EnumType& t,
   return false;
 }
 
-absl::StatusOr<const SumTypeVariant*> GetZeroDiscriminantVariant(
-    const SumType& type, const ImportData& import_data) {
-  if (type.variant_count() == 0) {
-    return static_cast<const SumTypeVariant*>(nullptr);
+const SumTypeVariant* GetZeroDiscriminantVariant(const SumType& type) {
+  if (const auto* selected =
+          std::get_if<SumType::SelectedZeroVariant>(&type.zero_selection())) {
+    auto it =
+        std::find_if(type.variants().begin(), type.variants().end(),
+                     [&](const SumTypeVariant& variant) {
+                       return &variant.variant() == &selected->variant.get();
+                     });
+    return &*it;
+  } else {
+    return nullptr;
   }
-
-  const bool has_explicit_discriminants =
-      std::any_of(type.variants().begin(), type.variants().end(),
-                  [](const SumTypeVariant& variant) {
-                    return variant.variant().discriminant().has_value();
-                  });
-  if (!has_explicit_discriminants) {
-    return &type.variants().front();
-  }
-
-  const SumDef& def = type.nominal_type();
-  XLS_ASSIGN_OR_RETURN(const TypeInfo* type_info,
-                       import_data.GetRootTypeInfoForNode(&def));
-  for (const SumTypeVariant& variant : type.variants()) {
-    std::optional<Expr*> discriminant = variant.variant().discriminant();
-    XLS_RET_CHECK(discriminant.has_value());
-    XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         type_info->GetConstExpr(*discriminant));
-    if (value.GetBitsOrDie().IsZero()) {
-      return &variant;
-    }
-  }
-  return static_cast<const SumTypeVariant*>(nullptr);
 }
 
 absl::StatusOr<InterpValue> ZeroOfBitsLike(const BitsLikeProperties& bits_like,
@@ -249,8 +233,7 @@ class MakeValueVisitor : public TypeVisitor {
           absl::StrFormat("Cannot make a %s of sum type.", value_name_),
           file_table());
     }
-    XLS_ASSIGN_OR_RETURN(const SumTypeVariant* zero_variant,
-                         GetZeroDiscriminantVariant(t, import_data_));
+    const SumTypeVariant* zero_variant = GetZeroDiscriminantVariant(t);
     if (zero_variant == nullptr) {
       return TypeInferenceErrorStatus(
           span_, &t,

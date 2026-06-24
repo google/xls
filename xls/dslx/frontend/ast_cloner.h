@@ -110,6 +110,7 @@ CloneAstAndGetAllPairs(const AstNode* root,
                        std::optional<Module*> target_module,
                        CloneReplacer replacer = &NoopCloneReplacer);
 
+// Clones the module with one shared node mapping.
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(
     const Module& module, CloneReplacer replacer = &NoopCloneReplacer);
 

@@ -96,6 +96,9 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 // Helper that typechecks an already parsed module, ownership of
 // the module will be given to import_data.
 //
+// The returned module retains the parsed AST nodes. Their lifetime is tied to
+// import_data.
+//
 // "path" is used for error reporting (`Span`s)
 // "import_data" is used to get-or-insert any imported modules.
 absl::StatusOr<TypecheckedModule> TypecheckModule(

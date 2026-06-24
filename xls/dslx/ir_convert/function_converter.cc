@@ -2831,6 +2831,13 @@ absl::Status FunctionConverter::HandleBuiltinWrite(const Invocation* node) {
 
 absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   VLOG(5) << "FunctionConverter::HandleInvocation: " << node->ToString();
+  switch (node->callee_kind()) {
+    case Invocation::CalleeKind::kSumConstructor:
+      return absl::UnimplementedError(
+          "Semantic sum construction is not supported by IR conversion.");
+    case Invocation::CalleeKind::kFunction:
+      break;
+  }
   XLS_ASSIGN_OR_RETURN(std::string called_name, GetCalleeIdentifier(node));
   auto accept_args = [&]() -> absl::StatusOr<std::vector<BValue>> {
     std::vector<BValue> values;
@@ -4643,39 +4650,46 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 }
 
 absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
-  // Implementation note: ColonRef "invocations" are handled in Invocation (by
-  // resolving the mangled callee name, which should have been IR converted in
-  // dependency order).
-  if (std::optional<ImportSubject> import = node->ResolveImportSubject()) {
-    VLOG(6) << "ColonRef @ " << node->span().ToString(file_table())
-            << " was import subject; import: "
-            << ToAstNode(import.value())->ToString();
-    std::optional<const ImportedInfo*> imported =
-        current_type_info_->GetImported(import.value());
-    XLS_RET_CHECK(imported.has_value());
-    Module* imported_mod = (*imported)->module;
-    XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
-                         imported_mod->GetConstantDef(node->attr()));
-    // A constant may be defined in terms of other constants
-    // (pub const MY_CONST = std::foo(ANOTHER_CONST);), so we need to collect
-    // constants transitively so we can visit all dependees.
-    XLS_ASSIGN_OR_RETURN(
-        std::vector<ConstantDef*> constant_deps,
-        GetConstantDepFreevars(constant_def, *imported.value()->type_info));
-    for (ConstantDef* dep : constant_deps) {
-      XLS_RETURN_IF_ERROR(Visit(dep));
+  XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor,
+                       ResolveSumConstructor(node, *import_data_));
+  if (constructor.has_value()) {
+    return absl::UnimplementedError(
+        "Semantic sum construction is not supported by IR conversion.");
+  } else {
+    // Implementation note: ColonRef "invocations" are handled in Invocation (by
+    // resolving the mangled callee name, which should have been IR converted in
+    // dependency order).
+    if (std::optional<ImportSubject> import = node->ResolveImportSubject()) {
+      VLOG(6) << "ColonRef @ " << node->span().ToString(file_table())
+              << " was import subject; import: "
+              << ToAstNode(import.value())->ToString();
+      std::optional<const ImportedInfo*> imported =
+          current_type_info_->GetImported(import.value());
+      XLS_RET_CHECK(imported.has_value());
+      Module* imported_mod = (*imported)->module;
+      XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
+                           imported_mod->GetConstantDef(node->attr()));
+      // A constant may be defined in terms of other constants
+      // (pub const MY_CONST = std::foo(ANOTHER_CONST);), so we need to collect
+      // constants transitively so we can visit all dependees.
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<ConstantDef*> constant_deps,
+          GetConstantDepFreevars(constant_def, *imported.value()->type_info));
+      for (ConstantDef* dep : constant_deps) {
+        XLS_RETURN_IF_ERROR(Visit(dep));
+      }
+      XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def));
+      return DefAlias(constant_def->name_def(), /*to=*/node);
     }
-    XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def));
-    return DefAlias(constant_def->name_def(), /*to=*/node);
-  }
 
-  // In all other cases, we are just lowering the constant that type inference
-  // computed.
-  XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
-                       current_type_info_->GetConstExpr(node));
-  XLS_ASSIGN_OR_RETURN(Value value, interp_value.ConvertToIr());
-  DefConst(node, value);
-  return absl::OkStatus();
+    // In all other cases, we are just lowering the constant that type inference
+    // computed.
+    XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
+                         current_type_info_->GetConstExpr(node));
+    XLS_ASSIGN_OR_RETURN(Value value, interp_value.ConvertToIr());
+    DefConst(node, value);
+    return absl::OkStatus();
+  }
 }
 
 absl::Status FunctionConverter::HandleSplatStructInstance(
@@ -4710,22 +4724,29 @@ absl::Status FunctionConverter::HandleSplatStructInstance(
 
 absl::Status FunctionConverter::HandleStructInstance(
     const StructInstance* node) {
-  std::vector<BValue> operands;
-  XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
-                       ToTypeDefinition(node->struct_ref()));
-  XLS_ASSIGN_OR_RETURN(StructDefBase * def, DerefStructOrProc(type_definition));
-  std::vector<Value> const_operands;
-  for (const auto& [_, member_expr] : node->GetOrderedMembers(def)) {
-    VLOG(10) << "Visiting member expr " << member_expr->ToString();
-    XLS_RETURN_IF_ERROR(Visit(member_expr));
-    XLS_ASSIGN_OR_RETURN(BValue operand, Use(member_expr));
-    operands.push_back(operand);
-  }
+  if (std::optional<Type*> type = current_type_info_->GetItem(node);
+      type.has_value() && (*type)->IsSum()) {
+    return absl::UnimplementedError(
+        "Semantic sum construction is not supported by IR conversion.");
+  } else {
+    std::vector<BValue> operands;
+    XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
+                         ToTypeDefinition(node->struct_ref()));
+    XLS_ASSIGN_OR_RETURN(StructDefBase * def,
+                         DerefStructOrProc(type_definition));
+    std::vector<Value> const_operands;
+    for (const auto& [_, member_expr] : node->GetOrderedMembers(def)) {
+      VLOG(10) << "Visiting member expr " << member_expr->ToString();
+      XLS_RETURN_IF_ERROR(Visit(member_expr));
+      XLS_ASSIGN_OR_RETURN(BValue operand, Use(member_expr));
+      operands.push_back(operand);
+    }
 
-  Def(node, [this, &operands](const SourceInfo& loc) {
-    return function_builder_->Tuple(operands, loc);
-  });
-  return absl::OkStatus();
+    Def(node, [this, &operands](const SourceInfo& loc) {
+      return function_builder_->Tuple(operands, loc);
+    });
+    return absl::OkStatus();
+  }
 }
 
 absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(

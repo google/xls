@@ -1,0 +1,15 @@
+1:0-4:1: SUM_DEF :: `enum Option {
+    None,
+    Some(u32),
+}` :: typeof(Option { None | Some(uN[32]) })
+3:7-3:10: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
+5:0-5:33: FUNCTION :: `fn f() -> Option {
+    Option::None
+}` :: () -> Option { None | Some(uN[32]) }
+5:3-5:4: NAME_DEF :: `f` :: () -> Option { None | Some(uN[32]) }
+5:10-5:17: TYPE_ANNOTATION :: `Option` :: typeof(Option { None | Some(uN[32]) })
+5:17-5:33: STATEMENT_BLOCK :: `{
+    Option::None
+}` :: Option { None | Some(uN[32]) }
+5:19-5:31: COLON_REF :: `Option::None` :: Option { None | Some(uN[32]) }
+5:19-5:31: STATEMENT :: `Option::None` :: Option { None | Some(uN[32]) }

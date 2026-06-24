@@ -883,10 +883,16 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
 }
 
 absl::Status BytecodeEmitter::HandleColonRef(const ColonRef* node) {
-  XLS_ASSIGN_OR_RETURN(InterpValue value, HandleColonRefInternal(node));
-
-  Add(Bytecode::MakeLiteral(node->span(), value));
-  return absl::OkStatus();
+  XLS_ASSIGN_OR_RETURN(std::optional<SumConstructorRef> constructor,
+                       ResolveSumConstructor(node, *import_data_));
+  if (constructor.has_value()) {
+    return absl::UnimplementedError(
+        "Semantic sum execution is not supported by the bytecode runtime.");
+  } else {
+    XLS_ASSIGN_OR_RETURN(InterpValue value, HandleColonRefInternal(node));
+    Add(Bytecode::MakeLiteral(node->span(), value));
+    return absl::OkStatus();
+  }
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
@@ -1178,6 +1184,13 @@ absl::Status BytecodeEmitter::PushResolvedCallee(const Invocation* invocation) {
 }
 
 absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
+  switch (node->callee_kind()) {
+    case Invocation::CalleeKind::kSumConstructor:
+      return absl::UnimplementedError(
+          "Semantic sum execution is not supported by the bytecode runtime.");
+    case Invocation::CalleeKind::kFunction:
+      break;
+  }
   if (NameRef* name_ref = dynamic_cast<NameRef*>(node->callee());
       name_ref != nullptr && name_ref->IsBuiltin()) {
     VLOG(10) << "HandleInvocation; builtin name_ref: " << name_ref->ToString();
@@ -1693,26 +1706,33 @@ absl::Status BytecodeEmitter::HandleString(const String* node) {
 }
 
 absl::Status BytecodeEmitter::HandleStructInstance(const StructInstance* node) {
-  XLS_ASSIGN_OR_RETURN(StructTypeBase * struct_type,
-                       type_info_->GetItemAs<StructTypeBase>(node));
+  if (std::optional<Type*> type = type_info_->GetItem(node);
+      type.has_value() && (*type)->IsSum()) {
+    return absl::UnimplementedError(
+        "Semantic sum execution is not supported by the bytecode runtime.");
+  } else {
+    XLS_ASSIGN_OR_RETURN(StructTypeBase * struct_type,
+                         type_info_->GetItemAs<StructTypeBase>(node));
 
-  const StructDefBase& struct_def = struct_type->struct_def_base();
-  if (struct_def.kind() == AstNodeKind::kProcDef) {
-    // The result of instantiating an impl-style proc is always a constexpr
-    // created by type inference.
-    XLS_ASSIGN_OR_RETURN(InterpValue proc_inst, type_info_->GetConstExpr(node));
-    Add(Bytecode::MakeLiteral(node->span(), proc_inst));
+    const StructDefBase& struct_def = struct_type->struct_def_base();
+    if (struct_def.kind() == AstNodeKind::kProcDef) {
+      // The result of instantiating an impl-style proc is always a constexpr
+      // created by type inference.
+      XLS_ASSIGN_OR_RETURN(InterpValue proc_inst,
+                           type_info_->GetConstExpr(node));
+      Add(Bytecode::MakeLiteral(node->span(), proc_inst));
+      return absl::OkStatus();
+    }
+
+    for (const std::pair<std::string, Expr*>& member :
+         node->GetOrderedMembers(&struct_def)) {
+      XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
+    }
+
+    bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
+                                 Bytecode::NumElements(struct_def.size())));
     return absl::OkStatus();
   }
-
-  for (const std::pair<std::string, Expr*>& member :
-       node->GetOrderedMembers(&struct_def)) {
-    XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
-  }
-
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
-                               Bytecode::NumElements(struct_def.size())));
-  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleSumInstance(const SumInstance*) {

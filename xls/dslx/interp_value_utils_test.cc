@@ -14,6 +14,7 @@
 #include "xls/dslx/interp_value_utils.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -82,7 +83,8 @@ SumType MakeMixedPayloadSumType(Module& module) {
   std::vector<std::unique_ptr<Type>> wide_members;
   wide_members.push_back(std::make_unique<BitsType>(/*is_signed=*/false, 16));
   variants.push_back(SumTypeVariant::MakeTuple(*wide, std::move(wide_members)));
-  return SumType(*sum_def, std::move(variants));
+  return SumType(*sum_def, std::move(variants),
+                 SumType::SelectedZeroVariant{std::cref(*none)});
 }
 
 SumType MakeOuterSumWithInactiveEmptyPayloadType(Module& module) {
@@ -93,7 +95,8 @@ SumType MakeOuterSumWithInactiveEmptyPayloadType(Module& module) {
       kFakeSpan, empty_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{}, /*is_public=*/false);
   empty_name->set_definer(empty_def);
-  SumType empty_type(*empty_def, std::vector<SumTypeVariant>{});
+  SumType empty_type(*empty_def, std::vector<SumTypeVariant>{},
+                     SumType::NoZeroVariant{});
 
   auto* outer_name = module.Make<NameDef>(kFakeSpan, "Outer", nullptr);
   auto* wrapped_name = module.Make<NameDef>(kFakeSpan, "Wrapped", nullptr);
@@ -118,7 +121,8 @@ SumType MakeOuterSumWithInactiveEmptyPayloadType(Module& module) {
   outer_variants.push_back(
       SumTypeVariant::MakeTuple(*wrapped, std::move(wrapped_members)));
   outer_variants.push_back(SumTypeVariant::MakeUnit(*nothing));
-  return SumType(*outer_def, std::move(outer_variants));
+  return SumType(*outer_def, std::move(outer_variants),
+                 SumType::SelectedZeroVariant{std::cref(*wrapped)});
 }
 
 SumType MakeOuterSumWithInactiveEmptyEnumPayloadType(Module& module) {
@@ -159,7 +163,8 @@ SumType MakeOuterSumWithInactiveEmptyEnumPayloadType(Module& module) {
   impossible_members.push_back(enum_type.CloneToUnique());
   outer_variants.push_back(
       SumTypeVariant::MakeTuple(*impossible, std::move(impossible_members)));
-  return SumType(*outer_def, std::move(outer_variants));
+  return SumType(*outer_def, std::move(outer_variants),
+                 SumType::SelectedZeroVariant{std::cref(*unit)});
 }
 
 SumType MakeEnumPayloadSumType(Module& module, EnumDef** enum_def_out) {
@@ -215,7 +220,8 @@ SumType MakeEnumPayloadSumType(Module& module, EnumDef** enum_def_out) {
   variants.push_back(SumTypeVariant::MakeTuple(*some, std::move(some_members)));
   variants.push_back(SumTypeVariant::MakeUnit(*none));
   *enum_def_out = enum_def;
-  return SumType(*sum_def, std::move(variants));
+  return SumType(*sum_def, std::move(variants),
+                 SumType::SelectedZeroVariant{std::cref(*some)});
 }
 
 SumType MakeOptionalPayloadSumType(Module& module, TypeAnnotation* annotation,
@@ -242,7 +248,8 @@ SumType MakeOptionalPayloadSumType(Module& module, TypeAnnotation* annotation,
   payload_members.push_back(std::move(payload_type));
   variants.push_back(
       SumTypeVariant::MakeTuple(*some, std::move(payload_members)));
-  return SumType(*sum_def, std::move(variants));
+  return SumType(*sum_def, std::move(variants),
+                 SumType::SelectedZeroVariant{std::cref(*none)});
 }
 
 SumType MakeOptionalPayloadSumType(Module& module, BuiltinType annotation_kind,
@@ -450,7 +457,8 @@ TEST(InterpValueHelpersTest, CreateZeroSumValueFails) {
   inner_some_members.push_back(BitsType::MakeU32());
   inner_variants.push_back(
       SumTypeVariant::MakeTuple(*inner_some, std::move(inner_some_members)));
-  SumType inner_type(*inner_def, std::move(inner_variants));
+  SumType inner_type(*inner_def, std::move(inner_variants),
+                     SumType::SelectedZeroVariant{std::cref(*inner_none)});
 
   auto* outer_name = module.Make<NameDef>(kFakeSpan, "Outer", nullptr);
   auto* outer_wrap_name = module.Make<NameDef>(kFakeSpan, "Wrap", nullptr);
@@ -472,7 +480,8 @@ TEST(InterpValueHelpersTest, CreateZeroSumValueFails) {
   outer_variants.push_back(
       SumTypeVariant::MakeTuple(*outer_wrap, std::move(outer_wrap_members)));
   outer_variants.push_back(SumTypeVariant::MakeUnit(*outer_none));
-  SumType outer_type(*outer_def, std::move(outer_variants));
+  SumType outer_type(*outer_def, std::move(outer_variants),
+                     SumType::SelectedZeroVariant{std::cref(*outer_wrap)});
 
   EXPECT_THAT(CreateZeroValueFromType(outer_type),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -546,8 +555,8 @@ TEST(InterpValueHelpersTest,
 
   std::vector<std::unique_ptr<Type>> tuple_members;
   tuple_members.push_back(std::make_unique<TokenType>());
-  tuple_members.push_back(
-      std::make_unique<SumType>(*never_def, std::vector<SumTypeVariant>{}));
+  tuple_members.push_back(std::make_unique<SumType>(
+      *never_def, std::vector<SumTypeVariant>{}, SumType::NoZeroVariant{}));
   SumType sum_type = MakeOptionalPayloadSumType(
       module, tuple_annotation,
       std::make_unique<TupleType>(std::move(tuple_members)));
@@ -608,7 +617,8 @@ TEST(InterpValueHelpersTest, CreateZeroEmptySumValueFails) {
       kFakeSpan, empty_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{}, /*is_public=*/false);
   empty_name->set_definer(empty_def);
-  SumType empty_type(*empty_def, std::vector<SumTypeVariant>{});
+  SumType empty_type(*empty_def, std::vector<SumTypeVariant>{},
+                     SumType::NoZeroVariant{});
 
   EXPECT_THAT(CreateZeroValueFromType(empty_type),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -648,7 +658,8 @@ TEST(InterpValueHelpersTest,
       kFakeSpan, empty_name, std::vector<ParametricBinding*>{},
       std::vector<SumVariant*>{}, /*is_public=*/false);
   empty_name->set_definer(empty_def);
-  SumType empty_type(*empty_def, std::vector<SumTypeVariant>{});
+  SumType empty_type(*empty_def, std::vector<SumTypeVariant>{},
+                     SumType::NoZeroVariant{});
 
   auto* outer_name = module.Make<NameDef>(kFakeSpan, "Outer", nullptr);
   auto* wrapped_name = module.Make<NameDef>(kFakeSpan, "Wrapped", nullptr);
@@ -673,7 +684,8 @@ TEST(InterpValueHelpersTest,
   outer_variants.push_back(
       SumTypeVariant::MakeTuple(*wrapped, std::move(wrapped_members)));
   outer_variants.push_back(SumTypeVariant::MakeUnit(*nothing));
-  SumType outer_type(*outer_def, std::move(outer_variants));
+  SumType outer_type(*outer_def, std::move(outer_variants),
+                     SumType::SelectedZeroVariant{std::cref(*wrapped)});
 
   const std::vector<InterpValue> no_payload_values;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -859,7 +871,8 @@ TEST(InterpValueHelpersTest,
       *empty_tuple, std::vector<std::unique_ptr<Type>>{}));
   variants.push_back(SumTypeVariant::MakeStruct(
       *empty_struct, std::vector<std::unique_ptr<Type>>{}));
-  SumType sum_type(*sum_def, std::move(variants));
+  SumType sum_type(*sum_def, std::move(variants),
+                   SumType::SelectedZeroVariant{std::cref(*none)});
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ValueFormatDescriptor descriptor,
@@ -941,7 +954,9 @@ TEST(InterpValueHelpersTest, ValidatesDeeplyNestedSemanticSums) {
   SumDef* current_def = base_def;
   std::vector<SumTypeVariant> base_variants;
   base_variants.push_back(SumTypeVariant::MakeUnit(*unit));
-  auto current = std::make_unique<SumType>(*base_def, std::move(base_variants));
+  auto current =
+      std::make_unique<SumType>(*base_def, std::move(base_variants),
+                                SumType::SelectedZeroVariant{std::cref(*unit)});
   InterpValue value = InterpValue::MakeTuple(
       {InterpValue::MakeUBits(1, 0), InterpValue::MakeTuple({})});
   InterpValue malformed = InterpValue::MakeTuple(
@@ -968,7 +983,9 @@ TEST(InterpValueHelpersTest, ValidatesDeeplyNestedSemanticSums) {
     std::vector<SumTypeVariant> outer_variants;
     outer_variants.push_back(
         SumTypeVariant::MakeTuple(*wrap, std::move(members)));
-    current = std::make_unique<SumType>(*outer_def, std::move(outer_variants));
+    current = std::make_unique<SumType>(
+        *outer_def, std::move(outer_variants),
+        SumType::SelectedZeroVariant{std::cref(*wrap)});
     current_def = outer_def;
     value =
         InterpValue::MakeTuple({InterpValue::MakeUBits(1, 0),
@@ -1033,7 +1050,8 @@ TEST(InterpValueHelpersTest, SignConvertValuePreservesSumEnumPayload) {
   some_members.push_back(enum_type.CloneToUnique());
   variants.push_back(SumTypeVariant::MakeTuple(*some, std::move(some_members)));
   variants.push_back(SumTypeVariant::MakeUnit(*none));
-  SumType sum_type(*sum_def, std::move(variants));
+  SumType sum_type(*sum_def, std::move(variants),
+                   SumType::SelectedZeroVariant{std::cref(*some)});
 
   const InterpValue enum_value =
       InterpValue::MakeEnum(UBits(/*value=*/1, /*bit_count=*/2),
@@ -1263,7 +1281,6 @@ TEST(InterpValueHelpersTest, ValueToInterpValueSumRejectsInvalidTag) {
   EXPECT_THAT(
       ValueToInterpValue(raw, &sum_type),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("invalid tag")));
-
   Value narrow_tag =
       Value::Tuple({Value(UBits(0, 1)),
                     Value::Tuple({Value(UBits(0, 8)), Value(UBits(0, 16))})});

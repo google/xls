@@ -25,6 +25,15 @@
 
 namespace xls::dslx {
 
+inline const absl::Status& GetStatusForMatcher(const absl::Status& status) {
+  return status;
+}
+
+template <typename T>
+const absl::Status& GetStatusForMatcher(const absl::StatusOr<T>& status_or) {
+  return status_or.status();
+}
+
 // Example:
 //
 //  EXPECT_THAT(
@@ -36,7 +45,7 @@ MATCHER_P2(
     absl::StrCat("Positional error with kind ", kind, " and message that ",
                  testing::DescribeMatcher<std::string>(matcher, negation))) {
   const std::string want_kind = kind;
-  const absl::Status& status = arg;
+  const absl::Status& status = GetStatusForMatcher(arg);
   if (status.code() != absl::StatusCode::kInvalidArgument) {
     *result_listener << "where status code is " << status.code();
     return false;

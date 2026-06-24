@@ -164,6 +164,13 @@ XLS_DSLX_AST_NODE_EACH(FORWARD_DECL)
 class StructDefBase;
 class StructInstanceBase;
 
+// Borrowed constructor syntax used as evidence for sum parametric inference.
+// The owning module keeps these expressions alive; inferred parametrics belong
+// to the inference context rather than to these shared syntax nodes.
+using SumConstructorExpr =
+    std::variant<const ColonRef*, const Invocation*, const StructInstance*,
+                 const SumInstance*>;
+
 // Helper type (abstract base) for double dispatch on AST nodes.
 class AstNodeVisitor {
  public:
@@ -584,10 +591,10 @@ class TupleTypeAnnotation : public TypeAnnotation {
 // cast type targets, etc.) we wrap that up in the TypeAnnotation AST construct
 // using this type.
 //
-// If a `TypeRefTypeAnnotation` originates as the type of a `StructInstance`
-// node, then it may capture that node as its `instantiator`, indicating that
-// the types of the actual member expressions in that instance should be used to
-// infer any implicit parametrics.
+// If a `TypeRefTypeAnnotation` originates as the type of an aggregate instance
+// node, then it may capture that node as an instantiator, indicating that the
+// types of the actual payload expressions should be used to infer any implicit
+// parametrics.
 class TypeRefTypeAnnotation : public TypeAnnotation {
  public:
   static constexpr TypeAnnotationKind kAnnotationKind =
@@ -596,7 +603,8 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   TypeRefTypeAnnotation(
       Module* owner, Span span, TypeRef* type_ref,
       std::vector<ExprOrType> parametrics,
-      std::optional<const StructInstanceBase*> instantiator = std::nullopt);
+      std::optional<const StructInstanceBase*> instantiator = std::nullopt,
+      std::optional<SumConstructorExpr> sum_instantiator = std::nullopt);
 
   ~TypeRefTypeAnnotation() override;
 
@@ -618,11 +626,15 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   std::optional<const StructInstanceBase*> instantiator() const {
     return instantiator_;
   }
+  std::optional<SumConstructorExpr> sum_instantiator() const {
+    return sum_instantiator_;
+  }
 
  private:
   TypeRef* type_ref_;
   std::vector<ExprOrType> parametrics_;
   std::optional<const StructInstanceBase*> instantiator_;
+  std::optional<SumConstructorExpr> sum_instantiator_;
 };
 
 // A type annotation that is a reference to a type variable created either by
@@ -2938,6 +2950,10 @@ class FunctionRef : public Instantiation {
 // invocation for the config & next members of a spawned Proc.
 class Invocation : public Instantiation {
  public:
+  // Resolved before semantic analysis and inference-table population. A sum
+  // constructor retains its original syntax and is not a function call.
+  enum class CalleeKind : uint8_t { kFunction, kSumConstructor };
+
   Invocation(
       Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
       std::vector<ExprOrType> explicit_parametrics = {}, bool in_parens = false,
@@ -2960,6 +2976,9 @@ class Invocation : public Instantiation {
   std::string FormatArgs() const;
 
   absl::Span<Expr* const> args() const { return args_; }
+
+  CalleeKind callee_kind() const { return callee_kind_; }
+  void set_callee_kind(CalleeKind kind) { callee_kind_ = kind; }
 
   void set_arg(int i, Expr* arg) {
     CHECK(i >= 0 && i < args_.size());
@@ -2985,6 +3004,7 @@ class Invocation : public Instantiation {
   }
 
   std::vector<Expr*> args_;
+  CalleeKind callee_kind_ = CalleeKind::kFunction;
   // The invocation that caused this node to be generated, e.g., in the case of
   // `map(f, arr)`, an invocation is generated for `f(arr)` and the
   // `originating_invocation` will point to the `map` invocation.

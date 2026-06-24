@@ -31,7 +31,7 @@ namespace xls::dslx {
 
 // This class traverses the AST to generate warnings for improper XLS code that
 // is misleading or has no effect. Several kinds of warnings are context free
-// and does not require type-checking so they can be emitted at
+// and do not require type-checking so they can be emitted at
 // RunPreTypeCheckPass, while the others require type-checking and are emitted
 // at a later stage. This class also collects and holds necessary information to
 // assist the generation of those warnings.

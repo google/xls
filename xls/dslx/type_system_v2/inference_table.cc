@@ -747,7 +747,8 @@ class InferenceTableImpl : public InferenceTable {
                 absl::down_cast<const TypeAnnotation*>(new_node), flag);
           }
         }
-        if (old_node->kind() == AstNodeKind::kColonRef) {
+        if (old_node->kind() == AstNodeKind::kColonRef &&
+            new_node->kind() == AstNodeKind::kColonRef) {
           const auto* old_node_as_colon_ref =
               absl::down_cast<const ColonRef*>(old_node);
           std::optional<const AstNode*> target =
@@ -991,9 +992,11 @@ class InferenceTableImpl : public InferenceTable {
                                 (*old_variable)->name_ref());
     }
     if (node_data.type_variable.has_value()) {
-      if (node->kind() == AstNodeKind::kInvocation) {
+      if (const auto* invocation = dynamic_cast<const Invocation*>(node);
+          invocation != nullptr &&
+          invocation->callee_kind() == Invocation::CalleeKind::kFunction) {
         invocations_feeding_type_variable_[*node_data.type_variable].push_back(
-            absl::down_cast<const Invocation*>(node));
+            invocation);
       }
       cache_.InvalidateVariable(/*parametric_context=*/std::nullopt,
                                 (*node_data.type_variable)->name_ref());

@@ -14,11 +14,15 @@
 
 #include "xls/dslx/type_system/type_zero_value.h"
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
@@ -31,6 +35,10 @@
 
 namespace xls::dslx {
 namespace {
+
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
+
 SumType MakeOuterSumWithInhabitedNestedSumPayload(Module& module) {
   const Span kFakeSpan = Span::Fake();
 
@@ -45,7 +53,8 @@ SumType MakeOuterSumWithInhabitedNestedSumPayload(Module& module) {
   inner_name->set_definer(inner_def);
   std::vector<SumTypeVariant> inner_variants;
   inner_variants.push_back(SumTypeVariant::MakeUnit(*inner_unit));
-  SumType inner_type(*inner_def, std::move(inner_variants));
+  SumType inner_type(*inner_def, std::move(inner_variants),
+                     SumType::SelectedZeroVariant{std::cref(*inner_unit)});
 
   auto* outer_name = module.Make<NameDef>(kFakeSpan, "Outer", nullptr);
   auto* wrapped_name = module.Make<NameDef>(kFakeSpan, "Wrapped", nullptr);
@@ -64,7 +73,8 @@ SumType MakeOuterSumWithInhabitedNestedSumPayload(Module& module) {
   std::vector<SumTypeVariant> outer_variants;
   outer_variants.push_back(
       SumTypeVariant::MakeTuple(*wrapped, std::move(wrapped_members)));
-  return SumType(*outer_def, std::move(outer_variants));
+  return SumType(*outer_def, std::move(outer_variants),
+                 SumType::SelectedZeroVariant{std::cref(*wrapped)});
 }
 
 TEST(TypeZeroValueTest, ConstructsNestedSumPayloadZeroValue) {
@@ -125,7 +135,9 @@ TEST(TypeZeroValueTest, ConstructsDeeplyNestedSumZerosWithoutRevalidation) {
       variants.push_back(
           SumTypeVariant::MakeTuple(*variant, std::move(payload_members)));
     }
-    current = std::make_unique<SumType>(*definition, std::move(variants));
+    current = std::make_unique<SumType>(
+        *definition, std::move(variants),
+        SumType::SelectedZeroVariant{std::cref(*variant)});
     previous_definition = definition;
   }
 
@@ -188,15 +200,19 @@ TEST(TypeZeroValueTest, UsesExplicitZeroDiscriminantInsteadOfDenseStorageTag) {
   sum_name->set_definer(sum_def);
   XLS_ASSERT_OK(tm.module->AddTop(sum_def, /*make_collision_error=*/nullptr));
 
-  std::vector<SumTypeVariant> variants;
-  std::vector<std::unique_ptr<Type>> request_members;
-  request_members.push_back(BitsType::MakeU8());
-  variants.push_back(
-      SumTypeVariant::MakeTuple(*request, std::move(request_members)));
-  std::vector<std::unique_ptr<Type>> idle_members;
-  idle_members.push_back(std::make_unique<BitsType>(false, 16));
-  variants.push_back(SumTypeVariant::MakeTuple(*idle, std::move(idle_members)));
-  SumType sum_type(*sum_def, std::move(variants));
+  auto make_type = [&](SumType::ZeroSelection selection) {
+    std::vector<SumTypeVariant> variants;
+    std::vector<std::unique_ptr<Type>> request_members;
+    request_members.push_back(BitsType::MakeU8());
+    variants.push_back(
+        SumTypeVariant::MakeTuple(*request, std::move(request_members)));
+    std::vector<std::unique_ptr<Type>> idle_members;
+    idle_members.push_back(std::make_unique<BitsType>(false, 16));
+    variants.push_back(
+        SumTypeVariant::MakeTuple(*idle, std::move(idle_members)));
+    return SumType(*sum_def, std::move(variants), selection);
+  };
+  SumType sum_type = make_type(SumType::SelectedZeroVariant{std::cref(*idle)});
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue result,
                            MakeZeroValue(sum_type, import_data, span));
@@ -211,8 +227,25 @@ TEST(TypeZeroValueTest, UsesExplicitZeroDiscriminantInsteadOfDenseStorageTag) {
   EXPECT_TRUE(payload.at(1).GetBitsOrDie().IsZero());
   EXPECT_FALSE(MakeAllOnesValue(sum_type, import_data, span).ok());
 
+  tm.type_info->SetItem(sum_def, MetaType(sum_type.CloneToUnique()));
   tm.type_info->NoteConstExpr(idle_discriminant, InterpValue::MakeUBits(2, 2));
-  EXPECT_FALSE(MakeZeroValue(sum_type, import_data, span).ok());
+
+  // TypeInfo and the zero macro both clone types. The validated choice must
+  // survive those copies without rereading changed declaration constants.
+  std::optional<Type*> stored_type = tm.type_info->GetItem(sum_def);
+  ASSERT_TRUE(stored_type.has_value());
+  const auto* stored = dynamic_cast<const MetaType*>(*stored_type);
+  ASSERT_NE(stored, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue copied_result,
+      MakeZeroValue(*stored->wrapped()->CloneToUnique(), import_data, span));
+  EXPECT_EQ(copied_result, result);
+
+  SumType absent = make_type(SumType::NoZeroVariant{});
+  tm.type_info->NoteConstExpr(idle_discriminant, InterpValue::MakeUBits(2, 0));
+  EXPECT_THAT(MakeZeroValue(*absent.CloneToUnique(), import_data, span),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("does not have a known zero value")));
 }
 
 TEST(TypeZeroValueTest, RejectsAnEmptySumWithoutAZeroVariant) {
@@ -224,7 +257,7 @@ TEST(TypeZeroValueTest, RejectsAnEmptySumWithoutAZeroVariant) {
       module.Make<SumDef>(span, name, std::vector<ParametricBinding*>{},
                           std::vector<SumVariant*>{}, /*is_public=*/false);
   name->set_definer(def);
-  SumType never(*def, std::vector<SumTypeVariant>{});
+  SumType never(*def, std::vector<SumTypeVariant>{}, SumType::NoZeroVariant{});
   ImportData import_data = CreateImportDataForTest();
 
   EXPECT_FALSE(MakeZeroValue(never, import_data, span).ok());
@@ -239,7 +272,8 @@ TEST(TypeZeroValueTest, EmptyArraysDoNotMaterializeUninhabitedSumElements) {
       module.Make<SumDef>(span, never_name, std::vector<ParametricBinding*>{},
                           std::vector<SumVariant*>{}, /*is_public=*/false);
   never_name->set_definer(never_def);
-  SumType never(*never_def, std::vector<SumTypeVariant>{});
+  SumType never(*never_def, std::vector<SumTypeVariant>{},
+                SumType::NoZeroVariant{});
   ArrayType empty(never.CloneToUnique(), TypeDim::CreateU32(0));
   ImportData import_data = CreateImportDataForTest();
 
