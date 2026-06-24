@@ -797,7 +797,7 @@ cc_test(
     data = [
         "@at_clifford_yosys//:yosys",
         "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
-        "@org_theopenroadproject//:opensta",
+        "@org_theopenroadproject//src/sta:opensta",
     ],
     deps = [
         ":pipeline_scheduling_pass",

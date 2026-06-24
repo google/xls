@@ -1,0 +1,9 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -254,5 +254,5 @@ alias(
+     visibility = ["//visibility:public"],
+ )
+ """,
+-    path = "bazel",
++    path = ".",
+ )

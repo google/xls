@@ -42,7 +42,7 @@ temp=$(mktemp)
 stdout="${{temp}}.stdout"
 stderr="${{temp}}.stderr"
 file={path!r}
-./third_party/iverilog/vvp -M ./third_party/iverilog $file > $stdout 2> $stderr
+./external/com_icarus_iverilog/vvp -M ./external/com_icarus_iverilog $file > $stdout 2> $stderr
 cat $stdout
 cat $stderr >&2
 errors=$(cat $stdout $stderr | grep -c -i error)

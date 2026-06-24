@@ -121,7 +121,7 @@ xls_ir_verilog_attrs = {
         cfg = "exec",
     ),
     "sta_tool": attr.label(
-        default = Label("@org_theopenroadproject//:opensta"),
+        default = Label("@org_theopenroadproject//src/sta:opensta"),
         executable = True,
         cfg = "exec",
     ),
@@ -366,10 +366,10 @@ def xls_ir_verilog_fdo_impl(ctx, src, original_input_files):
         yosys_runfiles_dir = ctx.executable.yosys_tool.path + ".runfiles"
         opensta_runfiles_dir = ctx.executable.sta_tool.path + ".runfiles"
         env = {
-            "ABC": yosys_runfiles_dir + "/edu_berkeley_abc/abc",
+            "ABC": yosys_runfiles_dir + "/abc+/abc_bin",
             "DONT_USE_ARGS": dont_use_args,
-            "YOSYS_DATDIR": yosys_runfiles_dir + "/at_clifford_yosys/techlibs/",
-            "TCL_LIBRARY": opensta_runfiles_dir + "/tk_tcl/library",
+            "YOSYS_DATDIR": yosys_runfiles_dir + "/" + yosys_tool.owner.workspace_name + "/",
+            "TCL_LIBRARY": opensta_runfiles_dir + "/tcl_lang+/library",
         }
     else:
         env = {}

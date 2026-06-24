@@ -173,23 +173,117 @@ maven.artifact(
 bazel_dep(name = "eigen", version = "4.0.0-20241125.bcr.2")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 
-# Workaround suggested by a Bazel team member; only needed for WORKSPACE to work correctly.
-# TODO: https://github.com/google/xls/issues/931 - Remove this workaround once the WORKSPACE file is migrated to MODULE.bazel.
-proto_bazel_features = use_repo_rule("@com_google_protobuf//bazel/private:proto_bazel_features.bzl", "proto_bazel_features")
-
-proto_bazel_features(name = "proto_bazel_features")
-
 # rules_hdl deps with bzlmod support.
 bazel_dep(name = "rules_bison", version = "0.3")
 bazel_dep(name = "rules_flex", version = "0.3")
 bazel_dep(name = "rules_m4", version = "0.3")
 bazel_dep(name = "swig", version = "4.3.0")
+bazel_dep(name = "rules_hdl", version = "0.0.0")
+bazel_dep(name = "openroad", repo_name = "org_theopenroadproject")
 
-# TODO: rigge - Remove this override once the patch is in the main repo.
-single_version_override(
-    module_name = "swig",
+git_override(
+    module_name = "rules_hdl",
+    commit = "cbb275235f0f8dc00f87d932db490a4f75fb11d1",
+    remote = "https://github.com/hdl/bazel_rules_hdl.git",
+)
+
+# rules_7zip and openroad are transitive dependencies from rules_hdl.
+# Since overrides are root-honored only in Bzlmod, we must mirror these overrides in
+# our root MODULE.bazel so that Bzlmod can resolve the dependency graph.
+git_override(
+    module_name = "rules_7zip",
+    commit = "03a10b5796eac0aed122cf52064ed15785610857",
+    remote = "https://github.com/zaucy/rules_7zip.git",
+)
+
+git_override(
+    module_name = "openroad",
+    commit = "1ac310f921fcf7497fb935a02b812c75c463c4d4",
+    init_submodules = True,
     patch_strip = 1,
-    patches = ["//dependency_support/rules_hdl:swig_bzlmod.patch"],
+    # Redirects OpenROAD's @slang placeholder repository path from "bazel" to "."
+    # to resolve the bzlmod dependency graph. We don't actually depend on the @slang alias.
+    patches = [
+        "//dependency_support/openroad:slang_path.patch",
+    ],
+    remote = "https://github.com/The-OpenROAD-Project/OpenROAD.git",
+)
+
+# qt-bazel is a transitive dependency from OpenROAD (used for GUI support).
+# Since overrides are root-honored only in Bzlmod, we must mirror this override in
+# our root MODULE.bazel so that Bzlmod can resolve the dependency graph.
+git_override(
+    module_name = "qt-bazel",
+    commit = "886104974c2fd72439f2c33b5deebf0fe4649df7",
+    remote = "https://github.com/The-OpenROAD-Project/qt_bazel_prebuilts",
+)
+
+# TODO: mikex - Remove this override once fixed upstream in https://registry.bazel.build/modules/sv-lang.
+# rules_pycross is a transitive dependency of OpenROAD (via sv-lang).
+# We override rules_pycross to 0.8.3 here to incorporate the fix from
+# https://github.com/jvolkman/rules_pycross/pull/221. Otherwise, the resolved version of pycross
+# (0.8.1) will run into a mismatch between the registered Python versions in
+# @python_versions//:pip.bzl and the supported versions in @rules_python//python:versions.bzl.
+single_version_override(
+    module_name = "rules_pycross",
+    version = "0.8.3",
+)
+
+rules_hdl_tools = use_extension("@rules_hdl//dependency_support:tools_extension.bzl", "tools_extension")
+use_repo(rules_hdl_tools, "at_clifford_yosys", "com_icarus_iverilog")
+
+rules_hdl_pdks = use_extension("@rules_hdl//dependency_support:pdks_extension.bzl", "pdks_extension")
+use_repo(
+    rules_hdl_pdks,
+    "com_google_skywater_pdk",
+    "com_google_skywater_pdk_sky130_fd_sc_hd",
+    "com_google_skywater_pdk_sky130_fd_sc_hdll",
+    "com_google_skywater_pdk_sky130_fd_sc_hs",
+    "com_google_skywater_pdk_sky130_fd_sc_hvl",
+    "com_google_skywater_pdk_sky130_fd_sc_lp",
+    "com_google_skywater_pdk_sky130_fd_sc_ls",
+    "com_google_skywater_pdk_sky130_fd_sc_ms",
+    "org_theopenroadproject_asap7_pdk_r1p7",
+    "org_theopenroadproject_asap7sc6t_26",
+    "org_theopenroadproject_asap7sc7p5t_27",
+    "org_theopenroadproject_asap7sc7p5t_28",
+)
+
+# TODO: https://github.com/protocolbuffers/protobuf/issues/24084 - Remove this override once fixed upstream.
+single_version_override(
+    module_name = "protobuf",
+    patch_strip = 1,
+    patches = ["//dependency_support/protobuf:fix_system_python.patch"],
+    version = "33.5",
+)
+
+# Force all Boost sub-modules to use the same ABI-compatible version (1.89.0.bcr.2).
+# This is required because sv-lang transitively requests boost.unordered 1.87.0
+# (compatibility level 108700), while OpenROAD requests 1.89.0.bcr.2 (compatibility
+# level 0). Bzlmod's Minimal Version Selection cannot automatically resolve this
+# compatibility level mismatch.
+single_version_override(
+    module_name = "boost.unordered",
+    version = "1.89.0.bcr.2",
+)
+
+single_version_override(
+    module_name = "boost.multiprecision",
+    version = "1.89.0.bcr.2",
+)
+
+single_version_override(
+    module_name = "boost.serialization",
+    version = "1.89.0.bcr.2",
+)
+
+# TODO: mikex - Remove this override once the next version of or-tools lands on BCR with
+# https://github.com/google/or-tools/commit/aa4d0bf2dcbd30e2af2f54dfa7ce06a7f49869f8.
+single_version_override(
+    module_name = "or-tools",
+    patch_strip = 1,
+    patches = ["//dependency_support/or-tools:make_pdlp_public.patch"],
+    version = "9.15",
 )
 
 # Dev dependencies

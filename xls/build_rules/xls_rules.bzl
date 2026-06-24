@@ -384,8 +384,8 @@ def _xls_model_generation_impl(ctx):
     default_load = getattr(standard_cell, "default_output_load", "")
 
     script_contents.append("export YOSYS_DATDIR=at_clifford_yosys/techlibs")
-    script_contents.append("export ABC={}/edu_berkeley_abc/abc".format(yosys_runfiles_dir))
-    script_contents.append("export TCL_LIBRARY={}/tk_tcl/library".format(sta_runfiles_dir))
+    script_contents.append("export ABC={}/abc+/abc_bin".format(yosys_runfiles_dir))
+    script_contents.append("export TCL_LIBRARY={}/tcl_lang+/library".format(sta_runfiles_dir))
     script_contents.append("export DONT_USE_ARGS=")
     script_contents.append("set -e")
 
@@ -461,7 +461,7 @@ currently produced should be considered INCOMPLETE.""",
             allow_single_file = True,
         ),
         "_opensta": attr.label(
-            default = Label("@org_theopenroadproject//:opensta"),
+            default = Label("@org_theopenroadproject//src/sta:opensta"),
             executable = True,
             cfg = "target",
         ),

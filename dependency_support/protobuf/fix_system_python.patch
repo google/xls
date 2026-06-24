@@ -1,0 +1,5 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -152,1 +152,1 @@
+-system_python = use_extension("//python/dist:system_python.bzl", "system_python_extension", dev_dependency = True)
++system_python = use_extension("//python/dist:system_python.bzl", "system_python_extension")

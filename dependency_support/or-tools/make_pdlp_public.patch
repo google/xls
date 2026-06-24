@@ -1,0 +1,10 @@
+--- a/ortools/math_opt/solvers/BUILD.bazel
++++ b/ortools/math_opt/solvers/BUILD.bazel
+@@ -362,6 +362,7 @@
+ cc_library(
+     name = "pdlp_solver",
++    visibility = ["//visibility:public"],
+     srcs = [
+         "pdlp_solver.cc",
+         "pdlp_solver.h",
+     ],

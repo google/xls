@@ -1,7 +1,3 @@
-# We're still using workspace, so make sure we're forward compatible with future
-# bazel versions. This also acts as a TODO to eventually remove WORKSPACE :)
-common --enable_workspace
-
 # There are some places that use glob() in BUILD rules but that return no
 # results. This will be an error in future bazel versions unless explicitly
 # allowed. Allow here; also this acts as a TODO reminder to clean these up.
@@ -87,7 +83,6 @@ build --incompatible_enable_cc_toolchain_resolution
 build --@llvm-project//third-party:llvm_enable_zstd=false
 
 # Do not use some deps from or-tools
-build --@com_google_ortools//ortools/algorithms:with_scip=false
 build --@com_google_ortools//ortools/linear_solver:with_glpk=false
 build --@com_google_ortools//ortools/linear_solver:with_pdlp=false
 build --@com_google_ortools//ortools/linear_solver:with_scip=false
