@@ -525,6 +525,32 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayWithInvoke) {
   EXPECT_EQ(val2_before, val2_after);
 }
 
+TEST_F(ArrayUntuplePassTest, ProcStateArrayIdentityNextWithStateElement) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value init_val,
+      ValueBuilder::Array(
+          {ValueBuilder::Tuple({Value(UBits(0, 4)), Value(UBits(0, 8))}),
+           ValueBuilder::Tuple({Value(UBits(0, 4)), Value(UBits(0, 8))})})
+          .Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_elem,
+                           pb.UnreadStateElement("my_state", init_val,
+                                                 /*non_synthesizable=*/false));
+  BValue state_read = pb.StateRead(state_elem);
+
+  // Identity next (decoupled)
+  pb.Next(state_elem, state_read);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build());
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(pr->StateElements(),
+              UnorderedElementsAre(m::StateElement("my_state")));
+}
+
 TEST_F(ArrayUntuplePassTest, ProcStateArrayNextWithStateElement) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
@@ -556,6 +582,17 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayNextWithStateElement) {
   EXPECT_THAT(pr->StateElements(),
               IsSupersetOf({m::StateElement(_, m::Type("bits[4][2]")),
                             m::StateElement(_, m::Type("bits[8][2]"))}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se0, pr->GetStateElementByName(
+                                                   "my_state_tuple_element_0"));
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se1, pr->GetStateElementByName(
+                                                   "my_state_tuple_element_1"));
+
+  // Verify next values are decoupled (no state_read operand)
+  EXPECT_THAT(pr->next_values(se0),
+              UnorderedElementsAre(m::NextWithStateElement(se0, _)));
+  EXPECT_THAT(pr->next_values(se1),
+              UnorderedElementsAre(m::NextWithStateElement(se1, _)));
 }
 
 void IrFuzzArrayUntuple(FuzzPackageWithArgs fuzz_package_with_args) {

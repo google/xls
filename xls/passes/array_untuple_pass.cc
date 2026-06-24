@@ -134,11 +134,16 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindExternalGroups(
       if (absl::c_all_of(state_read->users(), [&](Node* n) -> bool {
             if (n->Is<Next>()) {
               Next* nxt = n->As<Next>();
-              return nxt->state_read() == nxt->value() &&
-                     nxt->state_read() == state_read;
+              if (nxt->has_state_read()) {
+                return nxt->state_read() == nxt->value() &&
+                       nxt->state_read() == state_read;
+              } else {
+                return nxt->value() == state_read &&
+                       nxt->state_element() == state_read->state_element();
+              }
             }
             // TODO(nelsonliang): Handle identity state elements by retrieving
-            // all state reads and verifying all reds are identity updates.
+            // all state reads and verifying all reads are identity updates.
             return false;
           })) {
         excluded.insert(groups.Find(state_read));
@@ -352,10 +357,19 @@ class UntupleVisitor : public DfsVisitorWithDefault {
          iter::zip(iter::count(), state_read_values, update_values)) {
       XLS_RET_CHECK(state_read_node->Is<StateRead>());
       StateRead* state_read = state_read_node->As<StateRead>();
-      XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                  n->loc(), state_read, value, n->predicate(),
-                                  n->label(), IdxName(n, idx))
-                              .status());
+      if (n->has_state_read()) {
+        XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
+                                    n->loc(), state_read, value, n->predicate(),
+                                    n->label(), IdxName(n, idx))
+                                .status());
+      } else {
+        StateElement* state_element = state_read->state_element();
+        XLS_RET_CHECK(state_element != nullptr);
+        XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
+                                    n->loc(), state_element, value,
+                                    n->predicate(), n->label(), IdxName(n, idx))
+                                .status());
+      }
     }
     // Remove this next from consideration.
     if (n->value() != state_read) {
