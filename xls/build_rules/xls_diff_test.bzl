@@ -56,7 +56,33 @@ _xls_update_golden = rule(
     executable = True,
 )
 
-def diff_test(name, file, golden, failure_message = None, tags = [], **kwargs):
+def diff_test(name, file, golden, sed_transform = None, failure_message = None, tags = [], **kwargs):
+    """A test that compares two files and provides a target to update the golden.
+
+    This macro instantiates a diff_test rule that compares `file` with `golden`.
+    It also creates an executable target `<name>_update_golden` which, when run,
+    overwrites the golden file with the contents of `file` to easily update
+    expectations.
+
+    Args:
+      name: The name of the test target.
+      file: Label of the file being compared to the golden file.
+      golden: Label of the golden file to compare against.
+      sed_transform: A sed script to apply to the files before comparing.
+      failure_message: Additional message to log if the files' contents do not
+        match.
+      tags: List of tags to apply to the targets.
+      **kwargs: Additional keyword arguments to pass to the underlying
+        diff_test rule.
+    """
+    if sed_transform != None:
+        native.genrule(
+            name = name + "_sed_transform",
+            srcs = [file],
+            outs = [name + "_sed_transform.txt"],
+            cmd = "sed -E '" + sed_transform + "' < $< > $@",
+        )
+        file = name + "_sed_transform.txt"
     _base_diff_test(
         name = name,
         file1 = file,

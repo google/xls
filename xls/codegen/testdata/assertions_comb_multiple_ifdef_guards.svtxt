@@ -2,24 +2,24 @@ module assertions_top(
   input wire [31:0] y,
   output wire [31:0] out
 );
-  wire [30:0] add_249;
-  wire ult_251;
-  wire [30:0] add_258;
-  wire ult_261;
-  wire nand_268;
-  wire nand_269;
-  assign add_249 = y[31:1] + 31'h7fff_fffb;
-  assign ult_251 = y < 32'h0000_0014;
-  assign add_258 = y[31:1] + 31'h0000_000f;
-  assign ult_261 = y < 32'h0000_000a;
-  assign nand_268 = ~(y > 32'h0000_0009 & ult_251 & {add_249, y[0]} > 32'h0000_0004);
-  assign nand_269 = ~(ult_261 & y > 32'h0000_0004);
-  assign out = ult_261 ? {add_258, y[0]} : y & {32{ult_251}};
+  wire [30:0] add_XXX;
+  wire ult_XXX;
+  wire [30:0] add_XXX;
+  wire ult_XXX;
+  wire nand_XXX;
+  wire nand_XXX;
+  assign add_XXX = y[31:1] + 31'h7fff_fffb;
+  assign ult_XXX = y < 32'h0000_XXX;
+  assign add_XXX = y[31:1] + 31'h0000_XXXf;
+  assign ult_XXX = y < 32'h0000_XXXa;
+  assign nand_XXX = ~(y > 32'h0000_XXX & ult_XXX & {add_XXX, y[0]} > 32'h0000_XXX);
+  assign nand_XXX = ~(ult_XXX & y > 32'h0000_XXX);
+  assign out = ult_XXX ? {add_XXX, y[0]} : y & {32{ult_XXX}};
   `ifdef ASSERT_ON
   `ifndef SYNTHESIS
-  __assertions__main_0_non_synth___assertions__main_y_ge_than_21: assert final ($isunknown(ult_251) || ult_251) else $fatal(0, "Assertion failure via fail! @ xls/examples/assertions/assertions.x:32:14-32:37");
-  __assertions__main_0_non_synth___assertions__main___assertions__main_0___itok__assertions__main___itok__assertions__main_0___itok__assertions__func_0__32_x_less_than_5: assert final ($isunknown(nand_268) || nand_268) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:21:12-21:40");
-  __assertions__main_0_non_synth___assertions__main___assertions__main_0___itok__assertions__main___itok__assertions__main_1___itok__assertions__func_0__32_x_less_than_5: assert final ($isunknown(nand_269) || nand_269) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:21:12-21:40");
+  __assertions__main_XXX_non_synth___assertions__main_y_ge_than_XXX: assert final ($isunknown(ult_XXX) || ult_XXX) else $fatal(0, "Assertion failure via fail! @ xls/examples/assertions/assertions.x:32:14-32:37");
+  __assertions__main_XXX_non_synth___assertions__main___assertions__main_XXX___itok__assertions__main___itok__assertions__main_XXX___itok__assertions__func_XXX__XXX_x_less_than_XXX: assert final ($isunknown(nand_XXX) || nand_XXX) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:21:12-21:40");
+  __assertions__main_XXX_non_synth___assertions__main___assertions__main_XXX___itok__assertions__main___itok__assertions__main_XXX___itok__assertions__func_XXX__XXX_x_less_than_XXX: assert final ($isunknown(nand_XXX) || nand_XXX) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:21:12-21:40");
   `endif  // SYNTHESIS
   `endif  // ASSERT_ON
 endmodule

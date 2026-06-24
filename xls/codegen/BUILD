@@ -2144,12 +2144,20 @@ xls_diff_test(
     name = "assertions_multiple_ifdef_guards_diff_test",
     file = ":assertions_comb_multiple_ifdef_guards.sv",
     golden = "testdata/assertions_comb_multiple_ifdef_guards.svtxt",
+    # TODO(allight): This is not the best way to do this since the regex can't
+    # accurately pick out only the node-ids. It also changes some constants and
+    # line numbers.
+    sed_transform = "s/_[0-9]+/_XXX/g",
 )
 
 xls_diff_test(
     name = "assertions_no_ifdef_guards_diff_test",
     file = ":assertions_comb_no_ifdef_guards.sv",
     golden = "testdata/assertions_comb_no_ifdef_guards.svtxt",
+    # TODO(allight): This is not the best way to do this since the regex can't
+    # accurately pick out only the node-ids. It also changes some constants and
+    # line numbers.
+    sed_transform = "s/_[0-9]+/_XXX/g",
 )
 
 cc_test(

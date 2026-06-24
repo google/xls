@@ -708,9 +708,15 @@ Examples:
 <pre>
 load("//xls/build_rules:xls_build_defs.bzl", "xls_diff_test")
 
-xls_diff_test(<a href="#xls_diff_test-name">name</a>, <a href="#xls_diff_test-file">file</a>, <a href="#xls_diff_test-golden">golden</a>, <a href="#xls_diff_test-failure_message">failure_message</a>, <a href="#xls_diff_test-tags">tags</a>, <a href="#xls_diff_test-kwargs">**kwargs</a>)
+xls_diff_test(<a href="#xls_diff_test-name">name</a>, <a href="#xls_diff_test-file">file</a>, <a href="#xls_diff_test-golden">golden</a>, <a href="#xls_diff_test-sed_transform">sed_transform</a>, <a href="#xls_diff_test-failure_message">failure_message</a>, <a href="#xls_diff_test-tags">tags</a>, <a href="#xls_diff_test-kwargs">**kwargs</a>)
 </pre>
 
+A test that compares two files and provides a target to update the golden.
+
+This macro instantiates a diff_test rule that compares `file` with `golden`.
+It also creates an executable target `<name>_update_golden` which, when run,
+overwrites the golden file with the contents of `file` to easily update
+expectations.
 
 
 **PARAMETERS**
@@ -718,12 +724,13 @@ xls_diff_test(<a href="#xls_diff_test-name">name</a>, <a href="#xls_diff_test-fi
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| <a id="xls_diff_test-name"></a>name |  <p align="center"> - </p>   |  none |
-| <a id="xls_diff_test-file"></a>file |  <p align="center"> - </p>   |  none |
-| <a id="xls_diff_test-golden"></a>golden |  <p align="center"> - </p>   |  none |
-| <a id="xls_diff_test-failure_message"></a>failure_message |  <p align="center"> - </p>   |  `None` |
-| <a id="xls_diff_test-tags"></a>tags |  <p align="center"> - </p>   |  `[]` |
-| <a id="xls_diff_test-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
+| <a id="xls_diff_test-name"></a>name |  The name of the test target.   |  none |
+| <a id="xls_diff_test-file"></a>file |  Label of the file being compared to the golden file.   |  none |
+| <a id="xls_diff_test-golden"></a>golden |  Label of the golden file to compare against.   |  none |
+| <a id="xls_diff_test-sed_transform"></a>sed_transform |  A sed script to apply to the files before comparing.   |  `None` |
+| <a id="xls_diff_test-failure_message"></a>failure_message |  Additional message to log if the files' contents do not match.   |  `None` |
+| <a id="xls_diff_test-tags"></a>tags |  List of tags to apply to the targets.   |  `[]` |
+| <a id="xls_diff_test-kwargs"></a>kwargs |  Additional keyword arguments to pass to the underlying diff_test rule.   |  none |
 
 
 <a id="xls_dslx_cpp_type_library"></a>
