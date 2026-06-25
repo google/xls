@@ -54,7 +54,7 @@ void PerformFormatStep(InstanceContext* thiz, JitRuntime* runtime,
 
 void RecordTrace(InstanceContext* thiz, std::string* buffer, int64_t verbosity,
                  InterpreterEvents* events) {
-  if (verbosity <= thiz->max_trace_verbosity_) {
+  if (verbosity <= thiz->max_trace_verbosity) {
     events->AddTraceStatementMessage(verbosity, *buffer);
   }
   delete buffer;
