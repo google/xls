@@ -181,7 +181,7 @@ TEST_F(FunctionJitAotTest, InterceptCallAot) {
              xls::JitRuntime* jit_runtime,
              int64_t continuation_point) -> int64_t {
             ++called_unpacked_cnt;
-            instance_context->max_trace_verbosity_ = max_trace_verbosity;
+            instance_context->max_trace_verbosity = max_trace_verbosity;
             instance_context->vtable.record_trace(
                 instance_context, new std::string("Stuck in the middle"),
                 max_trace_verbosity, events);

@@ -127,13 +127,13 @@ struct InstanceContext {
   static InstanceContext CreateForFunc(
       int64_t max_trace_verbosity = 0) {
     InstanceContext ctx;
-    ctx.max_trace_verbosity_ = max_trace_verbosity;
+    ctx.max_trace_verbosity = max_trace_verbosity;
     return ctx;
   }
   static InstanceContext CreateForBlock(
       int64_t max_trace_verbosity = 0) {
     InstanceContext ctx;
-    ctx.max_trace_verbosity_ = max_trace_verbosity;
+    ctx.max_trace_verbosity = max_trace_verbosity;
     return ctx;
   }
   static InstanceContext CreateForProc(
@@ -142,7 +142,7 @@ struct InstanceContext {
     InstanceContext ret;
     ret.instance = inst;
     ret.channel_queues = std::move(queues);
-    ret.max_trace_verbosity_ = max_trace_verbosity;
+    ret.max_trace_verbosity = max_trace_verbosity;
     return ret;
   }
 
@@ -209,7 +209,7 @@ struct InstanceContext {
   std::unique_ptr<TypeManager> type_manager = std::make_unique<TypeManager>();
 
   RuntimeObserver* observer = nullptr;
-  int64_t max_trace_verbosity_ = 0;
+  int64_t max_trace_verbosity = 0;
 };
 
 static_assert(offsetof(InstanceContext, vtable) == 0);

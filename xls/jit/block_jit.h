@@ -240,7 +240,7 @@ class BlockJitContinuation {
   }
 
   void SetMaxTraceVerbosity(int64_t value) {
-    callbacks_.max_trace_verbosity_ = value;
+    callbacks_.max_trace_verbosity = value;
   }
 
   void ClearObserver() { callbacks_.observer = nullptr; }
