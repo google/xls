@@ -65,6 +65,8 @@ jobs:
           [[ ${DSLX_FMT_VERSION} = ${VERSION} ]]
           DSLX_LS_VERSION=$(./dslx_ls --version)
           [[ ${DSLX_LS_VERSION} = ${VERSION} ]]
+          PARSE_AND_TYPECHECK_DSLX_MAIN_VERSION=$(./parse_and_typecheck_dslx_main --version)
+          [[ ${PARSE_AND_TYPECHECK_DSLX_MAIN_VERSION} = ${VERSION} ]]
 
       - name: Test stdlib import
         run: |

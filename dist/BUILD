@@ -67,6 +67,7 @@ pkg_tar(
         "//:LICENSE",
         "//xls/dslx:dslx_fmt",
         "//xls/dslx:interpreter_main",
+        "//xls/dslx:parse_and_typecheck_dslx_main",
         "//xls/dslx:prove_quickcheck_main",
         "//xls/dslx/ir_convert:ir_converter_main",
         "//xls/dslx/lsp:dslx_ls",

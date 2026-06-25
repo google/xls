@@ -33,6 +33,7 @@ XLS_ROOT = 'xls'
 # All paths are relative to XLS_ROOT
 BINARIES = (
     'dslx/interpreter_main',
+    'dslx/parse_and_typecheck_dslx_main',
     'dslx/ir_convert/ir_converter_main',
     'tools/opt_main',
     'tools/codegen_main',
