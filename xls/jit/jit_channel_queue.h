@@ -70,6 +70,15 @@ class ByteQueue {
     }
   }
 
+  bool Peek(uint8_t* buffer) {
+    if (bytes_used_ == 0) {
+      return false;
+    }
+    memcpy(buffer, circular_buffer_.data() + read_index_,
+           channel_element_size_);
+    return true;
+  }
+
   bool Read(uint8_t* buffer) {
     if (bytes_used_ == 0) {
       return false;
@@ -123,6 +132,7 @@ class JitChannelQueue : public ChannelQueue {
   ~JitChannelQueue() override = default;
 
   virtual void WriteRaw(const uint8_t* data) = 0;
+  virtual bool PeekRaw(uint8_t* buffer) = 0;
   virtual bool ReadRaw(uint8_t* buffer) = 0;
 
  protected:
@@ -150,6 +160,24 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
     }
   }
 
+  // Reads raw bytes representing a value in LLVM's native format without
+  // removing it from queue. Returns true if queue was not empty and
+  // data was read.
+  bool PeekRaw(uint8_t* buffer) override {
+    absl::MutexLock lock(&mutex_);
+    if (generator_.has_value()) {
+      std::optional<Value> generated_value = (*generator_)();
+      if (generated_value.has_value()) {
+        WriteInternal(generated_value.value());
+      }
+    }
+    bool peeked_value = byte_queue_.Peek(buffer);
+    if (peeked_value && !callbacks_.empty()) {
+      CallPeekCallbacks(jit_runtime_->UnpackBuffer(buffer, channel()->type()));
+    }
+    return peeked_value;
+  }
+
   // Reads raw bytes representing a value in LLVM's native format. Returns
   // true if queue was not empty and data was read.
   bool ReadRaw(uint8_t* buffer) override {
@@ -170,6 +198,8 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
  protected:
   int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
   void WriteInternal(const Value& value)
+      ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
+  std::optional<Value> PeekInternal()
       ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
   std::optional<Value> ReadInternal()
       ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
@@ -194,6 +224,19 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
       CallWriteCallbacks(jit_runtime_->UnpackBuffer(data, channel()->type()));
     }
   }
+  bool PeekRaw(uint8_t* buffer) override {
+    if (generator_.has_value()) {
+      std::optional<Value> generated_value = (*generator_)();
+      if (generated_value.has_value()) {
+        WriteInternal(generated_value.value());
+      }
+    }
+    bool peeked_value = byte_queue_.Peek(buffer);
+    if (peeked_value && !callbacks_.empty()) {
+      CallPeekCallbacks(jit_runtime_->UnpackBuffer(buffer, channel()->type()));
+    }
+    return peeked_value;
+  }
   bool ReadRaw(uint8_t* buffer) override {
     if (generator_.has_value()) {
       std::optional<Value> generated_value = (*generator_)();
@@ -211,6 +254,7 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
  protected:
   int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
   void WriteInternal(const Value& value) override;
+  std::optional<Value> PeekInternal() override;
   std::optional<Value> ReadInternal() override;
 
   ByteQueue byte_queue_;

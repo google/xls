@@ -2860,6 +2860,12 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   if (called_name == "map") {
     return HandleMap(node).status();
   }
+  if (called_name == "peek") {
+    return HandleBuiltinPeek(node);
+  }
+  if (called_name == "peek_if") {
+    return HandleBuiltinPeekIf(node);
+  }
   if (called_name == "read") {
     return HandleBuiltinRead(node);
   }
@@ -3171,6 +3177,99 @@ absl::Status FunctionConverter::HandleBuiltinSendIf(const Invocation* node) {
   }
   node_to_ir_[node] = result;
   tokens_.push_back(result);
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinPeek(
+    const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("peek", node));
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* default_expr = node->args()[2];
+
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+  XLS_RETURN_IF_ERROR(Visit(default_expr));
+
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef channel_ref,
+                       IrValueToReceiveChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_expr));
+
+  BValue peek;
+  if (implicit_token_data_.has_value()) {
+    XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    peek = builder_ptr->PeekIf(
+        channel_ref, token_value,
+        implicit_token_data_->create_control_predicate());
+  } else {
+    peek = builder_ptr->Peek(channel_ref, token_value);
+  }
+  BValue new_token_value = builder_ptr->TupleIndex(peek, 0);
+  BValue received_value = builder_ptr->TupleIndex(peek, 1);
+  BValue peek_activated = builder_ptr->TupleIndex(peek, 2);
+
+  BValue value =
+      builder_ptr->Select(peek_activated, {default_value, received_value});
+  BValue repackaged_result =
+      builder_ptr->Tuple({new_token_value, value, peek_activated});
+
+  tokens_.push_back(new_token_value);
+  node_to_ir_[node] = repackaged_result;
+
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinPeekIf(
+    const Invocation* node) {
+  XLS_RETURN_IF_ERROR(ValidateProcState("peek_if", node));
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* predicate = node->args()[2];
+  Expr* default_expr = node->args()[3];
+
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue channel_ir_value = node_to_ir_[channel];
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(channel_ir_value));
+  XLS_RETURN_IF_ERROR(Visit(predicate));
+  XLS_RETURN_IF_ERROR(Visit(default_expr));
+
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  XLS_ASSIGN_OR_RETURN(ReceiveChannelRef channel_ref,
+                       IrValueToReceiveChannelRef(channel_ir_value));
+  XLS_ASSIGN_OR_RETURN(BValue predicate_value, Use(predicate));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_expr));
+
+  BValue peek;
+  if (implicit_token_data_.has_value()) {
+    XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    peek = builder_ptr->PeekIf(
+        channel_ref, token_value,
+        builder_ptr->And({implicit_token_data_->create_control_predicate(),
+                          predicate_value}));
+  } else {
+    peek = builder_ptr->PeekIf(channel_ref, token_value, predicate_value);
+  }
+  BValue new_token_value = builder_ptr->TupleIndex(peek, 0);
+  BValue received_value = builder_ptr->TupleIndex(peek, 1);
+  BValue peek_activated = builder_ptr->TupleIndex(peek, 2);
+
+  BValue value =
+      builder_ptr->Select(peek_activated, {default_value, received_value});
+  BValue repackaged_result =
+      builder_ptr->Tuple({new_token_value, value, peek_activated});
+
+  tokens_.push_back(new_token_value);
+  node_to_ir_[node] = repackaged_result;
   return absl::OkStatus();
 }
 

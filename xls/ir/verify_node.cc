@@ -130,60 +130,12 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleReceive(Receive* receive) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCountRange(receive, 1, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(receive, /*operand_no=*/0));
-    if (receive->predicate().has_value()) {
-      XLS_RETURN_IF_ERROR(
-          ExpectOperandHasBitsType(receive, 1, /*expected_bit_count=*/1));
-    }
-    if (!receive->function_base()->HasEffectiveProc()) {
-      return absl::InternalError(absl::StrFormat(
-          "Receive node %s is not in a proc", receive->GetName()));
-    }
-    Proc* proc = receive->function_base()->GetEffectiveProcOrDie();
-    Type* channel_type;
-    if (proc->is_new_style_proc()) {
-      if (!proc->HasChannelInterface(receive->channel_name(),
-                                     ChannelDirection::kReceive)) {
-        return absl::InternalError(
-            absl::StrFormat("No receivable channel named `%s`, node %s",
-                            receive->channel_name(), receive->GetName()));
-      }
-      XLS_ASSIGN_OR_RETURN(
-          ChannelInterface * channel_ref,
-          proc->GetChannelInterface(receive->channel_name(),
-                                    ChannelDirection::kReceive));
-      channel_type = channel_ref->type();
-    } else {
-      if (!receive->package()->HasChannelWithName(receive->channel_name())) {
-        return absl::InternalError(
-            absl::StrFormat("%s refers to channel `%s` which does not exist",
-                            receive->GetName(), receive->channel_name()));
-      }
-      XLS_ASSIGN_OR_RETURN(Channel * channel, receive->package()->GetChannel(
-                                                  receive->channel_name()));
+  absl::Status HandlePeek(Peek* peek) override {
+    return VerifyReceivingNode(peek);
+  }
 
-      channel_type = channel->type();
-      if (!channel->CanReceive()) {
-        return absl::InternalError(absl::StrFormat(
-            "Cannot receive over channel `%s`, receive operation: %s",
-            receive->channel_name(), receive->GetName()));
-      }
-    }
-    Type* expected_type =
-        receive->is_blocking()
-            ? receive->package()->GetTupleType(
-                  {receive->package()->GetTokenType(), channel_type})
-            : receive->package()->GetTupleType(
-                  {receive->package()->GetTokenType(), channel_type,
-                   receive->package()->GetBitsType(1)});
-    if (receive->GetType() != expected_type) {
-      return absl::InternalError(absl::StrFormat(
-          "Expected %s to have type %s, has type %s", receive->GetName(),
-          expected_type->ToString(), receive->GetType()->ToString()));
-    }
-    return absl::OkStatus();
+  absl::Status HandleReceive(Receive* receive) override {
+    return VerifyReceivingNode(receive);
   }
 
   absl::Status HandleSend(Send* send) override {
@@ -1602,6 +1554,63 @@ class NodeChecker : public DfsVisitor {
           "(%d); array type: %s",
           node->GetName(), indices.size(),
           GetArrayDimensionCount(type_to_index), type_to_index->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status VerifyReceivingNode(ChannelNode* node) {
+    XLS_RET_CHECK(node->Is<Receive>() || node->Is<Peek>());
+    XLS_RETURN_IF_ERROR(ExpectOperandCountRange(node, 1, 2));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(node, /*operand_no=*/0));
+    if (node->predicate().has_value()) {
+      XLS_RETURN_IF_ERROR(
+          ExpectOperandHasBitsType(node, 1, /*expected_bit_count=*/1));
+    }
+    if (!node->function_base()->HasEffectiveProc()) {
+      return absl::InternalError(absl::StrFormat(
+          "Receive node %s is not in a proc", node->GetName()));
+    }
+    Proc* proc = node->function_base()->GetEffectiveProcOrDie();
+    Type* channel_type;
+    if (proc->is_new_style_proc()) {
+      if (!proc->HasChannelInterface(node->channel_name(),
+                                     ChannelDirection::kReceive)) {
+        return absl::InternalError(
+            absl::StrFormat("No receivable channel named `%s`, node %s",
+                            node->channel_name(), node->GetName()));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          ChannelInterface * channel_ref,
+          proc->GetChannelInterface(node->channel_name(),
+                                    ChannelDirection::kReceive));
+      channel_type = channel_ref->type();
+    } else {
+      if (!node->package()->HasChannelWithName(node->channel_name())) {
+        return absl::InternalError(
+            absl::StrFormat("%s refers to channel `%s` which does not exist",
+                            node->GetName(), node->channel_name()));
+      }
+      XLS_ASSIGN_OR_RETURN(Channel * channel, node->package()->GetChannel(
+                                                  node->channel_name()));
+
+      channel_type = channel->type();
+      if (!channel->CanReceive()) {
+        return absl::InternalError(absl::StrFormat(
+            "Cannot receive from channel `%s`, receive operation: %s",
+            node->channel_name(), node->GetName()));
+      }
+    }
+    Type* expected_type =
+        node->is_blocking()
+            ? node->package()->GetTupleType(
+                  {node->package()->GetTokenType(), channel_type})
+            : node->package()->GetTupleType(
+                  {node->package()->GetTokenType(), channel_type,
+                   node->package()->GetBitsType(1)});
+    if (node->GetType() != expected_type) {
+      return absl::InternalError(absl::StrFormat(
+          "Expected %s to have type %s, has type %s", node->GetName(),
+          expected_type->ToString(), node->GetType()->ToString()));
     }
     return absl::OkStatus();
   }

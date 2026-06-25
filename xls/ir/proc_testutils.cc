@@ -161,35 +161,12 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandlePeek(Peek* p) override {
+    return HandleReceivingNode(p);
+  }
+
   absl::Status HandleReceive(Receive* r) override {
-    XLS_RETURN_IF_ERROR(fb_.GetError());
-    BValue real_data;
-    if (recv_state_.contains({r->channel_name(), activation_})) {
-      real_data = recv_state_.at({r->channel_name(), activation_});
-    } else {
-      real_data = fb_.Param(
-          absl::StrFormat("%s_act%d_read", r->channel_name(), activation_),
-          r->GetPayloadType());
-      recv_state_[{r->channel_name(), activation_}] = real_data;
-    }
-    std::vector<BValue> result_values{fb_.Literal(token_value_)};
-    if (r->predicate()) {
-      result_values.push_back(fb_.Select(
-          values_[{r->predicate().value(), activation_}],
-          {fb_.Literal(ZeroOfType(r->GetPayloadType())), real_data}));
-    } else {
-      result_values.push_back(real_data);
-    }
-    if (!r->is_blocking()) {
-      // valid is an input.
-      result_values.push_back(
-          fb_.Param(absl::StrFormat("%s_act%d_read_valid", r->channel_name(),
-                                    activation_),
-                    fb_.package()->GetBitsType(1)));
-    }
-    values_[{r, activation_}] = fb_.Tuple(std::move(result_values));
-    VLOG(2) << "got " << r << " -> " << values_[{r, activation_}];
-    return absl::OkStatus();
+    return HandleReceivingNode(r);
   }
 
   absl::Status HandleAfterAll(AfterAll* aa) override {
@@ -222,6 +199,38 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
   }
 
  private:
+  absl::Status HandleReceivingNode(ChannelNode* node) {
+    XLS_RET_CHECK(node->Is<Receive>() || node->Is<Peek>());
+    XLS_RETURN_IF_ERROR(fb_.GetError());
+    BValue real_data;
+    if (recv_state_.contains({node->channel_name(), activation_})) {
+      real_data = recv_state_.at({node->channel_name(), activation_});
+    } else {
+      real_data = fb_.Param(
+          absl::StrFormat("%s_act%d_read", node->channel_name(), activation_),
+          node->GetPayloadType());
+      recv_state_[{node->channel_name(), activation_}] = real_data;
+    }
+    std::vector<BValue> result_values{fb_.Literal(token_value_)};
+    if (node->predicate()) {
+      result_values.push_back(fb_.Select(
+          values_[{node->predicate().value(), activation_}],
+          {fb_.Literal(ZeroOfType(node->GetPayloadType())), real_data}));
+    } else {
+      result_values.push_back(real_data);
+    }
+    if (!node->is_blocking()) {
+      // valid is an input.
+      result_values.push_back(
+          fb_.Param(absl::StrFormat("%s_act%d_read_valid", node->channel_name(),
+                                    activation_),
+                    fb_.package()->GetBitsType(1)));
+    }
+    values_[{node, activation_}] = fb_.Tuple(std::move(result_values));
+    VLOG(2) << "got " << node << " -> " << values_[{node, activation_}];
+    return absl::OkStatus();
+  }
+
   // The function we are building to do verification on.
   FunctionBuilder& fb_;
   // A map of each nodes on a particular activation to the node that implements

@@ -271,7 +271,7 @@ absl::Status ChannelSource::SetBlockInputs(
       return absl::OkStatus();
     }
 
-    if (HasMoreData()) {
+    if (this_cycle >= first_clock_cycle_ && HasMoreData()) {
       bool send_next_data = absl::Bernoulli(random_engine, lambda_);
       if (send_next_data) {
         ++current_index_;

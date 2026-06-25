@@ -494,6 +494,8 @@ absl::StatusOr<Expression*> NodeToExpression(
       return absl::UnimplementedError("AfterAll not yet implemented");
     case Op::kMinDelay:
       return absl::UnimplementedError("MinDelay not yet implemented");
+    case Op::kPeek:
+      return absl::UnimplementedError("Peek not yet implemented");
     case Op::kReceive:
       return absl::UnimplementedError("Receive not yet implemented");
     case Op::kSend:
