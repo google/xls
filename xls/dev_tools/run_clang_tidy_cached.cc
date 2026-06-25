@@ -74,7 +74,7 @@ static constexpr std::string_view kFileExcludeRe =
     ".git/|.github/|dev_tools/run_clang_tidy_cached.cc/|"
     "/testdata/|"
     "xls/common/build_embed\\.cc|"
-    "xls/eco/|"
+    "xls/contrib/eco/|"
     "xlscc/(examples|synth_only|build_rules)";
 inline bool ConsiderExtension(const std::string& extension) {
   return extension == ".cc" || extension == ".h";
