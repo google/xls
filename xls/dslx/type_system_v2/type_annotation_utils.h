@@ -32,6 +32,11 @@
 
 namespace xls::dslx {
 
+// The maximum bit count for a type (e.g., array of bits). Too many more bits
+// and the compiler itself will run out of memory. Besides, designs will likely
+// not have a use case for a type with more bits than this.
+inline constexpr int64_t kMaxBitCount = 1000000;
+
 struct StructOrProcRef {
   const StructDefBase* def;
   std::vector<ExprOrType> parametrics;
