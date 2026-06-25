@@ -68,3 +68,42 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
     ],
 )
+
+cc_binary(
+    name = "dslx_trace_filter",
+    srcs = ["dslx_trace_filter_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir:evaluator_result_cc_proto",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@protobuf",
+    ],
+)
+
+cc_binary(
+    name = "promela_converter_main",
+    srcs = ["promela_converter_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":promela_generator",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir:ir_parser",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
