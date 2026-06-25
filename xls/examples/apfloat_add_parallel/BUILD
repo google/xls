@@ -69,9 +69,9 @@ cc_test(
         ":apfloat_add_parallel_jit_wrapper",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest",
     ],
 )

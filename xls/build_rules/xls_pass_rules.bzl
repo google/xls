@@ -186,7 +186,7 @@ def _xls_pass_impl_macro(
             "%s_impl" % name,
             registry_dep,
             "//xls/common:module_initializer",
-            "@com_google_absl//absl/log:check",
+            "@abseil-cpp//absl/log:check",
         ],
         alwayslink = True,
     )
@@ -502,7 +502,7 @@ xls_pass_registry = rule(
                 default = [
                     Label("//xls/passes:optimization_pass_registry"),
                     Label("//xls/common:module_initializer"),
-                    Label("@com_google_absl//absl/log:check"),
+                    Label("@abseil-cpp//absl/log:check"),
                 ],
             ),
         },
@@ -555,7 +555,7 @@ xls_codegen_pass_registry = rule(
                 default = [
                     Label("//xls/codegen_v_1_5:codegen_pass_registry"),
                     Label("//xls/common:module_initializer"),
-                    Label("@com_google_absl//absl/log:check"),
+                    Label("@abseil-cpp//absl/log:check"),
                 ],
             ),
         },

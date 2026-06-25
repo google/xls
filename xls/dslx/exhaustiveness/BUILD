@@ -27,8 +27,8 @@ cc_library(
     hdrs = ["interp_value_interval.h"],
     deps = [
         "//xls/dslx:interp_value",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -50,12 +50,12 @@ cc_library(
     deps = [
         ":interp_value_interval",
         "//xls/dslx:interp_value",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -67,7 +67,7 @@ cc_test(
         ":nd_region",
         "//xls/common:xls_gunit_main",
         "//xls/dslx:interp_value",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
     ],
 )
@@ -86,10 +86,10 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
+        "@abseil-cpp//absl/types:variant",
     ],
 )
 
@@ -109,11 +109,11 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest",
     ],
 )

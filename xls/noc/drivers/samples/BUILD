@@ -36,8 +36,8 @@ cc_library(
         "//xls/noc/drivers:experiment_factory",
         "//xls/noc/simulation:common",
         "//xls/noc/simulation:traffic_description",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -53,8 +53,8 @@ cc_library(
         "//xls/noc/drivers:experiment_factory",
         "//xls/noc/simulation:common",
         "//xls/noc/simulation:traffic_description",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )

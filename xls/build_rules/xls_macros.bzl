@@ -447,11 +447,11 @@ def xls_dslx_cpp_type_library(
         # TODO: bazelbuild/bazel#14843 - Remove this once no longer needed.
         linkstatic = True,
         deps = [
-            "@com_google_absl//absl/base:core_headers",
-            "@com_google_absl//absl/status:status",
-            "@com_google_absl//absl/strings:str_format",
-            "@com_google_absl//absl/status:statusor",
-            "@com_google_absl//absl/types:span",
+            "@abseil-cpp//absl/base:core_headers",
+            "@abseil-cpp//absl/status:status",
+            "@abseil-cpp//absl/strings:str_format",
+            "@abseil-cpp//absl/status:statusor",
+            "@abseil-cpp//absl/types:span",
             "//xls/public:status_macros",
             "//xls/public:value",
         ] + cpp_deps,
