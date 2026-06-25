@@ -595,8 +595,8 @@ proto_library(
     srcs = ["scheduling_options_flags.proto"],
     visibility = ["//xls:xls_users"],
     deps = [
-        "@com_google_ortools//ortools/math_opt:parameters_proto",
         "@googleapis//google/api:field_behavior_proto",
+        "@or-tools//ortools/math_opt:parameters_proto",
     ],
 )
 
@@ -677,8 +677,8 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@com_google_ortools//ortools/math_opt:parameters_cc_proto",
-        "@com_google_ortools//ortools/math_opt/cpp:math_opt",
+        "@or-tools//ortools/math_opt:parameters_cc_proto",
+        "@or-tools//ortools/math_opt/cpp:math_opt",
     ],
 )
 

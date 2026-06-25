@@ -108,7 +108,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
-        "@com_google_ortools//ortools/math_opt/cpp:math_opt",
+        "@or-tools//ortools/math_opt/cpp:math_opt",
     ],
 )
 
@@ -209,9 +209,9 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
-        "@com_google_ortools//ortools/math_opt/cpp:math_opt",
-        "@com_google_ortools//ortools/math_opt/solvers:glop_solver",
-        "@com_google_ortools//ortools/math_opt/solvers:pdlp_solver",
+        "@or-tools//ortools/math_opt/cpp:math_opt",
+        "@or-tools//ortools/math_opt/solvers:glop_solver",
+        "@or-tools//ortools/math_opt/solvers:pdlp_solver",
     ],
 )
 
@@ -491,7 +491,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/log:vlog_is_on",
         "@abseil-cpp//absl/types:span",
-        "@com_google_ortools//ortools/graph:max_flow",
+        "@or-tools//ortools/graph:max_flow",
     ],
 )
 
@@ -776,8 +776,8 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
-        "@com_google_ortools//ortools/graph:topologicalsorter",
         "@cppitertools",
+        "@or-tools//ortools/graph:topologicalsorter",
     ],
 )
 
@@ -824,9 +824,9 @@ cc_test(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
-        "@com_google_ortools//ortools/math_opt/cpp:math_opt",
-        "@com_google_ortools//ortools/pdlp:solvers_cc_proto",
         "@googletest//:gtest",
+        "@or-tools//ortools/math_opt/cpp:math_opt",
+        "@or-tools//ortools/pdlp:solvers_cc_proto",
     ],
 )
 

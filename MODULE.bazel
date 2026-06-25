@@ -74,7 +74,7 @@ single_version_override(
 
 bazel_dep(name = "linenoise", version = "2.0.0")
 bazel_dep(name = "nlohmann_json", version = "3.12.0.bcr.1")
-bazel_dep(name = "or-tools", version = "9.15", repo_name = "com_google_ortools")
+bazel_dep(name = "or-tools", version = "9.15")
 
 # TODO: mikex - Remove this override once the next version of or-tools lands on BCR with
 # https://github.com/google/or-tools/commit/aa4d0bf2dcbd30e2af2f54dfa7ce06a7f49869f8.
