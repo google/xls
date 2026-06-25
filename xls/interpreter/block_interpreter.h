@@ -68,7 +68,7 @@ InterpretCombinationalBlock(
 // Runs the interpreter on a block feeding a sequence of values to input ports
 // and returning the resulting sequence of values from the output
 // ports. Registers are clocked between each set of inputs fed to the block.
-// Initial register state is zero for all registers.
+// Initial register state is zero for registers without a reset value.
 inline absl::StatusOr<std::vector<absl::flat_hash_map<std::string, Value>>>
 InterpretSequentialBlock(
     Block* block,
@@ -88,6 +88,16 @@ InterpretSequentialBlock(
         BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock) {
   return InterpreterBlockEvaluator().EvaluateSequentialBlock(block, inputs,
                                                              sample_time);
+}
+
+// Runs the interpreter on a block feeding a sequence of values to input ports
+// and returning the resulting sequence of values from the output
+// ports. Registers are clocked between each set of inputs fed to the block.
+// Initial register state is zero for registers without a reset value.
+inline absl::StatusOr<std::vector<std::string>> AssertsFromSequentialBlock(
+    Block* block,
+    absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs) {
+  return InterpreterBlockEvaluator().AssertsFromSequentialBlock(block, inputs);
 }
 
 // Runs the interpreter on a block.  Each input port in the block

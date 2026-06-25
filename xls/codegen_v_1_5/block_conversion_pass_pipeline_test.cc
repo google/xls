@@ -2055,6 +2055,102 @@ TEST_F(SimplePipelinedProcTest, BasicPipelineWithReadyValid) {
   }
 }
 
+TEST_F(SimplePipelinedProcTest, BasicPipelineWithValidDataInAssertOnLoss) {
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.assert_on_valid_data_not_ready(true);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           BuildBlockInPackageWithFlowControl(
+                               /*stage_count=*/4, options,
+                               /*in_flow_control=*/FlowControl::kValidData,
+                               /*out_flow_control=*/FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
+
+  VLOG(2) << "Simple streaming pipelined block";
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+
+  uint64_t running_in_val = 1;
+
+  // Phase 1, Cycles 0-9: Input increments and is valid, but out_rdy is off.
+  // Expect output to initially increment, but hold until out_rdy is on.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(0, 9, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(0, 9, {{"in_vld", 1}, {"out_rdy", 0}}, inputs));
+
+  // Phase 2, Cycles 10-19: out_rdy is on, but in_vld flips off. Output
+  // increments until stages fill and in_vld is read.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(10, 19, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(10, 19, {{"in_vld", 0}, {"out_rdy", 1}}, inputs));
+
+  // Phase 3, Cycles 20-29: both out_rdy and out_vld are on, continue to
+  // increment once in_vld signal propagates through pipeline.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(20, 29, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(20, 29, {{"in_vld", 1}, {"out_rdy", 1}}, inputs));
+
+  std::vector<std::string> asserts;
+  XLS_ASSERT_OK_AND_ASSIGN(asserts, AssertsFromSequentialBlock(block, inputs));
+
+  // Expect asserts due to data loss when we would otherwise report in_rdy=0.
+  // Total number of asserts = 7:
+  // * Cycles 0-9: 7 (10-3) asserts. Once stages are full, begin asserting due
+  //   to out_rdy = 0
+  // * Cycles 10-19: 0 asserts. Stages are already full but in_vld = 0.
+  // * Cycles 20-29: 0 asserts. in_vld = 1 and out_rdy = 1, so pipeline can
+  //   operate on incoming data.
+  ASSERT_EQ(asserts.size(), 7);
+  EXPECT_THAT(asserts[0], HasSubstr("due to not ready"));
+}
+
+TEST_F(SimplePipelinedProcTest,
+       BasicPipelineWithValidDataInNoAssertWithDefaultOptions) {
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  // Do not add assert on valid data not ready to options.
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           BuildBlockInPackageWithFlowControl(
+                               /*stage_count=*/4, options,
+                               /*in_flow_control=*/FlowControl::kValidData,
+                               /*out_flow_control=*/FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
+
+  VLOG(2) << "Simple streaming pipelined block";
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+
+  uint64_t running_in_val = 1;
+
+  // Phase 1, Cycles 0-9: Input increments and is valid, but out_rdy is off.
+  // Expect output to initially increment, but hold until out_rdy is on. Data
+  // loss will occur due to valid-data channel stages filling.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(0, 9, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(0, 9, {{"in_vld", 1}, {"out_rdy", 0}}, inputs));
+
+  std::vector<std::string> asserts;
+  XLS_ASSERT_OK_AND_ASSIGN(asserts, AssertsFromSequentialBlock(block, inputs));
+
+  // Confirm that no asserts are generated even though data has been lost due to
+  // valid-data channel. By default, codegen options do not generate the assert.
+  ASSERT_TRUE(asserts.empty());
+}
+
 TEST_F(SimplePipelinedProcTest, BasicPipelineWithValidDataIn) {
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");

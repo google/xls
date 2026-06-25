@@ -232,6 +232,27 @@ BlockEvaluator::EvaluateSequentialBlock(
   return outputs;
 }
 
+absl::StatusOr<std::vector<std::string>>
+BlockEvaluator::AssertsFromSequentialBlock(
+    Block* block,
+    absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs) const {
+  XLS_ASSIGN_OR_RETURN(
+      auto continuation,
+      NewContinuation(block, OutputPortSampleTime::kAtLastPosEdgeClock));
+  std::vector<std::string> assert_messages;
+  for (const absl::flat_hash_map<std::string, uint64_t>& input_set : inputs) {
+    absl::flat_hash_map<std::string, Value> input_value_set;
+    XLS_ASSIGN_OR_RETURN(input_value_set,
+                         ConvertInputsToValues(input_set, block));
+    XLS_RETURN_IF_ERROR(continuation->RunOneCycle(input_value_set));
+    for (const std::string& assert_message :
+         continuation->events().GetAssertMessages()) {
+      assert_messages.push_back(assert_message);
+    }
+  }
+  return assert_messages;
+}
+
 absl::Status ChannelSource::SetDataSequence(std::vector<Value> data) {
   // TODO(tedhong): 2022-03-15 - Add additional checks to ensure type of Value
   // elements in data are consistent and compatible with this channel's
@@ -303,11 +324,17 @@ absl::Status ChannelSource::SetBlockInputs(
 absl::Status ChannelSource::GetBlockOutputs(
     int64_t this_cycle,
     const absl::flat_hash_map<std::string, Value>& outputs) {
-  auto ready_iter = outputs.find(ready_name_);
+  if (!ready_name_.has_value()) {
+    if (is_valid_) {
+      is_valid_ = false;
+    }
+    return absl::OkStatus();
+  }
+  auto ready_iter = outputs.find(*ready_name_);
   if (ready_iter == outputs.end()) {
     return absl::InternalError(absl::StrFormat(
         "Block %s Channel %s Port %s value not found in interpreter output",
-        block_->name(), data_name_, ready_name_));
+        block_->name(), data_name_, *ready_name_));
   }
 
   const bool ready = ready_iter->second.bits().IsAllOnes();

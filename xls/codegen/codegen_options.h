@@ -453,6 +453,17 @@ class CodegenOptions {
     return ir_dump_path_;
   }
 
+  // If using ValidData flow control, assert when we are receiving incoming data
+  // on a channel, but would have reported ready=0 for the channel.
+  CodegenOptions& assert_on_valid_data_not_ready(bool value) {
+    assert_on_valid_data_not_ready_ = value;
+    return *this;
+  }
+
+  bool assert_on_valid_data_not_ready() const {
+    return assert_on_valid_data_not_ready_;
+  }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -497,6 +508,7 @@ class CodegenOptions {
   std::vector<int32_t> randomize_order_seed_;
   std::optional<CodegenResidualData> residual_data_;
   std::optional<std::string> ir_dump_path_;
+  bool assert_on_valid_data_not_ready_ = false;
 
   std::vector<std::shared_ptr<CodegenOptionExtension>> extensions_;
 };

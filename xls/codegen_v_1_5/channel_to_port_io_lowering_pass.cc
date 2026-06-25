@@ -748,21 +748,19 @@ absl::Status ConnectReceivesToConnector(
                                                  receive->loc()));
     }
 
-    if (connector.ready.has_value()) {
-      // The ready signal from this receive is:
-      //     (predicate AND outputs_ready AND outputs_valid)
-      absl::InlinedVector<Node*, 3> recv_finishing_requirements;
-      recv_finishing_requirements.push_back(stage.outputs_valid());
-      recv_finishing_requirements.push_back(stage.outputs_ready());
-      if (predicate.has_value()) {
-        recv_finishing_requirements.push_back(*predicate);
-      }
-      XLS_ASSIGN_OR_RETURN(
-          Node * recv_finishing,
-          block->MakeNode<NaryOp>(receive->loc(), recv_finishing_requirements,
-                                  Op::kAnd));
-      ready_signals.push_back(recv_finishing);
+    // The ready signal from this receive is:
+    //     (predicate AND outputs_ready AND outputs_valid)
+    absl::InlinedVector<Node*, 3> recv_finishing_requirements;
+    recv_finishing_requirements.push_back(stage.outputs_valid());
+    recv_finishing_requirements.push_back(stage.outputs_ready());
+    if (predicate.has_value()) {
+      recv_finishing_requirements.push_back(*predicate);
     }
+    XLS_ASSIGN_OR_RETURN(
+        Node * recv_finishing,
+        block->MakeNode<NaryOp>(receive->loc(), recv_finishing_requirements,
+                                Op::kAnd));
+    ready_signals.push_back(recv_finishing);
 
     if (connector.valid.has_value() && is_blocking) {
       // This active input is valid iff the receive is inactive (!predicate)
@@ -839,6 +837,27 @@ absl::Status ConnectReceivesToConnector(
       }
 
       replacement_elements.push_back(valid);
+    }
+    if (!connector.ready.has_value() &&
+        options.codegen_options.assert_on_valid_data_not_ready() &&
+        connector.valid.has_value()) {
+      XLS_ASSIGN_OR_RETURN(Node * not_valid, block->MakeNodeInStage<UnOp>(
+                                                 stage_index, receive->loc(),
+                                                 *connector.valid, Op::kNot));
+      XLS_ASSIGN_OR_RETURN(
+          Node * not_valid_or_ready,
+          block->MakeNodeInStage<NaryOp>(
+              stage_index, receive->loc(),
+              absl::MakeConstSpan({not_valid, recv_finishing}), Op::kOr));
+      XLS_RETURN_IF_ERROR(
+          block
+              ->MakeNode<Assert>(
+                  recv_finishing->loc(), token, not_valid_or_ready,
+                  absl::StrCat("Unable to receive ", receive->GetName(),
+                               " due to not ready signal."),
+                  absl::StrCat(receive->GetName(), ".", stage_index),
+                  std::nullopt)
+              .status());
     }
     XLS_RETURN_IF_ERROR(receive
                             ->ReplaceUsesWithNewInStage<Tuple>(

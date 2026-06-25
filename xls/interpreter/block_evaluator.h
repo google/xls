@@ -62,7 +62,7 @@ class ChannelSource {
   // the transaction completes via ready being asserted.
   ChannelSource(
       std::string_view data_name, std::string_view valid_name,
-      std::string_view ready_name, double lambda, Block* block,
+      std::optional<std::string_view> ready_name, double lambda, Block* block,
       BehaviorDuringReset reset_behavior = BehaviorDuringReset::kIgnoreReady)
       : data_name_(data_name),
         valid_name_(valid_name),
@@ -105,7 +105,7 @@ class ChannelSource {
 
   std::string data_name_;
   std::string valid_name_;
-  std::string ready_name_;
+  std::optional<std::string> ready_name_;
 
   double lambda_ = 1.0;  // For geometric inter-arrival times.
 
@@ -296,6 +296,15 @@ class BlockEvaluator {
       absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
       OutputPortSampleTime sample_time =
           OutputPortSampleTime::kAtLastPosEdgeClock) const;
+
+  // Runs the evaluator on a block feeding a sequence of values to input ports
+  // and returning a vector containing all assert messages that fired during the
+  // sequence. Registers are clocked between each set of inputs fed to the
+  // block. Initial register state is zero for all registers.
+  virtual absl::StatusOr<std::vector<std::string>> AssertsFromSequentialBlock(
+      Block* block,
+      absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs)
+      const;
 
   // Runs the evaluator on a block.  Each input port in the block
   // should be given a sequence of data values to drive the block.
