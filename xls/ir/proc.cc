@@ -143,11 +143,10 @@ std::string Proc::DumpIr(const IrAnnotator& annotate) const {
     }
   }
 
-  if (IsScheduled()) {
-    absl::StrAppend(&res, DumpFunctionBaseNodes(annotate));
-  } else if (!is_block_source_) {
+  if (IsScheduled() || !is_block_source_) {
     absl::StrAppend(&res, DumpFunctionBaseNodes(IrAnnotatorJoiner(
-                              IrAnnotatorRef(annotate), TopoSortAnnotator())));
+                              IrAnnotatorRef(annotate),
+                              TopoSortAnnotator(!is_block_source_))));
   }
   absl::StrAppend(&res, "}\n");
   return res;

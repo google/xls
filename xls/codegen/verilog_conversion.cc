@@ -652,6 +652,13 @@ class BlockGenerator {
       std::optional<OpOverride> op_override =
           options_.GetOpOverride(node->op());
 
+      // Ignorable-value gates are emitted as identity, so they don't need to
+      // support overrides.
+      if (node->op() == Op::kGate &&
+          node->As<Gate>()->gate_type() == GateType::kIgnorableGate) {
+        op_override = std::nullopt;
+      }
+
       if (op_override.has_value()) {
         std::vector<NodeRepresentation> inputs;
         for (const Node* operand : node->operands()) {

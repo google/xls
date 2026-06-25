@@ -1825,8 +1825,8 @@ BValue BuilderBase::Cover(BValue condition, std::string_view label,
                              /*original_label=*/std::nullopt, name);
 }
 
-BValue BuilderBase::Gate(BValue condition, BValue data, const SourceInfo& loc,
-                         std::string_view name) {
+BValue BuilderBase::Gate(BValue condition, BValue data, GateType gate_type,
+                         const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1838,7 +1838,8 @@ BValue BuilderBase::Gate(BValue condition, BValue data, const SourceInfo& loc,
             condition.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::Gate>(loc, condition.node(), data.node(), name);
+  return AddNode<xls::Gate>(loc, condition.node(), data.node(), gate_type,
+                            name);
 }
 
 BValue TokenlessProcBuilder::MinDelay(int64_t delay, const SourceInfo& loc,

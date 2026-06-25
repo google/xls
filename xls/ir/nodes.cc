@@ -26,6 +26,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
@@ -1319,9 +1320,20 @@ bool InstantiationInput::IsDefinitelyEqualTo(const Node* other) const {
          port_name_ == other->As<InstantiationInput>()->port_name_;
 }
 
+absl::StatusOr<GateType> ParseGateType(std::string_view gate_type) {
+  if (gate_type == "zero") {
+    return GateType::kZeroGate;
+  } else if (gate_type == "ignorable") {
+    return GateType::kIgnorableGate;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Unknown gate type: ", gate_type));
+}
+
 Gate::Gate(const SourceInfo& loc, Node* condition, Node* data,
-           std::string_view name, FunctionBase* function)
-    : Node(Op::kGate, data->GetType(), loc, name, function) {
+           GateType gate_type, std::string_view name, FunctionBase* function)
+    : Node(Op::kGate, data->GetType(), loc, name, function),
+      gate_type_(gate_type) {
   CHECK(IsOpClass<Gate>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Gate`.";
   AddOperand(condition);
@@ -1331,8 +1343,8 @@ Gate::Gate(const SourceInfo& loc, Node* condition, Node* data,
 absl::StatusOr<Node*> Gate::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<Gate>(loc(), new_operands[0],
-                                              new_operands[1], GetNameView());
+  return new_function->MakeNodeWithName<Gate>(
+      loc(), new_operands[0], new_operands[1], gate_type(), GetNameView());
 }
 
 SliceData Concat::GetOperandSliceData(int64_t operandno) const {

@@ -1247,6 +1247,13 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
   XLS_ASSIGN_OR_RETURN(LogicRef * ref,
                        DeclareVariable(gate->GetName(), gate->GetType()));
 
+  if (gate->gate_type() == GateType::kIgnorableGate) {
+    // Ignorable gates don't perform zero-clamping; they can be evaluated as
+    // identity operations.
+    XLS_RETURN_IF_ERROR(Assign(ref, data, gate->GetType()));
+    return ref;
+  }
+
   // Emit the gate as an AND of the (potentially replicated) condition and the
   // data. For example:
   //
