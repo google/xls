@@ -15,6 +15,8 @@
 # Build rules for the XLS -> Promela code generator.
 # Promela is the input language for the SPIN model checker (https://spinroot.com).
 
+
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_users"],
@@ -66,6 +68,96 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "promela_generator_test",
+    size = "medium",
+    srcs = ["promela_generator_test.cc"],
+    data = [
+        "//xls/spin/testdata:assertion.ir",
+        "//xls/spin/testdata:blocking_receive.ir",
+        "//xls/spin/testdata:channel_naming.x",
+        "//xls/spin/testdata:conditional_io.ir",
+        "//xls/spin/testdata:conditional_io.x",
+        "//xls/spin/testdata:counter.ir",
+        "//xls/spin/testdata:counter.x",
+        "//xls/spin/testdata:deadlock.ir",
+        "//xls/spin/testdata:deadlock.x",
+        "//xls/spin/testdata:func.ir",
+        "//xls/spin/testdata:multi_proc.ir",
+        "//xls/spin/testdata:non_blocking_receive.ir",
+        "//xls/spin/testdata:passthrough.ir",
+        "//xls/spin/testdata:passthrough.x",
+        "//xls/spin/testdata:predicated_receive.ir",
+        "//xls/spin/testdata:predicated_send.ir",
+        "//xls/spin/testdata:proc.ir",
+        "//xls/spin/testdata:unconditional_send.ir",
+        "//xls/spin/testdata:xr_hints.ir",
+        "@spin",
+    ],
+    deps = [
+        ":promela_generator",
+        ":spin_runner",
+        ":trace_compare",
+        "//xls/common:subprocess",
+        "//xls/common:undeclared_outputs",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/file:temp_directory",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:ir_converter",
+        "//xls/dslx/run_routines",
+        "//xls/ir",
+        "//xls/ir:evaluator_result_cc_proto",
+        "//xls/ir:ir_test_base",
+        "//xls/passes:optimization_pass_pipeline",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "spin_runner_test",
+    size = "medium",
+    srcs = ["spin_runner_test.cc"],
+    data = [
+        "//xls/spin/testdata:passthrough.x",
+        "@spin",
+    ],
+    deps = [
+        ":spin_runner",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/file:temp_directory",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:scoped_mock_log",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "trace_compare_test",
+    srcs = ["trace_compare_test.cc"],
+    deps = [
+        ":trace_compare",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:ir_parser",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@googletest//:gtest",
     ],
 )
 
