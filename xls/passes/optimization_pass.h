@@ -198,6 +198,9 @@ struct OptimizationPassOptions : public PassOptionsBase {
   // Force resource sharing to apply the transformation when is legal
   bool force_resource_sharing = false;
 
+  static constexpr int64_t kBddDefaultPathLimit = 1024;
+  int64_t bdd_default_path_limit = kBddDefaultPathLimit;
+
   OptimizationPassOptions WithDelayEstimator(
       const DelayEstimator* delay_estimator) const& {
     OptimizationPassOptions opt = *this;
@@ -265,12 +268,12 @@ class OptimizationContext {
     return it->second.As<QueryEngineT>();
   }
 
-  template <typename QueryEngineT>
+  template <typename QueryEngineT, typename... Args>
     requires(std::is_base_of_v<QueryEngine, QueryEngineT>)
   MaybeOwnedForwardingQueryEngine<QueryEngineT> GetForwardingQueryEngine(
-      FunctionBase* f) {
+      FunctionBase* f, Args... args) {
     return MaybeOwnedForwardingQueryEngine<QueryEngineT>(
-        SharedQueryEngine<QueryEngineT>(f));
+        SharedQueryEngine<QueryEngineT>(f, args...));
   }
 
   std::vector<QueryEngine*> ListQueryEngines() {

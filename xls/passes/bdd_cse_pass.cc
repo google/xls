@@ -101,7 +101,8 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f,
 absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
-  BddQueryEngine* query_engine = context.SharedQueryEngine<BddQueryEngine>(f);
+  BddQueryEngine* query_engine = context.SharedQueryEngine<BddQueryEngine>(
+      f, options.bdd_default_path_limit);
   auto get_bdd_node = [&](Node* n, int64_t bit_index) -> int64_t {
     return query_engine->GetBddNode(TreeBitLocation(n, bit_index))->value();
   };

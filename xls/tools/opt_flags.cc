@@ -133,6 +133,10 @@ ABSL_FLAG(std::optional<std::string>, opt_options_used_textproto_file,
           std::nullopt,
           "If present, path to write a protobuf recording all opt args "
           "used (including those set on the cmd line).");
+ABSL_FLAG(int64_t, bdd_default_path_limit,
+          xls::OptimizationPassOptions::kBddDefaultPathLimit,
+          "The path limit used in BddQueryEngine if no more specific value is "
+          "provided by the invoking pass");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
@@ -210,6 +214,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(OptFlagsProto& proto) {
   POPULATE_FLAG(force_resource_sharing)
   POPULATE_FLAG(area_model)
   POPULATE_FLAG(delay_model)
+  POPULATE_FLAG(bdd_default_path_limit)
   // pipeline proto flags
   {
     std::optional<std::string> protobin_path =

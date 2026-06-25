@@ -93,7 +93,7 @@ absl::StatusOr<OptOptions> OptOptionsFromFlagsProto(
     options.bisect_limit = proto.passes_bisect_limit();
   }
   POPULATE(debug_optimizations)
-
+  POPULATE(bdd_default_path_limit);
   // NOTE: passes_bisect_limit_is_error is not populated in OptOptions as it is
   // handled outside calls to OptimizeIrForTop() that use the OptOptions struct.
   // The idea is that you may want to treat exceeding the bisect limit as an
@@ -203,6 +203,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
   pass_options.enable_resource_sharing = options.enable_resource_sharing;
   pass_options.force_resource_sharing = options.force_resource_sharing;
   pass_options.bisect_limit = options.bisect_limit;
+  pass_options.bdd_default_path_limit = options.bdd_default_path_limit;
   PassResults results;
   OptimizationContext context;
   XLS_RETURN_IF_ERROR(

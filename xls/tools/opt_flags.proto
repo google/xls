@@ -47,4 +47,5 @@ message OptFlagsProto {
   string pass_metrics_path = 19;
   bool debug_optimizations = 20;
   string delay_model = 21;
+  int64 bdd_default_path_limit = 22;
 }
