@@ -365,11 +365,11 @@ cc_library(
         "//xls/passes:pass_pipeline_cc_proto",
         "//xls/tools:opt",
         "@abseil-cpp//absl/status",
-        "@com_google_protobuf//:protobuf",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Support",
+        "@protobuf",
     ],
 )
 

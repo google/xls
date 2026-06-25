@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
-load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
-load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
 load("@grpc//bazel:python_rules.bzl", "py_grpc_library")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
@@ -147,7 +147,7 @@ pytype_strict_contrib_test(
         ":synthesis_py_pb2",
         "//xls/common:runfiles",
         "@abseil-py//absl/testing:absltest",
-        "@com_google_protobuf//:protobuf_python",
+        "@protobuf//:protobuf_python",
         "@xls_pip_deps//portpicker",
     ],
 )
@@ -195,7 +195,7 @@ pytype_strict_library(
         "//xls/ir:xls_op_name_py_pb2",
         "@abseil-py//absl/flags",
         "@abseil-py//absl/logging",
-        "@com_google_protobuf//:protobuf_python",
+        "@protobuf//:protobuf_python",
     ],
 )
 
@@ -242,6 +242,6 @@ cc_binary(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@com_google_protobuf//:protobuf",
+        "@protobuf",
     ],
 )

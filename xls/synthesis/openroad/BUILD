@@ -73,7 +73,7 @@ pytype_strict_contrib_test(
         "//xls/common:runfiles",
         "//xls/synthesis:synthesis_py_pb2",
         "@abseil-py//absl/testing:absltest",
-        "@com_google_protobuf//:protobuf_python",
+        "@protobuf//:protobuf_python",
         "@xls_pip_deps//portpicker",
     ],
 )

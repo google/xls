@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
-load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
-load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
@@ -108,8 +108,8 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
-        "@com_google_protobuf//:protobuf",
-        "@com_google_protobuf//src/google/protobuf/compiler:importer",
+        "@protobuf",
+        "@protobuf//src/google/protobuf/compiler:importer",
     ],
 )
 
@@ -143,8 +143,8 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
-        "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
+        "@protobuf",
     ],
 )
 
@@ -233,7 +233,6 @@ cc_binary(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
-        "@com_google_protobuf//:protobuf",
         "@llvm-project//llvm:CodeGen",
         "@llvm-project//llvm:ExecutionEngine",
         "@llvm-project//llvm:IRReader",
@@ -241,6 +240,7 @@ cc_binary(
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:Target",
         "@llvm-project//llvm:ir_headers",
+        "@protobuf",
         "@riegeli//riegeli/base:initializer",
         "@riegeli//riegeli/bytes:fd_writer",
         "@riegeli//riegeli/records:record_writer",
@@ -288,8 +288,8 @@ cc_test(
         "//xls/ir:value",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/status:status_matchers",
-        "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
+        "@protobuf",
     ],
 )
 
@@ -468,7 +468,7 @@ cc_binary(
         "@abseil-cpp//absl/log:log_sink_registry",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings:str_format",
-        "@com_google_protobuf//:protobuf",
+        "@protobuf",
     ],
 )
 
@@ -939,7 +939,7 @@ pytype_strict_contrib_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "@abseil-py//absl/testing:absltest",
-        "@com_google_protobuf//:protobuf_python",
+        "@protobuf//:protobuf_python",
     ],
 )
 
@@ -962,7 +962,7 @@ pytype_strict_contrib_test(
         "@abseil-py//absl/flags",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
-        "@com_google_protobuf//:protobuf_python",
+        "@protobuf//:protobuf_python",
     ],
 )
 
@@ -980,7 +980,7 @@ pytype_strict_contrib_test(
         "//xls/ir:evaluator_result_py_pb2",
         "//xls/ir:xls_value_py_pb2",
         "@abseil-py//absl/testing:parameterized",
-        "@com_google_protobuf//:protobuf_python",
+        "@protobuf//:protobuf_python",
         "@riegeli//python/riegeli",
     ],
 )
@@ -1262,7 +1262,7 @@ pytype_strict_binary(
         "//xls/common:gfile",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
-        "@com_google_protobuf//:protobuf_python",
+        "@protobuf//:protobuf_python",
     ],
 )
 
@@ -1309,7 +1309,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/types:span",
-        "@com_google_protobuf//:protobuf",
+        "@protobuf",
     ],
 )
 
@@ -1352,8 +1352,8 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
-        "@com_google_protobuf//:timestamp_cc_proto",
         "@perfetto//:trace_cc_proto",
+        "@protobuf//:timestamp_cc_proto",
         "@riegeli//riegeli/records:record_reader",
     ],
 )

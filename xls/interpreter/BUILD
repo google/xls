@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
-load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
-load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
@@ -585,7 +585,7 @@ proto_library(
     srcs = ["trace.proto"],
     deps = [
         "//xls/ir:xls_value_proto",
-        "@com_google_protobuf//:timestamp_proto",
+        "@protobuf//:timestamp_proto",
     ],
 )
 
@@ -612,8 +612,8 @@ cc_library(
         "//xls/ir:xls_value_cc_proto",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
-        "@com_google_protobuf//:time_util",
-        "@com_google_protobuf//:timestamp_cc_proto",
+        "@protobuf//:time_util",
+        "@protobuf//:timestamp_cc_proto",
         "@riegeli//riegeli/records:record_writer",
     ],
 )
@@ -667,8 +667,8 @@ cc_test(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
-        "@com_google_protobuf//:timestamp_cc_proto",
         "@googletest//:gtest",
+        "@protobuf//:timestamp_cc_proto",
         "@riegeli//riegeli/base:initializer",
         "@riegeli//riegeli/bytes:fd_reader",
         "@riegeli//riegeli/bytes:fd_writer",

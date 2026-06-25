@@ -14,8 +14,8 @@
 
 # Common utilities for filesystem interaction shared among XLA subfolders.
 
-load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
-load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
@@ -70,9 +70,9 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:cord",
         "@abseil-cpp//absl/types:span",
-        "@com_google_protobuf//:protobuf",
-        "@com_google_protobuf//src/google/protobuf/io",
-        "@com_google_protobuf//src/google/protobuf/io:tokenizer",
+        "@protobuf",
+        "@protobuf//src/google/protobuf/io",
+        "@protobuf//src/google/protobuf/io:tokenizer",
         "@re2",
     ],
 )

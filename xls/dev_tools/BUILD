@@ -130,7 +130,7 @@ cc_library(
         "//xls/scheduling:pipeline_schedule",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
-        "@com_google_protobuf//:protobuf",
+        "@protobuf",
     ],
 )
 
@@ -149,7 +149,7 @@ cc_binary(
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
-        "@com_google_protobuf//:protobuf",
+        "@protobuf",
     ],
 )
 
@@ -194,7 +194,7 @@ cc_binary(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@com_google_protobuf//:protobuf",
+        "@protobuf",
     ],
 )
 
@@ -208,7 +208,7 @@ pytype_strict_contrib_test(
         "//xls/common:test_base",
         "//xls/estimators:estimator_model_py_pb2",
         "@abseil-py//absl/testing:absltest",
-        "@com_google_protobuf//:protobuf_python",
+        "@protobuf//:protobuf_python",
     ],
 )
 
@@ -884,7 +884,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
-        "@com_google_protobuf//:duration_cc_proto",
+        "@protobuf//:duration_cc_proto",
     ],
 )
 
@@ -968,7 +968,7 @@ cc_binary(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@com_google_protobuf//:protobuf",
+        "@protobuf",
     ],
 )
 

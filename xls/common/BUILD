@@ -15,8 +15,8 @@
 # Common utilities shared among XLA subfolders.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
-load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
@@ -91,9 +91,9 @@ cc_library(
     hdrs = ["proto_test_utils.h"],
     deps = [
         "@abseil-cpp//absl/strings:str_format",
-        "@com_google_protobuf//:differencer",
-        "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
+        "@protobuf",
+        "@protobuf//:differencer",
     ],
 )
 
@@ -114,8 +114,8 @@ cc_test(
         ":matcher_test_messages_cc_proto",
         ":proto_test_utils",
         ":xls_gunit_main",
-        "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
+        "@protobuf",
     ],
 )
 

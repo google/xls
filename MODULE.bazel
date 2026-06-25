@@ -46,7 +46,7 @@ pip.parse(
 use_repo(pip, "xls_pip_deps")
 
 # Root module dependencies.
-# Note: some WORKSPACE dependencies still require repo_name aliases.
+# Note: some older dependencies still require repo_name aliases; see #4459
 bazel_dep(name = "abseil-cpp", version = "20260107.0")
 bazel_dep(name = "abseil-py", version = "2.1.0")
 bazel_dep(name = "bazel_features", version = "1.41.0")
@@ -86,7 +86,7 @@ single_version_override(
 )
 
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "protobuf", version = "33.0", repo_name = "com_google_protobuf")
+bazel_dep(name = "protobuf", version = "33.0")
 bazel_dep(name = "mpfr", version = "4.2.2")
 bazel_dep(name = "gmp", version = "6.3.0.bcr.1")
 bazel_dep(name = "re2", version = "2024-07-02.bcr.1")

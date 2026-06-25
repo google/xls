@@ -111,7 +111,7 @@ pytype_strict_contrib_test(
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
         "@abseil-py//absl/testing:absltest",
-        "@com_google_protobuf//:protobuf_python",
+        "@protobuf//:protobuf_python",
     ],
 )
 
@@ -126,7 +126,7 @@ pytype_strict_binary(
         "//xls/estimators:estimator_model_py_pb2",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
-        "@com_google_protobuf//:protobuf_python",
+        "@protobuf//:protobuf_python",
         "@xls_pip_deps//jinja2",
     ],
 )

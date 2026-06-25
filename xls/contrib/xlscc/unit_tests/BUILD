@@ -207,9 +207,9 @@ cc_test(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
-        "@com_google_protobuf//:differencer",
-        "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
+        "@protobuf",
+        "@protobuf//:differencer",
     ],
 )
 
@@ -248,9 +248,9 @@ cc_test(
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@com_google_protobuf//:differencer",
-        "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
+        "@protobuf",
+        "@protobuf//:differencer",
     ],
 )
 
@@ -303,9 +303,9 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:metadata_output_cc_proto",
         "//xls/contrib/xlscc:translator",
-        "@com_google_protobuf//:differencer",
-        "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
+        "@protobuf",
+        "@protobuf//:differencer",
     ],
 )
 
