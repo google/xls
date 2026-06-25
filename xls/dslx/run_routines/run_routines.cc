@@ -188,7 +188,8 @@ template <typename ProcType>
 absl::Status RunDslxTestProc(ImportData* import_data, const Module* module,
                              ProcType* tp, TypeInfo* ti,
                              std::optional<std::string> expected_fail_label,
-                             const BytecodeInterpreterOptions& options) {
+                             const BytecodeInterpreterOptions& options,
+                             EvaluatorEventsProto* events_out = nullptr) {
   auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
 
@@ -228,6 +229,11 @@ absl::Status RunDslxTestProc(ImportData* import_data, const Module* module,
   if (!ret_val.IsTrue()) {
     return FailureErrorStatus(tp->span(), "Proc reported failure upon exit.",
                               import_data->file_table());
+  }
+  if (events_out != nullptr) {
+    for (const ProcInstance& pi : hierarchy_interpreter->proc_instances()) {
+      events_out->MergeFrom(pi.events().AsProto());
+    }
   }
   return absl::OkStatus();
 }
@@ -301,14 +307,15 @@ absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestFunction(
 }
 
 absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestProc(
-    std::string_view name, const BytecodeInterpreterOptions& options) {
+    std::string_view name, const BytecodeInterpreterOptions& options,
+    EvaluatorEventsProto* events_out) {
   if (std::optional<TestProc*> tp = entry_module_->GetMember<TestProc>(name);
       tp.has_value()) {
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                          type_info_->GetTopLevelProcTypeInfo((*tp)->proc()));
-    return RunResult{
-        .result = RunDslxTestProc(import_data_, entry_module_, (*tp)->proc(),
-                                  ti, (*tp)->expected_fail_label(), options)};
+    return RunResult{.result = RunDslxTestProc(
+                         import_data_, entry_module_, (*tp)->proc(), ti,
+                         (*tp)->expected_fail_label(), options, events_out)};
   }
 
   XLS_ASSIGN_OR_RETURN(ProcDef * proc_def,
@@ -322,7 +329,8 @@ absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestProc(
   return RunResult{
       .result = RunDslxTestProc(import_data_, entry_module_, proc_def,
                                 initializers[0].next_type_info,
-                                /*expected_fail_label=*/std::nullopt, options)};
+                                /*expected_fail_label=*/std::nullopt, options,
+                                /*events_out=*/nullptr)};
 }
 
 TestResultData::TestResultData(absl::Time start_time,
@@ -1069,22 +1077,17 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
       XLS_ASSIGN_OR_RETURN(
           out, runner->RunTestFunction(test_name, interpreter_options,
                                        /*events=*/&test_events));
-    } else {
-      if (options.results_out != nullptr) {
-        return absl::UnimplementedError(
-            "Collecting EvaluatorResultsProto for proc tests is not yet "
-            "implemented");
+      if (result_proto != nullptr) {
+        *result_proto->mutable_events() = test_events.AsProto();
       }
-      XLS_ASSIGN_OR_RETURN(out,
-                           runner->RunTestProc(test_name, interpreter_options));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          out, runner->RunTestProc(test_name, interpreter_options,
+                                   result_proto != nullptr
+                                       ? result_proto->mutable_events()
+                                       : nullptr));
     }
     auto test_case_end = absl::Now();
-
-    // If collecting results, copy the events into the result proto for this
-    // test invocation.
-    if (result_proto != nullptr) {
-      *result_proto->mutable_events() = test_events.AsProto();
-    }
 
     if (out.result.ok()) {
       // Add to the tracking data.
