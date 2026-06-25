@@ -30,11 +30,11 @@ proc __test_module__spawnee_0__16_next<_in_param: bits[16] in, _out_param: bits[
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
   chan _data_0(bits[16], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface _data_0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface _data_0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _data_0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _data_0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan _data_1(bits[16], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface _data_1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface _data_1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _data_1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _data_1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   proc_instantiation __test_module__spawnee_0__16_next_inst(_data_0, _data_1, proc=__test_module__spawnee_0__16_next)
   __state: () = state_read(state_element=__state, id=17)
   __token: token = literal(value=token, id=16)

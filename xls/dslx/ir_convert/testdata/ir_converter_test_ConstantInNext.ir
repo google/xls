@@ -24,8 +24,8 @@ proc __test_module__spawnee_0_next<_inparam: bits[32] in>(__state: (), init={()}
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
   chan _chanchan(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface _chanchan(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface _chanchan(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _chanchan(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _chanchan(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   proc_instantiation __test_module__spawnee_0_next_inst(_chanchan, proc=__test_module__spawnee_0_next)
   literal.21: token = literal(value=token, id=21)
   literal.22: bits[32] = literal(value=1, id=22)

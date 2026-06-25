@@ -36,11 +36,11 @@ proc __test_module__PassthroughProc_next<_ins__0: bits[32] in, _ins__1: bits[32]
 
 proc __test_module__TopProc_next<>() {
   chan _ins_outs__0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface _ins_outs__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface _ins_outs__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _ins_outs__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _ins_outs__0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan _ins_outs__1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-  chan_interface _ins_outs__1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface _ins_outs__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface _ins_outs__1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _ins_outs__1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   proc_instantiation __test_module__PassthroughProc_next_inst(_ins_outs__0, _ins_outs__1, proc=__test_module__PassthroughProc_next)
   literal.25: token = literal(value=token, id=25)
   i: bits[32] = literal(value=0, id=24)

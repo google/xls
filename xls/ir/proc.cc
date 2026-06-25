@@ -674,17 +674,21 @@ absl::StatusOr<ChannelWithInterfaces> Proc::AddChannel(
 
   channel_vec_.push_back(channel_ptr);
   std::optional<ChannelStrictness> strictness;
+  FlowControl flow_control = FlowControl::kNone;
   if (StreamingChannel* streaming_channel =
           dynamic_cast<StreamingChannel*>(channel_ptr)) {
     strictness = streaming_channel->strictness();
+    flow_control = streaming_channel->flow_control();
   }
 
   auto send_channel_interface = std::make_unique<SendChannelInterface>(
       channel_ptr->name(), channel_ptr->type(), channel_ptr->kind());
   send_channel_interface->SetStrictness(strictness);
+  send_channel_interface->SetFlowControl(flow_control);
   auto receive_channel_interface = std::make_unique<ReceiveChannelInterface>(
       channel_ptr->name(), channel_ptr->type(), channel_ptr->kind());
   receive_channel_interface->SetStrictness(strictness);
+  receive_channel_interface->SetFlowControl(flow_control);
 
   ChannelWithInterfaces channel_interfaces{
       .channel = channel_ptr,
