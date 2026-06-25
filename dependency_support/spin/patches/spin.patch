@@ -1,0 +1,137 @@
+--- a/Src/main.c
++++ b/Src/main.c
+@@ -50,6 +50,7 @@
+ int	old_scope_rules;	/* use pre 5.3.0 rules */
+ int	old_priority_rules;	/* use pre 6.2.0 rules */
+ int	product, Strict;
++FILE	*json_trace_fp = NULL;	/* output file for -Q JSON channel trace */
+ short	replay;
+ 
+ int	merger = 1, deadvar = 1, implied_semis = 1;
+@@ -267,6 +268,10 @@
+ #else
+ 	struct stat x;
+ #endif
++	if (json_trace_fp)
++	{	fclose(json_trace_fp);
++		json_trace_fp = NULL;
++	}
+ 	if (preprocessonly == 0 &&  strlen(out1) > 0)
+ 	{	(void) unlink((const char *) out1);
+ 	}
+@@ -657,6 +662,7 @@
+ 	printf("\t-p print all statements\n");
+ 	printf("\t-pp pretty-print (reformat) stdin, write stdout\n");
+ 	printf("\t-qN suppress io for queue N in printouts\n");
++	printf("\t-Q file  write per-channel JSON trace (SEND/RECV events) to file\n");
+ 	printf("\t-r print receive events\n");
+ 	printf("\t-replay  replay an error trail-file found earlier\n");
+ 	printf("\t	if the model contains embedded c-code, the ./pan executable is used\n");
+@@ -941,6 +947,18 @@
+ 				alldone(0);
+ 			  }
+ 			  verbose +=  4; break;
++		case 'Q': if (argc < 3)
++			  {	fprintf(stderr,
++				    "spin: -Q requires an output filename\n");
++					alldone(1);
++				  }
++				  json_trace_fp = fopen(argv[2], "w");
++				  if (!json_trace_fp)
++				  {	fprintf(stderr,
++					    "spin: cannot open '%s'\n", argv[2]);
++						alldone(1);
++					  }
++					  argc--; argv++; break;
+ 		case 'q': if (isdigit((int) argv[1][2]))
+ 				qhide(atoi(&argv[1][2]));
+ 			  break;
+--- a/Src/spin.h
++++ b/Src/spin.h
+@@ -102,6 +102,7 @@
+ 	int	*contents;	/* the values stored */
+ 	int	*stepnr;	/* depth when each msg was sent */
+ 	char	**mtp;		/* if mtype, name of list, else 0 */
++	char	*cname;		/* physical channel name, set in qmake */
+ 	struct Queue	*nxt;	/* linked list */
+ } Queue;
+ 
+--- a/Src/mesg.c
++++ b/Src/mesg.c
+@@ -20,6 +20,7 @@
+ extern int	verbose, TstOnly, s_trail, analyze, columns;
+ extern int	lineno, depth, xspin, m_loss, jumpsteps;
+ extern int	nproc, nstop;
++extern FILE	*json_trace_fp;	/* set by -Q flag; emit JSON channel trace */
+ extern short	Have_claim;
+ 
+ QH	*qh_lst;
+@@ -78,6 +79,7 @@
+ 	q->nslots = s->ini->val;
+ 	q->nflds  = cnt_mpars(s->ini->rgt);
+ 	q->setat  = depth;
++	q->cname  = s->name;
+ 
+ 	i = max(1, q->nslots);	/* 0-slot qs get 1 slot minimum */
+ 	j = q->nflds * i;
+@@ -337,6 +339,17 @@
+ 		/* may 30, 2023: the field types are 0..nflds, not i+0..nflds */
+ 		typ_ck(q->fld_width[j], Sym_typ(m->lft), "send");
+ 	}
++	if (json_trace_fp && q->nflds == 1)
++	{	fprintf(json_trace_fp,
++			"{\"channel_name\":\"%s\","
++			"\"direction\":\"SEND\",\"value\":%d,"
++			"\"proctype\":\"%s\",\"pid\":%d}\n",
++			q->cname ? q->cname : "",
++			q->contents[i],
++			(X_lst && X_lst->n) ? X_lst->n->name : "",
++			X_lst ? X_lst->pid : -1);
++		fflush(json_trace_fp);
++	}
+ 
+ 	if ((verbose&16) && depth >= jumpsteps)
+ 	{	for (i = j; i < q->nflds; i++)
+@@ -429,6 +442,17 @@
+ 	}
+ 
+ 	oi = q->stepnr[i];
++	if (json_trace_fp && full && n->val < 2 && q->nflds == 1 && !Rvous)
++	{	fprintf(json_trace_fp,
++			"{\"channel_name\":\"%s\","
++			"\"direction\":\"RECV\",\"value\":%d,"
++			"\"proctype\":\"%s\",\"pid\":%d}\n",
++			q->cname ? q->cname : "",
++			q->contents[i],
++			(X_lst && X_lst->n) ? X_lst->n->name : "",
++			X_lst ? X_lst->pid : -1);
++		fflush(json_trace_fp);
++	}
+ 	for (m = n->rgt, j = 0; m && j < q->nflds; m = m->rgt, j++)
+ 	{	if (columns && !full)	/* was columns == 1 */
+ 			continue;
+--- a/Src/pangen2.c
++++ b/Src/pangen2.c
+@@ -474,6 +474,8 @@
+ 	if (separate != 2)
+ 	{	fprintf(fd_tc, "char *TrailFile = PanSource; /* default */\n");
+ 		fprintf(fd_tc, "char *trailfilename;\n");
++		fprintf(fd_tc, "char *trail_output_dir = NULL;\n");
++		fprintf(fd_tc, "int   halt_on_error = 0;\n");
+ 	}
+ 
+ 	fprintf(fd_tc, "#ifdef LOOPSTATE\n");
+--- a/Src/pangen1.h
++++ b/Src/pangen1.h
+@@ -6030,9 +6030,11 @@
+ 	"	fprintf(fd, \"\t-hN use different hash-seed N:0..499 (defaults to -h0)\\n\");",
+ 	"	fprintf(fd, \"\t-hash generate a random hash-polynomial for -h0 (see also -rhash)\\n\");",
+ 	"	fprintf(fd, \"\t      using a seed set with -RSn (default %%u)\\n\", s_rand);",
++	"\tfprintf(fd, \"\t-H    exit pan with code 1 when errors found (default exits 0)\\n\");",
+ 	"	fprintf(fd, \"\t-i  search for shortest path to error\\n\");",
+ 	"	fprintf(fd, \"\t-I  like -i, but approximate and faster\\n\");",
+ 	"	fprintf(fd, \"\t-J  reverse eval order of nested unlesses\\n\");",
++	"\tfprintf(fd, \"\t-K<dir>  write .trail files into <dir> instead of current directory\\n\");",
+ 	"#ifdef BITSTATE",
+ 	"	fprintf(fd, \"\t-kN set N bits per state (defaults to 3)\\n\");",
+ 	"#endif",

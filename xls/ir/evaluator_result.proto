@@ -57,6 +57,18 @@ message TraceNodeProto {
   optional ValueProto value_changes = 3;
 }
 
+// Structured metadata for a channel send or receive event.
+message TraceChannelProto {
+  enum Direction {
+    INVALID = 0;
+    SEND = 1;
+    RECV = 2;
+  }
+  optional string channel_name = 1;
+  optional Direction direction = 2;
+  optional ValueProto value = 3;
+}
+
 // A trace message emitted during evaluation.
 message TraceMessageProto {
   optional string message = 1;
@@ -66,6 +78,7 @@ message TraceMessageProto {
     TraceCallProto call = 4;
     TraceNodeProto node = 5;
     TraceCallReturnProto call_return = 6;
+    TraceChannelProto channel = 7;
   }
 }
 

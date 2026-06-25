@@ -235,9 +235,13 @@ void DslxInterpreterEvents::AddTraceChannelMessage(
   const char* verb = direction == ChannelDirection::kIn ? "Received" : "Sent";
   std::string msg = absl::StrFormat("%s data on channel `%s`:\n%s", verb,
                                     channel_name, formatted_data);
-  // TODO(meheff): Add trace channel proto variant and use here.
   TraceMessageProto* tm = proto_.add_trace_msgs();
   tm->set_message(msg);
+  tm->mutable_channel()->set_channel_name(std::string{channel_name});
+  tm->mutable_channel()->set_direction(direction == ChannelDirection::kIn
+                                           ? TraceChannelProto::RECV
+                                           : TraceChannelProto::SEND);
+  *tm->mutable_channel()->mutable_value() = value.AsProto().value();
   SetLocationProto(tm->mutable_location(), file_table, source_location);
   NoteTraceMessageString(file_table, source_location, std::move(msg));
 }
