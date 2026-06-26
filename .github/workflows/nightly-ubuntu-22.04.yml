@@ -89,11 +89,11 @@ jobs:
           # delete bazel download cache.
           rm -rf $(bazel info repository_cache)
           # delete asap7 from bazel cache.
-          rm -rf ~/.cache/bazel/_bazel*/*/external/*org_theopenroadproject_asap7*/
+          rm -rf ~/.cache/bazel/_bazel*/*/external/*org_theopenroadproject_asap7*
           # delete skywater from bazel cache.
-          rm -rf ~/.cache/bazel/_bazel*/*/external/*com_google_skywater_pdk*/
+          rm -rf ~/.cache/bazel/_bazel*/*/external/*com_google_skywater_pdk*
           # delete jdk from bazel cache.
-          rm -rf ~/.cache/bazel/_bazel*/*/external/*remotejdk*/
+          rm -rf ~/.cache/bazel/_bazel*/*/external/*remotejdk*
           # delete release artifacts from cache.
           rm -rf ~/.cache/bazel/_bazel*/*/execroot/*/bazel-out/*/bin/dist/
           # breakdown remaining bazel cache size.
