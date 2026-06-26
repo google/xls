@@ -312,6 +312,10 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
             return module->Make<dslx::ColonRef>(fake_span, name_ref,
                                                 value.name_def->identifier());
           },
+          [&](dslx::SumDef* sum_def) -> absl::StatusOr<Expr*> {
+            return absl::UnimplementedError(
+                "Generating constants of sum types isn't yet supported.");
+          },
           [&](dslx::ColonRef* colon_ref) -> absl::StatusOr<Expr*> {
             return absl::UnimplementedError(
                 "Generating constants of ColonRef types isn't yet supported.");

@@ -141,6 +141,12 @@ TEST(ScannerTest, ScanKeyword) {
   EXPECT_TRUE(tokens[0].IsKeyword(Keyword::kFn));
 }
 
+TEST(ScannerTest, ScanSumIdentifier) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, ToTokens("sum"));
+  ASSERT_EQ(tokens.size(), 1);
+  EXPECT_TRUE(tokens[0].IsIdentifier("sum"));
+}
+
 TEST(ScannerTest, CarryIsValidIdentifier) {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
                            ToTokens("fn carry() {}"));

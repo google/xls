@@ -310,6 +310,34 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleSumVariantPayloadPattern(
+      const SumVariantPayloadPattern* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<NameDefTree*> new_tuple_payload_patterns;
+    new_tuple_payload_patterns.reserve(n->tuple_payload_patterns().size());
+    for (const NameDefTree* pattern : n->tuple_payload_patterns()) {
+      new_tuple_payload_patterns.push_back(
+          absl::down_cast<NameDefTree*>(old_to_new_.at(pattern)));
+    }
+
+    std::vector<SumVariantPayloadPattern::StructPayloadFieldPattern>
+        new_struct_payload_field_patterns;
+    new_struct_payload_field_patterns.reserve(
+        n->struct_payload_field_patterns().size());
+    for (const auto& [name, pattern] : n->struct_payload_field_patterns()) {
+      new_struct_payload_field_patterns.push_back(std::make_pair(
+          name, absl::down_cast<NameDefTree*>(old_to_new_.at(pattern))));
+    }
+
+    old_to_new_[n] = module(n)->Make<SumVariantPayloadPattern>(
+        n->span(),
+        absl::down_cast<ColonRef*>(old_to_new_.at(n->constructor_ref())),
+        n->payload_shape(), std::move(new_tuple_payload_patterns),
+        std::move(new_struct_payload_field_patterns));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleEnumDef(const EnumDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -338,6 +366,68 @@ class AstCloner : public AstNodeVisitor {
 
     old_to_new_[n] = new_enum_def;
 
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSumVariant(const SumVariant* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<TypeAnnotation*> new_tuple_members;
+    new_tuple_members.reserve(n->tuple_members().size());
+    for (const TypeAnnotation* member : n->tuple_members()) {
+      new_tuple_members.push_back(
+          absl::down_cast<TypeAnnotation*>(old_to_new_.at(member)));
+    }
+
+    std::vector<StructMemberNode*> new_struct_members;
+    new_struct_members.reserve(n->struct_members().size());
+    for (const StructMemberNode* member : n->struct_members()) {
+      new_struct_members.push_back(
+          absl::down_cast<StructMemberNode*>(old_to_new_.at(member)));
+    }
+
+    old_to_new_[n] = module(n)->Make<SumVariant>(
+        n->span(), absl::down_cast<NameDef*>(old_to_new_.at(n->name_def())),
+        n->payload_shape(), std::move(new_tuple_members),
+        std::move(new_struct_members),
+        n->discriminant() == nullptr
+            ? nullptr
+            : absl::down_cast<Expr*>(old_to_new_.at(n->discriminant())),
+        n->payload_span(), n->discriminant_equals_span());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSumDef(const SumDef* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<ParametricBinding*> new_parametric_bindings;
+    new_parametric_bindings.reserve(n->parametric_bindings().size());
+    for (const ParametricBinding* binding : n->parametric_bindings()) {
+      new_parametric_bindings.push_back(
+          absl::down_cast<ParametricBinding*>(old_to_new_.at(binding)));
+    }
+
+    std::vector<SumVariant*> new_variants;
+    new_variants.reserve(n->variants().size());
+    for (const SumVariant* variant : n->variants()) {
+      new_variants.push_back(
+          absl::down_cast<SumVariant*>(old_to_new_.at(variant)));
+    }
+
+    auto* new_name_def =
+        absl::down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    auto* new_sum_def = module(n)->Make<SumDef>(
+        n->span(), new_name_def, std::move(new_parametric_bindings),
+        std::move(new_variants), n->is_public(),
+        n->tag_type_annotation() == nullptr
+            ? nullptr
+            : absl::down_cast<TypeAnnotation*>(
+                  old_to_new_.at(n->tag_type_annotation())));
+    if (n->extern_type_name().has_value()) {
+      new_sum_def->set_extern_type_name(*n->extern_type_name());
+    }
+    new_name_def->set_definer(new_sum_def);
+    old_to_new_[n] = new_sum_def;
     return absl::OkStatus();
   }
 
@@ -1014,6 +1104,33 @@ class AstCloner : public AstNodeVisitor {
 
     old_to_new_[n] = module(n)->Make<StructInstance>(
         n->span(), new_struct_ref, new_members, n->in_parens());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSumInstance(const SumInstance* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<Expr*> new_tuple_payload_args;
+    new_tuple_payload_args.reserve(n->tuple_payload_args().size());
+    for (const Expr* arg : n->tuple_payload_args()) {
+      new_tuple_payload_args.push_back(
+          absl::down_cast<Expr*>(old_to_new_.at(arg)));
+    }
+
+    std::vector<SumInstance::StructPayloadFieldArg>
+        new_struct_payload_field_args;
+    new_struct_payload_field_args.reserve(
+        n->struct_payload_field_args().size());
+    for (const auto& [name, arg] : n->struct_payload_field_args()) {
+      new_struct_payload_field_args.push_back(
+          std::make_pair(name, absl::down_cast<Expr*>(old_to_new_.at(arg))));
+    }
+
+    old_to_new_[n] = module(n)->Make<SumInstance>(
+        n->span(),
+        absl::down_cast<ColonRef*>(old_to_new_.at(n->constructor_ref())),
+        n->payload_shape(), std::move(new_tuple_payload_args),
+        std::move(new_struct_payload_field_args), n->in_parens());
     return absl::OkStatus();
   }
 

@@ -113,6 +113,9 @@ std::optional<std::string_view> TypeDefinitionIdentifier(
           [](EnumDef* enum_def) -> std::optional<std::string_view> {
             return enum_def->name_def()->identifier();
           },
+          [](SumDef* sum_def) -> std::optional<std::string_view> {
+            return sum_def->name_def()->identifier();
+          },
       },
       resolved_type_definition.definition);
 }
@@ -341,6 +344,12 @@ DslxTypeToVerilogManager::TypeDefinitionToVastType(
                     "TypeAnnotation ProcDef %s not supported by "
                     "DslxTypeToVerilogManager",
                     proc_def->ToString()));
+              },
+              [&](SumDef* sum_def) -> absl::StatusOr<verilog::DataType*> {
+                return absl::UnimplementedError(absl::StrFormat(
+                    "TypeAnnotation SumDef %s not supported by "
+                    "DslxTypeToVerilogManager",
+                    sum_def->ToString()));
               },
               [&](UseTreeEntry* use_tree_entry)
                   -> absl::StatusOr<verilog::DataType*> {

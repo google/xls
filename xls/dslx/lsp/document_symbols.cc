@@ -61,6 +61,16 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const EnumDef& e) {
   return {std::move(ds)};
 }
 
+std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const SumDef& s) {
+  verible::lsp::DocumentSymbol ds = {
+      .name = s.identifier(),
+      .kind = verible::lsp::SymbolKind::kEnum,
+      .range = ConvertSpanToLspRange(s.span()),
+      .selectionRange = ConvertSpanToLspRange(s.name_def()->span()),
+  };
+  return {std::move(ds)};
+}
+
 std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(
     const ConstantDef& c) {
   verible::lsp::DocumentSymbol ds = {

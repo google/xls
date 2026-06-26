@@ -2637,6 +2637,43 @@ fn make() -> Foo {
               StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Foo")));
 }
 
+TEST(AstClonerTest, CloneModuleWithSemanticSums) {
+  constexpr std::string_view kProgram = R"(enum Option {
+    None,
+    Some(u32),
+    Point { x: u32, y: u32 },
+}
+
+fn unwrap_or_sum(x: Option) -> u32 {
+    match x {
+        Option::Some(v) => v,
+        Option::Point { x: px, y: py } => px + py,
+        Option::None => u32:0,
+    }
+})";
+  constexpr std::string_view kExpected = R"(enum Option {
+    None,
+    Some(u32),
+    Point { x: u32, y: u32 },
+}
+fn unwrap_or_sum(x: Option) -> u32 {
+    match x {
+        Option::Some(v) => v,
+        Option::Point { x: px, y: py } => px + py,
+        Option::None => u32:0,
+    }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kExpected, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
+}
+
 TEST(AstClonerTest, ParametricFunctionClonesParamTypeDefiner) {
   constexpr std::string_view kProgram = R"(
 #![feature(generics)]

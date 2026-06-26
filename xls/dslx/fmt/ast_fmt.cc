@@ -1615,6 +1615,44 @@ DocRef Formatter::FormatStructInstance(const StructInstance& n) {
       leader, arena_.MakeGroup(arena_.MakeFlatChoice(on_flat, on_break)));
 }
 
+DocRef Formatter::FormatSumInstance(const SumInstance& n) {
+  if (n.is_unit()) {
+    return FormatColonRef(*n.constructor_ref());
+  }
+  if (n.is_tuple()) {
+    DocRef args =
+        FormatJoin<const Expr*>(n.tuple_payload_args(),
+                                Joiner::kCommaBreak1AsGroupNoTrailingComma,
+                                [this](const Expr* arg) {
+                                  return FormatExpr(*arg);
+                                });
+    return ConcatNGroup(arena_, {FormatColonRef(*n.constructor_ref()),
+                                 arena_.oparen(), args, arena_.cparen()});
+  }
+
+  std::vector<DocRef> pieces = {FormatColonRef(*n.constructor_ref()),
+                                arena_.space(), arena_.ocurl()};
+  if (n.struct_payload_field_args().empty()) {
+    pieces.push_back(arena_.space());
+  } else {
+    pieces.push_back(arena_.space());
+    for (int64_t i = 0; i < n.struct_payload_field_args().size(); ++i) {
+      const auto& [name, arg] = n.struct_payload_field_args()[i];
+      pieces.push_back(arena_.MakeText(name));
+      pieces.push_back(arena_.colon());
+      pieces.push_back(arena_.space());
+      pieces.push_back(FormatExpr(*arg));
+      if (i != n.struct_payload_field_args().size() - 1) {
+        pieces.push_back(arena_.comma());
+        pieces.push_back(arena_.break1());
+      }
+    }
+    pieces.push_back(arena_.space());
+  }
+  pieces.push_back(arena_.ccurl());
+  return ConcatNGroup(arena_, pieces);
+}
+
 DocRef Formatter::FormatSplatStructInstance(const SplatStructInstance& n) {
   DocRef leader = FormatStructLeader(n.struct_ref());
   DocRef splatted = Format(n.splatted());
@@ -1798,6 +1836,9 @@ DocRef Formatter::FormatRange(const Range& n) {
 DocRef Formatter::FormatNameDefTreeLeaf(const NameDefTree::Leaf& n) {
   return absl::visit(
       Visitor{
+          [&](const SumVariantPayloadPattern* n) {
+            return FormatSumVariantPayloadPattern(*n);
+          },
           [&](const NameDef* n) { return FormatNameDef(*n); },
           [&](const NameRef* n) { return FormatNameRef(*n); },
           [&](const WildcardPattern* n) { return FormatWildcardPattern(*n); },
@@ -1807,6 +1848,44 @@ DocRef Formatter::FormatNameDefTreeLeaf(const NameDefTree::Leaf& n) {
           [&](const Range* n) { return FormatRange(*n); },
       },
       n);
+}
+
+DocRef Formatter::FormatSumVariantPayloadPattern(
+    const SumVariantPayloadPattern& n) {
+  std::vector<DocRef> pieces = {FormatColonRef(*n.constructor_ref())};
+  if (n.is_tuple()) {
+    pieces.push_back(arena_.oparen());
+    pieces.push_back(FormatJoin<const NameDefTree*>(
+        n.tuple_payload_patterns(),
+        Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak,
+        [this](const NameDefTree* pattern) {
+          return FormatNameDefTree(*pattern);
+        }));
+    pieces.push_back(arena_.cparen());
+    return ConcatNGroup(arena_, pieces);
+  }
+
+  pieces.push_back(arena_.space());
+  pieces.push_back(arena_.ocurl());
+  if (!n.struct_payload_field_patterns().empty()) {
+    pieces.push_back(arena_.break1());
+    pieces.push_back(FormatJoin<
+                     SumVariantPayloadPattern::StructPayloadFieldPattern>(
+        n.struct_payload_field_patterns(),
+        Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak,
+        [this](
+            const SumVariantPayloadPattern::StructPayloadFieldPattern& field) {
+          const auto& [name, pattern] = field;
+          return ConcatNGroup(
+              arena_, {arena_.MakeText(name), arena_.colon(), arena_.space(),
+                       FormatNameDefTree(*pattern)});
+        }));
+    pieces.push_back(arena_.break1());
+  } else {
+    pieces.push_back(arena_.space());
+  }
+  pieces.push_back(arena_.ccurl());
+  return ConcatNGroup(arena_, pieces);
 }
 
 DocRef Formatter::FormatNameDefTree(const NameDefTree& n) {
@@ -1903,6 +1982,15 @@ DocRef Formatter::FormatBlockedExprLeader(const Expr& e) {
     case AstNodeKind::kStructInstance: {
       const StructInstance& n = static_cast<const StructInstance&>(e);
       return ConcatN(arena_, {FormatStructLeader(n.struct_ref()),
+                              arena_.space(), arena_.ocurl()});
+    }
+    case AstNodeKind::kSumInstance: {
+      const SumInstance& n = static_cast<const SumInstance&>(e);
+      if (n.is_tuple()) {
+        return arena_.MakeConcat(FormatColonRef(*n.constructor_ref()),
+                                 arena_.oparen());
+      }
+      return ConcatN(arena_, {FormatColonRef(*n.constructor_ref()),
                               arena_.space(), arena_.ocurl()});
     }
     case AstNodeKind::kSplatStructInstance: {
@@ -2651,6 +2739,288 @@ DocRef Formatter::FormatStructDef(const StructDef& n) {
   return FormatStructDefBase(n, Keyword::kStruct, n.extern_type_name());
 }
 
+bool Formatter::FormatAppendSumCommentsBetween(
+    const Pos& start_pos, const Pos& limit_pos, std::vector<DocRef>& pieces) {
+  bool emitted_comments = false;
+  std::optional<Span> last_comment_span;
+  if (std::optional<DocRef> comments_doc =
+          FormatCommentsBetween(start_pos, limit_pos, &last_comment_span)) {
+    pieces.push_back(arena_.hard_line());
+    pieces.push_back(comments_doc.value());
+    pieces.push_back(arena_.hard_line());
+    emitted_comments = true;
+  }
+  return emitted_comments;
+}
+
+void Formatter::FormatSumStructMembers(
+    absl::Span<StructMemberNode* const> members, const Span& body_span,
+    std::vector<DocRef>& pieces, bool place_internal_comments) {
+  if (!members.empty()) {
+    pieces.push_back(arena_.break1());
+  }
+
+  std::vector<DocRef> body_pieces;
+  Pos last_member_pos = body_span.start();
+  for (size_t i = 0; i < members.size(); ++i) {
+    const StructMemberNode* member = members[i];
+    const Span member_span = member->span();
+    const Pos& member_start = member_span.start();
+
+    std::optional<Span> last_comment_span;
+    if (std::optional<DocRef> comments_doc = FormatCommentsBetween(
+            last_member_pos, member_start, &last_comment_span)) {
+      body_pieces.push_back(comments_doc.value());
+      body_pieces.push_back(arena_.hard_line());
+      if (last_comment_span->limit().lineno() != member_start.lineno()) {
+        body_pieces.push_back(arena_.hard_line());
+      }
+    }
+
+    last_member_pos = member_span.limit();
+
+    body_pieces.push_back(arena_.MakeText(member->name()));
+    if (place_internal_comments) {
+      FormatAppendSumCommentsBetween(member->name_def()->span().limit(),
+                                     member->colon_span().start(),
+                                     body_pieces);
+    }
+    body_pieces.push_back(arena_.colon());
+    if (!place_internal_comments ||
+        !FormatAppendSumCommentsBetween(member->colon_span().limit(),
+                                        member->type()->span().start(),
+                                        body_pieces)) {
+      body_pieces.push_back(arena_.space());
+    }
+    body_pieces.push_back(FormatTypeAnnotation(*member->type()));
+    bool last_member = i + 1 == members.size();
+    if (last_member) {
+      body_pieces.push_back(arena_.MakeFlatChoice(/*on_flat=*/arena_.empty(),
+                                                  /*on_break=*/arena_.comma()));
+    } else {
+      body_pieces.push_back(arena_.comma());
+    }
+
+    Pos new_last_member_pos = FormatCollectInlineComments(
+        member_span.limit(), last_member_pos, body_pieces, last_comment_span);
+
+    bool had_inline = new_last_member_pos != last_member_pos;
+    if (!last_member) {
+      body_pieces.push_back(had_inline ? arena_.hard_line() : arena_.break1());
+    }
+    last_member_pos = new_last_member_pos;
+  }
+
+  std::optional<Span> last_comment_span;
+  bool emitted_trailing_comment = false;
+  if (std::optional<DocRef> comments_doc =
+          FormatCommentsBetween(last_member_pos, body_span.limit(),
+                                &last_comment_span)) {
+    body_pieces.push_back(arena_.hard_line());
+    body_pieces.push_back(comments_doc.value());
+    emitted_trailing_comment = true;
+  }
+
+  pieces.push_back(arena_.MakeNest(ConcatN(arena_, body_pieces)));
+
+  if (!members.empty() || emitted_trailing_comment) {
+    pieces.push_back(arena_.break1());
+  }
+}
+
+void Formatter::FormatSumTuplePayloadMembers(const SumVariant& variant,
+                                             const Span& payload_span,
+                                             std::vector<DocRef>& pieces) {
+  if (!comments_.HasComments(payload_span)) {
+    pieces.push_back(FormatJoin<const TypeAnnotation*>(
+        variant.tuple_members(),
+        Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak,
+        [this](const TypeAnnotation* member) {
+          return FormatTypeAnnotation(*member);
+        }));
+    return;
+  }
+
+  std::vector<DocRef> body_pieces;
+  Pos last_member_pos = payload_span.start();
+  for (size_t i = 0; i < variant.tuple_members().size(); ++i) {
+    const TypeAnnotation* member = variant.tuple_members()[i];
+    const bool first_member = i == 0;
+    const Span comments_span(last_member_pos, member->span().start());
+    const std::vector<const CommentData*> comment_items =
+        comments_.GetComments(comments_span);
+    if (std::optional<DocRef> comments_doc =
+            FormatCommentsBetween(last_member_pos, member->span().start(),
+                                  nullptr)) {
+      if (!first_member) {
+        body_pieces.push_back(arena_.comma());
+        body_pieces.push_back(comment_items.front()->span.start().lineno() ==
+                                      last_member_pos.lineno()
+                                  ? arena_.space()
+                                  : arena_.hard_line());
+      }
+      body_pieces.push_back(comments_doc.value());
+      body_pieces.push_back(arena_.hard_line());
+    } else if (!first_member) {
+      body_pieces.push_back(arena_.comma());
+      body_pieces.push_back(arena_.hard_line());
+    }
+    body_pieces.push_back(FormatTypeAnnotation(*member));
+    last_member_pos = member->span().limit();
+  }
+
+  const Span comments_span(last_member_pos, payload_span.limit());
+  const std::vector<const CommentData*> comment_items =
+      comments_.GetComments(comments_span);
+  if (std::optional<DocRef> comments_doc =
+          FormatCommentsBetween(last_member_pos, payload_span.limit(),
+                                nullptr)) {
+    if (!variant.tuple_members().empty()) {
+      body_pieces.push_back(arena_.comma());
+      body_pieces.push_back(comment_items.front()->span.start().lineno() ==
+                                    last_member_pos.lineno()
+                                ? arena_.space()
+                                : arena_.hard_line());
+    }
+    body_pieces.push_back(comments_doc.value());
+  }
+
+  pieces.push_back(arena_.hard_line());
+  pieces.push_back(arena_.MakeNest(ConcatN(arena_, body_pieces)));
+  pieces.push_back(arena_.hard_line());
+}
+
+DocRef Formatter::FormatSumDef(const SumDef& n) {
+  std::vector<DocRef> pieces;
+  std::vector<DocRef> attrs;
+  for (const Attribute* attribute : n.attributes()) {
+    attrs.push_back(FormatAttribute(*attribute));
+  }
+  if (n.is_public()) {
+    pieces.push_back(arena_.Make(Keyword::kPub));
+    pieces.push_back(arena_.space());
+  }
+  pieces.push_back(arena_.Make(Keyword::kEnum));
+  pieces.push_back(arena_.space());
+  pieces.push_back(arena_.MakeText(n.identifier()));
+
+  if (!n.parametric_bindings().empty()) {
+    pieces.push_back(arena_.oangle());
+    pieces.push_back(FormatJoin<const ParametricBinding*>(
+        n.parametric_bindings(), Joiner::kCommaSpace,
+        [this](const ParametricBinding* binding) {
+          return FormatParametricBindingPtr(binding);
+        }));
+    pieces.push_back(arena_.cangle());
+  }
+
+  pieces.push_back(arena_.space());
+  if (n.tag_type_annotation() != nullptr) {
+    pieces.push_back(arena_.colon());
+    pieces.push_back(arena_.space());
+    pieces.push_back(FormatTypeAnnotation(*n.tag_type_annotation()));
+    pieces.push_back(arena_.space());
+  }
+  pieces.push_back(arena_.ocurl());
+  pieces.push_back(arena_.hard_line());
+
+  std::vector<DocRef> nested;
+  nested.reserve(n.variants().size() * 2);
+  Pos last_variant_pos = n.span().start();
+  for (size_t i = 0; i < n.variants().size(); ++i) {
+    const SumVariant* variant = n.variants()[i];
+    std::optional<Span> last_comment_span;
+    if (std::optional<DocRef> comments_doc = FormatCommentsBetween(
+            last_variant_pos, variant->span().start(), &last_comment_span)) {
+      nested.push_back(comments_doc.value());
+      nested.push_back(arena_.hard_line());
+      if (last_comment_span->limit().lineno() !=
+          variant->span().start().lineno()) {
+        nested.push_back(arena_.hard_line());
+      }
+    }
+
+    std::vector<DocRef> variant_pieces = {
+        arena_.MakeText(variant->identifier())};
+    Pos last_piece_limit = variant->name_def()->span().limit();
+    if (variant->is_tuple()) {
+      const Span payload_span =
+          variant->payload_span().value_or(variant->span());
+      FormatAppendSumCommentsBetween(last_piece_limit, payload_span.start(),
+                                     variant_pieces);
+      variant_pieces.push_back(arena_.oparen());
+      FormatSumTuplePayloadMembers(*variant, payload_span, variant_pieces);
+      variant_pieces.push_back(arena_.cparen());
+      last_piece_limit = payload_span.limit();
+    } else if (variant->is_struct()) {
+      const Span payload_span =
+          variant->payload_span().value_or(variant->span());
+      if (!FormatAppendSumCommentsBetween(last_piece_limit,
+                                          payload_span.start(),
+                                          variant_pieces)) {
+        variant_pieces.push_back(arena_.space());
+      }
+      variant_pieces.push_back(arena_.ocurl());
+      if (!variant->struct_members().empty() ||
+          comments_.HasComments(payload_span)) {
+        FormatSumStructMembers(variant->struct_members(), payload_span,
+                               variant_pieces,
+                               /*place_internal_comments=*/true);
+      } else {
+        variant_pieces.push_back(arena_.space());
+      }
+      variant_pieces.push_back(arena_.ccurl());
+      last_piece_limit = payload_span.limit();
+    }
+    if (variant->discriminant() != nullptr) {
+      if (variant->discriminant_equals_span().has_value()) {
+        if (!FormatAppendSumCommentsBetween(
+                last_piece_limit, variant->discriminant_equals_span()->start(),
+                variant_pieces)) {
+          variant_pieces.push_back(arena_.space());
+        }
+      } else {
+        variant_pieces.push_back(arena_.space());
+      }
+      variant_pieces.push_back(arena_.equals());
+      if (variant->discriminant_equals_span().has_value()) {
+        if (!FormatAppendSumCommentsBetween(
+                variant->discriminant_equals_span()->limit(),
+                variant->discriminant()->span().start(), variant_pieces)) {
+          variant_pieces.push_back(arena_.space());
+        }
+      } else {
+        variant_pieces.push_back(arena_.space());
+      }
+      variant_pieces.push_back(FormatExpr(*variant->discriminant()));
+    }
+    variant_pieces.push_back(arena_.comma());
+    nested.push_back(ConcatNGroup(arena_, variant_pieces));
+
+    last_variant_pos = variant->span().limit();
+    last_variant_pos = FormatCollectInlineComments(
+        variant->span().limit(), last_variant_pos, nested, last_comment_span);
+    if (i + 1 != n.variants().size()) {
+      nested.push_back(arena_.hard_line());
+    }
+  }
+
+  std::optional<Span> last_comment_span;
+  if (std::optional<DocRef> comments_doc =
+          FormatCommentsBetween(last_variant_pos, n.span().limit(),
+                                &last_comment_span)) {
+    if (!nested.empty()) {
+      nested.push_back(arena_.hard_line());
+    }
+    nested.push_back(comments_doc.value());
+  }
+
+  pieces.push_back(arena_.MakeNest(ConcatN(arena_, nested)));
+  pieces.push_back(arena_.hard_line());
+  pieces.push_back(arena_.ccurl());
+  return FormatJoinWithAttrs(attrs, ConcatN(arena_, pieces));
+}
+
 DocRef Formatter::FormatProcDef(const ProcDef& n) {
   return FormatStructDefBase(n, Keyword::kProc,
                              /*extern_type_name=*/std::nullopt);
@@ -3003,6 +3373,7 @@ DocRef Formatter::FormatModuleMember(const ModuleMember& n) {
             return arena_.MakeConcat(FormatProcAlias(*n), arena_.semi());
           },
           [&](const StructDef* n) { return FormatStructDef(*n); },
+          [&](const SumDef* n) { return FormatSumDef(*n); },
           [&](const ProcDef* n) { return FormatProcDef(*n); },
           [&](const Impl* n) { return FormatImpl(*n); },
           [&](const Trait* n) { return FormatTrait(*n); },
