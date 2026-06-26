@@ -35,6 +35,7 @@ build:macos --macos_minimum_os=10.13
 # Minimum c++ standard used. We set it in the llvm toolchain, but
 # we also need to specify it here when it is not possible to use that toolchain.
 build --cxxopt "-std=c++20"            --host_cxxopt "-std=c++20"
+build --client_env=BAZEL_CXXOPTS=-std=c++20
 
 # Depending on the installation, clang or clang-tidy need to be told that
 # a c++ file is, indeed, containing c++ (bazel just invokes clang, not clang++)
