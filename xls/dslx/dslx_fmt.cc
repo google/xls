@@ -37,6 +37,8 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/fmt/ast_fmt.h"
 #include "xls/dslx/fmt/comments.h"
+#include "xls/dslx/fmt/legacy_proc_converter.h"
+#include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/import_data.h"
@@ -48,12 +50,15 @@
 ABSL_FLAG(bool, i, false, "whether to modify the given path argument in-place");
 
 ABSL_FLAG(bool, error_on_changes, false,
-          "whether to error if the formatting changes the file contents");
+          "Whether to error if the formatting changes the file contents");
+
+ABSL_FLAG(bool, convert_legacy_procs, false,
+          "Whether to convert legacy procs to impl-style procs");
 
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
 ABSL_FLAG(std::string, mode, "autofmt",
-          "whether to use reflowing auto-formatter; choices: autoformat|parse");
+          "Whether to use reflowing auto-formatter; choices: autoformat|parse");
 ABSL_FLAG(
     bool, opportunistic_postcondition, false,
     "whether to check the autoformatter postcondition for debug purposes (not "
@@ -81,7 +86,8 @@ enum class Mode {
 
 absl::Status RunOnOneFile(std::string_view input_path, bool in_place,
                           bool error_on_changes,
-                          bool opportunistic_postcondition, Mode mode) {
+                          bool opportunistic_postcondition, Mode mode,
+                          bool convert_legacy_procs) {
   std::filesystem::path path = input_path;
 
   ImportData import_data =
@@ -109,9 +115,18 @@ absl::Status RunOnOneFile(std::string_view input_path, bool in_place,
   switch (mode) {
     case Mode::kAutofmt: {
       Comments comments = Comments::Create(comments_vec);
-      XLS_ASSIGN_OR_RETURN(
-          formatted,
-          AutoFmt(import_data.vfs(), *module.value(), comments, contents));
+      if (convert_legacy_procs) {
+        DocArena arena(import_data.file_table());
+        std::unique_ptr<Formatter> converter =
+            CreateLegacyProcConverter(comments, arena);
+        XLS_ASSIGN_OR_RETURN(
+            formatted,
+            AutoFmt(import_data.vfs(), *module.value(), *converter, contents));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            formatted,
+            AutoFmt(import_data.vfs(), *module.value(), comments, contents));
+      }
       break;
     }
     case Mode::kParse: {
@@ -151,7 +166,7 @@ absl::Status RunOnOneFile(std::string_view input_path, bool in_place,
 absl::Status RealMain(absl::Span<const std::string_view> input_paths,
                       bool in_place, bool error_on_changes,
                       bool opportunistic_postcondition,
-                      const std::string& mode_str) {
+                      std::string_view mode_str, bool convert_legacy_procs) {
   // Note notable restrictions we place on the CLI, to avoid confusing results /
   // interactions:
   //
@@ -208,7 +223,8 @@ absl::Status RealMain(absl::Span<const std::string_view> input_paths,
 
   for (std::string_view input_path : input_paths) {
     XLS_RETURN_IF_ERROR(RunOnOneFile(input_path, in_place, error_on_changes,
-                                     opportunistic_postcondition, mode));
+                                     opportunistic_postcondition, mode,
+                                     convert_legacy_procs));
   }
 
   return absl::OkStatus();
@@ -233,6 +249,7 @@ int main(int argc, char* argv[]) {
       /*error_on_changes=*/absl::GetFlag(FLAGS_error_on_changes),
       /*opportunistic_postcondition=*/
       absl::GetFlag(FLAGS_opportunistic_postcondition),
-      /*mode_str=*/absl::GetFlag(FLAGS_mode));
+      /*mode_str=*/absl::GetFlag(FLAGS_mode),
+      /*convert_legacy_procs=*/absl::GetFlag(FLAGS_convert_legacy_procs));
   return xls::ExitStatus(status);
 }

@@ -1047,6 +1047,8 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/dslx/fmt:ast_fmt",
         "//xls/dslx/fmt:comments",
+        "//xls/dslx/fmt:legacy_proc_converter",
+        "//xls/dslx/fmt:pretty_print",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:comment_data",
         "@abseil-cpp//absl/flags:flag",

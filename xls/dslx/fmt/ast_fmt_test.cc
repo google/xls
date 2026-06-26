@@ -2568,7 +2568,10 @@ TEST_F(ModuleFmtTest, SimpleProcWithMembers) {
 
 TEST_F(ModuleFmtTest, SimpleProcWithMembersImplStyle) {
   DoFmt(
-      R"(pub proc P { foo: u32, bar: s16[2] }
+      R"(pub proc P {
+    foo: u32,
+    bar: s16[2],
+}
 
 impl P {}
 )");

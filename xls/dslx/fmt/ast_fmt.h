@@ -42,6 +42,7 @@ struct FormatBlockOptions {
   bool force_trailing_semi = false;
   bool add_curls = true;
   bool force_multiline = false;
+  bool add_nest = true;
 };
 
 // TODO: davidplass - Move this class to its own file after all the
@@ -208,7 +209,8 @@ class Formatter {
   DocRef FormatSingleStatementBlockInline(const StatementBlock& n,
                                           bool add_curls);
   DocRef FormatStructLeader(const TypeAnnotation* struct_ref);
-  void FormatStructMembers(const StructDefBase& n, std::vector<DocRef>& pieces);
+  void FormatStructMembers(const StructDefBase& n, bool force_multiline,
+                           std::vector<DocRef>& pieces);
   DocRef FormatStructMembersBreak(
       Span struct_span,
       absl::Span<const std::pair<std::string, Expr*>> members);

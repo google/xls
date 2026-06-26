@@ -180,6 +180,52 @@ class DslxFmtTest(absltest.TestCase):
         stderr,
     )
 
+  def test_convert_legacy_procs(self):
+    program = textwrap.dedent("""\
+    proc Producer {
+        s: chan<u32> out;
+        config(s: chan<u32> out) {
+            (s,)
+        }
+        init {
+            0
+        }
+        next(state: u32) {
+            send(join(), s, state);
+            state + 1
+        }
+    }
+    """)
+    want = textwrap.dedent("""\
+    #![feature(explicit_state_access)]
+
+    proc Producer {
+        s: chan<u32> out,
+        state: u32,
+    }
+
+    impl Producer {
+        fn new(s: chan<u32> out) -> Self {
+            Producer { s, state: 0 }
+        }
+
+        fn next(self) {
+            let state = read(self.state);
+            send(join(), self.s, state);
+            write(self.state, state + 1);
+        }
+    }
+    """)
+    f = self.create_tempfile(content=program)
+    p = subp.run(
+        [_DSLX_FMT_PATH, '--convert_legacy_procs', f.full_path],
+        check=True,
+        encoding='utf-8',
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+    )
+    self.assertEqual(p.stdout, want)
+
 
 if __name__ == '__main__':
   absltest.main()

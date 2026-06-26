@@ -971,7 +971,11 @@ DocRef Formatter::FormatBlock(const StatementBlock& n,
     }
   }
 
-  top.push_back(arena_.MakeNest(ConcatN(arena_, statements)));
+  if (options.add_nest) {
+    top.push_back(arena_.MakeNest(ConcatN(arena_, statements)));
+  } else {
+    top.push_back(ConcatN(arena_, statements));
+  }
   if (add_curls) {
     if (needs_hardline || !append_statements.empty()) {
       top.push_back(arena_.hard_line());
@@ -2267,20 +2271,33 @@ DocRef Formatter::FormatFunction(const Function& n, bool is_test) {
                         }));
   }
 
+  bool force_multiline = false;
+  if (n.impl().has_value() &&
+      (n.identifier() == "new" || n.identifier() == "next")) {
+    std::optional<const StructDefBase*> target = n.GetTargetStruct();
+    if (target.has_value() && (*target)->kind() == AstNodeKind::kProcDef) {
+      force_multiline = true;
+    }
+  }
+
   fn_pieces.push_back(ConcatNGroup(arena_, signature_pieces));
   if (!n.IsStub()) {
     if (n.body()->empty()) {
       // For empty function we don't put spaces between the curls.
-      fn_pieces.push_back(
-          FormatBlock(*n.body(), FormatBlockOptions{.add_curls = false}));
+      fn_pieces.push_back(FormatBlock(
+          *n.body(), FormatBlockOptions{.add_curls = false,
+                                        .force_multiline = force_multiline}));
       fn_pieces.push_back(arena_.ccurl());
     } else {
       // For non-empty functions, we break after the signature and before
       // the ccurl.
-      fn_pieces.push_back(arena_.break1());
-      fn_pieces.push_back(
-          FormatBlock(*n.body(), FormatBlockOptions{.add_curls = false}));
-      fn_pieces.push_back(arena_.break1());
+      fn_pieces.push_back(force_multiline ? arena_.hard_line()
+                                          : arena_.break1());
+      fn_pieces.push_back(FormatBlock(
+          *n.body(), FormatBlockOptions{.add_curls = false,
+                                        .force_multiline = force_multiline}));
+      fn_pieces.push_back(force_multiline ? arena_.hard_line()
+                                          : arena_.break1());
       fn_pieces.push_back(arena_.ccurl());
     }
   }
@@ -2541,9 +2558,10 @@ DocRef Formatter::FormatQuickCheck(const QuickCheck& n) {
 }
 
 void Formatter::FormatStructMembers(const StructDefBase& n,
+                                    bool force_multiline,
                                     std::vector<DocRef>& pieces) {
   if (!n.members().empty()) {
-    pieces.push_back(arena_.break1());
+    pieces.push_back(force_multiline ? arena_.hard_line() : arena_.break1());
   }
 
   std::vector<DocRef> body_pieces;
@@ -2589,7 +2607,8 @@ void Formatter::FormatStructMembers(const StructDefBase& n,
 
     bool had_inline = new_last_member_pos != last_member_pos;
     if (!last_member) {
-      body_pieces.push_back(had_inline ? arena_.hard_line() : arena_.break1());
+      body_pieces.push_back(had_inline || force_multiline ? arena_.hard_line()
+                                                          : arena_.break1());
     }
     last_member_pos = new_last_member_pos;
   }
@@ -2608,7 +2627,7 @@ void Formatter::FormatStructMembers(const StructDefBase& n,
   pieces.push_back(arena_.MakeNest(ConcatN(arena_, body_pieces)));
 
   if (!n.members().empty() || emitted_trailing_comment) {
-    pieces.push_back(arena_.break1());
+    pieces.push_back(force_multiline ? arena_.hard_line() : arena_.break1());
   }
 }
 
@@ -2641,7 +2660,7 @@ DocRef Formatter::FormatStructDefBase(
   pieces.push_back(arena_.space());
   pieces.push_back(arena_.ocurl());
 
-  FormatStructMembers(n, pieces);
+  FormatStructMembers(n, /*force_multiline=*/keyword == Keyword::kProc, pieces);
 
   pieces.push_back(arena_.ccurl());
   return FormatJoinWithAttrs(attrs, ConcatNGroup(arena_, pieces));
