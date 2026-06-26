@@ -4,6 +4,7 @@
 common --incompatible_disallow_empty_glob=false
 
 common --enable_platform_specific_config
+common --downloader_config=bazel_downloader.cfg
 
 # By default, Bazel compiles *.cc files for tests with -fPIC and for binaries
 # without it resulting in a large number of duplicate compilations.
