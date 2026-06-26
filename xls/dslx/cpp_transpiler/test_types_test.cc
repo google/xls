@@ -589,8 +589,8 @@ TEST(TestTypesTest, BigBits) {
   test::MyU555 from_val{};
   from_val[1] = true;
   from_val[3] = true;
-  EXPECT_THAT(test::MyU555FromValue(Value(UBits(0b1010, 555))),
-              IsOkAndHolds(from_val));
+  XLS_ASSERT_OK_AND_ASSIGN(test::MyU555 result, test::MyU555FromValue(Value(UBits(0b1010, 555))));
+  EXPECT_EQ(result, from_val);
   EXPECT_EQ(
       test::MyU555ToString(from_val),
       "bits[555]:"
