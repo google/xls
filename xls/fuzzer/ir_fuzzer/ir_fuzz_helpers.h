@@ -41,8 +41,10 @@ enum TypeCase {
 
 class IrFuzzHelpers {
  public:
-  constexpr explicit IrFuzzHelpers(FuzzVersion version)
-      : fuzz_version_(version) {}
+  constexpr explicit IrFuzzHelpers(
+      FuzzVersion version, std::optional<int64_t> max_bit_width = std::nullopt)
+      : fuzz_version_(version),
+        max_bit_width_(max_bit_width.value_or(kMaxFuzzBitWidth)) {}
 
   BValue Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
                  const CoercedTypeProto& coerced_type, Type* target_type) const;
@@ -135,7 +137,7 @@ class IrFuzzHelpers {
       case TypeCase::kArray:
         return ConvertArrayTypeProtoToType(p, type_proto.array());
       default:
-        return p->GetBitsType(64);
+        return p->GetBitsType(BoundedWidth(64));
     }
   }
   template <typename BitsTypeProto>
@@ -171,6 +173,7 @@ class IrFuzzHelpers {
 
  private:
   FuzzVersion fuzz_version_;
+  int64_t max_bit_width_;
 };
 
 constexpr std::array<IrFuzzHelpers, 2> kFuzzHelpers =
