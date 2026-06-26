@@ -56,6 +56,7 @@ using ::absl_testing::IsOkAndHolds;
 using ::testing::_;
 using ::testing::Contains;
 using ::testing::HasSubstr;
+using ::testing::FieldsAre;
 using ::testing::Not;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
@@ -911,18 +912,18 @@ TEST_F(ChannelToPortIoLoweringPassTest,
   absl::Span<Node* const> cases = output_port_data->As<OneHotSelect>()->cases();
   ASSERT_THAT(cases, SizeIs(predicate_bits.size()));
   auto predicated_cases_it = iter::zip(iter::reversed(predicate_bits), cases);
-  std::vector<std::pair<Node*, Node*>> predicated_cases(
+  std::vector<std::tuple<Node*, Node*>> predicated_cases(
       predicated_cases_it.begin(), predicated_cases_it.end());
   EXPECT_THAT(
       predicated_cases,
       UnorderedElementsAre(
-          Pair(m::And(_, _,
+          FieldsAre(m::And(_, _,
                       m::TupleIndex(m::Tuple(_, m::InputPort("p1_ch")), 1)),
                m::Literal(1)),
-          Pair(m::And(_, _,
+          FieldsAre(m::And(_, _,
                       m::TupleIndex(m::Tuple(_, m::InputPort("p2_ch")), 1)),
                m::Literal(2)),
-          Pair(m::And(_, _,
+          FieldsAre(m::And(_, _,
                       m::TupleIndex(m::Tuple(_, m::InputPort("p3_ch")), 1)),
                m::Literal(3))));
 }
