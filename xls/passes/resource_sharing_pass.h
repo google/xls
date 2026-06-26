@@ -32,11 +32,13 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
+#include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/critical_path_delay_analysis.h"
 #include "xls/passes/folding_graph.h"
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/visibility_analysis.h"
 #include "xls/passes/visibility_expr_builder.h"
 
@@ -244,6 +246,56 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   // can be queried to provide the simplest visibility expressions it knows
   // which prove the mutual exclusivity of a set of nodes.
   struct VisibilityAnalyses {
+    static absl::StatusOr<VisibilityAnalyses> Create(FunctionBase* f,
+                                                     const Config& config);
+
+    VisibilityAnalyses(const VisibilityAnalysis& general_ref,
+                       const SingleSelectVisibilityAnalysis& single_select_ref)
+        : general(general_ref), single_select(single_select_ref) {}
+
+    VisibilityAnalyses(
+        std::unique_ptr<NodeForwardDependencyAnalysis> nda,
+        std::unique_ptr<LazyPostDominatorAnalysis> post_dom,
+        std::unique_ptr<BddQueryEngine> bdd_engine,
+        std::unique_ptr<OperandVisibilityAnalysis> op_visibility,
+        std::unique_ptr<VisibilityAnalysis> general_storage,
+        std::unique_ptr<OperandVisibilityAnalysis> op_vis_large,
+        std::unique_ptr<SingleSelectVisibilityAnalysis> single_select_storage)
+        : nda(std::move(nda)),
+          post_dom(std::move(post_dom)),
+          bdd_engine(std::move(bdd_engine)),
+          op_visibility(std::move(op_visibility)),
+          general_storage(std::move(general_storage)),
+          op_vis_large(std::move(op_vis_large)),
+          single_select_storage(std::move(single_select_storage)),
+          general(*this->general_storage),
+          single_select(*this->single_select_storage) {}
+
+    VisibilityAnalyses(VisibilityAnalyses&& o)
+        : nda(std::move(o.nda)),
+          post_dom(std::move(o.post_dom)),
+          bdd_engine(std::move(o.bdd_engine)),
+          op_visibility(std::move(o.op_visibility)),
+          general_storage(std::move(o.general_storage)),
+          op_vis_large(std::move(o.op_vis_large)),
+          single_select_storage(std::move(o.single_select_storage)),
+          general(general_storage != nullptr ? *general_storage : o.general),
+          single_select(single_select_storage != nullptr
+                            ? *single_select_storage
+                            : o.single_select) {}
+
+    VisibilityAnalyses& operator=(VisibilityAnalyses&&) = delete;
+    VisibilityAnalyses(const VisibilityAnalyses&) = delete;
+    VisibilityAnalyses& operator=(const VisibilityAnalyses&) = delete;
+
+    std::unique_ptr<NodeForwardDependencyAnalysis> nda;
+    std::unique_ptr<LazyPostDominatorAnalysis> post_dom;
+    std::unique_ptr<BddQueryEngine> bdd_engine;
+    std::unique_ptr<OperandVisibilityAnalysis> op_visibility;
+    std::unique_ptr<VisibilityAnalysis> general_storage;
+    std::unique_ptr<OperandVisibilityAnalysis> op_vis_large;
+    std::unique_ptr<SingleSelectVisibilityAnalysis> single_select_storage;
+
     const VisibilityAnalysis& general;
     const SingleSelectVisibilityAnalysis& single_select;
   };
