@@ -173,3 +173,24 @@ fn create_tuple_outer_domain() -> TupleOuterDomain {
 fn test_struct_domain_tuple(s: TupleOuter) -> bool {
     s.c.0.y < u32:10 && s.c.1 < u8:11
 }
+
+struct WideStruct { w: uN[128], x: u32 }
+
+#[fuzz_test(domains=`WideStruct { x: u32:0..10 }`)]
+fn wide(s: WideStruct) -> bool {
+    true
+}
+
+#[fuzz_test(domains=`[uN[128]:5, 10, 15]`)]
+fn wide_element_of(x: uN[128]) -> bool {
+    x == uN[128]:5 || x == uN[128]:10 || x == uN[128]:15
+}
+
+struct WideTupleStruct { w: uN[128], x: u32 }
+
+#[fuzz_test(domains=`WideTupleStruct { w: [uN[128]:1, 2], x: u32:0..10 }`)]
+fn wide_tuple_element_of(s: WideTupleStruct) -> bool {
+    true
+}
+
+
