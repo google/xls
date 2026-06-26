@@ -170,20 +170,26 @@ DocRef Formatter::Format(const Expr* n) {
   return FormatExpr(*n);
 }
 
-// Helper for doing a "join via comma space" pattern with doc refs.
-//
-// This elides the "joiner" being present after the last item.
 template <typename T>
 DocRef Formatter::FormatJoin(absl::Span<const T> items, Joiner joiner,
-                             const std::function<DocRef(const T&)>& fmt) {
+                             const std::function<DocRef(const T&)>& fmt,
+                             bool group) {
+  std::vector<DocRef> result;
+  result.reserve(items.size());
+  for (const T& item : items) {
+    result.push_back(fmt(item));
+  }
+  return FormatJoin(result, joiner, group);
+}
+
+DocRef Formatter::FormatJoin(absl::Span<const DocRef> items, Joiner joiner,
+                             bool group) {
+  if (items.empty()) {
+    return arena_.empty();
+  }
   std::vector<DocRef> pieces;
   for (size_t i = 0; i < items.size(); ++i) {
-    const T& item = items[i];
-
-    // First we format the member into a doc and then decide the best way to put
-    // it into the sequence.
-    DocRef member = fmt(item);
-
+    DocRef member = items[i];
     if (i + 1 != items.size()) {  // Not the last item.
       switch (joiner) {
         case Joiner::kCommaSpace:
@@ -257,7 +263,7 @@ DocRef Formatter::FormatJoin(absl::Span<const T> items, Joiner joiner,
       }
     }
   }
-  return ConcatNGroup(arena_, pieces);
+  return group ? ConcatNGroup(arena_, pieces) : ConcatN(arena_, pieces);
 }
 
 DocRef Formatter::FormatLambda(const Lambda& n) {
@@ -799,11 +805,21 @@ DocRef Formatter::FormatSingleStatementBlockInline(const StatementBlock& n,
 }
 
 // Note: we only add leading/trailing spaces in the block if add_curls is true.
-DocRef Formatter::FormatBlock(const StatementBlock& n, bool add_curls,
-                              bool force_multiline) {
+DocRef Formatter::FormatBlock(const StatementBlock& n,
+                              const FormatBlockOptions& options) {
+  int actual_start_idx = options.start_idx.has_value() ? *options.start_idx : 0;
+  int actual_end_idx =
+      options.end_idx.has_value() ? *options.end_idx : n.statements().size();
+  absl::Span<const DocRef> prepend_statements = options.prepend_statements;
+  absl::Span<const DocRef> append_statements = options.append_statements;
+  bool force_trailing_semi = options.force_trailing_semi;
+  bool add_curls = options.add_curls;
+  bool force_multiline = options.force_multiline;
+
   bool has_comments = comments_.HasComments(n.span());
 
-  if (n.statements().empty() && !has_comments) {
+  if (actual_start_idx == actual_end_idx && !has_comments &&
+      prepend_statements.empty() && append_statements.empty()) {
     if (add_curls) {
       return ConcatNGroup(arena_,
                           {arena_.ocurl(), arena_.break0(), arena_.ccurl()});
@@ -813,7 +829,12 @@ DocRef Formatter::FormatBlock(const StatementBlock& n, bool add_curls,
 
   // We only want to flatten single-statement blocks -- multi-statement blocks
   // we always make line breaks between the statements.
-  if (n.statements().size() == 1 && !force_multiline && !has_comments) {
+  bool is_default_block =
+      !options.start_idx.has_value() && !options.end_idx.has_value() &&
+      options.prepend_statements.empty() && options.append_statements.empty() &&
+      !options.force_trailing_semi;
+  if (actual_end_idx - actual_start_idx == 1 && is_default_block &&
+      !force_multiline && !has_comments) {
     return FormatSingleStatementBlockInline(n, add_curls);
   }
 
@@ -832,8 +853,14 @@ DocRef Formatter::FormatBlock(const StatementBlock& n, bool add_curls,
   Pos last_entity_pos = start_entity_pos;
 
   std::vector<DocRef> statements;
+
+  for (DocRef doc : prepend_statements) {
+    statements.push_back(doc);
+    statements.push_back(arena_.hard_line());
+  }
+
   bool last_stmt_was_verbatim = false;
-  for (size_t i = 0; i < n.statements().size(); ++i) {
+  for (int i = actual_start_idx; i < actual_end_idx; ++i) {
     std::vector<DocRef> stmt_pieces;
     const Statement* stmt = n.statements()[i];
     last_stmt_was_verbatim =
@@ -885,9 +912,10 @@ DocRef Formatter::FormatBlock(const StatementBlock& n, bool add_curls,
     }
 
     // Here we emit the formatted statement.
-    bool last_stmt = i + 1 == n.statements().size();
-    std::vector<DocRef> stmt_semi = {
-        FormatStatement(*stmt, n.trailing_semi() || !last_stmt)};
+    bool last_stmt = i + 1 == actual_end_idx;
+    bool need_semi = n.trailing_semi() || !last_stmt ||
+                     !append_statements.empty() || force_trailing_semi;
+    std::vector<DocRef> stmt_semi = {FormatStatement(*stmt, need_semi)};
 
     // Now we reflect the emission of the statement.
     last_entity_pos = stmt_limit;
@@ -898,7 +926,7 @@ DocRef Formatter::FormatBlock(const StatementBlock& n, bool add_curls,
     last_entity_pos = FormatCollectInlineComments(
         stmt_limit, last_entity_pos, statements, last_comment_span);
 
-    if (!last_stmt) {
+    if (!last_stmt || !append_statements.empty()) {
       statements.push_back(arena_.hard_line());
     }
   }
@@ -928,14 +956,24 @@ DocRef Formatter::FormatBlock(const StatementBlock& n, bool add_curls,
     }
 
     statements.push_back(comments_doc.value());
+    if (!append_statements.empty()) {
+      statements.push_back(arena_.hard_line());
+    }
 
     // We always need a hard line after the last comment.
     needs_hardline = true;
   }
 
+  for (size_t i = 0; i < append_statements.size(); ++i) {
+    statements.push_back(append_statements[i]);
+    if (i + 1 < append_statements.size()) {
+      statements.push_back(arena_.hard_line());
+    }
+  }
+
   top.push_back(arena_.MakeNest(ConcatN(arena_, statements)));
   if (add_curls) {
-    if (needs_hardline) {
+    if (needs_hardline || !append_statements.empty()) {
       top.push_back(arena_.hard_line());
     }
     top.push_back(arena_.ccurl());
@@ -1048,9 +1086,9 @@ DocRef Formatter::FormatForLoopBase(Keyword keyword, const ForLoopBase& n,
 
   std::vector<DocRef> body_pieces;
   body_pieces.push_back(arena_.hard_line());
-  body_pieces.push_back(FormatBlock(*n.body(),
-                                    /*add_curls=*/false,
-                                    /*force_multiline=*/true));
+  body_pieces.push_back(FormatBlock(
+      *n.body(),
+      FormatBlockOptions{.add_curls = false, .force_multiline = true}));
   body_pieces.push_back(arena_.hard_line());
   body_pieces.push_back(arena_.ccurl());
   body_pieces.push_back(ConcatNGroup(
@@ -1626,7 +1664,8 @@ DocRef Formatter::FormatMakeConditionalTest(const Conditional& n) {
 DocRef Formatter::FormatConditionalMultiline(const Conditional& n) {
   std::vector<DocRef> pieces = {
       FormatMakeConditionalTest(n), arena_.hard_line(),
-      FormatBlock(*n.consequent(), /*add_curls=*/false), arena_.hard_line()};
+      FormatBlock(*n.consequent(), FormatBlockOptions{.add_curls = false}),
+      arena_.hard_line()};
 
   bool has_else = n.HasElse();
   std::variant<StatementBlock*, Conditional*> alternate = n.alternate();
@@ -1640,7 +1679,8 @@ DocRef Formatter::FormatConditionalMultiline(const Conditional& n) {
     pieces.push_back(arena_.space());
     pieces.push_back(FormatMakeConditionalTest(*elseif));
     pieces.push_back(arena_.hard_line());
-    pieces.push_back(FormatBlock(*elseif->consequent(), /*add_curls=*/false));
+    pieces.push_back(FormatBlock(*elseif->consequent(),
+                                 FormatBlockOptions{.add_curls = false}));
     pieces.push_back(arena_.hard_line());
   }
 
@@ -1653,7 +1693,8 @@ DocRef Formatter::FormatConditionalMultiline(const Conditional& n) {
     pieces.push_back(arena_.space());
     pieces.push_back(arena_.ocurl());
     pieces.push_back(arena_.hard_line());
-    pieces.push_back(FormatBlock(*else_block, /*add_curls=*/false));
+    pieces.push_back(
+        FormatBlock(*else_block, FormatBlockOptions{.add_curls = false}));
     pieces.push_back(arena_.hard_line());
   }
   pieces.push_back(arena_.ccurl());
@@ -1672,7 +1713,7 @@ DocRef Formatter::FormatConditional(const Conditional& n) {
   std::vector<DocRef> pieces = {
       test,
       arena_.break1(),
-      FormatBlock(*n.consequent(), /*add_curls=*/false),
+      FormatBlock(*n.consequent(), FormatBlockOptions{.add_curls = false}),
       arena_.break1(),
   };
 
@@ -1685,7 +1726,8 @@ DocRef Formatter::FormatConditional(const Conditional& n) {
     pieces.push_back(arena_.space());
     pieces.push_back(arena_.ocurl());
     pieces.push_back(arena_.break1());
-    pieces.push_back(FormatBlock(*else_block, /*add_curls=*/false));
+    pieces.push_back(
+        FormatBlock(*else_block, FormatBlockOptions{.add_curls = false}));
     pieces.push_back(arena_.break1());
   }
 
@@ -2229,13 +2271,15 @@ DocRef Formatter::FormatFunction(const Function& n, bool is_test) {
   if (!n.IsStub()) {
     if (n.body()->empty()) {
       // For empty function we don't put spaces between the curls.
-      fn_pieces.push_back(FormatBlock(*n.body(), /*add_curls=*/false));
+      fn_pieces.push_back(
+          FormatBlock(*n.body(), FormatBlockOptions{.add_curls = false}));
       fn_pieces.push_back(arena_.ccurl());
     } else {
       // For non-empty functions, we break after the signature and before
       // the ccurl.
       fn_pieces.push_back(arena_.break1());
-      fn_pieces.push_back(FormatBlock(*n.body(), /*add_curls=*/false));
+      fn_pieces.push_back(
+          FormatBlock(*n.body(), FormatBlockOptions{.add_curls = false}));
       fn_pieces.push_back(arena_.break1());
       fn_pieces.push_back(arena_.ccurl());
     }
@@ -2382,7 +2426,7 @@ DocRef Formatter::FormatProc(const Proc& n, bool is_test) {
       arena_.space(),
       arena_.ocurl(),
       arena_.break1(),
-      FormatBlock(*n.config().body(), /*add_curls=*/false),
+      FormatBlock(*n.config().body(), FormatBlockOptions{.add_curls = false}),
       arena_.break1(),
       arena_.ccurl(),
   };
@@ -2392,7 +2436,7 @@ DocRef Formatter::FormatProc(const Proc& n, bool is_test) {
       arena_.space(),
       arena_.ocurl(),
       arena_.break1(),
-      FormatBlock(*n.init().body(), /*add_curls=*/false),
+      FormatBlock(*n.init().body(), FormatBlockOptions{.add_curls = false}),
       arena_.break1(),
       arena_.ccurl(),
   };
@@ -2403,7 +2447,7 @@ DocRef Formatter::FormatProc(const Proc& n, bool is_test) {
       arena_.space(),
       arena_.ocurl(),
       arena_.break1(),
-      FormatBlock(*n.next().body(), /*add_curls=*/false),
+      FormatBlock(*n.next().body(), FormatBlockOptions{.add_curls = false}),
       arena_.break1(),
       arena_.ccurl(),
   };
@@ -3223,7 +3267,7 @@ absl::StatusOr<DocRef> Formatter::FormatModule(const Module& n) {
 }
 
 DocRef Formatter::FormatStatementBlock(const StatementBlock& n) {
-  return FormatBlock(n, /*add_curls=*/n.has_braces());
+  return FormatBlock(n, FormatBlockOptions{.add_curls = n.has_braces()});
 }
 DocRef Formatter::FormatXlsTuple(const XlsTuple& n) { return FormatTuple(n); }
 

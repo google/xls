@@ -157,6 +157,113 @@ TEST(BuiltAstFmtTest, FormatAttrThatNeedsParensOnOperand) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x * y).my_attr");
 }
 
+class TestFormatter : public Formatter {
+ public:
+  using Formatter::FormatBlock;
+  using Formatter::FormatJoin;
+  using Formatter::Formatter;
+  using Formatter::Joiner;
+};
+
+TEST(AstFmtTest, FormatBlockWithPrependAndAppend) {
+  FileTable file_table;
+  Bindings bindings;
+
+  Fileno file_no = file_table.GetOrCreate("fake.x");
+  std::string_view block_str =
+      "{ let prepended = 0; let x = 1; let appended = 2; }";
+  Scanner scanner(file_table, file_no, std::string{block_str});
+  Parser parser("fake", &scanner);
+  XLS_ASSERT_OK_AND_ASSIGN(StatementBlock * block,
+                           parser.ParseBlockExpression(bindings));
+  ASSERT_EQ(block->statements().size(), 3);
+
+  StatementBlock* main_block = parser.module().Make<StatementBlock>(
+      block->span(), std::vector<Statement*>{block->statements()[1]},
+      /*trailing_semi=*/true);
+
+  Comments empty_comments = Comments::Create({});
+  DocArena arena(file_table);
+  TestFormatter formatter(empty_comments, arena);
+
+  std::vector<DocRef> prepend_docs = {
+      formatter.FormatStatement(*block->statements()[0],
+                                /*trailing_semi=*/true)};
+  std::vector<DocRef> append_docs = {
+      formatter.FormatStatement(*block->statements()[2],
+                                /*trailing_semi=*/true)};
+  FormatBlockOptions options = {
+      .prepend_statements = prepend_docs,
+      .append_statements = append_docs,
+  };
+
+  DocRef doc = formatter.FormatBlock(*main_block, options);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
+            R"({
+    let prepended = 0;
+    let x = 1;
+    let appended = 2;
+})");
+}
+
+TEST(AstFmtTest, FormatBlockWithStartAndEndIndices) {
+  FileTable file_table;
+  Bindings bindings;
+
+  Fileno file_no = file_table.GetOrCreate("fake.x");
+  std::string_view block_str =
+      "{ let x1 = 1; let x2 = 2; let x3 = 3; let x4 = 4; }";
+  Scanner scanner(file_table, file_no, std::string{block_str});
+  Parser parser("fake", &scanner);
+  XLS_ASSERT_OK_AND_ASSIGN(StatementBlock * block,
+                           parser.ParseBlockExpression(bindings));
+  ASSERT_EQ(block->statements().size(), 4);
+
+  Comments empty_comments = Comments::Create({});
+  DocArena arena(file_table);
+  TestFormatter formatter(empty_comments, arena);
+
+  FormatBlockOptions options = {
+      .start_idx = 1,
+      .end_idx = 3,
+  };
+
+  DocRef doc = formatter.FormatBlock(*block, options);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
+            R"({
+    let x2 = 2;
+    let x3 = 3;
+})");
+}
+
+TEST(AstFmtTest, FormatJoinNoGroup) {
+  FileTable file_table;
+  Comments empty_comments = Comments::Create({});
+  DocArena arena(file_table);
+  TestFormatter formatter(empty_comments, arena);
+
+  std::vector<DocRef> pieces = {
+      arena.MakeText("a"),
+      arena.MakeText("b"),
+      arena.MakeText("c"),
+  };
+
+  {
+    DocRef doc = formatter.FormatJoin(
+        pieces, TestFormatter::Joiner::kCommaSpace, /*group=*/false);
+    EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "a, b, c");
+  }
+
+  {
+    DocRef doc =
+        formatter.FormatJoin(pieces, TestFormatter::Joiner::kCommaBreak1);
+    // Fits on one line
+    EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "a, b, c");
+    // Does not fit on one line (force break)
+    EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/5), "a,\nb,\nc");
+  }
+}
+
 TEST(AstFmtTest, FormatLet) {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), "{ let x: u32 = u32:42; }"};

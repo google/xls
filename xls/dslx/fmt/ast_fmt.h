@@ -34,6 +34,16 @@
 
 namespace xls::dslx {
 
+struct FormatBlockOptions {
+  std::optional<int> start_idx;
+  std::optional<int> end_idx;
+  absl::Span<const DocRef> prepend_statements;
+  absl::Span<const DocRef> append_statements;
+  bool force_trailing_semi = false;
+  bool add_curls = true;
+  bool force_multiline = false;
+};
+
 // TODO: davidplass - Move this class to its own file after all the
 // Expr-descendants are migrated to it.
 class Formatter {
@@ -100,8 +110,8 @@ class Formatter {
   virtual DocRef FormatAttr(const Attr& n);
   virtual DocRef FormatAttribute(const Attribute& n);
   virtual DocRef FormatBinop(const Binop& n);
-  virtual DocRef FormatBlock(const StatementBlock& n, bool add_curls = true,
-                             bool force_multiline = false);
+  virtual DocRef FormatBlock(const StatementBlock& n,
+                             const FormatBlockOptions& options = {});
   virtual DocRef FormatBuiltinTypeAnnotation(const BuiltinTypeAnnotation& n);
   virtual DocRef FormatCast(const Cast& n);
   virtual DocRef FormatChannelConfig(const ChannelConfig& n);
@@ -206,9 +216,19 @@ class Formatter {
       absl::Span<const std::pair<std::string, Expr*>> members);
   DocRef FormatTuple(const XlsTuple& n);
   DocRef FormatTupleWithoutComments(const XlsTuple& n);
+
+  // Joins `items` using the given `joiner` in between them. If `group` is true,
+  // the items are concatenated using `ConcatNGroup`; otherwise they are
+  // concatenated using `ConcatN`.
+  DocRef FormatJoin(absl::Span<const DocRef> items, Joiner joiner,
+                    bool group = true);
+
+  // Variant which joins an arbitrary kind of `items` (e.g. AST nodes), invoking
+  // `fmt` on each one to come up with its `DocRef`.
   template <typename T>
   DocRef FormatJoin(absl::Span<const T> items, Joiner joiner,
-                    const std::function<DocRef(const T&)>& fmt);
+                    const std::function<DocRef(const T&)>& fmt,
+                    bool group = true);
 
   virtual bool IsBlockedExprNoLeader(const Expr& e);
   virtual bool IsBlockedExprWithLeader(const Expr& e);
