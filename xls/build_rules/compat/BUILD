@@ -1,0 +1,38 @@
+# Copyright 2026 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Compatiblity bzl_library targets needed to allow stardoc to work.
+
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
+package(
+    default_applicable_licenses = ["//:license"],
+    default_visibility = ["//xls:xls_internal"],
+    features = [
+        "layering_check",
+        "parse_headers",
+    ],
+    licenses = ["notice"],  # Apache 2.0
+)
+
+# Stardoc (starlark_doc_extract) strictly requires all transitively loaded .bzl
+# files to be represented by a bzl_library target in the dependency graph.
+# The built-in @bazel_tools repository does not provide a bzl_library target
+# for the legacy toolchain_utils.bzl. We define this local wrapper to satisfy
+# Stardoc's validator without needing to modify the XLS Starlark logic files.
+bzl_library(
+    name = "toolchain_utils_bzl",
+    srcs = ["@bazel_tools//tools/cpp:toolchain_utils.bzl"],
+    deps = ["@rules_cc//cc:find_cc_toolchain_bzl"],
+)

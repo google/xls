@@ -193,7 +193,7 @@ bazel_dep(name = "openroad", repo_name = "org_theopenroadproject")
 
 git_override(
     module_name = "rules_hdl",
-    commit = "cbb275235f0f8dc00f87d932db490a4f75fb11d1",
+    commit = "94e28d604085707499fd5aa1fd96519b1acda216",
     remote = "https://github.com/hdl/bazel_rules_hdl.git",
 )
 
@@ -304,5 +304,8 @@ git_override(
     commit = "abb61a688167623088f8768cc9264798df6a9d10",
     remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
 )
+
+# Documentation generator
+bazel_dep(name = "stardoc", version = "0.8.1")
 
 register_toolchains("//xls/common/toolchains:all")

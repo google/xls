@@ -237,6 +237,8 @@ bzl_library(
         "@bazel_skylib//rules:build_test",
         "@bazel_skylib//rules:diff_test",
         "@rules_cc//cc:core_rules",
+        "@rules_hdl//synthesis:bzl",
+        "@rules_hdl//verilog:providers_bzl",
     ],
 )
 
@@ -270,6 +272,7 @@ bzl_library(
         ":xls_rules_bzl",
         ":xls_toolchains_bzl",
         ":xls_utilities_bzl",
+        "@rules_hdl//synthesis:bzl",
     ],
 )
 
@@ -292,6 +295,7 @@ bzl_library(
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
         ":xls_utilities_bzl",
+        "//xls/build_rules/compat:toolchain_utils_bzl",
         "@bazel_skylib//lib:dicts",
         "@bazel_skylib//rules:common_settings",
         "@rules_cc//cc/common",
