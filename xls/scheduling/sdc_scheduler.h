@@ -29,9 +29,9 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/scheduling/asap_scheduler.h"
 #include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/scheduler.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -47,9 +47,10 @@ class SDCSchedulingModel {
   using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 
   static constexpr double kInfinity = std::numeric_limits<double>::infinity();
-  static constexpr double kMaxStages = (1 << 20);
 
  public:
+  static constexpr double kMaxStages = (1 << 20);
+
   SDCSchedulingModel(
       const ScheduleGraph& graph, const DelayMap& delay_map,
       std::optional<int64_t> initiation_interval, double sdc_solution_tolerance,
@@ -82,6 +83,9 @@ class SDCSchedulingModel {
   std::optional<int64_t> initiation_interval() const {
     return initiation_interval_;
   }
+
+  void SetNodeBounds(Node* node, int64_t lower_bound, int64_t upper_bound);
+  void RemoveNodeBounds(Node* node);
 
   void SetPipelineLength(std::optional<int64_t> pipeline_length);
   void MinimizePipelineLength();
@@ -319,6 +323,24 @@ class SDCScheduler final : public Scheduler {
       const operations_research::math_opt::SolveResult& result,
       SchedulingFailureBehavior failure_behavior);
 
+  class PrecomputedDelayEstimator : public DelayEstimator {
+   public:
+    explicit PrecomputedDelayEstimator(
+        const absl::flat_hash_map<Node*, int64_t>& delay_map)
+        : DelayEstimator("precomputed_delay_estimator"),
+          delay_map_(delay_map) {}
+
+    absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
+      if (auto it = delay_map_.find(node); it != delay_map_.end()) {
+        return it->second;
+      }
+      return 0;
+    }
+
+   private:
+    const absl::flat_hash_map<Node*, int64_t>& delay_map_;
+  };
+
   DelayMap delay_map_;
   ::operations_research::math_opt::SolverType solver_type_;
   ::operations_research::math_opt::SolveParameters solve_parameters_;
@@ -326,6 +348,13 @@ class SDCScheduler final : public Scheduler {
   std::unique_ptr<operations_research::math_opt::IncrementalSolver> solver_;
   std::optional<double> dynamic_throughput_objective_weight_;
   bool check_feasibility_ = false;
+
+  // This holds the ASAP scheduler used to give the SDC solver bounds on cycle
+  // numbers for each node, along with a representation of our delay map as a
+  // DelayEstimator.
+  PrecomputedDelayEstimator delay_map_as_estimator_;
+  ASAPScheduler asap_;
+  ASAPScheduler unconstrained_asap_;
 };
 
 }  // namespace xls
