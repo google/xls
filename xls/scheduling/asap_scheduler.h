@@ -51,6 +51,14 @@ class ASAPScheduler : public Scheduler {
       SchedulingFailureBehavior failure_behavior,
       std::optional<int64_t> worst_case_throughput = std::nullopt) override;
 
+  // An alternate interface that returns the full ASAP/ALAP bounds; mostly used
+  // for other schedulers to build on top of this.
+  absl::StatusOr<sched::ScheduleBounds> ComputeBounds(
+      std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
+      std::optional<int64_t> worst_case_throughput,
+      bool get_helpful_error = true,
+      int64_t max_upper_bound = sched::ScheduleBounds::kDefaultMaxUpperBound);
+
   const ScheduleGraph& graph() const { return graph_; }
   DelayEstimator& delay_estimator() const { return delay_estimator_; }
   absl::Span<const SchedulingConstraint> constraints() const {
@@ -68,12 +76,8 @@ class ASAPScheduler : public Scheduler {
       absl::Status&& orig_status, std::optional<int64_t> pipeline_stages,
       int64_t clock_period_ps, std::optional<int64_t> worst_case_throughput);
 
-  // Exposed to allow for Min-cut and random to be built on top of this.
-  absl::StatusOr<sched::ScheduleBounds> ComputeBounds(
-      std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
-      std::optional<int64_t> worst_case_throughput);
-
   // Helper to tighten bounds using the ASAP/ALAP bounds.
+  // Exposed as `protected` so the random scheduler can build on top of this.
   static absl::Status TightenBounds(sched::ScheduleBounds& bounds,
                                     FunctionBase* f,
                                     std::optional<int64_t> schedule_length);

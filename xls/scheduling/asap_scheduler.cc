@@ -143,7 +143,8 @@ absl::StatusOr<ScheduleCycleMap> ASAPScheduler::Schedule(
 
 absl::StatusOr<sched::ScheduleBounds> ASAPScheduler::ComputeBounds(
     std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
-    std::optional<int64_t> worst_case_throughput) {
+    std::optional<int64_t> worst_case_throughput, bool get_helpful_error,
+    int64_t max_upper_bound) {
   XLS_RET_CHECK(std::holds_alternative<FunctionBase*>(graph_.ir_scope()));
   auto* f = std::get<FunctionBase*>(graph_.ir_scope());
   // TODO(allight): This actually creates a copy of graph_ since it needs to
@@ -158,9 +159,9 @@ absl::StatusOr<sched::ScheduleBounds> ASAPScheduler::ComputeBounds(
   VLOG(5) << "                constraints: "
           << absl::StrJoin(constraints_, ", ");
   XLS_ASSIGN_OR_RETURN(
-      auto bounds,
-      sched::ScheduleBounds::Create(graph_, clock_period_ps, delay_estimator_,
-                                    worst_case_throughput, constraints_));
+      auto bounds, sched::ScheduleBounds::Create(
+                       graph_, clock_period_ps, delay_estimator_,
+                       worst_case_throughput, constraints_, max_upper_bound));
   // Add first and last stage constraints.
   using LastStageConstraint =
       sched::ScheduleBounds::NodeSchedulingConstraint::LastStageConstraint;
@@ -173,9 +174,12 @@ absl::StatusOr<sched::ScheduleBounds> ASAPScheduler::ComputeBounds(
   absl::Status tighten_bounds_status =
       TightenBounds(bounds, f, pipeline_stages);
   if (!tighten_bounds_status.ok()) {
-    return GenerateHelpfulError(std::move(tighten_bounds_status),
-                                pipeline_stages, clock_period_ps,
-                                worst_case_throughput);
+    if (get_helpful_error) {
+      return GenerateHelpfulError(std::move(tighten_bounds_status),
+                                  pipeline_stages, clock_period_ps,
+                                  worst_case_throughput);
+    }
+    return tighten_bounds_status;
   }
   return bounds;
 }
