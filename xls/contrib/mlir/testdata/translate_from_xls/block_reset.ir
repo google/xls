@@ -20,3 +20,37 @@ block pipeline(clk: clock, rst: bits[1], a: bits[32], out: bits[32]) {
   state_d: () = register_write(sum, register=state, reset=rst)
   out: () = output_port(state_q, name=out)
 }
+
+// CHECK-LABEL: xls.block @array_pipeline
+// CHECK-SAME: [clock: "clk", reset: %rst]
+// CHECK-SAME: (%a: !xls.array<2xi32>) -> (%out : !xls.array<2xi32>)
+// CHECK:   xls.register @state {reset_value = [0 : i32, 42 : i32]} : !xls.array<2xi32>
+// CHECK:   xls.register_read @state
+// CHECK:   xls.register_write @state, %{{.*}} reset %rst : !xls.array<2xi32>
+// CHECK:   xls.block_output
+block array_pipeline(clk: clock, rst: bits[1], a: bits[32][2], out: bits[32][2]) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  reg state(bits[32][2], reset_value=[0, 42])
+  a: bits[32][2] = input_port(name=a)
+  rst: bits[1] = input_port(name=rst)
+  state_q: bits[32][2] = register_read(register=state)
+  state_d: () = register_write(a, register=state, reset=rst)
+  out: () = output_port(state_q, name=out)
+}
+
+// CHECK-LABEL: xls.block @tuple_pipeline
+// CHECK-SAME: [clock: "clk", reset: %rst]
+// CHECK-SAME: (%a: tuple<i32, i16>) -> (%out : tuple<i32, i16>)
+// CHECK:   xls.register @state {reset_value = [0 : i32, 42 : i16]} : tuple<i32, i16>
+// CHECK:   xls.register_read @state
+// CHECK:   xls.register_write @state, %{{.*}} reset %rst : tuple<i32, i16>
+// CHECK:   xls.block_output
+block tuple_pipeline(clk: clock, rst: bits[1], a: (bits[32], bits[16]), out: (bits[32], bits[16])) {
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  reg state((bits[32], bits[16]), reset_value=(0, 42))
+  a: (bits[32], bits[16]) = input_port(name=a)
+  rst: bits[1] = input_port(name=rst)
+  state_q: (bits[32], bits[16]) = register_read(register=state)
+  state_d: () = register_write(a, register=state, reset=rst)
+  out: () = output_port(state_q, name=out)
+}
