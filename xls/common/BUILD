@@ -68,6 +68,25 @@ cc_test(
 )
 
 cc_library(
+    name = "sorted_vector",
+    hdrs = ["sorted_vector.h"],
+    deps = [
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "sorted_vector_test",
+    srcs = ["sorted_vector_test.cc"],
+    deps = [
+        ":sorted_vector",
+        ":xls_gunit_main",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "bits_util",
     hdrs = ["bits_util.h"],
     deps = [
