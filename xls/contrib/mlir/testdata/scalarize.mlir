@@ -320,3 +320,17 @@ func.func @one_hot_select(%arg0: tensor<2xi16>, %arg1: tensor<2xi32>, %arg2: ten
   %0 = "xls.one_hot_sel"(%arg0, %arg1, %arg2) : (tensor<2xi16>, tensor<2xi32>, tensor<2xi32>) -> tensor<2xi32>
   return %0 : tensor<2xi32>
 }
+
+// CHECK-LABEL: @expand_shape
+// CHECK: return %arg0 : !xls.array<4xi32>
+func.func @expand_shape(%arg0: tensor<4xi32>) -> tensor<2x2xi32> attributes {xls = true} {
+  %0 = tensor.expand_shape %arg0 [[0, 1]] output_shape [2, 2] : tensor<4xi32> into tensor<2x2xi32>
+  return %0 : tensor<2x2xi32>
+}
+
+// CHECK-LABEL: @collapse_shape
+// CHECK: return %arg0 : !xls.array<4xi32>
+func.func @collapse_shape(%arg0: tensor<2x2xi32>) -> tensor<4xi32> attributes {xls = true} {
+  %0 = tensor.collapse_shape %arg0 [[0, 1]] : tensor<2x2xi32> into tensor<4xi32>
+  return %0 : tensor<4xi32>
+}

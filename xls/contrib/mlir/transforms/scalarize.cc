@@ -573,6 +573,38 @@ class LegalizeTensorEmptyPattern
   }
 };
 
+// Legalizes tensor.expand_shape to a no-op under the assumption that the
+// type converter is flattening all tensors to 1D arrays of the same total
+// number of elements.
+class LegalizeTensorExpandShapePattern
+    : public OpConversionPattern<mlir::tensor::ExpandShapeOp> {
+ public:
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      mlir::tensor::ExpandShapeOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    rewriter.replaceOp(op, adaptor.getSrc());
+    return success();
+  }
+};
+
+// Legalizes tensor.collapse_shape to a no-op under the assumption that the
+// type converter is flattening all tensors to 1D arrays of the same total
+// number of elements.
+class LegalizeTensorCollapseShapePattern
+    : public OpConversionPattern<mlir::tensor::CollapseShapeOp> {
+ public:
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      mlir::tensor::CollapseShapeOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    rewriter.replaceOp(op, adaptor.getSrc());
+    return success();
+  }
+};
+
 class LegalizeConcatPattern : public OpConversionPattern<ConcatOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -871,8 +903,10 @@ class ScalarizePass : public impl::ScalarizePassBase<ScalarizePass> {
         LegalizeConstantTensorPattern,
         LegalizeScalarizableOpPattern,
         LegalizeTensorArrayTypeFungiblePattern,
+        LegalizeTensorCollapseShapePattern,
         LegalizeTensorConcatPattern,
         LegalizeTensorEmptyPattern,
+        LegalizeTensorExpandShapePattern,
         LegalizeTensorExtractPattern,
         LegalizeTensorExtractSingleSlicePattern,
         RankReduceTensorExtractSlicePattern,
