@@ -262,27 +262,34 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  // Do not transfer the next node to the new function. We do need to hook up
+  // Do not transfer the next node to the new function. We hook up
   // the next_value for the non-synth state element however.
   absl::Status HandleNext(Next* next) override {
-    if (next->state_read()->GetType()->IsToken()) {
+    if (next->state_element()->type()->IsToken()) {
       // We didn't need to copy anything so can just ignore this.
       return absl::OkStatus();
     }
-    XLS_RET_CHECK(
-        non_synth_reads_map_.contains(next->state_read()->As<StateRead>()))
-        << "Did not create a non_synth state read for " << next;
-    XLS_RET_CHECK(non_synth_element_map_.contains(
-        next->state_read()->As<StateRead>()->state_element()))
-        << "Did not create a non_synth state element for " << next;
-    StateRead* non_synth =
-        non_synth_reads_map_[next->state_read()->As<StateRead>()];
+    Proc* src_proc = next->function_base()->AsProcOrDie();
+    XLS_ASSIGN_OR_RETURN(
+        StateElement * non_synth_element,
+        GetOrAddNonSynthStateElement(src_proc, next->state_element()));
+
     std::string non_synth_name = NodeNameFormat("%s_non_synth", next);
+    Next::StateIdentifier state_identifier;
+    if (next->has_state_read()) {
+      XLS_RET_CHECK(
+          non_synth_reads_map_.contains(next->state_read()->As<StateRead>()))
+          << "Did not create a non_synth state read for " << next;
+      state_identifier = Next::StateIdentifier(
+          non_synth_reads_map_[next->state_read()->As<StateRead>()]);
+    } else {
+      state_identifier = Next::StateIdentifier(non_synth_element);
+    }
     XLS_RETURN_IF_ERROR(
-        next->function_base()
-            ->MakeNodeWithName<Next>(next->loc(), non_synth, next->value(),
-                                     next->predicate(), next->label(),
-                                     non_synth_name)
+        src_proc
+            ->MakeNodeWithName<Next>(next->loc(), state_identifier,
+                                     next->value(), next->predicate(),
+                                     next->label(), non_synth_name)
             .status());
     return absl::OkStatus();
   }

@@ -1111,6 +1111,36 @@ TEST_F(ConditionalSpecializationPassTest, NextValueChange) {
                                   m::StateRead("value2"), m::Eq())));
 }
 
+TEST_F(ConditionalSpecializationPassTest, NextValueChangeDecoupled) {
+  auto p = CreatePackage();
+  ProcBuilder pb("my_proc", p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element_1,
+                           pb.UnreadStateElement("value1", Value(UBits(1, 32)),
+                                                 /*non_synthesizable=*/false));
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element_2,
+                           pb.UnreadStateElement("value2", Value(UBits(2, 32)),
+                                                 /*non_synthesizable=*/false));
+
+  BValue read_value1 = pb.StateRead(state_element_1);
+  BValue read_value2 = pb.StateRead(state_element_2);
+
+  BValue literal_400 = pb.Literal(UBits(400, 32));
+  BValue eq_cond = pb.Eq(read_value1, literal_400);
+  BValue sel_val = pb.Select(eq_cond, {literal_400, read_value2});
+
+  pb.Next(state_element_1, sel_val, eq_cond);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  // The next state_element should be optimized to simply be value_2 in the case
+  // the predicate is true.
+  EXPECT_THAT(proc->next_values(state_element_1),
+              ElementsAre(m::NextWithStateElement(
+                  state_element_1, m::StateRead("value2"), m::Eq())));
+}
+
 TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughNot) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -1274,6 +1304,33 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecialization) {
       proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter1"))
           ->predicate(),
       Optional(m::StateRead("index")));
+}
+
+TEST_F(ConditionalSpecializationPassTest, EliminateDecoupledNoopNext) {
+  auto p = CreatePackage();
+  ProcBuilder pb("my_proc", p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element_0,
+                           pb.UnreadStateElement("state0", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element_1,
+                           pb.UnreadStateElement("state1", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+
+  BValue read_0 = pb.StateRead(state_element_0);
+
+  pb.Next(state_element_0, read_0);
+  pb.Next(state_element_1, pb.Literal(UBits(42, 32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  EXPECT_THAT(proc->next_values(), testing::SizeIs(2));
+
+  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->next_values(), testing::SizeIs(1));
+  EXPECT_THAT(proc->next_values(), testing::Contains(m::NextWithStateElement(
+                                       state_element_1, m::Literal(42))));
 }
 
 TEST_F(ConditionalSpecializationPassTest, HarderStateReadSpecialization) {

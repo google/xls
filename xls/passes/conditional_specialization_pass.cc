@@ -914,7 +914,10 @@ absl::StatusOr<bool> EliminateNoopNext(FunctionBase* f) {
       continue;
     }
     Next* next = n->As<Next>();
-    if (next->state_read() == next->value()) {
+    bool is_noop = next->value()->Is<StateRead>() &&
+                   next->value()->As<StateRead>()->state_element() ==
+                       next->state_element();
+    if (is_noop) {
       to_remove.push_back(next);
     }
   }
@@ -1189,9 +1192,11 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
       edge_set.Union(condition_cache.GetImplied(Condition{
           .node = predicate,
           .partial = PartialInformation(IntervalSet::Precise(UBits(1, 1)))}));
-      condition_map.SetEdgeConditionSet(node, Next::kStateReadOperand,
-                                        edge_set);
-      condition_map.SetEdgeConditionSet(node, Next::kValueOperand,
+      if (next->has_state_read()) {
+        condition_map.SetEdgeConditionSet(node, Next::kStateReadOperand,
+                                          edge_set);
+      }
+      condition_map.SetEdgeConditionSet(node, next->value_operand_number(),
                                         std::move(edge_set));
     }
 
@@ -1313,10 +1318,13 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         continue;
       }
 
-      if (node->Is<Next>() && operand_no == Next::kStateReadOperand) {
-        // No point in specializing the state read, and it would make the node
-        // invalid anyway; this is just a pointer to the state element.
-        continue;
+      if (node->Is<Next>()) {
+        Next* next = node->As<Next>();
+        if (next->has_state_read() && operand_no == Next::kStateReadOperand) {
+          // No point in specializing the state read, and it would make the node
+          // invalid anyway; this is just a pointer to the state element.
+          continue;
+        }
       }
 
       std::unique_ptr<QueryEngine> specialized_query_engine =

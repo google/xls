@@ -168,6 +168,58 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithStateRead) {
   EXPECT_THAT(identity_node, m::Identity(m::Param()));
 }
 
+TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledUnreadState) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * state_element,
+      pb.UnreadStateElement("state_element", Value(UBits(0, 32)),
+                            /*non_synthesizable=*/false));
+  pb.Assert(pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)), "");
+  BValue value = pb.Literal(Value(UBits(42, 32)));
+  pb.Next(state_element, value);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK(p->GetFunction("non_synth_proc1"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * state_element_non_synth,
+      proc->GetStateElementByName("state_element_non_synth"));
+  EXPECT_TRUE(state_element_non_synth->non_synthesizable());
+  EXPECT_THAT(proc->next_values(),
+              testing::Contains(m::NextWithStateElement(state_element_non_synth,
+                                                        m::Literal(42))));
+}
+
+TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledReadWriteState) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * state_element,
+      pb.UnreadStateElement("state_element", Value(UBits(0, 32)),
+                            /*non_synthesizable=*/false));
+  BValue state_read = pb.StateRead(state_element);
+  pb.Assert(pb.Literal(Value::Token()),
+            pb.Eq(state_read, pb.Literal(UBits(0, 32))), "");
+  BValue value = pb.Literal(Value(UBits(42, 32)));
+  pb.Next(state_element, value);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * non_synth_proc1,
+                           p->GetFunction("non_synth_proc1"));
+  EXPECT_THAT(non_synth_proc1->GetType()->parameters(), testing::SizeIs(1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * state_element_non_synth,
+      proc->GetStateElementByName("state_element_non_synth"));
+  EXPECT_TRUE(state_element_non_synth->non_synthesizable());
+  EXPECT_THAT(proc->next_values(),
+              testing::Contains(m::NextWithStateElement(state_element_non_synth,
+                                                        m::Literal(42))));
+}
+
 TEST_F(NonSynthSeparationPassTest, FunctionsAreClonedWithNoDuplicateNames) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
