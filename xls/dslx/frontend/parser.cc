@@ -329,11 +329,13 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
     return module_->Make<TypeVariableTypeAnnotation>(generic_name_ref,
                                                      /*internal=*/true);
   };
+  Bindings lambda_bindings(&bindings);
   std::vector<Param*> params;
   if (peek->kind() == TokenKind::kBar) {
     XLS_ASSIGN_OR_RETURN(
-        params, ParseParamsInternal(bindings, TokenKind::kBar, TokenKind::kBar,
-                                    missing_annotation_generator));
+        params,
+        ParseParamsInternal(lambda_bindings, TokenKind::kBar, TokenKind::kBar,
+                            missing_annotation_generator));
   } else {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleBar));
   }
@@ -342,7 +344,7 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
   TypeAnnotation* return_type = nullptr;
   bool has_return_type = true;
   if (dropped_arrow) {
-    XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
+    XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(lambda_bindings));
   } else {
     has_return_type = false;
     XLS_ASSIGN_OR_RETURN(
@@ -357,7 +359,7 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
   }
 
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
-                       ParseBlockExpression(bindings, peek_is_brace));
+                       ParseBlockExpression(lambda_bindings, peek_is_brace));
   Span sp = Span(start_pos, GetPos());
   NameDef* fn_name_def =
       module_->Make<NameDef>(sp, std::string(Lambda::kCallLambdaFn), nullptr);

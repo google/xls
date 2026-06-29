@@ -850,6 +850,36 @@ const RES = main();
       TypecheckFails(HasSizeMismatch("uN[16]", "uN[8]")));
 }
 
+TEST(TypecheckV2Test, LambdaParameterShadowsArrayName) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  let arr_ex = u32:0..5;
+  map(arr_ex, |arr_ex: u32| -> u32 { arr_ex * 2 });
+  arr_ex[1]
+}
+
+const RES = main();
+const_assert!(RES == u32:1);
+)",
+      TypecheckSucceeds(HasNodeWithType("RES", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, LambdaParameterShadowsArrayNameImplicitType) {
+  EXPECT_THAT(
+      R"(
+fn main() -> u32 {
+  let arr_ex = u32:0..5;
+  map(arr_ex, |arr_ex| arr_ex * 2 );
+  arr_ex[1]
+}
+
+const RES = main();
+const_assert!(RES == u32:1);
+)",
+      TypecheckSucceeds(HasNodeWithType("RES", "uN[32]")));
+}
+
 // TODO(erinzmoore): Enable once generic struct instantiation is supported.
 TEST(TypecheckV2Test, DISABLED_LambdaUsesGenericTypeAsStruct) {
   EXPECT_THAT(
