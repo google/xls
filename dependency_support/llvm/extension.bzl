@@ -17,8 +17,8 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 def _llvm_raw_ext_impl(_ctx):
-    LLVM_COMMIT = "9f423a973b69b2f90075e8694457f6eca173162b"
-    LLVM_SHA256 = "fd4beb1e02beef82eb9c6ac046df97002507130ffb8c327083c24555eda846f5"
+    LLVM_COMMIT = "f3a69752ac184360afeb921d157ae08b89c2c091"
+    LLVM_SHA256 = "bf5df505f7bd7a6b1a0819f31b8f71f8f54ea2fd86c00e4bb6ae06295dc3743c"
 
     http_archive(
         name = "llvm-raw",
