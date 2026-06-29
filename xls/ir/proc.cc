@@ -1008,22 +1008,15 @@ absl::StatusOr<StateElement*> Proc::TransformStateElement(
 
   // Identity-ify the old next nodes and create new ones.
   for (const NextTransformation& nt : transforms) {
-    Next* nxt;
-    if (nt.old_next->has_state_read()) {
-      // Coupled: use the matched new_state_read
-      XLS_ASSIGN_OR_RETURN(
-          nxt,
-          MakeNodeWithName<Next>(nt.old_next->loc(), new_state_read,
-                                 nt.new_value, nt.new_predicate,
-                                 nt.old_next->label(), nt.old_next->GetName()));
-    } else {
-      // Decoupled: use new_state_element directly
-      XLS_ASSIGN_OR_RETURN(
-          nxt,
-          MakeNodeWithName<Next>(nt.old_next->loc(), new_state_element,
-                                 nt.new_value, nt.new_predicate,
-                                 nt.old_next->label(), nt.old_next->GetName()));
-    }
+    Next::StateIdentifier state_identifier =
+        nt.old_next->has_state_read()
+            ? Next::StateIdentifier(new_state_read)
+            : Next::StateIdentifier(new_state_element);
+    XLS_ASSIGN_OR_RETURN(
+        Next * nxt,
+        MakeNodeWithName<Next>(nt.old_next->loc(), state_identifier,
+                               nt.new_value, nt.new_predicate,
+                               nt.old_next->label(), nt.old_next->GetName()));
     to_replace.push_back({nt.old_next, nxt});
     // Identity-ify the old next.
     if (nt.old_next->has_state_read()) {

@@ -20,6 +20,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/casts.h"
@@ -992,35 +993,27 @@ std::vector<Next*> StateRead::GetNextValues() const {
   return next_values;
 }
 
-Next::Next(const SourceInfo& loc, StateElement* state_element, Node* value,
+Next::Next(const SourceInfo& loc, StateIdentifier state_identifier, Node* value,
            std::optional<Node*> predicate, std::optional<std::string> label,
            std::string_view name, FunctionBase* function)
     : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
            function),
-      state_element_(state_element),
-      state_read_(nullptr),
+      state_element_(std::holds_alternative<StateElement*>(state_identifier)
+                         ? std::get<StateElement*>(state_identifier)
+                         : std::get<Node*>(state_identifier)
+                               ->As<StateRead>()
+                               ->state_element()),
+      state_read_(std::holds_alternative<Node*>(state_identifier)
+                      ? std::get<Node*>(state_identifier)
+                      : nullptr),
       has_predicate_(predicate.has_value()),
-      predicate_operand_index_(1),
+      predicate_operand_index_(state_read_ == nullptr ? 1 : 2),
       label_(std::move(label)) {
   CHECK(IsOpClass<Next>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Next`.";
-  AddOperand(value);
-  AddOptionalOperand(predicate);
-}
-
-Next::Next(const SourceInfo& loc, Node* state_read, Node* value,
-           std::optional<Node*> predicate, std::optional<std::string> label,
-           std::string_view name, FunctionBase* function)
-    : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
-           function),
-      state_element_(state_read->As<StateRead>()->state_element()),
-      state_read_(state_read),
-      has_predicate_(predicate.has_value()),
-      predicate_operand_index_(2),
-      label_(std::move(label)) {
-  CHECK(IsOpClass<Next>(op_))
-      << "Op `" << op_ << "` is not a valid op for Node class `Next`.";
-  AddOperand(state_read);
+  if (state_read_ != nullptr) {
+    AddOperand(state_read_);
+  }
   AddOperand(value);
   AddOptionalOperand(predicate);
 }
@@ -1479,19 +1472,29 @@ absl::StatusOr<Node*> StateRead::CloneInNewFunction(
 
 absl::StatusOr<Node*> Next::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
+  std::optional<Node*> new_predicate = std::nullopt;
+  if (predicate().has_value()) {
+    XLS_ASSIGN_OR_RETURN(int64_t pred_idx, predicate_operand_number());
+    new_predicate = new_operands[pred_idx];
+  }
+
   if (state_read_ == nullptr) {
+    XLS_RET_CHECK(new_function->IsProc())
+        << this << " cloning into " << new_function;
+    XLS_ASSIGN_OR_RETURN(
+        int64_t idx,
+        function_base()->AsProcOrDie()->GetStateElementIndex(state_element()));
+    XLS_RET_CHECK_LT(idx, new_function->AsProcOrDie()->GetStateElementCount());
     return new_function->MakeNodeWithName<Next>(
-        loc(), state_element_, new_operands[0],
-        new_operands.size() > 1 ? std::make_optional(new_operands[1])
-                                : std::nullopt,
-        label(), GetNameView());
+        loc(), new_function->AsProcOrDie()->GetStateElement(idx),
+        new_operands[value_operand_number()], new_predicate, label(),
+        GetNameView());
   }
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Next>(
-      loc(), new_operands[0], new_operands[1],
-      new_operands.size() > 2 ? std::make_optional(new_operands[2])
-                              : std::nullopt,
-      label(), GetNameView());
+      loc(), new_operands[kStateReadOperand],
+      new_operands[value_operand_number()], new_predicate, label(),
+      GetNameView());
 }
 
 bool Select::AllCases(const std::function<bool(Node*)>& p) const {

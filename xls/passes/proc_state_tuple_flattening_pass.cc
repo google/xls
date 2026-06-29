@@ -177,23 +177,16 @@ absl::Status ReplaceProcState(Proc* proc,
       read->set_label(element.read_label);
     }
     for (const NextValue& next_value : element.next_values) {
-      if (next_value.has_state_read) {
-        XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                    next_value.loc,
-                                    /*state_read=*/read,
-                                    /*value=*/next_value.value,
-                                    /*predicate=*/next_value.predicate,
-                                    /*label=*/next_value.label, next_value.name)
-                                .status());
-      } else {
-        XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                    next_value.loc,
-                                    /*state_element=*/read->state_element(),
-                                    /*value=*/next_value.value,
-                                    /*predicate=*/next_value.predicate,
-                                    /*label=*/next_value.label, next_value.name)
-                                .status());
-      }
+      Next::StateIdentifier state_identifier =
+          next_value.has_state_read
+              ? Next::StateIdentifier(read)
+              : Next::StateIdentifier(read->state_element());
+      XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
+                                  next_value.loc, state_identifier,
+                                  /*value=*/next_value.value,
+                                  /*predicate=*/next_value.predicate,
+                                  /*label=*/next_value.label, next_value.name)
+                              .status());
       XLS_RETURN_IF_ERROR(element.placeholder->ReplaceUsesWith(read));
     }
   }

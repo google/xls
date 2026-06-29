@@ -26,7 +26,6 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -124,20 +123,20 @@ RemoveConstantPredicate(
   }
   VLOG(2) << "Identified node as always live; removing predicate: " << next;
   IdenticalNexts new_next;
-  XLS_ASSIGN_OR_RETURN(new_next.main,
-                       next.main->ReplaceUsesWithNew<Next>(
-                           /*state_read=*/next.main->state_read(),
-                           /*value=*/next.main->value(),
-                           /*predicate=*/std::nullopt,
-                           /*label=*/next.main->label()));
+  XLS_ASSIGN_OR_RETURN(new_next.main, next.main->ReplaceUsesWithNew<Next>(
+                                          next.main->state_identifier(),
+                                          /*value=*/next.main->value(),
+                                          /*predicate=*/std::nullopt,
+                                          /*label=*/next.main->label()));
+
   if (next.non_synth) {
-    XLS_ASSIGN_OR_RETURN(new_next.non_synth,
-                         (*next.non_synth)
-                             ->ReplaceUsesWithNew<Next>(
-                                 /*state_read=*/(*next.non_synth)->state_read(),
-                                 /*value=*/(*next.non_synth)->value(),
-                                 /*predicate=*/std::nullopt,
-                                 /*label=*/(*next.non_synth)->label()));
+    XLS_ASSIGN_OR_RETURN(
+        new_next.non_synth,
+        (*next.non_synth)
+            ->ReplaceUsesWithNew<Next>((*next.non_synth)->state_identifier(),
+                                       /*value=*/(*next.non_synth)->value(),
+                                       /*predicate=*/std::nullopt,
+                                       /*label=*/(*next.non_synth)->label()));
   }
   if (split_depth.contains(next)) {
     split_depth[new_next] = split_depth[next];
@@ -184,7 +183,15 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
               (selected_value.default_value() ? 1 : 0))
           << " cases.";
 
+  auto get_state_read = [proc](Next* n) -> Node* {
+    return n->has_state_read()
+               ? n->state_read()
+               : proc->GetStateReadByStateElement(n->state_element());
+  };
+
   std::vector<IdenticalNexts> new_next_values;
+  new_next_values.reserve(selected_value.cases().size() +
+                          (selected_value.default_value() ? 1 : 0));
   for (int64_t i = 0; i < selected_value.cases().size(); ++i) {
     IdenticalNexts new_next;
     XLS_ASSIGN_OR_RETURN(Node * predicate,
@@ -199,25 +206,23 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
     std::string name = NodeNameFormat("%s_case_%d", next.main, i);
     XLS_ASSIGN_OR_RETURN(new_next.main,
                          proc->MakeNodeWithName<Next>(
-                             next.main->loc(),
-                             /*state_read=*/next.main->state_read(),
+                             next.main->loc(), next.main->state_identifier(),
                              /*value=*/selected_value.cases()[i], predicate,
                              /*label=*/next.main->label(), name));
-
     if (next.non_synth) {
       std::string non_synth_name =
           NodeNameFormat("%s_case_%d", *next.non_synth, i);
       // Change main pass-through updates to pass-through on the non-synth one
       // too.
-      Node* case_val = selected_value.cases()[i] == next.main->state_read()
-                           ? (*next.non_synth)->state_read()
+      Node* case_val = selected_value.cases()[i] == get_state_read(next.main)
+                           ? get_state_read(*next.non_synth)
                            : selected_value.cases()[i];
-      XLS_ASSIGN_OR_RETURN(new_next.non_synth,
-                           proc->MakeNodeWithName<Next>(
-                               (*next.non_synth)->loc(),
-                               /*state_read=*/(*next.non_synth)->state_read(),
-                               /*value=*/case_val, predicate,
-                               (*next.non_synth)->label(), non_synth_name));
+      XLS_ASSIGN_OR_RETURN(
+          new_next.non_synth,
+          proc->MakeNodeWithName<Next>(
+              (*next.non_synth)->loc(), (*next.non_synth)->state_identifier(),
+              /*value=*/case_val, predicate, (*next.non_synth)->label(),
+              non_synth_name));
     }
     new_next_values.push_back(new_next);
     split_depth[new_next] = depth;
@@ -237,23 +242,21 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
     IdenticalNexts new_next;
     std::string name = NodeNameConcat(next.main, "_default_case");
     XLS_ASSIGN_OR_RETURN(
-        new_next.main,
-        proc->MakeNodeWithName<Next>(next.main->loc(),
-                                     /*state_read=*/next.main->state_read(),
-                                     /*value=*/*selected_value.default_value(),
-                                     predicate, next.main->label(), name));
+        new_next.main, proc->MakeNodeWithName<Next>(
+                           next.main->loc(), next.main->state_identifier(),
+                           /*value=*/*selected_value.default_value(), predicate,
+                           next.main->label(), name));
     if (next.non_synth) {
       std::string non_synth_name =
           NodeNameConcat(*next.non_synth, "_default_case");
-      Node* value = *selected_value.default_value() == next.main->state_read()
-                        ? (*next.non_synth)->state_read()
+      Node* value = *selected_value.default_value() == get_state_read(next.main)
+                        ? get_state_read(*next.non_synth)
                         : *selected_value.default_value();
       XLS_ASSIGN_OR_RETURN(
           new_next.non_synth,
           proc->MakeNodeWithName<Next>(
-              (*next.non_synth)->loc(),
-              /*state_read=*/(*next.non_synth)->state_read(), value, predicate,
-              (*next.non_synth)->label(), non_synth_name));
+              (*next.non_synth)->loc(), (*next.non_synth)->state_identifier(),
+              value, predicate, (*next.non_synth)->label(), non_synth_name));
     }
     new_next_values.push_back(new_next);
     split_depth[new_next] = depth;
@@ -400,10 +403,12 @@ absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
     } else {
       absl::flat_hash_map<absl::Span<Node* const>, Next*> nonsynth_nexts;
       for (Next* next : proc->next_values(*non_synth)) {
-        nonsynth_nexts[next->operands().subspan(1)] = next;
+        nonsynth_nexts[next->operands().subspan(next->value_operand_number())] =
+            next;
       }
       for (Next* next : proc->next_values(elem)) {
-        auto it = nonsynth_nexts.find(next->operands().subspan(1));
+        auto it = nonsynth_nexts.find(
+            next->operands().subspan(next->value_operand_number()));
         XLS_RET_CHECK(it != nonsynth_nexts.end())
             << "Unable to find corresponding non-synth next for " << next;
         worklist.push_back({.main = next, .non_synth = it->second});

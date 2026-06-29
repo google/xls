@@ -357,19 +357,14 @@ class UntupleVisitor : public DfsVisitorWithDefault {
          iter::zip(iter::count(), state_read_values, update_values)) {
       XLS_RET_CHECK(state_read_node->Is<StateRead>());
       StateRead* state_read = state_read_node->As<StateRead>();
-      if (n->has_state_read()) {
-        XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                    n->loc(), state_read, value, n->predicate(),
-                                    n->label(), IdxName(n, idx))
-                                .status());
-      } else {
-        StateElement* state_element = state_read->state_element();
-        XLS_RET_CHECK(state_element != nullptr);
-        XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                    n->loc(), state_element, value,
-                                    n->predicate(), n->label(), IdxName(n, idx))
-                                .status());
-      }
+      Next::StateIdentifier state_identifier =
+          n->has_state_read()
+              ? Next::StateIdentifier(state_read)
+              : Next::StateIdentifier(state_read->state_element());
+      XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
+                                  n->loc(), state_identifier, value,
+                                  n->predicate(), n->label(), IdxName(n, idx))
+                              .status());
     }
     // Remove this next from consideration.
     if (n->value() != state_read) {
