@@ -1320,6 +1320,22 @@ absl::StatusOr<Operation*> translateOp(::xls::Assert& node, OpBuilder& builder,
                                    : nullptr);
 }
 
+absl::StatusOr<Operation*> translateOp(::xls::Cover& node, OpBuilder& builder,
+                                       TranslationState& state) {
+  auto condition = state.getMlirValue(node.condition()->id());
+  if (!condition.ok()) {
+    return condition.status();
+  }
+
+  auto loc = translateLoc(node.loc(), builder, state);
+  if (!loc.ok()) {
+    return loc.status();
+  }
+
+  return CoverOp::create(builder, *loc, *condition,
+                         builder.getStringAttr(node.label()));
+}
+
 absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
                                           OpBuilder& builder,
                                           TranslationState& state) {
@@ -1402,8 +1418,9 @@ absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
         "StateRead not handeled during proc translation.");
   } else if (dynamic_cast<::xls::Next*>(&xls_node)) {
     return absl::InternalError("Next not handeled during proc translation.");
-  } else if (dynamic_cast<::xls::Cover*>(&xls_node) ||
-             dynamic_cast<::xls::MinDelay*>(&xls_node)) {
+  } else if (auto* xls_op = dynamic_cast<::xls::Cover*>(&xls_node)) {
+    op = translateOp(*xls_op, builder, state);
+  } else if (dynamic_cast<::xls::MinDelay*>(&xls_node)) {
     return absl::InternalError(absl::StrCat(
         "Unsupported operation: ", ::xls::OpToString(xls_node.op()),
         " - Not yet available in XLS MLIR!"));
@@ -1416,9 +1433,13 @@ absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
     return op.status();
   }
 
-  if (auto err = state.setMlirValue(xls_node.id(), (*op)->getResult(0));
-      !err.ok()) {
-    return err;
+  // Only map the result if the op produces one (e.g., xls.cover has no
+  // results).
+  if ((*op)->getNumResults() > 0) {
+    if (auto err = state.setMlirValue(xls_node.id(), (*op)->getResult(0));
+        !err.ok()) {
+      return err;
+    }
   }
 
   return *op;

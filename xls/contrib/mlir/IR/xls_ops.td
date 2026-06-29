@@ -2352,6 +2352,30 @@ def Xls_AssertOp : Xls_Op<"assert"> {
   }];
 }
 
+def Xls_CoverOp : Xls_Op<"cover"> {
+  let summary = "Records every time the condition evaluates to true";
+  let description = [{
+    Records the number of times the given 'condition' evaluates to true. When
+    lowered to SystemVerilog, the 'label' becomes an identifier that should be
+    unique within the scope of emission, though uniqueness is not enforced by
+    either MLIR or XLS.
+
+    The op has no return value, which is noteworthy for two reasons: (1) Unlike
+    `xls.assert`, `xls.cover` does not take a token input and does not produce a
+    token output. (2) In XLS IR, the op returns an empty tuple but does so only
+    because there is no other way to express "no return value" type. This design
+    is more idiomatic in MLIR, at the cost of a small structural difference from
+    XLS IR.
+  }];
+  let arguments = (ins
+    I1:$condition,
+    StrAttr:$label
+  );
+  let assemblyFormat = [{
+    $condition `,` $label attr-dict
+  }];
+}
+
 def Xls_GateOp :
   Xls_Op<"gate", [
     ShapesAreConsistent<["data", "result"]>,

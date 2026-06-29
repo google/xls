@@ -1,0 +1,11 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+// CHECK-LABEL: func @test_cover(
+// CHECK-SAME: %[[COND:.*]]: i1)
+fn test_cover(cond: bits[1] id=1) -> bits[1] {
+  // CHECK: xls.cover %[[COND]], "my_coverpoint"
+  cover.2: () = cover(cond, label="my_coverpoint", id=2)
+  ret not.3: bits[1] = not(cond, id=3)
+}

@@ -513,6 +513,11 @@ BValue convertOp(AssertOp op, const TranslationState& state, BuilderBase& fb) {
                    state.getLoc(op));
 }
 
+BValue convertOp(CoverOp op, const TranslationState& state, BuilderBase& fb) {
+  return fb.Cover(state.getXlsValue(op.getCondition()), op.getLabel(),
+                  state.getLoc(op));
+}
+
 // Tuple operations
 BValue convertOp(TupleOp op, const TranslationState& state, BuilderBase& fb) {
   std::vector<BValue> values;
@@ -1208,7 +1213,7 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
             // Debugging ops
             TraceOp,
             // Misc. side-effecting ops
-            AssertOp, GateOp>(
+            AssertOp, CoverOp, GateOp>(
             [&](auto t) { return convertOp(t, translation_state, fb); })
         .Case<func::ReturnOp, YieldOp>([&](auto ret) {
           if (ret.getNumOperands() == 1) {
