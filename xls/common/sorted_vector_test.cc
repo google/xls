@@ -20,6 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/types/span.h"
 
 namespace xabsl {
 namespace {
@@ -27,13 +28,13 @@ namespace {
 using ::testing::ElementsAre;
 
 TEST(SortedVectorTest, Properties) {
-  static_assert(!std::is_copy_constructible_v<SortedVector<int>>);
+  static_assert(std::is_copy_constructible_v<SortedVector<int>>);
   static_assert(std::is_move_constructible_v<SortedVector<int>>);
-  static_assert(!std::is_copy_assignable_v<SortedVector<int>>);
+  static_assert(std::is_copy_assignable_v<SortedVector<int>>);
   static_assert(std::is_move_assignable_v<SortedVector<int>>);
 }
 
-TEST(SortedVectorTest, BasicUsage_SortsByDefault) {
+TEST(SortedVectorTest, SortsByDefault) {
   auto sv = SortedVector<int>::create({3, 1, 2});
   EXPECT_EQ(sv.size(), 3);
   EXPECT_THAT(sv, ElementsAre(1, 2, 3));
@@ -42,6 +43,12 @@ TEST(SortedVectorTest, BasicUsage_SortsByDefault) {
   EXPECT_TRUE(sv.contains(3));
   EXPECT_FALSE(sv.contains(0));
   EXPECT_FALSE(sv.contains(4));
+}
+
+TEST(SortedVectorTest, SupportsSpan) {
+  auto sv = SortedVector<int>::create({3, 1, 2});
+  absl::Span<const int> span = sv;
+  EXPECT_THAT(span, ElementsAre(1, 2, 3));
 }
 
 TEST(SortedVectorTest, CustomComparator) {

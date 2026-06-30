@@ -23,45 +23,41 @@
 #include <utility>
 #include <vector>
 
-#include "absl/types/span.h"
-
 namespace xabsl {
 
 // An immutable vector that is guaranteed to be sorted.
 template <typename T>
-class SortedVector final : public absl::Span<T> {
+class SortedVector final {
+ private:
   std::vector<T> storage_;
   std::function<bool(const T&, const T&)> comp_;
 
-  SortedVector(std::vector<T>&& other,
+  SortedVector(std::vector<T> other,
                std::function<bool(const T&, const T&)> comp)
-      // This relies on the guarantee that the move ctor of std::vector not
-      // causing a memcopy, i.e. what is pointed to by data() being the same,
-      // and it just transferring over the pointer and releasing ownership. See
-      // also https://en.cppreference.com/cpp/container/vector/vector, "Notes":
-      // After container move construction (overload (8)), references, pointers,
-      // and iterators that originally refer to elements in other remain valid,
-      // but refer to elements that are now in *this. The current standard makes
-      // this guarantee via the blanket statement in [container.reqmts]/67, and
-      // a more direct guarantee is under consideration via LWG issue 2321
-      : absl::Span<T>(other.data(), other.size()),
-        storage_(std::move(other)),
-        comp_(std::move(comp)) {}
+      : storage_(std::move(other)), comp_(std::move(comp)) {}
 
  public:
-  SortedVector() : absl::Span<T>(), comp_() {}
+  using value_type = T;
+  using const_pointer = typename std::vector<T>::const_pointer;
+  using const_reference = typename std::vector<T>::const_reference;
+  using const_iterator = typename std::vector<T>::const_iterator;
+  using size_type = typename std::vector<T>::size_type;
+  using difference_type = typename std::vector<T>::difference_type;
+
+  // Default-constructible as empty; the comparator doesn't matter.
+  SortedVector()
+      : storage_(), comp_([](const T& a, const T& b) { return false; }) {}
+
   SortedVector(SortedVector&&) = default;
   SortedVector& operator=(SortedVector&&) = default;
-
-  // The copy ctor/operator could be implemented if we have a motivating use
-  // case. Right now, we don't, and the benefit of its absence is compile-time
-  // detection of attempts to pass by value (which the relation to Span may
-  // suggest as cheap - but they are not).
-  SortedVector(const SortedVector&) = delete;
-  SortedVector& operator=(const SortedVector&) = delete;
-
-  bool contains(const T& value) const {
-    return std::binary_search(storage_.begin(), storage_.end(), value, comp_);
+  SortedVector(const SortedVector& other) {
+    storage_ = other.storage_;
+    comp_ = other.comp_;
+  }
+  SortedVector& operator=(const SortedVector& other) {
+    storage_ = other.storage_;
+    comp_ = other.comp_;
+    return *this;
   }
 
   template <typename Compare = std::compare_three_way>
@@ -73,6 +69,53 @@ class SortedVector final : public absl::Span<T> {
     };
     std::sort(other.begin(), other.end(), bool_comp);
     return SortedVector(std::move(other), std::move(bool_comp));
+  }
+
+  constexpr auto data() const { return storage_.data(); }
+
+  constexpr auto size() const { return storage_.size(); }
+  constexpr auto length() const { return storage_.length(); }
+
+  constexpr auto empty() const { return storage_.empty(); }
+
+  constexpr const auto& operator[](size_type i) const { return storage_[i]; }
+  constexpr auto& at(size_type i) const { return storage_.at(i); }
+
+  constexpr auto& front() const { return storage_.front(); }
+  constexpr auto& back() const { return storage_.back(); }
+
+  constexpr auto begin() const { return storage_.begin(); }
+  constexpr auto cbegin() const { return storage_.cbegin(); }
+  constexpr auto end() const { return storage_.end(); }
+  constexpr auto cend() const { return storage_.cend(); }
+
+  constexpr auto rbegin() const { return storage_.rbegin(); }
+  constexpr auto crbegin() const { return storage_.crbegin(); }
+  constexpr auto rend() const { return storage_.rend(); }
+  constexpr auto crend() const { return storage_.crend(); }
+
+  bool contains(const T& value) const {
+    return std::binary_search(storage_.begin(), storage_.end(), value, comp_);
+  }
+
+  auto lower_bound(const T& value) const {
+    return std::lower_bound(storage_.begin(), storage_.end(), value, comp_);
+  }
+  auto upper_bound(const T& value) const {
+    return std::upper_bound(storage_.begin(), storage_.end(), value, comp_);
+  }
+
+  auto find(const T& value) const {
+    auto it = lower_bound(value);
+    if (it == storage_.end()) {
+      // The entry would be past the end.
+      return it;
+    }
+    if (comp_(*it, value)) {
+      // The value is not present, since it's larger than its lower bound.
+      return storage_.end();
+    }
+    return it;
   }
 };
 }  // namespace xabsl

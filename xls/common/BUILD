@@ -70,9 +70,6 @@ cc_test(
 cc_library(
     name = "sorted_vector",
     hdrs = ["sorted_vector.h"],
-    deps = [
-        "@abseil-cpp//absl/types:span",
-    ],
 )
 
 cc_test(
