@@ -45,6 +45,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
@@ -1022,6 +1023,35 @@ TEST_F(ChannelLegalizationPassIrTest, LegalizeWithTokenSel) {
   solvers::ScopedVerifyProcEquivalence svpe(f, /*activation_count=*/5);
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
+TEST_F(ChannelLegalizationPassIrTest, LegalizeDecoupledNext) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_out,
+      pb.AddOutputChannel("out", p->GetBitsType(32), ChannelKind::kStreaming,
+                          ChannelStrictness::kRuntimeMutuallyExclusive));
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * st_elem,
+                           pb.UnreadStateElement("state", Value(UBits(0, 1)),
+                                                 /*non_synthesizable=*/false));
+  BValue st = pb.StateRead(st_elem);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * tok_elem,
+                           pb.UnreadStateElement("tok", Value::Token(),
+                                                 /*non_synthesizable=*/false));
+  BValue tok = pb.StateRead(tok_elem);
+
+  auto not_st = pb.Not(st);
+  auto tok_new_a1 = pb.SendIf(chan_out, tok, st, pb.Literal(UBits(32, 32)));
+  auto tok_new_b1 = pb.SendIf(chan_out, tok, not_st, pb.Literal(UBits(12, 32)));
+  pb.Next(st_elem, not_st);
+  pb.Next(tok_elem, pb.Select(st, tok_new_a1, tok_new_b1));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * f, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(f));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  for (Next* next : f->next_values()) {
+    EXPECT_FALSE(next->has_state_read());
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(

@@ -636,7 +636,11 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
       self_tokens.push_back(tok);
       XLS_ASSIGN_OR_RETURN(Node * recv_tok,
                            proc->MakeNode<TupleIndex>(recv->loc(), recv, 0));
-      XLS_RETURN_IF_ERROR(proc->MakeNode<Next>(recv->loc(), /*state_read=*/tok,
+      Next::StateIdentifier state_identifier =
+          proc->uses_decoupled_next()
+              ? Next::StateIdentifier(tok->state_element())
+              : Next::StateIdentifier(tok);
+      XLS_RETURN_IF_ERROR(proc->MakeNode<Next>(recv->loc(), state_identifier,
                                                /*value=*/recv_tok,
                                                /*predicate=*/recv->predicate(),
                                                /*label=*/std::nullopt)
@@ -687,7 +691,11 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
                                                              send->GetName()),
                                                 Value::Token()));
       self_tokens.push_back(tok);
-      XLS_RETURN_IF_ERROR(proc->MakeNode<Next>(send->loc(), /*state_read=*/tok,
+      Next::StateIdentifier state_identifier =
+          proc->uses_decoupled_next()
+              ? Next::StateIdentifier(tok->state_element())
+              : Next::StateIdentifier(tok);
+      XLS_RETURN_IF_ERROR(proc->MakeNode<Next>(send->loc(), state_identifier,
                                                /*value=*/send,
                                                /*predicate=*/send->predicate(),
                                                // Send doesn't have a label.

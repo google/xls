@@ -297,6 +297,12 @@ class Proc : public FunctionBase {
   // Returns true if this is a new-style proc which has proc-scoped channels.
   bool is_new_style_proc() const { return is_new_style_proc_; }
 
+  // Returns true if this proc uses decoupled explicit state access (i.e. Next
+  // nodes reference StateElement directly rather than StateRead).
+  bool uses_decoupled_next() const {
+    return !next_values().empty() && !next_values().front()->has_state_read();
+  }
+
   // Returns the type of the channel reference (Channel or ChannelInterface)
   // with the given name.
   absl::StatusOr<Type*> GetChannelReferenceType(std::string_view name) const;
