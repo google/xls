@@ -2680,6 +2680,7 @@ DocRef Formatter::FormatImplMember(const ImplMember& n) {
       Visitor{
           [&](const Function* n) { return FormatFunction(*n); },
           [&](const ConstantDef* n) { return FormatConstantDef(*n); },
+          [&](const TypeAlias* n) { return FormatTypeAlias(*n); },
           [&](const VerbatimNode* n) { return FormatVerbatimNode(*n); },
       },
       n);

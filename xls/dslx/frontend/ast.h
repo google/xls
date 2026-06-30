@@ -3474,7 +3474,8 @@ inline TypeDefinition StructDefBaseToTypeDefinition(
   return absl::down_cast<ProcDef*>(struct_def_base);
 }
 
-using ImplMember = std::variant<ConstantDef*, Function*, VerbatimNode*>;
+using ImplMember =
+    std::variant<ConstantDef*, Function*, VerbatimNode*, TypeAlias*>;
 
 // Represents an impl for a struct.
 class Impl : public AstNode {

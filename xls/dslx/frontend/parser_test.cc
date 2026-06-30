@@ -294,6 +294,38 @@ fn main() -> u9 {
   EXPECT_TRUE(impl->GetFunction("my_func").has_value());
 }
 
+TEST_F(ParserTest, ImplWithTypeAlias) {
+  RoundTrip(R"(struct Foo {
+    a: u32,
+}
+impl Foo {
+    type T = u32;
+    fn my_func(self, b: T) -> T {
+        self.a + b
+    }
+})");
+}
+
+TEST_F(ParserTest, ImplWithParametricTypeAlias) {
+  RoundTrip(R"(struct Foo<N: u32> {
+}
+impl Foo<N> {
+    type T = uN[N];
+    fn my_func(a: T) -> T {
+        a
+    }
+})");
+}
+
+TEST_F(ParserTest, ImplWithExternallyUsedTypeAlias) {
+  RoundTrip(R"(struct Foo {
+}
+impl Foo {
+    type T = u32;
+}
+const C = zero!<Foo::T>();)");
+}
+
 TEST_F(ParserTest, ImplWithExplicitSelfType) {
   RoundTrip(R"(struct foo {
     a: bits[9],

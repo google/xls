@@ -4486,6 +4486,11 @@ absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
           ParseFunctionInternal(member_start_pos, next_is_public,
                                 impl_bindings));
       members.push_back(function);
+    } else if (peek->IsKeyword(Keyword::kType)) {
+      XLS_ASSIGN_OR_RETURN(
+          TypeAlias * type_alias,
+          ParseTypeAlias(GetPos(), next_is_public, impl_bindings));
+      members.push_back(type_alias);
     } else {
       return ParseErrorStatus(
           peek->span(), "Only constants or functions are supported in impl");

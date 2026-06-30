@@ -1923,6 +1923,7 @@ static std::string ImplMemberIdentifier(const ImplMember member) {
       Visitor{
           [](const ConstantDef* n) { return n->name_def()->identifier(); },
           [](const Function* n) { return n->name_def()->identifier(); },
+          [](const TypeAlias* n) { return n->identifier(); },
           [](const VerbatimNode* n) { return std::string("Verbatim"); },
       },
       member);
