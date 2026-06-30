@@ -49,6 +49,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
+#include "xls/scheduling/asap_scheduler.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/schedule_util.h"
@@ -985,6 +986,19 @@ absl::Status SDCSchedulingModel::SetWorstCaseThroughput(
   return absl::OkStatus();
 }
 
+void SDCSchedulingModel::SetNodeBounds(Node* node, int64_t lower_bound,
+                                       int64_t upper_bound) {
+  model_.set_lower_bound(cycle_var_.at(node), lower_bound);
+  model_.set_upper_bound(
+      cycle_var_.at(node),
+      std::min(kMaxStages, static_cast<double>(upper_bound)));
+}
+
+void SDCSchedulingModel::RemoveNodeBounds(Node* node) {
+  model_.set_lower_bound(cycle_var_.at(node), 0.0);
+  model_.set_upper_bound(cycle_var_.at(node), kMaxStages);
+}
+
 void SDCSchedulingModel::SetPipelineLength(
     std::optional<int64_t> pipeline_length) {
   if (pipeline_length.has_value()) {
@@ -1022,11 +1036,19 @@ absl::Status SDCSchedulingModel::AddSlackVariables(
         "infeasible_per_state_backedge_slack_pool must be positive; was ",
         *infeasible_per_state_backedge_slack_pool));
   }
-  // Add slack variables to all relevant constraints.
+
+  // Remove any bounds on the cycle variables, relying entirely on the
+  // `last_stage_` bound that we'll add slack to below.
+  for (const auto& [node, var] : cycle_var_) {
+    model_.set_lower_bound(var, 0.0);
+    model_.set_upper_bound(var, kMaxStages);
+  }
 
   // Remove any pre-existing objective, and declare that we'll be minimizing
   // our new objective.
   model_.Minimize(0);
+
+  // Add slack variables to all relevant constraints.
 
   // First, try to minimize the depth of the pipeline. We assume users are
   // most willing to relax this; i.e., they care about throughput more than
@@ -1337,7 +1359,9 @@ SDCScheduler::SDCScheduler(
       solver_type_(solver_type),
       solve_parameters_(std::move(solve_parameters)),
       model_(graph, delay_map_, initiation_interval, sdc_solution_tolerance,
-             arc_worst_case_throughput, default_arc_worst_case_throughput) {}
+             arc_worst_case_throughput, default_arc_worst_case_throughput),
+      delay_map_as_estimator_(delay_map_),
+      asap_(model_.graph(), delay_map_as_estimator_) {}
 
 absl::Status SDCScheduler::Initialize() {
   XLS_ASSIGN_OR_RETURN(solver_, math_opt::NewIncrementalSolver(
@@ -1351,6 +1375,7 @@ absl::Status SDCScheduler::AddConstraints(
   for (const SchedulingConstraint& constraint : constraints) {
     XLS_RETURN_IF_ERROR(model_.AddSchedulingConstraint(constraint));
   }
+  XLS_RETURN_IF_ERROR(asap_.AddConstraints(constraints));
   return absl::OkStatus();
 }
 
@@ -1401,6 +1426,60 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
   VLOG(5) << "  Configured with: "
           << (check_feasibility_ ? "check feasibility"
                                  : "minimize dynamic throughput");
+
+  // If possible, use the ASAP scheduler to compute ASAP/ALAP bounds, saving
+  // time by restricting the range of values the LP solver needs to consider.
+  //
+  // This also lets us use the ASAP scheduler to compute the tightest possible
+  // pipeline length we can target.
+  absl::StatusOr<sched::ScheduleBounds> bounds = asap_.ComputeBounds(
+      pipeline_stages, clock_period_ps, worst_case_throughput,
+      /*get_helpful_error=*/false,
+      /*max_upper_bound=*/SDCSchedulingModel::kMaxStages);
+
+  if (bounds.ok()) {
+    if (check_feasibility_) {
+      // We're just checking feasibility and the ASAP scheduler worked; we're
+      // already done! We can just return the ASAP schedule.
+      ScheduleCycleMap schedule;
+      schedule.reserve(model_.graph().nodes().size());
+      for (const ScheduleNode& schedule_node : model_.graph().nodes()) {
+        schedule[schedule_node.node] = bounds->lb(schedule_node.node);
+      }
+      return schedule;
+    }
+
+    // Apply the ASAP bounds to the cycle variables, saving the solver some work
+    for (const auto& [node, _] : model_.GetCycleVars()) {
+      model_.SetNodeBounds(node, bounds->lb(node), bounds->ub(node));
+    }
+
+    // If the user didn't specify a pipeline length, the ASAP scheduler will
+    // have produced the tightest possible bound - so we should use that.
+    //
+    // NOTE: Despite its name, the ASAP scheduler has not been verified to be
+    //       able to produce a true ASAP schedule in the presence of
+    //       sufficiently-complex constraints. Therefore, this is only safe if
+    //       the ASAP scheduler gives the same pipeline length when only def-use
+    //       constraints are in play; otherwise, we let ourselves fall through
+    //       to a full model check.
+    if (!pipeline_stages.has_value()) {
+      ASAPScheduler asap_for_length(model_.graph(), asap_.delay_estimator());
+      absl::StatusOr<sched::ScheduleBounds> unrestricted_asap_bounds =
+          asap_for_length.ComputeBounds(std::nullopt, clock_period_ps,
+                                        worst_case_throughput, false);
+      if (unrestricted_asap_bounds.ok() &&
+          unrestricted_asap_bounds->max_lower_bound() ==
+              bounds->max_lower_bound()) {
+        pipeline_stages = bounds->max_lower_bound() + 1;
+        model_.SetPipelineLength(*pipeline_stages);
+      }
+    }
+  } else {
+    VLOG(1) << "Proceeding with default bounds; ASAP bound computation failed: "
+            << bounds.status();
+  }
+
   model_.SetClockPeriod(clock_period_ps);
   // TODO(allight): Having the II be sort of held in the model is a footgun
   // since it can be not clear what the II being targeted is. For now just force
@@ -1412,7 +1491,8 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
 
   model_.SetPipelineLength(pipeline_stages);
   if (!pipeline_stages.has_value() && !check_feasibility_) {
-    // Find the minimum feasible pipeline length.
+    // The ASAP scheduler must have failed to compute bounds.
+    // We still need to find the minimum feasible pipeline length.
     model_.MinimizePipelineLength();
     XLS_ASSIGN_OR_RETURN(
         const math_opt::SolveResult result_with_minimized_pipeline_length,
@@ -1427,6 +1507,15 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
         model_.ExtractPipelineLength(
             result_with_minimized_pipeline_length.variable_values()));
     model_.SetPipelineLength(min_pipeline_length);
+    pipeline_stages = min_pipeline_length;
+  }
+
+  if (!bounds.ok() && pipeline_stages.has_value()) {
+    // The ASAP scheduler failed to compute bounds, but we can at least bound
+    // each cycle variable to be < `pipeline_stages` to save some solver time.
+    for (const auto& [node, _] : model_.GetCycleVars()) {
+      model_.SetNodeBounds(node, 0, *pipeline_stages - 1);
+    }
   }
 
   if (check_feasibility_) {
