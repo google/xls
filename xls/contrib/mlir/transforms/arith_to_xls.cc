@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -54,7 +56,8 @@ FuncOp maybeDeclareDslxFn(SymbolTable& symtab, OpBuilder builder,
                           const std::string& symbolName,
                           const std::string& dslxName,
                           xls::ImportDslxFilePackageOp importOp,
-                          TypeRange results, TypeRange operands) {
+                          TypeRange results, TypeRange operands,
+                          std::optional<int64_t> delayPs = {}) {
   if (auto fn = symtab.lookup<FuncOp>(symbolName)) {
     return fn;
   }
@@ -62,10 +65,10 @@ FuncOp maybeDeclareDslxFn(SymbolTable& symtab, OpBuilder builder,
   FuncOp fn = FuncOp::create(builder, importOp->getLoc(), symbolName,
                              builder.getFunctionType(operands, results), {});
   fn.setVisibility(SymbolTable::Visibility::Private);
-  fn->setAttr("xls.linkage",
+  fn->setAttr(kLinkageAttr,
               xls::TranslationLinkage::get(
                   builder.getContext(), SymbolRefAttr::get(importOp),
-                  builder.getStringAttr(dslxName), /*kind=*/{}));
+                  builder.getStringAttr(dslxName), /*kind=*/{}, delayPs));
   return fn;
 }
 

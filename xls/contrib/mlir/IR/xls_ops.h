@@ -42,6 +42,9 @@
 
 namespace mlir::xls {
 
+constexpr llvm::StringLiteral kNameAttr = "xls.name";
+constexpr llvm::StringLiteral kLinkageAttr = "xls.linkage";
+
 class XlsDialect : public Dialect {
  public:
   explicit XlsDialect(mlir::MLIRContext* ctx);

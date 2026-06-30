@@ -97,10 +97,11 @@ void NormalizeXlsCallsPass::runOnOperation() {
             llvm::formatv("{0}_{1}", path.stem(), call.getFunction()).str(),
             newType);
         func.setVisibility(SymbolTable::Visibility::Private);
-        func->setAttr("xls.linkage", xls::TranslationLinkage::get(
-                                         builder.getContext(),
-                                         SymbolRefAttr::get(it->second.front()),
-                                         call.getFunctionAttr(), /*kind=*/{}));
+        func->setAttr(kLinkageAttr, xls::TranslationLinkage::get(
+                                        builder.getContext(),
+                                        SymbolRefAttr::get(it->second.front()),
+                                        call.getFunctionAttr(), /*kind=*/{},
+                                        /*delay_ps=*/{}));
         // Ensure unique symbol name.
         symbolTable.insert(func);
         fIt->second.push_back(func);

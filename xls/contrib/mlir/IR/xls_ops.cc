@@ -157,8 +157,7 @@ LogicalResult verifyImportedVerilogFunctionArgumentsAndResults(
              << "for Verilog imported function all arguments should "
                 "be named (use xls.name attribute)";
     }
-    StringRef attrName = "xls.name";
-    if (!dictAttr.contains(attrName)) {
+    if (!dictAttr.contains(kNameAttr)) {
       func->emitError() << "for Verilog imported function all arguments"
                            " should be named (use xls.name attribute)";
       return failure();
@@ -174,8 +173,7 @@ LogicalResult verifyImportedVerilogFunctionArgumentsAndResults(
              << "for Verilog imported function all results should "
                 "be named (use xls.name attribute)";
     }
-    StringRef attrName = "xls.name";
-    if (!dictAttr.contains(attrName)) {
+    if (!dictAttr.contains(kNameAttr)) {
       func->emitError() << "for Verilog imported function all results should "
                            "be named (use xls.name attribute)";
       return failure();
@@ -371,7 +369,7 @@ LogicalResult ImportVerilogFileOp::verifySymbolUses(
     if (!func) {
       continue;
     }
-    auto linkage = func->getAttrOfType<TranslationLinkage>("xls.linkage");
+    auto linkage = func->getAttrOfType<TranslationLinkage>(kLinkageAttr);
     if (!linkage) {
       continue;
     }

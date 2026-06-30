@@ -1474,7 +1474,7 @@ bool isVerilogImport(Operation* op, const ModuleOp& module,
                      XlsRegionOpInterface& xlsRegion) {
   bool isImportedVerilog = false;
   if (auto func = dyn_cast<FuncOp>(op)) {
-    auto linkage = func->getAttrOfType<TranslationLinkage>("xls.linkage");
+    auto linkage = func->getAttrOfType<TranslationLinkage>(kLinkageAttr);
     if (linkage) {
       Operation* importOp = translationState.getSymbolTable().lookupSymbolIn(
           module, linkage.getPackage());
@@ -1501,11 +1501,10 @@ LogicalResult getArgumentNamesForVerilogImport(
   ::std::optional<ArrayAttr> argAttrs = func.getArgAttrs();
   const Region::BlockArgListType& argValues =
       xls_region.getBodyRegion().getArguments();
-  StringRef attrName = "xls.name";
   ArrayRef<Attribute> attrArgs = argAttrs->getValue();
   for (auto [argValue, attr] : zip(argValues, attrArgs)) {
     auto dictAttr = dyn_cast<DictionaryAttr>(attr);
-    auto nameAttr = dictAttr.getNamed(attrName);
+    auto nameAttr = dictAttr.getNamed(kNameAttr);
     ::xls::Type* xls_type = translation_state.getType(argValue.getType());
     if (!xls_type) {
       return failure();
@@ -1552,7 +1551,7 @@ LogicalResult annotateForeignFunction(FuncOp func, ::xls::Function& xlsFunc) {
     return func->emitError() << "there should be one result when importing"
                                 " a verilog function";
   }
-  auto linkage = func->getAttrOfType<TranslationLinkage>("xls.linkage");
+  auto linkage = func->getAttrOfType<TranslationLinkage>(kLinkageAttr);
   if (!linkage || linkage.getKind() != LinkageKind::kForeign) {
     return func->emitError() << "expected foreign xls.linkage attribute";
   }
@@ -1566,7 +1565,7 @@ LogicalResult annotateForeignFunction(FuncOp func, ::xls::Function& xlsFunc) {
       if (!dictAttr) {
         continue;
       }
-      std::optional<NamedAttribute> namedAttr = dictAttr.getNamed("xls.name");
+      std::optional<NamedAttribute> namedAttr = dictAttr.getNamed(kNameAttr);
       if (namedAttr != std::nullopt) {
         auto nameAttr = cast<StringAttr>(namedAttr->getValue());
         resultName = nameAttr.getValue();
@@ -1589,6 +1588,9 @@ LogicalResult annotateForeignFunction(FuncOp func, ::xls::Function& xlsFunc) {
     return failure();
   }
 
+  if (linkage.getDelayPs().has_value()) {
+    ffd->set_delay_ps(linkage.getDelayPs().value());
+  }
   xlsFunc.SetForeignFunctionData(ffd.value());
   return success();
 }
@@ -1997,7 +1999,7 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
         isVerilogImport(&op, module, translation_state, xls_region);
     // Skip function declarations for now.
     if (auto func = dyn_cast<FuncOp>(op); func && func.isDeclaration()) {
-      auto linkage = func->getAttrOfType<TranslationLinkage>("xls.linkage");
+      auto linkage = func->getAttrOfType<TranslationLinkage>(kLinkageAttr);
       if (!linkage) {
         continue;
       }
@@ -2035,6 +2037,9 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
           func.emitOpError("failed to create foreign function data: ")
               << ffd.status().message();
           return failure();
+        }
+        if (linkage.getDelayPs().has_value()) {
+          ffd->set_delay_ps(linkage.getDelayPs().value());
         }
         xlsFunc.value()->SetForeignFunctionData(ffd.value());
       }

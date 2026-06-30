@@ -125,14 +125,18 @@ def Xls_LinkageKindAttr : EnumAttr<Xls_Dialect, Xls_LinkageKind, "linkage_kind">
 def Xls_TranslationLinkage : Xls_Attr<"TranslationLinkage"> {
   let summary = "Translation linkage attribute";
   let description = [{
-    Refers to a DSLX package and symbol to resolve too at translation time.
+    Refers to a DSLX package and symbol to resolve at translation time.
+    If specified, `delay_ps` overrides the global default delay for a foreign function.
   }];
   let parameters = (ins
     "::mlir::SymbolRefAttr":$package,
     "::mlir::StringAttr":$function,
-    DefaultValuedParameter<"mlir::xls::LinkageKind", "LinkageKind::kImport">:$kind);
+    DefaultValuedParameter<"mlir::xls::LinkageKind", "LinkageKind::kImport">:$kind,
+    OptionalParameter<"std::optional<int64_t>">:$delay_ps
+  );
   let mnemonic = "translation_linkage";
-  let assemblyFormat = "`<` $package `:` $function (`,` $kind^)? `>`";
+  let assemblyFormat =
+    "`<` $package `:` $function (`,` $kind^)? (`,` `delay` `=` $delay_ps^)? `>`";
   let attrName = "xls.translation_linkage";
 }
 
