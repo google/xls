@@ -51,7 +51,7 @@ void InterpreterEvents::AddTraceStatementMessage(
   TraceMessageProto* tm = proto_.add_trace_msgs();
   tm->set_message(std::move(msg));
   tm->mutable_statement()->set_verbosity(verbosity);
-  if (source_info.has_value() && !source_info->locations.empty()) {
+  if (source_info.has_value() && !source_info->Empty()) {
     const SourceLocation& loc = source_info->locations.front();
     auto* locp = tm->mutable_location();
     if (source_filename.has_value()) {

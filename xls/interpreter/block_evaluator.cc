@@ -426,7 +426,8 @@ BlockEvaluator::EvaluateChannelizedSequentialBlock(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
-    const std::optional<verilog::ResetProto>& reset, int64_t seed) const {
+    const std::optional<verilog::ResetProto>& reset, int64_t seed,
+    int64_t max_trace_verbosity) const {
   std::minstd_rand random_engine;
   random_engine.seed(seed);
 
@@ -436,6 +437,7 @@ BlockEvaluator::EvaluateChannelizedSequentialBlock(
   XLS_ASSIGN_OR_RETURN(
       auto continuation,
       NewContinuation(block, OutputPortSampleTime::kAtLastPosEdgeClock));
+  continuation->SetMaxTraceVerbosity(max_trace_verbosity);
   for (int64_t cycle = 0; cycle < max_cycle_count; ++cycle) {
     absl::flat_hash_map<std::string, Value> input_set = inputs.at(cycle);
 
@@ -492,7 +494,8 @@ BlockEvaluator::EvaluateChannelizedSequentialBlockWithUint64(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
-    const std::optional<verilog::ResetProto>& reset, int64_t seed) const {
+    const std::optional<verilog::ResetProto>& reset, int64_t seed,
+    int64_t max_trace_verbosity) const {
   std::vector<absl::flat_hash_map<std::string, Value>> input_values;
   for (const absl::flat_hash_map<std::string, uint64_t>& input_set : inputs) {
     absl::flat_hash_map<std::string, Value> input_value_set;
@@ -507,10 +510,10 @@ BlockEvaluator::EvaluateChannelizedSequentialBlockWithUint64(
     input_values.push_back(std::move(input_value_set));
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      BlockIOResults block_io_result,
-      EvaluateChannelizedSequentialBlock(block, channel_sources, channel_sinks,
-                                         input_values, reset, seed));
+  XLS_ASSIGN_OR_RETURN(BlockIOResults block_io_result,
+                       EvaluateChannelizedSequentialBlock(
+                           block, channel_sources, channel_sinks, input_values,
+                           reset, seed, max_trace_verbosity));
 
   BlockIOResultsAsUint64 block_io_result_as_uint64;
 

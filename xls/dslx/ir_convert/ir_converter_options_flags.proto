@@ -48,4 +48,6 @@ message IrConverterOptionsFlagsProto {
   optional bool emit_cover = 21;
   // If true will emit assert operations.
   optional bool emit_assert = 22;
+  // If true will emit position of operations.
+  optional bool emit_positions = 23;
 }

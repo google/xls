@@ -1497,6 +1497,8 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
         auto cont,
         evaluator().NewContinuation(
             block, BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock));
+    cont->SetMaxTraceVerbosity(3);
+
     XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(10, 32))}}));
     BlockRunResult result{
         .outputs = cont->output_ports(),
@@ -1514,6 +1516,8 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
         auto cont,
         evaluator().NewContinuation(
             block, BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock));
+    cont->SetMaxTraceVerbosity(3);
+
     XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(3, 32))}}));
     BlockRunResult result{
         .outputs = cont->output_ports(),
@@ -1566,9 +1570,9 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCapturedByChannelizedInterface) {
 
     BlockIOResultsAsUint64 block_io;
     XLS_ASSERT_OK_AND_ASSIGN(
-        block_io,
-        evaluator().EvaluateChannelizedSequentialBlockWithUint64(
-            block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs));
+        block_io, evaluator().EvaluateChannelizedSequentialBlockWithUint64(
+                      block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+                      inputs, /*max_trace_verbosity=*/3));
 
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
                              sinks.at(0).GetOutputSequenceAsUint64());

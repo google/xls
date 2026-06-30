@@ -40,12 +40,12 @@ JitRuntime* GetJitRuntime() {
 
 template <bool kWithObserver>
 std::unique_ptr<ProcEvaluator> EvaluatorFromProc(
-    Proc* proc, ChannelQueueManager* queue_manager) {
+    Proc* proc, ChannelQueueManager* queue_manager,
+    const EvaluatorOptions& options = EvaluatorOptions()) {
   JitChannelQueueManager* jit_queue_manager =
       dynamic_cast<JitChannelQueueManager*>(queue_manager);
   CHECK(jit_queue_manager != nullptr);
-  return ProcJit::Create(proc, GetJitRuntime(), jit_queue_manager,
-                         EvaluatorOptions(),
+  return ProcJit::Create(proc, GetJitRuntime(), jit_queue_manager, options,
                          JitEvaluatorOptions().set_include_observer_callbacks(
                              kWithObserver))
       .value();

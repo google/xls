@@ -4316,23 +4316,25 @@ TEST_P(IrEvaluatorTestBase, ComplexTypeTraceTest) {
 
 TEST_P(IrEvaluatorTestBase, TraceVerbosityTest) {
   Package p("empty_trace_test");
-
   FunctionBuilder b("fun", &p);
+  const int64_t max_trace_verbosity = 3;
 
   auto p0 = b.Param("tkn", p.GetTokenType());
   auto p1 = b.Param("cnd", p.GetBitsType(1));
   std::vector<BValue> args = {};
   std::vector<FormatStep> format = {"hello", " ", "world!"};
-  b.Trace(p0, p1, args, format, /*verbosity=*/3);
+  b.Trace(p0, p1, args, format, /*verbosity=*/max_trace_verbosity);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
 
   std::vector<Value> no_trace_args = {Value::Token(), Value(UBits(0, 1))};
   EXPECT_THAT(RunWithNoEvents(f, no_trace_args), IsOkAndHolds(Value::Token()));
+  EvaluatorOptions options = EvaluatorOptions();
+  options.set_max_trace_verbosity(max_trace_verbosity);
 
   std::vector<Value> print_trace_args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
-                           RunWithEvents(f, print_trace_args));
+                           RunWithEvents(f, print_trace_args, options));
   EXPECT_EQ(print_trace_result.value, Value::Token());
   EXPECT_THAT(print_trace_result.events.GetAssertMessages(), ElementsAre());
   EXPECT_THAT(print_trace_result.events.GetTraceMessageStrings(),
