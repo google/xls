@@ -16,6 +16,7 @@
 #define XLS_PASSES_RESOURCE_SHARING_PASS_H_
 
 #include <algorithm>
+#include <compare>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -23,8 +24,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -233,6 +234,12 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
     bool operator==(const MutuallyExclPair& o) const {
       return one == o.one && other == o.other;
     }
+    std::strong_ordering operator<=>(const MutuallyExclPair& o) const {
+      if (auto cmp = one->id() <=> o.one->id(); cmp != 0) {
+        return cmp;
+      }
+      return other->id() <=> o.other->id();
+    }
     template <typename H>
     friend H AbslHashValue(H h, const MutuallyExclPair& d) {
       return H::combine(std::move(h), d.one, d.other);
@@ -297,7 +304,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   //     considered for the mutual exclusivity analysis.
   //   visibility: Contains precomputed visibility analyses used to determine
   //     mutual exclusivity.
-  static absl::StatusOr<absl::flat_hash_set<MutuallyExclPair>>
+  static absl::StatusOr<absl::btree_set<MutuallyExclPair>>
   ComputeMutualExclusionAnalysis(FunctionBase* f, OptimizationContext& context,
                                  absl::FunctionRef<bool(Node*)> should_target,
                                  const VisibilityAnalyses& visibility);
@@ -307,7 +314,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   static absl::StatusOr<std::vector<std::unique_ptr<BinaryFoldingAction>>>
   ComputeFoldableActions(
       FunctionBase* f,
-      absl::flat_hash_set<MutuallyExclPair>& mutual_exclusivity,
+      const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
       const VisibilityAnalyses& visibility, const Config& config);
 
   // MakeNaryFoldingActions creates a single n-ary folding action from as many
@@ -331,7 +338,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   LegalizeSequenceOfFolding(
       absl::Span<const std::unique_ptr<NaryFoldingAction>>
           potential_folding_actions_to_perform,
-      const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+      const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
           mutual_exclusivity,
       const NodeBackwardDependencyAnalysis& nda,
       std::optional<const AreaEstimator*> area_estimator,
@@ -406,7 +413,7 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
   virtual absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
   SelectFoldingActions(
       OptimizationContext& context, FoldingGraph* folding_graph,
-      const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+      const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
           mutual_exclusivity,
       const VisibilityAnalyses& visibility,
       const NodeBackwardDependencyAnalysis& nda,
@@ -465,7 +472,7 @@ absl::StatusOr<double> EstimateAreaForNegatingNode(Node* n,
 // foldings are sorted by benefit (e.g maximizing area savings) in descending
 // order, meaning 'previous' is more important than 'next'.
 bool CanFoldTogether(
-    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const BinaryFoldingAction& next, const BinaryFoldingAction& previous);
 }  // namespace xls

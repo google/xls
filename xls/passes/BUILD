@@ -1125,6 +1125,7 @@ xls_pass(
         "//xls/ir:op",
         "//xls/visualization:math_notation",
         "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:function_ref",

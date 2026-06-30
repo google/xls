@@ -225,12 +225,12 @@ bool CanTarget(Node* n) {
   return false;
 }
 
-absl::StatusOr<absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>>
+absl::StatusOr<absl::btree_set<ResourceSharingPass::MutuallyExclPair>>
 ResourceSharingPass::ComputeMutualExclusionAnalysis(
     FunctionBase* f, OptimizationContext& context,
     absl::FunctionRef<bool(Node*)> should_target,
     const VisibilityAnalyses& visibility) {
-  absl::flat_hash_set<MutuallyExclPair> mutual_exclusivity;
+  absl::btree_set<MutuallyExclPair> mutual_exclusivity;
 
   std::vector<Node*> relevant_nodes;
   // Relatively few nodes are expected to satisfy the target criteria.
@@ -252,7 +252,7 @@ ResourceSharingPass::ComputeMutualExclusionAnalysis(
     // select descendant of the node.
     if (visibility.single_select.IsMutuallyExclusive(one_node, other_node) ||
         visibility.general.IsMutuallyExclusive(one_node, other_node)) {
-      mutual_exclusivity.insert({one_node, other_node});
+      mutual_exclusivity.emplace(one_node, other_node);
     }
   }
 
@@ -278,11 +278,12 @@ ResourceSharingPass::ComputeMutualExclusionAnalysis(
 
 absl::StatusOr<std::vector<std::unique_ptr<BinaryFoldingAction>>>
 ResourceSharingPass::ComputeFoldableActions(
-    FunctionBase* f, absl::flat_hash_set<MutuallyExclPair>& mutual_exclusivity,
+    FunctionBase* f,
+    const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
     const VisibilityAnalyses& visibility,
     const ResourceSharingPass::Config& config) {
   std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions;
-  for (auto& [one_node, other_node] : mutual_exclusivity) {
+  for (const auto& [one_node, other_node] : mutual_exclusivity) {
     // CanTarget and ShouldTarget have already been vetted, so all that is left
     // is to see if the types and bit widths are compatible
     bool can_one_to_other = CanMapOpInto(one_node, other_node);
@@ -544,7 +545,7 @@ absl::StatusOr<double> EstimateAreaForNegatingNode(Node* n,
 // foldings are sorted by benefit (e.g maximizing area savings) in descending
 // order, meaning 'previous' is more important than 'next'.
 bool CanFoldTogether(
-    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const BinaryFoldingAction& next, const BinaryFoldingAction& previous) {
   if (previous.GetTo() != next.GetTo()) {
@@ -693,7 +694,7 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 ListOfAllFoldingActionsWithDestination(
     Node* n, FoldingGraph* folding_graph,
-    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
     const AreaEstimator& area_estimator,
@@ -785,7 +786,7 @@ ListOfAllFoldingActionsWithDestination(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 ListOfFoldingActionsWithDestination(
     Node* n, FoldingGraph* folding_graph,
-    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
     const AreaEstimator& area_estimator,
@@ -942,7 +943,7 @@ absl::StatusOr<std::pair<std::vector<std::unique_ptr<NaryFoldingAction>>, bool>>
 ResourceSharingPass::LegalizeSequenceOfFolding(
     absl::Span<const std::unique_ptr<NaryFoldingAction>>
         potential_folding_actions_to_perform,
-    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const NodeBackwardDependencyAnalysis& nda,
     std::optional<const AreaEstimator*> area_estimator,
@@ -1306,7 +1307,7 @@ void SortNodesInDescendingOrderOfTheirInDegree(std::vector<Node*>& nodes,
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectFoldingActionsBasedOnInDegree(
     OptimizationContext& context, FoldingGraph* folding_graph,
-    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
     const NodeBackwardDependencyAnalysis& nda,
@@ -1424,7 +1425,7 @@ SelectFoldingActionsBasedOnInDegree(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectAllFoldingActions(
     OptimizationContext& context, FoldingGraph* folding_graph,
-    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
     const NodeBackwardDependencyAnalysis& nda,
@@ -1507,7 +1508,7 @@ SelectAllFoldingActions(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectRandomlyFoldingActions(
     FoldingGraph* folding_graph,
-    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::Config& config,
     const ResourceSharingPass::VisibilityAnalyses& visibility) {
@@ -1577,7 +1578,7 @@ absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectFoldingActions(
     OptimizationContext& context, FoldingGraph* folding_graph,
     ResourceSharingPass::ProfitabilityGuard heuristics,
-    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const ResourceSharingPass::VisibilityAnalyses& visibility,
     const NodeBackwardDependencyAnalysis& nda,
@@ -1665,7 +1666,7 @@ SelectFoldingActions(
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 ResourceSharingPass::SelectFoldingActions(
     OptimizationContext& context, FoldingGraph* folding_graph,
-    const absl::flat_hash_set<ResourceSharingPass::MutuallyExclPair>&
+    const absl::btree_set<ResourceSharingPass::MutuallyExclPair>&
         mutual_exclusivity,
     const VisibilityAnalyses& visibility,
     const NodeBackwardDependencyAnalysis& nda,
@@ -2081,9 +2082,8 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   }
   next_node_id++;
 
-  absl::flat_hash_set<MutuallyExclPair> mutual_exclusivity;
   XLS_ASSIGN_OR_RETURN(
-      mutual_exclusivity,
+      const absl::btree_set<MutuallyExclPair> mutual_exclusivity,
       ComputeMutualExclusionAnalysis(
           f, context,
           [this](Node* n) { return ShouldTargetNodeForMutualExclusion(n); },
