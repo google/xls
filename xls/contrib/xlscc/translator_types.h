@@ -447,6 +447,23 @@ class CReferenceType : public CType {
   std::shared_ptr<CType> pointee_type_;
 };
 
+class CTokenType : public CType {
+ public:
+  ~CTokenType() override;
+
+  int GetBitWidth() const override;
+  explicit operator std::string() const override;
+  absl::Status GetMetadata(TranslatorTypeInterface& translator,
+                           xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
+  absl::Status GetMetadataValue(TranslatorTypeInterface& translator,
+                                ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
+
+  bool operator==(const CType& o) const override;
+};
+
 enum class OpType {
   kNull = 0,
   kSend,
@@ -454,8 +471,6 @@ enum class OpType {
   kSendRecv,
   kRead,
   kWrite,
-  kExplicitReadRequest,
-  kExplicitReadResponse,
   kTrace,
   kLoopBegin,
   kLoopEndJump,
@@ -819,7 +834,10 @@ class TranslatorIOInterface {
       const IOOp& op, const xls::SourceInfo& loc) = 0;
 
   virtual absl::StatusOr<TrackedBValue> GetOpCondition(
-      const IOOp& op, TrackedBValue op_out_value, xls::ProcBuilder& pb) = 0;
+      const IOOp& op, TrackedBValue op_out_value, xls::BuilderBase& pb) = 0;
+
+  virtual absl::StatusOr<std::optional<TrackedBValue>> GetOpOutputToken(
+      const IOOp& op, TrackedBValue op_out_value, xls::BuilderBase& pb) = 0;
 
   // Returns new token
   virtual absl::StatusOr<TrackedBValue> GenerateTrace(
@@ -976,11 +994,18 @@ struct IOOp {
   //  each read() op. This is the index of this op in the tuple.
   int channel_op_index;
 
+  // NOTE: BValues need to be cleaned up in GenerateIR_Function_Body() and
+  // CleanUpBValuesInTopFunction()
+
   // Output value from function for IO op
   TrackedBValue ret_value;
 
   // For reads: input value from function parameter for Recv op
   CValue input_value;
+
+  CValue input_token;
+
+  TrackedBValue input_param;
 };
 
 enum class SideEffectingParameterType { kNull = 0, kIOOp, kStatic };
@@ -993,6 +1018,12 @@ struct SideEffectingParameter {
   const clang::NamedDecl* static_value = nullptr;
   xls::Type* xls_io_param_type = nullptr;
 };
+
+bool OpTakesParam(const IOOp& op);
+absl::StatusOr<std::optional<TrackedBValue>> GetOpInputValue(
+    const IOOp& op, TrackedBValue op_out_value, xls::BuilderBase& pb);
+absl::StatusOr<std::optional<TrackedBValue>> GetOpInputToken(
+    const IOOp& op, TrackedBValue op_out_value, xls::BuilderBase& pb);
 
 // Encapsulates values needed to generate procs for a pipelined loop body
 // TODO(seanhaskell): Remove with old FSM
@@ -1345,6 +1376,8 @@ class SourcesSetNodeInfo
   ParamSet ComputeInfoForBitsLiteral(
       const xls::Bits& literal) const override final;
 
+  ParamSet ComputeInfoForTokenLiteral() const override final;
+
   ParamSet ComputeInfoForNode(xls::Node* node) const override final;
 
   xls::LeafTypeTree<ParamSet> ComputeInfoTreeForNode(
@@ -1372,6 +1405,8 @@ class SourcesSetTreeNodeInfo
 
   NodeSourceSetPtr ComputeInfoForBitsLiteral(
       const xls::Bits& literal) const override final;
+
+  NodeSourceSetPtr ComputeInfoForTokenLiteral() const override final;
 
   NodeSourceSetPtr ComputeInfoForNode(xls::Node* node) const override final;
 

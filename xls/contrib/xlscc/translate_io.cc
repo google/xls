@@ -68,13 +68,12 @@ absl::StatusOr<TrackedBValue> Translator::GetIOOpRetValueFromSlice(
 }
 
 absl::StatusOr<TrackedBValue> Translator::CreateMaskedIOOpInput(
-    const IOChannel* channel, const xls::SourceInfo& loc) {
+    const IOChannel* channel, xls::Type* item_type_xls,
+    const xls::SourceInfo& loc) {
   // During IR generation, parameters are generated for masked IOs,
   // so that they are treated as unknown variables for analysis purposes,
   // such as loop unrolling. These are later removed and 0s are substituted
   // when the function [slice] is finished.
-  XLS_ASSIGN_OR_RETURN(xls::Type * item_type_xls,
-                       TranslateTypeToXLS(channel->item_type, loc));
   TrackedBValue default_bval = context().fb->Param(
       absl::StrFormat("__masked_%s_%i", channel->unique_name,
                       next_masked_op_param_number_++),
@@ -98,6 +97,41 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
         op.op == OpType::kSharedCall || channel != nullptr);
   CHECK_EQ(op.channel, nullptr);
 
+  std::shared_ptr<CType> channel_item_type;
+
+  // Channel must be inserted first by AddOpToChannel
+  if (op.op == OpType::kRecv || op.op == OpType::kRead) {
+    if (op.is_blocking) {
+      channel_item_type = channel->item_type;
+    } else {
+      channel_item_type =
+          std::make_shared<CInternalTuple>(std::vector<std::shared_ptr<CType>>(
+              {channel->item_type, std::make_shared<CBoolType>()}));
+    }
+  }
+
+  std::shared_ptr<CType> param_type = channel_item_type;
+
+  if (op.op == OpType::kSharedCall) {
+    param_type = op.shared_call_param_type;
+  }
+
+  xls::Type* xls_param_type = nullptr;
+
+  if (param_type != nullptr) {
+    XLS_ASSIGN_OR_RETURN(xls_param_type, TranslateTypeToXLS(param_type, loc));
+  }
+
+  if (op.op != OpType::kLoopBegin && op.op != OpType::kLoopEndJump &&
+      op.op != OpType::kSharedCall) {
+    absl::InlinedVector<xls::Type*, 2> param_tup_types;
+    param_tup_types.push_back(package_->GetTokenType());
+    if (xls_param_type != nullptr) {
+      param_tup_types.push_back(xls_param_type);
+    }
+    xls_param_type = package_->GetTupleType(param_tup_types);
+  }
+
   const bool masked = OpIsMasked(op);
 
   if (do_default_mask || masked) {
@@ -106,8 +140,23 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
     if (op.op != OpType::kTrace && op.op != OpType::kLoopBegin &&
         op.op != OpType::kLoopEndJump && op.op != OpType::kActivationBarrier) {
       XLS_ASSIGN_OR_RETURN(TrackedBValue default_bval,
-                           CreateMaskedIOOpInput(channel, loc));
-      op.input_value = CValue(default_bval, channel->item_type);
+                           CreateMaskedIOOpInput(channel, xls_param_type, loc));
+
+      XLS_ASSIGN_OR_RETURN(std::optional<TrackedBValue> input_io_value,
+                           GetOpInputValue(op, default_bval, *context().fb));
+
+      if (input_io_value.has_value()) {
+        op.input_value = CValue(input_io_value.value(), channel->item_type);
+      }
+
+      op.input_param = default_bval;
+
+      XLS_ASSIGN_OR_RETURN(std::optional<TrackedBValue> token_bval,
+                           GetOpInputToken(op, default_bval, *context().fb));
+      if (token_bval.has_value()) {
+        op.input_token =
+            CValue(token_bval.value(), std::make_shared<CTokenType>());
+      }
     }
 
     if (masked) {
@@ -153,38 +202,16 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
     XLS_RETURN_IF_ERROR(call_at_new_slice.value()());
   }
 
-  std::shared_ptr<CType> channel_item_type;
+  std::string safe_param_name =
+      absl::StrFormat("default_op%i", op.channel_op_index);
 
-  // Channel must be inserted first by AddOpToChannel
-  if (op.op == OpType::kRecv || op.op == OpType::kRead ||
-      op.op == OpType::kExplicitReadResponse) {
-    if (op.is_blocking) {
-      channel_item_type = channel->item_type;
-    } else {
-      channel_item_type =
-          std::make_shared<CInternalTuple>(std::vector<std::shared_ptr<CType>>(
-              {channel->item_type, std::make_shared<CBoolType>()}));
-    }
+  if (op.channel != nullptr) {
+    const std::string channel_name = op.channel->unique_name;
+    safe_param_name =
+        absl::StrFormat("%s_op%i", channel_name, op.channel_op_index);
   }
 
-  std::shared_ptr<CType> param_type = channel_item_type;
-
-  if (op.op == OpType::kSharedCall) {
-    param_type = op.shared_call_param_type;
-  }
-
-  xls::Type* xls_param_type = nullptr;
-  if (param_type != nullptr) {
-    XLS_ASSIGN_OR_RETURN(xls_param_type, TranslateTypeToXLS(param_type, loc));
-    std::string safe_param_name;
-    if (op.channel != nullptr) {
-      const std::string channel_name = op.channel->unique_name;
-      safe_param_name =
-          absl::StrFormat("%s_op%i", channel_name, op.channel_op_index);
-    } else {
-      safe_param_name = absl::StrFormat("default_op%i", op.channel_op_index);
-    }
-
+  if (OpTakesParam(op)) {
     TrackedBValue pbval =
         context().fb->Param(safe_param_name, xls_param_type, loc);
 
@@ -201,12 +228,20 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
 
     op.final_param_name = final_param_name;
 
-    TrackedBValue input_io_value = pbval;
-
-    if (param_type) {
-      XLSCC_CHECK(input_io_value.valid(), loc);
-      op.input_value = CValue(input_io_value, param_type);
+    XLS_ASSIGN_OR_RETURN(std::optional<TrackedBValue> token_bval,
+                         GetOpInputToken(op, pbval, *context().fb));
+    if (token_bval.has_value()) {
+      op.input_token =
+          CValue(token_bval.value(), std::make_shared<CTokenType>());
     }
+
+    XLS_ASSIGN_OR_RETURN(std::optional<TrackedBValue> input_io_value,
+                         GetOpInputValue(op, pbval, *context().fb));
+    if (input_io_value.has_value()) {
+      op.input_value = CValue(input_io_value.value(), param_type);
+    }
+
+    op.input_param = pbval;
   }
 
   XLS_ASSIGN_OR_RETURN(std::optional<const IOOp*> last_op,
@@ -221,7 +256,8 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
   // once "token phi" type features are available.
   context().sf->io_ops.push_back(op);
 
-  if (param_type != nullptr) {
+  // Always need the param for the token
+  if (xls_param_type != nullptr) {
     XLSCC_CHECK_NE(xls_param_type, nullptr, loc);
     SideEffectingParameter side_effecting_param;
     side_effecting_param.type = SideEffectingParameterType::kIOOp;
@@ -502,6 +538,10 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         GenerateIR_Expr(call->getArg(static_cast<unsigned int>(arg)), loc));
   }
 
+  enum class TokenReturnModes { kNone, kDirect, kTuple };
+
+  TokenReturnModes token_return_mode = TokenReturnModes::kNone;
+
   IOOpReturn ret;
   ret.generate_expr = false;
 
@@ -541,18 +581,47 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 
     IOOp op;
 
-    if (op_name == "read") {
+    if (op_name == "read" || op_name == "read_with_token") {
+      const bool is_read_with_token = op_name == "read_with_token";
+
       if (channel->memory_size <= 0) {  // channel read()
-        if (call->getNumArgs() == 1) {
+        TrackedBValue token;
+
+        if (call->getNumArgs() != 1) {
+          return absl::UnimplementedError(
+              ErrorMessage(loc, "Channel read() should have one argument"));
+        }
+
+        XLS_ASSIGN_OR_RETURN(
+            std::shared_ptr<CType> arg_ctype,
+            TranslateTypeFromClang(call->getArg(0)->getType(), loc));
+
+        if (IsBuiltInTokenClass(arg_ctype)) {
+          XLSCC_CHECK(arg_vals.at(0).rvalue().valid(), loc);
+          token = arg_vals.at(0).rvalue();
+          std::shared_ptr<CType> token_type = arg_vals.at(0).type();
+
+          if (is_read_with_token) {
+            token_return_mode = TokenReturnModes::kTuple;
+          } else {
+            token_return_mode = TokenReturnModes::kNone;
+          }
+        } else {
           assign_ret_value_to = call->getArg(0);
-        } else if (call->getNumArgs() != 0) {
-          return absl::UnimplementedError(ErrorMessage(
-              loc, "IO read() should have one or zero argument(s)"));
+        }
+        if (!token.valid()) {
+          token = context().fb->Literal(xls::Value::Token(), loc);
         }
         op.op = OpType::kRecv;
-        op.ret_value = channel_specific_condition;
+        op.ret_value =
+            context().fb->Tuple({token, channel_specific_condition}, loc,
+                                /*name=*/
+                                absl::StrFormat("%s_op%i", channel->unique_name,
+                                                channel->total_ops));
         op.is_blocking = true;
       } else {  // memory read(addr)
+        XLSCC_CHECK(!is_read_with_token, loc);
+
         if (call->getNumArgs() != 1) {
           return absl::UnimplementedError(
               ErrorMessage(loc, "Memory read() should have one argument"));
@@ -577,52 +646,38 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         return absl::UnimplementedError(
             ErrorMessage(loc, "IO nb_read() should have one argument"));
       }
+      TrackedBValue token = context().fb->Literal(xls::Value::Token(), loc);
       assign_ret_value_to = call->getArg(0);
       op.op = OpType::kRecv;
-      op.ret_value = channel_specific_condition;
-      op.is_blocking = false;
-    } else if (op_name == "read_request") {
-      XLSCC_CHECK_GT(channel->memory_size, 0, loc);
-
-      CValue out_val = arg_vals.at(0);
-      XLSCC_CHECK(out_val.valid(), loc);
-
-      XLS_ASSIGN_OR_RETURN(
-          TrackedBValue out_val_converted,
-          GenTypeConvert(out_val,
-                         CChannelType::MemoryAddressType(channel->memory_size),
-                         loc));
-
-      std::vector<TrackedBValue> sp = {out_val_converted,
-                                       channel_specific_condition};
       op.ret_value = context().fb->Tuple(
-          ToNativeBValues(sp), loc,
+          {token, channel_specific_condition}, loc,
           /*name=*/
           absl::StrFormat("%s_op%i", channel->unique_name, channel->total_ops));
-      op.op = OpType::kExplicitReadRequest;
-      op.is_blocking = true;
-    } else if (op_name == "read_response") {
-      if (call->getNumArgs() != 0) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "IO read_response() should have zero arguments"));
-      }
-      op.op = OpType::kExplicitReadResponse;
-      op.ret_value = channel_specific_condition;
-      op.is_blocking = true;
+      op.is_blocking = false;
     } else if (op_name == "write") {
       if (channel->memory_size <= 0) {  // channel write()
-        if (call->getNumArgs() != 1) {
+        if (call->getNumArgs() != 2) {
           return absl::UnimplementedError(
-              ErrorMessage(loc, "IO write() should have one argument"));
+              ErrorMessage(loc, "IO write() should have two arguments"));
         }
 
         CValue out_val = arg_vals.at(0);
         XLSCC_CHECK(out_val.valid(), loc);
+        TrackedBValue token_val;
 
-        TrackedBValue out_val_converted = out_val.rvalue();
+        // Default param means there's always an input token
+        token_val = arg_vals.at(1).rvalue();
+        std::shared_ptr<CType> token_type = arg_vals.at(1).type();
 
-        std::vector<TrackedBValue> sp = {out_val_converted,
-                                         channel_specific_condition};
+        XLSCC_CHECK(token_val.valid(), loc);
+        XLSCC_CHECK(IsBuiltInTokenClass(token_type), loc);
+
+        if (!token_val.valid()) {
+          token_val = context().fb->Literal(xls::Value::Token(), loc);
+        }
+
+        std::vector<TrackedBValue> sp = {out_val.rvalue(),
+                                         channel_specific_condition, token_val};
         op.ret_value =
             context().fb->Tuple(ToNativeBValues(sp), loc,
                                 /*name=*/
@@ -630,6 +685,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
                                                 channel->total_ops));
         op.op = OpType::kSend;
         op.is_blocking = true;
+        token_return_mode = TokenReturnModes::kDirect;
       } else {  // memory write(addr, value)
         if (call->getNumArgs() != 2) {
           return absl::UnimplementedError(
@@ -718,18 +774,35 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         AddOpToChannel(op, channel, loc, /*do_default_mask=*/do_default)
             .status());
 
+    // Every op here at least has a token output
+    CValue this_channel_ret_value = op.input_value;
+
+    if (token_return_mode != TokenReturnModes::kNone) {
+      if (token_return_mode == TokenReturnModes::kDirect) {
+        this_channel_ret_value = op.input_token;
+      } else if (token_return_mode == TokenReturnModes::kTuple) {
+        XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ret_type,
+                             TranslateTypeFromClang(call->getType(), loc));
+        this_channel_ret_value =
+            CValue(context().fb->Tuple(
+                       {op.input_token.rvalue(), op.input_value.rvalue()}, loc),
+                   ret_type);
+      } else {
+        LOG(FATAL) << "Unsupported token return mode: "
+                   << (int)token_return_mode;
+      }
+    }
+
     if (!ret.value.valid()) {
-      ret.value = op.input_value;
-    } else if (op.input_value.valid()) {
+      ret.value = this_channel_ret_value;
+    } else {
       // Combine values
-      // TODO(seanhaskell): The conditions are always mutually exclusive.
-      // Generate an assert?
-      XLSCC_CHECK(*ret.value.type() == *op.input_value.type(), loc);
-      ret.value =
-          CValue(context().fb->Select(this_channel_condition,
-                                      /*on_true=*/op.input_value.rvalue(),
-                                      /*on_false=*/ret.value.rvalue(), loc),
-                 ret.value.type());
+      XLSCC_CHECK(*ret.value.type() == *this_channel_ret_value.type(), loc);
+      ret.value = CValue(
+          context().fb->Select(this_channel_condition,
+                               /*on_true=*/this_channel_ret_value.rvalue(),
+                               /*on_false=*/ret.value.rvalue(), loc),
+          ret.value.type());
     }
 
     XLSCC_CHECK(assign_ret_value_to == all_assign_ret_value_to ||
@@ -844,7 +917,6 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateChannelParam(
 absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
     const IOOp& op, TrackedBValue retval, const xls::SourceInfo& loc) {
   TrackedBValue op_condition;
-
   switch (op.op) {
     case OpType::kNull:
     case OpType::kSendRecv:
@@ -860,14 +932,10 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
       break;
     }
     case OpType::kRecv:
-    case OpType::kExplicitReadResponse:
-      op_condition = retval;
-      break;
     case OpType::kSend:
     case OpType::kWrite:
     case OpType::kRead:
     case OpType::kSharedCall:
-    case OpType::kExplicitReadRequest:
       op_condition = context().fb->TupleIndex(retval, /*idx=*/1, loc);
       break;
     case OpType::kTrace: {
@@ -891,8 +959,9 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
   }
 
   if (!op_condition.valid()) {
-    return absl::UnimplementedError(ErrorMessage(
-        loc, "Unsupported IO op %i in AddConditionToIOReturn", op.op));
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Unsupported IO op %s in AddConditionToIOReturn",
+                     Debug_OpName(op)));
   }
 
   op_condition =
@@ -917,15 +986,20 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
       new_retval = op_condition;
       break;
     }
-    case OpType::kRecv:
-    case OpType::kExplicitReadResponse:
-      new_retval = op_condition;
+    case OpType::kRecv: {
+      TrackedBValue token = context().fb->TupleIndex(retval, /*idx=*/0, loc);
+      new_retval = context().fb->Tuple({token, op_condition}, loc);
       break;
-    case OpType::kSend:
-    case OpType::kWrite:
-    case OpType::kRead:
+    }
+    case OpType::kSend: {
+      TrackedBValue data = context().fb->TupleIndex(retval, /*idx=*/0, loc);
+      TrackedBValue token = context().fb->TupleIndex(retval, /*idx=*/2, loc);
+      new_retval = context().fb->Tuple({data, op_condition, token}, loc);
+      break;
+    }
     case OpType::kSharedCall:
-    case OpType::kExplicitReadRequest: {
+    case OpType::kWrite:
+    case OpType::kRead: {
       TrackedBValue data = context().fb->TupleIndex(retval, /*idx=*/0, loc);
       new_retval = context().fb->Tuple({data, op_condition}, loc);
       break;
@@ -956,20 +1030,23 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
       break;
     }
   }
+  if (!new_retval.valid()) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Unsupported IO op %s in AddConditionToIOReturn",
+                     Debug_OpName(op)));
+  }
 
   return new_retval;
 }
 
 absl::StatusOr<TrackedBValue> Translator::GetOpCondition(
-    const IOOp& op, TrackedBValue op_out_value, xls::ProcBuilder& pb) {
+    const IOOp& op, TrackedBValue op_out_value, xls::BuilderBase& pb) {
   TrackedBValue ret_val = op_out_value;
 
   TrackedBValue io_condition;
 
   switch (op.op) {
-    case OpType::kRecv:
-    case OpType::kActivationBarrier:
-    case OpType::kExplicitReadResponse: {
+    case OpType::kActivationBarrier: {
       io_condition = ret_val;
       break;
     }
@@ -993,11 +1070,11 @@ absl::StatusOr<TrackedBValue> Translator::GetOpCondition(
       }
       break;
     }
+    case OpType::kRecv:
     case OpType::kRead:
     case OpType::kSharedCall:
     case OpType::kWrite:
-    case OpType::kSend:
-    case OpType::kExplicitReadRequest: {
+    case OpType::kSend: {
       io_condition =
           pb.TupleIndex(ret_val, 1, op.op_location,
                         absl::StrFormat("%s_pred", Debug_OpName(op)));
@@ -1017,6 +1094,50 @@ absl::StatusOr<TrackedBValue> Translator::GetOpCondition(
              op.op_location);
 
   return io_condition;
+}
+
+absl::StatusOr<std::optional<TrackedBValue>> Translator::GetOpOutputToken(
+    const IOOp& op, TrackedBValue op_out_value, xls::BuilderBase& pb) {
+  TrackedBValue ret_val = op_out_value;
+
+  TrackedBValue io_token;
+
+  switch (op.op) {
+    case OpType::kRecv: {
+      return pb.TupleIndex(ret_val, 0, op.op_location,
+                           absl::StrFormat("%s_token", Debug_OpName(op)));
+    }
+    case OpType::kSend: {
+      return pb.TupleIndex(ret_val, 2, op.op_location,
+                           absl::StrFormat("%s_token", Debug_OpName(op)));
+    }
+    default:
+      break;
+  }
+
+  return std::nullopt;
+}
+
+absl::StatusOr<std::optional<TrackedBValue>> GetOpInputToken(
+    const IOOp& op, TrackedBValue op_out_value, xls::BuilderBase& pb) {
+  TrackedBValue ret_val = op_out_value;
+
+  TrackedBValue io_token;
+
+  switch (op.op) {
+    case OpType::kRecv: {
+      return pb.TupleIndex(ret_val, 0, op.op_location,
+                           absl::StrFormat("%s_token", Debug_OpName(op)));
+    }
+    case OpType::kSend: {
+      return pb.TupleIndex(ret_val, 0, op.op_location,
+                           absl::StrFormat("%s_token", Debug_OpName(op)));
+    }
+    default:
+      break;
+  }
+
+  return std::nullopt;
 }
 
 absl::StatusOr<GenerateIOReturn> Translator::GenerateIO(
@@ -1041,6 +1162,14 @@ absl::StatusOr<GenerateIOReturn> Translator::GenerateIO(
 
   if (optional_channel_bundle.has_value()) {
     channel_bundle = optional_channel_bundle.value();
+  }
+
+  if (generate_new_fsm_) {
+    XLS_ASSIGN_OR_RETURN(std::optional<TrackedBValue> maybe_token,
+                         GetOpOutputToken(op, op_out_value, pb));
+    if (maybe_token.has_value()) {
+      before_token = maybe_token.value();
+    }
   }
 
   if (op.op == OpType::kRecv) {
@@ -1077,33 +1206,6 @@ absl::StatusOr<GenerateIOReturn> Translator::GenerateIO(
                /*name=*/absl::StrFormat("%s_valid", Debug_OpName(op)))});
     }
     arg_io_val = in_val;
-  } else if (op.op == OpType::kExplicitReadResponse) {
-    xls::Channel* xls_channel = nullptr;
-
-    XLSCC_CHECK_NE(channel_bundle.read_response, nullptr, op_loc);
-    xls_channel = channel_bundle.read_response;
-
-    unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/false});
-
-    CHECK_NE(xls_channel, nullptr);
-
-    TrackedBValue receive =
-        pb.ReceiveIf(xls_channel, before_token, condition, op_loc,
-                     /*name=*/Debug_OpName(op));
-
-    new_token =
-        pb.TupleIndex(receive, 0, op_loc,
-                      /*name=*/absl::StrFormat("%s_token", Debug_OpName(op)));
-
-    TrackedBValue in_val =
-        pb.TupleIndex(receive, 1, op_loc,
-                      /*name=*/absl::StrFormat("%s_value", Debug_OpName(op)));
-
-    // Received value is a tuple (data, ...)
-    in_val =
-        pb.TupleIndex(in_val, 0, op_loc,
-                      /*name=*/absl::StrFormat("%s_data", Debug_OpName(op)));
-    arg_io_val = in_val;
   } else if (op.op == OpType::kSend) {
     xls::Channel* xls_channel = channel_bundle.regular;
 
@@ -1116,27 +1218,6 @@ absl::StatusOr<GenerateIOReturn> Translator::GenerateIO(
 
     new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc,
                           /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
-    XLSCC_CHECK(new_token.valid(), op_loc);
-  } else if (op.op == OpType::kExplicitReadRequest) {
-    xls::Channel* xls_channel = nullptr;
-
-    XLSCC_CHECK_NE(channel_bundle.read_request, nullptr, op_loc);
-    xls_channel = channel_bundle.read_request;
-
-    unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/true});
-
-    CHECK_NE(xls_channel, nullptr);
-    TrackedBValue val =
-        pb.TupleIndex(ret_io_value, 0, op_loc,
-                      /*name=*/absl::StrFormat("%s_value", Debug_OpName(op)));
-
-    // TODO(google/xls#861): supported masked memory operations.
-    TrackedBValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
-    val = pb.Tuple({val, mask}, op_loc);
-
-    new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc,
-                          /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
-    XLSCC_CHECK(new_token.valid(), op_loc);
   } else if (op.op == OpType::kRead) {
     CHECK_EQ(channel_bundle.regular, nullptr);
     CHECK_NE(channel_bundle.read_request, nullptr);
@@ -1215,11 +1296,17 @@ absl::StatusOr<GenerateIOReturn> Translator::GenerateIO(
                                                   condition, op, pb));
   } else if (op.op == OpType::kLoopBegin || op.op == OpType::kLoopEndJump ||
              op.op == OpType::kActivationBarrier) {
-    // TODO: Need to do anything here?
     new_token = before_token;
   } else {
     CHECK_EQ("Unknown IOOp type", nullptr);
   }
+
+  std::vector<TrackedBValue> tuple_elems;
+  tuple_elems.push_back(new_token);
+  if (arg_io_val.valid()) {
+    tuple_elems.push_back(arg_io_val);
+  }
+  arg_io_val = pb.Tuple(ToNativeBValues(tuple_elems), op_loc);
 
   return GenerateIOReturn{
       .token_out = new_token,

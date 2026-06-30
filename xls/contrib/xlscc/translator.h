@@ -1034,7 +1034,10 @@ class Translator final : public GeneratorBase,
 
   absl::StatusOr<TrackedBValue> GetOpCondition(const IOOp& op,
                                                TrackedBValue op_out_value,
-                                               xls::ProcBuilder& pb) final;
+                                               xls::BuilderBase& pb) final;
+
+  absl::StatusOr<std::optional<TrackedBValue>> GetOpOutputToken(
+      const IOOp& op, TrackedBValue op_out_value, xls::BuilderBase& pb) final;
 
   // Returns new token
   absl::StatusOr<TrackedBValue> GenerateTrace(TrackedBValue trace_out_value,
@@ -1043,6 +1046,7 @@ class Translator final : public GeneratorBase,
                                               const IOOp& op,
                                               xls::ProcBuilder& pb) final;
 
+  // before_token is overridden for new FSM for explicit token networks.
   absl::StatusOr<GenerateIOReturn> GenerateIO(
       const IOOp& op, TrackedBValue before_token, TrackedBValue op_out_value,
       xls::ProcBuilder& pb,
@@ -1333,7 +1337,8 @@ class Translator final : public GeneratorBase,
   absl::StatusOr<TrackedBValue> CreateDefaultValue(std::shared_ptr<CType> t,
                                                    const xls::SourceInfo& loc);
   absl::StatusOr<TrackedBValue> CreateMaskedIOOpInput(
-      const IOChannel* channel, const xls::SourceInfo& loc);
+      const IOChannel* channel, xls::Type* item_type_xls,
+      const xls::SourceInfo& loc);
   absl::StatusOr<CValue> CreateInitListValue(
       const std::shared_ptr<CType>& t, const clang::InitListExpr* init_list,
       const xls::SourceInfo& loc);
@@ -1614,6 +1619,8 @@ class Translator final : public GeneratorBase,
   bool DeclHasAnnotation(const clang::NamedDecl& decl, std::string_view name);
   bool HasAnnotation(clang::ArrayRef<const clang::AnnotateAttr*> attrs,
                      std::string_view name);
+  bool IsBuiltInTokenClass(const std::shared_ptr<CType>& t);
+  bool TypeContainsTokens(const xls::Type* t);
 
   // Returns std::nullopt if the annotation is not found
   // If default_value is specified, then the parameter is optional

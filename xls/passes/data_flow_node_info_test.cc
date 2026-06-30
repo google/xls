@@ -62,6 +62,7 @@ class TestParamCountInfo
       const xls::Bits& literal) const override final {
     return 0;
   }
+  int64_t ComputeInfoForTokenLiteral() const override final { return 0; }
   xls::LeafTypeTree<int64_t> ComputeInfoTreeForNode(
       xls::Node* node) const override final {
     LOG(FATAL)
@@ -102,6 +103,11 @@ class TestNodeSourceInfo
       const xls::Bits& literal) const override final {
     LOG(FATAL)
         << "ComputeInfoForBitsLiteral should be unused for TestNodeSourceInfo";
+    return NodeSourceSet{};
+  }
+  NodeSourceSet ComputeInfoForTokenLiteral() const override final {
+    LOG(FATAL)
+        << "ComputeInfoForTokenLiteral should be unused for TestNodeSourceInfo";
     return NodeSourceSet{};
   }
   xls::LeafTypeTree<NodeSourceSet> ComputeInfoTreeForNode(
@@ -159,6 +165,25 @@ TEST_F(DataFlowNodeInfoTest, Identity) {
   EXPECT_EQ(x_count, 1);
   EXPECT_EQ(x_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
                         p->GetBitsType(32), 1));
+}
+
+TEST_F(DataFlowNodeInfoTest, IdentityToken) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetTokenType());
+  BValue id = fb.Identity(x, SourceInfo(), "id");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(id));
+
+  TestParamCountInfo</*default_info_source=*/false, /*include_selectors=*/false>
+      node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  int64_t x_count = node_info.GetSingleInfoForNode(x.node());
+  SharedLeafTypeTree<int64_t> x_tree = node_info.GetInfo(x.node());
+  EXPECT_EQ(x_count, 1);
+  EXPECT_EQ(x_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
+                        p->GetTokenType(), 1));
 }
 
 TEST_F(DataFlowNodeInfoTest, Literal) {
@@ -329,6 +354,32 @@ TEST_F(DataFlowNodeInfoTest, Select) {
   EXPECT_EQ(eq_count, 1);
   EXPECT_EQ(eq_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
                          p->GetBitsType(1), 1));
+}
+
+TEST_F(DataFlowNodeInfoTest, SelectToken) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue c = fb.Param("c", p->GetBitsType(32));
+  BValue l = fb.Literal(xls::Value(xls::UBits(5, 32)));
+  BValue eq = fb.Eq(c, l, SourceInfo(), "eq");
+
+  BValue x = fb.Param("x", p->GetTokenType());
+  BValue y = fb.Param("y", p->GetTokenType());
+  BValue sel = fb.Select(eq, x, y, SourceInfo(), "sel");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * f, fb.BuildWithReturnValue(sel));
+
+  TestParamCountInfo</*default_info_source=*/false, /*include_selectors=*/false>
+      node_info;
+  node_info.set_query_engine(query_engine());
+  XLS_ASSERT_OK(node_info.Attach(f));
+  XLS_ASSERT_OK(query_engine()->Populate(f).status());
+  int64_t sel_count = node_info.GetSingleInfoForNode(sel.node());
+  SharedLeafTypeTree<int64_t> sel_tree = node_info.GetInfo(sel.node());
+
+  // Should not include the selector
+  EXPECT_EQ(sel_count, 2);
+  EXPECT_EQ(sel_tree, LeafTypeTree<int64_t>::CreateSingleElementTree(
+                          p->GetTokenType(), 2));
 }
 
 TEST_F(DataFlowNodeInfoTest, SelectIncludeSelector) {

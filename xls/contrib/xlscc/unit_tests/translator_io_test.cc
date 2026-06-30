@@ -885,7 +885,7 @@ TEST_F(TranslatorIOTest, InThisExpr) {
        #pragma hls_top
        void my_package(__xls_channel<Test>& in,
                        __xls_channel<int>& out) {
-         out.write(3*in.read().foo());
+         out.write(3*in.read_with_token().value().foo());
        })";
 
   IOTest(content,
@@ -907,7 +907,7 @@ TEST_F(TranslatorIOTest, InThisExprMutableTemp) {
        #pragma hls_top
        void my_package(__xls_channel<Test>& in,
                        __xls_channel<int>& out) {
-         out.write(3*in.read().foo());
+         out.write(3*in.read_with_token().value().foo());
        })";
 
   IOTest(content,

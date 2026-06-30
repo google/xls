@@ -1015,6 +1015,30 @@ absl::StatusOr<xls::Type*> CChannelType::GetWriteResponseType(
   return package->GetTupleType({});
 }
 
+CTokenType::~CTokenType() = default;
+
+int CTokenType::GetBitWidth() const {
+  CHECK(false);
+  return 0;
+}
+
+absl::Status CTokenType::GetMetadata(
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
+  (void)output->mutable_as_token();
+  return absl::OkStatus();
+}
+
+absl::Status CTokenType::GetMetadataValue(TranslatorTypeInterface& translator,
+                                          const ConstValue const_value,
+                                          xlscc_metadata::Value* output) const {
+  return absl::OkStatus();
+}
+
+CTokenType::operator std::string() const { return "token"; }
+
+bool CTokenType::operator==(const CType& o) const { return o.Is<CTokenType>(); }
+
 void GetAllBValuesForLValue(std::shared_ptr<LValue> lval,
                             std::vector<const TrackedBValue*>& out) {
   if (lval == nullptr) {
@@ -1324,13 +1348,6 @@ std::string Debug_OpName(OpType op) {
     case OpType::kWrite:
       op_type_name = "write";
       break;
-
-    case OpType::kExplicitReadRequest:
-      op_type_name = "read_request";
-      break;
-    case OpType::kExplicitReadResponse:
-      op_type_name = "read_response";
-      break;
     case OpType::kTrace:
       op_type_name = "trace";
       break;
@@ -1362,6 +1379,26 @@ std::string Debug_OpName(const IOOp& op) {
     } else if (op.activation_barrier_type ==
                ActivationBarrierType::kUnconditional) {
       op_type_name = "barrier_uncond";
+    }
+  }
+  if (op.channel != nullptr) {
+    std::string op_type_name;
+    switch (op.op) {
+      case OpType::kSend:
+        op_type_name = "send";
+        break;
+      case OpType::kRecv:
+        op_type_name = "recv";
+        break;
+      case OpType::kRead:
+        op_type_name = "read";
+        break;
+      case OpType::kWrite:
+        op_type_name = "write";
+        break;
+      default:
+        LOG(FATAL) << absl::StrFormat("Op type doesn't make sense here: %i",
+                                      op.op);
     }
   }
   if (!op_type_name.empty()) {
@@ -1612,6 +1649,24 @@ absl::StatusOr<absl::InlinedVector<xls::Value, 1>> DecomposeValue(
   absl::InlinedVector<xls::Value, 1> ret;
   XLS_RETURN_IF_ERROR(DecomposeValue(type, value, ret));
   return ret;
+}
+
+bool OpTakesParam(const IOOp& op) {
+  return op.op != OpType::kLoopBegin && op.op != OpType::kLoopEndJump;
+}
+
+absl::StatusOr<std::optional<TrackedBValue>> GetOpInputValue(
+    const IOOp& op, TrackedBValue op_out_value, xls::BuilderBase& pb) {
+  if (!OpTakesParam(op)) {
+    return std::nullopt;
+  }
+  if (op.op == OpType::kSharedCall) {
+    return op_out_value;
+  }
+  if (op.op == OpType::kRecv || op.op == OpType::kRead) {
+    return pb.TupleIndex(op_out_value, /*idx=*/1, op.op_location);
+  }
+  return std::nullopt;
 }
 
 }  //  namespace xlscc

@@ -1374,6 +1374,32 @@ void LibToolThread::Run() {
 template<int N>
 struct __xls_bits { };
 
+struct __xls_token_raw { };
+
+class [[hls_no_tuple]] __xls_token {
+public:
+  inline __xls_token() { }
+
+  inline __xls_token(const __xls_token& o) {
+    asm("fn (fid)(a: token) -> token { ret op(aid): token = "
+        "identity(a, pos=(loc)) }"
+        : "=r"(storage)
+        : "a"(o.storage));
+  }
+
+  inline __xls_token operator=(const __xls_token& o) {
+    asm("fn (fid)(a: token) -> token { ret op(aid): token = "
+        "identity(a, pos=(loc)) }"
+        : "=r"(storage)
+        : "a"(o.storage));
+
+    return *this;
+  }
+
+private:
+  __xls_token_raw storage;
+};
+
 // Should match OpType
 enum __xls_channel_dir {
   __xls_channel_dir_Unknown=0,    // OpType::kNull
@@ -1385,11 +1411,31 @@ enum __xls_channel_dir {
 template<typename T, __xls_channel_dir Dir=__xls_channel_dir_Unknown>
 class __xls_channel {
  public:
-  T read()const {
+
+  class TokenizedValue {
+   public:
+    T value()const {
+      return value_;
+    }
+    __xls_token token()const {
+      return token_;
+    }
+
+   private:
+    T value_;
+    __xls_token token_;
+  };
+
+  // This separate method is necessary because C++'s implicit conversions
+  // don't allow TokenizedValue to substitute for T as a return in all cases.
+  TokenizedValue read_with_token(__xls_token token_in = __xls_token())const {
+    return TokenizedValue();
+  }
+  T read(__xls_token token_in = __xls_token())const {
     return T();
   }
-  T write(T val)const {
-    return val;
+  __xls_token write(T val, __xls_token token_in  = __xls_token()) const {
+    return __xls_token();
   }
   void read(T& out)const {
     (void)out;
@@ -1417,11 +1463,6 @@ class __xls_memory {
     return;
   }
   T read(long long int addr) const {
-    return T();
-  }
-  void read_request(long long int addr) const {
-  }
-  T read_response() const {
     return T();
   }
 };

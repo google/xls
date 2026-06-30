@@ -267,6 +267,10 @@ ParamSet SourcesSetNodeInfo::ComputeInfoForBitsLiteral(
   return ParamSet();
 }
 
+ParamSet SourcesSetNodeInfo::ComputeInfoForTokenLiteral() const {
+  return ParamSet();
+}
+
 ParamSet SourcesSetNodeInfo::ComputeInfoForNode(xls::Node* node) const {
   if (node->Is<xls::Param>()) {
     return ParamSet{node->As<xls::Param>()};
@@ -300,6 +304,12 @@ SourcesSetTreeNodeInfo::SourcesSetTreeNodeInfo()
 NodeSourceSetPtr SourcesSetTreeNodeInfo::ComputeInfoForBitsLiteral(
     const xls::Bits& literal) const {
   LOG(FATAL) << "ComputeInfoForBitsLiteral should be unused for "
+                "SourcesSetTreeNodeInfo";
+  return NodeSourceSetPtr();
+}
+
+NodeSourceSetPtr SourcesSetTreeNodeInfo::ComputeInfoForTokenLiteral() const {
+  LOG(FATAL) << "ComputeInfoForTokenLiteral should be unused for "
                 "SourcesSetTreeNodeInfo";
   return NodeSourceSetPtr();
 }
@@ -522,6 +532,7 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
 
       absl::StatusOr<xls::Value> result =
           EvaluateNode(node, loc, /*do_check=*/false);
+
       if (result.ok()) {
         continuation_out.literal = result.value();
       }
@@ -755,8 +766,10 @@ absl::Status Translator::AddContinuationsToNewSlice(
           continuation_in.continuation_out->literal.value(), loc,
           /*name=*/absl::StrFormat("%s_literal", continuation_in.name));
     } else if (continuation_in.continuation_out->output_node->GetType()
-                   ->GetFlatBitCount() == 0) {
-      // Zero bit types shouldn't be passed through continuations
+                       ->GetFlatBitCount() == 0 &&
+               !TypeContainsTokens(
+                   continuation_in.continuation_out->output_node->GetType())) {
+      // Zero bit types shouldn't be passed through continuations, except tokens
       in_bval = context().fb->Literal(
           xls::ZeroOfType(
               continuation_in.continuation_out->output_node->GetType()),
@@ -1629,8 +1642,6 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
   for (GeneratedFunctionSlice& slice : func.slices) {
     for (const ContinuationValue& continuation_out : slice.continuations_out) {
       CHECK(continuation_out.output_node->op() == xls::Op::kIdentity);
-
-      CHECK_GT(continuation_out.output_node->GetType()->GetFlatBitCount(), 0);
 
       if (!pass_throughs.contains(&continuation_out)) {
         continue;

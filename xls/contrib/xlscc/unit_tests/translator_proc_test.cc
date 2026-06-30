@@ -171,6 +171,19 @@ class TranslatorProcTest_NewFSMOnly
   }
 };
 
+absl::Status RunBasicOptimization(xls::Package* package) {
+  xls::OptimizationPassOptions pass_options;
+  pass_options.opt_level = xls::kMaxOptLevel;
+  xls::OptimizationContext xls_opt_context;
+  xls::PassResults pass_results;
+  std::unique_ptr<xls::OptimizationCompoundPass> pipeline =
+      xls::CreateOptimizationPassPipeline();
+  XLS_RETURN_IF_ERROR(
+      pipeline->Run(package, pass_options, &pass_results, xls_opt_context)
+          .status());
+  return absl::OkStatus();
+}
+
 INSTANTIATE_TEST_SUITE_P(
     TranslatorProcTest_NewFSMOnly, TranslatorProcTest_NewFSMOnly,
     Values(TestParams{.generate_new_fsm = true,
@@ -186,19 +199,6 @@ INSTANTIATE_TEST_SUITE_P(
                       .merge_states = true,
                       .split_states_on_channel_ops = true}),
     GetTestInfo);
-
-absl::Status RunBasicOptimization(xls::Package* package) {
-  xls::OptimizationPassOptions pass_options;
-  pass_options.opt_level = xls::kMaxOptLevel;
-  xls::OptimizationContext xls_opt_context;
-  xls::PassResults pass_results;
-  std::unique_ptr<xls::OptimizationCompoundPass> pipeline =
-      xls::CreateOptimizationPassPipeline();
-  XLS_RETURN_IF_ERROR(
-      pipeline->Run(package, pass_options, &pass_results, xls_opt_context)
-          .status());
-  return absl::OkStatus();
-}
 
 class TranslatorProcTest_NewFSM_Mutex : public XlsccTestBase {
  public:
@@ -227,6 +227,40 @@ class TranslatorProcTest_NewFSM_Mutex : public XlsccTestBase {
             .status());
 
     return absl::OkStatus();
+  }
+};
+
+class TranslatorProcTest_NewFSM_IO : public XlsccTestBase {
+ public:
+  TranslatorProcTest_NewFSM_IO() {
+    generate_new_fsm_ = true;
+    merge_states_ = true;
+    split_states_on_channel_ops_ = false;
+  }
+
+  absl::flat_hash_set<const xls::Node*> GetUpstreamNodes(
+      const xls::Node* token_node) {
+    absl::flat_hash_set<const xls::Node*> all_upstream_nodes;
+    all_upstream_nodes.insert(token_node);
+    while (true) {
+      absl::InlinedVector<const xls::Node*, 2> nodes_to_add;
+
+      for (const xls::Node* node : all_upstream_nodes) {
+        for (const xls::Node* operand : node->operands()) {
+          if (all_upstream_nodes.contains(operand)) {
+            continue;
+          }
+          nodes_to_add.push_back(operand);
+        }
+      }
+
+      if (nodes_to_add.empty()) {
+        break;
+      }
+
+      all_upstream_nodes.insert(nodes_to_add.begin(), nodes_to_add.end());
+    }
+    return all_upstream_nodes;
   }
 };
 
@@ -11683,6 +11717,233 @@ TEST_P(TranslatorProcTest_NewFSMOnly, SharedFunctionCalledTwiceInActivation) {
     ASSERT_THAT(ret.status(),
                 absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
                                        testing::HasSubstr("ycle detected")));
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_IO, ExplicitTokenOrdering) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in1;
+         __xls_channel<int, __xls_channel_dir_In>& data_in2;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+          // Don't introduce implicit token via data dependency
+          __xls_token tok = data_in1.read_with_token().token();
+          tok = data_out.write(3, tok);
+          data_in2.read(tok);
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunBasicOptimization(package_.get()));
+
+  ASSERT_EQ(package_->procs().size(), 1);
+  const xls::Send* send_node = nullptr;
+  const xls::Receive* recv2_node = nullptr;
+  const xls::Proc* proc = package_->procs().at(0).get();
+  for (const xls::Node* node : proc->nodes()) {
+    if (node->op() == xls::Op::kSend) {
+      EXPECT_EQ(send_node, nullptr);
+      send_node = node->As<xls::Send>();
+    }
+    if (node->op() == xls::Op::kReceive) {
+      const xls::Receive* recv_node = node->As<xls::Receive>();
+      if (recv_node->channel_name() == "data_in2") {
+        EXPECT_EQ(recv2_node, nullptr);
+        recv2_node = recv_node;
+      }
+    }
+  }
+
+  const xls::Node* send_token_node = send_node->token();
+  ASSERT_NE(send_token_node, nullptr);
+  ASSERT_EQ(send_token_node->op(), xls::Op::kTupleIndex);
+  const xls::TupleIndex* token_index = send_token_node->As<xls::TupleIndex>();
+  ASSERT_EQ(token_index->index(), 0);
+  const xls::Node* recv_node = token_index->operand(0);
+  ASSERT_EQ(recv_node->op(), xls::Op::kReceive);
+  const xls::Node* recv_token_node = recv_node->As<xls::Receive>()->token();
+  ASSERT_NE(recv_token_node, nullptr);
+  ASSERT_EQ(recv_token_node->op(), xls::Op::kLiteral);
+
+  const xls::Node* recv2_token_node = recv2_node->token();
+  EXPECT_EQ(recv2_token_node, send_node);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in1"] = {
+        // Iteration
+        xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(5, 32)),
+        xls::Value(xls::SBits(10, 32)),
+    };
+    inputs["data_in2"] = {
+        // Iteration
+        xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32)),
+        xls::Value(xls::SBits(0, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(3, 32)),
+                           xls::Value(xls::SBits(3, 32)),
+                           xls::Value(xls::SBits(3, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/1, /*max_ticks=*/5);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_IO,
+       ExplicitTokenOrderingThroughContinuations) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in1;
+         __xls_channel<int, __xls_channel_dir_In>& data_in2;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+          __xls_token token = data_out.write(5);
+
+          (void)data_in1.read(token);
+          (void)data_in2.read(token);
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunBasicOptimization(package_.get()));
+
+  ASSERT_EQ(package_->procs().size(), 1);
+  const xls::Send* send_node = nullptr;
+  const xls::Proc* proc = package_->procs().at(0).get();
+  for (const xls::Node* node : proc->nodes()) {
+    if (node->op() == xls::Op::kSend) {
+      EXPECT_EQ(send_node, nullptr);
+      send_node = node->As<xls::Send>();
+    }
+  }
+
+  ASSERT_NE(send_node, nullptr);
+
+  for (const xls::Node* node : proc->nodes()) {
+    if (node->op() != xls::Op::kReceive) {
+      continue;
+    }
+    const xls::Receive* recv_node = node->As<xls::Receive>();
+    const xls::Node* token_node = recv_node->token();
+    EXPECT_EQ(token_node, send_node);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in1"] = {
+        // Iteration
+        xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(5, 32)),
+        xls::Value(xls::SBits(10, 32)),
+    };
+    inputs["data_in2"] = {
+        // Iteration
+        xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32)),
+        xls::Value(xls::SBits(0, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(5, 32)),
+                           xls::Value(xls::SBits(5, 32)),
+                           xls::Value(xls::SBits(5, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/3, /*max_ticks=*/3);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_IO,
+       ExplicitTokenOrderingThroughStateElements) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in1;
+         __xls_channel<int, __xls_channel_dir_In>& data_in2;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         #pragma hls_top
+         void Run() {
+          __xls_token token = data_out.write(5);
+
+          (void)data_in1.read(token);
+          __xlscc_activation_barrier</*conditional=*/false>();
+          (void)data_in2.read(token);
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunBasicOptimization(package_.get()));
+
+  ASSERT_EQ(package_->procs().size(), 1);
+  const xls::Send* send_node = nullptr;
+  const xls::Proc* proc = package_->procs().at(0).get();
+  for (const xls::Node* node : proc->nodes()) {
+    if (node->op() == xls::Op::kSend) {
+      EXPECT_EQ(send_node, nullptr);
+      send_node = node->As<xls::Send>();
+    }
+  }
+
+  ASSERT_NE(send_node, nullptr);
+
+  for (const xls::Node* node : proc->nodes()) {
+    if (node->op() != xls::Op::kReceive) {
+      continue;
+    }
+    const xls::Receive* recv_node = node->As<xls::Receive>();
+    const xls::Node* token_node = recv_node->token();
+
+    absl::flat_hash_set<const xls::Node*> all_upstream_nodes =
+        GetUpstreamNodes(token_node);
+
+    if (recv_node->channel_name() == "data_in1") {
+      EXPECT_TRUE(all_upstream_nodes.contains(send_node));
+    } else {
+      EXPECT_TRUE(token_node->Is<xls::StateRead>());
+      EXPECT_FALSE(all_upstream_nodes.contains(send_node));
+    }
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in1"] = {
+        // Iteration
+        xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(5, 32)),
+        xls::Value(xls::SBits(10, 32)),
+    };
+    inputs["data_in2"] = {
+        // Iteration
+        xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32)),
+        xls::Value(xls::SBits(0, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(5, 32)),
+                           xls::Value(xls::SBits(5, 32)),
+                           xls::Value(xls::SBits(5, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/6, /*max_ticks=*/6);
   }
 }
 

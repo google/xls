@@ -870,8 +870,9 @@ absl::Status Translator::GenerateIR_PipelinedLoopOldFSM(
   {
     IOOp op;
     op.op = OpType::kSend;
-    std::vector<TrackedBValue> sp = {context_tuple_out.rvalue(),
-                                     context().full_condition_bval(loc)};
+    std::vector<TrackedBValue> sp = {
+        context_tuple_out.rvalue(), context().full_condition_bval(loc),
+        context().fb->Literal(xls::Value::Token(), loc)};
     op.ret_value = context().fb->Tuple(ToNativeBValues(sp), loc,
                                        /*name=*/"context_out_send_tup");
     XLS_ASSIGN_OR_RETURN(ctx_out_op_ptr,
@@ -889,7 +890,11 @@ absl::Status Translator::GenerateIR_PipelinedLoopOldFSM(
   {
     IOOp op;
     op.op = OpType::kRecv;
-    op.ret_value = context().full_condition_bval(loc);
+    op.ret_value = context().fb->Tuple(
+        ToNativeBValues({context().fb->Literal(xls::Value::Token(), loc),
+                         context().full_condition_bval(loc)}),
+        loc,
+        /*name=*/"context_in_recv_tup");
     XLS_ASSIGN_OR_RETURN(ctx_in_op_ptr,
                          AddOpToChannel(op, context_in_channel, loc));
   }

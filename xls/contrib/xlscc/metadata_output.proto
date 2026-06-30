@@ -163,6 +163,9 @@ message ChannelType {
   optional int32 memory_size = 2;
 }
 
+// Placeholder for token
+message TokenType {}
+
 // Generic type
 message Type {
   optional VoidType as_void = 1;
@@ -177,6 +180,7 @@ message Type {
   optional ChannelType as_channel = 10;
   optional EnumType as_enum = 11;
   optional FloatType as_float = 12;
+  optional TokenType as_token = 13;
 }
 
 // A field in a structure

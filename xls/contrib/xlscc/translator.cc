@@ -1452,8 +1452,11 @@ absl::Status Translator::GenerateIR_SubBlockStub(
   {
     IOOp op;
     op.op = OpType::kSend;
-    std::vector<TrackedBValue> sp = {direct_ins_tuple_value,
-                                     context().full_condition_bval(body_loc)};
+    std::vector<TrackedBValue> sp = {
+        direct_ins_tuple_value,
+        context().full_condition_bval(body_loc),
+        context().fb->Literal(xls::Value::Token()),
+    };
     op.ret_value = context().fb->Tuple(ToNativeBValues(sp), body_loc,
                                        /*name=*/"direct_ins_send_tup");
     XLS_RETURN_IF_ERROR(
@@ -1478,6 +1481,8 @@ absl::Status Translator::GenerateIR_Function_Body(
     for (IOOp& op : sf.io_ops) {
       op.ret_value = TrackedBValue();
       op.input_value = CValue();
+      op.input_token = CValue();
+      op.input_param = TrackedBValue();
     }
 
     if (sf.return_lvalue) {
@@ -1633,6 +1638,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::InterceptBuiltInStruct(
 
     llvm::APSInt width_aps = temp_args.get(0).getAsIntegral();
     return std::shared_ptr<CType>(new CBitsType(width_aps.getExtValue()));
+  } else if (sd->getNameAsString() == "__xls_token_raw") {
+    return std::make_shared<CTokenType>();
   }
   return nullptr;
 }
@@ -3250,6 +3257,8 @@ void Translator::CleanUpBValuesInTopFunction(GeneratedFunction& func) {
   for (IOOp& op : func.io_ops) {
     op.ret_value = TrackedBValue();
     op.input_value = CValue();
+    op.input_token = CValue();
+    op.input_param = TrackedBValue();
   }
 
   func.global_values.clear();
@@ -4651,7 +4660,7 @@ absl::Status Translator::AddArgsForSideEffectingParams(
               xls::ZeroOfType(side_effecting_param.xls_io_param_type), loc);
         } else {
           // May be empty for sends
-          TrackedBValue io_value = caller_op->input_value.rvalue();
+          TrackedBValue io_value = caller_op->input_param;
 
           args_val = io_value;
         }
@@ -4766,6 +4775,8 @@ absl::Status Translator::AddIOOpForSliceForCall(
       caller_op.ret_value,
       AddConditionToIOReturn(/*op=*/caller_op, op_out_value, loc));
   XLSCC_CHECK(caller_op.ret_value.valid(), loc);
+  XLSCC_CHECK(caller_op.ret_value.GetType()->IsEqualTo(op_out_value.GetType()),
+              loc);
 
   // Going slice by slice, so don't generate before slice (already
   // generated)
@@ -5177,7 +5188,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     // A built-in type is being constructed. Create default value if there's
     //  no constructor parameter
     if (ctor->getNumArgs() == 0) {
-      if (error_on_uninitialized_) {
+      // Default construction of tokens has a unique meaning.
+      if (error_on_uninitialized_ && !octype->Is<CTokenType>()) {
         return absl::InvalidArgumentError(
             ErrorMessage(loc, "Built-in type %s defaulted in constructor '%s'",
                          std::string(*octype),
@@ -5551,6 +5563,9 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
   if (t->Is<CPointerType>() || t->Is<CReferenceType>() ||
       t->Is<CChannelType>()) {
     return xls::Value::Tuple({});
+  }
+  if (t->Is<CTokenType>()) {
+    return xls::Value::Token();
   }
   return absl::UnimplementedError(ErrorMessage(
       loc, "Don't know how to make default for type %s", std::string(*t)));
@@ -6616,6 +6631,17 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     return channel_type;
   }
 
+  if (auto record = clang::dyn_cast<const clang::RecordType>(type)) {
+    clang::RecordDecl* decl = record->getDecl();
+
+    clang::CXXRecordDecl* cxx_decl =
+        clang::dyn_cast<clang::CXXRecordDecl>(decl);
+    if (cxx_decl != nullptr &&
+        cxx_decl->getNameAsString() == "__xls_token_raw") {
+      return shared_ptr<CType>(new CTokenType());
+    }
+  }
+
   if (type->getTypeClass() == clang::Type::PredefinedSugar) {
     type = t.getCanonicalType().getTypePtr();
   }
@@ -6829,6 +6855,9 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
   if (t->Is<CReferenceType>() || t->Is<CPointerType>() ||
       t->Is<CChannelType>()) {
     return package_->GetTupleType({});
+  }
+  if (t->Is<CTokenType>()) {
+    return package_->GetTokenType();
   }
   auto& r = *t;
   return absl::UnimplementedError(
@@ -7246,6 +7275,34 @@ absl::StatusOr<bool> Translator::IsSubBlockDirectInParam(
 std::shared_ptr<CType> Translator::GetCTypeForAlias(
     const std::shared_ptr<CInstantiableTypeAlias>& alias) {
   return inst_types_.at(alias);
+}
+
+bool Translator::IsBuiltInTokenClass(const std::shared_ptr<CType>& t) {
+  if (!t->Is<CInstantiableTypeAlias>()) {
+    return false;
+  }
+  return std::dynamic_pointer_cast<CInstantiableTypeAlias>(t)
+             ->base()
+             ->getNameAsString() == "__xls_token";
+}
+
+bool Translator::TypeContainsTokens(const xls::Type* t) {
+  if (t->IsTuple()) {
+    for (const xls::Type* element : t->AsTupleOrDie()->element_types()) {
+      if (TypeContainsTokens(element)) {
+        return true;
+      }
+    }
+    return false;
+  } else if (t->IsToken()) {
+    return true;
+  } else if (t->IsBits()) {
+    return false;
+  } else if (t->IsArray()) {
+    return TypeContainsTokens(t->AsArrayOrDie()->element_type());
+  } else {
+    LOG(FATAL) << "Unsupported XLS type in TypeContainsTokens()";
+  }
 }
 
 void CompoundPredicate::clear() {

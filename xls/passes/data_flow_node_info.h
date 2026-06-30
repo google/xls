@@ -77,6 +77,8 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
   // Only used if compute_tree_for_source = false.
   virtual Info ComputeInfoForBitsLiteral(const xls::Bits& literal) const = 0;
   // Only used if compute_tree_for_source = false.
+  virtual Info ComputeInfoForTokenLiteral() const = 0;
+  // Only used if compute_tree_for_source = false.
   virtual Info ComputeInfoForNode(Node* node) const = 0;
   // Only used if compute_tree_for_source = true.
   virtual xls::LeafTypeTree<Info> ComputeInfoTreeForNode(Node* node) const = 0;
@@ -124,6 +126,10 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
                      absl::InlinedVector<Info, 1>& infos) const {
     if (value.IsBits()) {
       infos.push_back(ComputeInfoForBitsLiteral(value.bits()));
+      return;
+    }
+    if (value.IsToken()) {
+      infos.push_back(ComputeInfoForTokenLiteral());
       return;
     }
     if (value.IsTuple() || value.IsArray()) {

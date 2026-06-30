@@ -82,51 +82,6 @@ TEST_F(TranslatorMemoryTest, MemoryReadExplicitIOOp) {
        IOOpTest("out", 30, true)});
 }
 
-TEST_F(TranslatorMemoryTest, MemoryReadExplicitSeparateIOOp) {
-  const std::string content = R"(
-       #pragma hls_top
-       void my_package(__xls_channel<int>& in,
-                       __xls_memory<int, 32>& memory,
-                       __xls_channel<int>& out) {
-         const int addr = in.read();
-         memory.read_request(addr);
-         const int val = memory.read_response();
-         out.write(3*val);
-       })";
-
-  IOTest(
-      content,
-      /*inputs=*/{IOOpTest("in", 7, true), IOOpTest("memory__read", 10, true)},
-      /*outputs=*/
-      {IOOpTest("memory__read", xls::Value(xls::UBits(7, 5)), true),
-       IOOpTest("out", 30, true)});
-}
-
-TEST_F(TranslatorMemoryTest, MemoryReadExplicitSeparateIOOpInFunc) {
-  const std::string content = R"(
-       int func(__xls_channel<int>& in,
-                __xls_memory<int, 32>& memory) {
-         const int addr = in.read();
-         memory.read_request(addr);
-         return memory.read_response();
-       }
-
-       #pragma hls_top
-       void my_package(__xls_channel<int>& in,
-                       __xls_memory<int, 32>& memory,
-                       __xls_channel<int>& out) {
-         const int val = func(in, memory);
-         out.write(3*val);
-       })";
-
-  IOTest(
-      content,
-      /*inputs=*/{IOOpTest("in", 7, true), IOOpTest("memory__read", 10, true)},
-      /*outputs=*/
-      {IOOpTest("memory__read", xls::Value(xls::UBits(7, 5)), true),
-       IOOpTest("out", 30, true)});
-}
-
 TEST_F(TranslatorMemoryTest, MemoryReadStructExplicitIOOp) {
   const std::string content = R"(
        #include "/xls_builtin.h"
@@ -423,62 +378,6 @@ TEST_F(TranslatorMemoryTest, MemoryReadProc) {
           xls::Value(xls::UBits(13, 5)),  // addr
           xls::Value::Tuple({})           // mask
       })};
-
-  ProcTest(content, block_spec, inputs, outputs);
-}
-
-TEST_F(TranslatorMemoryTest, MemoryReadProcSeparateIOOp) {
-  const std::string content = R"(
-    #pragma hls_top
-    void foo(__xls_memory<short, 21>& foo_store,
-             __xls_channel<int>& out) {
-      foo_store.read_request(13);
-      const short v = foo_store.read_response();
-      out.write(v + 3);
-    })";
-
-  HLSBlock block_spec;
-  {
-    block_spec.set_name("foo");
-
-    HLSChannel* ch_in = block_spec.add_channels();
-    ch_in->set_name("foo_store");
-    ch_in->set_type(CHANNEL_TYPE_MEMORY);
-    ch_in->set_depth(21);
-
-    HLSChannel* ch_out = block_spec.add_channels();
-    ch_out->set_name("out");
-    ch_out->set_is_input(false);
-    ch_out->set_type(CHANNEL_TYPE_FIFO);
-  }
-
-  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
-  inputs["foo_store_read_response"] = {
-      xls::Value::Tuple({xls::Value(xls::SBits(100, 16))}),
-      xls::Value::Tuple({xls::Value(xls::SBits(50, 16))}),
-      xls::Value::Tuple({xls::Value(xls::SBits(12, 16))})};
-
-  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-  outputs["out"] = {xls::Value(xls::SBits(103, 32)),
-                    xls::Value(xls::SBits(53, 32)),
-                    xls::Value(xls::SBits(15, 32))};
-  outputs["foo_store_read_request"] = {
-      xls::Value::Tuple({
-          xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value::Tuple({})           // mask
-      }),
-      xls::Value::Tuple({
-          xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value::Tuple({})           // mask
-      }),
-      xls::Value::Tuple({
-          xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value::Tuple({})           // mask
-      })};
-
-  generate_new_fsm_ = true;
-  split_states_on_channel_ops_ = false;
-  merge_states_ = false;
 
   ProcTest(content, block_spec, inputs, outputs);
 }

@@ -1365,7 +1365,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
                                             type_for_static, pb, body_loc));
       invoke_params.push_back(prev_val);
     }
-
     XLSCC_CHECK_NE(slice.function, nullptr, body_loc);
     XLSCC_CHECK_EQ(invoke_params.size(), slice.function->params().size(),
                    body_loc);

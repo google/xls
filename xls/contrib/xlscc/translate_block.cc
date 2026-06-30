@@ -909,12 +909,6 @@ absl::StatusOr<Translator::LayoutFSMStatesReturn> Translator::LayoutFSMStates(
           absl::StrFormat("Generating IO ops with scheduling options (ASAP "
                           "etc) not yet supported"));
     }
-    if (op.op == OpType::kExplicitReadResponse ||
-        op.op == OpType::kExplicitReadRequest) {
-      return absl::UnimplementedError(absl::StrFormat(
-          "Explicit memory ops only supported in new FSM, found op: %s",
-          Debug_OpName(op)));
-    }
 
     const PipelinedLoopSubProc* sub_proc = nullptr;
 
@@ -1785,7 +1779,8 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
       outer_prepared.arg_index_for_op.at(&invoke_context_in.op);
   XLSCC_CHECK(outer_prepared.args.at(context_in_arg_idx).valid(), body_loc);
 
-  outer_prepared.args[context_in_arg_idx] = context_in;
+  outer_prepared.args[context_in_arg_idx] = pb.Tuple(
+      {pb.Literal(xls::Value::Token(), body_loc), context_in}, body_loc);
 
   // Need an invoke for the context receive operation
   // (args have been updated)
@@ -1860,7 +1855,6 @@ absl::StatusOr<TrackedBValue> Translator::GenerateIOInvoke(
   if (prepared.arg_index_for_op.contains(&op)) {
     const int64_t arg_index = prepared.arg_index_for_op.at(&op);
     CHECK(arg_index >= 0 && arg_index < prepared.args.size());
-    XLSCC_CHECK(generate_io_ret.received_value.valid(), op_loc);
     prepared.args[arg_index] = generate_io_ret.received_value;
   }
 
@@ -2215,7 +2209,7 @@ Translator::GenerateIRBlockPrepare(
     switch (param.type) {
       case xlscc::SideEffectingParameterType::kIOOp: {
         const IOOp& op = *param.io_op;
-        if (op.op == OpType::kRead || op.op == OpType::kRecv) {
+        if (param.xls_io_param_type != nullptr) {
           TrackedBValue val =
               pb.Literal(xls::ZeroOfType(param.xls_io_param_type), body_loc);
           prepared.arg_index_for_op[&op] = prepared.args.size();

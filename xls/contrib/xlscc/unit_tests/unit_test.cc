@@ -1016,8 +1016,8 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
                            SourceToIr(content, &func, /* clang_argv= */ {},
                                       /* io_test_mode= */ true));
 
-  VLOG(1) << "Package IR: ";
-  VLOG(1) << ir_src;
+  std::cerr << "Package IR: " << std::endl;
+  std::cerr << ir_src << std::endl;
 
   XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
                            translator_->GetTopFunction());
@@ -1050,24 +1050,17 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
 
   std::list<IOOpTest> input_ops_orig = inputs;
   for (const xlscc::IOOp& op : func->io_ops) {
-    std::string ch_name;
-
-    if (op.op == xlscc::OpType::kTrace) {
-      continue;
-    }
-
-    ch_name = op.channel->unique_name;
-
     const std::string arg_name = op.final_param_name;
 
-    if (op.op == xlscc::OpType::kRecv || op.op == xlscc::OpType::kRead ||
-        op.op == xlscc::OpType::kExplicitReadResponse) {
+    std::optional<xls::Value> arg_val = std::nullopt;
+
+    if (op.op == xlscc::OpType::kRecv || op.op == xlscc::OpType::kRead) {
+      CHECK_NE(op.channel, nullptr);
       const IOOpTest test_op = inputs.front();
       inputs.pop_front();
 
-      std::string expected_name = ch_name;
-      if (op.op == xlscc::OpType::kRead ||
-          op.op == xlscc::OpType::kExplicitReadResponse) {
+      std::string expected_name = op.channel->unique_name;
+      if (op.op == xlscc::OpType::kRead) {
         expected_name += "__read";
       }
       CHECK_EQ(expected_name, test_op.name);
@@ -1075,17 +1068,26 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
       const xls::Value& new_val = test_op.value;
 
       if (!args.contains(arg_name)) {
-        args[arg_name] = new_val;
+        arg_val = new_val;
       } else if (args[arg_name].IsBits()) {
-        args[arg_name] = xls::Value::Tuple({args[arg_name], new_val});
+        arg_val = xls::Value::Tuple({args[arg_name], new_val});
       } else {
         CHECK(args[arg_name].IsTuple());
         const xls::Value prev_val = args[arg_name];
         XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> values,
                                  prev_val.GetElements());
         values.push_back(new_val);
-        args[arg_name] = xls::Value::Tuple(values);
+        arg_val = xls::Value::Tuple(values);
       }
+    }
+
+    if (OpTakesParam(op)) {
+      std::vector<xls::Value> args_tup = {xls::Value::Token()};
+      if (arg_val.has_value()) {
+        args_tup.push_back(arg_val.value());
+      }
+      const xls::Value new_arg_val = xls::Value::Tuple(args_tup);
+      args[arg_name] = new_arg_val;
     }
   }
 
@@ -1119,23 +1121,22 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
       ch_name = op.channel->unique_name;
     }
 
-    if (op.op == xlscc::OpType::kRecv || op.op == xlscc::OpType::kRead ||
-        op.op == xlscc::OpType::kExplicitReadResponse) {
+    if (op.op == xlscc::OpType::kRecv || op.op == xlscc::OpType::kRead) {
       const IOOpTest test_op = inputs.front();
       inputs.pop_front();
 
       std::string expected_name = ch_name;
-      if (op.op == xlscc::OpType::kRead ||
-          op.op == xlscc::OpType::kExplicitReadResponse) {
+      if (op.op == xlscc::OpType::kRead) {
         expected_name += "__read";
       }
       CHECK_EQ(expected_name, test_op.name);
 
       xls::Value cond_val;
 
-      if (op.op == xlscc::OpType::kRecv ||
-          op.op == xlscc::OpType::kExplicitReadResponse) {
-        cond_val = io_return;
+      if (op.op == xlscc::OpType::kRecv) {
+        ASSERT_TRUE(io_return.IsTuple());
+        cond_val = io_return.GetElements().value()[1];
+        ASSERT_TRUE(cond_val.IsBits());
       } else {
         ASSERT_TRUE(io_return.IsTuple());
         XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> elements,
@@ -1153,29 +1154,24 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
         }
       }
 
-      ASSERT_TRUE(cond_val.IsBits());
       XLS_ASSERT_OK_AND_ASSIGN(uint64_t val, cond_val.bits().ToUint64());
       EXPECT_EQ(val, test_op.condition ? 1 : 0);
 
     } else if (op.op == xlscc::OpType::kSend ||
-               op.op == xlscc::OpType::kWrite ||
-               op.op == xlscc::OpType::kExplicitReadRequest) {
+               op.op == xlscc::OpType::kWrite) {
       const IOOpTest test_op = outputs.front();
       outputs.pop_front();
 
       std::string expected_name = ch_name;
       if (op.op == xlscc::OpType::kWrite) {
         expected_name += "__write";
-      } else if (op.op == xlscc::OpType::kExplicitReadRequest) {
-        expected_name += "__read";
       }
 
       CHECK_EQ(expected_name, test_op.name);
-
       ASSERT_TRUE(io_return.IsTuple());
       XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> elements,
                                io_return.GetElements());
-      ASSERT_EQ(elements.size(), 2);
+      ASSERT_GE(elements.size(), 2);
       ASSERT_TRUE(elements[1].IsBits());
       XLS_ASSERT_OK_AND_ASSIGN(uint64_t cond_output,
                                elements[1].bits().ToUint64());
