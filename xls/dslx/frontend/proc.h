@@ -42,7 +42,8 @@ namespace xls::dslx {
 class ProcMember : public AstNode {
  public:
   ProcMember(Module* owner, NameDef* name_def, TypeAnnotation* type,
-             std::optional<ChannelStrictness> strictness = std::nullopt);
+             std::optional<ChannelStrictness> strictness = std::nullopt,
+             std::optional<FlowControl> FlowControl = std::nullopt);
 
   ~ProcMember() override;
 
@@ -72,10 +73,15 @@ class ProcMember : public AstNode {
     return strictness_;
   }
 
+  const std::optional<FlowControl>& flow_control() const {
+    return flow_control_;
+  }
+
  private:
   NameDef* name_def_;
   TypeAnnotation* type_annotation_;
   std::optional<ChannelStrictness> strictness_;
+  std::optional<FlowControl> flow_control_;
   Span span_;
 };
 

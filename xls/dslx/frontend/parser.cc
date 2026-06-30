@@ -227,7 +227,9 @@ absl::StatusOr<AttributeKind> ParseAttributeKind(Token token,
       {"quickcheck", AttributeKind::kQuickcheck},
       {"fuzz_test", AttributeKind::kFuzzTest},
       {"fuzz_domain", AttributeKind::kFuzzDomain},
-      {"channel_strictness", AttributeKind::kChannelStrictness}};
+      {"channel_strictness", AttributeKind::kChannelStrictness},
+      {"channel_flow_control", AttributeKind::kChannelFlowControl},
+  };
 
   const auto it = map->find(token.GetStringValue());
   if (it == map->end()) {
@@ -685,10 +687,12 @@ absl::StatusOr<ChannelConfig> Parser::ParseExprAttribute(Bindings& bindings,
       PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
                       "Expected attribute identifier"));
   const std::string& attribute_name = attribute_tok.GetStringValue();
-  if (attribute_name == "channel_strictness") {
+  if (attribute_name == "channel_strictness" ||
+      attribute_name == "channel_flow_control") {
     return ParseErrorStatus(attribute_tok.span(),
-                            "#[channel_strictness(...)] does not apply to "
-                            "expressions; apply it to the proc member instead");
+                            "#[channel_strictness(...)] and "
+                            "#[channel_flow_control(...)] do not apply to "
+                            "expressions; apply to the proc member instead");
   }
   if (attribute_name == "channel") {
     // TODO: google/xls#1023 - consider moving or allowing the channel attribute
@@ -3616,39 +3620,28 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
   std::optional<const Token*> first_comma_separator;
   while (peek->kind() != TokenKind::kCBrace) {
     std::optional<ChannelStrictness> strictness;
-    if (peek->kind() == TokenKind::kHash) {
+    std::optional<FlowControl> flow_control;
+    while (peek->kind() == TokenKind::kHash) {
       Pos hash_pos = GetPos();
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kHash));
       XLS_ASSIGN_OR_RETURN(Attribute * attr, ParseAttribute(hash_pos));
-      if (attr->attribute_kind() != AttributeKind::kChannelStrictness) {
-        return ParseErrorStatus(
-            *attr->GetSpan(),
-            "Only `channel_strictness` attribute is supported on proc members");
-      }
-      if (!module_->attributes().contains(
-              ModuleAttribute::kChannelAttributes)) {
-        return ParseErrorStatus(
-            *attr->GetSpan(),
-            "#[channel_strictness(...)] syntax is not enabled for this module; "
-            "enable with `#![feature(channel_attributes)]` at module scope");
-      }
-      if (attr->args().size() != 1 ||
-          !std::holds_alternative<AttributeData::StringLiteralArgument>(
-              attr->args()[0])) {
-        return ParseErrorStatus(
-            *attr->GetSpan(),
-            "#[channel_strictness(...)] attribute requires a single string "
-            "literal argument");
-      }
-      std::string strictness_str =
+      XLS_RETURN_IF_ERROR(ValidateChannelAttribute(attr, strictness.has_value(),
+                                                   flow_control.has_value()));
+      std::string attribute_string =
           std::get<AttributeData::StringLiteralArgument>(attr->args()[0]).text;
-      XLS_ASSIGN_OR_RETURN(strictness,
-                           ChannelStrictnessFromString(strictness_str));
+      if (attr->attribute_kind() == AttributeKind::kChannelStrictness) {
+        XLS_ASSIGN_OR_RETURN(strictness,
+                             ChannelStrictnessFromString(attribute_string));
+      }
+      if (attr->attribute_kind() == AttributeKind::kChannelFlowControl) {
+        XLS_ASSIGN_OR_RETURN(flow_control,
+                             StringToFlowControl(attribute_string));
+      }
       XLS_ASSIGN_OR_RETURN(peek, PeekToken());
     }
 
     if (peek->IsKeyword(Keyword::kType)) {
-      if (strictness.has_value()) {
+      if (strictness.has_value() || flow_control.has_value()) {
         return ParseErrorStatus(peek->span(),
                                 "Attribute not supported on type alias");
       }
@@ -3657,7 +3650,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
           ParseTypeAlias(GetPos(), /*is_public=*/false, proc_bindings));
       proc_like_body.stmts.push_back(type_alias);
     } else if (peek->IsKeyword(Keyword::kConst)) {
-      if (strictness.has_value()) {
+      if (strictness.has_value() || flow_control.has_value()) {
         return ParseErrorStatus(peek->span(),
                                 "Attribute not supported on constant def");
       }
@@ -3666,7 +3659,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
           ParseConstantDef(GetPos(), /*is_public=*/false, proc_bindings));
       proc_like_body.stmts.push_back(constant);
     } else if (peek->IsIdentifier("config")) {
-      if (strictness.has_value()) {
+      if (strictness.has_value() || flow_control.has_value()) {
         return ParseErrorStatus(peek->span(),
                                 "Attribute not supported on config function");
       }
@@ -3712,7 +3705,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
       XLS_RETURN_IF_ERROR(module_->AddTop(config, make_collision_error));
       proc_like_body.stmts.push_back(config);
     } else if (peek->IsIdentifier("next")) {
-      if (strictness.has_value()) {
+      if (strictness.has_value() || flow_control.has_value()) {
         return ParseErrorStatus(peek->span(),
                                 "Attribute not supported on next function");
       }
@@ -3733,7 +3726,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
       outer_bindings.Add(next->name_def()->identifier(), next->name_def());
       proc_like_body.stmts.push_back(next);
     } else if (peek->IsIdentifier("init")) {
-      if (strictness.has_value()) {
+      if (strictness.has_value() || flow_control.has_value()) {
         return ParseErrorStatus(peek->span(),
                                 "Attribute not supported on init function");
       }
@@ -3759,9 +3752,9 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
         // Note: to parse a member, we use the memberless bindings (e.g. to
         // capture type aliases and similar) and them collapse the new member
         // binding into the proc-level bindings.
-        XLS_ASSIGN_OR_RETURN(
-            ProcMember * member,
-            ParseProcMember(member_bindings, identifier_tok, strictness));
+        XLS_ASSIGN_OR_RETURN(ProcMember * member,
+                             ParseProcMember(member_bindings, identifier_tok,
+                                             strictness, flow_control));
         XLS_ASSIGN_OR_RETURN(const Token* separator, PeekToken());
         if (!separator->IsKindIn(
                 {TokenKind::kSemi, TokenKind::kComma, TokenKind::kCBrace})) {
@@ -3897,6 +3890,45 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
 
   XLS_RETURN_IF_ERROR(VerifyParentage(proc_like));
   return proc_like;
+}
+
+absl::Status Parser::ValidateChannelAttribute(Attribute* attr,
+                                              bool strictness_has_value,
+                                              bool flow_control_has_value) {
+  if (attr->attribute_kind() != AttributeKind::kChannelStrictness &&
+      attr->attribute_kind() != AttributeKind::kChannelFlowControl) {
+    return ParseErrorStatus(
+        *attr->GetSpan(),
+        "Only `channel_strictness` or `channel_flow_control` attributes "
+        "are supported on proc members");
+  }
+  if (!module_->attributes().contains(ModuleAttribute::kChannelAttributes)) {
+    return ParseErrorStatus(
+        *attr->GetSpan(),
+        "#[channel_strictness(...)] syntax is not enabled for this module; "
+        "enable with `#![feature(channel_attributes)]` at module scope");
+  }
+  if (attr->args().size() != 1 ||
+      !std::holds_alternative<AttributeData::StringLiteralArgument>(
+          attr->args()[0])) {
+    return ParseErrorStatus(
+        *attr->GetSpan(),
+        "#[channel_strictness(...)] and #[channel_flow_control(...)] "
+        "attributes each require a single string literal argument");
+  }
+  if (attr->attribute_kind() == AttributeKind::kChannelStrictness &&
+      strictness_has_value) {
+    return ParseErrorStatus(
+        *attr->GetSpan(),
+        "`channel_strictness` attribute defined multiple times");
+  }
+  if (attr->attribute_kind() == AttributeKind::kChannelFlowControl &&
+      flow_control_has_value) {
+    return ParseErrorStatus(
+        *attr->GetSpan(),
+        "`channel_flow_control` attribute defined multiple times");
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<ModuleMember> Parser::ParseProc(const Pos& start_pos,
@@ -4276,12 +4308,14 @@ absl::StatusOr<Param*> Parser::ParseParam(
 
 absl::StatusOr<ProcMember*> Parser::ParseProcMember(
     Bindings& bindings, const Token& identifier_tok,
-    std::optional<ChannelStrictness> strictness) {
+    std::optional<ChannelStrictness> strictness,
+    std::optional<FlowControl> flow_control) {
   XLS_ASSIGN_OR_RETURN(NameDef * name, TokenToNameDef(identifier_tok));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                                        "Expect type annotation on parameters"));
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
-  auto* member = module_->Make<ProcMember>(name, type, strictness);
+  auto* member =
+      module_->Make<ProcMember>(name, type, strictness, flow_control);
   name->set_definer(member);
   bindings.Add(name->identifier(), name);
   return member;

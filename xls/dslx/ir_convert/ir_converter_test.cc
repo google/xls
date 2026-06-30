@@ -7233,6 +7233,46 @@ proc passthrough {
   EXPECT_FALSE(proc->is_new_style_proc());
 }
 
+TEST_F(IrConverterTest, ChannelFlowControlAttributeProcScoped) {
+  constexpr std::string_view kProgram = R"(
+#![feature(channel_attributes)]
+proc p {
+  #[channel_flow_control("valid_data")]
+  c: chan<u32> in;
+  config(c: chan<u32> in) { (c,) }
+  init { () }
+  next(state: ()) {
+    let (tok, _) = recv(join(), c);
+    ()
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram));
+  EXPECT_THAT(converted, HasSubstr("flow_control=valid_data"));
+}
+
+TEST_F(IrConverterTest, ChannelFlowControlAndStrictnessAttributeProcScoped) {
+  constexpr std::string_view kProgram = R"(
+#![feature(channel_attributes)]
+proc p {
+  #[channel_flow_control("valid_data")]
+  #[channel_strictness("runtime_ordered")]
+  c: chan<u32> in;
+  config(c: chan<u32> in) { (c,) }
+  init { () }
+  next(state: ()) {
+    let (tok, _) = recv(join(), c);
+    ()
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram));
+  EXPECT_THAT(converted, HasSubstr("flow_control=valid_data"));
+  EXPECT_THAT(converted, HasSubstr("strictness=runtime_ordered"));
+}
+
 TEST_F(IrConverterTest, ChannelStrictnessAttributeProcScoped) {
   constexpr std::string_view kProgram = R"(
 #![feature(channel_attributes)]

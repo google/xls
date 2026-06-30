@@ -33,6 +33,7 @@ enum class AttributeKind : uint8_t {
   kTestProc,
   kQuickcheck,
   kChannelStrictness,
+  kChannelFlowControl,
   kFuzzTest,
   kFuzzDomain,
   kTrivialNext,

@@ -171,11 +171,13 @@ std::string TestProc::ToString() const {
 
 ProcMember::ProcMember(Module* owner, NameDef* name_def,
                        TypeAnnotation* type_annotation,
-                       std::optional<ChannelStrictness> strictness)
+                       std::optional<ChannelStrictness> strictness,
+                       std::optional<FlowControl> flow_control)
     : AstNode(owner),
       name_def_(name_def),
       type_annotation_(type_annotation),
       strictness_(strictness),
+      flow_control_(flow_control),
       span_(name_def_->span().start(), type_annotation_->span().limit()) {}
 
 ProcMember::~ProcMember() = default;

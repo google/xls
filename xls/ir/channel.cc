@@ -293,7 +293,7 @@ absl::StatusOr<FlowControl> StringToFlowControl(std::string_view str) {
     return FlowControl::kValidData;
   }
   return absl::InvalidArgumentError(
-      absl::StrFormat("Invalid flow control '%s'", str));
+      absl::StrFormat("Invalid flow control: `%s`", str));
 }
 
 std::ostream& operator<<(std::ostream& os, FlowControl fc) {

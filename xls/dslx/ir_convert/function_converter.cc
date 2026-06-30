@@ -4482,18 +4482,31 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
           *proc_id_, member->name_def(), channel_or_array));
 
-      if (member->strictness().has_value()) {
+      if (member->strictness().has_value() ||
+          member->flow_control().has_value()) {
         // We'd normally inline the visitor, but done this way, we can call the
         // visitor "recursively" to handle the elements of a channel array.
-        struct SetStrictnessVisitor {
-          ChannelStrictness strictness;
+        struct SetChannelAttributesVisitor {
+          std::optional<ChannelStrictness> strictness;
+          std::optional<FlowControl> flow_control;
+
           void operator()(Channel* chan) {
             if (auto* streaming_chan = dynamic_cast<StreamingChannel*>(chan)) {
-              streaming_chan->SetStrictness(strictness);
+              if (strictness.has_value()) {
+                streaming_chan->SetStrictness(*strictness);
+              }
+              if (flow_control.has_value()) {
+                streaming_chan->SetFlowControl(*flow_control);
+              }
             }
           }
           void operator()(ChannelInterface* ci) {
-            ci->SetStrictness(strictness);
+            if (strictness.has_value()) {
+              ci->SetStrictness(*strictness);
+            }
+            if (flow_control.has_value()) {
+              ci->SetFlowControl(*flow_control);
+            }
           }
           void operator()(ChannelArray* ca) {
             for (ChannelRef ref : ca->channels()) {
@@ -4501,7 +4514,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
             }
           }
         };
-        absl::visit(SetStrictnessVisitor{*member->strictness()},
+        absl::visit(SetChannelAttributesVisitor{member->strictness(),
+                                                member->flow_control()},
                     channel_or_array);
       }
     }

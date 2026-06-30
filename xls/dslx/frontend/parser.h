@@ -534,7 +534,8 @@ class Parser : public TokenParser {
   // Parses a member declaration in the body of a `proc` definition.
   absl::StatusOr<ProcMember*> ParseProcMember(
       Bindings& bindings, const Token& identifier_tok,
-      std::optional<ChannelStrictness> strictness = std::nullopt);
+      std::optional<ChannelStrictness> strictness = std::nullopt,
+      std::optional<FlowControl> flow_control = std::nullopt);
 
   // Parses a sequence of parameters, starting with cursor over '(', returns
   // after ')' is consumed.
@@ -743,6 +744,11 @@ class Parser : public TokenParser {
                                              bool is_public,
                                              Bindings& outer_bindings,
                                              Keyword keyword);
+
+  // Validates an attribute defined on a proc channel.
+  absl::Status ValidateChannelAttribute(Attribute* attr,
+                                        bool strictness_has_value,
+                                        bool flow_control_has_value);
 
   // Bumps the internally-tracked expression depth so we can provide a useful
   // error if we over-recurse on expression depth past the point a user would

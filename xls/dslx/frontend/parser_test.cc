@@ -4562,6 +4562,62 @@ proc p {
   EXPECT_EQ(*pm->strictness(), ChannelStrictness::kRuntimeOrdered);
 }
 
+TEST_F(ParserTest, ChannelFlowControlAttribute) {
+  constexpr std::string_view kProgram = R"(
+#![feature(channel_attributes)]
+proc p {
+  #[channel_flow_control("valid_data")]
+  c: chan<u32> in;
+  config(c: chan<u32> in) { (c,) }
+  init { () }
+  next(tok: token) { tok }
+})";
+  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  ASSERT_NE(module, nullptr);
+  ModuleMember* member = module->FindMemberWithName("p").value();
+  Proc* p = std::get<Proc*>(*member);
+  ASSERT_EQ(p->members().size(), 1);
+  ProcMember* pm = p->members()[0];
+  EXPECT_TRUE(pm->flow_control().has_value());
+  EXPECT_EQ(*pm->flow_control(), FlowControl::kValidData);
+}
+
+TEST_F(ParserTest, ChannelStrictnessDefinedTwice) {
+  constexpr std::string_view kProgram = R"(
+#![feature(channel_attributes)]
+proc p {
+  #[channel_strictness("runtime_ordered")]
+  #[channel_strictness("runtime_ordered")]
+  c: chan<u32> in;
+  config() { (c,) }
+  init { () }
+  next(tok: token) { tok }
+})";
+  EXPECT_THAT(
+      Parse(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("`channel_strictness` attribute defined multiple times")));
+}
+
+TEST_F(ParserTest, ChannelFlowControlDefinedTwice) {
+  constexpr std::string_view kProgram = R"(
+#![feature(channel_attributes)]
+proc p {
+  #[channel_flow_control("valid_data")]
+  #[channel_flow_control("ready_valid")]
+  c: chan<u32> in;
+  config() { (c,) }
+  init { () }
+  next(tok: token) { tok }
+})";
+  EXPECT_THAT(
+      Parse(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "`channel_flow_control` attribute defined multiple times")));
+}
+
 TEST_F(ParserTest, ChannelStrictnessAttributeMissingFeature) {
   constexpr std::string_view kProgram = R"(
 proc p {
@@ -4588,6 +4644,20 @@ proc p {
   EXPECT_THAT(Parse(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Invalid strictness: `invalid_value`")));
+}
+
+TEST_F(ParserTest, ChannelFlowControlInvalidValue) {
+  constexpr std::string_view kProgram = R"(#![feature(channel_attributes)]
+proc p {
+  #[channel_flow_control("invalid_value")]
+  c: chan<u32> in;
+  config() { (c,) }
+  init { () }
+  next(tok: token) { tok }
+})";
+  EXPECT_THAT(Parse(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid flow control: `invalid_value`")));
 }
 
 TEST_F(ParserTest, ChannelStrictnessOnTypeAlias) {
