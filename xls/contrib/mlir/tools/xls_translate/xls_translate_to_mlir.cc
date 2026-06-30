@@ -1684,6 +1684,42 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
 }
 
 //===----------------------------------------------------------------------===//
+// Value to Attribute Translation Helper
+//===----------------------------------------------------------------------===//
+
+Attribute translateXlsValueToAttribute(const ::xls::Value& value,
+                                       Type mlir_type, OpBuilder& builder) {
+  if (value.IsBits()) {
+    return builder.getIntegerAttr(mlir_type, bitsToAPInt(value.bits()));
+  }
+  if (value.IsArray()) {
+    auto array_type = dyn_cast<ArrayType>(mlir_type);
+    if (!array_type) {
+      return nullptr;
+    }
+    llvm::SmallVector<Attribute> elements;
+    for (const auto& elem : value.elements()) {
+      elements.push_back(translateXlsValueToAttribute(
+          elem, array_type.getElementType(), builder));
+    }
+    return builder.getArrayAttr(elements);
+  }
+  if (value.IsTuple()) {
+    auto tuple_type = dyn_cast<TupleType>(mlir_type);
+    if (!tuple_type) {
+      return nullptr;
+    }
+    llvm::SmallVector<Attribute> elements;
+    for (auto [i, elem] : llvm::enumerate(value.elements())) {
+      elements.push_back(
+          translateXlsValueToAttribute(elem, tuple_type.getType(i), builder));
+    }
+    return builder.getArrayAttr(elements);
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // Block Translation
 //===----------------------------------------------------------------------===//
 
@@ -1785,20 +1821,8 @@ absl::StatusOr<Operation*> translateBlock(::xls::Block& xls_block,
     auto regType = translateType(reg->type(), builder);
     Attribute resetValueAttr;
     if (reg->reset_value().has_value()) {
-      // Convert XLS Value to MLIR attribute.
-      // In practice, reset values are single-bit (i1) or at most 32-bit
-      // integer constants, so the 64-bit limit here is not a real constraint.
-      const auto& xls_val = *reg->reset_value();
-      if (xls_val.IsBits()) {
-        auto bits = xls_val.bits();
-        if (bits.bit_count() <= 64) {
-          resetValueAttr = builder.getIntegerAttr(
-              regType, APInt(bits.bit_count(), bits.IsZero() ? 0
-                                               : bits.IsAllOnes()
-                                                   ? -1
-                                                   : bits.ToUint64().value()));
-        }
-      }
+      resetValueAttr =
+          translateXlsValueToAttribute(*reg->reset_value(), regType, builder);
     }
     RegisterOp::create(builder, builder.getUnknownLoc(),
                        builder.getStringAttr(reg->name()),

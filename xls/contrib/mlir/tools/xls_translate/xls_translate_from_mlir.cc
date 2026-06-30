@@ -65,6 +65,7 @@
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/contrib/mlir/util/conversion_utils.h"
 #include "xls/ir/bits.h"
@@ -1667,6 +1668,52 @@ LogicalResult setTop(Operation* op, std::string_view name, Package* package) {
   }
   return success();
 }
+
+absl::StatusOr<::xls::Value> translateAttributeToXlsValue(
+    Attribute attr, ::xls::Type* xls_type) {
+  if (auto int_attr = dyn_cast<IntegerAttr>(attr)) {
+    if (!xls_type->IsBits()) {
+      return absl::InvalidArgumentError(
+          "IntegerAttr does not match non-bits type");
+    }
+    return ::xls::Value(bitsFromAPInt(int_attr.getValue()));
+  }
+  if (auto array_attr = dyn_cast<ArrayAttr>(attr)) {
+    if (xls_type->IsArray()) {
+      auto* array_xls_type = xls_type->AsArrayOrDie();
+      std::vector<::xls::Value> elements;
+      elements.reserve(array_attr.size());
+      for (auto elem_attr : array_attr) {
+        XLS_ASSIGN_OR_RETURN(auto elem_val_or,
+                             translateAttributeToXlsValue(
+                                 elem_attr, array_xls_type->element_type()));
+        elements.push_back(elem_val_or);
+      }
+      return ::xls::Value::Array(elements);
+    }
+    if (xls_type->IsTuple()) {
+      auto* tuple_xls_type = xls_type->AsTupleOrDie();
+      if (array_attr.size() != tuple_xls_type->size()) {
+        return absl::InvalidArgumentError(
+            "ArrayAttr size mismatch with TupleType size");
+      }
+      std::vector<::xls::Value> elements;
+      elements.reserve(array_attr.size());
+      for (auto [i, elem_attr] : llvm::enumerate(array_attr)) {
+        XLS_ASSIGN_OR_RETURN(auto elem_val_or,
+                             translateAttributeToXlsValue(
+                                 elem_attr, tuple_xls_type->element_type(i)));
+        elements.push_back(elem_val_or);
+      }
+      return ::xls::Value::Tuple(elements);
+    }
+    return absl::InvalidArgumentError(
+        "ArrayAttr does not match array or tuple type");
+  }
+  return absl::InvalidArgumentError(
+      "Unsupported attribute type for reset value");
+}
+
 }  // namespace
 
 FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
@@ -1862,11 +1909,14 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
             ::xls::Type* reg_type = translation_state.getType(reg_op.getType());
             std::optional<::xls::Value> reset_value;
             if (auto reset_attr = reg_op.getResetValueAttr()) {
-              if (auto int_attr = dyn_cast<IntegerAttr>(reset_attr)) {
-                APInt val = int_attr.getValue();
-                reset_value = ::xls::Value(
-                    ::xls::UBits(val.getZExtValue(), val.getBitWidth()));
+              auto val_or = translateAttributeToXlsValue(reset_attr, reg_type);
+              if (!val_or.ok()) {
+                reg_op.emitOpError(
+                    "failed to translate reset value attribute: ")
+                    << val_or.status().message();
+                return WalkResult::interrupt();
               }
+              reset_value = *val_or;
             }
             auto reg_or = bb.block()->AddRegister(reg_op.getSymName().str(),
                                                   reg_type, reset_value);
