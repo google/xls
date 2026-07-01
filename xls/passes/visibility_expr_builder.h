@@ -100,7 +100,8 @@ class VisibilityBuilder : public ExpressionBuilder {
   absl::StatusOr<Node*> BuildVisibilityIRExpr(
       FunctionBase* func, Node* node,
       const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
-          conditional_edges);
+          conditional_edges,
+      const absl::flat_hash_set<Node*>& sinks);
 
  private:
   absl::StatusOr<Node*> MakeParamIfTmpFunc(Node* node, FunctionBase* func) {
@@ -142,7 +143,7 @@ class VisibilityBuilder : public ExpressionBuilder {
       const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
           conditional_edges,
       absl::flat_hash_map<Node*, Node*>& node_to_visibility_ir_cache,
-      Literal* always_visible);
+      Literal* always_visible, const absl::flat_hash_set<Node*>& sinks);
 
   absl::StatusOr<Node*> GetNonRepeatedSourceOf(Node* operand,
                                                FunctionBase* func);
