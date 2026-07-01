@@ -175,7 +175,7 @@ class StatefulResolver : public TypeAnnotationResolver {
           parametric_context, node, filter);
     }
 
-    TypeSystemTrace trace = tracer_.TraceUnify(node);
+    TypeSystemTrace trace = tracer_.TraceUnify(node, parametric_context);
     VLOG(6) << "ResolveAndUnifyTypeAnnotationsForNode " << node->ToString()
             << " with context " << ToString(parametric_context);
     const std::optional<const NameRef*> type_variable =
@@ -263,9 +263,12 @@ class StatefulResolver : public TypeAnnotationResolver {
       std::optional<const AstNode*> context_node, const NameRef* type_variable,
       const Span& span, TypeAnnotationFilter filter,
       bool require_bits_like) override {
-    TypeSystemTrace trace = tracer_.TraceUnify(type_variable);
+    TypeSystemTrace trace =
+        tracer_.TraceUnify(type_variable, parametric_context);
     VLOG(6) << "Unifying type annotations for variable "
-            << type_variable->ToString();
+            << type_variable->ToString()
+            << " in context: " << ToString(parametric_context);
+
     // If this type variable belongs to a different table, resolve using that
     // module.
     if (type_variable->owner() != &module_) {
@@ -339,14 +342,6 @@ class StatefulResolver : public TypeAnnotationResolver {
       VLOG(6) << "Caching unified type: " << result->ToString()
               << " for variable: " << type_variable->ToString();
 
-      auto desc = CollectUnder(result, true);
-      for (const AstNode* node : *desc) {
-        if (!table_.GetTypeVariable(node).has_value()) {
-          VLOG(5) << "No var for " << node->ToString() << " in "
-                  << result->ToString();
-        }
-      }
-
       table_.SetCachedUnifiedTypeForVariable(parametric_context, type_variable,
                                              variables_traversed, result);
       trace.SetPopulatedCache(true);
@@ -374,7 +369,7 @@ class StatefulResolver : public TypeAnnotationResolver {
       }
     }
 
-    TypeSystemTrace trace = tracer_.TraceUnify(annotations);
+    TypeSystemTrace trace = tracer_.TraceUnify(annotations, parametric_context);
     bool result_is_from_error_handler = false;
     absl::StatusOr<const TypeAnnotation*> result = UnifyTypeAnnotations(
         module_, table_, file_table_, error_generator_, evaluator_,
@@ -472,6 +467,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
     VLOG(4) << "Resolving variables in: " << annotation->ToString()
             << " in context: " << ToString(parametric_context);
+
     constexpr int kMaxIterations = 100;
     // This loop makes it so that we don't need resolution functions to
     // recursively resolve what they come up with.
@@ -497,7 +493,7 @@ class StatefulResolver : public TypeAnnotationResolver {
           &replaced_anything,
           [&](const AstNode* node, Module*,
               const absl::flat_hash_map<const AstNode*, AstNode*>&) {
-            return ReplaceTypeAliasWithTarget(node);
+            return ReplaceTypeAliasWithTarget(node, parametric_context, filter);
           });
       XLS_ASSIGN_OR_RETURN(
           AstNode * clone,
@@ -682,6 +678,12 @@ class StatefulResolver : public TypeAnnotationResolver {
                   parametric_context, *struct_or_proc_ref,
                   CreateFunctionTypeAnnotation(
                       module_, *std::get<Function*>(*impl_member)));
+        }
+        if (std::holds_alternative<TypeAlias*>(*impl_member)) {
+          return parametric_struct_instantiator_
+              .GetParametricFreeStructMemberType(
+                  parametric_context, *struct_or_proc_ref,
+                  &std::get<TypeAlias*>(*impl_member)->type_annotation());
         }
         return absl::UnimplementedError(
             absl::StrCat("Impl member type is not supported: ",
@@ -1092,7 +1094,9 @@ class StatefulResolver : public TypeAnnotationResolver {
   // the type alias usage is in a descendant of the annotation being cloned,
   // that will be discovered and handled.
   absl::StatusOr<std::optional<AstNode*>> ReplaceTypeAliasWithTarget(
-      const AstNode* node) {
+      const AstNode* node,
+      std::optional<const ParametricContext*> parametric_context,
+      TypeAnnotationFilter filter) {
     if (node->kind() != AstNodeKind::kTypeAnnotation) {
       return std::nullopt;
     }
@@ -1130,16 +1134,36 @@ class StatefulResolver : public TypeAnnotationResolver {
       } else {
         const TypeDefinition& type_def =
             type_ref_annotation->type_ref()->type_definition();
-        // If the simplified type of a type alias is known, use it.
+        bool replaced_dynamic_alias = false;
+
         if (std::holds_alternative<TypeAlias*>(type_def)) {
+          const TypeAlias* alias = std::get<TypeAlias*>(type_def);
+          std::optional<const NameRef*> variable =
+              table_.GetTypeVariable(alias);
+          if (variable.has_value()) {
+            XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> type,
+                                 ResolveAndUnifyTypeAnnotationsForNode(
+                                     parametric_context, alias, filter));
+            XLS_RET_CHECK(type.has_value())
+                << "A type annotation should have been set for "
+                << alias->ToString()
+                << " in context: " << ToString(parametric_context);
+            replaced_dynamic_alias = true;
+            latest = const_cast<TypeAnnotation*>(*type);
+          }
+
+          // If the simplified type of a type alias is known, use it.
           if (std::optional<const TypeAnnotation*> cached =
                   simplified_type_annotation_cache_.GetSimplifiedypeAnnotation(
-                      std::nullopt, std::get<TypeAlias*>(type_def))) {
+                      std::nullopt, alias)) {
             return const_cast<TypeAnnotation*>(*cached);
           }
         }
-        latest = table_.GetTypeAnnotation(
-            ToAstNode(TypeDefinitionGetNameDef(type_def)));
+
+        if (!replaced_dynamic_alias) {
+          latest = table_.GetTypeAnnotation(
+              ToAstNode(TypeDefinitionGetNameDef(type_def)));
+        }
       }
 
       // If the TRTA unwrapped in this iteration specified parametrics, add them

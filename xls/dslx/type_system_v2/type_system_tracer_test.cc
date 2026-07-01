@@ -53,7 +53,7 @@ TEST_F(TypeSystemTracerTest, InactiveTracer) {
   auto tracer = TypeSystemTracer::Create(/*active=*/false);
   Number* one =
       module_->Make<Number>(Span::Fake(), "1", NumberKind::kOther, nullptr);
-  tracer->TraceUnify(one);
+  tracer->TraceUnify(one, /*parametric_context=*/std::nullopt);
   EXPECT_EQ(tracer->ConvertTracesToString(), "");
   EXPECT_EQ(tracer->ConvertStatsToString(file_table_), "");
 }
@@ -71,7 +71,8 @@ TEST_F(TypeSystemTracerTest, ConvertTracesToString) {
   {
     TypeSystemTrace convert_node = tracer_->TraceConvertNode(one);
     {
-      TypeSystemTrace unify = tracer_->TraceUnify(one);
+      TypeSystemTrace unify =
+          tracer_->TraceUnify(one, /*parametric_context=*/std::nullopt);
       TypeSystemTrace evaluate = tracer_->TraceEvaluate(std::nullopt, one);
     }
     u32 = CreateU32Annotation(*module_, Span::Fake());

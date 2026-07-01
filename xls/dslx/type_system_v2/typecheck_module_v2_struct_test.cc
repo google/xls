@@ -1291,6 +1291,78 @@ const X = Point::num_dims();
                   "Invocation callee `Point::num_dims` is not a function")));
 }
 
+TEST(TypecheckV2StructTest, ImplWithTypeAlias) {
+  EXPECT_THAT(R"(
+struct Foo {
+    a: u32,
+}
+
+impl Foo {
+    type T = u32;
+    fn my_func(self, b: T) -> T {
+        self.a + b
+    }
+})",
+              TypecheckSucceeds(HasNodeWithType(
+                  "my_func", "(Foo { a: uN[32] }, uN[32]) -> uN[32]")));
+}
+
+TEST(TypecheckV2StructTest, ImplWithParametricTypeAliasInFunction) {
+  EXPECT_THAT(
+      R"(
+struct Foo<N: u32> {}
+
+impl Foo<N> {
+    type T = uN[N];
+    fn my_func(a: T) -> T {
+        a
+    }
+}
+
+const C = Foo<4>::my_func(1);
+const D = Foo<5>::my_func(2);
+const_assert!(C == 1);
+const_assert!(D == 2);
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("C", "uN[4]"), HasNodeWithType("D", "uN[5]"))));
+}
+
+TEST(TypecheckV2StructTest, ImplWithParametricTypeAliasInConstant) {
+  EXPECT_THAT(
+      R"(
+struct Foo<N: u32> {}
+
+impl Foo<N> {
+    type T = uN[N];
+    const A = T:2;
+}
+
+const C = Foo<4>::A;
+const D = Foo<5>::A;
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("C", "uN[4]"), HasNodeWithType("D", "uN[5]"))));
+}
+
+TEST(TypecheckV2StructTest, ImplWithParametricTypeAliasUsingConstant) {
+  EXPECT_THAT(
+      R"(
+struct Foo<N: u32> {}
+
+impl Foo<N> {
+    const A = N + 1;
+    type T = uN[A];
+    const B = T:2;
+}
+
+const C = Foo<4>::B;
+const D = Foo<5>::B;
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("C", "uN[5]"), HasNodeWithType("D", "uN[6]"))));
+}
+
 TEST(TypecheckV2StructTest, StaticImplFunction) {
   EXPECT_THAT(R"(
 struct Point {}

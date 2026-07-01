@@ -1918,6 +1918,10 @@ std::vector<Function*> Impl::GetFunctions() const {
   return GetMembersOfType<Function*>();
 }
 
+std::vector<TypeAlias*> Impl::GetTypeAliases() const {
+  return GetMembersOfType<TypeAlias*>();
+}
+
 static std::string ImplMemberIdentifier(const ImplMember member) {
   return absl::visit(
       Visitor{

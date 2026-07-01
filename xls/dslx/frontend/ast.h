@@ -3497,8 +3497,14 @@ class Impl : public AstNode {
 
   // An AST node that refers to the struct being implemented.
   TypeAnnotation* struct_ref() const { return struct_ref_; }
-
   void set_struct_ref(TypeAnnotation* struct_ref) { struct_ref_ = struct_ref; }
+
+  bool IsParametric() const {
+    return struct_ref_->IsAnnotation<TypeRefTypeAnnotation>() &&
+           !struct_ref_->AsAnnotation<TypeRefTypeAnnotation>()
+                ->parametrics()
+                .empty();
+  }
 
   std::string ToString() const override;
 
@@ -3514,6 +3520,7 @@ class Impl : public AstNode {
 
   std::vector<ConstantDef*> GetConstants() const;
   std::vector<Function*> GetFunctions() const;
+  std::vector<TypeAlias*> GetTypeAliases() const;
 
   // Returns the member with the given name, if present.
   std::optional<ImplMember> GetMember(std::string_view name) const;

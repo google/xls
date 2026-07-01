@@ -208,23 +208,31 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
     stack_.push(&*traces_.begin());
   }
 
-  TypeSystemTrace TraceUnify(const AstNode* node) override {
+  TypeSystemTrace TraceUnify(
+      const AstNode* node,
+      std::optional<const ParametricContext*> parametric_context) override {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kUnify,
                                      .address = node,
-                                     .node = node});
-  }
-
-  TypeSystemTrace TraceUnify(const NameRef* type_variable) override {
-    return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
-                                     .kind = TraceKind::kUnify,
-                                     .inference_variable = type_variable});
+                                     .node = node,
+                                     .parametric_context = parametric_context});
   }
 
   TypeSystemTrace TraceUnify(
-      const std::vector<const TypeAnnotation*>& annotations) override {
+      const NameRef* type_variable,
+      std::optional<const ParametricContext*> parametric_context) override {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kUnify,
+                                     .inference_variable = type_variable,
+                                     .parametric_context = parametric_context});
+  }
+
+  TypeSystemTrace TraceUnify(
+      const std::vector<const TypeAnnotation*>& annotations,
+      std::optional<const ParametricContext*> parametric_context) override {
+    return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
+                                     .kind = TraceKind::kUnify,
+                                     .parametric_context = parametric_context,
                                      .annotations = annotations});
   }
 
@@ -447,14 +455,21 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
 // not requested.
 class NoopTracer final : public TypeSystemTracer {
  public:
-  TypeSystemTrace TraceUnify(const AstNode* node) final { return Noop(); }
-
-  TypeSystemTrace TraceUnify(const NameRef* type_variable) final {
+  TypeSystemTrace TraceUnify(
+      const AstNode* node,
+      std::optional<const ParametricContext*> parametric_context) final {
     return Noop();
   }
 
   TypeSystemTrace TraceUnify(
-      const std::vector<const TypeAnnotation*>& annotations) final {
+      const NameRef* type_variable,
+      std::optional<const ParametricContext*> parametric_context) final {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceUnify(
+      const std::vector<const TypeAnnotation*>& annotations,
+      std::optional<const ParametricContext*> parametric_context) final {
     return Noop();
   }
 

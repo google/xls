@@ -752,6 +752,30 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     const bool canonicalized = table_.MapToCanonicalInvocationTypeInfo(
         invocation_context, std::move(env));
 
+    // Set a parametric-free RHS for each impl type alias in the invocation
+    // context.
+    if (function->impl().has_value() && (*function->impl())->IsParametric()) {
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<StructOrProcRef> struct_or_proc_ref,
+          GetStructOrProcRef((*function->impl())->struct_ref(), import_data_));
+      XLS_RET_CHECK(struct_or_proc_ref.has_value());
+      for (const TypeAlias* alias : (*function->impl())->GetTypeAliases()) {
+        const NameRef* variable = *table_.GetTypeVariable(alias);
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* actual_alias_type,
+            GetParametricFreeStructMemberType(caller_or_target_struct_context,
+                                              *struct_or_proc_ref,
+                                              &alias->type_annotation()));
+        VLOG(5) << "Alias `" << alias->ToString()
+                << "` has parametric-free type `"
+                << actual_alias_type->ToString()
+                << "` for context: " << ToString(invocation_context);
+        XLS_RETURN_IF_ERROR(
+            table_.AddTypeAnnotationToVariableForParametricContext(
+                invocation_context, variable, actual_alias_type));
+      }
+    }
+
     // For an instance method call like `some_object.parametric_fn(args)`, type
     // checking will annotate the callee node, `some_object.parametric_fn` as
     // `MemberType(TVTA(some_object_var), "parametric_fn")`. This means the
@@ -1460,11 +1484,30 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     table_.SetParametricValueExprs(struct_context, std::move(value_exprs));
     if (ref.def->impl().has_value()) {
-      for (const ConstantDef* constant : (*ref.def->impl())->GetConstants()) {
-        VLOG(6) << "Generate parametric impl constant: " << constant->ToString()
-                << " in context: " << ToString(struct_context);
-        XLS_RETURN_IF_ERROR(
-            ConvertSubtree(constant, std::nullopt, struct_context));
+      const Impl* impl = *ref.def->impl();
+      for (ImplMember member : impl->members()) {
+        if (std::holds_alternative<ConstantDef*>(member)) {
+          const auto* constant = std::get<ConstantDef*>(member);
+          VLOG(6) << "Generate parametric impl constant: "
+                  << constant->ToString()
+                  << " in context: " << ToString(struct_context);
+          XLS_RETURN_IF_ERROR(
+              ConvertSubtree(constant, std::nullopt, struct_context));
+        } else if (std::holds_alternative<TypeAlias*>(member)) {
+          const auto* alias = std::get<TypeAlias*>(member);
+          const NameRef* variable = *table_.GetTypeVariable(alias);
+          XLS_ASSIGN_OR_RETURN(
+              const TypeAnnotation* parametric_free_type,
+              GetParametricFreeStructMemberType(struct_context, ref,
+                                                &alias->type_annotation()));
+          VLOG(6) << "Impl type alias `" << alias->ToString() << " with var "
+                  << variable->ToString() << "` has parametric free type `"
+                  << parametric_free_type->ToString()
+                  << " in context: " << ToString(struct_context);
+          XLS_RETURN_IF_ERROR(
+              table_.AddTypeAnnotationToVariableForParametricContext(
+                  struct_context, variable, parametric_free_type));
+        }
       }
     }
     return struct_context;
@@ -2702,16 +2745,37 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (struct_or_proc_def->impl().has_value()) {
       for (const ConstantDef* constant :
            (*struct_or_proc_def->impl())->GetConstants()) {
-        XLS_ASSIGN_OR_RETURN(
-            InterpValue value,
-            (*struct_context)->type_info()->GetConstExpr(constant->name_def()));
-        std::optional<Number*> literal =
-            ConvertToNumberIfBitsLike(module_, constant->span(), value);
-        if (literal.has_value()) {
-          parametrics_and_constants.emplace(constant->name_def(), *literal);
+        std::optional<InterpValue> value =
+            (*struct_context)
+                ->type_info()
+                ->GetConstExprOption(constant->name_def());
+        // Note: there is a value in all cases except potentially if we are
+        // doing this part way through the creation of the parametric struct
+        // context. In that case the logic creating the context would be earlier
+        // in the member list than this constant, and not need its value yet.
+        if (value.has_value()) {
+          std::optional<Number*> literal =
+              ConvertToNumberIfBitsLike(module_, constant->span(), *value);
+          if (literal.has_value()) {
+            parametrics_and_constants.emplace(constant->name_def(), *literal);
+          }
         }
       }
+
+      for (const TypeAlias* alias :
+           (*struct_or_proc_def->impl())->GetTypeAliases()) {
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* parametric_free_type,
+            GetParametricFreeType(
+                &alias->type_annotation(), parametrics_and_constants,
+                struct_context.has_value() ? (*struct_context)->self_type()
+                                           : std::nullopt));
+        parametrics_and_constants.emplace(
+            &alias->name_def(),
+            const_cast<TypeAnnotation*>(parametric_free_type));
+      }
     }
+
     return parametrics_and_constants;
   }
 
@@ -2805,6 +2869,24 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               return ToAstNode(it->second);
             }
           }
+
+          // Uses of type aliases declared in impls also can't rely on the
+          // `NameRefMapper` due to the lack of `NameRef` use, and they are
+          // TRTAs rather than TVTAs, so the above check doesn't cover them.
+          if (annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+            TypeDefinition definition =
+                annotation->AsAnnotation<TypeRefTypeAnnotation>()
+                    ->type_ref()
+                    ->type_definition();
+            if (std::holds_alternative<TypeAlias*>(definition)) {
+              const auto it = actual_values.find(
+                  &std::get<TypeAlias*>(definition)->name_def());
+              if (it != actual_values.end()) {
+                return ToAstNode(it->second);
+              }
+            }
+          }
+
           return std::nullopt;
         });
 

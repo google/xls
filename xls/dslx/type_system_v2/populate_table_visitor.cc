@@ -1945,10 +1945,26 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleTypeAlias(const TypeAlias* node) override {
     VLOG(5) << "HandleTypeAlias: " << node->ToString();
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeAnnotation(node, &node->type_annotation()));
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeAnnotation(&node->name_def(), &node->type_annotation()));
+
+    if (node->parent() == nullptr ||
+        node->parent()->kind() != AstNodeKind::kImpl ||
+        !absl::down_cast<Impl*>(node->parent())->IsParametric()) {
+      // For a "static" type alias, we don't need a type variable and can just
+      // set the RHS annotation in the table.
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(node, &node->type_annotation()));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(&node->name_def(),
+                                                   &node->type_annotation()));
+    } else {
+      // A type alias in a parametric impl may be "dynamic", with the RHS
+      // depending on parametrics, so there needs to be a type variable that the
+      // converter dynamically populates per parametric context.
+      XLS_ASSIGN_OR_RETURN(const NameRef* variable,
+                           DefineTypeVariable(node, "parametric_type_alias"));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(&node->name_def(), variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
+    }
+
     return DefaultHandler(node);
   }
 
@@ -2034,7 +2050,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
     table_.SetColonRefTarget(node, ToAstNode(*member));
     if (std::holds_alternative<ConstantDef*>(*member) ||
-        std::holds_alternative<Function*>(*member)) {
+        std::holds_alternative<Function*>(*member) ||
+        std::holds_alternative<TypeAlias*>(*member)) {
       return ToAstNode(*member);
     }
     return std::nullopt;

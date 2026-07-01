@@ -92,10 +92,15 @@ class TypeSystemTracer {
 
   virtual ~TypeSystemTracer() = default;
 
-  virtual TypeSystemTrace TraceUnify(const AstNode* node) = 0;
-  virtual TypeSystemTrace TraceUnify(const NameRef* type_variable) = 0;
   virtual TypeSystemTrace TraceUnify(
-      const std::vector<const TypeAnnotation*>& annotations) = 0;
+      const AstNode* node,
+      std::optional<const ParametricContext*> parametric_context) = 0;
+  virtual TypeSystemTrace TraceUnify(
+      const NameRef* type_variable,
+      std::optional<const ParametricContext*> parametric_context) = 0;
+  virtual TypeSystemTrace TraceUnify(
+      const std::vector<const TypeAnnotation*>& annotations,
+      std::optional<const ParametricContext*> parametric_context) = 0;
   virtual TypeSystemTrace TraceFilter(
       TypeAnnotationFilter filter,
       const std::vector<const TypeAnnotation*>& annotations) = 0;
