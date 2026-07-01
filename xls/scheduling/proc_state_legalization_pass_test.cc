@@ -27,6 +27,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -550,6 +551,112 @@ TEST_P(ProcStateLegalizationPassTest,
                              m::Not(m::Not(m::Eq(
                                  m::UMod(m::StateRead("x"), m::Literal(3)),
                                  m::Literal(0))))))));
+}
+
+TEST_P(ProcStateLegalizationPassTest,
+       DecoupledUnconditionalReadAndNextNoDefaultNextValue) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
+                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue x_read = pb.StateRead(x_element);
+  BValue x_add = pb.Add(x_read, pb.Literal(UBits(1, 32)));
+  pb.Next(x_element, x_add);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
+  EXPECT_EQ(proc->next_values().size(), 1);
+  EXPECT_THAT(
+      proc->next_values(x_element),
+      UnorderedElementsAre(m::NextWithStateElement(x_element, x_add.node())));
+}
+
+TEST_P(ProcStateLegalizationPassTest, DecoupledNoExplicitNextValueDefault) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
+                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue x_read = pb.StateRead(x_element);
+  BValue x_add = pb.Add(x_read, pb.Literal(UBits(1, 32)));
+  pb.Next(x_element, x_add);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * y_element,
+                           pb.UnreadStateElement("y", Value(UBits(10, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue y_read = pb.StateRead(y_element);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_EQ(proc->next_values().size(), 2);
+  EXPECT_THAT(
+      proc->next_values(x_element),
+      UnorderedElementsAre(m::NextWithStateElement(x_element, x_add.node())));
+  EXPECT_THAT(
+      proc->next_values(y_element),
+      UnorderedElementsAre(m::NextWithStateElement(y_element, y_read.node())));
+}
+
+TEST_P(ProcStateLegalizationPassTest, DecoupledPredicatedNextValue) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue cond = pb.StateElement("cond", Value(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
+                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue x_read = pb.StateRead(x_element, cond);
+  BValue incremented = pb.Add(x_read, pb.Literal(UBits(1, 32)));
+  BValue write_pred = pb.Eq(x_read, pb.Literal(UBits(0, 32)));
+  pb.Next(x_element, incremented, write_pred);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+  StateRead* read_node = proc->GetStateReadByStateElement(x_element);
+  EXPECT_EQ(*read_node->predicate(), cond.node());
+  EXPECT_THAT(proc->next_values(x_element),
+              UnorderedElementsAre(
+                  m::NextWithStateElement(x_element, incremented.node(),
+                                          write_pred.node()),
+                  m::NextWithStateElement(
+                      x_element, read_node,
+                      m::And(cond.node(), m::Not(write_pred.node())))));
+}
+
+TEST_P(ProcStateLegalizationPassTest, DecoupledMultiplePredicatedNextValues) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue cond = pb.StateElement("cond", Value(UBits(1, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
+                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue x_read = pb.StateRead(x_element, cond);
+  BValue incremented_1 = pb.Add(x_read, pb.Literal(UBits(1, 32)));
+  BValue write_pred_1 = pb.Eq(x_read, pb.Literal(UBits(0, 32)));
+  pb.Next(x_element, incremented_1, write_pred_1);
+
+  BValue incremented_2 = pb.Add(x_read, pb.Literal(UBits(2, 32)));
+  BValue write_pred_2 = pb.Eq(x_read, pb.Literal(UBits(1, 32)));
+  pb.Next(x_element, incremented_2, write_pred_2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+  StateRead* read_node = proc->GetStateReadByStateElement(x_element);
+  EXPECT_EQ(*read_node->predicate(), cond.node());
+  EXPECT_THAT(proc->next_values(x_element),
+              UnorderedElementsAre(
+                  m::NextWithStateElement(x_element, incremented_1.node(),
+                                          write_pred_1.node()),
+                  m::NextWithStateElement(x_element, incremented_2.node(),
+                                          write_pred_2.node()),
+                  m::NextWithStateElement(
+                      x_element, read_node,
+                      m::And(cond.node(), m::Nor(write_pred_1.node(),
+                                                 write_pred_2.node())))));
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_EQ(asserts.size(), 1);
 }
 
 INSTANTIATE_TEST_SUITE_P(ProcStateLegalizationPassTestSuite,
