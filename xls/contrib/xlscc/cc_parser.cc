@@ -1072,6 +1072,46 @@ static clang::ParsedAttrInfoRegistry::Add<XlsSharedFunctionAttrInfo>
                         "Marks a function as using one shared instance/invoke "
                         "across all calls.");
 
+struct XlsPropagateBarrierScopesAttrInfo : public clang::ParsedAttrInfo {
+  XlsPropagateBarrierScopesAttrInfo() {
+    // GNU-style __attribute__(("hls_top")) and C++/C23-style [[hls_top]] and
+    // [[xlscc::hls_top]] supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_propagate_barrier_scopes"},
+        {clang::ParsedAttr::AS_C23, "hls_propagate_barrier_scopes"},
+        {clang::ParsedAttr::AS_CXX11, "hls_propagate_barrier_scopes"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_propagate_barrier_scopes"}};
+    Spellings = S;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    // This attribute appertains to functions only.
+    if (!isa<clang::FunctionDecl>(D)) {
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "functions";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    // Attach an annotate attribute to the Decl.
+    D->addAttr(clang::AnnotateAttr::Create(S.Context,
+                                           "hls_propagate_barrier_scopes",
+                                           nullptr, 0, Attr.getRange()));
+    return AttributeApplied;
+  }
+};
+
+static clang::ParsedAttrInfoRegistry::Add<XlsPropagateBarrierScopesAttrInfo>
+    hls_propagate_barrier_scopes(
+        "hls_propagate_barrier_scopes",
+        "Marks a function as propagating the scopes of any barriers in its "
+        "outer scope to the caller.");
+
 class LibToolASTConsumer : public clang::ASTConsumer {
  public:
   explicit LibToolASTConsumer(clang::CompilerInstance& CI, CCParser& parser)

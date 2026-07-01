@@ -30,6 +30,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "clang/include/clang/AST/Decl.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
@@ -37,6 +38,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/contrib/xlscc/translator_types.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -11029,6 +11031,21 @@ TEST_F(TranslatorProcTest_NewFSM_Mutex,
               /* top_level_init_interval = */ 1,
               /*top_class_name=*/"", direct_in_channels_by_name);
 
+  // Check barrier scope
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
+                             translator_->GetTopFunction());
+
+    const xlscc::GeneratedFunction* top_func =
+        translator_->GetGeneratedFunction(top_decl);
+
+    const GeneratedFunctionSlice& last_slice = top_func->slices.back();
+    ASSERT_NE(last_slice.after_op, nullptr);
+    EXPECT_EQ(last_slice.after_op->op, OpType::kActivationBarrier);
+    EXPECT_EQ(last_slice.after_op->activation_barrier_type,
+              ActivationBarrierType::kConditionalEnd);
+  }
+
   XLS_ASSERT_OK(RunMutualExclusion());
 
   // Actually check # of receives
@@ -11058,6 +11075,126 @@ TEST_F(TranslatorProcTest_NewFSM_Mutex,
                            xls::Value(xls::SBits(1 + 5, 32))};
     ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
              /*min_ticks=*/5, /*max_ticks=*/5);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex,
+       MergeMutuallyExclusiveOpsWithDependencyUsingSubroutine) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+        [[hls_propagate_barrier_scopes]]
+         void subroutine() {
+           __xlscc_activation_barrier</*conditional=*/true>();
+         }
+
+         #pragma hls_top
+         void Run() {
+           const int a = data_in.read();
+           if (a == 1) {
+             subroutine();
+             const int b = data_in.read();
+             data_out.write(a + b);
+           }
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  // Check barrier scope
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
+                             translator_->GetTopFunction());
+
+    const xlscc::GeneratedFunction* top_func =
+        translator_->GetGeneratedFunction(top_decl);
+
+    const GeneratedFunctionSlice& last_slice = top_func->slices.back();
+    ASSERT_NE(last_slice.after_op, nullptr);
+    EXPECT_EQ(last_slice.after_op->op, OpType::kActivationBarrier);
+    EXPECT_EQ(last_slice.after_op->activation_barrier_type,
+              ActivationBarrierType::kConditionalEnd);
+  }
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in"] = {
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(3, 32)),
+        // Iteration
+        xls::Value(xls::SBits(4, 32)),
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(5, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(1 + 3, 32)),
+                           xls::Value(xls::SBits(1 + 5, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/5, /*max_ticks=*/5);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex,
+       MergeMutuallyExclusiveOpsWithDependencySubroutineNoProp) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         void subroutine() {
+           __xlscc_activation_barrier</*conditional=*/true>();
+         }
+
+         #pragma hls_top
+         void Run() {
+           const int a = data_in.read();
+           if (a == 1) {
+             subroutine();
+             const int b = data_in.read();
+             data_out.write(a + b);
+           }
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  // Check barrier scope
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
+                             translator_->GetTopFunction());
+
+    const xlscc::GeneratedFunction* top_func =
+        translator_->GetGeneratedFunction(top_decl);
+
+    const GeneratedFunctionSlice& last_slice = top_func->slices.back();
+    ASSERT_NE(last_slice.after_op, nullptr);
+    EXPECT_NE(last_slice.after_op->op, OpType::kActivationBarrier);
   }
 }
 
@@ -11324,6 +11461,77 @@ TEST_F(TranslatorProcTest_NewFSM_Mutex,
              if (b == 1) {
                __xlscc_activation_barrier</*conditional=*/true>();
                const int c = data_in.read();
+               __xlscc_trace("C");
+               data_out.write(a + b + c);
+             }
+           }
+         }
+        };)";
+
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, /*block_spec=*/std::nullopt,
+              /* top_level_init_interval = */ 1,
+              /*top_class_name=*/"", direct_in_channels_by_name);
+
+  XLS_ASSERT_OK(RunMutualExclusion());
+
+  // Actually check # of receives
+  int64_t receive_count = 0;
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (const xls::Node* node : proc->nodes()) {
+      if (node->op() == xls::Op::kReceive &&
+          node->As<xls::Receive>()->channel_name() == "data_in") {
+        ++receive_count;
+      }
+    }
+  }
+  EXPECT_EQ(receive_count, 1);
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["data_in"] = {
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(3, 32)),
+        // Iteration
+        xls::Value(xls::SBits(4, 32)),
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(4, 32)),
+        // Iteration
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(5, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["data_out"] = {xls::Value(xls::SBits(3 + 1 + 1, 32)),
+                           xls::Value(xls::SBits(5 + 1 + 1, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks=*/9, /*max_ticks=*/9);
+  }
+}
+
+TEST_F(TranslatorProcTest_NewFSM_Mutex,
+       MergeMutuallyExclusiveOpsWithNestedDependencyUsingSubroutine) {
+  const std::string content = R"(
+
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& data_in;
+         __xls_channel<int, __xls_channel_dir_Out>& data_out;
+
+         int read_with_barrier() {
+           __xlscc_activation_barrier</*conditional=*/true>();
+           return data_in.read();
+         }
+
+         #pragma hls_top
+         void Run() {
+           const int a = data_in.read();
+           __xlscc_trace("A");
+           if (a == 1) {
+             const int b = read_with_barrier();
+             __xlscc_trace("B");
+             if (b == 1) {
+               const int c = read_with_barrier();
                __xlscc_trace("C");
                data_out.write(a + b + c);
              }

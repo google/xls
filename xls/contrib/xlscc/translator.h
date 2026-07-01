@@ -273,7 +273,8 @@ struct TranslationContext {
   absl::flat_hash_map<const clang::NamedDecl*, int64_t> variables_accessed;
   absl::flat_hash_set<const clang::NamedDecl*> variables_masked_by_assignment;
 
-  // Does not propagate
+  // Does not propagate down
+  bool propagate_barrier_scopes = false;
   absl::InlinedVector<IOOp*, 1> conditional_barrier_start_ops;
 };
 

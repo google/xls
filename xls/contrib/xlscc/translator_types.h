@@ -1298,6 +1298,11 @@ struct GeneratedFunction {
   // Note that these may be across multiple function slices.
   std::vector<xls::Param*> masked_op_params_to_remove;
 
+  // Pointers into io_ops for scoped barrier ops to propagate into the caller(s)
+  // of this function. This implements the hls_propagate_barrier_scopes
+  // attribute.
+  absl::InlinedVector<IOOp*, 1> propagate_barrier_start_ops;
+
   template <typename ValueType>
   std::vector<const clang::NamedDecl*> DeterministicKeyNames(
       const absl::flat_hash_map<const clang::NamedDecl*, ValueType>& map)

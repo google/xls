@@ -186,6 +186,7 @@ TranslationContext& Translator::PushContext() {
   context().propagate_continue_up = true;
   // Declaration propagation does not get propagated down
   context().propagate_declarations = false;
+  context().propagate_barrier_scopes = false;
   context().conditional_barrier_start_ops.clear();
 
   return context();
@@ -196,15 +197,20 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
   const bool propagate_break_up = context().propagate_break_up;
   const bool propagate_continue_up = context().propagate_continue_up;
 
-  for (auto op_it = context().conditional_barrier_start_ops.rbegin();
-       op_it != context().conditional_barrier_start_ops.rend(); ++op_it) {
-    IOOp* start_op = *op_it;
-    XLSCC_CHECK(start_op != nullptr, loc);
-    XLSCC_CHECK_EQ(start_op->activation_barrier_type,
-                   ActivationBarrierType::kConditionalBegin, loc);
-    XLS_RETURN_IF_ERROR(InsertActivationBarrier(
-        /*type=*/ActivationBarrierType::kConditionalEnd,
-        start_op->full_op_location, start_op));
+  if (context().propagate_barrier_scopes) {
+    context().sf->propagate_barrier_start_ops =
+        context().conditional_barrier_start_ops;
+  } else {
+    for (auto op_it = context().conditional_barrier_start_ops.rbegin();
+         op_it != context().conditional_barrier_start_ops.rend(); ++op_it) {
+      IOOp* start_op = *op_it;
+      XLSCC_CHECK(start_op != nullptr, loc);
+      XLSCC_CHECK_EQ(start_op->activation_barrier_type,
+                     ActivationBarrierType::kConditionalBegin, loc);
+      XLS_RETURN_IF_ERROR(InsertActivationBarrier(
+          /*type=*/ActivationBarrierType::kConditionalEnd,
+          start_op->full_op_location, start_op));
+    }
   }
 
   // Copy updated variables
@@ -1503,11 +1509,14 @@ absl::Status Translator::GenerateIR_Function_Body(
 
   PushContextGuard context_guard(*this, *header.translation_context, body_loc);
   context().propagate_up = false;
+  context().propagate_barrier_scopes = false;
 
   // Extra context layer to generate selects
   {
     PushContextGuard top_select_guard(*this, GetLoc(*funcdecl));
     context().propagate_up = true;
+    context().propagate_barrier_scopes =
+        DeclHasAnnotation(*funcdecl, "hls_propagate_barrier_scopes");
 
     if (body != nullptr) {
       bool shared_function =
@@ -4495,6 +4504,16 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     last_slice_ret = slice_ret;
   }
 
+  if (DeclHasAnnotation(*funcdecl, "hls_propagate_barrier_scopes")) {
+    context().conditional_barrier_start_ops.reserve(
+        context().conditional_barrier_start_ops.size() +
+        func->propagate_barrier_start_ops.size());
+    for (const IOOp* callee_op : func->propagate_barrier_start_ops) {
+      IOOp* caller_op = caller_ops_by_callee_op.at(callee_op);
+      context().conditional_barrier_start_ops.push_back(caller_op);
+    }
+  }
+
   // Add continuation inputs
   // This is safe to do because optimization happens after the last slice
   // phi_inputs_to_insert
@@ -7147,13 +7166,15 @@ absl::StatusOr<xls::solvers::z3::IrTranslator*> Translator::GetZ3Translator(
 
 bool Translator::DeclHasAnnotation(const clang::NamedDecl& decl,
                                    std::string_view name) {
-  return HasAnnotation(GetClangAnnotations(decl), name);
+  const std::vector<const clang::AnnotateAttr*>& attrs =
+      GetClangAnnotations(decl);
+  return HasAnnotation(attrs, name);
 }
 
 bool Translator::HasAnnotation(
     clang::ArrayRef<const clang::AnnotateAttr*> attrs, std::string_view name) {
   for (const clang::AnnotateAttr* annotate : attrs) {
-    if (std::string_view(annotate->getAnnotation()) == name) {
+    if (annotate->getAnnotation().str() == name) {
       return true;
     }
   }

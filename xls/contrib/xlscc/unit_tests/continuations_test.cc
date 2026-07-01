@@ -2731,7 +2731,6 @@ TEST_F(ContinuationsTest, AvoidDuplicateValuesFromPhis) {
   ++slice_it;
   const xlscc::GeneratedFunctionSlice& second_last_slice = *slice_it;
   EXPECT_EQ(SliceInputsDeclCount(second_last_slice, "x"), 3);
-  ;
 }
 
 }  // namespace
