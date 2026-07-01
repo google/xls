@@ -35,10 +35,14 @@ class DslxPackageCache;
 #define GEN_PASS_REGISTRATION
 #include "xls/contrib/mlir/transforms/passes.h.inc"  // IWYU pragma: export
 
-// Optimizes the given MLIR module using XLS.
+// Optimizes the given MLIR module using XLS. When tops is empty (default),
+// the module name is used as the single top and the entire module body is
+// replaced. When tops is non-empty, only the specified functions are optimized
+// and spliced back into the module.
 LogicalResult optimizeUsingXls(
     ModuleOp module, DslxPackageCache& dslx_cache,
-    std::optional<std::string> xls_pipeline = std::nullopt);
+    std::optional<std::string> xls_pipeline = std::nullopt,
+    ArrayRef<StringRef> tops = {});
 
 }  // namespace mlir::xls
 

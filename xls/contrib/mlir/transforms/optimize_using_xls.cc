@@ -15,10 +15,16 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "absl/status/status.h"
+#include "llvm/include/llvm/ADT/STLExtras.h"
+#include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/DebugLog.h"
+#include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
+#include "mlir/include/mlir/IR/BuiltinTypes.h"
 #include "mlir/include/mlir/IR/Diagnostics.h"
 #include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/OwningOpRef.h"
@@ -29,6 +35,7 @@
 #include "xls/contrib/mlir/tools/xls_translate/xls_translate_from_mlir.h"
 #include "xls/contrib/mlir/tools/xls_translate/xls_translate_to_mlir.h"
 #include "xls/contrib/mlir/transforms/passes.h"  // IWYU pragma: keep
+#include "xls/ir/clone_package.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/tools/opt.h"
 
@@ -55,6 +62,32 @@ struct OptimizeUsingXlsPass
 };
 }  // namespace
 
+// Checks if the optimized function type is compatible with the original one.
+// Types are compatible if they are identical, or if the original function
+// returns multiple values and the optimized function packs them into a single
+// tuple (since XLS only supports single return values).
+static bool isTypeCompatible(FunctionType originalType,
+                             FunctionType optimizedType) {
+  if (originalType == optimizedType) {
+    return true;
+  }
+  if (originalType.getInputs() != optimizedType.getInputs()) {
+    return false;
+  }
+  // XLS only supports single return values, so when the original function
+  // returns multiple values, the optimized function packs them into a single
+  // tuple. Inputs are never repackaged this way, so only return types require
+  // this unpacking check.
+  if (originalType.getResults().size() > 1 &&
+      optimizedType.getResults().size() == 1) {
+    if (auto tupleType =
+            llvm::dyn_cast<TupleType>(optimizedType.getResult(0))) {
+      return originalType.getResults() == tupleType.getTypes();
+    }
+  }
+  return false;
+}
+
 void OptimizeUsingXlsPass::runOnOperation() {
   ModuleOp module = getOperation();
 
@@ -64,16 +97,15 @@ void OptimizeUsingXlsPass::runOnOperation() {
 }
 
 LogicalResult optimizeUsingXls(ModuleOp module, DslxPackageCache& dslx_cache,
-                               std::optional<std::string> xls_pipeline) {
+                               std::optional<std::string> xls_pipeline,
+                               ArrayRef<StringRef> tops) {
   FailureOr<std::unique_ptr<::xls::Package>> package =
-      mlirXlsToXls(module,
-                   /*dslx_search_path=*/"", dslx_cache);
+      mlirXlsToXls(module, /*dslx_search_path=*/"", dslx_cache);
   if (failed(package)) {
     return failure();
   }
 
   ::xls::tools::OptOptions opt_options;
-  opt_options.top = module.getName().value_or("_package");
   if (xls_pipeline.has_value()) {
     ::xls::PassPipelineProto pass_pipeline;
     if (!google::protobuf::TextFormat::ParseFromString(*xls_pipeline, &pass_pipeline)) {
@@ -83,25 +115,105 @@ LogicalResult optimizeUsingXls(ModuleOp module, DslxPackageCache& dslx_cache,
     opt_options.pass_pipeline = pass_pipeline;
   }
 
-  if (!xls_pipeline.has_value() || !xls_pipeline->empty()) {
-    LDBG() << "Optimizing IR for top: '" << opt_options.top << "using \n\t"
-           << xls_pipeline.value_or("default pipeline");
+  auto optimizeForTop =
+      [&](::xls::Package* pkg,
+          StringRef top) -> FailureOr<OwningOpRef<Operation*>> {
+    opt_options.top = top.str();
 
-    absl::Status status =
-        ::xls::tools::OptimizeIrForTop(package->get(), opt_options);
-    if (!status.ok()) {
-      return module.emitError("failed to optimize IR: ") << status.ToString();
+    if (!xls_pipeline.has_value() || !xls_pipeline->empty()) {
+      LDBG() << "Optimizing IR for top: '" << opt_options.top << "' using \n\t"
+             << xls_pipeline.value_or("default pipeline");
+
+      absl::Status status = ::xls::tools::OptimizeIrForTop(pkg, opt_options);
+      if (!status.ok()) {
+        return module.emitError("failed to optimize IR: ") << status.ToString();
+      }
+    }
+
+    OwningOpRef<Operation*> new_module_op =
+        XlsToMlirXlsTranslate(*pkg, module.getContext());
+    if (!new_module_op) {
+      return module.emitError(
+          "failed to translate optimized XLS IR back to MLIR");
+    }
+    return new_module_op;
+  };
+
+  auto updateFunction = [&](OwningOpRef<Operation*>& new_module_op,
+                            StringRef top) -> LogicalResult {
+    ModuleOp new_module = cast<ModuleOp>(new_module_op.get());
+    auto optimized_func = new_module.lookupSymbol<mlir::func::FuncOp>(top);
+    if (!optimized_func) {
+      return module.emitError("could not find optimized func ") << top;
+    }
+    auto original_func = module.lookupSymbol<mlir::func::FuncOp>(top);
+    // We check compatibility instead of strict equality because XLS
+    // optimization turns multiple return values into a single tuple.
+    if (!isTypeCompatible(original_func.getFunctionType(),
+                          optimized_func.getFunctionType())) {
+      return module.emitError("optimized function type ")
+             << optimized_func.getFunctionType()
+             << " is not compatible with original function type "
+             << original_func.getFunctionType();
+    }
+    original_func.getBody().takeBody(optimized_func.getBody());
+    // If XLS packed multiple returns into a single tuple, insert
+    // xls.tuple_index ops at each return site to extract the individual
+    // elements. This preserves the original function signature so callers
+    // do not need to handle type mismatches.
+    if (original_func.getFunctionType() != optimized_func.getFunctionType()) {
+      OpBuilder builder(module.getContext());
+      original_func.walk([&](mlir::func::ReturnOp ret) {
+        builder.setInsertionPoint(ret);
+        Value tuple = ret.getOperand(0);
+        SmallVector<Value> unpacked;
+        for (auto [i, type] : llvm::enumerate(original_func.getResultTypes())) {
+          unpacked.push_back(
+              xls::TupleIndexOp::create(builder, ret.getLoc(), type, tuple, i)
+                  .getResult());
+        }
+        ret->setOperands(unpacked);
+      });
+    }
+    return success();
+  };
+
+  if (tops.empty()) {
+    std::string default_top = module.getName().value_or("_package").str();
+    auto new_module_op = optimizeForTop((*package).get(), default_top);
+    if (failed(new_module_op)) {
+      return failure();
+    }
+    // If no explicit tops were given, preserve the original
+    // behavior of replacing the entire module body.
+    module.getBodyRegion().takeBody(
+        cast<ModuleOp>(new_module_op->get()).getBodyRegion());
+  } else {
+    for (StringRef top : tops.drop_back()) {
+      auto pkg_clone_status = ::xls::ClonePackage(package->get());
+      if (!pkg_clone_status.ok()) {
+        return module.emitError("failed to clone package: ")
+               << pkg_clone_status.status().ToString();
+      }
+      std::unique_ptr<::xls::Package> pkg_clone =
+          std::move(pkg_clone_status).value();
+
+      auto new_module_op = optimizeForTop(pkg_clone.get(), top);
+      if (failed(new_module_op) ||
+          failed(updateFunction(*new_module_op, top))) {
+        return failure();
+      }
+    }
+    // Optimize the last top using the original package rather than a clone.
+    auto new_module_op = optimizeForTop((*package).get(), tops.back());
+    if (failed(new_module_op)) {
+      return failure();
+    }
+    if (failed(updateFunction(*new_module_op, tops.back()))) {
+      return failure();
     }
   }
 
-  OwningOpRef<Operation*> new_module_op =
-      XlsToMlirXlsTranslate(**package, module.getContext());
-  if (!new_module_op) {
-    return module.emitError(
-        "failed to translate optimized XLS IR back to MLIR");
-  }
-  module.getBodyRegion().takeBody(
-      cast<ModuleOp>(*new_module_op).getBodyRegion());
   return success();
 }
 
