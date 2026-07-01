@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
@@ -50,6 +51,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/passes/bdd_query_engine.h"
@@ -294,6 +296,7 @@ ResourceSharingPass::ComputeFoldableActions(
 
     absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> one_edges;
     absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> other_edges;
+    absl::flat_hash_set<Node*> sinks;
     if (visibility.single_select.IsMutuallyExclusive(one_node, other_node)) {
       XLS_ASSIGN_OR_RETURN(
           one_edges,
@@ -301,6 +304,9 @@ ResourceSharingPass::ComputeFoldableActions(
       XLS_ASSIGN_OR_RETURN(
           other_edges,
           visibility.single_select.GetEdgesForVisibilityExpr(other_node));
+      // Specifying a sink indicates that visibility through ths node is
+      // equivalent to visibility through all terminal nodes.
+      sinks = {visibility.single_select.GetInfo(one_node)->select};
     } else {
       XLS_ASSIGN_OR_RETURN(
           one_edges,
@@ -326,7 +332,7 @@ ResourceSharingPass::ComputeFoldableActions(
       // Only n-ary foldings are evaluated with area saving thresholds, so we
       // defer computing area saved until then
       foldable_actions.push_back(std::make_unique<BinaryFoldingAction>(
-          one_node, other_node, one_edges, other_edges, 0.0));
+          one_node, other_node, one_edges, other_edges, 0.0, sinks));
     }
     if (can_other_to_one) {
       VLOG(4) << "Adding folding action: " << other_node << " into "
@@ -334,7 +340,7 @@ ResourceSharingPass::ComputeFoldableActions(
       // Only n-ary foldings are evaluated with area saving thresholds, so we
       // defer computing area saved until then
       foldable_actions.push_back(std::make_unique<BinaryFoldingAction>(
-          other_node, one_node, other_edges, one_edges, 0.0));
+          other_node, one_node, other_edges, one_edges, 0.0, sinks));
     }
   }
 
@@ -423,11 +429,16 @@ ResourceSharingPass::MakeNaryFoldingAction(
           std::make_pair(binary_folding->GetFrom(), std::move(edges)));
     }
   }
+  absl::flat_hash_set<Node*> sinks;
+  for (const BinaryFoldingAction* action : subset_of_edges_to_n) {
+    sinks.insert(action->GetSinks().begin(), action->GetSinks().end());
+  }
   XLS_RET_CHECK_GT(froms.size(), 0);
   std::unique_ptr<NaryFoldingAction> new_action =
       std::make_unique<NaryFoldingAction>(
           std::move(froms), subset_of_edges_to_n[0]->GetTo(),
-          subset_of_edges_to_n[0]->GetToVisibilityEdges(), area_saved);
+          subset_of_edges_to_n[0]->GetToVisibilityEdges(), area_saved,
+          std::move(sinks));
   return new_action;
 }
 
@@ -1184,10 +1195,11 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
 
     // The current n-ary folding is worth considering. Allocate a new n-ary
     // folding to capture it.
+    absl::flat_hash_set<Node*> sinks(folding->GetSinks());
     std::unique_ptr<NaryFoldingAction> new_folding =
         std::make_unique<NaryFoldingAction>(std::move(legal_froms), to_node,
                                             folding->GetToVisibilityEdges(),
-                                            area_saved);
+                                            area_saved, std::move(sinks));
 
     // Keep track of the current n-ary folding to legalize the next ones.
     prior_folding_of_destination[to_node] = new_folding.get();
@@ -1781,9 +1793,17 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     from_used_expressions.reserve(froms_to_use.size());
     for (const auto& [from_node, from_edges] : froms_to_use) {
       VLOG(4) << "        Source: " << from_node->ToString();
-      XLS_ASSIGN_OR_RETURN(
-          Node * from_used,
-          visibility_builder->BuildVisibilityIRExpr(f, from_node, from_edges));
+      VLOG(4) << "        From edges: " << from_edges.size();
+      for (const auto& edge : from_edges) {
+        VLOG(4) << "          " << edge.operand->ToString() << " -> "
+                << edge.node->ToString();
+      }
+      XLS_ASSIGN_OR_RETURN(Node * from_used,
+                           visibility_builder->BuildVisibilityIRExpr(
+                               f, from_node, from_edges, folding->GetSinks()));
+      // Check that visibility isn't always true (ideally we would double check
+      // that the expressions are mutually exclusive, but that is expensive)
+      XLS_RET_CHECK(!IsLiteralUnsignedOne(from_used));
       from_used_expressions.push_back(from_used);
       VLOG(4) << "        From used: "
               << ToMathNotation(from_used, [&](const Node* n) -> bool {

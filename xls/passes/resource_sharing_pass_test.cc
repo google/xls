@@ -1525,7 +1525,10 @@ TEST_F(ResourceSharingPassTest, CatchesCyclesBeforeTransforming) {
   BValue i = fb.Param("i", u8);
   BValue X = fb.UMul(i, i, 8, SourceInfo(), "X");
   BValue Y = fb.UMul(X, i, 8, SourceInfo(), "D");
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(Y));
+  BValue cond = fb.Param("cond", p->GetBitsType(2));
+  BValue sel =
+      fb.Select(cond, {X, Y, fb.Literal(UBits(0, 8)), fb.Literal(UBits(0, 8))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
   int64_t next_node_id = 10;
 
   BddQueryEngine bdd_engine;
@@ -1536,10 +1539,18 @@ TEST_F(ResourceSharingPassTest, CatchesCyclesBeforeTransforming) {
   XLS_ASSERT_OK(bpa.Populate(f));
   VisibilityBuilder visibility_builder(next_node_id, &bdd_engine, nda, bpa);
 
+  // Exercise producing a cycle by requesting to fold X into Y; yes, they are
+  // not mutually exclusive, but the transformation doesn't have a feasible way
+  // to check whether analyses were correct; however, it should detect the cycle
+  // that would result from this transformation.
+  VisibilityEdges edges = {
+      OperandVisibilityAnalysis::OperandNode(X.node(), sel.node()),
+      OperandVisibilityAnalysis::OperandNode(Y.node(), sel.node())};
   std::vector<std::pair<Node*, VisibilityEdges>> from_X = {
-      std::make_pair(X.node(), VisibilityEdges{})};
+      std::make_pair(X.node(), edges)};
   auto fold_X_into_Y = std::make_unique<NaryFoldingAction>(
-      std::move(from_X), Y.node(), VisibilityEdges{});
+      std::move(from_X), Y.node(), edges, /*area_saved=*/0.0,
+      /*sinks=*/absl::flat_hash_set<Node*>{sel.node()});
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
   folding_actions_to_perform.push_back(std::move(fold_X_into_Y));
 
