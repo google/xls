@@ -560,6 +560,7 @@ cc_library(
         "//xls/public:runtime_codegen_actions",
         "//xls/public:runtime_dslx_actions",
         "//xls/scheduling:pipeline_schedule_cc_proto",
+        "//xls/tools:codegen",
         "//xls/tools:codegen_flags",
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:opt",

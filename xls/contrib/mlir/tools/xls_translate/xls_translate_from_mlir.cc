@@ -86,6 +86,7 @@
 #include "xls/public/runtime_codegen_actions.h"
 #include "xls/public/runtime_dslx_actions.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
+#include "xls/tools/codegen.h"
 #include "xls/tools/opt.h"
 
 namespace mlir::xls {
@@ -2172,7 +2173,7 @@ LogicalResult MlirXlsToXlsTranslate(
     }
   }
 
-  if (!options.generate_verilog) {
+  if (options.translation_kind == TranslationKind::kXlsIr) {
     std::string out = (*package)->DumpIr();
     output << out;
     if (xls_package != nullptr) {
@@ -2181,6 +2182,29 @@ LogicalResult MlirXlsToXlsTranslate(
     return success();
   }
 
+  if (options.translation_kind == TranslationKind::kXlsBlockIr) {
+    auto scheduling_result = ::xls::ScheduleAndConvertToBlock(
+        package->get(), options.scheduling_options_flags_proto,
+        options.codegen_flags_proto, /*with_delay_model=*/false);
+    if (!scheduling_result.ok()) {
+      llvm::errs() << "Failed to schedule and convert to block: "
+                   << scheduling_result.status().message() << "\n";
+      return failure();
+    }
+    if (scheduling_metrics_reporter) {
+      const ::xls::PackageScheduleProto& schedule =
+          scheduling_result->package_schedule;
+      scheduling_metrics_reporter(**package, schedule);
+    }
+    std::string out = (*package)->DumpIr();
+    output << out;
+    if (xls_package != nullptr) {
+      *xls_package = std::move(*package);
+    }
+    return success();
+  }
+
+  assert(options.translation_kind == TranslationKind::kVerilog);
   auto xls_codegen_results = ::xls::ScheduleAndCodegenPackage(
       package->get(), options.scheduling_options_flags_proto,
       options.codegen_flags_proto,
