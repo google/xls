@@ -4575,16 +4575,22 @@ TEST_F(ParserTest, CannotSpecifyParametricsForNumber) {
 }
 
 TEST_F(ParserTest, ChannelStrictnessAttribute) {
-  constexpr std::string_view kProgram = R"(
-#![feature(channel_attributes)]
+  constexpr std::string_view kProgram = R"(#![feature(channel_attributes)]
+
 proc p {
-  #[channel_strictness("runtime_ordered")]
-  c: chan<u32> in;
-  config(c: chan<u32> in) { (c,) }
-  init { () }
-  next(tok: token) { tok }
+    #[channel_strictness("runtime_ordered")]
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        ()
+    }
+    next(tok: token) {
+        tok
+    }
 })";
-  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  std::unique_ptr<Module> module = RoundTrip(kProgram);
   ASSERT_NE(module, nullptr);
   ModuleMember* member = module->FindMemberWithName("p").value();
   Proc* p = std::get<Proc*>(*member);
@@ -4595,16 +4601,22 @@ proc p {
 }
 
 TEST_F(ParserTest, ChannelFlowControlAttribute) {
-  constexpr std::string_view kProgram = R"(
-#![feature(channel_attributes)]
+  constexpr std::string_view kProgram = R"(#![feature(channel_attributes)]
+
 proc p {
-  #[channel_flow_control("valid_data")]
-  c: chan<u32> in;
-  config(c: chan<u32> in) { (c,) }
-  init { () }
-  next(tok: token) { tok }
+    #[channel_flow_control("valid_data")]
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        ()
+    }
+    next(tok: token) {
+        tok
+    }
 })";
-  std::unique_ptr<Module> module = ExpectParsesSuccessfully(kProgram);
+  std::unique_ptr<Module> module = RoundTrip(kProgram);
   ASSERT_NE(module, nullptr);
   ModuleMember* member = module->FindMemberWithName("p").value();
   Proc* p = std::get<Proc*>(*member);
