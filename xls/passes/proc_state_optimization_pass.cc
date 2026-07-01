@@ -413,10 +413,13 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
             SourceInfo(), machine_too_large,
             std::vector<Node*>({machine_plus_one, state_machine_read}),
             std::nullopt));
+    Next::StateIdentifier state_identifier =
+        proc->uses_decoupled_next()
+            ? Next::StateIdentifier(state_machine_read->state_element())
+            : Next::StateIdentifier(state_machine_read);
     XLS_RETURN_IF_ERROR(
-        proc->MakeNode<Next>(SourceInfo(), /*state_read=*/state_machine_read,
-                             /*value=*/sel, /*predicate=*/std::nullopt,
-                             /*label=*/std::nullopt)
+        proc->MakeNode<Next>(SourceInfo(), state_identifier, /*value=*/sel,
+                             /*predicate=*/std::nullopt, /*label=*/std::nullopt)
             .status());
   }
 

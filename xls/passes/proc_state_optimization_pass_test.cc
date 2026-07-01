@@ -466,6 +466,38 @@ TEST_P(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
                                 /*default_value=*/m::Literal(200))));
 }
 
+TEST_F(BaseProcStateOptimizationPassTest, LiteralChainDecoupled) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
+                           pb.AddOutputChannel("out", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_elem,
+                           pb.UnreadStateElement("x", Value(UBits(100, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue x = pb.StateRead(x_elem);
+  BValue lit = pb.Literal(Value(UBits(200, 32)));
+  BValue send = pb.Send(out, x);
+  pb.Next(x_elem, lit);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+  EXPECT_TRUE(proc->uses_decoupled_next());
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+  EXPECT_EQ(proc->GetStateElement(0)->type()->GetFlatBitCount(), 1);
+  EXPECT_TRUE(proc->uses_decoupled_next());
+
+  EXPECT_THAT(send.node(),
+              m::Send(m::Literal(Value::Token()),
+                      m::Select(m::StateRead("state_machine_x"),
+                                /*cases=*/{m::Literal(100)},
+                                /*default_value=*/m::Literal(200))));
+
+  EXPECT_THAT(proc->next_values(),
+              UnorderedElementsAre(m::NextWithStateElement(
+                  m::StateElement("state_machine_x"), ::testing::_)));
+}
+
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateOptimizationPassTest,
                          testing::Values(NextValueType::kNextStateVector,
                                          NextValueType::kNextValueNodes),
