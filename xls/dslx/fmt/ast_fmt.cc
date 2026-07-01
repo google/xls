@@ -2306,9 +2306,21 @@ DocRef Formatter::FormatFunction(const Function& n, bool is_test) {
 }
 
 DocRef Formatter::FormatProcMember(const ProcMember& n) {
-  return ConcatNGroup(
-      arena_, {FormatNameDef(*n.name_def()), arena_.colon(), arena_.break1(),
-               FormatTypeAnnotation(*n.type_annotation())});
+  std::vector<DocRef> member_pieces;
+  if (n.strictness().has_value()) {
+    member_pieces.push_back(arena_.MakeText(n.StrictnessAttributeString()));
+    member_pieces.push_back(arena_.hard_line());
+  }
+  if (n.flow_control().has_value()) {
+    member_pieces.push_back(arena_.MakeText(n.FlowControlAttributeString()));
+    member_pieces.push_back(arena_.hard_line());
+  }
+
+  member_pieces.push_back(FormatNameDef(*n.name_def()));
+  member_pieces.push_back(arena_.colon());
+  member_pieces.push_back(arena_.space());
+  member_pieces.push_back(FormatTypeAnnotation(*n.type_annotation()));
+  return ConcatNGroup(arena_, member_pieces);
 }
 
 DocRef Formatter::FormatProc(const Proc& n, bool is_test) {
