@@ -1,5 +1,5 @@
-// RUN: xls_translate --mlir-xls-to-xls %s -- --ffi_fallback_delay_ps=100 --generator=combinational 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=XLS
-// RUN: xls_translate --mlir-xls-to-verilog %s -- --ffi_fallback_delay_ps=100 --generator=combinational 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=VERILOG
+// RUN: xls_translate --mlir-xls-to-xls %s -- --delay_model=asap7 --ffi_fallback_delay_ps=100 --generator=combinational 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=XLS
+// RUN: xls_translate --mlir-xls-to-verilog %s -- --delay_model=asap7 --ffi_fallback_delay_ps=100 --generator=combinational 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=VERILOG
 
 // XLS: #[ffi_proto("""code_template: "int_to_float {fn}(.x({x}), .out({return}))"
 // XLS-NEXT: delay_ps: 1500

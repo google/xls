@@ -2184,7 +2184,7 @@ LogicalResult MlirXlsToXlsTranslate(
   auto xls_codegen_results = ::xls::ScheduleAndCodegenPackage(
       package->get(), options.scheduling_options_flags_proto,
       options.codegen_flags_proto,
-      /*with_delay_model=*/false);
+      /*with_delay_model=*/true);
   if (!xls_codegen_results.ok()) {
     llvm::errs() << "Failed to codegen: "
                  << xls_codegen_results.status().message() << "\n";
