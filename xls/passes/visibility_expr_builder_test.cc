@@ -260,5 +260,36 @@ TEST_F(VisibilityExprBuilderTest, NotAFunctionOfSelf) {
   EXPECT_THAT(is_x_used.first, m::Ne(m::Param("y"), m::Literal(7)));
 }
 
+TEST_F(VisibilityExprBuilderTest, VisibilityExpressionWithOneKeptEdge) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue x = fb.Param("x", u1);
+  BValue y = fb.Param("y", u1);
+
+  // z == select(y, {false, x}) == and(y, x)
+  BValue literal_false = fb.Literal(UBits(0, 1));
+  BValue z = fb.Select(y, {literal_false, x});
+
+  BValue ret = fb.Xor(x, z);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  std::pair<Node*, VisibilityEstimator::AreaDelay> is_x_used;
+  XLS_ASSERT_OK_AND_ASSIGN(is_x_used,
+                           BuildDefaultVisibilityExpr(f, x.node(), {}));
+
+  // The visibility of `x` should be `Literal(1)`, since:
+  //   XOR(x, z) == XOR(x, AND(y, x)),
+  // and our analysis can't determine the visibility of `x` through `XOR(x, z)`.
+  //
+  // In case we later improve the analysis, the correct visibility expression
+  // for `x` is `y == 0`. We can see this with a casewise analysis:
+  //   If y == 0, then z == AND(y, x) == 0, so XOR(x, z) == XOR(x, 0) == x.
+  //   If y == 1, then z == AND(y, x) == x, so XOR(x, z) == XOR(x, x) == 0.
+  // So the output is x if y == 0, and 0 if y == 1. Equivalently:
+  //   ret == x & !y
+  // As such, `x` is actually visible iff `y == 0`.
+  EXPECT_THAT(is_x_used.first, m::Literal(1));
+}
+
 }  // namespace
 }  // namespace xls
