@@ -26,20 +26,26 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/codegen/block_conversion.h"
+#include "xls/codegen/block_conversion_pass_pipeline.h"
 #include "xls/codegen/block_metrics.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_residual_data.pb.h"
 #include "xls/codegen/codegen_result.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/op_override.h"
+#include "xls/codegen/passes_ng/stage_conversion_pass_pipeline.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/codegen/unified_generator.h"
 #include "xls/codegen/verilog_conversion.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
+#include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/codegen_v_1_5/codegen.h"
+#include "xls/codegen_v_1_5/convert_to_block.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -47,6 +53,8 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/verifier.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
@@ -511,6 +519,99 @@ ScheduleAndCodegen(
                                            metadata, &schedules));
   return std::make_pair(std::move(scheduling_result),
                         std::move(codegen_result));
+}
+
+absl::StatusOr<SchedulingResult> ScheduleAndConvertToBlock(
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model) {
+  XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
+  XLS_ASSIGN_OR_RETURN(
+      CodegenMetadata metadata,
+      CodegenMetadata::Create(p, scheduling_options_flags_proto,
+                              codegen_flags_proto, with_delay_model));
+
+  SchedulingResult scheduling_result;
+  if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
+    XLS_ASSIGN_OR_RETURN(scheduling_result, ScheduleFromMetadata(p, metadata));
+  }
+  XLS_ASSIGN_OR_RETURN(
+      PackageSchedule schedules,
+      PackageSchedule::FromProto(p, scheduling_result.package_schedule));
+
+  verilog::CodegenOptions::Version codegen_version =
+      metadata.codegen_options.codegen_version();
+  if (codegen_version == verilog::CodegenOptions::Version::kDefault ||
+      p->ChannelsAreProcScoped()) {
+    codegen_version = verilog::CodegenOptions::Version::kOneDotFive;
+  }
+  if (codegen_version == verilog::CodegenOptions::Version::kOneDotZero) {
+    if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
+      XLS_RET_CHECK(p->GetTop().has_value());
+      XLS_RETURN_IF_ERROR(verilog::FunctionBaseToCombinationalBlock(
+                              *p->GetTop(), metadata.codegen_options)
+                              .status());
+    } else {
+      XLS_RET_CHECK_EQ(codegen_flags_proto.generator(),
+                       GENERATOR_KIND_PIPELINE);
+      XLS_RETURN_IF_ERROR(verilog::PackageToPipelinedBlocks(
+                              schedules, metadata.codegen_options, p)
+                              .status());
+    }
+    return scheduling_result;
+  }
+
+  if (codegen_version == verilog::CodegenOptions::Version::kOneDotFive) {
+    verilog::CodegenOptions pass_options = metadata.codegen_options;
+    XLS_RET_CHECK(p->GetTop().has_value());
+    if (p->GetTop().value()->IsProc()) {
+      pass_options.emit_as_pipeline(false);
+    }
+    std::optional<PackageScheduleProto> schedule_proto;
+    if (codegen_flags_proto.generator() != GENERATOR_KIND_COMBINATIONAL) {
+      XLS_ASSIGN_OR_RETURN(schedule_proto,
+                           schedules.ToProto(*metadata.delay_estimator));
+    }
+    codegen::BlockConversionContext context;
+    PassResults pass_results;
+    XLS_RETURN_IF_ERROR(codegen::ConvertToBlock(
+        p, pass_options, metadata.scheduling_options, metadata.delay_estimator,
+        context, &pass_results, schedule_proto));
+    return scheduling_result;
+  }
+
+  // Codegen 2.0.
+  XLS_RET_CHECK(codegen_version ==
+                verilog::CodegenOptions::Version::kTwoDotZero)
+      << "Unsupported codegen version: "
+      << verilog::CodegenOptions::VersionToString(codegen_version);
+  XLS_ASSIGN_OR_RETURN(PackageSchedule schedule,
+                       DeterminePipelineSchedules(
+                           codegen_flags_proto.generator(), p, &schedules));
+  XLS_RETURN_IF_ERROR(VerifyPackage(p, /*codegen=*/true));
+
+  verilog::CodegenPassOptions pass_options = {
+      .codegen_options = metadata.codegen_options,
+      .delay_estimator = metadata.delay_estimator,
+  };
+
+  PassResults results;
+  OptimizationContext opt_context;
+
+  verilog::CodegenContext codegen_context;
+  for (const auto& [fb, fb_schedule] : schedule.GetSchedules()) {
+    codegen_context.AssociateSchedule(fb, fb_schedule);
+  }
+
+  XLS_RETURN_IF_ERROR(verilog::CreateStageConversionPassPipeline(
+                          pass_options.codegen_options, opt_context)
+                          ->Run(p, pass_options, &results, codegen_context)
+                          .status());
+  XLS_RETURN_IF_ERROR(verilog::CreateBlockConversionPassPipeline(
+                          metadata.codegen_options, opt_context)
+                          ->Run(p, pass_options, &results, codegen_context)
+                          .status());
+  return scheduling_result;
 }
 
 absl::StatusOr<verilog::CodegenResult> BlockToVerilog(
