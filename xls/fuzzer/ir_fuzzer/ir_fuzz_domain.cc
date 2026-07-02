@@ -243,8 +243,10 @@ std::vector<Op> GetRestrictedSet(absl::Span<Op const> ops, bool only_bits,
 
 absl::Status BuildIr(Package* package, std::string_view top_name,
                      const FuzzProgramProto& fuzz_program,
-                     std::optional<int64_t> param_bits) {
-  GenIrNodesPass pass(package, top_name, fuzz_program, param_bits);
+                     std::optional<int64_t> param_bits,
+                     std::optional<int64_t> max_bit_width) {
+  GenIrNodesPass pass(package, top_name, fuzz_program, param_bits,
+                      max_bit_width);
   pass.GenIrNodes();
   return absl::OkStatus();
 }
@@ -275,17 +277,20 @@ fuzztest::Domain<FuzzPackage> FuzzPackageDomainBuilder::Build() && {
                     fuzztest::Just<int>(*combine_list_method_))
               : std::move(proto);
   return fuzztest::Map(
-      [](FuzzProgramProto fuzz_program, std::optional<int64_t> param_bits) {
+      [](FuzzProgramProto fuzz_program, std::optional<int64_t> param_bits,
+         std::optional<int64_t> max_bit_width) {
         // Create the package.
         std::unique_ptr<Package> p =
             std::make_unique<VerifiedPackage>(kFuzzTestName);
-        CHECK_OK(BuildIr(p.get(), kFuzzTestName, fuzz_program, param_bits))
+        CHECK_OK(BuildIr(p.get(), kFuzzTestName, fuzz_program, param_bits,
+                         max_bit_width))
             << "Failed to build package from FuzzProgramProto: "
             << fuzz_program.DebugString();
         // Create the FuzzPackage object as the domain export.
         return FuzzPackage(std::move(p), fuzz_program);
       },
-      std::move(proto), fuzztest::Just<std::optional<int64_t>>(param_bits_));
+      std::move(proto), fuzztest::Just<std::optional<int64_t>>(param_bits_),
+      fuzztest::Just<std::optional<int64_t>>(max_bit_width_));
 }
 
 fuzztest::Domain<FuzzPackageWithArgs> PackageWithArgsDomainBuilder::Build() && {
