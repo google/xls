@@ -531,6 +531,13 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
   if (result_status.code() == absl::StatusCode::kResourceExhausted) {
     return ProcRunResult{
         .execution_state = ProcExecutionState::kBlockedOnSend,
+        .blocked_channel_info = interpreter_->blocked_channel_info(),
+        .progress_made = progress_made};
+  }
+
+  if (result_status.code() == absl::StatusCode::kAborted) {
+    return ProcRunResult{
+        .execution_state = ProcExecutionState::kYieldedAfterChannelOp,
         .blocked_channel_info = std::nullopt,
         .progress_made = progress_made};
   }
@@ -596,35 +603,65 @@ void ProcHierarchyInterpreter::AddProcInstance(ProcInstance&& proc_instance) {
   proc_instances_.push_back(std::move(proc_instance));
 }
 
-absl::Status ProcHierarchyInterpreter::Tick() {
-  std::deque<ProcInstance*> ready_list;
+absl::StatusOr<bool> ProcHierarchyInterpreter::TickOnce(
+    std::vector<std::string>* blocked_channels) {
+  std::deque<ProcInstance*> ready;
   for (auto& p : proc_instances()) {
-    ready_list.push_back(&p);
+    ready.push_back(&p);
   }
   if (rng_.has_value()) {
-    absl::c_shuffle(ready_list, *rng_);
+    absl::c_shuffle(ready, *rng_);
   }
 
-  std::deque<ProcInstance*> next_ready_list;
-  bool progress_made;
+  std::deque<ProcInstance*> next_ready;
+  bool any_progress = false;
+  bool retry;
   do {
-    progress_made = false;
-    while (!ready_list.empty()) {
-      ProcInstance* p = ready_list.front();
-      ready_list.pop_front();
-
+    retry = false;
+    if (blocked_channels != nullptr) {
+      blocked_channels->clear();
+    }
+    while (!ready.empty()) {
+      ProcInstance* p = ready.front();
+      ready.pop_front();
       XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p->Run());
       if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive ||
           run_result.execution_state == ProcExecutionState::kBlockedOnSend) {
-        next_ready_list.push_back(p);
-        progress_made |= run_result.progress_made;
+        next_ready.push_back(p);
+        if (blocked_channels != nullptr &&
+            run_result.blocked_channel_info.has_value()) {
+          const BlockedChannelInfo& info = *run_result.blocked_channel_info;
+          const char* verb =
+              run_result.execution_state ==
+                      ProcExecutionState::kBlockedOnReceive
+                  ? "receive"
+                  : "send";
+          blocked_channels->push_back(absl::StrFormat(
+              "%s: proc `%s` is blocked on %s on channel `%s`",
+              info.span.ToString(p->interpreter().file_table()),
+              p->proc_name(), verb, info.name));
+        }
+        retry |= run_result.progress_made;
+      } else if (run_result.execution_state ==
+                 ProcExecutionState::kYieldedAfterChannelOp) {
+        if (rng_.has_value()) {
+          std::uniform_int_distribution<size_t> dist(0, ready.size());
+          ready.insert(ready.begin() + dist(*rng_), p);
+        } else {
+          ready.push_back(p);
+        }
       }
+      any_progress |= run_result.progress_made;
     }
-    ready_list = std::move(next_ready_list);
-    next_ready_list.clear();
-  } while (progress_made);
+    ready = std::move(next_ready);
+    next_ready.clear();
+  } while (retry);
 
-  return absl::OkStatus();
+  return any_progress;
+}
+
+absl::Status ProcHierarchyInterpreter::Tick() {
+  return TickOnce(/*blocked_channels=*/nullptr).status();
 }
 
 absl::StatusOr<int64_t> ProcHierarchyInterpreter::TickUntilOutput(
@@ -665,32 +702,14 @@ absl::StatusOr<int64_t> ProcHierarchyInterpreter::TickUntilOutput(
       proc_instances().front().options();
   int64_t tick_count = 0;
   while (!is_done()) {
-    bool progress_made = false;
     if (options.max_ticks().has_value() &&
         tick_count > options.max_ticks().value()) {
       return absl::DeadlineExceededError(
           absl::StrFormat("Exceeded limit of %d proc ticks before terminating",
                           options.max_ticks().value()));
     }
-    std::vector<ProcInstance*> ready;
-    for (auto& p : proc_instances()) ready.push_back(&p);
-    if (rng_.has_value()) absl::c_shuffle(ready, *rng_);
-
     std::vector<std::string> blocked_channels;
-    for (ProcInstance* p : ready) {
-      XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p->Run());
-      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive &&
-          run_result.blocked_channel_info.has_value()) {
-        BlockedChannelInfo channel_info =
-            run_result.blocked_channel_info.value();
-        blocked_channels.push_back(absl::StrFormat(
-            "%s: proc `%s` is blocked on receive on channel `%s`",
-            channel_info.span.ToString(p->interpreter().file_table()),
-            p->proc_name(), channel_info.name));
-      }
-      progress_made |= run_result.progress_made;
-    }
-
+    XLS_ASSIGN_OR_RETURN(bool progress_made, TickOnce(&blocked_channels));
     if (!progress_made) {
       return absl::DeadlineExceededError(absl::StrFormat(
           "Procs are deadlocked:\n%s", absl::StrJoin(blocked_channels, "\n")));

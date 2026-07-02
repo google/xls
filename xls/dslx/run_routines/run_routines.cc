@@ -1067,7 +1067,8 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
         .format_preference(options.format_preference)
         .simulate_bounded_fifos(options.simulate_bounded_fifos)
         .proc_schedule_seed(options.randomize_proc_execution ? options.seed
-                                                             : std::nullopt);
+                                                             : std::nullopt)
+        .mid_tick_yield(options.mid_tick_yield);
     if (std::holds_alternative<TestFunction*>(*member)) {
       XLS_ASSIGN_OR_RETURN(
           out, runner->RunTestFunction(test_name, interpreter_options,

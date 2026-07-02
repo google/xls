@@ -124,6 +124,7 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
         "randomize_proc_execution",
         "seed",
         "trace_channels",
+        "mid_tick_yield",
     )
 
     dslx_test_args = dict(_dslx_test_args)

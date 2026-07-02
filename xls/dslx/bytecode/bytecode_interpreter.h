@@ -456,6 +456,7 @@ class BytecodeInterpreter {
   // separate continuation data structure which encapsulates the entire
   // execution state including this value.
   std::optional<BlockedChannelInfo> blocked_channel_info_;
+  bool channel_op_yielded_ = false;
   std::optional<DslxInterpreterEvents*> events_;
   absl::flat_hash_map<const NameDef*, InterpValue> state_values_;
 };

@@ -351,6 +351,7 @@ BytecodeInterpreter::CreateUnique(
 
 absl::Status BytecodeInterpreter::Run(bool* progress_made) {
   blocked_channel_info_ = std::nullopt;
+  channel_op_yielded_ = false;
   while (!frames_.empty()) {
     Frame* frame = &frames_.back();
     while (frame->pc() < frame->bf()->bytecodes().size()) {
@@ -380,6 +381,10 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
       }
       if (progress_made != nullptr) {
         *progress_made = true;
+      }
+      if (channel_op_yielded_) {
+        channel_op_yielded_ = false;
+        return absl::AbortedError("Yielded after channel op.");
       }
     }
 
@@ -1379,6 +1384,9 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
           ChannelDirection::kIn, channel_data->value_fmt_desc());
     }
     stack_.Push(InterpValue::MakeTuple({token, std::move(value)}));
+    if (options_.mid_tick_yield()) {
+      channel_op_yielded_ = true;
+    }
   } else {
     XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
     stack_.Push(InterpValue::MakeTuple({token, default_value}));
@@ -1394,6 +1402,8 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(auto channel_reference,
                        channel_value.GetChannelReference());
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+  XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
+                       bytecode.channel_data());
 
   XLS_RET_CHECK(channel_manager_.has_value());
   InterpValueChannel& channel =
@@ -1407,17 +1417,22 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
       stack_.Push(channel_value);
       stack_.Push(payload);
       stack_.Push(condition);
+      blocked_channel_info_ = BlockedChannelInfo{
+          .name = FormatChannelNameForTracing(*channel_data),
+          .span = bytecode.source_span(),
+      };
       return absl::ResourceExhaustedError("Channel is full.");
     }
     if (options_.trace_channels() && events_.has_value()) {
-      XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
-                           bytecode.channel_data());
       (*events_)->AddTraceChannelMessage(
           import_data_->file_table(), bytecode.source_span(),
           FormatChannelNameForTracing(*channel_data), payload,
           ChannelDirection::kOut, channel_data->value_fmt_desc());
     }
     channel.Write(payload);
+    if (options_.mid_tick_yield()) {
+      channel_op_yielded_ = true;
+    }
   }
   stack_.Push(token);
   return absl::OkStatus();
