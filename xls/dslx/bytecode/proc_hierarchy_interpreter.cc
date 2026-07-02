@@ -56,6 +56,31 @@
 namespace xls::dslx {
 namespace {
 
+// Returns the FIFO depth declared on the ChannelDecl backing `v`, or nullopt
+// if `v` has no depth annotation or is not a channel reference.
+absl::StatusOr<std::optional<int64_t>> GetFifoDepth(const InterpValue& v,
+                                                     TypeInfo* ti) {
+  const InterpValue& chan =
+      (v.IsChannelArray() && !v.GetChannelArrayOrDie().elements().empty())
+          ? v.GetChannelArrayOrDie().elements()[0]
+          : v;
+  if (!chan.IsChannelReference()) {
+    return std::nullopt;
+  }
+  const AstNode* definer =
+      chan.GetChannelReferenceOrDie().GetDefiner().value_or(nullptr);
+  if (definer == nullptr || definer->kind() != AstNodeKind::kChannelDecl) {
+    return std::nullopt;
+  }
+  const ChannelDecl* decl = absl::down_cast<const ChannelDecl*>(definer);
+  if (!decl->fifo_depth().has_value()) {
+    return std::nullopt;
+  }
+  XLS_ASSIGN_OR_RETURN(InterpValue depth_val,
+                       ti->GetConstExpr(decl->fifo_depth().value()));
+  return depth_val.GetBitValueSigned();
+}
+
 bool HasExplicitStateAccess(const Proc& proc, const TypeInfo* ti,
                             const ImportData& import_data) {
   const Function& fn = proc.next();
@@ -165,9 +190,23 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
                          get_parametric_type_info(spawn_functions->config));
   }
 
-  auto channel_instance_allocator = [&]() -> int64_t {
+  bool sim_bounded = options.simulate_bounded_fifos();
+  auto channel_instance_allocator =
+      [&](std::optional<const ChannelDecl*> decl) -> int64_t {
+    std::optional<int64_t> depth;
+    if (sim_bounded && decl.has_value() &&
+        decl.value()->fifo_depth().has_value()) {
+      absl::StatusOr<InterpValue> depth_val =
+          type_info->GetConstExpr(decl.value()->fifo_depth().value());
+      if (depth_val.ok()) {
+        absl::StatusOr<int64_t> bit_val = depth_val->GetBitValueSigned();
+        if (bit_val.ok()) {
+          depth = *bit_val;
+        }
+      }
+    }
     return hierarchy_interpreter->channel_manager()
-        .AllocateLegacyChannel()
+        .AllocateLegacyChannel(depth)
         .GetId();
   };
   XLS_ASSIGN_OR_RETURN(
@@ -368,7 +407,12 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
     VLOG(5) << "Initializing member " << member->name() << " of proc "
             << proc->identifier();
     if (member_type->GetDirectOrElementChannelType().has_value()) {
-      XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, member_values[i]));
+      std::optional<int64_t> depth;
+      if (options.simulate_bounded_fifos()) {
+        XLS_ASSIGN_OR_RETURN(depth, GetFifoDepth(member_values[i], ti));
+      }
+      XLS_RETURN_IF_ERROR(
+          AllocateChannelOrArray(proc, member_values[i], depth));
     } else {
       VLOG(5) << "Setting state value for " << member->name() << " in proc "
               << proc->identifier() << " to " << member_values[i].ToString();
@@ -410,7 +454,8 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
 }
 
 absl::Status ProcHierarchyInterpreter::AllocateChannelOrArray(
-    const ProcDef* proc, const InterpValue& value) {
+    const ProcDef* proc, const InterpValue& value,
+    std::optional<int64_t> depth) {
   if (value.IsChannelReference()) {
     const InterpValue::ChannelReference& channel_ref =
         value.GetChannelReferenceOrDie();
@@ -418,12 +463,10 @@ absl::Status ProcHierarchyInterpreter::AllocateChannelOrArray(
         (*channel_ref.GetDefiner())->kind() == AstNodeKind::kChannelDecl) {
       VLOG(5) << "Allocating channel " << value.ToString() << " in proc "
               << proc->identifier();
-
-      const InterpValue::ChannelReference& channel_ref =
-          value.GetChannelReferenceOrDie();
       XLS_RETURN_IF_ERROR(channel_manager_
                               ->AllocateChannel(*channel_ref.GetChannelId(),
-                                                *channel_ref.GetDefiner())
+                                                *channel_ref.GetDefiner(),
+                                                depth)
                               .status());
     }
     return absl::OkStatus();
@@ -431,7 +474,7 @@ absl::Status ProcHierarchyInterpreter::AllocateChannelOrArray(
 
   XLS_RET_CHECK(value.IsChannelArray());
   for (const InterpValue& element : value.GetChannelArrayOrDie().elements()) {
-    XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, element));
+    XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, element, depth));
   }
   return absl::OkStatus();
 }
@@ -472,6 +515,13 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
     return ProcRunResult{
         .execution_state = ProcExecutionState::kBlockedOnReceive,
         .blocked_channel_info = interpreter_->blocked_channel_info(),
+        .progress_made = progress_made};
+  }
+
+  if (result_status.code() == absl::StatusCode::kResourceExhausted) {
+    return ProcRunResult{
+        .execution_state = ProcExecutionState::kBlockedOnSend,
+        .blocked_channel_info = std::nullopt,
         .progress_made = progress_made};
   }
 
@@ -520,7 +570,8 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInterfaceChannel(
       InterpValueChannel * channel,
       channel_manager_->AllocateChannel(
           *channel_reference.GetChannelReferenceOrDie().GetChannelId(),
-          *channel_reference.GetChannelReferenceOrDie().GetDefiner()));
+          *channel_reference.GetChannelReferenceOrDie().GetDefiner(),
+          std::nullopt));
 
   interface_args_.push_back(channel_reference);
   interface_channels_.push_back(
@@ -550,7 +601,8 @@ absl::Status ProcHierarchyInterpreter::Tick() {
       ready_list.pop_front();
 
       XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p->Run());
-      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive) {
+      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive ||
+          run_result.execution_state == ProcExecutionState::kBlockedOnSend) {
         next_ready_list.push_back(p);
         progress_made |= run_result.progress_made;
       }

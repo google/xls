@@ -864,13 +864,24 @@ class Visitor : public AstNodeVisitorWithDefault {
     XLS_RET_CHECK(type_.IsTuple());
     XLS_RET_CHECK_EQ(type_.AsTuple().size(), 2);
 
+    if (node->fifo_depth().has_value()) {
+      XLS_RETURN_IF_ERROR(ConstexprEvaluator::EvaluateToValue(
+                              &import_data_, ti_, &warning_collector_,
+                              table_.GetParametricEnv(parametric_context_),
+                              *node->fifo_depth())
+                              .status());
+    }
+
     // Note that `GetChannelReferencePair` doesn't consider the channel
     // direction of the passed-in type, so we arbitrarily pick the out side of
     // the tuple here.
     XLS_ASSIGN_OR_RETURN((std::pair<InterpValue, InterpValue> pair),
                          CreateChannelReferencePair(
                              &type_.AsTuple().GetMemberType(0),
-                             [this] { return ++*next_channel_id_; }, node));
+                             [this](std::optional<const ChannelDecl*>) {
+                               return ++*next_channel_id_;
+                             },
+                             node));
 
     InterpValue ends = InterpValue::MakeTuple(
         std::vector<InterpValue>{pair.first, pair.second});

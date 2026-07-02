@@ -108,6 +108,13 @@ class BytecodeInterpreterOptions {
   }
   FormatPreference format_preference() const { return format_preference_; }
 
+  // When true, senders block when channels with a declared depth are full.
+  BytecodeInterpreterOptions& simulate_bounded_fifos(bool value) {
+    simulate_bounded_fifos_ = value;
+    return *this;
+  }
+  bool simulate_bounded_fifos() const { return simulate_bounded_fifos_; }
+
  private:
   PostFnEvalHook post_fn_eval_hook_ = nullptr;
   RolloverHook rollover_hook_ = nullptr;
@@ -116,6 +123,7 @@ class BytecodeInterpreterOptions {
   std::optional<int64_t> max_ticks_;
   bool validate_final_stack_depth_ = true;
   FormatPreference format_preference_ = FormatPreference::kDefault;
+  bool simulate_bounded_fifos_ = false;
 };
 
 }  // namespace xls::dslx

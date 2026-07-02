@@ -142,12 +142,16 @@ struct BlockedChannelInfo {
 // A FIFO which backs channel instances in the bytecode interpreter.
 class InterpValueChannel {
  public:
-  InterpValueChannel(int64_t id) : id_(id) {}
+  InterpValueChannel(int64_t id, std::optional<int64_t> depth)
+      : id_(id), depth_(depth) {}
   InterpValueChannel(const InterpValueChannel&) = delete;
   InterpValueChannel(InterpValueChannel&&) = default;
 
   int64_t GetId() const { return id_; }
   bool IsEmpty() const { return queue_.empty(); }
+  bool IsFull() const {
+    return depth_.has_value() && (queue_.size() >= *depth_);
+  }
   int64_t GetSize() const { return queue_.size(); }
   InterpValue Read() {
     InterpValue result = std::move(queue_.front());
@@ -158,6 +162,7 @@ class InterpValueChannel {
 
  private:
   const int64_t id_;
+  std::optional<int64_t> depth_;
   std::deque<InterpValue> queue_;
 };
 
@@ -172,13 +177,17 @@ class InterpValueChannelManager {
       const TypeInfo* ti, const InterpValue::ChannelReference& channel_ref) = 0;
 
   // Allocates a channel using the next available ID. This is for legacy procs.
-  virtual InterpValueChannel& AllocateLegacyChannel() = 0;
+  // `depth` sets the FIFO capacity; nullopt means unbounded.
+  virtual InterpValueChannel& AllocateLegacyChannel(
+      std::optional<int64_t> depth = std::nullopt) = 0;
 
   // Allocates a channel using the passed in ID, which should have been provided
   // by type inference. The definer is the `Param` or `ChannelDecl` node where
   // the channel originates (`Param` only for top boundary channels).
+  // `depth` sets the FIFO capacity; nullopt means unbounded.
   virtual absl::StatusOr<InterpValueChannel*> AllocateChannel(
-      int64_t channel_id, const AstNode* definer) = 0;
+      int64_t channel_id, const AstNode* definer,
+      std::optional<int64_t> depth) = 0;
 
  protected:
   absl::flat_hash_map<int64_t, std::unique_ptr<InterpValueChannel>> channels_;
@@ -186,16 +195,18 @@ class InterpValueChannelManager {
 
 class LegacyChannelManager : public InterpValueChannelManager {
  public:
-  InterpValueChannel& AllocateLegacyChannel() override {
+  InterpValueChannel& AllocateLegacyChannel(
+      std::optional<int64_t> depth = std::nullopt) override {
     const int64_t channel_id = channels_.size();
     return *channels_
-                .emplace(channel_id,
-                         std::make_unique<InterpValueChannel>(channel_id))
+                .emplace(channel_id, std::make_unique<InterpValueChannel>(
+                                         channel_id, depth))
                 .first->second;
   }
 
-  absl::StatusOr<InterpValueChannel*> AllocateChannel(int64_t,
-                                                      const AstNode*) override {
+  absl::StatusOr<InterpValueChannel*> AllocateChannel(
+      int64_t, const AstNode*,
+      std::optional<int64_t>) override {
     return absl::UnimplementedError(
         "This channel manager is for legacy procs and does not implement "
         "allocation with external IDs.");
@@ -211,20 +222,22 @@ class LegacyChannelManager : public InterpValueChannelManager {
 
 class ProcDefChannelManager : public InterpValueChannelManager {
  public:
-  InterpValueChannel& AllocateLegacyChannel() override {
+  InterpValueChannel& AllocateLegacyChannel(
+      std::optional<int64_t> = std::nullopt) override {
     CHECK(false) << "This channel manager is for impl-style procs and does not "
                     "implement legacy allocation.";
   }
 
   absl::StatusOr<InterpValueChannel*> AllocateChannel(
-      int64_t channel_id, const AstNode* definer) override {
+      int64_t channel_id, const AstNode* definer,
+      std::optional<int64_t> depth) override {
     VLOG(5) << "Allocating channel ID " << channel_id
             << " from definer: " << definer->ToString();
     XLS_RET_CHECK(definer->kind() == AstNodeKind::kParam ||
                   definer->kind() == AstNodeKind::kChannelDecl);
     auto& value = channels_[channel_id];
     if (value == nullptr) {
-      value = std::make_unique<InterpValueChannel>(channel_id);
+      value = std::make_unique<InterpValueChannel>(channel_id, depth);
       definers_[channel_id] = definer;
     } else if (definers_.at(channel_id) != definer) {
       return absl::AlreadyExistsError(absl::StrCat(

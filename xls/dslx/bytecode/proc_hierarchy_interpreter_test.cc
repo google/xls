@@ -1468,5 +1468,180 @@ impl TestProc {
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
 }
 
+TEST_F(ProcHierarchyInterpreterTest, BoundedFifoBlocksAndResumes) {
+  // Depth-1 channel forces the second send (via send_if) to block until
+  // drained; checks stack save/restore keeps values in order.
+  constexpr std::string_view kProgram = R"(
+proc Passthrough {
+    data_r: chan<u32> in;
+    result_s: chan<u32> out;
+
+    config(data_r: chan<u32> in, result_s: chan<u32> out) { (data_r, result_s) }
+
+    init { () }
+
+    next(state: ()) {
+        let (tok, data) = recv(join(), data_r);
+        send(tok, result_s, data);
+    }
+}
+
+#[test_proc]
+proc BoundedFifoTest {
+    terminator: chan<bool> out;
+    data_s: chan<u32> out;
+    result_r: chan<u32> in;
+
+    config(terminator: chan<bool> out) {
+        let (data_s, data_r) = chan<u32, u32:1>("data");
+        let (result_s, result_r) = chan<u32, u32:1>("result");
+        spawn Passthrough(data_r, result_s);
+        (terminator, data_s, result_r)
+    }
+
+    init { }
+
+    next(_: ()) {
+        let tok = join();
+        let tok = send(tok, data_s, u32:1);
+        let tok = send_if(tok, data_s, true, u32:2);
+
+        let (tok, result) = recv(tok, result_r);
+        assert_eq(result, u32:1);
+        let (tok, result) = recv(tok, result_r);
+        assert_eq(result, u32:2);
+
+        send(tok, terminator, true);
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
+                           ParseAndGetTestProc(kProgram, "BoundedFifoTest"));
+  auto options =
+      BytecodeInterpreterOptions().max_ticks(20).simulate_bounded_fifos(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
+}
+
+TEST_F(ProcHierarchyInterpreterTest, ImplStyleBoundedFifoBlocksAndResumes) {
+  // Same as above, but impl-style procs resolve member-channel depth via a
+  // separate path (GetFifoDepth), so it needs its own coverage.
+  constexpr std::string_view kProgram = R"(
+proc Passthrough {
+  data_in: chan<u32> in,
+  result_out: chan<u32> out,
+}
+
+impl Passthrough {
+  fn new(data_in: chan<u32> in, result_out: chan<u32> out) -> Self {
+    Passthrough { data_in, result_out }
+  }
+
+  fn next(self) {
+    let (tok, data) = recv(join(), self.data_in);
+    send(tok, self.result_out, data);
+  }
+}
+
+#[test]
+proc BoundedFifoProcDefTest {
+  terminator: chan<bool> out,
+  data_out: chan<u32> out,
+  result_in: chan<u32> in,
+}
+
+impl BoundedFifoProcDefTest {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (data_out, data_in) = chan<u32, u32:1>("data");
+    let (result_out, result_in) = chan<u32, u32:1>("result");
+    Passthrough::new(data_in, result_out).spawn();
+    BoundedFifoProcDefTest { terminator, data_out, result_in }
+  }
+
+  fn next(self) {
+    let tok = send(join(), self.data_out, u32:1);
+    let tok = send(tok, self.data_out, u32:2);
+
+    let (tok, result) = recv(tok, self.result_in);
+    assert_eq(result, u32:1);
+    let (tok, result) = recv(tok, self.result_in);
+    assert_eq(result, u32:2);
+
+    send(tok, self.terminator, true);
+  }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcDef * test_proc,
+      ParseAndGetTestProcDef(kProgram, "BoundedFifoProcDefTest"));
+  auto options =
+      BytecodeInterpreterOptions().max_ticks(20).simulate_bounded_fifos(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
+}
+
+TEST_F(ProcHierarchyInterpreterTest, FifoDepthAppliesPerChannelArrayElement) {
+  // Depth on a channel array must apply per-element, not to the array as a
+  // whole: element 0 blocks/resumes, element 1 never blocks.
+  constexpr std::string_view kProgram = R"(
+proc Passthrough {
+    in_ch: chan<u32> in;
+    out_ch: chan<u32> out;
+
+    init { () }
+
+    config(in_ch: chan<u32> in, out_ch: chan<u32> out) {
+        (in_ch, out_ch)
+    }
+    next(_: ()) {
+        let (tok, v) = recv(join(), in_ch);
+        send(tok, out_ch, v);
+    }
+}
+
+#[test_proc]
+proc FifoDepthArrayTest {
+    terminator: chan<bool> out;
+    data_out: chan<u32>[2] out;
+    data_in: chan<u32>[2] in;
+
+    init { () }
+
+    config(terminator: chan<bool> out) {
+        let (input_p, input_c) = chan<u32, u32:1>[2]("input");
+        let (output_p, output_c) = chan<u32, u32:1>[2]("output");
+        spawn Passthrough(input_c[0], output_p[0]);
+        spawn Passthrough(input_c[1], output_p[1]);
+        (terminator, input_p, output_c)
+    }
+
+    next(_: ()) {
+        let tok = join();
+        let tok = send(tok, data_out[0], u32:1);
+        let tok = send(tok, data_out[0], u32:2);
+        let tok = send(tok, data_out[1], u32:100);
+
+        let (tok, r0) = recv(tok, data_in[0]);
+        assert_eq(r0, u32:1);
+        let (tok, r0) = recv(tok, data_in[0]);
+        assert_eq(r0, u32:2);
+        let (tok, r1) = recv(tok, data_in[1]);
+        assert_eq(r1, u32:100);
+
+        send(tok, terminator, true);
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
+                           ParseAndGetTestProc(kProgram, "FifoDepthArrayTest"));
+  auto options =
+      BytecodeInterpreterOptions().max_ticks(20).simulate_bounded_fifos(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
+}
+
 }  // namespace
 }  // namespace xls::dslx

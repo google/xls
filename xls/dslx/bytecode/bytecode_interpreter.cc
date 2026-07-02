@@ -1401,6 +1401,14 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
           ->GetChannel(frames_.back().type_info(), channel_reference);
 
   if (condition.IsTrue()) {
+    if (channel.IsFull()) {
+      // Restore the stack!
+      stack_.Push(token);
+      stack_.Push(channel_value);
+      stack_.Push(payload);
+      stack_.Push(condition);
+      return absl::ResourceExhaustedError("Channel is full.");
+    }
     if (options_.trace_channels() && events_.has_value()) {
       XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
                            bytecode.channel_data());

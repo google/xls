@@ -111,6 +111,7 @@ struct ParseAndTestOptions {
   bool trace_channels = false;
   bool trace_calls = false;
   std::optional<int64_t> max_ticks;
+  bool simulate_bounded_fifos = false;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
 

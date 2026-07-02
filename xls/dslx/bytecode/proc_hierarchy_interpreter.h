@@ -50,6 +50,8 @@ enum class ProcExecutionState : uint8_t {
   kCompleted,
   // The proc tick was blocked on a blocking receive.
   kBlockedOnReceive,
+  // The proc tick blocked on a full send channel.
+  kBlockedOnSend,
 };
 
 // Data structure holding the result of a single call to ProcInstance::Run.
@@ -184,7 +186,8 @@ class ProcHierarchyInterpreter {
                                   const BytecodeInterpreterOptions& options);
 
   absl::Status AllocateChannelOrArray(const ProcDef* proc,
-                                      const InterpValue& value);
+                                      const InterpValue& value,
+                                      std::optional<int64_t> depth);
 
   std::unique_ptr<InterpValueChannelManager> channel_manager_;
   std::vector<ProcInstance> proc_instances_;
