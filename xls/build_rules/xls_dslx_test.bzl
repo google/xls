@@ -121,6 +121,9 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
         "lower_to_ir",
         "convert_tests",
         "simulate_bounded_fifos",
+        "randomize_proc_execution",
+        "seed",
+        "trace_channels",
     )
 
     dslx_test_args = dict(_dslx_test_args)

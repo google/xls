@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -48,7 +49,7 @@ namespace xls::dslx {
 enum class ProcExecutionState : uint8_t {
   // The proc tick completed.
   kCompleted,
-  // The proc tick was blocked on a blocking receive.
+  // The proc tick blocked on an empty receive channel.
   kBlockedOnReceive,
   // The proc tick blocked on a full send channel.
   kBlockedOnSend,
@@ -58,8 +59,8 @@ enum class ProcExecutionState : uint8_t {
 struct ProcRunResult {
   ProcExecutionState execution_state;
 
-  // If tick state is kBlockedOnReceive this field holds the name and usage
-  // location of the blocked channel.
+  // If execution_state is kBlockedOnReceive, holds the channel name and
+  // location for diagnostics.
   std::optional<BlockedChannelInfo> blocked_channel_info;
 
   // Whether any progress was made (at least one instruction was executed).
@@ -192,6 +193,7 @@ class ProcHierarchyInterpreter {
   std::unique_ptr<InterpValueChannelManager> channel_manager_;
   std::vector<ProcInstance> proc_instances_;
   std::vector<InterpValue> interface_args_;
+  std::optional<std::minstd_rand> rng_;
 
   // The interface is defined by the config arguments of the top-level proc.
   struct InterfaceChannel {

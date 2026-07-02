@@ -115,6 +115,17 @@ class BytecodeInterpreterOptions {
   }
   bool simulate_bounded_fifos() const { return simulate_bounded_fifos_; }
 
+  // When set, the proc execution order is shuffled once at the start of each
+  // tick using this seed.
+  BytecodeInterpreterOptions& proc_schedule_seed(
+      std::optional<int64_t> value) {
+    proc_schedule_seed_ = value;
+    return *this;
+  }
+  std::optional<int64_t> proc_schedule_seed() const {
+    return proc_schedule_seed_;
+  }
+
  private:
   PostFnEvalHook post_fn_eval_hook_ = nullptr;
   RolloverHook rollover_hook_ = nullptr;
@@ -124,6 +135,7 @@ class BytecodeInterpreterOptions {
   bool validate_final_stack_depth_ = true;
   FormatPreference format_preference_ = FormatPreference::kDefault;
   bool simulate_bounded_fifos_ = false;
+  std::optional<int64_t> proc_schedule_seed_;
 };
 
 }  // namespace xls::dslx

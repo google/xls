@@ -22,6 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
@@ -62,6 +63,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheckOrPrintError(
   return tm;
 }
 
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
 class ProcHierarchyInterpreterTest : public ::testing::Test {
@@ -1641,6 +1643,81 @@ proc FifoDepthArrayTest {
       std::unique_ptr<ProcHierarchyInterpreter> interpreter,
       Create(test_proc, options));
   XLS_ASSERT_OK(Run(*interpreter, options));
+}
+
+TEST_F(ProcHierarchyInterpreterTest, ProcScheduleSeedIsDeterministic) {
+// PriorityMux's output depends on proc execution order, which makes this a
+// good scenario for checking a fixed schedule seed reproduces exactly.
+  constexpr std::string_view kProgram = R"(
+pub proc Writer<BASE_COUNT: u32> {
+    out_s: chan<u32> out;
+    config(out_s: chan<u32> out) { (out_s,) }
+    init { u32:0 }
+    next(count: u32) {
+        send(join(), out_s, BASE_COUNT + count);
+        count + u32:1
+    }
+}
+
+pub proc PriorityMux {
+    a_r: chan<u32> in;
+    b_r: chan<u32> in;
+    out_s: chan<u32> out;
+    config(a_r: chan<u32> in, b_r: chan<u32> in, out_s: chan<u32> out) {
+        (a_r, b_r, out_s)
+    }
+    init { () }
+    next(state: ()) {
+        let (tok, val_a, got_a) = recv_non_blocking(join(), a_r, u32:0);
+        let tok = if got_a {
+            send(tok, out_s, val_a)
+        } else {
+            let (tok, val_b) = recv(tok, b_r);
+            send(tok, out_s, val_b)
+        };
+    }
+}
+
+#[test_proc]
+proc PriorityMuxTest {
+    terminator: chan<bool> out;
+    out_r: chan<u32> in;
+
+    config(terminator: chan<bool> out) {
+        let (a_s, a_r) = chan<u32>("writer_a");
+        let (b_s, b_r) = chan<u32>("writer_b");
+        let (out_s, out_r) = chan<u32>("mux_out");
+        spawn Writer<u32:0>(a_s);
+        spawn Writer<u32:100>(b_s);
+        spawn PriorityMux(a_r, b_r, out_s);
+        (terminator, out_r)
+    }
+
+    init { u32:0 }
+
+    next(count: u32) {
+        let (tok, val) = recv_if(join(), out_r, count < u32:3, u32:0);
+        assert_eq(val < u32:10, true);
+        let done = count == u32:2;
+        send_if(tok, terminator, done, true);
+        if done { u32:0 } else { count + u32:1 }
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestProc * test_proc,
+      ParseAndGetTestProc(kProgram, "PriorityMuxTest"));
+  auto options =
+      BytecodeInterpreterOptions().max_ticks(20).proc_schedule_seed(0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcHierarchyInterpreter> first,
+                           Create(test_proc, options));
+  absl::Status first_status = Run(*first, options);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcHierarchyInterpreter> second,
+                           Create(test_proc, options));
+  absl::Status second_status = Run(*second, options);
+
+  EXPECT_EQ(first_status, second_status);
 }
 
 }  // namespace

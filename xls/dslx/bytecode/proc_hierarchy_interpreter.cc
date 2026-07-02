@@ -18,11 +18,13 @@
 #include <deque>
 #include <memory>
 #include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -304,6 +306,10 @@ ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
   auto hierarchy_interpreter = std::make_unique<ProcHierarchyInterpreter>();
   hierarchy_interpreter->channel_manager_ =
       std::make_unique<LegacyChannelManager>();
+  if (options.proc_schedule_seed().has_value()) {
+    hierarchy_interpreter->rng_ =
+        std::minstd_rand(*options.proc_schedule_seed());
+  }
 
   // Allocate the channels for the top-level config interface.
   for (int64_t index = 0; index < top_proc->config().params().size(); ++index) {
@@ -343,6 +349,10 @@ ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
   auto hierarchy_interpreter = std::make_unique<ProcHierarchyInterpreter>();
   hierarchy_interpreter->channel_manager_ =
       std::make_unique<ProcDefChannelManager>();
+  if (options.proc_schedule_seed().has_value()) {
+    hierarchy_interpreter->rng_ =
+        std::minstd_rand(*options.proc_schedule_seed());
+  }
   XLS_ASSIGN_OR_RETURN(const Function* constructor,
                        GetTopProcConstructor(top_proc, type_info));
 
@@ -591,6 +601,9 @@ absl::Status ProcHierarchyInterpreter::Tick() {
   for (auto& p : proc_instances()) {
     ready_list.push_back(&p);
   }
+  if (rng_.has_value()) {
+    absl::c_shuffle(ready_list, *rng_);
+  }
 
   std::deque<ProcInstance*> next_ready_list;
   bool progress_made;
@@ -659,17 +672,21 @@ absl::StatusOr<int64_t> ProcHierarchyInterpreter::TickUntilOutput(
           absl::StrFormat("Exceeded limit of %d proc ticks before terminating",
                           options.max_ticks().value()));
     }
+    std::vector<ProcInstance*> ready;
+    for (auto& p : proc_instances()) ready.push_back(&p);
+    if (rng_.has_value()) absl::c_shuffle(ready, *rng_);
+
     std::vector<std::string> blocked_channels;
-    for (auto& p : proc_instances()) {
-      XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p.Run());
-      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive) {
-        XLS_RET_CHECK(run_result.blocked_channel_info.has_value());
+    for (ProcInstance* p : ready) {
+      XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p->Run());
+      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive &&
+          run_result.blocked_channel_info.has_value()) {
         BlockedChannelInfo channel_info =
             run_result.blocked_channel_info.value();
         blocked_channels.push_back(absl::StrFormat(
             "%s: proc `%s` is blocked on receive on channel `%s`",
-            channel_info.span.ToString(p.interpreter().file_table()),
-            p.proc_name(), channel_info.name));
+            channel_info.span.ToString(p->interpreter().file_table()),
+            p->proc_name(), channel_info.name));
       }
       progress_made |= run_result.progress_made;
     }
