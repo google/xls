@@ -1698,6 +1698,7 @@ Attribute translateXlsValueToAttribute(const ::xls::Value& value,
       return nullptr;
     }
     llvm::SmallVector<Attribute> elements;
+    elements.reserve(value.elements().size());
     for (const auto& elem : value.elements()) {
       elements.push_back(translateXlsValueToAttribute(
           elem, array_type.getElementType(), builder));
@@ -1710,6 +1711,7 @@ Attribute translateXlsValueToAttribute(const ::xls::Value& value,
       return nullptr;
     }
     llvm::SmallVector<Attribute> elements;
+    elements.reserve(value.elements().size());
     for (auto [i, elem] : llvm::enumerate(value.elements())) {
       elements.push_back(
           translateXlsValueToAttribute(elem, tuple_type.getType(i), builder));
