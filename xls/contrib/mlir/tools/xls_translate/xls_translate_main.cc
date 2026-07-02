@@ -117,7 +117,7 @@ LogicalResult mlirXlsToVerilogTranslate(Operation* op,
   options.privatize_and_dce_functions = privatizeAndDceFunctions;
   options.optimize_ir = optimizeIr;
   options.dslx_search_path = dslxSearchPath;
-  options.generate_verilog = true;
+  options.translation_kind = TranslationKind::kVerilog;
   if (dumpCodegenMetrics) {
     return MlirXlsToXlsTranslate(op, output, options, printCodegenMetrics);
   }

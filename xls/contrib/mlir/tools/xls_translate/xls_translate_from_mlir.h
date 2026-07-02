@@ -75,6 +75,12 @@ T DieUnlessOk(const absl::StatusOr<T>& status_or) {
   return status_or.value();
 }
 
+enum class TranslationKind {
+  kXlsIr,
+  kVerilog,
+  kXlsBlockIr,
+};
+
 struct MlirXlsToXlsTranslateOptions {
   // The name of the main function to translate.
   llvm::StringRef main_function = "";
@@ -85,8 +91,8 @@ struct MlirXlsToXlsTranslateOptions {
   // Whether to run XLS's optimizer post translation but before emitting.
   bool optimize_ir = false;
 
-  // Whether to generate Verilog.
-  bool generate_verilog = false;
+  // The translation target kind.
+  TranslationKind translation_kind = TranslationKind::kXlsIr;
 
   // Whether to privatize all non-top functions and run SymbolDCE first.
   bool privatize_and_dce_functions = false;
