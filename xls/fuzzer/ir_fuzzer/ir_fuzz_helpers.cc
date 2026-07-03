@@ -432,10 +432,14 @@ int64_t IrFuzzHelpers::Bounded(int64_t value, int64_t left_bound,
 // Returns a default bit width if it is not in range. Bit width cannot be
 // negative, cannot be 0, and cannot be too large otherwise the test will run
 // out of memory or take too long.
+// Note: We use direct min/max clamping rather than calling Bounded(), as
+// modulo-wrapping (active in Bounded under BOUND_WITH_MODULO_VERSION) is
+// undesirable for bit widths. Modulo arithmetic can warp normal bit widths
+// to narrow values that cause literal truncation or UBits overflow aborts.
 int64_t IrFuzzHelpers::BoundedWidth(int64_t bit_width, int64_t left_bound,
                                     int64_t right_bound) const {
   right_bound = std::max(left_bound, std::min(right_bound, max_bit_width_));
-  return Bounded(bit_width, left_bound, right_bound);
+  return std::max(left_bound, std::min(bit_width, right_bound));
 }
 
 int64_t IrFuzzHelpers::BoundedTupleSize(int64_t tuple_size, int64_t left_bound,
