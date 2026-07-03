@@ -1172,6 +1172,9 @@ FailureOr<::xls::Value> zeroLiteral(Type type) {
         convertAPInt(llvm::APInt(float_type.getFPMantissaWidth() - 1, 0)));
     return ::xls::Value::TupleOwned(std::move(values));
   }
+  if (isa<TokenType>(type)) {
+    return ::xls::Value::Token();
+  }
   llvm::errs() << "Unsupported type: " << type << "\n";
   return failure();
 }
