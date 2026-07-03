@@ -127,9 +127,10 @@ BValue IrFuzzHelpers::CoercedArray(Package* p, FunctionBuilder* fb,
   std::vector<BValue> coerced_elements;
   // Coerce each array element and create a new array with the coerced
   // elements.
+  int64_t idx_width = BoundedArrayIndexWidth(array_size);
   for (int64_t i = 0; i < array_size; i += 1) {
     BValue element =
-        fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, BoundedWidth(64)))}, true);
+        fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, idx_width))}, true);
     BValue coerced_element =
         Coerced(p, fb, element, coerced_type.array_element(),
                 target_array_type->element_type());
@@ -226,9 +227,10 @@ BValue IrFuzzHelpers::FittedArray(Package* p, FunctionBuilder* fb,
   }
   std::vector<BValue> fitted_elements;
   // Fit each array element and create a new array with the fitted elements.
+  int64_t idx_width = BoundedArrayIndexWidth(target_array_type->size());
   for (int64_t i = 0; i < target_array_type->size(); i += 1) {
     BValue element =
-        fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, BoundedWidth(64)))}, true);
+        fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, idx_width))}, true);
     BValue fitted_element = Fitted(p, fb, element, coercion_method,
                                    target_array_type->element_type());
     fitted_elements.push_back(fitted_element);
@@ -368,15 +370,17 @@ BValue IrFuzzHelpers::DecreaseArraySize(
       return fb->ArraySlice(bvalue, fb->Literal(UBits(0, BoundedWidth(64))),
                             new_size);
     case DecreaseArraySizeMethod::SHRINK_ARRAY_METHOD:
-    default:
+    default: {
       // Create a new array with only some of the elements from the original
       // array.
+      int64_t idx_width = BoundedArrayIndexWidth(new_size);
       std::vector<BValue> elements;
       for (int64_t i = 0; i < new_size; i += 1) {
-        elements.push_back(fb->ArrayIndex(
-            bvalue, {fb->Literal(UBits(i, BoundedWidth(64)))}, true));
+        elements.push_back(
+            fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, idx_width))}, true));
       }
       return fb->Array(elements, array_type->element_type());
+    }
   }
 }
 
@@ -386,13 +390,14 @@ BValue IrFuzzHelpers::IncreaseArraySize(
   ArrayType* array_type = bvalue.GetType()->AsArrayOrDie();
   switch (increase_size_method) {
     case IncreaseArraySizeMethod::EXPAND_ARRAY_METHOD:
-    default:
+    default: {
       // Create a new array with the original elements and some default elements
       // to expand the array to the specified size.
+      int64_t idx_width = BoundedArrayIndexWidth(array_type->size());
       std::vector<BValue> elements;
       for (int64_t i = 0; i < array_type->size(); i += 1) {
-        elements.push_back(fb->ArrayIndex(
-            bvalue, {fb->Literal(UBits(i, BoundedWidth(64)))}, true));
+        elements.push_back(
+            fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, idx_width))}, true));
       }
       // Use a default value to fill the rest of the array.
       BValue default_value =
@@ -401,6 +406,7 @@ BValue IrFuzzHelpers::IncreaseArraySize(
         elements.push_back(default_value);
       }
       return fb->Array(elements, array_type->element_type());
+    }
   }
 }
 
@@ -447,6 +453,15 @@ int64_t IrFuzzHelpers::BoundedTupleSize(int64_t tuple_size, int64_t left_bound,
 int64_t IrFuzzHelpers::BoundedArraySize(int64_t array_size, int64_t left_bound,
                                         int64_t right_bound) const {
   return Bounded(array_size, left_bound, right_bound);
+}
+
+// Returns a randomized bit width for indexing an array of size `array_size`.
+// Ensures the left bound is large enough so any index `i < array_size` fits
+// in the generated bit width without causing UBits out-of-range aborts.
+int64_t IrFuzzHelpers::BoundedArrayIndexWidth(int64_t array_size) const {
+  int64_t min_bits = std::max<int64_t>(
+      1, 64 - __builtin_clzll(std::max<int64_t>(1, array_size)));
+  return BoundedWidth(64, /*left_bound=*/min_bits, /*right_bound=*/64);
 }
 
 // Returns a default BValue of the specified type.

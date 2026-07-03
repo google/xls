@@ -177,7 +177,10 @@ void GenIrNodesPass::HandleUMul(const FuzzUMulProto& umul) {
     // of the same type.
     BValue lhs = GetCoercedBitsOperand(umul.lhs_idx(), umul.operands_type());
     BValue rhs = GetCoercedBitsOperand(umul.rhs_idx(), umul.operands_type());
-    state().context_list().AppendElement(state().fb()->UMul(lhs, rhs));
+    int64_t bit_width =
+        helpers_.BoundedWidth(lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    state().context_list().AppendElement(
+        state().fb()->UMul(lhs, rhs, bit_width));
   }
 }
 
@@ -195,7 +198,10 @@ void GenIrNodesPass::HandleSMul(const FuzzSMulProto& smul) {
   } else {
     BValue lhs = GetCoercedBitsOperand(smul.lhs_idx(), smul.operands_type());
     BValue rhs = GetCoercedBitsOperand(smul.rhs_idx(), smul.operands_type());
-    state().context_list().AppendElement(state().fb()->SMul(lhs, rhs));
+    int64_t bit_width =
+        helpers_.BoundedWidth(lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    state().context_list().AppendElement(
+        state().fb()->SMul(lhs, rhs, bit_width));
   }
 }
 
@@ -213,7 +219,10 @@ void GenIrNodesPass::HandleUMulp(const FuzzUMulpProto& umulp) {
   } else {
     BValue lhs = GetCoercedBitsOperand(umulp.lhs_idx(), umulp.operands_type());
     BValue rhs = GetCoercedBitsOperand(umulp.rhs_idx(), umulp.operands_type());
-    state().context_list().AppendElement(state().fb()->UMulp(lhs, rhs));
+    int64_t bit_width =
+        helpers_.BoundedWidth(lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    state().context_list().AppendElement(
+        state().fb()->UMulp(lhs, rhs, bit_width));
   }
 }
 
@@ -231,7 +240,10 @@ void GenIrNodesPass::HandleSMulp(const FuzzSMulpProto& smulp) {
   } else {
     BValue lhs = GetCoercedBitsOperand(smulp.lhs_idx(), smulp.operands_type());
     BValue rhs = GetCoercedBitsOperand(smulp.rhs_idx(), smulp.operands_type());
-    state().context_list().AppendElement(state().fb()->SMulp(lhs, rhs));
+    int64_t bit_width =
+        helpers_.BoundedWidth(lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    state().context_list().AppendElement(
+        state().fb()->SMulp(lhs, rhs, bit_width));
   }
 }
 
@@ -287,6 +299,15 @@ void GenIrNodesPass::HandleConcat(const FuzzConcatProto& concat) {
       break;
     }
     operand_count += 1;
+  }
+  // If even the first operand exceeds max_bit_width_, operand_count remains 0.
+  // Truncating operands to 0 would leave `operands` empty and trigger the
+  // CHECK(!operands.empty()) below. To prevent this crash while respecting
+  // max_bit_width_, we keep the first operand and clamp its bit width.
+  if (operand_count == 0 && !operands.empty()) {
+    operands[0] =
+        helpers_.ChangeBitWidth(state().fb(), operands[0], max_bit_width_);
+    operand_count = 1;
   }
   // Drop the remaining operands.
   operands.resize(operand_count);
@@ -407,13 +428,13 @@ void GenIrNodesPass::HandleSelect(const FuzzSelectProto& select) {
 
 void GenIrNodesPass::HandleOneHot(const FuzzOneHotProto& one_hot) {
   BValue operand = GetBitsOperand(one_hot.operand_idx());
-  // If the operand bit width is at the maximum allowed bit width, decrease it
-  // by 1 because OneHot returns an operand with a bit width of 1 + the bit
-  // width of the operand.
+  // If the operand bit width is at or above max_bit_width_, decrease it to at
+  // most max_bit_width_ - 1 because OneHot returns an operand with a bit width
+  // of 1 + the bit width of the operand.
   if (operand.BitCountOrDie() >= max_bit_width_) {
     auto operand_coercion_method = one_hot.operand_coercion_method();
     operand = helpers_.ChangeBitWidth(
-        state().fb(), operand, max_bit_width_ - 1,
+        state().fb(), operand, std::max<int64_t>(1, max_bit_width_ - 1),
         operand_coercion_method.change_bit_width_method());
   }
   // Convert the LsbOrMsb proto enum to the FunctionBuilder enum.
@@ -478,22 +499,24 @@ void GenIrNodesPass::HandlePrioritySelect(
 
 void GenIrNodesPass::HandleClz(const FuzzClzProto& clz) {
   BValue operand = GetBitsOperand(clz.operand_idx());
-  // Use max_bit_width_ - 1 because this operation internally generates a
-  // OneHot node which adds 1 to the bit count. See HandleOneHot.
+  // FunctionBuilder::Clz internally emits a OneHot node which adds 1 to the bit
+  // count. To ensure the resulting node width does not exceed max_bit_width_,
+  // we clamp the input operand to at most max_bit_width_ - 1 (min 1 bit).
   if (operand.BitCountOrDie() >= max_bit_width_) {
-    operand =
-        helpers_.ChangeBitWidth(state().fb(), operand, max_bit_width_ - 1);
+    operand = helpers_.ChangeBitWidth(state().fb(), operand,
+                                      std::max<int64_t>(1, max_bit_width_ - 1));
   }
   state().context_list().AppendElement(state().fb()->Clz(operand));
 }
 
 void GenIrNodesPass::HandleCtz(const FuzzCtzProto& ctz) {
   BValue operand = GetBitsOperand(ctz.operand_idx());
-  // Use max_bit_width_ - 1 because this operation internally generates a
-  // OneHot node which adds 1 to the bit count. See HandleOneHot.
+  // FunctionBuilder::Ctz internally emits a OneHot node which adds 1 to the bit
+  // count. To ensure the resulting node width does not exceed max_bit_width_,
+  // we clamp the input operand to at most max_bit_width_ - 1 (min 1 bit).
   if (operand.BitCountOrDie() >= max_bit_width_) {
-    operand =
-        helpers_.ChangeBitWidth(state().fb(), operand, max_bit_width_ - 1);
+    operand = helpers_.ChangeBitWidth(state().fb(), operand,
+                                      std::max<int64_t>(1, max_bit_width_ - 1));
   }
   state().context_list().AppendElement(state().fb()->Ctz(operand));
 }
@@ -656,8 +679,8 @@ void GenIrNodesPass::HandleSignExtend(const FuzzSignExtendProto& sign_extend) {
   BValue operand = GetBitsOperand(sign_extend.operand_idx());
   // The bit width cannot be less than the operand bit width because that is an
   // invalid extension.
-  int64_t bit_width =
-      helpers_.BoundedWidth(sign_extend.bit_width(), operand.BitCountOrDie());
+  int64_t bit_width = helpers_.BoundedWidth(
+      sign_extend.bit_width(), operand.BitCountOrDie(), max_bit_width_);
   state().context_list().AppendElement(
       state().fb()->SignExtend(operand, bit_width));
 }
@@ -665,8 +688,8 @@ void GenIrNodesPass::HandleSignExtend(const FuzzSignExtendProto& sign_extend) {
 // Same as SignExtend.
 void GenIrNodesPass::HandleZeroExtend(const FuzzZeroExtendProto& zero_extend) {
   BValue operand = GetBitsOperand(zero_extend.operand_idx());
-  int64_t bit_width =
-      helpers_.BoundedWidth(zero_extend.bit_width(), operand.BitCountOrDie());
+  int64_t bit_width = helpers_.BoundedWidth(
+      zero_extend.bit_width(), operand.BitCountOrDie(), max_bit_width_);
   state().context_list().AppendElement(
       state().fb()->ZeroExtend(operand, bit_width));
 }
@@ -698,7 +721,8 @@ void GenIrNodesPass::HandleBitSliceUpdate(
 void GenIrNodesPass::HandleDynamicBitSlice(
     const FuzzDynamicBitSliceProto& dynamic_bit_slice) {
   BValue operand = GetBitsOperand(dynamic_bit_slice.operand_idx());
-  int64_t bit_width = helpers_.BoundedWidth(dynamic_bit_slice.bit_width());
+  int64_t bit_width = helpers_.BoundedWidth(dynamic_bit_slice.bit_width(),
+                                            /*left_bound=*/1, max_bit_width_);
   // The operand must be of the same or greater bit width than the dynamic bit
   // slice bit width.
   if (operand.BitCountOrDie() < bit_width) {

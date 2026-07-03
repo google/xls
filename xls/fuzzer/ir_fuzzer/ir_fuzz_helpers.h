@@ -113,6 +113,7 @@ class IrFuzzHelpers {
                            int64_t right_bound = kMaxFuzzTupleSize) const;
   int64_t BoundedArraySize(int64_t array_size, int64_t left_bound = 1,
                            int64_t right_bound = kMaxFuzzArraySize) const;
+  int64_t BoundedArrayIndexWidth(int64_t array_size) const;
 
   BValue DefaultValue(Package* p, FunctionBuilder* fb,
                       TypeCase type_case = UNSET_CASE) const;
