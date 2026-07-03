@@ -164,10 +164,10 @@ void GenIrNodesPass::HandleUMul(const FuzzUMulProto& umul) {
     // If the bit width is set, use it.
     BValue lhs = GetBitsOperand(umul.lhs_idx());
     BValue rhs = GetBitsOperand(umul.rhs_idx());
-    // The bit width cannot exceed the sum of the bit widths of the operands
-    // or the max bit width.
-    int64_t right_bound = std::min<int64_t>(
-        max_bit_width_, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    // The bit width cannot exceed the sum of the bit widths of the operands.
+    int64_t right_bound =
+        std::min<int64_t>(IrFuzzHelpers::kMaxFuzzBitWidth,
+                          lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
         helpers_.BoundedWidth(umul.bit_width(), /*left_bound=*/1, right_bound);
     state().context_list().AppendElement(
@@ -186,8 +186,9 @@ void GenIrNodesPass::HandleSMul(const FuzzSMulProto& smul) {
   if (smul.has_bit_width()) {
     BValue lhs = GetBitsOperand(smul.lhs_idx());
     BValue rhs = GetBitsOperand(smul.rhs_idx());
-    int64_t right_bound = std::min<int64_t>(
-        max_bit_width_, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound =
+        std::min<int64_t>(IrFuzzHelpers::kMaxFuzzBitWidth,
+                          lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
         helpers_.BoundedWidth(smul.bit_width(), /*left_bound=*/1, right_bound);
     state().context_list().AppendElement(
@@ -204,8 +205,9 @@ void GenIrNodesPass::HandleUMulp(const FuzzUMulpProto& umulp) {
   if (umulp.has_bit_width()) {
     BValue lhs = GetBitsOperand(umulp.lhs_idx());
     BValue rhs = GetBitsOperand(umulp.rhs_idx());
-    int64_t right_bound = std::min<int64_t>(
-        max_bit_width_, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound =
+        std::min<int64_t>(IrFuzzHelpers::kMaxFuzzBitWidth,
+                          lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
         helpers_.BoundedWidth(umulp.bit_width(), /*left_bound=*/1, right_bound);
     state().context_list().AppendElement(
@@ -222,8 +224,9 @@ void GenIrNodesPass::HandleSMulp(const FuzzSMulpProto& smulp) {
   if (smulp.has_bit_width()) {
     BValue lhs = GetBitsOperand(smulp.lhs_idx());
     BValue rhs = GetBitsOperand(smulp.rhs_idx());
-    int64_t right_bound = std::min<int64_t>(
-        max_bit_width_, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound =
+        std::min<int64_t>(IrFuzzHelpers::kMaxFuzzBitWidth,
+                          lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
         helpers_.BoundedWidth(smulp.bit_width(), /*left_bound=*/1, right_bound);
     state().context_list().AppendElement(
@@ -278,12 +281,12 @@ void GenIrNodesPass::HandleConcat(const FuzzConcatProto& concat) {
   std::vector<BValue> operands =
       GetBitsOperands(concat.operand_idxs(), /*min_operand_count=*/1);
   // Only use operands such that their summed bit width is less than or equal
-  // to the maximum allowed bit width.
+  // to IrFuzzHelpers::kMaxFuzzBitWidth.
   int64_t bit_width_sum = 0;
   int64_t operand_count = 0;
   for (const auto& operand : operands) {
     bit_width_sum += operand.BitCountOrDie();
-    if (bit_width_sum > max_bit_width_) {
+    if (bit_width_sum > IrFuzzHelpers::kMaxFuzzBitWidth) {
       break;
     }
     operand_count += 1;
@@ -407,13 +410,13 @@ void GenIrNodesPass::HandleSelect(const FuzzSelectProto& select) {
 
 void GenIrNodesPass::HandleOneHot(const FuzzOneHotProto& one_hot) {
   BValue operand = GetBitsOperand(one_hot.operand_idx());
-  // If the operand bit width is at the maximum allowed bit width, decrease it
-  // by 1 because OneHot returns an operand with a bit width of 1 + the bit
-  // width of the operand.
-  if (operand.BitCountOrDie() >= max_bit_width_) {
+  // If the operand bit width is kMaxFuzzBitWidth, decrease it by 1 because
+  // OneHot returns an operand with a bit width of 1 + the bit width of the
+  // operand.
+  if (operand.BitCountOrDie() == IrFuzzHelpers::kMaxFuzzBitWidth) {
     auto operand_coercion_method = one_hot.operand_coercion_method();
     operand = helpers_.ChangeBitWidth(
-        state().fb(), operand, max_bit_width_ - 1,
+        state().fb(), operand, IrFuzzHelpers::kMaxFuzzBitWidth - 1,
         operand_coercion_method.change_bit_width_method());
   }
   // Convert the LsbOrMsb proto enum to the FunctionBuilder enum.
@@ -478,23 +481,11 @@ void GenIrNodesPass::HandlePrioritySelect(
 
 void GenIrNodesPass::HandleClz(const FuzzClzProto& clz) {
   BValue operand = GetBitsOperand(clz.operand_idx());
-  // Use max_bit_width_ - 1 because this operation internally generates a
-  // OneHot node which adds 1 to the bit count. See HandleOneHot.
-  if (operand.BitCountOrDie() >= max_bit_width_) {
-    operand =
-        helpers_.ChangeBitWidth(state().fb(), operand, max_bit_width_ - 1);
-  }
   state().context_list().AppendElement(state().fb()->Clz(operand));
 }
 
 void GenIrNodesPass::HandleCtz(const FuzzCtzProto& ctz) {
   BValue operand = GetBitsOperand(ctz.operand_idx());
-  // Use max_bit_width_ - 1 because this operation internally generates a
-  // OneHot node which adds 1 to the bit count. See HandleOneHot.
-  if (operand.BitCountOrDie() >= max_bit_width_) {
-    operand =
-        helpers_.ChangeBitWidth(state().fb(), operand, max_bit_width_ - 1);
-  }
   state().context_list().AppendElement(state().fb()->Ctz(operand));
 }
 
@@ -726,13 +717,13 @@ void GenIrNodesPass::HandleEncode(const FuzzEncodeProto& encode) {
 void GenIrNodesPass::HandleDecode(const FuzzDecodeProto& decode) {
   BValue operand = GetBitsOperand(decode.operand_idx());
   // The decode bit width cannot exceed 2 ** operand_bit_width.
-  int64_t right_bound = max_bit_width_;
+  int64_t right_bound = IrFuzzHelpers::kMaxFuzzBitWidth;
   // We could choose a larger size for this check, but we're clamping to
-  // max_bit_width_ and 10 bits is sufficient for this while
+  // IrFuzzHelpers::kMaxFuzzBitWidth and 10 bits is sufficient for this while
   // completely avoiding potential overflow, unlike e.g. checking for 64 bits.
   if (operand.BitCountOrDie() < 10) {
-    right_bound =
-        std::min<int64_t>(max_bit_width_, 1ULL << operand.BitCountOrDie());
+    right_bound = std::min<int64_t>(IrFuzzHelpers::kMaxFuzzBitWidth,
+                                    1ULL << operand.BitCountOrDie());
   }
   int64_t bit_width =
       helpers_.BoundedWidth(decode.bit_width(), /*left_bound=*/1, right_bound);
@@ -771,9 +762,7 @@ void GenIrNodesPass::HandleDefineFunction(
           // to p_->functions() until after the function is fully built.
           p_->functions().size() + function_states_.size()),
       fuzz_program_.version(), define_function.combine_list_method(),
-      helpers_.Bounded(define_function.next_nodes_consumed(), /*left_bound=*/0,
-                       /*right_bound=*/1000),
-      max_bit_width_);
+      helpers_.Bounded(define_function.next_nodes_consumed(), 0, 1000));
 }
 
 void GenIrNodesPass::HandleInvoke(const FuzzInvokeProto& invoke) {

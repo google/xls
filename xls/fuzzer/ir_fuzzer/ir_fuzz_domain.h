@@ -84,11 +84,6 @@ class FuzzPackageDomainBuilder {
     param_bits_ = bits;
     return std::move(*this);
   }
-  // Limits the bit width of any individual node to this value.
-  FuzzPackageDomainBuilder WithMaxBitWidth(int64_t bits) && {
-    max_bit_width_ = bits;
-    return std::move(*this);
-  }
   // Forces the combine list method to be the given value.
   FuzzPackageDomainBuilder WithCombineListMethod(
       std::optional<CombineListMethod> method) && {
@@ -112,7 +107,6 @@ class FuzzPackageDomainBuilder {
   bool allow_define_function_ = true;
   bool allow_invoke_ = true;
   std::optional<int64_t> param_bits_;
-  std::optional<int64_t> max_bit_width_;
   std::optional<CombineListMethod> combine_list_method_;
 };
 
@@ -149,10 +143,6 @@ class PackageWithArgsDomainBuilder {
   }
   PackageWithArgsDomainBuilder WithParamBits(int64_t bits) && {
     return PackageWithArgsDomainBuilder(std::move(base_).WithParamBits(bits),
-                                        arg_set_count_);
-  }
-  PackageWithArgsDomainBuilder WithMaxBitWidth(int64_t bits) && {
-    return PackageWithArgsDomainBuilder(std::move(base_).WithMaxBitWidth(bits),
                                         arg_set_count_);
   }
   PackageWithArgsDomainBuilder WithCombineListMethod(
@@ -206,9 +196,6 @@ class PackageDomainBuilder {
   }
   PackageDomainBuilder WithParamBits(int64_t bits) && {
     return PackageDomainBuilder(std::move(base_).WithParamBits(bits));
-  }
-  PackageDomainBuilder WithMaxBitWidth(int64_t bits) && {
-    return PackageDomainBuilder(std::move(base_).WithMaxBitWidth(bits));
   }
   PackageDomainBuilder WithCombineListMethod(
       std::optional<CombineListMethod> method) && {

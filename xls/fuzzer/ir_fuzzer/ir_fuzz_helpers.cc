@@ -14,7 +14,6 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -128,8 +127,7 @@ BValue IrFuzzHelpers::CoercedArray(Package* p, FunctionBuilder* fb,
   // Coerce each array element and create a new array with the coerced
   // elements.
   for (int64_t i = 0; i < array_size; i += 1) {
-    BValue element =
-        fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, BoundedWidth(64)))}, true);
+    BValue element = fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, 64))}, true);
     BValue coerced_element =
         Coerced(p, fb, element, coerced_type.array_element(),
                 target_array_type->element_type());
@@ -227,8 +225,7 @@ BValue IrFuzzHelpers::FittedArray(Package* p, FunctionBuilder* fb,
   std::vector<BValue> fitted_elements;
   // Fit each array element and create a new array with the fitted elements.
   for (int64_t i = 0; i < target_array_type->size(); i += 1) {
-    BValue element =
-        fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, BoundedWidth(64)))}, true);
+    BValue element = fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, 64))}, true);
     BValue fitted_element = Fitted(p, fb, element, coercion_method,
                                    target_array_type->element_type());
     fitted_elements.push_back(fitted_element);
@@ -365,16 +362,15 @@ BValue IrFuzzHelpers::DecreaseArraySize(
   ArrayType* array_type = bvalue.GetType()->AsArrayOrDie();
   switch (decrease_size_method) {
     case DecreaseArraySizeMethod::ARRAY_SLICE_METHOD:
-      return fb->ArraySlice(bvalue, fb->Literal(UBits(0, BoundedWidth(64))),
-                            new_size);
+      return fb->ArraySlice(bvalue, fb->Literal(UBits(0, 64)), new_size);
     case DecreaseArraySizeMethod::SHRINK_ARRAY_METHOD:
     default:
       // Create a new array with only some of the elements from the original
       // array.
       std::vector<BValue> elements;
       for (int64_t i = 0; i < new_size; i += 1) {
-        elements.push_back(fb->ArrayIndex(
-            bvalue, {fb->Literal(UBits(i, BoundedWidth(64)))}, true));
+        elements.push_back(
+            fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, 64))}, true));
       }
       return fb->Array(elements, array_type->element_type());
   }
@@ -391,8 +387,8 @@ BValue IrFuzzHelpers::IncreaseArraySize(
       // to expand the array to the specified size.
       std::vector<BValue> elements;
       for (int64_t i = 0; i < array_type->size(); i += 1) {
-        elements.push_back(fb->ArrayIndex(
-            bvalue, {fb->Literal(UBits(i, BoundedWidth(64)))}, true));
+        elements.push_back(
+            fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, 64))}, true));
       }
       // Use a default value to fill the rest of the array.
       BValue default_value =
@@ -434,7 +430,6 @@ int64_t IrFuzzHelpers::Bounded(int64_t value, int64_t left_bound,
 // out of memory or take too long.
 int64_t IrFuzzHelpers::BoundedWidth(int64_t bit_width, int64_t left_bound,
                                     int64_t right_bound) const {
-  right_bound = std::max(left_bound, std::min(right_bound, max_bit_width_));
   return Bounded(bit_width, left_bound, right_bound);
 }
 
@@ -460,12 +455,12 @@ BValue IrFuzzHelpers::DefaultValue(Package* p, FunctionBuilder* fb,
       return fb->Tuple({DefaultValue(p, fb, TypeCase::BITS_CASE)});
     case TypeCase::ARRAY_CASE:
       return fb->Array({DefaultValue(p, fb, TypeCase::BITS_CASE)},
-                       p->GetBitsType(BoundedWidth(64)));
+                       p->GetBitsType(64));
   }
 }
 
 BValue IrFuzzHelpers::DefaultBitsValue(FunctionBuilder* fb) const {
-  return fb->Literal(UBits(0, BoundedWidth(64)));
+  return fb->Literal(UBits(0, 64));
 }
 
 // Returns a default BValue of the specified type.

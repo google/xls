@@ -43,16 +43,13 @@ class GenIrNodesPass : public IrFuzzVisitor {
  public:
   GenIrNodesPass(Package* p, std::string_view top_name,
                  const FuzzProgramProto& fuzz_program,
-                 std::optional<int64_t> param_bits = std::nullopt,
-                 std::optional<int64_t> max_bit_width = std::nullopt)
+                 std::optional<int64_t> param_bits = std::nullopt)
       : p_(p),
         fuzz_program_(fuzz_program),
-        helpers_(fuzz_program_.version(), max_bit_width),
-        max_bit_width_(max_bit_width.value_or(IrFuzzHelpers::kMaxFuzzBitWidth)),
+        helpers_(fuzz_program_.version()),
         remaining_param_bits_(param_bits) {
     function_states_.emplace_back(p, top_name, fuzz_program_.version(),
-                                  fuzz_program_.combine_list_method(),
-                                  std::nullopt, max_bit_width);
+                                  fuzz_program_.combine_list_method());
   }
 
   void GenIrNodes();
@@ -131,10 +128,9 @@ class GenIrNodesPass : public IrFuzzVisitor {
    public:
     FunctionState(Package* p, std::string_view top_name, FuzzVersion version,
                   CombineListMethod combine_list_method,
-                  std::optional<int64_t> nodes_to_consume = std::nullopt,
-                  std::optional<int64_t> max_bit_width = std::nullopt)
+                  std::optional<int64_t> nodes_to_consume = std::nullopt)
         : fb_(std::make_unique<FunctionBuilder>(top_name, p)),
-          context_list_(p, fb_.get(), IrFuzzHelpers(version, max_bit_width)),
+          context_list_(p, fb_.get(), IrFuzzHelpers(version)),
           combine_list_method_(combine_list_method),
           nodes_to_consume_(nodes_to_consume) {}
 
@@ -212,7 +208,6 @@ class GenIrNodesPass : public IrFuzzVisitor {
       caller_to_callee_;
   std::vector<FunctionState> function_states_;
   std::optional<int64_t> remaining_param_bits_ = std::nullopt;
-  int64_t max_bit_width_;
 };
 
 }  // namespace xls
