@@ -62,32 +62,6 @@ struct OptimizeUsingXlsPass
 };
 }  // namespace
 
-// Checks if the optimized function type is compatible with the original one.
-// Types are compatible if they are identical, or if the original function
-// returns multiple values and the optimized function packs them into a single
-// tuple (since XLS only supports single return values).
-static bool isTypeCompatible(FunctionType originalType,
-                             FunctionType optimizedType) {
-  if (originalType == optimizedType) {
-    return true;
-  }
-  if (originalType.getInputs() != optimizedType.getInputs()) {
-    return false;
-  }
-  // XLS only supports single return values, so when the original function
-  // returns multiple values, the optimized function packs them into a single
-  // tuple. Inputs are never repackaged this way, so only return types require
-  // this unpacking check.
-  if (originalType.getResults().size() > 1 &&
-      optimizedType.getResults().size() == 1) {
-    if (auto tupleType =
-            llvm::dyn_cast<TupleType>(optimizedType.getResult(0))) {
-      return originalType.getResults() == tupleType.getTypes();
-    }
-  }
-  return false;
-}
-
 void OptimizeUsingXlsPass::runOnOperation() {
   ModuleOp module = getOperation();
 
@@ -147,34 +121,12 @@ LogicalResult optimizeUsingXls(ModuleOp module, DslxPackageCache& dslx_cache,
       return module.emitError("could not find optimized func ") << top;
     }
     auto original_func = module.lookupSymbol<mlir::func::FuncOp>(top);
-    // We check compatibility instead of strict equality because XLS
-    // optimization turns multiple return values into a single tuple.
-    if (!isTypeCompatible(original_func.getFunctionType(),
-                          optimized_func.getFunctionType())) {
-      return module.emitError("optimized function type ")
-             << optimized_func.getFunctionType()
-             << " is not compatible with original function type "
-             << original_func.getFunctionType();
-    }
+    // XLS optimization may change both input and output types (e.g. float
+    // decomposition into tuples, or packing multiple returns into a single
+    // tuple). We accept the optimized types unconditionally; callers are
+    // responsible for bridging any type mismatches at their boundaries.
     original_func.getBody().takeBody(optimized_func.getBody());
-    // If XLS packed multiple returns into a single tuple, insert
-    // xls.tuple_index ops at each return site to extract the individual
-    // elements. This preserves the original function signature so callers
-    // do not need to handle type mismatches.
-    if (original_func.getFunctionType() != optimized_func.getFunctionType()) {
-      OpBuilder builder(module.getContext());
-      original_func.walk([&](mlir::func::ReturnOp ret) {
-        builder.setInsertionPoint(ret);
-        Value tuple = ret.getOperand(0);
-        SmallVector<Value> unpacked;
-        for (auto [i, type] : llvm::enumerate(original_func.getResultTypes())) {
-          unpacked.push_back(
-              xls::TupleIndexOp::create(builder, ret.getLoc(), type, tuple, i)
-                  .getResult());
-        }
-        ret->setOperands(unpacked);
-      });
-    }
+    original_func.setFunctionType(optimized_func.getFunctionType());
     return success();
   };
 
