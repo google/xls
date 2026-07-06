@@ -1080,6 +1080,7 @@ cc_library(
     hdrs = ["folding_graph.h"],
     deps = [
         ":visibility_analysis",
+        "//xls/common/status:ret_check",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:op",

@@ -85,14 +85,21 @@ class FoldingAction {
   // folding is performed
   double area_saved() const { return area_saved_; }
 
+  const absl::flat_hash_set<Node*>& GetSinks() const { return sinks_; }
+
  protected:
-  FoldingAction(Node* to, VisibilityEdges to_edges, double area_saved)
-      : to_(to), to_edges_(to_edges), area_saved_(area_saved) {}
+  FoldingAction(Node* to, VisibilityEdges to_edges, double area_saved,
+                absl::flat_hash_set<Node*> sinks = {})
+      : to_(to),
+        to_edges_(std::move(to_edges)),
+        area_saved_(area_saved),
+        sinks_(std::move(sinks)) {}
 
  private:
   Node* to_;
   VisibilityEdges to_edges_;
   double area_saved_;
+  absl::flat_hash_set<Node*> sinks_;
 };
 
 // This class represents a single folding action from an IR node into another IR
@@ -117,8 +124,9 @@ class FoldingAction {
 class BinaryFoldingAction : public FoldingAction {
  public:
   BinaryFoldingAction(Node* from, Node* to, VisibilityEdges from_edges,
-                      VisibilityEdges to_edges, double area_saved)
-      : FoldingAction{to, to_edges, area_saved},
+                      VisibilityEdges to_edges, double area_saved,
+                      absl::flat_hash_set<Node*> sinks = {})
+      : FoldingAction{to, std::move(to_edges), area_saved, std::move(sinks)},
         from_{from},
         from_edges_{std::move(from_edges)} {}
 
@@ -159,8 +167,9 @@ class BinaryFoldingAction : public FoldingAction {
 class NaryFoldingAction : public FoldingAction {
  public:
   NaryFoldingAction(std::vector<std::pair<Node*, VisibilityEdges>>&& froms,
-                    Node* to, VisibilityEdges to_edges, double area_saved = 0.0)
-      : FoldingAction{to, std::move(to_edges), area_saved},
+                    Node* to, VisibilityEdges to_edges, double area_saved = 0.0,
+                    absl::flat_hash_set<Node*> sinks = {})
+      : FoldingAction{to, std::move(to_edges), area_saved, std::move(sinks)},
         from_(std::move(froms)) {}
 
   absl::Span<const std::pair<Node*, VisibilityEdges>> GetFrom() const {

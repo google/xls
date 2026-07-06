@@ -30,6 +30,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "ortools/graph/cliques.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
@@ -399,10 +400,18 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
     clone_to_edges.insert({clone_operand, clone_node});
   }
 
+  absl::flat_hash_set<Node*> clone_sinks;
+  clone_sinks.reserve(other.GetSinks().size());
+  for (Node* sink : other.GetSinks()) {
+    auto it = original_node_to_clone.find(sink);
+    XLS_RET_CHECK(it != original_node_to_clone.end());
+    clone_sinks.insert(it->second);
+  }
+
   // Create the cloned object
   auto clone_action = std::make_unique<NaryFoldingAction>(
       std::move(clone_froms), clone_to, std::move(clone_to_edges),
-      other.area_saved());
+      other.area_saved(), std::move(clone_sinks));
 
   return clone_action;
 }

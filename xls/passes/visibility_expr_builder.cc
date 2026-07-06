@@ -339,8 +339,8 @@ absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityIRExprFromEdges(
     const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
         conditional_edges,
     absl::flat_hash_map<Node*, Node*>& node_to_visibility_ir_cache,
-    Literal* always_visible) {
-  if (node->users().empty()) {
+    Literal* always_visible, const absl::flat_hash_set<Node*>& sinks) {
+  if (node->users().empty() || sinks.contains(node)) {
     return always_visible;
   }
   if (auto it = node_to_visibility_ir_cache.find(node);
@@ -353,10 +353,16 @@ absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityIRExprFromEdges(
     if (user->id() > prior_existing_id_) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(Node * user_is_used,
-                         BuildVisibilityIRExprFromEdges(
-                             func, user, source, conditional_edges,
-                             node_to_visibility_ir_cache, always_visible));
+    bool sink_depends_on_user = absl::c_any_of(
+        sinks, [&](Node* sink) { return nda_.IsDependent(user, sink); });
+    if (!sinks.empty() && !sink_depends_on_user) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * user_is_used,
+        BuildVisibilityIRExprFromEdges(func, user, source, conditional_edges,
+                                       node_to_visibility_ir_cache,
+                                       always_visible, sinks));
     Node* user_uses_node = always_visible;
     if (conditional_edges.contains({node, user})) {
       XLS_ASSIGN_OR_RETURN(user_uses_node,
@@ -407,22 +413,16 @@ absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityIRExprFromEdges(
 absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityIRExpr(
     FunctionBase* func, Node* node,
     const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
-        conditional_edges) {
+        conditional_edges,
+    const absl::flat_hash_set<Node*>& sinks) {
   XLS_ASSIGN_OR_RETURN(
       Literal * always_visible,
       func->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
-  if (conditional_edges.size() == 1) {
-    XLS_ASSIGN_OR_RETURN(
-        Node * user_uses_node,
-        BuildVisibilityExpr(conditional_edges.begin()->operand,
-                            conditional_edges.begin()->node, node, func));
-    return user_uses_node ? user_uses_node : always_visible;
-  }
   absl::flat_hash_map<Node*, Node*> node_to_visibility_ir_cache;
   absl::flat_hash_map<std::tuple<Op, Node*, Node*>, Node*> binary_op_cache;
   return BuildVisibilityIRExprFromEdges(func, node, node, conditional_edges,
                                         node_to_visibility_ir_cache,
-                                        always_visible);
+                                        always_visible, sinks);
 }
 
 absl::StatusOr<VisibilityEstimator::AreaDelay>
@@ -430,9 +430,9 @@ VisibilityEstimator::GetAreaAndDelayOfVisibilityExpr(
     Node* node,
     const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
         conditional_edges) {
-  XLS_ASSIGN_OR_RETURN(
-      Node * visibility_expr,
-      BuildVisibilityIRExpr(TmpFunc(), node, conditional_edges));
+  XLS_ASSIGN_OR_RETURN(Node * visibility_expr,
+                       BuildVisibilityIRExpr(TmpFunc(), node, conditional_edges,
+                                             /*sinks=*/{}));
   double area = area_analysis_.GetAreaThroughToNode(visibility_expr);
   int64_t delay = *delay_analysis_.GetInfo(visibility_expr);
   return VisibilityEstimator::AreaDelay{area, delay};
