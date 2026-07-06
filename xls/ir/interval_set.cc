@@ -14,7 +14,7 @@
 
 #include "xls/ir/interval_set.h"
 
-#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -97,32 +97,63 @@ void IntervalSet::Normalize() {
     return;
   }
 
-  Bits zero(BitCount());
-  Bits max = Bits::AllOnes(BitCount());
-  std::vector<Interval> expand_improper;
-  for (const Interval& interval : intervals_) {
-    if (interval.IsImproper()) {
-      expand_improper.push_back(Interval(zero, interval.UpperBound()));
-      expand_improper.push_back(Interval(interval.LowerBound(), max));
+  // Expand any improper intervals, replacing each with its lower half [0,
+  // UpperBound()] and adding its upper half [LowerBound(), Max] to the end of
+  // the list of intervals.
+  if (int64_t num_improper = absl::c_count_if(
+          intervals_,
+          [](const Interval& interval) { return interval.IsImproper(); });
+      num_improper > 0) {
+    Bits zero(bit_count_);
+    Bits max = Bits::AllOnes(bit_count_);
+    size_t original_size = intervals_.size();
+    intervals_.reserve(original_size + num_improper);
+    for (size_t i = 0; i < original_size; ++i) {
+      Interval& interval = intervals_[i];
+      if (interval.IsImproper()) {
+        intervals_.push_back(Interval(interval.LowerBound(), max));
+        interval = Interval(zero, interval.UpperBound());
+      }
+    }
+  }
+
+  absl::c_sort(intervals_);
+
+  // Merge overlapping or abutting intervals in-place.
+  size_t write_idx = 0;
+  for (size_t read_idx = 1; read_idx < intervals_.size(); ++read_idx) {
+    // Since the intervals are already sorted, we know that the lower bound of
+    // the earlier interval (`intervals_[write_idx]`) is less than or equal to
+    // the lower bound of the later interval (`intervals_[read_idx]`).
+    //
+    // Given the above, checking for overlapping and abutting is simpler than
+    // the general case.
+    //
+    // Let [a, b] = `intervals_[write_idx]` and [c, d] = `intervals_[read_idx]`.
+    // We know that `a <= c`, so the intervals overlap if and only if `b >= c` -
+    // and they abut if and only if `b + 1 == c`.
+    const Bits& b = intervals_[write_idx].UpperBound();
+    const Bits& c = intervals_[read_idx].LowerBound();
+    if (bits_ops::UGreaterThanOrEqual(b, c) ||
+        bits_ops::UEqual(bits_ops::Increment(b), c)) {
+      // Since the intervals are sorted, using the notation above, we know that
+      // `a <= c`, so the merged interval is just `[a, max(b, d)]`.
+      if (bits_ops::UGreaterThan(intervals_[read_idx].UpperBound(),
+                                 intervals_[write_idx].UpperBound())) {
+        intervals_[write_idx] =
+            Interval::Closed(intervals_[write_idx].LowerBound(),
+                             intervals_[read_idx].UpperBound());
+      }
     } else {
-      expand_improper.push_back(interval);
+      // The intervals can't be merged, so we just advance the write pointer &
+      // move the current interval into the write position.
+      ++write_idx;
+      if (write_idx != read_idx) {
+        intervals_[write_idx] = std::move(intervals_[read_idx]);
+      }
     }
   }
-
-  std::sort(expand_improper.begin(), expand_improper.end());
-
-  intervals_.clear();
-  for (int32_t i = 0; i < expand_improper.size();) {
-    Interval interval = expand_improper[i++];
-    while ((i < expand_improper.size()) &&
-           (Interval::Overlaps(interval, expand_improper[i]) ||
-            Interval::Abuts(interval, expand_improper[i]))) {
-      interval = Interval::ConvexHull(interval, expand_improper[i]);
-      ++i;
-    }
-    intervals_.push_back(interval);
-  }
-
+  intervals_.resize(write_idx + 1);
   is_normalized_ = true;
 }
 
