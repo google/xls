@@ -61,6 +61,9 @@ absl::StatusOr<bool> LegalizeStateReadPredicate(
     // Already unconditional, or no explicit `next_value`s; nothing to do.
     return false;
   }
+  if (proc->uses_decoupled_next()) {
+    return false;
+  }
 
   std::vector<Node*> predicates;
   absl::flat_hash_set<Node*> predicates_set;
@@ -305,8 +308,11 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
   if (predicates.empty()) {
     // No explicit `next_value` node; leave the state element unchanged by
     // default.
+    Next::StateIdentifier state_identifier =
+        proc->uses_decoupled_next() ? Next::StateIdentifier(state_element)
+                                    : Next::StateIdentifier(state_read);
     XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                state_read->loc(), /*state_read=*/state_read,
+                                state_read->loc(), state_identifier,
                                 /*value=*/state_read,
                                 /*predicate=*/state_read->predicate(),
                                 /*label=*/std::nullopt,
@@ -395,6 +401,9 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
       Node * default_predicate,
       NaryNorIfNeeded(proc, std::vector(predicates.begin(), predicates.end()),
                       /*name=*/"", state_read->loc()));
+  Next::StateIdentifier state_identifier =
+      proc->uses_decoupled_next() ? Next::StateIdentifier(state_element)
+                                  : Next::StateIdentifier(state_read);
   if (state_read->predicate().has_value()) {
     XLS_ASSIGN_OR_RETURN(
         default_predicate,
@@ -404,7 +413,7 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
             Op::kAnd));
   }
   XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                              state_read->loc(), /*state_read=*/state_read,
+                              state_read->loc(), state_identifier,
                               /*value=*/state_read,
                               /*predicate=*/default_predicate,
                               /*label=*/std::nullopt,
