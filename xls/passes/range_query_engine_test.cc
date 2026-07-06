@@ -861,6 +861,51 @@ FUZZ_TEST(RangeQueryEngineFuzzTest, ConcatIsCorrect)
                  NonemptyNormalizedIntervalSet(5),
                  NonemptyNormalizedIntervalSet(3));
 
+// This is a property test: for all concrete x/start values allowed by the
+// given interval sets, the range analysis result must cover the concrete
+// DynamicBitSlice(x, start, 4) value.
+//
+// We use Covers() (not equality) because RangeQueryEngine is allowed to be
+// conservative; this test is intended to detect unsoundness.
+void DynamicBitSliceIsCorrect(const IntervalSet& x_intervals,
+                              const IntervalSet& start_intervals) {
+  constexpr std::string_view kTestName =
+      "RangeQueryEngineFuzzTest.DynamicBitSliceIsCorrect";
+
+  auto p = std::make_unique<VerifiedPackage>(kTestName);
+  FunctionBuilder fb(kTestName, p.get());
+  BValue x = fb.Param("x", p->GetBitsType(x_intervals.BitCount()));
+  BValue start = fb.Param("start", p->GetBitsType(start_intervals.BitCount()));
+  BValue expr = fb.DynamicBitSlice(x, start, /*width=*/4);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(x.node(),
+                            BitsLTT(x.node(), x_intervals.Intervals()));
+  engine.SetIntervalSetTree(start.node(),
+                            BitsLTT(start.node(), start_intervals.Intervals()));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  x_intervals.ForEachElement([&](const Bits& x_bits) -> bool {
+    start_intervals.ForEachElement([&](const Bits& start_bits) -> bool {
+      const int64_t shift_amount =
+          bits_ops::UnsignedBitsToSaturatedInt64(start_bits);
+      Bits out(4);
+      if (shift_amount < x_bits.bit_count()) {
+        out = bits_ops::ShiftRightLogical(x_bits, shift_amount)
+                  .Slice(0, /*width=*/4);
+      }
+      EXPECT_TRUE(engine.GetIntervalSetTree(expr.node()).Get({}).Covers(out));
+      return false;
+    });
+    return false;
+  });
+}
+
+FUZZ_TEST(RangeQueryEngineFuzzTest, DynamicBitSliceIsCorrect)
+    .WithDomains(NonemptyNormalizedIntervalSet(6),
+                 NonemptyNormalizedIntervalSet(3));
+
 TEST_F(RangeQueryEngineTest, Decode) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -914,6 +959,116 @@ TEST_F(RangeQueryEngineTest, DecodePreciseOverflow) {
       x.node(), BitsLTT(x.node(), {Interval::Precise(UBits(13, 4))}));
   XLS_ASSERT_OK(engine.Populate(f));
   EXPECT_EQ("0b00_0000_0000", engine.ToString(expr.node()));
+}
+
+TEST_F(RangeQueryEngineTest, DynamicBitSlicePreciseStart) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue start = fb.Literal(UBits(2, 3));
+  BValue expr = fb.DynamicBitSlice(x, start, /*width=*/4);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  IntervalSet x_intervals =
+      IntervalSet::Of({Interval(UBits(10, 8), UBits(200, 8))});
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(x.node(),
+                            BitsLTT(x.node(), x_intervals.Intervals()));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  IntervalSet expected =
+      interval_ops::BitSlice(x_intervals, /*start=*/2, /*width=*/4);
+  IntervalSet got = engine.GetIntervals(expr.node()).Get({});
+  EXPECT_EQ(got, expected);
+}
+
+TEST_F(RangeQueryEngineTest, DynamicBitSliceSmallStartSet) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue start = fb.Param("start", p->GetBitsType(4));
+  BValue expr = fb.DynamicBitSlice(x, start, /*width=*/4);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  IntervalSet x_intervals =
+      IntervalSet::Of({Interval(UBits(10, 8), UBits(200, 8))});
+  IntervalSet start_intervals = IntervalSet::Of(
+      {Interval::Precise(UBits(0, 4)), Interval::Precise(UBits(2, 4)),
+       Interval::Precise(UBits(7, 4)), Interval::Precise(UBits(8, 4))});
+  start_intervals.Normalize();
+
+  IntervalSet expected(4);
+  expected.Normalize();
+  expected =
+      IntervalSet::Combine(expected, interval_ops::BitSlice(x_intervals, 0, 4));
+  expected =
+      IntervalSet::Combine(expected, interval_ops::BitSlice(x_intervals, 2, 4));
+  expected =
+      IntervalSet::Combine(expected, interval_ops::BitSlice(x_intervals, 7, 4));
+  expected.AddInterval(Interval::Precise(UBits(0, 4)));
+  expected.Normalize();
+
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(x.node(),
+                            BitsLTT(x.node(), x_intervals.Intervals()));
+  engine.SetIntervalSetTree(start.node(),
+                            BitsLTT(start.node(), start_intervals.Intervals()));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  IntervalSet got = engine.GetIntervals(expr.node()).Get({});
+  EXPECT_EQ(got, expected);
+}
+
+TEST_F(RangeQueryEngineTest, DynamicBitSliceAlwaysOvershiftIsZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue start = fb.Param("start", p->GetBitsType(4));
+  BValue expr = fb.DynamicBitSlice(x, start, /*width=*/4);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  IntervalSet x_intervals =
+      IntervalSet::Of({Interval(UBits(10, 8), UBits(200, 8))});
+  IntervalSet start_intervals =
+      IntervalSet::Of({Interval(UBits(8, 4), UBits(15, 4))});
+  start_intervals.Normalize();
+
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(x.node(),
+                            BitsLTT(x.node(), x_intervals.Intervals()));
+  engine.SetIntervalSetTree(start.node(),
+                            BitsLTT(start.node(), start_intervals.Intervals()));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  IntervalSet got = engine.GetIntervals(expr.node()).Get({});
+  EXPECT_EQ(got, IntervalSet::Precise(UBits(0, 4)));
+}
+
+TEST_F(RangeQueryEngineTest, DynamicBitSliceLargeStartFallsBackToMaximal) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue start = fb.Param("start", p->GetBitsType(16));
+  BValue expr = fb.DynamicBitSlice(x, start, /*width=*/4);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  IntervalSet x_intervals =
+      IntervalSet::Of({Interval(UBits(10, 8), UBits(200, 8))});
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(x.node(),
+                            BitsLTT(x.node(), x_intervals.Intervals()));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  IntervalSet got = engine.GetIntervals(expr.node()).Get({});
+  EXPECT_TRUE(got.IsMaximal());
 }
 
 TEST_F(RangeQueryEngineTest, DecodeUnconstrained) {
