@@ -1923,6 +1923,18 @@ impl MyStruct {
 )");
 }
 
+TEST_F(ModuleFmtTest, ImplWithTypeAlias) {
+  DoFmt(
+      R"(struct MyStruct {}
+
+impl MyStruct {
+    type MyType = u32;
+    // Comment
+    type AnotherType = u16;
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, ImplWithConstantsAndFunctions) {
   DoFmt(
       R"(struct MyStruct {}

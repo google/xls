@@ -35,7 +35,6 @@
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
-#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc.h"
@@ -47,11 +46,32 @@ namespace {
 
 absl::StatusOr<bool> HasReferenceToAnyName(
     const AstNode* node, const absl::flat_hash_set<std::string_view>& names) {
-  XLS_ASSIGN_OR_RETURN(
-      (std::vector<std::pair<const NameRef*, const NameDef*>> defs),
-      CollectReferencedUnder(node, /*want_types=*/true));
-  for (const auto& [_, def] : defs) {
-    if (names.contains(def->identifier())) {
+  if (node == nullptr) {
+    return false;
+  }
+  if (auto* name_ref = dynamic_cast<const NameRef*>(node)) {
+    if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+      const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
+      if (names.contains(def->identifier())) {
+        return true;
+      }
+    }
+  }
+  if (auto* type_ref_annot = dynamic_cast<const TypeRefTypeAnnotation*>(node)) {
+    const TypeRef* type_ref = type_ref_annot->type_ref();
+    if (type_ref != nullptr) {
+      const TypeDefinition& type_def = type_ref->type_definition();
+      if (std::holds_alternative<TypeAlias*>(type_def)) {
+        const TypeAlias* alias = std::get<TypeAlias*>(type_def);
+        if (names.contains(alias->identifier())) {
+          return true;
+        }
+      }
+    }
+  }
+  for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+    XLS_ASSIGN_OR_RETURN(bool has_ref, HasReferenceToAnyName(child, names));
+    if (has_ref) {
       return true;
     }
   }
@@ -154,12 +174,12 @@ class LegacyProcConverter : public Formatter {
       return arena_.empty();
     }
 
-    std::vector<const ConstantDef*> proc_constant_defs;
-    proc_constant_defs.reserve(n.stmts().size());
+    std::vector<const AstNode*> proc_level_decls;
+    proc_level_decls.reserve(n.stmts().size());
     std::vector<const ProcMember*> members;
     members.reserve(n.stmts().size());
     absl::Status status =
-        AnalyzeAndSplitProcStatements(n, proc_constant_defs, members);
+        AnalyzeAndSplitProcStatements(n, proc_level_decls, members);
     if (!status.ok()) {
       status_ = status;
       return arena_.empty();
@@ -177,14 +197,22 @@ class LegacyProcConverter : public Formatter {
     bool already_has_explicit_state_access =
         !state_params.empty() && HasExplicitStateAccess(n.next().body());
 
-    std::vector<DocRef> impl_constant_defs =
-        FormatProcConstantDefs(proc_constant_defs);
+    std::vector<DocRef> impl_decl_docs;
+    impl_decl_docs.reserve(proc_level_decls.size());
+    for (const AstNode* node : proc_level_decls) {
+      if (auto* c = dynamic_cast<const ConstantDef*>(node)) {
+        impl_decl_docs.push_back(FormatConstantDef(*c));
+      } else if (auto* t = dynamic_cast<const TypeAlias*>(node)) {
+        impl_decl_docs.push_back(
+            arena_.MakeConcat(FormatTypeAlias(*t), arena_.semi()));
+      }
+    }
 
     DocRef proc_decl_doc = FormatProcBlock(n, is_test, state_params, members);
 
     DocRef impl_block_doc =
         FormatImplBlock(n, already_has_explicit_state_access, state_params,
-                        members, impl_constant_defs);
+                        members, impl_decl_docs);
 
     std::vector<DocRef> final_pieces{proc_decl_doc, arena_.hard_line(),
                                      arena_.hard_line(), impl_block_doc};
@@ -279,9 +307,9 @@ class LegacyProcConverter : public Formatter {
 
  private:
   absl::Status AnalyzeAndSplitProcStatements(
-      const Proc& n, std::vector<const ConstantDef*>& constant_defs,
+      const Proc& n, std::vector<const AstNode*>& proc_level_decls,
       std::vector<const ProcMember*>& members) {
-    absl::flat_hash_set<std::string_view> constant_names;
+    absl::flat_hash_set<std::string_view> proc_level_names;
     for (const ProcStmt& stmt : n.stmts()) {
       absl::Status visit_status = std::visit(
           Visitor{
@@ -291,14 +319,14 @@ class LegacyProcConverter : public Formatter {
                 return absl::OkStatus();
               },
               [&](const ConstantDef* c) {
-                constant_defs.push_back(c);
-                constant_names.insert(c->identifier());
+                proc_level_decls.push_back(c);
+                proc_level_names.insert(c->identifier());
                 return absl::OkStatus();
               },
               [&](const TypeAlias* t) {
-                return absl::InvalidArgumentError(
-                    "Type aliases inside a proc are not supported in "
-                    "impl-style procs.");
+                proc_level_decls.push_back(t);
+                proc_level_names.insert(t->identifier());
+                return absl::OkStatus();
               },
               [&](const ConstAssert* ca) {
                 return absl::InvalidArgumentError(
@@ -312,28 +340,29 @@ class LegacyProcConverter : public Formatter {
       }
     }
 
-    // Check if any member references proc constants.
+    // Check if any member references proc constants or type aliases.
     for (const ProcMember* member : members) {
       XLS_ASSIGN_OR_RETURN(
           bool has_reference,
-          HasReferenceToAnyName(member->type_annotation(), constant_names));
+          HasReferenceToAnyName(member->type_annotation(), proc_level_names));
       if (has_reference) {
         return absl::InvalidArgumentError(absl::StrFormat(
-            "Proc member `%s` references a constant declared inside "
-            "the proc, which is not allowed in impl-style procs.",
+            "Proc member `%s` references a constant or type alias declared "
+            "inside the proc, which is not allowed in impl-style procs.",
             member->identifier()));
       }
     }
 
-    // Check if any state param references proc constants.
+    // Check if any state param references proc constants or type aliases.
     for (const Param* param : n.next().params()) {
       XLS_ASSIGN_OR_RETURN(
           bool has_reference,
-          HasReferenceToAnyName(param->type_annotation(), constant_names));
+          HasReferenceToAnyName(param->type_annotation(), proc_level_names));
       if (has_reference) {
         return absl::InvalidArgumentError(absl::StrFormat(
-            "Proc state parameter `%s` references a constant declared "
-            "inside the proc, which is not allowed in impl-style procs.",
+            "Proc state parameter `%s` references a constant or type alias "
+            "declared inside the proc, which is not allowed in "
+            "impl-style procs.",
             param->identifier()));
       }
     }
@@ -346,18 +375,6 @@ class LegacyProcConverter : public Formatter {
     current_proc_member_names_ = std::move(member_names);
 
     return absl::OkStatus();
-  }
-
-  // Hoists constants declared inside a legacy proc so that they can be
-  // formatted as part of the impl block.
-  std::vector<DocRef> FormatProcConstantDefs(
-      absl::Span<const ConstantDef* const> nodes) {
-    std::vector<DocRef> result;
-    result.reserve(nodes.size());
-    for (const ConstantDef* c : nodes) {
-      result.push_back(FormatConstantDef(*c));
-    }
-    return result;
   }
 
   // Formats the new `proc` block containing member fields and channels.

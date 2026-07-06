@@ -334,21 +334,134 @@ TEST_F(LegacyProcConverterTest, HoistedStatementsError) {
     }
 }
 )",
-      "Proc state parameter `state` references a constant declared inside the "
-      "proc");
+      "Proc state parameter `state` references a constant or type "
+      "alias declared inside the proc");
 }
 
-TEST_F(LegacyProcConverterTest, TypeAliasError) {
+TEST_F(LegacyProcConverterTest, ProcLevelTypeAlias) {
+  DoLegacyProcConversionFmt(
+      R"(proc Main {
+    type MyType = u32;
+    s: chan<u32> out;
+    config(s: chan<u32> out) { (s,) }
+    init { u32:0 }
+    next(state: u32) {
+        let x: MyType = state;
+        send(join(), s, x);
+        state
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+
+proc Main {
+    s: chan<u32> out,
+    state: u32,
+}
+
+impl Main {
+    type MyType = u32;
+
+    fn new(s: chan<u32> out) -> Self {
+        Main { s, state: u32:0 }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        let x: MyType = state;
+        send(join(), self.s, x);
+        write(self.state, state);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, ColonRefWithProcLevelTypeAliasSubject) {
+  DoLegacyProcConversionFmt(
+      R"(proc Main {
+    type T = u32;
+    s: chan<u32> out;
+    config(s: chan<u32> out) { (s,) }
+    init { u32:0 }
+    next(state: u32) {
+        send(join(), s, T::MAX);
+        state
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+
+proc Main {
+    s: chan<u32> out,
+    state: u32,
+}
+
+impl Main {
+    type T = u32;
+
+    fn new(s: chan<u32> out) -> Self {
+        Main { s, state: u32:0 }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        send(join(), self.s, T::MAX);
+        write(self.state, state);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, ParametricProcLevelTypeAlias) {
+  DoLegacyProcConversionFmt(
+      R"(proc Main<N: u32> {
+    type MyType = uN[N];
+    s: chan<uN[N]> out;
+    config(s: chan<uN[N]> out) { (s,) }
+    init { () }
+    next(state: ()) {
+        let x: MyType = uN[N]:1;
+        send(join(), s, x);
+        ()
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+
+proc Main<N: u32> {
+    s: chan<uN[N]> out,
+}
+
+impl Main<N> {
+    type MyType = uN[N];
+
+    fn new(s: chan<uN[N]> out) -> Self {
+        Main { s }
+    }
+
+    fn next(self) {
+        let x: MyType = uN[N]:1;
+        send(join(), self.s, x);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, ProcLevelTypeAliasUsedOutsideImpl) {
+  // TODO: https://github.com/google/xls/issues/4125 - The issue is that so far
+  // you can only use type aliases within the impl and not the proc def. Get
+  // this case to work by using `Self::MyType` in the proc def.
   DoLegacyProcConversionFmtError(
       R"(proc Main {
     type MyType = u32;
     s: chan<u32> out;
     config(s: chan<u32> out) { (s,) }
     init { u32:0 }
-    next(state: u32) { state }
+    next(state: MyType) { state }
 }
 )",
-      "Type aliases inside a proc are not supported in impl-style procs.");
+      "Proc state parameter `state` references a constant or type "
+      "alias declared inside the proc");
 }
 
 TEST_F(LegacyProcConverterTest, NestedSpawn) {

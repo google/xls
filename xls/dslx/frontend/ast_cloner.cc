@@ -962,6 +962,8 @@ class AstCloner : public AstNodeVisitor {
         new_members.push_back(absl::down_cast<ConstantDef*>(new_node));
       } else if (new_node->kind() == AstNodeKind::kFunction) {
         new_members.push_back(absl::down_cast<Function*>(new_node));
+      } else if (new_node->kind() == AstNodeKind::kTypeAlias) {
+        new_members.push_back(absl::down_cast<TypeAlias*>(new_node));
       } else {
         new_members.push_back(absl::down_cast<VerbatimNode*>(new_node));
       }

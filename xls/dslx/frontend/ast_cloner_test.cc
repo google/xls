@@ -645,6 +645,31 @@ fn main() -> u32 {
   XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
+TEST(AstClonerTest, StructDefAndImplWithTypeAlias) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct {
+    a: u32,
+    b: s64
+}
+
+impl MyStruct {
+    type MyType = u32;
+}
+)";
+
+  constexpr std::string_view kExpectedImpl = R"(impl MyStruct {
+    type MyType = u32;
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+
+  Impl* impl = module->GetImpls().at(0);
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * impl_clone, CloneAst(impl));
+  EXPECT_EQ(kExpectedImpl, impl_clone->ToString());
+}
+
 TEST(AstClonerTest, StructDefAndImplWithFunc) {
   constexpr std::string_view kProgram = R"(
 struct MyStruct { a: u32 }
