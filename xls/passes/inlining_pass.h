@@ -172,8 +172,7 @@ class InliningPass : public OptimizationPass {
   };
   static constexpr std::string_view kName = "inlining";
   explicit InliningPass(InlineDepth depth = InlineDepth::kFull)
-      : OptimizationPass(ConfiguredName(depth), "Inlines invocations"),
-        depth_(depth) {}
+      : InliningPass(depth, ConfiguredName(depth), "Inlines invocations") {}
 
   RedundancyGuard GetRedundancyGuard(
       const OptimizationPassOptions& options,
@@ -188,10 +187,16 @@ class InliningPass : public OptimizationPass {
   static absl::Status InlineOneInvoke(Invoke* invoke);
 
  protected:
+  InliningPass(InlineDepth depth, std::string_view name,
+               std::string_view description)
+      : OptimizationPass(name, description), depth_(depth) {}
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,
                                    PassResults* results,
                                    OptimizationContext& context) const override;
+  // Helper to allow derived classes to modify which functions get inlined into.
+  virtual bool ShouldInlineInto(FunctionBase* caller) const { return true; }
+
   InlineDepth depth_;
 
  private:

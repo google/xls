@@ -282,6 +282,10 @@ absl::StatusOr<bool> InliningPass::RunInternal(
     functions_to_inline = GetFunctionsToInlineByLeaf(p, cg);
   }
   for (FunctionBase* f : functions_to_inline) {
+    // Skip functions we don't want to inline into.
+    if (!ShouldInlineInto(f)) {
+      continue;
+    }
     // Create copy of nodes() because we will be adding and removing nodes
     // during inlining.
     for (Node* node : cg.FunctionsCalledBy(f)) {
