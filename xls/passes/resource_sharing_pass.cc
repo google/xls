@@ -1701,6 +1701,71 @@ ResourceSharingPass::SelectFoldingActions(
   return folding_actions_to_perform;
 }
 
+namespace {
+
+using NodeAndEdges = std::pair<Node*, FoldingAction::VisibilityEdges>;
+
+absl::StatusOr<
+    absl::flat_hash_map<const NaryFoldingAction*, std::vector<Node*>>>
+PrecomputeVisibilityExpressions(
+    FunctionBase* f, VisibilityBuilder* visibility_builder,
+    const std::vector<std::unique_ptr<NaryFoldingAction>>&
+        folding_actions_to_perform) {
+  absl::flat_hash_map<const NaryFoldingAction*, std::vector<Node*>>
+      precomputed_from_used;
+  absl::flat_hash_map<Node*, std::vector<NodeAndEdges>> accumulated_sources;
+  for (const std::unique_ptr<NaryFoldingAction>& folding :
+       folding_actions_to_perform) {
+    // Start a collection of all nodes that will be folded into `to_node`.
+    // If `to_node` is folded into another node by a later folding, we'll know
+    // what visibility expressions to accumulate for that latter action.
+    Node* to_node = folding->GetTo();
+    std::vector<NodeAndEdges>& to_sources_list = accumulated_sources[to_node];
+    to_sources_list.push_back(
+        std::make_pair(to_node, folding->GetToVisibilityEdges()));
+
+    // Construct the visibility expression for each `from_node` in the action.
+    std::vector<Node*> from_used_expressions;
+    from_used_expressions.reserve(folding->GetFrom().size());
+    for (const auto& [from_node, from_edges] : folding->GetFrom()) {
+      std::vector<NodeAndEdges> sources_to_eval;
+      if (auto it = accumulated_sources.find(from_node);
+          it != accumulated_sources.end()) {
+        sources_to_eval = it->second;
+      } else {
+        sources_to_eval.push_back(std::make_pair(from_node, from_edges));
+      }
+      to_sources_list.insert(to_sources_list.end(), sources_to_eval.begin(),
+                             sources_to_eval.end());
+      std::vector<Node*> sub_exprs;
+      sub_exprs.reserve(sources_to_eval.size());
+      for (const auto& [src_node, src_edges] : sources_to_eval) {
+        XLS_ASSIGN_OR_RETURN(Node * expr,
+                             visibility_builder->BuildVisibilityIRExpr(
+                                 f, src_node, src_edges, folding->GetSinks()));
+        XLS_RET_CHECK(!IsLiteralUnsignedOne(expr));
+        sub_exprs.push_back(expr);
+      }
+
+      // Join the visibility expressions of `from_node` and nodes folded into it
+      // by previous folding actions.
+      XLS_RET_CHECK(!sub_exprs.empty());
+      Node* from_used = sub_exprs.front();
+      if (sub_exprs.size() > 1) {
+        XLS_ASSIGN_OR_RETURN(
+            from_used,
+            f->MakeNode<NaryOp>(sub_exprs[0]->loc(), sub_exprs, Op::kOr));
+      }
+      from_used_expressions.push_back(from_used);
+    }
+    precomputed_from_used[folding.get()] = std::move(from_used_expressions);
+  }
+
+  return precomputed_from_used;
+}
+
+}  // namespace
+
 absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     FunctionBase* f, int64_t next_node_id,
     VisibilityBuilder* visibility_builder,
@@ -1725,6 +1790,18 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
         /*operand=*/final_renamed_node(edge.operand),
         /*node=*/final_renamed_node(edge.node)};
   };
+
+  // Precompute visibility expressions for foldings prior to transforming.
+  // Constructing these expressions on the unmodified def-use DAG prevents
+  // foldings from invalidating the analysis used to collect visibility edges,
+  // and requires us to accumulate visibility expressions so we can OR them
+  // in the event previous foldings have joined a from node of the current
+  // folding into other nodes.
+  XLS_ASSIGN_OR_RETURN(
+      (absl::flat_hash_map<const NaryFoldingAction*, std::vector<Node*>>
+           precomputed_from_used),
+      PrecomputeVisibilityExpressions(f, visibility_builder,
+                                      folding_actions_to_perform));
 
   // Perform the folding actions specified
   for (const std::unique_ptr<NaryFoldingAction>& folding :
@@ -1789,22 +1866,9 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     // the selector of the select that made the sources and destination mutually
     // exclusive.
     VLOG(3) << "      Step 0: generate the new selector";
-    std::vector<Node*> from_used_expressions;
-    from_used_expressions.reserve(froms_to_use.size());
-    for (const auto& [from_node, from_edges] : froms_to_use) {
-      VLOG(4) << "        Source: " << from_node->ToString();
-      VLOG(4) << "        From edges: " << from_edges.size();
-      for (const auto& edge : from_edges) {
-        VLOG(4) << "          " << edge.operand->ToString() << " -> "
-                << edge.node->ToString();
-      }
-      XLS_ASSIGN_OR_RETURN(Node * from_used,
-                           visibility_builder->BuildVisibilityIRExpr(
-                               f, from_node, from_edges, folding->GetSinks()));
-      // Check that visibility isn't always true (ideally we would double check
-      // that the expressions are mutually exclusive, but that is expensive)
-      XLS_RET_CHECK(!IsLiteralUnsignedOne(from_used));
-      from_used_expressions.push_back(from_used);
+    std::vector<Node*> from_used_expressions =
+        precomputed_from_used.at(folding.get());
+    for (Node* from_used : from_used_expressions) {
       VLOG(4) << "        From used: "
               << ToMathNotation(from_used, [&](const Node* n) -> bool {
                    return n->id() < next_node_id;

@@ -349,9 +349,9 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
 
   // Fetch the clones of the Node instances referenced by @other.
   std::vector<std::pair<Node*, FoldingAction::VisibilityEdges>> clone_froms;
-  FoldingAction::VisibilityEdges clone_visibility_edges;
   for (const auto& [original_from, original_visibility_edges] :
        original_froms) {
+    FoldingAction::VisibilityEdges clone_visibility_edges;
     auto it = original_node_to_clone.find(original_from);
     if (it == original_node_to_clone.end()) {
       return absl::InvalidArgumentError(absl::StrFormat(
