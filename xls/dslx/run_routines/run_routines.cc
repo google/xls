@@ -936,9 +936,6 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
 absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
     std::string_view program, std::string_view module_name,
     std::string_view filename, const ParseAndTestOptions& options) const {
-  const absl::Time start = absl::Now();
-  TestResultData result(start, /*test_cases=*/{});
-
   std::unique_ptr<VirtualizableFilesystem> vfs;
   if (options.vfs_factory != nullptr) {
     vfs = options.vfs_factory();
@@ -947,12 +944,25 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   }
   const ParseAndTypecheckOptions& parse_and_typecheck_options =
       options.parse_and_typecheck_options;
-  auto import_data =
+  ImportData import_data =
       CreateImportData(parse_and_typecheck_options.dslx_stdlib_path,
                        parse_and_typecheck_options.dslx_paths,
                        parse_and_typecheck_options.warnings, std::move(vfs));
-  FileTable& file_table = import_data.file_table();
+  XLS_ASSIGN_OR_RETURN(ParseAndTestResult result,
+                       ParseAndTest(program, module_name, filename,
+                                    options, import_data));
+  return result.test_result;
+}
 
+absl::StatusOr<ParseAndTestResult> AbstractTestRunner::ParseAndTest(
+    std::string_view program, std::string_view module_name,
+    std::string_view filename, const ParseAndTestOptions& options,
+    ImportData& import_data) const {
+  const absl::Time start = absl::Now();
+  TestResultData result(start, /*test_cases=*/{});
+
+  const ParseAndTypecheckOptions& parse_and_typecheck_options =
+      options.parse_and_typecheck_options;
   absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
       program, filename, module_name, &import_data, nullptr,
       ConvertOptions{.configured_values =
@@ -961,7 +971,11 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
     if (TryPrintError(tm.status(), import_data.file_table(),
                       import_data.vfs())) {
       result.Finish(TestResult::kParseOrTypecheckError, absl::Now() - start);
-      return result;
+      return ParseAndTestResult{
+          result,
+          TypecheckedModule{
+              /*module=*/nullptr, /*type_info=*/nullptr,
+              WarningCollector{parse_and_typecheck_options.warnings}}};
     }
     return tm.status();
   }
@@ -977,13 +991,13 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   if (parse_and_typecheck_options.warnings_as_errors &&
       !tm->warnings.warnings().empty()) {
     result.Finish(TestResult::kFailedWarnings, absl::Now() - start);
-    return result;
+    return ParseAndTestResult{result, std::move(*tm)};
   }
 
   // If not executing tests and quickchecks, then return vacuous success.
   if (!options.execute) {
     result.Finish(TestResult::kAllPassed, absl::Now() - start);
-    return result;
+    return ParseAndTestResult{result, std::move(*tm)};
   }
 
   Module* entry_module = tm->module;
@@ -1001,7 +1015,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
       if (TryPrintError(ir_package_conversion_data.status(),
                         import_data.file_table(), import_data.vfs())) {
         result.Finish(TestResult::kSomeFailed, absl::Now() - start);
-        return result;
+        return ParseAndTestResult{result, std::move(*tm)};
       }
       return xabsl::StatusBuilder(ir_package_conversion_data.status())
              << "Failed to convert input to IR for comparison. Consider "
@@ -1038,7 +1052,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
       auto test_case_end = absl::Now();
       result.AddTestCase(test_xml::TestCase{
           .name = test_name,
-          .file = std::string{start_pos.GetFilename(file_table)},
+          .file = std::string{start_pos.GetFilename(import_data.file_table())},
           .line = start_pos.GetHumanLineno(),
           .status = test_xml::RunStatus::kRun,
           .result = test_xml::RunResult::kFiltered,
@@ -1090,7 +1104,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
       // Add to the tracking data.
       result.AddTestCase(test_xml::TestCase{
           .name = test_name,
-          .file = std::string{start_pos.GetFilename(file_table)},
+          .file = std::string{start_pos.GetFilename(import_data.file_table())},
           .line = start_pos.GetHumanLineno(),
           .status = test_xml::RunStatus::kRun,
           .result = test_xml::RunResult::kCompleted,
@@ -1105,7 +1119,8 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
       }
       HandleError(result, out.result, test_name, start_pos, test_case_start,
                   test_case_end - test_case_start,
-                  /*is_quickcheck=*/false, file_table, import_data.vfs());
+                  /*is_quickcheck=*/false, import_data.file_table(),
+                  import_data.vfs());
     }
   }
 
@@ -1126,7 +1141,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   result.Finish(
       result.DidAnyFail() ? TestResult::kSomeFailed : TestResult::kAllPassed,
       absl::Now() - start);
-  return result;
+  return ParseAndTestResult{result, std::move(*tm)};
 }
 
 std::string_view TestResultToString(TestResult tr) {

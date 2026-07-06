@@ -186,10 +186,10 @@ absl::StatusOr<TestResult> RealMain(
                                    : TypeInferenceVersion::kVersion1)
           : std::nullopt;
 
-  RealFilesystem vfs;
+  auto vfs = std::make_unique<RealFilesystem>();
 
   XLS_ASSIGN_OR_RETURN(std::string program,
-                       vfs.GetFileContents(entry_module_path));
+                       vfs->GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
 
   std::unique_ptr<AbstractRunComparator> run_comparator;
@@ -268,10 +268,17 @@ absl::StatusOr<TestResult> RealMain(
                             ? &results_proto
                             : nullptr;
 
+  ImportData import_data =
+      CreateImportData(parse_and_typecheck_options.dslx_stdlib_path,
+                       parse_and_typecheck_options.dslx_paths,
+                       parse_and_typecheck_options.warnings, std::move(vfs));
   std::unique_ptr<AbstractTestRunner> test_runner = GetTestRunner(evaluator);
-  XLS_ASSIGN_OR_RETURN(TestResultData test_result,
+  XLS_ASSIGN_OR_RETURN(ParseAndTestResult parse_and_test_result,
                        test_runner->ParseAndTest(program, module_name,
-                                                 entry_module_path, options));
+                                                 entry_module_path, options,
+                                                 import_data));
+  TestResultData& test_result = parse_and_test_result.test_result;
+  TypecheckedModule& tm = parse_and_test_result.typechecked_module;
 
   if (xml_output_file.has_value()) {
     test_xml::TestSuites suites = test_result.ToXmlSuites(module_name);
@@ -292,11 +299,27 @@ absl::StatusOr<TestResult> RealMain(
   // Early feeback if the code cannot be lowered to IR.
   std::optional<bool> lower_to_ir_flag = absl::GetFlag(FLAGS_lower_to_ir);
   if (lower_to_ir_flag.value_or(false)) {
-    LOG(INFO) << "Checking if code can be lowered to IR";
-    std::optional<bool> convert_tests = absl::GetFlag(FLAGS_convert_tests);
-    bool is_convert_tests = convert_tests.value_or(false);
-    bool is_type_inference_v2 = type_inference_v2_flag.value_or(false);
-    bool printed_error = true;
+    LOG(INFO) << absl::StrFormat("Checking if %s can be lowered to IR",
+                                 module_name.c_str());
+
+    // Module conversion cannot be used because it skips CheckAcceptableTopProc.
+    // Instead, we collect non-parametric processes and functions which are then
+    // passed separately as tops.
+    std::vector<std::string> module_elements;
+
+    std::vector<Proc*> module_procs = tm.module->GetProcs();
+    for (Proc* elem : module_procs) {
+      if (!elem->IsParametric()) {
+        module_elements.push_back(elem->identifier());
+      }
+    }
+
+    std::vector<Function*> module_funcs = tm.module->GetFunctions();
+    for (Function* elem : module_funcs) {
+      if (!elem->IsParametric()) {
+        module_elements.push_back(elem->identifier());
+      }
+    }
 
     ConvertOptions ir_convert_options = {
         .emit_positions = true,
@@ -305,45 +328,17 @@ absl::StatusOr<TestResult> RealMain(
         .verify_ir = true,
         .warnings_as_errors = false,
         .warnings = kAllWarningsSet,
-        .convert_tests = is_convert_tests,
-        .type_inference_v2 = is_type_inference_v2,
+        .convert_tests = absl::GetFlag(FLAGS_convert_tests).value_or(false),
+        .type_inference_v2 = type_inference_v2_flag.value_or(false),
         .lower_to_proc_scoped_channels = true,
     };
-    std::array<std::string_view, 1> module_path{entry_module_path};
-
-    ImportData import_data(CreateImportData(
-        dslx_stdlib_path.string(), dslx_paths, ir_convert_options.warnings,
-        std::make_unique<RealFilesystem>()));
-
-    absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
-        program, entry_module_path, module_name, &import_data);
-
-    // Module conversion cannot be used because it skips CheckAcceptableTopProc.
-    // Instead, we collect non-parametric processes and functions which are then
-    // passed separately as tops.
-    std::vector<std::string> module_elements;
-
-    std::vector<Proc*> module_procs = tm->module->GetProcs();
-    for (Proc* elem : module_procs) {
-      if (!elem->IsParametric()) {
-        module_elements.push_back(elem->identifier());
-      }
-    }
-
-    std::vector<Function*> module_funcs = tm->module->GetFunctions();
-    for (Function* elem : module_funcs) {
-      if (!elem->IsParametric()) {
-        module_elements.push_back(elem->identifier());
-      }
-    }
-
+    ParametricEnv stub_parametric_env;
     std::vector<std::string> failed_ir_conversion_entries;
     for (std::string& elem : module_elements) {
       // Convert to IR each element separately.
-      absl::StatusOr<PackageConversionData> ir_conv_result =
-          ConvertFilesToPackage(module_path, dslx_stdlib_path.string(),
-                                dslx_paths, ir_convert_options, elem,
-                                module_name, &printed_error);
+      absl::StatusOr<std::string> ir_conv_result =
+          ConvertOneFunction(tm.module, elem, &import_data,
+                             &stub_parametric_env, ir_convert_options);
       if (!ir_conv_result.ok()) {
         failed_ir_conversion_entries.push_back(std::move(elem));
       }
