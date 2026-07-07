@@ -24,6 +24,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
@@ -53,6 +54,11 @@ class FastConcretizerImpl : public FastConcretizer,
                            GetBool(signedness_and_bit_count->signedness));
       XLS_ASSIGN_OR_RETURN(uint32_t bit_count,
                            GetU32(signedness_and_bit_count->bit_count));
+      if (bit_count > kMaxBitCount) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("Bit count $0 exceeds maximum limit of $1.",
+                             bit_count, kMaxBitCount));
+      }
       return std::make_unique<BitsType>(is_signed, bit_count);
     }
 

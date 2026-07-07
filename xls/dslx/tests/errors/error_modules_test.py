@@ -1073,10 +1073,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/constexpr_rollover_warning.x',
     )
-    self.assertIn(
-        'constexpr evaluation detected rollover in operation',
-        stderr,
-    )
+    self.assertIn('exceeds maximum limit', stderr)
 
   def test_module_level_const_assert_failure(self):
     stderr = self._run(

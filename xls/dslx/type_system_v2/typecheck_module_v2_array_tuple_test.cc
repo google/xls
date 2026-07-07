@@ -1813,5 +1813,14 @@ const X = A..s8:3;
                                        "is greater than end value 3")));
 }
 
+TEST(TypecheckV2Test, TooBigConstant) {
+  EXPECT_THAT(
+      R"(
+const too_big = -u32:19;
+const too_bit_array = sN[too_big]:-1;
+)",
+      TypecheckFails(HasSubstr("Bit count 4294967277 exceeds maximum limit of "
+                               "1000000.")));
+}
 }  // namespace
 }  // namespace xls::dslx
