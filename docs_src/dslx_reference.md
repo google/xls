@@ -2191,9 +2191,6 @@ Similarly, you can specify recursive domains for structs, using the syntax
 "Arbitrary". For example, `Point { x: u32:0..10 }` specifies a domain for a
 `Point` where `x` is restricted to `0..10` and `y`, omitted, is arbitrary.
 
-Currently only the "Arbitrary" domain can be applied to array parameters of fuzz
-test property functions.
-
 The "Arbitrary" domain applied to `enum` parameters restrains the provided
 fuzzed values to the defined values of the `enum`, even if the `enum` is sparse.
 For example:
@@ -2206,6 +2203,70 @@ enum Op : u3 {
 ```
 
 will never generate 2 through 7 even though they are valid `u3` values.
+
+#### Derived Struct Domains
+
+For large or nested structs, writing domains inline as struct instances can be
+verbose and difficult to read. Instead, you can define "domain structs" using
+the `#[fuzz_domain("DomainName")]` attribute on a `struct` definition.
+
+This attribute generates a new struct named `DomainName` that mirrors the
+original struct's structure but allows its fields to be assigned domain
+specifiers (ranges, arrays, etc.) instead of concrete values. Each instance of
+the `DomainName` struct can have different domains for each field. This applies
+recursively too.
+
+You can also write DSLX helper functions that return these domain structs to
+construct complex, reusable domains.
+
+In this example, we define `MyStruct` and derive `MyStructDomain`. We use a
+helper function `create_domain` to construct and return the domain, which is
+then used in the `#[fuzz_test]` attribute.
+
+```dslx-snippet
+#[fuzz_domain("MyStructDomain")]
+struct MyStruct {
+    x: u32,
+    y: bool,
+}
+
+fn create_domain() -> MyStructDomain {
+    MyStructDomain {
+        x: u32:0..10,
+        y: (), // arbitrary domain, can be omitted
+    }
+}
+
+#[fuzz_test(domains=`create_domain()`)]
+fn test_flat_struct(s: MyStruct) -> bool {
+    s.x < u32:10
+}
+```
+
+#### Fuzzing Array Parameters
+
+Array parameters can be fuzzed using the "Arbitrary" domain `()`. Individual
+elements of the array cannot have custom domains specified yet. Under the hood,
+this generates a `fuzztest::ArrayOf` domain
+
+In this example, it will generate a 3-element array of u32s:
+
+```dslx
+#[fuzz_test(domains=`()`)]
+fn fuzz_array(x: u32[3]) -> bool {
+    x[0] == x[1]
+}
+```
+
+In this example, the first element of the tuple will be a 3-element array of
+u32:
+
+```dslx
+#[fuzz_test(domains=`((), u32:0..10)`)]
+fn fuzz_tuple_with_array(t: (u32[3], u32)) -> bool {
+    t.0[0] < t.1
+}
+```
 
 #### BUILD targets
 
