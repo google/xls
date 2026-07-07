@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -181,5 +182,47 @@ ProcMember::ProcMember(Module* owner, NameDef* name_def,
       span_(name_def_->span().start(), type_annotation_->span().limit()) {}
 
 ProcMember::~ProcMember() = default;
+
+using ProcMemberAttribute = std::variant<ChannelStrictness, FlowControl>;
+
+std::string AttributeToString(ProcMemberAttribute attribute) {
+  const auto fmt_attribute = [](std::string name, std::string value) {
+    return absl::StrFormat("#[%s(\"%s\")]", name, value);
+  };
+  if (std::holds_alternative<ChannelStrictness>(attribute)) {
+    return fmt_attribute(
+        "channel_strictness",
+        ChannelStrictnessToString(std::get<ChannelStrictness>(attribute)));
+  }
+  return fmt_attribute("channel_flow_control",
+                       FlowControlToString(std::get<FlowControl>(attribute)));
+}
+
+std::string ProcMember::StrictnessAttributeString() const {
+  if (!strictness_.has_value()) {
+    return "";
+  }
+  return AttributeToString(*strictness_);
+}
+
+std::string ProcMember::FlowControlAttributeString() const {
+  if (!flow_control_.has_value()) {
+    return "";
+  }
+  return AttributeToString(*flow_control_);
+}
+
+std::string ProcMember::ToString() const {
+  std::string result;
+  if (strictness_.has_value()) {
+    absl::StrAppend(&result, AttributeToString(*strictness_), "\n");
+  }
+  if (flow_control_.has_value()) {
+    absl::StrAppend(&result, AttributeToString(*flow_control_), "\n");
+  }
+  absl::StrAppendFormat(&result, "%s: %s;", name_def_->ToString(),
+                        type_annotation_->ToString());
+  return result;
+}
 
 }  // namespace xls::dslx

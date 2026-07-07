@@ -25,7 +25,6 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -39,6 +38,7 @@ namespace xls::dslx {
 // This is very similar to a `Param` at the moment, but we make them distinct
 // types for structural clarity in the AST. Params are really "parameters to
 // functions".
+
 class ProcMember : public AstNode {
  public:
   ProcMember(Module* owner, NameDef* name_def, TypeAnnotation* type,
@@ -54,10 +54,8 @@ class ProcMember : public AstNode {
   }
 
   std::string_view GetNodeTypeName() const override { return "ProcMember"; }
-  std::string ToString() const override {
-    return absl::StrFormat("%s: %s;", name_def_->ToString(),
-                           type_annotation_->ToString());
-  }
+
+  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {name_def_, type_annotation_};
@@ -76,6 +74,9 @@ class ProcMember : public AstNode {
   const std::optional<FlowControl>& flow_control() const {
     return flow_control_;
   }
+
+  std::string StrictnessAttributeString() const;
+  std::string FlowControlAttributeString() const;
 
  private:
   NameDef* name_def_;

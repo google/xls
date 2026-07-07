@@ -2578,6 +2578,61 @@ TEST_F(ModuleFmtTest, SimpleProcWithMembers) {
 )");
 }
 
+TEST_F(ModuleFmtTest, SimpleProcWithStrictness) {
+  DoFmt(
+      R"(#![feature(channel_attributes)]
+
+pub proc p {
+    #[channel_strictness("runtime_ordered")]
+    cin: chan<u32> in;
+    cout: chan<u32> out;
+
+    config(cin: chan<u32> in, cout: chan<u32> out) { (cin, cout) }
+
+    init { () }
+
+    next(state: ()) { () }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SimpleProcWithFlowControl) {
+  DoFmt(
+      R"(#![feature(channel_attributes)]
+
+pub proc p {
+    cin: chan<u32> in;
+    #[channel_flow_control("valid_data")]
+    cout: chan<u32> out;
+
+    config(cin: chan<u32> in, cout: chan<u32> out) { (cin, cout) }
+
+    init { () }
+
+    next(state: ()) { () }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SimpleProcWithFlowControlAndStrictness) {
+  DoFmt(
+      R"(#![feature(channel_attributes)]
+
+pub proc p {
+    #[channel_strictness("runtime_ordered")]
+    #[channel_flow_control("valid_data")]
+    cin: chan<u32> in;
+    cout: chan<u32> out;
+
+    config(cin: chan<u32> in, cout: chan<u32> out) { (cin, cout) }
+
+    init { () }
+
+    next(state: ()) { () }
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleProcWithMembersImplStyle) {
   DoFmt(
       R"(pub proc P {
