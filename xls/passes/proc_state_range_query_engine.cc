@@ -175,23 +175,30 @@ ExtractContextSensitiveRange(
                         contextual_range.GetIntervals(next->value()).Get({}));
 }
 
+bool IsPassthrough(Next* next, StateElement* state_element) {
+  return next->value()->Is<StateRead>() &&
+         next->value()->As<StateRead>()->state_element() == state_element;
+}
+
 class SegmentRangeData : public RangeDataProvider {
  public:
   static absl::StatusOr<SegmentRangeData> Create(
       const NodeForwardDependencyAnalysis& nda,
       const absl::flat_hash_map<StateElement*, RangeData>& ground_truth,
-      StateRead* data_source, absl::Span<Node* const> topo_sort) {
-    Proc* proc = data_source->function_base()->AsProcOrDie();
-    auto nexts = proc->next_values(data_source->state_element());
+      StateElement* data_source, absl::Span<Node* const> topo_sort) {
     absl::flat_hash_set<Node*> dependencies;
-    int64_t max_size = 0;
-    for (Next* n : nexts) {
-      max_size += nda.GetInfo(n)->size();
-    }
-    dependencies.reserve(max_size);
-    for (Next* n : nexts) {
-      auto prevs = nda.NodesDependedOnBy(n);
-      dependencies.insert(prevs.begin(), prevs.end());
+    if (!topo_sort.empty()) {
+      Proc* proc = topo_sort.front()->function_base()->AsProcOrDie();
+      auto nexts = proc->next_values(data_source);
+      int64_t max_size = 0;
+      for (Next* n : nexts) {
+        max_size += nda.GetInfo(n)->size();
+      }
+      dependencies.reserve(max_size);
+      for (Next* n : nexts) {
+        auto prevs = nda.NodesDependedOnBy(n);
+        dependencies.insert(prevs.begin(), prevs.end());
+      }
     }
     return SegmentRangeData(dependencies, ground_truth, data_source, topo_sort);
   }
@@ -199,12 +206,13 @@ class SegmentRangeData : public RangeDataProvider {
   void SetParamIntervals(const IntervalSet& is) { current_segments_ = is; }
 
   bool IsInteresting(Node* n) const {
-    return (n->Is<Next>() && n->As<Next>()->state_read() == data_source_) ||
+    return (n->Is<Next>() && n->As<Next>()->state_element() == data_source_) ||
            dependencies_.contains(n);
   }
 
   std::optional<RangeData> GetKnownIntervals(Node* node) final {
-    if (node == data_source_) {
+    if (node->Is<StateRead>() &&
+        node->As<StateRead>()->state_element() == data_source_) {
       CHECK(!current_segments_.IsEmpty());
       return RangeData{.ternary = interval_ops::ExtractTernaryVector(
                            current_segments_, node),
@@ -244,15 +252,15 @@ class SegmentRangeData : public RangeDataProvider {
   SegmentRangeData(
       absl::flat_hash_set<Node*> dependencies,
       const absl::flat_hash_map<StateElement*, RangeData>& ground_truth,
-      StateRead* data_source, absl::Span<Node* const> topo_sort)
+      StateElement* data_source, absl::Span<Node* const> topo_sort)
       : dependencies_(std::move(dependencies)),
         ground_truth_(ground_truth),
         data_source_(data_source),
-        current_segments_(data_source->BitCountOrDie()),
+        current_segments_(data_source->type()->GetFlatBitCount()),
         topo_sort_(topo_sort) {}
   absl::flat_hash_set<Node*> dependencies_;
   const absl::flat_hash_map<StateElement*, RangeData>& ground_truth_;
-  StateRead* data_source_;
+  StateElement* data_source_;
   IntervalSet current_segments_;
   absl::Span<Node* const> topo_sort_;
 };
@@ -587,10 +595,9 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
   CHECK(remaining_intervals.contains(Interval::Precise(init_value.bits())))
       << "Initial value not included in constant values.";
   remaining_intervals.erase(Interval::Precise(init_value.bits()));
-  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
   XLS_ASSIGN_OR_RETURN(
       SegmentRangeData limiter,
-      SegmentRangeData::Create(nda, ground_truth, state_read, topo_sort));
+      SegmentRangeData::Create(nda, ground_truth, state_element, topo_sort));
   while (!remaining_intervals.empty()) {
     // Get the ranges of every node (which leads to a 'next' of the param)
     limiter.SetParamIntervals(active_intervals);
@@ -604,7 +611,7 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
     for (Next* n : proc->next_values(state_element)) {
       // Nexts which don't update anything (either due to just being passthrough
       // or having a known-false predicate) don't need to be taken into account.
-      if (n->value() == n->state_read() ||
+      if (IsPassthrough(n, state_element) ||
           (n->predicate() && rqe.IsAllZeros(*n->predicate()))) {
         continue;
       }
@@ -670,7 +677,7 @@ FindContextualRanges(Proc* proc, const QueryEngine& qe,
       // TODO(allight): We might want to use data-flow to better track whether
       // things have changed. This should probably be good enough in practice
       // however.
-      if (n->state_read() != n->value()) {
+      if (!IsPassthrough(n, state_element)) {
         nexts.push_back(n);
       }
     }

@@ -216,5 +216,24 @@ TEST_F(ProcStateRangeQueryEngineTest, OneBitStateIsZero) {
   EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())), "[[0, 0]]");
 }
 
+TEST_F(ProcStateRangeQueryEngineTest, DecoupledStateRangeAnalysis) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x,
+                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue x_read = pb.StateRead(x);
+  BValue cond = pb.ULt(x_read, pb.Literal(UBits(10, 32)));
+  BValue next_val = pb.Add(x_read, pb.Literal(UBits(1, 32)));
+  pb.Next(x, next_val, cond);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(x_read.node())),
+            "[[0, 10]]");
+}
+
 }  // namespace
 }  // namespace xls

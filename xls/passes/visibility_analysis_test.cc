@@ -36,6 +36,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/passes/bdd_evaluator.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/node_dependency_analysis.h"
@@ -1192,6 +1193,47 @@ TEST_F(VisibilityAnalysisTest, EdgesForVisibilityExcludeDependencies) {
                                  one_add.node(), select.node()),
                              OperandVisibilityAnalysis::OperandNode(
                                  one_and_other_if_op_0.node(), select.node())));
+}
+
+TEST_F(VisibilityAnalysisTest, DecoupledNextNodeVisibility) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * a_elem,
+                           pb.UnreadStateElement("a", Value(UBits(0, 4)),
+                                                 /*non_synthesizable=*/false));
+  BValue a = pb.StateRead(a_elem);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * tok_elem,
+                           pb.UnreadStateElement("tkn", Value::Token(),
+                                                 /*non_synthesizable=*/false));
+  BValue tok = pb.StateRead(tok_elem);
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
+                           pb.AddInputChannel("input", p->GetBitsType(4)));
+  auto input = pb.Receive(chan, tok);
+  auto input_data = pb.TupleIndex(input, 1);
+  auto input_tok = pb.TupleIndex(input, 0);
+  auto pred = pb.Ne(a, pb.Literal(UBits(5, 4)));
+  pb.Next(a_elem, input_data, pred);
+  pb.Next(tok_elem, input_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
+
+  EXPECT_TRUE(f->uses_decoupled_next());
+
+  NodeForwardDependencyAnalysis nda;
+  XLS_ASSERT_OK(nda.Attach(f));
+  LazyPostDominatorAnalysis post_dom;
+  XLS_ASSERT_OK(post_dom.Attach(f));
+  std::unique_ptr<BddQueryEngine> bdd_engine = BddQueryEngine::MakeDefault();
+  XLS_ASSERT_OK(bdd_engine->Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto operand_visibility,
+      OperandVisibilityAnalysis::Create(&nda, bdd_engine.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto visibility, VisibilityAnalysis::Create(&operand_visibility,
+                                                  bdd_engine.get(), &post_dom));
+
+  auto pred_bdd_node = bdd_engine->GetBddNode(TreeBitLocation(pred.node(), 0));
+  ASSERT_TRUE(pred_bdd_node.has_value());
+  EXPECT_EQ(*visibility->GetInfo(input_data.node()), pred_bdd_node.value());
 }
 
 }  // namespace
