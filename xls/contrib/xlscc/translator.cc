@@ -593,6 +593,7 @@ absl::StatusOr<CValue> Translator::GetArrayElement(const CValue& arr_val,
                                                    TrackedBValue index_bval,
                                                    const xls::SourceInfo& loc) {
   XLSCC_CHECK(index_bval.GetType()->IsBits(), loc);
+
   XLSCC_CHECK(arr_val.type()->Is<CArrayType>(), loc);
   auto arr_type = arr_val.type()->As<CArrayType>();
   TrackedBValue rval;
@@ -870,6 +871,8 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
               GetLoc(*funcdecl));
 
   xls_names_for_functions_generated_[funcdecl] = xls_name;
+
+  // funcdecl->dump();
 
   auto builder = std::make_unique<TrackedFunctionBuilder>(
       absl::StrFormat("%s_first_slice", xls_name), package_);
@@ -2499,14 +2502,26 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     XLS_RETURN_IF_ERROR(GenerateIR_Expr(lvalue, loc).status());
     return absl::OkStatus();
   }
-  if (auto* cast = clang::dyn_cast<const clang::ArraySubscriptExpr>(lvalue)) {
-    XLS_ASSIGN_OR_RETURN(CValue idx_val, GenerateIR_Expr(cast->getIdx(), loc));
-    XLS_ASSIGN_OR_RETURN(CValue arr_val, GenerateIR_Expr(cast->getBase(), loc));
+  if (auto* array_subscript =
+          clang::dyn_cast<const clang::ArraySubscriptExpr>(lvalue)) {
+    XLS_ASSIGN_OR_RETURN(
+        IOOpReturn ret, InterceptIOOp(array_subscript, GetLoc(*array_subscript),
+                                      /*assignment_value=*/rvalue));
+    // If this call is an IO op, then return the IO value, rather than
+    //  generating the call.
+    if (!ret.generate_expr) {
+      return absl::OkStatus();
+    }
+
+    XLS_ASSIGN_OR_RETURN(CValue idx_val,
+                         GenerateIR_Expr(array_subscript->getIdx(), loc));
+    XLS_ASSIGN_OR_RETURN(CValue arr_val,
+                         GenerateIR_Expr(array_subscript->getBase(), loc));
 
     XLS_ASSIGN_OR_RETURN(
         CValue arr_rvalue,
         UpdateArrayElement(arr_val, idx_val.rvalue(), rvalue, loc));
-    return Assign(cast->getBase(), arr_rvalue, loc);
+    return Assign(array_subscript->getBase(), arr_rvalue, loc);
   }
   if (auto member_expr = clang::dyn_cast<const clang::MemberExpr>(lvalue)) {
     // Assign to a struct element
@@ -5056,6 +5071,8 @@ absl::StatusOr<CValue> Translator::HandleConstructors(
 
 absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
                                                    const xls::SourceInfo& loc) {
+  XLSCC_CHECK_NE(expr, nullptr, loc);
+
   // Intercept numeric constexprs
   XLS_ASSIGN_OR_RETURN(std::optional<CValue> numeric_constexpr,
                        EvaluateNumericConstExpr(expr, loc));
@@ -5227,17 +5244,28 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     return absl::UnimplementedError(ErrorMessage(
         loc, "Unsupported constructor argument count %i", ctor->getNumArgs()));
   }
-  if (auto* cast = clang::dyn_cast<const clang::ArraySubscriptExpr>(expr)) {
-    XLS_ASSIGN_OR_RETURN(CValue arr_val, GenerateIR_Expr(cast->getBase(), loc));
+  if (auto* array_subscript =
+          clang::dyn_cast<const clang::ArraySubscriptExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(
+        IOOpReturn ret,
+        InterceptIOOp(array_subscript, GetLoc(*array_subscript)));
+    // If this call is an IO op, then return the IO value, rather than
+    //  generating the call.
+    if (!ret.generate_expr) {
+      return ret.value;
+    }
+
+    XLS_ASSIGN_OR_RETURN(CValue arr_val,
+                         GenerateIR_Expr(array_subscript->getBase(), loc));
+
     // Implicit dereference
     if (arr_val.type()->Is<CPointerType>() ||
         arr_val.type()->Is<CReferenceType>()) {
       XLSCC_CHECK_NE(arr_val.lvalue(), nullptr, loc);
       XLS_ASSIGN_OR_RETURN(arr_val, GenerateIR_Expr(arr_val.lvalue(), loc));
     }
-
     XLS_ASSIGN_OR_RETURN(CValue index_bval,
-                         GenerateIR_Expr(cast->getIdx(), loc));
+                         GenerateIR_Expr(array_subscript->getIdx(), loc));
     return GetArrayElement(arr_val, index_bval.rvalue(), loc);
   }
   // Access to a struct member, for example: x.foo
@@ -5380,7 +5408,11 @@ absl::Status Translator::MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
 
 absl::StatusOr<CValue> Translator::GenerateIR_Expr(std::shared_ptr<LValue> expr,
                                                    const xls::SourceInfo& loc) {
+  XLSCC_CHECK_NE(expr, nullptr, loc);
+  XLSCC_CHECK(!expr->is_null(), loc);
+
   if (!expr->is_select()) {
+    XLSCC_CHECK_NE(expr->leaf(), nullptr, loc);
     return GenerateIR_Expr(expr->leaf(), loc);
   }
 
@@ -5811,34 +5843,100 @@ absl::StatusOr<CValue> Translator::GenerateIR_LocalChannel(
     const clang::NamedDecl* namedecl,
     const std::shared_ptr<CChannelType>& channel_type,
     const xls::SourceInfo& loc) {
-  if (channel_type->GetMemorySize() > 0) {
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "Internal memories unsupported"));
-  }
-
-  std::string ch_name = absl::StrFormat(
-      "__internal_%s_%s", context().sf->clang_decl->getNameAsString(),
-      namedecl->getNameAsString());
-  XLS_ASSIGN_OR_RETURN(xls::Type * item_type_xls,
-                       TranslateTypeToXLS(channel_type->GetItemType(), loc));
-  XLS_ASSIGN_OR_RETURN(std::optional<int64_t> fifo_depth,
-                       GetAnnotationWithNonNegativeIntegerParam(
-                           *namedecl, "hls_fifo_depth", loc));
-  XLS_ASSIGN_OR_RETURN(
-      xls::Channel * xls_channel,
-      package_->CreateStreamingChannel(
-          ch_name, xls::ChannelOps::kSendReceive, item_type_xls,
-          /*initial_values=*/{}, /*fifo_config=*/
-          xls::FifoConfig(/*depth=*/fifo_depth.value_or(0), /*bypass=*/true,
-                          /*register_push_outputs=*/false,
-                          /*register_pop_outputs=*/false),
-          xls::FlowControl::kReadyValid));
-
-  unused_xls_channel_ops_.push_back({xls_channel, /*is_send=*/true});
-  unused_xls_channel_ops_.push_back({xls_channel, /*is_send=*/false});
+  std::string ch_name;
+  ChannelBundle bundle;
 
   IOChannel new_channel;
   new_channel.item_type = channel_type->GetItemType();
+
+  if (channel_type->GetMemorySize() > 0) {
+    ch_name = namedecl->getNameAsString();
+    new_channel.memory_size = channel_type->GetMemorySize();
+
+    // TODO: Strictness?
+    auto strictness = xls::ChannelStrictness::kProvenMutuallyExclusive;
+    const std::string& memory_name = ch_name;
+    XLS_ASSIGN_OR_RETURN(xls::Type * data_type,
+                         TranslateTypeToXLS(channel_type->GetItemType(), loc));
+
+    XLS_ASSIGN_OR_RETURN(xls::Type * read_request_type,
+                         channel_type->GetReadRequestType(package_, data_type));
+    XLS_ASSIGN_OR_RETURN(
+        bundle.read_request,
+        package_->CreateStreamingChannel(
+            memory_name + "_read_request", xls::ChannelOps::kSendOnly,
+            read_request_type,
+            /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
+            xls::FlowControl::kReadyValid,
+            /*strictness=*/strictness));
+    unused_xls_channel_ops_.push_back({bundle.read_request, /*is_send=*/true});
+
+    XLS_ASSIGN_OR_RETURN(
+        xls::Type * read_response_type,
+        channel_type->GetReadResponseType(package_, data_type));
+    XLS_ASSIGN_OR_RETURN(
+        bundle.read_response,
+        package_->CreateStreamingChannel(
+            memory_name + "_read_response", xls::ChannelOps::kReceiveOnly,
+            read_response_type,
+            /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
+            xls::FlowControl::kReadyValid,
+            /*strictness=*/strictness));
+    unused_xls_channel_ops_.push_back(
+        {bundle.read_response, /*is_send=*/false});
+
+    XLS_ASSIGN_OR_RETURN(
+        xls::Type * write_request_type,
+        channel_type->GetWriteRequestType(package_, data_type));
+    XLS_ASSIGN_OR_RETURN(
+        bundle.write_request,
+        package_->CreateStreamingChannel(
+            memory_name + "_write_request", xls::ChannelOps::kSendOnly,
+            write_request_type,
+            /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
+            xls::FlowControl::kReadyValid,
+            /*strictness=*/strictness));
+    unused_xls_channel_ops_.push_back({bundle.write_request, /*is_send=*/true});
+
+    XLS_ASSIGN_OR_RETURN(
+        xls::Type * write_response_type,
+        channel_type->GetWriteResponseType(package_, data_type));
+    XLS_ASSIGN_OR_RETURN(
+        bundle.write_response,
+        package_->CreateStreamingChannel(
+            memory_name + "_write_response", xls::ChannelOps::kReceiveOnly,
+            write_response_type,
+            /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
+            xls::FlowControl::kReadyValid,
+            /*strictness=*/strictness));
+    unused_xls_channel_ops_.push_back(
+        {bundle.write_response, /*is_send=*/false});
+  } else {
+    ch_name = absl::StrFormat("__internal_%s_%s",
+                              context().sf->clang_decl->getNameAsString(),
+                              namedecl->getNameAsString());
+
+    XLS_ASSIGN_OR_RETURN(xls::Type * item_type_xls,
+                         TranslateTypeToXLS(channel_type->GetItemType(), loc));
+    XLS_ASSIGN_OR_RETURN(std::optional<int64_t> fifo_depth,
+                         GetAnnotationWithNonNegativeIntegerParam(
+                             *namedecl, "hls_fifo_depth", loc));
+    XLS_ASSIGN_OR_RETURN(
+        xls::Channel * xls_channel,
+        package_->CreateStreamingChannel(
+            ch_name, xls::ChannelOps::kSendReceive, item_type_xls,
+            /*initial_values=*/{}, /*fifo_config=*/
+            xls::FifoConfig(/*depth=*/fifo_depth.value_or(0), /*bypass=*/true,
+                            /*register_push_outputs=*/false,
+                            /*register_pop_outputs=*/false),
+            xls::FlowControl::kReadyValid));
+
+    unused_xls_channel_ops_.push_back({xls_channel, /*is_send=*/true});
+    unused_xls_channel_ops_.push_back({xls_channel, /*is_send=*/false});
+
+    bundle = ChannelBundle{.regular = xls_channel};
+  }
+
   new_channel.unique_name = ch_name;
   new_channel.internal_to_function = true;
 
@@ -5848,7 +5946,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_LocalChannel(
   CValue cval(/*rvalue=*/TrackedBValue(), channel_type,
               /*disable_type_check=*/true, lvalue);
 
-  ChannelBundle bundle = {.regular = xls_channel};
   external_channels_by_internal_channel_.insert(
       std::make_pair(new_channel_ptr, bundle));
 
@@ -5866,16 +5963,19 @@ absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
     XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> obj_type,
                          TranslateTypeFromClang(stripped.base, loc));
 
-    if (obj_type->Is<CChannelType>() &&
-        clang::dyn_cast<clang::CXXConstructExpr>(vard->getAnyInitializer())) {
-      std::vector<const clang::AnnotateAttr*> annotate_attrs =
-          GetClangAnnotations(*vard);
+    std::shared_ptr<CChannelType> channel_type;
 
-      XLS_ASSIGN_OR_RETURN(
-          CValue generated,
-          GenerateIR_LocalChannel(
-              namedecl, std::dynamic_pointer_cast<CChannelType>(obj_type),
-              loc));
+    // Check that this is the declaration of a channel type and that it's not
+    // initialized
+    if (obj_type->Is<CChannelType>() &&
+        ((vard->getAnyInitializer() != nullptr &&
+          clang::dyn_cast<clang::CXXConstructExpr>(vard->getAnyInitializer()) !=
+              nullptr) ||
+         obj_type->As<CChannelType>()->GetMemorySize() > 0)) {
+      channel_type = std::dynamic_pointer_cast<CChannelType>(obj_type);
+
+      XLS_ASSIGN_OR_RETURN(CValue generated, GenerateIR_LocalChannel(
+                                                 namedecl, channel_type, loc));
 
       return DeclareVariable(namedecl, generated, loc);
     }
@@ -6795,15 +6895,18 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     XLSCC_CHECK_NE(type_attr, nullptr, loc);
 
     std::string annotation = type_attr->getAnnotation().str();
+    std::shared_ptr<CType> ret;
 
-    if (annotation != "hls_array_as_tuple") {
+    // NOTE: TypeIsChannel() may also need updating when changing this
+
+    if (annotation == "hls_array_as_tuple") {
+      XLS_ASSIGN_OR_RETURN(ret,
+                           TranslateTypeFromClang(lval->desugar(), loc,
+                                                  /*array_as_tuple=*/true));
+    } else {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Unsupported attribute on type: %s", annotation));
     }
-
-    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ret,
-                         TranslateTypeFromClang(lval->desugar(), loc,
-                                                /*array_as_tuple=*/true));
 
     return ret;
   }
@@ -7097,6 +7200,14 @@ absl::StatusOr<TrackedBValue> Translator::GenTypeConvert(
   if (out_type->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(auto t, ResolveTypeInstance(out_type));
     return GenTypeConvert(in, t, loc);
+  }
+  if (out_type->Is<CPointerType>() && in.type()->Is<CChannelType>()) {
+    auto channel_type = in.type()->As<CChannelType>();
+    if (channel_type->GetMemorySize() <= 0) {
+      return absl::InvalidArgumentError(ErrorMessage(
+          loc, "Channel to pointer conversion is only suported for memories"));
+    }
+    return in.rvalue();
   }
   return absl::UnimplementedError(
       ErrorMessage(loc, "Don't know how to convert %s to type %s",

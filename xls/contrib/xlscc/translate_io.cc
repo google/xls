@@ -24,6 +24,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "clang/include/clang/AST/Attr.h"
+#include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/ExprCXX.h"
@@ -338,6 +340,20 @@ absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
     return TypeIsChannel(subst->getReplacementType(), loc);
   }
 
+  if (auto paren = clang::dyn_cast<const clang::ParenType>(type)) {
+    return TypeIsChannel(paren->desugar(), loc);
+  }
+
+  // NOTE: TranslateTypeFromClang() may also need updating when changing this
+  if (auto attributed = clang::dyn_cast<const clang::AttributedType>(type)) {
+    auto type_attr =
+        clang::dyn_cast<clang::AnnotateTypeAttr>(attributed->getAttr());
+    std::string annotation = type_attr->getAnnotation().str();
+    if (annotation == "hls_memory") {
+      return true;
+    }
+  }
+
   if (type->getTypeClass() == clang::Type::TypeClass::TemplateSpecialization &&
       type->isRecordType()) {
     // Up-cast to avoid multiple inheritance of getAsRecordDecl()
@@ -404,6 +420,11 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
     return GetChannelType(subst->getReplacementType(), ctx, loc);
   }
 
+  if (auto paren =
+          clang::dyn_cast<const clang::ParenType>(stripped.base.getTypePtr())) {
+    return GetChannelType(paren->desugar(), ctx, loc);
+  }
+
   if (auto template_spec =
           clang::dyn_cast<const clang::TemplateSpecializationType>(
               stripped.base.getTypePtr());
@@ -433,6 +454,38 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
     } else {
       return absl::UnimplementedError(ErrorMessage(
           loc, "Channel RecordDecl should be ClassTemplateSpecializationDecl"));
+    }
+  } else if (auto attributed = clang::dyn_cast<const clang::AttributedType>(
+                 stripped.base.getTypePtr());
+             attributed != nullptr) {
+    auto type_attr =
+        clang::dyn_cast<clang::AnnotateTypeAttr>(attributed->getAttr());
+    XLSCC_CHECK_NE(type_attr, nullptr, loc);
+
+    std::string annotation = type_attr->getAnnotation().str();
+    std::shared_ptr<CType> ret;
+
+    // NOTE: TypeIsChannel() may also need updating when changing this
+
+    if (annotation == "hls_array_as_tuple") {
+      XLS_ASSIGN_OR_RETURN(ret,
+                           TranslateTypeFromClang(attributed->desugar(), loc,
+                                                  /*array_as_tuple=*/true));
+    } else if (annotation == "hls_memory") {
+      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> obj_type,
+                           TranslateTypeFromClang(attributed->desugar(), loc));
+      if (obj_type->Is<CArrayType>()) {
+        auto array_type = std::dynamic_pointer_cast<CArrayType>(obj_type);
+        return std::make_shared<CChannelType>(array_type->GetElementType(),
+                                              array_type->GetSize());
+      } else {
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "hls_memory not applicable to type: %s",
+                         obj_type->debug_string().c_str()));
+      }
+    } else {
+      return absl::InvalidArgumentError(ErrorMessage(
+          loc, "Unknown type annotation for channel: %s", annotation));
     }
   } else {
     return absl::UnimplementedError(ErrorMessage(
@@ -490,6 +543,9 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
   const clang::Expr* object = nullptr;
   std::string op_name;
 
+  // for memory by operator / subscript
+  CValue addr_val;
+
   if (auto member_call =
           clang::dyn_cast<const clang::CXXMemberCallExpr>(expr)) {
     object = member_call->getImplicitObjectArgument();
@@ -508,6 +564,27 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     }
     object = operator_call->getArg(0);
     op_name = "__memory_by_operator";
+  } else if (auto array_subscript =
+                 clang::dyn_cast<const clang::ArraySubscriptExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(CValue arr_val,
+                         GenerateIR_Expr(array_subscript->getBase(), loc));
+
+    if (arr_val.lvalue() == nullptr || arr_val.lvalue()->is_null()) {
+      return no_op_return;
+    }
+
+    if (!arr_val.lvalue()->is_channel()) {
+      return no_op_return;
+    }
+    if (arr_val.lvalue()->channel_leaf()->memory_size <= 0) {
+      return absl::InvalidArgumentError(
+          ErrorMessage(loc, "Array subscript on non-memory channel"));
+    }
+
+    object = array_subscript->getBase();
+    op_name = "__memory_by_subscript";
+    XLS_ASSIGN_OR_RETURN(addr_val,
+                         GenerateIR_Expr(array_subscript->getIdx(), loc));
   } else {
     return no_op_return;
   }
@@ -528,14 +605,23 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     return no_op_return;
   }
 
-  auto call = clang::dyn_cast<const clang::CallExpr>(expr);
   std::vector<CValue> arg_vals;
-  arg_vals.resize(call->getNumArgs());
 
-  for (int64_t arg = 0; arg < call->getNumArgs(); ++arg) {
-    XLS_ASSIGN_OR_RETURN(
-        arg_vals[arg],
-        GenerateIR_Expr(call->getArg(static_cast<unsigned int>(arg)), loc));
+  const clang::CallExpr* call = nullptr;
+
+  if (op_name != "__memory_by_subscript") {
+    call = clang::dyn_cast<const clang::CallExpr>(expr);
+    arg_vals.resize(call->getNumArgs());
+
+    for (int64_t arg = 0; arg < call->getNumArgs(); ++arg) {
+      XLS_ASSIGN_OR_RETURN(
+          arg_vals[arg],
+          GenerateIR_Expr(call->getArg(static_cast<unsigned int>(arg)), loc));
+    }
+  }
+
+  if (op_name == "__memory_by_operator") {
+    addr_val = arg_vals.at(1);
   }
 
   enum class TokenReturnModes { kNone, kDirect, kTuple };
@@ -717,10 +803,9 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         op.op = OpType::kWrite;
         op.is_blocking = true;
       }
-    } else if (op_name == "__memory_by_operator") {
-      CValue addr_val = arg_vals.at(1);
-      CHECK(addr_val.valid());
-
+    } else if (op_name == "__memory_by_operator" ||
+               op_name == "__memory_by_subscript") {
+      XLSCC_CHECK(addr_val.valid(), loc);
       const bool is_write = assignment_value.valid();
 
       op.is_blocking = true;
