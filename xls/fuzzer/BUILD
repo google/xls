@@ -735,6 +735,7 @@ cc_library(
         "//xls/dslx/frontend:token",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:channel",
         "//xls/ir:format_preference",
         "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/container:btree",

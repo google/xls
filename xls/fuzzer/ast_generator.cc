@@ -64,6 +64,7 @@
 #include "xls/fuzzer/value_generator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
@@ -529,8 +530,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
     XLS_ASSIGN_OR_RETURN(
         AstNode * type_annotation,
         CloneAst(p->type_annotation(), &PreserveTypeDefinitionsReplacer));
+    FlowControl chan_flow_control =
+        RandomChoice(absl::MakeConstSpan(
+                         {FlowControl::kValidData, FlowControl::kReadyValid}),
+                     bit_gen_);
+    module_->AddAttribute(ModuleAttribute::kChannelAttributes);
     return module_->Make<ProcMember>(
-        name_def, absl::down_cast<TypeAnnotation*>(type_annotation));
+        name_def, absl::down_cast<TypeAnnotation*>(type_annotation),
+        /*channel_strictness=*/std::nullopt, chan_flow_control);
   };
   XLS_ASSIGN_OR_RETURN(ProcMember * member, to_member(param));
   proc_properties_.members.push_back(member);
