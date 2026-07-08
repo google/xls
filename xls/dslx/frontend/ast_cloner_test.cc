@@ -2692,5 +2692,62 @@ fn foo<T: type>(x: T) -> T {
   ASSERT_EQ(binding_annotation, param_annotation_definer);
 }
 
+TEST(AstClonerTest, PeekVariants) {
+  constexpr std::string_view kProgram = R"(import other_module;
+proc MyProc {
+    input_c: chan<u32> in;
+    config(input: chan<u32> in) {
+        (input)
+    }
+    init {
+        ()
+    }
+    next(state: ()) {
+        let tok = join();
+        let (_tok, _data, _valid) = peek(tok, input_c, u32:0);
+        let (_tok, _data, _valid) = peek_if(tok, input_c, true, u32:0);
+    }
+})";
+  constexpr std::string_view kExpected = R"(import other_module;
+fn MyProc.config(input: chan<u32> in) -> (chan<u32> in,) {
+    (input)
+}
+fn MyProc.init() -> () {
+    ()
+}
+fn MyProc.next(state: ()) -> () {
+    let tok = join();
+    let (_tok, _data, _valid) = peek(tok, input_c, u32:0);
+    let (_tok, _data, _valid) = peek_if(tok, input_c, true, u32:0);
+}
+proc MyProc {
+    input_c: chan<u32> in;
+    config(input: chan<u32> in) {
+        (input)
+    }
+    init {
+        ()
+    }
+    next(state: ()) {
+        let tok = join();
+        let (_tok, _data, _valid) = peek(tok, input_c, u32:0);
+        let (_tok, _data, _valid) = peek_if(tok, input_c, true, u32:0);
+    }
+})";
+
+  FileTable file_table;
+  absl::StatusOr<std::unique_ptr<Module>> module =
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table);
+  if (!module.ok()) {
+    UniformContentFilesystem vfs(kProgram);
+    TryPrintError(module.status(), file_table, vfs);
+  }
+  XLS_ASSERT_OK(module.status());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module->get()));
+  EXPECT_EQ(kExpected, clone->ToString());
+}
+
+
 }  // namespace
 }  // namespace xls::dslx

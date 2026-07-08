@@ -416,6 +416,160 @@ TEST_P(CodegenProcTest, CombinationalSingleProcWithProcScopedChannels) {
                                  result.verilog_text);
 }
 
+TEST_P(CodegenProcTest, PeekIgnoreReadySignal) {
+  const std::string ir_text = absl::Substitute(R"(package $0
+top proc Peek<_req_r: bits[32] in, _resp_s: bits[32] out>() {
+  chan_interface _req_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  peek.7: (token, bits[32], bits[1]) = peek(after_all.5, predicate=literal.3, channel=_req_r, id=7)
+  tuple_index.9: bits[32] = tuple_index(peek.7, index=1, id=9)
+  literal.16: bits[32] = literal(value=4, id=16, pos=[(0,33,37)])
+  valid: bits[1] = tuple_index(peek.7, index=2, id=10)
+  ugt.43: bits[1] = ugt(tuple_index.9, literal.16, id=43, pos=[(0,33,28)])
+  tok: token = tuple_index(peek.7, index=0, id=8)
+  and.52: bits[1] = and(valid, ugt.43, id=52, pos=[(0,34,48)])
+  receive.21: (token, bits[32]) = receive(tok, predicate=and.52, channel=_req_r, id=21)
+  tok__1: token = tuple_index(receive.21, index=0, id=22)
+  packet__1: bits[32] = tuple_index(receive.21, index=1, id=23)
+  send.29: token = send(tok__1, packet__1, predicate=valid, channel=_resp_s, id=29)
+}
+)",
+                                               TestBaseName());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           xls::Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           package->GetProc("Peek"));
+  XLS_ASSERT_OK(package->SetTop(proc));
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(
+          package.get(),
+          verilog::CodegenOptions()
+              .clock_name("clk")
+              .emit_as_pipeline(true)
+              .use_system_verilog(UseSystemVerilog()),
+          SchedulingOptions().clock_period_ps(50).pipeline_stages(1),
+          &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CodegenProcTest, TwoPeeksOneRecv) {
+  const std::string ir_text = absl::Substitute(R"(package $0
+top proc Peek<_req_r: bits[32] in, _resp_s: bits[32] out>() {
+  chan_interface _req_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  peek.7: (token, bits[32], bits[1]) = peek(after_all.5, predicate=literal.3, channel=_req_r, id=7)
+  peek.18: (token, bits[32], bits[1]) = peek(after_all.5, predicate=literal.3, channel=_req_r, id=18)
+  tok0: token = tuple_index(peek.7, index=0, id=8)
+  tok1: token = tuple_index(peek.18, index=0, id=19)
+  valid0: bits[1] = tuple_index(peek.7, index=2, id=10)
+  valid1: bits[1] = tuple_index(peek.18, index=2, id=21)
+  after_all.28: token = after_all(tok0, tok1, id=28)
+  should_process: bits[1] = and(valid0, valid1, id=27, pos=[(0,34,29)])
+  receive.31: (token, bits[32]) = receive(after_all.28, predicate=should_process, channel=_req_r, id=31)
+  tok: token = tuple_index(receive.31, index=0, id=32)
+  packet: bits[32] = tuple_index(receive.31, index=1, id=33)
+  send.39: token = send(tok, packet, predicate=should_process, channel=_resp_s, id=39)
+}
+)",
+                                               TestBaseName());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           xls::Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           package->GetProc("Peek"));
+  XLS_ASSERT_OK(package->SetTop(proc));
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(
+          package.get(),
+          verilog::CodegenOptions()
+              .clock_name("clk")
+              .emit_as_pipeline(true)
+              .use_system_verilog(UseSystemVerilog()),
+          SchedulingOptions().clock_period_ps(50).pipeline_stages(1),
+          &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CodegenProcTest, OnePeekTwoRecvs) {
+  const std::string ir_text = absl::Substitute(R"(package $0
+
+top proc Peek<_req_r: bits[32] in, _resp_s: bits[32] out>(name: token, name__1: token, init={token, token}) {
+  chan_interface _req_r(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _resp_s(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  after_all.5: token = after_all(id=5)
+  literal.3: bits[1] = literal(value=1, id=3)
+  peek.7: (token, bits[32], bits[1]) = peek(after_all.5, predicate=literal.3, channel=_req_r, id=7)
+  tuple_index.9: bits[32] = tuple_index(peek.7, index=1, id=9)
+  literal.16: bits[32] = literal(value=4, id=16, pos=[(0,33,38)])
+  tok: token = tuple_index(peek.7, index=0, id=8)
+  name: token = state_read(state_element=name, id=111)
+  name__1: token = state_read(state_element=name__1, id=113)
+  valid: bits[1] = tuple_index(peek.7, index=2, id=10)
+  ugt.82: bits[1] = ugt(tuple_index.9, literal.16, id=82, pos=[(0,33,29)])
+  after_all.102: token = after_all(tok, name, name__1, id=102)
+  packet__1: bits[1] = and(valid, ugt.82, id=85, pos=[(0,33,29)])
+  receive.21: (token, bits[32]) = receive(after_all.102, predicate=packet__1, channel=_req_r, id=21)
+  not.93: bits[1] = not(valid, id=93)
+  tuple_index.23: bits[32] = tuple_index(receive.21, index=1, id=23)
+  nor.94: bits[1] = nor(not.93, ugt.82, id=94)
+  bit_slice.115: bits[31] = bit_slice(tuple_index.23, start=1, width=31, id=115, pos=[(0,35,18)])
+  literal.120: bits[31] = literal(value=5, id=120, pos=[(0,35,18)])
+  receive.35: (token, bits[32]) = receive(after_all.102, predicate=nor.94, channel=_req_r, id=35)
+  add.117: bits[31] = add(bit_slice.115, literal.120, id=117, pos=[(0,35,18)])
+  bit_slice.118: bits[1] = bit_slice(tuple_index.23, start=0, width=1, id=118, pos=[(0,35,18)])
+  tuple_index.36: token = tuple_index(receive.35, index=0, id=36)
+  tok__1: token = tuple_index(receive.21, index=0, id=22)
+  tuple_index.37: bits[32] = tuple_index(receive.35, index=1, id=37)
+  concat.119: bits[32] = concat(add.117, bit_slice.118, id=119, pos=[(0,35,18)])
+  tok__2: token = sel(packet__1, cases=[tuple_index.36, tok__1], id=89, pos=[(0,33,26)])
+  data__1: bits[32] = sel(ugt.82, cases=[tuple_index.37, concat.119], id=90, pos=[(0,33,26)])
+  send.44: token = send(tok__2, data__1, predicate=valid, channel=_resp_s, id=44)
+  next_value.112: () = next_value(param=name, value=tok__1, predicate=packet__1, id=112)
+  next_value.114: () = next_value(param=name__1, value=tuple_index.36, predicate=nor.94, id=114)
+}
+)",
+                                               TestBaseName());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           xls::Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           package->GetProc("Peek"));
+  XLS_ASSERT_OK(package->SetTop(proc));
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(
+          package.get(),
+          verilog::CodegenOptions()
+              .clock_name("clk")
+              .emit_as_pipeline(true)
+              .use_system_verilog(UseSystemVerilog()),
+          SchedulingOptions().clock_period_ps(50).pipeline_stages(1),
+          &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 INSTANTIATE_TEST_SUITE_P(CodegenProcTestInstantiation, CodegenProcTest,
                          testing::ValuesIn(verilog::kDefaultSimulationTargets),
                          verilog::ParameterizedTestName<CodegenProcTest>);

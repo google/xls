@@ -931,5 +931,17 @@ TEST_F(ChannelToPortIoLoweringPassTest,
               m::Literal(3))));
 }
 
+TEST_F(ChannelToPortIoLoweringPassTest, PeekWithoutRecv) {
+  auto p = std::make_unique<Package>("test");
+  ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
+                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BValue tkn = pb.Literal(Value::Token());
+  pb.Peek(a_in, tkn);
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
 }  // namespace
 }  // namespace xls::codegen

@@ -73,6 +73,10 @@ fn one_hot_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N]) -> xN[S][M];
 
 fn or_reduce<N: u32>(x: uN[N]) -> u1;
 
+fn peek_if<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T, bool);
+
+fn peek<T: type>(tok: token, channel: chan<T> in, value: T) -> (token, T, bool);
+
 fn priority_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N], z: xN[S][M]) -> xN[S][M];
 
 fn read<T: type>(source: State<T>) -> T;

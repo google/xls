@@ -230,7 +230,7 @@ absl::Status VerifyChannels(
     XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
                          topo_sort(proc.get()));
     for (Node* node : topo_sort_nodes) {
-      if (node->Is<Send>() || node->Is<Receive>()) {
+      if (node->Is<Send>() || node->Is<Receive>() || node->Is<Peek>()) {
         all_proc_io_nodes.push_back(node);
       }
     }
@@ -248,7 +248,7 @@ absl::Status VerifyChannels(
     XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
                          topo_sort(block.get()));
     for (Node* node : topo_sort_nodes) {
-      if (node->Is<Send>() || node->Is<Receive>()) {
+      if (node->Is<Send>() || node->Is<Receive>() || node->Is<Peek>()) {
         all_proc_io_nodes.push_back(node);
       }
     }
@@ -259,7 +259,7 @@ absl::Status VerifyChannels(
       XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
       send_nodes[channel].push_back(node);
     }
-    if (node->Is<Receive>()) {
+    if (node->Is<Receive>() || node->Is<Peek>()) {
       XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
       receive_nodes[channel].push_back(node);
     }
@@ -621,7 +621,7 @@ absl::Status VerifyFunction(Function* function, const VerifyOptions& options) {
   }
 
   for (Node* node : function->nodes()) {
-    if (node->Is<Send>() || node->Is<Receive>()) {
+    if (node->Is<Send>() || node->Is<Receive>() || node->Is<Peek>()) {
       return absl::InternalError(absl::StrFormat(
           "Send and receive nodes can only be in procs, not functions (%s)",
           node->GetName()));
@@ -659,7 +659,7 @@ absl::Status VerifyFunction(Function* function, const VerifyOptions& options) {
 
       for (Node* node : stage.active_inputs()) {
         XLS_RETURN_IF_ERROR(process_node(node, "active_inputs"));
-        if (!node->Is<Receive>()) {
+        if (!node->Is<Receive>() && !node->Is<Peek>()) {
           return absl::InternalError(absl::StrFormat(
               "Only receive nodes can be in active_inputs set of a stage, "
               "found %s in stage %d",
@@ -677,7 +677,7 @@ absl::Status VerifyFunction(Function* function, const VerifyOptions& options) {
       }
       for (Node* node : stage.logic()) {
         XLS_RETURN_IF_ERROR(process_node(node, "logic"));
-        if (node->Is<Receive>() || node->Is<Send>()) {
+        if (node->Is<Receive>() || node->Is<Send>() || node->Is<Peek>()) {
           return absl::InternalError(
               absl::StrFormat("Receive/send node %s in logic set of stage "
                               "%d",
@@ -788,12 +788,12 @@ static absl::Status VerifyProcScopedChannels(Proc* proc) {
             node->As<Send>()->channel_name(), proc->name(), node->GetName()));
       }
     }
-    if (node->Is<Receive>()) {
-      if (!proc->HasChannelInterface(node->As<Receive>()->channel_name(),
+    if (node->Is<Receive>() || node->Is<Peek>()) {
+      if (!proc->HasChannelInterface(node->As<ChannelNode>()->channel_name(),
                                      ChannelDirection::kReceive)) {
         return absl::InternalError(absl::StrFormat(
             "No receive channel reference `%s` in proc `%s`, used by node `%s`",
-            node->As<Receive>()->channel_name(), proc->name(),
+            node->As<ChannelNode>()->channel_name(), proc->name(),
             node->GetName()));
       }
     }
@@ -915,9 +915,9 @@ absl::Status VerifyProc(Proc* proc, const VerifyOptions& options) {
 
       for (Node* node : stage.active_inputs()) {
         XLS_RETURN_IF_ERROR(process_node(node, "active_inputs"));
-        if (!node->Is<Receive>() && !node->Is<StateRead>()) {
+        if (!node->Is<Receive>() && !node->Is<Peek>() && !node->Is<StateRead>()) {
           return absl::InternalError(absl::StrFormat(
-              "Only receive and state_read nodes can be in active_inputs set "
+              "Only receive, peek and state_read nodes can be in active_inputs set "
               "of a stage, found %s in stage %d",
               node->GetName(), i));
         }
@@ -933,7 +933,7 @@ absl::Status VerifyProc(Proc* proc, const VerifyOptions& options) {
       }
       for (Node* node : stage.logic()) {
         XLS_RETURN_IF_ERROR(process_node(node, "logic"));
-        if (node->Is<Receive>() || node->Is<StateRead>() || node->Is<Send>() ||
+        if (node->Is<Receive>() || node->Is<StateRead>() || node->Is<Send>() || node->Is<Peek>() ||
             node->op() == Op::kNext) {
           return absl::InternalError(
               absl::StrFormat("Receive/StateRead/Send/NextValue node %s in "
@@ -965,17 +965,18 @@ absl::Status VerifyProc(Proc* proc, const VerifyOptions& options) {
               stage_idx));
         }
       }
-      if (node->Is<Receive>()) {
+      if (node->Is<Receive>() || node->Is<Peek>()) {
         for (Node* dep : dep_analysis.NodesDependedOnBy(node)) {
           if (!dep->Is<Send>()) {
             continue;
           }
           if (auto it = node_to_stage.find(dep);
               it != node_to_stage.end() && it->second == stage_idx) {
+            auto node_kind = node->Is<Receive>() ? "Receive" : "Peek";
             return absl::InternalError(absl::StrFormat(
-                "Receive node %s in stage %d depends on send node %s in "
+                "%s node %s in stage %d depends on send node %s in "
                 "the same stage, which is currently unsupported by XLS.",
-                node->GetName(), stage_idx, dep->GetName()));
+                node_kind, node->GetName(), stage_idx, dep->GetName()));
           }
         }
       }
@@ -1478,8 +1479,8 @@ absl::Status VerifyBlock(Block* block, const VerifyOptions& options) {
 
     for (Node* node : stage.active_inputs()) {
       XLS_RETURN_IF_ERROR(process_node(node, "active_inputs"));
-      if (!node->OpIn({Op::kReceive, Op::kStateRead, Op::kRegisterRead}) ||
-          (node->Is<Receive>() && !options.incomplete_lowering)) {
+      if (!node->OpIn({Op::kReceive, Op::kStateRead, Op::kRegisterRead, Op::kPeek}) ||
+          ((node->Is<Receive>() || node->Is<Peek>()) && !options.incomplete_lowering)) {
         const std::string_view allowed_ops =
             options.incomplete_lowering
                 ? "receive, state_read, and register_read"
@@ -1505,7 +1506,7 @@ absl::Status VerifyBlock(Block* block, const VerifyOptions& options) {
     }
     for (Node* node : stage.logic()) {
       XLS_RETURN_IF_ERROR(process_node(node, "logic"));
-      if (node->OpIn({Op::kReceive, Op::kSend, Op::kStateRead, Op::kNext,
+      if (node->OpIn({Op::kReceive, Op::kPeek, Op::kSend, Op::kStateRead, Op::kNext,
                       Op::kRegisterRead, Op::kRegisterWrite})) {
         return absl::InternalError(
             absl::StrFormat("Active I/O node %s found in logic set of stage %d",

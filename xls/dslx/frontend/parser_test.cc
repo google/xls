@@ -1623,6 +1623,50 @@ proc producer {
   RoundTrip(std::string(kModule));
 }
 
+TEST_F(ParserTest, ParsePeek) {
+  constexpr std::string_view kModule = R"(proc Peek {
+    req_r: chan<u32> in;
+    resp_s: chan<u32> out;
+    config(req_r: chan<u32> in, resp_s: chan<u32> out) {
+        (req_r, resp_s)
+    }
+    init {}
+    next(state: ()) {
+        let (tok, packet, valid) = peek(join(), req_r, u32:0);
+        let handle_packet = packet > u32:4;
+        let (tok, packet) = recv_if(tok, req_r, valid && handle_packet, u32:0);
+        send_if(tok, resp_s, valid, packet);
+    }
+})";
+
+  RoundTrip(std::string(kModule));
+}
+
+TEST_F(ParserTest, ParsePeekIf) {
+  constexpr std::string_view kModule = R"(proc PeekIf {
+    req_r: chan<u32> in;
+    resp_s: chan<u32> out;
+    enable_r: chan<bool> in;
+    config(req_r: chan<u32> in, resp_s: chan<u32> out, enable_r: chan<bool> in) {
+        (req_r, resp_s, enable_r)
+    }
+    init {
+        false
+    }
+    next(state: bool) {
+        let (tok, enabled, valid) = recv_non_blocking(join(), enable_r, state);
+        let (tok, packet, packet_valid) = peek_if(join(), req_r, enabled, u32:0);
+        let handle_packet = (packet > u32:4) && packet_valid;
+        let packet_cond = !enabled || handle_packet;
+        let (tok, packet) = recv_if(tok, req_r, packet_cond, u32:0);
+        send(tok, resp_s, packet);
+        enabled
+    }
+})";
+
+  RoundTrip(std::string(kModule));
+}
+
 TEST_F(ParserTest, ParseSendIfAndRecvIf) {
   constexpr std::string_view kModule = R"(proc producer {
     c: chan<u32> in;

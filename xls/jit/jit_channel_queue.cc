@@ -48,6 +48,15 @@ void WriteValueOnQueue(const Value& value, Type* type, JitRuntime& runtime,
   queue.Write(buffer.data());
 }
 
+std::optional<Value> PeekValueFromQueue(Type* type, JitRuntime& runtime,
+                                        ByteQueue& queue) {
+  std::vector<uint8_t> buffer(queue.element_size());
+  if (!queue.Peek(buffer.data())) {
+    return std::nullopt;
+  }
+  return runtime.UnpackBuffer(buffer.data(), type);
+}
+
 std::optional<Value> ReadValueFromQueue(Type* type, JitRuntime& runtime,
                                         ByteQueue& queue) {
   std::vector<uint8_t> buffer(queue.element_size());
@@ -112,6 +121,15 @@ void ThreadSafeJitChannelQueue::WriteInternal(const Value& value) {
   WriteValueOnQueue(value, channel()->type(), *jit_runtime_, byte_queue_);
 }
 
+std::optional<Value> ThreadSafeJitChannelQueue::PeekInternal() {
+  std::optional<Value> value =
+      PeekValueFromQueue(channel()->type(), *jit_runtime_, byte_queue_);
+  if (value.has_value()) {
+    CallPeekCallbacks(value.value());
+  }
+  return value;
+}
+
 std::optional<Value> ThreadSafeJitChannelQueue::ReadInternal() {
   std::optional<Value> value =
       ReadValueFromQueue(channel()->type(), *jit_runtime_, byte_queue_);
@@ -128,6 +146,15 @@ int64_t ThreadUnsafeJitChannelQueue::GetSizeInternal() const {
 void ThreadUnsafeJitChannelQueue::WriteInternal(const Value& value) {
   CallWriteCallbacks(value);
   WriteValueOnQueue(value, channel()->type(), *jit_runtime_, byte_queue_);
+}
+
+std::optional<Value> ThreadUnsafeJitChannelQueue::PeekInternal() {
+  std::optional<Value> value =
+      PeekValueFromQueue(channel()->type(), *jit_runtime_, byte_queue_);
+  if (value.has_value()) {
+    CallPeekCallbacks(value.value());
+  }
+  return value;
 }
 
 std::optional<Value> ThreadUnsafeJitChannelQueue::ReadInternal() {

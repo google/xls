@@ -83,8 +83,9 @@ absl::StatusOr<ChannelProcMap> GetChannelProcMap(Package* package) {
         channel_map.channel_to_procs[channel].insert(proc.get());
         channel_map.proc_to_channels[proc.get()].insert(channel);
         channel_map.directions[{proc.get(), channel}].insert(
-            node->Is<Receive>() ? ChannelDirection::kReceive
-                                : ChannelDirection::kSend);
+            node->Is<Receive>() || node->Is<Peek>()
+                ? ChannelDirection::kReceive
+                : ChannelDirection::kSend);
       }
     }
   }
