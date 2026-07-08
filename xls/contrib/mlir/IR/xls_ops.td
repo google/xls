@@ -339,10 +339,10 @@ def Xls_IdentityOp : Xls_UnaryOp<"identity", [Pure, SameOperandsAndResultType]> 
     result = operand
   }];
   let arguments = (ins
-    Xls_Bits:$operand
+    AnyType:$operand
   );
   let results = (outs
-    Xls_Bits:$result
+    AnyType:$result
   );
 }
 
