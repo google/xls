@@ -43,6 +43,7 @@
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/IR/GEPNoWrapFlags.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
+#include "llvm/include/llvm/IR/InlineAsm.h"
 #include "llvm/include/llvm/IR/Instructions.h"
 #include "llvm/include/llvm/IR/Intrinsics.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
@@ -323,7 +324,7 @@ std::vector<std::string> NumberedStrings(std::string_view s, int64_t count) {
   return result;
 }
 
-// Returns the concatentation of two vectors.
+// Returns the concatenation of two vectors.
 std::vector<std::string> ConcatVectors(absl::Span<const std::string> a,
                                        absl::Span<const std::string> b) {
   std::vector<std::string> result(a.begin(), a.end());
@@ -2295,8 +2296,26 @@ absl::Status IrBuilderVisitor::HandleCover(Cover* cover) {
   // support to the JIT.
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(cover, {"condition"}));
+  std::optional<llvm::IRBuilder<>*> exit_builder;
+  if (jit_context_.llvm_compiler().include_llvm_coverage()) {
+    llvm::IRBuilder<>& b = node_context.entry_builder();
+    llvm::Value* cond = Truthiness(node_context.LoadOperand(0), b);
+    LlvmIfThen if_then = CreateIfThen(cond, b, cover->GetName());
+    llvm::FunctionType* ft =
+        llvm::FunctionType::get(llvm::Type::getVoidTy(ctx()), {}, false);
+    // We invoke inline asm (with hasSideEffects=true) to ensure that the
+    // coverage point is not optimized away.
+    llvm::InlineAsm* ia =
+        llvm::InlineAsm::get(ft, absl::StrCat("# coverage: ", cover->label()),
+                             "", /*hasSideEffects=*/true);
+    if_then.then_builder->CreateCall(ia, {});
+
+    exit_builder = if_then.Finalize().get();
+  }
+
   llvm::Value* token = type_converter()->GetToken();
-  return FinalizeNodeIrContextWithValue(std::move(node_context), token);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), token,
+                                        exit_builder);
 }
 
 absl::Status IrBuilderVisitor::HandleDecode(Decode* decode) {
