@@ -75,11 +75,11 @@ struct KnownBits {
 KnownBits ExtractKnownBits(const IntervalSet& intervals,
                            std::optional<Node*> source = std::nullopt);
 
-// Minimize interval set to 'size' by merging some intervals together. Intervals
+// Minimize interval set to 'size' by merging intervals together. Intervals
 // are chosen with a greedy algorithm that minimizes the number of additional
-// values the overall interval set contains. That is first it will add the
-// smallest components posible. In cases where multiple gaps are the same size
-// it will prioritize earlier gaps over later ones.
+// values the overall interval set contains, by keeping the `size - 1` largest
+// gaps between intervals (breaking ties in favor of keeping the later gaps).
+//
 // TODO(allight): Prioritizing smaller gaps seems correct but it should be
 // relatively straightforward to make the tie-breaker more intelligent than just
 // earlier first. Making it prioritize smaller total area in the intervals as a

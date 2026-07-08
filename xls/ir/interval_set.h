@@ -306,6 +306,16 @@ class IntervalSet {
 
   static IntervalSet Of(absl::Span<Interval const> intervals);
 
+  // Returns an interval set from already proper & sorted intervals that are
+  // neither overlapping nor abutting; results are undefined if this
+  // precondition is not met.
+  //
+  // This is fast, but doesn't do any normalization of its own. It's the
+  // caller's responsibility to ensure the preconditions are met; otherwise,
+  // bad things will happen (e.g.: crashes, incorrect results, etc.).
+  static IntervalSet UnsafeFromNormalized(int64_t bit_count,
+                                          std::vector<Interval> intervals);
+
   // Returns the number of points covered by the intervals in this interval set,
   // if that is expressible as an `int64_t`. Otherwise, returns `std::nullopt`.
   // CHECK fails if the interval set is not normalized.

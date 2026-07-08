@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <list>
 #include <optional>
 #include <string>
 #include <utility>
@@ -443,6 +442,16 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
     result.AddInterval(a);
   }
   result.Normalize();
+  return result;
+}
+
+/* static */ IntervalSet IntervalSet::UnsafeFromNormalized(
+    int64_t bit_count, std::vector<Interval> intervals) {
+  IntervalSet result(std::in_place, /*is_normalized=*/true, bit_count,
+                     std::move(intervals));
+#ifndef NDEBUG
+  CHECK_OK(result.CheckIsNormalizedForTesting());
+#endif
   return result;
 }
 
