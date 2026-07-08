@@ -898,8 +898,10 @@ class AstCloner : public AstNodeVisitor {
       XLS_ASSIGN_OR_RETURN(
           NameDef * new_name,
           CastIfNotVerbatim<NameDef*>(old_to_new_.at(member->name_def())));
-      new_members.push_back(m->Make<StructMemberNode>(
-          member->span(), new_name, member->colon_span(), new_type));
+      auto new_member = m->Make<StructMemberNode>(
+          member->span(), new_name, member->colon_span(), new_type);
+      new_member->SetAttributes(member->attributes());
+      new_members.push_back(new_member);
     }
 
     auto* new_name_def =

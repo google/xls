@@ -2598,6 +2598,9 @@ void Formatter::FormatStructMembers(const StructDefBase& n,
         body_pieces.push_back(arena_.hard_line());
       }
     }
+    for (const Attribute* attribute : member->attributes()) {
+      body_pieces.push_back(FormatAttribute(*attribute));
+    }
 
     last_member_pos = member_span.limit();
 

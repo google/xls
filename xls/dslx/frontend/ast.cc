@@ -55,6 +55,7 @@
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/number_parser.h"
@@ -1818,6 +1819,10 @@ std::string StructDefBase::ToStringWithEntityKeywordAndAttribute(
       absl::StrFormat("%s%s%s %s%s {\n", attribute, public_ ? "pub " : "",
                       keyword, identifier(), parametric_str);
   for (const auto* item : members_) {
+    for (const auto& attr : item->attributes()) {
+      absl::StrAppendFormat(&result, "%s%s\n", kRustOneIndent,
+                            attr->ToString());
+    }
     absl::StrAppendFormat(&result, "%s%s: %s,\n", kRustOneIndent, item->name(),
                           item->type()->ToString());
   }

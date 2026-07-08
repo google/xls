@@ -3534,12 +3534,33 @@ std::vector<StructMemberNode*> ConvertProcMembersToStructMembers(
   std::vector<StructMemberNode*> struct_members;
   struct_members.reserve(proc_members.size());
   for (ProcMember* proc_member : proc_members) {
+    std::vector<Attribute*> attributes;
+    if (proc_member->strictness().has_value()) {
+      auto attr = module->Make<Attribute>(
+          Span::None(), std::nullopt,
+          AttributeData(
+              AttributeKind::kChannelStrictness,
+              {AttributeData::StringLiteralArgument(
+                  ChannelStrictnessToString(*proc_member->strictness()))}));
+      attributes.push_back(attr);
+    }
+    if (proc_member->flow_control().has_value()) {
+      auto attr = module->Make<Attribute>(
+          Span::None(), std::nullopt,
+          AttributeData(
+              AttributeKind::kChannelFlowControl,
+              {AttributeData::StringLiteralArgument(
+                  FlowControlToString(*proc_member->flow_control()))}));
+      attributes.push_back(attr);
+    }
     // Best estimate of the colon span is between the name and the type.
     Span colon_span(proc_member->name_def()->span().limit(),
                     proc_member->type_annotation()->span().start());
-    struct_members.push_back(module->Make<StructMemberNode>(
+    auto* struct_member = module->Make<StructMemberNode>(
         proc_member->span(), proc_member->name_def(), colon_span,
-        proc_member->type_annotation()));
+        proc_member->type_annotation());
+    struct_member->SetAttributes(attributes);
+    struct_members.push_back(struct_member);
   }
   return struct_members;
 }

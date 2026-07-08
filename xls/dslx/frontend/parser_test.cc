@@ -1795,6 +1795,73 @@ impl P {
 })");
 }
 
+TEST_F(ParserTest, ParseTestProcDefWithStrictness) {
+  RoundTrip(R"(#![feature(channel_attributes)]
+
+proc P {
+    #[channel_strictness("runtime_ordered")]
+    terminator: chan<u32> in,
+}
+impl P {
+    fn new(terminator: chan<u32> in) -> Self {
+        P { terminator: terminator }
+    }
+    fn next() {}
+})");
+}
+
+TEST_F(ParserTest, ParseTestProcDefWithFlowControl) {
+  RoundTrip(R"(#![feature(channel_attributes)]
+
+proc P {
+    #[channel_flow_control("valid_data")]
+    terminator: chan<u32> in,
+}
+impl P {
+    fn new(terminator: chan<u32> in) -> Self {
+        P { terminator: terminator }
+    }
+    fn next() {}
+})");
+}
+
+TEST_F(ParserTest, ParseTestProcDefWithStrictnessAndFlowControl) {
+  RoundTrip(R"(#![feature(channel_attributes)]
+
+proc P {
+    #[channel_strictness("runtime_ordered")]
+    #[channel_flow_control("ready_valid")]
+    terminator: chan<u32> in,
+}
+impl P {
+    fn new(terminator: chan<u32> in) -> Self {
+        P { terminator: terminator }
+    }
+    fn next() {}
+})");
+}
+
+TEST_F(ParserTest, ParseTestProcDefWithFlowControlDefinedMultipleTimes) {
+  constexpr std::string_view kProgram = R"(#![feature(channel_attributes)]
+
+proc P {
+    #[channel_flow_control("valid_data")]
+    #[channel_flow_control("valid_data")]
+    terminator: chan<u32> in,
+}
+impl P {
+    fn new(terminator: chan<u32> in) -> Self {
+        P { terminator: terminator }
+    }
+    fn next() {}
+})";
+  EXPECT_THAT(
+      Parse(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "`channel_flow_control` attribute defined multiple times")));
+}
+
 TEST_F(ParserTest, ParseProcWithCfgAttributeWithTestParameter) {
   constexpr std::string_view kModule = R"(#[cfg(test)]
 proc Tester {

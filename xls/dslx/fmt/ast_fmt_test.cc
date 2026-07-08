@@ -2824,6 +2824,43 @@ TEST_F(ModuleFmtTest, SimpleProcWithTypeAlias) {
 )");
 }
 
+TEST_F(ModuleFmtTest, SimpleProcDefWithStrictness) {
+  DoFmt(R"(#![feature(channel_attributes)]
+
+proc P {
+    #[channel_strictness("runtime_ordered")]
+    terminator: chan<u32> in,
+}
+
+impl P {
+    fn new(terminator: chan<u32> in) -> Self {
+        P { terminator }
+    }
+
+    fn next() {}
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SimpleProcDefWithStrictnessAndFlowControl) {
+  DoFmt(R"(#![feature(channel_attributes)]
+
+proc P {
+    #[channel_strictness("runtime_ordered")]
+    #[channel_flow_control("valid_data")]
+    terminator: chan<u32> in,
+}
+
+impl P {
+    fn new(terminator: chan<u32> in) -> Self {
+        P { terminator }
+    }
+
+    fn next() {}
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, ProcAlias) {
   DoFmt(
       R"(pub proc Foo<A: u32, B: u32> {
