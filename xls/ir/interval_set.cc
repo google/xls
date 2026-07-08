@@ -384,57 +384,57 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
   CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   CHECK(lhs.is_normalized_);
   CHECK(rhs.is_normalized_);
-  IntervalSet result(lhs.BitCount());
-  std::list<Interval> lhs_intervals(lhs.Intervals().begin(),
-                                    lhs.Intervals().end());
-  std::list<Interval> rhs_intervals(rhs.Intervals().begin(),
-                                    rhs.Intervals().end());
-  auto left = lhs_intervals.begin();
-  auto right = rhs_intervals.begin();
+
+  if (lhs.IsEmpty() || rhs.IsEmpty()) {
+    return IntervalSet(lhs.BitCount());
+  }
+
+  std::vector<Interval> result_intervals;
+
   // lhs/rhs_intervals should be sorted in increasing lexicographic order
   // (i.e.: compare on lower bound, then upper bound if lower bounds are equal)
-  // at this point, since we CHECK that they are normalized.
-  while ((left != lhs_intervals.end()) && (right != rhs_intervals.end())) {
-    if (bits_ops::ULessThan(left->UpperBound(), right->UpperBound())) {
-      if (std::optional<Interval> intersection =
-              Interval::Intersect(*left, *right)) {
-        result.AddInterval(*std::move(intersection));
-        // The difference should only ever contain 0 or 1 interval.
-        std::vector<Interval> difference = Interval::Difference(*right, *left);
-        std::reverse(difference.begin(), difference.end());
-        for (const Interval& remainder : difference) {
-          right = rhs_intervals.insert(right, remainder);
-        }
-      }
-      ++left;
-      continue;
+  // at this point, since we CHECK that they are normalized above.
+  //
+  // We know neither set is empty, so we don't have to check for end at the
+  // start of the loop; we can just check after advancing.
+  absl::Span<const Interval> left_intervals = lhs.Intervals();
+  absl::Span<const Interval> right_intervals = rhs.Intervals();
+  auto left_it = left_intervals.begin();
+  auto right_it = right_intervals.begin();
+  while (true) {
+    // We need to know which side had the smaller upper bound (or if they're
+    // tied) later for a few reasons, so we compute it once and store it.
+    const int64_t ub_cmp =
+        bits_ops::UCmp(left_it->UpperBound(), right_it->UpperBound());
+
+    // Try intersecting the current intervals.
+    const Bits& low =
+        bits_ops::UMax(left_it->LowerBound(), right_it->LowerBound());
+    const Bits& high =
+        ub_cmp < 0 ? left_it->UpperBound() : right_it->UpperBound();
+    if (bits_ops::ULessThanOrEqual(low, high)) {
+      result_intervals.push_back(Interval(low, high));
     }
-    if (bits_ops::ULessThan(right->UpperBound(), left->UpperBound())) {
-      if (std::optional<Interval> intersection =
-              Interval::Intersect(*left, *right)) {
-        result.AddInterval(*std::move(intersection));
-        // The difference should only ever contain 0 or 1 interval.
-        std::vector<Interval> difference = Interval::Difference(*left, *right);
-        std::reverse(difference.begin(), difference.end());
-        for (const Interval& remainder : difference) {
-          left = lhs_intervals.insert(left, remainder);
-        }
+
+    // Advance the iterator of the side(s) with the smaller upper bound, and
+    // break if we've reached the end of either side.
+    if (ub_cmp <= 0) {
+      if (++left_it == left_intervals.end()) {
+        break;
       }
-      ++right;
-      continue;
     }
-    if (bits_ops::UEqual(left->UpperBound(), right->UpperBound())) {
-      if (std::optional<Interval> intersection =
-              Interval::Intersect(*left, *right)) {
-        result.AddInterval(*std::move(intersection));
+    if (ub_cmp >= 0) {
+      if (++right_it == right_intervals.end()) {
+        break;
       }
-      ++left;
-      ++right;
-      continue;
     }
   }
-  result.Normalize();
-  return result;
+
+  // Since the inputs are normalized, the result is already guaranteed to be
+  // normalized; the intervals are sorted, strictly proper, and neither abutting
+  // nor overlapping.
+  return IntervalSet(std::in_place, /*is_normalized=*/true, lhs.BitCount(),
+                     std::move(result_intervals));
 }
 
 /* static */ IntervalSet IntervalSet::Of(absl::Span<Interval const> intervals) {
@@ -591,10 +591,7 @@ absl::Status IntervalSet::CheckIsNormalizedForTesting() const {
   return absl::OkStatus();
 }
 
-bool IntervalSet::IsEmpty() const {
-  CHECK(IsNormalized());
-  return intervals_.empty();
-}
+bool IntervalSet::IsEmpty() const { return intervals_.empty(); }
 
 std::string IntervalSet::ToString() const {
   CHECK_GE(bit_count_, 0);
