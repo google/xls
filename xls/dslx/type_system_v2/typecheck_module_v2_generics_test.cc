@@ -640,7 +640,7 @@ const A = add_wrapper<U32Adder>(u16:1, 2);
       TypecheckFails(HasTypeMismatch("uN[16]", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, ComparisonAsParametricArgument) {
+TEST(TypecheckV2GenericTest, ComparisonAsParametricArgument) {
   EXPECT_THAT(R"(
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
 const Y = foo<{2 > 1}>(s32:5);
@@ -650,7 +650,7 @@ const Y = foo<{2 > 1}>(s32:5);
                                       HasNodeWithType("1", "uN[2]"))));
 }
 
-TEST(TypecheckV2Test, ComparisonAsParametricArgumentWithConflictFails) {
+TEST(TypecheckV2GenericTest, ComparisonAsParametricArgumentWithConflictFails) {
   EXPECT_THAT(R"(
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
 const Y = foo<{2 > 1}>(u32:5);
@@ -658,7 +658,7 @@ const Y = foo<{2 > 1}>(u32:5);
               TypecheckFails(HasSignednessMismatch("xN[1][32]", "u32")));
 }
 
-TEST(TypecheckV2Test, ComparisonAndSumAsParametricArguments) {
+TEST(TypecheckV2GenericTest, ComparisonAndSumAsParametricArguments) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 const X = u32:1;
 fn foo<S: bool, N: u32>(a: xN[S][N]) -> xN[S][N] { a }
@@ -669,7 +669,8 @@ const Y = foo<{X == 1}, {X + 3}>(s4:3);
   EXPECT_THAT(type_info_string, HasSubstr("node: `Y`, type: sN[4]"));
 }
 
-TEST(TypecheckV2Test, ComparisonAndSumParametricArgumentsWithConflictFails) {
+TEST(TypecheckV2GenericTest,
+     ComparisonAndSumParametricArgumentsWithConflictFails) {
   EXPECT_THAT(R"(
 const X = u32:1;
 fn foo<S: bool, N: u32>(a: xN[S][N]) -> xN[S][N] { a }
@@ -678,7 +679,8 @@ const Y = foo<{X == 1}, {X + 4}>(s4:3);
               TypecheckFails(HasSizeMismatch("xN[1][5]", "s4")));
 }
 
-TEST(TypecheckV2Test, InferenceOfParametricUsingAnnotationWithInvocation) {
+TEST(TypecheckV2GenericTest,
+     InferenceOfParametricUsingAnnotationWithInvocation) {
   // This is based on a similar pattern that occurs in std.x, with the inference
   // of the implicit parametrics for `assert_eq` being the potential trouble
   // area.
@@ -694,7 +696,7 @@ fn foo() {
       TypecheckSucceeds(HasNodeWithType("y", "uN[34]")));
 }
 
-TEST(TypecheckV2Test, MultiTermSumOfParametricCalls) {
+TEST(TypecheckV2GenericTest, MultiTermSumOfParametricCalls) {
   EXPECT_THAT(
       R"(
 fn foo<N: u32>(a: uN[N]) -> u32 { a as u32 }
@@ -707,7 +709,7 @@ const Y = foo(u32:1) + foo(u32:2) + foo(u32:3) + foo(u32:4) + foo(u32:5) +
       TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, ParametricDefaultWithTypeBasedOnOtherParametric) {
+TEST(TypecheckV2GenericTest, ParametricDefaultWithTypeBasedOnOtherParametric) {
   EXPECT_THAT(R"(
 fn p<X: u32, Y: bits[X] = {u1:0}>(x: bits[X]) -> bits[X] { x }
 const X = p(u1:0);
@@ -715,7 +717,7 @@ const X = p(u1:0);
               TypecheckSucceeds(HasNodeWithType("X", "uN[1]")));
 }
 
-TEST(TypecheckV2Test, UnassignedReturnValueIgnoredParametric) {
+TEST(TypecheckV2GenericTest, UnassignedReturnValueIgnoredParametric) {
   EXPECT_THAT(
       R"(
 fn ignored<N:u32>() -> uN[N] { zero!<uN[N]>() }
@@ -728,7 +730,7 @@ fn main() -> u32 {
       TypecheckSucceeds(HasNodeWithType("ignored<u32:31>()", "uN[31]")));
 }
 
-TEST(TypecheckV2Test, ParametricLet) {
+TEST(TypecheckV2GenericTest, ParametricLet) {
   EXPECT_THAT(R"(
 fn f<N: u32>() -> uN[N] {
   let x = uN[N]:0;
@@ -742,7 +744,7 @@ const Y = f<16>();
                                       HasNodeWithType("Y", "uN[16]"))));
 }
 
-TEST(TypecheckV2Test, ParametricContextStackingViaDefault) {
+TEST(TypecheckV2GenericTest, ParametricContextStackingViaDefault) {
   EXPECT_THAT(
       R"(
 fn g<A: u32>(x: uN[A]) -> u32 { 32 }
@@ -752,7 +754,7 @@ const X = f(u32:5);
       TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, ParametricValuesDefinedMultipleTimesInTypeAlias) {
+TEST(TypecheckV2GenericTest, ParametricValuesDefinedMultipleTimesInTypeAlias) {
   EXPECT_THAT(R"(
 struct S<X: u32, Y: u32 = {X * 2}> {
   x: bits[X],
@@ -769,7 +771,7 @@ fn f() -> uN[4] {
                                        "times for annotation: `S<3>`")));
 }
 
-TEST(TypecheckV2Test, ParametricValuesNeverDefinedInTypeAlias) {
+TEST(TypecheckV2GenericTest, ParametricValuesNeverDefinedInTypeAlias) {
   EXPECT_THAT(
       R"(
 struct S<X: u32, Y: u32 = {X * 2}> {
@@ -785,7 +787,7 @@ fn f() -> MyS {
           "Could not infer parametric(s) for instance of struct S: X")));
 }
 
-TEST(TypecheckV2Test, ImportedConstantSizeAsParametricValue) {
+TEST(TypecheckV2GenericTest, ImportedConstantSizeAsParametricValue) {
   constexpr std::string_view kImported = R"(
 pub const SOME_CONSTANT = u32:8;
 )";
@@ -802,7 +804,7 @@ const X = foo(uN[imported::SOME_CONSTANT]:0);
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("X", "uN[8]"))));
 }
 
-TEST(TypecheckV2Test, ImportTypeAliasWithParametrics) {
+TEST(TypecheckV2GenericTest, ImportTypeAliasWithParametrics) {
   constexpr std::string_view kImported = R"(
 pub struct S<N: u32> {
  a: uN[N]
@@ -822,7 +824,7 @@ fn get_a(s: imported::S32) -> u32 {
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
-TEST(TypecheckV2Test, RangeAsArgumentParametric) {
+TEST(TypecheckV2GenericTest, RangeAsArgumentParametric) {
   EXPECT_THAT(
       R"(
 pub fn pass_back<N: u32>(input: u32[N]) -> u32[N] {
@@ -839,7 +841,7 @@ fn test() {
                 HasNodeWithType("pass_back(0..4)", "uN[32][4]"))));
 }
 
-TEST(TypecheckV2Test, InferParametricWithRange) {
+TEST(TypecheckV2GenericTest, InferParametricWithRange) {
   EXPECT_THAT(R"(
 pub fn infer_parametric<N: u32, M: u32>(true_indices: u32[M]) -> bool[N] {
     for (i, x): (u32, bool[N]) in true_indices {
@@ -860,7 +862,7 @@ fn test() {
                         HasNodeWithType("a", "uN[32][4]"))));
 }
 
-TEST(TypecheckV2Test, UnusedDefinitionParametrics) {
+TEST(TypecheckV2GenericTest, UnusedDefinitionParametrics) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 fn f<A: u32>() {
   let a: uN[A] = 0;
@@ -875,7 +877,7 @@ fn g() {
             "Definition of `a` (type `uN[2]`) is not used in function `f`");
 }
 
-TEST(TypecheckV2Test, ParametricTypeRolloverOk) {
+TEST(TypecheckV2GenericTest, ParametricTypeRolloverOk) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 fn p<N: u32, M: u32>() -> u32 {
   uN[N - M + u32:2]:1 as u32
@@ -888,12 +890,12 @@ fn main() -> u32 {
   EXPECT_EQ(result.tm.warnings.warnings().size(), 0);
 }
 
-TEST(TypecheckV2Test, XnAnnotationWithNonBoolLiteralSignednessFails) {
+TEST(TypecheckV2GenericTest, XnAnnotationWithNonBoolLiteralSignednessFails) {
   EXPECT_THAT("const Y = xN[2][32]:1;",
               TypecheckFails(HasSizeMismatch("bool", "u2")));
 }
 
-TEST(TypecheckV2Test, XnAnnotationWithNonBoolConstantSignednessFails) {
+TEST(TypecheckV2GenericTest, XnAnnotationWithNonBoolConstantSignednessFails) {
   EXPECT_THAT(R"(
 const X = u32:2;
 const Y = xN[X][32]:1;
@@ -901,7 +903,7 @@ const Y = xN[X][32]:1;
               TypecheckFails(HasSizeMismatch("bool", "u32")));
 }
 
-TEST(TypecheckV2Test, ConcatOfBitsAsImplicitParametric) {
+TEST(TypecheckV2GenericTest, ConcatOfBitsAsImplicitParametric) {
   EXPECT_THAT(R"(
 fn f<A: u32>(a: uN[A]) -> uN[A] { a }
 const X = f(u16:0 ++ u32:0);
@@ -909,7 +911,7 @@ const X = f(u16:0 ++ u32:0);
               TypecheckSucceeds(HasNodeWithType("X", "uN[48]")));
 }
 
-TEST(TypecheckV2Test, ConcatOfArrayAsImplicitParametric) {
+TEST(TypecheckV2GenericTest, ConcatOfArrayAsImplicitParametric) {
   EXPECT_THAT(R"(
 fn f<A: u32>(a: u16[A]) -> u16[A] { a }
 const X = f([u16:0, 1, 2] ++ [u16:20]);
@@ -917,7 +919,7 @@ const X = f([u16:0, 1, 2] ++ [u16:20]);
               TypecheckSucceeds(HasNodeWithType("X", "uN[16][4]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2GenericTest,
      ParametricFunctionTakingIntegerOfImplicitParameterizedSize) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
@@ -929,7 +931,7 @@ const Y = foo(u11:5);
                         HasNodeWithType("const Y = foo(u11:5);", "uN[11]"))));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2GenericTest,
      ParametricFunctionTakingIntegerOfImplicitParameterizedSignedness) {
   EXPECT_THAT(R"(
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
@@ -941,7 +943,7 @@ const Y = foo(s32:5);
                         HasNodeWithType("const Y = foo(s32:5);", "sN[32]"))));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2GenericTest,
      ParametricFunctionTakingIntegerOfImplicitParameterizedSignednessAndSize) {
   EXPECT_THAT(R"(
 fn foo<S: bool, N: u32>(a: xN[S][N]) -> xN[S][N] { a }
@@ -953,7 +955,8 @@ const Y = foo(s11:5);
                         HasNodeWithType("const Y = foo(s11:5);", "sN[11]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionWithDefaultImplicitlyOverriddenFails) {
+TEST(TypecheckV2GenericTest,
+     ParametricFunctionWithDefaultImplicitlyOverriddenFails) {
   EXPECT_THAT(R"(
 fn foo<M: u32, N: u32 = {M + 1}>(a: uN[N]) -> uN[N] { a }
 const X = foo<11>(u20:5);
@@ -961,7 +964,7 @@ const X = foo<11>(u20:5);
               TypecheckFails(HasSizeMismatch("u20", "uN[12]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2GenericTest,
      ParametricFunctionTakingIntegerOfImplicitSignednessAndSizeWithSum) {
   EXPECT_THAT(R"(
 const X = u32:3;
@@ -973,7 +976,7 @@ const Z = foo(X + Y + X + 50);
                   HasNodeWithType("const Z = foo(X + Y + X + 50);", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionTakingArrayOfImplicitSize) {
+TEST(TypecheckV2GenericTest, ParametricFunctionTakingArrayOfImplicitSize) {
   EXPECT_THAT(
       R"(
 fn foo<N: u32>(a: u32[N]) -> u32[N] { a }
@@ -989,7 +992,7 @@ const Y = foo([4, 5, 6, 7]);
                 HasNodeWithType("7", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionImplicitParameterPropagation) {
+TEST(TypecheckV2GenericTest, ParametricFunctionImplicitParameterPropagation) {
   EXPECT_THAT(R"(
 fn bar<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[A] { a + 1 }
 fn foo<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[B] { bar(b, a) }
@@ -999,7 +1002,8 @@ const X = foo(u23:4, u17:5);
                   HasNodeWithType("const X = foo(u23:4, u17:5);", "uN[17]")));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionImplicitParameterExplicitPropagation) {
+TEST(TypecheckV2GenericTest,
+     ParametricFunctionImplicitParameterExplicitPropagation) {
   EXPECT_THAT(R"(
 fn bar<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[A] { a + 1 }
 fn foo<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[B] { bar<B, A>(b, a) }
@@ -1009,7 +1013,7 @@ const X = foo(u23:4, u17:5);
                   HasNodeWithType("const X = foo(u23:4, u17:5);", "uN[17]")));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionImplicitInvocationNesting) {
+TEST(TypecheckV2GenericTest, ParametricFunctionImplicitInvocationNesting) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
 const X = foo(foo(u24:4) + foo(u24:5));
@@ -1018,7 +1022,7 @@ const X = foo(foo(u24:4) + foo(u24:5));
                   "const X = foo(foo(u24:4) + foo(u24:5));", "uN[24]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2GenericTest,
      ParametricFunctionImplicitInvocationNestingWithExplicitOuter) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
@@ -1029,7 +1033,7 @@ const X = foo<24>(foo(u24:4 + foo(u24:6)) + foo(u24:5));
                   "uN[24]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2GenericTest,
      ParametricFunctionImplicitInvocationNestingWithExplicitInner) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
@@ -1039,7 +1043,7 @@ const X = foo(foo<24>(4) + foo<24>(5));
                   "const X = foo(foo<24>(4) + foo<24>(5));", "uN[24]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2GenericTest,
      ParametricFunctionCallUsingGlobalConstantInImplicitParametricArgument) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
@@ -1049,7 +1053,7 @@ const Z = foo(X);
               TypecheckSucceeds(HasNodeWithType("const Z = foo(X);", "uN[3]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2GenericTest,
      ParametricFunctionCallWithImplicitParameterFollowedByTypePropagation) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
@@ -1059,7 +1063,7 @@ const Z = Y + 1;
               TypecheckSucceeds(HasNodeWithType("const Z = Y + 1;", "uN[15]")));
 }
 
-TEST(TypecheckV2Test, ImplicitParametricBindingRollover) {
+TEST(TypecheckV2GenericTest, ImplicitParametricBindingRollover) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 fn bar(n: u32) -> u32 { n - (u32:1 << 31) - u32:1 }
 fn foo(n: u32) -> u32 { bar(n) }
@@ -1079,7 +1083,7 @@ fn main() {
 }
 
 // TODO(erinzmoore): It should be possible to instantiate a generic type.
-TEST(TypecheckV2Test, DISABLED_InstantiateGenericTypeAsStruct) {
+TEST(TypecheckV2GenericTest, DISABLED_InstantiateGenericTypeAsStruct) {
   EXPECT_THAT(
       R"(
 #![feature(generics)]
