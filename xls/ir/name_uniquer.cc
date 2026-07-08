@@ -132,6 +132,23 @@ std::string NameUniquer::GetSanitizedUniqueName(std::string_view prefix) {
   return true;
 }
 
+absl::Status NameUniquer::ReserveIdentifier(std::string_view sv) {
+  std::string_view root;
+  std::optional<int64_t> suffix = ParseNumericSuffix(sv, separator_, &root);
+  if (suffix) {
+    XLS_RET_CHECK_EQ(generated_names_[root].generator.RegisterId(*suffix),
+                     *suffix)
+        << "Identifier '" << sv
+        << "' is already in use with suffix: " << *suffix;
+  } else {
+    XLS_RET_CHECK(!generated_names_.contains(sv) ||
+                  !generated_names_[sv].bare_prefix_taken)
+        << "Identifier '" << sv << "' is already in use.";
+    generated_names_[sv].bare_prefix_taken = true;
+  }
+  return absl::OkStatus();
+}
+
 absl::Status NameUniquer::ReleaseIdentifier(std::string_view sv) {
   if (auto it = generated_names_.find(sv); it != generated_names_.end()) {
     // this is an unadorned name.

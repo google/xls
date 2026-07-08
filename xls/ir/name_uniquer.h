@@ -67,6 +67,9 @@ class NameUniquer {
   // Allow the name 'sv' to be generated again.
   absl::Status ReleaseIdentifier(std::string_view sv);
 
+  // Mark the name 'sv' as already taken.
+  absl::Status ReserveIdentifier(std::string_view sv);
+
  private:
   // Used to track and generate new identifiers for the same instruction name
   // root.

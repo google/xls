@@ -32,6 +32,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -1100,6 +1101,44 @@ top proc another_main(__state: (), init={()}) {
   XLS_EXPECT_OK(pkg1->GetChannel("another_test_channel"));
   XLS_EXPECT_OK(pkg1->GetFunction("f"));
   XLS_EXPECT_OK(pkg1->GetFunction("f_1"));
+}
+
+TEST_F(PackageTest, UniquifyNames) {
+  constexpr std::string_view text1 = R"(
+package my_package
+
+chan test_channel(
+  bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid)
+
+fn f(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.15: bits[32] = add(x, y)
+}
+
+top proc main(__state: (), init={()}) {
+  __token: token = literal(value=token, id=1000)
+  receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  invoke.4: bits[32] = invoke(tuple_index.3, tuple_index.3, to_apply=f)
+  send.5: token = send(__token, invoke.4, channel=test_channel)
+  tuple.6: () = tuple()
+  next (tuple.6)
+}
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
+  NameUniquer name_uniquer = pkg1->NameUniquerForPackage();
+  EXPECT_EQ(name_uniquer.GetSanitizedUniqueName("foobar"), "foobar");
+  EXPECT_EQ(name_uniquer.GetSanitizedUniqueName("foobar"), "foobar__1");
+  EXPECT_EQ(name_uniquer.GetSanitizedUniqueName("foobar"), "foobar__2");
+  EXPECT_EQ(name_uniquer.GetSanitizedUniqueName("test_channel"),
+            "test_channel__1");
+  EXPECT_EQ(name_uniquer.GetSanitizedUniqueName("f"), "f__1");
+  EXPECT_EQ(name_uniquer.GetSanitizedUniqueName("main"), "main__1");
+  EXPECT_EQ(name_uniquer.GetSanitizedUniqueName("main__4"), "main__4");
+  EXPECT_EQ(name_uniquer.GetSanitizedUniqueName("main__4"), "main__2");
+  EXPECT_EQ(name_uniquer.GetSanitizedUniqueName("main__4"), "main__3");
+  EXPECT_EQ(name_uniquer.GetSanitizedUniqueName("main__4"), "main__5");
 }
 
 TEST_F(PackageTest, LinkBlocks) {

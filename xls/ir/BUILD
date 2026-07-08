@@ -1011,6 +1011,7 @@ cc_test(
         ":ir",
         ":ir_matcher",
         ":ir_test_base",
+        ":name_uniquer",
         ":type",
         ":value",
         ":xls_type_cc_proto",

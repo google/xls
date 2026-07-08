@@ -31,6 +31,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/transform_metrics.pb.h"
 #include "xls/ir/type.h"
@@ -163,6 +164,11 @@ class Package {
   Function* AddFunction(std::unique_ptr<Function> f);
   Proc* AddProc(std::unique_ptr<Proc> proc);
   Block* AddBlock(std::unique_ptr<Block> block);
+
+  // Return a new name-uniquer that will generate unique names for top-level
+  // constructs in this package. Note that this uniquer will not track what is
+  // actually present in the package after creation.
+  NameUniquer NameUniquerForPackage() const;
 
   struct PackageMergeResult {
     // other package -> this package name mapping (channels, procs, functions,
@@ -515,6 +521,10 @@ class Package {
 
   // Metrics which record the total number of transformations to the package.
   TransformMetrics transform_metrics_ = {0};
+
+  // Name uniquer for package entries like channels, etc. Only used if
+  // explicitly opted into.
+  NameUniquer package_entry_uniquer_ = NameUniquer(/*separator=*/"__");
 };
 
 std::ostream& operator<<(std::ostream& os, const Package& package);

@@ -47,6 +47,23 @@ TEST(NameUniquerTest, SimpleUniquer) {
   EXPECT_EQ("abc__5", uniquer.GetSanitizedUniqueName("abc"));
 }
 
+TEST(NameUniquerTest, ReserveIdentifier) {
+  NameUniquer uniquer("__");
+  EXPECT_THAT(uniquer.ReserveIdentifier("foo"), IsOk());
+  EXPECT_THAT(uniquer.ReserveIdentifier("baz__2"), IsOk());
+  EXPECT_THAT(uniquer.ReserveIdentifier("BOO__2"), IsOk());
+  EXPECT_EQ("foo__1", uniquer.GetSanitizedUniqueName("foo"));
+  EXPECT_EQ("foo__2", uniquer.GetSanitizedUniqueName("foo"));
+  EXPECT_EQ("bar", uniquer.GetSanitizedUniqueName("bar"));
+  EXPECT_EQ("bar__1", uniquer.GetSanitizedUniqueName("bar"));
+  EXPECT_EQ("baz__1", uniquer.GetSanitizedUniqueName("baz__2"));
+  EXPECT_EQ("baz", uniquer.GetSanitizedUniqueName("baz"));
+  EXPECT_EQ("baz__3", uniquer.GetSanitizedUniqueName("baz"));
+  EXPECT_EQ("BOO", uniquer.GetSanitizedUniqueName("BOO"));
+  EXPECT_EQ("BOO__1", uniquer.GetSanitizedUniqueName("BOO"));
+  EXPECT_EQ("BOO__3", uniquer.GetSanitizedUniqueName("BOO"));
+}
+
 TEST(NameUniquerTest, DifferentSeparator) {
   NameUniquer uniquer(".");
 

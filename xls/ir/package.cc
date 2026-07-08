@@ -169,6 +169,17 @@ Block* Package::AddBlock(std::unique_ptr<Block> block) {
   return blocks_.back().get();
 }
 
+NameUniquer Package::NameUniquerForPackage() const {
+  NameUniquer res(/*separator=*/"__");
+  for (const auto& function : GetFunctionBases()) {
+    res.ReserveIdentifier(function->name()).IgnoreError();
+  }
+  for (const Channel* channel : channels()) {
+    res.ReserveIdentifier(channel->name()).IgnoreError();
+  }
+  return res;
+}
+
 // Private helpers for Package::ImportFromPackage().
 namespace {
 // Helper class that tracks names in a package and resolves name collisions.
