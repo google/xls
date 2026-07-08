@@ -25,6 +25,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/fixed_array.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/numeric/int128.h"
@@ -672,7 +673,7 @@ IntervalSet PerformVariadicOp(Calculate calc,
   auto handle_combo =
       [&](auto /*absl::Span<Iterator of Interval>*/ values_ptrs) -> bool {
     enum class Sign : uint8_t { kPositive, kNegative, kUnknown };
-    std::vector<Sign> signs;
+    absl::InlinedVector<Sign, 4> signs;
     signs.reserve(values_ptrs.size());
     for (int64_t i = 0; i < values_ptrs.size(); ++i) {
       if (behaviors[i].sign_sensitive) {
@@ -685,12 +686,12 @@ IntervalSet PerformVariadicOp(Calculate calc,
       }
     }
 
-    std::vector<Bits> lower_bounds;
+    absl::InlinedVector<Bits, 4> lower_bounds;
+    absl::InlinedVector<Bits, 4> upper_bounds;
     lower_bounds.reserve(values_ptrs.size());
-    std::vector<Bits> upper_bounds;
     upper_bounds.reserve(values_ptrs.size());
     for (int64_t i = 0; i < values_ptrs.size(); ++i) {
-      Interval interval = *values_ptrs[i];
+      const Interval& interval = *values_ptrs[i];
       Tonicity tonicity = behaviors[i].tonicity;
       for (int64_t j : behaviors[i].sign_sensitive_tonicity) {
         CHECK(signs[j] != Sign::kUnknown);

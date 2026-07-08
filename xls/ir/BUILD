@@ -249,6 +249,7 @@ cc_library(
         "//xls/passes:ternary_evaluator",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/container:fixed_array",
+        "@abseil-cpp//absl/container:inlined_vector",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/numeric:int128",
