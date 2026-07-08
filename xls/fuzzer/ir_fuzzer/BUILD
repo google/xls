@@ -22,7 +22,10 @@ load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary")
 
 package(
     default_applicable_licenses = ["//:license"],
-    default_visibility = ["//xls:xls_internal"],
+    default_visibility = [
+        "//xls:xls_best_effort_users",
+        "//xls:xls_internal",
+    ],
     licenses = ["notice"],  # Apache 2.0
 )
 
