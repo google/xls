@@ -327,6 +327,8 @@ absl::Status SDCSchedulingModel::AddAllDefUseConstraints() {
             absl::StrFormat("state_read_before_write_%s_%s", read->GetName(),
                             next->GetName()));
 
+        XLS_RETURN_IF_ERROR(AddThroughputConstraint(read, next));
+
         VLOG(2) << "Setting state read-before-write constraint: "
                 << absl::StrFormat("cycle[%s] - cycle[%s] >= 0",
                                    next->GetName(), read->GetName());
@@ -347,10 +349,8 @@ absl::Status SDCSchedulingModel::AddDefUseConstraints(
 
   if (node->Is<StateRead>() && user.has_value() && user.value()->Is<Next>()) {
     Next* next = user.value()->As<Next>();
-    if (next->state_read() == node) {
-      XLS_RETURN_IF_ERROR(AddThroughputConstraint(node->As<StateRead>(), next));
-    }
-    if (next->value() != node && next->predicate() != node) {
+    if (next->has_state_read() && next->value() != node &&
+        next->predicate() != node) {
       XLS_RET_CHECK_EQ(next->state_read(), node);
       // We don't need to keep the param's value alive to this user, so no need
       // for a lifetime constraint.

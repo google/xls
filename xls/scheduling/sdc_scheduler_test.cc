@@ -17,7 +17,10 @@
 #include <cstdint>
 #include <optional>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -145,6 +148,58 @@ TEST_F(SDCSchedulerTest, WithIOConstraint) {
                           /*clock_period_ps=*/2, SchedulingFailureBehavior{}));
   EXPECT_EQ(cycle_map.at(rcv.node()), 0);
   EXPECT_EQ(cycle_map.at(send.node()), 1);
+}
+
+TEST_F(SDCSchedulerTest, DecoupledThroughputConstraintsEnforced) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
+                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue x_read = pb.StateRead(x_element);
+  BValue add1 = pb.Add(x_read, pb.Literal(UBits(1, 32)));
+  BValue add2 = pb.Add(add1, pb.Literal(UBits(1, 32)));
+  BValue add3 = pb.Add(add2, pb.Literal(UBits(1, 32)));
+  pb.Next(x_element, add3);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(ScheduleGraph graph,
+                           ScheduleGraph::Create(proc, {}));
+  TestDelayEstimator delay_estimator;
+  SchedulingOptions options;
+
+  // 1. Infeasible check: With unbounded stages std::nullopt and tight
+  // target worst_case_throughput = 1, AddThroughputConstraint forces
+  // cycle(Next) - cycle(StateRead) <= worst_case_throughput.
+  // 3 cycles (> 1), which returns infeasible.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto infeasible_scheduler,
+      SDCScheduler::Create(graph, delay_estimator, options));
+  auto infeasible_result = infeasible_scheduler->Schedule(
+      /*pipeline_stages=*/std::nullopt, /*clock_period_ps=*/1,
+      SchedulingFailureBehavior{.explain_infeasibility = false},
+      /*worst_case_throughput=*/1);
+  EXPECT_THAT(infeasible_result,
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInternal,
+                  testing::HasSubstr("does not have an optimal solution")));
+
+  // 2. Feasible check: Relax worst_case_throughput = 4, unbounded stages,
+  // and clock_period_ps = 2. With 2 ps per cycle, the 5 1-ps nodes
+  // (StateRead -> add1 -> add2 -> add3 -> Next) complete in 2 clock cycles
+  // (cycle(Next) - cycle(read) == 2), with cycle(Next) = 2 and
+  // cycle(read) = 0.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto feasible_scheduler,
+      SDCScheduler::Create(graph, delay_estimator, options));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleCycleMap cycle_map,
+      feasible_scheduler->Schedule(
+          /*pipeline_stages=*/std::nullopt, /*clock_period_ps=*/2,
+          SchedulingFailureBehavior{.explain_infeasibility = false},
+          /*worst_case_throughput=*/4));
+  EXPECT_EQ(
+      cycle_map.at(*proc->next_values().begin()) - cycle_map.at(x_read.node()),
+      2);
 }
 
 }  // namespace
