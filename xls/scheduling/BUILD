@@ -184,6 +184,7 @@ cc_library(
     srcs = ["sdc_scheduler.cc"],
     hdrs = ["sdc_scheduler.h"],
     deps = [
+        ":asap_scheduler",
         ":schedule_bounds",
         ":schedule_graph",
         ":schedule_util",

@@ -147,5 +147,29 @@ TEST_F(SDCSchedulerTest, WithIOConstraint) {
   EXPECT_EQ(cycle_map.at(send.node()), 1);
 }
 
+TEST_F(SDCSchedulerTest, InfeasibleConstraintsShouldNotCrash) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(32));
+  auto y = fb.Param("y", p->GetBitsType(32));
+  auto add = fb.Add(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ScheduleGraph graph,
+      ScheduleGraph::Create(f, /*dead_after_synthesis=*/{}));
+  TestDelayEstimator delay_estimator;
+  SchedulingOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto scheduler, SDCScheduler::Create(graph, delay_estimator, options));
+  XLS_ASSERT_OK(
+      scheduler->AddConstraints({NodeInCycleConstraint(add.node(), 1),
+                                 NodeInCycleConstraint(add.node(), 2)}));
+  auto status_or_map = scheduler->Schedule(
+      /*pipeline_stages=*/std::nullopt,
+      /*clock_period_ps=*/2, SchedulingFailureBehavior{});
+  EXPECT_FALSE(status_or_map.ok());
+}
+
 }  // namespace
 }  // namespace xls
