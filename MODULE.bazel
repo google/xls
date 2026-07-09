@@ -193,7 +193,7 @@ bazel_dep(name = "openroad", repo_name = "org_theopenroadproject")
 
 git_override(
     module_name = "rules_hdl",
-    commit = "94e28d604085707499fd5aa1fd96519b1acda216",
+    commit = "19cf04d10582d37119a4adbf0cb4fd681c05a3fb",
     remote = "https://github.com/hdl/bazel_rules_hdl.git",
 )
 
