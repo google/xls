@@ -319,6 +319,8 @@ enum class FlowControl : uint8_t {
   kValidData,
 };
 
+inline constexpr FlowControl kDefaultChannelFlowControl =
+    FlowControl::kReadyValid;
 std::string FlowControlToString(FlowControl fc);
 absl::StatusOr<FlowControl> StringToFlowControl(std::string_view str);
 std::ostream& operator<<(std::ostream& os, FlowControl fc);

@@ -364,6 +364,13 @@ class Attribute : public AstNode {
     return {};
   };
 
+  std::string GetSingleLiteralText() const {
+    CHECK_EQ(args().size(), 1);
+    CHECK(std::holds_alternative<AttributeData::StringLiteralArgument>(
+        args().at(0)));
+    return std::get<AttributeData::StringLiteralArgument>(args().at(0)).text;
+  }
+
   std::string ToString() const override;
 
  private:
@@ -3275,6 +3282,9 @@ class StructMemberNode : public AstNode {
   void set_non_state_wrapped_type(TypeAnnotation* non_state_wrapped_type) {
     non_state_wrapped_type_ = non_state_wrapped_type;
   }
+
+  std::optional<ChannelStrictness> GetChannelStrictness() const;
+  std::optional<FlowControl> GetChannelFlowControl() const;
 
   StructMember ToStructMemberStruct() const {
     return StructMember{.name_span = name_def_->span(),

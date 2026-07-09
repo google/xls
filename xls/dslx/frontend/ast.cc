@@ -1767,6 +1767,33 @@ std::string FormatMacro::FormatArgs() const {
   });
 }
 
+// -- class StructMemberNode
+
+std::optional<ChannelStrictness> StructMemberNode::GetChannelStrictness()
+    const {
+  std::optional<Attribute*> attr =
+      GetAttribute(this, AttributeKind::kChannelStrictness);
+  if (!attr.has_value()) {
+    return std::nullopt;
+  }
+  absl::StatusOr<ChannelStrictness> strictness =
+      ChannelStrictnessFromString((*attr)->GetSingleLiteralText());
+  CHECK(strictness.ok());
+  return *strictness;
+}
+
+std::optional<FlowControl> StructMemberNode::GetChannelFlowControl() const {
+  std::optional<Attribute*> attr =
+      GetAttribute(this, AttributeKind::kChannelFlowControl);
+  if (!attr.has_value()) {
+    return std::nullopt;
+  }
+  absl::StatusOr<FlowControl> flow_control =
+      StringToFlowControl((*attr)->GetSingleLiteralText());
+  CHECK(flow_control.ok());
+  return *flow_control;
+}
+
 // -- class StructDefBase
 
 StructDefBase::StructDefBase(

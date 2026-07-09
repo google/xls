@@ -3853,6 +3853,14 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
     const NodeType* node, std::optional<const NameDef*> name_def,
     const InterpValue& value, const Type* type,
     absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>& channel_decls) {
+  std::optional<ChannelStrictness> strictness = std::nullopt;
+  std::optional<FlowControl> flow_control = std::nullopt;
+  if (const auto* struct_member_node =
+          dynamic_cast<const StructMemberNode*>(node)) {
+    strictness = struct_member_node->GetChannelStrictness();
+    flow_control = struct_member_node->GetChannelFlowControl();
+  }
+
   std::optional<const AstNode*> definer_opt = GetChannelOrArrayDefiner(value);
   XLS_RET_CHECK(definer_opt.has_value());
   const AstNode* definer = *definer_opt;
@@ -3916,7 +3924,9 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
            << channel_type->ToString();
   XLS_ASSIGN_OR_RETURN(
       channel_or_array,
-      channel_scope_->DefineBoundaryChannelOrArray(param, current_type_info_));
+      channel_scope_->DefineBoundaryChannelOrArray(
+          param, current_type_info_,
+          /* channel_config= */ std::nullopt, strictness, flow_control));
   SetNodeToChannelOrArray(node, channel_or_array);
 
   if (name_def.has_value()) {

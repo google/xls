@@ -29,7 +29,9 @@ namespace xls::dslx {
 
 absl::StatusOr<ChannelRef> ProcScopedChannelScope::CreateChannel(
     std::string_view name, ChannelOps ops, xls::Type* type,
-    std::optional<ChannelConfig> channel_config, bool interface_channel) {
+    std::optional<ChannelConfig> channel_config, bool interface_channel,
+    std::optional<ChannelStrictness> strictness,
+    std::optional<FlowControl> flow_control) {
   if (interface_channel) {
     XLS_RET_CHECK_NE(ops, ChannelOps::kSendReceive)
         << "Cannot define interface channel as both send and receive";
@@ -38,15 +40,17 @@ absl::StatusOr<ChannelRef> ProcScopedChannelScope::CreateChannel(
 
     // ChannelKind is never set to anything but streaming by the FE.
     ChannelKind kind = ChannelKind::kStreaming;
-    FlowControl flow_control = FlowControl::kReadyValid;
-    std::optional<ChannelStrictness> strictness = kDefaultChannelStrictness;
+    flow_control =
+        flow_control.has_value() ? flow_control : kDefaultChannelFlowControl;
+    strictness =
+        strictness.has_value() ? strictness : kDefaultChannelStrictness;
 
     if (ops == ChannelOps::kReceiveOnly) {
-      return ir_proc->AddInputChannel(name, type, kind, flow_control,
+      return ir_proc->AddInputChannel(name, type, kind, *flow_control,
                                       strictness);
     }
 
-    return ir_proc->AddOutputChannel(name, type, kind, flow_control,
+    return ir_proc->AddOutputChannel(name, type, kind, *flow_control,
                                      strictness);
   }
 

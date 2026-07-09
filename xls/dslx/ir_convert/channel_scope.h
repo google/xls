@@ -151,7 +151,9 @@ class ChannelScope {
   // the boundary have only a send or receive side.
   absl::StatusOr<ChannelOrArray> DefineBoundaryChannelOrArray(
       const Param* param, TypeInfo* type_info,
-      std::optional<ChannelConfig> channel_config = std::nullopt);
+      std::optional<ChannelConfig> channel_config = std::nullopt,
+      std::optional<ChannelStrictness> strictness = std::nullopt,
+      std::optional<FlowControl> flow_control = std::nullopt);
 
   // Associates `name_def` as an alias of the channel or array defined by the
   // given `decl` that was previously passed to `DefineChannelOrArray`. This
@@ -198,14 +200,18 @@ class ChannelScope {
   virtual absl::StatusOr<ChannelRef> CreateChannel(
       std::string_view name, ChannelOps ops, xls::Type* type,
       std::optional<ChannelConfig> channel_config,
-      bool interface_channel = false);
+      bool interface_channel = false,
+      std::optional<ChannelStrictness> strictness = std::nullopt,
+      std::optional<FlowControl> flow_control = std::nullopt);
 
  private:
   absl::StatusOr<ChannelOrArray> DefineChannelOrArrayInternal(
       std::string_view short_name, ChannelOps ops, xls::Type* type,
       std::optional<ChannelConfig> channel_config,
       const std::optional<std::vector<Expr*>>& dims,
-      bool interface_channel = false);
+      bool interface_channel = false,
+      std::optional<ChannelStrictness> strictness = std::nullopt,
+      std::optional<FlowControl> flow_control = std::nullopt);
 
   absl::Status DefineProtoChannelOrArray(
       ChannelOrArray array, dslx::ChannelTypeAnnotation* type_annot,

@@ -123,7 +123,9 @@ absl::StatusOr<ChannelRef> ToChannelRef(ChannelOrArray ref) {
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
     std::string_view short_name, ChannelOps ops, xls::Type* type,
     std::optional<ChannelConfig> channel_config,
-    const std::optional<std::vector<Expr*>>& dims, bool interface_channel) {
+    const std::optional<std::vector<Expr*>>& dims, bool interface_channel,
+    std::optional<ChannelStrictness> strictness,
+    std::optional<FlowControl> flow_control) {
   std::string base_channel_name;
   if (convert_options_.lower_to_proc_scoped_channels) {
     // When using proc scoped channels the channel names do not have to be
@@ -136,9 +138,10 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
   }
   std::vector<std::string> channel_names;
   if (!dims.has_value()) {
-    XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
-                         CreateChannel(base_channel_name, ops, type,
-                                       channel_config, interface_channel));
+    XLS_ASSIGN_OR_RETURN(
+        ChannelRef channel_ref,
+        CreateChannel(base_channel_name, ops, type, channel_config,
+                      interface_channel, strictness, flow_control));
     return ToChannelOrArray(channel_ref);
   }
   ChannelArray* array = &arrays_.emplace_back(ChannelArray(base_channel_name));
@@ -147,9 +150,10 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
   for (const std::string& suffix : suffixes) {
     std::string channel_name =
         absl::StrCat(base_channel_name, kNameAndDimsSeparator, suffix);
-    XLS_ASSIGN_OR_RETURN(ChannelRef channel,
-                         CreateChannel(channel_name, ops, type, channel_config,
-                                       interface_channel));
+    XLS_ASSIGN_OR_RETURN(
+        ChannelRef channel,
+        CreateChannel(channel_name, ops, type, channel_config,
+                      interface_channel, strictness, flow_control));
     array->AddChannel(channel_name, channel);
   }
   return array;
@@ -157,7 +161,9 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
 
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
     const Param* param, TypeInfo* type_info,
-    std::optional<ChannelConfig> channel_config) {
+    std::optional<ChannelConfig> channel_config,
+    std::optional<ChannelStrictness> strictness,
+    std::optional<FlowControl> flow_control) {
   XLS_RET_CHECK(function_context_.has_value());
   VLOG(4) << "ChannelScope::DefineBoundaryChannelOrArray: "
           << param->ToString();
@@ -172,10 +178,10 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
   ChannelOps op = type_annot->direction() == ChannelDirection::kIn
                       ? ChannelOps::kReceiveOnly
                       : ChannelOps::kSendOnly;
-  XLS_ASSIGN_OR_RETURN(
-      ChannelOrArray channel_or_array,
-      DefineChannelOrArrayInternal(param->identifier(), op, ir_type,
-                                   channel_config, type_annot->dims(), true));
+  XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
+                       DefineChannelOrArrayInternal(
+                           param->identifier(), op, ir_type, channel_config,
+                           type_annot->dims(), true, strictness, flow_control));
   XLS_RETURN_IF_ERROR(DefineProtoChannelOrArray(channel_or_array, type_annot,
                                                 ir_type, type_info));
   return channel_or_array;
@@ -430,14 +436,20 @@ absl::StatusOr<std::optional<ChannelConfig>> ChannelScope::CreateChannelConfig(
 
 absl::StatusOr<ChannelRef> ChannelScope::CreateChannel(
     std::string_view name, ChannelOps ops, xls::Type* type,
-    std::optional<ChannelConfig> channel_config, bool interface_channel) {
+    std::optional<ChannelConfig> channel_config, bool interface_channel,
+    std::optional<ChannelStrictness> strictness,
+    std::optional<FlowControl> flow_control) {
   if (channel_config.has_value()) {
     return conversion_info_->package->CreateStreamingChannel(
         name, ops, type,
         /*initial_values=*/{},
         /*channel_config=*/*channel_config);
   }
-  return conversion_info_->package->CreateStreamingChannel(name, ops, type);
+  return conversion_info_->package->CreateStreamingChannel(
+      name, ops, type, /*initial_values=*/{},
+      /*channel_config=*/ChannelConfig(),
+      flow_control.has_value() ? *flow_control : kDefaultChannelFlowControl,
+      strictness.has_value() ? *strictness : kDefaultChannelStrictness);
 }
 
 absl::StatusOr<ChannelOrArray> ChannelScope::GetChannelArrayElement(

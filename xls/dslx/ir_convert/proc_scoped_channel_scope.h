@@ -43,8 +43,9 @@ class ProcScopedChannelScope : public ChannelScope {
  protected:
   absl::StatusOr<ChannelRef> CreateChannel(
       std::string_view name, ChannelOps ops, xls::Type* type,
-      std::optional<ChannelConfig> channel_config,
-      bool interface_channel) override;
+      std::optional<ChannelConfig> channel_config, bool interface_channel,
+      std::optional<ChannelStrictness> strictness = std::nullopt,
+      std::optional<FlowControl> flow_control = std::nullopt) override;
 
  private:
   ProcBuilder* const proc_builder_;

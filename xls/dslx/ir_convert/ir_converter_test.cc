@@ -2010,6 +2010,74 @@ impl Main {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, TopProcDefWithStrictness) {
+  constexpr std::string_view program = R"(
+#![feature(channel_attributes)]
+#![feature(explicit_state_access)]
+
+proc Main {
+
+  #[channel_strictness("runtime_ordered")]
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  i: u32,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Main { c_in: c_in, c_out: c_out, i: 1 }
+  }
+
+  fn next(self) {
+    let i_val = read(self.i);
+    let (tok, j) = recv(join(), self.c_in);
+    let tok = send(tok, self.c_out, i_val + j);
+    write(self.i, i_val + j);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Main", import_data));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, TopProcDefWithFlowControl) {
+  constexpr std::string_view program = R"(
+#![feature(channel_attributes)]
+#![feature(explicit_state_access)]
+
+proc Main {
+
+  #[channel_flow_control("valid_data")]
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+  i: u32,
+}
+
+impl Main {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Main { c_in: c_in, c_out: c_out, i: 1 }
+  }
+
+  fn next(self) {
+    let i_val = read(self.i);
+    let (tok, j) = recv(join(), self.c_in);
+    let tok = send(tok, self.c_out, i_val + j);
+    write(self.i, i_val + j);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "Main", import_data));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ProcDefWithBoundaryChannelArray) {
   constexpr std::string_view kModule = R"(
 #![feature(explicit_state_access)]
