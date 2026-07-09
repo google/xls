@@ -420,6 +420,24 @@ class PreTypecheckPass : public AstNodeVisitorWithDefault {
     }
     return DefaultHandler(node);
   }
+
+  absl::Status HandleProc(const Proc* node) override {
+    in_legacy_proc_ = true;
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
+    in_legacy_proc_ = false;
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSelfTypeAnnotation(
+      const SelfTypeAnnotation* node) override {
+    if (in_legacy_proc_) {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          "Use of `Self` inside legacy procs is not supported.", file_table_);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleProcDef(const ProcDef* node) override {
     for (const auto* member : node->members()) {
       WarnOnInappropriateMemberName(member->name(), member->name_def()->span(),
@@ -489,6 +507,7 @@ class PreTypecheckPass : public AstNodeVisitorWithDefault {
   WarningCollector& warning_collector_;
 
   const FileTable& file_table_;
+  bool in_legacy_proc_ = false;
 };
 
 class CollectUseDef : public AstNodeVisitorWithDefault {

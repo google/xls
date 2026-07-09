@@ -31,7 +31,7 @@ using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
-TEST(TypecheckV2Test, SpawnBasicProc) {
+TEST(TypecheckV2ProcTest, SpawnBasicProc) {
   EXPECT_THAT(R"(
 proc Counter {
   c: chan<u32> out;
@@ -62,7 +62,7 @@ proc main {
               TypecheckSucceeds(HasNodeWithType("spawn Counter(p, 50)", "()")));
 }
 
-TEST(TypecheckV2Test, SpawnParametricProc) {
+TEST(TypecheckV2ProcTest, SpawnParametricProc) {
   EXPECT_THAT(R"(
 proc Counter<N: u32> {
   c: chan<uN[N]> out;
@@ -100,7 +100,7 @@ proc main {
                         HasNodeWithType("spawn Counter<32>(p32, 50)", "()"))));
 }
 
-TEST(TypecheckV2Test, ParametricProcWithTypeAlias) {
+TEST(TypecheckV2ProcTest, ParametricProcWithTypeAlias) {
   EXPECT_THAT(R"(
 proc Counter<N: u32> {
   type value_t = uN[N];
@@ -140,7 +140,7 @@ proc main {
                         HasNodeWithType("spawn Counter<32>(p32, 50)", "()"))));
 }
 
-TEST(TypecheckV2Test, ParametricProcValueCloning) {
+TEST(TypecheckV2ProcTest, ParametricProcValueCloning) {
   // This is the version of matmul in https://github.com/google/xls/issues/2706
   // but reduced to a minimal repro. Note that it is too minimized to be valid
   // for IR conversion. The original error was due to not cloning parametric
@@ -183,7 +183,7 @@ proc main {
       TypecheckSucceeds(HasNodeWithType("spawn A<4, 4>(commands_in)", "()")));
 }
 
-TEST(TypecheckV2Test, BadChannelDeclAssignmentFails) {
+TEST(TypecheckV2ProcTest, BadChannelDeclAssignmentFails) {
   EXPECT_THAT(
       R"(
 proc main {
@@ -198,7 +198,7 @@ proc main {
       TypecheckFails(HasTypeMismatch("u32", "(chan<u32> out, chan<u32> in)")));
 }
 
-TEST(TypecheckV2Test, ProcConfigTooFewChannels) {
+TEST(TypecheckV2ProcTest, ProcConfigTooFewChannels) {
   EXPECT_THAT(
       R"(
 proc Proc {
@@ -215,7 +215,7 @@ proc Proc {
       TypecheckFails(HasSubstr("Cannot match a 2-element tuple to 1 values.")));
 }
 
-TEST(TypecheckV2Test, ProcConfigTooManyChannels) {
+TEST(TypecheckV2ProcTest, ProcConfigTooManyChannels) {
   EXPECT_THAT(
       R"(
 proc Proc {
@@ -233,7 +233,7 @@ proc Proc {
       TypecheckFails(HasSubstr("Out-of-bounds tuple index specified: 2")));
 }
 
-TEST(TypecheckV2Test, ProcWithBranchedFinalExpression) {
+TEST(TypecheckV2ProcTest, ProcWithBranchedFinalExpression) {
   EXPECT_THAT(
       R"(
 const A = u32:5;
@@ -259,7 +259,7 @@ proc Proc {
                 HasNodeWithType("second_output", "chan((), dir=out)"))));
 }
 
-TEST(TypecheckV2Test, ProcConfigFailedBranchedFinalExpression) {
+TEST(TypecheckV2ProcTest, ProcConfigFailedBranchedFinalExpression) {
   EXPECT_THAT(
       R"(
 const A = u32:5;
@@ -283,7 +283,7 @@ proc Proc {
       TypecheckFails(HasSubstr("Cannot match a 2-element tuple to 1 values.")));
 }
 
-TEST(TypecheckV2Test, SpawnImportedProc) {
+TEST(TypecheckV2ProcTest, SpawnImportedProc) {
   constexpr std::string_view kImported = R"(
 pub proc Counter {
   c: chan<u32> out;
@@ -323,7 +323,7 @@ proc main {
                   HasNodeWithType("spawn imported::Counter(p, 50)", "()"))));
 }
 
-TEST(TypecheckV2Test, ExplicitStateAccessFailOnInteractingWithState) {
+TEST(TypecheckV2ProcTest, ExplicitStateAccessFailOnInteractingWithState) {
   EXPECT_THAT(R"(#![feature(explicit_state_access)]
 proc Counter {
   init { u32:0 }
@@ -336,7 +336,7 @@ proc Counter {
               TypecheckFails(HasTypeMismatch("State<u32>", "u32")));
 }
 
-TEST(TypecheckV2Test, ExplicitStateAccessAddingStateToState) {
+TEST(TypecheckV2ProcTest, ExplicitStateAccessAddingStateToState) {
   EXPECT_THAT(R"(#![feature(explicit_state_access)]
 proc Counter {
   init { u32:0 }
@@ -350,7 +350,7 @@ proc Counter {
                                        "applied to bits-typed operands.")));
 }
 
-TEST(TypecheckV2Test, ProcWithImpl) {
+TEST(TypecheckV2ProcTest, ProcWithImpl) {
   constexpr std::string_view kProcType =
       "P { input: chan(uN[32], dir=in), output: "
       "chan(uN[32], dir=out), state: State {} }";
@@ -388,7 +388,7 @@ impl P {
           HasNodeWithType("next", absl::Substitute("($0) -> ()", kProcType)))));
 }
 
-TEST(TypecheckV2Test, ProcWithImplNextWithExtraParamFails) {
+TEST(TypecheckV2ProcTest, ProcWithImplNextWithExtraParamFails) {
   EXPECT_THAT(
       R"(
 #![feature(explicit_state_access)]
@@ -409,7 +409,7 @@ impl P {
                                "must have a single parameter")));
 }
 
-TEST(TypecheckV2Test, ProcWithImplNextWithNoParamsFails) {
+TEST(TypecheckV2ProcTest, ProcWithImplNextWithNoParamsFails) {
   EXPECT_THAT(
       R"(
 #![feature(explicit_state_access)]
@@ -430,7 +430,7 @@ impl P {
                                "must have a single parameter")));
 }
 
-TEST(TypecheckV2Test, ProcWithImplNextWithReturnTypeFails) {
+TEST(TypecheckV2ProcTest, ProcWithImplNextWithReturnTypeFails) {
   EXPECT_THAT(
       R"(
 #![feature(explicit_state_access)]
@@ -451,7 +451,7 @@ impl P {
                                "must not return anything")));
 }
 
-TEST(TypecheckV2Test, SpawnProcWithImpl) {
+TEST(TypecheckV2ProcTest, SpawnProcWithImpl) {
   std::string_view kProgram = R"(
 #![feature(explicit_state_access)]
 
@@ -507,7 +507,7 @@ impl Main {
   XLS_EXPECT_OK(TypecheckV2(kProgram));
 }
 
-TEST(TypecheckV2Test, ExplicitStateAccessSimpleU32) {
+TEST(TypecheckV2ProcTest, ExplicitStateAccessSimpleU32) {
   EXPECT_THAT(
       R"(#![feature(explicit_state_access)]
 proc Counter {
@@ -525,7 +525,7 @@ proc Counter {
                               HasNodeWithType("write(state, y)", "()"))));
 }
 
-TEST(TypecheckV2Test, ExplicitStateAccessLabeledSimpleU32) {
+TEST(TypecheckV2ProcTest, ExplicitStateAccessLabeledSimpleU32) {
   EXPECT_THAT(
       R"(#![feature(explicit_state_access)]
 proc Counter {
@@ -545,7 +545,7 @@ proc Counter {
                           "()"))));
 }
 
-TEST(TypecheckV2Test, ProcWithImplIntegerParamInTopProcNewFails) {
+TEST(TypecheckV2ProcTest, ProcWithImplIntegerParamInTopProcNewFails) {
   EXPECT_THAT(
       R"(
 #![feature(explicit_state_access)]
@@ -567,7 +567,7 @@ impl P {
                     "possible to evaluate at compile time.")));
 }
 
-TEST(TypecheckV2Test, ParametricProcDef) {
+TEST(TypecheckV2ProcTest, ParametricProcDef) {
   EXPECT_THAT(
       R"(
 #![feature(explicit_state_access)]
@@ -627,7 +627,7 @@ impl Main {
                           "chan(uN[32], dir=out) }")));
 }
 
-TEST(TypecheckV2Test, ProcDefWithoutNextFunction) {
+TEST(TypecheckV2ProcTest, ProcDefWithoutNextFunction) {
   EXPECT_THAT(
       R"(
 proc Loopback {
@@ -647,7 +647,7 @@ impl Loopback {
                           "chan(uN[32], dir=out) }) -> ()")));
 }
 
-TEST(TypecheckV2Test, SpawnImportedProcDef) {
+TEST(TypecheckV2ProcTest, SpawnImportedProcDef) {
   std::string_view kImported = R"(
 #![feature(explicit_state_access)]
 
@@ -705,6 +705,29 @@ impl Main {
   ImportData import_data = CreateImportDataForTest();
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
+TEST(TypecheckV2ProcTest, LegacyProcWithSelfReferenceFails) {
+  EXPECT_THAT(R"(
+proc Foo {
+  c: chan<u32> in;
+  a: uN[Self::LIMIT];
+
+  init {
+    ()
+  }
+
+  config(c: chan<u32> in) {
+    (c,)
+  }
+
+  next(state: ()) {
+    ()
+  }
+}
+  )",
+              TypecheckFails(HasSubstr(
+                  "Use of `Self` inside legacy procs is not supported.")));
 }
 
 }  // namespace

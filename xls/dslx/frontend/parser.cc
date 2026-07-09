@@ -74,6 +74,9 @@ namespace {
 
 constexpr std::string_view kSelfOutsideImplError =
     "Type `Self` cannot be used outside of a `trait` or `impl`";
+constexpr std::string_view kSelfMemberOutsideImplError =
+    "Cannot reference a member of `Self` outside of a `struct`, `proc`, or "
+    "`impl` context.";
 constexpr std::string_view kConstAssertIdentifier = "const_assert!";
 constexpr std::string_view kAssertFmtMacroIdentifier = "assert_fmt!";
 constexpr std::string_view kSpawnIdentifier = "spawn";
@@ -118,16 +121,23 @@ absl::Status MakeModuleTopCollisionError(const FileTable& file_table,
 
 ColonRef::Subject CloneSubject(Module* module,
                                const ColonRef::Subject subject) {
-  if (std::holds_alternative<NameRef*>(subject)) {
-    NameRef* name_ref = std::get<NameRef*>(subject);
-    return module->Make<NameRef>(name_ref->span(), name_ref->identifier(),
-                                 name_ref->name_def());
-  }
-
-  ColonRef* colon_ref = std::get<ColonRef*>(subject);
-  ColonRef::Subject clone_subject = CloneSubject(module, colon_ref->subject());
-  return module->Make<ColonRef>(colon_ref->span(), clone_subject,
-                                colon_ref->attr());
+  return absl::visit(
+      Visitor{
+          [&](NameRef* name_ref) -> ColonRef::Subject {
+            return module->Make<NameRef>(
+                name_ref->span(), name_ref->identifier(), name_ref->name_def());
+          },
+          [&](ColonRef* colon_ref) -> ColonRef::Subject {
+            ColonRef::Subject clone_subject =
+                CloneSubject(module, colon_ref->subject());
+            return module->Make<ColonRef>(colon_ref->span(), clone_subject,
+                                          colon_ref->attr());
+          },
+          [&](auto* type_annotation) -> ColonRef::Subject {
+            return type_annotation;
+          },
+      },
+      subject);
 }
 
 bool HasChannelElement(const TypeAnnotation* type) {
@@ -1539,6 +1549,26 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
     if (!bindings.HasSelf()) {
       return ParseErrorStatus(tok.span(), kSelfOutsideImplError);
     }
+    XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
+                         PeekTokenIs(TokenKind::kDoubleColon));
+    if (peek_is_double_colon) {
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleColon));
+      XLS_ASSIGN_OR_RETURN(
+          Token type_name,
+          PopTokenOrError(TokenKind::kIdentifier, &tok, "Self type-reference"));
+      const Span span(tok.span().start(), type_name.span().limit());
+      std::optional<TypeAnnotation*> self = bindings.GetImplSelf();
+      if (!self.has_value()) {
+        return ParseErrorStatus(tok.span(), kSelfMemberOutsideImplError);
+      }
+      auto* self_annot = module_->Make<SelfTypeAnnotation>(
+          tok.span(), /*explicit_type=*/true, *self);
+      auto* self_colon_ref =
+          module_->Make<ColonRef>(span, self_annot, *type_name.GetValue());
+      auto* type_ref = module_->Make<TypeRef>(span, self_colon_ref);
+      return ParseTypeRefParametricsAndDims(bindings, span, type_ref,
+                                            impl_declaration_semantics);
+    }
     std::optional<TypeAnnotation*> self = bindings.GetImplSelf();
     return module_->Make<SelfTypeAnnotation>(
         tok.span(), /*explicit_type=*/true, self.has_value() ? *self : nullptr);
@@ -1722,7 +1752,8 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
   Token tok = PopTokenOrDie();
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
-  if (peek_is_double_colon) {
+  // Handle cases like `my_mod::some_val`, where the LHS is a module name.
+  if (peek_is_double_colon && !tok.IsKeyword(Keyword::kSelfType)) {
     XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
     // TODO: google/xls#1030 - This assumes it is calling an imported function,
     // (e.g., `lib::function();`) not instantiating an imported struct (e.g.,
@@ -1739,10 +1770,38 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
   // `MyStruct<u32:5>::SOME_CONSTANT`).
   XLS_ASSIGN_OR_RETURN(peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
+  // Note that `type_ref` may be a number of possibilities, one of which is
+  // `Self::SOMETHING`. `self_ref` is purely `Self`.
   auto* type_ref = dynamic_cast<TypeRefTypeAnnotation*>(type);
-  if (type_ref != nullptr && peek_is_double_colon) {
-    return ParseColonRef(bindings, type_ref, type->span());
+  auto* self_ref = dynamic_cast<SelfTypeAnnotation*>(type);
+  // Matches: `MyStruct::LIMIT` or `MyStruct<N>::LIMIT` (via type_ref),
+  // or `Self::LIMIT` (via self_ref).
+  if ((type_ref != nullptr || self_ref != nullptr) && peek_is_double_colon) {
+    return type_ref != nullptr
+               ? ParseColonRef(bindings, type_ref, type->span())
+               : ParseColonRef(bindings, self_ref, type->span());
   }
+  // Handle cases like `Self::LIMIT` as a value expression (e.g. inside array
+  // dimensions like `uN[Self::LIMIT]`). This initially parses as a
+  // TypeRefTypeAnnotation wrapping a ColonRef, but is actually a value
+  // reference and not a cast or struct instance.
+  if (type_ref != nullptr) {
+    TypeRefOrAnnotation type_def = type_ref->type_ref();
+    if (std::holds_alternative<TypeRef*>(type_def)) {
+      TypeRef* tr = std::get<TypeRef*>(type_def);
+      TypeDefinition def = tr->type_definition();
+      if (std::holds_alternative<ColonRef*>(def)) {
+        XLS_ASSIGN_OR_RETURN(bool peek_is_colon,
+                             PeekTokenIs(TokenKind::kColon));
+        XLS_ASSIGN_OR_RETURN(bool peek_is_obrace,
+                             PeekTokenIs(TokenKind::kOBrace));
+        if (!peek_is_colon && !peek_is_obrace) {
+          return std::get<ColonRef*>(def);
+        }
+      }
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
   if (peek_is_obrace) {
     return ParseStructInstance(bindings, type);
@@ -3537,7 +3596,7 @@ std::vector<StructMemberNode*> ConvertProcMembersToStructMembers(
     std::vector<Attribute*> attributes;
     if (proc_member->strictness().has_value()) {
       auto attr = module->Make<Attribute>(
-          Span::None(), std::nullopt,
+          proc_member->span(), std::nullopt,
           AttributeData(
               AttributeKind::kChannelStrictness,
               {AttributeData::StringLiteralArgument(
@@ -3546,7 +3605,7 @@ std::vector<StructMemberNode*> ConvertProcMembersToStructMembers(
     }
     if (proc_member->flow_control().has_value()) {
       auto attr = module->Make<Attribute>(
-          Span::None(), std::nullopt,
+          proc_member->span(), std::nullopt,
           AttributeData(
               AttributeKind::kChannelFlowControl,
               {AttributeData::StringLiteralArgument(
@@ -3630,6 +3689,17 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
 
   auto make_collision_error =
       absl::bind_front(&MakeModuleTopCollisionError, file_table());
+
+  // Pre-create a ProcDef node so that Self can refer to it in case this is an
+  // impl-style proc.
+  auto* proc_def = module_->Make<ProcDef>(
+      Span(start_pos, start_pos), name_def, parametric_bindings,
+      std::vector<StructMemberNode*>{}, is_public);
+
+  TypeRef* type_ref = module_->Make<TypeRef>(name_def->span(), proc_def);
+  TypeAnnotation* self_type = module_->Make<TypeRefTypeAnnotation>(
+      name_def->span(), type_ref, std::vector<ExprOrType>{});
+  proc_bindings.AddStructAsSelf(self_type);
 
   ProcLikeBody proc_like_body = {
       .config = nullptr,
@@ -3852,10 +3922,13 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
           "Impl-style procs must use commas to separate members.");
     }
     // Assume this is an impl-style proc and return a `ProcDef` for it.
-    ProcDef* proc_def = module_->Make<ProcDef>(
-        span, name_def, std::move(parametric_bindings),
-        ConvertProcMembersToStructMembers(module_, proc_like_body.members),
-        is_public);
+    proc_def->set_span(span);
+    std::vector<StructMemberNode*> struct_members =
+        ConvertProcMembersToStructMembers(module_, proc_like_body.members);
+    for (StructMemberNode* sm : struct_members) {
+      proc_def->AddMember(sm);
+    }
+    proc_def->SetParentage();
     name_def->set_definer(proc_def);
     outer_bindings.Add(name_def->identifier(), proc_def);
     return proc_def;
@@ -4419,6 +4492,18 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(const Pos& start_pos,
                          ParseParametricBindings(struct_bindings));
   }
 
+  // Pre-create the StructDef node so that Self can refer to it.
+  auto* struct_def = module_->Make<StructDef>(
+      Span(start_pos, start_pos), name_def, parametric_bindings,
+      std::vector<StructMemberNode*>{}, is_public);
+  name_def->set_definer(struct_def);
+  bindings.Add(name_def->identifier(), struct_def);
+
+  TypeRef* type_ref = module_->Make<TypeRef>(name_def->span(), struct_def);
+  TypeAnnotation* self_type = module_->Make<TypeRefTypeAnnotation>(
+      name_def->span(), type_ref, std::vector<ExprOrType>{});
+  struct_bindings.AddStructAsSelf(self_type);
+
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
 
   auto parse_struct_member =
@@ -4443,13 +4528,11 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(const Pos& start_pos,
                                                         TokenKind::kCBrace));
 
   Span span(start_pos, GetPos());
-  auto* struct_def =
-      module_->Make<StructDef>(span, name_def, std::move(parametric_bindings),
-                               std::move(members), is_public);
-
-  name_def->set_definer(struct_def);
-
-  bindings.Add(name_def->identifier(), struct_def);
+  struct_def->set_span(span);
+  for (StructMemberNode* member : members) {
+    struct_def->AddMember(member);
+  }
+  struct_def->SetParentage();
   return struct_def;
 }
 

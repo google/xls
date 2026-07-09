@@ -96,6 +96,10 @@ static AnyNameDef GetSubjectNameDef(const ColonRef::Subject& subject) {
               [](TypeRefTypeAnnotation* n) {
                 return TypeDefinitionGetNameDef(
                     n->type_ref()->type_definition());
+              },
+              [](SelfTypeAnnotation* n) {
+                return GetSubjectNameDef(
+                    absl::down_cast<TypeRefTypeAnnotation*>(n->struct_ref()));
               }},
       subject);
 }

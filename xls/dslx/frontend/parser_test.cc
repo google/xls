@@ -326,6 +326,37 @@ impl Foo {
 const C = zero!<Foo::T>();)");
 }
 
+TEST_F(ParserTest, StructDefWithSelfReference) {
+  RoundTrip(R"(struct Foo {
+    a: uN[Self::LIMIT],
+})");
+}
+
+TEST_F(ParserTest, ParametricStructDefWithSelfReference) {
+  RoundTrip(R"(struct Foo<N: u32> {
+    a: uN[Self::LIMIT],
+})");
+}
+
+TEST_F(ParserTest, ProcDefWithSelfReference) {
+  RoundTrip(R"(proc Foo {
+    a: uN[Self::LIMIT],
+    b: u32,
+})");
+}
+
+TEST_F(ParserTest, StructDefWithSelfTypeAliasReference) {
+  RoundTrip(R"(struct Foo {
+    a: Self::T,
+})");
+}
+
+TEST_F(ParserTest, ParametricStructDefWithSelfTypeAliasReference) {
+  RoundTrip(R"(struct Foo<N: u32> {
+    a: Self::T<N>[3],
+})");
+}
+
 TEST_F(ParserTest, ImplWithExplicitSelfType) {
   RoundTrip(R"(struct foo {
     a: bits[9],
@@ -927,6 +958,22 @@ TEST(ParserErrorTest, TypeKeywordInPatternPositionIsParseError) {
   EXPECT_THAT(module.status(),
               IsPosError("ParseError",
                          HasSubstr("Expected pattern; got keyword:type")));
+}
+
+TEST(ParserErrorTest, SelfMemberReferenceInTraitIsParseError) {
+  constexpr std::string_view kProgram = R"(#![feature(traits)]
+trait ToBits {
+  fn to_bits(self) -> bits[bit_count<Self::LIMIT>()];
+})";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(
+      module.status(),
+      IsPosError("ParseError",
+                 HasSubstr("Cannot reference a member of `Self` outside of a "
+                           "`struct`, `proc`, or `impl` context.")));
 }
 
 TEST_F(ParserTest, StructDefRoundTrip) {

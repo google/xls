@@ -275,6 +275,10 @@ class AstCloner : public AstNodeVisitor {
                 [&](TypeRefTypeAnnotation* type_ref) -> ColonRef::Subject {
                   return absl::down_cast<TypeRefTypeAnnotation*>(
                       old_to_new_.at(type_ref));
+                },
+                [&](SelfTypeAnnotation* self_type) -> ColonRef::Subject {
+                  return absl::down_cast<SelfTypeAnnotation*>(
+                      old_to_new_.at(self_type));
                 }},
         n->subject());
 
@@ -878,38 +882,45 @@ class AstCloner : public AstNodeVisitor {
   template <typename T>
   absl::Status HandleStructDefBaseInternal(const T* n) {
     Module* m = module(n);
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->name_def()));
+    auto* new_name_def =
+        absl::down_cast<NameDef*>(old_to_new_.at(n->name_def()));
 
     std::vector<ParametricBinding*> new_parametric_bindings;
     new_parametric_bindings.reserve(n->parametric_bindings().size());
     for (const auto* pb : n->parametric_bindings()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(pb));
       XLS_ASSIGN_OR_RETURN(
           ParametricBinding * new_pb,
           CastIfNotVerbatim<ParametricBinding*>(old_to_new_.at(pb)));
       new_parametric_bindings.push_back(new_pb);
     }
 
-    std::vector<StructMemberNode*> new_members;
+    // Register the new `StructDef` before adding the members, in case it has
+    // members whose type contains a `SelfTypeAnnotation`. The cloning of the
+    // latter will require finding the new `StructDef`.
+    auto* new_struct_def =
+        m->Make<T>(n->span(), new_name_def, new_parametric_bindings,
+                   std::vector<StructMemberNode*>{}, n->is_public());
+    old_to_new_[n] = new_struct_def;
+
     for (const StructMemberNode* member : n->members()) {
       XLS_RETURN_IF_ERROR(ReplaceOrVisit(member->name_def()));
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(member->type()));
       XLS_ASSIGN_OR_RETURN(
           TypeAnnotation * new_type,
           CastIfNotVerbatim<TypeAnnotation*>(old_to_new_.at(member->type())));
       XLS_ASSIGN_OR_RETURN(
           NameDef * new_name,
           CastIfNotVerbatim<NameDef*>(old_to_new_.at(member->name_def())));
-      auto new_member = m->Make<StructMemberNode>(
+      auto* new_member = m->Make<StructMemberNode>(
           member->span(), new_name, member->colon_span(), new_type);
-      new_member->SetAttributes(member->attributes());
-      new_members.push_back(new_member);
+      XLS_ASSIGN_OR_RETURN(std::vector<Attribute*> new_attributes,
+                           CloneAttributes(member->attributes()));
+      new_member->SetAttributes(new_attributes);
+      new_struct_def->AddMember(new_member);
     }
-
-    auto* new_name_def =
-        absl::down_cast<NameDef*>(old_to_new_.at(n->name_def()));
-    auto* new_struct_def =
-        m->Make<T>(n->span(), new_name_def, new_parametric_bindings,
-                   new_members, n->is_public());
-    old_to_new_[n] = new_struct_def;
 
     if (n->impl().has_value()) {
       if (!old_to_new_.contains(n->impl().value())) {
@@ -1374,19 +1385,26 @@ class AstCloner : public AstNodeVisitor {
       return absl::OkStatus();
     }
 
-    std::vector<Attribute*> new_attributes;
-    new_attributes.reserve(node->attributes().size());
-    for (const Attribute* attribute : node->attributes()) {
-      XLS_RETURN_IF_ERROR(ReplaceOrVisit(attribute));
-      new_attributes.push_back(
-          absl::down_cast<Attribute*>(old_to_new_.at(attribute)));
-    }
+    XLS_ASSIGN_OR_RETURN(std::vector<Attribute*> new_attributes,
+                         CloneAttributes(node->attributes()));
     XLS_RETURN_IF_ERROR(node->Accept(this));
     const auto it = old_to_new_.find(node);
     if (it != old_to_new_.end()) {
       it->second->SetAttributes(new_attributes);
     }
     return absl::OkStatus();
+  }
+
+  absl::StatusOr<std::vector<Attribute*>> CloneAttributes(
+      const std::vector<Attribute*>& old_attributes) {
+    std::vector<Attribute*> new_attributes;
+    new_attributes.reserve(old_attributes.size());
+    for (const Attribute* attribute : old_attributes) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(attribute));
+      new_attributes.push_back(
+          absl::down_cast<Attribute*>(old_to_new_.at(attribute)));
+    }
+    return new_attributes;
   }
 
   std::vector<ExprOrType> CloneParametrics(

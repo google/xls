@@ -2692,5 +2692,20 @@ fn foo<T: type>(x: T) -> T {
   ASSERT_EQ(binding_annotation, param_annotation_definer);
 }
 
+TEST(AstClonerTest, StructDefWithSelfReference) {
+  constexpr std::string_view kProgram = R"(struct Foo {
+    a: uN[Self::LIMIT],
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * foo,
+                           module->GetMemberOrError<StructDef>("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * foo_clone, CloneAst(foo));
+  EXPECT_EQ(foo_clone->ToString(), kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx

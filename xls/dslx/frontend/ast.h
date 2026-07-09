@@ -187,6 +187,7 @@ bool IsOneOf(ObjT* obj) {
 
 // Forward decl of non-leaf type.
 class Expr;
+class SelfTypeAnnotation;
 class TypeAnnotation;
 
 using ExprOrType = std::variant<Expr*, TypeAnnotation*>;
@@ -2089,8 +2090,9 @@ using ImportSubject = std::variant<UseTreeEntry*, Import*>;
 // Then the ColonRef `some_mod::SomeEnum` is the LHS.
 class ColonRef : public Expr {
  public:
-  using Subject = std::variant<NameRef*, ColonRef*, TypeRefTypeAnnotation*,
-                               TypeVariableTypeAnnotation*>;
+  using Subject =
+      std::variant<NameRef*, ColonRef*, TypeRefTypeAnnotation*,
+                   TypeVariableTypeAnnotation*, SelfTypeAnnotation*>;
 
   ColonRef(Module* owner, Span span, Subject subject, std::string attr,
            bool in_parens = false);
@@ -3352,6 +3354,7 @@ class StructDefBase : public AstNode {
 
   bool is_public() const { return public_; }
   const Span& span() const { return span_; }
+  void set_span(const Span& span) { span_ = span; }
   std::optional<Span> GetSpan() const override { return span_; }
 
   const std::string& GetMemberName(int64_t i) const {
