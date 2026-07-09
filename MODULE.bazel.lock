@@ -919,7 +919,7 @@
     },
     "//dependency_support/llvm:extension.bzl%llvm_raw_ext": {
       "general": {
-        "bzlTransitiveDigest": "t2pXWfJ+QftYf/BbSXxrGY0m58yB5NmgO7GKjhe4T+c=",
+        "bzlTransitiveDigest": "7MhMiwrVT3nWK3pOIvCA2SWic153sGIJXu0TX4TUj20=",
         "usagesDigest": "2L4aUO+mN7yb6ncsan8L0mvPbVM94Dnps3QE6J8hcHw=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -929,7 +929,7 @@
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
               "build_file_content": "# empty",
-              "sha256": "6b47681850bfef23abab31d193fb850b3200940ec001c26fa73b17d3134b6d82",
+              "sha256": "7b5c96a3e90a0c414d2745e1d517a859c9fa018f28a53a94c60510e8a68fc40c",
               "patches": [
                 "@@//dependency_support/llvm:llvm.patch",
                 "@@//dependency_support/llvm:zlib-header.patch",
@@ -938,9 +938,9 @@
               "patch_args": [
                 "-p1"
               ],
-              "strip_prefix": "llvm-project-58bc8dff332e0d4d7609b6dbda62200355bbc75f",
+              "strip_prefix": "llvm-project-1a5376e062e3f3b99ffce25e24e53182202e06b9",
               "urls": [
-                "https://github.com/llvm/llvm-project/archive/58bc8dff332e0d4d7609b6dbda62200355bbc75f.tar.gz"
+                "https://github.com/llvm/llvm-project/archive/1a5376e062e3f3b99ffce25e24e53182202e06b9.tar.gz"
               ]
             }
           }
