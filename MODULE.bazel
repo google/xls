@@ -120,6 +120,14 @@ use_repo(ac_types_ext, "ac_datatypes")
 z3_ext = use_extension("//dependency_support/z3:extension.bzl", "z3_extension")
 use_repo(z3_ext, "z3")
 
+# busperf analyzer (used in //xls/experimental/busperf)
+busperf_ext = use_extension("//dependency_support/busperf:extension.bzl", "busperf_extension")
+use_repo(busperf_ext, "busperf")
+
+# Hermetic Rust toolchain for building busperf (needs wasm32-unknown-unknown)
+rust_toolchain_ext = use_extension("//dependency_support/busperf:extension.bzl", "rust_toolchain_extension")
+use_repo(rust_toolchain_ext, "busperf_rust_toolchain")
+
 bitwuzla_ext = use_extension("//dependency_support/bitwuzla:extension.bzl", "bitwuzla_extension")
 use_repo(bitwuzla_ext, "bitwuzla", "cadical", "symfpu")
 
