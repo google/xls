@@ -1061,10 +1061,12 @@ proc PriorityMuxTest {
   EXPECT_THAT(seed_only_result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
 
   // With it on, the same seed reaches the scheduler and can break the test.
+  // Pin mid_tick_yield off; it defaults on with randomize_proc_execution.
   ParseAndTestOptions randomized_options;
   randomized_options.max_ticks = 20;
   randomized_options.randomize_proc_execution = true;
   randomized_options.seed = int64_t{0};
+  randomized_options.mid_tick_yield = false;
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData randomized_result,
       ParseAndTest(kProgram, "test_module", filename, randomized_options));

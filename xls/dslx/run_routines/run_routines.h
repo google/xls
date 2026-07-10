@@ -114,7 +114,8 @@ struct ParseAndTestOptions {
   std::optional<int64_t> max_ticks;
   bool simulate_bounded_fifos = false;
   bool randomize_proc_execution = false;
-  bool mid_tick_yield = false;
+  // Unset follows randomize_proc_execution; set to force on/off explicitly.
+  std::optional<bool> mid_tick_yield;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
 

@@ -126,13 +126,15 @@ class BytecodeInterpreterOptions {
     return proc_schedule_seed_;
   }
 
-  // When true, the proc yields after each successful channel op and is
-  // re-inserted at a random position in the ready list.
+  // When true, procs yield after each channel op and re-insert randomly.
+  // Defaults to proc_schedule_seed being set; pass false to opt out.
   BytecodeInterpreterOptions& mid_tick_yield(bool value) {
     mid_tick_yield_ = value;
     return *this;
   }
-  bool mid_tick_yield() const { return mid_tick_yield_; }
+  bool mid_tick_yield() const {
+    return mid_tick_yield_.value_or(proc_schedule_seed_.has_value());
+  }
 
  private:
   PostFnEvalHook post_fn_eval_hook_ = nullptr;
@@ -144,7 +146,7 @@ class BytecodeInterpreterOptions {
   FormatPreference format_preference_ = FormatPreference::kDefault;
   bool simulate_bounded_fifos_ = false;
   std::optional<int64_t> proc_schedule_seed_;
-  bool mid_tick_yield_ = false;
+  std::optional<bool> mid_tick_yield_;
 };
 
 }  // namespace xls::dslx

@@ -1745,8 +1745,11 @@ proc PriorityMuxTest {
   XLS_ASSERT_OK_AND_ASSIGN(
       TestProc * test_proc,
       ParseAndGetTestProc(kProgram, "PriorityMuxTest"));
-  auto options =
-      BytecodeInterpreterOptions().max_ticks(20).proc_schedule_seed(0);
+  // Pin mid_tick_yield off; it defaults on with a schedule seed.
+  auto options = BytecodeInterpreterOptions()
+                     .max_ticks(20)
+                     .proc_schedule_seed(0)
+                     .mid_tick_yield(false);
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcHierarchyInterpreter> first,
                            Create(test_proc, options));
