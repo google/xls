@@ -2278,8 +2278,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // creates additional pitfalls, like erroneously naming two different
     // arguments the same thing.
     XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
-    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
-                         GetStructOrProcRef(node->struct_ref(), import_data_));
+    const NameRef* type_variable = *table_.GetTypeVariable(node);
+    if (source.has_value()) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(*source, type_variable));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<StructOrProcRef> struct_or_proc_ref,
+        GetStructOrProcRef(node->struct_ref(), import_data_, true));
+
     if (!struct_or_proc_ref.has_value()) {
       return TypeInferenceErrorStatusForAnnotation(
           node->span(), node->struct_ref(),
@@ -2289,33 +2295,38 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           file_table_);
     }
 
-    const StructDefBase* struct_def = struct_or_proc_ref->def;
-
-    const NameRef* type_variable = *table_.GetTypeVariable(node);
-    if (source.has_value()) {
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(*source, type_variable));
-    }
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node, CreateStructOrProcAnnotation(
-                  module_, const_cast<StructDefBase*>(struct_def),
-                  struct_or_proc_ref->parametrics, node)));
-    const StructDef* concrete_struct_def =
-        dynamic_cast<const StructDef*>(struct_def);
-    bool allow_missing_members =
-        in_fuzz_test_domain_ || (concrete_struct_def != nullptr &&
-                                 concrete_struct_def->is_domain_struct());
-    XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(
-        *node, *struct_def, allow_missing_members));
-
     absl::flat_hash_map<std::string, const StructMemberNode*> formal_member_map;
-    for (const StructMemberNode* formal_member : struct_def->members()) {
-      formal_member_map.emplace(formal_member->name(), formal_member);
+    bool is_generic = false;
+    bool allow_missing_members = false;
+    if (struct_or_proc_ref->is_generic) {
+      // If the struct ref is a `GenericTypeAnnotation`, then we are
+      // instantiating a struct that is typed as a generic parametric. In this
+      // case, we don't try to resolve the struct def and we just create
+      // annotations based on the instantiation members.
+      is_generic = true;
+    } else {
+      const StructDefBase* struct_def = struct_or_proc_ref->def;
+
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, CreateStructOrProcAnnotation(
+                    module_, const_cast<StructDefBase*>(struct_def),
+                    struct_or_proc_ref->parametrics, node)));
+      const StructDef* concrete_struct_def =
+          dynamic_cast<const StructDef*>(struct_def);
+      allow_missing_members =
+          in_fuzz_test_domain_ || (concrete_struct_def != nullptr &&
+                                   concrete_struct_def->is_domain_struct());
+      XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(
+          *node, *struct_def, allow_missing_members));
+      formal_member_map.reserve(struct_def->members().size());
+      for (const StructMemberNode* formal_member : struct_def->members()) {
+        formal_member_map.emplace(formal_member->name(), formal_member);
+      }
     }
+
     const TypeAnnotation* struct_variable_type =
         module_.Make<TypeVariableTypeAnnotation>(type_variable);
     for (const auto& [name, actual_member] : node->members()) {
-      const StructMemberNode* formal_member = formal_member_map.at(name);
-
       if (allow_missing_members) {
         // In a fuzz test domain, the actual member expression represents a
         // domain (e.g. `u32:0..10` which has type `u32[10]`) rather than a
@@ -2326,20 +2337,29 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             DefineAndSetTypeVariable(actual_member, "actual_member_domain"));
         XLS_RETURN_IF_ERROR(actual_member->Accept(this));
       } else {
-        // In the context of instance initialization only, we require the RHS of
-        // proc state assignment to be T rather than State<T>.
-        const TypeAnnotation* formal_member_type =
-            module_.Make<MemberTypeAnnotation>(
-                formal_member->name_def()->span(), struct_variable_type,
-                formal_member->name(),
-                /*use_wrapped_type_if_proc_state=*/false);
+        const TypeAnnotation* member_type = nullptr;
+        if (is_generic) {
+          // For generic types, construct the member type based on the actual
+          // member.
+          member_type = module_.Make<MemberTypeAnnotation>(
+              actual_member->span(), struct_variable_type, name,
+              /*use_wrapped_type_if_proc_state=*/false);
+        } else {
+          const StructMemberNode* formal_member = formal_member_map.at(name);
+          // In the context of instance initialization only, we require the RHS
+          // of proc state assignment to be T rather than State<T>.
+          member_type = module_.Make<MemberTypeAnnotation>(
+              formal_member->name_def()->span(), struct_variable_type,
+              formal_member->name(),
+              /*use_wrapped_type_if_proc_state=*/false);
 
-        table_.SetAnnotationFlag(formal_member_type,
-                                 TypeInferenceFlag::kFormalMemberType);
+          table_.SetAnnotationFlag(member_type,
+                                   TypeInferenceFlag::kFormalMemberType);
+        }
         XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(
-            actual_member, "actual_member", formal_member_type));
+            actual_member, "actual_member", member_type));
         XLS_RETURN_IF_ERROR(
-            table_.SetTypeAnnotation(actual_member, formal_member_type));
+            table_.SetTypeAnnotation(actual_member, member_type));
         XLS_RETURN_IF_ERROR(actual_member->Accept(this));
       }
     }

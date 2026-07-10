@@ -42,6 +42,7 @@ struct StructOrProcRef {
   std::vector<ExprOrType> parametrics;
   std::optional<const StructInstanceBase*> instantiator;
   std::optional<const TypeRefTypeAnnotation*> type_ref_type_annotation;
+  bool is_generic;
 };
 
 // The signedness and bit count extracted from a `TypeAnnotation`. The

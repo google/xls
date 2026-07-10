@@ -449,12 +449,7 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
                            GetStructOrProcRef(original_type_ref, import_data_));
       if (lambda_type_ref == nullptr) {
         lambda_type_ref = module->Make<TypeRef>(original_nd->span(), type_def);
-        // TODO(https://github.com/google/xls/issues/4338): Once we can resolve
-        // a StructOrProcRef from a TVTA, don't set the definer here.
-        lambda_struct_nd->set_definer(module->Make<TypeRefTypeAnnotation>(
-            original_type_ref->span(), lambda_type_ref,
-            original_type_ref->parametrics(),
-            original_type_ref->instantiator()));
+        lambda_struct_nd->set_definer(original_nd->definer());
       }
       node_replacements.emplace(
           original_type_ref,

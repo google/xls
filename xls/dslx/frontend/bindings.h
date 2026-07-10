@@ -231,6 +231,16 @@ class Bindings {
     if (!bn) {
       return false;
     }
+    // A `NameDef` is a type definition if its definer is a
+    // `GenericTypeAnnotation`.
+    if (std::holds_alternative<NameDef*>(*bn)) {
+      auto nd = std::get<NameDef*>(*bn);
+      if (nd->definer() != nullptr) {
+        if (auto* ta = dynamic_cast<TypeAnnotation*>(nd->definer())) {
+          return ta->IsAnnotation<GenericTypeAnnotation>();
+        }
+      }
+    }
     return std::holds_alternative<EnumDef*>(*bn) ||
            std::holds_alternative<TypeAlias*>(*bn) ||
            std::holds_alternative<StructDef*>(*bn) ||
