@@ -288,6 +288,38 @@ TEST_F(ProcTest, RemoveStateThatStillHasUse) {
                        HasSubstr("state read st has uses")));
 }
 
+TEST_F(ProcTest, InsertStateElementDecoupled) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element,
+                           pb.UnreadStateElement("st", Value(UBits(42, 32)),
+                                                 /*non_synthesizable=*/false));
+  pb.StateRead(state_element, std::nullopt);
+  pb.Next(state_element, pb.Literal(UBits(1, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ASSERT_TRUE(proc->uses_decoupled_next());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Literal * zero_literal,
+                           proc->MakeNodeWithName<Literal>(
+                               SourceInfo(), Value(UBits(0, 32)), "zero"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateRead * new_read,
+      proc->AppendStateElement("new_state_element", Value(UBits(100, 32)),
+                               /*read_predicate=*/std::nullopt,
+                               /*next_state=*/zero_literal,
+                               /*non_synthesizable=*/false));
+
+  StateElement* new_state_element = new_read->state_element();
+
+  // Verify that the new Next node is decoupled.
+  EXPECT_EQ(proc->GetStateElementCount(), 2);
+  EXPECT_THAT(
+      proc->next_values(new_state_element),
+      ElementsAre(m::NextWithStateElement(new_state_element, m::Literal(0))));
+}
+
 TEST_F(ProcTest, Clone) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(

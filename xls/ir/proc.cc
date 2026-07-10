@@ -301,14 +301,19 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
   state_reads_[state_element].push_back(state_read);
 
   if (next_state.has_value()) {
-    if (!ValueConformsToType(init_value, next_state.value()->GetType())) {
+    Node* next_node = next_state.value();
+    if (!ValueConformsToType(init_value, next_node->GetType())) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Cannot add state element at %d, next state value %s (type %s) does "
           "not match type of initial value: %s",
-          index, next_state.value()->GetName(),
-          next_state.value()->GetType()->ToString(), init_value.ToString()));
+          index, next_node->GetName(), next_node->GetType()->ToString(),
+          init_value.ToString()));
     }
-    XLS_RETURN_IF_ERROR(MakeNode<Next>(SourceInfo(), state_read, *next_state,
+    Next::StateIdentifier state_identifier =
+        uses_decoupled_next() ? Next::StateIdentifier(state_element)
+                              : Next::StateIdentifier(state_read);
+    XLS_RETURN_IF_ERROR(MakeNode<Next>(SourceInfo(), state_identifier,
+                                       *next_state,
                                        /*predicate=*/std::nullopt,
                                        /*label=*/std::nullopt)
                             .status());
