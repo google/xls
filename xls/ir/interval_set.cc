@@ -130,14 +130,18 @@ void IntervalSet::Normalize() {
     // the general case.
     //
     // Let [a, b] = `intervals_[write_idx]` and [c, d] = `intervals_[read_idx]`.
-    // We know that `a <= c`, so the intervals overlap if and only if `b >= c` -
-    // and they abut if and only if `b + 1 == c`.
+    // We know that `a <= c`, so the intervals overlap if and only if `b >= c`,
+    // and they abut if and only if `b + 1 == c`. In other words, the intervals
+    // can be merged if and only if `b >= predecessor(c)` (i.e., `c - 1`
+    // ignoring underflow).
     const Bits& b = intervals_[write_idx].UpperBound();
     const Bits& c = intervals_[read_idx].LowerBound();
-    if (bits_ops::UGreaterThanOrEqual(b, c) ||
-        bits_ops::UEqual(bits_ops::Increment(b), c)) {
+    if (bits_ops::UAtLeastPredecessor(b, c)) {
       // Since the intervals are sorted, using the notation above, we know that
       // `a <= c`, so the merged interval is just `[a, max(b, d)]`.
+      //
+      // If `d > b`, we need to update the upper bound to `d`; otherwise, we can
+      // just keep `b` as the upper bound.
       if (bits_ops::UGreaterThan(intervals_[read_idx].UpperBound(),
                                  intervals_[write_idx].UpperBound())) {
         intervals_[write_idx] =

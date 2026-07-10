@@ -423,6 +423,48 @@ TEST(BitsOpsTest, UnsignedComparisons) {
   EXPECT_TRUE(bits_ops::ULessThan(bits_ops::ZeroExtend(huge, 10000), huger));
 }
 
+TEST(BitsOpsTest, UAtLeastPredecessor) {
+  // 0-width
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(Bits(0), Bits(0)));
+
+  // 1-width
+  EXPECT_TRUE(
+      bits_ops::UAtLeastPredecessor(UBits(0, 1), UBits(0, 1)));  // b == c
+  EXPECT_TRUE(
+      bits_ops::UAtLeastPredecessor(UBits(1, 1), UBits(0, 1)));  // b > c
+  EXPECT_TRUE(
+      bits_ops::UAtLeastPredecessor(UBits(0, 1), UBits(1, 1)));  // b + 1 == c
+
+  // 8-width
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(UBits(10, 8), UBits(10, 8)));
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(UBits(11, 8), UBits(10, 8)));
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(UBits(9, 8), UBits(10, 8)));
+  EXPECT_FALSE(bits_ops::UAtLeastPredecessor(UBits(8, 8), UBits(10, 8)));
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(
+      UBits(255, 8), UBits(0, 8)));  // b >= c (also wrap)
+
+  // 64-width
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(UBits(0, 64), UBits(0, 64)));
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(UBits(1, 64), UBits(0, 64)));
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(UBits(0, 64), UBits(1, 64)));
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(UBits(0xFFFFFFFFFFFFFFFFULL, 64),
+                                            UBits(0, 64)));
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(UBits(0xFFFFFFFFFFFFFFFEULL, 64),
+                                            UBits(0xFFFFFFFFFFFFFFFFULL, 64)));
+
+  // 128-width
+  Bits b_128_1 =
+      bits_ops::Concat({UBits(0, 64), UBits(0xFFFFFFFFFFFFFFFFULL, 64)});
+  Bits c_128_1 = bits_ops::Concat({UBits(1, 64), UBits(0, 64)});
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(b_128_1, c_128_1));  // b + 1 == c
+
+  Bits b_128_2 =
+      bits_ops::Concat({UBits(0, 64), UBits(0xFFFFFFFFFFFFFFFEULL, 64)});
+  EXPECT_FALSE(bits_ops::UAtLeastPredecessor(b_128_2, c_128_1));
+
+  EXPECT_TRUE(bits_ops::UAtLeastPredecessor(c_128_1, b_128_1));  // b > c
+}
+
 TEST(BitsOpsTest, UnsignedEqualComparisons) {
   EXPECT_TRUE(bits_ops::UEqual(Bits(), UBits(0, 42)));
   EXPECT_TRUE(bits_ops::UEqual(UBits(0, 42), UBits(0, 42)));

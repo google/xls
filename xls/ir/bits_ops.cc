@@ -15,6 +15,7 @@
 #include "xls/ir/bits_ops.h"
 
 #include <algorithm>
+#include <compare>
 #include <cstdint>
 #include <iterator>
 #include <limits>
@@ -362,6 +363,51 @@ bool ULessThan(const Bits& lhs, const Bits& rhs) { return UCmp(lhs, rhs) < 0; }
 
 int64_t UCmp(const Bits& lhs, const Bits& rhs) {
   return lhs.bitmap().UCmp(rhs.bitmap());
+}
+
+bool UAtLeastPredecessor(const Bits& lhs, const Bits& rhs) {
+  CHECK_EQ(lhs.bit_count(), rhs.bit_count());
+  const InlineBitmap& b_map = lhs.bitmap();
+  const InlineBitmap& c_map = rhs.bitmap();
+  int64_t w_count = b_map.word_count();
+  if (w_count == 0) {
+    return true;
+  }
+
+  // Scan the words from MSB to LSB to find the first difference.
+  for (int64_t i = w_count - 1; i >= 0; --i) {
+    uint64_t b_word = b_map.GetWord(i);
+    uint64_t c_word = c_map.GetWord(i);
+    std::strong_ordering cmp = b_word <=> c_word;
+    if (cmp == std::strong_ordering::greater) {
+      // b > c
+      return true;
+    }
+    if (cmp == std::strong_ordering::equal) {
+      // Need to check the next word.
+      continue;
+    }
+
+    // b < c, need to check if c == b + 1.
+    // This holds if and only if:
+    //   1. At the first difference, c_word must be b_word + 1;
+    //      since b_word < c_word, there's no overflow to manage,
+    //   2. All lower words of b must be all ones (~0) to propagate the carry,
+    //      and
+    //   3. All lower words of c must be zero, to match the carry's result.
+    if (c_word != b_word + 1) {
+      return false;
+    }
+    for (int64_t j = i - 1; j >= 0; --j) {
+      if (b_map.GetWord(j) != ~uint64_t{0} || c_map.GetWord(j) != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // No differences found, so `b == c`.
+  return true;
 }
 
 const Bits& UMin(const Bits& lhs, const Bits& rhs) {

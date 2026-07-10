@@ -120,6 +120,11 @@ bool SGreaterThan(const Bits& lhs, int64_t rhs);
 bool SLessThanOrEqual(const Bits& lhs, int64_t rhs);
 bool SLessThan(const Bits& lhs, int64_t rhs);
 
+// A specialized overload for checking if `lhs >= predecessor(rhs)` (i.e., `lhs
+// >= rhs` or `lhs + 1 == rhs`), where `lhs` and `rhs` are the same width. This
+// is particularly useful in (e.g.) interval overlap/abutment checks.
+bool UAtLeastPredecessor(const Bits& lhs, const Bits& rhs);
+
 // Zero/sign extend 'bits' to the new bit count and return the result.
 //
 // Check-fails if new_bit_count is not >= bits.bit_count().
