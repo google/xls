@@ -2223,17 +2223,15 @@ In this example, we define `MyStruct` and derive `MyStructDomain`. We use a
 helper function `create_domain` to construct and return the domain, which is
 then used in the `#[fuzz_test]` attribute.
 
-```dslx-snippet
+```dslx
 #[fuzz_domain("MyStructDomain")]
-struct MyStruct {
-    x: u32,
-    y: bool,
-}
+struct MyStruct { x: u32, y: bool }
 
 fn create_domain() -> MyStructDomain {
     MyStructDomain {
         x: u32:0..10,
-        y: (), // arbitrary domain, can be omitted
+        // arbitrary domain, can be omitted:
+        y: (),
     }
 }
 

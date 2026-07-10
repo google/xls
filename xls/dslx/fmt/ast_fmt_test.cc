@@ -4180,5 +4180,24 @@ TEST_F(ModuleFmtTest, CustomFormatterOverriddenMethodUsed) {
   EXPECT_EQ(got, "// CUSTOM_FUNCTION_FORMAT\n");
 }
 
+TEST_F(ModuleFmtTest, DomainStruct) {
+  DoFmt(R"(#[fuzz_domain("MyStructDomain")]
+struct MyStruct { x: u32, y: bool }
+
+fn create_domain() -> MyStructDomain {
+    MyStructDomain {
+        x: u32:0..10,
+        // arbitrary domain, can be omitted:
+        y: (),
+    }
+}
+
+#[fuzz_test(domains=`create_domain()`)]
+fn test_flat_struct(s: MyStruct) -> bool {
+    s.x < u32:10
+}
+)");
+}
+
 }  // namespace
 }  // namespace xls::dslx

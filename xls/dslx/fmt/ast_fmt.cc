@@ -3191,6 +3191,13 @@ absl::StatusOr<DocRef> Formatter::FormatModule(const Module& n) {
 
     const AstNode* node = ToAstNode(member);
 
+    if (const StructDef* sd = dynamic_cast<const StructDef*>(node);
+        sd != nullptr && sd->is_domain_struct()) {
+      // Skip derived domain structs; they shouldn't be formatted, even
+      // though they're in the AST.
+      continue;
+    }
+
     // If this is a desugared proc function, we skip it, and handle formatting
     // it when we get to the proc node.
     // TODO: https://github.com/google/xls/issues/1029 remove desugared proc

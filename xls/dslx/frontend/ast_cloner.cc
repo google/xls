@@ -943,6 +943,7 @@ class AstCloner : public AstNodeVisitor {
         if (n->extern_type_name().has_value()) {
           new_struct_def->set_extern_type_name(*n->extern_type_name());
         }
+        new_struct_def->set_is_domain_struct(n->is_domain_struct());
       }
     }
     return status;
