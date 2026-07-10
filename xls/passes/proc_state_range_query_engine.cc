@@ -44,6 +44,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/partial_information.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/ternary.h"
@@ -54,6 +55,7 @@
 #include "xls/passes/back_propagate_range_analysis.h"
 #include "xls/passes/dataflow_visitor.h"
 #include "xls/passes/node_dependency_analysis.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
@@ -175,87 +177,6 @@ ExtractContextSensitiveRange(
                         contextual_range.GetIntervals(next->value()).Get({}));
 }
 
-class SegmentRangeData : public RangeDataProvider {
- public:
-  static absl::StatusOr<SegmentRangeData> Create(
-      const NodeForwardDependencyAnalysis& nda,
-      const absl::flat_hash_map<StateElement*, RangeData>& ground_truth,
-      StateRead* data_source, absl::Span<Node* const> topo_sort) {
-    Proc* proc = data_source->function_base()->AsProcOrDie();
-    auto nexts = proc->next_values(data_source->state_element());
-    absl::flat_hash_set<Node*> dependencies;
-    int64_t max_size = 0;
-    for (Next* n : nexts) {
-      max_size += nda.GetInfo(n)->size();
-    }
-    dependencies.reserve(max_size);
-    for (Next* n : nexts) {
-      auto prevs = nda.NodesDependedOnBy(n);
-      dependencies.insert(prevs.begin(), prevs.end());
-    }
-    return SegmentRangeData(dependencies, ground_truth, data_source, topo_sort);
-  }
-
-  void SetParamIntervals(const IntervalSet& is) { current_segments_ = is; }
-
-  bool IsInteresting(Node* n) const {
-    return (n->Is<Next>() && n->As<Next>()->state_read() == data_source_) ||
-           dependencies_.contains(n);
-  }
-
-  std::optional<RangeData> GetKnownIntervals(Node* node) final {
-    if (node == data_source_) {
-      CHECK(!current_segments_.IsEmpty());
-      return RangeData{.ternary = interval_ops::ExtractTernaryVector(
-                           current_segments_, node),
-                       .interval_set = IntervalSetTree::CreateSingleElementTree(
-                           node->GetType(), current_segments_)};
-    }
-    if (node->Is<StateRead>()) {
-      StateElement* state_element = node->As<StateRead>()->state_element();
-      if (!node->GetType()->IsBits()) {
-        return std::nullopt;
-      }
-      if (auto it = ground_truth_.find(state_element);
-          it != ground_truth_.end()) {
-        return it->second;
-      }
-      return std::nullopt;
-    }
-    // TODO(allight) We could be a bit more efficient by pre-calculating the
-    // nodes which feed the next node but not the fed from the param by running
-    // a TQE on the initial narrowing and using those values. Not clear its
-    // worth the complication.
-    return std::nullopt;
-  }
-
-  absl::Status IterateFunction(DfsVisitor* visitor) final {
-    for (Node* node : topo_sort_) {
-      // Don't bother to calculate anything nodes which don't reach a next
-      // instruction.
-      if (IsInteresting(node)) {
-        XLS_RETURN_IF_ERROR(node->VisitSingleNode(visitor)) << node;
-      }
-    }
-    return absl::OkStatus();
-  }
-
- private:
-  SegmentRangeData(
-      absl::flat_hash_set<Node*> dependencies,
-      const absl::flat_hash_map<StateElement*, RangeData>& ground_truth,
-      StateRead* data_source, absl::Span<Node* const> topo_sort)
-      : dependencies_(std::move(dependencies)),
-        ground_truth_(ground_truth),
-        data_source_(data_source),
-        current_segments_(data_source->BitCountOrDie()),
-        topo_sort_(topo_sort) {}
-  absl::flat_hash_set<Node*> dependencies_;
-  const absl::flat_hash_map<StateElement*, RangeData>& ground_truth_;
-  StateRead* data_source_;
-  IntervalSet current_segments_;
-  absl::Span<Node* const> topo_sort_;
-};
 bool AbsoluteValueLessThan(const Bits& l, const Bits& r) {
   CHECK_EQ(l.bit_count(), r.bit_count());
   Bits max_int = Bits::MaxSigned(l.bit_count());
@@ -588,14 +509,28 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
       << "Initial value not included in constant values.";
   remaining_intervals.erase(Interval::Precise(init_value.bits()));
   StateRead* state_read = proc->GetStateReadByStateElement(state_element);
-  XLS_ASSIGN_OR_RETURN(
-      SegmentRangeData limiter,
-      SegmentRangeData::Create(nda, ground_truth, state_read, topo_sort));
+  PartialInfoQueryEngine piqe;
+  absl::flat_hash_map<Node*, LeafTypeTree<PartialInformation>> givens;
+  givens.reserve(ground_truth.size());
+  for (const auto& [se, rd] : ground_truth) {
+    StateRead* sr = proc->GetStateReadByStateElement(se);
+    if (sr->GetType()->IsBits()) {
+      givens[sr] = LeafTypeTree<PartialInformation>::CreateSingleElementTree(
+          sr->GetType(), PartialInformation(rd.interval_set.Get({})));
+    }
+  }
+  XLS_RETURN_IF_ERROR(
+      piqe.PopulateWithGivens(proc, std::move(givens)).status());
+
   while (!remaining_intervals.empty()) {
-    // Get the ranges of every node (which leads to a 'next' of the param)
-    limiter.SetParamIntervals(active_intervals);
-    RangeQueryEngine rqe;
-    XLS_RETURN_IF_ERROR(rqe.PopulateWithGivens(limiter).status());
+    // Update the given for the state read node.
+    XLS_RETURN_IF_ERROR(
+        piqe.ReplaceGiven(
+                state_read,
+                LeafTypeTree<PartialInformation>::CreateSingleElementTree(
+                    state_read->GetType(),
+                    PartialInformation(active_intervals)))
+            .status());
 
     // Get what this says all ranges are.
     IntervalSet run_intervals = active_intervals;
@@ -605,7 +540,7 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
       // Nexts which don't update anything (either due to just being passthrough
       // or having a known-false predicate) don't need to be taken into account.
       if (n->value() == n->state_read() ||
-          (n->predicate() && rqe.IsAllZeros(*n->predicate()))) {
+          (n->predicate() && piqe.IsAllZeros(*n->predicate()))) {
         continue;
       }
       // Skip analyzing this value if we've already seen it.
@@ -613,15 +548,16 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
           !inserted) {
         continue;
       }
-      if (!rqe.HasExplicitIntervals(n->value())) {
+
+      IntervalSetTree node_intervals_tree = piqe.GetIntervals(n->value());
+      const IntervalSet& node_intervals = node_intervals_tree.Get({});
+      if (node_intervals.IsMaximal()) {
         // Unconstrained result. All segments active.
         return std::nullopt;
       }
       // This next node might participate in the selection of the next value
       // and is not a no-op.
-      run_intervals = IntervalSet::Combine(
-          run_intervals,
-          rqe.GetIntervalSetTreeView(n->value()).value().Get({}));
+      run_intervals = IntervalSet::Combine(run_intervals, node_intervals);
     }
 
     // Does this reveal new states?

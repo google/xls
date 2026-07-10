@@ -522,11 +522,6 @@ TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPointsNoLiteralNexts) {
 }
 
 TEST_F(ProcStateNarrowingPassTest, AggregateTypeComparisonHandled) {
-  // Previously it would try to split based on the 'ne' value but would
-  // XLS_RET_CHECK due to the arguments not being scalar values.
-  // Sample created through fuzzer.
-  // TODO(allight): It would be somewhat nice to see through this sort of thing
-  // but the benefits are likely to be small while being rather complicated.
   constexpr static std::string_view kProc = R"(
 proc __sample__main_0_next(__state: bits[58], init={144115188075855871}) {
   x2: bits[58][1] = array(__state, id=218, pos=[(0,32,28)])
@@ -541,14 +536,21 @@ proc __sample__main_0_next(__state: bits[58], init={144115188075855871}) {
   x12: bits[189] = concat(x5, x9, __state, x11, __state, id=343, pos=[(0,41,53)])
   x41: bits[58] = bit_slice_update(x13, x12, x9, id=258, pos=[(0,56,43)])
   __state_next: () = next_value(param=__state, value=x41, id=348)
+  output: token = send(after_all.225, x41, channel=state_out, id=349)
 }
 )";
   auto p = CreatePackage();
   XLS_ASSERT_OK(p->CreateStreamingChannel(
                      "sample__x6", ChannelOps::kReceiveOnly, p->GetBitsType(14))
                     .status());
+  XLS_ASSERT_OK(p->CreateStreamingChannel("state_out", ChannelOps::kSendOnly,
+                                          p->GetBitsType(58))
+                    .status());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(kProc, p.get()));
-  EXPECT_THAT(RunPass(proc), IsOkAndHolds(false));
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                            /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
 }
 
 TEST_F(ProcStateNarrowingPassTest, AllLiteralNextNodes) {
