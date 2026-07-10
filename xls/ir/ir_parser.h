@@ -115,6 +115,10 @@ class Parser {
   static absl::StatusOr<Proc*> ParseProc(std::string_view input_string,
                                          Package* package);
 
+  // Parse the input_string as a struct into the given package.
+  static absl::StatusOr<StructDef*> ParseStruct(std::string_view input_string,
+                                                Package* package);
+
   // Parse the input_string as a block into the given package.
   static absl::StatusOr<Block*> ParseBlock(std::string_view input_string,
                                            Package* package);
@@ -185,6 +189,9 @@ class Parser {
   absl::StatusOr<Function*> ParseFunctionInternal(
       Package* package, absl::Span<const IrAttribute> outer_attributes,
       bool scheduled, std::unique_ptr<FunctionBase>* overridden_dest);
+
+  absl::StatusOr<StructDef*> ParseStruct(Package* package);
+  absl::StatusOr<StructDef*> ParseStructInternal(Package* package);
 
   // Parse a proc starting at the current scanner position.
   absl::StatusOr<Proc*> ParseProc(
@@ -464,6 +471,10 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
       }
       previous_top_token = peek;
     }
+    if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "struct") {
+      XLS_ASSIGN_OR_RETURN(StructDef* _, parser.ParseStruct(package.get()));
+      continue;
+    }
     if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "fn") {
       XLS_ASSIGN_OR_RETURN(
           Function * fn, parser.ParseFunction(package.get(), outer_attributes),
@@ -544,7 +555,8 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
     }
     return absl::InvalidArgumentError(
         absl::StrFormat("Expected attribute or declaration "
-                        "(`fn`, `proc`, `block`, `chan`, `file_number`), "
+                        "(`fn`, `proc`, `block`, `chan`, "
+                        "`file_number`, `struct`), "
                         "got %s @ %s",
                         peek.value(), peek.pos().ToHumanString()));
   }

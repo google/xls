@@ -76,6 +76,52 @@ TupleType* TypeManager::GetTupleType(absl::Span<Type* const> element_types) {
   return new_type;
 }
 
+StructType* TypeManager::GetStructType(std::string_view name) {
+  auto it = struct_types_.find(name);
+  if (it == struct_types_.end()) {
+    for (auto& [name, _] : struct_types_) {
+      LOG(INFO) << name;
+    }
+    CHECK(it != struct_types_.end());
+  }
+  return &it->second;
+}
+
+StructType* TypeManager::GetStructType(std::string_view name,
+                                       absl::Span<Type* const> element_types) {
+  if (struct_types_.find(name) != struct_types_.end()) {
+    return &struct_types_.at(name);
+  }
+  for (const Type* element_type : element_types) {
+    CHECK(IsOwnedType(element_type))
+        << "Type is not owned by package: " << *element_type;
+  }
+  auto it = struct_types_.emplace(std::string{name},
+                                  StructType(std::string{name}, element_types));
+  StructType* new_type = &(it.first->second);
+  owned_types_.insert(new_type);
+  return new_type;
+}
+
+StructType* TypeManager::GetStructType(absl::Span<Type* const> element_types) {
+  for (const Type* element_type : element_types) {
+    CHECK(IsOwnedType(element_type))
+        << "Type is not owned by package: " << *element_type;
+  }
+  for (auto& [name, type] : struct_types_) {
+    if (type.size() != element_types.size()) {
+      continue;
+    }
+    for (int i = 0; i < type.size(); ++i) {
+      if (!type.element_type(i)->IsEqualTo(element_types[i])) {
+        continue;
+      }
+    }
+    return &type;
+  }
+  CHECK(false);
+}
+
 TokenType* TypeManager::GetTokenType() { return token_type_.get(); }
 
 absl::StatusOr<Type*> TypeManager::MapTypeFromOtherArena(

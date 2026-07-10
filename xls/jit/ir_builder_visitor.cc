@@ -529,6 +529,9 @@ absl::StatusOr<std::vector<CompareTerm>> ExpandTerms(
         }
         break;
       }
+      case TypeKind::kStruct: {
+        return absl::UnimplementedError("Unhandled struct case");
+      }
     }
   }
   return terms;

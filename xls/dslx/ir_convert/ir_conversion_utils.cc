@@ -92,7 +92,8 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
                              TypeToIr(package_, *m, bindings_));
         members.push_back(type);
       }
-      retval_ = package_->GetTupleType(members);
+      CHECK(!t.alias().empty());
+      retval_ = package_->GetStructType(t.alias(), members);
       return absl::OkStatus();
     }
     absl::Status HandleProc(const ProcType& t) override {

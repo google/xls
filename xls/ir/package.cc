@@ -169,6 +169,11 @@ Block* Package::AddBlock(std::unique_ptr<Block> block) {
   return blocks_.back().get();
 }
 
+StructDef* Package::AddStruct(std::unique_ptr<StructDef> item) {
+  structs_.push_back(std::move(item));
+  return structs_.back().get();
+}
+
 NameUniquer Package::NameUniquerForPackage() const {
   NameUniquer res(/*separator=*/"__");
   for (const auto& function : GetFunctionBases()) {
@@ -595,6 +600,10 @@ std::string Package::DumpIr() const {
                       "\"", filename, "\"\n");
     }
     absl::StrAppend(&out, "\n");
+  }
+
+  for (const auto& item : structs_) {
+    absl::StrAppend(&out, item->DumpIr(), "\n\n");
   }
 
   if (!channels().empty()) {

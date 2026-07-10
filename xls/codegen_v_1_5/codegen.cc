@@ -126,6 +126,16 @@ absl::StatusOr<verilog::CodegenResult> ConvertToVerilog(
   XLS_RET_CHECK(top_block->GetSignature().has_value());
   verilog::VerilogLineMap verilog_line_map;
   verilog::CodegenResidualData residual_data;
+
+  xls::Package* package = top_block->package();
+  std::string types;
+  for (const auto& item : package->structs()) {
+    XLS_ASSIGN_OR_RETURN(std::string verilog_struct,
+                         verilog::GenerateVerilog(package, item.get(),
+                                                  options));
+    absl::StrAppend(&types, "\n\n", verilog_struct);
+  }
+
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
       verilog::GenerateVerilog(top_block, options, &verilog_line_map,
@@ -142,7 +152,7 @@ absl::StatusOr<verilog::CodegenResult> ConvertToVerilog(
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
   return verilog::CodegenResult{
-      .verilog_text = verilog,
+      .verilog_text = absl::StrCat(types, "\n\n", verilog),
       .verilog_line_map = std::move(verilog_line_map),
       .signature = signature,
       .block_metrics = metrics,
@@ -208,9 +218,11 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
   XLS_RETURN_IF_ERROR(ConvertToBlock(package, options, scheduling_options,
                                      delay_estimator, context, &pass_results,
                                      schedule));
-
-  return ConvertBlockToVerilog(package, options, delay_estimator,
-                               &context.opt_context, &pass_results);
+  XLS_ASSIGN_OR_RETURN(verilog::CodegenResult codegen_result,
+                       ConvertBlockToVerilog(package, options, delay_estimator,
+                                             &context.opt_context,
+                                             &pass_results));
+  return codegen_result;
 }
 
 }  // namespace xls::codegen

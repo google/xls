@@ -39,8 +39,9 @@ class TupleType;
 class ArrayType;
 class TokenType;
 class FunctionType;
+class StructType;
 
-enum class TypeKind { kTuple, kBits, kArray, kToken };
+enum class TypeKind { kTuple, kBits, kArray, kToken, kStruct };
 
 std::string TypeKindToString(TypeKind kind);
 std::ostream& operator<<(std::ostream& os, TypeKind type_kind);
@@ -80,6 +81,10 @@ class Type {
   bool IsToken() const { return kind_ == TypeKind::kToken; }
   TokenType* AsTokenOrDie();
   const TokenType* AsTokenOrDie() const;
+
+  bool IsStruct() const { return kind_ == TypeKind::kStruct; }
+  StructType* AsStructOrDie();
+  const StructType* AsStructOrDie() const;
 
   // Returns the count of bits required to represent the underlying type; e.g.
   // for tuples this will be the sum of the bit count from all its members, for
@@ -284,6 +289,24 @@ class InstantiationType {
   absl::flat_hash_map<std::string, Type*> output_types_;
 };
 
+// Represents a type that is a struct.
+class StructType : public TupleType {
+ public:
+  explicit StructType(std::string name, absl::Span<Type* const> members)
+      : TupleType(members), name_(std::move(name)) {}
+
+  ~StructType() override = default;
+
+  std::string ToString() const override;
+
+  TypeProto ToProto() const override;
+
+  std::string name() const { return name_; }
+
+ private:
+  std::string name_;
+};
+
 // -- Inlines
 
 inline const BitsType* Type::AsBitsOrDie() const {
@@ -324,6 +347,16 @@ inline const TokenType* Type::AsTokenOrDie() const {
 inline TokenType* Type::AsTokenOrDie() {
   CHECK_EQ(kind(), TypeKind::kToken);
   return absl::down_cast<TokenType*>(this);
+}
+
+inline StructType* Type::AsStructOrDie() {
+  CHECK_EQ(kind(), TypeKind::kStruct);
+  return absl::down_cast<StructType*>(this);
+}
+
+inline const StructType* Type::AsStructOrDie() const {
+  CHECK_EQ(kind(), TypeKind::kStruct);
+  return absl::down_cast<const StructType*>(this);
 }
 
 // Returns type of the nested element inside of "type_to_index" resulting from

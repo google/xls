@@ -143,12 +143,17 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
           XLS_ASSIGN_OR_RETURN(
               replacement, proc->MakeNode<Tuple>(node->loc(), tuple_operands));
         } else if (query_engine.IsAllOnes(predicate)) {
+          Type* channel_ref_type = receive->GetPayloadType();
+          if (channel_ref_type->IsStruct()) {
+            channel_ref_type = receive->package()->GetTupleType(
+                channel_ref_type->AsStructOrDie()->element_types());
+          }
           XLS_ASSIGN_OR_RETURN(
               replacement,
               proc->MakeNode<Receive>(
                   node->loc(), receive->token(),
                   /*predicate=*/std::nullopt, receive->channel_name(),
-                  receive->is_blocking(), receive->GetPayloadType()));
+                  receive->is_blocking(), channel_ref_type));
         }
       }
       if (replacement != nullptr) {

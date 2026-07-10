@@ -52,6 +52,10 @@ class TypeManager {
   BitsType* GetBitsType(int64_t bit_count);
   ArrayType* GetArrayType(int64_t size, Type* element_type);
   TupleType* GetTupleType(absl::Span<Type* const> element_types);
+  StructType* GetStructType(std::string_view name);
+  StructType* GetStructType(std::string_view name,
+                            absl::Span<Type* const> element_types);
+  StructType* GetStructType(absl::Span<Type* const> element_types);
   TokenType* GetTokenType();
   FunctionType* GetFunctionType(absl::Span<Type* const> args_types,
                                 Type* return_type);
@@ -87,6 +91,8 @@ class TypeManager {
   // Uses node_hash_map for pointer stability.
   using TypeVec = absl::InlinedVector<const Type*, 4>;
   absl::node_hash_map<TypeVec, TupleType> tuple_types_;
+
+  absl::node_hash_map<std::string, StructType> struct_types_;
 
   // Owned token type.
   std::unique_ptr<TokenType> token_type_;

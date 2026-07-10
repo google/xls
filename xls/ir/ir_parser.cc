@@ -185,6 +185,11 @@ absl::StatusOr<Type*> Parser::ParseType(Package* package) {
     XLS_ASSIGN_OR_RETURN(type, ParseTupleType(package));
   } else if (scanner_.TryDropKeyword("token")) {
     return package->GetTokenType();
+  } else if (scanner_.PeekTokenIs(LexicalTokenType::kIdent)) {
+    XLS_ASSIGN_OR_RETURN(
+        Token struct_name,
+        scanner_.PopTokenOrError(LexicalTokenType::kIdent, "struct name"));
+    return package->GetStructType(struct_name.value());
   } else {
     XLS_ASSIGN_OR_RETURN(type, ParseBitsType(package));
   }
@@ -1188,6 +1193,10 @@ absl::StatusOr<BValue> Parser::ParseNode(
                              package->GetChannel(channel_name->value));
         channel_type = std::get<Channel*>(channel_ref)->type();
       }
+      if (channel_type->IsStruct()) {
+        channel_type = package->GetTupleType(
+            channel_type->AsStructOrDie()->element_types());
+      }
 
       Type* expected_type =
           (*is_blocking)
@@ -1195,7 +1204,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
               : package->GetTupleType({package->GetTokenType(), channel_type,
                                        package->GetBitsType(1)});
 
-      if (expected_type != type) {
+      if (!expected_type->IsEqualTo(type)) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Receive op type is type: %s. Expected: %s",
                             type->ToString(), expected_type->ToString()));
@@ -1449,7 +1458,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
 
     // Verify that the type of the newly constructed node matches the parsed
     // type.
-    if (type != node->GetType()) {
+    if (!type->IsEqualTo(node->GetType())) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Declared type %s does not match expected type %s @ %s",
           type->ToString(), node->GetType()->ToString(),
@@ -2550,6 +2559,47 @@ absl::StatusOr<Proc*> Parser::ParseProcInternal(
     }
   }
   return proc;
+}
+
+/* static */ absl::StatusOr<StructDef*> Parser::ParseStruct(
+    std::string_view input_string, Package* package) {
+  XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
+  Parser p(std::move(scanner));
+  return p.ParseStructInternal(package);
+}
+
+absl::StatusOr<StructDef*> Parser::ParseStructInternal(Package* package) {
+  if (AtEof()) {
+    return absl::InvalidArgumentError("Could not parse struct; at EOF.");
+  }
+
+  XLS_RETURN_IF_ERROR(
+      scanner_.DropKeywordOrError("struct"));
+  XLS_ASSIGN_OR_RETURN(
+      Token struct_name,
+      scanner_.PopTokenOrError(LexicalTokenType::kIdent, "struct name"));
+  StructDef* item = package->AddStruct(
+      std::make_unique<StructDef>(struct_name.value()));
+  XLS_RETURN_IF_ERROR(
+      scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen));
+  std::vector<Type*> struct_types;
+  while (scanner_.PeekTokenIs(LexicalTokenType::kIdent)) {
+    XLS_ASSIGN_OR_RETURN(
+        Token var_name,
+        scanner_.PopTokenOrError(LexicalTokenType::kIdent, "var name"));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
+    XLS_ASSIGN_OR_RETURN(Type* type, ParseType(package));
+    struct_types.push_back(type);
+    item->AddMember(type, var_name.value());
+  }
+  XLS_RETURN_IF_ERROR(
+      scanner_.DropTokenOrError(LexicalTokenType::kCurlClose));
+  package->GetStructType(item->name(), struct_types);
+  return item;
+}
+
+absl::StatusOr<StructDef*> Parser::ParseStruct(Package* package) {
+  return ParseStructInternal(package);
 }
 
 absl::StatusOr<Block*> Parser::ParseBlock(

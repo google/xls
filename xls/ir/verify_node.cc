@@ -178,7 +178,7 @@ class NodeChecker : public DfsVisitor {
             : receive->package()->GetTupleType(
                   {receive->package()->GetTokenType(), channel_type,
                    receive->package()->GetBitsType(1)});
-    if (receive->GetType() != expected_type) {
+    if (!receive->GetType()->IsEqualTo(expected_type)) {
       return absl::InternalError(absl::StrFormat(
           "Expected %s to have type %s, has type %s", receive->GetName(),
           expected_type->ToString(), receive->GetType()->ToString()));
@@ -1299,7 +1299,10 @@ class NodeChecker : public DfsVisitor {
   // Verifies that a particular operand of the given node has the given type.
   absl::Status ExpectOperandHasType(Node* node, int64_t operand_no,
                                     Type* type) const {
-    if (node->operand(operand_no)->GetType() != type) {
+    if (type->IsStruct()) {
+      type = node->package()->GetTupleType(type->AsStructOrDie()->element_types());
+    }
+    if (!node->operand(operand_no)->GetType()->IsEqualTo(type)) {
       return absl::InternalError(absl::StrFormat(
           "Expected operand %d of %s to have type %s, has type %s.", operand_no,
           node->GetName(), type->ToString(),
