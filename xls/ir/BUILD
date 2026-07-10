@@ -651,6 +651,7 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:algorithm",
         "//xls/data_structures:leaf_type_tree",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",

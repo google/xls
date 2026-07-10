@@ -25,6 +25,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/algorithm.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
@@ -196,16 +197,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   //   Op(x, y, y, x)  =>  Op(x, y)
   if (n->Is<NaryOp>() && (n->op() == Op::kAnd || n->op() == Op::kOr ||
                           n->op() == Op::kNand || n->op() == Op::kNor)) {
-    std::vector<Node*> unique_operands;
-    for (Node* operand : n->operands()) {
-      // This is quadratic in the number of operands, but shouldn't cause
-      // problems unless we have at least hundreds of thousands of operands
-      // which seems unlikely.
-      if (std::find(unique_operands.begin(), unique_operands.end(), operand) ==
-          unique_operands.end()) {
-        unique_operands.push_back(operand);
-      }
-    }
+    std::vector<Node*> unique_operands = DeduplicateToVector(n->operands());
     if (unique_operands.size() != n->operand_count()) {
       VLOG(2) << "FOUND: remove duplicate operands in and/or/nand/nor";
       XLS_RETURN_IF_ERROR(

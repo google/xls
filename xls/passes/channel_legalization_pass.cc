@@ -38,6 +38,7 @@
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/algorithm.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
@@ -311,21 +312,23 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedDAG(
     std::optional<Node*> prev_node = std::nullopt;
     XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
                          context.TopoSort(fb));
+    absl::flat_hash_set<Node*> unique_operands_scratch;
     for (Node* node : topo_sort_nodes) {
       NodeAndPredecessors::PredecessorSet resolved_predecessors;
-      absl::flat_hash_set<Node*> unique_operands(node->operands().begin(),
-                                                 node->operands().end());
-      for (Node* predecessor : unique_operands) {
-        // If a predecessor is not in the set of operations, resolve its
-        // predecessors to the set of operations.
-        if (!operation_set.contains(predecessor)) {
-          const NodeAndPredecessors::PredecessorSet& resolved =
-              resolved_ops.at(predecessor);
-          resolved_predecessors.insert(resolved.begin(), resolved.end());
-          continue;
-        }
-        resolved_predecessors.insert(predecessor);
-      }
+      ForEachUnique(
+          node->operands(),
+          [&](Node* predecessor) {
+            // If a predecessor is not in the set of operations, resolve its
+            // predecessors to the set of operations.
+            if (operation_set.contains(predecessor)) {
+              resolved_predecessors.insert(predecessor);
+              return;
+            }
+            const NodeAndPredecessors::PredecessorSet& resolved =
+                resolved_ops.at(predecessor);
+            resolved_predecessors.insert(resolved.begin(), resolved.end());
+          },
+          /*scratch_set=*/unique_operands_scratch);
       // If this entry in the DAG is not in the set of operations, save its
       // resolved predecessors for future resolution.
       if (!operation_set.contains(node)) {

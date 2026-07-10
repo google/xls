@@ -173,6 +173,7 @@ cc_library(
     name = "algorithm",
     hdrs = ["algorithm.h"],
     deps = [
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/types:span",
     ],

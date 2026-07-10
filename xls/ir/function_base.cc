@@ -42,6 +42,7 @@
 #include "google/protobuf/text_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/algorithm.h"
 #include "xls/ir/block.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/dfs_visitor.h"
@@ -456,15 +457,8 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
   VLOG(4) << absl::StrFormat("Removing node from FunctionBase %s: %s", name(),
                              node->ToString());
   ++package()->transform_metrics().nodes_removed;
-  std::vector<Node*> unique_operands;
-  for (Node* operand : node->operands()) {
-    if (!absl::c_linear_search(unique_operands, operand)) {
-      unique_operands.push_back(operand);
-    }
-  }
-  for (Node* operand : unique_operands) {
-    operand->RemoveUser(node);
-  }
+  ForEachUnique(node->operands(),
+                [&](Node* operand) { operand->RemoveUser(node); });
   if (node->Is<Param>()) {
     params_.erase(std::remove(params_.begin(), params_.end(), node),
                   params_.end());

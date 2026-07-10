@@ -20,7 +20,9 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/algorithm.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -50,21 +52,21 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
     }
   }
   int64_t removed_count = 0;
-  absl::flat_hash_set<Node*> unique_operands;
+  absl::flat_hash_set<Node*> unique_operands_scratch;
   while (!worklist.empty()) {
     Node* node = worklist.front();
     worklist.pop_front();
 
     // A node may appear more than once as an operand of 'node'. Keep track of
-    // which operands have been handled in a set.
-    unique_operands.clear();
-    for (Node* operand : node->operands()) {
-      if (unique_operands.insert(operand).second) {
-        if (HasSingleUse(operand) && is_deletable(operand)) {
-          worklist.push_back(operand);
-        }
-      }
-    }
+    // which operands have been handled.
+    ForEachUnique(
+        node->operands(),
+        [&](Node* operand) {
+          if (HasSingleUse(operand) && is_deletable(operand)) {
+            worklist.push_back(operand);
+          }
+        },
+        /*scratch_set=*/unique_operands_scratch);
     VLOG(3) << "DCE removing " << node->ToString();
     XLS_RETURN_IF_ERROR(f->RemoveNode(node));
     removed_count++;

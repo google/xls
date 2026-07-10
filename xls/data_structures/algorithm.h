@@ -15,9 +15,11 @@
 #ifndef XLS_DATA_STRUCTURES_ALGORITHM_H_
 #define XLS_DATA_STRUCTURES_ALGORITHM_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
 #include "absl/types/span.h"
 
@@ -60,6 +62,127 @@ std::vector<T> GatherFromSequence(absl::Span<const T> sequence,
     result.push_back(sequence[index]);
   }
   return result;
+}
+
+namespace internal {
+
+template <typename T, typename Func>
+inline void ForEachUniqueLinearScan(absl::Span<const T> values, Func func) {
+  for (int64_t i = 0; i < values.size(); ++i) {
+    bool already_seen = false;
+    for (int64_t j = 0; j < i; ++j) {
+      if (values[j] == values[i]) {
+        already_seen = true;
+        break;
+      }
+    }
+    if (already_seen) {
+      continue;
+    }
+    func(values[i]);
+  }
+}
+
+template <typename T, typename Func>
+inline void ForEachUniqueHashSet(absl::Span<const T> values, Func func,
+                                 absl::flat_hash_set<T>& scratch_set) {
+  scratch_set.reserve(values.size());
+  for (const T& value : values) {
+    if (scratch_set.insert(value).second) {
+      func(value);
+    }
+  }
+}
+
+}  // namespace internal
+
+// Calls `func` on each unique value in `values`.
+//
+// If provided, `scratch_set` will be used as scratch space if the size of
+// `values` is above `kSmallSetThreshold`, potentially avoiding an allocation.
+template <typename T, size_t kSmallSetThreshold = 16, typename Func>
+void ForEachUnique(absl::Span<const T> values, Func func,
+                   absl::flat_hash_set<T>& scratch_set) {
+  if (values.size() <= kSmallSetThreshold) {
+    internal::ForEachUniqueLinearScan(values, func);
+    return;
+  }
+
+  scratch_set.clear();
+  internal::ForEachUniqueHashSet(values, func, scratch_set);
+}
+template <typename T, size_t kSmallSetThreshold = 16, typename Func>
+void ForEachUnique(absl::Span<const T> values, Func func) {
+  if (values.size() <= kSmallSetThreshold) {
+    internal::ForEachUniqueLinearScan(values, func);
+    return;
+  }
+
+  absl::flat_hash_set<T> scratch_set;
+  internal::ForEachUniqueHashSet(values, func, scratch_set);
+}
+
+namespace internal {
+
+template <typename T>
+inline std::vector<T> DeduplicateToVectorLinearScan(
+    absl::Span<const T> values) {
+  std::vector<T> result;
+  result.reserve(values.size());
+  for (int64_t i = 0; i < values.size(); ++i) {
+    bool already_seen = false;
+    for (int64_t j = 0; j < i; ++j) {
+      if (values[j] == values[i]) {
+        already_seen = true;
+        break;
+      }
+    }
+    if (already_seen) {
+      continue;
+    }
+    result.push_back(values[i]);
+  }
+  return result;
+}
+
+template <typename T>
+inline std::vector<T> DeduplicateToVectorHashSet(
+    absl::Span<const T> values, absl::flat_hash_set<T>& scratch_set) {
+  scratch_set.reserve(values.size());
+  std::vector<T> result;
+  result.reserve(values.size());
+  for (const T& value : values) {
+    if (scratch_set.insert(value).second) {
+      result.push_back(value);
+    }
+  }
+  return result;
+}
+
+}  // namespace internal
+
+// Returns a vector of the unique values in `values`.
+//
+// If provided, `scratch_set` will be used as scratch space if the size of
+// `values` is above `kSmallSetThreshold`, potentially avoiding an allocation.
+template <typename T, size_t kSmallSetThreshold = 16>
+std::vector<T> DeduplicateToVector(absl::Span<const T> values,
+                                   absl::flat_hash_set<T>& scratch_set) {
+  if (values.size() <= kSmallSetThreshold) {
+    return internal::DeduplicateToVectorLinearScan(values);
+  }
+
+  scratch_set.clear();
+  return internal::DeduplicateToVectorHashSet(values, scratch_set);
+}
+template <typename T, size_t kSmallSetThreshold = 16>
+std::vector<T> DeduplicateToVector(absl::Span<const T> values) {
+  if (values.size() <= kSmallSetThreshold) {
+    return internal::DeduplicateToVectorLinearScan(values);
+  }
+
+  absl::flat_hash_set<T> scratch_set;
+  return internal::DeduplicateToVectorHashSet(values, scratch_set);
 }
 
 }  // namespace xls

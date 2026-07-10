@@ -93,8 +93,8 @@ potentially adding new elements to the list. For example, assume there was a
 leaf node A with no further users. Further assume that its operand(s) only have
 node A as user, then the operand will be added to the worklist and visited in
 the next iteration over the worklist. There is a minor subtlety here - the code
-has to ensure that operands are only visited once, hence the use of a
-`flat_hash_set<Node*>` to check whether an operand has been visited already.
+has to ensure that operands are only visited once, hence the use of our
+ForEachUnique helper to check whether each operand has been visited already.
 
 After all operands have been visited and potentially added to the worklist, the
 original leaf node A is being removed and a corresponding logging statement
@@ -102,21 +102,21 @@ original leaf node A is being removed and a corresponding logging statement
 
 ```c++
   int64_t removed_count = 0;
-  absl::flat_hash_set<Node*> unique_operands;
+  absl::flat_hash_set<Node*> unique_operands_scratch;
   while (!worklist.empty()) {
     Node* node = worklist.front();
     worklist.pop_front();
 
     // A node may appear more than once as an operand of 'node'. Keep track of
-    // which operands have been handled in a set.
-    unique_operands.clear();
-    for (Node* operand : node->operands()) {
-      if (unique_operands.insert(operand).second) {
-        if (HasSingleUse(operand) && is_deletable(operand)) {
-          worklist.push_back(operand);
-        }
-      }
-    }
+    // which operands have been handled.
+    ForEachUnique(
+        node->operands(),
+        [&](Node* operand) {
+          if (HasSingleUse(operand) && is_deletable(operand)) {
+            worklist.push_back(operand);
+          }
+        },
+        /*scratch_set=*/unique_operands_scratch);
     VLOG(3) << "DCE removing " << node->ToString();
     XLS_RETURN_IF_ERROR(f->RemoveNode(node));
     removed_count++;
