@@ -110,6 +110,15 @@ class BValue {
   // Note: unary negation.
   BValue operator-();
 
+  friend bool operator==(const BValue& a, const BValue& b) {
+    return a.node_ == b.node_ && a.builder_ == b.builder_;
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const BValue& bv) {
+    return H::combine(std::move(h), bv.node_, bv.builder_);
+  }
+
  private:
   Node* node_;
   BuilderBase* builder_;
@@ -775,6 +784,9 @@ class FunctionBuilder : public BuilderBase {
 
   BValue Param(std::string_view name, Type* type,
                const SourceInfo& loc = SourceInfo()) override;
+
+  // Forces the parameters to appear in the given order.
+  void SetParamOrder(absl::Span<BValue const> new_order);
 
   // Adds the function internally being built-up by this builder to the package
   // given at construction time, and returns a pointer to it (the function is

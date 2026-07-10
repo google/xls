@@ -405,6 +405,23 @@ std::string FunctionBase::debug_identifier() const {
   return absl::StrFormat("%v %s.%s", kind(), package_->name(), name_);
 }
 
+absl::Status FunctionBase::ReorderParams(absl::Span<Param* const> new_order) {
+  XLS_RET_CHECK_EQ(new_order.size(), params_.size())
+      << "different number of params";
+  absl::flat_hash_set<Param*> new_order_set;
+  for (Param* param : new_order) {
+    new_order_set.insert(param);
+  }
+  XLS_RET_CHECK_EQ(new_order_set.size(), new_order.size())
+      << "duplicate params in new order";
+  for (Param* param : params()) {
+    XLS_RET_CHECK(new_order_set.contains(param))
+        << "Param " << param->ToString() << " is not in the new order.";
+  }
+  params_ = std::vector<Param*>(new_order.begin(), new_order.end());
+  return absl::OkStatus();
+}
+
 absl::Status FunctionBase::MoveParamToIndex(Param* param, int64_t index) {
   XLS_RET_CHECK_LT(index, params_.size());
   auto it = std::find(params_.begin(), params_.end(), param);

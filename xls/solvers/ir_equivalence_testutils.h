@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "absl/status/statusor.h"
@@ -138,6 +139,84 @@ class ScopedVerifyProcEquivalence {
   SolverKind kind_ = SolverKind::kZ3;
   SolverLimit limit_ = {};
   const xabsl::SourceLocation loc_;
+
+  std::unique_ptr<Package> clone_package_;
+  Proc* original_p_;
+};
+
+// A helper to verify that proc behavior (as measured by the overall
+// sent-values) has not changed.
+//
+// Note this has several limitations that users must be aware of. First token
+// dependency order is not checked in any fashion, modifications which break
+// dependency restrictions will not be detected. Second this does not verify the
+// activation a value is produced on only the set of all sent values. Third,
+// since the number of activations is limited and so is the number of
+// output-values care should be taken to ensure that neither version fo the proc
+// can produce more data than the other.
+//
+// This checker does not perform temporal reasoning about the continued
+// evolution of the channel values or proc state and cannot be used as a general
+// equivalence proof. This is meant for test use and basic correctness checking
+// only.
+//
+// The user should also be sure to pick an appropriate activation count for both
+// the original and final proc (with the later defaulting to the same as the
+// former) and maximum number of input and output values since this is used
+// internally.
+//
+// Unlike ScopedVerifyProcEquivalence no support for asserts or checking the
+// values of state elements is possible with this tool.
+class ScopedVerifyProcOutputEquivalence {
+ public:
+  ScopedVerifyProcOutputEquivalence(ScopedVerifyProcOutputEquivalence&&) =
+      default;
+  ScopedVerifyProcOutputEquivalence(const ScopedVerifyProcOutputEquivalence&) =
+      delete;
+  ScopedVerifyProcOutputEquivalence& operator=(
+      ScopedVerifyProcOutputEquivalence&&) = delete;
+  ScopedVerifyProcOutputEquivalence& operator=(
+      const ScopedVerifyProcOutputEquivalence&) = delete;
+
+  struct Options {
+    // How many values (at most) are presented to the input channels of the
+    // proc.
+    int64_t input_value_count;
+    // How many output values (at most) are checked for equivalence from the
+    // proc.
+    int64_t output_value_count;
+    // How many activations we allow the (original) proc to perform.
+    int64_t activation_count;
+    // How many activations we allow the final proc to perform. Defaults to the
+    // value of 'activation_count' above.
+    std::optional<int64_t> final_activation_count = std::nullopt;
+  };
+  ScopedVerifyProcOutputEquivalence(
+      Proc* p, const Options& options,
+      absl::Duration timeout = absl::InfiniteDuration(),
+      xabsl::SourceLocation loc = xabsl::SourceLocation::current());
+
+  ~ScopedVerifyProcOutputEquivalence();
+
+  ScopedVerifyProcOutputEquivalence& SetSolverKind(SolverKind kind) {
+    kind_ = kind;
+    return *this;
+  }
+
+  ScopedVerifyProcOutputEquivalence& SetLimit(SolverLimit limit) {
+    limit_ = limit;
+    return *this;
+  }
+
+ private:
+  void RunProcVerification();
+
+  Proc* const p_;
+  const Options options_;
+  absl::Duration timeout_;
+  const xabsl::SourceLocation loc_;
+  SolverKind kind_ = SolverKind::kZ3;
+  SolverLimit limit_ = {};
 
   std::unique_ptr<Package> clone_package_;
   Proc* original_p_;

@@ -225,4 +225,52 @@ void ScopedVerifyBlockEquivalence::RunBlockVerification() {
   }
 }
 
+ScopedVerifyProcOutputEquivalence::ScopedVerifyProcOutputEquivalence(
+    Proc* p, const Options& options, absl::Duration timeout,
+    xabsl::SourceLocation loc)
+    : p_(p), options_(options), timeout_(timeout), loc_(loc) {
+  clone_package_ = std::make_unique<Package>(
+      absl::StrFormat("%s_original", p->package()->name()));
+  absl::StatusOr<Proc*> cloned = p_->Clone(
+      absl::StrFormat("%s_original", p->name()), clone_package_.get());
+  CHECK_OK(cloned.status());
+  original_p_ = *std::move(cloned);
+}
+
+ScopedVerifyProcOutputEquivalence::~ScopedVerifyProcOutputEquivalence() {
+  RunProcVerification();
+}
+
+void ScopedVerifyProcOutputEquivalence::RunProcVerification() {
+  testing::ScopedTrace trace(
+      loc_.file_name(), loc_.line(),
+      absl::StrCat("ScopedVerifyProcOutputEquivalence failed to prove "
+                   "equivalence of function ",
+                   p_->name(), " before & after changes"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * final_p_cloned,
+                           p_->Clone(absl::StrFormat("%s_modified", p_->name()),
+                                     clone_package_.get()));
+  std::optional<std::string> original_ir;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * original_f,
+      UnrollProcToUntimedFunction(original_p_, options_.activation_count,
+                                  options_.input_value_count,
+                                  options_.output_value_count));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      UnrollProcToUntimedFunction(
+          final_p_cloned,
+          options_.final_activation_count.value_or(options_.activation_count),
+          options_.input_value_count, options_.output_value_count));
+  EXPECT_THAT(TryProveEquivalence(original_f, f,
+                                  /*ignore_asserts=*/true, kind_, limit_),
+              IsOkAndHolds(IsProvenTrue()));
+  if (testing::Test::HasFailure()) {
+    testing::Test::RecordProperty("original",
+                                  original_ir.value_or(original_p_->DumpIr()));
+    testing::Test::RecordProperty("final", p_->DumpIr());
+  }
+}
+
 }  // namespace xls::solvers

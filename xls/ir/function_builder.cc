@@ -1267,6 +1267,24 @@ FunctionBuilder::FunctionBuilder(std::string_view function_name,
     : BuilderBase(std::make_unique<ScheduledFunction>(function_name, package),
                   should_verify) {}
 
+void FunctionBuilder::SetParamOrder(absl::Span<BValue const> new_order) {
+  std::vector<xls::Param*> new_order_params;
+  new_order_params.reserve(new_order.size());
+  for (BValue bv : new_order) {
+    if (!bv.node()->Is<xls::Param>()) {
+      SetError(absl::StrFormat("Param order must be params, got %s",
+                               bv.node()->ToString()),
+               {});
+      return;
+    }
+    new_order_params.push_back(bv.node()->As<xls::Param>());
+  }
+  absl::Status reorder = function_->ReorderParams(new_order_params);
+  if (!reorder.ok()) {
+    SetError(absl::StrFormat("Failed to reorder params: %v", reorder), {});
+  }
+}
+
 BValue FunctionBuilder::Param(std::string_view name, Type* type,
                               const SourceInfo& loc) {
   if (ErrorPending()) {

@@ -277,6 +277,10 @@ class FunctionBase {
   // Moves the given param to the given index in the parameter list.
   absl::Status MoveParamToIndex(Param* param, int64_t index);
 
+  // Changes the order of params to the given one. Every param currently in the
+  // function must be in the new_order list.
+  absl::Status ReorderParams(absl::Span<Param* const> new_order);
+
   int64_t node_count() const { return nodes_.size(); }
 
   // Expose Nodes, so that transformation passes can operate

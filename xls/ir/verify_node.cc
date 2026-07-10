@@ -909,9 +909,9 @@ class NodeChecker : public DfsVisitor {
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(sel, /*operand_no=*/0));
     int64_t selector_width = sel->selector()->BitCountOrDie();
     if (selector_width != sel->cases().size()) {
-      return absl::InternalError(
-          absl::StrFormat("Priority selector has %d bits for %d cases",
-                          selector_width, sel->cases().size()));
+      return absl::InternalError(absl::StrFormat(
+          "Priority selector has %d bits for %d cases: %s", selector_width,
+          sel->cases().size(), sel->ToStringWithOperandTypes()));
     }
 
     // All cases should have the same type.

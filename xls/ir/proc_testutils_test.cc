@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <variant>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -23,6 +24,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -37,6 +39,7 @@
 #include "xls/solvers/ir_equivalence.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 #include "xls/solvers/prover_matchers.h"
+#include "xls/solvers/solver.h"
 
 namespace xls {
 namespace {
@@ -48,6 +51,7 @@ using ::xls::solvers::ScopedVerifyProcEquivalence;
 using ::xls::solvers::TryProveEquivalence;
 
 class UnrollProcTest : public IrTestBase {};
+class UnrollProcUntimedTest : public IrTestBase {};
 TEST_F(UnrollProcTest, BasicProcEquivalence) {
   auto p = CreatePackage();
   FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
@@ -466,6 +470,488 @@ TEST_F(UnrollProcTest, PredicatedReceives) {
   RecordProperty("proc", proc->DumpIr());
   RecordProperty("converted", converted->DumpIr());
   EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(UnrollProcUntimedTest, Simple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kReceiveOnly,
+                                             p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ret_ch, p->CreateStreamingChannel("ret_ch", ChannelOps::kSendOnly,
+                                             p->GetBitsType(4)));
+  auto tok = pb.StateElement("tok", Value::Token());
+  auto state = pb.StateElement("cnt", UBits(1, 4));
+  auto recv = pb.Receive(foo_ch, tok);
+  auto nxt_val = pb.Add(state, pb.TupleIndex(recv, 1));
+  auto final_tok = pb.Send(ret_ch, pb.TupleIndex(recv, 0), nxt_val);
+  pb.Next(state, nxt_val);
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  auto read_1 = fb.Param("input_values", p->GetArrayType(4, p->GetBitsType(4)));
+  auto st_1 = fb.Literal(UBits(1, 4));
+  auto st_2 = fb.Add(st_1, fb.ArrayIndex(read_1, {fb.Literal(UBits(0, 2))}));
+  auto st_3 = fb.Add(st_2, fb.ArrayIndex(read_1, {fb.Literal(UBits(1, 2))}));
+  auto st_4 = fb.Add(st_3, fb.ArrayIndex(read_1, {fb.Literal(UBits(2, 2))}));
+  auto st_5 = fb.Add(st_4, fb.ArrayIndex(read_1, {fb.Literal(UBits(3, 2))}));
+
+  fb.Tuple({fb.Tuple({/* chan send cnt= */ fb.Literal(UBits(4, 8))}),
+            fb.Tuple({fb.Tuple(
+                {fb.Array({st_2, st_3, st_4, st_5, fb.Literal(UBits(0, 4)),
+                           fb.Literal(UBits(0, 4))},
+                          p->GetBitsType(4)),
+                 fb.Literal(UBits(4, 8))})})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToUntimedFunction(proc, /*activation_count=*/6,
+                                  /*input_value_count=*/4,
+                                  /*output_value_count=*/6));
+
+  RecordProperty("func", f->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("converted", converted->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, TryProveEquivalence(f, converted));
+  EXPECT_THAT(result, IsProvenTrue());
+}
+
+TEST_F(UnrollProcUntimedTest, SimpleSingleIteration) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kReceiveOnly,
+                                             p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ret_ch, p->CreateStreamingChannel("ret_ch", ChannelOps::kSendOnly,
+                                             p->GetBitsType(4)));
+  auto tok = pb.Literal(Value::Token());
+  auto recv = pb.Receive(foo_ch, tok);
+  pb.Send(ret_ch, pb.TupleIndex(recv, 0), pb.TupleIndex(recv, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  auto read_1 = fb.Param("input_values", p->GetArrayType(1, p->GetBitsType(4)));
+
+  fb.Tuple({fb.Tuple({fb.Literal(UBits(1, 8))}),
+            fb.Tuple({fb.Tuple(
+                {fb.Array({fb.ArrayIndex(read_1, {fb.Literal(UBits(0, 1))}),
+                           fb.Literal(UBits(0, 4)), fb.Literal(UBits(0, 4))},
+                          p->GetBitsType(4)),
+                 fb.Literal(UBits(1, 8))})})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToUntimedFunction(proc, /*activation_count=*/6,
+                                  /*input_value_count=*/1,
+                                  /*output_value_count=*/3));
+
+  RecordProperty("func", f->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("converted", converted->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, TryProveEquivalence(f, converted));
+  EXPECT_THAT(result, IsProvenTrue());
+}
+TEST_F(UnrollProcUntimedTest, SimpleCondRecv) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kReceiveOnly,
+                                             p->GetBitsType(4)));
+  auto first = pb.StateElement("First", UBits(1, 1));
+  pb.ReceiveIf(foo_ch, pb.Literal(Value::Token()), pb.Not(first));
+  pb.Next(first, pb.Literal(UBits(0, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  fb.Param("input_values", p->GetArrayType(2, p->GetBitsType(4)));
+  fb.Tuple({fb.Tuple({fb.Literal(UBits(2, 8))}), fb.Tuple({})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToUntimedFunction(proc, /*activation_count=*/6,
+                                  /*input_value_count=*/2,
+                                  /*output_value_count=*/0));
+
+  RecordProperty("func", f->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("converted", converted->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, TryProveEquivalence(f, converted));
+  EXPECT_THAT(result, IsProvenTrue());
+  if (!std::holds_alternative<solvers::ProvenTrue>(result)) {
+    RecordProperty("initial", f->DumpIr(solvers::CounterExampleAnnotator(
+                                  std::get<solvers::ProvenFalse>(result))));
+    RecordProperty("proc", converted->DumpIr(solvers::CounterExampleAnnotator(
+                               std::get<solvers::ProvenFalse>(result))));
+  }
+}
+TEST_F(UnrollProcUntimedTest, RecvSome) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kReceiveOnly,
+                                             p->GetBitsType(4)));
+  auto cnt = pb.StateElement("cnt", UBits(0, 4));
+  pb.ReceiveIf(foo_ch, pb.Literal(Value::Token()),
+               pb.Or({pb.Eq(cnt, pb.Literal(UBits(2, 4))),
+                      pb.Eq(cnt, pb.Literal(UBits(3, 4)))}));
+  pb.Next(cnt, pb.Add(cnt, pb.Literal(UBits(1, 4))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  fb.Param("input_values", p->GetArrayType(4, p->GetBitsType(4)));
+  fb.Tuple({fb.Tuple({fb.Literal(UBits(2, 8))}), fb.Tuple({})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToUntimedFunction(proc, /*activation_count=*/6,
+                                  /*input_value_count=*/4,
+                                  /*output_value_count=*/0));
+
+  RecordProperty("func", f->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("converted", converted->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, TryProveEquivalence(f, converted));
+  EXPECT_THAT(result, IsProvenTrue());
+  if (!std::holds_alternative<solvers::ProvenTrue>(result)) {
+    RecordProperty("initial", f->DumpIr(solvers::CounterExampleAnnotator(
+                                  std::get<solvers::ProvenFalse>(result))));
+    RecordProperty("proc", converted->DumpIr(solvers::CounterExampleAnnotator(
+                               std::get<solvers::ProvenFalse>(result))));
+  }
+}
+
+TEST_F(UnrollProcUntimedTest, SimpleCondSend) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kSendOnly,
+                                             p->GetBitsType(4)));
+  auto not_first = pb.StateElement("not_first", UBits(0, 1));
+  auto cnt = pb.StateElement("cnt", UBits(0, 4));
+  pb.SendIf(foo_ch, pb.Literal(Value::Token()), not_first, cnt);
+  pb.Next(not_first, pb.Literal(UBits(1, 1)));
+  pb.Next(cnt, pb.Add(cnt, pb.Literal(UBits(1, 4))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  fb.Tuple({fb.Tuple({}),
+            fb.Tuple({fb.Tuple(
+                {fb.Array({fb.Literal(UBits(1, 4)), fb.Literal(UBits(2, 4))},
+                          p->GetBitsType(4)),
+                 fb.Literal(UBits(2, 8))})})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToUntimedFunction(proc, /*activation_count=*/4,
+                                  /*input_value_count=*/0,
+                                  /*output_value_count=*/2));
+
+  RecordProperty("func", f->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("converted", converted->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, TryProveEquivalence(f, converted));
+  EXPECT_THAT(result, IsProvenTrue());
+  if (!std::holds_alternative<solvers::ProvenTrue>(result)) {
+    RecordProperty("counter_func",
+                   f->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+    RecordProperty("counter_proc",
+                   converted->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+  }
+}
+TEST_F(UnrollProcUntimedTest, SendSome) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kSendOnly,
+                                             p->GetBitsType(4)));
+  auto cnt = pb.StateElement("cnt", UBits(0, 4));
+  pb.SendIf(
+      foo_ch, pb.Literal(Value::Token()),
+      pb.And({pb.ULt(cnt, pb.Literal(UBits(4, 4))), pb.BitSlice(cnt, 0, 1)}),
+      cnt);
+  pb.Next(cnt, pb.Add(cnt, pb.Literal(UBits(1, 4))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  fb.Tuple({fb.Tuple({}),
+            fb.Tuple({fb.Tuple(
+                {fb.Array({fb.Literal(UBits(1, 4)), fb.Literal(UBits(3, 4)),
+                           fb.Literal(UBits(0, 4)), fb.Literal(UBits(0, 4))},
+                          p->GetBitsType(4)),
+                 fb.Literal(UBits(2, 8))})})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToUntimedFunction(proc, /*activation_count=*/8,
+                                  /*input_value_count=*/0,
+                                  /*output_value_count=*/4));
+
+  RecordProperty("func", f->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("converted", converted->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, TryProveEquivalence(f, converted));
+  EXPECT_THAT(result, IsProvenTrue());
+  if (!std::holds_alternative<solvers::ProvenTrue>(result)) {
+    RecordProperty("counter_func",
+                   f->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+    RecordProperty("counter_proc",
+                   converted->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+  }
+}
+
+TEST_F(UnrollProcUntimedTest, SkipSendAndRecv) {
+  auto p = CreatePackage();
+  Function* golden;
+  Proc* slowed;
+  {
+    FunctionBuilder fb("golden", p.get());
+    auto inputs = fb.Param("inputs", p->GetArrayType(4, p->GetBitsType(4)));
+    fb.Tuple({fb.Tuple({fb.Literal(UBits(4, 8))}),
+              fb.Tuple({fb.Tuple({inputs, fb.Literal(UBits(4, 8))})})});
+    XLS_ASSERT_OK_AND_ASSIGN(golden, fb.Build());
+  }
+  {
+    ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_slowed_proc"),
+                   p.get());
+    XLS_ASSERT_OK_AND_ASSIGN(auto input_ch,
+                             pb.AddInputChannel("input", p->GetBitsType(4)));
+    XLS_ASSERT_OK_AND_ASSIGN(auto output_ch,
+                             pb.AddOutputChannel("output", p->GetBitsType(4)));
+    auto delay = pb.StateElement("delay", UBits(0, 1));
+    auto tok = pb.Literal(Value::Token());
+    auto recv = pb.ReceiveIf(input_ch, tok, delay);
+    pb.SendIf(output_ch, pb.TupleIndex(recv, 0), delay, pb.TupleIndex(recv, 1));
+    pb.Next(delay, pb.Not(delay));
+    XLS_ASSERT_OK_AND_ASSIGN(slowed, pb.Build());
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * slowed_unroll,
+      UnrollProcToUntimedFunction(slowed, /*activation_count=*/10,
+                                  /*input_value_count=*/4,
+                                  /*output_value_count=*/4));
+  RecordProperty("golden", golden->DumpIr());
+  RecordProperty("slowed_unroll", slowed_unroll->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           TryProveEquivalence(golden, slowed_unroll));
+  EXPECT_THAT(result, IsProvenTrue());
+  if (!std::holds_alternative<solvers::ProvenTrue>(result)) {
+    RecordProperty("initial", golden->DumpIr(solvers::CounterExampleAnnotator(
+                                  std::get<solvers::ProvenFalse>(result))));
+    RecordProperty("rotated",
+                   slowed_unroll->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+  }
+}
+
+TEST_F(UnrollProcUntimedTest, MultipleChans) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan_a,
+                           pb.AddInputChannel("chan_a", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto ret_a,
+                           pb.AddOutputChannel("ret_a", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan_b,
+                           pb.AddInputChannel("chan_b", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto ret_b,
+                           pb.AddOutputChannel("ret_b", p->GetBitsType(4)));
+  auto tok = pb.Literal(Value::Token());
+  auto idx = pb.StateElement("idx", UBits(0, 3));
+  auto send_a = pb.ULt(idx, pb.Literal(UBits(2, 3)));
+  auto send_b = pb.UGt(idx, pb.Literal(UBits(0, 3)));
+  auto recv_a = pb.ReceiveIf(chan_a, tok, send_a);
+  auto recv_b = pb.ReceiveIf(chan_b, tok, send_b);
+  pb.SendIf(ret_a, pb.TupleIndex(recv_a, 0), send_a, pb.TupleIndex(recv_a, 1));
+  pb.SendIf(ret_b, pb.TupleIndex(recv_b, 0), send_b, pb.TupleIndex(recv_b, 1));
+  pb.Next(idx, pb.Add(idx, pb.Literal(UBits(1, 3))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  FunctionBuilder fb("golden", p.get());
+  auto inputs_a = fb.Param("chan_a", p->GetArrayType(4, p->GetBitsType(4)));
+  auto inputs_b = fb.Param("chan_b", p->GetArrayType(4, p->GetBitsType(4)));
+  fb.Tuple(
+      {fb.Tuple({/* chan_a read amnt= */ fb.Literal(UBits(2, 8)),
+                 /* chan_b read amnt= */ fb.Literal(UBits(3, 8))}),
+       fb.Tuple(
+           // ret_a value [a0, a1, <null>, <null>]
+           {fb.Tuple({fb.ArrayConcat(
+                          {fb.ArraySlice(inputs_a, fb.Literal(UBits(0, 4)), 2),
+                           fb.Array({fb.Literal(UBits(0, 4)),
+                                     fb.Literal(UBits(0, 4))},
+                                    p->GetBitsType(4))}),
+                      fb.Literal(UBits(2, 8))}),
+            // ret_b value [b0, b1, b2, <null>]
+            fb.Tuple(
+                {fb.ArrayConcat(
+                     {fb.ArraySlice(inputs_b, fb.Literal(UBits(0, 4)), 3),
+                      fb.Array({fb.Literal(UBits(0, 4))}, p->GetBitsType(4))}),
+                 fb.Literal(UBits(3, 8))})})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * golden, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unroll, UnrollProcToUntimedFunction(
+                                                  proc, /*activation_count=*/4,
+                                                  /*input_value_count=*/4,
+                                                  /*output_value_count=*/4));
+  RecordProperty("golden", golden->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("unroll", unroll->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, TryProveEquivalence(golden, unroll));
+  EXPECT_THAT(result, IsProvenTrue());
+  if (!std::holds_alternative<solvers::ProvenTrue>(result)) {
+    RecordProperty("golden_ann",
+                   golden->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+    RecordProperty("unroll_ann",
+                   unroll->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+  }
+}
+
+TEST_F(UnrollProcUntimedTest, PartialActivation) {
+  // Make sure the token edge does prevent a recv/send from occurring.
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan_a,
+                           pb.AddInputChannel("chan_a", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto ret_a,
+                           pb.AddOutputChannel("ret_a", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto chan_b,
+                           pb.AddInputChannel("chan_b", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto ret_b,
+                           pb.AddOutputChannel("ret_b", p->GetBitsType(4)));
+  auto tok = pb.Literal(Value::Token());
+  auto idx = pb.StateElement("idx", UBits(0, 4));
+  auto do_it = pb.StateElement("send_it", UBits(0, 1));
+  auto state = pb.Or(do_it, pb.UGe(idx, pb.Literal(UBits(3, 4))));
+  auto recv_a = pb.Receive(chan_a, tok);
+  auto send_b = pb.Send(ret_b, tok, idx);
+  pb.SendIf(ret_a, pb.TupleIndex(recv_a, 0), state, pb.TupleIndex(recv_a, 1));
+  pb.ReceiveIf(chan_b, send_b, state);
+  pb.Next(do_it, pb.Not(do_it));
+  pb.Next(idx, pb.Add(idx, pb.Literal(UBits(1, 4))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  FunctionBuilder fb("golden", p.get());
+  auto inputs_a = fb.Param("chan_a", p->GetArrayType(4, p->GetBitsType(4)));
+  fb.Param("chan_b", p->GetArrayType(4, p->GetBitsType(4)));
+  fb.Tuple({
+      fb.Tuple({
+          // chan_a read amnt=
+          fb.Literal(UBits(4, 8)),
+          // chan_b read amnt=
+          fb.Literal(UBits(2, 8)),
+      }),
+      fb.Tuple({
+          // ret_a value [a0, a1, <null>, <null>]
+          fb.Tuple({
+              fb.Array({fb.ArrayIndex(inputs_a, {fb.Literal(UBits(1, 4))}),
+                        fb.ArrayIndex(inputs_a, {fb.Literal(UBits(3, 4))}),
+                        fb.Literal(UBits(0, 4)), fb.Literal(UBits(0, 4))},
+                       p->GetBitsType(4)),
+              fb.Literal(UBits(2, 8)),
+          }),
+          // ret_b value [0, 1, 2, 3]
+          fb.Tuple({
+              fb.Array(
+                  {
+                      fb.Literal(UBits(0, 4)),
+                      fb.Literal(UBits(1, 4)),
+                      fb.Literal(UBits(2, 4)),
+                      fb.Literal(UBits(3, 4)),
+                  },
+                  p->GetBitsType(4)),
+              fb.Literal(UBits(4, 8)),
+          }),
+      }),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Function * golden, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unroll, UnrollProcToUntimedFunction(
+                                                  proc, /*activation_count=*/6,
+                                                  /*input_value_count=*/4,
+                                                  /*output_value_count=*/4));
+  RecordProperty("golden", golden->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("unroll", unroll->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, TryProveEquivalence(golden, unroll));
+  EXPECT_THAT(result, IsProvenTrue());
+  if (!std::holds_alternative<solvers::ProvenTrue>(result)) {
+    RecordProperty("golden_ann",
+                   golden->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+    RecordProperty("unroll_ann",
+                   unroll->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+  }
+}
+
+TEST_F(UnrollProcUntimedTest, Rotated) {
+  auto p = CreatePackage();
+  Proc* initial;
+  Proc* rotated;
+  {
+    ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_normal_proc"),
+                   p.get());
+
+    XLS_ASSERT_OK_AND_ASSIGN(auto input_ch,
+                             pb.AddInputChannel("input", p->GetBitsType(4)));
+    XLS_ASSERT_OK_AND_ASSIGN(auto output_ch,
+                             pb.AddOutputChannel("output", p->GetBitsType(4)));
+    auto st = pb.StateElement("state", UBits(0, 4));
+    auto tok = pb.Send(output_ch, pb.Literal(Value::Token()), st);
+    auto recv = pb.TupleIndex(pb.Receive(input_ch, tok), 1);
+    pb.Next(st, recv);
+    XLS_ASSERT_OK_AND_ASSIGN(initial, pb.Build());
+  }
+  {
+    ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_rotated_proc"),
+                   p.get());
+    XLS_ASSERT_OK_AND_ASSIGN(auto input_ch,
+                             pb.AddInputChannel("input", p->GetBitsType(4)));
+    XLS_ASSERT_OK_AND_ASSIGN(auto output_ch,
+                             pb.AddOutputChannel("output", p->GetBitsType(4)));
+    auto tok = pb.StateElement("tok", Value::Token());
+    auto first = pb.StateElement("first", UBits(1, 1));
+    auto recv = pb.ReceiveIf(input_ch, tok, pb.Not(first));
+    auto send = pb.Send(
+        output_ch, pb.Literal(Value::Token()),
+        pb.Select(first, pb.Literal(UBits(0, 4)), pb.TupleIndex(recv, 1)));
+    pb.Next(first, pb.Literal(UBits(0, 1)));
+    pb.Next(tok, send);
+
+    XLS_ASSERT_OK_AND_ASSIGN(rotated, pb.Build());
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * initial_unroll,
+      UnrollProcToUntimedFunction(initial, /*activation_count=*/4,
+                                  /*input_value_count=*/4,
+                                  /*output_value_count=*/4));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * rotated_unroll,
+      UnrollProcToUntimedFunction(rotated, /*activation_count=*/5,
+                                  /*input_value_count=*/4,
+                                  /*output_value_count=*/4));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           TryProveEquivalence(initial_unroll, rotated_unroll));
+  EXPECT_THAT(result, IsProvenTrue());
+  if (!std::holds_alternative<solvers::ProvenTrue>(result)) {
+    RecordProperty("initial",
+                   initial_unroll->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+    RecordProperty("rotated",
+                   rotated_unroll->DumpIr(solvers::CounterExampleAnnotator(
+                       std::get<solvers::ProvenFalse>(result))));
+  }
 }
 
 }  // namespace

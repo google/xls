@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -1371,6 +1372,28 @@ TEST(FunctionBuilderTest, SelectMismatchedCaseTypes) {
                 StatusIs(absl::StatusCode::kInvalidArgument,
                          HasSubstr("type bits[8] does not match node type")));
   }
+}
+
+TEST(FunctionBuilderTest, BValueEqualityAndHash) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  Type* type32 = p.GetBitsType(32);
+  BValue x = b.Param("x", type32);
+  BValue y = b.Param("y", type32);
+
+  EXPECT_EQ(x, x);
+  EXPECT_NE(x, y);
+
+  EXPECT_EQ(BValue(), BValue());
+  EXPECT_NE(x, BValue());
+
+  absl::flat_hash_set<BValue> set;
+  set.insert(x);
+  set.insert(y);
+  EXPECT_EQ(set.size(), 2);
+  EXPECT_TRUE(set.contains(x));
+  EXPECT_TRUE(set.contains(y));
+  EXPECT_FALSE(set.contains(BValue()));
 }
 
 }  // namespace xls
