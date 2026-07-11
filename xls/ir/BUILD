@@ -246,6 +246,7 @@ cc_library(
         ":ternary",
         "//xls/common:iter_util",
         "//xls/common:iterator_range",
+        "//xls/data_structures:inline_bitmap",
         "//xls/passes:ternary_evaluator",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/container:fixed_array",
@@ -254,6 +255,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/numeric:int128",
         "@abseil-cpp//absl/types:span",
+        "@cppitertools",
     ],
 )
 

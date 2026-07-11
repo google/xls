@@ -30,8 +30,10 @@
 #include "absl/log/log.h"
 #include "absl/numeric/int128.h"
 #include "absl/types/span.h"
+#include "cppitertools/reversed.hpp"
 #include "xls/common/iter_util.h"
 #include "xls/common/iterator_range.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
@@ -48,6 +50,10 @@ namespace {
 // How many exact calculations we are willing to perform (or exact values we are
 // willing to enumerate) before falling back to a conservative approximation.
 static constexpr int64_t kMaxExactCalculations = 16;
+
+// How many segments we are willing to have in our interval sets (as resulting
+// from an operation) before merging them to make a conservative approximation.
+static constexpr int64_t kMaxIntervalSegments = 16;
 
 TernaryVector ExtractTernaryInterval(const Interval& interval) {
   Bits lcp = bits_ops::LongestCommonPrefixMSB(
@@ -779,7 +785,7 @@ IntervalSet PerformVariadicOp(Calculate calc,
   }
 
   result_intervals.Normalize();
-  return MinimizeIntervals(result_intervals, /*size=*/16);
+  return MinimizeIntervals(result_intervals, /*size=*/kMaxIntervalSegments);
 }
 
 template <typename Calculate>
@@ -1287,15 +1293,100 @@ IntervalSet BitSlice(const IntervalSet& a, int64_t start, int64_t width) {
   return Truncate(Shrl(a, IntervalSet::Precise(UBits(start, 64))), width);
 }
 
+namespace {
+
+struct ImpreciseOperand {
+  const IntervalSet* interval_set;
+  int64_t bit_offset;
+};
+
+void ConcatHelper(int64_t idx,
+                  absl::Span<const ImpreciseOperand> imprecise_operands,
+                  InlineBitmap& lower_bits, InlineBitmap& upper_bits,
+                  std::vector<Interval>& result_intervals) {
+  CHECK_LE(idx, imprecise_operands.size());
+  if (idx == imprecise_operands.size()) {
+    Bits lower = Bits::FromBitmap(lower_bits);
+    Bits upper = Bits::FromBitmap(upper_bits);
+
+    // Since we generate proper intervals in lexicographic order, we can
+    // opportunistically merge with the last interval if we overlap or abut it,
+    // and thus skip normalization at the end.
+    if (!result_intervals.empty()) {
+      Interval& last = result_intervals.back();
+      if (bits_ops::UAtLeastPredecessor(last.UpperBound(), lower)) {
+        if (bits_ops::UGreaterThan(upper, last.UpperBound())) {
+          last = Interval(last.LowerBound(), upper);
+        }
+        return;
+      }
+    }
+    result_intervals.push_back(Interval(lower, upper));
+    return;
+  }
+
+  const ImpreciseOperand& op = imprecise_operands[idx];
+  for (const Interval& interval : op.interval_set->Intervals()) {
+    lower_bits.Overwrite(interval.LowerBound().bitmap(), interval.BitCount(),
+                         op.bit_offset);
+    upper_bits.Overwrite(interval.UpperBound().bitmap(), interval.BitCount(),
+                         op.bit_offset);
+
+    ConcatHelper(idx + 1, imprecise_operands, lower_bits, upper_bits,
+                 result_intervals);
+  }
+}
+
+}  // namespace
+
 IntervalSet Concat(absl::Span<IntervalSet const> sets) {
-  std::vector<ArgumentBehavior> behaviors(sets.size(),
-                                          kMonotoneNonSizePreserving);
-  behaviors.back() = kMonotoneSizePreserving;
-  return PerformVariadicOp(
-      bits_ops::Concat, behaviors, sets,
-      absl::c_accumulate(
-          sets, int64_t{0},
-          [](int64_t v, const IntervalSet& is) { return v + is.BitCount(); }));
+  int64_t result_bit_size = 0;
+  for (const IntervalSet& set : sets) {
+    if (set.IsEmpty()) {
+      return IntervalSet(0);
+    }
+    result_bit_size += set.BitCount();
+  }
+  if (result_bit_size == 0) {
+    return IntervalSet(0);
+  }
+
+  std::vector<IntervalSet> operands = ReduceIntervalFragmentationForOp(sets);
+
+  // Fill in all the precise operands directly into the workspaces, while
+  // collecting the imprecise operands for recursive processing.
+  std::vector<ImpreciseOperand> imprecise_operands;
+  imprecise_operands.reserve(operands.size());
+  InlineBitmap lower_bits(result_bit_size);
+  // We iterate in reverse order to correctly accumulate the offsets in
+  // LSB-to-MSB order.
+  int64_t current_offset = 0;
+  for (const IntervalSet& op : iter::reversed(operands)) {
+    if (std::optional<Bits> val = op.GetPreciseValue(); val.has_value()) {
+      lower_bits.Overwrite(val->bitmap(), val->bit_count(), current_offset);
+    } else {
+      imprecise_operands.push_back({&op, current_offset});
+    }
+    current_offset += op.BitCount();
+  }
+  if (imprecise_operands.empty()) {
+    // All operands were precise, so we can just return the result.
+    return IntervalSet::Precise(Bits::FromBitmap(lower_bits));
+  }
+  InlineBitmap upper_workspace = lower_bits;
+
+  // We need to have our imprecise operands in MSB-to-LSB order to guarantee
+  // that we build the intervals in increasing order, which lets us skip
+  // normalization later.
+  absl::c_reverse(imprecise_operands);
+
+  std::vector<Interval> result_intervals;
+  ConcatHelper(0, imprecise_operands, lower_bits, upper_workspace,
+               result_intervals);
+
+  return MinimizeIntervals(IntervalSet::UnsafeFromNormalized(
+                               result_bit_size, std::move(result_intervals)),
+                           /*size=*/kMaxIntervalSegments);
 }
 
 // Bit ops.
