@@ -28,6 +28,9 @@ def _llvm_raw_ext_impl(_ctx):
             Label("@//dependency_support/llvm:llvm.patch"),
             Label("@//dependency_support/llvm:zlib-header.patch"),
             Label("@//dependency_support/llvm:run_lit.patch"),
+            # Patch LLVM overlay to remove dependency on @llvm//platforms/config
+            # which fails to resolve in Bzlmod.
+            Label("@//dependency_support/llvm:platforms_config.patch"),
         ],
         patch_args = ["-p1"],
         strip_prefix = "llvm-project-" + LLVM_COMMIT,
