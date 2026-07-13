@@ -136,8 +136,9 @@ AotCompiler::CreateTargetMachine() {
               error_or_target_builder->getTargetTriple().getArchName()});
   }
 
-  // NB We don't need to do anything special to force emutls because we get the
-  // same base target as the orc jit which doesn't support it.
+  // Disable emutls explicitly because it causes linkage issues with LLVM
+  // coverage.
+  error_or_target_builder->getOptions().EmulatedTLS = false;
   auto error_or_target_machine = error_or_target_builder->createTargetMachine();
   if (!error_or_target_machine) {
     return absl::InternalError(
@@ -152,57 +153,6 @@ absl::Status AotCompiler::InitInternal() {
   context_ = std::make_unique<llvm::LLVMContext>();
   return absl::OkStatus();
 }
-namespace {
-
-absl::Status AddWeakEmuTls(llvm::Module& module, llvm::LLVMContext* context) {
-  // Add weak symbol definitions for:
-  //   __emutls_v.__msan_retval_tls == kRevalTlsEntry
-  //   __emutls_v.__msan_param_tls == kParamTlsEntry
-  //   __emutls_get_address == call to kExportedEmulatedMsanEntrypointName
-  llvm::Type* void_ptr_ty = llvm::PointerType::get(*context, 0);
-  llvm::FunctionType* emutls_get_addr_type =
-      llvm::FunctionType::get(void_ptr_ty, void_ptr_ty, /*isVarArg=*/false);
-  llvm::Type* void_ptr_ptr_ty = llvm::PointerType::get(*context, 0);
-  // llvm::Type* void_ptr_ptr_ty = llvm::PointerType::get(void_ptr_ty, 0);
-  // Make sure its weak linkage so other emutls can override it.
-  // NB module takes ownership of the pointer.
-  module.insertGlobalVariable(new llvm::GlobalVariable(
-      void_ptr_ty, /*isConstant=*/true, llvm::GlobalValue::InternalLinkage,
-      llvm::Constant::getIntegerValue(
-          void_ptr_ty,
-          llvm::APInt(module.getDataLayout().getPointerSize(), kParamTlsEntry)),
-      "__emutls_v.__msan_param_tls"));
-  module.insertGlobalVariable(new llvm::GlobalVariable(
-      void_ptr_ty, /*isConstant=*/true, llvm::GlobalValue::InternalLinkage,
-      llvm::Constant::getIntegerValue(
-          void_ptr_ty, llvm::APInt(module.getDataLayout().getPointerSize(),
-                                   kRetvalTlsEntry)),
-      "__emutls_v.__msan_retval_tls"));
-  llvm::FunctionCallee tls_impl = module.getOrInsertFunction(
-      kExportedEmulatedMsanEntrypointName, emutls_get_addr_type);
-
-  llvm::Function* fn = llvm::cast<llvm::Function>(
-      module
-          .getOrInsertFunction(
-              "__emutls_get_address",
-              llvm::FunctionType::get(void_ptr_ty, void_ptr_ptr_ty,
-                                      /*isVarArg=*/false))
-          .getCallee());
-  fn->setLinkage(llvm::GlobalValue::InternalLinkage);
-  fn->setAttributes(llvm::AttributeList().addFnAttribute(
-      *context, llvm::StringRef("no_sanitize_memory")));
-  auto basic_block =
-      llvm::BasicBlock::Create(*context, "entry", fn, /*InsertBefore=*/nullptr);
-  llvm::IRBuilder<> builder(basic_block);
-  // NB It calls with the *pointer-to* __emutls-key so we need to dereference
-  // it.
-  auto call = builder.CreateCall(
-      tls_impl, {builder.CreateLoad(void_ptr_ty, fn->getArg(0))});
-  builder.CreateRet(call);
-  return absl::OkStatus();
-}
-
-}  // namespace
 absl::Status AotCompiler::CompileModule(
     std::unique_ptr<llvm::Module>&& module) {
   JitObserverRequests notification;
@@ -237,11 +187,6 @@ absl::Status AotCompiler::CompileModule(
     llvm::raw_string_ostream oss(mem);
     oss << err;
     return absl::InternalError(oss.str());
-  }
-  // To avoid the msan pass inserting stores to msan functions we only add it
-  // after all the msan stuff is done.
-  if (include_msan()) {
-    XLS_RETURN_IF_ERROR(AddWeakEmuTls(*module, GetContext()));
   }
   if (notification.optimized_module) {
     jit_options_.jit_observer()->OptimizedModule(module.get());

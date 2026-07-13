@@ -29,9 +29,11 @@
 #include "absl/strings/str_format.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/Analysis/CGSCCPassManager.h"
+#include "llvm/include/llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/AbsoluteSymbols.h"  // IWYU pragma: keep
 #include "llvm/include/llvm/ExecutionEngine/Orc/CompileUtils.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/Core.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/CoreContainers.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/DylibManager.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
@@ -267,6 +269,40 @@ class MsanHostEmuTls : public llvm::orc::DefinitionGenerator {
   }
 };
 
+int llvm_profile_runtime_fallback = 0;
+
+class ProfileRuntimeFallbackGenerator : public llvm::orc::DefinitionGenerator {
+ public:
+  explicit ProfileRuntimeFallbackGenerator(char global_prefix)
+      : global_prefix_(global_prefix) {}
+
+  llvm::Error tryToGenerate(llvm::orc::LookupState&, llvm::orc::LookupKind,
+                            llvm::orc::JITDylib& dylib,
+                            llvm::orc::JITDylibLookupFlags,
+                            const llvm::orc::SymbolLookupSet& targets) final {
+    llvm::orc::SymbolMap result;
+    std::string target_name = "__llvm_profile_runtime";
+    if (global_prefix_ != '\0') {
+      target_name = global_prefix_ + target_name;
+    }
+    for (auto& kv : targets) {
+      auto name = (*kv.first).str();
+      if (name == target_name) {
+        result[kv.first] = llvm::orc::ExecutorSymbolDef(
+            {llvm::orc::ExecutorAddr::fromPtr(&llvm_profile_runtime_fallback),
+             llvm::JITSymbolFlags::Exported});
+      }
+    }
+    if (result.empty()) {
+      return llvm::Error::success();
+    }
+    return dylib.define(llvm::orc::absoluteSymbols(std::move(result)));
+  }
+
+ private:
+  char global_prefix_;
+};
+
 }  // namespace
 
 absl::Status OrcJit::InitInternal() {
@@ -276,6 +312,8 @@ absl::Status OrcJit::InitInternal() {
     dylib_.addGenerator(
         cantFail(llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
             data_layout_.getGlobalPrefix())));
+    dylib_.addGenerator(std::make_unique<ProfileRuntimeFallbackGenerator>(
+        data_layout_.getGlobalPrefix()));
   });
 
   // Add some selected compiler-rt symbols.

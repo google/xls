@@ -33,6 +33,7 @@
 #include "llvm/include/llvm/IR/Argument.h"
 #include "llvm/include/llvm/IR/BasicBlock.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/IR/GlobalVariable.h"
 #include "llvm/include/llvm/IR/Instruction.h"
 #include "llvm/include/llvm/IR/Module.h"
 #include "llvm/include/llvm/IR/PassManager.h"
@@ -174,8 +175,10 @@ llvm::Error LlvmCompiler::PerformStandardOptimization(
         [](llvm::ModulePassManager& mpm, llvm::OptimizationLevel) {
           llvm::SanitizerCoverageOptions cov_opts;
           cov_opts.CoverageType = llvm::SanitizerCoverageOptions::SCK_Edge;
+          // These should correspond to the defaults in --config=fuzztest
           cov_opts.Inline8bitCounters = true;
           cov_opts.TraceCmp = true;
+          cov_opts.StackDepth = true;
           mpm.addPass(llvm::SanitizerCoveragePass(cov_opts));
         });
   }
@@ -209,6 +212,19 @@ llvm::Error LlvmCompiler::PerformStandardOptimization(
     mpm = pass_builder.buildPerModuleDefaultPipeline(llvm_opt_level);
   }
   mpm.run(*bare_module, mam);
+  if (include_llvm_coverage_) {
+    if (llvm::GlobalVariable* gv =
+            bare_module->getGlobalVariable("__sancov_lowest_stack");
+        gv != nullptr && gv->isDeclaration()) {
+      // If stack-depth tracking is enabled in SanitizerCoverage, LLVM inserts
+      // references to __sancov_lowest_stack. Define it weakly here (if it's
+      // declared but not defined) to prevent JIT link/definition failures.
+      gv->setLinkage(llvm::GlobalValue::WeakAnyLinkage);
+      gv->setInitializer(llvm::Constant::getAllOnesValue(gv->getValueType()));
+      gv->setThreadLocalMode(
+          llvm::GlobalValue::ThreadLocalMode::InitialExecTLSModel);
+    }
+  }
   return llvm::Error::success();
 }
 
