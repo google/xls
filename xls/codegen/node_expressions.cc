@@ -752,6 +752,10 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
     BitsType* index_type = array_index->indices()[i]->GetType()->AsBitsOrDie();
     ArrayType* array_type = type->AsArrayOrDie();
     Expression* clamped_index;
+
+    const int64_t short_index_width =
+        std::max(int64_t{1}, Bits::MinBitCountUnsigned(array_type->size() - 1));
+
     // Out-of-bounds accesses return the final element of the array. Clamp the
     // index to the maximum index value. In some cases, clamping is not
     // necessary (index is a literal, or not wide enough to express an OOB
@@ -763,13 +767,17 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
         Bits::MinBitCountUnsigned(array_type->size()) >
             index_type->bit_count()) {
       // Index has been proven/assumed to be in bounds.
-      clamped_index = index;
+      if (index_type->bit_count() <= short_index_width) {
+        clamped_index = index;
+      } else {
+        clamped_index =
+            file->Slice(index->AsIndexableExpressionOrDie(),
+                        short_index_width - 1, 0, array_index->loc());
+      }
     } else if (index->IsLiteral() &&
                bits_ops::ULessThan(index->AsLiteralOrDie()->bits(),
                                    array_type->size())) {
       // Index is an in-bounds literal.
-      const int64_t short_index_width = std::max(
-          int64_t{1}, Bits::MinBitCountUnsigned(array_type->size() - 1));
       if (index_type->bit_count() <= short_index_width) {
         clamped_index = index;
       } else {
@@ -785,8 +793,6 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
 
       Expression* short_index = index;
       Expression* short_max_index = max_index;
-      const int64_t short_index_width = std::max(
-          int64_t{1}, Bits::MinBitCountUnsigned(array_type->size() - 1));
       if (index_type->bit_count() > short_index_width) {
         if (!index->IsIndexableExpression()) {
           return absl::InvalidArgumentError(absl::StrFormat(

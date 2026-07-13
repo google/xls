@@ -22,5 +22,5 @@ module array_idx_in_bounds(
   assign arr_unflattened[15] = arr[511:480];
   wire [4:0] sel_15;
   assign sel_15 = idx < 5'h10 ? (5'h01 >= 5'h05 ? 5'h00 : idx >> 5'h01) : idx;
-  assign out = arr_unflattened[sel_15];
+  assign out = arr_unflattened[sel_15[3:0]];
 endmodule
