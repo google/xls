@@ -44,6 +44,9 @@ class PartialInfoQueryEngine : public LazyQueryEngine<PartialInformation> {
                       const TreeBitLocation& b) const override;
   bool Covers(Node* node, const Bits& value) const override;
 
+  Bits MinUnsignedValue(Node* node) const override;
+  Bits MaxUnsignedValue(Node* node) const override;
+
   // Returns true if at most/at least/exactly one of the bits in 'node' is true.
   // 'node' must be bits-typed.
   bool AtMostOneBitTrue(Node* node) const override;

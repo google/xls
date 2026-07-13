@@ -670,16 +670,12 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
           value_knowledge.intervals->AsView(),
           [&](Type*, const IntervalSet& intervals,
               absl::Span<const int64_t> tree_index) -> absl::Status {
-            std::vector<SaturatingBddNodeIndex> bits;
-            bits.reserve(intervals.BitCount());
-            for (int64_t i = 0; i < intervals.BitCount(); ++i) {
-              std::optional<BddNodeIndex> bit =
-                  GetBddNode(TreeBitLocation(node, i, tree_index));
-              if (!bit.has_value()) {
-                return absl::OkStatus();
-              }
-              bits.push_back(*bit);
+            std::optional<SharedBddTree> info = GetInfo(node);
+            if (!info.has_value()) {
+              return absl::OkStatus();
             }
+            absl::Span<const SaturatingBddNodeIndex> bits =
+                info->Get(tree_index);
 
             SaturatingBddNodeVector in_interval_checks;
             for (const Interval& interval : intervals.Intervals()) {

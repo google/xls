@@ -216,6 +216,12 @@ TEST(IntervalOpsTest, FromTernarySegmentsExtended) {
             FromRanges({{0b10101000, 0b11111101}}, 8));
 }
 
+TEST(IntervalOpsTest, FromTernaryAdjacentUnknownBits) {
+  // Test case where advancing lsb_xs encounters adjacent unknown bits.
+  EXPECT_EQ(FromTernaryString("0b0XX0XX", /*max_unknown_bits=*/1),
+            FromRanges({{0b000000, 0b011011}}, 6));
+}
+
 TEST(IntervalOpsTest, ExactResultsForSmallRanges) {
   // Only 8 possible multiplies so try them all.
   IntervalSet lhs = FromRanges({{1234, 1235}}, 64);
@@ -1506,6 +1512,45 @@ void OneHotZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
 FUZZ_TEST(IntervalOpsTest, OneHotZ3Fuzz)
     .WithDomains(IntervalDomain(8),
                  fuzztest::ElementOf({LsbOrMsb::kLsb, LsbOrMsb::kMsb}));
+
+TEST(IntervalOpsTest, EmptyAndReduce) {
+  EXPECT_EQ(AndReduce(IntervalSet(/*bit_count=*/5)), FromRanges({}, 1));
+}
+
+void AndReduceZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs) {
+  UnaryOpFuzz(
+      "and_reduce",
+      [&](FunctionBuilder& fb, BValue l) { return fb.AndReduce(l); },
+      [&](const auto& l) { return AndReduce(l); }, lhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, AndReduceZ3Fuzz).WithDomains(IntervalDomain(8));
+
+TEST(IntervalOpsTest, EmptyOrReduce) {
+  EXPECT_EQ(OrReduce(IntervalSet(/*bit_count=*/5)), FromRanges({}, 1));
+}
+
+void OrReduceZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs) {
+  UnaryOpFuzz(
+      "or_reduce",
+      [&](FunctionBuilder& fb, BValue l) { return fb.OrReduce(l); },
+      [&](const auto& l) { return OrReduce(l); }, lhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, OrReduceZ3Fuzz).WithDomains(IntervalDomain(8));
+
+TEST(IntervalOpsTest, EmptyXorReduce) {
+  EXPECT_EQ(XorReduce(IntervalSet(/*bit_count=*/5)), FromRanges({}, 1));
+}
+
+void XorReduceZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs) {
+  UnaryOpFuzz(
+      "xor_reduce",
+      [&](FunctionBuilder& fb, BValue l) { return fb.XorReduce(l); },
+      [&](const auto& l) { return XorReduce(l); }, lhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, XorReduceZ3Fuzz).WithDomains(IntervalDomain(8));
 
 TEST(IntervalOpsTest, ReduceIntervalFragmentation) {
   // Create a set with 10 separate intervals.
