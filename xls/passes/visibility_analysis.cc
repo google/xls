@@ -399,7 +399,7 @@ BddNodeIndex OperandVisibilityAnalysis::ConditionOfUseWithSelect(
 
 BddNodeIndex OperandVisibilityAnalysis::ConditionOnNextUse(Next* next,
                                                            Node* node) const {
-  if (next->state_read() == node &&
+  if (next->has_state_read() && next->state_read() == node &&
       (!next->predicate() ||
        !nda_->IsDependent(node, next->predicate().value())) &&
       !nda_->IsDependent(node, next->value())) {
