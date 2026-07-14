@@ -44,8 +44,9 @@ namespace {
 // can be obtained by calling `GetStructOrProcRef` or `GetEnumDef`.
 class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
  public:
-  explicit TypeRefUnwrapper(const ImportData& import_data)
-      : import_data_(import_data) {}
+  explicit TypeRefUnwrapper(const ImportData& import_data,
+                            bool include_generic = false)
+      : import_data_(import_data), include_generic_(include_generic) {}
 
   absl::Status HandleColonRef(const ColonRef* colon_ref) override {
     XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
@@ -66,16 +67,9 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return alias->type_annotation().Accept(this);
   }
 
-  // TODO(https://github.com/google/xls/issues/4338): Looking to the definer
-  // here is a workaround. We should be able to more cleanly resolve the
-  // type annotation.
   absl::Status HandleTypeVariableTypeAnnotation(
       const TypeVariableTypeAnnotation* annotation) override {
-    if (annotation->type_variable()->GetDefiner() != nullptr) {
-      return const_cast<AstNode*>(annotation->type_variable()->GetDefiner())
-          ->Accept(this);
-    }
-    return absl::OkStatus();
+    return annotation->type_variable()->Accept(this);
   }
 
   absl::Status HandleTypeRefTypeAnnotation(
@@ -99,6 +93,12 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
       instantiator_ = annotation->instantiator();
     }
     return ToAstNode(annotation->type_ref()->type_definition())->Accept(this);
+  }
+
+  absl::Status HandleGenericTypeAnnotation(
+      const GenericTypeAnnotation* annotation) override {
+    is_generic_ = true;
+    return absl::OkStatus();
   }
 
   absl::Status HandleProcDef(const ProcDef* def) override {
@@ -128,16 +128,21 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   }
 
   std::optional<StructOrProcRef> GetStructOrProcRef() {
-    if (!type_def_.has_value() ||
-        (!std::holds_alternative<StructDef*>(*type_def_) &&
-         !std::holds_alternative<ProcDef*>(*type_def_))) {
+    if (!(include_generic_ && is_generic_) &&
+        (!type_def_.has_value() ||
+         (!std::holds_alternative<StructDef*>(*type_def_) &&
+          !std::holds_alternative<ProcDef*>(*type_def_)))) {
       return std::nullopt;
     }
     return StructOrProcRef{
-        .def = absl::down_cast<StructDefBase*>(ToAstNode(*type_def_)),
+        .def = type_def_.has_value()
+                   ? absl::down_cast<StructDefBase*>(ToAstNode(*type_def_))
+                   : nullptr,
         .parametrics = parametrics_,
         .instantiator = instantiator_,
-        .type_ref_type_annotation = type_ref_type_annotation_};
+        .type_ref_type_annotation = type_ref_type_annotation_,
+        .is_generic = is_generic_,
+    };
   }
 
   std::optional<const EnumDef*> GetEnumDef() {
@@ -148,23 +153,26 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
 
  private:
   const ImportData& import_data_;
+  bool include_generic_;
 
   // These fields get populated as we visit nodes.
   std::vector<ExprOrType> parametrics_;
   std::optional<TypeDefinition> type_def_;
   std::optional<const TypeRefTypeAnnotation*> type_ref_type_annotation_;
   std::optional<const StructInstanceBase*> instantiator_;
+  bool is_generic_ = false;
 };
 
 }  // namespace
 
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
-    const TypeAnnotation* annotation, const ImportData& import_data) {
+    const TypeAnnotation* annotation, const ImportData& import_data,
+    bool include_generic) {
   if (!annotation->IsAnnotation<TypeRefTypeAnnotation>() &&
       !annotation->IsAnnotation<TypeVariableTypeAnnotation>()) {
     return std::nullopt;
   }
-  TypeRefUnwrapper unwrapper(import_data);
+  TypeRefUnwrapper unwrapper(import_data, include_generic);
   XLS_RETURN_IF_ERROR(annotation->Accept(&unwrapper));
   return unwrapper.GetStructOrProcRef();
 }
