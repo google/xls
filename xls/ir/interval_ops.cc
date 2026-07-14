@@ -1571,7 +1571,7 @@ IntervalSet Eq(const IntervalSet& a, const IntervalSet& b) {
   CHECK_EQ(a.BitCount(), b.BitCount());
   if (a.IsEmpty() || b.IsEmpty()) {
     // If the input is empty, so is the output.
-    return IntervalSet(a.BitCount());
+    return IntervalSet(/*bit_count=*/1);
   }
 
   if (a.IsPrecise() && b.IsPrecise()) {
