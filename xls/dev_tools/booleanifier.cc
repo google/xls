@@ -158,6 +158,10 @@ class BooleanifierNodeEvaluator : public AbstractNodeEvaluator<BitEvaluator> {
     slices.reserve(slice->array()->GetType()->AsArrayOrDie()->size());
     int64_t addressable_values =
         SaturatingLeftShift(int64_t{1}, slice->start()->BitCountOrDie()).result;
+    // Limit addressable values to int64_t max which is how big arrays can be.
+    addressable_values = addressable_values < 0
+                             ? std::numeric_limits<int64_t>::max()
+                             : addressable_values;
     for (int64_t i = 0; i < input_size && i < addressable_values; ++i) {
       XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafValueT> one_slice,
                            leaf_type_tree::SliceArray(array_type, array, i));
