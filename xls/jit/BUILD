@@ -375,6 +375,7 @@ pytype_strict_library(
         "//xls/ir:xls_ir_interface_py_pb2",
         "//xls/ir:xls_type_py_pb2",
         "@abseil-py//absl:app",
+        "@protobuf//:protobuf_python",
         "@xls_pip_deps//jinja2",
     ],
 )
@@ -413,8 +414,8 @@ pytype_strict_contrib_test(
         "//xls/common:runfiles",
         "//xls/ir:xls_ir_interface_py_pb2",
         "//xls/ir:xls_type_py_pb2",
-        "@abseil-py//absl:app",
         "@abseil-py//absl/testing:absltest",
+        "@protobuf//:protobuf_python",
         "@xls_pip_deps//jinja2",
     ],
 )

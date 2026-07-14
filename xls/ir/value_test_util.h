@@ -19,10 +19,14 @@
 
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/types/span.h"
 #include "xls/ir/value.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/ir/xls_type.pb.h"
 
 namespace xls {
+
+using ElementOfProto = PackageInterfaceProto::FuzzTestDomain::ElementOf;
 
 // Returns an assertion result indicating whether the given two values were
 // equal. If equal the return value is AssertionSuccess, otherwise
@@ -42,6 +46,13 @@ fuzztest::Domain<Value> ArbitraryValue(fuzztest::Domain<TypeProto> type);
 
 // Create a domain for an arbitrary value which is of the given type.
 fuzztest::Domain<Value> ArbitraryValue(TypeProto type);
+
+// Parses the binary-format serialized proto of type ElementOfProto and returns
+// the proto.
+ElementOfProto ParseElementOfProto(absl::Span<const uint8_t> bytes);
+
+// Create an element_of domain from a serialized ElementOf proto.
+fuzztest::Domain<Value> ElementOfDomain(ElementOfProto proto);
 
 }  // namespace xls
 

@@ -184,6 +184,12 @@ dslx_fuzz_test(
 )
 
 dslx_fuzz_test(
+    name = "array_of_tuples_with_wide_bits_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "array_of_tuples_with_wide_bits",
+)
+
+dslx_fuzz_test(
     name = "inline_nested_struct_domain_fuzz_test",
     library = ":struct_tests_dslx",
     test_function = "test_inline_nested_struct_domain",
@@ -211,4 +217,22 @@ dslx_fuzz_test(
     name = "struct_domain_tuple_fuzz_test",
     library = ":struct_tests_dslx",
     test_function = "test_struct_domain_tuple",
+)
+
+dslx_fuzz_test(
+    name = "wide_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "wide",
+)
+
+dslx_fuzz_test(
+    name = "wide_element_of_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "wide_element_of",
+)
+
+dslx_fuzz_test(
+    name = "wide_tuple_element_of_fuzz_test",
+    library = ":struct_tests_dslx",
+    test_function = "wide_tuple_element_of",
 )
