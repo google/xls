@@ -1466,7 +1466,7 @@ xls_ir_cc_library = rule(
                 executable = True,
                 allow_files = True,
                 cfg = "exec",
-                default = Label("@llvm_toolchain//:clang-format"),
+                default = Label("@llvm//tools:clang-format"),
             ),
         },
     ),
