@@ -520,7 +520,7 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
     dslx_path = ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path + dslx_srcs_wsroot_path + wsroot_dslx_path
 
     # Make arguments for the cpp_transpiler tool.
-    cc_source_dir = ctx.actions.declare_directory(ctx.label.name + "_srcs")
+    cc_source_dir = ctx.actions.declare_directory(ctx.label.name + "_srcs.cc")
     h_file = ctx.outputs.header_file
 
     include_header_files = []
