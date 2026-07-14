@@ -84,7 +84,7 @@ def gen_srcs():
             "LICENSE.txt",
             "scripts/mk_make.py",
         ] + native.glob(["src/**", "examples/**"], exclude = GEN_HDRS + GEN_SRCS),
-        tools = ["scripts/mk_make.py"],
+        tools = native.glob(["scripts/*.py"]),
         outs = MK_MAKE_SRCS + MK_MAKE_HDRS,
         # We can't use $(location) for all files here, since the bundled script internally
         # makes assumptions about where files are located.
@@ -105,7 +105,7 @@ def gen_srcs():
         native.genrule(
             name = "gen_" + params_hdr[0:-4],
             srcs = [src_file],
-            tools = ["scripts/pyg2hpp.py"],
+            tools = native.glob(["scripts/*.py"]),
             outs = [params_hdr],
             cmd = "$(PYTHON3) $(location scripts/pyg2hpp.py) $< $$(dirname $@)",
             toolchains = ["@rules_python//python:current_py_toolchain"],
@@ -116,7 +116,7 @@ def gen_srcs():
         native.genrule(
             name = "gen_" + db_hdr[0:-2],
             srcs = [src],
-            tools = ["scripts/mk_pat_db.py"],
+            tools = native.glob(["scripts/*.py"]),
             outs = [db_hdr],
             cmd = "$(PYTHON3) $(location scripts/mk_pat_db.py) $< $@",
             toolchains = ["@rules_python//python:current_py_toolchain"],
