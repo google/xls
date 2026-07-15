@@ -185,9 +185,11 @@ class ElaboratedBlockJit : public BlockJit {
       absl::flat_hash_map<std::string, std::string> reg_rename_map,
       absl::flat_hash_map<std::string, Type*> materialized_impl_regs,
       std::unique_ptr<JitRuntime> runtime, std::unique_ptr<OrcJit> orc_jit,
-      JittedFunctionBase function, bool support_observer_callbacks)
+      JittedFunctionBase function, bool support_observer_callbacks,
+      int64_t max_trace_verbosity)
       : BlockJit(std::move(metadata), std::move(runtime), std::move(orc_jit),
-                 std::move(function), support_observer_callbacks),
+                 std::move(function), support_observer_callbacks,
+                 max_trace_verbosity),
         reg_rename_map_(std::move(reg_rename_map)),
         materialized_impl_regs_(std::move(materialized_impl_regs)) {}
 
@@ -336,14 +338,17 @@ BlockJit::InterfaceMetadata::CreateFromAotEntrypoint(
 }
 
 absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
-    Block* block, bool support_observer_callbacks) {
+    Block* block, bool support_observer_callbacks,
+    int64_t max_trace_verbosity) {
   XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
                        BlockElaboration::Elaborate(block));
-  return BlockJit::Create(elab, support_observer_callbacks);
+  return BlockJit::Create(elab, support_observer_callbacks,
+                          max_trace_verbosity);
 }
 
 absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
-    const BlockElaboration& elab, bool support_observer_callbacks) {
+    const BlockElaboration& elab, bool support_observer_callbacks,
+    int64_t max_trace_verbosity) {
   Block* block;
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<OrcJit> orc_jit,
@@ -362,7 +367,7 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
         JittedFunctionBase::Build(block, *orc_jit, EvaluatorOptions()));
     return std::unique_ptr<BlockJit>(new BlockJit(
         std::move(metadata), std::move(jit_runtime), std::move(orc_jit),
-        std::move(function), support_observer_callbacks));
+        std::move(function), support_observer_callbacks, max_trace_verbosity));
   }
   XLS_ASSIGN_OR_RETURN(ElaborationJitData jit_data,
                        CloneElaborationPackage(elab));
@@ -384,13 +389,13 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
   return std::unique_ptr<BlockJit>(new ElaboratedBlockJit(
       std::move(metadata), std::move(jit_data.renamed_registers),
       std::move(jit_data.added_registers), std::move(jit_runtime),
-      std::move(orc_jit), std::move(jit_entrypoint),
-      support_observer_callbacks));
+      std::move(orc_jit), std::move(jit_entrypoint), support_observer_callbacks,
+      max_trace_verbosity));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::CreateFromAot(
     const AotEntrypointProto& entrypoint, std::string_view data_layout,
-    JitFunctionType func_ptr) {
+    JitFunctionType func_ptr, int64_t max_trace_verbosity) {
   XLS_ASSIGN_OR_RETURN(
       JittedFunctionBase jfb,
       JittedFunctionBase::BuildFromAot(entrypoint, func_ptr,
@@ -417,7 +422,7 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
       std::move(metadata), std::move(renamed_regs), std::move(added_regs),
       std::make_unique<JitRuntime>(*layout),
       /*orc_jit=*/nullptr, std::move(jfb),
-      /*support_observer_callbacks=*/false));
+      /*support_observer_callbacks=*/false, max_trace_verbosity));
 }
 
 /* static */ absl::StatusOr<JitObjectCode> BlockJit::CreateObjectCode(
@@ -617,7 +622,7 @@ BlockJitContinuation::BlockJitContinuation(
               ? jit_func.CreateOutputBuffer()
               : nullptr),
       temp_buffer_(jit_func.CreateTempBuffer()),
-      callbacks_(InstanceContext::CreateForBlock()) {}
+      callbacks_(InstanceContext::CreateForBlock(jit->max_trace_verbosity())) {}
 
 absl::Status BlockJitContinuation::SetInputPorts(
     absl::Span<const Value> values) {
@@ -856,6 +861,10 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
         },
         jit_->runtime());
     return continuation_->SetObserver(&eval_observer_.value());
+  }
+
+  void SetMaxTraceVerbosity(int64_t value) override {
+    continuation_->SetMaxTraceVerbosity(value);
   }
 
  private:

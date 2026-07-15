@@ -170,8 +170,8 @@ ProcJitContinuation::ProcJitContinuation(ProcInstance* proc_instance,
       input_(jit_func.CreateInputOutputBuffer().value()),
       output_(jit_func.CreateInputOutputBuffer().value()),
       temp_buffer_(jit_func.CreateTempBuffer()),
-      instance_context_(
-          InstanceContext::CreateForProc(proc_instance, std::move(queues))),
+      instance_context_(InstanceContext::CreateForProc(
+          proc_instance, std::move(queues), jit_func.max_trace_verbosity())),
       observer_shim_(this),
       has_observer_callbacks_(has_observer_callbacks) {
   // Write initial state value to the input_buffer.
@@ -334,6 +334,8 @@ absl::Status InitializeChannelQueues(
   XLS_ASSIGN_OR_RETURN(
       jit->jitted_function_base_,
       JittedFunctionBase::BuildFromAot(entrypoint, unpacked, packed));
+  jit->jitted_function_base_.set_max_trace_verbosity(
+      options.max_trace_verbosity());
   XLS_RET_CHECK(jit->jitted_function_base_.InputsAndOutputsAreEquivalent());
   XLS_RETURN_IF_ERROR(InitializeChannelQueues(
       proc, queue_mgr, jit->jitted_function_base_, jit->channel_queues_));
@@ -359,6 +361,8 @@ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
   XLS_RETURN_IF_ERROR(InitializeChannelQueues(
       proc, queue_mgr, jit->jitted_function_base_, jit->channel_queues_));
 
+  jit->jitted_function_base_.set_max_trace_verbosity(
+      options.max_trace_verbosity());
   return jit;
 }
 
