@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -95,7 +96,29 @@ absl::Status FuzzTestConverter::LowerTuple(
     }
     const InterpValue& element = elements[i];
     XLS_RETURN_IF_ERROR(
-        LowerConstant(member_type, element, *tuple_proto->add_elements()));
+        LowerInterpValue(member_type, element, *tuple_proto->add_elements()));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status FuzzTestConverter::LowerArrayDomain(
+    const ArrayType& array_type, const InterpValue& domain,
+    PackageInterfaceProto::FuzzTestDomain& proto) {
+  XLS_RET_CHECK(domain.IsTuple());
+  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
+                       domain.GetValues());
+  XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type.size().GetAsInt64());
+  auto* array_proto = proto.mutable_array();
+  for (int i = 0; i < array_size; ++i) {
+    auto* element_proto = array_proto->add_elements();
+    if (i < elements->size()) {
+      XLS_RETURN_IF_ERROR(LowerInterpValue(&array_type.element_type(),
+                                           elements->at(i), *element_proto));
+    } else {
+      // Past the end of the domain tuple, the element doman is "arbitrary".
+      XLS_RETURN_IF_ERROR(
+          LowerArbitraryType(&array_type.element_type(), *element_proto));
+    }
   }
   return absl::OkStatus();
 }
@@ -114,7 +137,7 @@ absl::Status FuzzTestConverter::LowerStructInstanceDomain(
     absl::StatusOr<Expr*> specified_domain = struct_domain.GetExpr(field_name);
     if (specified_domain.ok()) {
       XLS_RETURN_IF_ERROR(
-          LowerDomainExpr(&field_type, *specified_domain, *element_proto));
+          LowerExpr(&field_type, *specified_domain, *element_proto));
     } else if (absl::IsNotFound(specified_domain.status())) {
       XLS_RETURN_IF_ERROR(LowerArbitraryType(&field_type, *element_proto));
     } else {
@@ -151,6 +174,11 @@ absl::Status FuzzTestConverter::LowerArbitraryType(
   if (param_type->IsEnum()) {
     return LowerArbitraryEnum(param_type, proto);
   }
+  // Even though there is no domain for this parameter, we still recursively
+  // traverse tuples and arrays rather than setting the whole domain to
+  // arbitrary. This is because nested elements might contain enums, which
+  // require explicit allowed enum value limits (LowerArbitraryEnum) to avoid
+  // fuzzing invalid enum integer representations.
   if (param_type->IsTuple()) {
     auto* tuple_proto = proto.mutable_tuple();
     const TupleType& tuple_type = param_type->AsTuple();
@@ -160,11 +188,21 @@ absl::Status FuzzTestConverter::LowerArbitraryType(
     }
     return absl::OkStatus();
   }
+  if (param_type->IsArray()) {
+    auto* array_proto = proto.mutable_array();
+    const ArrayType& array_type = param_type->AsArray();
+    XLS_ASSIGN_OR_RETURN(int64_t size, array_type.size().GetAsInt64());
+    for (int64_t i = 0; i < size; ++i) {
+      XLS_RETURN_IF_ERROR(LowerArbitraryType(&array_type.element_type(),
+                                             *array_proto->add_elements()));
+    }
+    return absl::OkStatus();
+  }
   proto.set_arbitrary(true);
   return absl::OkStatus();
 }
 
-absl::Status FuzzTestConverter::LowerConstant(
+absl::Status FuzzTestConverter::LowerInterpValue(
     const Type* param_type, const InterpValue& val,
     PackageInterfaceProto::FuzzTestDomain& proto) {
   if (val.is_range()) {
@@ -193,6 +231,19 @@ absl::Status FuzzTestConverter::LowerConstant(
     }
     return LowerRange(elements->front(), elements->back(), proto);
   }
+  if (val.IsTuple() && val.GetValues().value()->empty()) {
+    // An empty tuple represents the arbitrary domain.  However if the parameter
+    // type contains an enum, we STILL must recursively lower it to populate the
+    // allowed enum values.
+    if (param_type != nullptr && param_type->HasEnum()) {
+      return LowerArbitraryType(param_type, proto);
+    }
+    proto.set_arbitrary(true);
+    return absl::OkStatus();
+  }
+  if (param_type != nullptr && param_type->IsArray()) {
+    return LowerArrayDomain(param_type->AsArray(), val, proto);
+  }
   if (val.IsArray()) {
     // Indicates an ElementOf domain, NOT an array parameter.
     XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
@@ -217,7 +268,7 @@ absl::Status FuzzTestConverter::LowerConstant(
       "Unsupported constant fuzztest domain type: ", val.ToString()));
 }
 
-absl::Status FuzzTestConverter::LowerDomainExpr(
+absl::Status FuzzTestConverter::LowerExpr(
     const Type* param_type, const Expr* expr,
     PackageInterfaceProto::FuzzTestDomain& proto) {
   if (expr->kind() == AstNodeKind::kStructInstance) {
@@ -241,7 +292,7 @@ absl::Status FuzzTestConverter::LowerDomainExpr(
       ConstexprEvaluator::EvaluateToValue(import_data_, current_type_info_,
                                           /*warning_collector=*/nullptr,
                                           /*bindings=*/{}, expr));
-  return LowerConstant(param_type, const_value, proto);
+  return LowerInterpValue(param_type, const_value, proto);
 }
 
 absl::Status FuzzTestConverter::LowerRangeExpr(
@@ -301,8 +352,7 @@ FuzzTestConverter::LowerFuzzTestDomains(const Function* node) {
 
       PackageInterfaceProto::FuzzTestDomain* domain_proto =
           temp_func.add_parameter_domains();
-      XLS_RETURN_IF_ERROR(
-          LowerDomainExpr(param_type, domain_expr, *domain_proto));
+      XLS_RETURN_IF_ERROR(LowerExpr(param_type, domain_expr, *domain_proto));
     }
 
     std::string proto_str;

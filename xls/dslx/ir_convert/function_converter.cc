@@ -190,7 +190,22 @@ absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
   BValue wrapped_result = fb.Invoke(args, implicit_token_f);
   XLS_RET_CHECK(wrapped_result.GetType()->IsTuple());
   BValue result = fb.TupleIndex(wrapped_result, 1);
-  return fb.BuildWithReturnValue(result);
+  XLS_ASSIGN_OR_RETURN(xls::Function * wrapper,
+                       fb.BuildWithReturnValue(result));
+  // If the wrapped function has a kFuzzTest attribute (containing parameter
+  // fuzzing domains), propagate it to the top-level wrapper. Even though the
+  // original DSLX function doesn't have token parameters, DSLX functions
+  // containing asserts are wrapped in implicit-token versions to handle
+  // token-passing IR constraints. Because the generated C++ fuzzer targets the
+  // top-level wrapper (which internally feeds dummy tokens to the inner
+  // function), the domain boundary information must reside on the top-level
+  // wrapper to be seen by the fuzzer generator.
+  for (const auto& attr : implicit_token_f->attributes()) {
+    if (attr.kind() == xls::AttributeKind::kFuzzTest) {
+      wrapper->AddAttribute(attr);
+    }
+  }
+  return wrapper;
 }
 
 bool GetRequiresImplicitToken(const dslx::Function& f, ImportData* import_data,

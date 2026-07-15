@@ -69,13 +69,13 @@ absl::Status ValidateScalarDomainValue(const InterpValue& domain_value,
           file_table);
     }
     XLS_ASSIGN_OR_RETURN(int64_t domain_bit_count, domain_value.GetBitCount());
-    if (domain_bit_count != bits_type->size().GetAsInt64().value()) {
+    XLS_ASSIGN_OR_RETURN(int64_t bits_size, bits_type->size().GetAsInt64());
+    if (domain_bit_count != bits_size) {
       return TypeInferenceErrorStatus(
           span, param_type,
           absl::Substitute("Fuzz test domain bit count ($0) does not match "
                            "parameter bit count ($1).",
-                           domain_bit_count,
-                           bits_type->size().GetAsInt64().value()),
+                           domain_bit_count, bits_size),
           file_table);
     }
     if (domain_value.IsSigned() != bits_type->is_signed()) {
@@ -185,20 +185,21 @@ absl::Status ValidateArrayDomainValue(const InterpValue& value,
                                       const Span& span,
                                       std::string_view param_str,
                                       const FileTable& file_table) {
-  if (!value.IsArray() || value.is_range()) {
+  if ((!value.IsArray() && !value.IsTuple()) || value.is_range()) {
     return TypeInferenceErrorStatus(
-        span, &param_type, "Expected array of domains for array parameter",
-        file_table);
+        span, &param_type,
+        "Expected array or tuple of domains for array parameter", file_table);
   }
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
                        value.GetValues());
-  if (elements->size() != param_type.size().GetAsInt64().value()) {
+  XLS_ASSIGN_OR_RETURN(int64_t param_array_size,
+                       param_type.size().GetAsInt64());
+  if (elements->size() > param_array_size) {
     return TypeInferenceErrorStatus(
         span, &param_type,
-        absl::Substitute("Fuzz test domain array size ($0) does not match "
+        absl::Substitute("Fuzz test domain array size ($0) exceeds "
                          "parameter '$1' array size ($2).",
-                         elements->size(), param_str,
-                         param_type.size().GetAsInt64().value()),
+                         elements->size(), param_str, param_array_size),
         file_table);
   }
   const Type& param_element_type = param_type.element_type();
@@ -313,17 +314,25 @@ absl::Status ValidateFuzzTestDomain(const Expr* domain, const Type* param_type,
                          domain->ToString(), param_str, param_type->ToString()),
         file_table);
   }
+  if (param_type->IsArray() && !domain_type->IsTuple()) {
+    return TypeInferenceErrorStatus(
+        domain->span(), param_type,
+        absl::Substitute("Fuzz test domain for array parameter `$0` must be a "
+                         "tuple; got type $1",
+                         param_str, domain_type->ToString()),
+        file_table);
+  }
   if (domain_type->IsTuple()) {
     const TupleType& tuple_type = domain_type->AsTuple();
     if (tuple_type.empty()) {
       // Empty tuple domain is allowed for any parameter type.
       return absl::OkStatus();
     }
-    if (!param_type->IsTuple()) {
+    if (!param_type->IsTuple() && !param_type->IsArray()) {
       return TypeInferenceErrorStatus(
           domain->span(), param_type,
-          absl::Substitute("Fuzz test domain `$0` implies a tuple type, but "
-                           "parameter `$1` is of type $2.",
+          absl::Substitute("Fuzz test domain `$0` implies a tuple or array "
+                           "type, but parameter `$1` is of type $2.",
                            domain->ToString(), param_str,
                            param_type->ToString()),
           file_table);

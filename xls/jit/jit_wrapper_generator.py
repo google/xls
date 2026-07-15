@@ -389,12 +389,25 @@ def to_domain(
        the given type.
   """
   if t.type_enum == type_pb2.TypeProto.ARRAY:
-    elem_domain, elem_is_native = to_domain(
-        t.array_element, None, f"{type_expr}.array_element()"
-    )
-    if elem_domain is None or not elem_is_native:
-      return None, False
-    return f"fuzztest::ArrayOf<{t.array_size}>({elem_domain})", True
+    if d is not None and d.HasField("array"):
+      if len(d.array.elements) != t.array_size:
+        raise app.UsageError("Array domain and type size mismatch")
+      elems = []
+      for de in d.array.elements:
+        elem_d, elem_is_native = to_domain(
+            t.array_element, de, f"{type_expr}.array_element()"
+        )
+        if elem_d is None or not elem_is_native:
+          return None, False
+        elems.append(elem_d)
+      return f"fuzztest::ArrayOf({', '.join(elems)})", True
+    else:
+      elem_domain, elem_is_native = to_domain(
+          t.array_element, None, f"{type_expr}.array_element()"
+      )
+      if elem_domain is None or not elem_is_native:
+        return None, False
+      return f"fuzztest::ArrayOf<{t.array_size}>({elem_domain})", True
 
   if (
       d is None
@@ -403,6 +416,7 @@ def to_domain(
           not d.HasField("range")
           and not d.HasField("element_of")
           and not d.HasField("tuple")
+          and not d.HasField("array")
       )
   ):
     if t.type_enum == type_pb2.TypeProto.BITS:
@@ -473,6 +487,10 @@ def to_domain(
         for i, (te, de) in enumerate(zip(t.tuple_elements, d.tuple.elements))
     ]
     return _combine_tuple_domains(t, child_results, type_expr)
+
+  if d.HasField("array"):
+    if t.type_enum != type_pb2.TypeProto.ARRAY:
+      raise app.UsageError("Array domain requires Array type")
 
   raise app.UsageError(f"Unsupported domain: {d}")
 

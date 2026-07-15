@@ -1000,6 +1000,53 @@ class JitWrapperGeneratorToDomainTest(absltest.TestCase):
         ),
     )
 
+  def test_custom_array_domain(self):
+    u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
+    arr = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.ARRAY, array_size=2, array_element=u32
+    )
+    d = ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain()
+    d.array.elements.add().range.min.bits.bit_count = 32
+    d.array.elements[0].range.min.bits.data = b'\x00'
+    d.array.elements[0].range.max.bits.bit_count = 32
+    d.array.elements[0].range.max.bits.data = b'\x0a'
+    d.array.elements.add().range.min.bits.bit_count = 32
+    d.array.elements[1].range.min.bits.data = b'\x01'
+    d.array.elements[1].range.max.bits.bit_count = 32
+    d.array.elements[1].range.max.bits.data = b'\x0b'
+
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(arr, d, 'T'),
+        (
+            (
+                'fuzztest::ArrayOf(fuzztest::InRange<uint32_t>(0, 10),'
+                ' fuzztest::InRange<uint32_t>(1, 11))'
+            ),
+            True,
+        ),
+    )
+
+  def test_custom_array_domain_with_fallback(self):
+    u128 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=128)
+    arr = type_pb2.TypeProto(
+        type_enum=type_pb2.TypeProto.ARRAY, array_size=2, array_element=u128
+    )
+    d = ir_interface_pb2.PackageInterfaceProto.FuzzTestDomain()
+    # element 0 is wide bits range that doesn't fit in 64 bits (needs fallback)
+    d.array.elements.add().range.min.bits.bit_count = 128
+    d.array.elements[0].range.min.bits.data = b'\x01'
+    d.array.elements[0].range.max.bits.bit_count = 128
+    d.array.elements[0].range.max.bits.data = (
+        b'\x00\x00\x00\x00\x00\x00\x00\x00\x01'
+    )
+    # element 1 is arbitrary
+    d.array.elements.add().arbitrary = True
+
+    self.assertEqual(
+        jit_wrapper_generator.to_domain(arr, d, 'T'),
+        (None, False),
+    )
+
   def test_unsupported_range_domain_returns_none(self):
     u32 = type_pb2.TypeProto(type_enum=type_pb2.TypeProto.BITS, bit_count=32)
     tup = type_pb2.TypeProto(

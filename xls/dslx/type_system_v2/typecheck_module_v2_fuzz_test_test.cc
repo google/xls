@@ -344,9 +344,9 @@ TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainParamNonTuple) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`(u32:0..10, u32:0..10)`)]
-fn f(x: u32[2]) {}
+fn f(x: u32) {}
 )",
-      TypecheckFails(HasSubstr("implies a tuple type")));
+      TypecheckFails(HasSubstr("implies a tuple or array type")));
 }
 
 TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainSizeMismatch) {
@@ -416,9 +416,9 @@ TEST(TypecheckV2FuzzTestTest, FuzzTestImportedTupleDomainParamNonTuple) {
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
   EXPECT_THAT(
       TypecheckV2(kProgram, "main", &import_data),
-      absl_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("implies a tuple type, but parameter `x: u8` is of type")));
+      absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                             HasSubstr("implies a tuple or array type, but "
+                                       "parameter `x: u8` is of type")));
 }
 
 TEST(TypecheckV2FuzzTestTest, FuzzTestImportedTupleDomainSizeMismatch) {
@@ -683,7 +683,7 @@ const D = (u32:0..1, u32:0..2);
 #[fuzz_test(domains=`D`)]
 fn f(x: u32) {}
 )",
-              TypecheckFails(HasSubstr("implies a tuple type")));
+              TypecheckFails(HasSubstr("implies a tuple or array type")));
 }
 
 TEST(TypecheckV2FuzzTestTest, FuzzTestTupleDomainDirectSuccess) {
@@ -915,6 +915,62 @@ fn create_f_domain() -> OuterDomain {
 fn f(s: Outer) {}
 )",
               TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2FuzzTestTest, ArrayParam) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`(u32:0..10, u32:1..=11)`)]
+fn fuzz_custom_array_domain(t: u32[2]) {}
+)",
+      TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2FuzzTestTest, ArrayParamSmallerSucceeds) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`(u32:0..10, u32:1..=11)`)]
+fn fuzz_custom_array_domain(t: u32[4]) {}
+)",
+      TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2FuzzTestTest, ArrayParamBadDomainSizeMismatch) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`(u32:0..10, u32:1..=11, [u32:0])`)]
+fn fuzz_custom_array_domain(t: u32[2]) {}
+)",
+      TypecheckFails(HasSubstr("domain array size (3) exceeds")));
+}
+
+TEST(TypecheckV2FuzzTestTest, ArrayParamBadDomainTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`(u32:0..10, u32:1..=11, [u8:0])`)]
+fn fuzz_custom_array_domain(t: u32[3]) {}
+)",
+      TypecheckFails(HasSubstr(
+          "domain bit count (8) does not match parameter bit count (32)")));
+}
+
+TEST(TypecheckV2FuzzTestTest, ArrayParamNotTupleDomain) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`[u32:0..10, u32:1..11]`)]
+fn fuzz_custom_array_domain(t: u32[2]) {}
+)",
+      TypecheckFails(HasSubstr(
+          "Fuzz test domain for array parameter `t: u32[2]` must be a tuple")));
+}
+
+TEST(TypecheckV2FuzzTestTest, MixedArrayAndScalarSucceeds) {
+  EXPECT_THAT(
+      R"(
+#[fuzz_test(domains=`(u32:0..10, u32:1..11), u32:0..5`)]
+fn f(t: u32[2], s: u32) {}
+)",
+      TypecheckSucceeds(::testing::_));
 }
 
 }  // namespace

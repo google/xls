@@ -46,3 +46,30 @@ fn nested_big_array(x: uN[128][2][3]) -> bool {
 fn array_of_tuples_with_wide_bits(x: (uN[128], u32)[2]) -> bool {
     true
 }
+
+#[fuzz_test(domains=`(u32:0..10, u32:1..=11)`)]
+fn fuzz_custom_array_domain(t: u32[2]) -> bool {
+    assert!(t[0] >= u32:0, "t0_oob_low");
+    assert!(t[0] < u32:10, "t0_oob");
+    assert!(t[1] >= u32:1, "t1_oob_low");
+    assert!(t[1] <= u32:11, "t1_oob");
+    true
+}
+
+enum FuzzEnum : u2 {
+    A = 0,
+    B = 1,
+    C = 2,
+}
+
+#[fuzz_test(domains=`([FuzzEnum::A],)`)]
+fn fuzz_enum_array_domain(t: FuzzEnum[2]) -> bool {
+    // First one must be "A", the second can be anything.
+    assert!(t[0] == FuzzEnum::A, "t0_not_A");
+    match t[1] as u2 {
+        u2:0 => true,
+        u2:1 => true,
+        u2:2 => true,
+        _ => false,
+    }
+}

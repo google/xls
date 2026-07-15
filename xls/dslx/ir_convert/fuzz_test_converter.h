@@ -39,8 +39,9 @@ class FuzzTestConverter {
       const Function* node);
 
  private:
-  absl::Status LowerConstant(const Type* param_type, const InterpValue& val,
-                             PackageInterfaceProto::FuzzTestDomain& proto);
+  // Lower a domain (as an InterpValue), to its proto representation.
+  absl::Status LowerInterpValue(const Type* param_type, const InterpValue& val,
+                                PackageInterfaceProto::FuzzTestDomain& proto);
   // Lower an enum type as an ElementOf domain containing each of the enum
   // values.
   absl::Status LowerArbitraryEnum(const Type* param_type,
@@ -50,6 +51,9 @@ class FuzzTestConverter {
   absl::Status LowerTuple(const Type* param_type,
                           const std::vector<InterpValue>& elements,
                           PackageInterfaceProto::FuzzTestDomain& proto);
+  absl::Status LowerArrayDomain(const ArrayType& array_type,
+                                const InterpValue& domain,
+                                PackageInterfaceProto::FuzzTestDomain& proto);
 
   absl::Status LowerStructInstanceDomain(
       const StructType& struct_type, const StructInstance& struct_domain,
@@ -57,9 +61,11 @@ class FuzzTestConverter {
 
   absl::Status LowerRangeExpr(const Range* range_node,
                               PackageInterfaceProto::FuzzTestDomain& proto);
-  // Main entry point
-  absl::Status LowerDomainExpr(const Type* param_type, const Expr* expr,
-                               PackageInterfaceProto::FuzzTestDomain& proto);
+
+  // Main (internal) entry point: Given the parameter type, lower a fuzztest
+  // domain expression to its proto representation.
+  absl::Status LowerExpr(const Type* param_type, const Expr* expr,
+                         PackageInterfaceProto::FuzzTestDomain& proto);
 
  private:
   TypeInfo* current_type_info_;

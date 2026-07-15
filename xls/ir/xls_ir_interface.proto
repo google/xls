@@ -149,15 +149,16 @@ message PackageInterfaceProto {
     message Tuple {
       repeated FuzzTestDomain elements = 1;
     }
+    message Array {
+      repeated FuzzTestDomain elements = 1;
+    }
 
     oneof domain_kind {
       bool arbitrary = 1;
       Range range = 2;
       ElementOf element_of = 3;
       Tuple tuple = 4;
-      // TODO: davidplass - design how Array domains will be represented ,
-      // starting from the DSLX parser, through AOT generation.
-      // Array array = 5;
+      Array array = 5;
     }
   }
 

@@ -485,6 +485,100 @@ fn f(x: u32) -> u32 { x }
   EXPECT_THAT(skv.second, testing::HasSubstr("data: \"\\001\\000\\000\\000\""));
 }
 
+TEST(FunctionConverterFuzzTestTest, ConstantArrayDomainCustom) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+const A = ([u32:1], [u32:2]);
+#[fuzz_test(domains = `A`)]
+fn f(x: u32[2]) -> bool { x[0] != u32:0 }
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const auto& skv =
+      std::get<AttributeData::StringKeyValueArgument>(attributes[0].args()[0]);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  ASSERT_EQ(function_proto.parameter_domains_size(), 1);
+  const auto& domain = function_proto.parameter_domains(0);
+  ASSERT_TRUE(domain.has_array());
+  ASSERT_EQ(domain.array().elements_size(), 2);
+  EXPECT_TRUE(domain.array().elements(0).has_element_of());
+  EXPECT_TRUE(domain.array().elements(1).has_element_of());
+}
+
+TEST(FunctionConverterFuzzTestTest, RangeArrayDomain) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+const A = (u32:0..10, u32:1..11);
+#[fuzz_test(domains = `A`)]
+fn f(x: u32[2]) -> bool {
+    x[0] >= u32:0 && x[0] < u32:10 && x[1] >= u32:1 && x[1] < u32:11
+}
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FuzzTestFunction * ft,
+                           tm.module->GetMemberOrError<FuzzTestFunction>("f"));
+  ASSERT_NE(ft, nullptr);
+  Function* f = &ft->fn();
+
+  const ConvertOptions convert_options;
+  PackageConversionData package = MakeConversionData("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
+                              /*is_top=*/true);
+
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
+
+  ASSERT_FALSE(package_data.conversion_info->package->functions().empty());
+  auto* ir_fn =
+      package_data.conversion_info->package->functions().front().get();
+
+  EXPECT_TRUE(ir_fn->HasAttribute(AttributeKind::kFuzzTest));
+  absl::Span<const AttributeData> attributes = ir_fn->attributes();
+  const auto& skv =
+      std::get<AttributeData::StringKeyValueArgument>(attributes[0].args()[0]);
+
+  xls::PackageInterfaceProto::Function function_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(skv.second, &function_proto));
+  ASSERT_EQ(function_proto.parameter_domains_size(), 1);
+  const auto& domain = function_proto.parameter_domains(0);
+  ASSERT_TRUE(domain.has_array());
+  ASSERT_EQ(domain.array().elements_size(), 2);
+  EXPECT_TRUE(domain.array().elements(0).has_range());
+  EXPECT_TRUE(domain.array().elements(1).has_range());
+}
+
 TEST(FunctionConverterFuzzTestTest, ConstantTupleDomain) {
   ImportData import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(

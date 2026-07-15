@@ -236,3 +236,15 @@ dslx_fuzz_test(
     library = ":struct_tests_dslx",
     test_function = "wide_tuple_element_of",
 )
+
+dslx_fuzz_test(
+    name = "fuzz_custom_array_domain_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "fuzz_custom_array_domain",
+)
+
+dslx_fuzz_test(
+    name = "fuzz_enum_array_domain_fuzz_test",
+    library = ":array_tests_dslx",
+    test_function = "fuzz_enum_array_domain",
+)
