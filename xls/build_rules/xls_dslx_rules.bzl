@@ -522,6 +522,7 @@ def _xls_dslx_generate_cpp_type_files_impl(ctx):
     # Make arguments for the cpp_transpiler tool.
     # Add an extension to the directory that helps bazel classify the contents
     # as C++, otherwise it will not append configured --cxxopt for compilation.
+    # Also see https://github.com/bazelbuild/bazel/issues/14843
     cc_source_dir = ctx.actions.declare_directory(ctx.label.name + "_srcs.cc")
     h_file = ctx.outputs.header_file
 
