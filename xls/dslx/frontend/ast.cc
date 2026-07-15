@@ -405,15 +405,7 @@ AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
 }
 
 AstNode* TypeDefinitionToAstNode(const TypeDefinition& td) {
-  return absl::visit(Visitor{
-                         [](TypeAlias* n) -> AstNode* { return n; },
-                         [](StructDef* n) -> AstNode* { return n; },
-                         [](ProcDef* n) -> AstNode* { return n; },
-                         [](EnumDef* n) -> AstNode* { return n; },
-                         [](ColonRef* n) -> AstNode* { return n; },
-                         [](UseTreeEntry* n) -> AstNode* { return n; },
-                     },
-                     td);
+  return absl::visit(Visitor{[](auto* n) -> AstNode* { return n; }}, td);
 }
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {

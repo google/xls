@@ -31,8 +31,12 @@ namespace xls::dslx {
 
 // Resolves the definition and parametrics for the struct or proc type referred
 // to by `annotation`.
+// If `include_generic` is true, annotations that resolve to
+// `GenericTypeAnnotation` will return a `StructOrProcRef`, but with
+// `.def=nullptr` and `.is_generic=true`.
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
-    const TypeAnnotation* annotation, const ImportData& import_data);
+    const TypeAnnotation* annotation, const ImportData& import_data,
+    bool include_generic = false);
 
 // Variant that takes a `ColonRef`. This will only yield a struct ref if the
 // `ColonRef` itself refers to an actual struct or alias of one. It will yield
