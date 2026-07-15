@@ -295,7 +295,9 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
         'xls/dslx/tests/errors/match_multi_pattern_with_bindings.x:17:5-17:7',
         stderr,
     )
-    self.assertIn('Cannot have multiple patterns that bind names', stderr)
+    self.assertIn(
+        'Cannot bind names in a match arm with multiple patterns', stderr
+    )
 
   def test_co_recursion(self):
     stderr = self._run(

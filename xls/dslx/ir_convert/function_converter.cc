@@ -401,6 +401,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // from their parent nodes).
   // keep-sorted start
   INVALID(Attribute)
+  INVALID(SumVariantPayloadPattern)
   INVALID(FunctionRef)
   INVALID(FuzzTestFunction)
   INVALID(MatchArm)
@@ -452,6 +453,9 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(QuickCheck)
   INVALID(StructDef)
   INVALID(StructMemberNode)
+  INVALID(SumDef)
+  INVALID(SumInstance)
+  INVALID(SumVariant)
   INVALID(Trait)
   INVALID(TypeAlias)
   INVALID(Use)
@@ -1558,6 +1562,10 @@ absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
             return absl::InternalError(
                 "Induction variable cannot be a colon-reference");
           },
+          [&](SumVariantPayloadPattern*) -> absl::StatusOr<BValue> {
+            return absl::InternalError(
+                "Induction variable cannot be a constructor pattern");
+          },
           [&](NameRef*) -> absl::StatusOr<BValue> {
             return absl::InternalError(
                 "Induction variable cannot be a name-reference");
@@ -1906,6 +1914,10 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
               return Def(matcher, [&](const SourceInfo& loc) {
                 return function_builder_->Literal(UBits(1, 1), loc);
               });
+            },
+            [&](SumVariantPayloadPattern*) -> absl::StatusOr<BValue> {
+              return absl::UnimplementedError(
+                  "Semantic sum patterns are not supported by IR conversion.");
             },
             [&](RestOfTuple* n) -> absl::StatusOr<BValue> {
               return Def(matcher, [&](const SourceInfo& loc) {
