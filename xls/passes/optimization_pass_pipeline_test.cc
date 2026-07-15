@@ -26,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
@@ -392,6 +393,22 @@ void DefaultPipelineFinishes(std::shared_ptr<Package> package) {
 }
 
 FUZZ_TEST(IrFuzzTest, DefaultPipelineFinishes).WithDomains(IrFuzzDomain());
+
+TEST_F(OptimizationPipelineTest, ArrayUpdateOptimizationsConverge) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p0 = fb.Param("p0", p->GetBitsType(2));
+  BValue bit_slice = fb.BitSlice(p0, /*start=*/0, /*width=*/1);
+  BValue zero = fb.Literal(UBits(0, 1));
+  BValue lit_array =
+      fb.Literal(Value::ArrayOrDie({Value(UBits(0, 1)), Value(UBits(1, 1))}));
+  BValue array_update0 = fb.ArrayUpdate(lit_array, bit_slice, {zero});
+  BValue array_index = fb.ArrayIndex(array_update0, {p0});
+  BValue array_update1 = fb.ArrayUpdate(lit_array, array_index, {array_index});
+  fb.Tuple({p0, lit_array, array_update0, array_index, array_update1});
+  XLS_ASSERT_OK(fb.Build().status());
+  DefaultPipelineFinishes(std::move(p));
+}
 
 }  // namespace
 }  // namespace xls

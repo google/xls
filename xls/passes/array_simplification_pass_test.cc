@@ -899,6 +899,49 @@ TEST_F(ArraySimplificationPassTest, SelectAmongArrayUpdates) {
                   /*indices=*/{m::Param("x"), m::Param("y")}));
 }
 
+TEST_F(ArraySimplificationPassTest, SelectOnArrayUpdateWithLiteralIndices) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u32 = p->GetBitsType(32);
+  BValue sel_cond = fb.Param("p", p->GetBitsType(1));
+  BValue arr = fb.Param("a", p->GetArrayType(3, u32));
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u32);
+  BValue idx_unknown = fb.Param("idx", u32);
+  BValue idx_zero = fb.Literal(UBits(0, 32));
+  BValue update0x = fb.ArrayUpdate(arr, x, {idx_zero});
+  BValue update0y = fb.ArrayUpdate(arr, y, {idx_zero});
+  BValue sel = fb.Select(sel_cond, {update0x}, update0y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+
+  // Then confirm that once the index is NOT known, we do simplify.
+  XLS_ASSERT_OK(idx_zero.node()->ReplaceUsesWith(idx_unknown.node()));
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+}
+
+TEST_F(ArraySimplificationPassTest, SelectOnArrayUpdateWithLiteralValues) {
+  Package* p = GetPackage();
+  FunctionBuilder fb(TestName(), p);
+  Type* u32 = p->GetBitsType(32);
+  BValue sel_cond = fb.Param("p", p->GetBitsType(1));
+  BValue arr = fb.Param("a", p->GetArrayType(3, u32));
+  BValue x = fb.Param("x", u32);
+  BValue val_unknown = fb.Param("val", u32);
+  BValue val_zero = fb.Literal(UBits(0, 32));
+  BValue update0x = fb.ArrayUpdate(arr, val_zero, {x});
+  BValue update0y = fb.ArrayUpdate(arr, val_zero, {x});
+  BValue sel = fb.Select(sel_cond, {update0x}, update0y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+
+  // Then confirm that once the value is NOT known, we do simplify.
+  XLS_ASSERT_OK(val_zero.node()->ReplaceUsesWith(val_unknown.node()));
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+}
+
 TEST_F(ArraySimplificationPassTest, PrioritySelectAmongArrayUpdates) {
   Package* p = GetPackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

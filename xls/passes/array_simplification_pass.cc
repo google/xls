@@ -19,8 +19,6 @@
 #include <deque>
 #include <iterator>
 #include <optional>
-#include <string>
-#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -30,7 +28,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
@@ -1457,6 +1454,23 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(
   };
   bool assumed_in_bounds = absl::c_all_of(cases, is_in_bounds) &&
                            is_in_bounds(default_case.value_or(IdentityValue()));
+
+  // If the cases are array updates on known indices or values, skip hoisting to
+  // prevent cycles with other optimizations that try and sink the select.
+  bool cases_are_array_updates =
+      absl::c_all_of(select->operands().subspan(1),
+                     [&](Node* n) { return n->Is<ArrayUpdate>(); });
+  bool idxs_known = absl::c_all_of(
+      idx.value(), [&](Node* n) { return query_engine.IsFullyKnown(n); });
+  auto value_known = [&](const std::variant<ArrayUpdate*, IdentityValue>& v) {
+    return std::holds_alternative<IdentityValue>(v) ||
+           query_engine.IsFullyKnown(std::get<ArrayUpdate*>(v)->update_value());
+  };
+  bool values_known = absl::c_all_of(cases, value_known) &&
+                      value_known(default_case.value_or(IdentityValue()));
+  if (cases_are_array_updates && (idxs_known || values_known)) {
+    return SimplifyResult::Unchanged();
+  }
 
   VLOG(2) << absl::StrFormat("Hoist select above array-update(s): %s",
                              select->ToString());
