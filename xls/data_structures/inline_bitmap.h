@@ -358,13 +358,13 @@ class InlineBitmap {
   void Overwrite(const InlineBitmap& other, int64_t cnt, int64_t w_offset = 0,
                  int64_t r_offset = 0);
 
+  static constexpr int64_t kWordBits = 64;
+  static constexpr int64_t kWordBytes = 8;
+
  private:
   FRIEND_TEST(InlineBitmapTest, MaskForWord);
   friend uint64_t GetWordBitsAtForTest(const InlineBitmap& ib,
                                        int64_t bit_offset);
-
-  static constexpr int64_t kWordBits = 64;
-  static constexpr int64_t kWordBytes = 8;
 
   // Gets the kWordBits bits following bit_offset with 'Get(bit_offset)' being
   // the LSB, Get(bit_offset + 1) being the next lsb etc.

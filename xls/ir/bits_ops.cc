@@ -707,25 +707,26 @@ Bits LongestCommonPrefixMSB(absl::Span<const Bits> bits_span) {
     CHECK_EQ(bits.bit_count(), input_size);
   }
 
-  int64_t first_difference = -1;
-  std::vector<Bits::Iterator> iterators;
-  iterators.reserve(bits_span.size());
-  for (const Bits& bits : bits_span) {
-    iterators.push_back(bits.end() - 1);
-  }
-  for (; iterators[0] >= bits_span[0].begin(); --iterators[0]) {
-    for (auto& it : absl::MakeSpan(iterators).subspan(1)) {
-      if (*it-- != *iterators[0]) {
-        first_difference = std::distance(bits_span[0].begin(), iterators[0]);
-        break;
-      }
+  // Find the most-significant bit where any of the bitmaps differ, working one
+  // word at a time from MSB to LSB.
+  const int64_t word_count = bits_span[0].bitmap().word_count();
+  for (int64_t i = word_count - 1; i >= 0; --i) {
+    uint64_t diff = 0;
+    // Since the words are padded with zeros on the left, we can just XOR each
+    // with the first to find differing bits; the most significant 1 in the
+    // result is the first bit after the common prefix.
+    uint64_t base_word = bits_span[0].bitmap().GetWord(i);
+    for (auto it = bits_span.begin() + 1; it != bits_span.end(); ++it) {
+      diff |= base_word ^ it->bitmap().GetWord(i);
     }
-    if (first_difference != -1) {
-      break;
+    if (diff != 0) {
+      int64_t common_prefix_start =
+          1 + xls::FloorOfLog2(diff) + i * InlineBitmap::kWordBits;
+      return bits_span[0].Slice(common_prefix_start,
+                                input_size - common_prefix_start);
     }
   }
-  return bits_span[0].Slice(first_difference + 1,
-                            input_size - first_difference - 1);
+  return bits_span[0];
 }
 
 }  // namespace bits_ops
