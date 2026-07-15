@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "absl/base/casts.h"
-#include "absl/container/flat_hash_map.h"
+#include "absl/container/linked_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -237,11 +237,14 @@ class FunctionType {
 };
 
 // Represents a type that is an instantiation with input and output ports.
+//
+// Note that input and output types are stored in linked_hash_maps to preserve
+// port order- we sometimes iterate over these maps.
 class InstantiationType {
  public:
   explicit InstantiationType(
-      absl::flat_hash_map<std::string, Type*> input_types,
-      absl::flat_hash_map<std::string, Type*> output_types)
+      absl::linked_hash_map<std::string, Type*> input_types,
+      absl::linked_hash_map<std::string, Type*> output_types)
       : input_types_(std::move(input_types)),
         output_types_(std::move(output_types)) {}
 
@@ -253,10 +256,10 @@ class InstantiationType {
   absl::StatusOr<Type*> GetInputPortType(std::string_view name) const;
   absl::StatusOr<Type*> GetOutputPortType(std::string_view name) const;
 
-  const absl::flat_hash_map<std::string, Type*>& input_types() const {
+  const absl::linked_hash_map<std::string, Type*>& input_types() const {
     return input_types_;
   }
-  const absl::flat_hash_map<std::string, Type*>& output_types() const {
+  const absl::linked_hash_map<std::string, Type*>& output_types() const {
     return output_types_;
   }
 
@@ -280,8 +283,8 @@ class InstantiationType {
   }
 
  private:
-  absl::flat_hash_map<std::string, Type*> input_types_;
-  absl::flat_hash_map<std::string, Type*> output_types_;
+  absl::linked_hash_map<std::string, Type*> input_types_;
+  absl::linked_hash_map<std::string, Type*> output_types_;
 };
 
 // -- Inlines
