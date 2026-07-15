@@ -284,7 +284,7 @@ proc ZstdDecoderInternal<
         } else {};
 
         let output_mem_wr_req = MemWriterReq {addr: state.output_buffer, length: fh_resp.header.frame_content_size as uN[AXI_ADDR_W]};
-        let tok = send_if(tok0, output_mem_wr_req_s, fh_resp_valid, output_mem_wr_req);
+        let tok = send_if(tok1_4, output_mem_wr_req_s, fh_resp_valid, output_mem_wr_req);
 
         let do_recv_output_mem_wr_resp = (state.fsm == Fsm::WRITE_OUTPUT);
         let (tok_x, output_write_resp, output_write_done) = recv_if_non_blocking(tok0, output_mem_wr_resp_r, do_recv_output_mem_wr_resp, zero!<MemWriterResp>());
