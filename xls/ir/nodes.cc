@@ -987,6 +987,7 @@ std::vector<Next*> StateRead::GetNextValues() const {
   std::vector<Next*> next_values;
   for (Node* user : users()) {
     if (user->Is<Next>() && user->As<Next>()->state_read() == this) {
+      std::cout << "Does it still Error? DO NOT SUBMIT" << std::endl;
       next_values.push_back(user->As<Next>());
     }
   }
