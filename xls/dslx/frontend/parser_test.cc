@@ -4583,6 +4583,36 @@ TEST_F(ParserTest, ReadStubFile) {
   XLS_EXPECT_OK(parser.ParseModule());
 }
 
+TEST_F(ParserTest, DepthOutOfRange) {
+  constexpr std::string_view kProgram = (R"(#![feature(channel_attributes)]
+
+proc AProc {
+    config() {
+        let (_, _) = #[channel(depth=11111111111111111111)] chan<u32>("foo");
+    }
+    init {}
+    next(_: ()) {}
+})");
+
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule().status(),
+              IsPosError("ParseError",
+                         HasSubstr("Could not convert value to int64_t")));
+}
+
+TEST_F(ParserTest, DerivedValueOutOfRange) {
+  constexpr std::string_view kProgram = (R"(
+  #[derive(value=11111111111111111111)]
+)");
+
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule().status(),
+              IsPosError("ParseError",
+                         HasSubstr("Could not convert value to int64_t")));
+}
+
 TEST_F(ParserTest, BasicChannelAttributeUsage) {
   RoundTrip(R"(#![feature(channel_attributes)]
 

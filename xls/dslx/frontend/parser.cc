@@ -730,7 +730,12 @@ absl::StatusOr<ChannelConfig> Parser::ParseExprAttribute(Bindings& bindings,
         depth.emplace();
         XLS_ASSIGN_OR_RETURN(Token value_tok,
                              PopTokenOrError(TokenKind::kNumber));
-        XLS_ASSIGN_OR_RETURN(*depth, value_tok.GetValueAsInt64());
+        absl::StatusOr<int64_t> depth_val = value_tok.GetValueAsInt64();
+        if (!depth_val.ok()) {
+          return ParseErrorStatus(value_tok.span(),
+                                  depth_val.status().message());
+        }
+        *depth = *depth_val;
       } else if (key == "register_push_outputs") {
         XLS_ASSIGN_OR_RETURN(Token value_tok,
                              PopTokenOrError(TokenKind::kKeyword));
@@ -872,9 +877,12 @@ Parser::ParseAttributeArguments() {
             lhs.GetStringValue(), rhs.GetStringValue(),
             rhs.kind() == TokenKind::kBacktickString));
       } else if (rhs.kind() == TokenKind::kNumber) {
-        XLS_ASSIGN_OR_RETURN(int64_t int_value, rhs.GetValueAsInt64());
+        absl::StatusOr<int64_t> int_value = rhs.GetValueAsInt64();
+        if (!int_value.ok()) {
+          return ParseErrorStatus(rhs.span(), int_value.status().message());
+        }
         result.push_back(AttributeData::IntKeyValueArgument(
-            lhs.GetStringValue(), int_value));
+            lhs.GetStringValue(), *int_value));
       } else {
         return ParseErrorStatus(lhs.span(),
                                 "Expected attribute argument value.");
