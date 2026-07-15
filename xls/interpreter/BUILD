@@ -374,6 +374,10 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
+    # We want to be sure that the test suite symbols aren't removed. Other tests that instantiate
+    # the test suite find the test suite symbols dynamically and there aren't other usages to
+    # prevent them from being removed.
+    alwayslink = True,
 )
 
 cc_library(
