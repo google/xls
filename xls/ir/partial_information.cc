@@ -645,6 +645,20 @@ PartialInformation& PartialInformation::Shra(const PartialInformation& other) {
 
 PartialInformation& PartialInformation::JoinWith(
     const PartialInformation& other) {
+  CHECK_EQ(bit_count_, other.bit_count_);
+
+  if (IsImpossible() || other.IsUnconstrained()) {
+    return *this;
+  }
+  if (other.IsImpossible()) {
+    MarkImpossible();
+    return *this;
+  }
+  if (IsUnconstrained()) {
+    *this = other;
+    return *this;
+  }
+
   if (ternary_.has_value()) {
     if (other.ternary_.has_value() &&
         !ternary_ops::TryUpdateWithUnion(*ternary_, *other.ternary_)) {
@@ -676,6 +690,21 @@ PartialInformation& PartialInformation::JoinWith(
 
 PartialInformation& PartialInformation::MeetWith(
     const PartialInformation& other) {
+  CHECK_EQ(bit_count_, other.bit_count_);
+
+  if (IsUnconstrained() || other.IsImpossible()) {
+    return *this;
+  }
+  if (other.IsUnconstrained()) {
+    ternary_ = std::nullopt;
+    range_ = std::nullopt;
+    return *this;
+  }
+  if (IsImpossible()) {
+    *this = other;
+    return *this;
+  }
+
   if (ternary_.has_value() && other.ternary_.has_value()) {
     ternary_ops::UpdateWithIntersection(*ternary_, *other.ternary_);
   } else {
@@ -709,6 +738,69 @@ std::ostream& operator<<(std::ostream& os,
 }
 
 void PartialInformation::ReconcileInformation() {
+  // If the range is empty, just standardize on the "impossible" state.
+  if (range_.has_value() && range_->IsEmpty()) {
+    MarkImpossible();
+    return;
+  }
+
+  // Explicitly remove fully-unconstrained "information".
+  if (range_.has_value() && range_->IsMaximal()) {
+    range_ = std::nullopt;
+  }
+  if (ternary_.has_value() && ternary_ops::AllUnknown(*ternary_)) {
+    ternary_ = std::nullopt;
+  }
+
+  // If both are unset, we're done; this is the "unconstrained" state.
+  if (!ternary_.has_value() && !range_.has_value()) {
+    return;
+  }
+
+  // If only one of the two is set, then we can just set the other one from it
+  // directly, with no iteration needed.
+  if (!range_.has_value()) {
+    range_ = interval_ops::FromTernary(*ternary_);
+    if (range_.has_value() && range_->IsMaximal()) {
+      range_ = std::nullopt;
+    }
+    return;
+  }
+  if (!ternary_.has_value()) {
+    ternary_ = interval_ops::ExtractTernaryVector(*range_);
+    if (ternary_.has_value() && ternary_ops::AllUnknown(*ternary_)) {
+      ternary_ = std::nullopt;
+    }
+    return;
+  }
+
+  // From here on out, we know that both `range_` and `ternary_` are set, and
+  // both will only be made more specific as we go.
+
+  // If our information is already contradictory, this is just impossible.
+  if (!interval_ops::CoversTernary(*range_, *ternary_)) {
+    MarkImpossible();
+    return;
+  }
+  // Otherwise, we should never reach an impossible state, as we're only
+  // transferring information from one representation to the other.
+
+  // If either side has a precise value, use that to set the other side; we know
+  // they're compatible, so we don't need to check again.
+  if (std::optional<Bits> precise_value = range_->GetPreciseValue();
+      precise_value.has_value()) {
+    ternary_ = ternary_ops::BitsToTernary(*precise_value);
+    return;
+  }
+  if (ternary_ops::IsFullyKnown(*ternary_)) {
+    range_ = IntervalSet::Precise(ternary_ops::ToKnownBitsValues(*ternary_));
+    return;
+  }
+
+  // Repeatedly transfer information from one representation to the other until
+  // no more information can be transferred. Since they're compatible and
+  // neither is unconstrained, this will always converge to a non-empty but not
+  // unconstrained state.
   bool changed = true;
   int64_t iterations = 0;
   while (changed) {
@@ -730,52 +822,17 @@ void PartialInformation::ReconcileInformation() {
       return;
     }
     changed = false;
-    if (range_.has_value() && range_->IsMaximal()) {
-      range_ = std::nullopt;
-    }
-    if (ternary_.has_value() && ternary_ops::AllUnknown(*ternary_)) {
-      ternary_ = std::nullopt;
-    }
 
-    if (range_.has_value() && range_->IsEmpty()) {
-      // Standardize the "impossible" state.
-      MarkImpossible();
-      return;
-    }
+    // Transfer as much information as we can into the ternary.
+    TernaryVector range_ternary = interval_ops::ExtractTernaryVector(*range_);
+    CHECK(ternary_ops::TryUpdateWithUnion(*ternary_, range_ternary, &changed));
 
-    // Check whether `ternary_` and `range_` are in conflict before we go any
-    // further; if they are, mark the combination impossible.
-    if (ternary_.has_value() && range_.has_value() &&
-        !interval_ops::CoversTernary(*range_, *ternary_)) {
-      MarkImpossible();
-      return;
-    }
-
-    if (range_.has_value()) {
-      // Transfer as much information as we can into the ternary.
-      TernaryVector range_ternary = interval_ops::ExtractTernaryVector(*range_);
-      if (ternary_.has_value()) {
-        CHECK(ternary_ops::TryUpdateWithUnion(*ternary_, range_ternary,
-                                              &changed));
-      } else if (!ternary_ops::AllUnknown(range_ternary)) {
-        ternary_ = std::move(range_ternary);
-        changed = true;
-      }
-    }
-
-    if (ternary_.has_value()) {
-      // Transfer as much information as we can into the range.
-      IntervalSet ternary_range = interval_ops::FromTernary(*ternary_);
-      if (range_.has_value()) {
-        IntervalSet new_range = IntervalSet::Intersect(ternary_range, *range_);
-        CHECK(!new_range.IsEmpty());
-        changed = changed || (new_range != *range_);
-        range_ = std::move(new_range);
-      } else if (!ternary_range.IsMaximal()) {
-        range_ = std::move(ternary_range);
-        changed = true;
-      }
-    }
+    // Transfer as much information as we can into the range.
+    IntervalSet ternary_range = interval_ops::FromTernary(*ternary_);
+    IntervalSet new_range = IntervalSet::Intersect(ternary_range, *range_);
+    CHECK(!new_range.IsEmpty());
+    changed = changed || (new_range != *range_);
+    range_ = std::move(new_range);
   }
 }
 
