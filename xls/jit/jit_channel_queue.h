@@ -53,12 +53,16 @@ class ByteQueue {
 
   void Write(const uint8_t* data) {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
-    __msan_unpoison(data, channel_element_size_);
+    if (channel_element_size_ > 0) {
+      __msan_unpoison(data, channel_element_size_);
+    }
 #endif
     if (bytes_used_ == max_byte_count_ && !is_single_value_) {
       Resize();
     }
-    memcpy(circular_buffer_.data() + write_index_, data, channel_element_size_);
+    if (channel_element_size_ > 0) {
+      memcpy(circular_buffer_.data() + write_index_, data, channel_element_size_);
+    }
     if (is_single_value_) {
       bytes_used_ = allocated_element_size_;
     } else {
@@ -74,8 +78,10 @@ class ByteQueue {
     if (bytes_used_ == 0) {
       return false;
     }
-    memcpy(buffer, circular_buffer_.data() + read_index_,
-           channel_element_size_);
+    if (channel_element_size_ > 0) {
+      memcpy(buffer, circular_buffer_.data() + read_index_,
+             channel_element_size_);
+    }
     if (!is_single_value_) {
       // Reads are destructive for non single-value channels.
       bytes_used_ -= allocated_element_size_;
