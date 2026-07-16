@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 MY_BENCHMARK_FILE="./xls/examples/proc_network_opt_ir_benchmark.sh"
 
