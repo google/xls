@@ -288,6 +288,41 @@ TEST_F(ProcTest, RemoveStateThatStillHasUse) {
                        HasSubstr("state read st has uses")));
 }
 
+TEST_F(ProcTest, GetNextStateReadDecoupled) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_elem,
+                           pb.UnreadStateElement("x", Value(UBits(42, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue read = pb.StateRead(state_elem);
+  BValue next_val = pb.Add(read, pb.Literal(Value(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  StateRead* state_read = proc->GetStateReadByStateElement(state_elem);
+  EXPECT_EQ(state_read->GetNextValues().size(), 0);
+
+  XLS_ASSERT_OK(proc->MakeNodeWithName<Next>(SourceInfo(), state_elem,
+                                             next_val.node(),
+                                             /*predicate=*/std::nullopt,
+                                             /*label=*/std::nullopt, "x_next")
+                    .status());
+  EXPECT_EQ(state_read->GetNextValues().size(), 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * next_value,
+      proc->MakeNode<Literal>(SourceInfo(), Value(UBits(43, 32))));
+  XLS_ASSERT_OK(
+      proc->MakeNodeWithName<Next>(SourceInfo(), state_elem, next_value,
+                                   /*predicate=*/std::nullopt,
+                                   /*label=*/std::nullopt, "second_next")
+          .status());
+  EXPECT_EQ(state_read->GetNextValues().size(), 2);
+  EXPECT_THAT(state_read->GetNextValues(),
+              UnorderedElementsAre(
+                  m::NextWithStateElement(state_elem, m::Add()),
+                  m::NextWithStateElement(state_elem, m::Literal(43))));
+}
+
 TEST_F(ProcTest, InsertStateElementDecoupled) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
