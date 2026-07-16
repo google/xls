@@ -164,6 +164,40 @@ TEST_F(ProcStateNarrowingPassTest, BasicLoop) {
   EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
                                          "the_state", p->GetBitsType(3))));
 }
+
+TEST_F(ProcStateNarrowingPassTest, BasicLoopDecoupledNext) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* state_element,
+      pb.UnreadStateElement("the_state", Value(UBits(1, 32)),
+                            /*non_synthesizable=*/false));
+  BValue state = pb.StateRead(state_element);
+  // State just counts up 1 to 6 then resets to 1.
+  // NB Limit is exactly 6 and comparison is LT so that however the transform is
+  // done the state fits in 3 bits.
+  auto in_loop = pb.ULt(state, pb.Literal(UBits(6, 32)));
+  pb.Send(chan, pb.Literal(Value::Token()), state);
+  pb.Next(state, pb.Add(state, pb.Literal(UBits(1, 32))), in_loop);
+  // Reset value is intentionally not something that could be removed by
+  // exploiting overflow
+  pb.Next(state, pb.Literal(UBits(1, 32)), pb.Not(in_loop));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                            /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(3))));
+}
+
 TEST_F(ProcStateNarrowingPassTest, BasicHalt) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(

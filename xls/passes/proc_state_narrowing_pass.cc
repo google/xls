@@ -59,7 +59,9 @@ struct ProcStateNarrowTransform : public Proc::StateElementTransformer {
                                            Next* old_next) final {
     XLS_RET_CHECK_EQ(
         new_state_read->GetType()->GetFlatBitCount() + known_leading_,
-        old_next->state_read()->GetType()->GetFlatBitCount());
+        proc->GetStateReadByStateElement(old_next->state_element())
+            ->GetType()
+            ->GetFlatBitCount());
     return proc->MakeNodeWithName<BitSlice>(
         old_next->loc(), old_next->value(), /*start=*/0,
         /*width=*/new_state_read->GetType()->GetFlatBitCount(),
