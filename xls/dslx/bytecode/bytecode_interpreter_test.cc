@@ -22,12 +22,12 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -739,7 +739,7 @@ fn main() {
 }
 TEST_F(BytecodeInterpreterTest, DestructuringLet) {
   constexpr std::string_view kProgram = R"(
-fn has_name_def_tree() -> (u32, u64, uN[128]) {
+fn has_tuple_pattern() -> (u32, u64, uN[128]) {
   let (a, b, (c, d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
   assert_eq(a, u4:0);
   assert_eq(b, u8:1);
@@ -749,7 +749,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(kProgram, "has_name_def_tree"));
+                           Interpret(kProgram, "has_tuple_pattern"));
 
   ASSERT_TRUE(value.IsTuple());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, value.GetLength());
@@ -770,7 +770,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 
 TEST_F(BytecodeInterpreterTest, DestructuringLetWithRestOfTuple) {
   constexpr std::string_view kProgram = R"(
-fn has_name_def_tree() -> (u32, u64, uN[128]) {
+fn has_tuple_pattern() -> (u32, u64, uN[128]) {
   let (a, b, .., (c, .., d)) = (u4:0, u8:1, u9:2, u10:3, (u16:2, u17:2, (u32:3, u64:4, uN[128]:5)));
   assert_eq(a, u4:0);
   assert_eq(b, u8:1);
@@ -780,7 +780,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(kProgram, "has_name_def_tree"));
+                           Interpret(kProgram, "has_tuple_pattern"));
 
   ASSERT_TRUE(value.IsTuple());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, value.GetLength());
@@ -801,7 +801,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 
 TEST_F(BytecodeInterpreterTest, DestructuringLetWithRestOfTupleSkipsZero) {
   constexpr std::string_view kProgram = R"(
-fn has_name_def_tree() -> (u32, u64, uN[128]) {
+fn has_tuple_pattern() -> (u32, u64, uN[128]) {
   let (a, b, .., (c, .., d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
   assert_eq(a, u4:0);
   assert_eq(b, u8:1);
@@ -811,7 +811,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(kProgram, "has_name_def_tree"));
+                           Interpret(kProgram, "has_tuple_pattern"));
 
   ASSERT_TRUE(value.IsTuple());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, value.GetLength());

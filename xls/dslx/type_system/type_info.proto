@@ -43,6 +43,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_ARRAY = 18;
   AST_NODE_KIND_STRING = 19;
   AST_NODE_KIND_STRUCT_INSTANCE = 20;
+  // Retired legacy wire value; do not reuse.
   AST_NODE_KIND_NAME_DEF_TREE = 21;
   AST_NODE_KIND_SPLAT_STRUCT_INSTANCE = 22;
   AST_NODE_KIND_INDEX = 23;
@@ -98,6 +99,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_TRAIT = 73;
   AST_NODE_KIND_ATTRIBUTE = 74;
   AST_NODE_KIND_FUZZ_TEST_FUNCTION = 75;
+  AST_NODE_KIND_TUPLE_PATTERN = 76;
 }
 
 message BitsValueProto {

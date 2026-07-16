@@ -21,13 +21,13 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/exhaustiveness/match_exhaustiveness_checker.h"
@@ -46,10 +46,10 @@ namespace {
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
-std::vector<const NameDefTree*> GetPatterns(const Match& match) {
-  std::vector<const NameDefTree*> patterns;
+std::vector<PatternTree> GetPatterns(const Match& match) {
+  std::vector<PatternTree> patterns;
   for (const MatchArm* arm : match.arms()) {
-    for (const NameDefTree* pattern : arm->patterns()) {
+    for (const PatternTree& pattern : arm->patterns()) {
       patterns.push_back(pattern);
     }
   }
@@ -75,15 +75,15 @@ void CheckExhaustiveOnlyAfterLastPattern(std::string_view program) {
   MatchExhaustivenessChecker checker(match->matched()->span(), import_data,
                                      *tm.type_info, *matched_type.value());
 
-  std::vector<const NameDefTree*> patterns = GetPatterns(*match);
+  std::vector<PatternTree> patterns = GetPatterns(*match);
   for (int64_t i = 0; i < patterns.size(); ++i) {
-    bool now_exhaustive = checker.AddPattern(*patterns[i]);
+    bool now_exhaustive = checker.AddPattern(patterns[i]);
     // We expect it to become exhaustive with the last match arm.
     bool expect_now_exhaustive = i + 1 == patterns.size();
     EXPECT_EQ(now_exhaustive, expect_now_exhaustive)
         << "Expected match to be "
         << (expect_now_exhaustive ? "exhaustive" : "non-exhaustive")
-        << " after adding pattern `" << patterns[i]->ToString() << "`";
+        << " after adding pattern `" << PatternToString(patterns[i]) << "`";
   }
 }
 

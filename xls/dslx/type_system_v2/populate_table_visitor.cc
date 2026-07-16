@@ -658,12 +658,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_type));
       }
 
-      for (const NameDefTree* pattern : arm->patterns()) {
-        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(pattern, matched_var));
-        if (pattern->is_leaf()) {
-          XLS_RETURN_IF_ERROR(
-              table_.SetTypeVariable(ToAstNode(pattern->leaf()), matched_var));
-        }
+      for (const PatternTree& pattern : arm->patterns()) {
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeVariable(ToAstNode(pattern), matched_var));
       }
     }
     if (node->IsConst()) {
@@ -747,57 +744,53 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return table_.SetTypeAnnotation(node, any_type);
   }
 
-  // Recursively handles a `NameDefTree`, propagating the unified type of the
+  // Recursively handles a tuple pattern, propagating the unified type of the
   // tree downward to children (i.e. the children's types are element types of
   // the tree's type variable). This function sets the root-level type to be a
-  // tuple of `Any` types, the rationale being that a `NameDefTree` itself does
+  // tuple of `Any` types, the rationale being that a tuple pattern itself does
   // not provide any top-level type information but the allowable size of the
-  // tuple. A `NameDefTree` must be used in a context where this tuple of `Any`
+  // tuple. A tuple pattern must be used in a context where this tuple of `Any`
   // will get unified against a source of actual type information.
-  absl::Status HandleNameDefTree(const NameDefTree* node) override {
-    VLOG(5) << "HandleNameDefTree: " << node->ToString();
-
-    if (node->is_leaf()) {
-      return DefaultHandler(node);
-    }
-
+  absl::Status HandleTuplePattern(const TuplePattern* node) override {
+    VLOG(5) << "HandleTuplePattern: " << node->ToString();
     std::vector<TypeAnnotation*> member_types;
     const NameRef* variable = *table_.GetTypeVariable(node);
 
-    for (int i = 0; i < node->nodes().size(); i++) {
-      const NameDefTree* child = node->nodes()[i];
+    for (int i = 0; i < node->members().size(); i++) {
+      const PatternTree& child = node->members()[i];
       member_types.push_back(
-          module_.Make<AnyTypeAnnotation>(child->IsRestOfTupleLeaf()));
+          module_.Make<AnyTypeAnnotation>(IsRestOfTupleLeaf(child)));
     }
     TupleTypeAnnotation* tuple_annotation =
         module_.Make<TupleTypeAnnotation>(node->span(), member_types);
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, tuple_annotation));
-    return HandleNameDefTreeChildren(
+    return HandleTuplePatternChildren(
         node, module_.Make<TypeVariableTypeAnnotation>(variable));
   }
 
   // Handles all the children of `subtree`, with `type` being the type of
   // `subtree` itself (a TVTA for unification of the whole tuple, or
   // user-specified type).
-  absl::Status HandleNameDefTreeChildren(const NameDefTree* subtree,
-                                         const TypeAnnotation* type) {
+  absl::Status HandleTuplePatternChildren(const TuplePattern* subtree,
+                                          const TypeAnnotation* type) {
     std::optional<int> rest_of_tuple_index;
-    for (int i = 0; i < subtree->nodes().size(); i++) {
-      if (subtree->nodes()[i]->IsRestOfTupleLeaf()) {
+    for (int i = 0; i < subtree->members().size(); i++) {
+      if (IsRestOfTupleLeaf(subtree->members()[i])) {
         rest_of_tuple_index = i;
         break;
       }
-      XLS_RETURN_IF_ERROR(HandleNameDefTreeChild(subtree, type, i));
+      XLS_RETURN_IF_ERROR(HandleTuplePatternChild(subtree, type, i));
     }
 
     if (rest_of_tuple_index.has_value()) {
-      for (int i = subtree->nodes().size() - 1; i > *rest_of_tuple_index; i--) {
-        if (subtree->nodes()[i]->IsRestOfTupleLeaf()) {
+      for (int i = subtree->members().size() - 1; i > *rest_of_tuple_index;
+           i--) {
+        if (IsRestOfTupleLeaf(subtree->members()[i])) {
           return TypeInferenceErrorStatus(
-              subtree->nodes()[i]->span(), /*type=*/nullptr,
+              GetPatternSpan(subtree->members()[i]), /*type=*/nullptr,
               "`..` can only be used once per tuple pattern.", file_table_);
         }
-        XLS_RETURN_IF_ERROR(HandleNameDefTreeChild(
+        XLS_RETURN_IF_ERROR(HandleTuplePatternChild(
             subtree, type, i, /*use_right_based_index_in_type=*/true));
       }
     }
@@ -812,38 +805,40 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   // type variable on the child so that its parent-derived type will be unified
   // with any other information that traversing it picks up (e.g. if it is a
   // literal).
-  absl::Status HandleNameDefTreeChild(
-      const NameDefTree* tree, const TypeAnnotation* tree_type, int i,
+  absl::Status HandleTuplePatternChild(
+      const TuplePattern* tree, const TypeAnnotation* tree_type, int i,
       bool use_right_based_index_in_type = false) {
-    const NameDefTree* child = tree->nodes()[i];
-    const AstNode* actual_child =
-        child->is_leaf() ? ToAstNode(child->leaf()) : child;
+    const PatternTree& child = tree->members()[i];
+    const AstNode* actual_child = ToAstNode(child);
     const TypeAnnotation* element_type = nullptr;
     if (use_right_based_index_in_type) {
       // Index from the right uses element count - i.
       Expr* offset = CreateElementCountOffset(
           module_, const_cast<TypeAnnotation*>(tree_type),
-          tree->nodes().size() - i);
+          tree->members().size() - i);
       XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(offset, "offset"));
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          offset, CreateU32Annotation(module_, child->span())));
+          offset, CreateU32Annotation(module_, GetPatternSpan(child))));
       XLS_RETURN_IF_ERROR(offset->Accept(this));
       element_type = module_.Make<ElementTypeAnnotation>(tree_type, offset);
     } else {
       // Index from the left just uses a literal.
       XLS_ASSIGN_OR_RETURN(
           Number * index,
-          MakeTypeCheckedNumber(module_, table_, child->span(), i,
-                                CreateU32Annotation(module_, child->span())));
+          MakeTypeCheckedNumber(
+              module_, table_, GetPatternSpan(child), i,
+              CreateU32Annotation(module_, GetPatternSpan(child))));
       element_type = module_.Make<ElementTypeAnnotation>(tree_type, index);
     }
 
-    XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(actual_child, "ndt"));
+    XLS_RETURN_IF_ERROR(
+        DefineAndSetTypeVariable(actual_child, "pattern_child"));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(actual_child, element_type));
-    if (child->is_leaf()) {
-      XLS_RETURN_IF_ERROR(ToAstNode(child->leaf())->Accept(this));
+    if (std::holds_alternative<TuplePattern*>(child)) {
+      XLS_RETURN_IF_ERROR(HandleTuplePatternChildren(
+          std::get<TuplePattern*>(child), element_type));
     } else {
-      XLS_RETURN_IF_ERROR(HandleNameDefTreeChildren(child, element_type));
+      XLS_RETURN_IF_ERROR(ToAstNode(child)->Accept(this));
     }
     return absl::OkStatus();
   }
@@ -894,20 +889,22 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           table_.SetTypeAnnotation(node->iterable(), iterable_type_annotation));
     }
 
-    // Handle namedef of iterator and accumulator.
-    if (!node->names()->IsIrrefutable() || node->names()->nodes().size() != 2) {
+    // Validate the iterator/accumulator binding pattern.
+    if (!IsIrrefutablePattern(node->pattern()) ||
+        !std::holds_alternative<TuplePattern*>(node->pattern()) ||
+        std::get<TuplePattern*>(node->pattern())->members().size() != 2) {
       return TypeInferenceErrorStatus(
-          node->names()->span(),
+          GetPatternSpan(node->pattern()),
           /*type=*/nullptr,
-          absl::Substitute("For-loop iterator and accumulator name tuple must "
-                           "contain 2 top-level elements; got: `$0`",
-                           node->names()->ToString()),
+          absl::Substitute("For-loop iterator and accumulator pattern must be "
+                           "an irrefutable 2-element tuple; got: `$0`",
+                           PatternToString(node->pattern())),
           file_table_);
     }
-    NameDefTree* iterator_ndt = node->names()->nodes()[0];
-    AstNode* iterator = iterator_ndt->is_leaf()
-                            ? ToAstNode(iterator_ndt->leaf())
-                            : iterator_ndt;
+    const TuplePattern* tuple_pattern =
+        std::get<TuplePattern*>(node->pattern());
+    const PatternTree& iterator_pattern = tuple_pattern->members()[0];
+    AstNode* iterator = ToAstNode(iterator_pattern);
     XLS_ASSIGN_OR_RETURN(
         const NameRef* iterator_type_variable,
         DefineTypeVariable(
@@ -920,15 +917,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // The type of iterator and accumulator should be covariant with iterable's
     // element type and For node type respectively.
     const NameRef* for_node_type_variable = *table_.GetTypeVariable(node);
-    NameDefTree* accumulator_ndt = node->names()->nodes()[1];
-    AstNode* accumulator = accumulator_ndt->is_leaf()
-                               ? ToAstNode(accumulator_ndt->leaf())
-                               : accumulator_ndt;
+    const PatternTree& accumulator_pattern = tuple_pattern->members()[1];
+    AstNode* accumulator = ToAstNode(accumulator_pattern);
 
-    if (node->body()->trailing_semi() && !accumulator_ndt->IsWildcardLeaf() &&
-        !accumulator_ndt->IsRestOfTupleLeaf() && accumulator_ndt->is_leaf()) {
+    if (node->body()->trailing_semi() && !IsWildcardLeaf(accumulator_pattern) &&
+        !IsRestOfTupleLeaf(accumulator_pattern) &&
+        !std::holds_alternative<TuplePattern*>(accumulator_pattern)) {
       return TypeInferenceErrorStatus(
-          accumulator_ndt->span(), /*type=*/nullptr,
+          GetPatternSpan(accumulator_pattern), /*type=*/nullptr,
           "Loop has an accumulator but the body does not produce a value. The "
           "semicolon at the end of the last body statement may be unintended.",
           file_table_);
@@ -966,13 +962,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         module_.Make<TypeVariableTypeAnnotation>(for_node_type_variable)));
 
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node->names(),
+        ToAstNode(node->pattern()),
         module_.Make<TupleTypeAnnotation>(
-            node->names()->span(), std::vector<TypeAnnotation*>{
-                                       module_.Make<TypeVariableTypeAnnotation>(
-                                           iterator_type_variable),
-                                       module_.Make<TypeVariableTypeAnnotation>(
-                                           for_node_type_variable)})));
+            GetPatternSpan(node->pattern()),
+            std::vector<TypeAnnotation*>{
+                module_.Make<TypeVariableTypeAnnotation>(
+                    iterator_type_variable),
+                module_.Make<TypeVariableTypeAnnotation>(
+                    for_node_type_variable)})));
 
     XLS_RETURN_IF_ERROR(node->iterable()->Accept(this));
     XLS_RETURN_IF_ERROR(node->init()->Accept(this));
@@ -1931,14 +1928,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
     XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(node->name_def_tree(), variable));
+        table_.SetTypeVariable(ToAstNode(node->pattern()), variable));
     if (node->type_annotation() != nullptr) {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeAnnotation(node, node->type_annotation()));
-    }
-    if (node->name_def_tree()->is_leaf()) {
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(
-          ToAstNode(node->name_def_tree()->leaf()), variable));
     }
     return DefaultHandler(node);
   }

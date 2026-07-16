@@ -138,13 +138,12 @@ class Formatter {
   virtual DocRef FormatMatch(const Match& n);
   virtual DocRef FormatModuleMember(const ModuleMember& n);
   virtual DocRef FormatNameDef(const NameDef& n);
-  virtual DocRef FormatNameDefTree(const NameDefTree& n);
-  virtual DocRef FormatNameDefTreeLeaf(const NameDefTree::Leaf& n);
   virtual DocRef FormatNameRef(const NameRef& n);
   virtual DocRef FormatNumber(const Number& n);
   virtual DocRef FormatParametricBinding(const ParametricBinding& n);
   virtual DocRef FormatParametricBindingPtr(const ParametricBinding* n);
   virtual DocRef FormatParams(absl::Span<const Param* const> params);
+  virtual DocRef FormatPatternTree(const PatternTree& n);
   virtual DocRef FormatProc(const Proc& n, bool is_test = false);
   virtual DocRef FormatProcAlias(const ProcAlias& n);
   virtual DocRef FormatProcDef(const ProcDef& n);
@@ -166,6 +165,7 @@ class Formatter {
   virtual DocRef FormatTestProc(const TestProc& n);
   virtual DocRef FormatTrait(const Trait& n);
   virtual DocRef FormatTupleIndex(const TupleIndex& n);
+  virtual DocRef FormatTuplePattern(const TuplePattern& n);
   virtual DocRef FormatTupleTypeAnnotation(const TupleTypeAnnotation& n);
   virtual DocRef FormatTypeAlias(const TypeAlias& n);
   virtual DocRef FormatTypeRef(const TypeRef& n);
@@ -182,7 +182,6 @@ class Formatter {
 
   DocRef Format(const Expr* n);
   DocRef Format(const TypeAnnotation* n);
-  DocRef Format(const NameDefTree* n);
   DocRef FormatBreakBody(const Array& n);
   DocRef FormatBreakRest(const StructInstance& n);
   Pos FormatCollectInlineComments(const Pos& prev_limit,
@@ -198,7 +197,7 @@ class Formatter {
   DocRef FormatFlatRest(const StructInstance& n);
   DocRef FormatForLoopBase(Keyword keyword, const ForLoopBase& n,
                            bool is_const_for);
-  DocRef FormatForLoopBaseLeader(Keyword keyword, DocRef names_ref,
+  DocRef FormatForLoopBaseLeader(Keyword keyword, DocRef pattern_ref,
                                  const ForLoopBase& n, bool is_const_for);
   DocRef FormatJoinWithAttr(std::optional<DocRef> attr, DocRef rest);
   DocRef FormatJoinWithAttrs(absl::Span<const DocRef> attrs, DocRef rest);

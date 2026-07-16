@@ -20,8 +20,6 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -29,6 +27,8 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "verible/common/lsp/lsp-file-utils.h"
 #include "verible/common/lsp/lsp-protocol.h"
 #include "xls/common/file/filesystem.h"
@@ -311,6 +311,30 @@ TEST(LanguageServerAdapterTest, InlayHintForLetStatement) {
       << "got: " << DebugString(hint.position)
       << " want: " << DebugString(want_position);
   EXPECT_EQ(hint.label, ": uN[32]");
+}
+
+TEST(LanguageServerAdapterTest, InlayHintForTupleDestructuringLetStatement) {
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(fn f(x: u32, y: u32) -> u32 {
+  let (a, b) = (x, y);
+  a + b
+})"));
+
+  const auto kInputRange =
+      verible::lsp::Range{.start = verible::lsp::Position{1, 0},
+                          .end = verible::lsp::Position{2, 0}};
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::InlayHint> hints,
+                           adapter.InlayHint(kUri, kInputRange));
+
+  ASSERT_EQ(hints.size(), 1);
+
+  const verible::lsp::InlayHint& hint = hints.at(0);
+  verible::lsp::Position want_position{1, 12};
+  EXPECT_THAT(hint.position, PosEq(want_position))
+      << "got: " << DebugString(hint.position)
+      << " want: " << DebugString(want_position);
+  EXPECT_EQ(hint.label, ": (uN[32], uN[32])");
 }
 
 // Shows that we do not get inlay hints for parametric functions.

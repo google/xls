@@ -954,7 +954,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSwap));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
                                Bytecode::NumElements(2)));
-  XLS_RETURN_IF_ERROR(DestructureLet(node->names(), /*type_or_size=*/2));
+  XLS_RETURN_IF_ERROR(DestructureLet(node->pattern(), /*type_or_size=*/2));
 
   // Emit the loop body.
   XLS_RETURN_IF_ERROR(node->body()->AcceptExpr(this));
@@ -1252,9 +1252,9 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
-    NameDefTree* tree, Type* type) {
-  if (tree->is_leaf()) {
+absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandlePatternExpr(
+    const PatternTree& pattern, Type* type) {
+  if (!std::holds_alternative<TuplePattern*>(pattern)) {
     return absl::visit(
         Visitor{
             [&](NameRef* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
@@ -1303,32 +1303,38 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
             [&](RestOfTuple* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               return Bytecode::MatchArmItem::MakeRestOfTuple();
             },
+            [&](TuplePattern* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
+              return absl::InternalError("Tuple pattern reached leaf handler");
+            },
         },
-        tree->leaf());
+        pattern);
   }
 
-  // Not a leaf; must be a tuple
+  TuplePattern* tuple_pattern = std::get<TuplePattern*>(pattern);
   auto* tuple_type = absl::down_cast<TupleType*>(type);
   if (tuple_type == nullptr) {
     return TypeInferenceErrorStatus(
-        tree->span(), type, "Pattern expected matched-on type to be a tuple.",
-        file_table());
+        tuple_pattern->span(), type,
+        "Pattern expected matched-on type to be a tuple.", file_table());
   }
 
-  XLS_ASSIGN_OR_RETURN((auto [number_of_tuple_elements, number_of_names]),
-                       GetTupleSizes(tree, tuple_type));
+  XLS_ASSIGN_OR_RETURN(
+      (auto [number_of_tuple_elements, non_rest_pattern_member_count]),
+      GetTupleSizes(tuple_pattern, tuple_type));
 
   // TODO: https://github.com/google/xls/issues/1459 - This is at least the
   // 3rd if not 4th time a loop like this has been written. It should be
   // refactored into a common utility function.
   std::vector<Bytecode::MatchArmItem> elements;
   int64_t tuple_index = 0;
-  const NameDefTree::Nodes& nodes = tree->nodes();
-  for (int64_t name_index = 0; name_index < nodes.size(); ++name_index) {
-    NameDefTree* subnode = nodes[name_index];
-    if (subnode->IsRestOfTupleLeaf()) {
+  const std::vector<PatternTree>& members = tuple_pattern->members();
+  for (int64_t member_index = 0; member_index < members.size();
+       ++member_index) {
+    const PatternTree& subpattern = members[member_index];
+    if (IsRestOfTupleLeaf(subpattern)) {
       // Skip ahead.
-      int64_t wildcards_to_insert = number_of_tuple_elements - number_of_names;
+      int64_t wildcards_to_insert =
+          number_of_tuple_elements - non_rest_pattern_member_count;
       tuple_index += wildcards_to_insert;
 
       for (int64_t i = 0; i < wildcards_to_insert; ++i) {
@@ -1339,7 +1345,7 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
 
     Type& subtype = tuple_type->GetMemberType(tuple_index);
     XLS_ASSIGN_OR_RETURN(Bytecode::MatchArmItem element,
-                         HandleNameDefTreeExpr(subnode, &subtype));
+                         HandlePatternExpr(subpattern, &subtype));
     elements.push_back(element);
     tuple_index++;
   }
@@ -1360,25 +1366,26 @@ static int64_t CountElements(std::variant<Type*, int64_t> element) {
 }
 
 absl::Status BytecodeEmitter::DestructureLet(
-    NameDefTree* tree, std::variant<Type*, int64_t> type_or_size) {
-  if (tree->is_leaf()) {
-    if (std::holds_alternative<WildcardPattern*>(tree->leaf()) ||
-        std::holds_alternative<RestOfTuple*>(tree->leaf())) {
+    const PatternTree& pattern, std::variant<Type*, int64_t> type_or_size) {
+  if (!std::holds_alternative<TuplePattern*>(pattern)) {
+    if (IsWildcardLeaf(pattern) || IsRestOfTupleLeaf(pattern)) {
       // We can just drop this one.
-      Add(Bytecode::MakePop(tree->span()));
+      Add(Bytecode::MakePop(GetPatternSpan(pattern)));
       return absl::OkStatus();
     }
 
-    NameDef* name_def = std::get<NameDef*>(tree->leaf());
+    NameDef* name_def = std::get<NameDef*>(pattern);
     if (!namedef_to_slot_.contains(name_def)) {
       namedef_to_slot_.insert({name_def, next_slotno_++});
     }
     int64_t slot = namedef_to_slot_.at(name_def);
-    Add(Bytecode::MakeStore(tree->span(), Bytecode::SlotIndex(slot)));
+    Add(Bytecode::MakeStore(GetPatternSpan(pattern),
+                            Bytecode::SlotIndex(slot)));
   } else {
+    TuplePattern* tuple_pattern = std::get<TuplePattern*>(pattern);
     // Pushes each element of the current level of the tuple
     // onto the stack in reverse order, e.g., (a, (b, c)) pushes (b, c) then a
-    Add(Bytecode(tree->span(), Bytecode::Op::kExpandTuple));
+    Add(Bytecode(tuple_pattern->span(), Bytecode::Op::kExpandTuple));
 
     // Note: we intentionally don't check validity of the tuple here; that's
     // done by Deduce().
@@ -1393,21 +1400,23 @@ absl::Status BytecodeEmitter::DestructureLet(
     }
 
     int64_t tuple_index = 0;
-    for (int64_t name_index = 0; name_index < tree->nodes().size();
-         ++name_index) {
-      NameDefTree* node = tree->nodes()[name_index];
-      if (node->IsRestOfTupleLeaf()) {
+    for (int64_t member_index = 0;
+         member_index < tuple_pattern->members().size(); ++member_index) {
+      const PatternTree& member = tuple_pattern->members()[member_index];
+      if (IsRestOfTupleLeaf(member)) {
         int64_t number_of_tuple_elements = CountElements(type_or_size);
         // Decrement for the rest-of-tuple
-        int64_t number_of_bindings = tree->nodes().size() - 1;
+        int64_t non_rest_pattern_member_count =
+            tuple_pattern->members().size() - 1;
 
         // Skip ahead to account for the needed remaining elements.
-        int64_t difference = number_of_tuple_elements - number_of_bindings;
+        int64_t difference =
+            number_of_tuple_elements - non_rest_pattern_member_count;
         tuple_index += difference;
 
         // Pop unused tuple elements
         for (int64_t pop_count = 0; pop_count < difference; ++pop_count) {
-          Add(Bytecode::MakePop(node->span()));
+          Add(Bytecode::MakePop(GetPatternSpan(member)));
         }
         continue;
       }
@@ -1415,13 +1424,13 @@ absl::Status BytecodeEmitter::DestructureLet(
           Visitor{[&](Type* type) -> absl::Status {
                     TupleType* tuple_type = absl::down_cast<TupleType*>(type);
                     return DestructureLet(
-                        node, &tuple_type->GetMemberType(tuple_index));
+                        member, &tuple_type->GetMemberType(tuple_index));
                   },
                   [&](int64_t size) -> absl::Status {
                     // If a simple count is given, the tuple can only
                     // contain single elements, so the child count
                     // must be 1.
-                    return DestructureLet(node, 1);
+                    return DestructureLet(member, 1);
                   }},
           type_or_size));
       ++tuple_index;
@@ -1438,7 +1447,7 @@ absl::Status BytecodeEmitter::HandleLet(const Let* node) {
   XLS_RETURN_IF_ERROR(node->rhs()->AcceptExpr(this));
   std::optional<Type*> type = type_info_->GetItem(node->rhs());
   if (type.has_value()) {
-    return DestructureLet(node->name_def_tree(), type.value());
+    return DestructureLet(node->pattern(), type.value());
   }
   return absl::InternalError(absl::StrFormat(
       "@ %s: Could not retrieve type of right-hand side of `let`.",
@@ -1877,7 +1886,7 @@ absl::Status BytecodeEmitter::HandleMatch(const Match* node) {
       Add(Bytecode::MakeJumpDest(node->span()));
     }
 
-    const std::vector<NameDefTree*>& patterns = arm->patterns();
+    const std::vector<PatternTree>& patterns = arm->patterns();
     // First, prime the stack with all the copies of the matchee we'll need.
     for (int pattern_idx = 0; pattern_idx < patterns.size(); pattern_idx++) {
       Add(Bytecode::MakeDup(node->matched()->span()));
@@ -1887,16 +1896,16 @@ absl::Status BytecodeEmitter::HandleMatch(const Match* node) {
       // Then we match each arm. We OR with the prev. result (if there is one)
       // and swap to the next copy of the matchee, unless this is the last
       // pattern.
-      NameDefTree* ndt = arm->patterns()[pattern_idx];
+      const PatternTree& pattern = arm->patterns()[pattern_idx];
       XLS_ASSIGN_OR_RETURN(Bytecode::MatchArmItem arm_item,
-                           HandleNameDefTreeExpr(ndt, type.value()));
-      Add(Bytecode::MakeMatchArm(ndt->span(), arm_item));
+                           HandlePatternExpr(pattern, type.value()));
+      Add(Bytecode::MakeMatchArm(GetPatternSpan(pattern), arm_item));
 
       if (pattern_idx != 0) {
-        Add(Bytecode::MakeLogicalOr(ndt->span()));
+        Add(Bytecode::MakeLogicalOr(GetPatternSpan(pattern)));
       }
       if (pattern_idx != patterns.size() - 1) {
-        Add(Bytecode::MakeSwap(ndt->span()));
+        Add(Bytecode::MakeSwap(GetPatternSpan(pattern)));
       }
     }
     Add(Bytecode::MakeInvert(arm->span()));

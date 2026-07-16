@@ -377,12 +377,12 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     }
 
     for (MatchArm* arm : node->arms()) {
-      for (NameDefTree* pattern : arm->patterns()) {
+      for (const PatternTree& pattern : arm->patterns()) {
         bool exhaustive_before = exhaustiveness_checker.IsExhaustive();
-        exhaustiveness_checker.AddPattern(*pattern);
+        exhaustiveness_checker.AddPattern(pattern);
         if (exhaustive_before) {
           warning_collector_.Add(
-              pattern->span(), WarningKind::kAlreadyExhaustiveMatch,
+              GetPatternSpan(pattern), WarningKind::kAlreadyExhaustiveMatch,
               "Match is already exhaustive before this pattern");
         }
       }

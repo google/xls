@@ -91,40 +91,41 @@ absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
     int64_t bit_count, std::optional<int64_t> start_opt,
     std::optional<int64_t> limit_opt);
 
-// Checks that the number of tuple elements in the name def tree matches the
+// Checks that the number of tuple elements in the tuple pattern matches the
 // number of tuple elements in the type; if a "rest of tuple" leaf is
-// present, only one is allowed, and it is not counted in the number of names.
+// present, only one is allowed, and it is excluded from the non-rest pattern
+// member count.
 //
-// Returns the number of tuple elements (first) and the number of names that
-// will be bound in the given NameDefTree (second).
+// Returns the number of tuple elements (first) and the number of top-level
+// pattern members excluding rest-of-tuple (second).
 //
 // The latter may be less than the former if there is a "rest of tuple" leaf.
 using TupleTypeOrAnnotation =
     std::variant<const TupleType*, const TupleTypeAnnotation*>;
 absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
-    const NameDefTree* name_def_tree, TupleTypeOrAnnotation tuple_type);
+    const TuplePattern* tuple_pattern, TupleTypeOrAnnotation tuple_type);
 
-// Typechecks the name def tree items against type, and recursively processes
-// the node/type pairs according to the `process_tuple_member` function.
-// If `constexpr_value` is provided for the tuple, the appropriate
-// subvalue will also be passed into `process_tuple_member`.
+// Typechecks the pattern items against type, and recursively processes
+// the node/type pairs according to the `process_pattern_node` function.
+// If `constexpr_value` is provided for the pattern, the appropriate
+// subvalue will also be passed into `process_pattern_node`.
 //
 // For example:
 //
 //    (a, (b, c))  vs (u8, (u4, u2))
 //
-// Will call `process_tuple_member` with the following arguments:
+// Will call `process_pattern_node` with the following arguments:
 //
 //    (a, u8, ...)
 //    (b, u4, ...)
 //    (c, u2, ...)
 //
 using TypeOrAnnotation = std::variant<const Type*, const TypeAnnotation*>;
-absl::Status MatchTupleNodeToType(
+absl::Status MatchPatternToType(
     std::function<absl::Status(AstNode*, TypeOrAnnotation,
                                std::optional<InterpValue>)>
-        process_tuple_member,
-    const NameDefTree* name_def_tree, TypeOrAnnotation type,
+        process_pattern_node,
+    const PatternTree& pattern, TypeOrAnnotation type,
     const FileTable& file_table, std::optional<InterpValue> constexpr_value);
 
 // Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.

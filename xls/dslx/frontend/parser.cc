@@ -1933,31 +1933,30 @@ absl::StatusOr<NameDef*> Parser::ParseNameDef(Bindings& bindings) {
   return name_def;
 }
 
-absl::StatusOr<NameDefTree*> Parser::ParseNameDefTree(Bindings& bindings) {
+absl::StatusOr<PatternTree> Parser::ParseNameDefPattern(Bindings& bindings) {
   XLS_ASSIGN_OR_RETURN(Token start, PopTokenOrError(TokenKind::kOParen));
 
-  auto parse_name_def_or_tree = [&bindings,
-                                 this]() -> absl::StatusOr<NameDefTree*> {
+  auto parse_binding_pattern_member = [&bindings,
+                                       this]() -> absl::StatusOr<PatternTree> {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == TokenKind::kOParen) {
       XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth,
                            BumpExpressionDepth());
-      return ParseNameDefTree(bindings);
+      return ParseNameDefPattern(bindings);
     }
     XLS_ASSIGN_OR_RETURN(auto name_def, ParseNameDefOrWildcard(bindings));
-    auto tree_leaf = WidenVariantTo<NameDefTree::Leaf>(name_def);
-    return module_->Make<NameDefTree>(GetSpan(name_def), tree_leaf);
+    return WidenVariantTo<PatternTree>(name_def);
   };
 
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<NameDefTree*> branches,
-      ParseCommaSeq<NameDefTree*>(parse_name_def_or_tree, TokenKind::kCParen));
-  NameDefTree* ndt = module_->Make<NameDefTree>(
+  XLS_ASSIGN_OR_RETURN(std::vector<PatternTree> branches,
+                       ParseCommaSeq<PatternTree>(parse_binding_pattern_member,
+                                                  TokenKind::kCParen));
+  PatternTree pattern = module_->Make<TuplePattern>(
       Span(start.span().start(), GetPos()), std::move(branches));
 
   // Check that the name definitions are unique -- can't bind the same name
   // multiple times in one destructuring assignment.
-  std::vector<NameDef*> name_defs = ndt->GetNameDefs();
+  std::vector<NameDef*> name_defs = GetPatternNameDefs(pattern);
   absl::flat_hash_map<std::string_view, NameDef*> seen;
   for (NameDef* name_def : name_defs) {
     if (!seen.insert({name_def->identifier(), name_def}).second) {
@@ -1969,7 +1968,7 @@ absl::StatusOr<NameDefTree*> Parser::ParseNameDefTree(Bindings& bindings) {
               seen[name_def->identifier()]->span().ToString(file_table())));
     }
   }
-  return ndt;
+  return pattern;
 }
 
 absl::StatusOr<Array*> Parser::ParseArray(Bindings& bindings) {
@@ -2234,22 +2233,23 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(
   return lhs;
 }
 
-absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
-                                                  bool within_tuple_pattern) {
+absl::StatusOr<PatternTree> Parser::ParsePattern(Bindings& bindings,
+                                                 bool within_tuple_pattern) {
   XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard depth_guard, BumpExpressionDepth());
 
   XLS_ASSIGN_OR_RETURN(std::optional<Token> oparen,
                        TryPopToken(TokenKind::kOParen));
   if (oparen.has_value()) {
-    return ParseTuplePattern(oparen->span().start(), bindings);
+    XLS_ASSIGN_OR_RETURN(TuplePattern * tuple,
+                         ParseTuplePattern(oparen->span().start(), bindings));
+    return tuple;
   }
 
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (peek->kind() == TokenKind::kIdentifier) {
     XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier));
     if (*tok.GetValue() == "_") {
-      return module_->Make<NameDefTree>(
-          tok.span(), module_->Make<WildcardPattern>(tok.span()));
+      return module_->Make<WildcardPattern>(tok.span());
     }
     // TODO: https://github.com/google/xls/issues/1459 - Handle rest-of-tuple.
     XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
@@ -2258,8 +2258,7 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
       XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
       XLS_ASSIGN_OR_RETURN(ColonRef * colon_ref,
                            ParseColonRef(bindings, subject, subject->span()));
-      Span span(tok.span().start(), colon_ref->span().limit());
-      return module_->Make<NameDefTree>(span, colon_ref);
+      return colon_ref;
     }
 
     std::string identifier = tok.GetValue().value();
@@ -2269,16 +2268,13 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
           bindings.ResolveNameOrNullopt(identifier).value();
       NameRef* ref =
           module_->Make<NameRef>(tok.span(), identifier, any_name_def);
-      return module_->Make<NameDefTree>(tok.span(), ref);
+      return ref;
     }
 
     // If the name is not bound, this pattern is creating a binding.
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
     bindings.Add(name_def->identifier(), name_def);
-    Span span(tok.span().start(), GetPos());
-    auto* result = module_->Make<NameDefTree>(span, name_def);
-    name_def->set_definer(result);
-    return result;
+    return name_def;
   }
 
   if (peek->kind() == TokenKind::kDoubleDot) {
@@ -2288,8 +2284,7 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
           "`..` patterns are not allowed outside of a tuple pattern");
     }
     XLS_ASSIGN_OR_RETURN(Token rest, PopTokenOrError(TokenKind::kDoubleDot));
-    return module_->Make<NameDefTree>(rest.span(),
-                                      module_->Make<RestOfTuple>(rest.span()));
+    return module_->Make<RestOfTuple>(rest.span());
   }
 
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter, Keyword::kTrue,
@@ -2307,9 +2302,9 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
           Span(number->span().start(), limit->span().limit()), number,
           peek_is_double_dot_equals, limit, /*in_parens=*/false,
           /*pattern_semantics=*/true);
-      return module_->Make<NameDefTree>(range->span(), range);
+      return range;
     }
-    return module_->Make<NameDefTree>(number->span(), number);
+    return number;
   }
 
   return ParseErrorStatus(
@@ -2341,9 +2336,11 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings, bool is_const) {
     }
     Bindings arm_bindings(&bindings);
     XLS_ASSIGN_OR_RETURN(
-        NameDefTree * first_pattern,
+        PatternTree first_pattern,
         ParsePattern(arm_bindings, /*within_tuple_pattern=*/false));
-    std::vector<NameDefTree*> patterns = {first_pattern};
+    const Span first_pattern_span(GetPatternSpan(first_pattern).start(),
+                                  GetPos());
+    std::vector<PatternTree> patterns = {first_pattern};
     while (true) {
       XLS_ASSIGN_OR_RETURN(bool dropped_bar, TryDropToken(TokenKind::kBar));
       if (!dropped_bar) {
@@ -2355,13 +2352,13 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings, bool is_const) {
         std::vector<std::string> locals =
             MapKeysSorted(arm_bindings.local_bindings());
         return ParseErrorStatus(
-            first_pattern->span(),
+            first_pattern_span,
             absl::StrFormat("Cannot have multiple patterns that bind names; "
                             "previously bound: %s",
                             absl::StrJoin(locals, ", ")));
       }
       XLS_ASSIGN_OR_RETURN(
-          NameDefTree * pattern,
+          PatternTree pattern,
           ParsePattern(arm_bindings, /*within_tuple_pattern=*/false));
       patterns.push_back(pattern);
     }
@@ -2370,9 +2367,15 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings, bool is_const) {
 
     // The span of the match arm is from the start of the pattern to the end of
     // the RHS expression.
-    Span span(patterns[0]->span().start(), rhs->span().limit());
+    Span span(GetPatternSpan(patterns[0]).start(), rhs->span().limit());
 
-    arms.push_back(module_->Make<MatchArm>(span, std::move(patterns), rhs));
+    MatchArm* arm = module_->Make<MatchArm>(span, std::move(patterns), rhs);
+    for (const PatternTree& pattern : arm->patterns()) {
+      for (NameDef* name_def : GetPatternNameDefs(pattern)) {
+        name_def->set_definer(arm);
+      }
+    }
+    arms.push_back(arm);
     XLS_ASSIGN_OR_RETURN(bool dropped_comma, TryDropToken(TokenKind::kComma));
     must_end = !dropped_comma;
   }
@@ -4193,30 +4196,27 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings& bindings) {
 
   Bindings new_bindings(&bindings);
   NameDef* name_def = nullptr;
-  NameDefTree* name_def_tree;
+  std::optional<PatternTree> pattern;
   XLS_ASSIGN_OR_RETURN(bool peek_is_oparen, PeekTokenIs(TokenKind::kOParen));
   if (peek_is_oparen) {  // Destructuring binding.
-    XLS_ASSIGN_OR_RETURN(name_def_tree, ParseNameDefTree(new_bindings));
+    XLS_ASSIGN_OR_RETURN(pattern, ParseNameDefPattern(new_bindings));
   } else {
     XLS_ASSIGN_OR_RETURN(name_def, ParseNameDef(new_bindings));
     if (name_def->identifier() == "_") {
-      name_def_tree = module_->Make<NameDefTree>(
-          name_def->span(), module_->Make<WildcardPattern>(name_def->span()));
+      pattern = module_->Make<WildcardPattern>(name_def->span());
     } else {
-      name_def_tree = module_->Make<NameDefTree>(name_def->span(), name_def);
+      pattern = name_def;
     }
   }
 
   if (const_) {
-    // Mark this NDT as const. Also disallow destructuring assignment for
-    // constants.
-    const_ndts_.insert(name_def_tree);
-    if (name_def_tree->Flatten().size() != 1) {
+    // Constant definitions cannot use destructuring assignment.
+    if (FlattenPattern(*pattern).size() != 1) {
       return ParseErrorStatus(
-          name_def_tree->span(),
+          GetPatternSpan(*pattern),
           absl::StrFormat(
               "Constant definitions can not use destructuring assignment: %s",
-              name_def_tree->ToString()));
+              PatternToString(*pattern)));
     }
   }
 
@@ -4231,8 +4231,7 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings& bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
 
   Span span(start_tok.span().start(), GetPos());
-  Let* let =
-      module_->Make<Let>(span, name_def_tree, annotated_type, rhs, const_);
+  Let* let = module_->Make<Let>(span, *pattern, annotated_type, rhs, const_);
   if (const_ && name_def != nullptr) {
     name_def->set_definer(let);
   } else if (name_def != nullptr) {
@@ -4255,7 +4254,7 @@ absl::StatusOr<ForLoopBase*> Parser::ParseFor(Bindings& bindings) {
   XLS_RET_CHECK(for_kw.IsKeyword(Keyword::kFor) || is_unroll_for);
 
   Bindings for_bindings(&bindings);
-  XLS_ASSIGN_OR_RETURN(NameDefTree * names, ParseNameDefTree(for_bindings));
+  XLS_ASSIGN_OR_RETURN(PatternTree pattern, ParseNameDefPattern(for_bindings));
   XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
   TypeAnnotation* type = nullptr;
   if (peek_is_colon) {
@@ -4282,10 +4281,11 @@ absl::StatusOr<ForLoopBase*> Parser::ParseFor(Bindings& bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
 
   if (is_const_for || is_unroll_for) {
-    return module_->Make<ConstFor>(Span(for_kw.span().start(), GetPos()), names,
-                                   type, iterable, body, init, is_unroll_for);
+    return module_->Make<ConstFor>(Span(for_kw.span().start(), GetPos()),
+                                   pattern, type, iterable, body, init,
+                                   is_unroll_for);
   } else {
-    return module_->Make<For>(Span(for_kw.span().start(), GetPos()), names,
+    return module_->Make<For>(Span(for_kw.span().start(), GetPos()), pattern,
                               type, iterable, body, init);
   }
 }
@@ -4652,9 +4652,9 @@ absl::StatusOr<Trait*> Parser::ParseTrait(const Pos& start_pos, bool is_public,
   return module_->Make<Trait>(span, name_def, std::move(members), is_public);
 }
 
-absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,
-                                                       Bindings& bindings) {
-  std::vector<NameDefTree*> members;
+absl::StatusOr<TuplePattern*> Parser::ParseTuplePattern(const Pos& start_pos,
+                                                        Bindings& bindings) {
+  std::vector<PatternTree> members;
   bool must_end = false;
   bool rest_of_tuple_seen = false;
   while (true) {
@@ -4666,12 +4666,12 @@ absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
       break;
     }
-    XLS_ASSIGN_OR_RETURN(NameDefTree * pattern,
+    XLS_ASSIGN_OR_RETURN(PatternTree pattern,
                          ParsePattern(bindings, /*within_tuple_pattern=*/true));
-    if (pattern->IsRestOfTupleLeaf()) {
+    if (IsRestOfTupleLeaf(pattern)) {
       if (rest_of_tuple_seen) {
         return ParseErrorStatus(
-            pattern->span(),
+            GetPatternSpan(pattern),
             "Rest-of-tuple (`..`) can only be used once per tuple pattern.");
       }
       rest_of_tuple_seen = true;
@@ -4681,7 +4681,7 @@ absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,
     must_end = !dropped_comma;
   }
   Span span(start_pos, GetPos());
-  return module_->Make<NameDefTree>(span, std::move(members));
+  return module_->Make<TuplePattern>(span, std::move(members));
 }
 
 absl::StatusOr<StatementBlock*> Parser::ParseBlockExpression(Bindings& bindings,
@@ -4912,17 +4912,6 @@ absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
   return ParseCommaSeq<ExprOrType>(
       [this, &bindings]() { return ParseParametricArg(bindings); },
       TokenKind::kCAngle);
-}
-
-const Span& GetSpan(
-    const std::variant<NameDef*, WildcardPattern*, RestOfTuple*>& v) {
-  if (std::holds_alternative<NameDef*>(v)) {
-    return std::get<NameDef*>(v)->span();
-  }
-  if (std::holds_alternative<RestOfTuple*>(v)) {
-    return std::get<RestOfTuple*>(v)->span();
-  }
-  return std::get<WildcardPattern*>(v)->span();
 }
 
 }  // namespace xls::dslx
