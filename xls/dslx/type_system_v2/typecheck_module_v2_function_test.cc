@@ -1043,6 +1043,46 @@ proc Foo<N: u32> {
 proc Bar = Foo<16>;)"));
 }
 
+TEST(TypecheckV2Test, ProcAliasTargetingBuiltinFails) {
+  EXPECT_THAT(
+      "proc Bar = join;",
+      TypecheckFails(HasSubstr("Proc alias must have a proc as a target.")));
+}
+
+TEST(TypecheckV2Test, ProcAliasTargetingFunctionFails) {
+  EXPECT_THAT(
+      R"(
+fn foo() {}
+proc Bar = foo;
+)",
+      TypecheckFails(HasSubstr("Proc alias must have a proc as a target.")));
+}
+
+TEST(TypecheckV2Test, ImplConstantMethodInvocationOnTargetObject) {
+  EXPECT_THAT(R"(
+struct A {
+  x: u32,
+}
+impl A {
+  fn get_val(self) -> u32 {
+    self.x
+  }
+}
+
+struct B<N: u32> {
+  val: uN[N],
+}
+impl B<N> {
+  const FOO = A { x: N }.get_val();
+}
+
+fn test_fn() -> u32 {
+  B<32>::FOO
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
 TEST(TypecheckV2Test, QuickcheckFn) {
   EXPECT_THAT(
       R"(

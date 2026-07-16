@@ -627,7 +627,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // that to dispatch the same invocation to different possible impls.
     XLS_ASSIGN_OR_RETURN(TypeInfo * function_owner_ti,
                          GetTypeInfo(caller_context));
-    if (caller_context.has_value() &&
+    if (caller_context.has_value() && (*caller_context)->is_invocation() &&
         function_and_target_object.target_object.has_value()) {
       auto& caller_details =
           std::get<ParametricInvocationDetails>((*caller_context)->details());
@@ -2944,9 +2944,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // Determine the target proc.
     AstNode* target_node = nullptr;
     if (std::holds_alternative<NameRef*>(alias->target())) {
-      const NameDef* def = std::get<const NameDef*>(
-          std::get<NameRef*>(alias->target())->name_def());
-      target_node = def->definer();
+      const NameRef* name_ref = std::get<NameRef*>(alias->target());
+      if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+        const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
+        target_node = def->definer();
+      } else if (std::holds_alternative<BuiltinNameDef*>(
+                     name_ref->name_def())) {
+        target_node = const_cast<BuiltinNameDef*>(
+            std::get<BuiltinNameDef*>(name_ref->name_def()));
+      }
     } else {
       std::optional<const AstNode*> target =
           table_.GetColonRefTarget(std::get<ColonRef*>(alias->target()));
