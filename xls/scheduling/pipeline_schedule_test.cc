@@ -2372,6 +2372,44 @@ TEST_P(PipelineScheduleTest, ProcWithMultipleStateReads) {
   EXPECT_EQ(schedule.length(), 1);
 }
 
+TEST_P(PipelineScheduleTest, ProcDecoupledFindMinimumCaseThroughput) {
+  Package p(TestName());
+  Type* u32 = p.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out_ch", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
+                           pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue current = pb.StateRead(se);
+  BValue first_add = pb.Add(current, pb.Literal(UBits(1, 32)));
+  BValue second_add = pb.Add(first_add, pb.Literal(UBits(2, 32)));
+  BValue third_add = pb.Add(second_add, pb.Literal(UBits(3, 32)));
+
+  pb.Send(out_ch, third_add);
+  BValue next = pb.Next(se, third_add);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  SchedulingOptions options = this->options();
+  options.clock_period_ps(1);
+  options.minimize_worst_case_throughput(true);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), options));
+  EXPECT_EQ(schedule.cycle(current.node()), 0);
+  EXPECT_EQ(schedule.cycle(next.node()), 2);
+
+  ASSERT_TRUE(proc->GetInitiationInterval().has_value());
+  EXPECT_EQ(proc->GetInitiationInterval().value(), 3);
+
+  EXPECT_LE(schedule.cycle(next.node()) - schedule.cycle(current.node()),
+            *proc->GetInitiationInterval() - 1);
+}
+
 TEST_P(PipelineScheduleErrorTest, ProcWithZeroReadsErrors) {
   Package p(TestName());
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
