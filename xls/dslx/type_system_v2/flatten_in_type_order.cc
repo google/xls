@@ -104,10 +104,10 @@ class Flattener : public AstNodeVisitorWithDefault {
     }
     XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
     nodes_.push_back(node);
-    for (const NameDef* name_def : node->name_def_tree()->GetNameDefs()) {
+    for (const NameDef* name_def : GetPatternNameDefs(node->pattern())) {
       XLS_RETURN_IF_ERROR(name_def->Accept(this));
     }
-    nodes_.push_back(node->name_def_tree());
+    nodes_.push_back(ToAstNode(node->pattern()));
     return absl::OkStatus();
   }
 
@@ -143,8 +143,8 @@ class Flattener : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleMatchArm(const MatchArm* node) override {
-    for (const NameDefTree* name_def_tree : node->patterns()) {
-      XLS_RETURN_IF_ERROR(name_def_tree->Accept(this));
+    for (const PatternTree& pattern : node->patterns()) {
+      XLS_RETURN_IF_ERROR(ToAstNode(pattern)->Accept(this));
     }
     if (node->expr()->kind() == AstNodeKind::kStatementBlock) {
       // Statement blocks as arm exprs have special handling which essentially
@@ -184,7 +184,7 @@ class Flattener : public AstNodeVisitorWithDefault {
       XLS_RETURN_IF_ERROR(node->type_annotation()->Accept(this));
     }
     XLS_RETURN_IF_ERROR(node->iterable()->Accept(this));
-    XLS_RETURN_IF_ERROR(node->names()->Accept(this));
+    XLS_RETURN_IF_ERROR(ToAstNode(node->pattern())->Accept(this));
     XLS_RETURN_IF_ERROR(node->init()->Accept(this));
     nodes_.push_back(node);
     return absl::OkStatus();

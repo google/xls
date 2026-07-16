@@ -69,8 +69,8 @@ std::vector<const Type*> GetLeafTypes(const Type& type, const Span& span,
 // WildcardPattern and NameDef.
 struct SomeWildcard {};
 
-// NameDefTree::Leaf but where RestOfTuple has been resolved.
-using PatternLeaf =
+// PatternLeaf but where RestOfTuple has been resolved.
+using IntervalPatternLeaf =
     std::variant<SomeWildcard, NameRef*, Range*, ColonRef*, Number*>;
 
 InterpValueInterval MakeFullIntervalForType(const Type& type) {
@@ -125,8 +125,8 @@ InterpValueInterval MakeIntervalForType(const Type& type,
 }
 
 std::optional<InterpValueInterval> PatternToIntervalInternal(
-    const PatternLeaf& leaf, const Type& leaf_type, const TypeInfo& type_info,
-    const ImportData& import_data) {
+    const IntervalPatternLeaf& leaf, const Type& leaf_type,
+    const TypeInfo& type_info, const ImportData& import_data) {
   std::optional<InterpValueInterval> result = absl::visit(
       Visitor{
           [&](SomeWildcard /*unused*/) -> std::optional<InterpValueInterval> {
@@ -191,40 +191,47 @@ std::optional<InterpValueInterval> PatternToIntervalInternal(
   return result;
 }
 
-PatternLeaf ToPatternLeaf(const NameDefTree::Leaf& leaf) {
+IntervalPatternLeaf ToIntervalPatternLeaf(const PatternTree& pattern) {
   return absl::visit(
       Visitor{
-          [&](NameDef* name_def) -> PatternLeaf { return SomeWildcard(); },
-          [&](NameRef* name_ref) -> PatternLeaf { return name_ref; },
-          [&](Range* range) -> PatternLeaf { return range; },
-          [&](ColonRef* colon_ref) -> PatternLeaf { return colon_ref; },
-          [&](WildcardPattern* wildcard_pattern) -> PatternLeaf {
+          [&](NameDef* name_def) -> IntervalPatternLeaf {
             return SomeWildcard();
           },
-          [&](Number* number) -> PatternLeaf { return number; },
-          [&](RestOfTuple* rest_of_tuple) -> PatternLeaf {
-            LOG(FATAL) << "RestOfTuple not valid for conversion to PatternLeaf";
+          [&](NameRef* name_ref) -> IntervalPatternLeaf { return name_ref; },
+          [&](Range* range) -> IntervalPatternLeaf { return range; },
+          [&](ColonRef* colon_ref) -> IntervalPatternLeaf { return colon_ref; },
+          [&](WildcardPattern* wildcard_pattern) -> IntervalPatternLeaf {
+            return SomeWildcard();
+          },
+          [&](Number* number) -> IntervalPatternLeaf { return number; },
+          [&](RestOfTuple* rest_of_tuple) -> IntervalPatternLeaf {
+            LOG(FATAL) << "RestOfTuple not valid for conversion to "
+                          "IntervalPatternLeaf";
+            return SomeWildcard();
+          },
+          [&](TuplePattern* /*unused*/) -> IntervalPatternLeaf {
+            LOG(FATAL) << "TuplePattern not valid for conversion to "
+                          "IntervalPatternLeaf";
+            return SomeWildcard();
           }},
-      leaf);
+      pattern);
 }
 
-std::vector<PatternLeaf> ExpandPatternLeaves(const NameDefTree& pattern,
-                                             const Type& type,
-                                             const FileTable& file_table) {
-  VLOG(5) << "ExpandPatternLeaves; pattern: `" << pattern.ToString()
+std::vector<IntervalPatternLeaf> ExpandPatternLeaves(
+    const PatternTree& pattern, const Type& type, const FileTable& file_table) {
+  VLOG(5) << "ExpandPatternLeaves; pattern: `" << PatternToString(pattern)
           << "` type: `" << type.ToString() << "`";
   // For an irrefutable pattern, simply return wildcards for every leaf.
-  if (pattern.IsIrrefutable()) {
+  if (IsIrrefutablePattern(pattern)) {
     std::vector<const Type*> leaf_types =
-        GetLeafTypes(type, pattern.span(), file_table);
-    return std::vector<PatternLeaf>(leaf_types.size(), SomeWildcard());
+        GetLeafTypes(type, GetPatternSpan(pattern), file_table);
+    return std::vector<IntervalPatternLeaf>(leaf_types.size(), SomeWildcard());
   }
   // If the type is not a tuple then we expect the pattern to be a single leaf.
   if (!type.IsTuple()) {
-    std::vector<NameDefTree::Leaf> leaves = pattern.Flatten();
-    CHECK_EQ(leaves.size(), 1)
-        << "Expected a single leaf for non-tuple type, got " << leaves.size();
-    return {ToPatternLeaf(leaves.front())};
+    CHECK(!std::holds_alternative<TuplePattern*>(pattern))
+        << "Expected a single leaf for non-tuple type";
+    return {ToIntervalPatternLeaf(pattern)};
   }
   // Walk through the pattern and expand any RestOfTuple markers into the
   // appropriate number of wildcards.
@@ -233,8 +240,7 @@ std::vector<PatternLeaf> ExpandPatternLeaves(const NameDefTree& pattern,
   // any sub-tuples encountered.
   absl::Span<const std::unique_ptr<Type>> tuple_members =
       type.AsTuple().members();
-  std::vector<std::variant<NameDefTree::Leaf, NameDefTree*>> flattened =
-      pattern.Flatten1();
+  std::vector<PatternTree> flattened = FlattenPattern1(pattern);
 
   // Note: there can be fewer flatten1'd nodes than tuple elements because of
   // RestOfTuple markers.
@@ -244,7 +250,7 @@ std::vector<PatternLeaf> ExpandPatternLeaves(const NameDefTree& pattern,
   CHECK_LE(flattened.size(), tuple_members.size() + 1);
 
   // The results correspond to leaf types.
-  std::vector<PatternLeaf> result;
+  std::vector<IntervalPatternLeaf> result;
 
   // The tuple type index at *this level* of the tuple.
   // We bump this as we progress through -- note a single "flattened_index"
@@ -261,36 +267,34 @@ std::vector<PatternLeaf> ExpandPatternLeaves(const NameDefTree& pattern,
         << "Flattened index out of bounds.";
     const auto& node = flattened[flattened_index];
 
-    if (std::holds_alternative<NameDefTree*>(node)) {
-      const NameDefTree* sub_pattern = std::get<NameDefTree*>(node);
+    if (std::holds_alternative<TuplePattern*>(node)) {
       CHECK_LT(types_index, tuple_members.size());
       const Type& type_at_index = *tuple_members[types_index];
 
-      std::vector<PatternLeaf> sub_pattern_leaves =
-          ExpandPatternLeaves(*sub_pattern, type_at_index, file_table);
+      std::vector<IntervalPatternLeaf> sub_pattern_leaves =
+          ExpandPatternLeaves(node, type_at_index, file_table);
 
       result.insert(result.end(), sub_pattern_leaves.begin(),
                     sub_pattern_leaves.end());
       types_index += 1;
       continue;
     }
-    const NameDefTree::Leaf& leaf = std::get<NameDefTree::Leaf>(node);
     absl::visit(
         Visitor{
             [&](const NameRef* n) {
-              result.push_back(ToPatternLeaf(leaf));
+              result.push_back(ToIntervalPatternLeaf(node));
               types_index += 1;
             },
             [&](const Range* r) {
-              result.push_back(ToPatternLeaf(leaf));
+              result.push_back(ToIntervalPatternLeaf(node));
               types_index += 1;
             },
             [&](const ColonRef* c) {
-              result.push_back(ToPatternLeaf(leaf));
+              result.push_back(ToIntervalPatternLeaf(node));
               types_index += 1;
             },
             [&](const Number* n) {
-              result.push_back(ToPatternLeaf(leaf));
+              result.push_back(ToIntervalPatternLeaf(node));
               types_index += 1;
             },
             [&](const RestOfTuple* /*unused*/) {
@@ -310,7 +314,8 @@ std::vector<PatternLeaf> ExpandPatternLeaves(const NameDefTree& pattern,
                 CHECK_LT(types_index, tuple_members.size());
                 const Type& type_at_index = *tuple_members[types_index];
                 for (int64_t i = 0;
-                     i < GetLeafTypes(type_at_index, pattern.span(), file_table)
+                     i < GetLeafTypes(type_at_index, GetPatternSpan(pattern),
+                                      file_table)
                              .size();
                      ++i) {
                   result.push_back(SomeWildcard());
@@ -322,34 +327,39 @@ std::vector<PatternLeaf> ExpandPatternLeaves(const NameDefTree& pattern,
                       << flattened_index << " types_index: " << types_index
                       << " result.size(): " << result.size();
             },
+            [&](const TuplePattern*) {
+              LOG(FATAL) << "TuplePattern reached leaf handler";
+            },
             [&](const auto* irrefutable_leaf) {
               // Push back wildcards of the right size for the type.
               CHECK_LT(types_index, tuple_members.size());
               const Type& type_at_index = *tuple_members[types_index];
               for (int64_t i = 0;
-                   i < GetLeafTypes(type_at_index, pattern.span(), file_table)
+                   i < GetLeafTypes(type_at_index, GetPatternSpan(pattern),
+                                    file_table)
                            .size();
                    ++i) {
                 result.push_back(SomeWildcard());
               }
               types_index += 1;
             }},
-        leaf);
+        node);
   }
 
   // Check that we got a consistent count between the razed tuple types and the
   // PatternLeaf vector.
-  CHECK_EQ(result.size(), GetLeafTypes(type, pattern.span(), file_table).size())
+  CHECK_EQ(result.size(),
+           GetLeafTypes(type, GetPatternSpan(pattern), file_table).size())
       << "Sub-pattern leaves and tuple type must be the same size.";
   return result;
 }
 
-NdIntervalWithEmpty PatternToInterval(const NameDefTree& pattern,
+NdIntervalWithEmpty PatternToInterval(const PatternTree& pattern,
                                       const Type& matched_type,
                                       absl::Span<const Type* const> leaf_types,
                                       const TypeInfo& type_info,
                                       const ImportData& import_data) {
-  std::vector<PatternLeaf> pattern_leaves =
+  std::vector<IntervalPatternLeaf> pattern_leaves =
       ExpandPatternLeaves(pattern, matched_type, type_info.file_table());
   CHECK_EQ(pattern_leaves.size(), leaf_types.size())
       << "Pattern leaves and leaf types must be the same size.";
@@ -363,7 +373,7 @@ NdIntervalWithEmpty PatternToInterval(const NameDefTree& pattern,
         pattern_leaves[i], *leaf_types[i], type_info, import_data));
   }
   NdIntervalWithEmpty result(intervals);
-  VLOG(5) << "PatternToInterval; pattern: `" << pattern.ToString()
+  VLOG(5) << "PatternToInterval; pattern: `" << PatternToString(pattern)
           << "` type: `" << matched_type.ToString()
           << "` result: " << result.ToString(/*show_types=*/false);
   return result;
@@ -398,10 +408,11 @@ bool MatchExhaustivenessChecker::IsExhaustive() const {
   return remaining_.IsEmpty();
 }
 
-bool MatchExhaustivenessChecker::AddPattern(const NameDefTree& pattern) {
-  VLOG(5) << "MatchExhaustivenessChecker::AddPattern: `" << pattern.ToString()
-          << "` matched_type: `" << matched_type_.ToString() << "` @ "
-          << pattern.span().ToString(file_table());
+bool MatchExhaustivenessChecker::AddPattern(const PatternTree& pattern) {
+  VLOG(5) << "MatchExhaustivenessChecker::AddPattern: `"
+          << PatternToString(pattern) << "` matched_type: `"
+          << matched_type_.ToString() << "` @ "
+          << GetPatternSpan(pattern).ToString(file_table());
 
   NdIntervalWithEmpty this_pattern_interval = PatternToInterval(
       pattern, matched_type_, leaf_types_, type_info_, import_data_);

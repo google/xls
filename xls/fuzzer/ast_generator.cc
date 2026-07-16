@@ -925,7 +925,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExprOfType(
       BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
 }
 
-absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
+absl::StatusOr<PatternTree> AstGenerator::GenerateMatchArmPattern(
     Context* ctx, const TypeAnnotation* type) {
   XLS_RET_CHECK(!IsTypeRef(type)) << "Matched-on TypeRefs-typed values are not "
                                      "supported by the fuzzer; got: "
@@ -937,7 +937,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     // Ten percent of the time, generate a wildcard pattern.
     if (RandomBool(0.1)) {
       WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
-      return module_->Make<NameDefTree>(fake_span_, wc);
+      return PatternTree{wc};
     }
 
     // Ten percent of tuples should have a "rest of tuple", and skip
@@ -947,14 +947,14 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
         RandomIntWithExpectedValue(tuple_type->size() / 2.0, 0);
     auto number_to_skip =
         RandomIntWithExpectedValue(tuple_type->size() / 2.0, 0);
-    std::vector<NameDefTree*> tuple_values;
-    tuple_values.reserve(tuple_type->size() + 1);
+    std::vector<PatternTree> pattern_members;
+    pattern_members.reserve(tuple_type->size() + 1);
     for (int64_t index = 0; index < tuple_type->size(); ++index) {
       if (rest_of_tuple_index == index && insert_rest_of_tuple) {
         insert_rest_of_tuple = false;
 
         RestOfTuple* rest = module_->Make<RestOfTuple>(fake_span_);
-        tuple_values.push_back(module_->Make<NameDefTree>(fake_span_, rest));
+        pattern_members.push_back(rest);
 
         // Jump forward a random # of elements
         if (number_to_skip > 0) {
@@ -966,11 +966,12 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
       }
 
       XLS_ASSIGN_OR_RETURN(
-          NameDefTree * pattern,
+          PatternTree pattern,
           GenerateMatchArmPattern(ctx, tuple_type->members()[index]));
-      tuple_values.push_back(pattern);
+      pattern_members.push_back(pattern);
     }
-    return module_->Make<NameDefTree>(fake_span_, tuple_values);
+    return PatternTree{
+        module_->Make<TuplePattern>(fake_span_, std::move(pattern_members))};
   }
 
   CHECK(IsBits(type))
@@ -980,7 +981,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
   // Five percent of the time, generate a wildcard pattern.
   if (RandomBool(0.05)) {
     WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
-    return module_->Make<NameDefTree>(fake_span_, wc);
+    return PatternTree{wc};
   }
 
   // Fifteen percent of the time, generate a range. (Note that this is an
@@ -1022,7 +1023,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     }
     Range* range = module_->Make<Range>(fake_span_, start_type_expr.expr,
                                         inclusive_end, limit_type_expr.expr);
-    return module_->Make<NameDefTree>(fake_span_, range);
+    return PatternTree{range};
   }
 
   // Rest of the time we generate a simple number as the pattern to match.
@@ -1030,7 +1031,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
       BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
   Number* number = dynamic_cast<Number*>(type_expr.expr);
   CHECK_NE(number, nullptr);
-  return module_->Make<NameDefTree>(fake_span_, number);
+  return PatternTree{number};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
@@ -1057,20 +1058,19 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
   // https://google.github.io/xls/dslx_reference/#redundant-patterns.
   absl::flat_hash_set<std::string> all_match_arms_patterns;
   for (int64_t arm_count = 0; arm_count < max_arm_count; ++arm_count) {
-    std::vector<NameDefTree*> match_arm_patterns;
+    std::vector<PatternTree> match_arm_patterns;
     // Attempt to create at least one pattern.
     int64_t max_pattern_count =
         absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 1, 2);
     for (int64_t pattern_count = 0; pattern_count < max_pattern_count;
          ++pattern_count) {
-      XLS_ASSIGN_OR_RETURN(NameDefTree * pattern,
+      XLS_ASSIGN_OR_RETURN(PatternTree pattern,
                            GenerateMatchArmPattern(ctx, match.type));
       // Early exit when a wildcard pattern is created.
-      if (pattern->is_leaf() &&
-          std::holds_alternative<WildcardPattern*>(pattern->leaf())) {
+      if (IsWildcardLeaf(pattern)) {
         break;
       }
-      std::string pattern_str = pattern->ToString();
+      std::string pattern_str = PatternToString(pattern);
       if (all_match_arms_patterns.contains(pattern_str)) {
         continue;
       }
@@ -1093,9 +1093,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr wc_return,
                        GenerateExprOfType(ctx, match_return_type));
   WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
-  NameDefTree* wc_pattern = module_->Make<NameDefTree>(fake_span_, wc);
   match_arms.push_back(module_->Make<MatchArm>(
-      fake_span_, std::vector<NameDefTree*>{wc_pattern}, wc_return.expr));
+      fake_span_, std::vector<PatternTree>{wc}, wc_return.expr));
   last_delaying_op =
       ComposeDelayingOps(last_delaying_op, wc_return.last_delaying_op);
   min_stage = std::max(min_stage, wc_return.min_stage);
@@ -1214,7 +1213,6 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
   auto* mulp_name_def =
       module_->Make<NameDef>(fake_span_, mulp_identifier, /*definer=*/nullptr);
   auto* mulp_name_ref = MakeNameRef(mulp_name_def);
-  auto* ndt = module_->Make<NameDefTree>(fake_span_, mulp_name_def);
   auto mulp_lhs = module_->Make<TupleIndex>(fake_span_, mulp_name_ref,
                                             /*index=*/MakeNumber(0));
   auto mulp_rhs = module_->Make<TupleIndex>(fake_span_, mulp_name_ref,
@@ -1224,7 +1222,7 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
   if (is_signed) {  // For smul we have to cast the summation to signed.
     sum = module_->Make<Cast>(fake_span_, sum, signed_type);
   }
-  auto* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
+  auto* let = module_->Make<Let>(fake_span_, /*pattern=*/mulp_name_def,
                                  /*type=*/mulp.type, /*rhs=*/mulp.expr,
                                  /*is_const=*/false);
   auto* body_stmt = module_->Make<Statement>(let);
@@ -1895,24 +1893,22 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
       absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 1, 8), ivar_type);
   Expr* iterable = MakeRange(zero, trips);
   NameDef* x_def = MakeNameDef("x");
-  NameDefTree* i_ndt = module_->Make<NameDefTree>(fake_span_, MakeNameDef("i"));
-  NameDefTree* x_ndt = module_->Make<NameDefTree>(fake_span_, x_def);
-  auto* name_def_tree = module_->Make<NameDefTree>(
-      fake_span_, std::vector<NameDefTree*>{i_ndt, x_ndt});
+  auto* loop_pattern = module_->Make<TuplePattern>(
+      fake_span_, std::vector<PatternTree>{MakeNameDef("i"), x_def});
   XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueNotArray(&ctx->env));
   NameRef* body = MakeNameRef(x_def);
 
   // Randomly decide to use or not-use the type annotation on the loop.
-  TupleTypeAnnotation* tree_type = nullptr;
+  TupleTypeAnnotation* loop_pattern_type = nullptr;
   if (RandomBool(0.5)) {
-    tree_type = MakeTupleType({ivar_type, e.type});
+    loop_pattern_type = MakeTupleType({ivar_type, e.type});
   }
 
   Statement* body_stmt = module_->Make<Statement>(body);
   auto* block = module_->Make<StatementBlock>(
       fake_span_, std::vector<Statement*>{body_stmt}, /*trailing_semi=*/false);
-  For* for_ = module_->Make<For>(fake_span_, name_def_tree, tree_type, iterable,
-                                 block, /*init=*/e.expr);
+  For* for_ = module_->Make<For>(fake_span_, loop_pattern, loop_pattern_type,
+                                 iterable, block, /*init=*/e.expr);
   return TypedExpr{.expr = for_,
                    .type = e.type,
                    .last_delaying_op = e.last_delaying_op,
@@ -2821,12 +2817,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
     // TODO: https://github.com/google/xls/issues/1459 - skip always generating
     // the full tuple assignment (note, it is currently needed for the
     // (token, type) case).
-    statements.push_back(module_->Make<Statement>(module_->Make<Let>(
-        fake_span_,
-        /*name_def_tree=*/module_->Make<NameDefTree>(fake_span_, name_def),
-        /*type=*/rhs.type,
-        /*rhs=*/rhs.expr,
-        /*is_const=*/false)));
+    statements.push_back(
+        module_->Make<Statement>(module_->Make<Let>(fake_span_,
+                                                    /*pattern=*/name_def,
+                                                    /*type=*/rhs.type,
+                                                    /*rhs=*/rhs.expr,
+                                                    /*is_const=*/false)));
     ctx->env[identifier] = TypedExpr{.expr = name_ref,
                                      .type = rhs.type,
                                      .last_delaying_op = rhs.last_delaying_op,
@@ -2871,8 +2867,7 @@ void AstGenerator::GenerateTupleAssignment(
       auto* member_name_ref = MakeNameRef(member_name_def);
       statements.push_back(module_->Make<Statement>(module_->Make<Let>(
           fake_span_,
-          /*name_def_tree=*/
-          module_->Make<NameDefTree>(fake_span_, member_name_def),
+          /*pattern=*/member_name_def,
           /*type=*/tuple_type->members()[index],
           /*rhs=*/
           module_->Make<TupleIndex>(fake_span_, name_ref, MakeNumber(index)),
@@ -2897,13 +2892,13 @@ void AstGenerator::GenerateTupleAssignment(
 
     // TODO: https://github.com/google/xls/issues/1459 - handle tuples of
     // tuples.
-    std::vector<NameDefTree*> name_defs;
+    std::vector<PatternTree> pattern_members;
     bool has_rest_of_tuple = false;
     for (int64_t index = 0; index < tuple_type->members().size(); ++index) {
       if (RandomBool(0.1)) {
         // Replace this name with a wildcard.
         WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
-        name_defs.push_back(module_->Make<NameDefTree>(fake_span_, wc));
+        pattern_members.push_back(wc);
         continue;
       }
 
@@ -2911,7 +2906,7 @@ void AstGenerator::GenerateTupleAssignment(
         has_rest_of_tuple = true;
         // Insert a "rest of tuple", but we might keep this name.
         RestOfTuple* rest = module_->Make<RestOfTuple>(fake_span_);
-        name_defs.push_back(module_->Make<NameDefTree>(fake_span_, rest));
+        pattern_members.push_back(rest);
         // Also, jump forward a random # of elements
         auto jump_forward = RandomIntWithExpectedValue(
             /*expected_value=*/(tuple_type->members().size() - index) / 2.0,
@@ -2933,13 +2928,12 @@ void AstGenerator::GenerateTupleAssignment(
                     .type = tuple_type->members()[index],
                     .last_delaying_op = rhs.last_delaying_op,
                     .min_stage = rhs.min_stage};
-      name_defs.push_back(
-          module_->Make<NameDefTree>(fake_span_, member_name_def));
+      pattern_members.push_back(member_name_def);
     }
 
     statements.push_back(module_->Make<Statement>(module_->Make<Let>(
         fake_span_,
-        /*name_def_tree=*/module_->Make<NameDefTree>(fake_span_, name_defs),
+        /*pattern=*/module_->Make<TuplePattern>(fake_span_, pattern_members),
         /*type=*/rhs_type,
         /*rhs=*/rhs.expr,
         /*is_const=*/false)));

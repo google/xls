@@ -20,10 +20,10 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast_test_utils.h"
@@ -233,6 +233,30 @@ TEST_F(AstTest, GetFuncParam) {
   EXPECT_THAT(f->GetParamByName("not_a_param"),
               StatusIs(absl::StatusCode::kNotFound,
                        HasSubstr("Param 'not_a_param' not a parameter")));
+}
+
+TEST_F(AstTest, ConstPatternTreeFlattensToConstLeaves) {
+  NameDef* first =
+      m.Make<NameDef>(fake_span, std::string("first"), /*definer=*/nullptr);
+  WildcardPattern* wildcard = m.Make<WildcardPattern>(fake_span);
+  NameDef* second =
+      m.Make<NameDef>(fake_span, std::string("second"), /*definer=*/nullptr);
+  TuplePattern* nested = m.Make<TuplePattern>(
+      fake_span, std::vector<PatternTree>{wildcard, second});
+  const TuplePattern* root =
+      m.Make<TuplePattern>(fake_span, std::vector<PatternTree>{first, nested});
+
+  ConstPatternTree pattern = root;
+  std::vector<ConstPatternLeaf> leaves = FlattenPattern(pattern);
+  ASSERT_EQ(leaves.size(), 3);
+  EXPECT_EQ(std::get<const NameDef*>(leaves[0]), first);
+  EXPECT_EQ(std::get<const WildcardPattern*>(leaves[1]), wildcard);
+  EXPECT_EQ(std::get<const NameDef*>(leaves[2]), second);
+
+  std::vector<const NameDef*> name_defs = GetPatternNameDefs(pattern);
+  ASSERT_EQ(name_defs.size(), 2);
+  EXPECT_EQ(name_defs[0], first);
+  EXPECT_EQ(name_defs[1], second);
 }
 
 TEST_F(AstTest, IsConstantNameRef) {

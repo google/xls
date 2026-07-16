@@ -349,14 +349,14 @@ class Parser : public TokenParser {
   absl::StatusOr<std::variant<NameDef*, WildcardPattern*, RestOfTuple*>>
   ParseNameDefOrWildcard(Bindings& bindings);
 
-  // Parses tree of name defs and returns it.
+  // Parses a binding pattern and returns its PatternTree representation.
   //
   // For example, the left hand side of:
   //
   //  let (a, (b, (c)), d) = ...
   //
-  // This is used for tuple-like (sometimes known as "destructing") let binding.
-  absl::StatusOr<NameDefTree*> ParseNameDefTree(Bindings& bindings);
+  // This is used for tuple-like destructuring let binding.
+  absl::StatusOr<PatternTree> ParseNameDefPattern(Bindings& bindings);
 
   absl::StatusOr<Number*> TokenToNumber(const Token& tok);
   absl::StatusOr<NameDef*> TokenToNameDef(const Token& tok) {
@@ -543,8 +543,8 @@ class Parser : public TokenParser {
   // Permits trailing commas.
   absl::StatusOr<std::vector<Param*>> ParseParams(Bindings& bindings);
 
-  absl::StatusOr<NameDefTree*> ParseTuplePattern(const Pos& start_pos,
-                                                 Bindings& bindings);
+  absl::StatusOr<TuplePattern*> ParseTuplePattern(const Pos& start_pos,
+                                                  Bindings& bindings);
 
   // Returns a parsed pattern; e.g. one that would guard a match arm.
   //
@@ -554,8 +554,8 @@ class Parser : public TokenParser {
   //            | NameDef
   //            | NameRef
   //            | Number
-  absl::StatusOr<NameDefTree*> ParsePattern(Bindings& bindings,
-                                            bool within_tuple_pattern);
+  absl::StatusOr<PatternTree> ParsePattern(Bindings& bindings,
+                                           bool within_tuple_pattern);
 
   // Parses a match expression.
   absl::StatusOr<Match*> ParseMatch(Bindings& bindings, bool is_const);
@@ -766,13 +766,6 @@ class Parser : public TokenParser {
   // (sub-parser), it points to the borrowed module.
   Module* const module_;
 
-  // `Let` nodes are created _after_ those that use their namedefs (due to the
-  // chaining of the `body` member variable. We need to know, though, if a
-  // reference to such an NDT (or element thereof) is to a constant or not, so
-  // we can emit a NameRef. This set holds those NDTs known
-  // to be constant for that purpose.
-  absl::flat_hash_set<NameDefTree*> const_ndts_;
-
   // To avoid over-recursion (and ensuing stack overflows) we keep track of the
   // approximate expression depth, and bail when expressions are unreasonably
   // deeply nested.
@@ -783,9 +776,6 @@ class Parser : public TokenParser {
   // the return type of a function.
   bool parse_fn_stubs_;
 };
-
-const Span& GetSpan(
-    const std::variant<NameDef*, WildcardPattern*, RestOfTuple*>& v);
 
 }  // namespace xls::dslx
 

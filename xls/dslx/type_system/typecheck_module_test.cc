@@ -21,13 +21,13 @@
 #include <tuple>
 #include <utility>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_replace.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
@@ -4525,10 +4525,10 @@ fn f(x: u8) -> u2 {
   Match* m = dynamic_cast<Match*>(expr);
   ASSERT_NE(m, nullptr);
   const MatchArm* arm = m->arms()[0];
-  const NameDefTree* pattern = arm->patterns()[0];
+  const PatternTree& pattern = arm->patterns()[0];
 
   // Check that the pattern is just a leaf NameRef.
-  NameRef* name_ref = std::get<NameRef*>(pattern->leaf());
+  NameRef* name_ref = std::get<NameRef*>(pattern);
   ASSERT_NE(name_ref, nullptr);
   EXPECT_EQ(name_ref->identifier(), "FOO");
 

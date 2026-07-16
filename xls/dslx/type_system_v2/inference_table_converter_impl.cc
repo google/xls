@@ -461,7 +461,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // Dig up the actual declaration, e.g. the `let x = ...;` node for a node
       // like the `x` under that.
       const AstNode* decl = name_def->parent();
-      while (decl != nullptr && decl->kind() == AstNodeKind::kNameDefTree &&
+      while (decl != nullptr && decl->kind() == AstNodeKind::kTuplePattern &&
              decl->parent() != nullptr) {
         decl = decl->parent();
       }

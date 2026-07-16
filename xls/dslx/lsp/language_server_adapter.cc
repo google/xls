@@ -347,21 +347,23 @@ LanguageServerAdapter::InlayHint(LspUri uri,
           // Already has a type annotated, no need for inlay.
           continue;
         }
-        const auto* name_def_tree = let->name_def_tree();
-        std::optional<Type*> maybe_type = type_info.GetItem(name_def_tree);
+        const PatternTree& pattern = let->pattern();
+        AstNode* pattern_node = ToAstNode(pattern);
+        std::optional<Type*> maybe_type = type_info.GetItem(pattern_node);
         if (!maybe_type.has_value()) {
           // This can happen because we have a parametric function -- we don't
           // have concrete types because it could be instantiated in different
           // ways from different invocations.
           VLOG(5) << "InlayHint; no type information available for: "
-                  << name_def_tree->ToString() << " @ "
-                  << name_def_tree->span().ToString(file_table) << " within `"
+                  << PatternToString(pattern) << " @ "
+                  << GetPatternSpan(pattern).ToString(file_table) << " within `"
                   << let->ToString() << "`";
           continue;
         }
         const Type& type = *maybe_type.value();
         results.push_back(verible::lsp::InlayHint{
-            .position = ConvertPosToLspPosition(name_def_tree->span().limit()),
+            .position =
+                ConvertPosToLspPosition(GetPatternSpan(pattern).limit()),
             .label = absl::StrCat(": ", type.ToInlayHintString()),
             .kind = verible::lsp::InlayHintKind::kType,
             .paddingRight = true,

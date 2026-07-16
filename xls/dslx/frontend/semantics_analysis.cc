@@ -479,8 +479,8 @@ class PreTypecheckPass : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleLet(const Let* node) override {
-    if (node->name_def_tree()->IsWildcardLeaf()) {
-      warning_collector_.Add(node->name_def_tree()->span(),
+    if (IsWildcardLeaf(node->pattern())) {
+      warning_collector_.Add(GetPatternSpan(node->pattern()),
                              WarningKind::kUselessLetBinding,
                              "`let _ = expr;` statement can be simplified to "
                              "`expr;` -- there is no "
@@ -488,7 +488,7 @@ class PreTypecheckPass : public AstNodeVisitorWithDefault {
     }
 
     if (node->is_const()) {
-      NameDef* name_def = node->name_def_tree()->GetNameDefs()[0];
+      NameDef* name_def = GetPatternNameDefs(node->pattern())[0];
       WarnOnInappropriateConstantName(name_def->identifier(), node->span(),
                                       *node->owner(), &warning_collector_);
     }
@@ -555,23 +555,18 @@ class CollectUseDef : public AstNodeVisitorWithDefault {
         return;
       }
 
-      // We make an exception to NameDefTree, that if any def in it is used, all
-      // defs in the tree are considered used. This is because the user
-      // typically wants to keep a meaningful name for each component of a
-      // NameDefTree binding, even though only some of them will be used, and we
-      // want to reduce superfluous warnings on that.
+      // If any name in a tuple binding is used, consider all names in that
+      // binding used. Users typically want to keep meaningful names for each
+      // component even when only some components are referenced.
       const AstNode* node = *name_def;
       while (node->parent() &&
-             node->parent()->kind() == AstNodeKind::kNameDefTree) {
-        node = absl::down_cast<const NameDefTree*>(node->parent());
+             node->parent()->kind() == AstNodeKind::kTuplePattern) {
+        node = absl::down_cast<const TuplePattern*>(node->parent());
       }
       if (node != *name_def) {
-        for (NameDefTree::Leaf& leaf :
-             absl::down_cast<const NameDefTree*>(node)->Flatten()) {
-          if (const NameDef* const* tree_name_def =
-                  std::get_if<NameDef*>(&leaf)) {
-            uses_.insert(*tree_name_def);
-          }
+        ConstPatternTree pattern = absl::down_cast<const TuplePattern*>(node);
+        for (const NameDef* pattern_name_def : GetPatternNameDefs(pattern)) {
+          uses_.insert(pattern_name_def);
         }
       }
     }

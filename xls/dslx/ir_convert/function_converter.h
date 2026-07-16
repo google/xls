@@ -421,7 +421,7 @@ class FunctionConverter {
   // handles the `ivar` named `i`.
   absl::StatusOr<BValue> HandleRangedForInductionVariable(
       const For* node, FunctionConverter& body_converter,
-      NameDefTree::Leaf ivar);
+      const PatternTree& ivar);
 
   // Helpers that adds a parameter for the loop carried accumulator value.
   // Handles the fact that we may need to destructure a pattern for
@@ -429,7 +429,7 @@ class FunctionConverter {
   absl::Status HandleForLoopCarry(const For* node,
                                   FunctionConverter& body_converter,
                                   const std::optional<RangeData>& range_data,
-                                  BValue loop_index, NameDefTree::Leaf ivar,
+                                  BValue loop_index, const PatternTree& ivar,
                                   AstNode* carry_node);
 
   // Returns the relevant name definitions for the lexical scope of the for
@@ -488,7 +488,7 @@ class FunctionConverter {
   absl::Status HandleCoverBuiltin(const Invocation* node, BValue condition);
 
   // Handles an arm of a match expression.
-  absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,
+  absl::StatusOr<BValue> HandleMatcher(const PatternTree& matcher,
                                        const BValue& matched_value,
                                        const Type& matched_type);
 

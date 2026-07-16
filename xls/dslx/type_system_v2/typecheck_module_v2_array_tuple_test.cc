@@ -1239,8 +1239,8 @@ fn foo() {
 }
 )",
       TypecheckFails(
-          HasSubstr("For-loop iterator and accumulator name tuple "
-                    "must contain 2 top-level elements; got: `(i, a, _)`")));
+          HasSubstr("For-loop iterator and accumulator pattern must be an "
+                    "irrefutable 2-element tuple; got: `(i, a, _)`")));
 }
 
 TEST(TypecheckV2Test, UnrollForTupleTypeMismatch) {
@@ -1251,8 +1251,8 @@ fn foo() {
 }
 )",
       TypecheckFails(
-          HasSubstr("For-loop iterator and accumulator name tuple must contain "
-                    "2 top-level elements; got: `(i)`")));
+          HasSubstr("For-loop iterator and accumulator pattern must be an "
+                    "irrefutable 2-element tuple; got: `(i)`")));
 }
 
 TEST(TypecheckV2Test, ProcWithChannelArray) {

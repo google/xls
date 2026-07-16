@@ -17,8 +17,6 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -26,6 +24,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -258,7 +258,7 @@ fn f() {
             "Definition of `a` (type `uN[32]`) is not used in function `f`");
 }
 
-TEST(TypecheckV2Test, AllowSomeUnusedDefInNameDefTree) {
+TEST(TypecheckV2Test, AllowSomeUnusedDefInTuplePattern) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 fn f(A: (u32, u32)[5]) -> (u32, u32) {
   for (i, (a, b)) in A {

@@ -115,15 +115,6 @@ absl::Status IrConversionErrorStatus(const std::optional<Span>& span,
       span ? span->ToString(file_table) : "<no span>", message));
 }
 
-// Convert a NameDefTree node variant to an AstNode pointer (either the leaf
-// node or the interior NameDefTree node).
-AstNode* ToAstNode(const std::variant<NameDefTree::Leaf, NameDefTree*>& x) {
-  if (std::holds_alternative<NameDefTree*>(x)) {
-    return std::get<NameDefTree*>(x);
-  }
-  return ToAstNode(std::get<NameDefTree::Leaf>(x));
-}
-
 absl::StatusOr<TypeDefinition> ToTypeDefinition(
     const TypeAnnotation* type_annotation) {
   auto* type_ref_type_annotation =
@@ -420,7 +411,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(FuzzTestFunction)
   INVALID(MatchArm)
   INVALID(NameDef)
-  INVALID(NameDefTree)
+  INVALID(TuplePattern)
   INVALID(ParametricBinding)
   INVALID(ProcAlias)
   INVALID(RestOfTuple)
@@ -970,9 +961,9 @@ absl::Status FunctionConverter::HandleLetChannelDecl(const Let* node) {
          "lowering to proc-scoped channels";
   XLS_RETURN_IF_ERROR(ValidateProcState("chan", node));
 
-  XLS_RET_CHECK(!node->name_def_tree()->is_leaf())
+  XLS_RET_CHECK(std::holds_alternative<TuplePattern*>(node->pattern()))
       << "Must assign a channel declaration to a 2-tuple; was leaf";
-  std::vector<NameDefTree::Leaf> leaves = node->name_def_tree()->Flatten();
+  std::vector<PatternLeaf> leaves = FlattenPattern(node->pattern());
   XLS_RET_CHECK_EQ(leaves.size(), 2)
       << "Must assign a channel declaration to a 2-tuple";
 
@@ -1017,7 +1008,7 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
           node->span(), "Can only assign from channels when in a Proc",
           file_table());
     }
-    if (!node->name_def_tree()->is_leaf()) {
+    if (std::holds_alternative<TuplePattern*>(node->pattern())) {
       return absl::UnimplementedError(
           "Destructuring let bindings are not yet supported in Proc "
           "config methods.");
@@ -1052,11 +1043,11 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
               }},
       value));
 
-  if (node->name_def_tree()->is_leaf()) {
+  if (!std::holds_alternative<TuplePattern*>(node->pattern())) {
     // Alias so that the RHS expression is now known as the name definition it
     // is bound to.
     XLS_RETURN_IF_ERROR(
-        DefAlias(node->rhs(), /*to=*/ToAstNode(node->name_def_tree()->leaf())));
+        DefAlias(node->rhs(), /*to=*/ToAstNode(node->pattern())));
   } else {
     if (current_fn_tag_ == FunctionTag::kProcConfig) {
       return absl::UnimplementedError(
@@ -1068,29 +1059,30 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
     // actually recursive (instead of "effectively recursive" via the `levels`
     // and `delta_at_level` vectors).
 
-    // Walk the tree of names we're trying to bind, performing tuple_index
-    // operations on the RHS to get to the values we want to bind to those
-    // names.
+    // Walk the pattern members, performing tuple_index operations on the RHS
+    // to get to the corresponding values.
     std::vector<BValue> levels = {rhs};
-    // Invoked at each level of the NameDefTree: binds the name in the
-    // NameDefTree to the corresponding value (being pattern matched).
+    // Invoked at each level of the pattern: maps the current pattern member
+    // to the corresponding value. Only NameDef leaves bind names; wildcard and
+    // rest members are visited without binding.
     //
     // Args:
-    //  name_def_tree: Current subtree of the NameDefTree.
-    //  level: Level (depth) in the NameDefTree, root is 0.
+    //  pattern: Current subtree of the pattern.
+    //  level: Level (depth) in the pattern, root is 0.
     //  index: Index of node in the current tree level (e.g. leftmost is 0).
 
     // We need to add the delta to every tuple index *at this level*. E.g.,:
-    // if have a NameDefTree like: (a,..,b,(c,..,d),e), then b, (c,..,d) and
+    // if have a pattern like: (a,..,b,(c,..,d),e), then b, (c,..,d) and
     // e's indexes need to be adjusted at level 1; d's needs to be adjusted at
     // level 2, etc.
     std::vector<int64_t> delta_at_level;
 
-    auto walk = [&](NameDefTree* name_def_tree, int64_t level,
+    auto walk = [&](const PatternTree& pattern, int64_t level,
                     int64_t index) -> absl::Status {
-      XLS_RET_CHECK_NE(name_def_tree, nullptr);
+      AstNode* pattern_node = ToAstNode(pattern);
+      XLS_RET_CHECK_NE(pattern_node, nullptr);
       VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`", level,
-                                    index, name_def_tree->ToString());
+                                    index, PatternToString(pattern));
 
       while (level > delta_at_level.size()) {
         // Make sure we have enough entries at this level
@@ -1105,18 +1097,18 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
 
       xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
 
-      if (name_def_tree->IsRestOfTupleLeaf()) {
+      if (IsRestOfTupleLeaf(pattern)) {
         // If we're at a "rest of tuple" operator, we may need to "skip"
         // tuple elements at this level. We can tell how many tuple *entries*
-        // there are via tuple_type, and how many *bindings* there are at this
-        // level (i.e., siblings to the "rest of tuple") via the parent
-        // NameDefTree.
-        const NameDefTree* parent =
-            absl::down_cast<const NameDefTree*>(name_def_tree->parent());
-        int64_t number_of_bindings = parent->nodes().size();
+        // there are via tuple_type, and how many pattern members there are at
+        // this level (including the "rest of tuple") via the parent tuple
+        // pattern.
+        const TuplePattern* parent =
+            absl::down_cast<const TuplePattern*>(pattern_node->parent());
+        int64_t pattern_member_count = parent->members().size();
         int64_t number_of_tuple_elements = tuple_type->size();
 
-        int64_t delta = number_of_tuple_elements - number_of_bindings;
+        int64_t delta = number_of_tuple_elements - pattern_member_count;
         delta_at_level[level - 1] = delta;
 
         // Don't need to bind anything to the ..
@@ -1126,29 +1118,27 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
       CHECK_LT(index, tuple_type->size())
           << "index: " << index << " type: " << tuple_type->ToString();
 
-      levels.push_back(Def(name_def_tree, [this, name_def_tree, index,
-                                           tuple](SourceInfo loc) {
-        if (!loc.Empty()) {
-          loc = ToSourceInfo(name_def_tree->is_leaf()
-                                 ? ToAstNode(name_def_tree->leaf())->GetSpan()
-                                 : name_def_tree->GetSpan());
-        }
+      BValue bound_value =
+          Def(pattern_node, [this, pattern_node, index, tuple](SourceInfo loc) {
+            if (!loc.Empty()) {
+              loc = ToSourceInfo(pattern_node->GetSpan());
+            }
 
-        CHECK(tuple.GetType()->IsTuple());
-        BValue tuple_index = function_builder_->TupleIndex(tuple, index, loc);
-        CHECK_OK(function_builder_->GetError());
+            CHECK(tuple.GetType()->IsTuple());
+            BValue tuple_index =
+                function_builder_->TupleIndex(tuple, index, loc);
+            CHECK_OK(function_builder_->GetError());
 
-        return tuple_index;
-      }));
-
-      if (name_def_tree->is_leaf()) {
-        XLS_RETURN_IF_ERROR(
-            DefAlias(name_def_tree, ToAstNode(name_def_tree->leaf())));
+            return tuple_index;
+          });
+      if (std::holds_alternative<NameDef*>(pattern)) {
+        bound_value.SetName(std::get<NameDef*>(pattern)->identifier());
       }
+      levels.push_back(bound_value);
       return absl::OkStatus();
     };
 
-    XLS_RETURN_IF_ERROR(node->name_def_tree()->DoPreorder(walk));
+    XLS_RETURN_IF_ERROR(DoPatternPreorder(node->pattern(), walk));
   }
 
   return absl::OkStatus();
@@ -1354,7 +1344,7 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
 
     // Visit all the MatchArm's patterns.
     std::vector<BValue> this_arm_selectors;
-    for (NameDefTree* pattern : arm->patterns()) {
+    for (const PatternTree& pattern : arm->patterns()) {
       XLS_ASSIGN_OR_RETURN(BValue selector,
                            HandleMatcher(pattern, matched, *matched_type));
       XLS_RET_CHECK(selector.valid());
@@ -1550,7 +1540,7 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
 
 absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
     const For* node, FunctionConverter& body_converter,
-    NameDefTree::Leaf ivar_node) {
+    const PatternTree& ivar_node) {
   return absl::visit(
       Visitor{
           [&](NameDef* name_def) -> absl::StatusOr<BValue> {
@@ -1581,6 +1571,10 @@ absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
             return absl::InternalError(
                 "Induction variable cannot be a \"rest of tuple\"");
           },
+          [&](TuplePattern*) -> absl::StatusOr<BValue> {
+            return absl::InternalError(
+                "Induction variable cannot be a tuple pattern");
+          },
       },
       ivar_node);
 }
@@ -1588,7 +1582,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
 absl::Status FunctionConverter::HandleForLoopCarry(
     const For* node, FunctionConverter& body_converter,
     const std::optional<RangeData>& range_data, BValue loop_index,
-    NameDefTree::Leaf ivar, AstNode* carry_node) {
+    const PatternTree& ivar, AstNode* carry_node) {
   // IR `counted_for` ops only support a trip count, not a set of iterables, so
   // we need to add an offset to that trip count/index to support nonzero loop
   // start indices; e.g. `for (i, accum) in 1..10` we actually iterate from 0 to
@@ -1623,10 +1617,9 @@ absl::Status FunctionConverter::HandleForLoopCarry(
       body_converter.SetNodeToIr(carry_name_def, param);
     }
   } else {
-    // For tuple loop carries we have to destructure names on entry.
-    // Note this could be something like a NameDef or something like a
-    // WildcardPattern -- even if it's a wildcard pattern we throw away, we
-    // still want to make the loop with the same pattern.
+    // Preserve the full loop-carry pattern on entry. Tuple members may bind
+    // names or be non-binding patterns; the latter produce no binding, but the
+    // carry keeps the same pattern shape.
     AstNode* accum = carry_node;
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> carry_type, ResolveType(accum));
     XLS_ASSIGN_OR_RETURN(
@@ -1639,17 +1632,17 @@ absl::Status FunctionConverter::HandleForLoopCarry(
       carry = body_converter.AddParam("__loop_carry", carry_ir_type);
     }
     body_converter.SetNodeToIr(accum, carry);
-    // This will destructure the names for us in the body of the anonymous
-    // function.
-    if (auto* ndt = dynamic_cast<NameDefTree*>(accum)) {
+    // Destructure the tuple-pattern members in the anonymous function body.
+    if (auto* tuple_pattern = dynamic_cast<TuplePattern*>(accum)) {
+      PatternTree matcher = tuple_pattern;
       XLS_RETURN_IF_ERROR(body_converter
-                              .HandleMatcher(/*matcher=*/ndt,
+                              .HandleMatcher(/*matcher=*/matcher,
                                              /*matched_value=*/carry,
                                              /*matched_type=*/*carry_type)
                               .status());
     } else {
       XLS_RET_CHECK_NE(dynamic_cast<WildcardPattern*>(accum), nullptr)
-          << "Expect post-typechecking loop binding to be NameDefTree or "
+          << "Expect post-typechecking loop binding to be TuplePattern or "
              "WildcardPattern";
     }
   }
@@ -1806,8 +1799,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   }
 
   // Grab the two tuple of `(ivar, accum)`.
-  std::vector<std::variant<NameDefTree::Leaf, NameDefTree*>> flat =
-      node->names()->Flatten1();
+  std::vector<PatternTree> flat = FlattenPattern1(node->pattern());
   if (flat.size() != 2) {
     return absl::UnimplementedError(
         "Expect for loop to have counter (induction variable) and carry data "
@@ -1815,7 +1807,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   }
 
   // Add the induction value (the "ranged" counter).
-  NameDefTree::Leaf ivar_node = std::get<NameDefTree::Leaf>(flat[0]);
+  const PatternTree& ivar_node = flat[0];
   AstNode* carry_node = ToAstNode(flat[1]);
 
   VLOG(5) << "Converting for-loop @ " << node->span().ToString(file_table());
@@ -1901,29 +1893,29 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 }
 
 absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
-    NameDefTree* matcher, const BValue& matched_value,
+    const PatternTree& matcher, const BValue& matched_value,
     const Type& matched_type) {
-  if (matcher->is_leaf()) {
-    NameDefTree::Leaf leaf = matcher->leaf();
+  AstNode* matcher_node = ToAstNode(matcher);
+  if (!std::holds_alternative<TuplePattern*>(matcher)) {
     VLOG(5) << absl::StreamFormat("Matcher is leaf: %s (%s)",
-                                  ToAstNode(leaf)->ToString(),
-                                  ToAstNode(leaf)->GetNodeTypeName());
+                                  matcher_node->ToString(),
+                                  matcher_node->GetNodeTypeName());
     auto equality = [&]() -> absl::StatusOr<BValue> {
-      XLS_RETURN_IF_ERROR(Visit(ToAstNode(leaf)));
-      XLS_ASSIGN_OR_RETURN(BValue to_match, Use(ToAstNode(leaf)));
-      return Def(matcher, [&](const SourceInfo& loc) {
+      XLS_RETURN_IF_ERROR(Visit(matcher_node));
+      XLS_ASSIGN_OR_RETURN(BValue to_match, Use(matcher_node));
+      return Def(matcher_node, [&](const SourceInfo& loc) {
         return function_builder_->Eq(to_match, matched_value);
       });
     };
     return absl::visit(
         Visitor{
             [&](WildcardPattern*) -> absl::StatusOr<BValue> {
-              return Def(matcher, [&](const SourceInfo& loc) {
+              return Def(matcher_node, [&](const SourceInfo& loc) {
                 return function_builder_->Literal(UBits(1, 1), loc);
               });
             },
             [&](RestOfTuple* n) -> absl::StatusOr<BValue> {
-              return Def(matcher, [&](const SourceInfo& loc) {
+              return Def(matcher_node, [&](const SourceInfo& loc) {
                 return function_builder_->Literal(UBits(1, 1), loc);
               });
             },
@@ -1971,40 +1963,44 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
             },
             [&](NameRef* n) -> absl::StatusOr<BValue> {
               // Comparing for equivalence to a (referenced) name.
-              auto* name_ref = std::get<NameRef*>(leaf);
-              const auto* name_def =
-                  std::get<const NameDef*>(name_ref->name_def());
+              const auto* name_def = std::get<const NameDef*>(n->name_def());
               XLS_ASSIGN_OR_RETURN(BValue to_match, Use(name_def));
-              BValue result = Def(matcher, [&](const SourceInfo& loc) {
+              BValue result = Def(matcher_node, [&](const SourceInfo& loc) {
                 return function_builder_->Eq(to_match, matched_value);
               });
-              XLS_RETURN_IF_ERROR(DefAlias(name_def, name_ref));
+              XLS_RETURN_IF_ERROR(DefAlias(name_def, n));
               return result;
             },
             [&](NameDef* name_def) -> absl::StatusOr<BValue> {
               BValue ok = Def(name_def, [&](const SourceInfo& loc) {
                 return function_builder_->Literal(UBits(1, 1));
               });
-              SetNodeToIr(matcher, matched_value);
-              SetNodeToIr(ToAstNode(leaf), matched_value);
+              SetNodeToIr(matcher_node, matched_value);
               return ok;
             },
+            [&](TuplePattern*) -> absl::StatusOr<BValue> {
+              return absl::InternalError("Tuple pattern reached leaf handler");
+            },
         },
-        leaf);
+        matcher);
   }
 
+  TuplePattern* tuple_pattern = std::get<TuplePattern*>(matcher);
   auto* matched_tuple_type = dynamic_cast<const TupleType*>(&matched_type);
-  XLS_ASSIGN_OR_RETURN((auto [number_of_tuple_elements, number_of_names]),
-                       GetTupleSizes(matcher, matched_tuple_type));
+  XLS_ASSIGN_OR_RETURN(
+      (auto [number_of_tuple_elements, non_rest_pattern_member_count]),
+      GetTupleSizes(tuple_pattern, matched_tuple_type));
 
   int64_t tuple_index = 0;
   BValue ok = function_builder_->Literal(UBits(/*value=*/1, /*bit_count=*/1));
-  const NameDefTree::Nodes& nodes = matcher->nodes();
-  for (int64_t name_index = 0; name_index < nodes.size(); ++name_index) {
-    NameDefTree* element = nodes[name_index];
-    if (element->IsRestOfTupleLeaf()) {
+  const std::vector<PatternTree>& members = tuple_pattern->members();
+  for (int64_t member_index = 0; member_index < members.size();
+       ++member_index) {
+    const PatternTree& element = members[member_index];
+    if (IsRestOfTupleLeaf(element)) {
       // Skip ahead.
-      int64_t wildcards_to_insert = number_of_tuple_elements - number_of_names;
+      int64_t wildcards_to_insert =
+          number_of_tuple_elements - non_rest_pattern_member_count;
       tuple_index += wildcards_to_insert;
       continue;
     }
