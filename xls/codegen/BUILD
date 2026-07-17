@@ -613,10 +613,12 @@ cc_library(
     deps = [
         ":codegen_pass",
         ":module_signature",
+        ":module_signature_cc_proto",
         ":signature_generator",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/passes:pass_base",
+        "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
