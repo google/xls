@@ -48,8 +48,9 @@ class GenIrNodesPass : public IrFuzzVisitor {
       : p_(p),
         fuzz_program_(fuzz_program),
         helpers_(fuzz_program_.version(), max_bit_width),
-        max_bit_width_(max_bit_width.value_or(IrFuzzHelpers::kMaxFuzzBitWidth)),
-        remaining_param_bits_(param_bits) {
+        remaining_param_bits_(param_bits),
+        max_bit_width_(
+            max_bit_width.value_or(IrFuzzHelpers::kMaxFuzzBitWidth)) {
     function_states_.emplace_back(p, top_name, fuzz_program_.version(),
                                   fuzz_program_.combine_list_method(),
                                   std::nullopt, max_bit_width);

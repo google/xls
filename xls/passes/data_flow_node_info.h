@@ -96,10 +96,10 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
 
   DataFlowLazyNodeInfo(const DataFlowLazyNodeInfo& o)
       : LazyNodeInfo<Info>(o),
+        query_engine_(o.query_engine_),
         default_info_source_(o.default_info_source_),
         compute_tree_for_source_(o.compute_tree_for_source_),
         include_selectors_(o.include_selectors_),
-        query_engine_(o.query_engine_),
         parent_(o.parent_),
         parent_node_(o.parent_node_) {
     for (const auto& [invoke, callee_info] : o.cached_callee_infos_) {
@@ -225,11 +225,9 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
                                   ->AsArrayOrDie())) {
           LeafTypeTree<Info> ret = leaf_type_tree::Clone(
               operand_infos[xls::ArrayUpdate::kArgOperand]->AsView());
-          MutableLeafTypeTreeView<Info> ret_view =
-              ret.AsMutableView(literal_indices);
-          leaf_type_tree::ReplaceElements(
+          CHECK_OK(leaf_type_tree::ReplaceElements(
               ret.AsMutableView(literal_indices),
-              operand_infos[xls::ArrayUpdate::kUpdateValueOperand]->AsView());
+              operand_infos[xls::ArrayUpdate::kUpdateValueOperand]->AsView()));
           return ret;
         }
 
@@ -311,7 +309,7 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
 
           CHECK_NE(LazyNodeData<LeafTypeTree<Info>>::bound_function(), nullptr);
 
-          cached_callee_infos_.at(invoke)->Attach(callee);
+          CHECK_OK(cached_callee_infos_.at(invoke)->Attach(callee));
         }
 
         Derived* callee_info = cached_callee_infos_.at(invoke).get();
@@ -321,7 +319,8 @@ class DataFlowLazyNodeInfo : public LazyNodeInfo<Info> {
         CHECK_EQ(invoke->operand_count(), callee->params().size());
 
         for (int64_t p = 0; p < callee->params().size(); ++p) {
-          callee_info->SetForced(callee->params().at(p), *operand_infos[p]);
+          CHECK_OK(callee_info->SetForced(callee->params().at(p),
+                                          *operand_infos[p]));
         }
 
         SharedLeafTypeTree<Info> callee_info_opt =
