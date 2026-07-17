@@ -22,18 +22,12 @@ def _busperf_yaml_impl(ctx):
     args = ctx.actions.args()
     args.add(ctx.file.signature)
     args.add("--scope", ctx.attr.scope)
-    if ctx.files.child_signatures:
-        args.add_joined(
-            "--child_signature",
-            ctx.files.child_signatures,
-            join_with = ",",
-        )
     args.add("--output", out)
 
     ctx.actions.run(
         executable = ctx.executable.xls_sig_to_busperf,
         arguments = [args],
-        inputs = [ctx.file.signature] + ctx.files.child_signatures,
+        inputs = [ctx.file.signature],
         outputs = [out],
         mnemonic = "BusperfYaml",
         progress_message = "Generating busperf YAML for %{label}",
@@ -48,11 +42,6 @@ busperf_yaml = rule(
             doc = "Top block's ModuleSignatureProto.",
             allow_single_file = True,
             mandatory = True,
-        ),
-        "child_signatures": attr.label_list(
-            doc = "Standalone signatures for spawned child procs.",
-            allow_files = True,
-            default = [],
         ),
         "scope": attr.string(
             doc = "Dot-separated VCD scope path to the DUT, e.g. \"tb_foo.dut\".",

@@ -30,7 +30,6 @@ xls_dslx_library(
 
 xls_busperf_setup(
     name = "hier",
-    children = ["Doubler"],
     codegen_args = {
         "clock_period_ps": "10",
         "module_name": "hier",

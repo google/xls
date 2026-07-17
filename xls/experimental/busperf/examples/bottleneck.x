@@ -15,10 +15,6 @@
 // Shows busperf catching a backpressure bottleneck: Passthrough feeds
 // SlowConsumer through a depth-4 FIFO, and SlowConsumer<4> stalls it while
 // SlowConsumer<0> stays healthy.
-//
-// SlowConsumerNoStall and SlowConsumerStall4 wrap each configuration in a
-// non-parametric proc, since xls_busperf_setup's `children` codegen needs a
-// concrete name to target and can't convert a bare parametric one.
 
 #![feature(type_inference_v2)]
 
@@ -66,27 +62,11 @@ proc SlowConsumer<STALL_CYCLES: u32> {
     }
 }
 
-proc SlowConsumerNoStall {
-    config(data_r: chan<u32> in, data_s: chan<u32> out) {
-        spawn SlowConsumer<u32:0>(data_r, data_s);
-    }
-    init { }
-    next(state: ()) { }
-}
-
-proc SlowConsumerStall4 {
-    config(data_r: chan<u32> in, data_s: chan<u32> out) {
-        spawn SlowConsumer<u32:4>(data_r, data_s);
-    }
-    init { }
-    next(state: ()) { }
-}
-
 proc BottleneckNoStall {
     config(data_r: chan<u32> in, data_s: chan<u32> out) {
         let (fifo_s, fifo_r) = chan<u32, u32:4>("fifo");
         spawn Passthrough(data_r, fifo_s);
-        spawn SlowConsumerNoStall(fifo_r, data_s);
+        spawn SlowConsumer<u32:0>(fifo_r, data_s);
     }
     init { }
     next(state: ()) { }
@@ -121,7 +101,7 @@ proc BottleneckStall {
     config(data_r: chan<u32> in, data_s: chan<u32> out) {
         let (fifo_s, fifo_r) = chan<u32, u32:4>("fifo");
         spawn Passthrough(data_r, fifo_s);
-        spawn SlowConsumerStall4(fifo_r, data_s);
+        spawn SlowConsumer<u32:4>(fifo_r, data_s);
     }
     init { }
     next(state: ()) { }

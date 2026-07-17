@@ -17,32 +17,26 @@
 
 #include <string>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 
 namespace xls::busperf {
 
-// Generates a busperf (https://github.com/antmicro/busperf) YAML bus
-// description from an XLS ModuleSignatureProto. Covers both external interface,
-// and internal channels between a proc and any children it spawns.
+// Generates a busperf YAML bus description from an XLS ModuleSignatureProto.
+// Covers both external interface, and internal channels between a proc
+// and any children it spawns.
 //
 // Args:
 //   signature: the top-level block's ModuleSignatureProto (codegen_main
-//     --output_signature_path=...).
+//     --output_signature_path=...). Child block instantiations carry their
+//     own signature inline (instantiations().block_instantiation()
+//     .block_signature()), so this recurses through the whole design.
 //   scope: VCD scope path components leading to the DUT instance, e.g.
 //     {"tb_passthrough", "dut"}.
-//   child_signatures: standalone signatures for spawned child procs
-//     (codegen'd without --module_name, so each module_name is the
-//     mangled block name), keyed by module_name. Matched against the
-//     parent's instantiations so their channels get included too, scoped
-//     under `scope` plus their instance_name.
 absl::StatusOr<std::string> GenerateBusperfYaml(
     const verilog::ModuleSignatureProto& signature,
-    absl::Span<const std::string> scope,
-    const absl::flat_hash_map<std::string, verilog::ModuleSignatureProto>&
-        child_signatures);
+    absl::Span<const std::string> scope);
 
 }  // namespace xls::busperf
 

@@ -36,7 +36,6 @@ xls_dslx_test(
 
 xls_busperf_setup(
     name = "bottleneck_no_stall",
-    children = ["Passthrough", "SlowConsumerNoStall"],
     codegen_args = {
         "clock_period_ps": "10",
         "materialize_internal_fifos": "true",
@@ -58,7 +57,6 @@ xls_busperf_setup(
 
 xls_busperf_setup(
     name = "bottleneck_stall",
-    children = ["Passthrough", "SlowConsumerStall4"],
     codegen_args = {
         "clock_period_ps": "10",
         "materialize_internal_fifos": "true",

@@ -14,18 +14,17 @@
 
 #include "xls/experimental/busperf/busperf_yaml_generator.h"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 
 namespace xls::busperf {
@@ -62,6 +61,9 @@ std::vector<const verilog::ChannelInterfaceProto*> ReadyValidChannelsOf(
   return result;
 }
 
+// Returns a string of spaces matching the indentation `level`.
+std::string Indent(int64_t level) { return std::string(level * 2, ' '); }
+
 // Quotes and escapes `s` for use as a YAML scalar.
 std::string YamlString(std::string_view s) {
   std::string result;
@@ -77,26 +79,23 @@ std::string YamlString(std::string_view s) {
   return result;
 }
 
-// Recursively collects ready-valid channels from `signature` and any
-// instantiated child found in `child_signatures` (keyed by module_name)
-// into `interfaces`.
-void CollectInterfaces(
-    const verilog::ModuleSignatureProto& signature,
-    const std::vector<std::string>& scope_prefix,
-    const std::vector<std::string>& name_prefix,
-    const absl::flat_hash_map<std::string, verilog::ModuleSignatureProto>&
-        child_signatures,
-    std::vector<BusInterface>& interfaces) {
+// Recursively collects ready-valid channels from `signature` and its
+// instantiated children into `interfaces`. Use CollectInterfaces() instead.
+void CollectInterfacesRecursive(const verilog::ModuleSignatureProto& signature,
+                                std::vector<std::string_view>& scope_prefix,
+                                std::vector<std::string_view>& name_prefix,
+                                std::vector<BusInterface>& interfaces) {
   for (const verilog::ChannelInterfaceProto* channel_interface :
        ReadyValidChannelsOf(signature)) {
-    std::vector<std::string> name = name_prefix;
-    name.push_back(channel_interface->channel_name());
+    name_prefix.push_back(channel_interface->channel_name());
     interfaces.push_back(BusInterface{
-        .name = absl::StrJoin(name, "."),
-        .scope = scope_prefix,
+        .name = absl::StrJoin(name_prefix, "."),
+        .scope = std::vector<std::string>(scope_prefix.begin(),
+                                          scope_prefix.end()),
         .ready_port = channel_interface->streaming().ready_port_name(),
         .valid_port = channel_interface->streaming().valid_port_name(),
     });
+    name_prefix.pop_back();
   }
 
   for (const verilog::InstantiationProto& instantiation :
@@ -106,64 +105,83 @@ void CollectInterfaces(
     }
     const verilog::BlockInstantiationProto& block_instantiation =
         instantiation.block_instantiation();
-    auto it = child_signatures.find(block_instantiation.block_name());
-    if (it == child_signatures.end()) {
-      LOG(WARNING) << "instance " << block_instantiation.instance_name()
+    if (!block_instantiation.has_block_signature()) {
+      LOG(WARNING) << "Instance " << block_instantiation.instance_name()
                    << " (block " << block_instantiation.block_name()
-                   << ") has no matching child signature; skipping its "
+                   << ") has no embedded child signature; skipping its "
                       "internal channels";
       continue;
     }
-    std::vector<std::string> child_scope = scope_prefix;
-    child_scope.push_back(block_instantiation.instance_name());
-    std::vector<std::string> child_name = name_prefix;
-    child_name.push_back(block_instantiation.instance_name());
-    CollectInterfaces(it->second, child_scope, child_name, child_signatures,
-                       interfaces);
+    scope_prefix.push_back(block_instantiation.instance_name());
+    name_prefix.push_back(block_instantiation.instance_name());
+    CollectInterfacesRecursive(block_instantiation.block_signature(),
+                               scope_prefix, name_prefix, interfaces);
+    scope_prefix.pop_back();
+    name_prefix.pop_back();
   }
+}
+
+// Collects ready-valid channels from `signature` (and any embedded child
+// signatures) into `interfaces`, scoped under `scope_prefix`.
+void CollectInterfaces(const verilog::ModuleSignatureProto& signature,
+                       std::vector<std::string_view>& scope_prefix,
+                       std::vector<BusInterface>& interfaces) {
+  std::vector<std::string_view> name_prefix;
+  CollectInterfacesRecursive(signature, scope_prefix, name_prefix, interfaces);
 }
 
 void AppendClockResetBlock(const verilog::ModuleSignatureProto& signature,
                            std::vector<std::string>& lines) {
   std::string_view clock_name = signature.clock_name().empty()
-                                     ? kDefaultClockName
-                                     : signature.clock_name();
+                                    ? kDefaultClockName
+                                    : signature.clock_name();
   std::string_view reset_name =
       signature.has_reset() ? signature.reset().name() : kDefaultResetName;
   bool reset_active_low =
       signature.has_reset() && signature.reset().active_low();
 
   if (signature.clock_name().empty() || !signature.has_reset()) {
-    LOG(WARNING) << "signature has no clock_name/reset name; each interface "
+    LOG(WARNING) << "Signature has no clock_name/reset name; each interface "
                     "will need clock/reset filled in by hand";
   }
 
+  const std::string key_indent = Indent(1);
+  const std::string field_indent = Indent(2);
+
   lines.push_back("common_clk_rst_ifs:");
-  lines.push_back(absl::StrFormat("  %s: &%s", kClockAlias, kClockAlias));
-  lines.push_back(absl::StrFormat("    clock: %s", YamlString(clock_name)));
-  lines.push_back(absl::StrFormat("    reset: %s", YamlString(reset_name)));
-  lines.push_back(absl::StrFormat("    reset_type: %s",
-                                  YamlString(reset_active_low ? "low"
-                                                              : "high")));
+  lines.push_back(
+      absl::StrFormat("%s%s: &%s", key_indent, kClockAlias, kClockAlias));
+  lines.push_back(
+      absl::StrFormat("%sclock: %s", field_indent, YamlString(clock_name)));
+  lines.push_back(
+      absl::StrFormat("%sreset: %s", field_indent, YamlString(reset_name)));
+  lines.push_back(absl::StrFormat(
+      "%sreset_type: %s", field_indent,
+      YamlString(reset_active_low ? "low" : "high")));
 }
 
 void AppendInterfaceEntry(const BusInterface& interface,
                           std::vector<std::string>& lines) {
-  lines.push_back(absl::StrFormat("  %s:", YamlString(interface.name)));
+  const std::string key_indent = Indent(1);
+  const std::string field_indent = Indent(2);
+
+  lines.push_back(
+      absl::StrFormat("%s%s:", key_indent, YamlString(interface.name)));
   lines.push_back(absl::StrCat(
-      "    scope: [",
+      field_indent, "scope: [",
       absl::StrJoin(interface.scope, ", ",
                     [](std::string* out, const std::string& scope_part) {
                       absl::StrAppend(out, YamlString(scope_part));
                     }),
       "]"));
-  lines.push_back(absl::StrFormat("    clk_rst_if: *%s", kClockAlias));
+  lines.push_back(
+      absl::StrFormat("%sclk_rst_if: *%s", field_indent, kClockAlias));
   lines.push_back("");
-  lines.push_back("    handshake: \"ReadyValid\"");
-  lines.push_back(
-      absl::StrFormat("    ready: %s", YamlString(interface.ready_port)));
-  lines.push_back(
-      absl::StrFormat("    valid: %s", YamlString(interface.valid_port)));
+  lines.push_back(absl::StrCat(field_indent, "handshake: \"ReadyValid\""));
+  lines.push_back(absl::StrFormat("%sready: %s", field_indent,
+                                  YamlString(interface.ready_port)));
+  lines.push_back(absl::StrFormat("%svalid: %s", field_indent,
+                                  YamlString(interface.valid_port)));
   lines.push_back("");
 }
 
@@ -171,13 +189,15 @@ void AppendInterfaceEntry(const BusInterface& interface,
 
 absl::StatusOr<std::string> GenerateBusperfYaml(
     const verilog::ModuleSignatureProto& signature,
-    absl::Span<const std::string> scope,
-    const absl::flat_hash_map<std::string, verilog::ModuleSignatureProto>&
-        child_signatures) {
-  std::vector<std::string> scope_prefix(scope.begin(), scope.end());
+    absl::Span<const std::string> scope) {
+  std::vector<std::string> lines;
+  lines.push_back("# Auto-generated by xls_sig_to_busperf from an XLS");
+  lines.push_back(absl::StrFormat("# ModuleSignatureProto for module %s.",
+                                  YamlString(signature.module_name())));
+
+  std::vector<std::string_view> scope_prefix(scope.begin(), scope.end());
   std::vector<BusInterface> interfaces;
-  CollectInterfaces(signature, scope_prefix, /*name_prefix=*/{},
-                     child_signatures, interfaces);
+  CollectInterfaces(signature, scope_prefix, interfaces);
   if (interfaces.empty()) {
     return absl::InvalidArgumentError(
         "No CHANNEL_FLOW_CONTROL_READY_VALID channel_interfaces found "
@@ -185,10 +205,6 @@ absl::StatusOr<std::string> GenerateBusperfYaml(
         "busperf YAML with an empty interfaces: block");
   }
 
-  std::vector<std::string> lines;
-  lines.push_back("# Auto-generated by xls_sig_to_busperf from an XLS");
-  lines.push_back(absl::StrFormat("# ModuleSignatureProto for module %s.",
-                                  YamlString(signature.module_name())));
   AppendClockResetBlock(signature, lines);
   lines.push_back("");
   lines.push_back("interfaces:");

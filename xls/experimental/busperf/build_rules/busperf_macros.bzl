@@ -27,19 +27,16 @@ def xls_busperf_yaml(
         reset,
         scope,
         reset_active_low = False,
-        children = [],
         codegen_args = {}):
     """Generates a busperf YAML bus description for one XLS proc design.
 
     Args:
       name: Base name for the generated targets and Verilog module.
       dslx_top: DSLX proc name to codegen as the top of the design.
-      library: xls_dslx_library target containing dslx_top and `children`.
+      library: xls_dslx_library target containing dslx_top.
       reset: Reset signal name.
       scope: Dot-separated VCD scope path to the DUT, e.g. "tb_foo.dut".
       reset_active_low: Reset polarity. Defaults to False.
-      children: DSLX proc names spawned by dslx_top whose internal
-        ready/valid channels should also get busperf interfaces.
       codegen_args: Extra/override codegen_main args.
     """
     final_codegen_args = dict(codegen_args)
@@ -55,25 +52,9 @@ def xls_busperf_yaml(
         tags = ["manual"],
     )
 
-    child_sig_labels = []
-    for child in children:
-        child_codegen_args = dict(final_codegen_args)
-        child_codegen_args.pop("module_name", None)
-        child_target = name + "_child_" + child
-        xls_dslx_verilog(
-            name = child_target + "_verilog",
-            dslx_top = child,
-            library = library,
-            codegen_args = child_codegen_args,
-            verilog_file = child_target + ".v",
-            tags = ["manual"],
-        )
-        child_sig_labels.append(":" + child_target + ".sig.textproto")
-
     busperf_yaml(
         name = name + "_bus_yaml",
         signature = ":" + name + ".sig.textproto",
-        child_signatures = child_sig_labels,
         scope = scope,
         xls_sig_to_busperf = "//xls/experimental/busperf:xls_sig_to_busperf",
         tags = ["manual"],
@@ -89,22 +70,19 @@ def xls_busperf_setup(
         vcd_filename,
         reset_active_low = False,
         testbench_defines = {},
-        children = [],
         codegen_args = {}):
     """Generates a full busperf channel analysis setup for one XLS proc design.
 
     Args:
       name: Base name for the generated targets and Verilog module.
       dslx_top: DSLX proc name to codegen as the top of the design.
-      library: xls_dslx_library target containing dslx_top and `children`.
+      library: xls_dslx_library target containing dslx_top.
       testbench: Checked-in Verilog testbench.
       reset: Reset signal name.
       scope: Dot-separated VCD scope path to the DUT, e.g. "tb_foo.dut".
       vcd_filename: VCD file name
       reset_active_low: Reset polarity. Defaults to False.
       testbench_defines: defines to pass to iverilog simulator
-      children: DSLX proc names spawned by dslx_top whose internal
-        ready/valid channels should also get busperf interfaces.
       codegen_args: Extra/override codegen_main args.
     """
     # `.v` is hardcoded throughout this macro (the `_vcd` genrule).
@@ -118,7 +96,6 @@ def xls_busperf_setup(
         reset = reset,
         scope = scope,
         reset_active_low = reset_active_low,
-        children = children,
         codegen_args = setup_codegen_args,
     )
 
