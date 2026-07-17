@@ -2854,7 +2854,36 @@ TEST_F(PipelineScheduleTest,
   EXPECT_EQ(schedule.cycle(next.node()), 1);
   EXPECT_EQ(schedule.cycle(read_mutually_exclusive.node()), 2);
 }
+TEST_F(PipelineScheduleTest, DecoupledNextIsOutOfCycle) {
+  Package p(TestName());
+  ProcBuilder pb("the_proc", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
+                           pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+  BValue read = pb.StateRead(se);
+  BValue next = pb.Next(se, read);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
+  // Run scheduler to get a valid base schedule first.
+  SchedulingOptions options;
+  options.clock_period_ps(1);
+  options.pipeline_stages(2);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), options));
+
+  ScheduleCycleMap cycle_map = schedule.GetCycleMap();
+  cycle_map[read.node()] = 0;
+  cycle_map[next.node()] = 1;
+  XLS_ASSERT_OK_AND_ASSIGN(schedule, PipelineSchedule::Create(proc, cycle_map));
+  EXPECT_EQ(schedule.cycle(read.node()), 0);
+  EXPECT_EQ(schedule.cycle(next.node()), 1);
+  // Read is consumed by Next in cycle 1, so read IS live out of cycle 0
+  EXPECT_TRUE(schedule.IsLiveOutOfCycle(read.node(), 0));
+  // By cycle 1 (where Next is), read no longer requires a pipeline register
+  // and isn't live out of cycle 1.
+  EXPECT_FALSE(schedule.IsLiveOutOfCycle(read.node(), 1));
+}
 TEST_F(PipelineScheduleTest, ProcWriteBeforeReadFailsVerification) {
   Package p(TestName());
   ProcBuilder pb("the_proc", &p);

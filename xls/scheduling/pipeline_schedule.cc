@@ -207,7 +207,8 @@ bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
     }
     if (user->Is<Next>()) {
       Next* user_next = user->As<Next>();
-      if (user_next->predicate() != node && user_next->value() != node) {
+      if (user_next->predicate() != node && user_next->value() != node &&
+          user_next->has_state_read()) {
         CHECK_EQ(user_next->state_read(), node);
         // This Next node only uses this StateRead node to target the state
         // register it needs to write to; it doesn't actually need the value
