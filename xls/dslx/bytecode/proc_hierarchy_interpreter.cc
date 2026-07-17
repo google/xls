@@ -520,29 +520,31 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
                          .progress_made = progress_made};
   }
 
-  if (result_status.code() == absl::StatusCode::kUnavailable) {
-    // Empty recv channel. Just return Ok and we'll try again next time.
-    return ProcRunResult{
-        .execution_state = ProcExecutionState::kBlockedOnReceive,
-        .blocked_channel_info = interpreter_->blocked_channel_info(),
-        .progress_made = progress_made};
+  std::optional<ProcControlSignal> signal =
+      GetProcControlSignal(result_status);
+  if (!signal.has_value()) {
+    return result_status;
   }
 
-  if (result_status.code() == absl::StatusCode::kResourceExhausted) {
-    return ProcRunResult{
-        .execution_state = ProcExecutionState::kBlockedOnSend,
-        .blocked_channel_info = interpreter_->blocked_channel_info(),
-        .progress_made = progress_made};
+  switch (*signal) {
+    case ProcControlSignal::kBlockedOnReceive:
+      // Empty recv channel. Just return Ok and we'll try again next time.
+      return ProcRunResult{
+          .execution_state = ProcExecutionState::kBlockedOnReceive,
+          .blocked_channel_info = interpreter_->blocked_channel_info(),
+          .progress_made = progress_made};
+    case ProcControlSignal::kBlockedOnSend:
+      return ProcRunResult{
+          .execution_state = ProcExecutionState::kBlockedOnSend,
+          .blocked_channel_info = interpreter_->blocked_channel_info(),
+          .progress_made = progress_made};
+    case ProcControlSignal::kYieldedAfterChannelOp:
+      return ProcRunResult{
+          .execution_state = ProcExecutionState::kYieldedAfterChannelOp,
+          .blocked_channel_info = std::nullopt,
+          .progress_made = progress_made};
   }
-
-  if (result_status.code() == absl::StatusCode::kAborted) {
-    return ProcRunResult{
-        .execution_state = ProcExecutionState::kYieldedAfterChannelOp,
-        .blocked_channel_info = std::nullopt,
-        .progress_made = progress_made};
-  }
-
-  return result_status;
+  LOG(FATAL) << "Unhandled ProcControlSignal";
 }
 
 absl::Span<ProcInstance> ProcHierarchyInterpreter::proc_instances() {

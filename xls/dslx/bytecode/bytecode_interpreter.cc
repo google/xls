@@ -33,6 +33,7 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -67,6 +68,41 @@
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
+namespace {
+
+constexpr std::string_view kProcControlSignalKey = "proc_control_signal";
+
+}  // namespace
+
+absl::Status MakeProcControlStatus(ProcControlSignal signal) {
+  absl::Status status;
+  switch (signal) {
+    case ProcControlSignal::kBlockedOnReceive:
+      status = absl::InternalError("Channel is empty.");
+      break;
+    case ProcControlSignal::kBlockedOnSend:
+      status = absl::InternalError("Channel is full.");
+      break;
+    case ProcControlSignal::kYieldedAfterChannelOp:
+      status = absl::InternalError("Yielded after channel op.");
+      break;
+  }
+  status.SetPayload(
+      kProcControlSignalKey,
+      absl::Cord(std::string_view(reinterpret_cast<const char*>(&signal),
+                                  sizeof(signal))));
+  return status;
+}
+
+std::optional<ProcControlSignal> GetProcControlSignal(
+    const absl::Status& status) {
+  std::optional<absl::Cord> payload = status.GetPayload(kProcControlSignalKey);
+  if (!payload.has_value() || payload->size() != sizeof(ProcControlSignal)) {
+    return std::nullopt;
+  }
+  return static_cast<ProcControlSignal>((*payload->Chars().begin()));
+}
+
 namespace {
 
 // Returns the given InterpValue formatted using the given format descriptor (if
@@ -384,7 +420,7 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
       }
       if (channel_op_yielded_) {
         channel_op_yielded_ = false;
-        return absl::AbortedError("Yielded after channel op.");
+        return MakeProcControlStatus(ProcControlSignal::kYieldedAfterChannelOp);
       }
     }
 
@@ -1372,7 +1408,7 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
           .name = FormatChannelNameForTracing(*channel_data),
           .span = bytecode.source_span(),
       };
-      return absl::UnavailableError("Channel is empty.");
+      return MakeProcControlStatus(ProcControlSignal::kBlockedOnReceive);
     }
 
     XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
@@ -1421,7 +1457,7 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
           .name = FormatChannelNameForTracing(*channel_data),
           .span = bytecode.source_span(),
       };
-      return absl::ResourceExhaustedError("Channel is full.");
+      return MakeProcControlStatus(ProcControlSignal::kBlockedOnSend);
     }
     if (options_.trace_channels() && events_.has_value()) {
       (*events_)->AddTraceChannelMessage(

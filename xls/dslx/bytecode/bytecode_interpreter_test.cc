@@ -114,6 +114,24 @@ TEST_F(BytecodeInterpreterTest, InterpValueChannelIsFullBoundaryBounded) {
   EXPECT_FALSE(bounded.IsFull());
 }
 
+TEST_F(BytecodeInterpreterTest, MidTickYieldDefaultsToScheduleSeedPresence) {
+  BytecodeInterpreterOptions no_seed;
+  EXPECT_FALSE(no_seed.mid_tick_yield());
+
+  BytecodeInterpreterOptions with_seed;
+  with_seed.proc_schedule_seed(0);
+  EXPECT_TRUE(with_seed.mid_tick_yield());
+
+  BytecodeInterpreterOptions with_seed_opt_out;
+  with_seed_opt_out.proc_schedule_seed(0);
+  with_seed_opt_out.mid_tick_yield(false);
+  EXPECT_FALSE(with_seed_opt_out.mid_tick_yield());
+
+  BytecodeInterpreterOptions explicit_on;
+  explicit_on.mid_tick_yield(true);
+  EXPECT_TRUE(explicit_on.mid_tick_yield());
+}
+
 // Helper that runs the bytecode interpreter after emitting an entry function as
 // bytecode.
 static absl::StatusOr<InterpValue> Interpret(

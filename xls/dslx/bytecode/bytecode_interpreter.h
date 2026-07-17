@@ -139,6 +139,21 @@ struct BlockedChannelInfo {
   Span span;
 };
 
+// Proc control-flow outcomes signaled via a status payload rather than the
+// status code, so callers can tell them apart from unrelated errors.
+enum class ProcControlSignal : uint8_t {
+  kBlockedOnReceive,
+  kBlockedOnSend,
+  kYieldedAfterChannelOp,
+};
+
+// Builds a status carrying `signal` as a payload.
+absl::Status MakeProcControlStatus(ProcControlSignal signal);
+
+// Returns the `ProcControlSignal` carried by `status`, if any.
+std::optional<ProcControlSignal> GetProcControlSignal(
+    const absl::Status& status);
+
 // A FIFO which backs channel instances in the bytecode interpreter.
 class InterpValueChannel {
  public:
