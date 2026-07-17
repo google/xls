@@ -253,6 +253,35 @@ absl::StatusOr<verilog::ModuleSignature> GenerateSignature(
   return b.Build();
 }
 
+// Returns `block`'s signature with `block_signature` embedded recursively.
+verilog::ModuleSignatureProto ResolveEmbeddedSignature(Block* block) {
+  verilog::ModuleSignatureProto proto = *block->GetSignature();
+  for (verilog::InstantiationProto& instantiation :
+       *proto.mutable_instantiations()) {
+    if (!instantiation.has_block_instantiation()) {
+      continue;
+    }
+    verilog::BlockInstantiationProto* block_instantiation =
+        instantiation.mutable_block_instantiation();
+    for (const ::xls::Instantiation* child_instantiation :
+         block->GetInstantiations()) {
+      if (child_instantiation->kind() != ::xls::InstantiationKind::kBlock ||
+          child_instantiation->name() != block_instantiation->instance_name()) {
+        continue;
+      }
+      Block* child_block =
+          absl::down_cast<const BlockInstantiation*>(child_instantiation)
+              ->instantiated_block();
+      if (child_block->GetSignature().has_value()) {
+        *block_instantiation->mutable_block_signature() =
+            ResolveEmbeddedSignature(child_block);
+      }
+      break;
+    }
+  }
+  return proto;
+}
+
 }  // namespace
 
 absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
@@ -271,6 +300,10 @@ absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
                               : std::nullopt));
     block->SetSignature(signature.proto());
     changed = true;
+  }
+  // All blocks now have their own signature; embed children recursively.
+  for (const std::unique_ptr<Block>& block : package->blocks()) {
+    block->SetSignature(ResolveEmbeddedSignature(block.get()));
   }
   return changed;
 }
