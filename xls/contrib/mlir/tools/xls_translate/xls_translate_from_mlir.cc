@@ -1065,9 +1065,9 @@ FailureOr<PackageInfo> importDslxInstantiation(
   llvm::raw_string_ostream os(dslx);
   // Read the file in path into a string.
   std::string file_contents;
-  auto fileOrErr = llvm::MemoryBuffer::getFileOrSTDIN(path);
+  auto fileOrErr = llvm::MemoryBuffer::getFileOrSTDIN(fsPath.string());
   if (fileOrErr.getError()) {
-    llvm::errs() << "Failed to read file: " << path << "\n";
+    llvm::errs() << "Failed to read file: " << fsPath.string() << "\n";
     return failure();
   }
   os << (*fileOrErr)->getBuffer();

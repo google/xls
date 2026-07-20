@@ -35,3 +35,9 @@ except NameError:
 config.mlir_xls_tools_dir = os.path.join("@MLIR_XLS_TOOLS_DIR@", "contrib/mlir")
 config.xls_tools_dir = os.path.join("@XLS_TOOLS_DIR@", "tools")
 lit_config.load_config(config, os.path.join("@MLIR_XLS_SOURCE_DIR@", "contrib/mlir/testdata/lit.cfg.py"))
+
+if 'RUNFILES_DIR' in locals():
+    config.environment['RUNFILES_DIR'] = RUNFILES_DIR
+for key, value in os.environ.items():
+    if key.startswith('RUNFILES_'):
+        config.environment[key] = value

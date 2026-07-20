@@ -46,10 +46,14 @@ RUNFILES_DIR = LITE_CFG_PY.parents[3].absolute().as_posix()''',
         size = "small",
         srcs = [src],
         data = [
+            "i16/dot_product.x",
+            "i32/dot_product.x",
             "lit.cfg.py",
             "lit.site.cfg.py",
+            "struct_type.x",
             "//xls/contrib/mlir:xls_opt",
             "//xls/contrib/mlir:xls_translate",
+            "//xls/dslx/stdlib:x_files",
             "//xls/tools:codegen_main",
             "//xls/tools:eval_ir_main",
             "//xls/tools:eval_proc_main",
@@ -63,13 +67,6 @@ RUNFILES_DIR = LITE_CFG_PY.parents[3].absolute().as_posix()''',
         [
             "**/*.mlir",
             "**/*.ir",
-        ],
-        # TODO(jpienaar): The lookup in RUNFILES does not seem to work for these files with the
-        # current lit setup.
-        exclude = [
-            "**/translate_import_*.mlir",
-            "**/translate_foreign.mlir",
-            "**/optimize_using_xls.mlir",
         ],
     )
 ]
