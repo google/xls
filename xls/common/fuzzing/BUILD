@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")  # maybe @unused
+
 # Unused in G3. This just provides a header which exports a similar set of headers as fuzzing/fuzztest.h does.
 package(
     default_applicable_licenses = ["//:license"],
