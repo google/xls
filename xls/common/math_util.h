@@ -286,19 +286,21 @@ constexpr SaturatedResult<IntType> SaturatingLeftShift(IntType l, int64_t r)
   }
 
   constexpr int64_t num_bits = sizeof(IntType) * 8;
-  if (r >= num_bits) {
-    // Shifting a non-zero value by at least the number of bits in the type
-    // always saturates.
+  constexpr int64_t usable_bits =
+      num_bits - (std::is_signed_v<IntType> ? 1 : 0);
+  // Shifting a non-zero value by at least the number of [non-sign] bits in the
+  // type always saturates.
+  if (r >= usable_bits) {
     return {.result = std::numeric_limits<IntType>::max(),
             .did_overflow = true};
   }
-  const int64_t bits_remaining = num_bits - r;
-  const IntType mask = (~IntType{0}) << bits_remaining;
+  const int64_t bits_remaining = usable_bits - r;
+  const IntType mask = static_cast<IntType>(~IntType{0}) << bits_remaining;
   if ((l & mask) != IntType{0}) {
     return {.result = std::numeric_limits<IntType>::max(),
             .did_overflow = true};
   }
-  return {.result = l << r, .did_overflow = false};
+  return {.result = static_cast<IntType>(l << r), .did_overflow = false};
 }
 
 }  // namespace xls

@@ -486,5 +486,35 @@ TEST(MathUtil, Clz) {
   }
 }
 
+TEST(MathUtil, SaturatingLeftShift) {
+  // Close but no overflow
+  {
+    auto res = SaturatingLeftShift(int8_t{1}, 6);
+    EXPECT_EQ(res.result, 64);
+    EXPECT_FALSE(res.did_overflow);
+  }
+  {
+    auto res = SaturatingLeftShift(uint64_t{1}, 63);
+    EXPECT_EQ(res.result, 1ULL << 63);
+    EXPECT_FALSE(res.did_overflow);
+  }
+  // Just overflowed
+  {
+    auto res = SaturatingLeftShift(int8_t{1}, 7);
+    EXPECT_EQ(res.result, std::numeric_limits<int8_t>::max());
+    EXPECT_TRUE(res.did_overflow);
+  }
+  {
+    auto res = SaturatingLeftShift(int64_t{1}, 63);
+    EXPECT_EQ(res.result, std::numeric_limits<int64_t>::max());
+    EXPECT_TRUE(res.did_overflow);
+  }
+  {
+    auto res = SaturatingLeftShift(uint64_t{1}, 64);
+    EXPECT_EQ(res.result, std::numeric_limits<uint64_t>::max());
+    EXPECT_TRUE(res.did_overflow);
+  }
+}
+
 }  // namespace
 }  // namespace xls
