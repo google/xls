@@ -204,6 +204,22 @@ int64_t PartialInformation::KnownLeadingSignBits() const {
   return 1 + bit_count_ - interval_ops::MinimumSignedBitCount(*range_);
 }
 
+int64_t PartialInformation::KnownLeadingBits() const {
+  if (IsImpossible()) {
+    return 0;
+  }
+  if (IsUnconstrained()) {
+    return 0;
+  }
+  if (!ternary_) {
+    return 0;
+  }
+  return std::find_if(
+             ternary_->rbegin(), ternary_->rend(),
+             [](TernaryValue v) { return v == TernaryValue::kUnknown; }) -
+         ternary_->rbegin();
+}
+
 int64_t PartialInformation::MaxPopCount() const {
   if (IsImpossible()) {
     return 0;

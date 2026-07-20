@@ -14,21 +14,28 @@
 
 #include "xls/passes/proc_state_range_query_engine.h"
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/passes/range_query_engine.h"
 
 namespace xls {
 namespace {
+
+using ::testing::Eq;
+using ::testing::Optional;
+using ::testing::ResultOf;
 
 class ProcStateRangeQueryEngineTest : public IrTestBase {};
 
@@ -214,6 +221,29 @@ TEST_F(ProcStateRangeQueryEngineTest, OneBitStateIsZero) {
   ProcStateRangeQueryEngine qe;
   XLS_ASSERT_OK(qe.Populate(proc).status());
   EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())), "[[0, 0]]");
+}
+
+TEST_F(ProcStateRangeQueryEngineTest, MixedBitwiseAndArithOperations) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  BValue state = pb.StateElement("the_state", UBits(0, 16));
+  BValue masked = pb.And(state, pb.Literal(UBits(0x0FF0, 16)));
+  BValue nxt = pb.Add(masked, pb.Literal(UBits(16, 16)));
+  BValue cond = pb.ULt(state, pb.Literal(UBits(2000, 16)));
+  pb.Next(state, nxt, cond);
+  pb.Next(state, pb.Literal(UBits(0, 16)), pb.Not(cond));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())),
+            "[[0, 0], [16, 4096]]");
+  EXPECT_THAT(qe.GetTernary(state.node()),
+              Optional(ResultOf(
+                  [](const SharedLeafTypeTree<TernaryVector>& ltt) {
+                    return ToString(ltt.Get({}));
+                  },
+                  "0b000X_XXXX_XXXX_0000")));
 }
 
 }  // namespace
