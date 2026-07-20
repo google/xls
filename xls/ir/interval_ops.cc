@@ -1509,7 +1509,7 @@ IntervalSet Xor(const IntervalSet& a, const IntervalSet& b) {
 IntervalSet AndReduce(const IntervalSet& a) {
   if (a.IsEmpty()) {
     // If the input is empty, so is the output.
-    return IntervalSet(a.BitCount());
+    return IntervalSet(/*bit_count=*/1);
   }
   // Unless the intervals cover max, the and_reduce of the input must be 0.
   if (!a.CoversMax()) {
@@ -1526,7 +1526,7 @@ IntervalSet AndReduce(const IntervalSet& a) {
 IntervalSet OrReduce(const IntervalSet& a) {
   if (a.IsEmpty()) {
     // If the input is empty, so is the output.
-    return IntervalSet(a.BitCount());
+    return IntervalSet(/*bit_count=*/1);
   }
   // Unless the intervals cover 0, the or_reduce of the input must be 1.
   if (!a.CoversZero()) {
@@ -1542,7 +1542,7 @@ IntervalSet OrReduce(const IntervalSet& a) {
 IntervalSet XorReduce(const IntervalSet& a) {
   if (a.IsEmpty()) {
     // If the input is empty, so is the output.
-    return IntervalSet(a.BitCount());
+    return IntervalSet(/*bit_count=*/1);
   }
   // XorReduce determines the parity of the number of 1s in a bitstring.
   // Incrementing a bitstring always outputs in a bitstring with a different
@@ -1594,7 +1594,7 @@ IntervalSet ULt(const IntervalSet& a, const IntervalSet& b) {
   CHECK_EQ(a.BitCount(), b.BitCount());
   if (a.IsEmpty() || b.IsEmpty()) {
     // If the input is empty, so is the output.
-    return IntervalSet(a.BitCount());
+    return IntervalSet(/*bit_count=*/1);
   }
   if (a.IsPrecise() && a.GetPreciseValue() == Bits::AllOnes(a.BitCount())) {
     // If a is all ones, then it is not less than any value.
@@ -1623,7 +1623,7 @@ IntervalSet SLt(const IntervalSet& a, const IntervalSet& b) {
   CHECK_EQ(a.BitCount(), b.BitCount());
   if (a.IsEmpty() || b.IsEmpty()) {
     // If the input is empty, so is the output.
-    return IntervalSet(a.BitCount());
+    return IntervalSet(/*bit_count=*/1);
   }
   CHECK(a.IsNormalized());
   CHECK(b.IsNormalized());
