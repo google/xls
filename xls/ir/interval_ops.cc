@@ -141,33 +141,41 @@ IntervalSet FromTernary(TernarySpan tern, int64_t max_interval_bits) {
     // Need to extend the x-s to avoid creating too many intervals.
     lsb_xs = (x_locations.front() - tern.cbegin()) + 1;
     x_locations.pop_front();
+
+    // Make sure to include any contiguous X's in the trailing unknown region,
+    // maintaining that `lsb_xs` points to the first known bit (that we retain),
+    // and `x_locations` only includes the X's above that.
+    while (!x_locations.empty() &&
+           lsb_xs == (x_locations.front() - tern.cbegin())) {
+      ++lsb_xs;
+      x_locations.pop_front();
+    }
   }
 
-  IntervalSet is(tern.size());
-  if (x_locations.empty()) {
-    // All bits from 0 -> lsb_xs are unknown.
-    Bits high_bits = ternary_ops::ToKnownBitsValues(tern.subspan(lsb_xs));
-    is.AddInterval(Interval::Closed(
+  // Capture the input ternary above the last lsb_x.
+  TernarySpan prefix = tern.subspan(lsb_xs);
+
+  if (x_locations.empty() || lsb_xs == tern.size()) {
+    // All bits from 0 -> lsb_xs are unknown, and everything above it is known.
+    Bits high_bits = ternary_ops::ToKnownBitsValues(prefix);
+    return IntervalSet::Of({Interval::Closed(
         bits_ops::UMax(lb, bits_ops::Concat({high_bits, Bits(lsb_xs)})),
         bits_ops::UMin(ub,
-                       bits_ops::Concat({high_bits, Bits::AllOnes(lsb_xs)}))));
-    is.Normalize();
-    return is;
+                       bits_ops::Concat({high_bits, Bits::AllOnes(lsb_xs)})))});
   }
 
-  TernaryVector vec(tern.size() - lsb_xs, TernaryValue::kKnownZero);
-  // Copy input ternary from after the last lsb_x.
-  std::copy(tern.cbegin() + lsb_xs, tern.cend(), vec.begin());
-
-  Bits high_lsb = Bits::AllOnes(lsb_xs);
-  Bits low_lsb(lsb_xs);
-  for (const Bits& v : ternary_ops::AllBitsValues(vec)) {
-    is.AddInterval(
-        Interval::Closed(bits_ops::UMax(lb, bits_ops::Concat({v, low_lsb})),
-                         bits_ops::UMin(ub, bits_ops::Concat({v, high_lsb}))));
+  std::vector<Interval> intervals;
+  intervals.reserve(uint64_t{1} << x_locations.size());
+  Bits lsbs_low(lsb_xs);
+  Bits lsbs_high = Bits::AllOnes(lsb_xs);
+  for (const Bits& v : ternary_ops::AllBitsValues(prefix)) {
+    // Since prefix's LSB is known (see above), the intervals we create here
+    // will never abut.
+    intervals.push_back(
+        Interval::Closed(bits_ops::UMax(lb, bits_ops::Concat({v, lsbs_low})),
+                         bits_ops::UMin(ub, bits_ops::Concat({v, lsbs_high}))));
   }
-  is.Normalize();
-  return is;
+  return IntervalSet::UnsafeFromNormalized(tern.size(), std::move(intervals));
 }
 
 bool CoversTernary(const Interval& interval, TernarySpan ternary) {

@@ -216,6 +216,12 @@ TEST(IntervalOpsTest, FromTernarySegmentsExtended) {
             FromRanges({{0b10101000, 0b11111101}}, 8));
 }
 
+TEST(IntervalOpsTest, FromTernaryAdjacentUnknownBits) {
+  // Test case where advancing lsb_xs encounters adjacent unknown bits.
+  EXPECT_EQ(FromTernaryString("0b0XX0XX", /*max_unknown_bits=*/1),
+            FromRanges({{0b000000, 0b011011}}, 6));
+}
+
 TEST(IntervalOpsTest, ExactResultsForSmallRanges) {
   // Only 8 possible multiplies so try them all.
   IntervalSet lhs = FromRanges({{1234, 1235}}, 64);
