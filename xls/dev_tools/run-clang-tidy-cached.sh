@@ -27,7 +27,7 @@ bazel build -c opt //xls/dev_tools:run_clang_tidy_cached
 
 # Use either CLANG_TIDY provided by the user as environment variable or use
 # our own from the toolchain we configured in the MODULE.bazel
-export CLANG_TIDY=${CLANG_TIDY:-$(bazel run -c opt --run_under="echo" @llvm_toolchain//:clang-tidy 2>/dev/null)}
+export CLANG_TIDY=${CLANG_TIDY:-$(bazel run -c opt --run_under="echo" @llvm//tools:clang-tidy 2>/dev/null)}
 
 # Refresh compilation DB
 $(dirname $0)/make-compilation-db.sh

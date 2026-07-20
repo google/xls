@@ -4,17 +4,9 @@ module(
 )
 
 # Compiler toolchain
-bazel_dep(name = "toolchains_llvm", version = "1.4.0")
+bazel_dep(name = "llvm", version = "0.8.11", dev_dependency = True)
 
-# Configure and register the toolchain.
-llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
-llvm.toolchain(
-    cxx_standard = {"": "c++20"},
-    llvm_version = "19.1.7",
-)
-use_repo(llvm, "llvm_toolchain")
-
-register_toolchains("@llvm_toolchain//:all")
+register_toolchains("@llvm//toolchain:all")
 
 # Python toolchain
 bazel_dep(name = "rules_python", version = "1.9.0")
@@ -91,14 +83,7 @@ bazel_dep(name = "mpfr", version = "4.2.2")
 bazel_dep(name = "gmp", version = "6.3.0.bcr.1")
 bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "riegeli", version = "0.0.0-20250822-9f2744d")
-bazel_dep(name = "rules_cc", version = "0.2.11")
-
-# TODO: https://github.com/bazelbuild/bazel/issues/27582 - remove once XLS is on Bazel 8.5+.
-single_version_override(
-    module_name = "rules_cc",
-    version = "0.2.11",
-)
-
+bazel_dep(name = "rules_cc", version = "0.2.18")
 bazel_dep(name = "rules_closure", version = "0.15.0")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
@@ -309,3 +294,21 @@ git_override(
 bazel_dep(name = "stardoc", version = "0.8.1")
 
 register_toolchains("//xls/common/toolchains:all")
+
+# Dependencies that we want past versions known to be well-behaved w/ toolchain
+bazel_dep(name = "tcl_lang", version = "9.0.2.bcr.2")
+
+single_version_override(
+    module_name = "sed",
+    version = "4.9.bcr.5",
+)
+
+single_version_override(
+    module_name = "m4",
+    version = "1.4.21.bcr.4",
+)
+
+single_version_override(
+    module_name = "gawk",
+    version = "5.3.2.bcr.7",
+)
