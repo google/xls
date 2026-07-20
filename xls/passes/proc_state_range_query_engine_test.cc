@@ -76,6 +76,37 @@ TEST_F(ProcStateRangeQueryEngineTest, Negatives) {
             "[[0, 14]]");
 }
 
+TEST_F(ProcStateRangeQueryEngineTest, NegativesDecoupledNext) {
+  auto p = CreatePackage();
+  ProcBuilder fb(TestName(), p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element,
+                           fb.UnreadStateElement("foo", Value(SBits(0, 32)),
+                                                 /*non_synthesizable=*/false));
+
+  BValue st = fb.StateRead(state_element);
+  BValue res = fb.Add(st, fb.Literal(UBits(3, 32)));
+  BValue res_pos = fb.Add(st, fb.Literal(UBits(7, 32)));
+
+  // Count -7 to 7
+  auto in_loop = fb.SLt(st, fb.Literal(UBits(7, 32)));
+  fb.Next(state_element, fb.Add(st, fb.Literal(UBits(1, 32))), in_loop);
+  // If we aren't looping the value goes to -7
+  fb.Next(state_element, fb.Literal(SBits(-7, 32)), fb.Not(in_loop));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, fb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(
+      IntervalSetTreeToString(qe.GetIntervals(st.node())),
+      absl::StrFormat("[[0, 7], [%v, %v]]", SBits(-7, 32), SBits(-1, 32)));
+  EXPECT_EQ(
+      IntervalSetTreeToString(qe.GetIntervals(res.node())),
+      absl::StrFormat("[[0, 10], [%v, %v]]", SBits(-7 + 3, 32), SBits(-1, 32)));
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(res_pos.node())),
+            "[[0, 14]]");
+}
+
 TEST_F(ProcStateRangeQueryEngineTest, NegativesWithEq) {
   auto p = CreatePackage();
   ProcBuilder fb(TestName(), p.get());

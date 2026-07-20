@@ -539,7 +539,7 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
     for (Next* n : proc->next_values(state_element)) {
       // Nexts which don't update anything (either due to just being passthrough
       // or having a known-false predicate) don't need to be taken into account.
-      if (n->value() == n->state_read() ||
+      if (n->value() == proc->GetStateReadByStateElement(state_element) ||
           (n->predicate() && piqe.IsAllZeros(*n->predicate()))) {
         continue;
       }
@@ -606,7 +606,7 @@ FindContextualRanges(Proc* proc, const QueryEngine& qe,
       // TODO(allight): We might want to use data-flow to better track whether
       // things have changed. This should probably be good enough in practice
       // however.
-      if (n->state_read() != n->value()) {
+      if (proc->GetStateReadByStateElement(state_element) != n->value()) {
         nexts.push_back(n);
       }
     }
