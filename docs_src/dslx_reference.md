@@ -1983,7 +1983,7 @@ unary `-` `!`               | n/a
 ## Testing and Debugging
 
 DSLX allows specifying tests right in the implementation file via the `test`,
-`quickcheck` and `fuzztest` attributes.
+`quickcheck` and `fuzz_test` attributes.
 
 Having test code in the implementation file serves two purposes. It helps to
 ensure the code behaves as expected. Additionally, it serves as 'executable'
@@ -2175,7 +2175,7 @@ The following domain specifiers are available.
 :           :                          : generated for this parameter          :
 | ElementOf | `[u32:1, 2, 4]`          | One of the provided values will be    |
 :           :                          : used for this parameter               :
-| Tuple     | `(u32:1..10, ())`        | Recursive domain for a tuple          |
+| Tuple     | `(u32:1..10, ())`        | Recursive domain for a tuple or array |
 :           :                          : parameter                             :
 | Struct    | `Point { x: u32:0..10 }` | Recursive domain for a struct         |
 :           :                          : parameter                             :
@@ -2224,30 +2224,83 @@ helper function `create_domain` to construct and return the domain, which is
 then used in the `#[fuzz_test]` attribute.
 
 ```dslx
-#[fuzz_domain("MyStructDomain")]
-struct MyStruct { x: u32, y: bool }
+#[fuzz_domain("ChildStructDomain")]
+struct ChildStruct { a: u32, b: bool }
 
-fn create_domain() -> MyStructDomain {
-    MyStructDomain {
+#[fuzz_domain("ParentStructDomain")]
+struct ParentStruct { x: u32, y: bool, child: ChildStruct }
+
+fn create_domain() -> ParentStructDomain {
+    ParentStructDomain {
         x: u32:0..10,
         // arbitrary domain, can be omitted:
         y: (),
+        // Child structs can have their own domains
+        child: ChildStructDomain { a: [u32:0, u32:2], b: [true] },
     }
 }
 
 #[fuzz_test(domains=`create_domain()`)]
-fn test_flat_struct(s: MyStruct) -> bool {
-    s.x < u32:10
+fn test_flat_struct(s: ParentStruct) -> bool {
+    s.x < u32:10 && s.child.b
 }
 ```
 
 #### Fuzzing Array Parameters
 
-Array parameters can be fuzzed using the "Arbitrary" domain `()`. Individual
-elements of the array cannot have custom domains specified yet. Under the hood,
-this generates a `fuzztest::ArrayOf` domain
+Array parameters can be fuzzed using the "Arbitrary" domain `()`, which
+generates random values for all elements.
 
-In this example, it will generate a 3-element array of u32s:
+Alternatively, you can specify custom domains for individual elements of the
+array by using a **tuple** of domains as the domain specifier for the array
+parameter.
+
+The domain tuple is mapped element-wise to the array. The size of the domain
+tuple must be less than or equal to the array size. If the domain tuple is
+smaller than the array, the remaining array elements are fuzzed using the
+"Arbitrary" domain.
+
+##### Examples
+
+**Fuzzing with all elements constrained:**
+
+In this example, we fuzz a 2-element array of `u32` where the first element is
+restricted to `0..10` and the second element is restricted to `1..=11`.
+
+```dslx
+#[fuzz_test(domains=`(u32:0..10, u32:1..=11)`)]
+fn fuzz_custom_array_domain(t: u32[2]) -> bool {
+    assert!(t[0] >= u32:0 && t[0] < u32:10, "Invalid fuzz domain");
+    assert!(t[1] >= u32:1 && t[1] <= u32:11, "Invalid fuzz domain");
+    true
+}
+```
+
+**Fuzzing with partially constrained elements:**
+
+In this example, we fuzz a 2-element array of `FuzzEnum` where only the first
+element is constrained to a specific enum value `FuzzEnum::A`, and the second
+element is arbitrary. Note the trailing comma in `([FuzzEnum::A],)` to define it
+as a 1-tuple.
+
+```dslx
+enum FuzzEnum : u2 {
+    A = 0,
+    B = 1,
+    C = 2,
+}
+
+#[fuzz_test(domains=`([FuzzEnum::A],)`)]
+fn fuzz_enum_array_domain(t: FuzzEnum[2]) -> bool {
+    assert_eq(t[0], FuzzEnum::A);
+    // t[1] can be any valid FuzzEnum value so we don't assert on it
+    true
+}
+```
+
+**Fuzzing with arbitrary domain:**
+
+You can still use `()` to fuzz the entire array with arbitrary values.
 
 ```dslx
 #[fuzz_test(domains=`()`)]
@@ -2256,15 +2309,8 @@ fn fuzz_array(x: u32[3]) -> bool {
 }
 ```
 
-In this example, the first element of the tuple will be a 3-element array of
-u32:
-
-```dslx
-#[fuzz_test(domains=`((), u32:0..10)`)]
-fn fuzz_tuple_with_array(t: (u32[3], u32)) -> bool {
-    t.0[0] < t.1
-}
-```
+Of course, you can also use `#[fuzz_test]`, which is equivalent to the above
+attribute.
 
 #### BUILD targets
 
