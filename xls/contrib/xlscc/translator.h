@@ -1077,7 +1077,7 @@ class Translator final : public GeneratorBase,
 
   absl::StatusOr<TrackedBValue> GetIOOpRetValueFromSlice(
       NATIVE_BVAL slice_ret_val, const GeneratedFunctionSlice& slice,
-      const xls::SourceInfo& loc);
+      const xls::SourceInfo& loc) final;
 
   absl::StatusOr<std::optional<const IOOp*>> GetPreviousOp(
       const IOOp& op, const xls::SourceInfo& loc);
@@ -1431,8 +1431,8 @@ class Translator final : public GeneratorBase,
   absl::StatusOr<std::shared_ptr<CType>> TranslateTypeFromClang(
       clang::QualType t, const xls::SourceInfo& loc,
       bool array_as_tuple = false) final;
-  absl::StatusOr<xls::Type*> TranslateTypeToXLS(std::shared_ptr<CType> t,
-                                                const xls::SourceInfo& loc);
+  absl::StatusOr<xls::Type*> TranslateTypeToXLS(
+      std::shared_ptr<CType> t, const xls::SourceInfo& loc) final;
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstance(
       std::shared_ptr<CType> t) final;
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstanceDeeply(
