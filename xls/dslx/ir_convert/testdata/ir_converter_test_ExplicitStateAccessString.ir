@@ -12,7 +12,7 @@ top proc __test_module__String_0_next<>(__state: bits[8][5], init={[104, 101, 10
   tuple.3: () = tuple(id=3)
   current: bits[8][5] = identity(__state, id=5)
   assert.9: token = assert(__token, or.8, message="State element written before read in same activation.", id=9)
-  next_value.10: () = next_value(param=__state, value=literal.6, predicate=literal.2, id=10)
+  next_value.10: () = next_value(state_element=__state, value=literal.6, predicate=literal.2, id=10)
   tuple.11: () = tuple(id=11)
   tuple.12: () = tuple(id=12)
 }

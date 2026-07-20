@@ -13,7 +13,7 @@ top proc __test_module__Counter_0_next<>(__state: bits[32], init={0}) {
   y: bits[32] = add(x, literal.6, id=7)
   tuple.3: () = tuple(id=3)
   assert.10: token = assert(__token, or.9, message="State element written before read in same activation.", id=10)
-  next_value.11: () = next_value(param=__state, value=y, predicate=literal.2, id=11)
+  next_value.11: () = next_value(state_element=__state, value=y, predicate=literal.2, id=11)
   tuple.12: () = tuple(id=12)
   tuple.13: () = tuple(id=13)
 }

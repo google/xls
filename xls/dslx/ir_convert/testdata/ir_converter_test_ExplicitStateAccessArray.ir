@@ -28,7 +28,7 @@ top proc __test_module__Array_0_next<>(__state: bits[32][4], init={[0, 1, 2, 3]}
   tuple.3: () = tuple(id=3)
   tuple_index.20: token = tuple_index(counted_for.19, index=0, id=20)
   assert.24: token = assert(__token, or.23, message="State element written before read in same activation.", id=24)
-  next_value.25: () = next_value(param=__state, value=new_array, predicate=literal.2, id=25)
+  next_value.25: () = next_value(state_element=__state, value=new_array, predicate=literal.2, id=25)
   tuple.26: () = tuple(id=26)
   tuple.27: () = tuple(id=27)
 }

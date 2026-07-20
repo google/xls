@@ -619,6 +619,27 @@ proc foo( x: bits[32], y: (), z: bits[32], init={42, (), 123}) {
   EXPECT_THAT(reads.front()->predicate(), std::nullopt);
 }
 
+TEST(IrParserTest, DecoupledNextProc) {
+  std::string program = R"(
+package test
+
+proc decoupled_proc(__state: bits[32], init={0}) {
+  sr: bits[32] = state_read(state_element=__state)
+  one: bits[32] = literal(value=1)
+  add: bits[32] = add(sr, one)
+  next_state: () = next_value(state_element=__state, value=add)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("decoupled_proc"));
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state,
+                           proc->GetStateElementByName("__state"));
+  absl::Span<StateRead* const> reads = proc->GetStateReadsByStateElement(state);
+  ASSERT_EQ(reads.size(), 1);
+  EXPECT_THAT(reads.front()->predicate(), std::nullopt);
+}
+
 TEST(IrParserTest, ProcWithPredicatedStateRead) {
   std::string program = R"(
 package test

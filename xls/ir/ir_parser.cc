@@ -858,7 +858,10 @@ absl::StatusOr<BValue> Parser::ParseNode(
           GetEffectiveProcOrError(fb, "next operations only supported in procs",
                                   op_token.pos())
               .status());
-      BValue* state_read = arg_parser.AddKeywordArg<BValue>("param");
+      std::optional<BValue>* state_read =
+          arg_parser.AddOptionalKeywordArg<BValue>("param");
+      std::optional<IdentifierString>* state_element =
+          arg_parser.AddOptionalKeywordArg<IdentifierString>("state_element");
       BValue* value = arg_parser.AddKeywordArg<BValue>("value");
       std::optional<BValue>* predicate =
           arg_parser.AddOptionalKeywordArg<BValue>("predicate");
@@ -869,8 +872,32 @@ absl::StatusOr<BValue> Parser::ParseNode(
         label_string = label->value().value;
       }
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
-      bvalue = fb->Next(*state_read, *value, *predicate, label_string, *loc,
-                        node_name);
+      if (state_read->has_value() && state_element->has_value()) {
+        return absl::InvalidArgumentError(
+            "next_value cannot specify both 'param' (StateRead) and "
+            "'state_element'");
+      }
+      if (!state_read->has_value() && !state_element->has_value()) {
+        return absl::InvalidArgumentError(
+            "next_value must specify either 'param' (StateRead) or "
+            "'state_element'");
+      }
+      if (state_read->has_value()) {
+        bvalue = fb->Next(state_read->value(), *value, *predicate, label_string,
+                          *loc, node_name);
+      } else {
+        Proc* proc = fb->function()->AsProcOrDie();
+        if (!proc->HasStateElement(state_element->value().value)) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "State element '%s' not found for next_value @ %s",
+              state_element->value().value, op_token.pos().ToHumanString()));
+        }
+        XLS_ASSIGN_OR_RETURN(
+            StateElement * state_element,
+            proc->GetStateElementByName(state_element->value().value));
+        bvalue = fb->Next(state_element, *value, *predicate, label_string, *loc,
+                          node_name);
+      }
       break;
     }
     case Op::kCountedFor: {

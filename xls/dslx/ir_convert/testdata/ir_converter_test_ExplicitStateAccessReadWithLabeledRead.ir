@@ -22,7 +22,7 @@ top proc __test_module__main_0_next<>(__state: bits[32], init={0}) {
   tuple.3: () = tuple(id=3)
   or.10: bits[1] = or(literal.2, literal.2, id=10)
   assert.19: token = assert(assert.9, or.18, message="State element written before read in same activation.", id=19)
-  next_value.20: () = next_value(param=__state, value=y, predicate=literal.2, label="main_write", id=20)
+  next_value.20: () = next_value(state_element=__state, value=y, predicate=literal.2, label="main_write", id=20)
   tuple.21: () = tuple(id=21)
   tuple.22: () = tuple(id=22)
 }

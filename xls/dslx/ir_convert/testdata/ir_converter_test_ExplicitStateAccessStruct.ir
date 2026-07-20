@@ -18,6 +18,6 @@ top proc __test_module__Struct_0_next<>(__state: (bits[32], bits[32]), init={(0,
   shift: (bits[32], bits[32]) = tuple(add.8, add.11, id=12)
   tuple.3: () = tuple(id=3)
   assert.15: token = assert(__token, or.14, message="State element written before read in same activation.", id=15)
-  next_value.16: () = next_value(param=__state, value=shift, predicate=literal.2, id=16)
+  next_value.16: () = next_value(state_element=__state, value=shift, predicate=literal.2, id=16)
   tuple.17: () = tuple(id=17)
 }
