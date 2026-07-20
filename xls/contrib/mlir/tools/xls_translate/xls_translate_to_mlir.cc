@@ -980,7 +980,7 @@ absl::StatusOr<Operation*> translateOp(::xls::OneHotSelect& node,
   }
   ValueRange cases(cases_vec);
 
-  auto result_type = builder.getIntegerType(node.GetType()->GetFlatBitCount());
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
