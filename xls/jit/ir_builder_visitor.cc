@@ -670,9 +670,13 @@ absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
 absl::Status InvokeNextValueCallback(llvm::IRBuilder<>* builder, Next* next,
                                      llvm::Value* instance_ctx) {
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
+  StateElement* state_element =
+      next->has_state_read()
+          ? next->state_read()->As<StateRead>()->state_element()
+          : next->state_element();
   llvm::Value* state_element_idx = builder->getInt64(
       *next->function_base()->AsProcOrDie()->GetStateElementIndex(
-          next->state_read()->As<StateRead>()->state_element()));
+          state_element));
   llvm::Value* next_value = builder->getInt64(next->id());
   InvokeCallback<InstanceContext::kRecordActiveNextValueOffset>(
       builder, void_type, instance_ctx, {state_element_idx, next_value});
@@ -2851,7 +2855,11 @@ absl::Status IrBuilderVisitor::HandleNeg(UnOp* neg) {
 }
 
 absl::Status IrBuilderVisitor::HandleNext(Next* next) {
-  std::vector<std::string> param_names({"param", "value"});
+  std::vector<std::string> param_names;
+  if (next->has_state_read()) {
+    param_names.push_back("param");
+  }
+  param_names.push_back("value");
   if (next->predicate().has_value()) {
     param_names.push_back("predicate");
   }
@@ -2860,7 +2868,8 @@ absl::Status IrBuilderVisitor::HandleNext(Next* next) {
       NewNodeIrContext(next, param_names, /*include_wrapper_args=*/true));
   llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  llvm::Value* value_ptr = node_context.GetOperandPtr(Next::kValueOperand);
+  llvm::Value* value_ptr =
+      node_context.GetOperandPtr(next->value_operand_number());
 
   if (!next->predicate().has_value()) {
     LlvmMemcpy(node_context.GetOutputPtr(0), value_ptr,
@@ -2875,7 +2884,8 @@ absl::Status IrBuilderVisitor::HandleNext(Next* next) {
   }
 
   // If the predicate is true, emulate the `next_value` node's effects.
-  llvm::Value* predicate = Truthiness(node_context.LoadOperand(2), b);
+  llvm::Value* predicate = Truthiness(
+      node_context.LoadOperand(next->predicate_operand_number().value()), b);
   LlvmIfThen if_then = CreateIfThen(predicate, b, next->GetName());
 
   LlvmMemcpy(node_context.GetOutputPtr(0), value_ptr,

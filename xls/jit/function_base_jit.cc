@@ -593,7 +593,13 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
     if (node->Is<Next>()) {
       // next_value nodes store their output in the state-read's location, and
       // return nothing themselves.
-      StateRead* state_read = node->As<Next>()->state_read()->As<StateRead>();
+      StateRead* state_read =
+          node->As<Next>()->has_state_read()
+              ? node->As<Next>()->state_read()->As<StateRead>()
+              : node->function_base()
+                    ->AsProcOrDie()
+                    ->GetStateReadByStateElement(
+                        node->As<Next>()->state_element());
       XLS_RET_CHECK(allocator.GetAllocationKind(state_read) ==
                     AllocationKind::kNone);
       output_buffers = wrapper.GetOutputBuffers(state_read, b);
