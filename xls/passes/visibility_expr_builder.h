@@ -16,6 +16,7 @@
 #define XLS_PASSES_VISIBILITY_EXPR_BUILDER_H_
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <tuple>
 
@@ -42,13 +43,18 @@ class VisibilityBuilder : public ExpressionBuilder {
  public:
   static constexpr int64_t kMaxCasesToCheckImplyNoPrevCase = 100;
 
-  VisibilityBuilder(int64_t prior_existing_id, const BddQueryEngine* bdd_engine,
-                    const NodeForwardDependencyAnalysis& nda,
-                    BitProvenanceAnalysis& bpa)
+  VisibilityBuilder(
+      int64_t prior_existing_id, const BddQueryEngine* bdd_engine,
+      const NodeForwardDependencyAnalysis& nda, BitProvenanceAnalysis& bpa,
+      std::function<bool(Node*)> is_live_source = [](Node*) { return true; },
+      std::function<int64_t(Node*)> get_remaining_delay =
+          [](Node*) { return 0; })
       : ExpressionBuilder(nda.bound_function(), bdd_engine),
         prior_existing_id_(prior_existing_id),
         nda_(nda),
         bpa_(bpa),
+        is_live_source_(is_live_source),
+        get_remaining_delay_(get_remaining_delay),
         visibility_expr_cache_{} {}
 
  private:
@@ -60,6 +66,10 @@ class VisibilityBuilder : public ExpressionBuilder {
   // that include the source as a term in the expression.
   const NodeForwardDependencyAnalysis& nda_;
   BitProvenanceAnalysis& bpa_;
+
+  std::function<bool(Node*)> is_live_source_;
+  std::function<int64_t(Node*)> get_remaining_delay_;
+
   absl::flat_hash_map<std::tuple<Node*, Node*, FunctionBase*>, Node*>
       visibility_expr_cache_;
 
@@ -101,7 +111,12 @@ class VisibilityBuilder : public ExpressionBuilder {
       FunctionBase* func, Node* node,
       const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
           conditional_edges,
-      const absl::flat_hash_set<Node*>& sinks);
+      const absl::flat_hash_set<Node*>& sinks,
+      std::optional<int64_t> target_stage = std::nullopt);
+
+  // Cleans up any nodes created by this builder that have no users.
+  // This is useful for removing dead visibility expressions.
+  absl::Status CleanUpUnusedNodes(FunctionBase* fb);
 
  private:
   absl::StatusOr<Node*> MakeParamIfTmpFunc(Node* node, FunctionBase* func) {
@@ -120,19 +135,22 @@ class VisibilityBuilder : public ExpressionBuilder {
                                                    FunctionBase* func);
   absl::StatusOr<Node*> GetVisibilityExprForAnd(Node* node, NaryOp* and_node,
                                                 Node* source,
-                                                FunctionBase* func);
+                                                FunctionBase* func,
+                                                Literal* always_visible);
   absl::StatusOr<Node*> GetVisibilityExprForOr(Node* node, NaryOp* or_node,
-                                               Node* source,
-                                               FunctionBase* func);
+                                               Node* source, FunctionBase* func,
+                                               Literal* always_visible);
   absl::StatusOr<Node*> GetVisibilityExprForPredicate(
       std::optional<Node*> predicate, Node* source, FunctionBase* func);
 
   absl::StatusOr<Node*> BuildVisibilityExprHelper(Node* node, Node* user,
                                                   Node* source,
-                                                  FunctionBase* func);
+                                                  FunctionBase* func,
+                                                  Literal* always_visible);
   // Builds predicate for node `u` being used by `v` on `func`.
   absl::StatusOr<Node*> BuildVisibilityExpr(Node* node, Node* user,
-                                            Node* source, FunctionBase* func);
+                                            Node* source, FunctionBase* func,
+                                            Literal* always_visible);
   absl::StatusOr<Node*> BuildNodeAndUserVisibleExpr(FunctionBase* func,
                                                     Node* user_uses_node,
                                                     Node* user_is_used,
@@ -151,13 +169,16 @@ class VisibilityBuilder : public ExpressionBuilder {
 
 class VisibilityEstimator : public VisibilityBuilder {
  public:
-  VisibilityEstimator(int64_t prior_existing_id,
-                      const BddQueryEngine* bdd_engine,
-                      const NodeForwardDependencyAnalysis& nda,
-                      BitProvenanceAnalysis& bpa,
-                      const AreaEstimator* area_estimator,
-                      const DelayEstimator* delay_estimator)
-      : VisibilityBuilder(prior_existing_id, bdd_engine, nda, bpa),
+  VisibilityEstimator(
+      int64_t prior_existing_id, const BddQueryEngine* bdd_engine,
+      const NodeForwardDependencyAnalysis& nda, BitProvenanceAnalysis& bpa,
+      const AreaEstimator* area_estimator,
+      const DelayEstimator* delay_estimator,
+      std::function<bool(Node*)> is_live_source = [](Node*) { return true; },
+      std::function<int64_t(Node*)> get_remaining_delay =
+          [](Node*) { return 0; })
+      : VisibilityBuilder(prior_existing_id, bdd_engine, nda, bpa,
+                          is_live_source, get_remaining_delay),
         area_analysis_(area_estimator),
         delay_analysis_(delay_estimator) {
     CHECK_OK(area_analysis_.Attach(TmpFunc()).status());
