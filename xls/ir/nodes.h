@@ -515,6 +515,29 @@ class ExtendOp final : public Node {
   int64_t new_bit_count_;
 };
 
+enum class GateType : uint8_t {
+  // The default gate type; replaces the value with 0 if the condition is false.
+  kZeroGate,
+  // Marks the value as unused/ignorable if the condition is false; does not
+  // mandate replacing the value in any way, merely represents a promise that no
+  // change to the output will be observed.
+  kIgnorableGate,
+};
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const GateType& gate_type) {
+  switch (gate_type) {
+    case GateType::kZeroGate:
+      absl::Format(&sink, "zero");
+      return;
+    case GateType::kIgnorableGate:
+      absl::Format(&sink, "ignorable");
+      return;
+  }
+}
+
+absl::StatusOr<GateType> ParseGateType(std::string_view gate_type);
+
 class Gate final : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kGate};
@@ -522,6 +545,11 @@ class Gate final : public Node {
   static constexpr int64_t kDataOperand = 1;
 
   Gate(const SourceInfo& loc, Node* condition, Node* data,
+       std::string_view name, FunctionBase* function)
+      : Gate(loc, condition, data, /*gate_type=*/GateType::kZeroGate, name,
+             function) {}
+
+  Gate(const SourceInfo& loc, Node* condition, Node* data, GateType gate_type,
        std::string_view name, FunctionBase* function);
 
   absl::StatusOr<Node*> CloneInNewFunction(
@@ -530,6 +558,11 @@ class Gate final : public Node {
   Node* condition() const { return operand(0); }
 
   Node* data() const { return operand(1); }
+
+  GateType gate_type() const { return gate_type_; }
+
+ private:
+  GateType gate_type_;
 };
 
 enum PortDirection : uint8_t { kInput, kOutput };

@@ -96,6 +96,23 @@ absl::StatusOr<RegisterRead*> CreatePipelineRegister(
                        block->AddRegister(name, node->GetType(), reset_value));
 
   Node* load_enable = stage_done;
+
+  if (node->Is<Gate>() &&
+      node->As<Gate>()->gate_type() == GateType::kIgnorableGate) {
+    // Ignorable gates are used to indicate that the node is conditionally
+    // visible. We can strengthen the logic for gating the pipeline register by
+    // ANDing the stage done signal with the gate's predicate, reducing the
+    // number of times the register needs to be updated.
+    Gate* gate = node->As<Gate>();
+    Node* predicate = gate->condition();
+    node = gate->data();
+    XLS_ASSIGN_OR_RETURN(
+        load_enable,
+        block->MakeNode<NaryOp>(node->loc(),
+                                absl::MakeConstSpan({load_enable, predicate}),
+                                Op::kAnd));
+  }
+
   if (block->GetResetPort().has_value() &&
       options.codegen_options.reset().has_value() &&
       !options.codegen_options.reset()->reset_data_path()) {
@@ -109,9 +126,9 @@ absl::StatusOr<RegisterRead*> CreatePipelineRegister(
     }
     XLS_ASSIGN_OR_RETURN(
         load_enable,
-        block->MakeNode<NaryOp>(node->loc(),
-                                absl::MakeConstSpan({stage_done, reset_active}),
-                                Op::kOr));
+        block->MakeNode<NaryOp>(
+            node->loc(), absl::MakeConstSpan({load_enable, reset_active}),
+            Op::kOr));
   }
   // NOTE: The RegisterWrite is added to the block, but not to the stage. Its
   //       `load_enable` depends on `outputs_ready`, which comes from outside
@@ -139,7 +156,13 @@ absl::StatusOr<RegisterRead*> CreatePipelineRegister(
 absl::StatusOr<Node*> AddPipelineRegisterFor(
     Node* node, int64_t stage_index, Node* stage_done, ScheduledBlock* block,
     const BlockConversionPassOptions& options) {
-  std::string base_name = PipelineSignalName(node->GetName(), stage_index);
+  Node* name_source = node;
+  if (node->Is<Gate>() &&
+      node->As<Gate>()->gate_type() == GateType::kIgnorableGate) {
+    name_source = node->As<Gate>()->data();
+  }
+  std::string base_name =
+      PipelineSignalName(name_source->GetName(), stage_index);
 
   // As a special case, check if the node is a tuple
   // containing types that are of zero-width.  If so, separate them out so

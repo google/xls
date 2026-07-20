@@ -61,6 +61,7 @@ cc_library(
     hdrs = ["block_conversion_pass.h"],
     deps = [
         "//xls/codegen:codegen_options",
+        "//xls/estimators/delay_model:delay_estimator",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule_cc_proto",

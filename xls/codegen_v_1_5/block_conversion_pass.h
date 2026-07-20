@@ -16,6 +16,7 @@
 #define XLS_CODEGEN_V_1_5_BLOCK_CONVERSION_PASS_H_
 
 #include "xls/codegen/codegen_options.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
@@ -28,6 +29,9 @@ namespace xls::codegen {
 struct BlockConversionPassOptions : public PassOptionsBase {
   verilog::CodegenOptions codegen_options;
   PackageScheduleProto package_schedule;
+
+  // The delay estimator used for scheduling & schedule-checking purposes.
+  const DelayEstimator* delay_estimator = nullptr;
 };
 
 struct BlockConversionContext {
