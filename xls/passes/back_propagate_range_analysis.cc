@@ -41,6 +41,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
+#include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 
 namespace xls {
@@ -54,7 +55,7 @@ namespace {
 // based on that node and (2) the inputs to that node have updated information.
 class BackPropagate : public DfsVisitorWithDefault {
  public:
-  explicit BackPropagate(const RangeQueryEngine& query_engine,
+  explicit BackPropagate(const QueryEngine& query_engine,
                          absl::flat_hash_map<Node*, IntervalSet> givens)
       : query_engine_(query_engine), result_(std::move(givens)) {
     for (const auto& [node, _] : result_) {
@@ -240,11 +241,13 @@ class BackPropagate : public DfsVisitorWithDefault {
     if (result_.contains(node)) {
       return result_[node];
     }
-    if (query_engine_.HasExplicitIntervals(node)) {
-      // Try to avoid allocating LTTs needlessly.
-      return query_engine_.GetIntervalSetTreeView(node)->Get({});
+    if (auto* rqe = dynamic_cast<const RangeQueryEngine*>(&query_engine_)) {
+      if (rqe->HasExplicitIntervals(node)) {
+        // Try to avoid allocating LTTs needlessly.
+        return rqe->GetIntervalSetTreeView(node)->Get({});
+      }
     }
-    return query_engine_.GetIntervalSetTree(node).Get({});
+    return query_engine_.GetIntervals(node).Get({});
   }
 
   // Merge the given 'new_data' with the already known facts about the given
@@ -254,7 +257,7 @@ class BackPropagate : public DfsVisitorWithDefault {
     XLS_RET_CHECK(node->GetType()->IsBits());
     XLS_RET_CHECK(new_data.IsNormalized());
     if (!result_.contains(node)) {
-      result_[node] = query_engine_.GetIntervalSetTree(node).Get({});
+      result_[node] = GetIntervals(node);
     }
     IntervalSet old_data = std::move(result_[node]);
     result_[node] = IntervalSet::Intersect(old_data, new_data);
@@ -590,7 +593,7 @@ class BackPropagate : public DfsVisitorWithDefault {
   }
 
   // Underlying query-engine providing base ranges.
-  const RangeQueryEngine& query_engine_;
+  const QueryEngine& query_engine_;
   // Set of all givens and any calculated refined ranges.
   absl::flat_hash_map<Node*, IntervalSet> result_;
   // Set of nodes which we have updated data for which might be possible to
@@ -602,7 +605,7 @@ class BackPropagate : public DfsVisitorWithDefault {
 
 absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
 PropagateGivensBackwards(
-    const RangeQueryEngine& engine, FunctionBase* function,
+    const QueryEngine& engine, FunctionBase* function,
     absl::flat_hash_map<Node*, IntervalSet> givens,
     std::optional<absl::Span<Node* const>> reverse_topo_sort) {
   XLS_RET_CHECK(!givens.empty());
@@ -629,7 +632,7 @@ PropagateGivensBackwards(
 }
 
 absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
-PropagateOneGivenBackwards(const RangeQueryEngine& engine, Node* node,
+PropagateOneGivenBackwards(const QueryEngine& engine, Node* node,
                            const Bits& given) {
   return PropagateOneGivenBackwards(engine, node, IntervalSet::Precise(given));
 }
