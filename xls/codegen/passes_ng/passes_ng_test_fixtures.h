@@ -102,10 +102,8 @@ class SlotTestBase : public BlockConversionTestFixture {
     TokenlessProcBuilder pb(NewStyleProc(), name, "tkn", package_.get());
     node_map[pb.CurrentToken().node()] = block_token.node();
 
-    XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * x_ch,
-                         pb.AddInputChannel("x", package_->GetBitsType(32)));
-    XLS_ASSIGN_OR_RETURN(SendChannelInterface * y_ch,
-                         pb.AddOutputChannel("y", package_->GetBitsType(32)));
+    BReceiveChannel x_ch = pb.AddInputChannel("x", package_->GetBitsType(32));
+    BSendChannel y_ch = pb.AddOutputChannel("y", package_->GetBitsType(32));
 
     BValue x_value;
     if (use_non_blocking) {
@@ -119,6 +117,7 @@ class SlotTestBase : public BlockConversionTestFixture {
     pb.Send(y_ch, pb.Add(x_value, pb.Literal(UBits(1, 32))),
             /*loc=*/SourceInfo(), "send_y");
     node_map[pb.CurrentToken().node()] = block_token.node();
+    XLS_RETURN_IF_ERROR(pb.GetError());
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
     // Create equivalent block.
@@ -288,12 +287,10 @@ class PredicatedSlotTestBase : public BlockConversionTestFixture {
     TokenlessProcBuilder pb(NewStyleProc(), name, "tkn", package_.get());
     node_map[pb.CurrentToken().node()] = block_token.node();
 
-    XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * pred_ch,
-                         pb.AddInputChannel("pred", package_->GetBitsType(1)));
-    XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * x_ch,
-                         pb.AddInputChannel("x", package_->GetBitsType(32)));
-    XLS_ASSIGN_OR_RETURN(SendChannelInterface * y_ch,
-                         pb.AddOutputChannel("y", package_->GetBitsType(32)));
+    BReceiveChannel pred_ch =
+        pb.AddInputChannel("pred", package_->GetBitsType(1));
+    BReceiveChannel x_ch = pb.AddInputChannel("x", package_->GetBitsType(32));
+    BSendChannel y_ch = pb.AddOutputChannel("y", package_->GetBitsType(32));
 
     BValue pred_value = pb.Receive(pred_ch, /*loc=*/SourceInfo(), "recv_pred");
     node_map[pb.CurrentToken().node()] = block_token.node();
@@ -303,6 +300,7 @@ class PredicatedSlotTestBase : public BlockConversionTestFixture {
     pb.SendIf(y_ch, pred_value, pb.Add(x_value, pb.Literal(UBits(1, 32))),
               /*loc=*/SourceInfo(), "send_y");
     node_map[pb.CurrentToken().node()] = block_token.node();
+    XLS_RETURN_IF_ERROR(pb.GetError());
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
     // Create equivalent block.

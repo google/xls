@@ -1005,10 +1005,9 @@ TEST_P(ChannelLegalizationPassTest, EvaluatesCorrectly) {
 TEST_F(ChannelLegalizationPassIrTest, LegalizeWithTokenSel) {
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto chan_out,
+  BSendChannel chan_out =
       pb.AddOutputChannel("out", p->GetBitsType(32), ChannelKind::kStreaming,
-                          ChannelStrictness::kRuntimeMutuallyExclusive));
+                          ChannelStrictness::kRuntimeMutuallyExclusive);
   auto st = pb.StateElement("state", UBits(0, 1));
   auto tok = pb.StateElement("tok", Value::Token());
   auto not_st = pb.Not(st);
@@ -1028,17 +1027,14 @@ TEST_F(ChannelLegalizationPassIrTest, LegalizeWithTokenSel) {
 TEST_F(ChannelLegalizationPassIrTest, LegalizeDecoupledNext) {
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto chan_out,
+  BSendChannel chan_out =
       pb.AddOutputChannel("out", p->GetBitsType(32), ChannelKind::kStreaming,
-                          ChannelStrictness::kRuntimeMutuallyExclusive));
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * st_elem,
-                           pb.UnreadStateElement("state", Value(UBits(0, 1)),
-                                                 /*non_synthesizable=*/false));
+                          ChannelStrictness::kRuntimeMutuallyExclusive);
+  BStateElement st_elem = pb.UnreadStateElement("state", Value(UBits(0, 1)),
+                                                /*non_synthesizable=*/false);
   BValue st = pb.StateRead(st_elem);
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * tok_elem,
-                           pb.UnreadStateElement("tok", Value::Token(),
-                                                 /*non_synthesizable=*/false));
+  BStateElement tok_elem =
+      pb.UnreadStateElement("tok", Value::Token(), /*non_synthesizable=*/false);
   BValue tok = pb.StateRead(tok_elem);
 
   auto not_st = pb.Not(st);

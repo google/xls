@@ -729,7 +729,7 @@ TEST_F(BlockTest, AddAndRemoveBlockInstantiation) {
 
   BlockBuilder bb("my_block", p.get());
   bb.ResetPort("rst", reset_behavior);
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   BValue in1 = bb.InputPort("in1", u32);
   BValue in2 = bb.InputPort("in2", u32);
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
@@ -773,11 +773,11 @@ TEST_F(BlockTest, AddInstantiationErrorConditionMissingReset) {
 
   BlockBuilder sub_bb("subblock", p.get());
   sub_bb.ResetPort("rst", reset_behavior);
-  XLS_ASSERT_OK(sub_bb.AddClockPort("clk"));
+  sub_bb.AddClockPort("clk");
   XLS_ASSERT_OK_AND_ASSIGN(Block * subblock, sub_bb.Build());
 
   BlockBuilder bb("my_block", p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   EXPECT_THAT(
@@ -795,12 +795,12 @@ TEST_F(BlockTest, AddInstantiationErrorConditionMismatchedReset) {
   BlockBuilder sub_bb("subblock", p.get());
   sub_bb.ResetPort("rst",
                    ResetBehavior{.asynchronous = false, .active_low = true});
-  XLS_ASSERT_OK(sub_bb.AddClockPort("clk"));
+  sub_bb.AddClockPort("clk");
   XLS_ASSERT_OK_AND_ASSIGN(Block * subblock, sub_bb.Build());
 
   BlockBuilder bb("my_block", p.get());
   bb.ResetPort("rst", ResetBehavior{.asynchronous = true, .active_low = true});
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   EXPECT_THAT(
@@ -815,7 +815,7 @@ TEST_F(BlockTest, AddInstantiationErrorConditionMissingClock) {
   auto p = CreatePackage();
 
   BlockBuilder sub_bb("subblock", p.get());
-  XLS_ASSERT_OK(sub_bb.AddClockPort("clk"));
+  sub_bb.AddClockPort("clk");
   XLS_ASSERT_OK_AND_ASSIGN(Block * subblock, sub_bb.Build());
 
   BlockBuilder bb("my_block", p.get());

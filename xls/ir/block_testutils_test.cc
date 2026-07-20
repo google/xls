@@ -46,7 +46,7 @@ TEST_F(UnrollBlockTest, BasicBlockEquivalence) {
   auto p = CreatePackage();
   FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
   BlockBuilder bb(absl::StrCat(TestName(), "_proc"), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   XLS_ASSERT_OK_AND_ASSIGN(
       Register * reg,
       bb.block()->AddRegister("foo", p->GetBitsType(4), Value(UBits(2, 4))));
@@ -105,7 +105,7 @@ TEST_F(UnrollBlockTest, BasicBlockEquivalenceWithState) {
   auto p = CreatePackage();
   FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
   BlockBuilder bb(absl::StrCat(TestName(), "_proc"), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   XLS_ASSERT_OK_AND_ASSIGN(
       Register * reg,
       bb.block()->AddRegister("foo", p->GetBitsType(6), Value(UBits(2, 6))));

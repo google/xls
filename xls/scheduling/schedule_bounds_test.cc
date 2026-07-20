@@ -553,10 +553,8 @@ TEST_F(ScheduleBoundsTest, MinDelayChain) {
 TEST_F(ScheduleBoundsTest, MinDelayAndIIInteraction) {
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc(), TestName(), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * ch_in,
-                           pb.AddInputChannel("in", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * ch_out,
-                           pb.AddOutputChannel("out", p->GetBitsType(32)));
+  BReceiveChannel ch_in = pb.AddInputChannel("in", p->GetBitsType(32));
+  BSendChannel ch_out = pb.AddOutputChannel("out", p->GetBitsType(32));
 
   BValue state = pb.StateElement("st", Value(UBits(0, 32)));
   BValue tkn = pb.Literal(Value::Token());
@@ -593,12 +591,9 @@ TEST_F(ScheduleBoundsTest, MinDelayAndIIInteraction) {
 TEST_F(ScheduleBoundsTest, MinDelayAndIOConstraintConflict) {
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc(), TestName(), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * ch_a,
-                           pb.AddInputChannel("a", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * ch_b,
-                           pb.AddOutputChannel("b", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * ch_c,
-                           pb.AddOutputChannel("c", p->GetBitsType(32)));
+  BReceiveChannel ch_a = pb.AddInputChannel("a", p->GetBitsType(32));
+  BSendChannel ch_b = pb.AddOutputChannel("b", p->GetBitsType(32));
+  BSendChannel ch_c = pb.AddOutputChannel("c", p->GetBitsType(32));
 
   BValue tkn = pb.Literal(Value::Token());
   BValue rcv_a = pb.Receive(ch_a, tkn);

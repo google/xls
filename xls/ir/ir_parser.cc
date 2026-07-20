@@ -895,8 +895,9 @@ absl::StatusOr<BValue> Parser::ParseNode(
         XLS_ASSIGN_OR_RETURN(
             StateElement * state_element,
             proc->GetStateElementByName(state_element->value().value));
-        bvalue = fb->Next(state_element, *value, *predicate, label_string, *loc,
-                          node_name);
+        bvalue = fb->Next(
+            BStateElement(state_element, absl::down_cast<ProcBuilder*>(fb)),
+            *value, *predicate, label_string, *loc, node_name);
       }
       break;
     }
@@ -1201,18 +1202,20 @@ absl::StatusOr<BValue> Parser::ParseNode(
       }
       if (predicate->has_value()) {
         if (*is_blocking) {
-          bvalue = fb->ReceiveIf(channel_ref, operands[0], predicate->value(),
-                                 *loc, node_name);
+          bvalue = fb->ReceiveIf(BReceiveChannelRef(channel_ref), operands[0],
+                                 predicate->value(), *loc, node_name);
         } else {
-          bvalue = fb->ReceiveIfNonBlocking(
-              channel_ref, operands[0], predicate->value(), *loc, node_name);
+          bvalue = fb->ReceiveIfNonBlocking(BReceiveChannelRef(channel_ref),
+                                            operands[0], predicate->value(),
+                                            *loc, node_name);
         }
       } else {
         if (*is_blocking) {
-          bvalue = fb->Receive(channel_ref, operands[0], *loc, node_name);
+          bvalue = fb->Receive(BReceiveChannelRef(channel_ref), operands[0],
+                               *loc, node_name);
         } else {
-          bvalue =
-              fb->ReceiveNonBlocking(channel_ref, operands[0], *loc, node_name);
+          bvalue = fb->ReceiveNonBlocking(BReceiveChannelRef(channel_ref),
+                                          operands[0], *loc, node_name);
         }
       }
       break;
@@ -1245,11 +1248,11 @@ absl::StatusOr<BValue> Parser::ParseNode(
                              package->GetChannel(channel_name->value));
       }
       if (predicate->has_value()) {
-        bvalue = fb->SendIf(channel_ref, operands[0], predicate->value(),
-                            operands[1], *loc, node_name);
+        bvalue = fb->SendIf(BSendChannelRef(channel_ref), operands[0],
+                            predicate->value(), operands[1], *loc, node_name);
       } else {
-        bvalue =
-            fb->Send(channel_ref, operands[0], operands[1], *loc, node_name);
+        bvalue = fb->Send(BSendChannelRef(channel_ref), operands[0],
+                          operands[1], *loc, node_name);
       }
       break;
     }
@@ -2254,16 +2257,13 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
     }
     for (const ChannelInterfaceArg& channel_interface : channel_interfaces) {
       if (channel_interface.direction == ChannelDirection::kReceive) {
-        XLS_RETURN_IF_ERROR(builder
-                                ->AddInputChannel(channel_interface.name,
-                                                  channel_interface.type)
-                                .status());
+        builder->AddInputChannel(channel_interface.name,
+                                 channel_interface.type);
       } else {
-        XLS_RETURN_IF_ERROR(builder
-                                ->AddOutputChannel(channel_interface.name,
-                                                   channel_interface.type)
-                                .status());
+        builder->AddOutputChannel(channel_interface.name,
+                                  channel_interface.type);
       }
+      XLS_RETURN_IF_ERROR(builder->GetError());
     }
   } else if (scheduled) {
     builder = std::make_unique<ScheduledProcBuilder>(name.value(), package,

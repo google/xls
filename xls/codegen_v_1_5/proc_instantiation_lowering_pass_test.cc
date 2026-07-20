@@ -181,10 +181,8 @@ TEST_F(ProcInstantiationLoweringPassTest, NoInstantiations) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), /*token_name=*/"tkn",
                           p_.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_ch,
-                           pb.AddInputChannel("in_ch", p_->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out_ch,
-                           pb.AddOutputChannel("out_ch", p_->GetBitsType(32)));
+  BReceiveChannel in_ch = pb.AddInputChannel("in_ch", p_->GetBitsType(32));
+  BSendChannel out_ch = pb.AddOutputChannel("out_ch", p_->GetBitsType(32));
   BValue value = pb.Receive(in_ch);
   pb.Send(out_ch, value);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -204,12 +202,10 @@ TEST_F(ProcInstantiationLoweringPassTest, OneInstantiation) {
                                absl::StrCat(TestName(), "_leaf"),
                                /*token_name=*/"tkn", p_.get());
   {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * in_ch,
-        pb_leaf.AddInputChannel("in_ch", p_->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * out_ch,
-        pb_leaf.AddOutputChannel("out_ch", p_->GetBitsType(32)));
+    BReceiveChannel in_ch =
+        pb_leaf.AddInputChannel("in_ch", p_->GetBitsType(32));
+    BSendChannel out_ch =
+        pb_leaf.AddOutputChannel("out_ch", p_->GetBitsType(32));
     pb_leaf.Send(out_ch, pb_leaf.Receive(in_ch));
   }
   XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf, pb_leaf.Build());
@@ -226,29 +222,22 @@ TEST_F(ProcInstantiationLoweringPassTest, OneInstantiation) {
                                        .WithInputFlopKind(FlopKind::kNone)
                                        .WithOutputFlopKind(FlopKind::kNone);
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ChannelWithInterfaces internal_ch_to_leaf,
-        pb_main.AddChannel("internal_ch_to_leaf", p_->GetBitsType(32),
-                           ChannelKind::kStreaming, /*initial_values=*/{},
-                           channel_config));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ChannelWithInterfaces internal_ch_from_leaf,
-        pb_main.AddChannel("internal_ch_from_leaf", p_->GetBitsType(32),
-                           ChannelKind::kStreaming, /*initial_values=*/{},
-                           channel_config));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * in_ch,
-        pb_main.AddInputChannel("in_ch", p_->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * out_ch,
-        pb_main.AddOutputChannel("out_ch", p_->GetBitsType(32)));
+    BChannelWithInterfaces internal_ch_to_leaf = pb_main.AddChannel(
+        "internal_ch_to_leaf", p_->GetBitsType(32), ChannelKind::kStreaming,
+        /*initial_values=*/{}, channel_config);
+    BChannelWithInterfaces internal_ch_from_leaf = pb_main.AddChannel(
+        "internal_ch_from_leaf", p_->GetBitsType(32), ChannelKind::kStreaming,
+        /*initial_values=*/{}, channel_config);
+    BReceiveChannel in_ch =
+        pb_main.AddInputChannel("in_ch", p_->GetBitsType(32));
+    BSendChannel out_ch =
+        pb_main.AddOutputChannel("out_ch", p_->GetBitsType(32));
     pb_main.Send(internal_ch_to_leaf.send_interface, pb_main.Receive(in_ch));
     pb_main.Send(out_ch,
                  pb_main.Receive(internal_ch_from_leaf.receive_interface));
-    XLS_ASSERT_OK(pb_main.InstantiateProc(
-        leaf->name(), leaf,
-        std::vector<ChannelInterface*>{internal_ch_to_leaf.receive_interface,
-                                       internal_ch_from_leaf.send_interface}));
+    pb_main.InstantiateProc(leaf->name(), leaf,
+                            {internal_ch_to_leaf.receive_interface,
+                             internal_ch_from_leaf.send_interface});
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * main, pb_main.Build());
@@ -303,12 +292,10 @@ TEST_F(ProcInstantiationLoweringPassTest, MultiInstantiation) {
                                absl::StrCat(TestName(), "_leaf"),
                                /*token_name=*/"tkn", p_.get());
   {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * in_ch,
-        pb_leaf.AddInputChannel("in_ch", p_->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * out_ch,
-        pb_leaf.AddOutputChannel("out_ch", p_->GetBitsType(32)));
+    BReceiveChannel in_ch =
+        pb_leaf.AddInputChannel("in_ch", p_->GetBitsType(32));
+    BSendChannel out_ch =
+        pb_leaf.AddOutputChannel("out_ch", p_->GetBitsType(32));
     pb_leaf.Send(out_ch, pb_leaf.Receive(in_ch));
   }
   XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf, pb_leaf.Build());
@@ -325,47 +312,35 @@ TEST_F(ProcInstantiationLoweringPassTest, MultiInstantiation) {
                                        .WithInputFlopKind(FlopKind::kNone)
                                        .WithOutputFlopKind(FlopKind::kNone);
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ChannelWithInterfaces internal_ch_to_leaf1,
-        pb_main.AddChannel("internal_ch_to_leaf1", p_->GetBitsType(32),
-                           ChannelKind::kStreaming, /*initial_values=*/{},
-                           channel_config));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ChannelWithInterfaces internal_ch_from_leaf1,
-        pb_main.AddChannel("internal_ch_from_leaf1", p_->GetBitsType(32),
-                           ChannelKind::kStreaming, /*initial_values=*/{},
-                           channel_config));
+    BChannelWithInterfaces internal_ch_to_leaf1 = pb_main.AddChannel(
+        "internal_ch_to_leaf1", p_->GetBitsType(32), ChannelKind::kStreaming,
+        /*initial_values=*/{}, channel_config);
+    BChannelWithInterfaces internal_ch_from_leaf1 = pb_main.AddChannel(
+        "internal_ch_from_leaf1", p_->GetBitsType(32), ChannelKind::kStreaming,
+        /*initial_values=*/{}, channel_config);
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ChannelWithInterfaces internal_ch_to_leaf2,
-        pb_main.AddChannel("internal_ch_to_leaf2", p_->GetBitsType(32),
-                           ChannelKind::kStreaming, /*initial_values=*/{},
-                           channel_config));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ChannelWithInterfaces internal_ch_from_leaf2,
-        pb_main.AddChannel("internal_ch_from_leaf2", p_->GetBitsType(32),
-                           ChannelKind::kStreaming, /*initial_values=*/{},
-                           channel_config));
+    BChannelWithInterfaces internal_ch_to_leaf2 = pb_main.AddChannel(
+        "internal_ch_to_leaf2", p_->GetBitsType(32), ChannelKind::kStreaming,
+        /*initial_values=*/{}, channel_config);
+    BChannelWithInterfaces internal_ch_from_leaf2 = pb_main.AddChannel(
+        "internal_ch_from_leaf2", p_->GetBitsType(32), ChannelKind::kStreaming,
+        /*initial_values=*/{}, channel_config);
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * in_ch,
-        pb_main.AddInputChannel("in_ch", p_->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * out_ch,
-        pb_main.AddOutputChannel("out_ch", p_->GetBitsType(32)));
+    BReceiveChannel in_ch =
+        pb_main.AddInputChannel("in_ch", p_->GetBitsType(32));
+    BSendChannel out_ch =
+        pb_main.AddOutputChannel("out_ch", p_->GetBitsType(32));
     pb_main.Send(internal_ch_to_leaf1.send_interface, pb_main.Receive(in_ch));
     pb_main.Send(internal_ch_to_leaf2.send_interface,
                  pb_main.Receive(internal_ch_from_leaf1.receive_interface));
     pb_main.Send(out_ch,
                  pb_main.Receive(internal_ch_from_leaf2.receive_interface));
-    XLS_ASSERT_OK(pb_main.InstantiateProc(
-        absl::StrCat(leaf->name(), "1"), leaf,
-        std::vector<ChannelInterface*>{internal_ch_to_leaf1.receive_interface,
-                                       internal_ch_from_leaf1.send_interface}));
-    XLS_ASSERT_OK(pb_main.InstantiateProc(
-        absl::StrCat(leaf->name(), "2"), leaf,
-        std::vector<ChannelInterface*>{internal_ch_to_leaf2.receive_interface,
-                                       internal_ch_from_leaf2.send_interface}));
+    pb_main.InstantiateProc(absl::StrCat(leaf->name(), "1"), leaf,
+                            {internal_ch_to_leaf1.receive_interface,
+                             internal_ch_from_leaf1.send_interface});
+    pb_main.InstantiateProc(absl::StrCat(leaf->name(), "2"), leaf,
+                            {internal_ch_to_leaf2.receive_interface,
+                             internal_ch_from_leaf2.send_interface});
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * main, pb_main.Build());
@@ -431,13 +406,10 @@ TEST_F(ProcInstantiationLoweringPassTest,
                                absl::StrCat(TestName(), "_leaf"),
                                /*token_name=*/"tkn", p_.get());
   {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * in_ch,
-        pb_leaf.AddInputChannel("in_ch", p_->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * out_ch,
-        pb_leaf.AddOutputChannel("out_ch", p_->GetBitsType(32),
-                                 ChannelKind::kSingleValue));
+    BReceiveChannel in_ch =
+        pb_leaf.AddInputChannel("in_ch", p_->GetBitsType(32));
+    BSendChannel out_ch = pb_leaf.AddOutputChannel(
+        "out_ch", p_->GetBitsType(32), ChannelKind::kSingleValue);
     pb_leaf.Send(out_ch, pb_leaf.Receive(in_ch));
   }
   XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf, pb_leaf.Build());
@@ -454,23 +426,16 @@ TEST_F(ProcInstantiationLoweringPassTest,
                                        .WithInputFlopKind(FlopKind::kNone)
                                        .WithOutputFlopKind(FlopKind::kNone);
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ChannelWithInterfaces internal_ch_to_leaf,
-        pb_main.AddChannel("internal_ch_to_leaf", p_->GetBitsType(32),
-                           ChannelKind::kStreaming, /*initial_values=*/{},
-                           channel_config));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * in_ch,
-        pb_main.AddInputChannel("in_ch", p_->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * out_ch,
-        pb_main.AddOutputChannel("out_ch", p_->GetBitsType(32),
-                                 ChannelKind::kSingleValue));
+    BChannelWithInterfaces internal_ch_to_leaf = pb_main.AddChannel(
+        "internal_ch_to_leaf", p_->GetBitsType(32), ChannelKind::kStreaming,
+        /*initial_values=*/{}, channel_config);
+    BReceiveChannel in_ch =
+        pb_main.AddInputChannel("in_ch", p_->GetBitsType(32));
+    BSendChannel out_ch = pb_main.AddOutputChannel(
+        "out_ch", p_->GetBitsType(32), ChannelKind::kSingleValue);
     pb_main.Send(internal_ch_to_leaf.send_interface, pb_main.Receive(in_ch));
-    XLS_ASSERT_OK(pb_main.InstantiateProc(
-        leaf->name(), leaf,
-        std::vector<ChannelInterface*>{internal_ch_to_leaf.receive_interface,
-                                       out_ch}));
+    pb_main.InstantiateProc(leaf->name(), leaf,
+                            {internal_ch_to_leaf.receive_interface, out_ch});
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * main, pb_main.Build());
@@ -511,13 +476,10 @@ TEST_F(ProcInstantiationLoweringPassTest,
                                absl::StrCat(TestName(), "_leaf"),
                                /*token_name=*/"tkn", p_.get());
   {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * in_ch,
-        pb_leaf.AddInputChannel("in_ch", p_->GetBitsType(32),
-                                ChannelKind::kSingleValue));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * out_ch,
-        pb_leaf.AddOutputChannel("out_ch", p_->GetBitsType(32)));
+    BReceiveChannel in_ch = pb_leaf.AddInputChannel(
+        "in_ch", p_->GetBitsType(32), ChannelKind::kSingleValue);
+    BSendChannel out_ch =
+        pb_leaf.AddOutputChannel("out_ch", p_->GetBitsType(32));
     pb_leaf.Send(out_ch, pb_leaf.Receive(in_ch));
   }
   XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf, pb_leaf.Build());
@@ -534,24 +496,17 @@ TEST_F(ProcInstantiationLoweringPassTest,
                                        .WithInputFlopKind(FlopKind::kNone)
                                        .WithOutputFlopKind(FlopKind::kNone);
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ChannelWithInterfaces internal_ch_from_leaf,
-        pb_main.AddChannel("internal_ch_from_leaf", p_->GetBitsType(32),
-                           ChannelKind::kStreaming, /*initial_values=*/{},
-                           channel_config));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * in_ch,
-        pb_main.AddInputChannel("in_ch", p_->GetBitsType(32),
-                                ChannelKind::kSingleValue));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * out_ch,
-        pb_main.AddOutputChannel("out_ch", p_->GetBitsType(32)));
+    BChannelWithInterfaces internal_ch_from_leaf = pb_main.AddChannel(
+        "internal_ch_from_leaf", p_->GetBitsType(32), ChannelKind::kStreaming,
+        /*initial_values=*/{}, channel_config);
+    BReceiveChannel in_ch = pb_main.AddInputChannel(
+        "in_ch", p_->GetBitsType(32), ChannelKind::kSingleValue);
+    BSendChannel out_ch =
+        pb_main.AddOutputChannel("out_ch", p_->GetBitsType(32));
     pb_main.Send(out_ch,
                  pb_main.Receive(internal_ch_from_leaf.receive_interface));
-    XLS_ASSERT_OK(pb_main.InstantiateProc(
-        leaf->name(), leaf,
-        std::vector<ChannelInterface*>{in_ch,
-                                       internal_ch_from_leaf.send_interface}));
+    pb_main.InstantiateProc(leaf->name(), leaf,
+                            {in_ch, internal_ch_from_leaf.send_interface});
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * main, pb_main.Build());

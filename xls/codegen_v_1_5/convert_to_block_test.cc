@@ -73,12 +73,11 @@ TEST_F(ConvertToBlockTest, SimpleFunction) {
 TEST_F(ConvertToBlockTest, ProcWithExplicitStateAccessNextValueStateElement) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out_ch_interface,
-                           pb.AddOutputChannel("out_ch", p->GetBitsType(32)));
+  BSendChannel out_ch_interface =
+      pb.AddOutputChannel("out_ch", p->GetBitsType(32));
 
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se,
-                           pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
+                                           /*non_synthesizable=*/false);
   BValue state_read = pb.StateRead(se);
   BValue current = pb.Identity(state_read);
   BValue add_val = pb.Add(current, pb.Literal(UBits(1, 32)));

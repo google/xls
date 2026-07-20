@@ -71,10 +71,8 @@ TEST_F(ScheduleUtilTest, GetDeadAfterSynthesisNodesState) {
   auto p = CreatePackage();
   ScopedSetVlogLevel ssvl("schedule_util", 2);
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
-                           pb.AddInputChannel("foo", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_out,
-                           pb.AddOutputChannel("bar", p->GetBitsType(32)));
+  BReceiveChannel chan = pb.AddInputChannel("foo", p->GetBitsType(32));
+  BSendChannel chan_out = pb.AddOutputChannel("bar", p->GetBitsType(32));
   BValue state = pb.StateElement("state_real", UBits(1, 32), std::nullopt,
                                  /*non_synthesizable=*/false);
   pb.Send(chan_out, state);
@@ -101,10 +99,8 @@ TEST_F(ScheduleUtilTest, GetDeadAfterSynthesisNodesState) {
 TEST_F(ScheduleUtilTest, GetDeadAfterSynthesisStateChasing) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
-                           pb.AddInputChannel("foo", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_out,
-                           pb.AddOutputChannel("bar", p->GetBitsType(32)));
+  BReceiveChannel chan = pb.AddInputChannel("foo", p->GetBitsType(32));
+  BSendChannel chan_out = pb.AddOutputChannel("bar", p->GetBitsType(32));
   BValue state = pb.StateElement("state_real", UBits(1, 32), std::nullopt,
                                  /*non_synthesizable=*/false);
   pb.Send(chan_out, state);
@@ -242,9 +238,8 @@ TEST_F(ScheduleUtilTest, GetFeedbackArcsTest) {
 
   // Proc 1
   ProcBuilder pb1(TestName(), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StateElement * se1, pb1.UnreadStateElement("state1", Value(UBits(42, 32)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement se1 = pb1.UnreadStateElement("state1", Value(UBits(42, 32)),
+                                             /*non_synthesizable=*/false);
   BValue read1 = pb1.StateRead(se1, /*predicate=*/std::nullopt, "my_read1");
   BValue add_val1 = pb1.Add(read1, pb1.Literal(UBits(1, 32)));
   pb1.Next(se1, add_val1, /*predicate=*/std::nullopt, "my_write1");
@@ -252,10 +247,8 @@ TEST_F(ScheduleUtilTest, GetFeedbackArcsTest) {
 
   // Proc 2
   ProcBuilder pb2("proc_2", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StateElement * se2,
-      pb2.UnreadStateElement("state2", Value(UBits(100, 32)),
-                             /*non_synthesizable=*/false));
+  BStateElement se2 = pb2.UnreadStateElement("state2", Value(UBits(100, 32)),
+                                             /*non_synthesizable=*/false);
   BValue read2 = pb2.StateRead(se2, /*predicate=*/std::nullopt, "my_read2");
   BValue add_val2 = pb2.Add(read2, pb2.Literal(UBits(5, 32)));
   pb2.Next(se2, add_val2, /*predicate=*/std::nullopt, "my_write2");

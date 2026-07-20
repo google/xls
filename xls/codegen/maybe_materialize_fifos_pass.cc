@@ -123,7 +123,7 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
                       register_pop ? "_register_pop" : "",
                       register_push ? "_register_push" : "")),
                   p);
-  XLS_RETURN_IF_ERROR(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   BValue reset_port = bb.ResetPort(reset_name, reset_behavior);
 
   BValue one_lit = bb.Literal(UBits(1, ptr_type->GetFlatBitCount()));

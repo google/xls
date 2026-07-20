@@ -79,7 +79,7 @@ class RegisterChainingAnalysisTest : public IrTestBase {
   absl::StatusOr<std::array<RegisterData, kCount>> CreateStraightShot(
       Package* p) {
     BlockBuilder bb(TestName(), p);
-    XLS_RETURN_IF_ERROR(bb.AddClockPort("clk"));
+    bb.AddClockPort("clk");
     XLS_ASSIGN_OR_RETURN(auto result, CreateStraightShot<kCount>(bb, 0));
     XLS_RETURN_IF_ERROR(bb.Build().status());
     return result;
@@ -132,7 +132,7 @@ class RegisterChainingAnalysisTest : public IrTestBase {
   template <int64_t kCount>
   absl::StatusOr<std::array<RegisterData, kCount>> CreateLoopback(Package* p) {
     BlockBuilder bb(TestName(), p);
-    XLS_RETURN_IF_ERROR(bb.AddClockPort("clk"));
+    bb.AddClockPort("clk");
     std::array<BValue, kCount> reads{};
     std::array<Register*, kCount> regs{};
     std::array<BValue, kCount> writes{};
@@ -176,7 +176,7 @@ MATCHER_P(Reg, name, "Register name mismatch.") {
 TEST_F(RegisterChainingAnalysisTest, LongChain) {
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   // pipeline:
   // (
   //     ((write/32 'A (input/32  )))
@@ -275,7 +275,7 @@ TEST_F(RegisterChainingAnalysisTest, LongChain) {
 TEST_F(RegisterChainingAnalysisTest, BrokenChain) {
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   // pipeline:
   // (
   //     ((write/32 'A (input/32  )))
@@ -375,7 +375,7 @@ TEST_F(RegisterChainingAnalysisTest, BrokenChain) {
 TEST_F(RegisterChainingAnalysisTest, LoopbackRegister) {
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   // pipeline:
   // (
   //     ((write/32 'A (read/32 'F)))
@@ -473,7 +473,7 @@ TEST_F(RegisterChainingAnalysisTest, LoopbackRegister) {
 TEST_F(RegisterChainingAnalysisTest, LoopbackRegisterChainSplits) {
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   // pipeline:
   // (let ((ReadB (read/32 'B))))
   // (
@@ -562,7 +562,7 @@ TEST_F(RegisterChainingAnalysisTest, LoopbackRegisterChainSplits) {
 TEST_F(RegisterChainingAnalysisTest, MultipleChains) {
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   // pipeline:
   // (
   //     ((write/32 'A (input/32  ))
@@ -1029,7 +1029,7 @@ TEST_F(RegisterChainingAnalysisTest, OverlappingFullyUsedMutexRegions) {
   //     ((mutex_range 3 9) (output/32         (read/32 'late_F)))
   // )
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   XLS_ASSERT_OK_AND_ASSIGN(
       (const std::array<RegisterData, kRegCnt> datas_early),
       CreateStraightShot<kRegCnt>(bb, /*start_stage=*/0, /*prefix=*/"early_"));
@@ -1100,7 +1100,7 @@ TEST_F(RegisterChainingAnalysisTest, OverlappingMutexRegions) {
   //     ((no_mutex)        (output/32         (read/32 'late_F)))
   // )
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   XLS_ASSERT_OK_AND_ASSIGN(
       (const std::array<RegisterData, kRegCnt> datas_early),
       CreateStraightShot<kRegCnt>(bb, /*start_stage=*/0, /*prefix=*/"early_"));

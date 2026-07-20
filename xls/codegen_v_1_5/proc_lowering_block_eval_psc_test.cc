@@ -241,14 +241,10 @@ TEST_F(ProcLoweringBlockEvalTest, SingleBlockIsNoop) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ReceiveChannelInterface * ch0,
-      pb.AddInputChannel("ch0", u32, ChannelKind::kStreaming, std::nullopt,
-                         std::nullopt));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      SendChannelInterface * ch1,
-      pb.AddOutputChannel("ch1", u32, ChannelKind::kStreaming, std::nullopt,
-                          std::nullopt));
+  BReceiveChannel ch0 = pb.AddInputChannel("ch0", u32, ChannelKind::kStreaming,
+                                           std::nullopt, std::nullopt);
+  BSendChannel ch1 = pb.AddOutputChannel("ch1", u32, ChannelKind::kStreaming,
+                                         std::nullopt, std::nullopt);
   BValue rcv = pb.Receive(ch0, pb.AfterAll({}));
   pb.Send(ch1, pb.TupleIndex(rcv, 0), pb.TupleIndex(rcv, 1));
   XLS_ASSERT_OK(pb.SetAsTop());

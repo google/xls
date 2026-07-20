@@ -278,7 +278,7 @@ TEST_F(CallGraphTest, ProcInstantiationNewStyle) {
   Proc* caller;
   {
     TokenlessProcBuilder pb(NewStyleProc{}, "caller", "t1", p.get());
-    XLS_ASSERT_OK(pb.InstantiateProc("p1", p1, {}));
+    pb.InstantiateProc("p1", p1, {});
     XLS_ASSERT_OK_AND_ASSIGN(caller, pb.Build());
   }
 
@@ -297,8 +297,8 @@ TEST_F(CallGraphTest, ProcInstantiationNewStyleRepeated) {
   Proc* caller;
   {
     TokenlessProcBuilder pb(NewStyleProc{}, "caller", "t1", p.get());
-    XLS_ASSERT_OK(pb.InstantiateProc("p1", p1, {}));
-    XLS_ASSERT_OK(pb.InstantiateProc("p2", p1, {}));
+    pb.InstantiateProc("p1", p1, {});
+    pb.InstantiateProc("p2", p1, {});
     XLS_ASSERT_OK_AND_ASSIGN(caller, pb.Build());
   }
 
@@ -318,8 +318,8 @@ TEST_F(CallGraphTest, GetDependentFunctions) {
   {
     TokenlessProcBuilder pb(NewStyleProc{}, "caller", "t1", p.get());
     // Intentionally repeated
-    XLS_ASSERT_OK(pb.InstantiateProc("p1", p1, {}));
-    XLS_ASSERT_OK(pb.InstantiateProc("p2", p1, {}));
+    pb.InstantiateProc("p1", p1, {});
+    pb.InstantiateProc("p2", p1, {});
     XLS_ASSERT_OK_AND_ASSIGN(caller, pb.Build());
   }
 

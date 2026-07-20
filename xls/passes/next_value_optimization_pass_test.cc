@@ -99,9 +99,8 @@ TEST_F(NextValueOptimizationPassTest, DeadNextValue) {
 TEST_F(NextValueOptimizationPassTest, DecoupledDeadNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("pb", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
-                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false);
   pb.StateRead(x_element);
   pb.Next(/*state_element=*/x_element,
           /*value=*/pb.Literal(UBits(5, 32)),
@@ -132,9 +131,8 @@ TEST_F(NextValueOptimizationPassTest,
        DecoupledNextValuesWithLiteralPredicates) {
   auto p = CreatePackage();
   ProcBuilder pb("pb", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
-                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false);
   pb.StateRead(x_element);
   pb.Next(/*state_element=*/x_element,
           /*value=*/pb.Literal(UBits(5, 32)),
@@ -147,7 +145,8 @@ TEST_F(NextValueOptimizationPassTest,
                                             /*include_state=*/true);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
-              ElementsAre(m::NextWithStateElement(x_element, m::Literal(3))));
+              ElementsAre(m::NextWithStateElement(x_element.state_element(),
+                                                  m::Literal(3))));
 }
 
 // Clarify that the label should be propagated through priority select.
@@ -218,9 +217,8 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
 TEST_F(NextValueOptimizationPassTest, DecoupledPrioritySelectNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
-                           pb.UnreadStateElement("x", Value(UBits(0, 3)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 3)),
+                                                  /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element);
   BValue priority_select = pb.PrioritySelect(
       x_read,
@@ -236,15 +234,15 @@ TEST_F(NextValueOptimizationPassTest, DecoupledPrioritySelectNextValue) {
       proc->next_values(),
       UnorderedElementsAre(
           m::NextWithStateElement(
-              x_element, m::Literal(2),
+              x_element.state_element(), m::Literal(2),
               m::Eq(m::BitSlice(m::StateRead(), 0, 1), m::Literal(0b1))),
           m::NextWithStateElement(
-              x_element, m::Literal(1),
+              x_element.state_element(), m::Literal(1),
               m::Eq(m::BitSlice(m::StateRead(), 0, 2), m::Literal(0b10))),
           m::NextWithStateElement(
-              x_element, m::Literal(2),
+              x_element.state_element(), m::Literal(2),
               m::Eq(m::BitSlice(m::StateRead(), 0, 3), m::Literal(0b100))),
-          m::NextWithStateElement(x_element, m::Literal(0),
+          m::NextWithStateElement(x_element.state_element(), m::Literal(0),
                                   m::Eq(m::StateRead(), m::Literal(0)))));
 }
 
@@ -330,9 +328,8 @@ TEST_F(NextValueOptimizationPassTest,
        DecoupledSmallSelectNextValueWithDefault) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
-                           pb.UnreadStateElement("x", Value(UBits(0, 2)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 2)),
+                                                  /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element);
   BValue select =
       pb.Select(x_read,
@@ -347,13 +344,13 @@ TEST_F(NextValueOptimizationPassTest,
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(
-          m::NextWithStateElement(x_element, m::Literal(2),
+          m::NextWithStateElement(x_element.state_element(), m::Literal(2),
                                   m::Eq(m::StateRead(), m::Literal(0))),
-          m::NextWithStateElement(x_element, m::Literal(1),
+          m::NextWithStateElement(x_element.state_element(), m::Literal(1),
                                   m::Eq(m::StateRead(), m::Literal(1))),
-          m::NextWithStateElement(x_element, m::Literal(2),
+          m::NextWithStateElement(x_element.state_element(), m::Literal(2),
                                   m::Eq(m::StateRead(), m::Literal(2))),
-          m::NextWithStateElement(x_element, m::Literal(3),
+          m::NextWithStateElement(x_element.state_element(), m::Literal(3),
                                   m::UGt(m::StateRead(), m::Literal(2)))));
 }
 
@@ -361,20 +358,19 @@ TEST_F(NextValueOptimizationPassTest, NonSynthPassthroughDecoupling) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
 
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * main_element,
-                           pb.UnreadStateElement("main", Value(UBits(0, 32)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement main_element =
+      pb.UnreadStateElement("main", Value(UBits(0, 32)),
+                            /*non_synthesizable=*/false);
   BValue main_read = pb.StateRead(main_element);
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StateElement * non_synth_element,
+  BStateElement non_synth_element =
       pb.UnreadStateElement("non_synth", Value(UBits(0, 32)),
-                            /*non_synthesizable=*/true));
+                            /*non_synthesizable=*/true);
   pb.StateRead(non_synth_element);
 
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * selector_element,
-                           pb.UnreadStateElement("selector", Value(UBits(0, 2)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement selector_element =
+      pb.UnreadStateElement("selector", Value(UBits(0, 2)),
+                            /*non_synthesizable=*/false);
   BValue selector_read = pb.StateRead(selector_element);
 
   BValue new_val = pb.Literal(Value(UBits(42, 32)));
@@ -390,29 +386,30 @@ TEST_F(NextValueOptimizationPassTest, NonSynthPassthroughDecoupling) {
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/3), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(
-                  // Main split
-                  m::NextWithStateElement(
-                      main_element, m::StateRead("main"),
-                      m::Eq(m::StateRead("selector"), m::Literal(0))),
-                  m::NextWithStateElement(
-                      main_element, m::Literal(42),
-                      m::Eq(m::StateRead("selector"), m::Literal(1))),
-                  m::NextWithStateElement(
-                      main_element, m::StateRead("main"),
-                      m::UGt(m::StateRead("selector"), m::Literal(1))),
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          // Main split
+          m::NextWithStateElement(
+              main_element.state_element(), m::StateRead("main"),
+              m::Eq(m::StateRead("selector"), m::Literal(0))),
+          m::NextWithStateElement(
+              main_element.state_element(), m::Literal(42),
+              m::Eq(m::StateRead("selector"), m::Literal(1))),
+          m::NextWithStateElement(
+              main_element.state_element(), m::StateRead("main"),
+              m::UGt(m::StateRead("selector"), m::Literal(1))),
 
-                  // Non-synth split (Verifies both Location 1 and Location 2!)
-                  m::NextWithStateElement(
-                      non_synth_element, m::StateRead("non_synth"),
-                      m::Eq(m::StateRead("selector"), m::Literal(0))),
-                  m::NextWithStateElement(
-                      non_synth_element, m::Literal(42),
-                      m::Eq(m::StateRead("selector"), m::Literal(1))),
-                  m::NextWithStateElement(
-                      non_synth_element, m::StateRead("non_synth"),
-                      m::UGt(m::StateRead("selector"), m::Literal(1)))));
+          // Non-synth split (Verifies both Location 1 and Location 2!)
+          m::NextWithStateElement(
+              non_synth_element.state_element(), m::StateRead("non_synth"),
+              m::Eq(m::StateRead("selector"), m::Literal(0))),
+          m::NextWithStateElement(
+              non_synth_element.state_element(), m::Literal(42),
+              m::Eq(m::StateRead("selector"), m::Literal(1))),
+          m::NextWithStateElement(
+              non_synth_element.state_element(), m::StateRead("non_synth"),
+              m::UGt(m::StateRead("selector"), m::Literal(1)))));
 }
 
 TEST_F(NextValueOptimizationPassTest, BigSelectNextValue) {

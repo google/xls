@@ -905,7 +905,7 @@ TEST_F(PipelineRegisterInsertionPassTest,
   // Stage 2 - ends mutex region
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue neg_v0 = sbb.Negate(v0);
-  sbb.Next(source_se, neg_v0);
+  sbb.Next(BStateElement(source_se), neg_v0);
   sbb.OutputPort("out", neg_v0);
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 

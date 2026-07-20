@@ -171,10 +171,8 @@ TEST_F(ProcStateNarrowingPassTest, BasicLoopDecoupledNext) {
       auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
                                             p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto* state_element,
-      pb.UnreadStateElement("the_state", Value(UBits(1, 32)),
-                            /*non_synthesizable=*/false));
+  auto state_element = pb.UnreadStateElement("the_state", Value(UBits(1, 32)),
+                                             /*non_synthesizable=*/false);
   BValue state = pb.StateRead(state_element);
   // State just counts up 1 to 6 then resets to 1.
   // NB Limit is exactly 6 and comparison is LT so that however the transform is

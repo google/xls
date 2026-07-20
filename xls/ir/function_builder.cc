@@ -22,6 +22,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/casts.h"
@@ -36,6 +37,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
+#include "xls/common/visitor.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
@@ -64,6 +66,52 @@ namespace xls {
 std::ostream& operator<<(std::ostream& os, const BValue& bv) {
   return os << bv.ToString();
 }
+
+std::string_view BChannel::name() const {
+  return channel_ == nullptr ? "" : channel_->name();
+}
+Type* BChannel::GetType() const {
+  return channel_ == nullptr ? nullptr : channel_->type();
+}
+std::string_view BReceiveChannel::name() const {
+  return channel_interface_ == nullptr ? "" : channel_interface_->name();
+}
+Type* BReceiveChannel::GetType() const {
+  return channel_interface_ == nullptr ? nullptr : channel_interface_->type();
+}
+std::string_view BSendChannel::name() const {
+  return channel_interface_ == nullptr ? "" : channel_interface_->name();
+}
+Type* BSendChannel::GetType() const {
+  return channel_interface_ == nullptr ? nullptr : channel_interface_->type();
+}
+namespace {
+ReceiveChannelRef ResolveBReceiveChannelRef(BReceiveChannelRef ref) {
+  return std::visit(
+      Visitor{
+          [](Channel* c) -> ReceiveChannelRef { return c; },
+          [](ReceiveChannelInterface* i) -> ReceiveChannelRef { return i; },
+          [](BChannel c) -> ReceiveChannelRef { return c.channel(); },
+          [](BReceiveChannel c) -> ReceiveChannelRef {
+            return c.channel_interface();
+          },
+      },
+      ref);
+}
+
+SendChannelRef ResolveBSendChannelRef(BSendChannelRef ref) {
+  return std::visit(
+      Visitor{
+          [](Channel* c) -> SendChannelRef { return c; },
+          [](SendChannelInterface* i) -> SendChannelRef { return i; },
+          [](BChannel c) -> SendChannelRef { return c.channel(); },
+          [](BSendChannel c) -> SendChannelRef {
+            return c.channel_interface();
+          },
+      },
+      ref);
+}
+}  // namespace
 Type* BValue::GetType() const {
   CHECK(node_ != nullptr);
   return node_->GetType();
@@ -1048,7 +1096,7 @@ BValue BuilderBase::Concat(absl::Span<const BValue> operands,
   return AddNode<xls::Concat>(loc, node_operands, name);
 }
 
-BValue BuilderBase::Receive(ReceiveChannelRef channel, BValue token,
+BValue BuilderBase::Receive(BReceiveChannelRef channel, BValue token,
                             const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1060,12 +1108,14 @@ BValue BuilderBase::Receive(ReceiveChannelRef channel, BValue token,
             token.GetType()->ToString()),
         loc);
   }
+  ReceiveChannelRef raw_channel = ResolveBReceiveChannelRef(channel);
   return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
-                               ChannelRefName(channel), /*is_blocking=*/true,
-                               ChannelRefType(channel), name);
+                               ChannelRefName(raw_channel),
+                               /*is_blocking=*/true,
+                               ChannelRefType(raw_channel), name);
 }
 
-BValue BuilderBase::ReceiveNonBlocking(ReceiveChannelRef channel, BValue token,
+BValue BuilderBase::ReceiveNonBlocking(BReceiveChannelRef channel, BValue token,
                                        const SourceInfo& loc,
                                        std::string_view name) {
   if (ErrorPending()) {
@@ -1078,12 +1128,14 @@ BValue BuilderBase::ReceiveNonBlocking(ReceiveChannelRef channel, BValue token,
             token.GetType()->ToString()),
         loc);
   }
+  ReceiveChannelRef raw_channel = ResolveBReceiveChannelRef(channel);
   return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
-                               ChannelRefName(channel), /*is_blocking=*/false,
-                               ChannelRefType(channel), name);
+                               ChannelRefName(raw_channel),
+                               /*is_blocking=*/false,
+                               ChannelRefType(raw_channel), name);
 }
 
-BValue BuilderBase::ReceiveIf(ReceiveChannelRef channel, BValue token,
+BValue BuilderBase::ReceiveIf(BReceiveChannelRef channel, BValue token,
                               BValue pred, const SourceInfo& loc,
                               std::string_view name) {
   if (ErrorPending()) {
@@ -1104,12 +1156,13 @@ BValue BuilderBase::ReceiveIf(ReceiveChannelRef channel, BValue token,
                         pred.GetType()->ToString()),
         loc);
   }
+  ReceiveChannelRef raw_channel = ResolveBReceiveChannelRef(channel);
   return AddNode<xls::Receive>(
-      loc, token.node(), pred.node(), ChannelRefName(channel),
-      /*is_blocking=*/true, ChannelRefType(channel), name);
+      loc, token.node(), pred.node(), ChannelRefName(raw_channel),
+      /*is_blocking=*/true, ChannelRefType(raw_channel), name);
 }
 
-BValue BuilderBase::ReceiveIfNonBlocking(ReceiveChannelRef channel,
+BValue BuilderBase::ReceiveIfNonBlocking(BReceiveChannelRef channel,
                                          BValue token, BValue pred,
                                          const SourceInfo& loc,
                                          std::string_view name) {
@@ -1131,12 +1184,13 @@ BValue BuilderBase::ReceiveIfNonBlocking(ReceiveChannelRef channel,
                         pred.GetType()->ToString()),
         loc);
   }
+  ReceiveChannelRef raw_channel = ResolveBReceiveChannelRef(channel);
   return AddNode<xls::Receive>(
-      loc, token.node(), pred.node(), ChannelRefName(channel),
-      /*is_blocking=*/false, ChannelRefType(channel), name);
+      loc, token.node(), pred.node(), ChannelRefName(raw_channel),
+      /*is_blocking=*/false, ChannelRefType(raw_channel), name);
 }
 
-BValue BuilderBase::Send(SendChannelRef channel, BValue token, BValue data,
+BValue BuilderBase::Send(BSendChannelRef channel, BValue token, BValue data,
                          const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1147,12 +1201,13 @@ BValue BuilderBase::Send(SendChannelRef channel, BValue token, BValue data,
                         token.GetType()->ToString()),
         loc);
   }
+  SendChannelRef raw_channel = ResolveBSendChannelRef(channel);
   return AddNode<xls::Send>(loc, token.node(), data.node(),
-                            /*predicate=*/std::nullopt, ChannelRefName(channel),
-                            name);
+                            /*predicate=*/std::nullopt,
+                            ChannelRefName(raw_channel), name);
 }
 
-BValue BuilderBase::SendIf(SendChannelRef channel, BValue token, BValue pred,
+BValue BuilderBase::SendIf(BSendChannelRef channel, BValue token, BValue pred,
                            BValue data, const SourceInfo& loc,
                            std::string_view name) {
   if (ErrorPending()) {
@@ -1171,8 +1226,9 @@ BValue BuilderBase::SendIf(SendChannelRef channel, BValue token, BValue pred,
                                     pred.GetType()->ToString()),
                     loc);
   }
+  SendChannelRef raw_channel = ResolveBSendChannelRef(channel);
   return AddNode<xls::Send>(loc, token.node(), data.node(), pred.node(),
-                            ChannelRefName(channel), name);
+                            ChannelRefName(raw_channel), name);
 }
 
 BValue BuilderBase::Next(BValue state_read, BValue value,
@@ -1227,18 +1283,22 @@ LeafTypeTree<BValue> BuilderBase::MakeLeafTypeTree(BValue v) {
       res->AsView(), [&](Node* n) -> BValue { return BValue(n, this); });
 }
 
-BValue BuilderBase::Next(class StateElement* state_element, BValue value,
+BValue BuilderBase::Next(BStateElement state_element, BValue value,
                          std::optional<BValue> pred,
                          std::optional<std::string> label,
                          const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
-  if (!value.GetType()->IsEqualTo(state_element->type())) {
+  if (!state_element.valid()) {
+    return BValue();
+  }
+  if (!value.GetType()->IsEqualTo(state_element.state_element()->type())) {
     return SetError(
         absl::StrFormat(
             "next value for state element '%s' must be of type %s; is: %s",
-            state_element->name(), state_element->type()->ToString(),
+            state_element.state_element()->name(),
+            state_element.state_element()->type()->ToString(),
             value.GetType()->ToString()),
         loc);
   }
@@ -1249,8 +1309,15 @@ BValue BuilderBase::Next(class StateElement* state_element, BValue value,
                                     pred->GetType()->ToString()),
                     loc);
   }
+  if (state_element.builder() != nullptr && state_element.builder() != this) {
+    return SetError(
+        absl::StrFormat("State element '%s' belongs to a different builder.",
+                        state_element.state_element()->name()),
+        loc);
+  }
   return AddNode<xls::Next>(
-      loc, /*state_element=*/state_element, /*value=*/value.node(),
+      loc, /*state_element=*/state_element.state_element(),
+      /*value=*/value.node(),
       /*predicate=*/pred.has_value() ? std::make_optional(pred->node())
                                      : std::nullopt,
       /*label=*/label, name);
@@ -1387,31 +1454,59 @@ ProcBuilder::ProcBuilder(NewStyleProc tag, std::string_view proc_name,
 
 Proc* ProcBuilder::proc() const { return absl::down_cast<Proc*>(function()); }
 
-absl::StatusOr<ChannelWithInterfaces> ProcBuilder::AddChannel(
+BChannelWithInterfaces ProcBuilder::AddChannel(
     std::string_view name, Type* type, ChannelKind kind,
     absl::Span<const Value> initial_values,
     std::optional<ChannelConfig> channel_config) {
-  XLS_RET_CHECK(proc()->is_new_style_proc());
+  if (ErrorPending()) {
+    return BChannelWithInterfaces{};
+  }
+  if (!proc()->is_new_style_proc()) {
+    SetError("AddChannel can only be called on new style procs", SourceInfo());
+    return BChannelWithInterfaces{};
+  }
   Channel* channel;
   if (kind == ChannelKind::kStreaming) {
-    XLS_ASSIGN_OR_RETURN(
-        channel, proc()->package()->CreateStreamingChannelInProc(
-                     name, ChannelOps::kSendReceive, type, proc(),
-                     initial_values, channel_config.value_or(ChannelConfig())));
+    auto statusor = proc()->package()->CreateStreamingChannelInProc(
+        name, ChannelOps::kSendReceive, type, proc(), initial_values,
+        channel_config.value_or(ChannelConfig()));
+    if (!statusor.ok()) {
+      SetError(statusor.status().message(), SourceInfo());
+      return BChannelWithInterfaces{};
+    }
+    channel = *statusor;
   } else {
-    XLS_RET_CHECK(initial_values.empty());
-    XLS_RET_CHECK_EQ(kind, ChannelKind::kSingleValue);
-    XLS_ASSIGN_OR_RETURN(channel,
-                         proc()->package()->CreateSingleValueChannelInProc(
-                             name, ChannelOps::kSendReceive, type, proc()));
+    if (!initial_values.empty()) {
+      SetError("Single value channels cannot have initial values",
+               SourceInfo());
+      return BChannelWithInterfaces{};
+    }
+    if (kind != ChannelKind::kSingleValue) {
+      SetError("Invalid channel kind", SourceInfo());
+      return BChannelWithInterfaces{};
+    }
+    auto statusor = proc()->package()->CreateSingleValueChannelInProc(
+        name, ChannelOps::kSendReceive, type, proc());
+    if (!statusor.ok()) {
+      SetError(statusor.status().message(), SourceInfo());
+      return BChannelWithInterfaces{};
+    }
+    channel = *statusor;
   }
-  ChannelWithInterfaces channel_interfaces;
-  channel_interfaces.channel = channel;
-  XLS_ASSIGN_OR_RETURN(channel_interfaces.send_interface,
-                       proc()->GetSendChannelInterface(name));
-  XLS_ASSIGN_OR_RETURN(channel_interfaces.receive_interface,
-                       proc()->GetReceiveChannelInterface(name));
-  return channel_interfaces;
+  auto send_interface = proc()->GetSendChannelInterface(name);
+  if (!send_interface.ok()) {
+    SetError(send_interface.status().message(), SourceInfo());
+    return BChannelWithInterfaces{};
+  }
+  auto receive_interface = proc()->GetReceiveChannelInterface(name);
+  if (!receive_interface.ok()) {
+    SetError(receive_interface.status().message(), SourceInfo());
+    return BChannelWithInterfaces{};
+  }
+  return BChannelWithInterfaces{
+      .channel = BChannel(channel, this),
+      .send_interface = BSendChannel(*send_interface, this),
+      .receive_interface = BReceiveChannel(*receive_interface, this)};
 }
 
 void SetChannelAttributes(ChannelInterface* channel_interface,
@@ -1430,46 +1525,104 @@ void SetChannelAttributes(ChannelInterface* channel_interface,
   }
 }
 
-absl::StatusOr<ReceiveChannelInterface*> ProcBuilder::AddInputChannel(
+BReceiveChannel ProcBuilder::AddInputChannel(
     std::string_view name, Type* type, ChannelKind kind,
     std::optional<ChannelStrictness> strictness,
     std::optional<FlowControl> flow_control) {
-  XLS_RET_CHECK(proc()->is_new_style_proc());
+  if (ErrorPending()) {
+    return BReceiveChannel();
+  }
+  if (!proc()->is_new_style_proc()) {
+    SetError("AddInputChannel can only be called on new style procs",
+             SourceInfo());
+    return BReceiveChannel();
+  }
   auto channel_interface =
       std::make_unique<ReceiveChannelInterface>(name, type, kind);
   SetChannelAttributes(channel_interface.get(), strictness, flow_control);
-  return proc()->AddInputChannelInterface(std::move(channel_interface));
+  auto statusor =
+      proc()->AddInputChannelInterface(std::move(channel_interface));
+  if (!statusor.ok()) {
+    SetError(statusor.status().message(), SourceInfo());
+    return BReceiveChannel();
+  }
+  return BReceiveChannel(*statusor, this);
 }
 
-absl::StatusOr<SendChannelInterface*> ProcBuilder::AddOutputChannel(
+BSendChannel ProcBuilder::AddOutputChannel(
     std::string_view name, Type* type, ChannelKind kind,
     std::optional<ChannelStrictness> strictness,
     std::optional<FlowControl> flow_control) {
-  XLS_RET_CHECK(proc()->is_new_style_proc());
+  if (ErrorPending()) {
+    return BSendChannel();
+  }
+  if (!proc()->is_new_style_proc()) {
+    SetError("AddOutputChannel can only be called on new style procs",
+             SourceInfo());
+    return BSendChannel();
+  }
   auto channel_interface =
       std::make_unique<SendChannelInterface>(name, type, kind);
   SetChannelAttributes(channel_interface.get(), strictness, flow_control);
-  return proc()->AddOutputChannelInterface(std::move(channel_interface));
+  auto statusor =
+      proc()->AddOutputChannelInterface(std::move(channel_interface));
+  if (!statusor.ok()) {
+    SetError(statusor.status().message(), SourceInfo());
+    return BSendChannel();
+  }
+  return BSendChannel(*statusor, this);
 }
 
-absl::StatusOr<SendChannelInterface*> ProcBuilder::GetSendChannelInterface(
-    std::string_view name) {
-  XLS_RET_CHECK(proc()->is_new_style_proc());
-  return proc()->GetSendChannelInterface(name);
+BSendChannel ProcBuilder::GetSendChannelInterface(std::string_view name) {
+  if (ErrorPending()) {
+    return BSendChannel();
+  }
+  if (!proc()->is_new_style_proc()) {
+    SetError("GetSendChannelInterface can only be called on new style procs",
+             SourceInfo());
+    return BSendChannel();
+  }
+  auto statusor = proc()->GetSendChannelInterface(name);
+  if (!statusor.ok()) {
+    SetError(statusor.status().message(), SourceInfo());
+    return BSendChannel();
+  }
+  return BSendChannel(*statusor, this);
 }
 
-absl::StatusOr<ReceiveChannelInterface*>
-ProcBuilder::GetReceiveChannelInterface(std::string_view name) {
-  XLS_RET_CHECK(proc()->is_new_style_proc());
-  return proc()->GetReceiveChannelInterface(name);
+BReceiveChannel ProcBuilder::GetReceiveChannelInterface(std::string_view name) {
+  if (ErrorPending()) {
+    return BReceiveChannel();
+  }
+  if (!proc()->is_new_style_proc()) {
+    SetError("GetReceiveChannelInterface can only be called on new style procs",
+             SourceInfo());
+    return BReceiveChannel();
+  }
+  auto statusor = proc()->GetReceiveChannelInterface(name);
+  if (!statusor.ok()) {
+    SetError(statusor.status().message(), SourceInfo());
+    return BReceiveChannel();
+  }
+  return BReceiveChannel(*statusor, this);
 }
 
-absl::Status ProcBuilder::InstantiateProc(
+void ProcBuilder::InstantiateProc(
     std::string_view name, Proc* instantiated_proc,
-    absl::Span<ChannelInterface* const> channel_interfaces) {
-  return proc()
-      ->AddProcInstantiation(name, channel_interfaces, instantiated_proc)
-      .status();
+    absl::Span<const BChannelInterfaceRef> channel_interfaces) {
+  if (ErrorPending()) {
+    return;
+  }
+  std::vector<ChannelInterface*> unwrapped;
+  unwrapped.reserve(channel_interfaces.size());
+  for (const BChannelInterfaceRef& ref : channel_interfaces) {
+    unwrapped.push_back(ref.channel_interface());
+  }
+  auto status =
+      proc()->AddProcInstantiation(name, unwrapped, instantiated_proc);
+  if (!status.ok()) {
+    SetError(status.status().message(), SourceInfo());
+  }
 }
 
 absl::StatusOr<Proc*> ProcBuilder::Build() {
@@ -1555,25 +1708,40 @@ BValue ProcBuilder::StateElement(std::string_view name,
                   loc);
 }
 
-absl::StatusOr<class StateElement*> ProcBuilder::UnreadStateElement(
-    std::string_view name, const Value& initial_value, bool non_synthesizable,
-    const SourceInfo& loc) {
+BStateElement ProcBuilder::UnreadStateElement(std::string_view name,
+                                              const Value& initial_value,
+                                              bool non_synthesizable,
+                                              const SourceInfo& loc) {
   if (ErrorPending()) {
-    return GetError();
+    return BStateElement();
   }
-  return proc()->AppendUnreadStateElement(name, initial_value,
-                                          non_synthesizable, loc);
+  auto statusor = proc()->AppendUnreadStateElement(name, initial_value,
+                                                   non_synthesizable, loc);
+  if (!statusor.ok()) {
+    SetError(statusor.status().message(), loc);
+    return BStateElement();
+  }
+  return BStateElement(*statusor, this);
 }
 
-BValue ProcBuilder::StateRead(class StateElement* state_element,
+BValue ProcBuilder::StateRead(BStateElement state_element,
                               std::optional<BValue> predicate,
                               std::optional<std::string> label,
                               const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
   }
+  if (!state_element.valid()) {
+    return BValue();
+  }
+  if (state_element.builder() != nullptr && state_element.builder() != this) {
+    return SetError(
+        absl::StrFormat("State element '%s' belongs to a different builder.",
+                        state_element.state_element()->name()),
+        loc);
+  }
   absl::StatusOr<xls::StateRead*> state_read = proc()->AddStateRead(
-      state_element,
+      state_element.state_element(),
       predicate.has_value() ? std::make_optional(predicate->node())
                             : std::nullopt,
       label, loc);
@@ -1865,7 +2033,7 @@ BValue TokenlessProcBuilder::MinDelay(int64_t delay, const SourceInfo& loc,
   return last_token_;
 }
 
-BValue TokenlessProcBuilder::Receive(ReceiveChannelRef channel,
+BValue TokenlessProcBuilder::Receive(BReceiveChannelRef channel,
                                      const SourceInfo& loc,
                                      std::string_view name) {
   BValue rcv = ProcBuilder::Receive(channel, last_token_, loc, name);
@@ -1874,13 +2042,13 @@ BValue TokenlessProcBuilder::Receive(ReceiveChannelRef channel,
 }
 
 std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveNonBlocking(
-    ReceiveChannelRef channel, const SourceInfo& loc, std::string_view name) {
+    BReceiveChannelRef channel, const SourceInfo& loc, std::string_view name) {
   BValue rcv = ProcBuilder::ReceiveNonBlocking(channel, last_token_, loc, name);
   last_token_ = TupleIndex(rcv, 0, loc);
   return {TupleIndex(rcv, 1), TupleIndex(rcv, 2)};
 }
 
-BValue TokenlessProcBuilder::ReceiveIf(ReceiveChannelRef channel, BValue pred,
+BValue TokenlessProcBuilder::ReceiveIf(BReceiveChannelRef channel, BValue pred,
                                        const SourceInfo& loc,
                                        std::string_view name) {
   BValue rcv_if = ProcBuilder::ReceiveIf(channel, last_token_, pred, loc, name);
@@ -1889,7 +2057,7 @@ BValue TokenlessProcBuilder::ReceiveIf(ReceiveChannelRef channel, BValue pred,
 }
 
 std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveIfNonBlocking(
-    ReceiveChannelRef channel, BValue pred, const SourceInfo& loc,
+    BReceiveChannelRef channel, BValue pred, const SourceInfo& loc,
     std::string_view name) {
   BValue rcv =
       ProcBuilder::ReceiveIfNonBlocking(channel, last_token_, pred, loc, name);
@@ -1897,14 +2065,14 @@ std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveIfNonBlocking(
   return {TupleIndex(rcv, 1), TupleIndex(rcv, 2)};
 }
 
-BValue TokenlessProcBuilder::Send(SendChannelRef channel, BValue data,
+BValue TokenlessProcBuilder::Send(BSendChannelRef channel, BValue data,
                                   const SourceInfo& loc,
                                   std::string_view name) {
   last_token_ = ProcBuilder::Send(channel, last_token_, data, loc, name);
   return last_token_;
 }
 
-BValue TokenlessProcBuilder::SendIf(SendChannelRef channel, BValue pred,
+BValue TokenlessProcBuilder::SendIf(BSendChannelRef channel, BValue pred,
                                     BValue data, const SourceInfo& loc,
                                     std::string_view name) {
   last_token_ =
@@ -1929,6 +2097,15 @@ BlockBuilder::BlockBuilder(std::string_view name, Package* package,
                            ScheduledBlockTag tag, bool should_verify)
     : BuilderBase(std::make_unique<ScheduledBlock>(name, package),
                   should_verify) {}
+void BlockBuilder::AddClockPort(std::string_view name) {
+  if (ErrorPending()) {
+    return;
+  }
+  absl::Status status = block()->AddClockPort(name);
+  if (!status.ok()) {
+    SetError(status.message(), SourceInfo());
+  }
+}
 
 BValue BlockBuilder::Param(std::string_view name, Type* type,
                            const SourceInfo& loc) {

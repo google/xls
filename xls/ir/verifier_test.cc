@@ -451,8 +451,8 @@ TEST_F(VerifierTest, ProcScopedChannelReceiveOnSendOnlyChannel) {
   // which should fail verification.
   ProcBuilder pb(NewStyleProc{}, "SendOnly", &package,
                  /*should_verify=*/false);
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * send_ch,
-                           pb.AddOutputChannel("send_ch", u32));
+  BSendChannel b_send_ch = pb.AddOutputChannel("send_ch", u32);
+  SendChannelInterface* send_ch = b_send_ch.channel_interface();
 
   // Manually add a receive node because ProcBuilder::Receive does not
   // accept a SendChannelInterface.
@@ -501,8 +501,8 @@ TEST_F(VerifierTest, ProcScopedChannelSendOnReceiveOnlyProc) {
   // which should fail verification.
   ProcBuilder pb(NewStyleProc{}, "ReceiveOnly", &package,
                  /*should_verify=*/false);
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * receive_ch,
-                           pb.AddInputChannel("receive_ch", u32));
+  BReceiveChannel b_receive_ch = pb.AddInputChannel("receive_ch", u32);
+  ReceiveChannelInterface* receive_ch = b_receive_ch.channel_interface();
 
   // Manually add a send node because ProcBuilder::Send does not
   // accept a ReceiveChannelInterface.
@@ -528,7 +528,7 @@ TEST_F(VerifierTest, ProcScopedChannelDirectionMismatch) {
   Proc* sender_proc;
   {
     ProcBuilder pb(NewStyleProc{}, "sender", &package);
-    XLS_ASSERT_OK_AND_ASSIGN(auto* ch, pb.AddOutputChannel("out", u32));
+    BSendChannel ch = pb.AddOutputChannel("out", u32);
     pb.Send(ch, pb.Literal(Value::Token()), pb.Literal(UBits(0, 32)));
     XLS_ASSERT_OK_AND_ASSIGN(sender_proc, pb.Build({}));
   }
@@ -536,12 +536,10 @@ TEST_F(VerifierTest, ProcScopedChannelDirectionMismatch) {
   {
     ProcBuilder pb(NewStyleProc{}, "top_proc", &package,
                    /*should_verify=*/false);
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces int_ch,
-                             pb.AddChannel("ch", u32));
+    BChannelWithInterfaces int_ch = pb.AddChannel("ch", u32);
     // Instantiate sender with receive interface of channel, should fail
     // direction check because sender expects send channel interface.
-    XLS_ASSERT_OK(pb.InstantiateProc("sender_inst", sender_proc,
-                                     {int_ch.receive_interface}));
+    pb.InstantiateProc("sender_inst", sender_proc, {int_ch.receive_interface});
     XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, pb.Build({}));
     XLS_ASSERT_OK(package.SetTop(top_proc));
   }
@@ -802,26 +800,22 @@ TEST_F(VerifierTest, MismatchedChannelFlowControl) {
   Proc* subproc;
   {
     TokenlessProcBuilder pb(NewStyleProc(), "subproc", "tkn", &package);
-    XLS_ASSERT_OK(pb.AddInputChannel("ch", u32));
+    pb.AddInputChannel("ch", u32);
     XLS_ASSERT_OK_AND_ASSIGN(subproc, pb.Build({}));
   }
 
   {
     TokenlessProcBuilder pb(NewStyleProc(), "the_proc", "tkn", &package);
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces channel1_refs,
-                             pb.AddChannel("ch1", u32));
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces channel2_refs,
-                             pb.AddChannel("ch2", u32));
-    XLS_ASSERT_OK(pb.InstantiateProc("inst1", subproc,
-                                     {channel1_refs.receive_interface}));
-    XLS_ASSERT_OK(pb.InstantiateProc("inst2", subproc,
-                                     {channel2_refs.receive_interface}));
+    BChannelWithInterfaces channel1_refs = pb.AddChannel("ch1", u32);
+    BChannelWithInterfaces channel2_refs = pb.AddChannel("ch2", u32);
+    pb.InstantiateProc("inst1", subproc, {channel1_refs.receive_interface});
+    pb.InstantiateProc("inst2", subproc, {channel2_refs.receive_interface});
     XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
     XLS_ASSERT_OK(package.SetTop(proc));
 
-    dynamic_cast<StreamingChannel*>(channel1_refs.channel)
+    dynamic_cast<StreamingChannel*>(channel1_refs.channel.channel())
         ->SetFlowControl(FlowControl::kReadyValid);
-    dynamic_cast<StreamingChannel*>(channel2_refs.channel)
+    dynamic_cast<StreamingChannel*>(channel2_refs.channel.channel())
         ->SetFlowControl(FlowControl::kNone);
   }
   EXPECT_THAT(
@@ -838,19 +832,16 @@ TEST_F(VerifierTest, MismatchedInterfaceChannelFlowControl) {
   Proc* subproc;
   {
     TokenlessProcBuilder pb(NewStyleProc(), "subproc", "tkn", &package);
-    XLS_ASSERT_OK(pb.AddInputChannel("ch", u32));
+    pb.AddInputChannel("ch", u32);
     XLS_ASSERT_OK_AND_ASSIGN(subproc, pb.Build({}));
   }
 
   {
     TokenlessProcBuilder pb(NewStyleProc(), "the_proc", "tkn", &package);
-    XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * ch1_ref,
-                             pb.AddInputChannel("ch1", u32));
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces channel2_refs,
-                             pb.AddChannel("ch2", u32));
-    XLS_ASSERT_OK(pb.InstantiateProc("inst1", subproc, {ch1_ref}));
-    XLS_ASSERT_OK(pb.InstantiateProc("inst2", subproc,
-                                     {channel2_refs.receive_interface}));
+    BReceiveChannel ch1_ref = pb.AddInputChannel("ch1", u32);
+    BChannelWithInterfaces channel2_refs = pb.AddChannel("ch2", u32);
+    pb.InstantiateProc("inst1", subproc, {ch1_ref});
+    pb.InstantiateProc("inst2", subproc, {channel2_refs.receive_interface});
     XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
     XLS_ASSERT_OK(package.SetTop(proc));
 
@@ -858,7 +849,7 @@ TEST_F(VerifierTest, MismatchedInterfaceChannelFlowControl) {
     // reference, because `proc` is the top proc.
     // TODO(https://github.com/google/xls/issues/869): When a channel object is
     // provided for top proc interfaces, set the flow control.
-    dynamic_cast<StreamingChannel*>(channel2_refs.channel)
+    dynamic_cast<StreamingChannel*>(channel2_refs.channel.channel())
         ->SetFlowControl(FlowControl::kNone);
   }
   EXPECT_THAT(

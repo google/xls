@@ -2311,10 +2311,8 @@ TEST_P(CombinationalGeneratorTest, SingleProcWithProcScopedChannels) {
   Package package(TestBaseName());
 
   TokenlessProcBuilder pb(NewStyleProc(), "myleaf", "tkn", &package);
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in,
-                           pb.AddInputChannel("in", package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
-                           pb.AddOutputChannel("out", package.GetBitsType(32)));
+  BReceiveChannel in = pb.AddInputChannel("in", package.GetBitsType(32));
+  BSendChannel out = pb.AddOutputChannel("out", package.GetBitsType(32));
 
   pb.Send(out, pb.Add(pb.Receive(in), pb.Literal(UBits(1, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());

@@ -136,7 +136,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithReg) {
       auto* x_reg, bb_leaf.block()->AddRegister("x_reg", p->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto* y_reg, bb_leaf.block()->AddRegister("y_reg", p->GetBitsType(32)));
-  XLS_ASSERT_OK(bb_leaf.AddClockPort("clk"));
+  bb_leaf.AddClockPort("clk");
   bb_leaf.RegisterWrite(x_reg, bb_leaf.InputPort("x", p->GetBitsType(32)));
   bb_leaf.RegisterWrite(y_reg, bb_leaf.InputPort("y", p->GetBitsType(32)));
   bb_leaf.OutputPort("res", bb_leaf.Add(bb_leaf.RegisterRead(x_reg),

@@ -73,12 +73,12 @@ class StageConversionHandler {
     Function* f = function_base_->AsFunctionOrDie();
 
     for (Param* param : f->params()) {
-      XLS_ASSIGN_OR_RETURN(
-          ReceiveChannelInterface * chan,
-          pb.AddInputChannel(param->GetName(), param->GetType(),
-                             ChannelKind::kStreaming));
+      BReceiveChannel chan = pb.AddInputChannel(
+          param->GetName(), param->GetType(), ChannelKind::kStreaming);
+      XLS_RETURN_IF_ERROR(pb.GetError());
       proc_metadata->AssociateReceiveChannelInterface(
-          param, chan, SpecialUseMetadata::Purpose::kExternalInput);
+          param, chan.channel_interface(),
+          SpecialUseMetadata::Purpose::kExternalInput);
     }
 
     return absl::OkStatus();
@@ -100,11 +100,12 @@ class StageConversionHandler {
     Node* return_value = f->return_value();
     Type* return_type = return_value->GetType();
 
-    XLS_ASSIGN_OR_RETURN(SendChannelInterface * chan,
-                         pb.AddOutputChannel(output_port_name, return_type,
-                                             ChannelKind::kStreaming));
+    BSendChannel chan = pb.AddOutputChannel(output_port_name, return_type,
+                                            ChannelKind::kStreaming);
+    XLS_RETURN_IF_ERROR(pb.GetError());
     proc_metadata->AssociateSendChannelInterface(
-        return_value, chan, SpecialUseMetadata::Purpose::kExternalOutput);
+        return_value, chan.channel_interface(),
+        SpecialUseMetadata::Purpose::kExternalOutput);
 
     return absl::OkStatus();
   }
@@ -126,24 +127,26 @@ class StageConversionHandler {
     }
 
     for (Channel* orig_channel : p->channels()) {
-      XLS_ASSIGN_OR_RETURN(
-          ChannelWithInterfaces pipeline_channel,
+      BChannelWithInterfaces pipeline_channel =
           pb.AddChannel(orig_channel->name(), orig_channel->type(),
-                        orig_channel->kind(), orig_channel->initial_values()));
-      proc_metadata->AddProcChannel(pipeline_channel);
+                        orig_channel->kind(), orig_channel->initial_values());
+      XLS_RETURN_IF_ERROR(pb.GetError());
+      proc_metadata->AddProcChannel(pipeline_channel.ToChannelWithInterfaces());
     }
 
     for (ChannelInterface* interface : p->interface()) {
       if (interface->direction() == ChannelDirection::kSend) {
-        XLS_ASSIGN_OR_RETURN(
-            SendChannelInterface * pipeline_interface,
-            pb.AddOutputChannel(interface->name(), interface->type()));
-        proc_metadata->AddProcSendChannelInterface(pipeline_interface);
+        BSendChannel pipeline_interface =
+            pb.AddOutputChannel(interface->name(), interface->type());
+        XLS_RETURN_IF_ERROR(pb.GetError());
+        proc_metadata->AddProcSendChannelInterface(
+            pipeline_interface.channel_interface());
       } else {
-        XLS_ASSIGN_OR_RETURN(
-            ReceiveChannelInterface * pipeline_interface,
-            pb.AddInputChannel(interface->name(), interface->type()));
-        proc_metadata->AddProcReceiveChannelInterface(pipeline_interface);
+        BReceiveChannel pipeline_interface =
+            pb.AddInputChannel(interface->name(), interface->type());
+        XLS_RETURN_IF_ERROR(pb.GetError());
+        proc_metadata->AddProcReceiveChannelInterface(
+            pipeline_interface.channel_interface());
       }
     }
 
@@ -176,12 +179,13 @@ class StageConversionHandler {
             "__stage_%d_to_%d_%s", stage, stage + 1, node->GetName()));
         Type* type = node->GetType();
 
-        XLS_ASSIGN_OR_RETURN(
-            ChannelWithInterfaces chan,
-            pb.AddChannel(ch_name, type, ChannelKind::kStreaming));
+        BChannelWithInterfaces chan =
+            pb.AddChannel(ch_name, type, ChannelKind::kStreaming);
+        XLS_RETURN_IF_ERROR(pb.GetError());
         SpecialUseMetadata* special_use_metadata =
             proc_metadata->AssociateChannelInterfaces(
-                node, chan, SpecialUseMetadata::Purpose::kDatapathIO);
+                node, chan.ToChannelWithInterfaces(),
+                SpecialUseMetadata::Purpose::kDatapathIO);
 
         // All channels out of a given stage share the same flow control.
         special_use_metadata->SetGroupId(stage);
@@ -210,11 +214,11 @@ class StageConversionHandler {
           absl::StrFormat("__%s_inst_", stage_proc->name());
 
       XLS_ASSIGN_OR_RETURN(
-          std::vector<ChannelInterface*> channel_interfaces,
+          std::vector<BChannelInterfaceRef> channel_interfaces,
           AssociateStageChannelInterfaces(stage_proc_metadata, proc_metadata));
 
-      XLS_RET_CHECK_OK(
-          pb.InstantiateProc(stage_name, stage_proc, channel_interfaces));
+      pb.InstantiateProc(stage_name, stage_proc, channel_interfaces);
+      XLS_RETURN_IF_ERROR(pb.GetError());
     }
 
     return absl::OkStatus();
@@ -244,17 +248,19 @@ class StageConversionHandler {
     }
 
     for (ChannelInterface* orig_send_interface : orig_send_interfaces) {
-      XLS_ASSIGN_OR_RETURN(SendChannelInterface * new_interface,
-                           pb.AddOutputChannel(orig_send_interface->name(),
-                                               orig_send_interface->type()));
-      proc_metadata->AddProcSendChannelInterface(new_interface);
+      BSendChannel new_interface = pb.AddOutputChannel(
+          orig_send_interface->name(), orig_send_interface->type());
+      XLS_RETURN_IF_ERROR(pb.GetError());
+      proc_metadata->AddProcSendChannelInterface(
+          new_interface.channel_interface());
     }
 
     for (ChannelInterface* orig_receive_interface : orig_receive_interfaces) {
-      XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * new_interface,
-                           pb.AddInputChannel(orig_receive_interface->name(),
-                                              orig_receive_interface->type()));
-      proc_metadata->AddProcReceiveChannelInterface(new_interface);
+      BReceiveChannel new_interface = pb.AddInputChannel(
+          orig_receive_interface->name(), orig_receive_interface->type());
+      XLS_RETURN_IF_ERROR(pb.GetError());
+      proc_metadata->AddProcReceiveChannelInterface(
+          new_interface.channel_interface());
     }
 
     return absl::OkStatus();
@@ -281,12 +287,13 @@ class StageConversionHandler {
           "__stage_%d_to_%d_%s", stage - 1, stage, node->GetName()));
       Type* type = node->GetType();
 
-      XLS_ASSIGN_OR_RETURN(
-          ReceiveChannelInterface * chan,
-          pb.AddInputChannel(ch_name, type, ChannelKind::kStreaming));
+      BReceiveChannel chan =
+          pb.AddInputChannel(ch_name, type, ChannelKind::kStreaming);
+      XLS_RETURN_IF_ERROR(pb.GetError());
       SpecialUseMetadata* special_use_metadata =
           proc_metadata->AssociateReceiveChannelInterface(
-              node, chan, SpecialUseMetadata::Purpose::kDatapathInput);
+              node, chan.channel_interface(),
+              SpecialUseMetadata::Purpose::kDatapathInput);
 
       // All channels into a given stage share the same flow control.
       special_use_metadata->SetGroupId(stage);
@@ -298,12 +305,13 @@ class StageConversionHandler {
           "__stage_%d_to_%d_%s", stage, stage + 1, node->GetName()));
       Type* type = node->GetType();
 
-      XLS_ASSIGN_OR_RETURN(
-          SendChannelInterface * chan,
-          pb.AddOutputChannel(ch_name, type, ChannelKind::kStreaming));
+      BSendChannel chan =
+          pb.AddOutputChannel(ch_name, type, ChannelKind::kStreaming);
+      XLS_RETURN_IF_ERROR(pb.GetError());
       SpecialUseMetadata* special_use_metadata =
           proc_metadata->AssociateSendChannelInterface(
-              node, chan, SpecialUseMetadata::Purpose::kDatapathOutput);
+              node, chan.channel_interface(),
+              SpecialUseMetadata::Purpose::kDatapathOutput);
 
       // All channels out of a given stage share the same flow control.
       special_use_metadata->SetGroupId(stage);
@@ -385,10 +393,10 @@ class StageConversionHandler {
   }
 
  private:
-  absl::StatusOr<std::vector<ChannelInterface*>>
+  absl::StatusOr<std::vector<BChannelInterfaceRef>>
   AssociateStageChannelInterfaces(ProcMetadata* stage_proc_metadata,
                                   ProcMetadata* proc_metadata) {
-    std::vector<ChannelInterface*> channel_interfaces;
+    std::vector<BChannelInterfaceRef> channel_interfaces;
 
     Proc* top_proc = proc_metadata->proc();
 

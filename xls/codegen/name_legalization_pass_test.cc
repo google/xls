@@ -240,7 +240,7 @@ TEST_P(NameLegalizationPassRtlTest, KeywordRegisterIsRenamed) {
   VerifiedPackage p(TestName());
   Type* u32 = p.GetBitsType(32);
   BlockBuilder bb("test_module", &p);
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   BValue a = bb.InputPort("a", u32);
   bb.OutputPort("b", bb.InsertRegister("buf", a));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());

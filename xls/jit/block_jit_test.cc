@@ -415,7 +415,7 @@ struct RegInput {
 void RegisterResetBehavior(absl::Span<RegInput const> inputs) {
   VerifiedPackage p("fuzz_test");
   BlockBuilder bb("fuzz_test", &p);
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   BValue reset_port = bb.ResetPort(
       "reset", ResetBehavior{.asynchronous = false, .active_low = false});
   XLS_ASSERT_OK_AND_ASSIGN(auto reg,

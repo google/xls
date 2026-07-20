@@ -163,13 +163,13 @@ TEST_F(RamRewritePassTest, NoRamRewrites) {
   XLS_ASSERT_OK_AND_ASSIGN(RamChannels channels,
                            MakeAbstractRam(p.get(), config, "ram",
                                            /*data_type=*/p->GetBitsType(32)));
-  pb->Send(channels.read_req,
+  pb->Send(BSendChannelRef(channels.read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(channels.read_resp);
-  pb->Send(channels.write_req,
+  pb->Receive(BReceiveChannelRef(channels.read_resp));
+  pb->Send(BSendChannelRef(channels.write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(channels.write_resp);
+  pb->Receive(BReceiveChannelRef(channels.write_resp));
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
 
@@ -201,13 +201,13 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewrite) {
                       /*data_type=*/p->GetBitsType(32),
                       /*strictness=*/ChannelStrictness::kTotalOrder));
 
-  pb->Send(channels.read_req,
+  pb->Send(BSendChannelRef(channels.read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(channels.read_resp);
-  pb->Send(channels.write_req,
+  pb->Receive(BReceiveChannelRef(channels.read_resp));
+  pb->Send(BSendChannelRef(channels.write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(channels.write_resp);
+  pb->Receive(BReceiveChannelRef(channels.write_resp));
 
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
@@ -252,18 +252,18 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteDataIsTuple) {
                       /*data_type=*/
                       p->GetTupleType({p->GetBitsType(32), p->GetBitsType(1)}),
                       ChannelStrictness::kTotalOrder));
-  pb->Send(channels.read_req, pb->Literal(Value::Tuple({
-                                  Value(UBits(0, 10)),  // addr
-                                  Value::Tuple({})      // mask
-                              })));
-  pb->Receive(channels.read_resp);
-  pb->Send(channels.write_req,
+  pb->Send(BSendChannelRef(channels.read_req), pb->Literal(Value::Tuple({
+                                                   Value(UBits(0, 10)),  // addr
+                                                   Value::Tuple({})      // mask
+                                               })));
+  pb->Receive(BReceiveChannelRef(channels.read_resp));
+  pb->Send(BSendChannelRef(channels.write_req),
            pb->Literal(Value::Tuple({
                Value(UBits(0, 10)),                                      // addr
                Value::Tuple({Value(UBits(0, 32)), Value(UBits(0, 1))}),  // data
                Value::Tuple({}),                                         // mask
            })));
-  pb->Receive(channels.write_resp);
+  pb->Receive(BReceiveChannelRef(channels.write_resp));
 
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
@@ -309,13 +309,13 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWWithMaskRewrite) {
                       ChannelStrictness::kTotalOrder));
 
   pb->Send(
-      channels.read_req,
+      BSendChannelRef(channels.read_req),
       pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value(UBits(0xf, 4))})));
-  pb->Receive(channels.read_resp);
-  pb->Send(channels.write_req,
+  pb->Receive(BReceiveChannelRef(channels.read_resp));
+  pb->Send(BSendChannelRef(channels.write_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value(UBits(0, 32)),
                                      Value(UBits(0xf, 4))})));
-  pb->Receive(channels.write_resp);
+  pb->Receive(BReceiveChannelRef(channels.write_resp));
 
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
@@ -371,21 +371,21 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1RWRewrite) {
          ram_abstract1_write_req, ram_abstract1_write_resp] =
       abstract1_ram_channels;
 
-  pb->Send(ram_abstract0_read_req,
+  pb->Send(BSendChannelRef(ram_abstract0_read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(ram_abstract0_read_resp);
-  pb->Send(ram_abstract0_write_req,
+  pb->Receive(BReceiveChannelRef(ram_abstract0_read_resp));
+  pb->Send(BSendChannelRef(ram_abstract0_write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(ram_abstract0_write_resp);
+  pb->Receive(BReceiveChannelRef(ram_abstract0_write_resp));
 
-  pb->Send(ram_abstract1_read_req,
+  pb->Send(BSendChannelRef(ram_abstract1_read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(ram_abstract1_read_resp);
-  pb->Send(ram_abstract1_write_req,
+  pb->Receive(BReceiveChannelRef(ram_abstract1_read_resp));
+  pb->Send(BSendChannelRef(ram_abstract1_write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(ram_abstract1_write_resp);
+  pb->Receive(BReceiveChannelRef(ram_abstract1_write_resp));
 
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
@@ -450,13 +450,13 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteWithWidthMismatch) {
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
                       /*data_type=*/p->GetBitsType(32)));
 
-  pb->Send(channels.read_req,
+  pb->Send(BSendChannelRef(channels.read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(channels.read_resp);
-  pb->Send(channels.write_req,
+  pb->Receive(BReceiveChannelRef(channels.read_resp));
+  pb->Send(BSendChannelRef(channels.write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(channels.write_resp);
+  pb->Receive(BReceiveChannelRef(channels.write_resp));
 
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
@@ -499,13 +499,13 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1R1WRewrite) {
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
                       /*data_type=*/p->GetBitsType(32)));
 
-  pb->Send(channels.read_req,
+  pb->Send(BSendChannelRef(channels.read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(channels.read_resp);
-  pb->Send(channels.write_req,
+  pb->Receive(BReceiveChannelRef(channels.read_resp));
+  pb->Send(BSendChannelRef(channels.write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(channels.write_resp);
+  pb->Receive(BReceiveChannelRef(channels.write_resp));
 
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
@@ -552,15 +552,15 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1R1WRewriteDataIsTuple) {
           /*data_type=*/
           p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)})));
 
-  pb->Send(channels.read_req,
+  pb->Send(BSendChannelRef(channels.read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(channels.read_resp);
-  pb->Send(channels.write_req,
+  pb->Receive(BReceiveChannelRef(channels.read_resp));
+  pb->Send(BSendChannelRef(channels.write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)),
                 Value::Tuple({Value(UBits(0, 32)), Value(UBits(0, 32))}),
                 Value::Tuple({})})));
-  pb->Receive(channels.write_resp);
+  pb->Receive(BReceiveChannelRef(channels.write_resp));
 
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
@@ -606,13 +606,13 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1R1WWithMaskRewrite) {
                       /*data_type=*/p->GetBitsType(32)));
 
   pb->Send(
-      channels.read_req,
+      BSendChannelRef(channels.read_req),
       pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value(UBits(0xf, 4))})));
-  pb->Receive(channels.read_resp);
-  pb->Send(channels.write_req,
+  pb->Receive(BReceiveChannelRef(channels.read_resp));
+  pb->Send(BSendChannelRef(channels.write_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value(UBits(0, 32)),
                                      Value(UBits(0xf, 4))})));
-  pb->Receive(channels.write_resp);
+  pb->Receive(BReceiveChannelRef(channels.write_resp));
 
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
@@ -661,21 +661,21 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1R1WRewrite) {
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract1",
                       /*data_type=*/p->GetBitsType(32)));
 
-  pb->Send(channels0.read_req,
+  pb->Send(BSendChannelRef(channels0.read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(channels0.read_resp);
-  pb->Send(channels0.write_req,
+  pb->Receive(BReceiveChannelRef(channels0.read_resp));
+  pb->Send(BSendChannelRef(channels0.write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(channels0.write_resp);
+  pb->Receive(BReceiveChannelRef(channels0.write_resp));
 
-  pb->Send(channels1.read_req,
+  pb->Send(BSendChannelRef(channels1.read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(channels1.read_resp);
-  pb->Send(channels1.write_req,
+  pb->Receive(BReceiveChannelRef(channels1.read_resp));
+  pb->Send(BSendChannelRef(channels1.write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(channels1.write_resp);
+  pb->Receive(BReceiveChannelRef(channels1.write_resp));
 
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
@@ -749,21 +749,21 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1RWAnd1R1WRewrite) {
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract1",
                       /*data_type=*/p->GetBitsType(32)));
 
-  pb->Send(channels0.read_req,
+  pb->Send(BSendChannelRef(channels0.read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(channels0.read_resp);
-  pb->Send(channels0.write_req,
+  pb->Receive(BReceiveChannelRef(channels0.read_resp));
+  pb->Send(BSendChannelRef(channels0.write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(channels0.write_resp);
+  pb->Receive(BReceiveChannelRef(channels0.write_resp));
 
-  pb->Send(channels1.read_req,
+  pb->Send(BSendChannelRef(channels1.read_req),
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(channels1.read_resp);
-  pb->Send(channels1.write_req,
+  pb->Receive(BReceiveChannelRef(channels1.read_resp));
+  pb->Send(BSendChannelRef(channels1.write_req),
            pb->Literal(Value::Tuple(
                {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(channels1.write_resp);
+  pb->Receive(BReceiveChannelRef(channels1.write_resp));
 
   XLS_ASSERT_OK(pb->Build({}).status());
   XLS_ASSERT_OK(p->SetTopByName("p"));
@@ -830,13 +830,13 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteProcScoped) {
                       /*data_type=*/p->GetBitsType(32),
                       ChannelStrictness::kTotalOrder, pb.proc()));
 
-  pb.Send(channels.read_req,
+  pb.Send(BSendChannelRef(channels.read_req),
           pb.Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb.Receive(channels.read_resp);
-  pb.Send(channels.write_req,
+  pb.Receive(BReceiveChannelRef(channels.read_resp));
+  pb.Send(BSendChannelRef(channels.write_req),
           pb.Literal(Value::Tuple(
               {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb.Receive(channels.write_resp);
+  pb.Receive(BReceiveChannelRef(channels.write_resp));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
   XLS_ASSERT_OK(p->SetTopByName(TestName()));
@@ -879,13 +879,13 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1R1WRewriteProcScoped) {
                       /*data_type=*/p->GetBitsType(32),
                       ChannelStrictness::kTotalOrder, pb.proc()));
 
-  pb.Send(channels.read_req,
+  pb.Send(BSendChannelRef(channels.read_req),
           pb.Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb.Receive(channels.read_resp);
-  pb.Send(channels.write_req,
+  pb.Receive(BReceiveChannelRef(channels.read_resp));
+  pb.Send(BSendChannelRef(channels.write_req),
           pb.Literal(Value::Tuple(
               {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb.Receive(channels.write_resp);
+  pb.Receive(BReceiveChannelRef(channels.write_resp));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
   XLS_ASSERT_OK(p->SetTopByName(TestName()));

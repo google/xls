@@ -6584,14 +6584,12 @@ absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
                                               Package* package) {
   TokenlessProcBuilder pb(NewStyleProc(), proc_name, "tkn", package);
   BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
-  XLS_ASSIGN_OR_RETURN(
-      ReceiveChannelInterface * in_channel,
-      pb.AddInputChannel("accum_in", package->GetBitsType(32)));
+  BReceiveChannel in_channel =
+      pb.AddInputChannel("accum_in", package->GetBitsType(32));
   BValue input = pb.Receive(in_channel);
   BValue next_accum = pb.Add(accum, input);
-  XLS_ASSIGN_OR_RETURN(
-      SendChannelInterface * out_channel,
-      pb.AddOutputChannel("accum_out", package->GetBitsType(32)));
+  BSendChannel out_channel =
+      pb.AddOutputChannel("accum_out", package->GetBitsType(32));
   pb.Send(out_channel, next_accum);
   return pb.Build({next_accum});
 }
@@ -6603,14 +6601,10 @@ TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
                            CreateNewStyleAccumProc("leaf_proc", p.get()));
 
   TokenlessProcBuilder pb(NewStyleProc(), "a_top_proc", "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_channel,
-                           pb.AddInputChannel("in_ch", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out_channel,
-                           pb.AddOutputChannel("out_ch", p->GetBitsType(32)));
+  BReceiveChannel in_channel = pb.AddInputChannel("in_ch", p->GetBitsType(32));
+  BSendChannel out_channel = pb.AddOutputChannel("out_ch", p->GetBitsType(32));
 
-  XLS_ASSERT_OK(pb.InstantiateProc(
-      "inst", leaf_proc,
-      std::vector<ChannelInterface*>{in_channel, out_channel}));
+  pb.InstantiateProc("inst", leaf_proc, {in_channel, out_channel});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
   XLS_ASSERT_OK(p->SetTop(top));
 

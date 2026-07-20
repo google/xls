@@ -80,9 +80,9 @@ TEST_F(ProcStateRangeQueryEngineTest, NegativesDecoupledNext) {
   auto p = CreatePackage();
   ProcBuilder fb(TestName(), p.get());
 
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element,
-                           fb.UnreadStateElement("foo", Value(SBits(0, 32)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement state_element =
+      fb.UnreadStateElement("foo", Value(SBits(0, 32)),
+                            /*non_synthesizable=*/false);
 
   BValue st = fb.StateRead(state_element);
   BValue res = fb.Add(st, fb.Literal(UBits(3, 32)));
@@ -208,8 +208,7 @@ TEST_F(ProcStateRangeQueryEngineTest, OneBitStateUnconstrained) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
   BValue state = pb.StateElement("the_state", UBits(0, 1));
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
-                           pb.AddInputChannel("data", p->GetBitsType(1)));
+  BReceiveChannel chan = pb.AddInputChannel("data", p->GetBitsType(1));
   pb.Next(state, pb.And(pb.Receive(chan), pb.Not(state)));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -222,8 +221,7 @@ TEST_F(ProcStateRangeQueryEngineTest, OneBitStateIsOne) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
   BValue state = pb.StateElement("the_state", UBits(1, 1));
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
-                           pb.AddInputChannel("data", p->GetBitsType(1)));
+  BReceiveChannel chan = pb.AddInputChannel("data", p->GetBitsType(1));
   pb.Next(state, pb.Nand(pb.Receive(chan), pb.Not(state)));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -236,8 +234,7 @@ TEST_F(ProcStateRangeQueryEngineTest, OneBitStateIsZero) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
   BValue state = pb.StateElement("the_state", UBits(0, 1));
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
-                           pb.AddInputChannel("data", p->GetBitsType(1)));
+  BReceiveChannel chan = pb.AddInputChannel("data", p->GetBitsType(1));
   pb.Next(state, pb.Nor(pb.Receive(chan), pb.Not(state)));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());

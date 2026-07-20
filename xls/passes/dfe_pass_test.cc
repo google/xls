@@ -70,13 +70,12 @@ class DeadFunctionEliminationPassTest : public IrTestBase {
                                                 Package* package) {
     TokenlessProcBuilder pb(NewStyleProc(), proc_name, "tkn", package);
     BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
-    XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * in_channel,
-                         pb.AddInputChannel("in_ch", package->GetBitsType(32)));
+    BReceiveChannel in_channel =
+        pb.AddInputChannel("in_ch", package->GetBitsType(32));
     BValue input = pb.Receive(in_channel);
     BValue next_accum = pb.Add(accum, input);
-    XLS_ASSIGN_OR_RETURN(
-        SendChannelInterface * out_channel,
-        pb.AddOutputChannel("out_ch", package->GetBitsType(32)));
+    BSendChannel out_channel =
+        pb.AddOutputChannel("out_ch", package->GetBitsType(32));
     pb.Send(out_channel, next_accum);
     return pb.Build({next_accum});
   }
@@ -506,16 +505,14 @@ TEST_F(DeadFunctionEliminationPassTest, NewStyleProcWithInstantiations) {
   XLS_ASSERT_OK(CreateNewStyleAccumProc("my_proc3", p.get()).status());
 
   TokenlessProcBuilder pb(NewStyleProc(), "top_proc", "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces the_channel,
-                           pb.AddChannel("the_channel", p->GetBitsType(32)));
-  XLS_ASSERT_OK(pb.InstantiateProc(
+  BChannelWithInterfaces the_channel =
+      pb.AddChannel("the_channel", p->GetBitsType(32));
+  pb.InstantiateProc(
       "inst0", my_proc1,
-      std::vector<ChannelInterface*>{the_channel.receive_interface,
-                                     the_channel.send_interface}));
-  XLS_ASSERT_OK(pb.InstantiateProc(
+      {the_channel.receive_interface, the_channel.send_interface});
+  pb.InstantiateProc(
       "inst1", my_proc2,
-      std::vector<ChannelInterface*>{the_channel.receive_interface,
-                                     the_channel.send_interface}));
+      {the_channel.receive_interface, the_channel.send_interface});
   XLS_ASSERT_OK(pb.Build({}).status());
 
   XLS_ASSERT_OK(p->SetTopByName("top_proc"));

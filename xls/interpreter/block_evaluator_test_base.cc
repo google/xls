@@ -73,7 +73,7 @@ TEST_P(BlockEvaluatorTest, ObserverSeesValues) {
   }
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   BValue foo_inp = bb.InputPort("foo", p->GetBitsType(32));
   BValue enable = bb.InputPort("enable", p->GetBitsType(1));
   BValue rhs_inp = bb.InputPort("rhs", p->GetBitsType(32));
@@ -128,7 +128,7 @@ TEST_P(BlockEvaluatorTest, ObserverSeesValuesOnBothEdges) {
   }
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   BValue foo_inp = bb.InputPort("foo", p->GetBitsType(32));
   BValue enable = bb.InputPort("enable", p->GetBitsType(1));
   BValue rhs_inp = bb.InputPort("rhs", p->GetBitsType(32));
@@ -276,7 +276,7 @@ TEST_P(BlockEvaluatorTest, PipelinedHierarchicalRotate) {
   auto package = CreatePackage();
   auto rot = [&](int64_t n, int64_t r) -> absl::StatusOr<Block*> {
     BlockBuilder b(absl::StrCat(TestName(), "_rot", n, "_", r), package.get());
-    XLS_RETURN_IF_ERROR(b.AddClockPort("clk"));
+    b.AddClockPort("clk");
     std::vector<BValue> inputs;
     inputs.reserve(n);
     for (int64_t i = 0; i < n; ++i) {
@@ -292,7 +292,7 @@ TEST_P(BlockEvaluatorTest, PipelinedHierarchicalRotate) {
   };
   auto multi_rot = [&](int64_t n) -> absl::StatusOr<Block*> {
     BlockBuilder b(absl::StrCat(TestName(), "multirot", n), package.get());
-    XLS_RETURN_IF_ERROR(b.AddClockPort("clk"));
+    b.AddClockPort("clk");
     std::vector<BValue> inputs;
     inputs.reserve(n);
     for (int64_t i = 0; i < n; ++i) {
@@ -1893,7 +1893,7 @@ TEST_P(BlockEvaluatorTest, DelaysContinuation) {
 TEST_P(BlockEvaluatorTest, RegUpdateHappensBeforeWireUpdate) {
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   BValue in_1 = bb.InputPort("in_1", p->GetBitsType(16));
   BValue in_2 = bb.InputPort("in_2", p->GetBitsType(16));
   BValue reg1 = bb.InsertRegister("reg1", in_1);
@@ -2001,7 +2001,7 @@ void CutThroughLatencyCorrectCommon(
   XLS_ASSERT_OK_AND_ASSIGN(
       FifoInstantiation * fifo_inst,
       bb.block()->AddFifoInstantiation("fifo_inst", fft.fifo_config(), u32));
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
 
   auto out_port = [&](std::string_view name, BValue val) -> BValue {
     if (time_step == BlockEvaluator::OutputPortSampleTime::kAfterLastClock) {
@@ -2073,7 +2073,7 @@ void BackpressureLatencyCorrectCommon(
   XLS_ASSERT_OK_AND_ASSIGN(
       FifoInstantiation * fifo_inst,
       bb.block()->AddFifoInstantiation("fifo_inst", fft.fifo_config(), u32));
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
 
   auto out_port = [&](std::string_view name, BValue val) -> BValue {
     if (time_step == BlockEvaluator::OutputPortSampleTime::kAfterLastClock) {

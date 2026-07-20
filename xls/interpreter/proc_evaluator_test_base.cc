@@ -783,10 +783,9 @@ TEST_P(ProcEvaluatorTestBase, ConditionalNextProc) {
 TEST_P(ProcEvaluatorTestBase, DecoupledNextProc) {
   Package package(TestName());
   ProcBuilder pb("dec_next", &package);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StateElement * se,
+  BStateElement se =
       pb.UnreadStateElement("state_element", Value(UBits(42, 32)),
-                            /*non_synthesizable=*/false));
+                            /*non_synthesizable=*/false);
   pb.StateRead(se);
   pb.Next(se, pb.Literal(UBits(56, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());

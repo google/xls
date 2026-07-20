@@ -120,8 +120,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
   // too. Just use the proc-builder and block-converter instead.
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
-                           pb.AddOutputChannel("chan", p->GetBitsType(32)));
+  BSendChannel chan = pb.AddOutputChannel("chan", p->GetBitsType(32));
   auto tok = pb.InitialToken();
   auto st = pb.StateElement("foo", UBits(1, 32));
   auto lit_1 = pb.Literal(UBits(1, 32));
@@ -210,10 +209,8 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
   auto add_2 = pb.Add(mul_1, lit_4, SourceInfo(), "add_2");
   auto nxt1 = pb.Next(st1, mul_2);
   auto nxt2 = pb.Next(st2, add_2);
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_add,
-                           pb.AddOutputChannel("chan_add", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_mul,
-                           pb.AddOutputChannel("chan_mul", p->GetBitsType(32)));
+  BSendChannel chan_add = pb.AddOutputChannel("chan_add", p->GetBitsType(32));
+  BSendChannel chan_mul = pb.AddOutputChannel("chan_mul", p->GetBitsType(32));
   auto snd_mul = pb.Send(chan_mul, mul_2);
   auto snd_add = pb.Send(chan_add, add_2);
 
@@ -266,12 +263,13 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
           NodeToRegMatcher(mul_1, 8), NodeToRegMatcher(mul_1, 9),
           NodeToRegMatcher(mul_1, 10), NodeToRegMatcher(add_2, 11),
           NodeToRegMatcher(add_2, 12), NodeToRegMatcher(add_2, 13),
-          ChanSentMatcher(chan_add), ChanSentMatcher(chan_mul),
-          StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
-          StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
-          StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
-          StageValidMatcher(9), StageValidMatcher(10), StageValidMatcher(11),
-          StageValidMatcher(12), StageValidMatcher(13)))
+          ChanSentMatcher(chan_add.channel_interface()),
+          ChanSentMatcher(chan_mul.channel_interface()), StageValidMatcher(0),
+          StageValidMatcher(1), StageValidMatcher(2), StageValidMatcher(3),
+          StageValidMatcher(4), StageValidMatcher(5), StageValidMatcher(6),
+          StageValidMatcher(7), StageValidMatcher(8), StageValidMatcher(9),
+          StageValidMatcher(10), StageValidMatcher(11), StageValidMatcher(12),
+          StageValidMatcher(13)))
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
@@ -288,12 +286,13 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
           NodeToRegMatcher(add_1, 3), NodeToRegMatcher(mul_2, 6),
           StateToRegMatcher(st2), StateToRegFullMatcher(st2),
           NodeToRegMatcher(mul_1, 8), NodeToRegMatcher(add_2, 11),
-          ChanSentMatcher(chan_add), ChanSentMatcher(chan_mul),
-          StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
-          StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
-          StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
-          StageValidMatcher(9), StageValidMatcher(10), StageValidMatcher(11),
-          StageValidMatcher(12), StageValidMatcher(13)));
+          ChanSentMatcher(chan_add.channel_interface()),
+          ChanSentMatcher(chan_mul.channel_interface()), StageValidMatcher(0),
+          StageValidMatcher(1), StageValidMatcher(2), StageValidMatcher(3),
+          StageValidMatcher(4), StageValidMatcher(5), StageValidMatcher(6),
+          StageValidMatcher(7), StageValidMatcher(8), StageValidMatcher(9),
+          StageValidMatcher(10), StageValidMatcher(11), StageValidMatcher(12),
+          StageValidMatcher(13)));
 }
 
 TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
@@ -313,10 +312,8 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
   auto add_3 = pb.Add(add_2, add_1, SourceInfo(), "add_3");
   auto nxt1 = pb.Next(st1, mul_2);
   auto nxt2 = pb.Next(st2, add_3);
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_mul,
-                           pb.AddOutputChannel("chan_mul", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_add,
-                           pb.AddOutputChannel("chan_add", p->GetBitsType(32)));
+  BSendChannel chan_mul = pb.AddOutputChannel("chan_mul", p->GetBitsType(32));
+  BSendChannel chan_add = pb.AddOutputChannel("chan_add", p->GetBitsType(32));
   auto snd_mul = pb.Send(chan_mul, mul_2);
   auto snd_add = pb.Send(chan_add, add_2);
 
@@ -374,12 +371,13 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
           NodeToRegMatcher(mul_1, 9), NodeToRegMatcher(mul_1, 10),
           NodeToRegMatcher(add_2, 11), NodeToRegMatcher(add_2, 12),
           NodeToRegMatcher(add_3, 13), NodeToRegMatcher(add_3, 14),
-          ChanSentMatcher(chan_mul), ChanSentMatcher(chan_add),
-          StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
-          StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
-          StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
-          StageValidMatcher(9), StageValidMatcher(10), StageValidMatcher(11),
-          StageValidMatcher(12), StageValidMatcher(13), StageValidMatcher(14)))
+          ChanSentMatcher(chan_mul.channel_interface()),
+          ChanSentMatcher(chan_add.channel_interface()), StageValidMatcher(0),
+          StageValidMatcher(1), StageValidMatcher(2), StageValidMatcher(3),
+          StageValidMatcher(4), StageValidMatcher(5), StageValidMatcher(6),
+          StageValidMatcher(7), StageValidMatcher(8), StageValidMatcher(9),
+          StageValidMatcher(10), StageValidMatcher(11), StageValidMatcher(12),
+          StageValidMatcher(13), StageValidMatcher(14)))
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
@@ -400,12 +398,13 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
           NodeToRegMatcher(mul_2, 6), StateToRegMatcher(st2),
           StateToRegFullMatcher(st2), NodeToRegMatcher(mul_1, 8),
           NodeToRegMatcher(add_2, 11), NodeToRegMatcher(add_3, 13),
-          ChanSentMatcher(chan_mul), ChanSentMatcher(chan_add),
-          StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
-          StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
-          StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
-          StageValidMatcher(9), StageValidMatcher(10), StageValidMatcher(11),
-          StageValidMatcher(12), StageValidMatcher(13), StageValidMatcher(14)));
+          ChanSentMatcher(chan_mul.channel_interface()),
+          ChanSentMatcher(chan_add.channel_interface()), StageValidMatcher(0),
+          StageValidMatcher(1), StageValidMatcher(2), StageValidMatcher(3),
+          StageValidMatcher(4), StageValidMatcher(5), StageValidMatcher(6),
+          StageValidMatcher(7), StageValidMatcher(8), StageValidMatcher(9),
+          StageValidMatcher(10), StageValidMatcher(11), StageValidMatcher(12),
+          StageValidMatcher(13), StageValidMatcher(14)));
 }
 
 TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
@@ -419,8 +418,7 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
   auto mul_2 = pb.UMul(add_1, lit_2);
   auto nxt_pred = pb.Literal(UBits(0, 1));
   auto nxt = pb.Next(st, mul_2, /*pred=*/nxt_pred);
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_mul,
-                           pb.AddOutputChannel("chan_mul", p->GetBitsType(32)));
+  BSendChannel chan_mul = pb.AddOutputChannel("chan_mul", p->GetBitsType(32));
   auto snd_mul = pb.Send(chan_mul, mul_2);
 
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());

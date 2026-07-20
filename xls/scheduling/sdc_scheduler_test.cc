@@ -153,9 +153,8 @@ TEST_F(SDCSchedulerTest, WithIOConstraint) {
 TEST_F(SDCSchedulerTest, DecoupledThroughputConstraintsEnforced) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
-                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element);
   BValue add1 = pb.Add(x_read, pb.Literal(UBits(1, 32)));
   BValue add2 = pb.Add(add1, pb.Literal(UBits(1, 32)));

@@ -28,6 +28,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/casts.h"
@@ -36,6 +37,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/visitor.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -61,6 +63,7 @@ class Function;
 class FunctionBase;
 class Node;
 class Proc;
+class ProcBuilder;
 class StateElement;
 class Type;
 
@@ -125,6 +128,220 @@ class BValue {
 };
 
 std::ostream& operator<<(std::ostream& os, const BValue& bv);
+
+// A wrapper around xls::StateElement that associates it with the ProcBuilder
+// that created it. Allows ProcBuilder methods to verify that the StateElement
+// is owned by the builder.
+class BStateElement {
+ public:
+  BStateElement() : BStateElement(nullptr, nullptr) {}
+  BStateElement(StateElement* state_element, ProcBuilder* builder)
+      : state_element_(state_element), builder_(builder) {}
+  explicit BStateElement(StateElement* state_element)
+      : state_element_(state_element), builder_(nullptr) {}
+
+  ProcBuilder* builder() const { return builder_; }
+  StateElement* state_element() const { return state_element_; }
+
+  bool valid() const { return state_element_ != nullptr; }
+
+  bool operator==(const BStateElement& other) const {
+    return state_element_ == other.state_element_ && builder_ == other.builder_;
+  }
+
+ private:
+  StateElement* state_element_;
+  ProcBuilder* builder_;
+};
+
+// A wrapper around xls::Channel that associates it with the ProcBuilder that
+// created it.
+class BChannel {
+ public:
+  BChannel() : BChannel(nullptr, nullptr) {}
+  BChannel(Channel* channel, ProcBuilder* builder)
+      : channel_(channel), builder_(builder) {}
+  explicit BChannel(Channel* channel) : channel_(channel), builder_(nullptr) {}
+
+  ProcBuilder* builder() const { return builder_; }
+  Channel* channel() const { return channel_; }
+
+  bool valid() const { return channel_ != nullptr; }
+
+  std::string_view name() const;
+  Type* GetType() const;
+
+  bool operator==(const BChannel& other) const {
+    return channel_ == other.channel_ && builder_ == other.builder_;
+  }
+
+ private:
+  Channel* channel_;
+  ProcBuilder* builder_;
+};
+
+struct BReceiveChannelRef;
+struct BSendChannelRef;
+
+// A wrapper around xls::ReceiveChannelInterface that associates it with the
+// ProcBuilder that created it.
+class BReceiveChannel {
+ public:
+  BReceiveChannel() : BReceiveChannel(nullptr, nullptr) {}
+  BReceiveChannel(ReceiveChannelInterface* channel_interface,
+                  ProcBuilder* builder)
+      : channel_interface_(channel_interface), builder_(builder) {}
+  explicit BReceiveChannel(ReceiveChannelInterface* channel_interface)
+      : channel_interface_(channel_interface), builder_(nullptr) {}
+
+  ProcBuilder* builder() const { return builder_; }
+  ReceiveChannelInterface* channel_interface() const {
+    return channel_interface_;
+  }
+  BReceiveChannelRef as_ref() const;
+
+  bool valid() const { return channel_interface_ != nullptr; }
+
+  std::string_view name() const;
+  Type* GetType() const;
+
+  bool operator==(const BReceiveChannel& other) const {
+    return channel_interface_ == other.channel_interface_ &&
+           builder_ == other.builder_;
+  }
+
+ private:
+  ReceiveChannelInterface* channel_interface_;
+  ProcBuilder* builder_;
+};
+
+// A wrapper around xls::SendChannelInterface that associates it with the
+// ProcBuilder that created it.
+class BSendChannel {
+ public:
+  BSendChannel() : BSendChannel(nullptr, nullptr) {}
+  BSendChannel(SendChannelInterface* channel_interface, ProcBuilder* builder)
+      : channel_interface_(channel_interface), builder_(builder) {}
+  explicit BSendChannel(SendChannelInterface* channel_interface)
+      : channel_interface_(channel_interface), builder_(nullptr) {}
+
+  ProcBuilder* builder() const { return builder_; }
+  SendChannelInterface* channel_interface() const { return channel_interface_; }
+  BSendChannelRef as_ref() const;
+
+  bool valid() const { return channel_interface_ != nullptr; }
+
+  std::string_view name() const;
+  Type* GetType() const;
+
+  bool operator==(const BSendChannel& other) const {
+    return channel_interface_ == other.channel_interface_ &&
+           builder_ == other.builder_;
+  }
+
+ private:
+  SendChannelInterface* channel_interface_;
+  ProcBuilder* builder_;
+};
+
+// A convenience structure grouping a channel and its send/receive interfaces.
+struct BChannelWithInterfaces {
+  BChannel channel;
+  BSendChannel send_interface;
+  BReceiveChannel receive_interface;
+
+  ChannelWithInterfaces ToChannelWithInterfaces() const {
+    return ChannelWithInterfaces{
+        .channel = channel.channel(),
+        .send_interface = send_interface.channel_interface(),
+        .receive_interface = receive_interface.channel_interface(),
+    };
+  }
+};
+
+struct BReceiveChannelRef
+    : public std::variant<Channel*, ReceiveChannelInterface*, BChannel,
+                          BReceiveChannel> {
+  using variant::variant;
+  explicit BReceiveChannelRef(ReceiveChannelRef ref) {
+    *this = std::visit(
+        Visitor{
+            [](Channel* c) -> BReceiveChannelRef { return c; },
+            [](ReceiveChannelInterface* i) -> BReceiveChannelRef { return i; }},
+        ref);
+  }
+  ReceiveChannelRef receive_channel_ref() const {
+    return std::visit(
+        Visitor{
+            [](Channel* c) -> ReceiveChannelRef { return c; },
+            [](ReceiveChannelInterface* i) -> ReceiveChannelRef { return i; },
+            [](const BChannel& c) -> ReceiveChannelRef { return c.channel(); },
+            [](const BReceiveChannel& c) -> ReceiveChannelRef {
+              return c.channel_interface();
+            }},
+        *this);
+  }
+};
+
+struct BSendChannelRef : public std::variant<Channel*, SendChannelInterface*,
+                                             BChannel, BSendChannel> {
+  using variant::variant;
+  explicit BSendChannelRef(SendChannelRef ref) {
+    *this = std::visit(
+        Visitor{[](Channel* c) -> BSendChannelRef { return c; },
+                [](SendChannelInterface* i) -> BSendChannelRef { return i; }},
+        ref);
+  }
+  SendChannelRef send_channel_ref() const {
+    return std::visit(
+        Visitor{[](Channel* c) -> SendChannelRef { return c; },
+                [](SendChannelInterface* i) -> SendChannelRef { return i; },
+                [](const BChannel& c) -> SendChannelRef { return c.channel(); },
+                [](const BSendChannel& c) -> SendChannelRef {
+                  return c.channel_interface();
+                }},
+        *this);
+  }
+};
+
+struct BChannelInterfaceRef
+    : public std::variant<ChannelInterface*, BReceiveChannel, BSendChannel> {
+  using variant::variant;
+  ChannelInterface* channel_interface() const {
+    return std::visit(
+        Visitor{[](ChannelInterface* i) -> ChannelInterface* { return i; },
+                [](const BReceiveChannel& c) -> ChannelInterface* {
+                  return c.channel_interface();
+                },
+                [](const BSendChannel& c) -> ChannelInterface* {
+                  return c.channel_interface();
+                }},
+        *this);
+  }
+};
+
+struct BAnyChannelRef
+    : public std::variant<BSendChannelRef, BReceiveChannelRef> {
+  using variant::variant;
+  ChannelRef channel_ref() const {
+    return std::visit(Visitor{
+                          [](const BSendChannelRef& ref) -> ChannelRef {
+                            return ToChannelRef(ref.send_channel_ref());
+                          },
+                          [](const BReceiveChannelRef& ref) -> ChannelRef {
+                            return ToChannelRef(ref.receive_channel_ref());
+                          },
+                      },
+                      *this);
+  }
+};
+
+inline BReceiveChannelRef BReceiveChannel::as_ref() const {
+  return BReceiveChannelRef(channel_interface_);
+}
+inline BSendChannelRef BSendChannel::as_ref() const {
+  return BSendChannelRef(channel_interface_);
+}
 
 // Base class for function and proc. Provides interface for adding nodes to a
 // function proc. Example usage (for derived FunctionBuilder class):
@@ -666,36 +883,36 @@ class BuilderBase {
 
   // Add a receive operation. The type of the data value received is
   // determined by the channel.
-  BValue Receive(ReceiveChannelRef channel, BValue token,
+  BValue Receive(BReceiveChannelRef channel, BValue token,
                  const SourceInfo& loc = SourceInfo(),
                  std::string_view name = "");
 
   // Add a conditional receive operation. The receive executes conditionally on
   // the value of the predicate "pred". The type of the data value received is
   // determined by the channel.
-  BValue ReceiveIf(ReceiveChannelRef channel, BValue token, BValue pred,
+  BValue ReceiveIf(BReceiveChannelRef channel, BValue token, BValue pred,
                    const SourceInfo& loc = SourceInfo(),
                    std::string_view name = "");
 
   // Add a non-blocking receive operation. The type of the data value received
   // is determined by the channel.
-  BValue ReceiveIfNonBlocking(ReceiveChannelRef channel, BValue token,
+  BValue ReceiveIfNonBlocking(BReceiveChannelRef channel, BValue token,
                               BValue pred, const SourceInfo& loc = SourceInfo(),
                               std::string_view name = "");
 
   // Add a non-blocking receive operation. The type of the data value received
   // is determined by the channel.
-  BValue ReceiveNonBlocking(ReceiveChannelRef channel, BValue token,
+  BValue ReceiveNonBlocking(BReceiveChannelRef channel, BValue token,
                             const SourceInfo& loc = SourceInfo(),
                             std::string_view name = "");
 
   // Add a send operation.
-  BValue Send(SendChannelRef channel, BValue token, BValue data,
+  BValue Send(BSendChannelRef channel, BValue token, BValue data,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Add a conditional send operation. The send executes conditionally on the
   // value of the predicate "pred".
-  BValue SendIf(SendChannelRef channel, BValue token, BValue pred, BValue data,
+  BValue SendIf(BSendChannelRef channel, BValue token, BValue pred, BValue data,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
@@ -705,7 +922,7 @@ class BuilderBase {
               std::optional<BValue> pred = std::nullopt,
               std::optional<std::string> label = std::nullopt,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
-  BValue Next(class StateElement* state_element, BValue value,
+  BValue Next(BStateElement state_element, BValue value,
               std::optional<BValue> pred = std::nullopt,
               std::optional<std::string> label = std::nullopt,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
@@ -843,7 +1060,7 @@ class ProcBuilder : public BuilderBase {
 
   // Add an internal channel scoped to the proc. Only can be called for new
   // style procs.
-  absl::StatusOr<ChannelWithInterfaces> AddChannel(
+  BChannelWithInterfaces AddChannel(
       std::string_view name, Type* type,
       ChannelKind kind = ChannelKind::kStreaming,
       absl::Span<const Value> initial_values = {},
@@ -851,12 +1068,12 @@ class ProcBuilder : public BuilderBase {
 
   // Add an interface channel to the proc. Only can be called for new style
   // procs.
-  absl::StatusOr<ReceiveChannelInterface*> AddInputChannel(
+  BReceiveChannel AddInputChannel(
       std::string_view name, Type* type,
       ChannelKind kind = ChannelKind::kStreaming,
       std::optional<ChannelStrictness> strictness = std::nullopt,
       std::optional<FlowControl> flow_control = std::nullopt);
-  absl::StatusOr<SendChannelInterface*> AddOutputChannel(
+  BSendChannel AddOutputChannel(
       std::string_view name, Type* type,
       ChannelKind kind = ChannelKind::kStreaming,
       std::optional<ChannelStrictness> strictness = std::nullopt,
@@ -872,17 +1089,15 @@ class ProcBuilder : public BuilderBase {
 
   // Returns the receive/send channel end with the given name. Only can be
   // called for new style procs.
-  absl::StatusOr<ReceiveChannelInterface*> GetReceiveChannelInterface(
-      std::string_view name);
-  absl::StatusOr<SendChannelInterface*> GetSendChannelInterface(
-      std::string_view name);
+  BReceiveChannel GetReceiveChannelInterface(std::string_view name);
+  BSendChannel GetSendChannelInterface(std::string_view name);
 
   // Instantiates the specified proc in this proc. `channel_interfaces` must
   // match the number, type, and direction of channels on the interface of the
   // instantiated proc.
-  absl::Status InstantiateProc(
+  void InstantiateProc(
       std::string_view name, Proc* instantiated_proc,
-      absl::Span<ChannelInterface* const> channel_interfaces);
+      absl::Span<const BChannelInterfaceRef> channel_interfaces);
 
   // Returns the Param BValue for the state parameters. Unlike
   // BuilderBase::Param this doesn't add a Param node to the Proc. Rather the
@@ -896,7 +1111,8 @@ class ProcBuilder : public BuilderBase {
 
   // Build the proc using the given BValues as the next state values. If
   // `next_state` is not empty, the number of recurrent state elements in
-  // `next_state` must match the number of state parameters.
+  // `next_state` must match the number of state elements in the proc.
+  //
   // Provided as a convenience for the common case where we can treat the next
   // state as approximately a return value.
   absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state);
@@ -940,12 +1156,13 @@ class ProcBuilder : public BuilderBase {
   }
 
   // Adds a state element to the proc without creating a state read.
-  absl::StatusOr<class StateElement*> UnreadStateElement(
-      std::string_view name, const Value& initial_value, bool non_synthesizable,
-      const SourceInfo& loc = SourceInfo());
+  BStateElement UnreadStateElement(std::string_view name,
+                                   const Value& initial_value,
+                                   bool non_synthesizable,
+                                   const SourceInfo& loc = SourceInfo());
 
   // Adds a state read node for an existing state element.
-  BValue StateRead(class StateElement* state_element,
+  BValue StateRead(BStateElement state_element,
                    std::optional<BValue> predicate = std::nullopt,
                    std::optional<std::string> label = std::nullopt,
                    const SourceInfo& loc = SourceInfo());
@@ -1008,7 +1225,7 @@ class TokenlessProcBuilder : public ProcBuilder {
   // receive operation itself which produces a tuple containing a token and the
   // data).
   using ProcBuilder::Receive;
-  BValue Receive(ReceiveChannelRef channel,
+  BValue Receive(BReceiveChannelRef channel,
                  const SourceInfo& loc = SourceInfo(),
                  std::string_view name = "");
 
@@ -1017,7 +1234,7 @@ class TokenlessProcBuilder : public ProcBuilder {
   // the received data itself along with a valid bit.
   using ProcBuilder::ReceiveNonBlocking;
   std::pair<BValue, BValue> ReceiveNonBlocking(
-      ReceiveChannelRef channel, const SourceInfo& loc = SourceInfo(),
+      BReceiveChannelRef channel, const SourceInfo& loc = SourceInfo(),
       std::string_view name = "");
 
   // Add a conditinal receive operation. The receive executes conditionally on
@@ -1026,7 +1243,7 @@ class TokenlessProcBuilder : public ProcBuilder {
   // (*not* the receiveif operation itself which produces a tuple containing a
   // token and the data).
   using ProcBuilder::ReceiveIf;
-  BValue ReceiveIf(ReceiveChannelRef channel, BValue pred,
+  BValue ReceiveIf(BReceiveChannelRef channel, BValue pred,
                    const SourceInfo& loc = SourceInfo(),
                    std::string_view name = "");
 
@@ -1035,19 +1252,19 @@ class TokenlessProcBuilder : public ProcBuilder {
   // of the received data itself along with a valid bit.
   using ProcBuilder::ReceiveIfNonBlocking;
   std::pair<BValue, BValue> ReceiveIfNonBlocking(
-      ReceiveChannelRef channel, BValue pred,
+      BReceiveChannelRef channel, BValue pred,
       const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Add a send operation. Returns the token-typed BValue of the send node.
   using ProcBuilder::Send;
-  BValue Send(SendChannelRef channel, BValue data,
+  BValue Send(BSendChannelRef channel, BValue data,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Add a conditional send operation. The send executes conditionally on the
   // value of the predicate "pred". Returns the token-typed BValue of the send
   // node.
   using ProcBuilder::SendIf;
-  BValue SendIf(SendChannelRef channel, BValue pred, BValue data,
+  BValue SendIf(BSendChannelRef channel, BValue pred, BValue data,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
@@ -1091,9 +1308,7 @@ class BlockBuilder : public BuilderBase {
   // Build the block.
   absl::StatusOr<Block*> Build();
 
-  absl::Status AddClockPort(std::string_view name) {
-    return block()->AddClockPort(name);
-  }
+  void AddClockPort(std::string_view name);
 
   BValue Param(std::string_view name, Type* type,
                const SourceInfo& loc = SourceInfo()) override;

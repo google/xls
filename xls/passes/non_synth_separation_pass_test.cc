@@ -171,10 +171,9 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithStateRead) {
 TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledUnreadState) {
   auto p = CreatePackage();
   ProcBuilder pb("proc1", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StateElement * state_element,
+  BStateElement state_element =
       pb.UnreadStateElement("state_element", Value(UBits(0, 32)),
-                            /*non_synthesizable=*/false));
+                            /*non_synthesizable=*/false);
   pb.Assert(pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)), "");
   BValue value = pb.Literal(Value(UBits(42, 32)));
   pb.Next(state_element, value);
@@ -195,10 +194,9 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledUnreadState) {
 TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledReadWriteState) {
   auto p = CreatePackage();
   ProcBuilder pb("proc1", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StateElement * state_element,
+  BStateElement state_element =
       pb.UnreadStateElement("state_element", Value(UBits(0, 32)),
-                            /*non_synthesizable=*/false));
+                            /*non_synthesizable=*/false);
   BValue state_read = pb.StateRead(state_element);
   pb.Assert(pb.Literal(Value::Token()),
             pb.Eq(state_read, pb.Literal(UBits(0, 32))), "");

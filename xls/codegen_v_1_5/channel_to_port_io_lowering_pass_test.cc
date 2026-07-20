@@ -90,8 +90,7 @@ class ChannelToPortIoLoweringPassTest : public IrTestBase {
 TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleInputChannel) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
   BValue tkn = pb.Literal(Value::Token());
   pb.Receive(a_in, tkn);
   XLS_ASSERT_OK(pb.Build());
@@ -108,10 +107,9 @@ TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleInputChannel) {
 TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleInputChannelValidData) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto a_in,
+  BReceiveChannel a_in =
       pb.AddInputChannel("a_in", p->GetBitsType(32), ChannelKind::kStreaming,
-                         std::nullopt, FlowControl::kValidData));
+                         std::nullopt, FlowControl::kValidData);
   BValue tkn = pb.Literal(Value::Token());
   pb.Receive(a_in, tkn);
   XLS_ASSERT_OK(pb.Build());
@@ -128,8 +126,7 @@ TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleInputChannelValidData) {
 TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleOutputChannel) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_out,
-                           pb.AddOutputChannel("a_out", p->GetBitsType(32)));
+  BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32));
   BValue tkn = pb.Literal(Value::Token());
   BValue lit = pb.Literal(Value(UBits(123, 32)));
   pb.Send(a_out, tkn, lit);
@@ -147,10 +144,9 @@ TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleOutputChannel) {
 TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleOutputChannelValidData) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto a_out,
+  BSendChannel a_out =
       pb.AddOutputChannel("a_out", p->GetBitsType(32), ChannelKind::kStreaming,
-                          std::nullopt, FlowControl::kValidData));
+                          std::nullopt, FlowControl::kValidData);
   BValue tkn = pb.Literal(Value::Token());
   BValue lit = pb.Literal(Value(UBits(123, 32)));
   pb.Send(a_out, tkn, lit);
@@ -204,10 +200,8 @@ TEST_F(ChannelToPortIoLoweringPassTest, MultiOutputWithOneShotLogic) {
   // (already_done registers).
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto ch_a,
-                           pb.AddOutputChannel("ch_a", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto ch_b,
-                           pb.AddOutputChannel("ch_b", p->GetBitsType(32)));
+  BSendChannel ch_a = pb.AddOutputChannel("ch_a", p->GetBitsType(32));
+  BSendChannel ch_b = pb.AddOutputChannel("ch_b", p->GetBitsType(32));
 
   BValue tkn = pb.Literal(Value::Token());
   BValue lit = pb.Literal(Value(UBits(123, 32)));
@@ -230,14 +224,11 @@ TEST_F(ChannelToPortIoLoweringPassTest, NoOneShotLogicForSingleValueChannel) {
   // streaming ones.
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto ch_a,
-                           pb.AddOutputChannel("ch_a", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto ch_b,
-                           pb.AddOutputChannel("ch_b", p->GetBitsType(32)));
+  BSendChannel ch_a = pb.AddOutputChannel("ch_a", p->GetBitsType(32));
+  BSendChannel ch_b = pb.AddOutputChannel("ch_b", p->GetBitsType(32));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto ch_c,
-                           pb.AddOutputChannel("ch_c", p->GetBitsType(32),
-                                               ChannelKind::kSingleValue));
+  BSendChannel ch_c = pb.AddOutputChannel("ch_c", p->GetBitsType(32),
+                                          ChannelKind::kSingleValue);
 
   BValue tkn = pb.Literal(Value::Token());
   BValue lit = pb.Literal(Value(UBits(123, 32)));
@@ -266,12 +257,9 @@ TEST_F(ChannelToPortIoLoweringPassTest,
   // one-shot logic.
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto ch_in,
-                           pb.AddInputChannel("ch_in", p->GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto ch_a,
-                           pb.AddOutputChannel("ch_a", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto ch_b,
-                           pb.AddOutputChannel("ch_b", p->GetBitsType(32)));
+  BReceiveChannel ch_in = pb.AddInputChannel("ch_in", p->GetBitsType(1));
+  BSendChannel ch_a = pb.AddOutputChannel("ch_a", p->GetBitsType(32));
+  BSendChannel ch_b = pb.AddOutputChannel("ch_b", p->GetBitsType(32));
 
   BValue tkn = pb.Literal(Value::Token());
   BValue lit = pb.Literal(Value(UBits(123, 32)));
@@ -296,9 +284,8 @@ TEST_F(ChannelToPortIoLoweringPassTest,
 TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleValueInputChannel) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32),
-                                              ChannelKind::kSingleValue));
+  BReceiveChannel a_in =
+      pb.AddInputChannel("a_in", p->GetBitsType(32), ChannelKind::kSingleValue);
 
   BValue tkn = pb.Literal(Value::Token());
   pb.Receive(a_in, tkn);
@@ -316,9 +303,8 @@ TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleValueInputChannel) {
 TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleValueOutputChannel) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_out,
-                           pb.AddOutputChannel("a_out", p->GetBitsType(32),
-                                               ChannelKind::kSingleValue));
+  BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32),
+                                           ChannelKind::kSingleValue);
 
   BValue tkn = pb.Literal(Value::Token());
   BValue lit = pb.Literal(Value(UBits(123, 32)));
@@ -337,8 +323,7 @@ TEST_F(ChannelToPortIoLoweringPassTest, LowerSingleValueOutputChannel) {
 TEST_F(ChannelToPortIoLoweringPassTest, LowerMultipleSendsSameChannel) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_out,
-                           pb.AddOutputChannel("a_out", p->GetBitsType(32)));
+  BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32));
 
   BValue tkn = pb.Literal(Value::Token());
   BValue lit1 = pb.Literal(Value(UBits(1, 32)));
@@ -366,10 +351,9 @@ TEST_F(ChannelToPortIoLoweringPassTest,
        LowerMultipleSendsSameChannelValidData) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto a_out,
+  BSendChannel a_out =
       pb.AddOutputChannel("a_out", p->GetBitsType(32), ChannelKind::kStreaming,
-                          std::nullopt, FlowControl::kValidData));
+                          std::nullopt, FlowControl::kValidData);
 
   BValue tkn = pb.Literal(Value::Token());
   BValue lit1 = pb.Literal(Value(UBits(1, 32)));
@@ -403,8 +387,7 @@ TEST_F(ChannelToPortIoLoweringPassTest,
 TEST_F(ChannelToPortIoLoweringPassTest, LowerMultipleReceivesSameChannel) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
 
   BValue tkn = pb.Literal(Value::Token());
   BValue p1 = pb.Literal(Value(UBits(1, 1)));
@@ -431,10 +414,9 @@ TEST_F(ChannelToPortIoLoweringPassTest,
        LowerMultipleReceivesSameChannelValidData) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto a_in,
+  BReceiveChannel a_in =
       pb.AddInputChannel("a_in", p->GetBitsType(32), ChannelKind::kStreaming,
-                         std::nullopt, FlowControl::kValidData));
+                         std::nullopt, FlowControl::kValidData);
 
   BValue tkn = pb.Literal(Value::Token());
   BValue p1 = pb.Literal(Value(UBits(1, 1)));
@@ -455,20 +437,17 @@ TEST_F(ChannelToPortIoLoweringPassTest,
 TEST_F(ChannelToPortIoLoweringPassTest, LowerInternalChannelNewStyle) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelWithInterfaces internal_ch,
-      pb.AddChannel("internal_ch", p->GetBitsType(32), ChannelKind::kStreaming,
-                    {},
-                    ChannelConfig()
-                        .WithFifoConfig(FifoConfig(
-                            /*depth=*/1,
-                            /*bypass=*/false,
-                            /*register_push_outputs=*/true,
-                            /*register_pop_outputs=*/false))
-                        .WithInputFlopKind(FlopKind::kNone)
-                        .WithOutputFlopKind(FlopKind::kNone)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
+  BChannelWithInterfaces internal_ch = pb.AddChannel(
+      "internal_ch", p->GetBitsType(32), ChannelKind::kStreaming, {},
+      ChannelConfig()
+          .WithFifoConfig(FifoConfig(
+              /*depth=*/1,
+              /*bypass=*/false,
+              /*register_push_outputs=*/true,
+              /*register_pop_outputs=*/false))
+          .WithInputFlopKind(FlopKind::kNone)
+          .WithOutputFlopKind(FlopKind::kNone));
 
   BValue tkn = pb.Literal(Value::Token());
   pb.Receive(a_in, tkn);
@@ -493,9 +472,8 @@ TEST_F(ChannelToPortIoLoweringPassTest, LowerInternalChannelNewStyle) {
 TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputFlop) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
-  a_in->SetFlopKind(FlopKind::kFlop);
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
+  a_in.channel_interface()->SetFlopKind(FlopKind::kFlop);
 
   BValue tkn = pb.Literal(Value::Token());
   pb.Receive(a_in, tkn);
@@ -513,11 +491,10 @@ TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputFlop) {
 TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputFlopValidData) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto a_in,
+  BReceiveChannel a_in =
       pb.AddInputChannel("a_in", p->GetBitsType(32), ChannelKind::kStreaming,
-                         std::nullopt, FlowControl::kValidData));
-  a_in->SetFlopKind(FlopKind::kFlop);
+                         std::nullopt, FlowControl::kValidData);
+  a_in.channel_interface()->SetFlopKind(FlopKind::kFlop);
 
   BValue tkn = pb.Literal(Value::Token());
   pb.Receive(a_in, tkn);
@@ -553,9 +530,8 @@ TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputFlopValidData) {
 TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputZeroLatency) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
-  a_in->SetFlopKind(FlopKind::kZeroLatency);
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
+  a_in.channel_interface()->SetFlopKind(FlopKind::kZeroLatency);
 
   BValue tkn = pb.Literal(Value::Token());
   pb.Receive(a_in, tkn);
@@ -573,9 +549,8 @@ TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputZeroLatency) {
 TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputSkid) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
-  a_in->SetFlopKind(FlopKind::kSkid);
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
+  a_in.channel_interface()->SetFlopKind(FlopKind::kSkid);
 
   BValue tkn = pb.Literal(Value::Token());
   pb.Receive(a_in, tkn);
@@ -595,9 +570,8 @@ TEST_F(ChannelToPortIoLoweringPassTest, StreamingInputSkid) {
 TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputFlop) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_out,
-                           pb.AddOutputChannel("a_out", p->GetBitsType(32)));
-  a_out->SetFlopKind(FlopKind::kFlop);
+  BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32));
+  a_out.channel_interface()->SetFlopKind(FlopKind::kFlop);
 
   BValue tkn = pb.Literal(Value::Token());
   BValue lit = pb.Literal(Value(UBits(123, 32)));
@@ -616,11 +590,10 @@ TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputFlop) {
 TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputFlopValidData) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto a_out,
+  BSendChannel a_out =
       pb.AddOutputChannel("a_out", p->GetBitsType(32), ChannelKind::kStreaming,
-                          std::nullopt, FlowControl::kValidData));
-  a_out->SetFlopKind(FlopKind::kFlop);
+                          std::nullopt, FlowControl::kValidData);
+  a_out.channel_interface()->SetFlopKind(FlopKind::kFlop);
 
   BValue tkn = pb.Literal(Value::Token());
   BValue lit = pb.Literal(Value(UBits(123, 32)));
@@ -655,9 +628,8 @@ TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputFlopValidData) {
 TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputSkid) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_out,
-                           pb.AddOutputChannel("a_out", p->GetBitsType(32)));
-  a_out->SetFlopKind(FlopKind::kSkid);
+  BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32));
+  a_out.channel_interface()->SetFlopKind(FlopKind::kSkid);
 
   BValue tkn = pb.Literal(Value::Token());
   BValue lit = pb.Literal(Value(UBits(123, 32)));
@@ -676,9 +648,8 @@ TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputSkid) {
 TEST_F(ChannelToPortIoLoweringPassTest, SingleValueInputFlop) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32),
-                                              ChannelKind::kSingleValue));
+  BReceiveChannel a_in =
+      pb.AddInputChannel("a_in", p->GetBitsType(32), ChannelKind::kSingleValue);
 
   BValue tkn = pb.Literal(Value::Token());
   pb.Receive(a_in, tkn);
@@ -698,9 +669,8 @@ TEST_F(ChannelToPortIoLoweringPassTest, SingleValueInputFlop) {
 TEST_F(ChannelToPortIoLoweringPassTest, SingleValueOutputFlop) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_out,
-                           pb.AddOutputChannel("a_out", p->GetBitsType(32),
-                                               ChannelKind::kSingleValue));
+  BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32),
+                                           ChannelKind::kSingleValue);
 
   BValue tkn = pb.Literal(Value::Token());
   BValue lit = pb.Literal(Value(UBits(123, 32)));
@@ -721,8 +691,7 @@ TEST_F(ChannelToPortIoLoweringPassTest, SingleValueOutputFlop) {
 TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsWithPredicate) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
   BValue tkn = pb.Literal(Value::Token());
   BValue pred = pb.Literal(Value(UBits(1, 1)));
   pb.ReceiveIf(a_in, tkn, pred);
@@ -743,8 +712,7 @@ TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsWithPredicate) {
 TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsNonBlocking) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
   BValue tkn = pb.Literal(Value::Token());
   pb.ReceiveNonBlocking(a_in, tkn);
   XLS_ASSERT_OK(pb.Build());
@@ -764,8 +732,7 @@ TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsNonBlocking) {
 TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsNonBlockingWithPredicate) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
   BValue tkn = pb.Literal(Value::Token());
   BValue pred = pb.Literal(Value(UBits(1, 1)));
   pb.ReceiveIfNonBlocking(a_in, tkn, pred);
@@ -786,8 +753,7 @@ TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsNonBlockingWithPredicate) {
 TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsBlockingNoPredicate) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
   BValue tkn = pb.Literal(Value::Token());
   pb.Receive(a_in, tkn);
   XLS_ASSERT_OK(pb.Build());
@@ -805,8 +771,7 @@ TEST_F(ChannelToPortIoLoweringPassTest, GateRecvsBlockingNoPredicate) {
 TEST_F(ChannelToPortIoLoweringPassTest, NoGateRecvsWithPredicate) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
   BValue tkn = pb.Literal(Value::Token());
   BValue pred = pb.Literal(Value(UBits(1, 1)));
   pb.ReceiveIf(a_in, tkn, pred);
@@ -825,8 +790,7 @@ TEST_F(ChannelToPortIoLoweringPassTest, NoGateRecvsWithPredicate) {
 TEST_F(ChannelToPortIoLoweringPassTest, NoGateRecvsNonBlocking) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
   BValue tkn = pb.Literal(Value::Token());
   pb.ReceiveNonBlocking(a_in, tkn);
   XLS_ASSERT_OK(pb.Build());
@@ -845,8 +809,7 @@ TEST_F(ChannelToPortIoLoweringPassTest, NoGateRecvsNonBlocking) {
 TEST_F(ChannelToPortIoLoweringPassTest, NoGateRecvsNonBlockingWithPredicate) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(32)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(32));
   BValue tkn = pb.Literal(Value::Token());
   BValue pred = pb.Literal(Value(UBits(1, 1)));
   pb.ReceiveIfNonBlocking(a_in, tkn, pred);
@@ -868,14 +831,10 @@ TEST_F(ChannelToPortIoLoweringPassTest,
        LowerThreeSendsSameChannelSelectorOrdering) {
   auto p = std::make_unique<Package>("test");
   ScheduledProcBuilder pb(NewStyleProc(), "test_main", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto p1_ch,
-                           pb.AddInputChannel("p1_ch", p->GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto p2_ch,
-                           pb.AddInputChannel("p2_ch", p->GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto p3_ch,
-                           pb.AddInputChannel("p3_ch", p->GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_out,
-                           pb.AddOutputChannel("a_out", p->GetBitsType(32)));
+  BReceiveChannel p1_ch = pb.AddInputChannel("p1_ch", p->GetBitsType(1));
+  BReceiveChannel p2_ch = pb.AddInputChannel("p2_ch", p->GetBitsType(1));
+  BReceiveChannel p3_ch = pb.AddInputChannel("p3_ch", p->GetBitsType(1));
+  BSendChannel a_out = pb.AddOutputChannel("a_out", p->GetBitsType(32));
 
   BValue tkn = pb.Literal(Value::Token());
   BValue p1_recv = pb.Receive(p1_ch, tkn);

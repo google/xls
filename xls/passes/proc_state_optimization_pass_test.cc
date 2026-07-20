@@ -189,17 +189,15 @@ TEST_F(BaseProcStateOptimizationPassTest, DecoupledDeadElements) {
   TokenlessProcBuilder pb("p", "tkn", p.get());
 
   // Register 'x': Live (read is sent to channel)
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_element,
-                           pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element);
   pb.Send(out, x_read);
   pb.Next(x_element, pb.Not(x_read));
 
   // Register 'y': Dead (has 1 read but it is unused, write is a constant)
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * y_element,
-                           pb.UnreadStateElement("y", Value(UBits(0, 32)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement y_element = pb.UnreadStateElement("y", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false);
   pb.StateRead(y_element);
   pb.Next(y_element, pb.Literal(UBits(5, 32)));
 
@@ -253,8 +251,7 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 0)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
-                           pb.AddOutputChannel("out", p->GetBitsType(32)));
+  BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(32));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   BValue send = pb.Send(out, pb.Concat({x, y}));
 
@@ -469,11 +466,9 @@ TEST_P(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
 TEST_F(BaseProcStateOptimizationPassTest, LiteralChainDecoupled) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
-                           pb.AddOutputChannel("out", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * x_elem,
-                           pb.UnreadStateElement("x", Value(UBits(100, 32)),
-                                                 /*non_synthesizable=*/false));
+  BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(32));
+  BStateElement x_elem = pb.UnreadStateElement("x", Value(UBits(100, 32)),
+                                               /*non_synthesizable=*/false);
   BValue x = pb.StateRead(x_elem);
   BValue lit = pb.Literal(Value(UBits(200, 32)));
   BValue send = pb.Send(out, x);

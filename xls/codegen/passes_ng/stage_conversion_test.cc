@@ -172,12 +172,9 @@ TEST_P(SweepPipelineStagesFixture, TrivialPipelinedProc) {
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
 
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * x_in,
-                           pb.AddInputChannel("x_in", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * y_in,
-                           pb.AddInputChannel("y_in", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * res_out,
-                           pb.AddOutputChannel("res_out", p->GetBitsType(32)));
+  BReceiveChannel x_in = pb.AddInputChannel("x_in", p->GetBitsType(32));
+  BReceiveChannel y_in = pb.AddInputChannel("y_in", p->GetBitsType(32));
+  BSendChannel res_out = pb.AddOutputChannel("res_out", p->GetBitsType(32));
   BValue z = pb.StateElement("z", Value(UBits(0, 32)));
   BValue x_pair = pb.Receive(x_in, pb.Literal(Value::Token()));
   BValue y_pair = pb.Receive(y_in, pb.Literal(Value::Token()));

@@ -56,9 +56,8 @@ absl::StatusOr<Proc*> CreateLeafProc(std::string_view name,
                                      Package* package) {
   TokenlessProcBuilder pb(NewStyleProc(), name, "tkn", package);
   for (int64_t i = 0; i < input_channel_count; ++i) {
-    XLS_RETURN_IF_ERROR(pb.AddInputChannel(absl::StrFormat("leaf_ch%d", i),
-                                           package->GetBitsType(32))
-                            .status());
+    pb.AddInputChannel(absl::StrFormat("leaf_ch%d", i),
+                       package->GetBitsType(32));
   }
   return pb.Build({});
 }
@@ -68,16 +67,15 @@ absl::StatusOr<Proc*> CreatePassThroughProc(std::string_view name,
                                             Proc* proc_to_instantiate,
                                             Package* package) {
   TokenlessProcBuilder pb(NewStyleProc(), name, "tkn", package);
-  std::vector<ChannelInterface*> channels;
+  std::vector<BChannelInterfaceRef> channels;
   for (int64_t i = 0; i < input_channel_count; ++i) {
-    XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_ref,
-                         pb.AddInputChannel(absl::StrFormat("pass_ch%d", i),
-                                            package->GetBitsType(32)));
+    BReceiveChannel channel_ref = pb.AddInputChannel(
+        absl::StrFormat("pass_ch%d", i), package->GetBitsType(32));
     channels.push_back(channel_ref);
   }
-  XLS_RETURN_IF_ERROR(pb.InstantiateProc(
+  pb.InstantiateProc(
       absl::StrFormat("%s_inst_%s", name, proc_to_instantiate->name()),
-      proc_to_instantiate, channels));
+      proc_to_instantiate, channels);
   return pb.Build({});
 }
 
@@ -87,21 +85,17 @@ absl::StatusOr<Proc*> CreateMultipleInstantiationProc(
     absl::Span<Proc* const> procs_to_instantiate, Package* package) {
   TokenlessProcBuilder pb(NewStyleProc(), name, "tkn", package);
   for (int64_t i = 0; i < input_channel_count; ++i) {
-    XLS_RETURN_IF_ERROR(pb.AddInputChannel(absl::StrFormat("input%d", i),
-                                           package->GetBitsType(32))
-                            .status());
+    pb.AddInputChannel(absl::StrFormat("input%d", i), package->GetBitsType(32));
   }
-  std::vector<ChannelInterface*> channels;
+  std::vector<BChannelInterfaceRef> channels;
   for (int64_t i = 0; i < instantiated_channel_count; ++i) {
-    XLS_ASSIGN_OR_RETURN(
-        ChannelWithInterfaces channel_refs,
-        pb.AddChannel(absl::StrFormat("ch%d", i), package->GetBitsType(32)));
+    BChannelWithInterfaces channel_refs =
+        pb.AddChannel(absl::StrFormat("ch%d", i), package->GetBitsType(32));
     channels.push_back(channel_refs.receive_interface);
   }
   for (int64_t i = 0; i < procs_to_instantiate.size(); ++i) {
-    XLS_RETURN_IF_ERROR(
-        pb.InstantiateProc(absl::StrFormat("%s_inst%d", name, i),
-                           procs_to_instantiate[i], channels));
+    pb.InstantiateProc(absl::StrFormat("%s_inst%d", name, i),
+                       procs_to_instantiate[i], channels);
   }
   return pb.Build({});
 }
@@ -163,12 +157,11 @@ TEST_F(ElaborationTest, ProcInstantiatingProc) {
       Proc * leaf_proc,
       CreateLeafProc("leaf", /*input_channel_count=*/2, p.get()));
   TokenlessProcBuilder pb(NewStyleProc(), "top_proc", "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_ch,
-                           pb.AddInputChannel("in_ch", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces the_channel_refs,
-                           pb.AddChannel("the_ch", p->GetBitsType(32)));
-  XLS_ASSERT_OK(pb.InstantiateProc(
-      "leaf_inst", leaf_proc, {the_channel_refs.receive_interface, in_ch}));
+  BReceiveChannel in_ch = pb.AddInputChannel("in_ch", p->GetBitsType(32));
+  BChannelWithInterfaces the_channel_refs =
+      pb.AddChannel("the_ch", p->GetBitsType(32));
+  pb.InstantiateProc("leaf_inst", leaf_proc,
+                     {the_channel_refs.receive_interface, in_ch});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
@@ -224,11 +217,9 @@ TEST_F(ElaborationTest, ProcInstantiatingProcInstantiatedProcEtc) {
                                           proc0, p.get()));
 
   TokenlessProcBuilder pb(NewStyleProc(), "top_proc", "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_ch0,
-                           pb.AddInputChannel("in_ch0", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_ch1,
-                           pb.AddInputChannel("in_ch1", p->GetBitsType(32)));
-  XLS_ASSERT_OK(pb.InstantiateProc("top_inst_1", proc1, {in_ch0, in_ch1}));
+  BReceiveChannel in_ch0 = pb.AddInputChannel("in_ch0", p->GetBitsType(32));
+  BReceiveChannel in_ch1 = pb.AddInputChannel("in_ch1", p->GetBitsType(32));
+  pb.InstantiateProc("top_inst_1", proc1, {in_ch0, in_ch1});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
@@ -338,7 +329,7 @@ TEST_F(ElaborationTest, ProcInstantiatingProcWithNoChannels) {
       Proc * leaf_proc,
       CreateLeafProc("foo", /*input_channel_count=*/0, p.get()));
   TokenlessProcBuilder pb(NewStyleProc(), "top_proc", "tkn", p.get());
-  XLS_ASSERT_OK(pb.InstantiateProc("foo_inst", leaf_proc, {}));
+  pb.InstantiateProc("foo_inst", leaf_proc, {});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
@@ -487,13 +478,11 @@ TEST_F(ElaborationTest, GraphMultipleEdgesNewStyle) {
   {
     TokenlessProcBuilder sb(NewStyleProc{}, "subproc", "tok", p.get());
     // subproc channels
-    XLS_ASSERT_OK_AND_ASSIGN(auto sub_inp1, sb.AddInputChannel("inp1", s32));
-    XLS_ASSERT_OK_AND_ASSIGN(auto sub_inp2, sb.AddInputChannel("inp2", s32));
-    XLS_ASSERT_OK_AND_ASSIGN(auto sub_inp3, sb.AddInputChannel("inp3", s32));
-    XLS_ASSERT_OK_AND_ASSIGN(auto sub_output1,
-                             sb.AddOutputChannel("output1", s32));
-    XLS_ASSERT_OK_AND_ASSIGN(auto sub_output2,
-                             sb.AddOutputChannel("output2", s32));
+    BReceiveChannel sub_inp1 = sb.AddInputChannel("inp1", s32);
+    BReceiveChannel sub_inp2 = sb.AddInputChannel("inp2", s32);
+    BReceiveChannel sub_inp3 = sb.AddInputChannel("inp3", s32);
+    BSendChannel sub_output1 = sb.AddOutputChannel("output1", s32);
+    BSendChannel sub_output2 = sb.AddOutputChannel("output2", s32);
     // subproc Next
     auto r1 = sb.Receive(sub_inp1);
     auto r2 = sb.Receive(sub_inp2);
@@ -506,18 +495,13 @@ TEST_F(ElaborationTest, GraphMultipleEdgesNewStyle) {
     TokenlessProcBuilder ib(NewStyleProc{}, "initiator", "tok", p.get());
     // initiator channels
     // config
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c1, i_snd_1, a_rcv_1]),
-                             ib.AddChannel("send_1", s32));
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c2, i_snd_2, a_rcv_2]),
-                             ib.AddChannel("send_2", s32));
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c3, i_snd_3, a_rcv_3]),
-                             ib.AddChannel("send_3", s32));
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c4, a_snd_1, i_rcv_1]),
-                             ib.AddChannel("recv_1", s32));
-    XLS_ASSERT_OK_AND_ASSIGN((auto [c5, a_snd_2, i_rcv_2]),
-                             ib.AddChannel("recv_2", s32));
-    XLS_ASSERT_OK(ib.InstantiateProc(
-        "subproc", subproc, {a_rcv_1, a_rcv_2, a_rcv_3, a_snd_1, a_snd_2}));
+    auto [c1, i_snd_1, a_rcv_1] = ib.AddChannel("send_1", s32);
+    auto [c2, i_snd_2, a_rcv_2] = ib.AddChannel("send_2", s32);
+    auto [c3, i_snd_3, a_rcv_3] = ib.AddChannel("send_3", s32);
+    auto [c4, a_snd_1, i_rcv_1] = ib.AddChannel("recv_1", s32);
+    auto [c5, a_snd_2, i_rcv_2] = ib.AddChannel("recv_2", s32);
+    ib.InstantiateProc("subproc", subproc,
+                       {a_rcv_1, a_rcv_2, a_rcv_3, a_snd_1, a_snd_2});
     // Next
     ib.Send(i_snd_1, ib.Literal(UBits(1, 32)));
     ib.Send(i_snd_2, ib.Literal(UBits(2, 32)));

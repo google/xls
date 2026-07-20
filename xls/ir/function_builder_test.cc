@@ -509,10 +509,9 @@ TEST(FunctionBuilderTest, UnreadStateElementAndStateRead) {
   Package p("p");
   ProcBuilder b("unread_state_test", &p);
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StateElement * state_element,
+  BStateElement state_element =
       b.UnreadStateElement("my_state", Value(UBits(42, 32)),
-                           /*non_synthesizable=*/false));
+                           /*non_synthesizable=*/false);
 
   BValue cond = b.Literal(UBits(1, 1));
   BValue not_cond = b.Not(cond);
@@ -528,7 +527,9 @@ TEST(FunctionBuilderTest, UnreadStateElementAndStateRead) {
   EXPECT_THAT(proc->StateElements(),
               ElementsAre(m::StateElement("my_state", Value(UBits(42, 32)))));
 
-  EXPECT_EQ(proc->GetStateReadsByStateElement(state_element).size(), 2);
+  EXPECT_EQ(
+      proc->GetStateReadsByStateElement(state_element.state_element()).size(),
+      2);
 }
 
 TEST(FunctionBuilderTest, SendAndReceive) {

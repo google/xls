@@ -153,10 +153,8 @@ TEST_F(GlobalChannelBlockStitchingPassTest, ProcWithProcScopedChannels) {
   Type* u32 = p_->GetBitsType(32);
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), /*token_name=*/"tkn",
                           p_.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_ch,
-                           pb.AddInputChannel("in_ch", u32));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out_ch,
-                           pb.AddOutputChannel("out_ch", u32));
+  BReceiveChannel in_ch = pb.AddInputChannel("in_ch", u32);
+  BSendChannel out_ch = pb.AddOutputChannel("out_ch", u32);
   BValue value = pb.Receive(in_ch);
   pb.Send(out_ch, value);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());

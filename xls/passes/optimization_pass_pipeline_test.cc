@@ -332,10 +332,8 @@ TEST_F(OptimizationPipelineTest, ProcScopedChannels) {
   Proc* leaf;
   {
     TokenlessProcBuilder pb(NewStyleProc(), "myleaf", "tkn", p.get());
-    XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in,
-                             pb.AddInputChannel("in", p->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
-                             pb.AddOutputChannel("out", p->GetBitsType(32)));
+    BReceiveChannel in = pb.AddInputChannel("in", p->GetBitsType(32));
+    BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(32));
 
     // Create an optimization opportunity (constant folding).
     BValue one = pb.Add(pb.Literal(UBits(0, 32)), pb.Literal(UBits(1, 32)));
@@ -348,21 +346,16 @@ TEST_F(OptimizationPipelineTest, ProcScopedChannels) {
   // value through the chain, accumulates it and then sends to the output.
   {
     TokenlessProcBuilder pb(NewStyleProc(), "myproc", "tkn", p.get());
-    XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in,
-                             pb.AddInputChannel("in", p->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
-                             pb.AddOutputChannel("out", p->GetBitsType(32)));
+    BReceiveChannel in = pb.AddInputChannel("in", p->GetBitsType(32));
+    BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(32));
 
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces tmp0_ch,
-                             pb.AddChannel("tmp0", p->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces tmp1_ch,
-                             pb.AddChannel("tmp1", p->GetBitsType(32)));
+    BChannelWithInterfaces tmp0_ch = pb.AddChannel("tmp0", p->GetBitsType(32));
+    BChannelWithInterfaces tmp1_ch = pb.AddChannel("tmp1", p->GetBitsType(32));
 
     BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
-    XLS_ASSERT_OK(
-        pb.InstantiateProc("inst0", leaf, {in, tmp0_ch.send_interface}));
-    XLS_ASSERT_OK(pb.InstantiateProc(
-        "inst1", leaf, {tmp0_ch.receive_interface, tmp1_ch.send_interface}));
+    pb.InstantiateProc("inst0", leaf, {in, tmp0_ch.send_interface});
+    pb.InstantiateProc("inst1", leaf,
+                       {tmp0_ch.receive_interface, tmp1_ch.send_interface});
     BValue next_accum = pb.Add(pb.Receive(tmp1_ch.receive_interface), accum);
     pb.Send(out, next_accum);
     XLS_ASSERT_OK(pb.SetAsTop());

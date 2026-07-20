@@ -48,8 +48,8 @@ TEST_F(RemoveIdentifersTest, BasicProc) {
       "nxt_tok",         "nxt_tok_val"};
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc{}, "the_answer_proc", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto orig_chan,
-                           pb.AddChannel("secret_tunnel", p->GetBitsType(32)));
+  BChannelWithInterfaces orig_chan =
+      pb.AddChannel("secret_tunnel", p->GetBitsType(32));
   auto tok = pb.StateElement("secret_handshake", Value::Token());
   auto start_param = pb.StateElement("astounding", Value(UBits(42, 32)));
   auto recv = pb.Receive(orig_chan.receive_interface, tok, SourceInfo(),
@@ -161,7 +161,7 @@ TEST_F(RemoveIdentifersTest, BasicBlock) {
       "start_rest",        "start_cutting", "pasta"};
   auto p = CreatePackage();
   BlockBuilder bb("the_secret_recipe", p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("kitchen_timer"));
+  bb.AddClockPort("kitchen_timer");
   auto i1 = bb.InputPort("flour", p->GetBitsType(10));
   auto i2 = bb.InputPort("water", p->GetBitsType(10));
   auto mix = bb.Add(i1, i2, SourceInfo(), "Mix");

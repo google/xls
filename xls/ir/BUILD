@@ -785,6 +785,7 @@ cc_library(
         ":value_builder",
         ":verifier",
         "//xls/common:symbolized_stacktrace",
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",

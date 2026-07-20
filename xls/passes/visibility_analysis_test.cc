@@ -431,12 +431,9 @@ TEST_F(VisibilityAnalysisTest, VisibilityThroughAnd) {
 TEST_F(VisibilityAnalysisTest, VisibilityThroughPredicate) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(4)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto b_in,
-                           pb.AddInputChannel("b_in", p->GetBitsType(4)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto out,
-                           pb.AddOutputChannel("out", p->GetBitsType(4)));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(4));
+  BReceiveChannel b_in = pb.AddInputChannel("b_in", p->GetBitsType(4));
+  BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(4));
   auto a_in_val = pb.Receive(a_in, SourceInfo(), "a_in_val");
   auto add = pb.Add(a_in_val, pb.Literal(UBits(1, 4)));
   // The predicate depends on b_in_val
@@ -736,19 +733,14 @@ TEST_F(VisibilityAnalysisTest, StateElementsCanBeMutualExclusive) {
   auto a = pb.StateElement("a", UBits(0, 4));
   auto b = pb.StateElement("b", UBits(0, 4));
   auto c = pb.StateElement("c", UBits(0, 4));
-  XLS_ASSERT_OK_AND_ASSIGN(auto input,
-                           pb.AddInputChannel("op", p->GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto a_in,
-                           pb.AddInputChannel("a_in", p->GetBitsType(4)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto b_in,
-                           pb.AddInputChannel("b_in", p->GetBitsType(4)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto c_in,
-                           pb.AddInputChannel("c_in", p->GetBitsType(4)));
+  BReceiveChannel input = pb.AddInputChannel("op", p->GetBitsType(1));
+  BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(4));
+  BReceiveChannel b_in = pb.AddInputChannel("b_in", p->GetBitsType(4));
+  BReceiveChannel c_in = pb.AddInputChannel("c_in", p->GetBitsType(4));
   auto op = pb.Receive(input);
   auto add = pb.Add(a, b);
   auto sub = pb.Subtract(b, c);
-  XLS_ASSERT_OK_AND_ASSIGN(auto out,
-                           pb.AddOutputChannel("out", p->GetBitsType(4)));
+  BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(4));
   pb.Send(out, pb.Select(op, add, sub));
   pb.ResetToken();
   pb.Next(a, pb.Receive(a_in));
@@ -809,8 +801,7 @@ TEST_F(VisibilityAnalysisTest, StateUsedInValueIsVisible) {
   auto a = pb.StateElement("a", UBits(0, 4));
   auto b = pb.StateElement("b", UBits(0, 4));
   pb.Next(b, b);
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
-                           pb.AddInputChannel("input", p->GetBitsType(4)));
+  BReceiveChannel chan = pb.AddInputChannel("input", p->GetBitsType(4));
   auto input = pb.Receive(chan);
   pb.Next(a, pb.Add(input, a));
   XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
@@ -838,8 +829,7 @@ TEST_F(VisibilityAnalysisTest, StateUsedInPredicateIsVisible) {
   auto a = pb.StateElement("a", UBits(0, 4));
   auto b = pb.StateElement("b", UBits(0, 4));
   pb.Next(b, b);
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
-                           pb.AddInputChannel("input", p->GetBitsType(4)));
+  BReceiveChannel chan = pb.AddInputChannel("input", p->GetBitsType(4));
   auto input = pb.Receive(chan);
   auto pred = pb.Ne(a, pb.Literal(UBits(5, 4)));
   pb.Next(a, input, pred);
@@ -869,16 +859,13 @@ TEST_F(VisibilityAnalysisTest, StateUsedInPredicateIsVisible) {
 TEST_F(VisibilityAnalysisTest, DecoupledNextNodeVisibility) {
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * a_elem,
-                           pb.UnreadStateElement("a", Value(UBits(0, 4)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement a_elem = pb.UnreadStateElement("a", Value(UBits(0, 4)),
+                                               /*non_synthesizable=*/false);
   BValue a = pb.StateRead(a_elem);
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * tok_elem,
-                           pb.UnreadStateElement("tkn", Value::Token(),
-                                                 /*non_synthesizable=*/false));
+  BStateElement tok_elem = pb.UnreadStateElement("tkn", Value::Token(),
+                                                 /*non_synthesizable=*/false);
   BValue tok = pb.StateRead(tok_elem);
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan,
-                           pb.AddInputChannel("input", p->GetBitsType(4)));
+  BReceiveChannel chan = pb.AddInputChannel("input", p->GetBitsType(4));
   auto input = pb.Receive(chan, tok);
   auto input_data = pb.TupleIndex(input, 1);
   auto input_tok = pb.TupleIndex(input, 0);

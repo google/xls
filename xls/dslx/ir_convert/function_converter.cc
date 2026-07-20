@@ -2735,8 +2735,9 @@ absl::Status FunctionConverter::HandleBuiltinRead(const Invocation* node) {
   XLS_RET_CHECK(builder_ptr != nullptr);
 
   // Create a new StateRead node.
-  BValue new_read = builder_ptr->StateRead(state_element, active, node->label(),
-                                           ToSourceInfo(node->span()));
+  BValue new_read =
+      builder_ptr->StateRead(BStateElement(state_element, builder_ptr), active,
+                             node->label(), ToSourceInfo(node->span()));
   Def(node, [&](const SourceInfo& loc) -> BValue {
     return function_builder_->Identity(new_read, loc);
   });
@@ -2802,7 +2803,8 @@ absl::Status FunctionConverter::HandleBuiltinWrite(const Invocation* node) {
 
   if (std::holds_alternative<xls::StateElement*>(*ir_val)) {
     xls::StateElement* state_element = std::get<xls::StateElement*>(*ir_val);
-    builder_ptr->Next(state_element, update_val, active, node->label());
+    builder_ptr->Next(BStateElement(state_element, builder_ptr), update_val,
+                      active, node->label());
   } else {
     XLS_ASSIGN_OR_RETURN(BValue state_read, Use(target));
     builder_ptr->Next(state_read, update_val, active, node->label());
@@ -3050,9 +3052,14 @@ absl::StatusOr<ChannelInterface*> FunctionConverter::ChannelToInterface(
       << "Channel nodes should only be encountered during Proc conversion; "
          "we seem to be in function conversion.";
   if (direction == ChannelDirection::kIn) {
-    return builder_ptr->GetReceiveChannelInterface(channel->name());
+    BReceiveChannel rcv =
+        builder_ptr->GetReceiveChannelInterface(channel->name());
+    XLS_RETURN_IF_ERROR(builder_ptr->GetError());
+    return rcv.channel_interface();
   }
-  return builder_ptr->GetSendChannelInterface(channel->name());
+  BSendChannel snd = builder_ptr->GetSendChannelInterface(channel->name());
+  XLS_RETURN_IF_ERROR(builder_ptr->GetError());
+  return snd.channel_interface();
 }
 
 absl::StatusOr<ChannelInterface*> FunctionConverter::IrValueToChannelInterface(
@@ -3139,10 +3146,11 @@ absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     result = builder_ptr->SendIf(
-        channel_ref, token_value,
+        BSendChannelRef(channel_ref), token_value,
         implicit_token_data_->create_control_predicate(), payload_value);
   } else {
-    result = builder_ptr->Send(channel_ref, token_value, payload_value);
+    result = builder_ptr->Send(BSendChannelRef(channel_ref), token_value,
+                               payload_value);
   }
   node_to_ir_[node] = result;
   tokens_.push_back(result);
@@ -3176,13 +3184,13 @@ absl::Status FunctionConverter::HandleBuiltinSendIf(const Invocation* node) {
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     result = builder_ptr->SendIf(
-        channel_ref, token_value,
+        BSendChannelRef(channel_ref), token_value,
         builder_ptr->And({implicit_token_data_->create_control_predicate(),
                           predicate_value}),
         payload_value);
   } else {
-    result = builder_ptr->SendIf(channel_ref, token_value, predicate_value,
-                                 payload_value);
+    result = builder_ptr->SendIf(BSendChannelRef(channel_ref), token_value,
+                                 predicate_value, payload_value);
   }
   node_to_ir_[node] = result;
   tokens_.push_back(result);
@@ -3242,10 +3250,10 @@ absl::Status FunctionConverter::HandleBuiltinRecv(const Invocation* node) {
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     value = builder_ptr->ReceiveIf(
-        channel_ref, token_value,
+        BReceiveChannelRef(channel_ref), token_value,
         implicit_token_data_->create_control_predicate());
   } else {
-    value = builder_ptr->Receive(channel_ref, token_value);
+    value = builder_ptr->Receive(BReceiveChannelRef(channel_ref), token_value);
   }
   BValue new_token_value = builder_ptr->TupleIndex(value, 0);
   tokens_.push_back(new_token_value);
@@ -3278,10 +3286,11 @@ absl::Status FunctionConverter::HandleBuiltinRecvNonBlocking(
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     recv = builder_ptr->ReceiveIfNonBlocking(
-        channel_ref, token_value,
+        BReceiveChannelRef(channel_ref), token_value,
         implicit_token_data_->create_control_predicate());
   } else {
-    recv = builder_ptr->ReceiveNonBlocking(channel_ref, token_value);
+    recv = builder_ptr->ReceiveNonBlocking(BReceiveChannelRef(channel_ref),
+                                           token_value);
   }
   BValue new_token_value = builder_ptr->TupleIndex(recv, 0);
   BValue received_value = builder_ptr->TupleIndex(recv, 1);
@@ -3327,11 +3336,12 @@ absl::Status FunctionConverter::HandleBuiltinRecvIf(const Invocation* node) {
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     recv = builder_ptr->ReceiveIf(
-        channel_ref, token_value,
+        BReceiveChannelRef(channel_ref), token_value,
         builder_ptr->And({implicit_token_data_->create_control_predicate(),
                           predicate_value}));
   } else {
-    recv = builder_ptr->ReceiveIf(channel_ref, token_value, predicate_value);
+    recv = builder_ptr->ReceiveIf(BReceiveChannelRef(channel_ref), token_value,
+                                  predicate_value);
   }
   BValue new_token_value = builder_ptr->TupleIndex(recv, 0);
   BValue received_value = builder_ptr->TupleIndex(recv, 1);
@@ -3375,12 +3385,12 @@ absl::Status FunctionConverter::HandleBuiltinRecvIfNonBlocking(
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     recv = builder_ptr->ReceiveIfNonBlocking(
-        channel_ref, token_value,
+        BReceiveChannelRef(channel_ref), token_value,
         builder_ptr->And({implicit_token_data_->create_control_predicate(),
                           predicate_value}));
   } else {
-    recv = builder_ptr->ReceiveIfNonBlocking(channel_ref, token_value,
-                                             predicate_value);
+    recv = builder_ptr->ReceiveIfNonBlocking(BReceiveChannelRef(channel_ref),
+                                             token_value, predicate_value);
   }
   BValue new_token_value = builder_ptr->TupleIndex(recv, 0);
   BValue received_value = builder_ptr->TupleIndex(recv, 1);
@@ -4331,14 +4341,15 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       state_name = absl::StrCat("__", p->identifier());
       Value init = f->params().size() > 1 ? initial_element.elements()[i]
                                           : initial_element;
-      XLS_ASSIGN_OR_RETURN(
-          xls::StateElement * unread_state_element,
+      xls::BStateElement unread_state_element =
           builder_ptr->UnreadStateElement(state_name, init,
-                                          /*non_synthesizable=*/false));
+                                          /*non_synthesizable=*/false);
+      XLS_RETURN_IF_ERROR(builder_ptr->GetError());
       state_name_proto->set_name(state_name);
       XLS_ASSIGN_OR_RETURN(auto type, ResolveTypeToIr(p->type_annotation()));
       *state_name_proto->mutable_type() = type->ToProto();
-      SetNodeToIr(f->params()[i]->name_def(), unread_state_element);
+      SetNodeToIr(f->params()[i]->name_def(),
+                  unread_state_element.state_element());
     }
   } else {
     state = builder_ptr->StateElement(state_name, initial_element);

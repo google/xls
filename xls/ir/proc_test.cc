@@ -291,17 +291,18 @@ TEST_F(ProcTest, RemoveStateThatStillHasUse) {
 TEST_F(ProcTest, GetNextStateReadDecoupled) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(TestName(), "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_elem,
-                           pb.UnreadStateElement("x", Value(UBits(42, 32)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement state_elem = pb.UnreadStateElement("x", Value(UBits(42, 32)),
+                                                   /*non_synthesizable=*/false);
   BValue read = pb.StateRead(state_elem);
   BValue next_val = pb.Add(read, pb.Literal(Value(UBits(1, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  StateRead* state_read = proc->GetStateReadByStateElement(state_elem);
+  StateRead* state_read =
+      proc->GetStateReadByStateElement(state_elem.state_element());
   EXPECT_EQ(state_read->GetNextValues().size(), 0);
 
-  XLS_ASSERT_OK(proc->MakeNodeWithName<Next>(SourceInfo(), state_elem,
+  XLS_ASSERT_OK(proc->MakeNodeWithName<Next>(SourceInfo(),
+                                             state_elem.state_element(),
                                              next_val.node(),
                                              /*predicate=*/std::nullopt,
                                              /*label=*/std::nullopt, "x_next")
@@ -311,26 +312,27 @@ TEST_F(ProcTest, GetNextStateReadDecoupled) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Literal * next_value,
       proc->MakeNode<Literal>(SourceInfo(), Value(UBits(43, 32))));
-  XLS_ASSERT_OK(
-      proc->MakeNodeWithName<Next>(SourceInfo(), state_elem, next_value,
-                                   /*predicate=*/std::nullopt,
-                                   /*label=*/std::nullopt, "second_next")
-          .status());
+  XLS_ASSERT_OK(proc->MakeNodeWithName<Next>(
+                        SourceInfo(), state_elem.state_element(), next_value,
+                        /*predicate=*/std::nullopt,
+                        /*label=*/std::nullopt, "second_next")
+                    .status());
   EXPECT_EQ(state_read->GetNextValues().size(), 2);
-  EXPECT_THAT(state_read->GetNextValues(),
-              UnorderedElementsAre(
-                  m::NextWithStateElement(state_elem, m::Add()),
-                  m::NextWithStateElement(state_elem, m::Literal(43))));
+  EXPECT_THAT(
+      state_read->GetNextValues(),
+      UnorderedElementsAre(
+          m::NextWithStateElement(state_elem.state_element(), m::Add()),
+          m::NextWithStateElement(state_elem.state_element(), m::Literal(43))));
 }
 
 TEST_F(ProcTest, InsertStateElementDecoupled) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element,
-                           pb.UnreadStateElement("st", Value(UBits(42, 32)),
-                                                 /*non_synthesizable=*/false));
-  pb.StateRead(state_element, std::nullopt);
-  pb.Next(state_element, pb.Literal(UBits(1, 32)));
+  BStateElement b_state_element =
+      pb.UnreadStateElement("st", Value(UBits(42, 32)),
+                            /*non_synthesizable=*/false);
+  pb.StateRead(b_state_element, std::nullopt);
+  pb.Next(b_state_element, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_TRUE(proc->uses_decoupled_next());
@@ -408,10 +410,9 @@ TEST_F(ProcTest, CloneProcScopedChannel) {
   auto p = CreatePackage();
 
   ProcBuilder pb(NewStyleProc(), "p", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto inp, pb.AddInputChannel("input_chan", p->GetBitsType(32), {}));
-  XLS_ASSERT_OK_AND_ASSIGN(auto out,
-                           pb.AddOutputChannel("chan", p->GetBitsType(32), {}));
+  BReceiveChannel inp =
+      pb.AddInputChannel("input_chan", p->GetBitsType(32), {});
+  BSendChannel out = pb.AddOutputChannel("chan", p->GetBitsType(32), {});
   BValue tkn = pb.StateElement("tkn", Value::Token());
   BValue state = pb.StateElement("st", Value(UBits(42, 32)));
   BValue recv = pb.Receive(inp, tkn);
@@ -457,12 +458,9 @@ proc cloned<input_chan: bits[32] in, chan: bits[32] out>(tkn: token, state: bits
 TEST_F(ProcTest, CloneNewStyle) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * ch_a,
-                           pb.AddInputChannel("a", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * ch_b,
-                           pb.AddOutputChannel("b", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces ch_c,
-                           pb.AddChannel("c", p->GetBitsType(32), {}));
+  BReceiveChannel ch_a = pb.AddInputChannel("a", p->GetBitsType(32));
+  BSendChannel ch_b = pb.AddOutputChannel("b", p->GetBitsType(32));
+  BChannelWithInterfaces ch_c = pb.AddChannel("c", p->GetBitsType(32), {});
 
   BValue state = pb.StateElement("st", Value(UBits(42, 32)));
   BValue recv_a = pb.Receive(ch_a);
@@ -645,9 +643,9 @@ TEST_F(ProcTest, TransformStateElementDecoupled) {
   TokenlessProcBuilder pb(TestName(), "tkn", p.get());
   auto cond = pb.StateElement("cond", UBits(0, 1));
 
-  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state_element,
-                           pb.UnreadStateElement("st", Value(UBits(0b1010, 4)),
-                                                 /*non_synthesizable=*/false));
+  BStateElement state_element =
+      pb.UnreadStateElement("st", Value(UBits(0b1010, 4)),
+                            /*non_synthesizable=*/false);
 
   BValue st_read = pb.StateRead(state_element, std::nullopt, "my_read_label");
 
@@ -666,7 +664,8 @@ TEST_F(ProcTest, TransformStateElementDecoupled) {
   ScopedRecordIr sri(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       StateElement * new_st_element,
-      proc->TransformStateElement(state_element, Value(UBits(0b0101, 4)), tt));
+      proc->TransformStateElement(state_element.state_element(),
+                                  Value(UBits(0b0101, 4)), tt));
   StateRead* new_st = proc->GetStateReadByStateElement(new_st_element);
 
   // Make sure the st next has been identity-ified (dummy value Zero is set
@@ -675,12 +674,13 @@ TEST_F(ProcTest, TransformStateElementDecoupled) {
   EXPECT_THAT(st_read.node()->users(), ::testing::IsEmpty());
 
   // Verify old next nodes are identity-ified (labeled and unlabeled)
-  EXPECT_THAT(add_st.node(), m::NextWithStateElementWithLabel(
-                                 state_element, m::Literal(0), cond.node(),
-                                 std::optional<std::string>("my_next_label")));
+  EXPECT_THAT(add_st.node(),
+              m::NextWithStateElementWithLabel(
+                  state_element.state_element(), m::Literal(0), cond.node(),
+                  std::optional<std::string>("my_next_label")));
   EXPECT_THAT(sub_st.node(),
-              m::NextWithStateElement(state_element, m::Literal(0),
-                                      m::Not(cond.node())));
+              m::NextWithStateElement(state_element.state_element(),
+                                      m::Literal(0), m::Not(cond.node())));
 
   // Make sure that 'new_state_read' takes over the name and everything.
   EXPECT_THAT(new_st,

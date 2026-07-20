@@ -1933,9 +1933,9 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
       // Translate MLIR BlockOp to XLS IR Block.
       BlockBuilder bb(block_op.getSymName(), package.get());
 
-      // Add clock port if present.
       if (auto clock_name = block_op.getClockName()) {
-        if (auto status = bb.AddClockPort(clock_name->str()); !status.ok()) {
+        bb.AddClockPort(clock_name->str());
+        if (auto status = bb.GetError(); !status.ok()) {
           block_op.emitOpError()
               << "failed to add clock port: " << status.message();
           return failure();

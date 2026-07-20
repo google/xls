@@ -726,10 +726,8 @@ TEST_F(UnrollProcUntimedTest, SkipSendAndRecv) {
   {
     ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_slowed_proc"),
                    p.get());
-    XLS_ASSERT_OK_AND_ASSIGN(auto input_ch,
-                             pb.AddInputChannel("input", p->GetBitsType(4)));
-    XLS_ASSERT_OK_AND_ASSIGN(auto output_ch,
-                             pb.AddOutputChannel("output", p->GetBitsType(4)));
+    BReceiveChannel input_ch = pb.AddInputChannel("input", p->GetBitsType(4));
+    BSendChannel output_ch = pb.AddOutputChannel("output", p->GetBitsType(4));
     auto delay = pb.StateElement("delay", UBits(0, 1));
     auto tok = pb.Literal(Value::Token());
     auto recv = pb.ReceiveIf(input_ch, tok, delay);
@@ -759,14 +757,10 @@ TEST_F(UnrollProcUntimedTest, SkipSendAndRecv) {
 TEST_F(UnrollProcUntimedTest, MultipleChans) {
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_proc"), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_a,
-                           pb.AddInputChannel("chan_a", p->GetBitsType(4)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto ret_a,
-                           pb.AddOutputChannel("ret_a", p->GetBitsType(4)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_b,
-                           pb.AddInputChannel("chan_b", p->GetBitsType(4)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto ret_b,
-                           pb.AddOutputChannel("ret_b", p->GetBitsType(4)));
+  BReceiveChannel chan_a = pb.AddInputChannel("chan_a", p->GetBitsType(4));
+  BSendChannel ret_a = pb.AddOutputChannel("ret_a", p->GetBitsType(4));
+  BReceiveChannel chan_b = pb.AddInputChannel("chan_b", p->GetBitsType(4));
+  BSendChannel ret_b = pb.AddOutputChannel("ret_b", p->GetBitsType(4));
   auto tok = pb.Literal(Value::Token());
   auto idx = pb.StateElement("idx", UBits(0, 3));
   auto send_a = pb.ULt(idx, pb.Literal(UBits(2, 3)));
@@ -822,14 +816,10 @@ TEST_F(UnrollProcUntimedTest, PartialActivation) {
   // Make sure the token edge does prevent a recv/send from occurring.
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_proc"), p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_a,
-                           pb.AddInputChannel("chan_a", p->GetBitsType(4)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto ret_a,
-                           pb.AddOutputChannel("ret_a", p->GetBitsType(4)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto chan_b,
-                           pb.AddInputChannel("chan_b", p->GetBitsType(4)));
-  XLS_ASSERT_OK_AND_ASSIGN(auto ret_b,
-                           pb.AddOutputChannel("ret_b", p->GetBitsType(4)));
+  BReceiveChannel chan_a = pb.AddInputChannel("chan_a", p->GetBitsType(4));
+  BSendChannel ret_a = pb.AddOutputChannel("ret_a", p->GetBitsType(4));
+  BReceiveChannel chan_b = pb.AddInputChannel("chan_b", p->GetBitsType(4));
+  BSendChannel ret_b = pb.AddOutputChannel("ret_b", p->GetBitsType(4));
   auto tok = pb.Literal(Value::Token());
   auto idx = pb.StateElement("idx", UBits(0, 4));
   auto do_it = pb.StateElement("send_it", UBits(0, 1));
@@ -903,10 +893,8 @@ TEST_F(UnrollProcUntimedTest, Rotated) {
     ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_normal_proc"),
                    p.get());
 
-    XLS_ASSERT_OK_AND_ASSIGN(auto input_ch,
-                             pb.AddInputChannel("input", p->GetBitsType(4)));
-    XLS_ASSERT_OK_AND_ASSIGN(auto output_ch,
-                             pb.AddOutputChannel("output", p->GetBitsType(4)));
+    BReceiveChannel input_ch = pb.AddInputChannel("input", p->GetBitsType(4));
+    BSendChannel output_ch = pb.AddOutputChannel("output", p->GetBitsType(4));
     auto st = pb.StateElement("state", UBits(0, 4));
     auto tok = pb.Send(output_ch, pb.Literal(Value::Token()), st);
     auto recv = pb.TupleIndex(pb.Receive(input_ch, tok), 1);
@@ -916,10 +904,8 @@ TEST_F(UnrollProcUntimedTest, Rotated) {
   {
     ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_rotated_proc"),
                    p.get());
-    XLS_ASSERT_OK_AND_ASSIGN(auto input_ch,
-                             pb.AddInputChannel("input", p->GetBitsType(4)));
-    XLS_ASSERT_OK_AND_ASSIGN(auto output_ch,
-                             pb.AddOutputChannel("output", p->GetBitsType(4)));
+    BReceiveChannel input_ch = pb.AddInputChannel("input", p->GetBitsType(4));
+    BSendChannel output_ch = pb.AddOutputChannel("output", p->GetBitsType(4));
     auto tok = pb.StateElement("tok", Value::Token());
     auto first = pb.StateElement("first", UBits(1, 1));
     auto recv = pb.ReceiveIf(input_ch, tok, pb.Not(first));

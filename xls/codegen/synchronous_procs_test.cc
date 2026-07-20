@@ -78,29 +78,23 @@ TEST_P(SynchronousProcsTest, NestedProc) {
 
   // Top proc passes input/output transparently to instantiationed subproc.
   TokenlessProcBuilder pb(NewStyleProc(), "my_proc", "tkn", &package);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ReceiveChannelInterface * in,
-      pb.AddInputChannel("top_in", package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      SendChannelInterface * out,
-      pb.AddOutputChannel("top_out", package.GetBitsType(32)));
+  BReceiveChannel in = pb.AddInputChannel("top_in", package.GetBitsType(32));
+  BSendChannel out = pb.AddOutputChannel("top_out", package.GetBitsType(32));
 
   Proc* subproc;
   {
     // Subproc adds one to its input.
     TokenlessProcBuilder sub_pb(NewStyleProc(), "subproc", "tkn", &package);
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * sub_in,
-        sub_pb.AddInputChannel("sub_in", package.GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * sub_out,
-        sub_pb.AddOutputChannel("sub_out", package.GetBitsType(32)));
+    BReceiveChannel sub_in =
+        sub_pb.AddInputChannel("sub_in", package.GetBitsType(32));
+    BSendChannel sub_out =
+        sub_pb.AddOutputChannel("sub_out", package.GetBitsType(32));
     sub_pb.Send(sub_out, sub_pb.Add(sub_pb.Receive(sub_in),
                                     sub_pb.Literal(UBits(1, 32))));
     XLS_ASSERT_OK_AND_ASSIGN(subproc, sub_pb.Build());
   }
 
-  XLS_ASSERT_OK(pb.InstantiateProc("inst1", subproc, {in, out}));
+  pb.InstantiateProc("inst1", subproc, {in, out});
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
   XLS_ASSERT_OK(package.SetTop(top));
@@ -153,34 +147,27 @@ TEST_P(SynchronousProcsTest, ChainedProc) {
   // itself.
   TokenlessProcBuilder pb(NewStyleProc(), "my_proc", "tkn", &package);
   Type* u32 = package.GetBitsType(32);
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in,
-                           pb.AddInputChannel("top_in", u32));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
-                           pb.AddOutputChannel("top_out", u32));
+  BReceiveChannel in = pb.AddInputChannel("top_in", u32);
+  BSendChannel out = pb.AddOutputChannel("top_out", u32);
 
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces tmp1_ch,
-                           pb.AddChannel("tmp1", u32));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces tmp2_ch,
-                           pb.AddChannel("tmp2", u32));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces tmp3_ch,
-                           pb.AddChannel("tmp3", u32));
+  BChannelWithInterfaces tmp1_ch = pb.AddChannel("tmp1", u32);
+  BChannelWithInterfaces tmp2_ch = pb.AddChannel("tmp2", u32);
+  BChannelWithInterfaces tmp3_ch = pb.AddChannel("tmp3", u32);
 
-  absl::down_cast<StreamingChannel*>(tmp1_ch.channel)
+  absl::down_cast<StreamingChannel*>(tmp1_ch.channel.channel())
       ->SetChannelConfig(ChannelConfig(kDepth1Fifo.config));
-  absl::down_cast<StreamingChannel*>(tmp2_ch.channel)
+  absl::down_cast<StreamingChannel*>(tmp2_ch.channel.channel())
       ->SetChannelConfig(ChannelConfig(kDepth1Fifo.config));
-  absl::down_cast<StreamingChannel*>(tmp3_ch.channel)
+  absl::down_cast<StreamingChannel*>(tmp3_ch.channel.channel())
       ->SetChannelConfig(ChannelConfig(kDepth1Fifo.config));
 
   Proc* subproc1;
   {
     TokenlessProcBuilder sub_pb(NewStyleProc(), "subproc1", "tkn", &package);
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * sub_in,
-        sub_pb.AddInputChannel("sub1_in", package.GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * sub_out,
-        sub_pb.AddOutputChannel("sub1_out", package.GetBitsType(32)));
+    BReceiveChannel sub_in =
+        sub_pb.AddInputChannel("sub1_in", package.GetBitsType(32));
+    BSendChannel sub_out =
+        sub_pb.AddOutputChannel("sub1_out", package.GetBitsType(32));
     sub_pb.Send(sub_out,
                 sub_pb.Negate(sub_pb.Add(sub_pb.Receive(sub_in),
                                          sub_pb.Literal(UBits(1, 32)))));
@@ -190,12 +177,10 @@ TEST_P(SynchronousProcsTest, ChainedProc) {
   Proc* subproc2;
   {
     TokenlessProcBuilder sub_pb(NewStyleProc(), "subproc2", "tkn", &package);
-    XLS_ASSERT_OK_AND_ASSIGN(
-        ReceiveChannelInterface * sub_in,
-        sub_pb.AddInputChannel("sub2_in", package.GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(
-        SendChannelInterface * sub_out,
-        sub_pb.AddOutputChannel("sub2_out", package.GetBitsType(32)));
+    BReceiveChannel sub_in =
+        sub_pb.AddInputChannel("sub2_in", package.GetBitsType(32));
+    BSendChannel sub_out =
+        sub_pb.AddOutputChannel("sub2_out", package.GetBitsType(32));
     sub_pb.Send(sub_out, sub_pb.UMul(sub_pb.Receive(sub_in),
                                      sub_pb.Literal(UBits(2, 32))));
     XLS_ASSERT_OK_AND_ASSIGN(subproc2, sub_pb.Build());
@@ -204,10 +189,10 @@ TEST_P(SynchronousProcsTest, ChainedProc) {
   BValue negated_input = pb.Negate(pb.Receive(in));
   pb.Send(tmp1_ch.send_interface, negated_input);
 
-  XLS_ASSERT_OK(pb.InstantiateProc(
-      "inst1", subproc1, {tmp1_ch.receive_interface, tmp2_ch.send_interface}));
-  XLS_ASSERT_OK(pb.InstantiateProc(
-      "inst2", subproc2, {tmp2_ch.receive_interface, tmp3_ch.send_interface}));
+  pb.InstantiateProc("inst1", subproc1,
+                     {tmp1_ch.receive_interface, tmp2_ch.send_interface});
+  pb.InstantiateProc("inst2", subproc2,
+                     {tmp2_ch.receive_interface, tmp3_ch.send_interface});
 
   pb.Send(out, pb.Add(negated_input, pb.Receive(tmp3_ch.receive_interface)));
 

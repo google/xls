@@ -233,7 +233,7 @@ top proc add(__token: token, init={token}) {
 TEST_F(ExtractInterfaceTest, BasicBlock) {
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());
-  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.AddClockPort("clk");
   bb.OutputPort(
       "baz", bb.InsertRegister("foo", bb.InputPort("bar", p->GetBitsType(32))));
   XLS_ASSERT_OK(bb.Build().status());

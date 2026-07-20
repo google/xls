@@ -22,6 +22,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 
@@ -55,11 +56,11 @@ absl::StatusOr<ChannelRef> ProcScopedChannelScope::CreateChannel(
   }
 
   // Create a proc-scoped channel on the proc.
-  XLS_ASSIGN_OR_RETURN(
-      auto channel_with_interfaces,
+  BChannelWithInterfaces channel_with_interfaces =
       proc_builder_->AddChannel(name, type, ChannelKind::kStreaming,
-                                /*initial_values=*/{}, channel_config));
-  return channel_with_interfaces.channel;
+                                /*initial_values=*/{}, channel_config);
+  XLS_RETURN_IF_ERROR(proc_builder_->GetError());
+  return channel_with_interfaces.channel.channel();
 }
 
 }  // namespace xls::dslx
