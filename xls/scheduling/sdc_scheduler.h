@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -35,7 +36,6 @@
 #include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/scheduler.h"
 #include "xls/scheduling/scheduling_options.h"
-#include "ortools/math_opt/cpp/math_opt.h"
 
 namespace xls {
 

@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
@@ -39,7 +40,6 @@
 #include "xls/ir/package.h"
 #include "xls/solvers/solver.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
-#include "ortools/math_opt/cpp/math_opt.h"
 
 namespace xls {
 

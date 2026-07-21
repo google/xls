@@ -23,6 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 #include "ortools/pdlp/solvers.pb.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/scoped_record_logs.h"
@@ -43,7 +44,6 @@
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
-#include "ortools/math_opt/cpp/math_opt.h"
 
 namespace xls {
 namespace {

@@ -32,12 +32,12 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
-#include "ortools/math_opt/cpp/math_opt.h"
 #include "ortools/math_opt/parameters.pb.h"
 
 struct ChannelDelayMap {

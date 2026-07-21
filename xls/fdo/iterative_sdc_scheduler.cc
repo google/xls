@@ -34,6 +34,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -46,7 +47,6 @@
 #include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
-#include "ortools/math_opt/cpp/math_opt.h"
 
 namespace xls {
 

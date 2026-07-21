@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 #include "xls/common/visitor.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/channel.h"
@@ -40,7 +41,6 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/solvers/solver.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
-#include "ortools/math_opt/cpp/math_opt.h"
 
 namespace xls {
 
