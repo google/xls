@@ -64,7 +64,7 @@ single_version_override(
     patches = ["//dependency_support/grpc:typing_extensions.patch"],
 )
 
-bazel_dep(name = "linenoise", version = "2.0.0")
+bazel_dep(name = "linenoise", version = "2.0.0.bcr.1")
 bazel_dep(name = "nlohmann_json", version = "3.12.0.bcr.1")
 bazel_dep(name = "or-tools", version = "9.15")
 
