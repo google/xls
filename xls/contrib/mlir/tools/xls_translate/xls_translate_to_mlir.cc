@@ -1600,10 +1600,7 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
 
     if (n->Is<::xls::Next>()) {
       auto xls_next = n->As<::xls::Next>();
-      auto state_elem_name = xls_next->state_read()
-                                 ->As<::xls::StateRead>()
-                                 ->state_element()
-                                 ->name();
+      auto state_elem_name = xls_next->state_element()->name();
       next_value_ops[state_elem_name].push_back(xls_next);
       continue;
     }

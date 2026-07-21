@@ -554,6 +554,67 @@ TEST_P(ProcStateLegalizationPassTest,
 }
 
 TEST_P(ProcStateLegalizationPassTest,
+       DecoupledProcWithCorrectlyPredicatedStateReadAndNoDefaultNextNeeded) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false);
+  BValue x_read = pb.StateRead(x_element);
+  BValue x_multiple_of_3 = pb.Eq(pb.UMod(x_read, pb.Literal(UBits(3, 32))),
+                                 pb.Literal(UBits(0, 32)));
+  BValue x_not_multiple_of_3 = pb.Not(x_multiple_of_3);
+  BValue disjunction = pb.Or(x_multiple_of_3, x_not_multiple_of_3);
+  BStateElement y_element = pb.UnreadStateElement("y", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false);
+  BValue y_read = pb.StateRead(y_element, disjunction);
+  pb.Next(x_element, pb.Add(x_read, pb.Literal(UBits(1, 32))));
+  pb.Next(y_element, pb.Add(y_read, pb.Literal(UBits(1, 32))), x_multiple_of_3);
+  pb.Next(y_element, y_read, x_not_multiple_of_3);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
+
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+
+  const testing::Matcher<const Node*> expected_read_predicate = m::Or(
+      m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
+      m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))));
+  EXPECT_THAT(
+      proc->GetStateReadByStateElement(*proc->GetStateElementByName("y"))
+          ->predicate(),
+      Optional(expected_read_predicate));
+  EXPECT_THAT(
+      proc->next_values(*proc->GetStateElementByName("y")),
+      UnorderedElementsAre(
+          m::NextWithStateElement(
+              y_element.state_element(),
+              m::Add(m::StateRead("y"), m::Literal(1)),
+              m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))),
+          m::NextWithStateElement(
+              y_element.state_element(), m::StateRead("y"),
+              m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                           m::Literal(0))))));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(
+      asserts,
+      UnorderedElementsAre(
+          m::Assert(_, m::Eq(m::Concat(x_multiple_of_3.node(),
+                                       x_not_multiple_of_3.node()),
+                             m::BitSlice(m::OneHot(m::Concat())))),
+          m::Assert(
+              _, m::Or(expected_read_predicate,
+                       m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                    m::Literal(0))))),
+          m::Assert(_, m::Or(expected_read_predicate,
+                             m::Not(m::Not(m::Eq(
+                                 m::UMod(m::StateRead("x"), m::Literal(3)),
+                                 m::Literal(0))))))));
+}
+
+TEST_P(ProcStateLegalizationPassTest,
        DecoupledUnconditionalReadAndNextNoDefaultNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());

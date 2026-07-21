@@ -417,7 +417,10 @@ class DecomposeDataflowVisitor final : public DataflowVisitor<Node*> {
     std::vector<Node*> new_args;
     new_args.reserve(node->operands().size());
     for (Node* arg : node->operands()) {
-      if (node->Is<Next>() && arg == node->As<Next>()->state_read()) {
+      if (node->Is<Next>() &&
+          arg ==
+              node->function_base()->AsProcOrDie()->GetStateReadByStateElement(
+                  node->As<Next>()->state_element())) {
         // Don't decompose state reads. Leave pass-throughs alone and never
         // touch the original read.
         new_args.push_back(arg);

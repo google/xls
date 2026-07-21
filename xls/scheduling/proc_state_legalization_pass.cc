@@ -70,7 +70,8 @@ absl::StatusOr<bool> LegalizeStateReadPredicate(
   predicates.reserve(1 + next_values.size());
   predicates_set.reserve(next_values.size());
   for (Next* next : next_values) {
-    if (next->state_read() == next->value()) {
+    if (proc->GetStateReadByStateElement(next->state_element()) ==
+        next->value()) {
       // This is a no-op next_value; we will narrow it to the case where the
       // state read is active instead.
       continue;

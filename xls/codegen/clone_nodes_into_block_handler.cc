@@ -760,15 +760,16 @@ absl::Status CloneNodesIntoBlockHandler::HandleNextValue(Node* node,
                                                          Stage stage) {
   Proc* proc = function_base_->AsProcOrDie();
   Next* next = node->As<Next>();
-  StateElement* state_element =
-      next->state_read()->As<StateRead>()->state_element();
+  StateElement* state_element = next->state_element();
   XLS_ASSIGN_OR_RETURN(int64_t index,
                        proc->GetStateElementIndex(state_element));
 
   StateRegister& state_register = *result_.state_registers.at(index);
+  bool equivalent_value =
+      next->value() == proc->GetStateReadByStateElement(state_element);
   state_register.next_values.push_back(
       {.stage = stage,
-       .value = next->value() == next->state_read()
+       .value = equivalent_value
                     ? std::nullopt
                     : std::make_optional(node_map_.at(next->value())),
        .predicate =

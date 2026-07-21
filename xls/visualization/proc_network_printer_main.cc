@@ -295,10 +295,9 @@ absl::Status RealMain(std::string_view ir_path, std::string_view schedule_path,
       }
       if (n->OpIn({Op::kStateRead, Op::kNext})) {
         int64_t cycle = schedule.cycle(n);
-        StateElement* state =
-            n->op() == Op::kStateRead
-                ? n->As<StateRead>()->state_element()
-                : n->As<Next>()->state_read()->As<StateRead>()->state_element();
+        StateElement* state = n->op() == Op::kStateRead
+                                  ? n->As<StateRead>()->state_element()
+                                  : n->As<Next>()->state_element();
 
         state_operations[absl::StrCat(
                              FunctionName(f->name(), collapse_functions,

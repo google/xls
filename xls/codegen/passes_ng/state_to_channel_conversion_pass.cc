@@ -59,7 +59,8 @@ absl::StatusOr<bool> StateToChannelConversionPass::RunOnProcInternal(
   // Set up channels first to create channel and corresponding token together.
   // There is already a convenient access to next values, use that to extract.
   for (Next* next : proc->next_values()) {
-    StateRead* const state_read = next->state_read()->As<StateRead>();
+    StateRead* const state_read =
+        proc->GetStateReadByStateElement(next->state_element());
     StateElement* const state = state_read->state_element();
     if (state_read2channel.contains(state_read)) {
       continue;  // Already handled.
