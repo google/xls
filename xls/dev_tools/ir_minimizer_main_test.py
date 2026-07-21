@@ -500,6 +500,80 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
     )
     self.assertIn('proc foo', minimized_ir)
 
+  def test_decoupled_proc(self):
+    input_ir = """package foo
+
+chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+
+top proc foo(__foo: bits[32], __bar: bits[32], __baz: bits[32], init={1, 2, 3}) {
+  foo: bits[32] = state_read(state_element=__foo)
+  bar: bits[32] = state_read(state_element=__bar)
+  baz: bits[32] = state_read(state_element=__baz)
+  tkn: token = literal(value=token, id=1000)
+  receive.1: (token, bits[32]) = receive(tkn, channel=input)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  send.4: token = send(tkn, baz, channel=output)
+  next_value.10: () = next_value(state_element=__foo, value=tuple_index.3)
+  next_value.11: () = next_value(state_element=__bar, value=foo)
+  next_value.12: () = next_value(state_element=__baz, value=bar)
+}
+"""
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            ir_file.full_path,
+            '--can_remove_state_elements=false',
+        ],
+        encoding='utf-8',
+    )
+    self.assertIn('proc foo', minimized_ir)
+    self.assertIn('__foo', minimized_ir)
+    self.assertIn('__bar', minimized_ir)
+    self.assertIn('__baz', minimized_ir)
+
+  def test_decoupled_proc_remove_params(self):
+    input_ir = """package foo
+
+chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+
+top proc foo(__foo: bits[32], __bar: bits[32], __baz: bits[32], init={1, 2, 3}) {
+  foo: bits[32] = state_read(state_element=__foo)
+  bar: bits[32] = state_read(state_element=__bar)
+  baz: bits[32] = state_read(state_element=__baz)
+  tkn: token = literal(value=token, id=1000)
+  receive.1: (token, bits[32]) = receive(tkn, channel=input)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  send.4: token = send(tkn, baz, channel=output)
+  next_value.10: () = next_value(state_element=__foo, value=tuple_index.3)
+  next_value.11: () = next_value(state_element=__bar, value=bar)
+  next_value.12: () = next_value(state_element=__baz, value=baz)
+}
+"""
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
+    self.assertIn('proc foo', minimized_ir)
+    self.assertNotIn('__foo', minimized_ir)
+    self.assertNotIn('__bar', minimized_ir)
+    self.assertNotIn('__baz', minimized_ir)
+
   def test_proc_remove_sends(self):
     input_ir = """package foo
 
