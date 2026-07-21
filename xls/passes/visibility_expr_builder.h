@@ -44,7 +44,7 @@ class VisibilityBuilder : public ExpressionBuilder {
 
   VisibilityBuilder(int64_t prior_existing_id, const BddQueryEngine* bdd_engine,
                     const NodeForwardDependencyAnalysis& nda,
-                    BitProvenanceAnalysis& bpa)
+                    const BitProvenanceAnalysis& bpa)
       : ExpressionBuilder(nda.bound_function(), bdd_engine),
         prior_existing_id_(prior_existing_id),
         nda_(nda),
@@ -59,7 +59,7 @@ class VisibilityBuilder : public ExpressionBuilder {
   // Dependency analysis is used to prevent creating visibility expressions
   // that include the source as a term in the expression.
   const NodeForwardDependencyAnalysis& nda_;
-  BitProvenanceAnalysis& bpa_;
+  const BitProvenanceAnalysis& bpa_;
   absl::flat_hash_map<std::tuple<Node*, Node*, FunctionBase*>, Node*>
       visibility_expr_cache_;
 
