@@ -3255,7 +3255,7 @@ CreateInferenceTableConverter(
     std::unique_ptr<SemanticsAnalysis> semantics_analysis,
     TypeInferenceErrorHandler error_handler,
     std::optional<TraitDeriver*> trait_deriver) {
-  VLOG(1) << "CreateInferenceTableConverter: module " << &module;
+  VLOG(1) << "CreateInferenceTableConverter: module " << module.name();
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data.type_info_owner().New(

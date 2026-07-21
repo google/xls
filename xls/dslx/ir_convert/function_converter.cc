@@ -917,7 +917,7 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
   }
 
   if (!node_to_ir_.contains(from)) {
-    XLS_RET_CHECK(proc_id_.has_value());
+    XLS_RET_CHECK(proc_id_.has_value()) << from->ToString();
     XLS_RET_CHECK(proc_data_->id_to_members.contains(proc_id_.value()))
         << proc_id_->ToString();
     for (const auto& [k, v] : proc_data_->id_to_members.at(proc_id_.value())) {
