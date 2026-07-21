@@ -255,8 +255,12 @@ class DelayInfoPrinterImpl : public DelayInfoPrinter {
                   return true;
                 }
                 if (node->Is<Next>()) {
-                  return node->As<Next>()->state_read() ==
-                         proc->GetStateReadByStateElement(state_element);
+                  Next* next = node->As<Next>();
+                  return next->has_state_read()
+                             ? next->state_read() ==
+                                   proc->GetStateReadByStateElement(
+                                       state_element)
+                             : next->state_element() == state_element;
                 }
                 return false;
               }));

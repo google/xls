@@ -48,6 +48,15 @@ schedules {
   }
 }
 """
+DECOUPLED_PROC_IR = """package decoupled_pkg
+
+top proc decoupled_proc(__state: bits[32], init={0}) {
+  sr: bits[32] = state_read(state_element=__state)
+  one: bits[32] = literal(value=1)
+  add: bits[32] = add(sr, one)
+  next_state: () = next_value(state_element=__state, value=add)
+}
+"""
 
 
 class DelayInfoMainTest(test_base.TestCase):
@@ -125,6 +134,25 @@ class DelayInfoMainTest(test_base.TestCase):
             not_sum         :     1ps"""),
         output,
     )
+
+  def test_decoupled_next_proc(self):
+    ir_file = self.create_tempfile(content=DECOUPLED_PROC_IR)
+    output = subprocess.check_output([
+        DELAY_INFO_MAIN_PATH,
+        '--delay_model=unit',
+        '--schedule',
+        '--pipeline_stages=1',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    print(output)
+    self.assertIn('# Critical path for state element __state', output)
+    self.assertIn(
+        '__state: bits[32] = state_read(state_element=__state,', output
+    )
+    self.assertIn(
+        'add: bits[32] = add(__state: bits[32], one: bits[32],', output
+    )
+    self.assertIn('next_state: () = next_value(state_element=__state,', output)
 
 
 if __name__ == '__main__':
