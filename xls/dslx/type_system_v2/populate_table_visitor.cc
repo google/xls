@@ -797,30 +797,32 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return absl::OkStatus();
   }
 
-  // Annotates child `i` of `tree` to be `ElementType(tree_type, i)`, meaning it
-  // derives its type from the unified type of its parent. The element type
-  // annotation will refer to it using a right-based index if
-  // `use_right_based_index_in_type` is true, which implies there is a
-  // rest-of-tuple node somewhere before child `i`. This function also sets a
-  // type variable on the child so that its parent-derived type will be unified
-  // with any other information that traversing it picks up (e.g. if it is a
-  // literal).
+  // Annotates child `i` of `tuple_pattern` to be
+  // `ElementType(tuple_pattern_type, i)`, meaning it derives its type from the
+  // unified type of its parent. The element type annotation will refer to it
+  // using a right-based index if `use_right_based_index_in_type` is true,
+  // which implies there is a rest-of-tuple node somewhere before child `i`.
+  // This function also sets a type variable on the child so that its
+  // parent-derived type will be unified with any other information that
+  // traversing it picks up (e.g. if it is a literal).
   absl::Status HandleTuplePatternChild(
-      const TuplePattern* tree, const TypeAnnotation* tree_type, int i,
+      const TuplePattern* tuple_pattern,
+      const TypeAnnotation* tuple_pattern_type, int i,
       bool use_right_based_index_in_type = false) {
-    const PatternTree& child = tree->members()[i];
+    const PatternTree& child = tuple_pattern->members()[i];
     const AstNode* actual_child = ToAstNode(child);
     const TypeAnnotation* element_type = nullptr;
     if (use_right_based_index_in_type) {
       // Index from the right uses element count - i.
       Expr* offset = CreateElementCountOffset(
-          module_, const_cast<TypeAnnotation*>(tree_type),
-          tree->members().size() - i);
+          module_, const_cast<TypeAnnotation*>(tuple_pattern_type),
+          tuple_pattern->members().size() - i);
       XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(offset, "offset"));
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           offset, CreateU32Annotation(module_, GetPatternSpan(child))));
       XLS_RETURN_IF_ERROR(offset->Accept(this));
-      element_type = module_.Make<ElementTypeAnnotation>(tree_type, offset);
+      element_type =
+          module_.Make<ElementTypeAnnotation>(tuple_pattern_type, offset);
     } else {
       // Index from the left just uses a literal.
       XLS_ASSIGN_OR_RETURN(
@@ -828,7 +830,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           MakeTypeCheckedNumber(
               module_, table_, GetPatternSpan(child), i,
               CreateU32Annotation(module_, GetPatternSpan(child))));
-      element_type = module_.Make<ElementTypeAnnotation>(tree_type, index);
+      element_type =
+          module_.Make<ElementTypeAnnotation>(tuple_pattern_type, index);
     }
 
     XLS_RETURN_IF_ERROR(
