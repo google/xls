@@ -969,7 +969,7 @@
     },
     "//dependency_support/llvm:extension.bzl%llvm_raw_ext": {
       "general": {
-        "bzlTransitiveDigest": "KSYtj/b91TRsiaDiT2X40YlwmB4kde/p2Nv4z2O6X6c=",
+        "bzlTransitiveDigest": "gPfxpehMfkfgDW200UvqJL4gj/uR+hJSaeus/0gah3Y=",
         "usagesDigest": "2L4aUO+mN7yb6ncsan8L0mvPbVM94Dnps3QE6J8hcHw=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -979,7 +979,7 @@
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
               "build_file_content": "# empty",
-              "sha256": "5657b40438128de5fc2f8ec36eda82537c44a3c8770e89cf5f9eb6121901b08f",
+              "sha256": "8a8847099235dec4506408aba0caa630e72e18fac64793dfda23db37571861c7",
               "patches": [
                 "@@//dependency_support/llvm:llvm.patch",
                 "@@//dependency_support/llvm:zlib-header.patch",
@@ -989,9 +989,9 @@
               "patch_args": [
                 "-p1"
               ],
-              "strip_prefix": "llvm-project-9ec7974432975674b0128ea85a54cb3e5b0ffa75",
+              "strip_prefix": "llvm-project-963e226d9a6b923b10c8e328438838bd42e03d18",
               "urls": [
-                "https://github.com/llvm/llvm-project/archive/9ec7974432975674b0128ea85a54cb3e5b0ffa75.tar.gz"
+                "https://github.com/llvm/llvm-project/archive/963e226d9a6b923b10c8e328438838bd42e03d18.tar.gz"
               ]
             }
           }
@@ -1300,7 +1300,7 @@
     },
     "@@aspect_rules_js+//npm:extensions.bzl%pnpm": {
       "general": {
-        "bzlTransitiveDigest": "NF0si7t7Ry4Nvoo0zcy/Hwo3Hg/CtAGR07q2TOD6COQ=",
+        "bzlTransitiveDigest": "s8JejPhbzP9Q2muaLkRtpEfa0LtPOhqTYxckrG1W0uM=",
         "usagesDigest": "kbjSw2REjlSC0HtTZDf2p+l/dmiMt3NHLoiWEXYAoQI=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
