@@ -37,11 +37,13 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -49,6 +51,7 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using solvers::ScopedVerifyEquivalence;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 using ::testing::Optional;
@@ -259,6 +262,56 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
   }
 }
 
+TEST_F(CanonicalizePassTest, ClampWithKnownValuesNotLiterals) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue lit_2 = fb.Literal(UBits(2, 3));
+  BValue lit_3 = fb.Literal(UBits(3, 3));
+  // Canonicalize x > 2 ? 3 : x  =>  x > 3 ? 3 : x
+  BValue sel1 = fb.Select(fb.UGt(x, fb.ZeroExtend(lit_2, 4)),
+                          /*cases=*/{x, fb.ZeroExtend(lit_3, 4)});
+  // Canonicalize x < 3 ? 2 : x  =>  x < 2 ? 2 : x
+  BValue sel2 = fb.Select(fb.ULt(x, fb.ZeroExtend(lit_3, 4)),
+                          /*cases=*/{x, fb.ZeroExtend(lit_2, 4)});
+  // Canonicalize x < 2 ? x : 2  =>  x > 2 ? 2 : x
+  BValue sel3 = fb.Select(fb.ULt(x, fb.ZeroExtend(lit_2, 4)),
+                          /*cases=*/{fb.ZeroExtend(lit_2, 4), x});
+  // Canonicalize x < 3 ? x : 2  =>  x > 2 ? 2 : x
+  BValue sel4 = fb.Select(fb.ULt(x, fb.ZeroExtend(lit_3, 4)),
+                          /*cases=*/{fb.ZeroExtend(lit_2, 4), x});
+  // Canonicalize x > 2 ? x : 2  =>  x < 2 ? 2 : x
+  BValue sel5 = fb.Select(fb.UGt(x, fb.ZeroExtend(lit_2, 4)),
+                          /*cases=*/{fb.ZeroExtend(lit_2, 4), x});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(fb.Tuple({sel1, sel2, sel3, sel4, sel5})));
+  ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Select(m::UGt(m::Param("x"), m::Literal(3)),
+                                 /*cases=*/{m::Param("x"), m::Literal(3)}),
+                       m::Select(m::ULt(m::Param("x"), m::Literal(2)),
+                                 /*cases=*/{m::Param("x"), m::Literal(2)}),
+                       m::Select(m::UGt(m::Param("x"), m::Literal(2)),
+                                 /*cases=*/{m::Param("x"), m::Literal(2)}),
+                       m::Select(m::UGt(m::Param("x"), m::Literal(2)),
+                                 /*cases=*/{m::Param("x"), m::Literal(2)}),
+                       m::Select(m::ULt(m::Param("x"), m::Literal(2)),
+                                 /*cases=*/{m::Param("x"), m::Literal(2)})));
+}
+
+TEST_F(CanonicalizePassTest, DoNotClampWithNonBitValues) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue select =
+      fb.Select(fb.UGt(x, fb.Literal(UBits(1, 4))),
+                {fb.Tuple({x}), fb.Tuple({fb.Literal(UBits(2, 4))})});
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(select));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 TEST_F(CanonicalizePassTest, SelectWithTrivialDefault) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -353,6 +406,30 @@ TEST_F(CanonicalizePassTest, StateReadWithAlwaysTruePredicate) {
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->GetStateRead(0)->predicate(), std::nullopt);
+}
+
+TEST_F(CanonicalizePassTest, IgnoreMalformedPredicates) {
+  auto p = std::make_unique<Package>(TestName());
+  ProcBuilder pb("test", p.get(), /*should_verify=*/false);
+  BValue one_1 = pb.Literal(UBits(1, 1));
+  BValue one_32 = pb.Literal(UBits(1, 32));
+  BValue empty_tuple = pb.Tuple({});
+  BValue state = pb.StateElement("x", Value(UBits(0, 32)),
+                                 /*read_predicate=*/pb.Literal(UBits(0, 1)),
+                                 /*non_synthesizable=*/false);
+  BValue next = pb.Next(state, one_32, one_1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  // Replace predicates with invalid non-bits-type values.
+  XLS_ASSERT_OK(
+      proc->GetStateRead(0)->ReplaceOperandNumber(0, empty_tuple.node(),
+                                                  /*type_must_match=*/false));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t pred_idx,
+                           next.node()->As<Next>()->predicate_operand_number());
+  XLS_ASSERT_OK(next.node()->ReplaceOperandNumber(pred_idx, empty_tuple.node(),
+                                                  /*type_must_match=*/false));
+  // Ensure we do not crash
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
 void IrFuzzCanonicalization(FuzzPackageWithArgs fuzz_package_with_args) {
