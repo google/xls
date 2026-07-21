@@ -48,6 +48,8 @@
 namespace xls::dslx {
 namespace {
 
+constexpr int kLegacyNameDefTreeAstNodeKindProtoValue = 21;
+
 // Converts the AstNodeKind (C++ enum class) to its protobuf form.
 AstNodeKindProto ToProto(AstNodeKind kind) {
   switch (kind) {
@@ -668,6 +670,12 @@ absl::StatusOr<std::string> ToHumanString(const TypeProto& ctp,
 }
 
 absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
+  if (static_cast<int>(p) == kLegacyNameDefTreeAstNodeKindProtoValue) {
+    return absl::InvalidArgumentError(
+        "Legacy NameDefTree type-info entries are unsupported; re-typecheck "
+        "the module");
+  }
+
   switch (p) {
     case AST_NODE_KIND_ATTRIBUTE:
       return AstNodeKind::kAttribute;
@@ -717,10 +725,6 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kStructInstance;
     case AST_NODE_KIND_STRUCT_MEMBER:
       return AstNodeKind::kStructMember;
-    case AST_NODE_KIND_NAME_DEF_TREE:
-      return absl::InvalidArgumentError(
-          "Legacy NameDefTree type-info entries are unsupported; re-typecheck "
-          "the module");
     case AST_NODE_KIND_TUPLE_PATTERN:
       return AstNodeKind::kTuplePattern;
     case AST_NODE_KIND_SPLAT_STRUCT_INSTANCE:
