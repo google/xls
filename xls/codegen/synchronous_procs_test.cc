@@ -38,6 +38,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc_elaboration.h"
+#include "xls/ir/value.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -240,6 +241,60 @@ TEST_P(SynchronousProcsTest, ChainedProc) {
       {"top_in", {UBits(3, 32), UBits(10, 32), UBits(42, 32)}}};
   absl::flat_hash_map<std::string, std::vector<Bits>> outputs = {
       {"top_out", {UBits(1, 32), UBits(8, 32), UBits(40, 32)}}};
+  EXPECT_THAT(simulator.RunInputSeriesProc(inputs, {{"top_out", 3}}),
+              absl_testing::IsOkAndHolds(outputs));
+}
+
+TEST_P(SynchronousProcsTest, DecoupledNextProc) {
+  Package package(TestBaseName());
+
+  TokenlessProcBuilder pb(NewStyleProc(), "my_proc", "tkn", &package);
+  Type* u32 = package.GetBitsType(32);
+  BReceiveChannel in = pb.AddInputChannel("top_in", u32);
+  BSendChannel out = pb.AddOutputChannel("top_out", u32);
+  BStateElement st_elem = pb.UnreadStateElement("accum", Value(UBits(0, 32)),
+                                                /*non_synthesizable=*/false);
+  BValue st = pb.StateRead(st_elem);
+  BValue received = pb.Receive(in);
+  BValue next_st = pb.Add(st, received);
+
+  pb.Next(st_elem, next_st);
+  pb.Send(out, next_st);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
+  XLS_ASSERT_OK(package.SetTop(top));
+
+  ASSERT_TRUE(top->uses_decoupled_next());
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(top));
+
+  XLS_ASSERT_OK_AND_ASSIGN(PackageSchedule package_schedule,
+                           RunSynchronousPipelineSchedule(
+                               &package, TestDelayEstimator(),
+                               SchedulingOptions().clock_period_ps(1), elab));
+
+  ResetProto reset_proto;
+  reset_proto.set_name("rst");
+  reset_proto.set_asynchronous(false);
+  reset_proto.set_active_low(false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenResult result,
+      ToPipelineModuleText(
+          package_schedule, &package,
+          BuildPipelineOptions()
+              .reset(reset_proto.name(), reset_proto.asynchronous(),
+                     reset_proto.active_low(), reset_proto.reset_data_path())
+              .use_system_verilog(UseSystemVerilog())
+              .emit_as_pipeline(false)));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature, {});
+  absl::flat_hash_map<std::string, std::vector<Bits>> inputs = {
+      {"top_in", {UBits(3, 32), UBits(10, 32), UBits(42, 32)}}};
+  absl::flat_hash_map<std::string, std::vector<Bits>> outputs = {
+      {"top_out", {UBits(3, 32), UBits(13, 32), UBits(55, 32)}}};
   EXPECT_THAT(simulator.RunInputSeriesProc(inputs, {{"top_out", 3}}),
               absl_testing::IsOkAndHolds(outputs));
 }

@@ -2066,6 +2066,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:op",
         "//xls/ir:proc_elaboration",
+        "//xls/ir:value",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
