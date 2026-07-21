@@ -20,6 +20,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -48,6 +49,7 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/evaluator_result.pb.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 
