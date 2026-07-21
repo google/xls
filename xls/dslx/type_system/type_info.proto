@@ -43,8 +43,8 @@ enum AstNodeKindProto {
   AST_NODE_KIND_ARRAY = 18;
   AST_NODE_KIND_STRING = 19;
   AST_NODE_KIND_STRUCT_INSTANCE = 20;
-  // Retired legacy wire value; do not reuse.
-  AST_NODE_KIND_NAME_DEF_TREE = 21;
+  // Retired legacy NameDefTree wire value; reject it when decoding.
+  reserved 21;
   AST_NODE_KIND_SPLAT_STRUCT_INSTANCE = 22;
   AST_NODE_KIND_INDEX = 23;
   AST_NODE_KIND_RECV = 24;

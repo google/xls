@@ -36,6 +36,8 @@
 namespace xls::dslx {
 namespace {
 
+constexpr int kLegacyNameDefTreeAstNodeKindProtoValue = 21;
+
 std::string TestName() {
   return ::testing::UnitTest::GetInstance()->current_test_info()->name();
 }
@@ -209,7 +211,8 @@ TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
   bool found_tuple_pattern = false;
   for (const AstNodeTypeInfoProto& node : tip.nodes()) {
     found_tuple_pattern |= node.kind() == AST_NODE_KIND_TUPLE_PATTERN;
-    EXPECT_NE(node.kind(), AST_NODE_KIND_NAME_DEF_TREE);
+    EXPECT_NE(static_cast<int>(node.kind()),
+              kLegacyNameDefTreeAstNodeKindProtoValue);
   }
   EXPECT_TRUE(found_tuple_pattern);
 }
@@ -218,7 +221,8 @@ TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
        RejectsLegacyNameDefTreeAstNodeKind) {
   ImportData import_data = CreateImportDataForTest();
   AstNodeTypeInfoProto legacy;
-  legacy.set_kind(AST_NODE_KIND_NAME_DEF_TREE);
+  legacy.set_kind(
+      static_cast<AstNodeKindProto>(kLegacyNameDefTreeAstNodeKindProtoValue));
   legacy.mutable_type()->mutable_token_type();
 
   EXPECT_THAT(
