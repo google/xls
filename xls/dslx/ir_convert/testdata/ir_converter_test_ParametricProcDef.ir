@@ -52,8 +52,8 @@ proc __test_module__Main_next<_c_in: bits[32] in, _c_out: bits[32] out>(__i: bit
   add.35: bits[32] = add(i_val, loopback_val, id=35)
   assert.40: token = assert(assert.18, or.39, message="State element written before read in same activation.", id=40)
   or.43: bits[1] = or(not.41, not.42, id=43)
-  __i: bits[32] = state_read(state_element=__i, id=14)
   add.37: bits[32] = add(i_val, loopback_val, id=37)
+  __i: bits[32] = state_read(state_element=__i, id=14)
   or.22: bits[1] = or(literal.12, literal.11, id=22)
   tuple_index.25: token = tuple_index(receive.24, index=0, id=25)
   tuple_index.26: token = tuple_index(receive.24, index=0, id=26)
@@ -62,7 +62,7 @@ proc __test_module__Main_next<_c_in: bits[32] in, _c_out: bits[32] out>(__i: bit
   send.36: token = send(after_all.34, add.35, predicate=literal.11, channel=_c_out, id=36)
   assert.44: token = assert(assert.40, or.43, message="State element written after write in same activation.", id=44)
   or.45: bits[1] = or(literal.13, literal.11, id=45)
-  next_value.46: () = next_value(param=__i, value=add.37, predicate=literal.11, id=46)
+  next_value.46: () = next_value(state_element=__i, value=add.37, predicate=literal.11, id=46)
   tuple.47: () = tuple(id=47)
   tuple.48: () = tuple(id=48)
 }

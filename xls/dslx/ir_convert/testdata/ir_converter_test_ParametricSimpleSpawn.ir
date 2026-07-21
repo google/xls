@@ -3,21 +3,21 @@ package test_module
 file_number 0 "test_module.x"
 
 proc __test_module__spawnee_0__0_next<>(__state: (), init={()}) {
-  __state: () = state_read(state_element=__state, id=2)
   tuple.6: () = tuple(id=6)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   literal.3: bits[1] = literal(value=1, id=3)
   N: bits[32] = literal(value=0, id=4)
   tuple.5: () = tuple(id=5)
-  next_value.7: () = next_value(param=__state, value=tuple.6, id=7)
+  next_value.7: () = next_value(state_element=__state, value=tuple.6, id=7)
 }
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
   proc_instantiation __test_module__spawnee_0__0_next_inst(proc=__test_module__spawnee_0__0_next)
-  __state: () = state_read(state_element=__state, id=9)
   tuple.12: () = tuple(id=12)
   __token: token = literal(value=token, id=8)
+  __state: () = state_read(state_element=__state, id=9)
   literal.10: bits[1] = literal(value=1, id=10)
   tuple.11: () = tuple(id=11)
-  next_value.13: () = next_value(param=__state, value=tuple.12, id=13)
+  next_value.13: () = next_value(state_element=__state, value=tuple.12, id=13)
 }

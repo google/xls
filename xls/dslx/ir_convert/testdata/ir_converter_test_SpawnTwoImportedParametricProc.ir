@@ -12,7 +12,7 @@ proc __imported__Leaf_0__16_next<_output_c: bits[16] out>(__state: bits[16], ini
   P: bits[32] = literal(value=16, id=4)
   tuple.5: () = tuple(id=5)
   send.7: token = send(literal.6, __state, predicate=literal.3, channel=_output_c, id=7)
-  next_value.8: () = next_value(param=__state, value=__state, id=8)
+  next_value.8: () = next_value(state_element=__state, value=__state, id=8)
 }
 
 proc __imported__Importee_0__16_next<_output_c: bits[16] out>(__state: bits[16], init={456}) {
@@ -23,7 +23,7 @@ proc __imported__Importee_0__16_next<_output_c: bits[16] out>(__state: bits[16],
   literal.11: bits[1] = literal(value=1, id=11)
   M: bits[32] = literal(value=16, id=12)
   tuple.13: () = tuple(id=13)
-  next_value.14: () = next_value(param=__state, value=__state, id=14)
+  next_value.14: () = next_value(state_element=__state, value=__state, id=14)
 }
 
 proc __test_module__Local_0__16_next<_output_c: bits[16] out>(__state: bits[16], init={789}) {
@@ -34,7 +34,7 @@ proc __test_module__Local_0__16_next<_output_c: bits[16] out>(__state: bits[16],
   literal.17: bits[1] = literal(value=1, id=17)
   N: bits[32] = literal(value=16, id=18)
   tuple.19: () = tuple(id=19)
-  next_value.20: () = next_value(param=__state, value=__state, id=20)
+  next_value.20: () = next_value(state_element=__state, value=__state, id=20)
 }
 
 top proc __test_module__Main_0_next<>(__state: (), init={()}) {
@@ -42,10 +42,10 @@ top proc __test_module__Main_0_next<>(__state: (), init={()}) {
   chan_interface _chan0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface _chan0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   proc_instantiation __test_module__Local_0__16_next_inst(_chan0, proc=__test_module__Local_0__16_next)
-  __state: () = state_read(state_element=__state, id=22)
   tuple.25: () = tuple(id=25)
   __token: token = literal(value=token, id=21)
+  __state: () = state_read(state_element=__state, id=22)
   literal.23: bits[1] = literal(value=1, id=23)
   tuple.24: () = tuple(id=24)
-  next_value.26: () = next_value(param=__state, value=tuple.25, id=26)
+  next_value.26: () = next_value(state_element=__state, value=tuple.25, id=26)
 }

@@ -10,12 +10,12 @@ proc __test_module__second_0_next<_outs: bits[32] out, _ins: bits[32] in>(__stat
   literal.3: bits[1] = literal(value=1, id=3)
   tok: token = send(literal.5, literal.6, predicate=literal.3, channel=_outs, id=7)
   receive.8: (token, bits[32]) = receive(tok, predicate=literal.3, channel=_ins, id=8)
-  __state: () = state_read(state_element=__state, id=2)
   tuple.10: () = tuple(id=10)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   tuple.4: () = tuple(id=4)
   tuple_index.9: token = tuple_index(receive.8, index=0, id=9)
-  next_value.11: () = next_value(param=__state, value=tuple.10, id=11)
+  next_value.11: () = next_value(state_element=__state, value=tuple.10, id=11)
 }
 
 top proc __test_module__first_0_next<>(__state: (), init={()}) {
@@ -30,5 +30,5 @@ top proc __test_module__first_0_next<>(__state: (), init={()}) {
   __token: token = literal(value=token, id=12)
   literal.14: bits[1] = literal(value=1, id=14)
   tuple.15: () = tuple(id=15)
-  next_value.16: () = next_value(param=__state, value=__state, id=16)
+  next_value.16: () = next_value(state_element=__state, value=__state, id=16)
 }

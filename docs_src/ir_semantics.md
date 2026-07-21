@@ -1394,7 +1394,7 @@ choose instead to emit a single `next_value` node where `value` uses either a
 to multiple `next_value` nodes to potentially enable better throughput.
 
 ```
-result = next_value(param=read, value=v, predicate=<pred>)
+result = next_value(state_element=read, value=v, predicate=<pred>)
 ```
 
 **Types**

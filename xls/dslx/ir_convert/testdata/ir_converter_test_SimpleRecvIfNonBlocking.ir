@@ -22,5 +22,5 @@ top proc __test_module__main_0_next<_in_param: bits[32] in>(__state: bits[32], i
   tuple.4: () = tuple(id=4)
   tuple_index.16: token = tuple_index(tuple.15, index=0, id=16)
   tuple_index.18: bits[1] = tuple_index(tuple.15, index=2, id=18)
-  next_value.19: () = next_value(param=__state, value=result, id=19)
+  next_value.19: () = next_value(state_element=__state, value=result, id=19)
 }

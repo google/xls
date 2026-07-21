@@ -12,5 +12,5 @@ top proc __test_module__FooAlias_next<_output_c: bits[32] out>(__state: bits[32]
   __token: token = literal(value=token, id=1)
   tuple.4: () = tuple(id=4)
   tok: token = send(after_all.5, __state, predicate=literal.3, channel=_output_c, id=6)
-  next_value.9: () = next_value(param=__state, value=add.8, id=9)
+  next_value.9: () = next_value(state_element=__state, value=add.8, id=9)
 }

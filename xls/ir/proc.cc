@@ -310,8 +310,7 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
           init_value.ToString()));
     }
     Next::StateIdentifier state_identifier =
-        uses_decoupled_next() ? Next::StateIdentifier(state_element)
-                              : Next::StateIdentifier(state_read);
+        Next::StateIdentifier(state_element);
     XLS_RETURN_IF_ERROR(MakeNode<Next>(SourceInfo(), state_identifier,
                                        *next_state,
                                        /*predicate=*/std::nullopt,

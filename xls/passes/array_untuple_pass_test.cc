@@ -355,20 +355,29 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayWithNext) {
   auto state_read_of_type = [](std::string_view type) {
     return testing::AllOf(m::StateRead(), m::Type(type));
   };
-  EXPECT_THAT(
-      pr->next_values(),
-      UnorderedElementsAre(
-          m::Next(m::StateRead("foo"), m::StateRead("foo"), _),
-          m::Next(m::StateRead("foo"), m::StateRead("foo"), _),
-          m::Next(m::StateRead("foo"), m::StateRead("foo"), _),
-          m::Next(state_read_of_type("bits[1][4]"),
-                  state_read_of_type("bits[1][4]"), _),
-          m::Next(state_read_of_type("bits[1][4]"), m::Type("bits[1][4]"), _),
-          m::Next(state_read_of_type("bits[1][4]"), m::Type("bits[1][4]"), _),
-          m::Next(state_read_of_type("bits[3][4]"),
-                  state_read_of_type("bits[3][4]"), _),
-          m::Next(state_read_of_type("bits[3][4]"), m::Type("bits[3][4]"), _),
-          m::Next(state_read_of_type("bits[3][4]"), m::Type("bits[3][4]"), _)));
+  auto state_element_of_type = [](std::string_view type) {
+    return testing::AllOf(m::StateElement(_, m::Type(type)));
+  };
+  EXPECT_THAT(pr->next_values(),
+              UnorderedElementsAre(
+                  m::NextWithStateElement(m::StateElement("foo"),
+                                          m::StateRead("foo"), _),
+                  m::NextWithStateElement(m::StateElement("foo"),
+                                          m::StateRead("foo"), _),
+                  m::NextWithStateElement(m::StateElement("foo"),
+                                          m::StateRead("foo"), _),
+                  m::NextWithStateElement(state_element_of_type("bits[1][4]"),
+                                          state_read_of_type("bits[1][4]"), _),
+                  m::NextWithStateElement(state_element_of_type("bits[1][4]"),
+                                          m::Type("bits[1][4]"), _),
+                  m::NextWithStateElement(state_element_of_type("bits[1][4]"),
+                                          m::Type("bits[1][4]"), _),
+                  m::NextWithStateElement(state_element_of_type("bits[3][4]"),
+                                          state_read_of_type("bits[3][4]"), _),
+                  m::NextWithStateElement(state_element_of_type("bits[3][4]"),
+                                          m::Type("bits[3][4]"), _),
+                  m::NextWithStateElement(state_element_of_type("bits[3][4]"),
+                                          m::Type("bits[3][4]"), _)));
 }
 
 TEST_F(ArrayUntuplePassTest, ProcStateArrayImplicitNext) {

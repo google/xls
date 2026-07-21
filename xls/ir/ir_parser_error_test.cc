@@ -611,7 +611,7 @@ proc my_proc(my_token: token, my_state_1: bits[32], my_state_2: bits[32], init={
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
-  next_value.5: () = next_value(param=my_state_2, value=my_state_2, id=5)
+  next_value.5: () = next_value(state_element=my_state_2, value=my_state_2, id=5)
   next (tuple_index.4, my_state_1, my_state_2)
 }
 )";
@@ -631,15 +631,14 @@ proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
-  next_value.5: () = next_value(param=my_token, value=tuple_index.4, id=5)
-  next_value.6: () = next_value(param=not_my_state, value=my_state, id=6)
+  next_value.5: () = next_value(state_element=my_token, value=tuple_index.4, id=5)
+  next_value.6: () = next_value(state_element=not_my_state, value=my_state, id=6)
 }
 )";
   EXPECT_THAT(Parser::ParsePackage(input).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSubstr("Referred to a name"),
-                             HasSubstr("not previously defined"),
-                             HasSubstr("\"not_my_state\""))));
+                       AllOf(HasSubstr("State element 'not_my_state'"),
+                             HasSubstr("not found for next_value"))));
 }
 
 TEST(IrParserErrorTest, ParseProcWithBadNextValueType) {
@@ -652,8 +651,8 @@ proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
-  next_value.5: () = next_value(param=my_token, value=tuple_index.4, id=5)
-  next_value.6: () = next_value(param=my_state, value=literal.2, id=6)
+  next_value.5: () = next_value(state_element=my_token, value=tuple_index.4, id=5)
+  next_value.6: () = next_value(state_element=my_state, value=literal.2, id=6)
 }
 )";
   EXPECT_THAT(Parser::ParsePackage(input).status(),

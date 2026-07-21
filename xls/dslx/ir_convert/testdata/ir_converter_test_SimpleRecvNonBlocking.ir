@@ -13,11 +13,11 @@ top proc __test_module__main_0_next<_in_param: bits[32] in>(__state: bits[32], i
   tuple_index.8: token = tuple_index(receive.7, index=0, id=8)
   sel.11: bits[32] = sel(tuple_index.10, cases=[literal.6, tuple_index.9], id=11)
   tuple.12: (token, bits[32], bits[1]) = tuple(tuple_index.8, sel.11, tuple_index.10, id=12)
-  __state: bits[32] = state_read(state_element=__state, id=2)
   result: bits[32] = tuple_index(tuple.12, index=1, id=14)
   __token: token = literal(value=token, id=1)
+  __state: bits[32] = state_read(state_element=__state, id=2)
   tuple.4: () = tuple(id=4)
   tuple_index.13: token = tuple_index(tuple.12, index=0, id=13)
   tuple_index.15: bits[1] = tuple_index(tuple.12, index=2, id=15)
-  next_value.16: () = next_value(param=__state, value=result, id=16)
+  next_value.16: () = next_value(state_element=__state, value=result, id=16)
 }

@@ -564,15 +564,16 @@ TEST(FunctionBuilderTest, SendAndReceive) {
 
   EXPECT_THAT(
       proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::Next(
-          m::StateRead("my_token"),
+      ElementsAre(m::NextWithStateElement(
+          proc->GetStateElement(0),
           m::AfterAll(m::Send(), m::TupleIndex(m::Receive()),
                       m::Send(m::StateRead(), m::StateRead(), m::Literal(1)),
                       m::TupleIndex(m::Receive())))));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::Next(m::StateRead("my_state"),
-                                  m::Add(m::TupleIndex(m::Receive()),
-                                         m::TupleIndex(m::Receive())))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(1)),
+      ElementsAre(m::NextWithStateElement(
+          proc->GetStateElement(1),
+          m::Add(m::TupleIndex(m::Receive()), m::TupleIndex(m::Receive())))));
 
   EXPECT_THAT(proc->StateElements(),
               ElementsAre(m::StateElement("my_token", Value::Token()),
@@ -912,8 +913,8 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
           m::Add())));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(
-                  m::StateRead("st"),
+              ElementsAre(m::NextWithStateElement(
+                  proc->GetStateElement(0),
                   m::Add(m::TupleIndex(m::Receive(m::Channel("a")), 1),
                          m::TupleIndex(m::Receive(m::Channel("b")), 1)))));
 }
@@ -948,13 +949,17 @@ TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
               HasSubstr("proc the_proc(tkn: token, x: bits[32], y: bits[32], "
                         "z: bits[32], init={token, 1, 2, 3})"));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(m::StateRead("tkn"), m::StateRead("tkn"))));
+              ElementsAre(m::NextWithStateElement(proc->GetStateElement(0),
+                                                  m::StateRead("tkn"))));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::Next(m::StateRead("x"), m::StateRead("x"))));
+              ElementsAre(m::NextWithStateElement(proc->GetStateElement(1),
+                                                  m::StateRead("x"))));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(2)),
-              ElementsAre(m::Next(m::StateRead("y"), m::Name("x_plus_y"))));
+              ElementsAre(m::NextWithStateElement(proc->GetStateElement(2),
+                                                  m::Name("x_plus_y"))));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(3)),
-              ElementsAre(m::Next(m::StateRead("z"), m::StateRead("z"))));
+              ElementsAre(m::NextWithStateElement(proc->GetStateElement(3),
+                                                  m::StateRead("z"))));
 }
 
 TEST(FunctionBuilderTest, ProcWithNextValue) {
@@ -965,10 +970,11 @@ TEST(FunctionBuilderTest, ProcWithNextValue) {
   BValue z = pb.StateElement("z", Value(UBits(3, 32)));
   BValue next = pb.Next(/*state_read=*/y, /*value=*/z, /*pred=*/x);
 
-  XLS_ASSERT_OK(pb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   EXPECT_THAT(next.node(),
-              m::Next(m::StateRead("y"), /*value=*/m::StateRead("z"),
-                      /*predicate=*/m::StateRead("x")));
+              m::NextWithStateElement(proc->GetStateElementByName("y").value(),
+                                      /*value=*/m::StateRead("z"),
+                                      /*predicate=*/m::StateRead("x")));
 }
 
 TEST(FunctionBuilderTest, ProcWithNextValueWithLabel) {
@@ -981,11 +987,11 @@ TEST(FunctionBuilderTest, ProcWithNextValueWithLabel) {
   BValue next = pb.Next(/*state_read=*/y, /*value=*/z, /*pred=*/x,
                         /*label=*/"y_next_label");
 
-  XLS_ASSERT_OK(pb.Build());
-  EXPECT_THAT(
-      next.node(),
-      m::NextWithLabel(m::StateRead("y"), m::StateRead("z"), m::StateRead("x"),
-                       Optional(StrEq("y_next_label"))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  EXPECT_THAT(next.node(),
+              m::NextWithStateElementWithLabel(
+                  proc->GetStateElementByName("y").value(), m::StateRead("z"),
+                  m::StateRead("x"), Optional(StrEq("y_next_label"))));
   EXPECT_THAT(y.node(), m::StateRead("y", Optional(StrEq("y_label"))));
 }
 
@@ -1064,7 +1070,8 @@ TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({state}));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(m::StateRead("st"), m::StateRead("st"))));
+              ElementsAre(m::NextWithStateElement(proc->GetStateElement(0),
+                                                  m::StateRead("st"))));
 }
 
 TEST(FunctionBuilderTest, Assert) {

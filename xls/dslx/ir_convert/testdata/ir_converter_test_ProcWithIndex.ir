@@ -25,5 +25,5 @@ top proc __test_module__Memory_0_next<_req_in: (bits[1], bits[32], bits[32]) in,
   tuple.4: () = tuple(id=4)
   tuple_index.7: token = tuple_index(receive.6, index=0, id=7)
   send.20: token = send(tok, array_index.18, predicate=and.19, channel=_data_out, id=20)
-  next_value.21: () = next_value(param=__state, value=state, id=21)
+  next_value.21: () = next_value(state_element=__state, value=state, id=21)
 }

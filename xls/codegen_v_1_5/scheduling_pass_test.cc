@@ -75,7 +75,7 @@ top proc __test__P_0_next<a: bits[32] in, b: bits[32] in, result: bits[32] out>(
   tuple_index.7: token = tuple_index(receive.6, index=0, id=7)
   tuple_index.11: token = tuple_index(receive.10, index=0, id=11)
   send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
-  next_value.17: () = next_value(param=__state, value=result_value, id=17)
+  next_value.17: () = next_value(state_element=__state, value=result_value, id=17)
 }
 )",
                               /*expect_change=*/true, verilog::CodegenOptions(),
@@ -110,7 +110,7 @@ top proc __test__P_0_next(__state: bits[32], init={0}) {
   tuple_index.6: token = tuple_index(receive.5, index=0, id=6)
   tuple_index.10: token = tuple_index(receive.9, index=0, id=10)
   send.15: token = send(tok__1, result_value, predicate=literal.3, channel=test__result, id=15)
-  next_value.16: () = next_value(param=__state, value=result_value, id=16)
+  next_value.16: () = next_value(state_element=__state, value=result_value, id=16)
 }
 
 )",
@@ -132,7 +132,7 @@ chan test__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=re
 
 proc __test2__P_0_next(__state: bits[32], init={0}) {
   __last_state: bits[32] = state_read(state_element=__state)
-  next_value.100: () = next_value(param=__state, value=__last_state)
+  next_value.100: () = next_value(state_element=__state, value=__last_state)
 }
 
 top proc __test__P_0_next(__state: bits[32], init={0}) {
@@ -151,7 +151,7 @@ top proc __test__P_0_next(__state: bits[32], init={0}) {
   tuple_index.6: token = tuple_index(receive.5, index=0, id=6)
   tuple_index.10: token = tuple_index(receive.9, index=0, id=10)
   send.15: token = send(tok__1, result_value, predicate=literal.3, channel=test__result, id=15)
-  next_value.16: () = next_value(param=__state, value=result_value, id=16)
+  next_value.16: () = next_value(state_element=__state, value=result_value, id=16)
 }
 
 )",

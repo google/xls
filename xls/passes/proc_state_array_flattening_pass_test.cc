@@ -153,8 +153,8 @@ TEST_F(ProcStateArrayFlatteningPassTest,
                   "state", std::optional<std::string>("my_read_label"))));
   EXPECT_THAT(
       proc->nodes(),
-      Contains(m::NextWithLabel(m::StateRead(), _,
-                                std::optional<std::string>("my_write_label"))));
+      Contains(m::NextWithStateElementWithLabel(
+          m::StateElement(), _, std::optional<std::string>("my_write_label"))));
 }
 
 void IrFuzzProcStateArrayFlattening(

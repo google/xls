@@ -1041,9 +1041,9 @@ TEST_F(ConditionalSpecializationPassTest, DoesNotSpecializeSendPredicate) {
         eq.3: bits[1] = eq(value1, literal.5, id=3)
         sel.4: bits[32] = sel(eq.3, cases=[literal.5, value2], id=4)
         send.1: token = send(tkn, sel.4, predicate=eq.3, channel=out, id=1)
-        next_value.6: () = next_value(param=value1, value=value1, id=6)
-        next_value.7: () = next_value(param=value2, value=value2, id=7)
-        next_value.8: () = next_value(param=tkn, value=send.1, predicate=eq.3, id=8)
+        next_value.6: () = next_value(state_element=value1, value=value1, id=6)
+        next_value.7: () = next_value(state_element=value2, value=value2, id=7)
+        next_value.8: () = next_value(state_element=tkn, value=send.1, predicate=eq.3, id=8)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -1066,7 +1066,7 @@ TEST_F(ConditionalSpecializationPassTest, NextValueNoChangeLiteralPred) {
         literal.2: bits[32] = literal(value=400, id=2)
         eq.3: bits[1] = eq(value1, literal.2, id=3)
         sel.4: bits[32] = sel(eq.3, cases=[literal.2, value2], id=4)
-        next_value.5: () = next_value(param=value1, value=sel.4, predicate=literal.1, id=5)
+        next_value.5: () = next_value(state_element=value1, value=sel.4, predicate=literal.1, id=5)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -1084,7 +1084,7 @@ TEST_F(ConditionalSpecializationPassTest, NextValueNoChangeUnprovable) {
         eq.3: bits[1] = eq(value1, literal.1, id=3)
         ugt.4: bits[1] = ugt(value1, literal.2, id=4)
         sel.5: bits[32] = sel(eq.3, cases=[literal.1, value2], id=5)
-        next_value.6: () = next_value(param=value1, value=sel.5, predicate=ugt.4, id=6)
+        next_value.6: () = next_value(state_element=value1, value=sel.5, predicate=ugt.4, id=6)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -1100,15 +1100,15 @@ TEST_F(ConditionalSpecializationPassTest, NextValueChange) {
         literal.1: bits[32] = literal(value=400, id=1)
         eq.2: bits[1] = eq(value1, literal.1, id=2)
         sel.3: bits[32] = sel(eq.2, cases=[literal.1, value2], id=3)
-        next_value.4: () = next_value(param=value1, value=sel.3, predicate=eq.2, id=4)
+        next_value.4: () = next_value(state_element=value1, value=sel.3, predicate=eq.2, id=4)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * f, p->GetProc("Delay_proc"));
   EXPECT_THAT(f->next_values(f->GetStateElement(0)),
-              ElementsAre(m::Next(m::StateRead("value1"),
-                                  m::StateRead("value2"), m::Eq())));
+              ElementsAre(m::NextWithStateElement(
+                  m::StateElement("value1"), m::StateRead("value2"), m::Eq())));
 }
 
 TEST_F(ConditionalSpecializationPassTest, NextValueChangeDecoupled) {
@@ -1361,11 +1361,14 @@ TEST_F(ConditionalSpecializationPassTest, HarderStateReadSpecialization) {
   EXPECT_THAT(
       proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter0"))
           ->predicate(),
-      Optional(m::Eq(m::StateRead("index"), m::Literal(0))));
+      Optional(m::And(m::Eq(m::StateRead("index"), m::Literal(0)),
+                      m::Not(m::Ne(m::StateRead("index"), m::Literal(0))))));
   EXPECT_THAT(
       proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter1"))
           ->predicate(),
-      Optional(m::Eq(m::StateRead("index"), m::Literal(1))));
+      Optional(m::And(m::Eq(m::StateRead("index"), m::Literal(1)),
+                      m::Not(m::Ne(m::StateRead("index"), m::Literal(1))),
+                      m::Ne(m::StateRead("index"), m::Literal(0)))));
   EXPECT_THAT(
       proc->GetStateReadByStateElement(*proc->GetStateElementByName("counter2"))
           ->predicate(),

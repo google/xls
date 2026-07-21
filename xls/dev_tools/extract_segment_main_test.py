@@ -30,10 +30,10 @@ top proc NextNodesAsTuples(a: bits[32], b: bits[32], c: bits[32], d: bits[32], i
   node2: bits[32] = add(c, d)
   node3: bits[32] = add(a, d)
   node4: bits[32] = add(b, c)
-  next0: () = next_value(param=a, value=node0, predicate=node1)
-  next1: () = next_value(param=b, value=node2)
-  next2: () = next_value(param=c, value=node3)
-  next3: () = next_value(param=d, value=node4)
+  next0: () = next_value(state_element=a, value=node0, predicate=node1)
+  next1: () = next_value(state_element=b, value=node2)
+  next2: () = next_value(state_element=c, value=node3)
+  next3: () = next_value(state_element=d, value=node4)
 }
 """
 

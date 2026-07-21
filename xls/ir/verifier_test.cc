@@ -882,7 +882,7 @@ TEST_F(VerifierTest, ProcScopedChannelsNextNodeWithWrongType) {
 package p
 proc p<>(s: bits[32], init={0}) {
   literal.1: bits[1] = literal(value=0)
-  next_value.2: () = next_value(param=s, value=literal.1)
+  next_value.2: () = next_value(state_element=s, value=literal.1)
 }
 )";
   EXPECT_THAT(
@@ -926,7 +926,7 @@ proc my_new_proc<>(s: bits[32], init={0}) {
   zero_ext.4: bits[32] = zero_ext(not.3, new_bit_count=32)
   literal.5: bits[32] = literal(value=1)
   add.6: bits[32] = add(s, literal.5)
-  next_value.7: () = next_value(param=s, value=add.6, predicate=zero_ext.4)
+  next_value.7: () = next_value(state_element=s, value=add.6, predicate=zero_ext.4)
 }
 )";
   EXPECT_THAT(
@@ -960,7 +960,7 @@ scheduled_proc my_proc(st: bits[32], init={42}) {
     st: bits[32] = state_read(state_element=st, id=1)
     literal.2: bits[32] = literal(value=1, id=2)
     add.3: bits[32] = add(literal.2, st, id=3)
-    next_value.4: () = next_value(param=st, value=add.3, id=4)
+    next_value.4: () = next_value(state_element=st, value=add.3, id=4)
   }
 }
 )";

@@ -13,13 +13,13 @@ proc __test_module__spawnee_0_next<_in_chans__0: bits[32] in, _in_chans__1: bits
   literal.5: token = literal(value=token, id=5)
   literal.6: bits[16] = literal(value=42, id=6)
   receive.9: (token, bits[32]) = receive(literal.8, predicate=literal.3, channel=_in_chans__1, id=9)
-  __state: () = state_read(state_element=__state, id=2)
   tuple.11: () = tuple(id=11)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   tuple.4: () = tuple(id=4)
   send.7: token = send(literal.5, literal.6, predicate=literal.3, channel=_out_chans__0, id=7)
   tuple_index.10: token = tuple_index(receive.9, index=0, id=10)
-  next_value.12: () = next_value(param=__state, value=tuple.11, id=12)
+  next_value.12: () = next_value(state_element=__state, value=tuple.11, id=12)
 }
 
 top proc __test_module__main_0_next<_in_chans__0: bits[32] in, _in_chans__1: bits[32] in, _in_chans__2: bits[32] in, _out_chans__0: bits[16] out, _out_chans__1: bits[16] out>(__state: (), init={()}) {
@@ -29,10 +29,10 @@ top proc __test_module__main_0_next<_in_chans__0: bits[32] in, _in_chans__1: bit
   chan_interface _out_chans__0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface _out_chans__1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   proc_instantiation __test_module__spawnee_0_next_inst(_in_chans__0, _in_chans__1, _in_chans__2, _out_chans__0, _out_chans__1, proc=__test_module__spawnee_0_next)
-  __state: () = state_read(state_element=__state, id=14)
   tuple.17: () = tuple(id=17)
   __token: token = literal(value=token, id=13)
+  __state: () = state_read(state_element=__state, id=14)
   literal.15: bits[1] = literal(value=1, id=15)
   tuple.16: () = tuple(id=16)
-  next_value.18: () = next_value(param=__state, value=tuple.17, id=18)
+  next_value.18: () = next_value(state_element=__state, value=tuple.17, id=18)
 }

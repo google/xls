@@ -142,10 +142,13 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(
-                  m::Next(x.node(), incremented.node(), predicate.node()),
-                  m::Next(x.node(), x.node(), m::Not(predicate.node()))));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  incremented.node(), predicate.node()),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  x.node(), m::Not(predicate.node()))));
   EXPECT_THAT(proc->nodes(), Not(Contains(m::Assert())));
 }
 
@@ -161,10 +164,13 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
   XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(
-                  m::Next(x.node(), incremented.node(), predicate.node()),
-                  m::Next(x.node(), x.node(), m::Not(predicate.node()))));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  incremented.node(), predicate.node()),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  x.node(), m::Not(predicate.node()))));
 
   std::vector<Node*> asserts;
   absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
@@ -191,12 +197,16 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(
-                  m::Next(x.node(), incremented.node(), predicate1.node()),
-                  m::Next(x.node(), decremented.node(), predicate2.node()),
-                  m::Next(x.node(), x.node(),
-                          m::Nor(predicate1.node(), predicate2.node()))));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  incremented.node(), predicate1.node()),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  decremented.node(), predicate2.node()),
+          m::NextWithStateElement(
+              x.node()->As<StateRead>()->state_element(), x.node(),
+              m::Nor(predicate1.node(), predicate2.node()))));
 
   std::vector<Node*> asserts;
   absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
@@ -223,13 +233,17 @@ TEST_P(ProcStateLegalizationPassTest,
   XLS_ASSERT_OK(p->SetTop(proc));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(
-                  m::Next(x.node(), incremented.node(), predicate1.node()),
-                  m::Next(x.node(), decremented.node(), predicate2.node()),
-                  m::Next(x.node(), x.node(),
-                          m::Nor(predicate2.node(), predicate1.node(),
-                                 predicate2.node()))));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  incremented.node(), predicate1.node()),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  decremented.node(), predicate2.node()),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  x.node(),
+                                  m::Nor(predicate2.node(), predicate1.node(),
+                                         predicate2.node()))));
 
   std::vector<Node*> asserts;
   absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
@@ -263,8 +277,11 @@ TEST_P(ProcStateLegalizationPassTest,
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(
-          m::Next(x.node(), x.node(), positive_predicate.node()),
-          m::Next(x.node(), incremented.node(), negative_predicate.node())));
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  x.node(), positive_predicate.node()),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  incremented.node(),
+                                  negative_predicate.node())));
 
   std::vector<Node*> asserts;
   absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
@@ -293,10 +310,13 @@ TEST_P(ProcStateLegalizationPassTest,
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(
-          m::Next(x.node(), x.node(), positive_predicate.node()),
-          m::Next(x.node(), incremented.node(), negative_predicate.node()),
-          m::Next(
-              x.node(), x.node(),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  x.node(), positive_predicate.node()),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  incremented.node(),
+                                  negative_predicate.node()),
+          m::NextWithStateElement(
+              x.node()->As<StateRead>()->state_element(), x.node(),
               m::Nor(positive_predicate.node(), negative_predicate.node()))));
 
   std::vector<Node*> asserts;
@@ -324,10 +344,13 @@ TEST_P(ProcStateLegalizationPassTest,
                      SchedulingOptions().default_next_value_z3_rlimit(1)}),
       IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(
-                  m::Next(x.node(), incremented.node(), predicate.node()),
-                  m::Next(x.node(), x.node(), m::Not(predicate.node()))));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  incremented.node(), predicate.node()),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  x.node(), m::Not(predicate.node()))));
   EXPECT_THAT(proc->nodes(), Not(Contains(m::Assert())));
 }
 
@@ -352,10 +375,13 @@ TEST_P(ProcStateLegalizationPassTest,
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(
-          m::Next(x.node(), x.node(), positive_predicate.node()),
-          m::Next(x.node(), incremented.node(), negative_predicate.node()),
-          m::Next(
-              x.node(), x.node(),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  x.node(), positive_predicate.node()),
+          m::NextWithStateElement(x.node()->As<StateRead>()->state_element(),
+                                  incremented.node(),
+                                  negative_predicate.node()),
+          m::NextWithStateElement(
+              x.node()->As<StateRead>()->state_element(), x.node(),
               m::Nor(positive_predicate.node(), negative_predicate.node()))));
 
   std::vector<Node*> asserts;
@@ -392,22 +418,20 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
   EXPECT_THAT(
       proc->GetStateReadByStateElement(*proc->GetStateElementByName("y"))
           ->predicate(),
-      Optional(m::Or(
-          m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
-          m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)))));
+      Optional(
+          m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0))));
   EXPECT_THAT(
       proc->next_values(*proc->GetStateElementByName("y")),
       UnorderedElementsAre(
-          m::Next(
-              m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
+          m::NextWithStateElement(
+              m::StateElement("y"), m::Add(m::StateRead("y"), m::Literal(1)),
               m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))),
-          m::Next(m::StateRead("y"), m::StateRead("y"),
-                  m::And(m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)),
-                                     m::Literal(0)),
-                               m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                                     m::Literal(0))),
-                         m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                                      m::Literal(0)))))));
+          m::NextWithStateElement(
+              m::StateElement("y"), m::StateRead("y"),
+              m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)),
+                           m::Literal(0)),
+                     m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                  m::Literal(0)))))));
 
   std::vector<Node*> asserts;
   absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
@@ -415,12 +439,10 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
   EXPECT_THAT(
       asserts,
       UnorderedElementsAre(m::Assert(
-          _, m::Or(m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)),
-                               m::Literal(0)),
-                         m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                               m::Literal(0))),
-                   m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                                m::Literal(0)))))));
+          _,
+          m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
+                m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                             m::Literal(0)))))));
 }
 
 TEST_P(ProcStateLegalizationPassTest,
@@ -452,27 +474,22 @@ TEST_P(ProcStateLegalizationPassTest,
   EXPECT_THAT(
       proc->GetStateReadByStateElement(*proc->GetStateElementByName("y"))
           ->predicate(),
-      Optional(m::Or(
-          m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
-          m::And(
-              m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
-              m::Literal(1)))));
+      Optional(
+          m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0))));
   EXPECT_THAT(
       proc->next_values(*proc->GetStateElementByName("y")),
       UnorderedElementsAre(
-          m::Next(m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
-                  m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                               m::Literal(0)),
-                         m::Eq(m::UMod(m::StateRead("y"), m::Literal(2)),
-                               m::Literal(0)))),
-          m::Next(
-              m::StateRead("y"), m::StateRead("y"),
+          m::NextWithStateElement(
+              m::StateElement("y"), m::Add(m::StateRead("y"), m::Literal(1)),
+              m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                           m::Literal(0)),
+                     m::Eq(m::UMod(m::StateRead("y"), m::Literal(2)),
+                           m::Literal(0)))),
+          m::NextWithStateElement(
+              m::StateElement("y"), m::StateRead("y"),
               m::And(
-                  m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)),
-                              m::Literal(0)),
-                        m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                                     m::Literal(0)),
-                               m::Literal(1))),
+                  m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)),
+                        m::Literal(0)),
                   m::Not(m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
                                       m::Literal(0)),
                                 m::Eq(m::UMod(m::StateRead("y"), m::Literal(2)),
@@ -485,11 +502,7 @@ TEST_P(ProcStateLegalizationPassTest,
       asserts,
       UnorderedElementsAre(m::Assert(
           _,
-          m::Or(m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)),
-                            m::Literal(0)),
-                      m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                                   m::Literal(0)),
-                             m::Literal(1))),
+          m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
                 m::Not(m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
                                     m::Literal(0)),
                               m::Eq(m::UMod(m::StateRead("y"), m::Literal(2)),
@@ -527,12 +540,13 @@ TEST_P(ProcStateLegalizationPassTest,
   EXPECT_THAT(
       proc->next_values(*proc->GetStateElementByName("y")),
       UnorderedElementsAre(
-          m::Next(
-              m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
+          m::NextWithStateElement(
+              m::StateElement("y"), m::Add(m::StateRead("y"), m::Literal(1)),
               m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))),
-          m::Next(m::StateRead("y"), m::StateRead("y"),
-                  m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                               m::Literal(0))))));
+          m::NextWithStateElement(
+              m::StateElement("y"), m::StateRead("y"),
+              m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                           m::Literal(0))))));
 
   std::vector<Node*> asserts;
   absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),

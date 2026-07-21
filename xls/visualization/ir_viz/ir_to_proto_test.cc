@@ -164,8 +164,8 @@ top proc the_proc(x: bits[32], y: bits[64], init={0, 42}) {
   not_y: bits[64] = not(y)
   send: token = send(rcv_token, next_x, channel=out)
   one: bits[1] = literal(value=1)
-  next_value_x: () = next_value(param=x, value=next_x, predicate=one)
-  next_value_y: () = next_value(param=y, value=not_y, predicate=one)
+  next_value_x: () = next_value(state_element=x, value=next_x, predicate=one)
+  next_value_y: () = next_value(state_element=y, value=not_y, predicate=one)
 }
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
