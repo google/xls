@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -123,13 +124,16 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
         XLS_ASSIGN_OR_RETURN(chan, new_pkg->GetChannel(r->channel_name()));
       } else {
         XLS_ASSIGN_OR_RETURN(auto orig_chan_ref, r->GetChannelRef());
-        Channel* orig_chan = std::get<Channel*>(orig_chan_ref);
+        XLS_ASSIGN_OR_RETURN(Type * map_ty, new_pkg->MapTypeFromOtherPackage(
+                                                ChannelRefType(orig_chan_ref)));
+        absl::Span<const Value> initial_values = {};
+        if (std::holds_alternative<Channel*>(orig_chan_ref)) {
+          initial_values = std::get<Channel*>(orig_chan_ref)->initial_values();
+        }
         XLS_ASSIGN_OR_RETURN(
-            Type * map_ty, new_pkg->MapTypeFromOtherPackage(orig_chan->type()));
-        XLS_ASSIGN_OR_RETURN(
-            chan, new_pkg->CreateStreamingChannel(
-                      r->channel_name(), ChannelOps::kReceiveOnly, map_ty,
-                      orig_chan->initial_values()));
+            chan, new_pkg->CreateStreamingChannel(r->channel_name(),
+                                                  ChannelOps::kReceiveOnly,
+                                                  map_ty, initial_values));
         if (r->is_blocking()) {
           if (r->predicate()) {
             old_to_new[n] =
@@ -188,21 +192,26 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
       }
     } else if (n->Is<Next>()) {
       Next* nxt = n->As<Next>();
-      if (absl::c_contains(
-              state_elements,
-              nxt->state_read()->As<StateRead>()->state_element())) {
-        if (nxt->predicate()) {
-          old_to_new[n] =
-              pb.Next(BValue(old_to_new[nxt->state_read()], &pb),
-                      BValue(old_to_new[nxt->value()], &pb),
-                      BValue(old_to_new[*nxt->predicate()], &pb), nxt->label(),
-                      nxt->loc(), nxt->HasAssignedName() ? nxt->GetName() : "")
-                  .node();
+      if (absl::c_contains(state_elements, nxt->state_element())) {
+        std::optional<BValue> pred =
+            nxt->predicate().has_value()
+                ? std::make_optional(
+                      BValue(old_to_new.at(*nxt->predicate()), &pb))
+                : std::nullopt;
+        std::string name = nxt->HasAssignedName() ? nxt->GetName() : "";
+        if (nxt->has_state_read()) {
+          old_to_new[n] = pb.Next(BValue(old_to_new.at(nxt->state_read()), &pb),
+                                  BValue(old_to_new.at(nxt->value()), &pb),
+                                  pred, nxt->label(), nxt->loc(), name)
+                              .node();
         } else {
-          old_to_new[n] = pb.Next(BValue(old_to_new[nxt->state_read()], &pb),
-                                  BValue(old_to_new[nxt->value()], &pb),
-                                  std::nullopt, nxt->label(), nxt->loc(),
-                                  nxt->HasAssignedName() ? nxt->GetName() : "")
+          StateRead* state_read =
+              original->GetStateReadByStateElement(nxt->state_element());
+          StateElement* new_se =
+              old_to_new.at(state_read)->As<StateRead>()->state_element();
+          old_to_new[n] = pb.Next(BStateElement(new_se, &pb),
+                                  BValue(old_to_new.at(nxt->value()), &pb),
+                                  pred, nxt->label(), nxt->loc(), name)
                               .node();
         }
       }

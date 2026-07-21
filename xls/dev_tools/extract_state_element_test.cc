@@ -96,5 +96,40 @@ TEST_F(ExtractStateElementTest, SendState) {
   ExpectEqualToGoldenFile(TestFilePath(TestName()), new_pkg->DumpIr());
 }
 
+TEST_F(ExtractStateElementTest, SendStateDecoupledNext) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  BReceiveChannel chan = pb.AddInputChannel("inp_chan", p->GetBitsType(32));
+  BStateElement state_element_a =
+      pb.UnreadStateElement("a", Value(UBits(1, 32)),
+                            /*non_synthesizable=*/false);
+  BStateElement state_element_b =
+      pb.UnreadStateElement("b", Value(UBits(1, 32)),
+                            /*non_synthesizable=*/false);
+  BStateElement state_element_c =
+      pb.UnreadStateElement("c", Value(UBits(1, 32)),
+                            /*non_synthesizable=*/false);
+  BStateElement state_element_d =
+      pb.UnreadStateElement("d", Value(UBits(1, 32)),
+                            /*non_synthesizable=*/false);
+  BValue a = pb.StateRead(state_element_a);
+  BValue b = pb.StateRead(state_element_b);
+  BValue c = pb.StateRead(state_element_c);
+  BValue d = pb.StateRead(state_element_d);
+  pb.Next(state_element_a, pb.Add(a, b));
+  pb.Next(state_element_b, pb.Add(c, a));
+  pb.Next(state_element_c, pb.Add(a, d));
+  pb.Next(state_element_d,
+          pb.Add(pb.TupleIndex(pb.Receive(chan, pb.Literal(Value::Token())), 1),
+                 c));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto new_pkg, ExtractStateElementsInNewPackage(
+                                             proc,
+                                             {state_element_a.state_element(),
+                                              state_element_b.state_element()},
+                                             /*send_state_values=*/true));
+  RecordProperty("ir", new_pkg->DumpIr());
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), new_pkg->DumpIr());
+}
 }  // namespace
 }  // namespace xls
