@@ -58,7 +58,6 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
-        "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:type_info",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

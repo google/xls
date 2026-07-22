@@ -31,7 +31,6 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
