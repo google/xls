@@ -31,7 +31,6 @@
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/channel_direction.h"
-#include "xls/dslx/conversion_record.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/proc_id.h"

@@ -352,7 +352,6 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
-        "//xls/dslx:conversion_record",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_utils",
