@@ -41,6 +41,7 @@
 #include "xls/dslx/ir_convert/ir_converter_test_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/run_comparator.h"
+#include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/ir_matcher.h"

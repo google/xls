@@ -12,32 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/base/casts.h"
-#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
-#include "absl/status/statusor.h"
-#include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
-#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/ir_convert/ir_converter_test_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
-#include "xls/ir/channel.h"
-#include "xls/ir/ir_matcher.h"
-#include "xls/ir/proc.h"
 
 namespace xls::dslx {
 namespace {
