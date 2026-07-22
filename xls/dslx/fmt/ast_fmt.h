@@ -20,6 +20,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
