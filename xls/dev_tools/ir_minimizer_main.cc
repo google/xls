@@ -134,6 +134,9 @@ ABSL_FLAG(bool, can_remove_params, false,
           "Whether parameters can be removed during the minimization process. "
           "If the test executable interprets the IR using a fixed set of "
           "arguments, parameters should not be removed.");
+ABSL_FLAG(
+    bool, can_remove_state_elements, true,
+    "Whether state elements can be removed during the minimization process.");
 ABSL_FLAG(int64_t, failed_attempt_limit, 256,
           "Failed simplification attempts (in a row) before we conclude we're "
           "done reducing.");
@@ -444,10 +447,15 @@ absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
     absl::flat_hash_set<StateElement*> invariant_state_elements(
         p->StateElements().begin(), p->StateElements().end());
     for (Next* next : p->next_values()) {
-      if (next->value() != next->state_read()) {
+      if (next->value() !=
+          (next->has_state_read()
+               ? next->state_read()
+               : p->GetStateReadByStateElement(next->state_element()))) {
         // This state param is not actually invariant.
         invariant_state_elements.erase(
-            next->state_read()->As<StateRead>()->state_element());
+            next->has_state_read()
+                ? next->state_read()->As<StateRead>()->state_element()
+                : next->state_element());
       }
     }
     for (StateElement* invariant : invariant_state_elements) {
@@ -763,7 +771,16 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
 template <typename NodeT, typename... Args>
 absl::StatusOr<Node*> SafeReplaceUsesWithNew(Node* target, Args... v) {
   auto is_state_read_of_next = [&](Node* n) {
-    return n->Is<Next>() && n->As<Next>()->state_read() == target;
+    if (!n->Is<Next>()) {
+      return false;
+    }
+    Next* next = n->As<Next>();
+    if (next->has_state_read()) {
+      return next->state_read() == target;
+    } else {
+      return n->function_base()->AsProcOrDie()->GetStateReadByStateElement(
+                 next->state_element()) == target;
+    }
   };
   if (!target->Is<StateRead>() ||
       !absl::c_any_of(target->users(), is_state_read_of_next)) {
@@ -802,9 +819,11 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
     // Only can inline from the top.
     passes.push_back(std::make_unique<InliningPass>());
   }
-  passes.push_back(std::make_unique<ProcStateArrayFlatteningPass>());
-  passes.push_back(std::make_unique<ProcStateTupleFlatteningPass>());
-  passes.push_back(std::make_unique<ProcStateOptimizationPass>());
+  if (absl::GetFlag(FLAGS_can_remove_state_elements)) {
+    passes.push_back(std::make_unique<ProcStateArrayFlatteningPass>());
+    passes.push_back(std::make_unique<ProcStateTupleFlatteningPass>());
+    passes.push_back(std::make_unique<ProcStateOptimizationPass>());
+  }
 
   int64_t pass_no = absl::Uniform<int64_t>(rng, 0, passes.size());
   PassResults results;
