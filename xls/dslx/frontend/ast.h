@@ -50,7 +50,7 @@
 
 // Higher-order macro for all the Expr node leaf types (non-abstract).
 #define XLS_DSLX_EXPR_NODE_EACH(X) \
-  /* keep-sorted start */       \
+  /* keep-sorted start */          \
   X(AllOnesMacro)                  \
   X(Array)                         \
   X(Attr)                          \
@@ -87,7 +87,7 @@
 // (Note that this includes all the Expr node leaf kinds listed in
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X)   \
-  /* keep-sorted start */        \
+  /* keep-sorted start */           \
   X(Attribute)                      \
   X(BuiltinNameDef)                 \
   X(ConstAssert)                    \
@@ -101,7 +101,6 @@
   X(MatchArm)                       \
   X(Module)                         \
   X(NameDef)                        \
-  X(NameDefTree)                    \
   X(Param)                          \
   X(ParametricBinding)              \
   X(Proc)                           \
@@ -117,15 +116,16 @@
   X(TestFunction)                   \
   X(TestProc)                       \
   X(Trait)                          \
+  X(TuplePattern)                   \
   X(TypeAlias)                      \
   X(TypeRef)                        \
   X(Use)                            \
   X(UseTreeEntry)                   \
   X(WidthSlice)                     \
   X(WildcardPattern)                \
-  /* keep-sorted end */          \
+  /* keep-sorted end */             \
   /* type annotations */            \
-  /* keep-sorted start */        \
+  /* keep-sorted start */           \
   X(AnyTypeAnnotation)              \
   X(ArrayTypeAnnotation)            \
   X(BuiltinTypeAnnotation)          \
@@ -143,7 +143,7 @@
   X(TupleTypeAnnotation)            \
   X(TypeRefTypeAnnotation)          \
   X(TypeVariableTypeAnnotation)     \
-  /* keep-sorted end */          \
+  /* keep-sorted end */             \
   XLS_DSLX_EXPR_NODE_EACH(X)
 
 namespace xls::dslx {
@@ -192,6 +192,26 @@ class TypeAnnotation;
 
 using ExprOrType = std::variant<Expr*, TypeAnnotation*>;
 Span ExprOrTypeSpan(const ExprOrType& expr_or_type);
+
+// A pattern is represented directly by its concrete syntax node. Parentheses
+// are the only recursive shape in the current language, represented by
+// TuplePattern below.
+using PatternLeaf = std::variant<NameDef*, NameRef*, WildcardPattern*, Number*,
+                                 ColonRef*, Range*, RestOfTuple*>;
+using PatternTree =
+    std::variant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*,
+                 Range*, RestOfTuple*, TuplePattern*>;
+// Const pattern views preserve read-only capability when traversed through the
+// PatternTree helper APIs. PatternTree itself remains mutable for AST
+// construction and lowering paths.
+using ConstPatternLeaf =
+    std::variant<const NameDef*, const NameRef*, const WildcardPattern*,
+                 const Number*, const ColonRef*, const Range*,
+                 const RestOfTuple*>;
+using ConstPatternTree =
+    std::variant<const NameDef*, const NameRef*, const WildcardPattern*,
+                 const Number*, const ColonRef*, const Range*,
+                 const RestOfTuple*, const TuplePattern*>;
 
 // Name definitions can be either built in (BuiltinNameDef, in which case they
 // have no effective position) or defined in the user AST (NameDef).
@@ -2661,7 +2681,7 @@ class Function : public AstNode {
 //   span: The span of the match arm (both matcher and expr).
 class MatchArm : public AstNode {
  public:
-  MatchArm(Module* owner, Span span, std::vector<NameDefTree*> patterns,
+  MatchArm(Module* owner, Span span, std::vector<PatternTree> patterns,
            Expr* expr);
 
   ~MatchArm() override;
@@ -2676,7 +2696,7 @@ class MatchArm : public AstNode {
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  const std::vector<NameDefTree*>& patterns() const { return patterns_; }
+  const std::vector<PatternTree>& patterns() const { return patterns_; }
   Expr* expr() const { return expr_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
@@ -2687,7 +2707,7 @@ class MatchArm : public AstNode {
 
  private:
   Span span_;
-  std::vector<NameDefTree*> patterns_;  // Note: never empty.
+  std::vector<PatternTree> patterns_;  // Note: never empty.
   Expr* expr_;  // Expression that is executed if one of the patterns matches.
 };
 
@@ -4176,7 +4196,7 @@ class XlsTuple : public Expr {
 // types of loops should be as much the same as possible.
 class ForLoopBase : public Expr {
  public:
-  ForLoopBase(Module* owner, Span span, NameDefTree* names,
+  ForLoopBase(Module* owner, Span span, PatternTree pattern,
               TypeAnnotation* type, Expr* iterable, StatementBlock* body,
               Expr* init, bool in_parens = false);
 
@@ -4185,10 +4205,10 @@ class ForLoopBase : public Expr {
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  // Names bound in the body of the loop.
-  NameDefTree* names() const { return names_; }
+  // Pattern matched against each iterator/accumulator pair.
+  const PatternTree& pattern() const { return pattern_; }
 
-  // Annotation corresponding to "names".
+  // Annotation corresponding to the pattern.
   TypeAnnotation* type_annotation() const { return type_annotation_; }
 
   // Expression for "thing to iterate over".
@@ -4211,7 +4231,7 @@ class ForLoopBase : public Expr {
  private:
   std::string ToStringInternal() const override;
 
-  NameDefTree* names_;
+  PatternTree pattern_;
   TypeAnnotation* type_annotation_;
   Expr* iterable_;
   StatementBlock* body_;
@@ -4244,7 +4264,7 @@ class For : public ForLoopBase {
 // number of elements in the iterable.
 class ConstFor : public ForLoopBase {
  public:
-  ConstFor(Module* owner, Span span, NameDefTree* names, TypeAnnotation* type,
+  ConstFor(Module* owner, Span span, PatternTree pattern, TypeAnnotation* type,
            Expr* iterable, StatementBlock* body, Expr* init, bool is_unroll_for,
            bool in_parens = false);
 
@@ -4369,130 +4389,83 @@ class ConstantDef : public AstNode {
   bool is_public_;
 };
 
-// Tree of name definition nodes; e.g.
+// Represents parenthesized pattern syntax such as (a, (b, c)).
 //
-// in LHS of let bindings.
-//
-// For example:
-//
-//   let (a, (b, (c)), d) = ...
-//
-// Makes a:
-//
-//   NameDefTree((NameDef('a'),
-//                NameDefTree((
-//                  NameDef('b'),
-//                  NameDefTree((
-//                    NameDef('c'))))),
-//                NameDef('d')))
-//
-// A "NameDef" is an AST node that signifies an identifier is being bound, so
-// this is simply a tree of those (with the tree being constructed via tuples;
-// leaves are NameDefs, interior nodes are tuples).
-//
-// Attributes:
-//   span: The span of the names at this level of the tree.
-//   tree: The subtree this represents (either a tuple of subtrees or a leaf).
-class NameDefTree : public AstNode {
+// Leaves are stored directly in PatternTree; this node is the only recursive
+// pattern shape in the current language.
+class TuplePattern : public AstNode {
  public:
-  using Nodes = std::vector<NameDefTree*>;
-  using Leaf = std::variant<NameDef*, NameRef*, WildcardPattern*, Number*,
-                            ColonRef*, Range*, RestOfTuple*>;
+  TuplePattern(Module* owner, Span span, std::vector<PatternTree> members)
+      : AstNode(owner), span_(std::move(span)), members_(std::move(members)) {}
 
-  NameDefTree(Module* owner, Span span, std::variant<Nodes, Leaf> tree)
-      : AstNode(owner), span_(std::move(span)), tree_(std::move(tree)) {}
+  ~TuplePattern() override;
 
-  ~NameDefTree() override;
-
-  AstNodeKind kind() const override { return AstNodeKind::kNameDefTree; }
+  AstNodeKind kind() const override { return AstNodeKind::kTuplePattern; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleNameDefTree(this);
+    return v->HandleTuplePattern(this);
   }
 
-  std::string_view GetNodeTypeName() const override { return "NameDefTree"; }
+  std::string_view GetNodeTypeName() const override { return "TuplePattern"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  bool is_leaf() const { return std::holds_alternative<Leaf>(tree_); }
-  Leaf leaf() const { return std::get<Leaf>(tree_); }
-
-  const Nodes& nodes() const { return std::get<Nodes>(tree_); }
-
-  // Flattens this NameDefTree a single level, unwrapping any leaf NDTs; e.g.
-  //
-  //    LEAF:a => [LEAF:a]
-  //    LEAF:a, NODES:[NDT:b, NDT:c], LEAF:d => [LEAF:a, NDT:b, NDT:c, LEAF:d]
-  //    NODES:[NDT:a, NDT:LEAF:c], NODES[NDT:c] => [NDT:a, NDT:b, LEAF:c, NDT:d]
-  //
-  // This is useful for flattening a tuple a single level; e.g. where a
-  // NameDefTree is going to be used as variadic args in for-loop to function
-  // conversion.
-  std::vector<std::variant<Leaf, NameDefTree*>> Flatten1() const;
-
-  // Flattens the (recursive) NameDefTree into a list of leaves.
-  std::vector<Leaf> Flatten() const;
-
-  // Filters the values from Flatten() to just NameDef leaves.
-  std::vector<NameDef*> GetNameDefs() const;
-
-  // A pattern is irrefutable if it always causes a successful match.
-  //
-  // Returns whether this NameDefTree is known-irrefutable.
-  bool IsIrrefutable() const {
-    auto leaves = Flatten();
-    return std::all_of(leaves.begin(), leaves.end(), [](Leaf leaf) {
-      return std::holds_alternative<NameDef*>(leaf) ||
-             std::holds_alternative<WildcardPattern*>(leaf);
-    });
-  }
-
-  bool IsWildcardLeaf() const {
-    return is_leaf() && std::holds_alternative<WildcardPattern*>(leaf());
-  }
-
-  bool IsRestOfTupleLeaf() const {
-    return is_leaf() && std::holds_alternative<RestOfTuple*>(leaf());
-  }
-
-  // Performs a preorder traversal under this node in the NameDefTree.
-  //
-  // Args:
-  //  f: Callback invoked as `f(NameDefTree*, level, branchno)`.
-  //  level: Current level of the node.
-  absl::Status DoPreorder(
-      const std::function<absl::Status(NameDefTree*, int64_t, int64_t)>& f,
-      int64_t level = 1) {
-    if (is_leaf()) {
-      return absl::OkStatus();
-    }
-    for (int64_t i = 0; i < nodes().size(); ++i) {
-      NameDefTree* node = nodes()[i];
-      XLS_RETURN_IF_ERROR(f(node, level, i));
-      XLS_RETURN_IF_ERROR(node->DoPreorder(f, level + 1));
-    }
-    return absl::OkStatus();
-  }
-
-  [[maybe_unused]] const std::variant<Nodes, Leaf>& tree() const {
-    return tree_;
-  }
+  const std::vector<PatternTree>& members() const { return members_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
-  std::variant<Nodes, Leaf> tree_;
+  std::vector<PatternTree> members_;
 };
+
+AstNode* ToAstNode(const PatternTree& pattern);
+const AstNode* ToAstNode(const ConstPatternTree& pattern);
+ConstPatternTree ToConstPatternTree(const PatternTree& pattern);
+const Span& GetPatternSpan(const PatternTree& pattern);
+const Span& GetPatternSpan(const ConstPatternTree& pattern);
+std::string PatternToString(const PatternTree& pattern);
+std::string PatternToString(const ConstPatternTree& pattern);
+
+// FlattenPattern returns all leaves in source order. FlattenPattern1 unwraps
+// only the root tuple; nested tuples remain TuplePattern* alternatives.
+std::vector<PatternLeaf> FlattenPattern(const PatternTree& pattern);
+std::vector<ConstPatternLeaf> FlattenPattern(const ConstPatternTree& pattern);
+std::vector<PatternTree> FlattenPattern1(const PatternTree& pattern);
+std::vector<ConstPatternTree> FlattenPattern1(const ConstPatternTree& pattern);
+
+// These helpers centralize recursive pattern traversal.
+std::vector<NameDef*> GetPatternNameDefs(const PatternTree& pattern);
+std::vector<const NameDef*> GetPatternNameDefs(const ConstPatternTree& pattern);
+bool IsIrrefutablePattern(const PatternTree& pattern);
+bool IsIrrefutablePattern(const ConstPatternTree& pattern);
+
+// These predicates inspect only the root alternative.
+bool IsWildcardLeaf(const PatternTree& pattern);
+bool IsWildcardLeaf(const ConstPatternTree& pattern);
+bool IsRestOfTupleLeaf(const PatternTree& pattern);
+bool IsRestOfTupleLeaf(const ConstPatternTree& pattern);
+
+// Visits each member below a tuple root in preorder. The root itself is not
+// passed to f; level is one-based and index is local to the member's tuple.
+absl::Status DoPatternPreorder(
+    const PatternTree& pattern,
+    const std::function<absl::Status(const PatternTree&, int64_t, int64_t)>& f,
+    int64_t level = 1);
+absl::Status DoPatternPreorder(
+    const ConstPatternTree& pattern,
+    const std::function<absl::Status(const ConstPatternTree&, int64_t,
+                                     int64_t)>& f,
+    int64_t level = 1);
 
 // Represents a let-binding expression.
 class Let : public AstNode {
  public:
   // A Let's body can be nullopt if it's the last expr
   // in an unroll_for or a const for body.
-  Let(Module* owner, Span span, NameDefTree* name_def_tree,
-      TypeAnnotation* type, Expr* rhs, bool is_const);
+  Let(Module* owner, Span span, PatternTree pattern, TypeAnnotation* type,
+      Expr* rhs, bool is_const);
 
   ~Let() override;
 
@@ -4509,7 +4482,7 @@ class Let : public AstNode {
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  NameDefTree* name_def_tree() const { return name_def_tree_; }
+  const PatternTree& pattern() const { return pattern_; }
   TypeAnnotation* type_annotation() const { return type_annotation_; }
   Expr* rhs() const { return rhs_; }
   bool is_const() const { return is_const_; }
@@ -4522,8 +4495,8 @@ class Let : public AstNode {
   //  let (a, b, (c)) = (1, 2, (3,));
   //  ...
   //
-  // the name_def_tree is `(a, b, (c))`
-  NameDefTree* name_def_tree_;
+  // the pattern is (a, b, (c))
+  PatternTree pattern_;
 
   // The optional annotated type on the let expression, may be null.
   TypeAnnotation* type_annotation_;

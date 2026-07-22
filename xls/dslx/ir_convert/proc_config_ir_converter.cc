@@ -195,7 +195,7 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
   XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
 
   if (ChannelDecl* decl = dynamic_cast<ChannelDecl*>(node->rhs())) {
-    std::vector<NameDefTree::Leaf> leaves = node->name_def_tree()->Flatten();
+    std::vector<PatternLeaf> leaves = FlattenPattern(node->pattern());
     XLS_RET_CHECK_EQ(leaves.size(), 2);
     for (int i = 0; i < 2; i++) {
       if (std::holds_alternative<NameDef*>(leaves[i])) {
@@ -212,13 +212,13 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
                     std::holds_alternative<RestOfTuple*>(leaves[i]));
     }
   } else {
-    if (!node->name_def_tree()->is_leaf()) {
+    if (std::holds_alternative<TuplePattern*>(node->pattern())) {
       return absl::UnimplementedError(
           "Destructuring let bindings are not yet supported in Proc configs.");
     }
 
     // A leaf on the LHS of a Let will always be a NameDef.
-    NameDef* def = std::get<NameDef*>(node->name_def_tree()->leaf());
+    NameDef* def = std::get<NameDef*>(node->pattern());
     if (!node_to_ir_.contains(node->rhs())) {
       return absl::InternalError(
           absl::StrCat("Let RHS not evaluated as constexpr: ", def->ToString(),

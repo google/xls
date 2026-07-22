@@ -289,8 +289,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "struct instance";
     case AstNodeKind::kSplatStructInstance:
       return "splat struct instance";
-    case AstNodeKind::kNameDefTree:
-      return "name definition tree";
+    case AstNodeKind::kTuplePattern:
+      return "tuple pattern";
     case AstNodeKind::kIndex:
       return "index";
     case AstNodeKind::kRange:
@@ -846,19 +846,19 @@ std::vector<AstNode*> ParametricBinding::GetChildren(bool want_types) const {
 
 std::string MatchArm::ToString() const {
   std::string patterns_or = absl::StrJoin(
-      patterns_, " | ", [](std::string* out, NameDefTree* name_def_tree) {
-        absl::StrAppend(out, name_def_tree->ToString());
+      patterns_, " | ", [](std::string* out, const PatternTree& pattern) {
+        absl::StrAppend(out, PatternToString(pattern));
       });
   return absl::StrFormat("%s => %s", patterns_or, expr_->ToString());
 }
 
 For::~For() = default;
 
-ConstFor::ConstFor(Module* owner, Span span, NameDefTree* names,
+ConstFor::ConstFor(Module* owner, Span span, PatternTree pattern,
                    TypeAnnotation* type_annotation, Expr* iterable,
                    StatementBlock* body, Expr* init, bool is_unroll_for,
                    bool in_parens)
-    : ForLoopBase(owner, span, names, type_annotation, iterable, body, init,
+    : ForLoopBase(owner, span, pattern, type_annotation, iterable, body, init,
                   in_parens),
       is_unroll_for_(is_unroll_for) {}
 
@@ -1393,8 +1393,8 @@ bool IsConstant(AstNode* node) {
 std::vector<AstNode*> MatchArm::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
   results.reserve(patterns_.size());
-  for (NameDefTree* ndt : patterns_) {
-    results.push_back(ndt);
+  for (const PatternTree& pattern : patterns_) {
+    results.push_back(ToAstNode(pattern));
   }
   results.push_back(expr_);
   return results;
@@ -2315,18 +2315,18 @@ std::string StatementBlock::ToStringInternal() const {
 
 // -- class ForLoopBase
 
-ForLoopBase::ForLoopBase(Module* owner, Span span, NameDefTree* names,
+ForLoopBase::ForLoopBase(Module* owner, Span span, PatternTree pattern,
                          TypeAnnotation* type_annotation, Expr* iterable,
                          StatementBlock* body, Expr* init, bool in_parens)
     : Expr(owner, span, in_parens),
-      names_(names),
+      pattern_(pattern),
       type_annotation_(type_annotation),
       iterable_(iterable),
       body_(body),
       init_(init) {}
 
 std::vector<AstNode*> ForLoopBase::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results = {names_};
+  std::vector<AstNode*> results = {ToAstNode(pattern_)};
   if (want_types && type_annotation_ != nullptr) {
     results.push_back(type_annotation_);
   }
@@ -2341,9 +2341,9 @@ std::string ForLoopBase::ToStringInternal() const {
   if (type_annotation_ != nullptr) {
     type_str = absl::StrCat(": ", type_annotation_->ToString());
   }
-  return absl::StrFormat("%s %s%s in %s %s(%s)", keyword(), names_->ToString(),
-                         type_str, iterable_->ToString(), body_->ToString(),
-                         init_->ToString());
+  return absl::StrFormat(
+      "%s %s%s in %s %s(%s)", keyword(), PatternToString(pattern_), type_str,
+      iterable_->ToString(), body_->ToString(), init_->ToString());
 }
 
 // -- class Function
@@ -2562,7 +2562,7 @@ std::string Lambda::ToStringInternal() const {
 
 // -- class MatchArm
 
-MatchArm::MatchArm(Module* owner, Span span, std::vector<NameDefTree*> patterns,
+MatchArm::MatchArm(Module* owner, Span span, std::vector<PatternTree> patterns,
                    Expr* expr)
     : AstNode(owner),
       span_(std::move(span)),
@@ -2574,7 +2574,8 @@ MatchArm::MatchArm(Module* owner, Span span, std::vector<NameDefTree*> patterns,
 MatchArm::~MatchArm() = default;
 
 Span MatchArm::GetPatternSpan() const {
-  return Span(patterns_[0]->span().start(), patterns_.back()->span().limit());
+  return Span(xls::dslx::GetPatternSpan(patterns_[0]).start(),
+              xls::dslx::GetPatternSpan(patterns_.back()).limit());
 }
 
 // -- class NameRef
@@ -2830,75 +2831,236 @@ std::string XlsTuple::ToStringInternal() const {
   return result;
 }
 
-// -- class NameDefTree
+// -- class TuplePattern
 
-NameDefTree::~NameDefTree() = default;
+TuplePattern::~TuplePattern() = default;
 
-std::vector<AstNode*> NameDefTree::GetChildren(bool want_types) const {
-  if (std::holds_alternative<Leaf>(tree_)) {
-    return {ToAstNode(std::get<Leaf>(tree_))};
+std::vector<AstNode*> TuplePattern::GetChildren(bool want_types) const {
+  std::vector<AstNode*> result;
+  result.reserve(members_.size());
+  for (const PatternTree& member : members_) {
+    result.push_back(ToAstNode(member));
   }
-  const Nodes& nodes = std::get<Nodes>(tree_);
-  return ToAstNodes<NameDefTree>(nodes);
+  return result;
 }
 
-std::string NameDefTree::ToString() const {
-  if (is_leaf()) {
-    return ToAstNode(leaf())->ToString();
-  }
-
-  std::string guts =
-      absl::StrJoin(nodes(), ", ", [](std::string* out, NameDefTree* node) {
-        absl::StrAppend(out, node->ToString());
+std::string TuplePattern::ToString() const {
+  std::string guts = absl::StrJoin(
+      members_, ", ", [](std::string* out, const PatternTree& member) {
+        absl::StrAppend(out, PatternToString(member));
       });
   return absl::StrFormat("(%s)", guts);
 }
 
-std::vector<NameDefTree::Leaf> NameDefTree::Flatten() const {
-  if (is_leaf()) {
-    return {leaf()};
-  }
-  std::vector<Leaf> results;
-  for (const NameDefTree* node : std::get<Nodes>(tree_)) {
-    auto node_leaves = node->Flatten();
-    results.insert(results.end(), node_leaves.begin(), node_leaves.end());
-  }
-  return results;
+namespace {
+
+PatternLeaf PatternTreeToLeaf(const PatternTree& pattern) {
+  return absl::visit(
+      Visitor{[](NameDef* node) -> PatternLeaf { return node; },
+              [](NameRef* node) -> PatternLeaf { return node; },
+              [](WildcardPattern* node) -> PatternLeaf { return node; },
+              [](Number* node) -> PatternLeaf { return node; },
+              [](ColonRef* node) -> PatternLeaf { return node; },
+              [](Range* node) -> PatternLeaf { return node; },
+              [](RestOfTuple* node) -> PatternLeaf { return node; },
+              [](TuplePattern* /*node*/) -> PatternLeaf {
+                LOG(FATAL) << "Tuple pattern is not a pattern leaf";
+                return static_cast<NameDef*>(nullptr);
+              }},
+      pattern);
 }
 
-std::vector<NameDef*> NameDefTree::GetNameDefs() const {
-  std::vector<NameDef*> results;
-  for (Leaf leaf : Flatten()) {
+ConstPatternLeaf PatternTreeToLeaf(const ConstPatternTree& pattern) {
+  return absl::visit(
+      Visitor{
+          [](const NameDef* node) -> ConstPatternLeaf { return node; },
+          [](const NameRef* node) -> ConstPatternLeaf { return node; },
+          [](const WildcardPattern* node) -> ConstPatternLeaf { return node; },
+          [](const Number* node) -> ConstPatternLeaf { return node; },
+          [](const ColonRef* node) -> ConstPatternLeaf { return node; },
+          [](const Range* node) -> ConstPatternLeaf { return node; },
+          [](const RestOfTuple* node) -> ConstPatternLeaf { return node; },
+          [](const TuplePattern* /*node*/) -> ConstPatternLeaf {
+            LOG(FATAL) << "Tuple pattern is not a pattern leaf";
+            return static_cast<const NameDef*>(nullptr);
+          }},
+      pattern);
+}
+
+}  // namespace
+
+AstNode* ToAstNode(const PatternTree& pattern) {
+  return absl::visit([](auto* node) -> AstNode* { return node; }, pattern);
+}
+
+const AstNode* ToAstNode(const ConstPatternTree& pattern) {
+  return absl::visit([](const auto* node) -> const AstNode* { return node; },
+                     pattern);
+}
+
+ConstPatternTree ToConstPatternTree(const PatternTree& pattern) {
+  return absl::visit([](auto* node) -> ConstPatternTree { return node; },
+                     pattern);
+}
+
+const Span& GetPatternSpan(const PatternTree& pattern) {
+  return absl::visit([](auto* node) -> const Span& { return node->span(); },
+                     pattern);
+}
+
+const Span& GetPatternSpan(const ConstPatternTree& pattern) {
+  return absl::visit(
+      [](const auto* node) -> const Span& { return node->span(); }, pattern);
+}
+
+std::string PatternToString(const PatternTree& pattern) {
+  return ToAstNode(pattern)->ToString();
+}
+
+std::string PatternToString(const ConstPatternTree& pattern) {
+  return ToAstNode(pattern)->ToString();
+}
+
+std::vector<PatternLeaf> FlattenPattern(const PatternTree& pattern) {
+  if (!std::holds_alternative<TuplePattern*>(pattern)) {
+    return {PatternTreeToLeaf(pattern)};
+  }
+  std::vector<PatternLeaf> result;
+  for (const PatternTree& member :
+       std::get<TuplePattern*>(pattern)->members()) {
+    std::vector<PatternLeaf> member_leaves = FlattenPattern(member);
+    result.insert(result.end(), member_leaves.begin(), member_leaves.end());
+  }
+  return result;
+}
+
+std::vector<ConstPatternLeaf> FlattenPattern(const ConstPatternTree& pattern) {
+  if (!std::holds_alternative<const TuplePattern*>(pattern)) {
+    return {PatternTreeToLeaf(pattern)};
+  }
+  std::vector<ConstPatternLeaf> result;
+  for (const PatternTree& member :
+       std::get<const TuplePattern*>(pattern)->members()) {
+    std::vector<ConstPatternLeaf> member_leaves =
+        FlattenPattern(ToConstPatternTree(member));
+    result.insert(result.end(), member_leaves.begin(), member_leaves.end());
+  }
+  return result;
+}
+
+std::vector<PatternTree> FlattenPattern1(const PatternTree& pattern) {
+  if (!std::holds_alternative<TuplePattern*>(pattern)) {
+    return {pattern};
+  }
+  return std::get<TuplePattern*>(pattern)->members();
+}
+
+std::vector<ConstPatternTree> FlattenPattern1(const ConstPatternTree& pattern) {
+  if (!std::holds_alternative<const TuplePattern*>(pattern)) {
+    return {pattern};
+  }
+  std::vector<ConstPatternTree> result;
+  for (const PatternTree& member :
+       std::get<const TuplePattern*>(pattern)->members()) {
+    result.push_back(ToConstPatternTree(member));
+  }
+  return result;
+}
+
+std::vector<NameDef*> GetPatternNameDefs(const PatternTree& pattern) {
+  std::vector<NameDef*> result;
+  for (const PatternLeaf& leaf : FlattenPattern(pattern)) {
     if (std::holds_alternative<NameDef*>(leaf)) {
-      results.push_back(std::get<NameDef*>(leaf));
-    }
-  }
-  return results;
-}
-
-std::vector<std::variant<NameDefTree::Leaf, NameDefTree*>>
-NameDefTree::Flatten1() const {
-  if (is_leaf()) {
-    return {leaf()};
-  }
-  std::vector<std::variant<Leaf, NameDefTree*>> result;
-  for (NameDefTree* ndt : nodes()) {
-    if (ndt->is_leaf()) {
-      result.push_back(ndt->leaf());
-    } else {
-      result.push_back(ndt);
+      result.push_back(std::get<NameDef*>(leaf));
     }
   }
   return result;
 }
 
+std::vector<const NameDef*> GetPatternNameDefs(
+    const ConstPatternTree& pattern) {
+  std::vector<const NameDef*> result;
+  for (const ConstPatternLeaf& leaf : FlattenPattern(pattern)) {
+    if (std::holds_alternative<const NameDef*>(leaf)) {
+      result.push_back(std::get<const NameDef*>(leaf));
+    }
+  }
+  return result;
+}
+
+bool IsIrrefutablePattern(const PatternTree& pattern) {
+  std::vector<PatternLeaf> leaves = FlattenPattern(pattern);
+  return std::all_of(leaves.begin(), leaves.end(), [](PatternLeaf leaf) {
+    return std::holds_alternative<NameDef*>(leaf) ||
+           std::holds_alternative<WildcardPattern*>(leaf);
+  });
+}
+
+bool IsIrrefutablePattern(const ConstPatternTree& pattern) {
+  std::vector<ConstPatternLeaf> leaves = FlattenPattern(pattern);
+  return std::all_of(leaves.begin(), leaves.end(), [](ConstPatternLeaf leaf) {
+    return std::holds_alternative<const NameDef*>(leaf) ||
+           std::holds_alternative<const WildcardPattern*>(leaf);
+  });
+}
+
+bool IsWildcardLeaf(const PatternTree& pattern) {
+  return std::holds_alternative<WildcardPattern*>(pattern);
+}
+
+bool IsWildcardLeaf(const ConstPatternTree& pattern) {
+  return std::holds_alternative<const WildcardPattern*>(pattern);
+}
+
+bool IsRestOfTupleLeaf(const PatternTree& pattern) {
+  return std::holds_alternative<RestOfTuple*>(pattern);
+}
+
+bool IsRestOfTupleLeaf(const ConstPatternTree& pattern) {
+  return std::holds_alternative<const RestOfTuple*>(pattern);
+}
+
+absl::Status DoPatternPreorder(
+    const PatternTree& pattern,
+    const std::function<absl::Status(const PatternTree&, int64_t, int64_t)>& f,
+    int64_t level) {
+  if (!std::holds_alternative<TuplePattern*>(pattern)) {
+    return absl::OkStatus();
+  }
+  const std::vector<PatternTree>& members =
+      std::get<TuplePattern*>(pattern)->members();
+  for (int64_t i = 0; i < members.size(); ++i) {
+    XLS_RETURN_IF_ERROR(f(members[i], level, i));
+    XLS_RETURN_IF_ERROR(DoPatternPreorder(members[i], f, level + 1));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status DoPatternPreorder(
+    const ConstPatternTree& pattern,
+    const std::function<absl::Status(const ConstPatternTree&, int64_t,
+                                     int64_t)>& f,
+    int64_t level) {
+  if (!std::holds_alternative<const TuplePattern*>(pattern)) {
+    return absl::OkStatus();
+  }
+  const std::vector<PatternTree>& members =
+      std::get<const TuplePattern*>(pattern)->members();
+  for (int64_t i = 0; i < members.size(); ++i) {
+    ConstPatternTree member = ToConstPatternTree(members[i]);
+    XLS_RETURN_IF_ERROR(f(member, level, i));
+    XLS_RETURN_IF_ERROR(DoPatternPreorder(member, f, level + 1));
+  }
+  return absl::OkStatus();
+}
+
 // -- class Let
 
-Let::Let(Module* owner, Span span, NameDefTree* name_def_tree,
+Let::Let(Module* owner, Span span, PatternTree pattern,
          TypeAnnotation* type_annotation, Expr* rhs, bool is_const)
     : AstNode(owner),
       span_(std::move(span)),
-      name_def_tree_(name_def_tree),
+      pattern_(pattern),
       type_annotation_(type_annotation),
       rhs_(rhs),
       is_const_(is_const) {}
@@ -2906,7 +3068,7 @@ Let::Let(Module* owner, Span span, NameDefTree* name_def_tree,
 Let::~Let() = default;
 
 std::vector<AstNode*> Let::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results = {name_def_tree_};
+  std::vector<AstNode*> results = {ToAstNode(pattern_)};
   if (type_annotation_ != nullptr && want_types) {
     results.push_back(type_annotation_);
   }
@@ -2925,7 +3087,7 @@ std::string Let::ToString() const {
                                      ? absl::StrCat(" =", rhs_str)
                                      : absl::StrCat(" = ", rhs_str);
   return absl::StrFormat("%s %s%s%s;", is_const_ ? "const" : "let",
-                         name_def_tree_->ToString(), type_str, eq_and_rhs);
+                         PatternToString(pattern_), type_str, eq_and_rhs);
 }
 
 // -- class Expr

@@ -24,13 +24,13 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -1369,7 +1369,7 @@ TEST(AstClonerTest, ReplacerUsesOldToNewMappingForNameRef) {
     if (auto let_ptr =
             std::get_if<Let*>(&const_cast<Statement::Wrapped&>(wrapped));
         let_ptr != nullptr && *let_ptr != nullptr) {
-      auto name_defs = (*let_ptr)->name_def_tree()->GetNameDefs();
+      auto name_defs = GetPatternNameDefs((*let_ptr)->pattern());
       if (!name_defs.empty() && name_defs[0]->identifier() == "b") {
         b_name_def = name_defs[0];
         break;
@@ -1673,7 +1673,7 @@ TEST(AstClonerTest, FormatMacroWithVerbosity) {
 }
 
 TEST(AstClonerTest, Match) {
-  // Try to every potential NameDefTree Leaf type (NameRef, NameDef,
+  // Try every potential PatternTree leaf type (NameRef, NameDef,
   // WildcardPattern, Number, ColonRef).
   constexpr std::string_view kProgram = R"(import foo;
 fn main(x: u32, y: u32) -> u32 {
@@ -1691,6 +1691,56 @@ fn main(x: u32, y: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, PatternTreeShapeAndMatchDefiners) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u32) -> u32 {
+    match x {
+        () => u32:0,
+        (a) => a,
+        (b,) => b,
+        (c, (d, e)) => c,
+    }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main,
+                           clone->GetMemberOrError<Function>("main"));
+  Statement* statement = main->body()->statements().back();
+  auto* match = absl::down_cast<Match*>(std::get<Expr*>(statement->wrapped()));
+  ASSERT_EQ(match->arms().size(), 4);
+
+  const PatternTree& empty_pattern = match->arms()[0]->patterns()[0];
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(empty_pattern));
+  EXPECT_TRUE(std::get<TuplePattern*>(empty_pattern)->members().empty());
+
+  const PatternTree& singleton_pattern = match->arms()[1]->patterns()[0];
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(singleton_pattern));
+  EXPECT_EQ(std::get<TuplePattern*>(singleton_pattern)->members().size(), 1);
+
+  const PatternTree& trailing_pattern = match->arms()[2]->patterns()[0];
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(trailing_pattern));
+  EXPECT_EQ(std::get<TuplePattern*>(trailing_pattern)->members().size(), 1);
+
+  const PatternTree& nested_pattern = match->arms()[3]->patterns()[0];
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(nested_pattern));
+  TuplePattern* outer = std::get<TuplePattern*>(nested_pattern);
+  ASSERT_EQ(outer->members().size(), 2);
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(outer->members()[1]));
+  TuplePattern* inner = std::get<TuplePattern*>(outer->members()[1]);
+  ASSERT_EQ(inner->members().size(), 2);
+  EXPECT_EQ(inner->parent(), outer);
+
+  for (MatchArm* arm : match->arms()) {
+    for (NameDef* name_def : GetPatternNameDefs(arm->patterns()[0])) {
+      EXPECT_EQ(name_def->definer(), arm);
+    }
+  }
 }
 
 TEST(AstClonerTest, LetMatch) {

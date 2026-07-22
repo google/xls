@@ -53,6 +53,14 @@ class AstCloner : public AstNodeVisitor {
     return module_.has_value() ? *module_ : n->owner();
   }
 
+  PatternTree ClonePattern(const PatternTree& pattern) const {
+    return absl::visit(
+        [&](auto* node) -> PatternTree {
+          return absl::down_cast<decltype(node)>(old_to_new_.at(node));
+        },
+        pattern);
+  }
+
   absl::Status HandleArray(const Array* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -348,7 +356,7 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleFor(const For* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->names()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(ToAstNode(n->pattern())));
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->type_annotation()));
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->iterable()));
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->body()));
@@ -360,8 +368,7 @@ class AstCloner : public AstNodeVisitor {
                                          old_to_new_.at(n->type_annotation()));
 
     old_to_new_[n] = module(n)->Make<For>(
-        n->span(), absl::down_cast<NameDefTree*>(old_to_new_.at(n->names())),
-        new_type_annotation,
+        n->span(), ClonePattern(n->pattern()), new_type_annotation,
         absl::down_cast<Expr*>(old_to_new_.at(n->iterable())),
         absl::down_cast<StatementBlock*>(old_to_new_.at(n->body())),
         absl::down_cast<Expr*>(old_to_new_.at(n->init())));
@@ -576,10 +583,8 @@ class AstCloner : public AstNodeVisitor {
     }
 
     old_to_new_[n] = module(n)->Make<Let>(
-        n->span(),
-        absl::down_cast<NameDefTree*>(old_to_new_.at(n->name_def_tree())),
-        new_type, absl::down_cast<Expr*>(old_to_new_.at(n->rhs())),
-        n->is_const());
+        n->span(), ClonePattern(n->pattern()), new_type,
+        absl::down_cast<Expr*>(old_to_new_.at(n->rhs())), n->is_const());
     return absl::OkStatus();
   }
 
@@ -601,16 +606,21 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleMatchArm(const MatchArm* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    std::vector<NameDefTree*> new_patterns;
+    std::vector<PatternTree> new_patterns;
     new_patterns.reserve(n->patterns().size());
-    for (const NameDefTree* pattern : n->patterns()) {
-      new_patterns.push_back(
-          absl::down_cast<NameDefTree*>(old_to_new_.at(pattern)));
+    for (const PatternTree& pattern : n->patterns()) {
+      new_patterns.push_back(ClonePattern(pattern));
     }
 
-    old_to_new_[n] = module(n)->Make<MatchArm>(
+    MatchArm* new_arm = module(n)->Make<MatchArm>(
         n->span(), new_patterns,
         absl::down_cast<Expr*>(old_to_new_.at(n->expr())));
+    for (const PatternTree& pattern : new_arm->patterns()) {
+      for (NameDef* name_def : GetPatternNameDefs(pattern)) {
+        name_def->set_definer(new_arm);
+      }
+    }
+    old_to_new_[n] = new_arm;
 
     return absl::OkStatus();
   }
@@ -663,26 +673,16 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleNameDefTree(const NameDefTree* n) override {
+  absl::Status HandleTuplePattern(const TuplePattern* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    if (n->is_leaf()) {
-      NameDefTree::Leaf leaf;
-      absl::visit(
-          [&](auto* x) {
-            leaf = absl::down_cast<decltype(x)>(old_to_new_.at(x));
-          },
-          n->leaf());
-      old_to_new_[n] = module(n)->Make<NameDefTree>(n->span(), leaf);
-      return absl::OkStatus();
+    std::vector<PatternTree> members;
+    members.reserve(n->members().size());
+    for (const PatternTree& member : n->members()) {
+      members.push_back(ClonePattern(member));
     }
-
-    NameDefTree::Nodes nodes;
-    nodes.reserve(n->nodes().size());
-    for (const auto& node : n->nodes()) {
-      nodes.push_back(absl::down_cast<NameDefTree*>(old_to_new_.at(node)));
-    }
-    old_to_new_[n] = module(n)->Make<NameDefTree>(n->span(), nodes);
+    old_to_new_[n] =
+        module(n)->Make<TuplePattern>(n->span(), std::move(members));
     return absl::OkStatus();
   }
 
@@ -1305,8 +1305,7 @@ class AstCloner : public AstNodeVisitor {
                                          old_to_new_.at(n->type_annotation()));
 
     old_to_new_[n] = module(n)->Make<ConstFor>(
-        n->span(), absl::down_cast<NameDefTree*>(old_to_new_.at(n->names())),
-        new_type_annotation,
+        n->span(), ClonePattern(n->pattern()), new_type_annotation,
         absl::down_cast<Expr*>(old_to_new_.at(n->iterable())),
         absl::down_cast<StatementBlock*>(old_to_new_.at(n->body())),
         absl::down_cast<Expr*>(old_to_new_.at(n->init())), n->IsUnrollFor(),

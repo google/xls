@@ -25,7 +25,6 @@
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest_prod.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -36,6 +35,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "gtest/gtest_prod.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -561,9 +561,8 @@ class AstGenerator {
   absl::StatusOr<TypedExpr> GenerateExprOfType(Context* ctx,
                                                TypeAnnotation* type);
 
-  // Generate a MatchArmPattern with type 'type'. The pattern is represented as
-  // an xls::dslx::NameDefTree.
-  absl::StatusOr<NameDefTree*> GenerateMatchArmPattern(
+  // Generates a match-arm PatternTree with type 'type'.
+  absl::StatusOr<PatternTree> GenerateMatchArmPattern(
       Context* ctx, const TypeAnnotation* type);
 
   // Generate a Match expression.

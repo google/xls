@@ -22,9 +22,6 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest-spi.h"
-#include "gtest/gtest.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -32,6 +29,9 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest-spi.h"
+#include "gtest/gtest.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -1021,7 +1021,7 @@ TEST_F(ParserTest, ParseLet) {
   ASSERT_EQ(stmts.size(), 2);
 
   Let* let = std::get<Let*>(stmts.at(0)->wrapped());
-  NameDef* name_def = std::get<NameDef*>(let->name_def_tree()->leaf());
+  NameDef* name_def = std::get<NameDef*>(let->pattern());
   EXPECT_EQ(name_def->identifier(), "x");
   EXPECT_EQ(let->type_annotation()->ToString(), "u32");
   EXPECT_EQ(let->rhs()->ToString(), "2");
@@ -1046,13 +1046,83 @@ TEST_F(ParserTest, ParseLetWildcardBinding) {
   ASSERT_EQ(stmts.size(), 1);
 
   Let* let = std::get<Let*>(stmts.at(0)->wrapped());
-  EXPECT_EQ(
-      AstNodeKindToString(ToAstNode(let->name_def_tree()->leaf())->kind()),
-      "wildcard pattern");
-  WildcardPattern* wildcard =
-      std::get<WildcardPattern*>(let->name_def_tree()->leaf());
+  EXPECT_EQ(AstNodeKindToString(ToAstNode(let->pattern())->kind()),
+            "wildcard pattern");
+  WildcardPattern* wildcard = std::get<WildcardPattern*>(let->pattern());
   ASSERT_NE(wildcard, nullptr);
-  ASSERT_TRUE(let->name_def_tree()->IsWildcardLeaf());
+  ASSERT_TRUE(IsWildcardLeaf(let->pattern()));
+}
+
+TEST_F(ParserTest, PatternTreePreservesParenthesizedShape) {
+  const char* text = R"({
+    let direct = x;
+    let () = x;
+    let (singleton) = x;
+    let (trailing,) = x;
+    let (a, (b, c)) = x;
+    direct
+})";
+  Scanner s{file_table_, Fileno(0), std::string{text}};
+  Parser p{"test", &s};
+  Bindings b;
+  b.Add("x", p.module().GetOrCreateBuiltinNameDef("x"));
+  XLS_ASSERT_OK_AND_ASSIGN(StatementBlock * block,
+                           p.ParseBlockExpression(/*bindings=*/b));
+
+  absl::Span<Statement* const> stmts = block->statements();
+  ASSERT_EQ(stmts.size(), 6);
+
+  Let* direct = std::get<Let*>(stmts.at(0)->wrapped());
+  ASSERT_TRUE(std::holds_alternative<NameDef*>(direct->pattern()));
+  EXPECT_EQ(ToAstNode(direct->pattern())->parent(), direct);
+
+  Let* empty = std::get<Let*>(stmts.at(1)->wrapped());
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(empty->pattern()));
+  EXPECT_TRUE(std::get<TuplePattern*>(empty->pattern())->members().empty());
+
+  Let* singleton = std::get<Let*>(stmts.at(2)->wrapped());
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(singleton->pattern()));
+  TuplePattern* singleton_pattern =
+      std::get<TuplePattern*>(singleton->pattern());
+  ASSERT_EQ(singleton_pattern->members().size(), 1);
+  EXPECT_TRUE(
+      std::holds_alternative<NameDef*>(singleton_pattern->members()[0]));
+
+  Let* trailing = std::get<Let*>(stmts.at(3)->wrapped());
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(trailing->pattern()));
+  TuplePattern* trailing_pattern = std::get<TuplePattern*>(trailing->pattern());
+  ASSERT_EQ(trailing_pattern->members().size(), 1);
+  EXPECT_TRUE(std::holds_alternative<NameDef*>(trailing_pattern->members()[0]));
+
+  Let* nested = std::get<Let*>(stmts.at(4)->wrapped());
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(nested->pattern()));
+  TuplePattern* outer = std::get<TuplePattern*>(nested->pattern());
+  ASSERT_EQ(outer->members().size(), 2);
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(outer->members()[1]));
+  TuplePattern* inner = std::get<TuplePattern*>(outer->members()[1]);
+  ASSERT_EQ(inner->members().size(), 2);
+  EXPECT_EQ(ToAstNode(outer->members()[0])->parent(), outer);
+  EXPECT_EQ(ToAstNode(inner->members()[0])->parent(), inner);
+  EXPECT_EQ(outer->parent(), nested);
+}
+
+TEST_F(ParserTest, MatchPatternNamesUseArmDefiner) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Expr * e, ParseExpr("match x { (a, (b, c)) => a }", /*predefine=*/{"x"}));
+  auto* match = absl::down_cast<Match*>(e);
+  MatchArm* arm = match->arms()[0];
+  const PatternTree& pattern = arm->patterns()[0];
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(pattern));
+  TuplePattern* outer = std::get<TuplePattern*>(pattern);
+  ASSERT_TRUE(std::holds_alternative<TuplePattern*>(outer->members()[1]));
+  TuplePattern* inner = std::get<TuplePattern*>(outer->members()[1]);
+
+  EXPECT_EQ(outer->parent(), arm);
+  EXPECT_EQ(ToAstNode(outer->members()[0])->parent(), outer);
+  EXPECT_EQ(ToAstNode(inner->members()[0])->parent(), inner);
+  for (NameDef* name_def : GetPatternNameDefs(pattern)) {
+    EXPECT_EQ(name_def->definer(), arm);
+  }
 }
 
 TEST_F(ParserTest, ParseLetWildcardBindingTwice) {
@@ -1092,7 +1162,7 @@ TEST_F(ParserTest, ParseLetExpressionWithShadowing) {
   auto* name_ref = dynamic_cast<NameRef*>(e);
   EXPECT_EQ(name_ref->ToString(), "x");
   EXPECT_EQ(std::get<const NameDef*>(name_ref->name_def()),
-            std::get<NameDef*>(second_let->name_def_tree()->leaf()));
+            std::get<NameDef*>(second_let->pattern()));
 }
 
 TEST_F(ParserTest, ParseBlockMultiLet) {
@@ -2988,6 +3058,16 @@ TEST_F(ParserTest, ColonRef) {
   EXPECT_EQ(e->span(), Span(Pos(Fileno(0), 0, 0), Pos(Fileno(0), 0, 18)));
 }
 
+TEST_F(ParserTest, ColonRefPatternStaysTokenDirected) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Expr * e, ParseExpr("match x { BuiltinEnum::VALUE => u32:0, _ => u32:1 }",
+                          /*predefine=*/{"x", "BuiltinEnum"}));
+  auto* match = absl::down_cast<Match*>(e);
+  const PatternTree& pattern = match->arms()[0]->patterns()[0];
+  ASSERT_TRUE(std::holds_alternative<ColonRef*>(pattern));
+  EXPECT_EQ(std::get<ColonRef*>(pattern)->ToString(), "BuiltinEnum::VALUE");
+}
+
 TEST_F(ParserTest, ParametricColonRefInvocation) {
   RoundTripExpr("f<BuiltinEnum::VALUE>()", {"f", "BuiltinEnum"});
 }
@@ -3462,7 +3542,7 @@ TEST_F(ParserTest, CastVsUnaryPrecedence) {
   EXPECT_EQ(cast->type_annotation()->ToString(), "s32");
 }
 
-TEST_F(ParserTest, NameDefTree) {
+TEST_F(ParserTest, PatternTree) {
   RoundTripExpr(R"({
     let (a, (b, (c, d), e), f) = x;
     a
@@ -4447,7 +4527,7 @@ TEST_F(ParserTest, ParseWithUncompletedStateTransaction) {
 }
 
 // This sample would previously cause a segfault because we'd try to set a
-// definer on a NameDef binding but we only have a NameDefTree.
+// definer on a NameDef binding but we only have a tuple pattern.
 TEST_F(ParserTest, LocalConstWithNoNameDef) {
   constexpr std::string_view kProgram = "fn f(){const(X)=();}";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};

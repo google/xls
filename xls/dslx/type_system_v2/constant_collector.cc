@@ -324,7 +324,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       }
       // Reminder: we don't allow name destructuring in constant defs, so this
       // is expected to never fail.
-      XLS_RET_CHECK_EQ(let->name_def_tree()->GetNameDefs().size(), 1);
+      XLS_RET_CHECK_EQ(GetPatternNameDefs(let->pattern()).size(), 1);
     } else if (!value.ok()) {
       return absl::OkStatus();
     }
@@ -339,8 +339,8 @@ class Visitor : public AstNodeVisitorWithDefault {
       }
       return absl::OkStatus();
     };
-    XLS_RETURN_IF_ERROR(MatchTupleNodeToType(note_members, let->name_def_tree(),
-                                             &type_, file_table_, *value));
+    XLS_RETURN_IF_ERROR(MatchPatternToType(note_members, let->pattern(), &type_,
+                                           file_table_, *value));
     return absl::OkStatus();
   }
 
@@ -398,21 +398,26 @@ class Visitor : public AstNodeVisitorWithDefault {
   // is just `i` or `acc`, but each of those is allowed to be a further
   // destructured tuple.
   absl::StatusOr<Let*> ShadowConstForInput(
-      const NameDefTree* input, Expr* iteration_value,
+      const PatternTree& input, Expr* iteration_value,
       absl::flat_hash_map<const NameDef*, NameDef*>& old_to_new_name_defs) {
     absl::flat_hash_map<const AstNode*, AstNode*> pairs;
+    AstNode* input_node = ToAstNode(input);
     XLS_ASSIGN_OR_RETURN(
-        pairs, CloneAstAndGetAllPairs(input, input->owner(),
+        pairs, CloneAstAndGetAllPairs(input_node, input_node->owner(),
                                       &PreserveTypeDefinitionsReplacer));
-    NameDefTree* iteration_ndt = absl::down_cast<NameDefTree*>(pairs.at(input));
+    PatternTree iteration_pattern = std::visit(
+        [&](auto* node) -> PatternTree {
+          return absl::down_cast<decltype(node)>(pairs.at(node));
+        },
+        input);
     for (const auto& [old_node, new_node] : pairs) {
       if (old_node->kind() == AstNodeKind::kNameDef) {
         old_to_new_name_defs.emplace(absl::down_cast<const NameDef*>(old_node),
                                      absl::down_cast<NameDef*>(new_node));
       }
     }
-    return module_.Make<Let>(input->span(), iteration_ndt, /*type=*/nullptr,
-                             iteration_value,
+    return module_.Make<Let>(GetPatternSpan(input), iteration_pattern,
+                             /*type=*/nullptr, iteration_value,
                              /*is_const=*/false);
   }
 
@@ -441,21 +446,24 @@ class Visitor : public AstNodeVisitorWithDefault {
     TypeSystemTrace trace = tracer_.TraceUnroll(expr);
     std::vector<Statement*> unrolled_statements;
 
-    CHECK_EQ(expr->names()->nodes().size(), 2);
-    NameDefTree* iterator_name = expr->names()->nodes()[0];
-    NameDefTree* accumulator_name = expr->names()->nodes()[1];
+    CHECK(std::holds_alternative<TuplePattern*>(expr->pattern()));
+    const TuplePattern* tuple_pattern =
+        std::get<TuplePattern*>(expr->pattern());
+    CHECK_EQ(tuple_pattern->members().size(), 2);
+    const PatternTree& iterator_pattern = tuple_pattern->members()[0];
+    const PatternTree& accumulator_pattern = tuple_pattern->members()[1];
     TypeAnnotation* iterator_type = nullptr;
     TypeAnnotation* accumulator_type = nullptr;
-    std::optional<const TypeAnnotation*> name_type_annotation =
-        table_.GetTypeAnnotation(expr->names());
-    if (name_type_annotation.has_value()) {
+    std::optional<const TypeAnnotation*> pattern_type_annotation =
+        table_.GetTypeAnnotation(ToAstNode(expr->pattern()));
+    if (pattern_type_annotation.has_value()) {
       // Note that common type checking for ForLoopBase should verify this
       // before it gets here.
       XLS_RET_CHECK(
-          (*name_type_annotation)->IsAnnotation<TupleTypeAnnotation>());
+          (*pattern_type_annotation)->IsAnnotation<TupleTypeAnnotation>());
 
       const auto* types =
-          (*name_type_annotation)->AsAnnotation<TupleTypeAnnotation>();
+          (*pattern_type_annotation)->AsAnnotation<TupleTypeAnnotation>();
       CHECK_EQ(types->size(), 2);
       iterator_type = types->members()[0];
       accumulator_type = types->members()[1];
@@ -486,20 +494,20 @@ class Visitor : public AstNodeVisitorWithDefault {
     }
 
     bool has_result_value =
-        !accumulator_name->IsWildcardLeaf() && !expr->body()->trailing_semi();
+        !IsWildcardLeaf(accumulator_pattern) && !expr->body()->trailing_semi();
     Expr* accumulator_value = expr->init();
     for (uint64_t i = 0; i < size; i++) {
       absl::flat_hash_map<const NameDef*, NameDef*> iteration_name_def_mapping;
       if (has_result_value) {
         XLS_ASSIGN_OR_RETURN(
             Let * accumulator,
-            ShadowConstForInput(accumulator_name, accumulator_value,
+            ShadowConstForInput(accumulator_pattern, accumulator_value,
                                 iteration_name_def_mapping));
         XLS_RETURN_IF_ERROR(
             table_.SetTypeAnnotation(accumulator, accumulator_type));
         unrolled_statements.push_back(module_.Make<Statement>(accumulator));
       }
-      if (!iterator_name->IsWildcardLeaf()) {
+      if (!IsWildcardLeaf(iterator_pattern)) {
         Let* iterator = nullptr;
         if (iterable_values && (*iterable_values)[i].FitsInUint64()) {
           Number* value = module_.Make<Number>(
@@ -513,7 +521,7 @@ class Visitor : public AstNodeVisitorWithDefault {
           ti_->SetItem(value, MetaType(value_type->CloneToUnique()));
 
           XLS_ASSIGN_OR_RETURN(iterator,
-                               ShadowConstForInput(iterator_name, value,
+                               ShadowConstForInput(iterator_pattern, value,
                                                    iteration_name_def_mapping));
         } else {
           Expr* index = module_.Make<Number>(
@@ -528,7 +536,7 @@ class Visitor : public AstNodeVisitorWithDefault {
           Expr* element = module_.Make<Index>(expr->iterable()->span(),
                                               expr->iterable(), index, false);
           XLS_ASSIGN_OR_RETURN(iterator,
-                               ShadowConstForInput(iterator_name, element,
+                               ShadowConstForInput(iterator_pattern, element,
                                                    iteration_name_def_mapping));
         }
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(iterator, iterator_type));

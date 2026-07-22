@@ -230,7 +230,7 @@ class Bytecode {
     std::optional<ParametricEnv> callee_bindings_;
   };
 
-  // Encapsulates an element in a MatchArm's NameDefTree. For literals, a
+  // Encapsulates an element in a MatchArm's pattern. For literals, a
   // this is an InterpValue. For NameRefs, this is the associated SlotIndex. For
   // NameDefs (i.e., assignments to a name from the value to match), this is the
   // SlotIndex to which to store, and for wildcards, this is a simple "matches

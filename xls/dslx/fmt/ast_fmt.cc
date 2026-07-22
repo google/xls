@@ -1049,7 +1049,7 @@ DocRef Formatter::FormatColonRef(const ColonRef& n) {
                                arena_.MakeText(StripAnyDotModifier(n.attr()))});
 }
 
-DocRef Formatter::FormatForLoopBaseLeader(Keyword keyword, DocRef names_ref,
+DocRef Formatter::FormatForLoopBaseLeader(Keyword keyword, DocRef pattern_ref,
                                           const ForLoopBase& n,
                                           bool is_const_for) {
   std::vector<DocRef> pieces;
@@ -1059,8 +1059,8 @@ DocRef Formatter::FormatForLoopBaseLeader(Keyword keyword, DocRef names_ref,
   }
   pieces.push_back(arena_.Make(keyword));
   pieces.push_back(arena_.MakeNestIfFlatFits(
-      /*on_nested_flat_ref=*/names_ref,
-      /*on_other_ref=*/arena_.MakeConcat(arena_.space(), names_ref)));
+      /*on_nested_flat_ref=*/pattern_ref,
+      /*on_other_ref=*/arena_.MakeConcat(arena_.space(), pattern_ref)));
 
   if (n.type_annotation() != nullptr) {
     pieces.push_back(arena_.colon());
@@ -1085,8 +1085,9 @@ DocRef Formatter::FormatForLoopBase(Keyword keyword, const ForLoopBase& n,
                                     bool is_const_for) {
   CHECK(keyword == Keyword::kFor || keyword == Keyword::kUnrollFor)
       << static_cast<std::underlying_type_t<Keyword>>(keyword);
-  DocRef names_ref = FormatNameDefTree(*n.names());
-  DocRef leader = FormatForLoopBaseLeader(keyword, names_ref, n, is_const_for);
+  DocRef pattern_ref = FormatPatternTree(n.pattern());
+  DocRef leader =
+      FormatForLoopBaseLeader(keyword, pattern_ref, n, is_const_for);
 
   std::vector<DocRef> body_pieces;
   body_pieces.push_back(arena_.hard_line());
@@ -1263,13 +1264,12 @@ DocRef Formatter::FormatInvocation(const Invocation& n) {
   return result;
 }
 
-DocRef Formatter::Format(const NameDefTree* n) { return FormatNameDefTree(*n); }
-
 DocRef Formatter::FormatMatchArm(const MatchArm& n) {
   std::vector<DocRef> pieces;
-  pieces.push_back(FormatJoin<const NameDefTree*>(
-      n.patterns(), Joiner::kSpaceBarBreak,
-      [this](const NameDefTree* n) { return Format(n); }));
+  pieces.push_back(FormatJoin<PatternTree>(n.patterns(), Joiner::kSpaceBarBreak,
+                                           [this](const PatternTree& pattern) {
+                                             return FormatPatternTree(pattern);
+                                           }));
   pieces.push_back(arena_.space());
   pieces.push_back(arena_.fat_arrow());
 
@@ -1799,7 +1799,7 @@ DocRef Formatter::FormatRange(const Range& n) {
                arena_.break0(), FormatExpr(*n.end())});
 }
 
-DocRef Formatter::FormatNameDefTreeLeaf(const NameDefTree::Leaf& n) {
+DocRef Formatter::FormatPatternTree(const PatternTree& n) {
   return absl::visit(
       Visitor{
           [&](const NameDef* n) { return FormatNameDef(*n); },
@@ -1809,29 +1809,16 @@ DocRef Formatter::FormatNameDefTreeLeaf(const NameDefTree::Leaf& n) {
           [&](const Number* n) { return FormatNumber(*n); },
           [&](const ColonRef* n) { return FormatColonRef(*n); },
           [&](const Range* n) { return FormatRange(*n); },
+          [&](const TuplePattern* n) { return FormatTuplePattern(*n); },
       },
       n);
 }
 
-DocRef Formatter::FormatNameDefTree(const NameDefTree& n) {
-  if (n.is_leaf()) {
-    return FormatNameDefTreeLeaf(n.leaf());
-  }
+DocRef Formatter::FormatTuplePattern(const TuplePattern& n) {
   std::vector<DocRef> pieces = {arena_.oparen()};
-  std::vector<std::variant<NameDefTree::Leaf, NameDefTree*>> flattened =
-      n.Flatten1();
-  for (size_t i = 0; i < flattened.size(); ++i) {
-    const auto& item = flattened[i];
-    absl::visit(Visitor{
-                    [&](const NameDefTree::Leaf& leaf) {
-                      pieces.push_back(FormatNameDefTreeLeaf(leaf));
-                    },
-                    [&](const NameDefTree* subtree) {
-                      pieces.push_back(FormatNameDefTree(*subtree));
-                    },
-                },
-                item);
-    if (i + 1 != flattened.size()) {
+  for (size_t i = 0; i < n.members().size(); ++i) {
+    pieces.push_back(FormatPatternTree(n.members()[i]));
+    if (i + 1 != n.members().size()) {
       pieces.push_back(arena_.comma());
       pieces.push_back(arena_.break1());
     }
@@ -1916,15 +1903,15 @@ DocRef Formatter::FormatBlockedExprLeader(const Expr& e) {
     }
     case AstNodeKind::kFor: {
       const ForLoopBase& n = static_cast<const ForLoopBase&>(e);
-      DocRef names_ref = FormatNameDefTree(*n.names());
-      return FormatForLoopBaseLeader(Keyword::kFor, names_ref, n,
+      DocRef pattern_ref = FormatPatternTree(n.pattern());
+      return FormatForLoopBaseLeader(Keyword::kFor, pattern_ref, n,
                                      /*is_const_for=*/false);
     }
     case AstNodeKind::kConstFor: {
       const ConstFor& n = static_cast<const ConstFor&>(e);
       Keyword keyword = n.IsUnrollFor() ? Keyword::kUnrollFor : Keyword::kFor;
-      DocRef names_ref = FormatNameDefTree(*n.names());
-      return FormatForLoopBaseLeader(keyword, names_ref, n, !n.IsUnrollFor());
+      DocRef pattern_ref = FormatPatternTree(n.pattern());
+      return FormatForLoopBaseLeader(keyword, pattern_ref, n, !n.IsUnrollFor());
     }
     default:
       LOG(FATAL) << "Unhandled node kind for FmtBlockedExprLeader: `"
@@ -2904,7 +2891,7 @@ DocRef Formatter::FormatUse(const Use& n) {
 DocRef Formatter::FormatLet(const Let& n, bool trailing_semi) {
   std::vector<DocRef> leader_pieces = {
       arena_.Make(n.is_const() ? Keyword::kConst : Keyword::kLet),
-      arena_.space(), FormatNameDefTree(*n.name_def_tree())};
+      arena_.space(), FormatPatternTree(n.pattern())};
   if (const TypeAnnotation* t = n.type_annotation()) {
     leader_pieces.push_back(arena_.colon());
     leader_pieces.push_back(arena_.space());

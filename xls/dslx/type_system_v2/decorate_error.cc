@@ -96,24 +96,17 @@ bool IsBuiltinSendVariantInvocation(const Invocation* invocation) {
          name_ref->identifier() == "send_if";
 }
 
-bool IsInNameDefTreePosition(const AstNode* node, int index) {
+bool IsInTuplePatternPosition(const AstNode* node, int index) {
   if (node->parent() == nullptr ||
-      node->parent()->kind() != AstNodeKind::kNameDefTree) {
+      node->parent()->kind() != AstNodeKind::kTuplePattern) {
     return false;
   }
 
-  const AstNode* parent = node->parent();
-  if (parent->parent() == nullptr ||
-      parent->parent()->kind() != AstNodeKind::kNameDefTree) {
+  const auto* pattern = absl::down_cast<const TuplePattern*>(node->parent());
+  if (pattern->members().size() <= index) {
     return false;
   }
-
-  const auto* tree = absl::down_cast<const NameDefTree*>(parent->parent());
-  if (tree->is_leaf() || tree->nodes().size() <= index) {
-    return false;
-  }
-  return tree->nodes().at(index)->is_leaf() &&
-         ToAstNode(tree->nodes().at(index)->leaf()) == node;
+  return ToAstNode(pattern->members().at(index)) == node;
 }
 
 }  // namespace
@@ -187,7 +180,7 @@ absl::StatusOr<const TypeAnnotation*> DecorateError(
     if (!invocation->args().empty() && node == invocation->args()[0] &&
         IsBuiltinSendVariantInvocation(invocation)) {
       absl::Status new_error = absl::OkStatus();
-      if (IsInNameDefTreePosition(ToAstNode(arg_as_name_ref->name_def()), 1)) {
+      if (IsInTuplePatternPosition(ToAstNode(arg_as_name_ref->name_def()), 1)) {
         // The root cause is probably a `let (data, tok) = recv(...)` or
         // similar. Because we don't actually check what is on the right-hand
         // side of the let tuple, the error message is not worded with 100%
