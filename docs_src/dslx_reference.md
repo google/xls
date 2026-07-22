@@ -2198,11 +2198,11 @@ For example:
 ```dslx
 enum Op : u3 {
     ADD = 0,
-    MUL = 1,
+    MUL = 2,
 }
 ```
 
-will never generate 2 through 7 even though they are valid `u3` values.
+will never generate 1 or 3 through 7 even though they are valid `u3` values.
 
 #### Derived Struct Domains
 
