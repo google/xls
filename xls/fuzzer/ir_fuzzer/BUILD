@@ -306,9 +306,8 @@ cc_library(
     srcs = ["reproducer_repo_files.cc"],
     hdrs = ["reproducer_repo_files.h"],
     deps = [
-        "//xls/common/status:ret_check",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
     ],
 )
 
