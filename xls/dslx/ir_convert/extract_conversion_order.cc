@@ -15,6 +15,7 @@
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
 #include <optional>
 #include <string>
