@@ -12,17 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 // Tests for `if`, `for`, and `unroll_for` expressions.
 namespace xls::dslx {
