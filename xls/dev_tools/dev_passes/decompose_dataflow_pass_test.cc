@@ -118,6 +118,21 @@ TEST_F(DecomposeDataflowPassTest, ProcTest) {
                         m::ArrayIndex(m::Literal(), {m::Literal(3)})));
 }
 
+TEST_F(DecomposeDataflowPassTest, DecoupledProcPassThroughTest) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
+  BStateElement state_element =
+      pb.UnreadStateElement("st", Value(UBits(42, 32)),
+                            /*non_synthesizable=*/false);
+  BValue st = pb.StateRead(state_element);
+  pb.Next(state_element, st);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  ASSERT_TRUE(proc->uses_decoupled_next());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 TEST_F(DecomposeDataflowPassTest, OneHotSelect) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());

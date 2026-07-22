@@ -766,9 +766,7 @@ absl::Status CloneNodesIntoBlockHandler::HandleNextValue(Node* node,
 
   StateRegister& state_register = *result_.state_registers.at(index);
   bool equivalent_value =
-      next->has_state_read()
-          ? next->value() == next->state_read()
-          : next->value() == proc->GetStateReadByStateElement(state_element);
+      next->value() == proc->GetStateReadByStateElement(state_element);
   state_register.next_values.push_back(
       {.stage = stage,
        .value = equivalent_value
