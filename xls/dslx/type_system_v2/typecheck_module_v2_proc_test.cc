@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"

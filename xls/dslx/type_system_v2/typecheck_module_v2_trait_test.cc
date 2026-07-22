@@ -31,6 +31,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
+#include "xls/dslx/type_system_v2/builtin_trait_deriver.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/type_system_v2/trait_deriver_dispatcher.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
