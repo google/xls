@@ -190,6 +190,7 @@ cc_library(
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
         "//xls/dslx:warning_kind",
+        "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/bytecode:bytecode_interpreter_options",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
