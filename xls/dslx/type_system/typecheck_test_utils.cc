@@ -15,7 +15,6 @@
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>

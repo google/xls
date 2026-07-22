@@ -1,4 +1,3 @@
-#include <optional>
 
 #include "re2/re2.h"
 #include "xls/dslx/type_system_v2/trait_deriver.h"
