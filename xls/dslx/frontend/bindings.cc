@@ -32,7 +32,6 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/status_payload.pb.h"
 #include "xls/dslx/status_payload_utils.h"
-#include "xls/dslx/type_system/type_info_to_proto.h"
 
 namespace xls::dslx {
 

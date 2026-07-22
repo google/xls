@@ -15,7 +15,6 @@
 #ifndef XLS_DSLX_FRONTEND_FUNCTION_SPECIALIZER_H_
 #define XLS_DSLX_FRONTEND_FUNCTION_SPECIALIZER_H_
 
-#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
