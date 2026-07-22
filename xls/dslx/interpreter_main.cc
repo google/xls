@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -42,6 +43,11 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/proc.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/ir_test_runner.h"
@@ -289,7 +295,7 @@ absl::StatusOr<TestResult> RealMain(
         SetFileContents(absl::GetFlag(FLAGS_output_results_proto), text));
   }
 
-  // Early feeback if the code cannot be lowered to IR.
+  // Early feedback if the code cannot be lowered to IR.
   std::optional<bool> lower_to_ir_flag = absl::GetFlag(FLAGS_lower_to_ir);
   if (lower_to_ir_flag.value_or(false)) {
     LOG(INFO) << "Checking if code can be lowered to IR";
