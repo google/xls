@@ -747,7 +747,7 @@ proc my_proc(__state: bits[32], init={0}) {
   wr_comp_rcv: (token, ()) = receive(rcv_token, channel=wr_comp)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
         .pipeline_stages = 2,
@@ -774,7 +774,7 @@ proc my_proc(__state: bits[32], init={0}) {
   wr_comp_rcv: (token, ()) = receive(rcv_token, channel=wr_comp)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
         .pipeline_stages = 2,
@@ -808,7 +808,7 @@ proc my_proc(__state: bits[32], init={0}) {
   extra1_token: token = tuple_index(extra1_rcv, index=0)
   wr_comp_rcv: (token, ()) = receive(extra1_token, channel=wr_comp)
   next_state: bits[32] = add(__state, one_lit)
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
         .pipeline_stages = 4,
@@ -853,7 +853,7 @@ proc my_proc(__state: (), init={()}) {
   wr_comp1_rcv: (token, ()) = receive(send1_token, channel=wr_comp1)
   wr_comp2_rcv: (token, ()) = receive(send2_token, channel=wr_comp2)
   next_state: () = tuple()
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
         .pipeline_stages = 20,
@@ -880,7 +880,7 @@ proc my_proc(__state: bits[32], init={0}) {
   wr_comp_rcv: (token, ()) = receive(send_token1, channel=wr_comp)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
         .pipeline_stages = 3,
@@ -908,7 +908,7 @@ proc my_proc(__state: bits[32], init={0}) {
   wr_comp_rcv: (token, ()) = receive(send_token1, channel=wr_comp)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
         .pipeline_stages = 3,
@@ -943,7 +943,7 @@ proc my_proc(__state: bits[32], init={0}) {
   wr_comp_rcv: (token, ()) = receive(extra1_token, channel=wr_comp)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
         .pipeline_stages = 3,
@@ -990,7 +990,7 @@ proc my_proc(__state: bits[32], init={0}) {
   wr_comp2_rcv: (token, ()) = receive(send_token5, channel=wr_comp2)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
         .pipeline_stages = 20,
@@ -1028,7 +1028,7 @@ proc my_proc(__state: bits[32], init={0}) {
   wr_comp0_rcv: (token, ()) = receive(send_token0, channel=wr_comp0)
   wr_comp1_rcv: (token, ()) = receive(send_token2, channel=wr_comp1)
   next_state: bits[32] = add(__state, one_lit)
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
         .pipeline_stages = 4,
@@ -1144,7 +1144,7 @@ proc my_proc(__state: bits[32], init={0}) {
   wr_comp_rcv: (token, $wr_comp_type) = receive(rcv_token, channel=wr_comp)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
       {
@@ -1205,7 +1205,7 @@ proc my_proc(__state: bits[32], init={0}) {
   wr_comp_recv: (token, $wr_comp_type) = receive(send_token1, channel=wr_comp)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next_state_value: () = next_value(param=__state, value=next_state)
+  next_state_value: () = next_value(state_element=__state, value=next_state)
 }
   )",
       {

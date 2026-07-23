@@ -170,8 +170,7 @@ TEST_F(TokenProvenanceAnalysisTest, TokenDAGVeryLongChain) {
   XLS_ASSERT_OK_AND_ASSIGN(TokenDAG dag, ComputeTokenDAG(proc));
   EXPECT_THAT(dag,
               UnorderedElementsAre(
-                  Pair(next.node(),
-                       UnorderedElementsAre(token.node(), assertion.node())),
+                  Pair(next.node(), UnorderedElementsAre(assertion.node())),
                   Pair(assertion.node(), UnorderedElementsAre(token.node()))));
 }
 

@@ -279,8 +279,9 @@ TEST_F(LazyPostDominatorAnalysisTest, MultipleOutputs) {
   BValue x = pb.StateElement("x", Value(UBits(0, 1)));
   BValue y = pb.StateElement("y", Value(UBits(0, 1)));
   BValue z = pb.And(x, y);
-  pb.Next(x, x);
-  BValue next_y = pb.Next(y, z);
+  pb.Next(BStateElement(x.node()->As<StateRead>()->state_element()), x);
+  BValue next_y =
+      pb.Next(BStateElement(y.node()->As<StateRead>()->state_element()), z);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<LazyPostDominatorAnalysis> analysis,
                            LazyPostDominatorAnalysis::Create(proc));
@@ -289,7 +290,7 @@ TEST_F(LazyPostDominatorAnalysisTest, MultipleOutputs) {
   EXPECT_THAT(analysis->GetPostDominators(z.node()),
               ElementsAre(next_y.node(), z.node()));
   EXPECT_THAT(analysis->GetPostDominators(y.node()),
-              ElementsAre(next_y.node(), y.node()));
+              ElementsAre(next_y.node(), z.node(), y.node()));
 }
 
 TEST_F(LazyPostDominatorAnalysisTest, InvalidatesCache) {

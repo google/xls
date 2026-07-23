@@ -6,21 +6,21 @@ proc __test_module__spawnee1_0__1_next<>(__state: (), init={()}) {
   chan _data_0(bits[1], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
   chan_interface _data_0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface _data_0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  __state: () = state_read(state_element=__state, id=2)
   tuple.6: () = tuple(id=6)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   literal.3: bits[1] = literal(value=1, id=3)
   M: bits[32] = literal(value=1, id=4)
   tuple.5: () = tuple(id=5)
-  next_value.7: () = next_value(param=__state, value=tuple.6, id=7)
+  next_value.7: () = next_value(state_element=__state, value=tuple.6, id=7)
 }
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
   proc_instantiation __test_module__spawnee1_0__1_next_inst(proc=__test_module__spawnee1_0__1_next)
-  __state: () = state_read(state_element=__state, id=9)
   tuple.12: () = tuple(id=12)
   __token: token = literal(value=token, id=8)
+  __state: () = state_read(state_element=__state, id=9)
   literal.10: bits[1] = literal(value=1, id=10)
   tuple.11: () = tuple(id=11)
-  next_value.13: () = next_value(param=__state, value=tuple.12, id=13)
+  next_value.13: () = next_value(state_element=__state, value=tuple.12, id=13)
 }

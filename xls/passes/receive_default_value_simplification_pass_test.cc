@@ -72,16 +72,16 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::Next(
-                  proc->GetStateRead(1),
+              ElementsAre(m::NextWithStateElement(
+                  proc->GetStateElement(1),
                   m::Select(m::StateRead("pred"),
                             {m::Literal(0), m::TupleIndex(m::Receive(), 1)}))));
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::Next(proc->GetStateRead(1),
-                                  m::TupleIndex(m::Receive(), 1))));
+              ElementsAre(m::NextWithStateElement(
+                  proc->GetStateElement(1), m::TupleIndex(m::Receive(), 1))));
 }
 
 TEST_F(ReceiveDefaultValueSimplificationPassTest,
@@ -101,16 +101,16 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
 
   EXPECT_THAT(
       proc->next_values(proc->GetStateElement(1)),
-      ElementsAre(m::Next(
-          proc->GetStateRead(1),
+      ElementsAre(m::NextWithStateElement(
+          proc->GetStateElement(1),
           m::PrioritySelect(m::StateRead("pred"),
                             {m::TupleIndex(m::Receive(), 1)}, m::Literal(0)))));
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::Next(proc->GetStateRead(1),
-                                  m::TupleIndex(m::Receive(), 1))));
+              ElementsAre(m::NextWithStateElement(
+                  proc->GetStateElement(1), m::TupleIndex(m::Receive(), 1))));
 }
 
 TEST_F(ReceiveDefaultValueSimplificationPassTest,
@@ -131,16 +131,16 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::Next(
-                  proc->GetStateRead(1),
+              ElementsAre(m::NextWithStateElement(
+                  proc->GetStateElement(1),
                   m::Select(m::StateRead("pred"),
                             {m::Literal(), m::TupleIndex(m::Receive(), 1)}))));
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::Next(proc->GetStateRead(1),
-                                  m::TupleIndex(m::Receive(), 1))));
+              ElementsAre(m::NextWithStateElement(
+                  proc->GetStateElement(1), m::TupleIndex(m::Receive(), 1))));
 }
 
 TEST_F(ReceiveDefaultValueSimplificationPassTest,
@@ -158,16 +158,16 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({select}));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(
-                  proc->GetStateRead(0),
+              ElementsAre(m::NextWithStateElement(
+                  proc->GetStateElement(0),
                   m::Select(m::TupleIndex(),
                             {m::Literal(0), m::TupleIndex(m::Receive(), 1)}))));
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(proc->GetStateRead(0),
-                                  m::TupleIndex(m::Receive(), 1))));
+              ElementsAre(m::NextWithStateElement(
+                  proc->GetStateElement(0), m::TupleIndex(m::Receive(), 1))));
 }
 
 TEST_F(ReceiveDefaultValueSimplificationPassTest,
@@ -186,16 +186,16 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::Next(
-                  proc->GetStateRead(1),
+              ElementsAre(m::NextWithStateElement(
+                  proc->GetStateElement(1),
                   m::Select(m::TupleIndex(),
                             {m::Literal(0), m::TupleIndex(m::Receive(), 1)}))));
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::Next(proc->GetStateRead(1),
-                                  m::TupleIndex(m::Receive(), 1))));
+              ElementsAre(m::NextWithStateElement(
+                  proc->GetStateElement(1), m::TupleIndex(m::Receive(), 1))));
 }
 
 TEST_F(ReceiveDefaultValueSimplificationPassTest, SelectWithArmsSwitched) {

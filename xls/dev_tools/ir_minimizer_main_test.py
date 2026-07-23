@@ -174,7 +174,7 @@ top proc __multi_proc__proc_ten_0_next(__state: (), init={()}) {
   tuple_index.21: token = tuple_index(receive.20, index=0, id=21)
   send.25: token = send(tok__5, add.24, channel=multi_proc__bytes_result, id=25)
   tuple.26: () = tuple(id=26, pos=[(0,72,15)])
-  next_state: () = next_value(param=__state, value=tuple.26, id=33)
+  next_state: () = next_value(state_element=__state, value=tuple.26, id=33)
 }
 
 proc __multi_proc__proc_ten__proc_double_0_next(__state: (), init={()}) {

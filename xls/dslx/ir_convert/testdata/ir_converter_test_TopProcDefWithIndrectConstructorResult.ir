@@ -45,7 +45,7 @@ top proc __test_module__Main_next<_c_in: bits[32] in, _c_out: bits[32] out>(__i:
   tok__1: token = send(tok, res, predicate=literal.2, channel=_c_out, id=32)
   assert.39: token = assert(assert.35, or.38, message="State element written after write in same activation.", id=39)
   or.40: bits[1] = or(literal.4, literal.2, id=40)
-  next_value.41: () = next_value(param=__i, value=res, predicate=literal.2, id=41)
+  next_value.41: () = next_value(state_element=__i, value=res, predicate=literal.2, id=41)
   tuple.42: () = tuple(id=42)
   tuple.43: () = tuple(id=43)
 }

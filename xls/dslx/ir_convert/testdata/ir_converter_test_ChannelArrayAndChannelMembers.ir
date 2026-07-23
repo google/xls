@@ -12,11 +12,11 @@ top proc __test_module__main_0_next<_in_chans__0: bits[32] in, _in_chans__1: bit
   literal.5: token = literal(value=token, id=5)
   literal.6: bits[16] = literal(value=42, id=6)
   receive.9: (token, bits[32]) = receive(literal.8, predicate=literal.3, channel=_in_chans__1, id=9)
-  __state: () = state_read(state_element=__state, id=2)
   tuple.11: () = tuple(id=11)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   tuple.4: () = tuple(id=4)
   send.7: token = send(literal.5, literal.6, predicate=literal.3, channel=_out_chan, id=7)
   tuple_index.10: token = tuple_index(receive.9, index=0, id=10)
-  next_value.12: () = next_value(param=__state, value=tuple.11, id=12)
+  next_value.12: () = next_value(state_element=__state, value=tuple.11, id=12)
 }

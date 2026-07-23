@@ -503,7 +503,7 @@ proc my_proc(my_state: (), init={()}) {
   negate: bits[32] = neg(data)
   rcv_token: token = tuple_index(rcv, index=0)
   send: token = send(rcv_token, negate, channel=out)
-  next_my_state: () = next_value(param=my_state, value=my_state)
+  next_my_state: () = next_value(state_element=my_state, value=my_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -822,7 +822,7 @@ proc my_proc(my_state: (), init={()}) {
   send: token = send(rcv_token, negate, channel=out)
   send2: token = send(rcv2_token, negate2, channel=out2)
   fin: token = after_all(send, send2)
-  next_my_state: () = next_value(param=my_state, value=my_state)
+  next_my_state: () = next_value(state_element=my_state, value=my_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -906,7 +906,7 @@ proc my_proc(my_state: (), init={()}) {
   tmp: bits[32] = add(neg_data1, data2_times_two)
   sum: bits[32] = add(tmp, data0)
   send: token = send(rcv2_token, sum, channel=out)
-  next_my_state: () = next_value(param=my_state, value=my_state)
+  next_my_state: () = next_value(state_element=my_state, value=my_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -935,7 +935,7 @@ proc my_proc(st: (), init={()}) {
   literal.21: bits[1] = literal(value=1, id=21, pos=[(1,8,3)])
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15, predicate=literal.21, channel=out, id=20, pos=[(1,5,1)])
-  next_st: () = next_value(param=st, value=st)
+  next_st: () = next_value(state_element=st, value=st)
 }
 
 )";
@@ -997,7 +997,7 @@ proc my_proc(st: (), init={()}) {
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15,
                         channel=out, id=20, pos=[(1,5,1)])
-  next_st: () = next_value(param=st, value=st)
+  next_st: () = next_value(state_element=st, value=st)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -1031,7 +1031,7 @@ proc my_proc(st: (), init={()}) {
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15,
                         channel=out, id=20, pos=[(1,5,1)])
-  next_st: () = next_value(param=st, value=st)
+  next_st: () = next_value(state_element=st, value=st)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -1062,7 +1062,7 @@ proc my_proc(st: (), init={()}) {
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15, channel=out, id=20)
-  next_st: () = next_value(param=st, value=st)
+  next_st: () = next_value(state_element=st, value=st)
 }
 )";
 
@@ -1623,8 +1623,8 @@ proc my_proc(tkn: token, st: (), init={token, ()}) {
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15, channel=out, id=20)
-  next_st: () = next_value(param=st, value=st)
-  next_tkn: () = next_value(param=tkn, value=send.20)
+  next_st: () = next_value(state_element=st, value=st)
+  next_tkn: () = next_value(state_element=tkn, value=send.20)
 }
 )";
 
@@ -3829,8 +3829,8 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 
 proc pipelined_proc(tkn: token, st: bits[32], init={token, 1}) {
   send.1: token = send(tkn, st, channel=out, id=1)
-  next_st: () = next_value(param=st, value=st)
-  next_tkn: () = next_value(param=tkn, value=send.1)
+  next_st: () = next_value(state_element=st, value=st)
+  next_tkn: () = next_value(state_element=tkn, value=send.1)
 }
 )";
 
@@ -3898,8 +3898,8 @@ proc pipelined_proc(tkn: token, st: bits[32], init={token, 0}) {
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
   send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
-  next_st: () = next_value(param=st, value=tuple_index.5)
-  next_tkn: () = next_value(param=tkn, value=send.6)
+  next_st: () = next_value(state_element=st, value=tuple_index.5)
+  next_tkn: () = next_value(state_element=tkn, value=send.6)
 }
 )";
 
@@ -3982,8 +3982,8 @@ proc pipelined_proc(tkn: token, st: bits[32], init={token, 0}) {
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
   send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
-  next_st: () = next_value(param=st, value=tuple_index.5)
-  next_tkn: () = next_value(param=tkn, value=send.6)
+  next_st: () = next_value(state_element=st, value=tuple_index.5)
+  next_tkn: () = next_value(state_element=tkn, value=send.6)
 }
 )";
 
@@ -4662,9 +4662,9 @@ class ProcWithStateTest : public BlockConversionTest {
     add.100: bits[32] = add(st_0, tuple_index.35, id=100)
     add.101: bits[32] = add(st_1, tuple_index.44, id=101)
     add.102: bits[32] = add(st_2, tuple_index.53, id=102)
-    next_st_0: () = next_value(param=st_0, value=add.100)
-    next_st_1: () = next_value(param=st_1, value=add.101)
-    next_st_2: () = next_value(param=st_2, value=add.102)
+    next_st_0: () = next_value(state_element=st_0, value=add.100)
+    next_st_1: () = next_value(state_element=st_1, value=add.101)
+    next_st_2: () = next_value(state_element=st_2, value=add.102)
   }
   )";
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -4934,8 +4934,8 @@ proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
   sum: bits[32] = add(loopback_data, st)
   out_send: token = send(loopback_tkn, sum, channel=out)
   loopback_send: token = send(out_send, sum, channel=loopback)
-  next_st: () = next_value(param=st, value=sum)
-  next_tkn: () = next_value(param=tkn, value=loopback_send)
+  next_st: () = next_value(state_element=st, value=sum)
+  next_tkn: () = next_value(state_element=tkn, value=loopback_send)
 }
 )";
 
@@ -4990,8 +4990,8 @@ proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
   loopback0_send: token = send(out_send, sum, channel=loopback0)
   loopback1_send: token = send(out_send, sum, channel=loopback1)
   loopback_send: token = after_all(loopback0_send, loopback1_send)
-  next_st: () = next_value(param=st, value=sum)
-  next_tkn: () = next_value(param=tkn, value=loopback_send)
+  next_st: () = next_value(state_element=st, value=sum)
+  next_tkn: () = next_value(state_element=tkn, value=loopback_send)
 }
 )";
 
@@ -5035,8 +5035,8 @@ proc proc_ut(tkn: token, st: bits[32], init={token, 0}) {
   lit1: bits[32] = literal(value=1)
   next_state: bits[32] = add(st, lit1)
   send.1: token = send(tkn, st, channel=out, id=1)
-  next_st: () = next_value(param=st, value=next_state)
-  next_tkn: () = next_value(param=tkn, value=send.1)
+  next_st: () = next_value(state_element=st, value=next_state)
+  next_tkn: () = next_value(state_element=tkn, value=send.1)
 }
 )";
 
@@ -5151,7 +5151,7 @@ proc proc_ut(st: bits[32], init={0}) {
 
   send_token: token = send(tkn, st, channel=out, id=1)
 
-  next_st: () = next_value(param=st, value=next_state)
+  next_st: () = next_value(state_element=st, value=next_state)
 }
 )";
 
@@ -5275,7 +5275,7 @@ top proc proc_ut(_ZZN4Test4mainEvE1i__1: bits[8], init={4}) {
   literal.35: bits[8] = literal(value=1, id=35, pos=[(1,2,1)])
   add.37: bits[8] = add(_ZZN4Test4mainEvE1i__1, literal.35, id=37, pos=[(1,10,3)])
   send.41: token = send(tkn, _ZZN4Test4mainEvE1i__1, channel=out, id=41, pos=[(1,9,6)])
-  next_st: () = next_value(param=_ZZN4Test4mainEvE1i__1, value=add.37)
+  next_st: () = next_value(state_element=_ZZN4Test4mainEvE1i__1, value=add.37)
 }
 )";
 
@@ -5384,9 +5384,9 @@ top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={token
   tuple_index.9: bits[3] = tuple_index(receive.6, index=1, id=9)
   tuple_index.10: token = tuple_index(receive.6, index=0, id=10)
   sel.11: bits[3] = sel(eq.5, cases=[param__2, tuple_index.9], id=11)
-  next_value.12: () = next_value(param=param__1, value=literal.4, id=12)
-  next_value.13: () = next_value(param=param__2, value=sel.11, id=13)
-  next_value.14: () = next_value(param=param, value=tuple_index.10, id=14)
+  next_value.12: () = next_value(state_element=param__1, value=literal.4, id=12)
+  next_value.13: () = next_value(state_element=param__2, value=sel.11, id=13)
+  next_value.14: () = next_value(state_element=param, value=tuple_index.10, id=14)
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -5423,10 +5423,10 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={t
   incremented_counter: bits[32] = add(counter, lit1)
   even_iteration: bits[1] = not(odd_iteration)
   send.1: token = send(tkn, counter, channel=out, id=1)
-  next_counter_odd: () = next_value(param=counter, value=counter, predicate=odd_iteration)
-  next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
-  next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
-  next_value.3: () = next_value(param=tkn, value=send.1, id=3)
+  next_counter_odd: () = next_value(state_element=counter, value=counter, predicate=odd_iteration)
+  next_counter_even: () = next_value(state_element=counter, value=incremented_counter, predicate=even_iteration)
+  next_value.2: () = next_value(state_element=odd_iteration, value=even_iteration, id=2)
+  next_value.3: () = next_value(state_element=tkn, value=send.1, id=3)
 }
 )";
 
@@ -5509,9 +5509,9 @@ proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
   incremented_counter: bits[32] = add(counter, lit1)
   even_iteration: bits[1] = not(odd_iteration)
   send.1: token = send(tkn, counter, channel=out, id=1)
-  next_counter_odd: () = next_value(param=counter, value=counter, predicate=odd_iteration)
-  next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
-  next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
+  next_counter_odd: () = next_value(state_element=counter, value=counter, predicate=odd_iteration)
+  next_counter_even: () = next_value(state_element=counter, value=incremented_counter, predicate=even_iteration)
+  next_value.2: () = next_value(state_element=odd_iteration, value=even_iteration, id=2)
 }
 )";
 
@@ -5618,9 +5618,9 @@ proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1],
   incremented_counter: bits[32] = add(selected_counter, lit1)
   index_is_0: bits[1] = not(index)
   index_is_1: bits[1] = identity(index)
-  increment_counter0: () = next_value(param=counter0, value=incremented_counter, predicate=index_is_0)
-  increment_counter1: () = next_value(param=counter1, value=incremented_counter, predicate=index_is_1)
-  next_index: () = next_value(param=index, value=index_is_0)
+  increment_counter0: () = next_value(state_element=counter0, value=incremented_counter, predicate=index_is_0)
+  increment_counter1: () = next_value(state_element=counter1, value=incremented_counter, predicate=index_is_1)
+  next_index: () = next_value(state_element=index, value=index_is_0)
 }
 )";
 
@@ -5733,9 +5733,9 @@ proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1],
   incremented_counter: bits[32] = add(selected_counter, lit1)
   index_is_0: bits[1] = not(index)
   index_is_1: bits[1] = identity(index)
-  increment_counter0: () = next_value(param=counter0, value=incremented_counter, predicate=index_is_0)
-  increment_counter1: () = next_value(param=counter1, value=incremented_counter, predicate=index_is_1)
-  next_index: () = next_value(param=index, value=index_is_0)
+  increment_counter0: () = next_value(state_element=counter0, value=incremented_counter, predicate=index_is_0)
+  increment_counter1: () = next_value(state_element=counter1, value=incremented_counter, predicate=index_is_1)
+  next_index: () = next_value(state_element=index, value=index_is_0)
 }
 )";
 

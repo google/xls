@@ -139,7 +139,7 @@ TEST_F(DataflowDominatorAnalysisTest, VShapeWithReceive) {
   BValue y = pb.TupleIndex(recv, 1);
   BValue and_op = pb.And(x, y);
   pb.Next(tok, recv_tok);
-  pb.Next(x, and_op);
+  BValue next_x = pb.Next(x, and_op);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * f, pb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(DataflowDominatorAnalysis analysis,
@@ -157,7 +157,7 @@ TEST_F(DataflowDominatorAnalysisTest, VShapeWithReceive) {
   EXPECT_THAT(analysis.GetDominatorsOfNode(and_op.node()),
               ElementsAre(and_op.node()));
   EXPECT_THAT(analysis.GetNodesDominatedByNode(and_op.node()),
-              ElementsAre(and_op.node()));
+              UnorderedElementsAre(and_op.node(), next_x.node()));
 
   EXPECT_THAT(analysis.GetDominatorsOfNode(recv.node()),
               ElementsAre(recv.node()));
@@ -332,7 +332,11 @@ TEST_F(DataflowDominatorAnalysisTest, MultipleOutputs) {
   BValue x = pb.StateElement("x", Value(UBits(0, 1)));
   BValue y = pb.StateElement("y", Value(UBits(0, 1)));
   BValue z = pb.And(x, y);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({x, z}));
+  BValue next_x =
+      pb.Next(BStateElement(x.node()->As<StateRead>()->state_element()), x);
+  BValue next_y =
+      pb.Next(BStateElement(y.node()->As<StateRead>()->state_element()), z);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(DataflowDominatorAnalysis analysis,
                            DataflowDominatorAnalysis::Run(proc));
 
@@ -341,12 +345,11 @@ TEST_F(DataflowDominatorAnalysisTest, MultipleOutputs) {
   EXPECT_THAT(analysis.GetDominatorsOfNode(z.node()), ElementsAre(z.node()));
 
   EXPECT_THAT(analysis.GetNodesDominatedByNode(x.node()),
-              UnorderedElementsAre(
-                  x.node(), m::Next(m::StateRead("x"), m::StateRead("x"))));
+              UnorderedElementsAre(x.node(), next_x.node()));
   EXPECT_THAT(analysis.GetNodesDominatedByNode(y.node()),
               ElementsAre(y.node()));
   EXPECT_THAT(analysis.GetNodesDominatedByNode(z.node()),
-              ElementsAre(z.node()));
+              UnorderedElementsAre(z.node(), next_y.node()));
 }
 
 }  // namespace

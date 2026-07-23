@@ -19,7 +19,7 @@ proc __test_module__spawnee_0_next<_inparam: bits[32] in>(__state: (), init={()}
   x: bits[32] = add(literal.4, literal.5, id=6)
   tuple.7: () = tuple(id=7)
   tuple.15: (token, bits[32], bits[1]) = tuple(tuple_index.11, sel.14, tuple_index.13, id=15)
-  next_value.16: () = next_value(param=__state, value=__state, id=16)
+  next_value.16: () = next_value(state_element=__state, value=__state, id=16)
 }
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
@@ -30,10 +30,10 @@ top proc __test_module__main_0_next<>(__state: (), init={()}) {
   literal.21: token = literal(value=token, id=21)
   literal.22: bits[32] = literal(value=1, id=22)
   literal.19: bits[1] = literal(value=1, id=19)
-  __state: () = state_read(state_element=__state, id=18)
   tuple.24: () = tuple(id=24)
   __token: token = literal(value=token, id=17)
+  __state: () = state_read(state_element=__state, id=18)
   tuple.20: () = tuple(id=20)
   send.23: token = send(literal.21, literal.22, predicate=literal.19, channel=_chanchan, id=23)
-  next_value.25: () = next_value(param=__state, value=tuple.24, id=25)
+  next_value.25: () = next_value(state_element=__state, value=tuple.24, id=25)
 }

@@ -13,11 +13,11 @@ fn __test_module__foo.init() -> bits[32] {
 }
 
 top proc __test_module__main_0_next(__state: (), init={()}) {
-  __state: () = state_read(state_element=__state, id=3)
   tuple.5: () = tuple(id=5)
   __token: token = literal(value=token, id=2)
+  __state: () = state_read(state_element=__state, id=3)
   literal.4: bits[1] = literal(value=1, id=4)
-  next_value.6: () = next_value(param=__state, value=tuple.5, id=6)
+  next_value.6: () = next_value(state_element=__state, value=tuple.5, id=6)
 }
 
 proc __test_module__main__foo_0_next(__state: bits[32], init={0}) {
@@ -42,5 +42,5 @@ proc __test_module__main__foo_0_next(__state: bits[32], init={0}) {
   tuple_index.23: token = tuple_index(receive.22, index=0, id=23)
   tok__2: token = tuple_index(receive.22, index=0, id=24)
   value: bits[32] = tuple_index(receive.22, index=1, id=25)
-  next_value.28: () = next_value(param=__state, value=add.27, id=28)
+  next_value.28: () = next_value(state_element=__state, value=add.27, id=28)
 }

@@ -14,6 +14,6 @@ top proc SendState(a: bits[32], b: bits[32], init={1, 1}) {
   add.17: bits[32] = add(c, a, id=17)
   a__1: token = send(literal.1, a, channel=a_value_chan, id=5)
   b__1: token = send(literal.1, b, channel=b_value_chan, id=8)
-  next_value.20: () = next_value(param=a, value=add.16, id=20)
-  next_value.21: () = next_value(param=b, value=add.17, id=21)
+  next_value.20: () = next_value(state_element=a, value=add.16, id=20)
+  next_value.21: () = next_value(state_element=b, value=add.17, id=21)
 }

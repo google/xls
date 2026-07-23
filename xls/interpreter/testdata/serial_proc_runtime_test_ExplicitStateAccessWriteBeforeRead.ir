@@ -9,7 +9,7 @@ top proc __test_module__main_0_next<>(__state: bits[32], init={0}) {
   literal.4: bits[32] = literal(value=1, id=4)
   tuple.3: () = tuple(id=3)
   assert.6: token = assert(__token, not.5, message="State element written before read in same activation.", id=6)
-  next_value.7: () = next_value(param=__state, value=literal.4, predicate=literal.2, id=7)
+  next_value.7: () = next_value(state_element=__state, value=literal.4, predicate=literal.2, id=7)
   tuple.8: () = tuple(id=8)
   tuple.9: () = tuple(id=9)
 }

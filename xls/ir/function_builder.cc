@@ -1262,7 +1262,7 @@ BValue BuilderBase::Next(BValue state_read, BValue value,
                     loc);
   }
   return AddNode<xls::Next>(
-      loc, /*state_read=*/state_read.node(), /*value=*/value.node(),
+      loc, /*state_element=*/state_element, /*value=*/value.node(),
       /*predicate=*/pred.has_value() ? std::make_optional(pred->node())
                                      : std::nullopt,
       /*label=*/label, name);
@@ -1669,7 +1669,8 @@ absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
                             GetType(GetStateParam(index))->ToString(),
                             GetType(next_state[index])->ToString(), index));
       }
-      Next(GetStateParam(index), next_state[index]);
+      Next(BStateElement(proc()->GetStateElement(index), this),
+           next_state[index]);
     }
   }
   return Build();
