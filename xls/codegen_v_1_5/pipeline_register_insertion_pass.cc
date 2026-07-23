@@ -354,8 +354,12 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
             // corresponding StateRead, we need to avoid updating that specific
             // operand, since no data is being passed. For simplicity, we put it
             // back afterwards rather than actually avoiding the update.
-            bool restore_state_read =
-                user->Is<Next>() && user->As<Next>()->state_read() == node;
+            bool restore_state_read = false;
+            if (user->Is<Next>()) {
+              Next* next = user->As<Next>();
+              restore_state_read =
+                  next->has_state_read() && next->state_read() == node;
+            }
             user->ReplaceOperand(node, live_node);
             if (restore_state_read) {
               XLS_RETURN_IF_ERROR(user->As<Next>()->ReplaceOperandNumber(
