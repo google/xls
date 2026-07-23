@@ -679,6 +679,24 @@ xls_dslx_library(
     srcs = ["round.x"],
 )
 
+xls_dslx_library(
+    name = "ml_dslx",
+    srcs = ["ml.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "ml_dslx_fmt_test",
+    src = "ml.x",
+    opportunistic_postcondition = True,
+)
+
+xls_dslx_test(
+    name = "ml_dslx_test",
+    size = "small",
+    srcs = ["ml.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
