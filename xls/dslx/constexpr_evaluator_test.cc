@@ -30,6 +30,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -670,6 +671,54 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(f->body()));
   EXPECT_EQ(value.GetBitValueViaSign().value(), 8);
+}
+
+TEST(ConstexprEvaluatorTest, HandleChannelDeclNotesParametricFifoDepth) {
+  constexpr std::string_view kProgram = R"(
+proc ChildProc<N: u32> {
+  init { }
+  config() {
+    let (my_chan_s, my_chan_r) = chan<u32, N>("my_chan");
+  }
+  next(state: ()) { () }
+}
+
+proc ParentProc {
+  init { () }
+  config() {
+    spawn ChildProc<u32:7>();
+  }
+  next(state: ()) { () }
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * parent_proc,
+                           tm.module->GetMemberOrError<Proc>("ParentProc"));
+  Statement* spawn_stmt = parent_proc->config().body()->statements().at(0);
+  Spawn* spawn =
+      absl::down_cast<Spawn*>(std::get<Expr*>(spawn_stmt->wrapped()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * child_proc_ti,
+      tm.type_info->GetInvocationTypeInfoOrError(spawn->config(),
+                                                 ParametricEnv()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * child_proc,
+                           tm.module->GetMemberOrError<Proc>("ChildProc"));
+  Statement* let_stmt = child_proc->config().body()->statements().at(0);
+  Let* let = std::get<Let*>(let_stmt->wrapped());
+  ChannelDecl* chan_decl = absl::down_cast<ChannelDecl*>(let->rhs());
+  ASSERT_TRUE(chan_decl->fifo_depth().has_value());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue depth_value,
+      child_proc_ti->GetConstExpr(chan_decl->fifo_depth().value()));
+  EXPECT_EQ(depth_value.GetBitValueViaSign().value(), 7);
 }
 
 }  // namespace

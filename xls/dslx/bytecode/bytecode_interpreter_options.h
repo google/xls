@@ -108,6 +108,34 @@ class BytecodeInterpreterOptions {
   }
   FormatPreference format_preference() const { return format_preference_; }
 
+  // When true, senders block when channels with a declared depth are full.
+  BytecodeInterpreterOptions& simulate_bounded_fifos(bool value) {
+    simulate_bounded_fifos_ = value;
+    return *this;
+  }
+  bool simulate_bounded_fifos() const { return simulate_bounded_fifos_; }
+
+  // When set, the proc execution order is shuffled once at the start of each
+  // tick using this seed.
+  BytecodeInterpreterOptions& proc_schedule_seed(
+      std::optional<int64_t> value) {
+    proc_schedule_seed_ = value;
+    return *this;
+  }
+  std::optional<int64_t> proc_schedule_seed() const {
+    return proc_schedule_seed_;
+  }
+
+  // When true, procs yield after each channel op and re-insert randomly.
+  // Defaults to proc_schedule_seed being set; pass false to opt out.
+  BytecodeInterpreterOptions& mid_tick_yield(bool value) {
+    mid_tick_yield_ = value;
+    return *this;
+  }
+  bool mid_tick_yield() const {
+    return mid_tick_yield_.value_or(proc_schedule_seed_.has_value());
+  }
+
  private:
   PostFnEvalHook post_fn_eval_hook_ = nullptr;
   RolloverHook rollover_hook_ = nullptr;
@@ -116,6 +144,9 @@ class BytecodeInterpreterOptions {
   std::optional<int64_t> max_ticks_;
   bool validate_final_stack_depth_ = true;
   FormatPreference format_preference_ = FormatPreference::kDefault;
+  bool simulate_bounded_fifos_ = false;
+  std::optional<int64_t> proc_schedule_seed_;
+  std::optional<bool> mid_tick_yield_;
 };
 
 }  // namespace xls::dslx

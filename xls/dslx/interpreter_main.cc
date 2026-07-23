@@ -102,6 +102,14 @@ ABSL_FLAG(bool, trace_calls, false,
 ABSL_FLAG(int64_t, max_ticks, 100000,
           "If non-zero, the maximum number of ticks to execute on any proc. If "
           "exceeded an error is returned.");
+ABSL_FLAG(bool, simulate_bounded_fifos, false,
+          "If true, channels with a declared depth block senders when full.");
+ABSL_FLAG(bool, randomize_proc_execution, false,
+          "If true, proc execution order is shuffled each tick using --seed.");
+ABSL_FLAG(std::optional<bool>, mid_tick_yield, std::nullopt,
+          "If true, procs yield after each channel op and re-insert at a "
+          "random position (requires --seed). Defaults to "
+          "--randomize_proc_execution; pass =false to opt out.");
 ABSL_FLAG(std::string, evaluator, "dslx-interpreter",
           "What evaluator should be used to actually execute the dslx test. "
           "'dslx-interpreter' is the DSLX bytecode interpreter. 'ir-jit' is "
@@ -177,6 +185,8 @@ absl::StatusOr<TestResult> RealMain(
     FormatPreference format_preference, CompareFlag compare_flag, bool execute,
     bool warnings_as_errors, std::optional<int64_t> seed, bool trace_channels,
     bool trace_calls, std::optional<int64_t> max_ticks,
+    bool simulate_bounded_fifos, bool randomize_proc_execution,
+    std::optional<bool> mid_tick_yield,
     std::optional<std::string_view> xml_output_file, EvaluatorType evaluator,
     const std::vector<std::string>& configured_values) {
   XLS_ASSIGN_OR_RETURN(
@@ -266,6 +276,9 @@ absl::StatusOr<TestResult> RealMain(
       .trace_channels = trace_channels,
       .trace_calls = trace_calls,
       .max_ticks = max_ticks,
+      .simulate_bounded_fifos = simulate_bounded_fifos,
+      .randomize_proc_execution = randomize_proc_execution,
+      .mid_tick_yield = mid_tick_yield,
   };
 
   // Create a results proto if requested and plumb it through options.
@@ -473,11 +486,14 @@ int main(int argc, char* argv[]) {
     configured_values = absl::StrSplit(configured_values_str, ',');
   }
 
+  bool simulate_bounded_fifos = absl::GetFlag(FLAGS_simulate_bounded_fifos);
+  bool randomize_proc_execution = absl::GetFlag(FLAGS_randomize_proc_execution);
+  std::optional<bool> mid_tick_yield = absl::GetFlag(FLAGS_mid_tick_yield);
   absl::StatusOr<xls::dslx::TestResult> test_result = xls::dslx::RealMain(
       args[0], dslx_paths, dslx_stdlib_path, test_filter, preference,
       compare_flag, execute, warnings_as_errors, seed, trace_channels,
-      trace_calls, max_ticks, xml_output_file, evaluator.value(),
-      configured_values);
+      trace_calls, max_ticks, simulate_bounded_fifos, randomize_proc_execution,
+      mid_tick_yield, xml_output_file, evaluator.value(), configured_values);
   if (!test_result.ok()) {
     return xls::ExitStatus(test_result.status());
   }

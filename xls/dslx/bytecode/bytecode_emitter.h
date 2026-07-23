@@ -44,6 +44,11 @@ struct BytecodeEmitterOptions {
   FormatPreference format_preference;
 };
 
+// Allocates a channel instance ID for a ChannelDecl (nullopt for array
+// container IDs, which have no declaration).
+using ChannelInstanceAllocator =
+    absl::FunctionRef<int64_t(std::optional<const ChannelDecl*>)>;
+
 // Translates a DSLX expression tree into a linear sequence of bytecodes.
 class BytecodeEmitter : public ExprVisitor {
  public:
@@ -65,7 +70,7 @@ class BytecodeEmitter : public ExprVisitor {
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitProcConfig(
       ImportData* import_data, const TypeInfo* type_info, const Function& f,
       const std::optional<ParametricEnv>& caller_bindings,
-      std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator =
+      std::optional<ChannelInstanceAllocator> channel_instance_allocator =
           std::nullopt,
       const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 
@@ -81,7 +86,7 @@ class BytecodeEmitter : public ExprVisitor {
   BytecodeEmitter(
       ImportData* import_data, const TypeInfo* type_info,
       const std::optional<ParametricEnv>& caller_bindings,
-      std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
+      std::optional<ChannelInstanceAllocator> channel_instance_allocator,
       const BytecodeEmitterOptions& options);
   ~BytecodeEmitter() override;
 
@@ -89,7 +94,7 @@ class BytecodeEmitter : public ExprVisitor {
       ImportData* import_data, const TypeInfo* type_info, const Function& f,
       const std::optional<ParametricEnv>& caller_bindings,
       const std::vector<NameDef*>& legacy_proc_members,
-      std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
+      std::optional<ChannelInstanceAllocator> channel_instance_allocator,
       const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 
   static void LogEmittedFunction(const Function& f, const TypeInfo* ti,
@@ -200,7 +205,7 @@ class BytecodeEmitter : public ExprVisitor {
   ImportData* import_data_;
   const TypeInfo* type_info_;
   const std::optional<ParametricEnv>& caller_bindings_;
-  std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator_;
+  std::optional<ChannelInstanceAllocator> channel_instance_allocator_;
   BytecodeEmitterOptions options_;
 
   std::vector<Bytecode> bytecode_;

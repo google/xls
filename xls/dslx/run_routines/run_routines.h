@@ -93,7 +93,8 @@ class AbstractRunComparator {
 //   run_comparator: Optional object that can compare DSLX interpreter
 //    executions with a reference (e.g. IR execution).
 //   execute: Whether or not to execute the quickchecks and tests.
-//   seed: Seed for QuickCheck random input stimulus.
+//   seed: Seed for QuickCheck random input stimulus and proc scheduling
+//    randomization.
 //   convert_options: Options used in IR conversion, see `ConvertOptions` for
 //    details.
 //   parse_and_typecheck_options: Options used in parsing and typechecking,
@@ -111,6 +112,10 @@ struct ParseAndTestOptions {
   bool trace_channels = false;
   bool trace_calls = false;
   std::optional<int64_t> max_ticks;
+  bool simulate_bounded_fifos = false;
+  bool randomize_proc_execution = false;
+  // Unset follows randomize_proc_execution; set to force on/off explicitly.
+  std::optional<bool> mid_tick_yield;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
 

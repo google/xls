@@ -403,14 +403,9 @@ absl::StatusOr<std::optional<ChannelConfig>> ChannelScope::CreateChannelConfig(
 
   std::optional<int64_t> fifo_depth;
   if (decl->fifo_depth().has_value()) {
-    // Note: warning collect is nullptr since all warnings should have been
-    // flagged in typechecking.
     XLS_ASSIGN_OR_RETURN(
         InterpValue iv,
-        ConstexprEvaluator::EvaluateToValue(
-            import_data_, function_context_->type_info,
-            /*warning_collector=*/nullptr, function_context_->bindings,
-            decl->fifo_depth().value()));
+        function_context_->type_info->GetConstExpr(decl->fifo_depth().value()));
     XLS_ASSIGN_OR_RETURN(Value fifo_depth_value, iv.ConvertToIr());
     if (!fifo_depth_value.IsBits()) {
       return absl::InvalidArgumentError(

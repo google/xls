@@ -18,11 +18,13 @@
 #include <deque>
 #include <memory>
 #include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -55,6 +57,31 @@
 
 namespace xls::dslx {
 namespace {
+
+// Returns the FIFO depth declared on the ChannelDecl backing `v`, or nullopt
+// if `v` has no depth annotation or is not a channel reference.
+absl::StatusOr<std::optional<int64_t>> GetFifoDepth(const InterpValue& v,
+                                                     TypeInfo* ti) {
+  const InterpValue& chan =
+      (v.IsChannelArray() && !v.GetChannelArrayOrDie().elements().empty())
+          ? v.GetChannelArrayOrDie().elements()[0]
+          : v;
+  if (!chan.IsChannelReference()) {
+    return std::nullopt;
+  }
+  const AstNode* definer =
+      chan.GetChannelReferenceOrDie().GetDefiner().value_or(nullptr);
+  if (definer == nullptr || definer->kind() != AstNodeKind::kChannelDecl) {
+    return std::nullopt;
+  }
+  const ChannelDecl* decl = absl::down_cast<const ChannelDecl*>(definer);
+  if (!decl->fifo_depth().has_value()) {
+    return std::nullopt;
+  }
+  XLS_ASSIGN_OR_RETURN(InterpValue depth_val,
+                       ti->GetConstExpr(decl->fifo_depth().value()));
+  return depth_val.GetBitValueSigned();
+}
 
 bool HasExplicitStateAccess(const Proc& proc, const TypeInfo* ti,
                             const ImportData& import_data) {
@@ -165,9 +192,23 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
                          get_parametric_type_info(spawn_functions->config));
   }
 
-  auto channel_instance_allocator = [&]() -> int64_t {
+  bool sim_bounded = options.simulate_bounded_fifos();
+  auto channel_instance_allocator =
+      [&](std::optional<const ChannelDecl*> decl) -> int64_t {
+    std::optional<int64_t> depth;
+    if (sim_bounded && decl.has_value() &&
+        decl.value()->fifo_depth().has_value()) {
+      absl::StatusOr<InterpValue> depth_val =
+          type_info->GetConstExpr(decl.value()->fifo_depth().value());
+      if (depth_val.ok()) {
+        absl::StatusOr<int64_t> bit_val = depth_val->GetBitValueSigned();
+        if (bit_val.ok()) {
+          depth = *bit_val;
+        }
+      }
+    }
     return hierarchy_interpreter->channel_manager()
-        .AllocateLegacyChannel()
+        .AllocateLegacyChannel(depth)
         .GetId();
   };
   XLS_ASSIGN_OR_RETURN(
@@ -265,6 +306,10 @@ ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
   auto hierarchy_interpreter = std::make_unique<ProcHierarchyInterpreter>();
   hierarchy_interpreter->channel_manager_ =
       std::make_unique<LegacyChannelManager>();
+  if (options.proc_schedule_seed().has_value()) {
+    hierarchy_interpreter->rng_ =
+        std::minstd_rand(*options.proc_schedule_seed());
+  }
 
   // Allocate the channels for the top-level config interface.
   for (int64_t index = 0; index < top_proc->config().params().size(); ++index) {
@@ -304,6 +349,10 @@ ProcHierarchyInterpreter::Create(ImportData* import_data, TypeInfo* type_info,
   auto hierarchy_interpreter = std::make_unique<ProcHierarchyInterpreter>();
   hierarchy_interpreter->channel_manager_ =
       std::make_unique<ProcDefChannelManager>();
+  if (options.proc_schedule_seed().has_value()) {
+    hierarchy_interpreter->rng_ =
+        std::minstd_rand(*options.proc_schedule_seed());
+  }
   XLS_ASSIGN_OR_RETURN(const Function* constructor,
                        GetTopProcConstructor(top_proc, type_info));
 
@@ -368,7 +417,12 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
     VLOG(5) << "Initializing member " << member->name() << " of proc "
             << proc->identifier();
     if (member_type->GetDirectOrElementChannelType().has_value()) {
-      XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, member_values[i]));
+      std::optional<int64_t> depth;
+      if (options.simulate_bounded_fifos()) {
+        XLS_ASSIGN_OR_RETURN(depth, GetFifoDepth(member_values[i], ti));
+      }
+      XLS_RETURN_IF_ERROR(
+          AllocateChannelOrArray(proc, member_values[i], depth));
     } else {
       VLOG(5) << "Setting state value for " << member->name() << " in proc "
               << proc->identifier() << " to " << member_values[i].ToString();
@@ -410,7 +464,8 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
 }
 
 absl::Status ProcHierarchyInterpreter::AllocateChannelOrArray(
-    const ProcDef* proc, const InterpValue& value) {
+    const ProcDef* proc, const InterpValue& value,
+    std::optional<int64_t> depth) {
   if (value.IsChannelReference()) {
     const InterpValue::ChannelReference& channel_ref =
         value.GetChannelReferenceOrDie();
@@ -418,12 +473,10 @@ absl::Status ProcHierarchyInterpreter::AllocateChannelOrArray(
         (*channel_ref.GetDefiner())->kind() == AstNodeKind::kChannelDecl) {
       VLOG(5) << "Allocating channel " << value.ToString() << " in proc "
               << proc->identifier();
-
-      const InterpValue::ChannelReference& channel_ref =
-          value.GetChannelReferenceOrDie();
       XLS_RETURN_IF_ERROR(channel_manager_
                               ->AllocateChannel(*channel_ref.GetChannelId(),
-                                                *channel_ref.GetDefiner())
+                                                *channel_ref.GetDefiner(),
+                                                depth)
                               .status());
     }
     return absl::OkStatus();
@@ -431,7 +484,7 @@ absl::Status ProcHierarchyInterpreter::AllocateChannelOrArray(
 
   XLS_RET_CHECK(value.IsChannelArray());
   for (const InterpValue& element : value.GetChannelArrayOrDie().elements()) {
-    XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, element));
+    XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, element, depth));
   }
   return absl::OkStatus();
 }
@@ -467,15 +520,31 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
                          .progress_made = progress_made};
   }
 
-  if (result_status.code() == absl::StatusCode::kUnavailable) {
-    // Empty recv channel. Just return Ok and we'll try again next time.
-    return ProcRunResult{
-        .execution_state = ProcExecutionState::kBlockedOnReceive,
-        .blocked_channel_info = interpreter_->blocked_channel_info(),
-        .progress_made = progress_made};
+  std::optional<ProcControlSignal> signal =
+      GetProcControlSignal(result_status);
+  if (!signal.has_value()) {
+    return result_status;
   }
 
-  return result_status;
+  switch (*signal) {
+    case ProcControlSignal::kBlockedOnReceive:
+      // Empty recv channel. Just return Ok and we'll try again next time.
+      return ProcRunResult{
+          .execution_state = ProcExecutionState::kBlockedOnReceive,
+          .blocked_channel_info = interpreter_->blocked_channel_info(),
+          .progress_made = progress_made};
+    case ProcControlSignal::kBlockedOnSend:
+      return ProcRunResult{
+          .execution_state = ProcExecutionState::kBlockedOnSend,
+          .blocked_channel_info = interpreter_->blocked_channel_info(),
+          .progress_made = progress_made};
+    case ProcControlSignal::kYieldedAfterChannelOp:
+      return ProcRunResult{
+          .execution_state = ProcExecutionState::kYieldedAfterChannelOp,
+          .blocked_channel_info = std::nullopt,
+          .progress_made = progress_made};
+  }
+  LOG(FATAL) << "Unhandled ProcControlSignal";
 }
 
 absl::Span<ProcInstance> ProcHierarchyInterpreter::proc_instances() {
@@ -520,7 +589,8 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInterfaceChannel(
       InterpValueChannel * channel,
       channel_manager_->AllocateChannel(
           *channel_reference.GetChannelReferenceOrDie().GetChannelId(),
-          *channel_reference.GetChannelReferenceOrDie().GetDefiner()));
+          *channel_reference.GetChannelReferenceOrDie().GetDefiner(),
+          std::nullopt));
 
   interface_args_.push_back(channel_reference);
   interface_channels_.push_back(
@@ -535,31 +605,65 @@ void ProcHierarchyInterpreter::AddProcInstance(ProcInstance&& proc_instance) {
   proc_instances_.push_back(std::move(proc_instance));
 }
 
-absl::Status ProcHierarchyInterpreter::Tick() {
-  std::deque<ProcInstance*> ready_list;
+absl::StatusOr<bool> ProcHierarchyInterpreter::TickOnce(
+    std::vector<std::string>* blocked_channels) {
+  std::deque<ProcInstance*> ready;
   for (auto& p : proc_instances()) {
-    ready_list.push_back(&p);
+    ready.push_back(&p);
+  }
+  if (rng_.has_value()) {
+    absl::c_shuffle(ready, *rng_);
   }
 
-  std::deque<ProcInstance*> next_ready_list;
-  bool progress_made;
+  std::deque<ProcInstance*> next_ready;
+  bool any_progress = false;
+  bool retry;
   do {
-    progress_made = false;
-    while (!ready_list.empty()) {
-      ProcInstance* p = ready_list.front();
-      ready_list.pop_front();
-
-      XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p->Run());
-      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive) {
-        next_ready_list.push_back(p);
-        progress_made |= run_result.progress_made;
-      }
+    retry = false;
+    if (blocked_channels != nullptr) {
+      blocked_channels->clear();
     }
-    ready_list = std::move(next_ready_list);
-    next_ready_list.clear();
-  } while (progress_made);
+    while (!ready.empty()) {
+      ProcInstance* p = ready.front();
+      ready.pop_front();
+      XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p->Run());
+      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive ||
+          run_result.execution_state == ProcExecutionState::kBlockedOnSend) {
+        next_ready.push_back(p);
+        if (blocked_channels != nullptr &&
+            run_result.blocked_channel_info.has_value()) {
+          const BlockedChannelInfo& info = *run_result.blocked_channel_info;
+          const char* verb =
+              run_result.execution_state ==
+                      ProcExecutionState::kBlockedOnReceive
+                  ? "receive"
+                  : "send";
+          blocked_channels->push_back(absl::StrFormat(
+              "%s: proc `%s` is blocked on %s on channel `%s`",
+              info.span.ToString(p->interpreter().file_table()),
+              p->proc_name(), verb, info.name));
+        }
+        retry |= run_result.progress_made;
+      } else if (run_result.execution_state ==
+                 ProcExecutionState::kYieldedAfterChannelOp) {
+        if (rng_.has_value()) {
+          std::uniform_int_distribution<size_t> dist(0, ready.size());
+          ready.insert(ready.begin() + dist(*rng_), p);
+        } else {
+          ready.push_back(p);
+        }
+      }
+      any_progress |= run_result.progress_made;
+    }
+    ready = std::move(next_ready);
+    next_ready.clear();
+  } while (retry);
 
-  return absl::OkStatus();
+  return any_progress;
+}
+
+absl::Status ProcHierarchyInterpreter::Tick() {
+  return TickOnce(/*blocked_channels=*/nullptr).status();
 }
 
 absl::StatusOr<int64_t> ProcHierarchyInterpreter::TickUntilOutput(
@@ -600,7 +704,6 @@ absl::StatusOr<int64_t> ProcHierarchyInterpreter::TickUntilOutput(
       proc_instances().front().options();
   int64_t tick_count = 0;
   while (!is_done()) {
-    bool progress_made = false;
     if (options.max_ticks().has_value() &&
         tick_count > options.max_ticks().value()) {
       return absl::DeadlineExceededError(
@@ -608,20 +711,7 @@ absl::StatusOr<int64_t> ProcHierarchyInterpreter::TickUntilOutput(
                           options.max_ticks().value()));
     }
     std::vector<std::string> blocked_channels;
-    for (auto& p : proc_instances()) {
-      XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p.Run());
-      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive) {
-        XLS_RET_CHECK(run_result.blocked_channel_info.has_value());
-        BlockedChannelInfo channel_info =
-            run_result.blocked_channel_info.value();
-        blocked_channels.push_back(absl::StrFormat(
-            "%s: proc `%s` is blocked on receive on channel `%s`",
-            channel_info.span.ToString(p.interpreter().file_table()),
-            p.proc_name(), channel_info.name));
-      }
-      progress_made |= run_result.progress_made;
-    }
-
+    XLS_ASSIGN_OR_RETURN(bool progress_made, TickOnce(&blocked_channels));
     if (!progress_made) {
       return absl::DeadlineExceededError(absl::StrFormat(
           "Procs are deadlocked:\n%s", absl::StrJoin(blocked_channels, "\n")));
