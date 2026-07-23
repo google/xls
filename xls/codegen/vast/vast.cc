@@ -57,6 +57,24 @@ std::string GetFilename(Fileno fileno, VerilogFile* file) {
   return {};
 }
 
+absl::Status ValidateLiteralConstruction(int64_t bits_bit_count,
+                                         int64_t effective_bit_count,
+                                         bool emit_bit_count) {
+  if (effective_bit_count <= 0) {
+    return absl::InvalidArgumentError("cannot emit zero-bit sized literal");
+  }
+  if (bits_bit_count > effective_bit_count) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("literal width %d cannot hold %d-bit value",
+                        effective_bit_count, bits_bit_count));
+  }
+  if (!emit_bit_count && effective_bit_count != 32) {
+    return absl::InvalidArgumentError(
+        "undecorated VAST literals must be 32 bits");
+  }
+  return absl::OkStatus();
+}
+
 std::string VastNode::PreEmit(LineInfo* line_info) {
   if (loc().locations.empty()) {
     return {};
@@ -1646,6 +1664,43 @@ std::string Literal::Emit(LineInfo* line_info) const {
   return declared_as_signed_
              ? absl::StrFormat("%s'sh%s", size_prefix, raw_digits)
              : absl::StrFormat("%s'h%s", size_prefix, raw_digits);
+}
+
+absl::StatusOr<Literal*> VerilogFile::Literal(uint64_t value, int64_t bit_count,
+                                              const SourceInfo& loc,
+                                              FormatPreference format) {
+  XLS_RETURN_IF_ERROR(
+      ValidateLiteralConstruction(/*bits_bit_count=*/bit_count,
+                                  /*effective_bit_count=*/bit_count,
+                                  /*emit_bit_count=*/true));
+  return Make<verilog::Literal>(loc, UBits(value, bit_count), format);
+}
+
+absl::StatusOr<Literal*> VerilogFile::Literal(const Bits& bits,
+                                              const SourceInfo& loc,
+                                              FormatPreference format) {
+  XLS_RETURN_IF_ERROR(ValidateLiteralConstruction(bits.bit_count(),
+                                                  bits.bit_count(),
+                                                  /*emit_bit_count=*/true));
+  return Make<verilog::Literal>(loc, bits, format);
+}
+
+absl::StatusOr<Literal*> VerilogFile::Literal(const Bits& bits,
+                                              const SourceInfo& loc,
+                                              FormatPreference format,
+                                              bool emit_bit_count) {
+  XLS_RETURN_IF_ERROR(ValidateLiteralConstruction(
+      bits.bit_count(), bits.bit_count(), emit_bit_count));
+  return Make<verilog::Literal>(loc, bits, format, emit_bit_count);
+}
+
+absl::StatusOr<Literal*> VerilogFile::Literal(
+    const Bits& bits, const SourceInfo& loc, FormatPreference format,
+    int64_t declared_bit_count, bool emit_bit_count, bool declared_as_signed) {
+  XLS_RETURN_IF_ERROR(ValidateLiteralConstruction(
+      bits.bit_count(), declared_bit_count, emit_bit_count));
+  return Make<verilog::Literal>(loc, bits, format, declared_bit_count,
+                                emit_bit_count, declared_as_signed);
 }
 
 bool Literal::IsLiteralWithValue(int64_t target) const {
