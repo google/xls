@@ -171,7 +171,7 @@ absl::StatusOr<InputType> ConvertTestVector(
     }
   }
   LOG(INFO) << "(" << max_channel_inputs << " channel inputs) + ("
-            << total_holdoff_cycles << " interleaved holdoff cylces) = "
+            << total_holdoff_cycles << " interleaved holdoff cycles) = "
             << max_channel_inputs + total_holdoff_cycles << " needed ticks";
   return result;
 }
