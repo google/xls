@@ -909,6 +909,57 @@
         ]
       }
     },
+    "//dependency_support/busperf:extension.bzl%busperf_extension": {
+      "general": {
+        "bzlTransitiveDigest": "ETaDDFUNukPRx+Z772WyeeUNeznqKKDMoXb6avxDZQ8=",
+        "usagesDigest": "zCJGJrEo/JIwOCu9Dr4AVlrhVlx8AbgJiRL7F4ipGHY=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "busperf": {
+            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "attributes": {
+              "urls": [
+                "https://github.com/antmicro/busperf/archive/a62c4c7c6cb3edb090a6b17f0c6edf18fcb4ebb1.tar.gz"
+              ],
+              "integrity": "sha256-tfu+WqRT05t2SsMy6DjY+142ZlkqbzMc9fWIfzzpsI4=",
+              "strip_prefix": "busperf-a62c4c7c6cb3edb090a6b17f0c6edf18fcb4ebb1",
+              "build_file": "@@//dependency_support/busperf:bundled.BUILD.bazel"
+            }
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "",
+            "bazel_tools",
+            "bazel_tools"
+          ]
+        ]
+      }
+    },
+    "//dependency_support/busperf:extension.bzl%rust_toolchain_extension": {
+      "general": {
+        "bzlTransitiveDigest": "ETaDDFUNukPRx+Z772WyeeUNeznqKKDMoXb6avxDZQ8=",
+        "usagesDigest": "okUoFneT3yE6UylqiQgKGMyRmUGt4a2ai7a01619RSE=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "busperf_rust_toolchain": {
+            "repoRuleId": "@@//dependency_support/busperf:extension.bzl%rust_toolchain_repository",
+            "attributes": {}
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "",
+            "bazel_tools",
+            "bazel_tools"
+          ]
+        ]
+      }
+    },
     "//dependency_support/com_github_facebook_zstd:extension.bzl%zstd_extension": {
       "general": {
         "bzlTransitiveDigest": "TohWVIeCi0KuQV5K8LoUBVawKWoB/T+8MKhXwG7OAHw=",
