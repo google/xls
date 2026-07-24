@@ -43,3 +43,22 @@ fn test_onehot_sel_array(
   // CHECK-SAME: ) -> !xls.array<2xi32>
   ret one_hot_sel.13: bits[32][2] = one_hot_sel(sel, cases=[a, b], id=13)
 }
+
+// -----
+// CHECK: func @test_onehot_sel_tuple(
+// CHECK-SAME: [[SEL:%.*]]: i2,
+// CHECK-SAME: [[TUP1:%.*]]: tuple<i8, i16>,
+// CHECK-SAME: [[TUP2:%.*]]: tuple<i8, i16>)
+// CHECK-SAME: -> tuple<i8, i16> {
+fn test_onehot_sel_tuple(
+    sel: bits[2] id=20,
+    a: (bits[8], bits[16]) id=21,
+    b: (bits[8], bits[16]) id=22
+) -> (bits[8], bits[16]) {
+  // CHECK: %{{.*}} = "xls.one_hot_sel"([[SEL]], [[TUP1]], [[TUP2]]) : (
+  // CHECK-SAME: i2,
+  // CHECK-SAME: tuple<i8, i16>,
+  // CHECK-SAME: tuple<i8, i16>
+  // CHECK-SAME: ) -> tuple<i8, i16>
+  ret one_hot_sel.23: (bits[8], bits[16]) = one_hot_sel(sel, cases=[a, b], id=23)
+}
