@@ -641,6 +641,7 @@ cc_binary(
         "//xls/dslx/run_routines:test_xml",
         "//xls/ir:evaluator_result_cc_proto",
         "//xls/ir:format_preference",
+        "//xls/spin:spin_runner",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

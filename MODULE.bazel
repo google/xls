@@ -135,6 +135,10 @@ use_repo(perfetto_ext, "perfetto_cfg")
 # Perfetto requires this to get through bazel analysis, but seems unused for our use.
 bazel_dep(name = "rules_android", version = "0.6.0")
 
+# SPIN model checker — used by xls/spin to verify Promela models generated from XLS IR.
+spin_ext = use_extension("//dependency_support/spin:extension.bzl", "spin_extension")
+use_repo(spin_ext, "spin")
+
 # Pin this as otherwise we encounter some bazel analysis failure.
 bazel_dep(name = "rules_jvm_external", version = "6.8")
 
