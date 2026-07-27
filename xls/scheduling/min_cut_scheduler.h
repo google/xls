@@ -16,16 +16,12 @@
 #define XLS_SCHEDULING_MIN_CUT_SCHEDULER_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
-#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/ir/function_base.h"
 #include "xls/scheduling/asap_scheduler.h"
-#include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/scheduling_options.h"
 

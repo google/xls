@@ -23,7 +23,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls {

@@ -14,14 +14,11 @@
 
 #include "xls/scheduling/random_scheduler.h"
 
-#include <cstdint>
 #include <random>
 
 #include "gtest/gtest.h"
 #include "absl/random/random.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"

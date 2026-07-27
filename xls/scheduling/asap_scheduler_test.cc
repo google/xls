@@ -14,13 +14,10 @@
 
 #include "xls/scheduling/asap_scheduler.h"
 
-#include <cstdint>
 #include <optional>
 
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"

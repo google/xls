@@ -30,7 +30,6 @@
 #include "absl/types/span.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/scheduling/schedule_graph.h"

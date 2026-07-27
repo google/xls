@@ -150,7 +150,6 @@ cc_library(
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
         "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -169,12 +168,10 @@ cc_test(
         ":scheduling_options",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
@@ -594,7 +591,6 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -837,7 +833,6 @@ cc_library(
     name = "scheduler",
     hdrs = ["scheduler.h"],
     deps = [
-        ":schedule_bounds",
         ":scheduling_options",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -876,14 +871,12 @@ cc_test(
         ":scheduling_options",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
@@ -920,7 +913,6 @@ cc_test(
         ":scheduling_options",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
@@ -928,7 +920,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "@abseil-cpp//absl/random",
-        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )

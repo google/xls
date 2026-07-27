@@ -14,6 +14,7 @@
 
 #include "xls/scheduling/extract_stage.h"
 
+#include <cstdint>
 #include <string>
 
 #include "gmock/gmock.h"
