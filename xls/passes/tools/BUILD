@@ -145,6 +145,7 @@ cc_library(
         "//xls/passes:optimization_pass",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:vlog_is_on",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
