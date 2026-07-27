@@ -14,7 +14,6 @@
 
 #include "xls/ir/function_builder.h"
 
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>

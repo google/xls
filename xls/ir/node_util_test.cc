@@ -14,6 +14,7 @@
 
 #include "xls/ir/node_util.h"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <optional>

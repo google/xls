@@ -31,7 +31,6 @@
 #include "xls/solvers/ir_equivalence.h"
 #include "xls/solvers/prover_matchers.h"
 #include "xls/solvers/solver.h"
-#include "xls/solvers/z3_ir_translator.h"
 
 namespace xls {
 namespace {
