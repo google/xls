@@ -16,7 +16,6 @@
 #define XLS_TOOLS_TRACE_TO_PERFETTO_H_
 
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
 #include "protos/perfetto/trace/trace.pb.h"
 #include "riegeli/records/record_reader.h"
 #include "xls/interpreter/trace.pb.h"

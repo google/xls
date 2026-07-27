@@ -1359,7 +1359,6 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/types:span",
         "@perfetto//:trace_cc_proto",
         "@protobuf//:timestamp_cc_proto",
         "@riegeli//riegeli/records:record_reader",
