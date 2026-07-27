@@ -17,12 +17,12 @@
 #include <cstdint>
 #include <optional>
 #include <utility>
+#include <variant>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/types/variant.h"
 
 namespace xls {
 namespace {

@@ -67,7 +67,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
-        "@abseil-cpp//absl/types:variant",
         "@googletest//:gtest",
     ],
 )
