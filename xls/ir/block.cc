@@ -1275,11 +1275,13 @@ absl::StatusOr<Block*> Block::Clone(
       XLS_ASSIGN_OR_RETURN(
           original_to_clone[node],
           cloned_block->AddInputPort(src->name(), mapped_type, src->loc()));
+      original_to_clone[node]->As<InputPort>()->set_system_verilog_type(src->system_verilog_type());
     } else if (node->Is<OutputPort>()) {
       OutputPort* src = node->As<OutputPort>();
       XLS_ASSIGN_OR_RETURN(original_to_clone[node],
                            cloned_block->AddOutputPort(
                                src->name(), cloned_operands[0], src->loc()));
+      original_to_clone[node]->As<OutputPort>()->set_system_verilog_type(src->system_verilog_type());
     } else if (node->Is<RegisterRead>()) {
       RegisterRead* src = node->As<RegisterRead>();
       XLS_ASSIGN_OR_RETURN(
