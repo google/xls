@@ -1,4 +1,4 @@
-// Copyright 2022 The XLS Authors
+// Copyright 2026 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/passes/proc_state_optimization_pass.h"
+#include "xls/passes/proc_state_elimination_pass.h"
 
 #include <cstdint>
 #include <utility>
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -60,20 +59,20 @@ void AbslStringify(Sink& sink, NextValueType e) {
                                                     : "NextValueNodes");
 }
 
-class BaseProcStateOptimizationPassTest : public IrTestBase {
+class BaseProcStateEliminationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     OptimizationContext context;
-    return ProcStateOptimizationPass().Run(p, OptimizationPassOptions(),
+    return ProcStateEliminationPass().Run(p, OptimizationPassOptions(),
                                            &results, context);
   }
 };
-class ProcStateOptimizationPassTest
-    : public BaseProcStateOptimizationPassTest,
+class ProcStateEliminationPassTest
+    : public BaseProcStateEliminationPassTest,
       public testing::WithParamInterface<NextValueType> {
  protected:
-  ProcStateOptimizationPassTest() = default;
+  ProcStateEliminationPassTest() = default;
 
   absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb,
                                   absl::Span<const BValue> next_state) {
@@ -109,7 +108,7 @@ class ProcStateOptimizationPassTest
   }
 };
 
-TEST_P(ProcStateOptimizationPassTest, StatelessProc) {
+TEST_P(ProcStateEliminationPassTest, StatelessProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   XLS_ASSERT_OK(BuildProc(pb, {}).status());
@@ -117,7 +116,7 @@ TEST_P(ProcStateOptimizationPassTest, StatelessProc) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-TEST_P(ProcStateOptimizationPassTest, SimpleNonoptimizableStateProc) {
+TEST_P(ProcStateEliminationPassTest, SimpleNonoptimizableStateProc) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
@@ -136,7 +135,7 @@ TEST_P(ProcStateOptimizationPassTest, SimpleNonoptimizableStateProc) {
   EXPECT_EQ(proc->GetStateElementCount(), 2);
 }
 
-TEST_P(ProcStateOptimizationPassTest, SimpleNonoptimizableTokenStateProc) {
+TEST_P(ProcStateEliminationPassTest, SimpleNonoptimizableTokenStateProc) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in, p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
@@ -158,7 +157,7 @@ TEST_P(ProcStateOptimizationPassTest, SimpleNonoptimizableTokenStateProc) {
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 }
 
-TEST_P(ProcStateOptimizationPassTest, ProcWithDeadElements) {
+TEST_P(ProcStateEliminationPassTest, ProcWithDeadElements) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
@@ -180,7 +179,7 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithDeadElements) {
   EXPECT_EQ(proc->GetStateElement(0)->name(), "x");
 }
 
-TEST_F(BaseProcStateOptimizationPassTest, DecoupledDeadElements) {
+TEST_F(BaseProcStateEliminationPassTest, DecoupledDeadElements) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
@@ -209,7 +208,7 @@ TEST_F(BaseProcStateOptimizationPassTest, DecoupledDeadElements) {
   EXPECT_EQ(proc->GetStateElement(0)->name(), "x");
 }
 
-TEST_P(ProcStateOptimizationPassTest, CrissCrossDeadElements) {
+TEST_P(ProcStateEliminationPassTest, CrissCrossDeadElements) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb("p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
@@ -222,7 +221,7 @@ TEST_P(ProcStateOptimizationPassTest, CrissCrossDeadElements) {
   EXPECT_EQ(proc->GetStateElementCount(), 0);
 }
 
-TEST_P(ProcStateOptimizationPassTest, CrissCrossDeadAndLiveElements) {
+TEST_P(ProcStateEliminationPassTest, CrissCrossDeadAndLiveElements) {
   auto p = CreatePackage();
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -247,7 +246,7 @@ TEST_P(ProcStateOptimizationPassTest, CrissCrossDeadAndLiveElements) {
                           m::StateElement("c")));
 }
 
-TEST_P(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
+TEST_P(ProcStateEliminationPassTest, ProcWithZeroWidthElement) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 0)));
@@ -267,7 +266,7 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
                       m::Concat(m::Literal(UBits(0, 0)), m::StateRead("y"))));
 }
 
-TEST_P(ProcStateOptimizationPassTest, StateElementsIntoTuplesAndOut) {
+TEST_P(ProcStateEliminationPassTest, StateElementsIntoTuplesAndOut) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
@@ -298,7 +297,7 @@ TEST_P(ProcStateOptimizationPassTest, StateElementsIntoTuplesAndOut) {
               ElementsAre(m::StateElement("x"), m::StateElement("y")));
 }
 
-TEST_P(ProcStateOptimizationPassTest, ProcWithPartiallyDeadStateElement) {
+TEST_P(ProcStateEliminationPassTest, ProcWithPartiallyDeadStateElement) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -328,7 +327,7 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithPartiallyDeadStateElement) {
               UnorderedElementsAre(m::StateElement("not_dead")));
 }
 
-TEST_P(ProcStateOptimizationPassTest, ProcWithConstantStateElement) {
+TEST_P(ProcStateEliminationPassTest, ProcWithConstantStateElement) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -370,7 +369,7 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithConstantStateElement) {
                      m::TupleIndex(m::StateRead("not_constant"))));
 }
 
-TEST_P(ProcStateOptimizationPassTest, ProcWithImplicitlyConstantStateElements) {
+TEST_P(ProcStateEliminationPassTest, ProcWithImplicitlyConstantStateElements) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -417,7 +416,7 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithImplicitlyConstantStateElements) {
               UnorderedElementsAre(m::StateElement("not_constant")));
 }
 
-TEST_F(BaseProcStateOptimizationPassTest, ProcWithWriteNoReads) {
+TEST_F(BaseProcStateEliminationPassTest, ProcWithWriteNoReads) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Channel * chan, p->CreateStreamingChannel(
                                                "chan", ChannelOps::kReceiveOnly,
@@ -438,71 +437,16 @@ TEST_F(BaseProcStateOptimizationPassTest, ProcWithWriteNoReads) {
   EXPECT_THAT(proc->StateElements(), ElementsAre(m::StateElement("live")));
 }
 
-TEST_P(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
-                                               p->GetBitsType(32)));
-
-  TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(100, 32)));
-  BValue lit = pb.Literal(Value(UBits(200, 32)));
-  BValue send = pb.Send(out, x);
-
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {lit}));
-
-  EXPECT_EQ(proc->GetStateElementCount(), 1);
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(proc->GetStateElementCount(), 1);
-  EXPECT_EQ(proc->GetStateElement(0)->type()->GetFlatBitCount(), 1);
-
-  EXPECT_THAT(send.node(),
-              m::Send(m::Literal(Value::Token()),
-                      m::Select(m::StateRead("state_machine_x"),
-                                /*cases=*/{m::Literal(100)},
-                                /*default_value=*/m::Literal(200))));
-}
-
-TEST_F(BaseProcStateOptimizationPassTest, LiteralChainDecoupled) {
-  auto p = CreatePackage();
-  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
-  BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(32));
-  BStateElement x_elem = pb.UnreadStateElement("x", Value(UBits(100, 32)),
-                                               /*non_synthesizable=*/false);
-  BValue x = pb.StateRead(x_elem);
-  BValue lit = pb.Literal(Value(UBits(200, 32)));
-  BValue send = pb.Send(out, x);
-  pb.Next(x_elem, lit);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-
-  EXPECT_EQ(proc->GetStateElementCount(), 1);
-  EXPECT_TRUE(proc->uses_decoupled_next());
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(proc->GetStateElementCount(), 1);
-  EXPECT_EQ(proc->GetStateElement(0)->type()->GetFlatBitCount(), 1);
-  EXPECT_TRUE(proc->uses_decoupled_next());
-
-  EXPECT_THAT(send.node(),
-              m::Send(m::Literal(Value::Token()),
-                      m::Select(m::StateRead("state_machine_x"),
-                                /*cases=*/{m::Literal(100)},
-                                /*default_value=*/m::Literal(200))));
-
-  EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(m::NextWithStateElement(
-                  m::StateElement("state_machine_x"), ::testing::_)));
-}
-
-INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateOptimizationPassTest,
+INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateEliminationPassTest,
                          testing::Values(NextValueType::kNextStateVector,
                                          NextValueType::kNextValueNodes),
                          testing::PrintToStringParamName());
 
-void IrFuzzProcStateOptimization(FuzzPackageWithArgs fuzz_package_with_args) {
-  ProcStateOptimizationPass pass;
+void IrFuzzProcStateElimination(FuzzPackageWithArgs fuzz_package_with_args) {
+  ProcStateEliminationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
 }
-FUZZ_TEST(IrFuzzTest, IrFuzzProcStateOptimization)
+FUZZ_TEST(IrFuzzTest, IrFuzzProcStateElimination)
     .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace

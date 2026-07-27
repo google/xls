@@ -36,7 +36,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/proc_state_optimization_pass.h"
+#include "xls/passes/proc_state_elimination_pass.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
@@ -57,10 +57,10 @@ class ProcStateNarrowingPassTest : public IrTestBase {
 
   absl::StatusOr<bool> RunProcStateCleanup(Proc* p) {
     ScopedRecordIr sri(p->package(), "cleanup", /*with_initial=*/false);
-    ProcStateOptimizationPass psop;
+    ProcStateEliminationPass psep;
     PassResults r;
     OptimizationContext ctx;
-    return psop.Run(p->package(), {}, &r, ctx);
+    return psep.Run(p->package(), {}, &r, ctx);
   }
 };
 

@@ -282,12 +282,16 @@ compound_passes: [
       #
       "proc_state_narrow",
       "dce",
-      "proc_state_opt",
+      "proc_state_elimination",
+      "proc_state_fsm",
+      "proc_state_elimination",
       "dce",
       #
       "proc_state_provenance_narrow",
       "dce",
-      "proc_state_opt",
+      "proc_state_elimination",
+      "proc_state_fsm",
+      "proc_state_elimination",
       "dce",
       #
       "bdd_simp(3)",
@@ -327,7 +331,9 @@ compound_passes: [
       # Narrow proc elements
       "proc_state_provenance_narrow",
       "dce",
-      "proc_state_opt",
+      "proc_state_elimination",
+      "proc_state_fsm",
+      "proc_state_elimination",
       "dce",
       #
       "bdd_simp(3)",
@@ -338,7 +344,9 @@ compound_passes: [
       "dce",
       "fixedpoint_simp(3)",
       "next_value_opt",
-      "proc_state_opt",
+      "proc_state_elimination",
+      "proc_state_fsm",
+      "proc_state_elimination",
       "dce",
       #
       "cond_spec(Bdd)",

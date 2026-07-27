@@ -92,7 +92,7 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/proc_state_array_flattening_pass.h"
-#include "xls/passes/proc_state_optimization_pass.h"
+#include "xls/passes/proc_state_elimination_pass.h"
 #include "xls/passes/proc_state_tuple_flattening_pass.h"
 #include "xls/passes/unroll_pass.h"
 
@@ -822,7 +822,7 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
   if (absl::GetFlag(FLAGS_can_remove_state_elements)) {
     passes.push_back(std::make_unique<ProcStateArrayFlatteningPass>());
     passes.push_back(std::make_unique<ProcStateTupleFlatteningPass>());
-    passes.push_back(std::make_unique<ProcStateOptimizationPass>());
+    passes.push_back(std::make_unique<ProcStateEliminationPass>());
   }
 
   int64_t pass_no = absl::Uniform<int64_t>(rng, 0, passes.size());
