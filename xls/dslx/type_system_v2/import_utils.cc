@@ -67,16 +67,9 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return alias->type_annotation().Accept(this);
   }
 
-  // TODO(https://github.com/google/xls/issues/4338): Looking to the definer
-  // here is a workaround. We should be able to more cleanly resolve the
-  // type annotation.
   absl::Status HandleTypeVariableTypeAnnotation(
       const TypeVariableTypeAnnotation* annotation) override {
-    if (annotation->type_variable()->GetDefiner() != nullptr) {
-      return const_cast<AstNode*>(annotation->type_variable()->GetDefiner())
-          ->Accept(this);
-    }
-    return absl::OkStatus();
+    return annotation->type_variable()->Accept(this);
   }
 
   absl::Status HandleTypeRefTypeAnnotation(
