@@ -15,6 +15,7 @@
 #include "xls/solvers/z3_op_translator.h"
 
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -55,12 +56,12 @@ Z3_ast Z3OpTranslator::ZeroExt(Z3_ast bits, int64_t new_bit_count) {
 
 Z3_ast Z3OpTranslator::OrBool(Z3_ast lhs, Z3_ast rhs) {
   Z3_ast args[] = {lhs, rhs};
-  return Z3_mk_or(z3_ctx_, /*num_args=*/ABSL_ARRAYSIZE(args), args);
+  return Z3_mk_or(z3_ctx_, /*num_args=*/std::size(args), args);
 }
 
 Z3_ast Z3OpTranslator::AndBool(Z3_ast lhs, Z3_ast rhs) {
   Z3_ast args[] = {lhs, rhs};
-  return Z3_mk_and(z3_ctx_, /*num_args=*/ABSL_ARRAYSIZE(args), args);
+  return Z3_mk_and(z3_ctx_, /*num_args=*/std::size(args), args);
 }
 
 Z3_ast Z3OpTranslator::NotBool(Z3_ast arg) { return Z3_mk_not(z3_ctx_, arg); }
