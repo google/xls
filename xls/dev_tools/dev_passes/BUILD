@@ -335,6 +335,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
