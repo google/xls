@@ -16,6 +16,7 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_CONVERTER_IMPL_H_
 
 #include <memory>
+#include <optional>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"

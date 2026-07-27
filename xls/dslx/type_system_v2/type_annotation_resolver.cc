@@ -39,7 +39,6 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
-#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
