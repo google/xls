@@ -21,6 +21,7 @@
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"

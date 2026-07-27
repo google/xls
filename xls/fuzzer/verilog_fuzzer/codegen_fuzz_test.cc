@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <string>
-#include <string_view>
 
 #include "gmock/gmock.h"
 #include "xls/common/fuzzing/fuzztest.h"
