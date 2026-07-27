@@ -18,7 +18,6 @@
 #include <string_view>
 
 #include "absl/base/log_severity.h"
-#include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
 
 namespace xls {

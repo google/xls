@@ -19,7 +19,6 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/log/globals.h"
 #include "absl/types/span.h"
 
 namespace xls {
