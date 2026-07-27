@@ -21,13 +21,11 @@
 #include <utility>
 
 #include "xls/common/fuzzing/fuzztest.h"
-#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
-#include "xls/ir/type.h"
 
 // Contains functions that return IR fuzz test domains.
 

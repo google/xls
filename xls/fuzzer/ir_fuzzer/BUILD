@@ -42,7 +42,6 @@ cc_library(
         "//xls/ir",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
-        "//xls/ir:type",
         "//xls/ir:verifier",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/container:flat_hash_set",

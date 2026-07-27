@@ -39,6 +39,7 @@ cc_library(
         "//xls/tools:scheduling_options_flags_cc_proto",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:vlog_is_on",
         "@abseil-cpp//absl/status:statusor",
     ],
 )
