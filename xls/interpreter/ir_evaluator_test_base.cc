@@ -40,6 +40,7 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/observer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"

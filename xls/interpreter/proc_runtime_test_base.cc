@@ -27,7 +27,6 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/observer.h"

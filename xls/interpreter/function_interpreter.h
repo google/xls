@@ -25,6 +25,7 @@
 #include "xls/interpreter/observer.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
 namespace xls {

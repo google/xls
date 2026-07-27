@@ -14,6 +14,7 @@
 
 #include "xls/interpreter/ir_interpreter.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>

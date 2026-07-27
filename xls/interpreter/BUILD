@@ -528,7 +528,6 @@ cc_library(
         ":observer",
         ":proc_runtime",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",
@@ -619,6 +618,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:value",
         "//xls/ir:xls_value_cc_proto",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@protobuf//:time_util",
@@ -639,6 +639,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
+        "@riegeli//riegeli/records:record_writer",
     ],
 )
 
