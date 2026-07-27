@@ -340,9 +340,12 @@ cc_test(
     srcs = ["convert_to_block_test.cc"],
     deps = [
         ":block_conversion_pass",
+        ":codegen",
         ":convert_to_block",
         ":passes",  # build_cleaner: keep
         "//xls/codegen:codegen_options",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",

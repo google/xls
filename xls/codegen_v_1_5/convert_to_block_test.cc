@@ -19,6 +19,9 @@
 #include "gtest/gtest.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
+#include "xls/codegen_v_1_5/codegen.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -68,6 +71,72 @@ TEST_F(ConvertToBlockTest, SimpleFunction) {
                                &pass_results));
 
   // TODO: https://github.com/google/xls/issues/3356 - assert stuff.
+}
+
+TEST_F(ConvertToBlockTest, IrDumpPathIsPropagatedToBlockConversionPasses) {
+  auto p = CreatePackage();
+  // TODO: https://github.com/google/xls/issues/3356 - Remove this when the
+  // pipeline lowers source entity nodes that cannot exist in a final block.
+  p->AcceptInvalid();
+
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * top,
+                           fb.BuildWithReturnValue(fb.Add(x, y)));
+  XLS_ASSERT_OK(p->SetTop(top));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory dump_dir, TempDirectory::Create());
+  CodegenOptions options = codegen_options().clock_name("clk");
+  options.set_ir_dump_path(dump_dir.path().string());
+
+  BlockConversionContext context;
+  PassResults pass_results;
+  XLS_ASSERT_OK(ConvertToBlock(p.get(), options, scheduling_options(),
+                               &delay_estimator_, context, &pass_results));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto dump_files,
+                           GetDirectoryEntries(dump_dir.path()));
+  EXPECT_FALSE(dump_files.empty());
+}
+
+TEST_F(ConvertToBlockTest,
+       IrDumpPathIsPropagatedToPostBlockConversionPasses) {
+  auto p = CreatePackage();
+  // TODO: https://github.com/google/xls/issues/3356 - Remove this when the
+  // pipeline lowers source entity nodes that cannot exist in a final block.
+  p->AcceptInvalid();
+
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * top,
+                           fb.BuildWithReturnValue(fb.Add(x, y)));
+  XLS_ASSERT_OK(p->SetTop(top));
+
+  CodegenOptions options = codegen_options().clock_name("clk");
+
+  // Produce block IR without requesting dumps. This test is intended to
+  // exercise only the post-block-conversion pipeline.
+  BlockConversionContext context;
+  PassResults block_conversion_results;
+  XLS_ASSERT_OK(ConvertToBlock(p.get(), options, scheduling_options(),
+                               &delay_estimator_, context,
+                               &block_conversion_results));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory dump_dir, TempDirectory::Create());
+  options.set_ir_dump_path(dump_dir.path().string());
+
+  PassResults post_block_results;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      ConvertBlockToVerilog(p.get(), options, &delay_estimator_,
+                            &context.opt_context, &post_block_results));
+  EXPECT_FALSE(result.verilog_text.empty());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto dump_files,
+                           GetDirectoryEntries(dump_dir.path()));
+  EXPECT_FALSE(dump_files.empty());
 }
 
 TEST_F(ConvertToBlockTest, ProcWithExplicitStateAccessNextValueStateElement) {
