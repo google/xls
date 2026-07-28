@@ -15,7 +15,6 @@
 #include "xls/noc/simulation/global_routing_table.h"
 
 #include <cstdint>
-#include <ostream>
 #include <queue>
 #include <sstream>
 #include <string>
