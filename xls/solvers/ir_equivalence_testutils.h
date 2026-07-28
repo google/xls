@@ -18,9 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
 
-#include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "xls/common/source_location.h"
 #include "xls/ir/function.h"

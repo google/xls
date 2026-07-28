@@ -40,7 +40,7 @@
 #include "xls/ir/value.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 #include "xls/solvers/prover_matchers.h"
-#include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/solver.h"
 
 namespace m = xls::op_matchers;
 namespace xls::solvers {
