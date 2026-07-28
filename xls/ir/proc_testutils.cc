@@ -17,7 +17,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -31,21 +33,30 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "cppitertools/sorted.hpp"
+#include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/evaluator_options.h"
+#include "xls/interpreter/observer.h"
+#include "xls/interpreter/proc_evaluator.h"
+#include "xls/interpreter/proc_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
@@ -963,6 +974,175 @@ absl::StatusOr<Function*> UnrollProcToUntimedFunction(
   XLS_RETURN_IF_ERROR(CleanupFunction(result));
   VLOG(2) << "Proc: \n" << p->DumpIr() << "To Func: \n" << result->DumpIr();
   return result;
+}
+
+namespace {
+struct ChannelCallback final : public ChannelQueueCallback {
+ public:
+  explicit ChannelCallback(ChannelActions& actions, int64_t& act, bool& full,
+                           std::optional<int64_t> size)
+      : size_(size), actions_(actions), activation_(act), full_(full) {}
+  void HandleValue(const Value& value) {
+    actions_.values.push_back(value);
+    actions_.activation_number.push_back(activation_);
+    if (size_) {
+      full_ = full_ || actions_.values.size() == *size_;
+    }
+  }
+  void ReadValue(ChannelInstance* channel_instance,
+                 const Value& value) override {
+    HandleValue(value);
+  }
+
+  void WriteValue(ChannelInstance* channel_instance,
+                  const Value& value) override {
+    HandleValue(value);
+  }
+
+ private:
+  std::optional<int64_t> size_;
+
+  // Closure values.
+
+  // The actions to record the channel activity in.
+  ChannelActions& actions_;
+  // What activation we're on.
+  int64_t& activation_;
+  // Whether the channel is full.
+  bool& full_;
+};
+}  // namespace
+
+absl::StatusOr<ProcResults> GetProcResults(
+    Proc* p, int64_t activation_count, int64_t output_value_count,
+    const absl::flat_hash_map<ReceiveChannelRef, std::vector<Value>>& inputs) {
+  XLS_RET_CHECK(!p->is_new_style_proc() || p->proc_instantiations().empty())
+      << "Only single-proc results are supported.";
+  std::unique_ptr<ChannelQueueManager> queue_manager;
+  absl::flat_hash_map<ChannelRef, ChannelActions> channel_actions;
+  ProcInstance* inst;
+  if (p->is_new_style_proc()) {
+    XLS_ASSIGN_OR_RETURN(ProcElaboration elab, ProcElaboration::Elaborate(p));
+    XLS_ASSIGN_OR_RETURN(queue_manager,
+                         ChannelQueueManager::Create(std::move(elab)));
+    for (const auto& chan : p->channel_interfaces()) {
+      channel_actions[chan.get()] = ChannelActions();
+    }
+    XLS_ASSIGN_OR_RETURN(inst,
+                         queue_manager->elaboration().GetUniqueInstance(p));
+  } else {
+    XLS_ASSIGN_OR_RETURN(queue_manager,
+                         ChannelQueueManager::Create(p->package()));
+    XLS_ASSIGN_OR_RETURN(inst,
+                         queue_manager->elaboration().GetUniqueInstance(p));
+    for (auto* chan : p->package()->channels()) {
+      channel_actions[chan] = ChannelActions();
+    }
+  }
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ProcInterpreter> proc_interpreter,
+      ProcInterpreter::Create(p, queue_manager.get(),
+                              EvaluatorOptions{}.set_support_observers(true)));
+
+  for (const auto& [channel_ref, values] : inputs) {
+    XLS_ASSIGN_OR_RETURN(
+        auto* queue,
+        queue_manager->GetQueueByName(ChannelRefName(channel_ref), p->name()));
+    for (const auto& value : values) {
+      XLS_RETURN_IF_ERROR(queue->Write(value));
+    }
+  }
+  int64_t act_number = 0;
+  bool full = false;
+  if (p->is_new_style_proc()) {
+    for (const auto& channel_interface : p->interface()) {
+      XLS_ASSIGN_OR_RETURN(
+          auto* queue,
+          queue_manager->GetQueueByName(
+              ChannelRefName(AnyChannelRef(channel_interface)), p->name()));
+      queue->AddCallback(std::make_unique<ChannelCallback>(
+          channel_actions.at(channel_interface), act_number, full,
+          channel_interface->direction() == ChannelDirection::kReceive
+              ? std::nullopt
+              : std::make_optional(output_value_count)));
+    }
+  } else {
+    for (auto* chan : p->package()->channels()) {
+      XLS_ASSIGN_OR_RETURN(auto* queue, queue_manager->GetQueueByName(
+                                            ChannelRefName(chan), p->name()));
+      queue->AddCallback(std::make_unique<ChannelCallback>(
+          channel_actions.at(chan), act_number, full,
+          inputs.contains(chan) ? std::nullopt
+                                : std::make_optional(output_value_count)));
+    }
+  }
+
+  auto cont = proc_interpreter->NewContinuation(inst);
+  CollectingEvaluationObserver obs;
+  XLS_RETURN_IF_ERROR(cont->SetObserver(&obs));
+  for (; act_number < activation_count && !full; ++act_number) {
+    TickResult tick_result;
+    do {
+      XLS_ASSIGN_OR_RETURN(tick_result, proc_interpreter->Tick(*cont));
+    } while (!full &&
+             tick_result.execution_state == TickExecutionState::kSentOnChannel);
+    if (tick_result.execution_state != TickExecutionState::kCompleted) {
+      // We are actually blocked. Either a recv has no more input or we have no
+      // more fifo space for a send.
+      break;
+    }
+  }
+  return ProcResults{.channel_actions = std::move(channel_actions),
+                     .node_values = std::move(obs).values()};
+}
+
+Annotation ProcResultsAnnotator::NodeAnnotation(Node* node) const {
+  Annotation annotation;
+  if (results_.node_values.contains(node)) {
+    annotation.suffix = absl::StrFormat(
+        " | [%v]", absl::StrJoin(results_.node_values.at(node), ",\t",
+                                 [](std::string* out, const Value& value) {
+                                   absl::StrAppend(out, value.ToHumanString());
+                                 }));
+  }
+  return annotation;
+}
+
+Annotation ProcResultsAnnotator::ChannelAnnotation(Channel* chan) const {
+  Annotation annotation;
+  if (results_.channel_actions.contains(chan)) {
+    annotation.suffix = absl::StrFormat(
+        " | [%v]",
+        absl::StrJoin(
+            iter::zip(results_.channel_actions.at(chan).values,
+                      results_.channel_actions.at(chan).activation_number),
+            ",\t", [](std::string* out, const auto& pair) {
+              const auto& [value, act_number] = pair;
+              absl::StrAppendFormat(out, "%v@%d", value.ToHumanString(),
+                                    act_number);
+            }));
+  }
+  return annotation;
+}
+
+Annotation ProcResultsAnnotator::ChannelInterfaceAnnotation(
+    const ChannelInterface* iface) const {
+  Annotation annotation;
+  // Annoyingly we need to cast away constness to get the ChannelRef.
+  auto chan = ToChannelRef(const_cast<ChannelInterface*>(iface));
+  if (results_.channel_actions.contains(chan)) {
+    annotation.suffix = absl::StrFormat(
+        " | [%v]",
+        absl::StrJoin(
+            iter::zip(results_.channel_actions.at(chan).values,
+                      results_.channel_actions.at(chan).activation_number),
+            ",\t", [](std::string* out, const auto& pair) {
+              const auto& [value, act_number] = pair;
+              absl::StrAppendFormat(out, "%v@%d", value.ToHumanString(),
+                                    act_number);
+            }));
+  }
+  return annotation;
 }
 
 }  // namespace xls
