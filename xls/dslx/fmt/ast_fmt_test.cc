@@ -1714,6 +1714,75 @@ pub const A0 = sN[W_A0][NUM_PIECES]:[
 )");
 }
 
+TEST_F(ModuleFmtTest, ConstantDefArrayWithComments) {
+  DoFmt(R"(pub const VALS = u32[8]:[
+    // this is one comment
+    1, 2, 3, 4,
+    // this is another comment
+    5, 6, 7, 8,
+];
+)");
+}
+
+TEST_F(ModuleFmtTest, ConstantDefArrayWithInlineComments) {
+  DoFmt(R"(pub const VALS = u32[8]:[
+    1, 2, 3, 4, // this is one comment
+    5, 6, 7, 8, // this is another comment
+];
+)");
+}
+
+TEST_F(ModuleFmtTest, ConstantDefArrayWithMixedComments) {
+  DoFmt(R"(pub const VALS = u32[8]:[
+    1, 2, // this is one comment
+    3, 4, 5, 6,
+    // inline comment
+    7, 8,
+];
+)");
+}
+
+TEST_F(ModuleFmtTest, ConstantDefArrayWithTrailingComments) {
+  DoFmt(R"(pub const VALS = u32[2]:[
+    1, 2,
+    // trailing comment 1
+    // trailing comment 2
+];
+)");
+}
+
+TEST_F(ModuleFmtTest, ConstantDefArrayEmptyWithComments) {
+  DoFmt(R"(pub const VALS = u32[0]:[
+    // this is an empty array
+];
+)");
+}
+
+TEST_F(ModuleFmtTest, ConstantDefArrayWithEllipsisAndComment) {
+  DoFmt(R"(pub const VALS = u32[8]:[
+    // first few
+    1, 2, 3, 4, 5, 6, 7, ...
+];
+)");
+}
+
+TEST_F(ModuleFmtTest, ConstantDefArrayCommentsClumpNonCanonical) {
+  DoFmt(R"(pub const VALS = u32[4]:[
+    1,
+    2,
+    // note
+    3,
+    4,
+];
+)",
+        R"(pub const VALS = u32[4]:[
+    1, 2,
+    // note
+    3, 4,
+];
+)");
+}
+
 TEST_F(ModuleFmtTest, EnumDefTwoValues) {
   DoFmt("pub enum MyEnum:u32{A=1,B=2}\n",
         R"(pub enum MyEnum : u32 {
