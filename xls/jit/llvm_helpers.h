@@ -15,7 +15,8 @@
 #ifndef XLS_JIT_LLVM_HELPERS_H_
 #define XLS_JIT_LLVM_HELPERS_H_
 
-#include <cstdio>
+#include <ostream>
+#include <string>
 
 #include "llvm/include/llvm/IR/Type.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"

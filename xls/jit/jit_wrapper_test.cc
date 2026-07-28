@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <optional>
 #include <string_view>

@@ -18,6 +18,7 @@
 #include <memory>
 #include <random>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -26,7 +27,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"

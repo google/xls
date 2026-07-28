@@ -648,6 +648,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:evaluator_options",
         "//xls/ir:bits",
         "//xls/ir:events",
         "//xls/ir:value",
@@ -882,7 +883,7 @@ cc_library(
     hdrs = ["orc_jit.h"],
     deps = [
         ":jit_clang_builtins",
-        ":jit_emulated_tls",
+        ":jit_emulated_tls",  # build_cleaner: keep
         ":llvm_compiler",
         ":observer",
         "//xls/common/logging:log_lines",
@@ -1212,7 +1213,6 @@ cc_test(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
-        "@abseil-cpp//absl/types:variant",
         "@googletest//:gtest",
     ],
 )
@@ -1228,6 +1228,7 @@ cc_test(
         ":proc_jit",
         "//xls/common:xls_gunit_main",
         "//xls/interpreter:channel_queue",
+        "//xls/interpreter:evaluator_options",
         "//xls/interpreter:proc_evaluator",
         "//xls/interpreter:proc_evaluator_test_base",
         "//xls/ir",

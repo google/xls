@@ -14,6 +14,7 @@
 
 #include "xls/jit/aot_entrypoint.h"
 
+#include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dev_tools/extract_interface.h"
 #include "xls/ir/function.h"

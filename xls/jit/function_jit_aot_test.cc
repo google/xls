@@ -28,6 +28,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/value.h"
