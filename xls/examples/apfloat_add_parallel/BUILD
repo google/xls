@@ -70,6 +70,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest",
