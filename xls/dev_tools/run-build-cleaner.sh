@@ -23,7 +23,16 @@ BANT=$($(dirname $0)/get-bant-path.sh)
 
 # Run depend-on-what-you-use build-cleaner.
 # Print buildifier commands to fix if needed.
-"${BANT}" dwyu "$@"
+#  * Use graph-augment to tell bant to build a dependency graph
+#    from the root, so that it has seen all potential targets
+#    satisfying a header even if we only dwyu on a pattern deep
+#    inside.
+#  * use --bracket-include=ignore as xlscc provides headers
+#    that look exactly like system headers, and we don't want
+#    to consider them as potential reason to depend on.
+#    (//xls/contrib/xlscc:synth_only provides
+#    //xls/contrib/xlscc:synth_only_headers)
+"${BANT}" dwyu --graph-augment=... --bracket-include=ignore "$@"
 
 BANT_EXIT=$?
 if [ ${BANT_EXIT} -eq ${BANT_EXIT_ON_DWYU_ISSUES} ]; then
