@@ -28,6 +28,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -103,22 +104,21 @@ Node* GetCase(Select* select, const Bits& selector) {
   return select->get_case(static_cast<int64_t>(*selector_value));
 }
 
-absl::StatusOr<bool> MaybeMergeLutIntoSelects(
-    Node* selector, const QueryEngine& query_engine, int64_t opt_level,
+absl::StatusOr<std::optional<LutConversionCandidate>> GetLutCandidate(
+    Node* node, const QueryEngine& query_engine,
     std::optional<DataflowGraphAnalysis>& dataflow_graph_analysis) {
   int64_t max_case_count = 0;
-  std::vector<Select*> candidate_selects;
-  candidate_selects.reserve(1);
-  for (Node* user : selector->users()) {
-    if (user->Is<Select>() && user->As<Select>()->selector() == selector) {
-      candidate_selects.push_back(user->As<Select>());
+  std::vector<Node*> candidate_users;
+  candidate_users.reserve(node->users().size());
+  for (Node* user : node->users()) {
+    if (user->Is<Select>() && user->As<Select>()->selector() == node) {
+      candidate_users.push_back(user);
       max_case_count = std::max(max_case_count, CaseCount(user->As<Select>()));
     }
   }
-  if (candidate_selects.empty()) {
-    return false;
+  if (candidate_users.empty()) {
+    return std::nullopt;
   }
-  CHECK(!candidate_selects.empty());
 
   // Find the minimum set of unknown bits that fully determine the value of the
   // selector; we can treat the selector as defined by a LUT, then merge it into
@@ -128,39 +128,40 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelects(
   if (max_bits_needed <= 1) {
     // We can't narrow the controlled selects any further unless the selector is
     // actually constant... which should be handled by other (cheaper) passes.
-    return false;
+    return std::nullopt;
   }
 
   // Initialize the graph analysis if not done already.
   if (!dataflow_graph_analysis.has_value()) {
-    XLS_ASSIGN_OR_RETURN(DataflowGraphAnalysis dataflow_analysis,
-                         DataflowGraphAnalysis::Create(
-                             selector->function_base(), &query_engine));
+    XLS_ASSIGN_OR_RETURN(
+        DataflowGraphAnalysis dataflow_analysis,
+        DataflowGraphAnalysis::Create(node->function_base(), &query_engine));
     dataflow_graph_analysis.emplace(std::move(dataflow_analysis));
   }
 
-  VLOG(3) << "Finding min cut for " << selector->GetName() << " ("
+  VLOG(3) << "Finding min cut for " << node->GetName() << " ("
           << max_bits_needed << " bits needed)" << " controlling "
-          << candidate_selects.size() << " select(s)";
+          << candidate_users.size() << " select(s)";
   XLS_ASSIGN_OR_RETURN(
       std::vector<Node*> min_cut,
       dataflow_graph_analysis->GetMinCutFor(
-          selector, /*max_unknown_bits=*/max_bits_needed, &unknown_bits));
+          node, /*max_unknown_bits=*/max_bits_needed, &unknown_bits));
   if (min_cut.empty()) {
     // There's no better alternative; this selector is already optimal.
-    return false;
+    return std::nullopt;
   }
-  VLOG(3) << "Found " << unknown_bits << "-bit min cut for "
-          << selector->GetName() << ": "
+  VLOG(3) << "Found " << unknown_bits << "-bit min cut for " << node->GetName()
+          << ": "
           << absl::StrJoin(min_cut, ", ", [](std::string* out, Node* node) {
                absl::StrAppend(out, node->GetName());
              });
 
   // Remove all candidate selects that wouldn't benefit from this transform.
   const bool selector_is_trivial = IsTriviallyDerived(
-      selector, absl::flat_hash_set<Node*>(min_cut.begin(), min_cut.end()));
-  std::erase_if(candidate_selects, [&](Select* select) {
-    int64_t bits_needed = Bits::MinBitCountUnsigned(CaseCount(select) - 1);
+      node, absl::flat_hash_set<Node*>(min_cut.begin(), min_cut.end()));
+  std::erase_if(candidate_users, [&](Node* select) {
+    int64_t bits_needed =
+        Bits::MinBitCountUnsigned(CaseCount(select->As<Select>()) - 1);
     if (unknown_bits < bits_needed) {
       // This transform will narrow this select.
       return false;
@@ -176,14 +177,51 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelects(
     // TODO(epastor): Use delay & area estimators to check for net benefit.
     return true;
   });
-  if (candidate_selects.empty()) {
-    return false;
+  if (candidate_users.empty()) {
+    return std::nullopt;
   }
 
+  return LutConversionCandidate{
+      .node = node,
+      .min_cut = std::move(min_cut),
+      .candidate_users = std::move(candidate_users),
+      .min_cut_unknown_bits = unknown_bits,
+  };
+}
+
+absl::StatusOr<std::vector<LutConversionCandidate>>
+ComputeLutConversionCandidates(FunctionBase* func,
+                               const QueryEngine& query_engine,
+                               OptimizationContext& context) {
+  std::optional<DataflowGraphAnalysis> dataflow_graph_analysis;
+
+  // By running in reverse topological order, the analyses will stay valid for
+  // all nodes we're considering through the full pass.
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                       context.ReverseTopoSort(func));
+
+  std::vector<LutConversionCandidate> candidates;
+  for (Node* node : reverse_topo_sort_nodes) {
+    if (node->IsDead()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<LutConversionCandidate> candidate,
+        GetLutCandidate(node, query_engine, dataflow_graph_analysis));
+    if (candidate.has_value()) {
+      candidates.push_back(std::move(candidate.value()));
+    }
+  }
+
+  return candidates;
+}
+
+absl::StatusOr<bool> MergeLutIntoSelects(
+    const LutConversionCandidate& candidate, const QueryEngine& query_engine) {
   std::vector<SharedLeafTypeTree<TernaryVector>> cut_ternaries;
-  cut_ternaries.reserve(min_cut.size());
-  for (size_t i = 0; i < min_cut.size(); ++i) {
-    Node* cut_node = min_cut[i];
+  cut_ternaries.reserve(candidate.min_cut.size());
+  for (size_t i = 0; i < candidate.min_cut.size(); ++i) {
+    Node* cut_node = candidate.min_cut[i];
     std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
         query_engine.GetTernary(cut_node);
     VLOG(4) << "Ternary for cut node " << cut_node->GetName() << ": "
@@ -192,22 +230,22 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelects(
     cut_ternaries.push_back(*std::move(ternary));
   }
 
-  VLOG(2) << "Merging a " << unknown_bits
+  VLOG(2) << "Merging a " << candidate.min_cut_unknown_bits
           << "-bit lookup table into its controlled selects: "
-          << absl::StrJoin(candidate_selects, ", ",
-                           [](std::string* out, Select* select) {
-                             absl::StrAppend(out, select->GetName());
+          << absl::StrJoin(candidate.candidate_users, ", ",
+                           [](std::string* out, Node* user) {
+                             absl::StrAppend(out, user->GetName());
                            });
   if (VLOG_IS_ON(3)) {
-    for (Select* candidate : candidate_selects) {
-      VLOG(3) << "- " << candidate->ToString();
+    for (Node* user : candidate.candidate_users) {
+      VLOG(3) << "- " << user->ToString();
     }
   }
 
   // Populate an interpreter with all known values that feed into the
   // selector.
   IrInterpreter base_interpreter;
-  std::vector<Node*> to_visit({selector});
+  std::vector<Node*> to_visit({candidate.node});
   absl::flat_hash_set<Node*> visited;
   while (!to_visit.empty()) {
     Node* n = to_visit.back();
@@ -225,8 +263,8 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelects(
     }
   }
 
-  std::vector<std::vector<Value>> cut_values(min_cut.size());
-  for (size_t i = 0; i < min_cut.size(); ++i) {
+  std::vector<std::vector<Value>> cut_values(candidate.min_cut.size());
+  for (size_t i = 0; i < candidate.min_cut.size(); ++i) {
     XLS_ASSIGN_OR_RETURN(cut_values[i],
                          ternary_ops::AllValues(cut_ternaries[i].AsView()));
     XLS_RET_CHECK(!cut_values[i].empty());
@@ -249,7 +287,7 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelects(
         // min-cut to compute the value of the selector.
         IrInterpreter interpreter = base_interpreter;
         for (size_t i = 0; i < value_indices.size(); ++i) {
-          Node* cut_node = min_cut[i];
+          Node* cut_node = candidate.min_cut[i];
           int64_t value_index = value_indices[i];
           const Value& cut_value = cut_values[i][value_index];
           if (interpreter.IsVisited(cut_node)) {
@@ -272,12 +310,12 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelects(
             interpreter.MarkVisited(cut_node);
           }
         }
-        status.Update(selector->Accept(&interpreter));
+        status.Update(candidate.node->Accept(&interpreter));
         if (!status.ok()) {
           return true;
         }
 
-        Value selector_value = interpreter.ResolveAsValue(selector);
+        Value selector_value = interpreter.ResolveAsValue(candidate.node);
         CHECK(selector_value.IsBits());
         new_case_sequence.push_back(std::move(selector_value).bits());
         return false;
@@ -290,17 +328,17 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelects(
       })) {
     // We've proven that only one case is ever selected; just use that
     // directly.
-    for (Select* select : candidate_selects) {
-      XLS_RETURN_IF_ERROR(
-          select->ReplaceUsesWith(GetCase(select, new_case_sequence.front())));
+    for (Node* user : candidate.candidate_users) {
+      XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(
+          GetCase(user->As<Select>(), new_case_sequence.front())));
     }
     return true;
   }
 
   // Assemble the new selector out of the unknown bits of the min-cut nodes.
   std::vector<Node*> selector_pieces;
-  selector_pieces.reserve(min_cut.size());
-  for (size_t i = 0; i < min_cut.size(); ++i) {
+  selector_pieces.reserve(candidate.min_cut.size());
+  for (size_t i = 0; i < candidate.min_cut.size(); ++i) {
     LeafTypeTree<Bits> unknown_positions_ltt =
         leaf_type_tree::Map<Bits, TernaryVector>(
             cut_ternaries[i].AsView(),
@@ -309,7 +347,7 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelects(
             });
     XLS_ASSIGN_OR_RETURN(
         Node * new_selector_piece,
-        GatherBits(min_cut[i], unknown_positions_ltt.AsView()));
+        GatherBits(candidate.min_cut[i], unknown_positions_ltt.AsView()));
     selector_pieces.push_back(new_selector_piece);
   }
 
@@ -321,36 +359,23 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelects(
     // Concat assumes big-endian order.
     absl::c_reverse(selector_pieces);
     XLS_ASSIGN_OR_RETURN(new_selector,
-                         selector->function_base()->MakeNode<Concat>(
-                             selector->loc(), selector_pieces));
+                         candidate.node->function_base()->MakeNode<Concat>(
+                             candidate.node->loc(), selector_pieces));
   }
 
-  for (Select* select : candidate_selects) {
+  for (Node* user : candidate.candidate_users) {
     absl::FixedArray<Node*> new_cases(new_case_count);
     for (int64_t i = 0; i < new_case_count; ++i) {
-      new_cases[i] = GetCase(select, new_case_sequence[i]);
+      new_cases[i] = GetCase(user->As<Select>(), new_case_sequence[i]);
     }
     XLS_ASSIGN_OR_RETURN(
         Node * new_select,
-        select->ReplaceUsesWithNew<Select>(new_selector, new_cases,
-                                           /*default_value=*/std::nullopt));
-    VLOG(3) << "Replaced " << select->GetName()
+        user->ReplaceUsesWithNew<Select>(new_selector, new_cases,
+                                         /*default_value=*/std::nullopt));
+    VLOG(3) << "Replaced " << user->GetName()
             << " with: " << new_select->ToString();
   }
   return true;
-}
-
-absl::StatusOr<bool> SimplifyNode(
-    Node* node, const QueryEngine& query_engine, int64_t opt_level,
-    std::optional<DataflowGraphAnalysis>& dataflow_graph_analysis) {
-  XLS_ASSIGN_OR_RETURN(bool changed_select_incorporating_lut,
-                       MaybeMergeLutIntoSelects(node, query_engine, opt_level,
-                                                dataflow_graph_analysis));
-  if (changed_select_incorporating_lut) {
-    return true;
-  }
-
-  return false;
 }
 
 }  // namespace
@@ -375,20 +400,18 @@ absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
 
   std::optional<DataflowGraphAnalysis> dataflow_graph_analysis;
 
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<LutConversionCandidate> lut_conversion_candidates,
+      ComputeLutConversionCandidates(func, query_engine, context));
+
   bool changed = false;
-  // By running in reverse topological order, the analyses will stay valid for
-  // all nodes we're considering through the full pass.
-  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
-                       context.ReverseTopoSort(func));
-  for (Node* node : reverse_topo_sort_nodes) {
-    if (node->IsDead()) {
-      continue;
-    }
+
+  for (const LutConversionCandidate& candidate : lut_conversion_candidates) {
     XLS_ASSIGN_OR_RETURN(bool changed_at_node,
-                         SimplifyNode(node, query_engine, options.opt_level,
-                                      dataflow_graph_analysis));
+                         MergeLutIntoSelects(candidate, query_engine));
     changed = changed || changed_at_node;
   }
+
   return changed;
 }
 
