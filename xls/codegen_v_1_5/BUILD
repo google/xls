@@ -1070,7 +1070,7 @@ cc_test(
         ":block_conversion_pass",
         ":block_conversion_pass_pipeline",
         ":passes",  # build_cleaner: keep
-        ":side_effect_condition_pass_impl",
+        ":side_effect_condition_pass",
         "//xls/codegen:codegen_options",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
