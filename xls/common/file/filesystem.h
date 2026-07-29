@@ -18,6 +18,7 @@
 #ifndef XLS_COMMON_FILE_FILESYSTEM_H_
 #define XLS_COMMON_FILE_FILESYSTEM_H_
 
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -26,6 +27,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message.h"
 #include "xls/common/status/status_macros.h"
