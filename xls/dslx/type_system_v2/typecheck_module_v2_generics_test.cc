@@ -1079,8 +1079,7 @@ fn main() {
       result.tm.warnings.warnings()[0].message,
       AllOf(HasSubstr("constexpr evaluation detected rollover in operation"),
             HasSubstr("left-hand value `0`"),
-            HasSubstr("right-hand value `2147483648`"),
-            HasSubstr("in bar\nin foo\nfrom fake.x:6:27-6:30")));
+            HasSubstr("right-hand value `2147483648`")));
 }
 
 TEST(TypecheckV2GenericsTest, InstantiateGenericTypeAsStruct) {

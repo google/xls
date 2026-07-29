@@ -51,6 +51,7 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -762,17 +763,43 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
 
   if (user_fn_data.function->is_test_utility()) {
     const Function* callee = user_fn_data.function;
-    const Function* caller = frames_.back().bf()->source_fn();
+    const Function* caller = nullptr;
+    for (auto it = frames_.rbegin(); it != frames_.rend(); ++it) {
+      if (it->bf()->source_fn() != nullptr) {
+        caller = it->bf()->source_fn();
+        break;
+      }
+    }
 
     bool is_init =
         callee->IsInProc() &&
         callee->identifier() == (*callee->proc())->init().identifier();
 
-    // init() has no caller, so cannot be called incorrectly
-    if (!is_init && !caller->is_test_utility()) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Test utility function '%s' can only be called from tests",
-          callee->identifier()));
+    // init() has no caller, so cannot be called incorrectly.
+    // If caller is null, we are outside any function (e.g. module level const),
+    // which is not a test.
+    if (!is_init) {
+      bool caller_is_test = false;
+      if (caller != nullptr) {
+        caller_is_test =
+            caller->is_test_utility() ||
+            (caller->parent() != nullptr &&
+             (caller->parent()->kind() == AstNodeKind::kTestFunction ||
+              caller->parent()->kind() == AstNodeKind::kFuzzTestFunction));
+        if (!caller_is_test && caller->IsInProc() &&
+            caller->proc().has_value()) {
+          const Proc* proc = *caller->proc();
+          if (proc->parent() != nullptr &&
+              proc->parent()->kind() == AstNodeKind::kTestProc) {
+            caller_is_test = true;
+          }
+        }
+      }
+      if (!caller_is_test) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Test utility function '%s' can only be called from tests",
+            callee->identifier()));
+      }
     }
   }
 
