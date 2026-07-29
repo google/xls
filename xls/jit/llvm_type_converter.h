@@ -44,7 +44,7 @@ class LlvmTypeConverter {
 
   llvm::Type* ConvertToLlvmType(const Type* type);
   llvm::Type* ConvertToPointerToLlvmType(const Type* type) {
-    return llvm::PointerType::get(ConvertToLlvmType(type), 0);
+    return llvm::PointerType::get(ConvertToLlvmType(type)->getContext(), 0);
   }
 
   // Returns the LLVM type for the packed representation of the given XLS
