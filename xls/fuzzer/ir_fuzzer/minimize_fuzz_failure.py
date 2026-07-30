@@ -102,7 +102,7 @@ fi
 exit $?""")
     else:
       test_file.write(f"""
-! {_EVAL_IR_MAIN_BIN} $1 --optimize_ir --optimize_passes={_PASS.value} --testvector_textproto={tmpdir}/testvector.textproto --alsologtostderr
+! {_EVAL_IR_MAIN_BIN} $1 --optimize_ir '--optimize_passes={_PASS.value}' --testvector_textproto={tmpdir}/testvector.textproto --alsologtostderr
 exit $?
 """)
     test_file.close()
