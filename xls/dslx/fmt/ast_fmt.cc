@@ -2247,14 +2247,20 @@ DocRef Formatter::FormatParametricBinding(const ParametricBinding& n) {
       arena_.break1(),
       FormatTypeAnnotation(*n.type_annotation()),
   };
-  if (n.expr() != nullptr) {
+  if (n.default_expr_or_type().has_value()) {
     pieces.push_back(arena_.space());
     pieces.push_back(arena_.equals());
     pieces.push_back(arena_.space());
-    pieces.push_back(arena_.ocurl());
-    pieces.push_back(arena_.break0());
-    pieces.push_back(arena_.MakeNest(FormatExpr(*n.expr())));
-    pieces.push_back(arena_.ccurl());
+    if (dynamic_cast<const GenericTypeAnnotation*>(n.type_annotation()) !=
+        nullptr) {
+      pieces.push_back(FormatExprOrType(*n.default_expr_or_type()));
+    } else {
+      pieces.push_back(arena_.ocurl());
+      pieces.push_back(arena_.break0());
+      pieces.push_back(
+          arena_.MakeNest(FormatExprOrType(*n.default_expr_or_type())));
+      pieces.push_back(arena_.ccurl());
+    }
   }
   return ConcatNGroup(arena_, pieces);
 }

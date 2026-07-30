@@ -243,4 +243,23 @@ bool VariableHasAnyExplicitTypeAnnotations(
              });
 }
 
+absl::StatusOr<std::optional<const TypeAnnotation*>> GetExplicitTypeAnnotation(
+    const InferenceTable& table,
+    std::optional<const ParametricContext*> parametric_context,
+    const AstNode* node) {
+  std::optional<const NameRef*> type_variable = table.GetTypeVariable(node);
+  if (!type_variable.has_value()) {
+    return std::nullopt;
+  }
+  XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
+                       table.GetTypeAnnotationsForTypeVariable(
+                           parametric_context, *type_variable));
+  for (const TypeAnnotation* annotation : annotations) {
+    if (!table.GetAnnotationFlag(annotation).HasNonExplicitTypeSemantics()) {
+      return annotation;
+    }
+  }
+  return std::nullopt;
+}
+
 }  // namespace xls::dslx

@@ -476,6 +476,26 @@ class Unifier {
     return result;
   }
 
+  // Unifies two InterpValues that are both TypeReferences. Returns the unified
+  // InterpValue if they are unifiable, or std::nullopt if they cannot be
+  // unified.
+  absl::StatusOr<std::optional<InterpValue>> UnifyTypeReference(
+      const InterpValue& v1, const InterpValue& v2, const Span& span) {
+    XLS_RET_CHECK(v1.IsTypeReference());
+    XLS_RET_CHECK(v2.IsTypeReference());
+    if (v1 == v2) {
+      return v1;
+    }
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* t1, v1.GetTypeReference());
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* t2, v2.GetTypeReference());
+    absl::StatusOr<const TypeAnnotation*> unified_annotation =
+        UnifyTypeAnnotations({t1, t2}, span);
+    if (unified_annotation.ok()) {
+      return InterpValue::MakeTypeReference(*unified_annotation);
+    }
+    return std::nullopt;
+  }
+
   // Unifies multiple annotations for a parametric struct, and produces an
   // annotation with agreeing explicit parametric values.
   absl::StatusOr<const TypeAnnotation*> UnifyParametricStructOrProcAnnotations(
@@ -515,16 +535,32 @@ class Unifier {
 
         if (i == explicit_parametrics.size()) {
           explicit_parametrics.push_back(*value);
-        } else if (*value != explicit_parametrics[i]) {
-          return TypeInferenceErrorStatusForAnnotation(
-              annotation->span(), annotation,
-              absl::Substitute(
-                  "Value mismatch for parametric `$0` of $1 `$2`: $3 vs. $4",
-                  binding->identifier(),
-                  def.kind() == AstNodeKind::kStructDef ? "struct" : "proc",
-                  def.identifier(), value->ToString(),
-                  explicit_parametrics[i].ToString()),
-              file_table_);
+        } else {
+          bool match = false;
+          if (value->IsTypeReference() &&
+              explicit_parametrics[i].IsTypeReference()) {
+            XLS_ASSIGN_OR_RETURN(
+                std::optional<InterpValue> unified,
+                UnifyTypeReference(*value, explicit_parametrics[i],
+                                   annotation->span()));
+            if (unified.has_value()) {
+              match = true;
+              explicit_parametrics[i] = *unified;
+            }
+          } else {
+            match = (*value == explicit_parametrics[i]);
+          }
+          if (!match) {
+            return TypeInferenceErrorStatusForAnnotation(
+                annotation->span(), annotation,
+                absl::Substitute(
+                    "Value mismatch for parametric `$0` of $1 `$2`: $3 vs. $4",
+                    binding->identifier(),
+                    def.kind() == AstNodeKind::kStructDef ? "struct" : "proc",
+                    def.identifier(), value->ToString(),
+                    explicit_parametrics[i].ToString()),
+                file_table_);
+          }
         }
       }
     }

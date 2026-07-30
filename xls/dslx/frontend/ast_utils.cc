@@ -664,7 +664,7 @@ std::vector<ParametricBinding*> GetRequiredParametricBindings(
   std::vector<ParametricBinding*> result;
   absl::c_copy_if(bindings, std::back_inserter(result),
                   [&](const ParametricBinding* binding) {
-                    return binding->expr() == nullptr;
+                    return !binding->default_expr_or_type().has_value();
                   });
   return result;
 }

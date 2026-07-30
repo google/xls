@@ -1025,9 +1025,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           continue;
         }
         const Expr* actual_expr =
-            i < struct_or_proc_ref->parametrics.size()
-                ? std::get<Expr*>(struct_or_proc_ref->parametrics[i])
-                : binding->expr();
+            std::get<Expr*>(struct_or_proc_ref->parametrics[i]);
         XLS_RETURN_IF_ERROR(
             DefineAndSetTypeVariable(actual_expr, "actual_expr"));
         XLS_RETURN_IF_ERROR(
@@ -1494,13 +1492,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     XLS_RETURN_IF_ERROR(table_.DefineParametricVariable(*node).status());
     table_.SetAnnotationFlag(node->type_annotation(),
                              TypeInferenceFlag::kFormalParametricType);
-    if (node->expr() != nullptr) {
+    if (node->default_expr_or_type().has_value() &&
+        std::holds_alternative<Expr*>(*node->default_expr_or_type())) {
+      Expr* default_expr = std::get<Expr*>(*node->default_expr_or_type());
       // To handle the default expression correctly, we need to impose a type
       // variable pretending that there is something like a `let` or `const`
       // LHS, and the expression type will later have to be unified to that.
-      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->expr(), "binding"));
+      XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(default_expr, "binding"));
       XLS_RETURN_IF_ERROR(
-          table_.SetTypeAnnotation(node->expr(), node->type_annotation()));
+          table_.SetTypeAnnotation(default_expr, node->type_annotation()));
     }
     return DefaultHandler(node);
   }

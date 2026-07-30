@@ -335,7 +335,7 @@ absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
                          span.ToString(file_table())),
         /*definer=*/gta);
     parametrics.push_back(
-        module_->Make<ParametricBinding>(generic_name_def, gta, nullptr));
+        module_->Make<ParametricBinding>(generic_name_def, gta, std::nullopt));
     NameRef* generic_name_ref = module_->Make<NameRef>(
         span, generic_name_def->identifier(), generic_name_def);
     return module_->Make<TypeVariableTypeAnnotation>(generic_name_ref,
@@ -4777,19 +4777,27 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
       name_def->set_definer(gta);
     }
     XLS_ASSIGN_OR_RETURN(bool dropped_equals, TryDropToken(TokenKind::kEquals));
-    Expr* expr = nullptr;
+    std::optional<ExprOrType> default_expr_or_type;
     if (dropped_equals) {
-      XLS_RETURN_IF_ERROR(
-          DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
-                           "expected '{' because parametric expressions must "
-                           "be enclosed in braces"));
-      XLS_ASSIGN_OR_RETURN(expr, ParseExpression(bindings));
-      XLS_RETURN_IF_ERROR(
-          DropTokenOrError(TokenKind::kCBrace, /*start=*/nullptr,
-                           "expected '}' because parametric expressions must "
-                           "be enclosed in braces"));
+      if (type->IsAnnotation<GenericTypeAnnotation>()) {
+        XLS_ASSIGN_OR_RETURN(TypeAnnotation * default_type,
+                             ParseTypeAnnotation(bindings));
+        default_expr_or_type = default_type;
+      } else {
+        XLS_RETURN_IF_ERROR(
+            DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
+                             "expected '{' because parametric expressions must "
+                             "be enclosed in braces"));
+        XLS_ASSIGN_OR_RETURN(Expr * default_expr, ParseExpression(bindings));
+        default_expr_or_type = default_expr;
+        XLS_RETURN_IF_ERROR(
+            DropTokenOrError(TokenKind::kCBrace, /*start=*/nullptr,
+                             "expected '}' because parametric expressions must "
+                             "be enclosed in braces"));
+      }
     }
-    return module_->Make<ParametricBinding>(name_def, type, expr);
+    return module_->Make<ParametricBinding>(name_def, type,
+                                            default_expr_or_type);
   };
   XLS_ASSIGN_OR_RETURN(std::vector<ParametricBinding*> parametric_bindings,
                        ParseCommaSeq<ParametricBinding*>(

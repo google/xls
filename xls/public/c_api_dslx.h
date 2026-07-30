@@ -411,6 +411,10 @@ xls_dslx_parametric_binding_get_type_annotation(
 struct xls_dslx_expr* xls_dslx_parametric_binding_get_expr(
     struct xls_dslx_parametric_binding* binding);
 
+struct xls_dslx_type_annotation*
+xls_dslx_parametric_binding_get_default_generic_type(
+    struct xls_dslx_parametric_binding* binding);
+
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_function_to_string(struct xls_dslx_function* fn);
 

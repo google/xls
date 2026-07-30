@@ -811,13 +811,13 @@ Attr::~Attr() = default;
 
 // -- class ParametricBinding
 
-ParametricBinding::ParametricBinding(Module* owner, NameDef* name_def,
-                                     TypeAnnotation* type_annotation,
-                                     Expr* expr)
+ParametricBinding::ParametricBinding(
+    Module* owner, NameDef* name_def, TypeAnnotation* type_annotation,
+    std::optional<ExprOrType> default_expr_or_type)
     : AstNode(owner),
       name_def_(name_def),
       type_annotation_(type_annotation),
-      expr_(expr) {
+      default_expr_or_type_(default_expr_or_type) {
   CHECK_EQ(name_def_->owner(), owner);
   CHECK_EQ(type_annotation_->owner(), owner);
 }
@@ -826,8 +826,13 @@ ParametricBinding::~ParametricBinding() = default;
 
 std::string ParametricBinding::ToString() const {
   std::string suffix;
-  if (expr_ != nullptr) {
-    suffix = absl::StrFormat(" = {%s}", expr_->ToString());
+  if (default_expr_or_type_.has_value()) {
+    std::string expr_str = ToAstNode(*default_expr_or_type_)->ToString();
+    if (type_annotation_->IsAnnotation<GenericTypeAnnotation>()) {
+      suffix = absl::StrFormat(" = %s", expr_str);
+    } else {
+      suffix = absl::StrFormat(" = {%s}", expr_str);
+    }
   }
   return absl::StrFormat("%s: %s%s", name_def_->ToString(),
                          type_annotation_->ToString(), suffix);
@@ -838,8 +843,8 @@ std::vector<AstNode*> ParametricBinding::GetChildren(bool want_types) const {
   if (want_types) {
     results.push_back(type_annotation_);
   }
-  if (expr_ != nullptr) {
-    results.push_back(expr_);
+  if (default_expr_or_type_.has_value()) {
+    results.push_back(ToAstNode(*default_expr_or_type_));
   }
   return results;
 }
@@ -2486,7 +2491,7 @@ absl::btree_set<std::string> Function::GetFreeParametricKeySet() const {
 std::vector<std::string> Function::GetFreeParametricKeys() const {
   std::vector<std::string> results;
   for (ParametricBinding* b : parametric_bindings_) {
-    if (b->expr() == nullptr) {
+    if (!b->default_expr_or_type().has_value()) {
       results.push_back(b->name_def()->identifier());
     }
   }

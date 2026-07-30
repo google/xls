@@ -2289,14 +2289,16 @@ TEST_F(ParserTest, ZeroMacroParametricStruct) {
   BuiltinType builtin_type = BuiltinTypeFromString("u32").value();
   TypeAnnotation* elem_type = mod.Make<BuiltinTypeAnnotation>(
       Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
-  params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
+  params.push_back(
+      mod.Make<ParametricBinding>(name_def, elem_type, std::nullopt));
 
   name_def = mod.Make<NameDef>(Span::Fake(), std::string("MyParm1"), nullptr);
   b.Add(name_def->identifier(), name_def);
   builtin_type = BuiltinTypeFromString("u32").value();
   elem_type = mod.Make<BuiltinTypeAnnotation>(
       Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
-  params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
+  params.push_back(
+      mod.Make<ParametricBinding>(name_def, elem_type, std::nullopt));
 
   name_def = mod.Make<NameDef>(Span::Fake(), std::string("MyType"), nullptr);
 
@@ -2333,14 +2335,16 @@ TEST_F(ParserTest, ZeroMacroParametricStructArray) {
   BuiltinType builtin_type = BuiltinTypeFromString("u32").value();
   TypeAnnotation* elem_type = mod.Make<BuiltinTypeAnnotation>(
       Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
-  params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
+  params.push_back(
+      mod.Make<ParametricBinding>(name_def, elem_type, std::nullopt));
 
   name_def = mod.Make<NameDef>(Span::Fake(), std::string("MyParm1"), nullptr);
   b.Add(name_def->identifier(), name_def);
   builtin_type = BuiltinTypeFromString("u32").value();
   elem_type = mod.Make<BuiltinTypeAnnotation>(
       Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
-  params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
+  params.push_back(
+      mod.Make<ParametricBinding>(name_def, elem_type, std::nullopt));
 
   name_def = mod.Make<NameDef>(Span::Fake(), std::string("MyType"), nullptr);
 
@@ -2908,6 +2912,38 @@ TEST_F(ParserTest, ModuleWithGenericType) {
 
 fn parametric<T: type>() -> u32 {
     zero!<T>()
+})");
+}
+
+TEST_F(ParserTest, ModuleWithGenericTypeDefault) {
+  RoundTrip(R"(#![feature(generics)]
+
+fn parametric<T: type = u32>() -> u32 {
+    zero!<T>()
+})");
+}
+
+TEST_F(ParserTest, ModuleWithGenericTypeDefaultInStruct) {
+  RoundTrip(R"(#![feature(generics)]
+
+struct Foo<T: type = u32> {
+    x: T,
+})");
+}
+
+TEST_F(ParserTest, ModuleWithGenericTypeDefaultDependent) {
+  RoundTrip(R"(#![feature(generics)]
+
+fn parametric<N: u32, T: type = uN[N]>() -> u32 {
+    zero!<T>()
+})");
+}
+
+TEST_F(ParserTest, ModuleWithGenericTypeDefaultDependentInStruct) {
+  RoundTrip(R"(#![feature(generics)]
+
+struct Foo<N: u32, T: type = uN[N]> {
+    x: T,
 })");
 }
 

@@ -226,7 +226,7 @@ static absl::Status ValidateExplicitEnvAgainstCallee(
   }
 
   for (const ParametricBinding* pb : to_callee->parametric_bindings()) {
-    if (!pb->expr() && !env_map.contains(pb->identifier())) {
+    if (!pb->default_expr_or_type() && !env_map.contains(pb->identifier())) {
       return absl::InvalidArgumentError(
           absl::StrCat("Missing required binding `", pb->identifier(),
                        "` for replacement callee"));

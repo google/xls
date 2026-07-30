@@ -1195,6 +1195,202 @@ const RES = main<S>();
       TypecheckFails(HasTypeMismatch("uN[32]", "uN[1]")));
 }
 
+TEST(TypecheckV2GenericsTest, FunctionWithDefaultGeneric) {
+  XLS_ASSERT_OK(TypecheckV2(
+      R"(
+#![feature(generics)]
+
+fn sizeof<S: bool, N: u32>(x: xN[S][N]) -> u32 { N }
+
+fn call<T: type = u32>() -> u32 {
+    let x = zero!<T>();
+    sizeof(x)
+}
+
+const X = call();
+const_assert!(X == u32:32);
+)"));
+}
+
+TEST(TypecheckV2GenericsTest, StructWithDefaultGeneric) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<T: type = u32> {
+  x: T
+}
+
+fn f(s: S) -> u32 {
+  s.x
+}
+
+const X = f(S { x: u32:5 });
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2GenericsTest, FunctionOverriddenGenericDefault) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+fn call<T: type = u32>() -> T {
+    zero!<T>()
+}
+
+const X = call();
+const Y = call<u16>();
+
+const_assert!(X == u32:0);
+const_assert!(Y == u16:0);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
+                              HasNodeWithType("Y", "uN[16]"))));
+}
+
+TEST(TypecheckV2GenericsTest, StructWithOverriddenGenericDefault) {
+  XLS_ASSERT_OK(TypecheckV2(
+      R"(
+#![feature(generics)]
+
+struct S<T: type = u32> {
+  x: T
+}
+
+const X: S = S { x: u32:5 };
+const Y: S<u16> = S { x: u16:5 };
+
+const_assert!(X.x == u32:5);
+const_assert!(Y.x == u16:5);
+)"));
+}
+
+TEST(TypecheckV2GenericsTest, StructWithDefaultGenericMismatch) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<T: type = u32> {
+  x: T
+}
+
+fn f(s: S) -> u32 {
+  s.x
+}
+
+const X = f(S { x: u16:5 });
+)",
+      TypecheckFails(HasSizeMismatch("u16", "u32")));
+}
+
+TEST(TypecheckV2GenericsTest, StructWithDefaultDerivedGeneric) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<N: u32, T: type = uN[N]> {
+  x: T
+}
+
+fn f(s: S<8>) -> u8 {
+  s.x
+}
+
+const X = f(S<8> { x: u8:5 });
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[8]")));
+}
+
+TEST(TypecheckV2GenericsTest, FunctionWithDefaultDerivedGeneric) {
+  EXPECT_THAT(R"(
+#![feature(generics)]
+
+fn foo<N: u32, T: type = uN[N]>(x: T) -> T { x }
+
+const X = foo<8>(5);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[8]")));
+}
+
+TEST(TypecheckV2GenericsTest, StructWithDefaultDerivedGenericMismatch) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<N: u32, T: type = uN[N]> {
+  x: T
+}
+
+fn f(s: S<8>) -> u8 {
+  s.x
+}
+
+const X = f(S<8> { x: u16:5 });
+)",
+      TypecheckFails(HasSizeMismatch("u16", "uN[8]")));
+}
+
+TEST(TypecheckV2GenericsTest, StructWithDefaultDerivedGenericWithoutSolving) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<N: u32, T: type = uN[N]> {}
+
+fn f(s: S<8, u8>) -> bool {
+  true
+}
+
+const X = f(S<8> {});
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[1]")));
+}
+
+TEST(TypecheckV2GenericsTest, FunctionWithDefaultDerivedGenericWithoutSolving) {
+  EXPECT_THAT(R"(
+#![feature(generics)]
+
+fn foo<N: u32, T: type = uN[N]>() -> T { zero!<T>() }
+
+const X = foo<8>();
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[8]")));
+}
+
+TEST(TypecheckV2GenericsTest, DefaultDerivedGenericWithoutSolvingMismatch) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<N: u32, T: type = uN[N]> {}
+
+fn f(s: S<8, u16>) -> bool {
+  true
+}
+
+const X = f(S<8> {});
+)",
+      TypecheckFails(HasTypeMismatch("u16", "uN[8]")));
+}
+
+TEST(TypecheckV2GenericsTest, ParametricCallerSizeof) {
+  XLS_ASSERT_OK(TypecheckV2(R"(
+    #![feature(generics)]
+    fn sizeof<S: bool, N: u32>(x: xN[S][N]) -> u32 { N }
+    fn identity<T: type>(x: T) -> T { x }
+    fn foo<M: u32>() -> u32 {
+      let x = uN[32]:5;
+      let y = x as uN[sizeof(x) + 2];
+      let _ = identity(y);
+      sizeof(y)
+    }
+    fn main() -> u32 {
+      foo<10>()
+    }
+  )"));
+}
+
 TEST(TypecheckV2GenericsTest, UseGenericTypeStructConstant) {
   EXPECT_THAT(
       R"(

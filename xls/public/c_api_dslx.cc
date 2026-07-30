@@ -888,8 +888,27 @@ xls_dslx_parametric_binding_get_type_annotation(
 struct xls_dslx_expr* xls_dslx_parametric_binding_get_expr(
     struct xls_dslx_parametric_binding* binding) {
   auto* cpp_binding = reinterpret_cast<xls::dslx::ParametricBinding*>(binding);
-  xls::dslx::Expr* cpp_expr = cpp_binding->expr();
-  return reinterpret_cast<xls_dslx_expr*>(cpp_expr);
+  std::optional<xls::dslx::ExprOrType> cpp_default =
+      cpp_binding->default_expr_or_type();
+  return cpp_default.has_value() &&
+                 std::holds_alternative<xls::dslx::Expr*>(*cpp_default)
+             ? reinterpret_cast<xls_dslx_expr*>(
+                   std::get<xls::dslx::Expr*>(*cpp_default))
+             : nullptr;
+}
+
+struct xls_dslx_type_annotation*
+xls_dslx_parametric_binding_get_default_generic_type(
+    struct xls_dslx_parametric_binding* binding) {
+  auto* cpp_binding = reinterpret_cast<xls::dslx::ParametricBinding*>(binding);
+  std::optional<xls::dslx::ExprOrType> cpp_default =
+      cpp_binding->default_expr_or_type();
+  return cpp_default.has_value() &&
+                 std::holds_alternative<xls::dslx::TypeAnnotation*>(
+                     *cpp_default)
+             ? reinterpret_cast<xls_dslx_type_annotation*>(
+                   std::get<xls::dslx::TypeAnnotation*>(*cpp_default))
+             : nullptr;
 }
 
 char* xls_dslx_function_to_string(struct xls_dslx_function* fn) {

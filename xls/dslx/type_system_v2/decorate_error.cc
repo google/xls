@@ -73,7 +73,8 @@ std::optional<const ParametricBinding*> GetParametricBindingWithContainingExpr(
 
   if (parent != nullptr) {
     const auto* binding = absl::down_cast<const ParametricBinding*>(parent);
-    if (binding->expr() == node) {
+    if (binding->default_expr_or_type().has_value() &&
+        ToAstNode(*binding->default_expr_or_type()) == node) {
       return binding;
     }
   }

@@ -321,7 +321,10 @@ fn f<X: u32, Y: u32 = {id(X)}>() -> u32 { Y }
       f->parametric_bindings();
   ASSERT_EQ(parametric_bindings.size(), 2);
   const ParametricBinding* pb = parametric_bindings.at(1);
-  const Invocation* call = absl::down_cast<const Invocation*>(pb->expr());
+  ASSERT_TRUE(pb->default_expr_or_type().has_value());
+  ASSERT_TRUE(std::holds_alternative<Expr*>(*pb->default_expr_or_type()));
+  const Invocation* call = absl::down_cast<const Invocation*>(
+      std::get<Expr*>(*pb->default_expr_or_type()));
 
   // The function "f" has the call to id() contained within its bounds.
   ASSERT_TRUE(ContainedWithinFunction(*call, *f));

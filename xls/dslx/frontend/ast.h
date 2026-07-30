@@ -2448,7 +2448,8 @@ class Conditional : public Expr {
 class ParametricBinding : public AstNode {
  public:
   ParametricBinding(Module* owner, NameDef* name_def,
-                    TypeAnnotation* type_annotation, Expr* expr);
+                    TypeAnnotation* type_annotation,
+                    std::optional<ExprOrType> default_expr_or_type);
 
   ~ParametricBinding() override;
 
@@ -2472,7 +2473,9 @@ class ParametricBinding : public AstNode {
 
   NameDef* name_def() const { return name_def_; }
   TypeAnnotation* type_annotation() const { return type_annotation_; }
-  Expr* expr() const { return expr_; }
+  std::optional<ExprOrType> default_expr_or_type() const {
+    return default_expr_or_type_;
+  }
 
   const std::string& identifier() const { return name_def_->identifier(); }
 
@@ -2480,10 +2483,10 @@ class ParametricBinding : public AstNode {
   NameDef* name_def_;
   TypeAnnotation* type_annotation_;
 
-  // The "default" parametric expression (e.g. the expression to use for this
-  // parametric name_def_ when there is no explicit binding provided by the
-  // caller). May be null.
-  Expr* expr_;
+  // The "default" parametric expression or type annotation (e.g. the value/type
+  // to use for this parametric name_def_ when there is no explicit binding
+  // provided by the caller).
+  std::optional<ExprOrType> default_expr_or_type_;
 };
 
 class Proc;

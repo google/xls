@@ -310,7 +310,7 @@ absl::Status VerifyAllParametricsSatisfied(
   std::vector<std::string> missing_parametric_names;
   for (int i = actual_parametrics.size(); i < bindings.size(); i++) {
     const ParametricBinding* binding = bindings[i];
-    if (binding->expr() == nullptr) {
+    if (!binding->default_expr_or_type().has_value()) {
       missing_parametric_names.push_back(binding->identifier());
     }
   }

@@ -18,7 +18,7 @@ fn __test_module__foo__S(a: (bits[32]) id=4) -> (bits[32]) {
   ret a: (bits[32]) = param(name=a, id=4)
 }
 
-fn __test_module__foo__MyInt(a: bits[34] id=5) -> bits[34] {
+fn __test_module__foo__u34(a: bits[34] id=5) -> bits[34] {
   ret a: bits[34] = param(name=a, id=5)
 }
 
@@ -43,7 +43,7 @@ fn __test_module__main() -> () {
   D: bits[16][3] = invoke(array.12, to_apply=__test_module__foo__u16__dim_3, id=13)
   E: (bits[8], bits[8]) = invoke(tuple.16, to_apply=__test_module__foo__tuple_s8__s8, id=17)
   F: (bits[32]) = invoke(tuple.19, to_apply=__test_module__foo__S, id=20)
-  G: bits[34] = invoke(literal.21, to_apply=__test_module__foo__MyInt, id=22)
+  G: bits[34] = invoke(literal.21, to_apply=__test_module__foo__u34, id=22)
   H: bits[0] = invoke(literal.23, to_apply=__test_module__foo__MyEnum, id=24)
   ret tuple.25: () = tuple(id=25)
 }

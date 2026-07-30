@@ -736,14 +736,16 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleParametricBinding(const ParametricBinding* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    Expr* new_expr = nullptr;
-    if (n->expr() != nullptr) {
-      new_expr = absl::down_cast<Expr*>(old_to_new_.at(n->expr()));
+    std::optional<ExprOrType> new_default_expr_or_type;
+    if (n->default_expr_or_type().has_value()) {
+      AstNode* old_node = ToAstNode(*n->default_expr_or_type());
+      AstNode* new_node = old_to_new_.at(old_node);
+      new_default_expr_or_type = ToExprOrType(new_node);
     }
     old_to_new_[n] = module(n)->Make<ParametricBinding>(
         absl::down_cast<NameDef*>(old_to_new_.at(n->name_def())),
         absl::down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
-        new_expr);
+        new_default_expr_or_type);
     return absl::OkStatus();
   }
 

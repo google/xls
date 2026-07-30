@@ -381,13 +381,16 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(AstNode * cloned_ta,
                          CloneAst(parent_binding->type_annotation()));
 
-    AstNode* cloned_expr = nullptr;
-    if (parent_binding->expr() != nullptr) {
-      XLS_ASSIGN_OR_RETURN(cloned_expr, CloneAst(parent_binding->expr()));
+    std::optional<ExprOrType> cloned_default_expr_or_type;
+    if (parent_binding->default_expr_or_type().has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          AstNode * cloned_node,
+          CloneAst(ToAstNode(*parent_binding->default_expr_or_type())));
+      cloned_default_expr_or_type = ToExprOrType(cloned_node);
     }
     ParametricBinding* lambda_struct_binding = module->Make<ParametricBinding>(
         lambda_struct_nd, absl::down_cast<TypeAnnotation*>(cloned_ta),
-        absl::down_cast<Expr*>(cloned_expr));
+        cloned_default_expr_or_type);
     struct_parametric_bindings.push_back(lambda_struct_binding);
     NameRef* struct_type_parametric_nr =
         module->Make<NameRef>(parent_binding->span(),
@@ -429,7 +432,7 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
         /*definer=*/nullptr);
     ParametricBinding* lambda_struct_binding = module->Make<ParametricBinding>(
         lambda_struct_nd, module->Make<GenericTypeAnnotation>(Span::None()),
-        /*expr=*/nullptr);
+        /*default_expr_or_type=*/std::nullopt);
     struct_parametric_bindings.push_back(lambda_struct_binding);
     NameRef* struct_type_parametric_nr = module->Make<NameRef>(
         original_nd->span(), lambda_struct_nd->identifier(), lambda_struct_nd);
@@ -483,7 +486,7 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
                               generic_name_def->identifier(), generic_name_def);
     struct_type_parametrics.push_back(generic_name_ref);
     struct_parametric_bindings.push_back(module->Make<ParametricBinding>(
-        generic_name_def, gta, /*expr=*/nullptr));
+        generic_name_def, gta, /*default_expr_or_type=*/std::nullopt));
 
     NameDef* struct_member_nd = module->Make<NameDef>(
         original_name_def->span(), original_name_def->identifier(),

@@ -88,6 +88,13 @@ bool VariableHasAnyExplicitTypeAnnotations(
     std::optional<const ParametricContext*> parametric_context,
     const NameRef* type_variable);
 
+// Returns the type annotation explicitly written in the DSLX source for the
+// type variable associated with the given `node`, if any.
+absl::StatusOr<std::optional<const TypeAnnotation*>> GetExplicitTypeAnnotation(
+    const InferenceTable& table,
+    std::optional<const ParametricContext*> parametric_context,
+    const AstNode* node);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_UTILS_H_

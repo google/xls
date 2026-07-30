@@ -363,11 +363,13 @@ class InferenceTableImpl : public InferenceTable {
                                                     binding->type_annotation(),
                                                     std::get<Expr*>(value)));
         }
-      } else if (binding->expr() != nullptr) {
+      } else if (binding->default_expr_or_type().has_value() &&
+                 std::holds_alternative<Expr*>(
+                     *binding->default_expr_or_type())) {
         mutable_data.parametric_values.emplace(
-            variable,
-            ParametricContextScopedExpr(
-                context.get(), binding->type_annotation(), binding->expr()));
+            variable, ParametricContextScopedExpr(
+                          context.get(), binding->type_annotation(),
+                          std::get<Expr*>(*binding->default_expr_or_type())));
       }
     }
     ParametricContext* result = context.get();
