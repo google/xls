@@ -350,8 +350,8 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
                            output_consumer_(s, fb_, {token, data}, activation_,
                                             prev_action, active));
     }
-    send_state_[send_channel_ref] = std::move(action);
     node_active_[s] = fb_.And(action.completes, active);
+    send_state_[send_channel_ref] = std::move(action);
     return absl::OkStatus();
   }
 
@@ -388,10 +388,10 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     if (!r->is_blocking()) {
       result_values.push_back(action.executed);
     }
+    node_active_[r] = fb_.And({active, action.completes});
     recv_state_[recv_channel_ref] = std::move(action);
     VLOG(2) << "got " << r << " -> " << recv_state_[recv_channel_ref].data;
     values_[r] = fb_.Tuple(std::move(result_values));
-    node_active_[r] = fb_.And({active, action.completes});
 
     return absl::OkStatus();
   }
