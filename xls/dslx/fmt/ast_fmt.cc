@@ -127,6 +127,13 @@ std::optional<DocRef> Formatter::FormatCommentsBetween(
   return ConcatN(arena_, pieces);
 }
 
+bool Formatter::FirstCommentTrails(const Pos& from, const Pos& to) {
+  std::vector<const CommentData*> comments =
+      comments_.GetComments(Span(from, to));
+  return !comments.empty() &&
+         comments.front()->span.start().lineno() == from.lineno();
+}
+
 // If there is a '.' modifier in the attribute given by s (e.g. if it's of the
 // form "ProcName.config") strips off the trailing modifier and returns the
 // stem.
@@ -588,13 +595,101 @@ DocRef Formatter::FormatBreakBody(const Array& n) {
   return ConcatNGroup(arena_, rest);
 }
 
-DocRef Formatter::FormatArray(const Array& n) {
+DocRef Formatter::FormatArrayWithoutComments(const Array& n) {
   DocRef on_break_body = FormatBreakBody(n);
   DocRef on_flat_body = FormatFlatBody(n);
 
   DocRef body = arena_.MakeGroup(arena_.MakeFlatChoice(
       /*on_flat=*/on_flat_body, /*on_break=*/on_break_body));
   return arena_.MakeConcat(FormatMakeArrayLeader(n), body);
+}
+
+DocRef Formatter::FormatArray(const Array& n) {
+  Span array_span = n.span();
+
+  // Detect if there are any comments in the span of the array.
+  bool any_comments = comments_.HasComments(array_span);
+
+  if (!any_comments) {
+    // Do it the old way.
+    return FormatArrayWithoutComments(n);
+  }
+
+  absl::Span<Expr* const> items = n.members();
+  std::vector<DocRef> body_pieces;
+  std::vector<DocRef> current_run;
+  Pos last_array_element_span_limit = array_span.start();
+
+  auto flush_run = [&]() {
+    if (current_run.empty()) {
+      return;
+    }
+    body_pieces.push_back(FormatJoin(
+        current_run, Joiner::kCommaBreak1AsGroupTrailingCommaAlways));
+    current_run.clear();
+  };
+
+  // Split into multiple runs of continuous elements between comments.
+  // Each run is formatted using FormatJoin to clump elements.
+  for (const auto* item : items) {
+    const Span& span = item->span();
+
+    // If there are comments between the previous member and this one,
+    // they end the current run.
+    if (std::optional<DocRef> comments = FormatCommentsBetween(
+            last_array_element_span_limit, span.start(), nullptr)) {
+      flush_run();
+
+      if (!body_pieces.empty()) {
+        // If comments started on the same line as the previous element,
+        // add a space. Otherwise add a hard line.
+        const bool same_line =
+            FirstCommentTrails(last_array_element_span_limit, span.start());
+        body_pieces.push_back(same_line ? arena_.space() : arena_.hard_line());
+      }
+
+      // Append comment value
+      body_pieces.push_back(comments.value());
+      // Comments should always be followed by a hard line.
+      body_pieces.push_back(arena_.hard_line());
+    }
+
+    current_run.push_back(Format(item));
+    last_array_element_span_limit = span.limit();
+  }
+  flush_run();
+
+  // Handle ellipsis
+  // TODO: we currently don't have a way of checking whether the
+  // ellipsis comes before or after the final, trailing comment.
+  // Would be good functionality to add in.
+  if (n.has_ellipsis()) {
+    body_pieces.push_back(
+        ConcatNGroup(arena_, {arena_.break1(), arena_.MakeText("...")}));
+  }
+
+  // Comments between the last member and the end of the array.
+  if (std::optional<DocRef> terminal_comment = FormatCommentsBetween(
+          last_array_element_span_limit, array_span.limit(), nullptr)) {
+    if (body_pieces.empty()) {
+      // Edge case: empty array with comments
+      body_pieces.push_back(terminal_comment.value());
+    } else {
+      const bool same_line =
+          FirstCommentTrails(last_array_element_span_limit, array_span.limit());
+      body_pieces.push_back(same_line ? arena_.space() : arena_.hard_line());
+      body_pieces.push_back(terminal_comment.value());
+    }
+  }
+
+  DocRef guts = ConcatN(arena_, body_pieces);
+  return ConcatN(arena_, {
+                             FormatMakeArrayLeader(n),
+                             arena_.hard_line(),
+                             arena_.MakeNest(guts),
+                             arena_.hard_line(),
+                             arena_.cbracket(),
+                         });
 }
 
 DocRef Formatter::FormatAttr(const Attr& n) {

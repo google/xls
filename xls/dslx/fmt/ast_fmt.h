@@ -102,6 +102,10 @@ class Formatter {
       std::optional<Pos> start, const Pos& limit,
       std::optional<Span>* last_comment_span = nullptr);
 
+  // Returns true if the first comment in the span [from, to) begins on the same
+  // source line as `from`
+  bool FirstCommentTrails(const Pos& from, const Pos& to);
+
   template <typename T>
   DocRef FormatImplOrTrait(const T& n, Keyword keyword,
                            DocRef name_or_struct_ref);
@@ -110,6 +114,7 @@ class Formatter {
   virtual DocRef FormatAllOnesMacro(const AllOnesMacro& n);
   virtual DocRef FormatArray(const Array& n);
   virtual DocRef FormatArrayTypeAnnotation(const ArrayTypeAnnotation& n);
+  virtual DocRef FormatArrayWithoutComments(const Array& n);
   virtual DocRef FormatAttr(const Attr& n);
   virtual DocRef FormatAttribute(const Attribute& n);
   virtual DocRef FormatBinop(const Binop& n);
