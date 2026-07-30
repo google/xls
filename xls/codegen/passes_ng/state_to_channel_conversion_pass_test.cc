@@ -321,12 +321,40 @@ class CounterProcWithMaxHelper : public CounterProcHelper {
     return pb.Build();
   }
 
- private:
   static constexpr std::string_view kEnableStateElementName = "enable";
-
   uint32_t max_;
+
+ private:
   Channel* enable_state_channel_;
   ChannelInstance* enable_state_channel_instance_ = nullptr;
+};
+
+// A variation on `CounterProcWithMaxHelper` that uses decoupled state element
+// declaration (`UnreadStateElement`).
+class DecoupledCounterProcHelper : public CounterProcWithMaxHelper {
+ public:
+  using CounterProcWithMaxHelper::CounterProcWithMaxHelper;
+
+ protected:
+  absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb, Channel* out_channel,
+                                  uint32_t start_value,
+                                  uint32_t delta_each_round) override {
+    BStateElement enable =
+        pb.UnreadStateElement(kEnableStateElementName, Value(UBits(1, 1)),
+                              /*non_synthesizable=*/false);
+    BStateElement counter = pb.UnreadStateElement(kCounterStateElementName,
+                                                  Value(UBits(start_value, 32)),
+                                                  /*non_synthesizable=*/false);
+    BValue enable_read = pb.StateRead(enable);
+    BValue counter_read = pb.StateRead(counter, enable_read);
+    pb.SendIf(out_channel, pb.Literal(Value::Token()), enable_read,
+              counter_read);
+    pb.Next(counter,
+            pb.Add(counter_read, pb.Literal(UBits(delta_each_round, 32))),
+            enable_read);
+    pb.Next(enable, pb.ULt(counter_read, pb.Literal(UBits(max_, 32))));
+    return pb.Build();
+  }
 };
 
 TEST_P(StateChannelConversionTest, CounterProc) {
@@ -376,6 +404,65 @@ TEST_P(StateChannelConversionTest, CounterProcWithStatePredicates) {
   constexpr uint32_t kMax = 130;
 
   CounterProcWithMaxHelper helper(package_.get(), GetParam(), "iota");
+  XLS_ASSERT_OK(helper.Init(kStartValue, kDeltaEachRound, kMax));
+
+  // First round...
+  helper.NextRound();
+
+  EXPECT_EQ(helper.count_state_channel_queue().GetSize(), 1);
+  EXPECT_EQ(helper.enable_state_channel_queue().GetSize(), 1);
+
+  // output has one result.
+  EXPECT_EQ(helper.out_queue().GetSize(), 1);
+
+  // ... with the expected value.
+  EXPECT_THAT(helper.out_queue().Read(),
+              Optional(Value(UBits(kStartValue, 32))));
+  EXPECT_TRUE(helper.out_queue().IsEmpty());  // consumed it.
+
+  // Second round...
+  helper.NextRound();
+
+  EXPECT_EQ(helper.count_state_channel_queue().GetSize(), 1);
+  EXPECT_EQ(helper.enable_state_channel_queue().GetSize(), 1);
+
+  // output has one result.
+  EXPECT_EQ(helper.out_queue().GetSize(), 1);
+
+  // ... with the expected value.
+  EXPECT_THAT(helper.out_queue().Read(), Optional(Value(UBits(kMax, 32))));
+  EXPECT_TRUE(helper.out_queue().IsEmpty());  // consumed it.
+
+  // A round after hitting max. Now the predicates for reading and writing the
+  // counter should be false.
+
+  // Updated enable flag (this is unconditional).
+  EXPECT_THAT(helper.Tick(),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = helper.enable_state_channel_instance(),
+                  .progress_made = true}));
+
+  // Done this round.
+  EXPECT_THAT(
+      helper.Tick(),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+
+  // It should not have read the count value that was already in the queue.
+  EXPECT_EQ(helper.count_state_channel_queue().GetSize(), 1);
+
+  EXPECT_EQ(helper.enable_state_channel_queue().GetSize(), 1);
+  EXPECT_EQ(helper.out_queue().GetSize(), 0);
+}
+
+TEST_P(StateChannelConversionTest, DecoupledCounterProc) {
+  constexpr uint32_t kStartValue = 123;
+  constexpr uint32_t kDeltaEachRound = 7;
+  constexpr uint32_t kMax = 130;
+
+  DecoupledCounterProcHelper helper(package_.get(), GetParam(), "iota");
   XLS_ASSERT_OK(helper.Init(kStartValue, kDeltaEachRound, kMax));
 
   // First round...
