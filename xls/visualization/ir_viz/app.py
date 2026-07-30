@@ -26,6 +26,7 @@ from typing import List, Tuple
 
 from absl import app
 from absl import flags
+from absl import logging
 import flask
 import werkzeug.exceptions
 import werkzeug.security
@@ -161,6 +162,7 @@ def optimize_ir(ir: str, opt_level: str) -> str:
         stdin=None,
         stderr=subprocess.PIPE,
         encoding='utf-8',
+        errors='replace',
     )
   elif opt_level == 'inline-only':
     # Run:
@@ -181,6 +183,7 @@ def optimize_ir(ir: str, opt_level: str) -> str:
         stdin=None,
         stderr=subprocess.PIPE,
         encoding='utf-8',
+        errors='replace',
     )
   else:
     raise ValueError(f'Invalid opt_level: {opt_level}')
@@ -279,9 +282,16 @@ def graph_handler():
           stdin=None,
           stderr=subprocess.PIPE,
           encoding='utf-8',
+          errors='replace',
+      )
+    except subprocess.CalledProcessError as e:
+      logging.error('Error: %s', e.stderr)
+      return flask.jsonify(
+          {'error_code': 'error', 'message': e.stderr or str(e)}
       )
     except Exception as e:  # pylint: disable=broad-except
       # TODO(meheff): Switch to more-specific exception.
+      logging.error('Error: %s', e)
       return flask.jsonify({'error_code': 'error', 'message': str(e)})
 
   graph = json.loads(json_text)
@@ -313,12 +323,17 @@ def run_passes_handler():
           stdin=None,
           stderr=subprocess.PIPE,
           encoding='utf-8',
+          errors='replace',
       )
       tmp_out.seek(0)
       new_ir = tmp_out.read()
     except subprocess.CalledProcessError as e:
-      return flask.jsonify({'error_code': 'error', 'message': e.stderr})
+      logging.error('Error: %s', e.stderr)
+      return flask.jsonify(
+          {'error_code': 'error', 'message': e.stderr or str(e)}
+      )
     except Exception as e:  # pylint: disable=broad-except
+      logging.error('Error: %s', e)
       return flask.jsonify({'error_code': 'error', 'message': str(e)})
 
   return flask.jsonify({'error_code': 'ok', 'ir': new_ir})

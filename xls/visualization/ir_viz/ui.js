@@ -18,6 +18,7 @@ goog.module('xls.ui');
 
 const irVisualization = goog.require('xls.irVisualization');
 
+
 let selectedOptLevel;
 let selectedExample;
 let visualizer;
@@ -182,31 +183,32 @@ document.addEventListener('DOMContentLoaded', function() {
         visualizer.selectCriticalPath();
       });
 
-  let runPassesBtn = document.getElementById('run-passes-btn');
+  const runPassesBtn = document.getElementById('run-passes-btn');
   if (runPassesBtn) {
     runPassesBtn.addEventListener('click', e => {
-      let passes = document.getElementById('passes-input').value;
-      let text = document.getElementById('ir-source-text').textContent;
+      const passes = document.getElementById('passes-input').value;
+      const text =
+          irVisualization.getIrText(document.getElementById('ir-source-text'));
       runPassesBtn.disabled = true;
 
-      let xmr = new XMLHttpRequest();
+      const xmr = new XMLHttpRequest();
       xmr.open('POST', '/run_passes');
       xmr.addEventListener('load', function() {
         runPassesBtn.disabled = false;
         if (xmr.status >= 200 && xmr.status < 400) {
-          let response = JSON.parse(xmr.responseText);
+          const response = JSON.parse(xmr.responseText);
           if (response.error_code == 'ok') {
             document.getElementById('ir-source-text').textContent = response.ir;
             inputChangeHandler();
           } else {
-            let src_status = document.getElementById('source-status');
+            const src_status = document.getElementById('source-status');
             src_status.classList.remove('alert-dark', 'alert-success');
             src_status.classList.add('alert-danger');
             src_status.textContent = response.message;
           }
         }
       });
-      let data = new FormData();
+      const data = new FormData();
       data.append('text', text);
       data.append('passes', passes);
       xmr.send(data);
@@ -221,7 +223,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // If --preload_ir_path was passed in to the server, the ir-source-text
   // element will be filled in with IR text. Trigger the inputChangedHandler
   // to parse it, select the critical path and show the graph.
-  if (document.getElementById('ir-source-text').textContent.trim() != '') {
+  if (irVisualization.getIrText(document.getElementById('ir-source-text'))
+          .trim() != '') {
     inputChangeHandler(() => {
       visualizer.selectCriticalPath();
       visualizer.draw(showOnlySelectedState());

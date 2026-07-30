@@ -210,5 +210,35 @@ top proc the_proc(x: bits[32], y: bits[64], init={0, 42}) {
   }
 }
 
+TEST_F(IrToProtoTest, HtmlEscaping) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
+package test
+
+chan my_chan(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+
+top proc my_proc(x: bits[32], y: bits[32], init={0, 0}) {
+  tkn: token = literal(value=token)
+  rcv: (token, bits[32]) = receive(tkn, channel=my_chan)
+  lt: bits[1] = ult(x, y)
+  gt: bits[1] = ugt(x, y)
+  tr: token = trace(tkn, lt, format="x < y", data_operands=[])
+  next (x, y)
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(viz::Package proto,
+                           IrToProto(p.get(), *delay_estimator,
+                                     /*schedule=*/nullptr,
+                                     /*entry_name=*/"my_proc"));
+
+  EXPECT_THAT(proto.ir_html(),
+              testing::HasSubstr("format=&quot;x &lt; y&quot;"));
+  EXPECT_THAT(proto.ir_html(),
+              testing::Not(testing::HasSubstr("&<span>lt</span>;")));
+  EXPECT_THAT(proto.ir_html(),
+              testing::Not(testing::HasSubstr("&<span>gt</span>;")));
+}
+
 }  // namespace
 }  // namespace xls

@@ -14,6 +14,7 @@
 
 #include "xls/visualization/ir_viz/ir_to_proto.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -21,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -29,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "re2/re2.h"
@@ -59,6 +62,16 @@
 
 namespace xls {
 namespace {
+
+std::string HtmlEscape(std::string_view text) {
+  return absl::StrReplaceAll(text, {
+                                       {"&", "&amp;"},
+                                       {"<", "&lt;"},
+                                       {">", "&gt;"},
+                                       {"\"", "&quot;"},
+                                       {"'", "&#39;"},
+                                   });
+}
 
 // Returns a globally unique identifier for the node.
 std::string GetNodeUniqueId(
@@ -303,16 +316,19 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
   return std::move(proto);
 }
 
-// Wraps the given text in a span with the given id, classes, and data. The
-// string `str` is modified in place.
-absl::Status WrapTextInSpan(
-    std::string_view text, std::optional<std::string> dom_id,
+struct SpanInterval {
+  size_t start;
+  size_t end;
+  std::string open_tag;
+};
+
+std::string MakeOpenSpan(
+    std::optional<std::string_view> dom_id,
     absl::Span<const std::string> classes,
-    absl::Span<const std::pair<std::string, std::string>> data,
-    std::string* str) {
+    absl::Span<const std::pair<std::string, std::string>> data) {
   std::string open_span = "<span";
   if (dom_id.has_value()) {
-    absl::StrAppendFormat(&open_span, " id=\"%s\"", dom_id.value());
+    absl::StrAppendFormat(&open_span, " id=\"%s\"", *dom_id);
   }
   if (!classes.empty()) {
     absl::StrAppendFormat(&open_span, " class=\"%s\"",
@@ -322,60 +338,101 @@ absl::Status WrapTextInSpan(
     absl::StrAppendFormat(&open_span, " data-%s=\"%s\"", key, value);
   }
   open_span.append(">");
-  XLS_RET_CHECK(RE2::Replace(str, absl::StrCat("\\b", text, "\\b"),
-                             absl::StrFormat("%s%s</span>", open_span, text)));
-  return absl::OkStatus();
+  return open_span;
 }
 
-// Wraps the definition of the given node in `str` with an appropriate span.
-absl::Status WrapNodeDefInSpan(
-    Node* node,
+absl::Status AddSpanInterval(std::string_view raw_line, std::string_view text,
+                             std::string_view open_tag, size_t start_search_pos,
+                             std::vector<SpanInterval>& intervals,
+                             size_t* next_search_pos = nullptr) {
+  RE2 re(absl::StrCat("\\b", RE2::QuoteMeta(text), "\\b"));
+  std::string_view match;
+  if (start_search_pos < raw_line.size() &&
+      re.Match(raw_line, start_search_pos, raw_line.size(), RE2::UNANCHORED,
+               &match, 1)) {
+    size_t start = match.data() - raw_line.data();
+    size_t end = start + match.size();
+    intervals.push_back(SpanInterval{start, end, std::string(open_tag)});
+    if (next_search_pos != nullptr) {
+      *next_search_pos = end;
+    }
+    return absl::OkStatus();
+  }
+  return absl::InternalError(absl::StrFormat(
+      "Could not find identifier '%s' in line '%s'", text, raw_line));
+}
+
+absl::Status AddNodeDefSpan(
+    std::string_view raw_line, Node* node,
     const absl::flat_hash_map<FunctionBase*, std::string>& function_ids,
-    std::string* str) {
+    size_t start_search_pos, std::vector<SpanInterval>& intervals,
+    size_t* next_search_pos = nullptr) {
   std::string node_id = GetNodeUniqueId(node, function_ids);
   std::vector<std::string> classes = {
       "ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", node_id)};
   std::vector<std::pair<std::string, std::string>> data = {
       {"node-id", node_id},
       {"function-id", function_ids.at(node->function_base())}};
-  XLS_RETURN_IF_ERROR(WrapTextInSpan(node->GetName(),
-                                     /*dom_id=*/
-                                     absl::StrFormat("ir-node-def-%s", node_id),
-                                     classes, data, str));
-  return absl::OkStatus();
+  std::string open_tag =
+      MakeOpenSpan(absl::StrFormat("ir-node-def-%s", node_id), classes, data);
+  return AddSpanInterval(raw_line, node->GetName(), open_tag, start_search_pos,
+                         intervals, next_search_pos);
 }
 
-// Wraps the use of the given node in `str` with an appropriate span.
-absl::Status WrapNodeUseInSpan(
-    Node* def, Node* use,
+absl::Status AddNodeUseSpan(
+    std::string_view raw_line, Node* def, Node* use,
     const absl::flat_hash_map<FunctionBase*, std::string>& function_ids,
-    std::string* str) {
+    size_t start_search_pos, std::vector<SpanInterval>& intervals,
+    size_t* next_search_pos = nullptr) {
   std::string def_id = GetNodeUniqueId(def, function_ids);
   std::string use_id = GetNodeUniqueId(use, function_ids);
-  XLS_RETURN_IF_ERROR(WrapTextInSpan(
-      def->GetName(),
-      /*dom_id=*/std::nullopt,
-      /*classes=*/
-      {"ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", def_id),
-       absl::StrFormat("ir-edge-%s-%s", def_id, use_id)},
-      /*data=*/
-      {{"node-id", def_id},
-       {"function-id", function_ids.at(def->function_base())}},
-      str));
-  return absl::OkStatus();
+  std::vector<std::string> classes = {
+      "ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", def_id),
+      absl::StrFormat("ir-edge-%s-%s", def_id, use_id)};
+  std::vector<std::pair<std::string, std::string>> data = {
+      {"node-id", def_id},
+      {"function-id", function_ids.at(def->function_base())}};
+  std::string open_tag = MakeOpenSpan(std::nullopt, classes, data);
+  return AddSpanInterval(raw_line, def->GetName(), open_tag, start_search_pos,
+                         intervals, next_search_pos);
 }
 
-// Wraps the name of the given function in `str` with an appropriate function
-// identifier span.
-absl::Status WrapFunctionNameInSpan(std::string_view function_name,
-                                    std::string_view function_id,
-                                    std::optional<std::string> dom_id,
-                                    std::string* str) {
-  return WrapTextInSpan(function_name,
-                        /*dom_id=*/std::move(dom_id),
-                        /*classes=*/{"ir-function-identifier"},
-                        /*data=*/{{"identifier", std::string{function_id}}},
-                        str);
+absl::Status AddFunctionNameSpan(std::string_view raw_line,
+                                 std::string_view function_name,
+                                 std::string_view function_id,
+                                 std::optional<std::string> dom_id,
+                                 size_t start_search_pos,
+                                 std::vector<SpanInterval>& intervals,
+                                 size_t* next_search_pos = nullptr) {
+  std::string open_tag =
+      MakeOpenSpan(dom_id, /*classes=*/{"ir-function-identifier"},
+                   /*data=*/{{"identifier", std::string{function_id}}});
+  return AddSpanInterval(raw_line, function_name, open_tag, start_search_pos,
+                         intervals, next_search_pos);
+}
+
+std::string BuildLineWithSpans(std::string_view raw_line,
+                               std::vector<SpanInterval>& intervals) {
+  absl::c_sort(intervals, [](const SpanInterval& a, const SpanInterval& b) {
+    return a.start < b.start;
+  });
+  std::string result;
+  size_t prev_pos = 0;
+  for (const auto& interval : intervals) {
+    if (interval.start < prev_pos) {
+      continue;
+    }
+    absl::StrAppend(
+        &result,
+        HtmlEscape(raw_line.substr(prev_pos, interval.start - prev_pos)),
+        interval.open_tag,
+        HtmlEscape(
+            raw_line.substr(interval.start, interval.end - interval.start)),
+        "</span>");
+    prev_pos = interval.end;
+  }
+  absl::StrAppend(&result, HtmlEscape(raw_line.substr(prev_pos)));
+  return result;
 }
 
 absl::StatusOr<std::string> MarkUpIrText(Package* package) {
@@ -384,8 +441,9 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
 
   std::vector<std::string> lines;
   FunctionBase* current_function = nullptr;
-  for (std::string_view line_view : absl::StrSplit(package->DumpIr(), '\n')) {
-    std::string line{line_view};
+  std::string ir = package->DumpIr();
+  for (std::string_view raw_line : absl::StrSplit(ir, '\n')) {
+    std::vector<SpanInterval> intervals;
 
     // Match function/proc/block signature. Put spans around function name and
     // parameter names.
@@ -399,9 +457,8 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
     std::string is_top;
     std::string kind;
     std::string function_name;
-    if (RE2::PartialMatch(line, R"(^\s*(top|)\s*(fn|proc|block)\s+(\w+))",
+    if (RE2::PartialMatch(raw_line, R"(^\s*(top|)\s*(fn|proc|block)\s+(\w+))",
                           &is_top, &kind, &function_name)) {
-      std::vector<Node*> args;
       if (kind == "fn") {
         XLS_ASSIGN_OR_RETURN(current_function,
                              package->GetFunction(function_name));
@@ -412,19 +469,23 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
         XLS_ASSIGN_OR_RETURN(current_function,
                              package->GetBlock(function_name));
       }
-      XLS_RETURN_IF_ERROR(WrapFunctionNameInSpan(
-          current_function->name(), function_ids.at(current_function),
+      size_t search_pos = 0;
+      XLS_RETURN_IF_ERROR(AddFunctionNameSpan(
+          raw_line, current_function->name(), function_ids.at(current_function),
           /*dom_id=*/
           absl::StrFormat("ir-function-def-%s",
                           function_ids.at(current_function)),
-          &line));
+          search_pos, intervals, &search_pos));
 
       // Wrap the parameters in spans.
       for (Param* node : current_function->params()) {
-        XLS_RETURN_IF_ERROR(WrapNodeDefInSpan(node, function_ids, &line));
+        XLS_RETURN_IF_ERROR(AddNodeDefSpan(raw_line, node, function_ids,
+                                           search_pos, intervals, &search_pos));
       }
 
-      // Prefix the line with a opening span which spans the entire function.
+      std::string line = BuildLineWithSpans(raw_line, intervals);
+
+      // Prefix the line with an opening span which spans the entire function.
       lines.push_back(absl::StrFormat(
           "<span id=\"ir-function-%s\" class=\"ir-function\">%s",
           function_ids.at(current_function), line));
@@ -443,41 +504,44 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
     //   <span>return_this_later</span>: bits[32] = op(...)
     //   ret <span>foo</span>: bits[32] = op(<span>a</span>, ...)
     std::string node_name;
-    if (RE2::PartialMatch(line, R"(^\s*(?:ret )?\s*([_a-zA-Z0-9.]+)\s*:)",
+    if (RE2::PartialMatch(raw_line, R"(^\s*(?:ret )?\s*([_a-zA-Z0-9.]+)\s*:)",
                           &node_name)) {
       XLS_ASSIGN_OR_RETURN(Node * node, current_function->GetNode(node_name),
-                           _ << "in line '" << line << "'");
-      XLS_RETURN_IF_ERROR(WrapNodeDefInSpan(node, function_ids, &line));
+                           _ << "in line '" << raw_line << "'");
+      size_t search_pos = 0;
+      XLS_RETURN_IF_ERROR(AddNodeDefSpan(raw_line, node, function_ids,
+                                         search_pos, intervals, &search_pos));
 
       // Wrap the operands in spans.
       for (Node* operand : node->operands()) {
-        XLS_RETURN_IF_ERROR(
-            WrapNodeUseInSpan(operand, node, function_ids, &line));
+        XLS_RETURN_IF_ERROR(AddNodeUseSpan(raw_line, operand, node,
+                                           function_ids, search_pos, intervals,
+                                           &search_pos));
       }
 
       // If the node calls another function then wrap the function identifier.
       std::string callee_name;
-      if (RE2::PartialMatch(line, R"(^.*to_apply=([_a-zA-Z0-9.]+))",
+      if (RE2::PartialMatch(raw_line, R"(^.*to_apply=([_a-zA-Z0-9.]+))",
                             &callee_name)) {
         XLS_ASSIGN_OR_RETURN(Function * callee,
                              package->GetFunction(callee_name));
-        XLS_RETURN_IF_ERROR(
-            WrapFunctionNameInSpan(callee_name, function_ids.at(callee),
-                                   /*dom_id=*/std::nullopt, &line));
+        XLS_RETURN_IF_ERROR(AddFunctionNameSpan(
+            raw_line, callee_name, function_ids.at(callee),
+            /*dom_id=*/std::nullopt, search_pos, intervals));
       }
 
-      lines.push_back(std::string{line});
+      lines.push_back(BuildLineWithSpans(raw_line, intervals));
       continue;
     }
 
     // Add a </span> after a closing '}' for the entire function/proc/block
     // span.
-    if (RE2::PartialMatch(line, R"(^\s*}\s*$)")) {
-      lines.push_back(absl::StrFormat("%s</span>", line));
+    if (RE2::PartialMatch(raw_line, R"(^\s*}\s*$)")) {
+      lines.push_back(absl::StrFormat("%s</span>", HtmlEscape(raw_line)));
       continue;
     }
 
-    lines.push_back(std::string{line});
+    lines.push_back(HtmlEscape(raw_line));
   }
   return absl::StrJoin(lines, "\n");
 }

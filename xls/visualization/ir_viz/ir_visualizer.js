@@ -20,6 +20,50 @@ const graphView = goog.require('xls.graphView');
 const irGraph = goog.require('xls.irGraph');
 const selectableGraph = goog.require('xls.selectableGraph');
 
+
+/**
+ * Returns the IR text extracted from the given DOM element, converting <br>
+ * tags and block elements (e.g. <div>, <p>) to newline characters instead of
+ * stripping them as Node.textContent does.
+ * @param {?(!Element|!DocumentFragment)} element
+ * @return {string}
+ */
+function getIrText(element) {
+  if (!element) {
+    return '';
+  }
+  if (element.nodeType === Node.TEXT_NODE) {
+    return element.nodeValue || '';
+  }
+  const extractText = (node) => {
+    let text = '';
+    for (const child of node.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        text += child.nodeValue;
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const tagName = child.tagName.toUpperCase();
+        if (tagName === 'BR') {
+          text += '\n';
+        } else {
+          const isBlock =
+              (tagName === 'DIV' || tagName === 'P' || tagName === 'TR' ||
+               tagName === 'LI' || tagName === 'PRE' ||
+               tagName === 'BLOCKQUOTE');
+          if (isBlock && text.length > 0 && !text.endsWith('\n')) {
+            text += '\n';
+          }
+          text += extractText(child);
+          if (isBlock && !text.endsWith('\n')) {
+            text += '\n';
+          }
+        }
+      }
+    }
+    return text;
+  };
+  return extractText(element);
+}
+
 /**
  * Returns the offset of the selection (cursor) within a text element.
  * TODO(meheff): Move this into a separate file and share with hls/xls/ui tool.
@@ -27,32 +71,18 @@ const selectableGraph = goog.require('xls.selectableGraph');
  * @return {?number}
  */
 function getOffsetWithin(node) {
-  let sumPrevSiblings = (node) => {
-    let total = 0;
-    for (let sib of node.parentNode.childNodes) {
-      if (sib === node) {
-        break;
-      }
-      total += sib.textContent.length;
-    }
-    return total;
-  };
-
-  let sel = window.getSelection();
-  let offset = sel.focusOffset;
-  let currentNode = sel.focusNode;
-  if (!currentNode) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) {
     return null;
   }
-  while (currentNode !== node) {
-    let prevSiblings = sumPrevSiblings(currentNode);
-    offset += prevSiblings;
-    currentNode = currentNode.parentNode;
-    if (!currentNode || currentNode === document) {
-      return null;
-    }
+  const focusNode = sel.focusNode;
+  if (!focusNode || !node.contains(focusNode)) {
+    return null;
   }
-  return offset;
+  const range = document.createRange();
+  range.setStart(node, 0);
+  range.setEnd(focusNode, sel.focusOffset);
+  return getIrText(range.cloneContents()).length;
 }
 
 /**
@@ -62,27 +92,94 @@ function getOffsetWithin(node) {
  * @param {number} offset The offset within the text element.
  */
 function setPositionAtOffset(node, offset) {
-  let allTextNodesUnder = (node) => {
-    let result = [];
-    for (let child of node.childNodes) {
+  if (offset < 0) {
+    return;
+  }
+  const sel = window.getSelection();
+  if (!sel) {
+    return;
+  }
+
+  let lastNode = null;
+  let lastNodeLength = 0;
+  let textSoFar = '';
+
+  const findAndSet = (currNode) => {
+    for (const child of currNode.childNodes) {
       if (child.nodeType === Node.TEXT_NODE) {
-        result.push(child);
-      } else {
-        result = result.concat(allTextNodesUnder(child));
+        const len = child.nodeValue.length;
+        lastNode = child;
+        lastNodeLength = len;
+        if (offset <= len) {
+          sel.collapse(child, offset);
+          return true;
+        }
+        offset -= len;
+        textSoFar += child.nodeValue;
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const tagName = child.tagName.toUpperCase();
+        if (tagName === 'BR') {
+          if (offset <= 1) {
+            const parent = child.parentNode;
+            const idx = Array.prototype.indexOf.call(parent.childNodes, child);
+            sel.collapse(parent, idx + offset);
+            return true;
+          }
+          offset -= 1;
+          textSoFar += '\n';
+        } else {
+          const isBlock =
+              (tagName === 'DIV' || tagName === 'P' || tagName === 'TR' ||
+               tagName === 'LI' || tagName === 'PRE' ||
+               tagName === 'BLOCKQUOTE');
+          if (isBlock && textSoFar.length > 0 && !textSoFar.endsWith('\n')) {
+            if (offset <= 1) {
+              sel.collapse(child, 0);
+              return true;
+            }
+            offset -= 1;
+            textSoFar += '\n';
+          }
+          if (findAndSet(child)) {
+            return true;
+          }
+          if (isBlock && !textSoFar.endsWith('\n')) {
+            if (offset <= 1) {
+              const parent = child.parentNode;
+              const idx =
+                  Array.prototype.indexOf.call(parent.childNodes, child);
+              sel.collapse(parent, idx + 1);
+              return true;
+            }
+            offset -= 1;
+            textSoFar += '\n';
+          }
+        }
       }
     }
-    return result;
+    return false;
   };
 
-  let textNodes = allTextNodesUnder(node);
-  for (let textNode of textNodes) {
-    if (offset < textNode.textContent.length) {
-      window.getSelection().setPosition(textNode, offset);
-      return;
-    } else {
-      offset -= textNode.textContent.length;
-    }
+  if (!findAndSet(node) && lastNode) {
+    sel.collapse(lastNode, lastNodeLength);
   }
+}
+
+/**
+ * Escapes HTML special characters in the given string.
+ * @param {*} str
+ * @return {string}
+ */
+function escapeHtml(str) {
+  if (str == null) {
+    return '';
+  }
+  return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
 }
 
 /**
@@ -91,9 +188,10 @@ function setPositionAtOffset(node, offset) {
  * @param {!Array<{name: string, kind: string, id: string}>} functions
  */
 function setupFunctionSelector(selectElement, functions) {
-  let options = [];
-  for (let f of functions) {
-    options.push(`<option value="${f.id}">[${f.kind}] ${f.name}</option>`);
+  const options = [];
+  for (const f of functions) {
+    options.push(
+        `<option value="${f.id}">[${f.kind}] ${escapeHtml(f.name)}</option>`);
   }
   setInnerHtml(selectElement, options.join('\n'));
 }
@@ -252,36 +350,36 @@ class IrVisualizer {
       e.classList.add('ir-node-identifier-highlighted');
     });
 
-    let cohighlightedNodeIds = getCohighlightedNodeIds(nodeId);
-    for (let id of cohighlightedNodeIds) {
+    const cohighlightedNodeIds = getCohighlightedNodeIds(nodeId);
+    for (const id of cohighlightedNodeIds) {
       document.querySelectorAll(`.ir-node-def-${id}`).forEach(e => {
         e.classList.add('ir-node-identifier-highlighted');
       });
     }
 
     if (this.irGraph_ && this.nodeMetadataElement_) {
-      let text = '<b>node:</b> ' + this.irGraph_.node(nodeId).ir;
-      let delay = this.irGraph_.node(nodeId).attributes['delay_ps'];
+      let text = '<b>node:</b> ' + escapeHtml(this.irGraph_.node(nodeId).ir);
+      const delay = this.irGraph_.node(nodeId).attributes['delay_ps'];
       if (delay != null) {
         text += '\n<b>delay:</b> ' + delay + 'ps';
       }
-      let known = this.irGraph_.node(nodeId).attributes['known_bits'];
+      const known = this.irGraph_.node(nodeId).attributes['known_bits'];
       if (known) {
-        text += '\n<b>known bits:</b> ' + known;
+        text += '\n<b>known bits:</b> ' + escapeHtml(known);
       }
-      let cycle = this.irGraph_.node(nodeId).attributes['cycle'];
+      const cycle = this.irGraph_.node(nodeId).attributes['cycle'];
       if (cycle != undefined) {
-        text += '\n<b>cycle:</b> ' + cycle;
+        text += '\n<b>cycle:</b> ' + escapeHtml(cycle);
       }
-      let state_param_index =
+      const state_param_index =
           this.irGraph_.node(nodeId).attributes['state_param_index'];
       if (state_param_index !== null) {
-        text += '\n<b>state param index:</b> ' + state_param_index;
+        text += '\n<b>state param index:</b> ' + escapeHtml(state_param_index);
       }
-      let initial_value =
+      const initial_value =
           this.irGraph_.node(nodeId).attributes['initial_value'];
       if (initial_value !== null) {
-        text += '\n<b>initial state value:</b> ' + initial_value;
+        text += '\n<b>initial state value:</b> ' + escapeHtml(initial_value);
       }
       setInnerHtml(this.nodeMetadataElement_, text);
     }
@@ -495,7 +593,7 @@ class IrVisualizer {
    * @private
    */
   highlightIr_(jsonGraph) {
-    let focusOffset = getOffsetWithin(this.irElement_);
+    const focusOffset = getOffsetWithin(this.irElement_);
     setInnerHtml(this.irElement_, this.package_['ir_html']);
     if (focusOffset != null) {
       setPositionAtOffset(this.irElement_, focusOffset);
@@ -512,60 +610,76 @@ class IrVisualizer {
       return;
     }
     this.parseInFlight_ = true;
-    let text = this.irElement_.textContent;
-    let xmr = new XMLHttpRequest();
+    const text = getIrText(this.irElement_);
+    const xmr = new XMLHttpRequest();
     xmr.open('POST', '/graph');
-    let self = this;
-    xmr.addEventListener('load', function() {
-      if (xmr.status < 200 || xmr.status >= 400) {
-        return;
-      }
-
-      // TODO: define a type for the graph object.
-      let response = /** @type {!Object} */ (JSON.parse(xmr.responseText));
+    const self = this;
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
       self.parseInFlight_ = false;
-      if (self.irElement_.textContent != text) {
-        return self.parseAndHighlightIr(cb);
-      }
-
-      self.package_ = null;
-      if (response['error_code'] == 'ok') {
-        if (self.sourceOkCallback_) {
-          self.sourceOkCallback_();
-        }
-        self.package_ = response['graph'];
-
-        // Fill in the names and ids of function in the select element.
-        let functions = [];
-        for (let func of self.package_['function_bases']) {
-          functions.push(
-              {name: func['name'], kind: func['kind'], id: func['id']});
-        }
-        setupFunctionSelector(self.functionSelector_, functions);
-
-        // Select the function entry if entry is specified.
-        if (self.package_['entry_id']) {
-          setFunctionSelector(
-              self.functionSelector_, self.package_['entry_id']);
-          self.selectFunction(self.package_['entry_id']);
-        }
-      } else {
-        self.clearGraph();
-        if (!!self.sourceErrorCallback_) {
-          self.sourceErrorCallback_(response['message']);
-        }
-        self.package_ = null;
-        let focusOffset = getOffsetWithin(self.irElement_);
-        setInnerHtml(self.irElement_, self.irElement_.textContent);
-        if (focusOffset) {
-          setPositionAtOffset(self.irElement_, focusOffset);
-        }
-      }
       if (cb) {
         cb();
       }
+    };
+    xmr.addEventListener('error', cleanup);
+    xmr.addEventListener('abort', cleanup);
+    xmr.addEventListener('load', function() {
+      let reparse = false;
+      try {
+        if (xmr.status < 200 || xmr.status >= 400) {
+          if (self.sourceErrorCallback_) {
+            self.sourceErrorCallback_('Server error (HTTP ' + xmr.status + ')');
+          }
+          return;
+        }
+
+        // TODO: define a type for the graph object.
+        const response = /** @type {!Object} */ (JSON.parse(xmr.responseText));
+        if (getIrText(self.irElement_) != text) {
+          reparse = true;
+          return;
+        }
+
+        self.package_ = null;
+        if (response['error_code'] == 'ok') {
+          if (self.sourceOkCallback_) {
+            self.sourceOkCallback_();
+          }
+          self.package_ = response['graph'];
+
+          // Fill in the names and ids of function in the select element.
+          const functions = [];
+          for (const func of self.package_['function_bases']) {
+            functions.push(
+                {name: func['name'], kind: func['kind'], id: func['id']});
+          }
+          setupFunctionSelector(self.functionSelector_, functions);
+
+          // Select the function entry if entry is specified.
+          if (self.package_['entry_id']) {
+            setFunctionSelector(
+                self.functionSelector_, self.package_['entry_id']);
+            self.selectFunction(self.package_['entry_id']);
+          }
+        } else {
+          self.clearGraph();
+          if (!!self.sourceErrorCallback_) {
+            self.sourceErrorCallback_(response['message']);
+          }
+          self.package_ = null;
+        }
+      } finally {
+        if (reparse) {
+          self.parseInFlight_ = false;
+          self.parseAndHighlightIr(cb);
+        } else {
+          cleanup();
+        }
+      }
     });
-    let data = new FormData();
+    const data = new FormData();
     data.append('text', text);
     xmr.send(data);
   }
@@ -575,11 +689,11 @@ class IrVisualizer {
    * clears the visualization window.
    */
   clearGraph() {
-    self.irGraph_ = null;
-    self.graph_ = null;
-    if (self.graphView_) {
-      self.graphView_.destroy();
-      self.graphView_ = null;
+    this.irGraph_ = null;
+    this.graph_ = null;
+    if (this.graphView_) {
+      this.graphView_.destroy();
+      this.graphView_ = null;
     }
   }
 
@@ -631,4 +745,7 @@ class IrVisualizer {
   }
 }
 
-exports = {IrVisualizer};
+exports = {
+  IrVisualizer,
+  getIrText,
+};
