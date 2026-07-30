@@ -475,5 +475,66 @@ TEST_F(UnionQueryEngineTest, OfGeneric) {
       << uqe.GetTernary(res.node())->ToString();
 }
 
+TEST_F(UnionQueryEngineTest, GetTernaryContradiction) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("param", fb.package()->GetBitsType(8));
+  XLS_ASSERT_OK(fb.Build());
+  Node* node = param.node();
+
+  FakeQueryEngine query_engine_a;
+  query_engine_a.AddKnownBit(TreeBitLocation(node, 0), false);
+  FakeQueryEngine query_engine_b;
+  query_engine_b.AddKnownBit(TreeBitLocation(node, 0), true);
+
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_a));
+  engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_b));
+  UnionQueryEngine union_query_engine(std::move(engines));
+
+  EXPECT_EQ(union_query_engine.GetTernary(node), std::nullopt);
+}
+
+// A fake query engine that always returns the same ternary for
+// ImpliedNodeTernary.
+class ImpliedTernaryFakeQueryEngine : public FakeQueryEngine {
+ public:
+  explicit ImpliedTernaryFakeQueryEngine(
+      std::optional<TernaryVector> implied_ternary)
+      : implied_ternary_(std::move(implied_ternary)) {}
+
+  std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return implied_ternary_;
+  }
+
+ private:
+  std::optional<TernaryVector> implied_ternary_;
+};
+
+TEST_F(UnionQueryEngineTest, ImpliedNodeTernaryContradiction) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("param", fb.package()->GetBitsType(8));
+  XLS_ASSERT_OK(fb.Build());
+  Node* node = param.node();
+
+  TernaryVector ternary_a(8, TernaryValue::kUnknown);
+  ternary_a[0] = TernaryValue::kKnownZero;
+  TernaryVector ternary_b(8, TernaryValue::kUnknown);
+  ternary_b[0] = TernaryValue::kKnownOne;
+
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.push_back(std::make_unique<ImpliedTernaryFakeQueryEngine>(ternary_a));
+  engines.push_back(std::make_unique<ImpliedTernaryFakeQueryEngine>(ternary_b));
+  UnionQueryEngine union_query_engine(std::move(engines));
+
+  std::vector<std::pair<TreeBitLocation, bool>> predicate;
+
+  EXPECT_EQ(union_query_engine.ImpliedNodeTernary(predicate, node),
+            std::nullopt);
+}
+
 }  // namespace
 }  // namespace xls

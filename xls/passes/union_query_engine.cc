@@ -151,11 +151,18 @@ UnownedUnionQueryEngine::GetTernary(Node* node) const {
           owned = std::move(shared).value().ToOwned();
           shared.reset();
         }
+        bool contradiction = false;
         leaf_type_tree::SimpleUpdateFrom<TernaryVector, TernaryVector>(
             owned->AsMutableView(), ternary->AsView(),
-            [](TernaryVector& lhs, const TernaryVector& rhs) {
-              CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
+            [&](TernaryVector& lhs, const TernaryVector& rhs) {
+              absl::Status status = ternary_ops::UpdateWithUnion(lhs, rhs);
+              if (!status.ok()) {
+                contradiction = true;
+              }
             });
+        if (contradiction) {
+          return std::nullopt;
+        }
       } else {
         // Avoid copying if we can.
         shared = *std::move(ternary);
@@ -309,7 +316,9 @@ std::optional<TernaryVector> UnownedUnionQueryEngine::ImpliedNodeTernary(
             engine->ImpliedNodeTernary(predicate_bit_values, node);
         implied.has_value()) {
       if (result.has_value()) {
-        CHECK_OK(ternary_ops::UpdateWithUnion(*result, *implied));
+        if (!ternary_ops::UpdateWithUnion(*result, *implied).ok()) {
+          return std::nullopt;
+        }
       } else {
         result = std::move(implied);
       }
