@@ -19,7 +19,10 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 # Build rules for XLS-used logic solvers.
 package(
     default_applicable_licenses = ["//:license"],
-    default_visibility = ["//xls:xls_internal"],
+    default_visibility = [
+        "//xls:xls_best_effort_users",
+        "//xls:xls_internal",
+    ],
     features = [
         "layering_check",
         "parse_headers",
