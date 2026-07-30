@@ -15,5 +15,5 @@
 import apfloat;
 
 fn main() -> apfloat::APFloat<8, 24> {
-    apfloat::APFloat::inf(true)
+    apfloat::APFloat<8, 24>::inf(true)
 }

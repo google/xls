@@ -1120,6 +1120,7 @@ cc_library(
         ":evaluator",
         ":import_utils",
         ":inference_table",
+        ":inference_table_converter",
         ":inference_table_utils",
         ":parametric_struct_instantiator",
         ":simplified_type_annotation_cache",

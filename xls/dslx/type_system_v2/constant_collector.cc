@@ -176,6 +176,10 @@ class Visitor : public AstNodeVisitorWithDefault {
         target = table_.GetColonRefTarget(direct_colon_ref);
       }
     }
+    if (!target.has_value() && !type_.IsEnum()) {
+      XLS_ASSIGN_OR_RETURN(target, converter_.ResolveColonRefTarget(
+                                       direct_colon_ref, parametric_context_));
+    }
 
     const bool target_is_constant_def =
         target.has_value() && (*target)->kind() == AstNodeKind::kConstantDef;

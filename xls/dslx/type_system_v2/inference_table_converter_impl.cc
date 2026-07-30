@@ -1907,17 +1907,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // invocation is `arr[0].instance_method()` and we wrap the ColonRef as a
       // FunctionRef in the actual map invocation.
       const auto* colon_ref = absl::down_cast<const ColonRef*>(mapper);
-      std::optional<const TypeAnnotation*> annotation =
-          table_.GetTypeAnnotation(mapper);
-      std::optional<const AstNode*> target =
-          table_.GetColonRefTarget(colon_ref);
-      bool is_real_instance_method =
+      XLS_ASSIGN_OR_RETURN(std::optional<const AstNode*> target,
+                           ResolveColonRefTarget(colon_ref, caller_context));
+      bool is_instance_method =
           target.has_value() && (*target)->kind() == AstNodeKind::kFunction &&
-          absl::down_cast<const Function*>(*target)->impl().has_value() &&
           absl::down_cast<const Function*>(*target)->IsMethod();
-      bool is_trait_derived_instance_method =
-          (annotation.has_value() &&
-           (*annotation)->IsAnnotation<MemberTypeAnnotation>());
       function_ref = module_.Make<FunctionRef>(mapper->span(), mapper,
                                                std::vector<ExprOrType>{});
       function_ref->SetParentNonLexical(invocation);
@@ -1927,7 +1921,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // ArrElementType::static_method)`. In that case, the mapper invocation
       // should just be `ArrElementType::static_method(arr[0])` which is similar
       // to using a free function.
-      if (is_real_instance_method || is_trait_derived_instance_method) {
+      if (is_instance_method) {
         VLOG(6) << "Replacing ColonRef mapper `" << colon_ref->ToString()
                 << "` with attr in " << invocation->ToString();
         mapper =
@@ -3151,6 +3145,78 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return module_trait_manager_->GetTraitFunction(
         struct_or_proc_def, concrete_struct_type, parametric_struct_context,
         function_name);
+  }
+
+  absl::StatusOr<std::optional<const AstNode*>> ResolveColonRefTarget(
+      const ColonRef* colon_ref,
+      std::optional<const ParametricContext*> parametric_context) override {
+    std::optional<const AstNode*> existing =
+        table_.GetColonRefTarget(colon_ref);
+    if (existing.has_value()) {
+      return existing;
+    }
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_ref,
+                         GetStructOrProcRefForSubject(colon_ref, import_data_));
+    if (!struct_ref.has_value()) {
+      return std::nullopt;
+    }
+    if (struct_ref->def->IsParametric()) {
+      XLS_RETURN_IF_ERROR(VerifyAllParametricsSatisfied(
+          struct_ref->def->parametric_bindings(), struct_ref->parametrics,
+          struct_ref->def->identifier(), colon_ref->span(), file_table_));
+    }
+    std::optional<const ParametricContext*> target_struct_context;
+    if (struct_ref->def->IsParametric()) {
+      XLS_ASSIGN_OR_RETURN(target_struct_context,
+                           GetOrCreateParametricStructContext(
+                               parametric_context, *struct_ref, colon_ref));
+    }
+    std::optional<const AstNode*> resolved;
+    if (struct_ref->def->impl().has_value()) {
+      std::optional<ImplMember> impl_member =
+          (*struct_ref->def->impl())->GetMember(colon_ref->attr());
+      if (impl_member.has_value()) {
+        resolved = ToAstNode(*impl_member);
+      }
+    }
+    if (!resolved.has_value()) {
+      XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
+      std::optional<Type*> struct_type = ti->GetItem(struct_ref->def);
+      if (struct_type.has_value() &&
+          ((*struct_type)->IsStruct() || (*struct_type)->IsProc())) {
+        StructDefBase* struct_or_proc_def =
+            const_cast<StructDefBase*>(struct_ref->def);
+        XLS_ASSIGN_OR_RETURN(InferenceTableConverter * struct_owner_converter,
+                             import_data_.GetInferenceTableConverter(
+                                 struct_or_proc_def->owner()));
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<Function*> trait_fn,
+            struct_owner_converter->GetTraitFunction(
+                *struct_or_proc_def,
+                *absl::down_cast<StructTypeBase*>(*struct_type),
+                target_struct_context, colon_ref->attr()));
+        if (trait_fn.has_value()) {
+          resolved = *trait_fn;
+        }
+      }
+    }
+    if (!resolved.has_value()) {
+      if (!struct_ref->def->impl().has_value()) {
+        return TypeInferenceErrorStatus(
+            colon_ref->span(), nullptr,
+            absl::Substitute("Struct '$0' has no impl defining '$1'",
+                             struct_ref->def->identifier(), colon_ref->attr()),
+            file_table_);
+      }
+      return TypeInferenceErrorStatus(
+          colon_ref->span(), nullptr,
+          absl::Substitute(
+              "Name '$0' is not defined by the impl for struct '$1'.",
+              colon_ref->attr(), struct_ref->def->identifier()),
+          file_table_);
+    }
+    table_.SetColonRefTarget(colon_ref, *resolved);
+    return resolved;
   }
 
   // Resolves the implicit return type of `function` from the body and adds it

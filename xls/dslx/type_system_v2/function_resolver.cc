@@ -109,6 +109,10 @@ class FunctionResolverImpl : public FunctionResolver {
         XLS_RETURN_IF_ERROR(populate_visitor->PopulateFromColonRef(colon_ref));
         target = table_.GetColonRefTarget(colon_ref);
       }
+      if (!target.has_value()) {
+        XLS_ASSIGN_OR_RETURN(target, converter_.ResolveColonRefTarget(
+                                         colon_ref, caller_context));
+      }
 
       XLS_ASSIGN_OR_RETURN(
           std::optional<StructOrProcRef> struct_or_proc_ref,

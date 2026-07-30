@@ -15,5 +15,5 @@
 import apfloat;
 
 fn main() -> u32 {
-    apfloat::APFloat::SOME_CONSTANT_THAT_DOES_NOT_EXIST
+    apfloat::APFloat<8, 24>::SOME_CONSTANT_THAT_DOES_NOT_EXIST
 }

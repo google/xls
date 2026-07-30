@@ -48,6 +48,7 @@
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/inference_table_utils.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
 #include "xls/dslx/type_system_v2/simplified_type_annotation_cache.h"
@@ -690,6 +691,30 @@ class StatefulResolver : public TypeAnnotationResolver {
       }
     }
     if (!member.has_value()) {
+      if (context_node.has_value() &&
+          (*context_node)->kind() == AstNodeKind::kColonRef) {
+        const auto* colon_ref = absl::down_cast<const ColonRef*>(*context_node);
+        XLS_ASSIGN_OR_RETURN(
+            InferenceTableConverter * colon_ref_converter,
+            import_data_.GetInferenceTableConverter(colon_ref->owner()));
+        XLS_ASSIGN_OR_RETURN(std::optional<const AstNode*> resolved,
+                             colon_ref_converter->ResolveColonRefTarget(
+                                 colon_ref, parametric_context));
+        if (resolved.has_value() &&
+            (*resolved)->kind() == AstNodeKind::kFunction) {
+          return parametric_struct_instantiator_
+              .GetParametricFreeStructMemberType(
+                  parametric_context, *struct_or_proc_ref,
+                  CreateFunctionTypeAnnotation(
+                      module_, *absl::down_cast<const Function*>(*resolved)));
+        }
+        return TypeInferenceErrorStatus(
+            member_type->span(), nullptr,
+            absl::Substitute(
+                "Name '$0' is not defined by the impl for struct '$1'.",
+                member_type->member_name(), struct_def->identifier()),
+            file_table_);
+      }
       return TypeInferenceErrorStatus(
           member_type->span(), nullptr,
           absl::Substitute("No member `$0` in struct `$1`.",

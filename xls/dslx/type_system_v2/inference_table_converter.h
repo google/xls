@@ -84,6 +84,13 @@ class InferenceTableConverter {
       const StructTypeBase& concrete_struct_type,
       std::optional<const ParametricContext*> parametric_struct_context,
       std::string_view function_name) = 0;
+
+  // Resolves the target AST node of a `ColonRef` (e.g., a member of a struct or
+  // proc, including impl members and derived trait functions), setting it on
+  // the `InferenceTable` if resolved.
+  virtual absl::StatusOr<std::optional<const AstNode*>> ResolveColonRefTarget(
+      const ColonRef* colon_ref,
+      std::optional<const ParametricContext*> parametric_context) = 0;
 };
 
 }  // namespace xls::dslx

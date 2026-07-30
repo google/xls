@@ -2204,7 +2204,8 @@ impl S<A, B> {
 
 const X = S::C;
 )",
-      TypecheckFails(HasSubstr("Use of `S` with missing parametric(s): A")));
+      TypecheckFails(HasSubstr(
+          "Could not infer parametric(s) for instance of struct S: A")));
 }
 
 TEST(TypecheckV2StructTest, ParametricImplConstantUsedWithTooManyParametrics) {
