@@ -14,6 +14,7 @@
 #include "xls/passes/basic_simplification_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <vector>

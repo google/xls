@@ -14,6 +14,7 @@
 
 #include "xls/passes/folding_graph.h"
 
+#include <memory>
 #include <utility>
 #include <vector>
 

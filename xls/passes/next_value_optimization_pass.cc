@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <deque>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -24,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"

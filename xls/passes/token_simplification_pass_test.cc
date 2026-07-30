@@ -14,7 +14,6 @@
 
 #include "xls/passes/token_simplification_pass.h"
 
-#include <cstdint>
 #include <memory>
 #include <utility>
 

@@ -14,6 +14,7 @@
 
 #include "xls/passes/pass_base.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <memory>

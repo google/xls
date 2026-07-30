@@ -33,6 +33,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/node_source_analysis.h"
 #include "xls/passes/partial_info_query_engine.h"

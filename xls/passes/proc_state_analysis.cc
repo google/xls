@@ -28,7 +28,6 @@
 #include "xls/passes/proc_state_range_query_engine.h"
 #include "xls/passes/query_engine.h"
 #include "xls/solvers/solver.h"
-#include "xls/solvers/z3_ir_translator.h"
 
 namespace xls {
 

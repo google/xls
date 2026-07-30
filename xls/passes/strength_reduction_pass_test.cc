@@ -39,7 +39,6 @@
 #include "xls/solvers/ir_equivalence.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 #include "xls/solvers/solver.h"
-#include "xls/solvers/z3_ir_translator.h"
 
 namespace m = ::xls::op_matchers;
 
