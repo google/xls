@@ -553,6 +553,80 @@ proc my_proc(my_state: (), init={()}) {
               m::OutputPort("out", m::Neg(m::InputPort("in"))));
 }
 
+TEST_F(BlockConversionTest, SimpleProcWithSystemVerilogTypes) {
+  const std::string ir_text = R"(package test
+
+chan in(bits[32], id=0, kind=single_value, ops=receive_only)
+chan out(bits[32], id=1, kind=single_value, ops=send_only)
+
+proc my_proc(my_state: (), init={()}) {
+  my_token: token = literal(value=token, id=1)
+  rcv: (token, bits[32]) = receive(my_token, channel=in)
+  data: bits[32] = tuple_index(rcv, index=1)
+  negate: bits[32] = neg(data)
+  rcv_token: token = tuple_index(rcv, index=0)
+  send: token = send(rcv_token, negate, channel=out)
+  next_my_state: () = next_value(param=my_state, value=my_state)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  const std::string ir_interface_text = R"(name: "test"
+files: "test.x"
+channels {
+  name: "in"
+  type {
+    type_enum: TUPLE
+    tuple_elements {
+      type_enum: BITS
+      bit_count: 32
+    }
+  }
+  direction: IN
+  sv_type: "Request"
+}
+channels {
+  name: "out"
+  type {
+    type_enum: TUPLE
+    tuple_elements {
+      type_enum: BITS
+      bit_count: 32
+    }
+  }
+  direction: OUT
+  sv_type: "Data"
+}
+procs {
+  base {
+    top: true
+    name: "my_proc"
+  }
+  state {
+    name: "my_state"
+    type {
+      type_enum: TUPLE
+    }
+  }
+}
+)";
+
+  PackageInterfaceProto proto;
+  google::protobuf::TextFormat::ParseFromString(ir_interface_text, &proto);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(proc, codegen_options().package_interface(proto),
+                     SchedulingOptions().pipeline_stages(1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(InputPort* req, block->GetInputPort("in"));
+  EXPECT_EQ(req->system_verilog_type(), "Request");
+  XLS_ASSERT_OK_AND_ASSIGN(OutputPort* resp, block->GetOutputPort("out"));
+  EXPECT_EQ(resp->system_verilog_type(), "Data");
+}
+
 TEST_F(BlockConversionTest, StreamingChannelMetadataForSimpleProc) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
