@@ -361,6 +361,11 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
                                  absl::FunctionRef<bool(Node*)> should_target,
                                  const VisibilityAnalyses& visibility);
 
+  static absl::StatusOr<std::unique_ptr<BinaryFoldingAction>>
+  GetFoldableActionForMutuallyExclusiveNodes(
+      Node* from_node, Node* to_node, const VisibilityAnalyses& visibility,
+      int64_t max_edges_to_handle);
+
   // This function returns all possible folding actions that we can legally
   // perform.
   static absl::StatusOr<std::vector<std::unique_ptr<BinaryFoldingAction>>>

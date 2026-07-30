@@ -279,6 +279,55 @@ ResourceSharingPass::ComputeMutualExclusionAnalysis(
   return mutual_exclusivity;
 }
 
+absl::StatusOr<std::unique_ptr<BinaryFoldingAction>>
+ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
+    Node* from_node, Node* to_node,
+    const ResourceSharingPass::VisibilityAnalyses& visibility,
+    int64_t max_edges_to_handle) {
+  // CanTarget and ShouldTarget have already been vetted, so all that is left
+  // is to see if the types and bit widths are compatible
+
+  if (!CanMapOpInto(from_node, to_node)) {
+    return nullptr;
+  }
+
+  absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> from_edges;
+  absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> to_edges;
+  absl::flat_hash_set<Node*> sinks;
+  if (visibility.single_select.IsMutuallyExclusive(from_node, to_node)) {
+    XLS_ASSIGN_OR_RETURN(
+        from_edges,
+        visibility.single_select.GetEdgesForVisibilityExpr(from_node));
+    XLS_ASSIGN_OR_RETURN(
+        to_edges, visibility.single_select.GetEdgesForVisibilityExpr(to_node));
+    // Specifying a sink indicates that visibility through ths node is
+    // equivalent to visibility through all terminal nodes.
+    sinks = {visibility.single_select.GetInfo(from_node)->select};
+  } else {
+    XLS_ASSIGN_OR_RETURN(
+        from_edges,
+        visibility.general.GetEdgesForMutuallyExclusiveVisibilityExpr(
+            from_node, {to_node}, max_edges_to_handle));
+    XLS_ASSIGN_OR_RETURN(
+        to_edges, visibility.general.GetEdgesForMutuallyExclusiveVisibilityExpr(
+                      to_node, {from_node}, max_edges_to_handle));
+  }
+  if (from_edges.empty() || to_edges.empty()) {
+    // This will only ever happen if visibility analysis returns no edges
+    // because there were too many of them, more than the configured threshold
+    // allows for. In this case, it isn't practical to fold.
+    VLOG(4) << "Cannot determine visibility expression necessary to fold: "
+            << from_node << " into: " << to_node;
+    return nullptr;
+  }
+
+  VLOG(4) << "Adding folding action: " << from_node << " into " << to_node;
+  // Only n-ary foldings are evaluated with area saving thresholds, so we
+  // defer computing area saved until then
+  return std::make_unique<BinaryFoldingAction>(from_node, to_node, from_edges,
+                                               to_edges, 0.0, sinks);
+}
+
 absl::StatusOr<std::vector<std::unique_ptr<BinaryFoldingAction>>>
 ResourceSharingPass::ComputeFoldableActions(
     FunctionBase* f,
@@ -287,61 +336,19 @@ ResourceSharingPass::ComputeFoldableActions(
     const ResourceSharingPass::Config& config) {
   std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions;
   for (const auto& [one_node, other_node] : mutual_exclusivity) {
-    // CanTarget and ShouldTarget have already been vetted, so all that is left
-    // is to see if the types and bit widths are compatible
-    bool can_one_to_other = CanMapOpInto(one_node, other_node);
-    bool can_other_to_one = CanMapOpInto(other_node, one_node);
-    if (!can_one_to_other && !can_other_to_one) {
-      continue;
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<BinaryFoldingAction> fold_one_into_other,
+        GetFoldableActionForMutuallyExclusiveNodes(
+            one_node, other_node, visibility, config.max_edges_to_handle));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<BinaryFoldingAction> fold_other_into_one,
+        GetFoldableActionForMutuallyExclusiveNodes(
+            other_node, one_node, visibility, config.max_edges_to_handle));
+    if (fold_one_into_other) {
+      foldable_actions.push_back(std::move(fold_one_into_other));
     }
-
-    absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> one_edges;
-    absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode> other_edges;
-    absl::flat_hash_set<Node*> sinks;
-    if (visibility.single_select.IsMutuallyExclusive(one_node, other_node)) {
-      XLS_ASSIGN_OR_RETURN(
-          one_edges,
-          visibility.single_select.GetEdgesForVisibilityExpr(one_node));
-      XLS_ASSIGN_OR_RETURN(
-          other_edges,
-          visibility.single_select.GetEdgesForVisibilityExpr(other_node));
-      // Specifying a sink indicates that visibility through ths node is
-      // equivalent to visibility through all terminal nodes.
-      sinks = {visibility.single_select.GetInfo(one_node)->select};
-    } else {
-      XLS_ASSIGN_OR_RETURN(
-          one_edges,
-          visibility.general.GetEdgesForMutuallyExclusiveVisibilityExpr(
-              one_node, {other_node}, config.max_edges_to_handle));
-      XLS_ASSIGN_OR_RETURN(
-          other_edges,
-          visibility.general.GetEdgesForMutuallyExclusiveVisibilityExpr(
-              other_node, {one_node}, config.max_edges_to_handle));
-    }
-    if (one_edges.empty() || other_edges.empty()) {
-      // This will only ever happen if visibility analysis returns no edges
-      // because there were too many of them, more than the configured threshold
-      // allows for. In this case, it isn't practical to fold.
-      VLOG(4) << "Cannot determine visibility expression necessary to fold: "
-              << one_node << " into: " << other_node;
-      continue;
-    }
-
-    if (can_one_to_other) {
-      VLOG(4) << "Adding folding action: " << one_node << " into "
-              << other_node;
-      // Only n-ary foldings are evaluated with area saving thresholds, so we
-      // defer computing area saved until then
-      foldable_actions.push_back(std::make_unique<BinaryFoldingAction>(
-          one_node, other_node, one_edges, other_edges, 0.0, sinks));
-    }
-    if (can_other_to_one) {
-      VLOG(4) << "Adding folding action: " << other_node << " into "
-              << one_node;
-      // Only n-ary foldings are evaluated with area saving thresholds, so we
-      // defer computing area saved until then
-      foldable_actions.push_back(std::make_unique<BinaryFoldingAction>(
-          other_node, one_node, other_edges, one_edges, 0.0, sinks));
+    if (fold_other_into_one) {
+      foldable_actions.push_back(std::move(fold_other_into_one));
     }
   }
 
