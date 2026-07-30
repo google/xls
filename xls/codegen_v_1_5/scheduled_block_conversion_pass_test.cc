@@ -14,7 +14,6 @@
 
 #include "xls/codegen_v_1_5/scheduled_block_conversion_pass.h"
 
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>

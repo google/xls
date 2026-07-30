@@ -21,7 +21,6 @@
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"

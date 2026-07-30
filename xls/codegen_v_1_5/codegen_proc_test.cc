@@ -32,7 +32,6 @@
 #include "xls/codegen_v_1_5/codegen.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
