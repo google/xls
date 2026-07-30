@@ -69,6 +69,7 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
 
   absl::Status HandleTypeVariableTypeAnnotation(
       const TypeVariableTypeAnnotation* annotation) override {
+    type_variable_type_annotation_ = annotation;
     return annotation->type_variable()->Accept(this);
   }
 
@@ -127,6 +128,11 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return ToAstNode(name_ref->name_def())->Accept(this);
   }
 
+  std::optional<const TypeVariableTypeAnnotation*>
+  GetTypeVariableTypeAnnotation() {
+    return type_variable_type_annotation_;
+  }
+
   std::optional<StructOrProcRef> GetStructOrProcRef() {
     if (!(include_generic_ && is_generic_) &&
         (!type_def_.has_value() ||
@@ -159,6 +165,9 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   std::vector<ExprOrType> parametrics_;
   std::optional<TypeDefinition> type_def_;
   std::optional<const TypeRefTypeAnnotation*> type_ref_type_annotation_;
+  std::optional<const TypeVariableTypeAnnotation*>
+      type_variable_type_annotation_;
+
   std::optional<const StructInstanceBase*> instantiator_;
   bool is_generic_ = false;
 };
@@ -182,6 +191,14 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(
   TypeRefUnwrapper unwrapper(import_data);
   XLS_RETURN_IF_ERROR(ToAstNode(ref->subject())->Accept(&unwrapper));
   return unwrapper.GetStructOrProcRef();
+}
+
+absl::StatusOr<std::optional<const TypeVariableTypeAnnotation*>>
+GetTypeVariableTypeAnnotationForSubject(const ColonRef* ref,
+                                        const ImportData& import_data) {
+  TypeRefUnwrapper unwrapper(import_data);
+  XLS_RETURN_IF_ERROR(ToAstNode(ref->subject())->Accept(&unwrapper));
+  return unwrapper.GetTypeVariableTypeAnnotation();
 }
 
 absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(

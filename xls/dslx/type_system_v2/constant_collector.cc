@@ -155,12 +155,12 @@ class Visitor : public AstNodeVisitorWithDefault {
     // `<what T stands for>::SOME_CONSTANT`. After this, `direct_colon_ref`
     // represents the latter, and we keep `colon_ref` as it was, for use in
     // logging and some error messages.
-    if (std::holds_alternative<TypeVariableTypeAnnotation*>(
-            colon_ref->subject())) {
-      XLS_ASSIGN_OR_RETURN(
-          direct_colon_ref,
-          ConvertGenericColonRefToDirect(table_, import_data_,
-                                         parametric_context_, colon_ref));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<ColonRef*> maybe_direct,
+        ConvertGenericColonRefToDirect(table_, import_data_,
+                                       parametric_context_, colon_ref));
+    if (maybe_direct.has_value()) {
+      direct_colon_ref = *maybe_direct;
       auto populate_visitor = CreatePopulateTableVisitor(
           colon_ref->owner(), &table_, &import_data_,
           [](std::unique_ptr<Module>, std::filesystem::path path)

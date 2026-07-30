@@ -600,6 +600,41 @@ const_assert!(B == Foo { value: 7 });
                               HasNodeWithType("B", "Foo { value: uN[16] }"))));
 }
 
+TEST(TypecheckV2GenericsTest, GenericColonRefFunctionCallThroughAlias) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct U32Adder {}
+
+impl U32Adder {
+    fn add(a: u32, b: u32) -> u32 { a + b }
+}
+
+struct Foo {
+    value: u16
+}
+
+struct FooAdder {}
+
+impl FooAdder {
+    fn add(a: Foo, b: Foo) -> Foo { Foo { value: a.value + b.value } }
+}
+
+fn add_wrapper<ADDER: type, T: type>(a: T, b: T) -> T {
+    type MyAdder = ADDER;
+    MyAdder::add(a, b)
+}
+
+const A = add_wrapper<U32Adder>(u32:1, u32:2);
+const B = add_wrapper<FooAdder>(Foo { value: 3 }, Foo { value: 4 });
+const_assert!(A == 3);
+const_assert!(B == Foo { value: 7 });
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("A", "uN[32]"),
+                              HasNodeWithType("B", "Foo { value: uN[16] }"))));
+}
+
 TEST(TypecheckV2GenericsTest, GenericColonRefCallToNonexistentFunction) {
   EXPECT_THAT(
       R"(
@@ -1158,6 +1193,67 @@ fn main<T: type>() -> T {
 const RES = main<S>();
 )",
       TypecheckFails(HasTypeMismatch("uN[32]", "uN[1]")));
+}
+
+TEST(TypecheckV2GenericsTest, UseGenericTypeStructConstant) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<N: u32> {
+  x: uN[N]
+}
+
+impl S<N> {
+  const DIM: u32 = N;
+}
+
+fn make_struct<T: type, N: u32>(i: uN[N]) -> T {
+  T { x: i }
+}
+
+fn main<T: type>() -> T[5] {
+  map(uN[T::DIM]:0..5, make_struct<T>)
+}
+
+const ONE = main<S<16>>();
+const TWO = main<S<8>>();
+const_assert!(ONE[1] == S<16>{x: 1});
+const_assert!(TWO[4] == S<8>{x: 4});
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "S { x: uN[16] }[5]"),
+                              HasNodeWithType("TWO", "S { x: uN[8] }[5]"))));
+}
+
+TEST(TypecheckV2GenericsTest, UseGenericTypeStructConstantWithTypeAlias) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<N: u32> {
+  x: uN[N]
+}
+
+impl S<N> {
+  const DIM: u32 = N;
+}
+
+fn make_struct<T: type, N: u32>(i: uN[N]) -> T {
+  T { x: i }
+}
+
+fn main<SomeStruct: type>() -> SomeStruct[5] {
+  type MyAlias = SomeStruct;
+  map(uN[MyAlias::DIM]:0..5, make_struct<MyAlias>)
+}
+
+const ONE = main<S<16>>();
+const TWO = main<S<8>>();
+const_assert!(ONE[1] == S<16>{x: 1});
+const_assert!(TWO[4] == S<8>{x: 4});
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "S { x: uN[16] }[5]"),
+                              HasNodeWithType("TWO", "S { x: uN[8] }[5]"))));
 }
 
 }  // namespace

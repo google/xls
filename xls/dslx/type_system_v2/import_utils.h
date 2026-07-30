@@ -50,6 +50,12 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(
     const ColonRef* colon_ref, const ImportData& import_data);
 
+// Resolve the ColonRef subject to a TVTA, if possible. This will be happen if
+// the subject is a generic type.
+absl::StatusOr<std::optional<const TypeVariableTypeAnnotation*>>
+GetTypeVariableTypeAnnotationForSubject(const ColonRef* ref,
+                                        const ImportData& import_data);
+
 // Resolves the struct base definition for the struct or proc type referred to
 // by `annotation`.
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(

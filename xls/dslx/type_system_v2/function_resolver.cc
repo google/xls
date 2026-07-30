@@ -91,13 +91,14 @@ class FunctionResolverImpl : public FunctionResolver {
       std::optional<const AstNode*> target =
           table_.GetColonRefTarget(colon_ref);
 
-      if (std::holds_alternative<TypeVariableTypeAnnotation*>(
-              colon_ref->subject())) {
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<ColonRef*> direct_colon_ref,
+          ConvertGenericColonRefToDirect(table_, import_data_, caller_context,
+                                         colon_ref));
+      if (direct_colon_ref.has_value()) {
         // It's a ColonRef to a generic type, like `T::some_static_method()`. We
         // need to resolve T in order to determine what the actual method is.
-        XLS_ASSIGN_OR_RETURN(
-            colon_ref, ConvertGenericColonRefToDirect(
-                           table_, import_data_, caller_context, colon_ref));
+        colon_ref = *direct_colon_ref;
         auto populate_visitor = CreatePopulateTableVisitor(
             colon_ref->owner(), &table_, &import_data_,
             [](std::unique_ptr<Module>, std::filesystem::path)

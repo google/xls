@@ -76,7 +76,7 @@ absl::StatusOr<bool> IsReferenceToAbstractType(const AstNode* node,
 //   const C = foo<MyStruct>();
 // If we pass in `T::SOME_CONSTANT`, with the `ParametricContext` for the `foo`
 // invocation shown, the result will be `MyStruct::SOME_CONSTANT`.
-absl::StatusOr<ColonRef*> ConvertGenericColonRefToDirect(
+absl::StatusOr<std::optional<ColonRef*>> ConvertGenericColonRefToDirect(
     const InferenceTable& table, const ImportData& import_data,
     std::optional<const ParametricContext*> parametric_context,
     const ColonRef* colon_ref);

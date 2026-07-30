@@ -181,14 +181,18 @@ absl::StatusOr<bool> IsReferenceToAbstractType(const AstNode* node,
   return ref.has_value() && IsAbstractStructOrProcRef(*ref);
 }
 
-absl::StatusOr<ColonRef*> ConvertGenericColonRefToDirect(
+absl::StatusOr<std::optional<ColonRef*>> ConvertGenericColonRefToDirect(
     const InferenceTable& table, const ImportData& import_data,
     std::optional<const ParametricContext*> parametric_context,
     const ColonRef* colon_ref) {
-  const auto* tvta =
-      std::get<TypeVariableTypeAnnotation*>(colon_ref->subject());
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<const TypeVariableTypeAnnotation*> tvta,
+      GetTypeVariableTypeAnnotationForSubject(colon_ref, import_data));
+  if (!tvta.has_value()) {
+    return std::nullopt;
+  }
   const auto* name_def =
-      std::get<const NameDef*>(tvta->type_variable()->name_def());
+      std::get<const NameDef*>((*tvta)->type_variable()->name_def());
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * actual_type,
                        table.GetGenericType(parametric_context, name_def));
   XLS_ASSIGN_OR_RETURN(std::optional<const EnumDef*> enum_def,
