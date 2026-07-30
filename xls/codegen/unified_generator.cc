@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion_pass_pipeline.h"
 #include "xls/codegen/block_metrics.h"

@@ -307,6 +307,7 @@ cc_library(
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:vlog_is_on",
         "@abseil-cpp//absl/status:statusor",
     ],
 )
@@ -1037,7 +1038,6 @@ cc_test(
         "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:bits",
@@ -1862,6 +1862,7 @@ cc_test(
     name = "maybe_materialize_fifos_pass_test",
     srcs = ["maybe_materialize_fifos_pass_test.cc"],
     deps = [
+        ":codegen_options",
         ":codegen_pass",
         ":fifo_model_test_utils",
         ":maybe_materialize_fifos_pass",
@@ -1927,6 +1928,7 @@ cc_test(
     name = "trace_verbosity_pass_test",
     srcs = ["trace_verbosity_pass_test.cc"],
     deps = [
+        ":codegen_options",
         ":codegen_pass",
         ":trace_verbosity_pass",
         "//xls/common:xls_gunit_main",
