@@ -331,5 +331,45 @@ fn f<X: u32, Y: u32 = {id(X)}>() -> u32 { Y }
   ASSERT_EQ(GetContainingFunction(call), f);
 }
 
+TEST(AstUtilsTest, GetIdentifier) {
+  const std::string kProgram = R"(
+type MyAlias = u32;
+proc MyProcDef {
+  x: u32,
+}
+impl MyProcDef {
+  fn new() -> Self { MyProcDef { x: u32:0 } }
+  fn next(self) { () }
+}
+struct MyStruct {
+  x: u32,
+}
+enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+}
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const TypeAlias* ta,
+                           module->GetMemberOrError<TypeAlias>("MyAlias"));
+  TypeDefinition td_ta = const_cast<TypeAlias*>(ta);
+  EXPECT_EQ(GetIdentifier(td_ta), "MyAlias");
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * proc_def,
+                           module->GetMemberOrError<ProcDef>("MyProcDef"));
+  EXPECT_EQ(GetIdentifier(proc_def), "MyProcDef");
+
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * sd,
+                           module->GetMemberOrError<StructDef>("MyStruct"));
+  EXPECT_EQ(GetIdentifier(sd), "MyStruct");
+
+  XLS_ASSERT_OK_AND_ASSIGN(EnumDef * ed,
+                           module->GetMemberOrError<EnumDef>("MyEnum"));
+  EXPECT_EQ(GetIdentifier(ed), "MyEnum");
+}
+
 }  // namespace
 }  // namespace xls::dslx

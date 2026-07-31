@@ -20,7 +20,6 @@ import textwrap
 from absl.testing import absltest
 from xls.common import runfiles
 
-
 _DSLX_FMT_PATH = runfiles.get_path('xls/dslx/dslx_fmt')
 
 
@@ -198,6 +197,7 @@ class DslxFmtTest(absltest.TestCase):
     """)
     want = textwrap.dedent("""\
     #![feature(explicit_state_access)]
+    #![feature(generics)]
 
     proc Producer {
         s: chan<u32> out,

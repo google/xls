@@ -124,6 +124,7 @@ TEST_F(LegacyProcConverterTest, BasicProc) {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Producer {
     s: chan<u32> out,
@@ -183,6 +184,7 @@ proc Main {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Producer {
     s: chan<u32> out,
@@ -249,6 +251,7 @@ TEST_F(LegacyProcConverterTest, Comments) {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Main {
     // Channel member.
@@ -293,6 +296,7 @@ TEST_F(LegacyProcConverterTest, HoistedStatements) {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Main {
     s: chan<u32> out,
@@ -334,8 +338,8 @@ TEST_F(LegacyProcConverterTest, HoistedStatementsError) {
     }
 }
 )",
-      "Proc state parameter `state` references a constant or type "
-      "alias declared inside the proc");
+      "Proc state parameter `state` references a constant declared inside the "
+      "proc");
 }
 
 TEST_F(LegacyProcConverterTest, ProcLevelTypeAlias) {
@@ -353,6 +357,7 @@ TEST_F(LegacyProcConverterTest, ProcLevelTypeAlias) {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Main {
     s: chan<u32> out,
@@ -390,6 +395,7 @@ TEST_F(LegacyProcConverterTest, ColonRefWithProcLevelTypeAliasSubject) {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Main {
     s: chan<u32> out,
@@ -427,6 +433,7 @@ TEST_F(LegacyProcConverterTest, ParametricProcLevelTypeAlias) {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Main<N: u32> {
     s: chan<uN[N]> out,
@@ -447,11 +454,8 @@ impl Main<N> {
 )");
 }
 
-TEST_F(LegacyProcConverterTest, ProcLevelTypeAliasUsedOutsideImpl) {
-  // TODO: https://github.com/google/xls/issues/4125 - The issue is that so far
-  // you can only use type aliases within the impl and not the proc def. Get
-  // this case to work by using `Self::MyType` in the proc def.
-  DoLegacyProcConversionFmtError(
+TEST_F(LegacyProcConverterTest, ProcLevelTypeAliasUsedInState) {
+  DoLegacyProcConversionFmt(
       R"(proc Main {
     type MyType = u32;
     s: chan<u32> out;
@@ -460,8 +464,63 @@ TEST_F(LegacyProcConverterTest, ProcLevelTypeAliasUsedOutsideImpl) {
     next(state: MyType) { state }
 }
 )",
-      "Proc state parameter `state` references a constant or type "
-      "alias declared inside the proc");
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Main<MyType: type = u32> {
+    s: chan<u32> out,
+    state: MyType,
+}
+
+impl Main<MyType> {
+    fn new(s: chan<u32> out) -> Self {
+        Main { s, state: u32:0 }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        write(self.state, state);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, ProcLevelTypeAliasWithConstant) {
+  DoLegacyProcConversionFmt(
+      R"(proc Main {
+    const WIDTH = u32:8;
+    type MyType = bits[WIDTH];
+    s: chan<MyType> out;
+    config(s: chan<MyType> out) { (s,) }
+    init { bits[WIDTH]:0 }
+    next(state: MyType) {
+        send(join(), s, state);
+        state
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Main<MyType: type = bits[u32:8]> {
+    s: chan<MyType> out,
+    state: MyType,
+}
+
+impl Main<MyType> {
+    const WIDTH = u32:8;
+
+    fn new(s: chan<MyType> out) -> Self {
+        Main { s, state: bits[WIDTH]:0 }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        send(join(), self.s, state);
+        write(self.state, state);
+    }
+}
+)");
 }
 
 TEST_F(LegacyProcConverterTest, NestedSpawn) {
@@ -490,6 +549,7 @@ proc Main {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Producer {
     s: chan<u32> out,
@@ -534,6 +594,7 @@ TEST_F(LegacyProcConverterTest, Parametrics) {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc MyProc<X: u32, Y: u32> {
     s: chan<u32> out,
@@ -587,6 +648,7 @@ proc MyTestProc {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Producer {
     s: chan<u32> out,
@@ -640,6 +702,7 @@ TEST_F(LegacyProcConverterTest, CommentsInStatelessNext) {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc MyTestProc {
     terminator: chan<bool> out,
@@ -661,6 +724,7 @@ impl MyTestProc {
 TEST_F(LegacyProcConverterTest, AlreadyImplStyle) {
   DoLegacyProcConversionFmt(
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc AlreadyImplStyle {
     in_ch: chan<u32> in,
@@ -682,6 +746,7 @@ impl AlreadyImplStyle {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc AlreadyImplStyle {
     in_ch: chan<u32> in,
@@ -721,6 +786,7 @@ proc ZeroMembers {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc ChildProc {}
 
@@ -751,6 +817,7 @@ TEST_F(LegacyProcConverterTest, StatelessNextWithCommentsBefore) {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc MyProc {}
 
@@ -782,6 +849,7 @@ TEST_F(LegacyProcConverterTest, SingleCustomStateName) {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Producer {
     s: chan<u32> out,
@@ -820,6 +888,7 @@ proc Producer {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Producer {
     s: chan<u32> out,
@@ -864,6 +933,7 @@ proc Producer {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Producer {
     s: chan<u32> out,
@@ -903,6 +973,7 @@ proc Counter {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Counter {
     state: u32,
@@ -943,6 +1014,7 @@ proc Producer {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 fn get_initial_tuple() -> (u32, u32) { (u32:42, u32:100) }
 
@@ -985,6 +1057,7 @@ impl AlreadyImplStyle {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc AlreadyImplStyle {
     in_ch: chan<u32> in,
@@ -1024,6 +1097,7 @@ impl MyStruct {
 }
 )",
       R"(#![feature(explicit_state_access)]
+#![feature(generics)]
 
 struct MyStruct { x: u32 }
 

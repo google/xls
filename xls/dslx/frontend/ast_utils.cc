@@ -41,6 +41,7 @@
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/ir/bits.h"
@@ -667,6 +668,25 @@ std::vector<ParametricBinding*> GetRequiredParametricBindings(
                     return !binding->default_expr_or_type().has_value();
                   });
   return result;
+}
+
+std::optional<std::string_view> GetIdentifier(TypeDefinition td) {
+  return absl::visit(
+      Visitor{
+          [](const ColonRef* n) -> std::optional<std::string_view> {
+            return n->attr();
+          },
+          [](const UseTreeEntry* n) -> std::optional<std::string_view> {
+            if (auto leaf = n->GetLeafNameDef(); leaf.has_value()) {
+              return leaf.value()->identifier();
+            }
+            return std::nullopt;
+          },
+          [](const auto* n) -> std::optional<std::string_view> {
+            return n->identifier();
+          },
+      },
+      td);
 }
 
 std::optional<Function*> GetProcNextFunction(const ProcDef* proc) {

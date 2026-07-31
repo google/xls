@@ -245,6 +245,7 @@ cc_library(
         ":builtins_metadata",
         ":module",
         ":pos",
+        ":proc",
         ":token_utils",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
