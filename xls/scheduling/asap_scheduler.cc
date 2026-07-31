@@ -22,6 +22,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_builder.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -96,7 +97,7 @@ std::vector<Node*> FinalStageNodes(FunctionBase* f) {
 absl::Status ASAPScheduler::GenerateHelpfulError(
     absl::Status&& orig_status, std::optional<int64_t> pipeline_stages,
     int64_t clock_period_ps, std::optional<int64_t> worst_case_throughput) {
-  xabsl::StatusBuilder status(std::move(orig_status));
+  absl::StatusBuilder status(std::move(orig_status));
   // Try to figure out what the actual required stages are.
   if (pipeline_stages.has_value()) {
     auto no_length = ComputeBounds(/*pipeline_stages=*/std::nullopt,

@@ -36,6 +36,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_builder.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -45,7 +46,6 @@
 #include "absl/types/variant.h"
 #include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
@@ -3769,7 +3769,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
       // config function.
       auto specialize_config_name_error =
           [proc_like_body](const absl::Status& status) {
-            xabsl::StatusBuilder builder(status);
+            absl::StatusBuilder builder(status);
             std::optional<std::string_view> bad_name =
                 MaybeExtractParseNameError(status);
             if (bad_name.has_value() &&

@@ -24,8 +24,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_builder.h"
 #include "absl/status/statusor.h"
-#include "xls/common/status/status_builder.h"
 
 namespace {
 
@@ -36,16 +36,16 @@ using ::testing::HasSubstr;
 
 absl::Status ReturnOk() { return absl::OkStatus(); }
 
-xabsl::StatusBuilder ReturnOkBuilder() {
-  return xabsl::StatusBuilder(absl::OkStatus());
+absl::StatusBuilder ReturnOkBuilder() {
+  return absl::StatusBuilder(absl::OkStatus());
 }
 
 absl::Status ReturnError(std::string_view msg) {
   return absl::UnknownError(msg);
 }
 
-xabsl::StatusBuilder ReturnErrorBuilder(std::string_view msg) {
-  return xabsl::StatusBuilder(absl::UnknownError(msg));
+absl::StatusBuilder ReturnErrorBuilder(std::string_view msg) {
+  return absl::StatusBuilder(absl::UnknownError(msg));
 }
 
 absl::StatusOr<int> ReturnStatusOrValue(int v) { return v; }
@@ -163,11 +163,11 @@ TEST(AssignOrReturn, WorksWithAppend) {
 }
 
 TEST(AssignOrReturn, WorksWithAdaptorFunc) {
-  auto fail_test_if_called = [](xabsl::StatusBuilder builder) {
+  auto fail_test_if_called = [](absl::StatusBuilder builder) {
     ADD_FAILURE();
     return builder;
   };
-  auto adaptor = [](xabsl::StatusBuilder builder) {
+  auto adaptor = [](absl::StatusBuilder builder) {
     return builder << "EXPECTED B";
   };
   auto func = [&]() -> absl::Status {
@@ -183,11 +183,11 @@ TEST(AssignOrReturn, WorksWithAdaptorFunc) {
 }
 
 TEST(AssignOrReturn, WorksWithThirdArgumentAndCommas) {
-  auto fail_test_if_called = [](xabsl::StatusBuilder builder) {
+  auto fail_test_if_called = [](absl::StatusBuilder builder) {
     ADD_FAILURE();
     return builder;
   };
-  auto adaptor = [](xabsl::StatusBuilder builder) {
+  auto adaptor = [](absl::StatusBuilder builder) {
     return builder << "EXPECTED B";
   };
   auto func = [&]() -> absl::Status {
@@ -274,9 +274,6 @@ absl::Status CallOne() {
 }
 }  // namespace assign_or_return
 TEST(AssignOrReturn, KeepsBackTrace) {
-#ifndef XLS_USE_ABSL_SOURCE_LOCATION
-  GTEST_SKIP() << "Back trace not recorded";
-#endif
   auto result = assign_or_return::CallOne();
   RecordProperty("result", testing::PrintToString(result));
   EXPECT_THAT(result.message(), Eq("foobar"));
@@ -301,9 +298,6 @@ absl::Status CallOne() {
 }
 }  // namespace assign_or_return_with_message
 TEST(AssignOrReturn, KeepsBackTraceWithMessage) {
-#ifndef XLS_USE_ABSL_SOURCE_LOCATION
-  GTEST_SKIP() << "Back trace not recorded";
-#endif
   auto result = assign_or_return_with_message::CallOne();
   RecordProperty("result", testing::PrintToString(result));
   EXPECT_THAT(result.message(), Eq("Clap; Your; Hands"));
@@ -392,9 +386,6 @@ absl::Status CallOne() {
 }  // namespace return_if_error
 
 TEST(ReturnIfError, KeepsBackTrace) {
-#ifndef XLS_USE_ABSL_SOURCE_LOCATION
-  GTEST_SKIP() << "Back trace not recorded";
-#endif
   auto result = return_if_error::CallOne();
   RecordProperty("result", testing::PrintToString(result));
   EXPECT_THAT(result.message(), Eq("foobar"));
@@ -419,9 +410,6 @@ absl::Status CallOne() {
 }  // namespace return_if_error_with_message
 
 TEST(ReturnIfError, KeepsBackTraceWithMessage) {
-#ifndef XLS_USE_ABSL_SOURCE_LOCATION
-  GTEST_SKIP() << "Back trace not recorded";
-#endif
   auto result = return_if_error_with_message::CallOne();
   RecordProperty("result", testing::PrintToString(result));
   EXPECT_THAT(result.message(), Eq("Clap; Your; Hands"));

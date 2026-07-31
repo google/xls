@@ -34,9 +34,10 @@ cc_library(
     # The main XLS code base should use absl::Status.
     visibility = ["//xls/common:__subpackages__"],
     deps = [
-        ":status_builder",
         "//xls/common:source_location",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_builder",
+        "@abseil-cpp//absl/types:source_location",
     ],
 )
 
@@ -58,13 +59,14 @@ cc_library(
     srcs = ["ret_check.cc"],
     hdrs = ["ret_check.h"],
     deps = [
-        ":status_builder",
         ":status_macros",
         "//xls/common:source_location",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:log_severity",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_builder",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:source_location",
     ],
 )
 
@@ -84,70 +86,20 @@ cc_test(
 )
 
 cc_library(
-    name = "status_builder",
-    srcs = [
-        "status_builder.cc",
-        "status_builder_oss.cc",
-    ],
-    hdrs = ["status_builder.h"],
-    deps = [
-        "//xls/common:source_location",
-        "//xls/common:symbolized_stacktrace",
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/base:log_severity",
-        "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:log_entry",
-        "@abseil-cpp//absl/log:log_sink",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:cord",
-        "@abseil-cpp//absl/synchronization",
-        "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/types:span",
-    ],
-)
-
-cc_test(
-    name = "status_builder_test",
-    srcs = ["status_builder_test.cc"],
-    deps = [
-        ":status_builder",
-        "//xls/common:source_location",
-        "//xls/common:xls_gunit_main",
-        "@abseil-cpp//absl/base:log_severity",
-        "@abseil-cpp//absl/log:globals",
-        "@abseil-cpp//absl/log:log_entry",
-        "@abseil-cpp//absl/log:log_sink",
-        "@abseil-cpp//absl/log:scoped_mock_log",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/time",
-        "@googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "status_macros",
     hdrs = ["status_macros.h"],
     visibility = ["//xls:xls_utility_users"],
-    deps = [
-        ":status_builder",
-        "//xls/common:source_location",
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/status",
-    ],
+    deps = ["@abseil-cpp//absl/status:status_macros"],
 )
 
 cc_test(
     name = "status_macros_test",
     srcs = ["status_macros_test.cc"],
     deps = [
-        ":status_builder",
         ":status_macros",
         "//xls/common:xls_gunit_main",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_builder",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
@@ -159,9 +111,9 @@ cc_library(
     srcs = ["matchers.cc"],
     hdrs = ["matchers.h"],
     deps = [
-        ":status_builder",
         ":status_macros",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_builder",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest",
@@ -172,10 +124,11 @@ cc_library(
     name = "status_or_ref",
     hdrs = ["status_or_ref.h"],
     deps = [
-        ":status_builder",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_builder",
+        "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",
     ],
 )

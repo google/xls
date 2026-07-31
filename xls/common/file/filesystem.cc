@@ -34,9 +34,11 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_builder.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/source_location.h"
 #include "absl/types/span.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/io/tokenizer.h"
@@ -45,7 +47,6 @@
 #include "google/protobuf/text_format.h"
 #include "re2/re2.h"
 #include "xls/common/file/temp_file.h"
-#include "xls/common/source_location.h"
 #include "xls/common/status/error_code_to_status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -57,8 +58,8 @@ namespace {
 // the filename.
 absl::Status ErrNoToStatusWithFilename(
     int errno_value, const std::filesystem::path& file_name,
-    xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
-  xabsl::StatusBuilder builder = ErrnoToStatus(errno, loc);
+    absl::SourceLocation loc = absl::SourceLocation::current()) {
+  absl::StatusBuilder builder = ErrnoToStatus(errno, loc);
   builder << file_name.string();
   return std::move(builder);
 }

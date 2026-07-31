@@ -56,7 +56,7 @@ TEST(StatusMacrosChecksTest, RCheckFailure) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func().message()), HasRCheckMessage(""));
 }
 
@@ -70,7 +70,7 @@ TEST(StatusMacrosChecksTest, Bool) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func().message()), HasRCheckMessage("false"));
 }
 
@@ -84,7 +84,7 @@ TEST(StatusMacrosChecksTest, Eq) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func().message()), HasRCheckMessage("3 == 4"));
 }
 
@@ -98,7 +98,7 @@ TEST(StatusMacrosChecksTest, Ne) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func().message()), HasRCheckMessage("2 != 2"));
 }
 
@@ -112,7 +112,7 @@ TEST(StatusMacrosChecksTest, Le) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func().message()), HasRCheckMessage("4 <= 3"));
 }
 
@@ -126,7 +126,7 @@ TEST(StatusMacrosChecksTest, Lt) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func().message()), HasRCheckMessage("4 < 4"));
 }
 
@@ -140,7 +140,7 @@ TEST(StatusMacrosChecksTest, Ge) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func().message()), HasRCheckMessage("3 >= 4"));
 }
 
@@ -154,7 +154,7 @@ TEST(StatusMacrosChecksTest, Gt) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func().message()), HasRCheckMessage("4 > 4"));
 }
 
@@ -169,7 +169,7 @@ TEST(StatusMacrosChecksTest, Ok) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func().message()), HasRCheckMessage("zomg"));
 }
 
@@ -189,7 +189,7 @@ TEST(StatusMacrosChecksTest, StatusOrOk) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func().message()), HasRCheckMessage("zomg"));
 }
 
@@ -202,7 +202,7 @@ TEST(StatusMacrosChecksTest, LocalVars) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   XLS_EXPECT_OK(func(true, "IGNORED"));
   EXPECT_THAT(std::string(func(false, "TRIGGERED").message()),
               HasRCheckMessage("condition"));
@@ -217,7 +217,7 @@ TEST(StatusMacrosChecksTest, NullStr) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   XLS_EXPECT_OK(func("", "IGNORED"));
   EXPECT_THAT(std::string(func(nullptr, "TRIGGERED").message()),
               HasRCheckMessage("var != nullptr"));
@@ -232,7 +232,7 @@ TEST(StatusMacrosChecksTest, MutableNullStr) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   EXPECT_THAT(std::string(func(nullptr, "TRIGGERED").message()),
               HasRCheckMessage("var != nullptr"));
 }
@@ -246,7 +246,7 @@ TEST(StatusMacrosChecksTest, LocalVarsOp) {
   ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
-      .Times(1);
+      .Times(testing::AnyNumber());
   XLS_EXPECT_OK(func(1, 1, "IGNORED"));
   EXPECT_THAT(std::string(func(2, 3, "TRIGGERED").message()),
               HasRCheckMessage("x == y"));

@@ -761,6 +761,7 @@ cc_library(
         "//xls/scheduling:scheduling_result",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_builder",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
     ],

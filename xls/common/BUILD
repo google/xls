@@ -264,6 +264,7 @@ cc_test(
 cc_library(
     name = "source_location",
     hdrs = ["source_location.h"],
+    deps = ["@abseil-cpp//absl/types:source_location"],
 )
 
 cc_test(

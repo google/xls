@@ -15,13 +15,15 @@
 #ifndef XLS_COMMON_STATUS_STATUS_OR_REF_H_
 #define XLS_COMMON_STATUS_STATUS_OR_REF_H_
 
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/status/status.h"
+#include "absl/status/status_builder.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
-#include "xls/common/status/status_builder.h"
 
 namespace xls {
 
@@ -51,7 +53,7 @@ class [[nodiscard]] StatusOrRef {
   // NOLINTNEXTLINE(google-explicit-constructor)
   StatusOrRef(absl::Status value) : value_(std::move(value)) {}
   // NOLINTNEXTLINE(google-explicit-constructor)
-  StatusOrRef(xabsl::StatusBuilder value) : value_(std::move(value)) {}
+  StatusOrRef(absl::StatusBuilder value) : value_(std::move(value)) {}
 
   StatusOrRef& operator=(
       const StatusOrRef<T>& x ABSL_ATTRIBUTE_LIFETIME_BOUND) = default;
@@ -120,5 +122,10 @@ inline const absl::Status& GetStatus(const StatusOrRef<T>& v) {
 // TODO(allight): Add stringify and <<
 
 }  // namespace xls
+
+namespace absl::status_macro_internal {
+template <typename T>
+struct IsAllowedStatusOrMacroType<xls::StatusOrRef<T>> : std::true_type {};
+}  // namespace absl::status_macro_internal
 
 #endif  // XLS_COMMON_STATUS_STATUS_OR_REF_H_

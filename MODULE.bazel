@@ -39,7 +39,7 @@ use_repo(pip, "xls_pip_deps")
 
 # Root module dependencies.
 # Note: some older dependencies still require repo_name aliases; see #4459
-bazel_dep(name = "abseil-cpp", version = "20260107.0")
+bazel_dep(name = "abseil-cpp", version = "20260526.0")
 bazel_dep(name = "abseil-py", version = "2.1.0")
 bazel_dep(name = "bazel_features", version = "1.41.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
@@ -73,7 +73,10 @@ bazel_dep(name = "or-tools", version = "9.15")
 single_version_override(
     module_name = "or-tools",
     patch_strip = 1,
-    patches = ["//dependency_support/or-tools:make_pdlp_public.patch"],
+    patches = [
+        "//dependency_support/or-tools:make_pdlp_public.patch",
+        "//dependency_support/or-tools:use_absl_source_location.patch",
+    ],
     version = "9.15",
 )
 
@@ -273,7 +276,7 @@ single_version_override(
 )
 
 # Dev dependencies
-bazel_dep(name = "fuzztest", version = "20260219.0", dev_dependency = True, repo_name = "com_google_fuzztest")
+bazel_dep(name = "fuzztest", version = "20260629.0", dev_dependency = True, repo_name = "com_google_fuzztest")
 bazel_dep(name = "google_benchmark", version = "1.9.5", dev_dependency = True)
 bazel_dep(name = "googletest", version = "1.17.0", dev_dependency = True)
 

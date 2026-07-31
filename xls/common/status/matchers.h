@@ -38,8 +38,8 @@
 #include <string_view>
 
 #include "gmock/gmock.h"
+#include "absl/status/status_builder.h"
 #include "absl/status/status_matchers.h"  // IWYU pragma: keep
-#include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
 
 namespace xls {
@@ -47,7 +47,7 @@ namespace status_testing {
 namespace internal_status {
 
 void AddFatalFailure(std::string_view expression,
-                     const xabsl::StatusBuilder& builder);
+                     const absl::StatusBuilder& builder);
 
 }  // namespace internal_status
 

@@ -19,15 +19,15 @@
 
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_builder.h"
 #include "absl/strings/str_cat.h"
-#include "xls/common/status/status_builder.h"
 
 namespace xls {
 namespace status_testing {
 namespace internal_status {
 
 void AddFatalFailure(std::string_view expression,
-                     const xabsl::StatusBuilder& builder) {
+                     const absl::StatusBuilder& builder) {
   GTEST_MESSAGE_AT_(
       builder.source_location().file_name(), builder.source_location().line(),
       ::absl::StrCat(expression, " returned error: ",

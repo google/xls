@@ -20,6 +20,7 @@
 
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/status/status_builder.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
@@ -72,7 +73,7 @@ absl::StatusOr<SchedulingResult> RunSchedulingPipeline(
         absl::StrAppendFormat(&error_message, " with a %dps clock",
                               scheduling_options.clock_period_ps().value());
       }
-      return xabsl::StatusBuilder(scheduling_status).SetPrepend()
+      return absl::StatusBuilder(scheduling_status).SetPrepend()
              << error_message << ": ";
     }
     return scheduling_status;

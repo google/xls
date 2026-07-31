@@ -35,6 +35,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_builder.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -1003,7 +1004,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
         result.Finish(TestResult::kSomeFailed, absl::Now() - start);
         return result;
       }
-      return xabsl::StatusBuilder(ir_package_conversion_data.status())
+      return absl::StatusBuilder(ir_package_conversion_data.status())
              << "Failed to convert input to IR for comparison. Consider "
                 "turning off comparison with `--compare=none`: ";
     }

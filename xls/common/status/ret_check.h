@@ -46,33 +46,33 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/status/status_builder.h"
 #include "absl/status/statusor.h"
-#include "xls/common/source_location.h"
-#include "xls/common/status/status_builder.h"
+#include "absl/types/source_location.h"
 #include "xls/common/status/status_macros.h"
 
 namespace xls {
 namespace internal_status_macros_ret_check {
 
 // Returns a StatusBuilder that corresponds to a `XLS_RET_CHECK` failure.
-xabsl::StatusBuilder RetCheckFailSlowPath(xabsl::SourceLocation location);
-xabsl::StatusBuilder RetCheckFailSlowPath(xabsl::SourceLocation location,
-                                          const char* condition);
-xabsl::StatusBuilder RetCheckFailSlowPath(xabsl::SourceLocation location,
-                                          const char* condition,
-                                          const absl::Status& s);
+absl::StatusBuilder RetCheckFailSlowPath(absl::SourceLocation location);
+absl::StatusBuilder RetCheckFailSlowPath(absl::SourceLocation location,
+                                         const char* condition);
+absl::StatusBuilder RetCheckFailSlowPath(absl::SourceLocation location,
+                                         const char* condition,
+                                         const absl::Status& s);
 
 // Takes ownership of `condition`.  This API is a little quirky because it is
 // designed to make use of the `::Check_*Impl` methods that implement `CHECK_*`
 // and `DCHECK_*`.
-xabsl::StatusBuilder RetCheckFailSlowPath(xabsl::SourceLocation location,
-                                          std::string* condition);
+absl::StatusBuilder RetCheckFailSlowPath(absl::SourceLocation location,
+                                         std::string* condition);
 
-inline xabsl::StatusBuilder RetCheckImpl(const absl::Status& status,
-                                         const char* condition,
-                                         xabsl::SourceLocation location) {
+inline absl::StatusBuilder RetCheckImpl(const absl::Status& status,
+                                        const char* condition,
+                                        absl::SourceLocation location) {
   if (ABSL_PREDICT_TRUE(status.ok())) {
-    return xabsl::StatusBuilder(absl::OkStatus(), location);
+    return absl::StatusBuilder(absl::OkStatus(), location);
   }
   return RetCheckFailSlowPath(location, condition, status);
 }
@@ -213,11 +213,11 @@ inline unsigned long long GetReferenceableValue(  // NOLINT: runtime/int
 #define XLS_RET_CHECK(cond)                                             \
   while (ABSL_PREDICT_FALSE(!(cond)))                                   \
   return ::xls::internal_status_macros_ret_check::RetCheckFailSlowPath( \
-      XABSL_LOC, #cond)
+      ::absl::SourceLocation::current(), #cond)
 
 #define XLS_RET_CHECK_FAIL()                                            \
   return ::xls::internal_status_macros_ret_check::RetCheckFailSlowPath( \
-      XABSL_LOC)
+      ::absl::SourceLocation::current())
 
 // Takes an expression returning absl::Status and asserts that the status is
 // `ok()`.  If not, it returns an internal error.
@@ -233,7 +233,7 @@ inline unsigned long long GetReferenceableValue(  // NOLINT: runtime/int
 #define XLS_RET_CHECK_OK(status)                                             \
   XLS_RETURN_IF_ERROR(::xls::internal_status_macros_ret_check::RetCheckImpl( \
       ::xls::internal_status_macros_ret_check::AsStatus(status), #status,    \
-      XABSL_LOC))
+      ::absl::SourceLocation::current()))
 
 #if defined(STATIC_ANALYSIS) || defined(PORTABLE_STATUS)
 #define XLS_COMMON_MACROS_INTERNAL_RET_CHECK_OP(name, op, lhs, rhs) \
@@ -249,7 +249,7 @@ inline unsigned long long GetReferenceableValue(  // NOLINT: runtime/int
                   rhs),                                                       \
               #lhs " " #op " " #rhs))                                         \
   return ::xls::internal_status_macros_ret_check::RetCheckFailSlowPath(       \
-      XABSL_LOC, _result)
+      ::absl::SourceLocation::current(), _result)
 #endif
 
 #define XLS_RET_CHECK_EQ(lhs, rhs) \

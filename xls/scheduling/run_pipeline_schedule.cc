@@ -35,6 +35,7 @@
 #include "absl/log/vlog_is_on.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "absl/status/status_builder.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -43,7 +44,6 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_search.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -367,7 +367,7 @@ absl::Status HandleScheduleFailure(
         // We failed with an explained error at the longest possible clock
         // period. Report this error up, adding that the clock period will
         // also need to be increased - though we don't know by how much.
-        return xabsl::StatusBuilder(std::move(min_clock_period_ps).status())
+        return absl::StatusBuilder(std::move(min_clock_period_ps).status())
                    .SetPrepend()
                << absl::StrFormat(
                       "cannot achieve the specified clock period; try "
@@ -402,7 +402,7 @@ absl::Status HandleScheduleFailure(
       // We failed with an explained error at the pessimistic clock period.
       // Report this error up, adding that the clock period will also need
       // to be increased - though we don't know by how much.
-      return xabsl::StatusBuilder(std::move(pessimistic_status)).SetPrepend()
+      return absl::StatusBuilder(std::move(pessimistic_status)).SetPrepend()
              << absl::StrFormat(
                     "cannot achieve the specified clock period; try "
                     "increasing `--clock_period_ps`. Also, ");
