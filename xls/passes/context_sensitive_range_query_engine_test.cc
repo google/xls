@@ -1904,6 +1904,31 @@ void ContextIsBoundedByBaseRange(std::shared_ptr<Package> p) {
   }
 }
 
+TEST_F(ContextSensitiveRangeQueryEngineTest, ContradictorySelectorRegression) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p0 = fb.Param("p0", p->GetBitsType(1));
+  BValue ne3 = fb.Ne(p0, p0);
+  BValue sel11 = fb.Select(p0, {ne3, p0});
+  BValue ule13 = fb.ULe(ne3, p0);
+  BValue zero_ext14 = fb.ZeroExtend(sel11, 1000);
+  BValue literal16 = fb.Literal(UBits(0, 1000));
+  BValue sel17 = fb.Select(ule13, {zero_ext14, literal16});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ContextSensitiveRangeQueryEngine engine;
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Specialize on the alternate arm of sel17 (where ule13 == 0, which is
+  // impossible)
+  auto specialized = engine.SpecializeGivenPredicate(
+      {PredicateState(sel17.node()->As<Select>(), kAlternateArm)});
+
+  SharedLeafTypeTree<TernaryVector> ternary =
+      specialized->GetTernary(sel17.node()).value();
+  EXPECT_EQ(ternary.Get({}).back(), TernaryValue::kUnknown);
+}
+
 FUZZ_TEST(ContextSensitiveRangeQueryEngineFuzzTest, ContextIsBoundedByBaseRange)
     .WithDomains(IrFuzzDomain());
 

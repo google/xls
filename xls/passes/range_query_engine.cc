@@ -323,10 +323,15 @@ void RangeQueryEngine::SetIntervalSetTree(
   }
 
   if (node->GetType()->IsBits()) {
-    interval_ops::KnownBits bits =
-        interval_ops::ExtractKnownBits(ist.Get({}), /*source=*/node);
-    known_bits_[node] = bits.known_bits;
-    known_bit_values_[node] = bits.known_bit_values;
+    if (ist.Get({}).IsEmpty()) {
+      known_bits_[node] = Bits(node->GetType()->GetFlatBitCount());
+      known_bit_values_[node] = Bits(node->GetType()->GetFlatBitCount());
+    } else {
+      interval_ops::KnownBits bits =
+          interval_ops::ExtractKnownBits(ist.Get({}), /*source=*/node);
+      known_bits_[node] = bits.known_bits;
+      known_bit_values_[node] = bits.known_bit_values;
+    }
   }
 }
 
@@ -345,10 +350,15 @@ void RangeQueryEngine::SetIntervalSetTree(Node* node,
   }
 
   if (node->GetType()->IsBits()) {
-    interval_ops::KnownBits bits =
-        interval_ops::ExtractKnownBits(ist.Get({}), /*source=*/node);
-    known_bits_[node] = bits.known_bits;
-    known_bit_values_[node] = bits.known_bit_values;
+    if (ist.Get({}).IsEmpty()) {
+      known_bits_[node] = Bits(node->GetType()->GetFlatBitCount());
+      known_bit_values_[node] = Bits(node->GetType()->GetFlatBitCount());
+    } else {
+      interval_ops::KnownBits bits =
+          interval_ops::ExtractKnownBits(ist.Get({}), /*source=*/node);
+      known_bits_[node] = bits.known_bits;
+      known_bit_values_[node] = bits.known_bit_values;
+    }
   }
 }
 

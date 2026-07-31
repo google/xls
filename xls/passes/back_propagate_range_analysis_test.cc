@@ -593,5 +593,87 @@ TEST_F(BackPropagateRangeAnalysisTest, BitsliceComparisonGt) {
           Pair(slice.node(), IntervalSet::Precise(UBits(0, 29)))));
 }
 
+TEST_F(BackPropagateRangeAnalysisTest, UnifyExactMatchContradictingTrue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a = fb.Param("a", p->GetBitsType(4));
+  auto b = fb.Param("b", p->GetBitsType(4));
+  auto eq = fb.Eq(a, b);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results, PropagateGivensBackwards(
+                        qe, f,
+                        {{a.node(), IntervalSet::Precise(UBits(0, 4))},
+                         {b.node(), IntervalSet::Precise(UBits(1, 4))},
+                         {eq.node(), IntervalSet::Precise(UBits(1, 1))}}));
+
+  EXPECT_TRUE(results.at(a.node()).IsEmpty());
+  EXPECT_TRUE(results.at(b.node()).IsEmpty());
+}
+
+TEST_F(BackPropagateRangeAnalysisTest, UnifyExactMatchContradictingFalse) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a = fb.Param("a", p->GetBitsType(4));
+  auto b = fb.Param("b", p->GetBitsType(4));
+  auto eq = fb.Eq(a, b);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results, PropagateGivensBackwards(
+                        qe, f,
+                        {{a.node(), IntervalSet::Precise(UBits(0, 4))},
+                         {b.node(), IntervalSet::Precise(UBits(0, 4))},
+                         {eq.node(), IntervalSet::Precise(UBits(0, 1))}}));
+
+  EXPECT_TRUE(results.at(b.node()).IsEmpty());
+}
+
+TEST_F(BackPropagateRangeAnalysisTest, UnifyTrueComparisonContradictingSigned) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a = fb.Param("a", p->GetBitsType(4));
+  auto b = fb.Param("b", p->GetBitsType(4));
+  auto gt = fb.SGt(a, b);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results, PropagateGivensBackwards(
+                        qe, f,
+                        {{a.node(), IntervalSet::Precise(SBits(-1, 4))},
+                         {b.node(), IntervalSet::Precise(SBits(1, 4))},
+                         {gt.node(), IntervalSet::Precise(UBits(1, 1))}}));
+
+  EXPECT_TRUE(results.at(a.node()).IsEmpty());
+  EXPECT_TRUE(results.at(b.node()).IsEmpty());
+}
+
+TEST_F(BackPropagateRangeAnalysisTest, HandleNotContradictingEmpty) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a = fb.Param("a", p->GetBitsType(4));
+  auto not_a = fb.Not(a);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results,
+      PropagateGivensBackwards(qe, f, {{not_a.node(), IntervalSet(4)}}));
+
+  EXPECT_TRUE(results.at(a.node()).IsEmpty());
+}
+
 }  // namespace
 }  // namespace xls

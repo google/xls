@@ -124,8 +124,8 @@ class BackPropagate : public DfsVisitorWithDefault {
   absl::Status HandleNot(UnOp* not_op) final {
     const IntervalSet& value = GetIntervals(not_op);
     if (value.IsEmpty()) {
-      // We're already in an impossible case; don't try to do anything more.
-      return absl::OkStatus();
+      return MergeIn(not_op->operand(0),
+                     IntervalSet(not_op->operand(0)->BitCountOrDie()));
     }
     if (value.IsMaximal()) {
       // If we have no bounds there's no additional info we can get by looking
@@ -380,7 +380,8 @@ class BackPropagate : public DfsVisitorWithDefault {
     CHECK(op == Op::kUGe || op == Op::kUGt || op == Op::kSGe || op == Op::kSGt)
         << op;
     if (left_range.IsEmpty() || right_range.IsEmpty()) {
-      // We're already in an impossible case; don't try to do anything more.
+      XLS_RETURN_IF_ERROR(MergeIn(left, IntervalSet(left->BitCountOrDie())));
+      XLS_RETURN_IF_ERROR(MergeIn(right, IntervalSet(right->BitCountOrDie())));
       return absl::OkStatus();
     }
     // Perform the comparison for specifically unsigned operations.
@@ -443,11 +444,12 @@ class BackPropagate : public DfsVisitorWithDefault {
             range_unsigned(unsigned_op, interval_ops::Add(offset, left_range),
                            interval_ops::Add(offset, right_range));
         if (scaled_new_left.IsEmpty() || scaled_new_right.IsEmpty()) {
-          // Implies that the givens are impossible. Can't do anything more.
-          return absl::OkStatus();
+          new_left = IntervalSet(left->BitCountOrDie());
+          new_right = IntervalSet(right->BitCountOrDie());
+        } else {
+          new_left = interval_ops::Sub(scaled_new_left, offset);
+          new_right = interval_ops::Sub(scaled_new_right, offset);
         }
-        new_left = interval_ops::Sub(scaled_new_left, offset);
-        new_right = interval_ops::Sub(scaled_new_right, offset);
         break;
       }
       default:
@@ -482,17 +484,6 @@ class BackPropagate : public DfsVisitorWithDefault {
       // Case: (L == R) == TRUE
       // Case: (L != R) == FALSE
       IntervalSet unified = IntervalSet::Intersect(a_intervals, b_intervals);
-
-      if (unified.NumberOfIntervals() == 0) {
-        // This implies the condition is actually unreachable impossible
-        // (since we unify to bottom on an element). For now just leave
-        // unconstrained and continue.
-        // TODO(allight): 2023-09-25: We can do better and should probably try
-        // to communicate and remove the impossible cases here. This would
-        // need to be done in narrowing or strength reduction by removing the
-        // associated branches.
-        return absl::OkStatus();
-      }
       XLS_RETURN_IF_ERROR(MergeIn(a, unified));
       XLS_RETURN_IF_ERROR(MergeIn(b, unified));
     } else {
@@ -514,16 +505,6 @@ class BackPropagate : public DfsVisitorWithDefault {
         imprecise_complement_interval.Normalize();
         IntervalSet imprecise_interval =
             IntervalSet::Complement(imprecise_complement_interval);
-        if (imprecise_interval.NumberOfIntervals() == 0) {
-          // This implies the condition is actually unreachable
-          // (since we unify to bottom on some element). For now just leave
-          // unconstrained.
-          // TODO(allight): 2023-09-25: We can do better and should probably try
-          // to communicate and remove the impossible cases here. This would
-          // need to be done in narrowing or strength reduction by removing the
-          // associated branches.
-          return absl::OkStatus();
-        }
         XLS_RETURN_IF_ERROR(MergeIn(imprecise, imprecise_interval));
       } else {
         // TODO(allight): 2023-08-10 Technically there is information to be

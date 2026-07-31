@@ -383,11 +383,10 @@ class Analysis {
     ranges.reserve(intervals.size());
     for (auto [node, interval] : std::move(intervals)) {
       if (interval.IsEmpty()) {
-        // This case is actually impossible since it implies a contradiction in
-        // our predecessors. Force fallback to basic range analysis.
-        // TODO(allight): Ideally we'd communicate in some way that this value
-        // is impossible.
-        return std::nullopt;
+        ranges[node] =
+            RangeData{.ternary = std::nullopt,
+                      .interval_set = IntervalSetTree::CreateSingleElementTree(
+                          node->GetType(), std::move(interval))};
       } else {
         ranges[node] =
             RangeData{.ternary = interval_ops::ExtractTernaryVector(interval),
@@ -601,6 +600,10 @@ absl::StatusOr<ReachedFixpoint> ContextSensitiveRangeQueryEngine::Populate(
           // Selector cannot actually take this branch.
           continue;
         }
+        if (qe->GetIntervals(n->As<Select>()->selector()).Get({}).IsEmpty()) {
+          // Selector is impossible.
+          continue;
+        }
         if (!data) {
           data = RangeData{
               .ternary =
@@ -625,7 +628,23 @@ absl::StatusOr<ReachedFixpoint> ContextSensitiveRangeQueryEngine::Populate(
           }
         }
       }
-      XLS_RET_CHECK(data) << "No branch is selectable for " << n;
+      if (!data) {
+        XLS_ASSIGN_OR_RETURN(
+            LeafTypeTree<IntervalSet> empty_intervals,
+            LeafTypeTree<IntervalSet>::CreateFromFunction(
+                n->GetType(),
+                [](Type* leaf_type) -> absl::StatusOr<IntervalSet> {
+                  return IntervalSet(leaf_type->GetFlatBitCount());
+                }));
+        data = RangeData{
+            .ternary = n->GetType()->IsBits()
+                           ? std::make_optional(
+                                 TernaryVector(n->GetType()->GetFlatBitCount(),
+                                               TernaryValue::kUnknown))
+                           : std::nullopt,
+            .interval_set = std::move(empty_intervals),
+        };
+      }
       select_ranges_[n] = *std::move(data);
     }
   }
