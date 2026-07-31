@@ -176,6 +176,7 @@ cc_test(
 proto_library(
     name = "foreign_function_data_proto",
     srcs = ["foreign_function_data.proto"],
+    option_deps = ["@protobuf//:cpp_features_proto"],
 )
 
 cc_proto_library(
@@ -1538,6 +1539,7 @@ cc_test(
 proto_library(
     name = "xls_value_proto",
     srcs = ["xls_value.proto"],
+    option_deps = ["@protobuf//:cpp_features_proto"],
     visibility = ["//xls:xls_users"],
 )
 
@@ -1556,6 +1558,7 @@ py_proto_library(
 proto_library(
     name = "evaluator_result_proto",
     srcs = ["evaluator_result.proto"],
+    option_deps = ["@protobuf//:cpp_features_proto"],
     deps = [":xls_value_proto"],
 )
 
@@ -1590,6 +1593,7 @@ py_proto_library(
 proto_library(
     name = "xls_ir_interface_proto",
     srcs = ["xls_ir_interface.proto"],
+    option_deps = ["@protobuf//:cpp_features_proto"],
     deps = [
         ":xls_type_proto",
         ":xls_value_proto",
@@ -1609,6 +1613,7 @@ py_proto_library(
 proto_library(
     name = "channel_proto",
     srcs = ["channel.proto"],
+    option_deps = ["@protobuf//:cpp_features_proto"],
 )
 
 cc_proto_library(
@@ -2257,6 +2262,7 @@ cc_test(
 proto_library(
     name = "ram_rewrite_proto",
     srcs = ["ram_rewrite.proto"],
+    option_deps = ["@protobuf//:cpp_features_proto"],
 )
 
 cc_proto_library(
@@ -2407,6 +2413,7 @@ cc_library(
 proto_library(
     name = "xls_op_name_proto",
     srcs = ["xls_op_name.proto"],
+    option_deps = ["@protobuf//:cpp_features_proto"],
 )
 
 cc_proto_library(

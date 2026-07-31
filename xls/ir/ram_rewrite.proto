@@ -12,21 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2024";
 
 package xls;
+
+import option "google/protobuf/cpp_features.proto";
+
+// TODO(joshuata): Migrate to string_view over legacy strings.
+option features.(pb.cpp).string_type = STRING;
 
 enum RamKindProto {
   RAM_INVALID = 0;
   RAM_ABSTRACT = 1;
-  RAM_1RW = 2;
-  RAM_1R1W = 3;
+  RAM_1RW = 2 [features.enforce_naming_style = STYLE_LEGACY];
+  RAM_1R1W = 3 [features.enforce_naming_style = STYLE_LEGACY];
 }
 
 message RamConfigProto {
   RamKindProto kind = 1;
   int64 depth = 3;
-  optional int64 word_partition_size = 4;
+  int64 word_partition_size = 4;
   // TODO(google/xls#861): Add support for initialization info in proto.
 }
 
@@ -37,7 +42,7 @@ message RamRewriteProto {
   string to_name_prefix = 4;
   // For proc-scoped channels only, this specifies which proc the channels are
   // defined in.
-  optional string proc_name = 5;
+  string proc_name = 5;
 }
 
 message RamRewritesProto {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2024";
 
 package xls;
 
@@ -24,20 +24,20 @@ message TypeProto {
     ARRAY = 3;
     TOKEN = 4;
   }
-  optional TypeEnum type_enum = 1;
+  TypeEnum type_enum = 1;
 
   // For BITS types, this is the bit width.
-  optional int64 bit_count = 2;
+  int64 bit_count = 2;
 
   // For TUPLE types, the type of the elements.
   repeated TypeProto tuple_elements = 3;
 
   // For ARRAY types, the number and type of the elements.
-  optional int64 array_size = 4;
-  optional TypeProto array_element = 5;
+  int64 array_size = 4;
+  TypeProto array_element = 5;
 }
 
 message FunctionTypeProto {
   repeated TypeProto parameters = 1;
-  optional TypeProto return_type = 2;
+  TypeProto return_type = 2;
 }
