@@ -12,20 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2024";
 
 package xls;
 
 import "xls/ir/xls_type.proto";
 import "xls/ir/xls_value.proto";
 
+import option "google/protobuf/cpp_features.proto";
+
+// TODO(joshuata): Migrate to string_view over legacy strings.
+option features.(pb.cpp).string_type = STRING;
+
 message PackageInterfaceProto {
   // A generic thing with a name and a type.
   message NamedValue {
-    optional string name = 1;
-    optional TypeProto type = 2;
+    string name = 1;
+    TypeProto type = 2;
     // If present the corresponding sv type for this value.
-    optional string sv_type = 3;
+    string sv_type = 3;
   }
 
   message Channel {
@@ -38,41 +43,41 @@ message PackageInterfaceProto {
       // Both sends and receives are valid.
       INOUT = 3;
     }
-    optional string name = 1;
-    optional TypeProto type = 2;
-    optional Direction direction = 3;
+    string name = 1;
+    TypeProto type = 2;
+    Direction direction = 3;
     // If present the corresponding sv type for this channel.
-    optional string sv_type = 4;
+    string sv_type = 4;
 
     // For proc-scoped channels, the proc containing the channel.
-    optional string proc_name = 5;
+    string proc_name = 5;
   }
 
   // Common fields to all types of executables.
   message FunctionBase {
-    optional bool top = 1;
-    optional string name = 2;
+    bool top = 1;
+    string name = 2;
   }
 
-  message Function {
-    optional FunctionBase base = 1;
+  export message Function {
+    FunctionBase base = 1;
     repeated NamedValue parameters = 2;
-    optional TypeProto result_type = 3;
+    TypeProto result_type = 3;
     // If present the corresponding sv type for the result of this function.
-    optional string sv_result_type = 4;
+    string sv_result_type = 4;
 
     // The structured fuzzing domains for this function. There may be
     // either zero domains, or exactly one domain per parameter.
     repeated FuzzTestDomain parameter_domains = 5;
   }
 
-  message Proc {
+  export message Proc {
     message StateValue {
-      optional NamedValue name = 1;
+      NamedValue name = 1;
       // If true this state value is marked as non_synth
-      optional bool non_synthesizable = 2;
+      bool non_synthesizable = 2;
     }
-    optional FunctionBase base = 1;
+    FunctionBase base = 1;
     // DEPRECATED: Use state_values instead.
     repeated NamedValue state = 2 [deprecated = true];
     // The state value information.
@@ -88,36 +93,36 @@ message PackageInterfaceProto {
   // Common information for scheduled pipelines.
   message PipelineInformation {
     // How long the full pipeline is.
-    optional int32 pipeline_length = 1;
+    int32 pipeline_length = 1;
     // What the initiation interval for this pipeline is. 1 is full throughput.
-    optional int32 initiation_interval = 2;
+    int32 initiation_interval = 2;
   }
 
   // Information about a function which has gone through scheduling.
   message ScheduledFunction {
-    optional Function function = 1;
-    optional PipelineInformation pipeline_info = 2;
+    Function function = 1;
+    PipelineInformation pipeline_info = 2;
   }
 
   message ScheduledProc {
     // Information about a send or receive.
     message IO {
       // The stage at which this IO is scheduled.
-      optional int32 stage = 1;
+      int32 stage = 1;
       // Either a send/recv channel that is used in the given stage.
-      optional string channel_name = 2;
-      optional bool is_blocking = 4;
+      string channel_name = 2;
+      bool is_blocking = 4;
     }
     // Information about when state information is read or written which
     // controls throughput and latency.
     message StateAccess {
       // The state element
-      optional string name = 1;
+      string name = 1;
       // The stage at which this state element is accessed (read or written).
-      optional int32 stage = 2;
+      int32 stage = 2;
     }
-    optional Proc proc = 1;
-    optional PipelineInformation pipeline_info = 2;
+    Proc proc = 1;
+    PipelineInformation pipeline_info = 2;
     repeated IO sends = 3;
     repeated IO recvs = 4;
     repeated StateAccess state_reads = 5;
@@ -131,8 +136,8 @@ message PackageInterfaceProto {
     }
   }
 
-  message Block {
-    optional FunctionBase base = 1;
+  export message Block {
+    FunctionBase base = 1;
     repeated NamedValue registers = 2;
     repeated NamedValue input_ports = 3;
     repeated NamedValue output_ports = 4;
@@ -140,8 +145,8 @@ message PackageInterfaceProto {
 
   message FuzzTestDomain {
     message Range {
-      optional ValueProto min = 1;
-      optional ValueProto max = 2;
+      ValueProto min = 1;
+      ValueProto max = 2;
     }
     message ElementOf {
       repeated ValueProto values = 1;
@@ -163,7 +168,7 @@ message PackageInterfaceProto {
   }
 
   // Name of the overall package.
-  optional string name = 1;
+  string name = 1;
 
   // Files used to construct this package, not in any particular order.
   repeated string files = 2;

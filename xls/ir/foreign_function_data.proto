@@ -12,15 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2024";
 
 package xls;
+
+import option "google/protobuf/cpp_features.proto";
+
+// TODO(joshuata): Migrate to string_view over legacy strings.
+option features.(pb.cpp).string_type = STRING;
 
 // Meta Information about a foreign function call.
 // This contains a template that allows to generate the code for
 // the external function instantiation.
 message ForeignFunctionData {
   string code_template = 1;
-  optional int32 delay_ps = 2;
-  // TODO(hzeller): 2023-07-05 Add optional delay model information?
+  int32 delay_ps = 2;
+  // TODO(hzeller): 2023-07-05 Add delay model information?
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2024";
 
 package xls;
 
@@ -20,16 +20,16 @@ package xls;
 message TransformMetricsProto {
   // Number of nodes added (number of invocations of
   // FunctionBase::AddNodeInternal).
-  optional int64 nodes_added = 1;
+  int64 nodes_added = 1;
   // Number of nodes removed (number of invocations of
   // FunctionBase::RemoveNode).
-  optional int64 nodes_removed = 2;
+  int64 nodes_removed = 2;
   // Number of nodes replaced (number of calls to Node::ReplaceUsesWith).
-  optional int64 nodes_replaced = 3;
+  int64 nodes_replaced = 3;
   // Number of operands replaced (number of calls to
   // Node::ReplaceOperand[Number]).
-  optional int64 operands_replaced = 4;
+  int64 operands_replaced = 4;
   // Number of operands removed (number of calls to
   // Node::RemoveOptionalOperand).
-  optional int64 operands_removed = 5;
+  int64 operands_removed = 5;
 }

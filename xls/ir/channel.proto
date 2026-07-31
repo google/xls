@@ -12,18 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+edition = "2024";
 
 package xls;
 
+import option "google/protobuf/cpp_features.proto";
+
+// TODO(joshuata): Migrate to string_view over legacy strings.
+option features.(pb.cpp).string_type = STRING;
+
 // TODO: google/xls#1561 - document supported options DSLX reference.
 message FifoConfigProto {
-  optional int64 width = 1;
-  optional int64 depth = 2;
-  optional bool bypass = 3;
-  optional bool register_push_outputs = 4;
-  optional bool register_pop_outputs = 5;
-  optional string fifo_wrapper = 6;
+  int64 width = 1;
+  int64 depth = 2;
+  bool bypass = 3;
+  bool register_push_outputs = 4;
+  bool register_pop_outputs = 5;
+  string fifo_wrapper = 6;
 }
 
 // The kinds of flops a channels input/output may have.
@@ -49,7 +54,7 @@ message ChannelConfigProto {
   // instantiation to set up the actual verilog fifo backing the channel.
   //
   // It is an error to include this for non-streaming channels.
-  optional FifoConfigProto fifo = 1;
+  FifoConfigProto fifo = 1;
 
   // Flop to put before all inputs associated with this channel.
   FlopKindProto flop_inputs = 2;
