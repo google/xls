@@ -75,6 +75,10 @@ PROC_REWRITTEN_MEMORY_IR_PATH = runfiles.get_path(
     "xls/tools/testdata/eval_proc_main_test_memory.opt.ir"
 )
 
+PROC_VTRACE_FMT_IR_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test_vtrace_fmt.ir"
+)
+
 # Block generated from the proc with:
 # --delay_model=unit --pipeline_stages=1 --reset=rst
 # TODO(allight): Rewrite test to be writable using a dslx source.
@@ -1123,6 +1127,37 @@ rewrites {
     self.assertIn(
         "Proc __eval_proc_main_test_memory__test_proc_0_next", output.stderr
     )
+
+  def test_proc_vtrace_fmt(self):
+    ir_file = PROC_VTRACE_FMT_IR_PATH
+    input_file = self.create_tempfile(content=textwrap.dedent("""
+          eval_proc_main_test_vtrace_fmt__trigger : {
+            bits[1]:1
+          }
+        """))
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH,
+        ir_file,
+        "--ticks",
+        "1",
+        "--max_trace_verbosity",
+        "10",
+        "--show_trace",
+        "--logtostderr",
+        "--inputs_for_all_channels",
+        input_file.full_path,
+    ]
+
+    output = run_command(shared_args)
+    self.assertIn("Verbosity level 0", output.stderr)
+    self.assertIn("Verbosity level 2", output.stderr)
+    self.assertIn("Verbosity level 4", output.stderr)
+    self.assertIn("Verbosity level 8", output.stderr)
+    self.assertIn("Trace verification.", output.stderr)
+    self.assertNotIn("Verbosity level 16", output.stderr)
+    self.assertNotIn("Verbosity level 32", output.stderr)
+    self.assertNotIn("Verbosity level 64", output.stderr)
 
   @parameterized_proc_backends
   def test_proc_rewritten_memory(self, backend):

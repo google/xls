@@ -182,6 +182,60 @@ TEST_P(ProcEvaluatorTestBase, ProcIota) {
   EXPECT_TRUE(ch0_queue.IsEmpty());
 }
 
+TEST_P(ProcEvaluatorTestBase, ProcWithVtrace) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_in,
+      package->CreateStreamingChannel("trigger", ChannelOps::kReceiveOnly,
+                                      package->GetBitsType(1)));
+
+  // Build a proc that receives a trigger signal to start printing messages
+  // according to the set maximum verbosity value.
+  ProcBuilder pb("proc_with_vtrace", package.get());
+
+  BValue tok = pb.Literal(Value::Token());
+  BValue cnd = pb.Literal(Value(UBits(1, 1)));
+  const int64_t max_trace_verbosity = 10;
+  const int64_t verbosity_0 = 0;
+  const int64_t verbosity_1 = 8;
+  const int64_t verbosity_2 = 16;
+  BValue verbosity_lev0 = pb.Literal(Value(UBits(verbosity_0, 32)));
+  BValue verbosity_lev1 = pb.Literal(Value(UBits(verbosity_1, 32)));
+  BValue verbosity_lev2 = pb.Literal(Value(UBits(verbosity_2, 32)));
+  pb.Trace(tok, cnd, {verbosity_lev0},
+           {"Verbosity level: ", FormatPreference::kDefault}, verbosity_0);
+  pb.Trace(tok, cnd, {verbosity_lev1},
+           {"Verbosity level: ", FormatPreference::kDefault}, verbosity_1);
+  pb.Trace(tok, cnd, {verbosity_lev2},
+           {"Verbosity level: ", FormatPreference::kDefault}, verbosity_2);
+  pb.Receive(channel_in, tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK(package->SetTop(proc));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(package.get());
+
+  EvaluatorOptions options = EvaluatorOptions();
+  options.set_max_trace_verbosity(max_trace_verbosity);
+  std::unique_ptr<ProcEvaluator> evaluator =
+      GetParam().CreateEvaluator(proc, queue_manager.get(), options);
+
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+
+  ChannelQueue& input_queue = GetQueue(*queue_manager, "trigger", proc->name());
+  XLS_ASSERT_OK(input_queue.Write({Value(UBits(1, 1))}));
+
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+
+  EXPECT_THAT(continuation->GetEvents().GetTraceMessageStrings(),
+              ElementsAre("Verbosity level: 0", "Verbosity level: 8"));
+}
+
 TEST_P(ProcEvaluatorTestBase, ProcWhichReturnsPreviousResults) {
   Package package(TestName());
   ProcBuilder pb("prev", &package);
