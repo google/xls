@@ -35,6 +35,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
@@ -756,10 +757,7 @@ std::optional<SharedTernaryTree> PartialInfoQueryEngine::GetTernary(
     Node* node) const {
   std::optional<SharedLeafTypeTree<PartialInformation>> info_tree =
       GetInfo(node);
-  if (!info_tree.has_value() ||
-      absl::c_all_of(info_tree->elements(), [](const PartialInformation& info) {
-        return !info.Ternary().has_value();
-      })) {
+  if (!info_tree.has_value()) {
     return std::nullopt;
   }
   absl::InlinedVector<TernaryVector, 1> ternary_elements;
@@ -924,6 +922,26 @@ std::optional<int64_t> PartialInfoQueryEngine::KnownLeadingSignBits(
     return std::nullopt;
   }
   return info_tree->Get({}).KnownLeadingSignBits();
+}
+
+Bits PartialInfoQueryEngine::MinUnsignedValue(Node* node) const {
+  Bits bit_bound = QueryEngine::MinUnsignedValue(node);
+  IntervalSetTree intervals = GetIntervals(node);
+  std::optional<Bits> lb = intervals.Get({}).LowerBound();
+  if (lb.has_value()) {
+    return bits_ops::UMax(*lb, bit_bound);
+  }
+  return bit_bound;
+}
+
+Bits PartialInfoQueryEngine::MaxUnsignedValue(Node* node) const {
+  Bits bit_bound = QueryEngine::MaxUnsignedValue(node);
+  IntervalSetTree intervals = GetIntervals(node);
+  std::optional<Bits> ub = intervals.Get({}).UpperBound();
+  if (ub.has_value()) {
+    return bits_ops::UMin(*ub, bit_bound);
+  }
+  return bit_bound;
 }
 
 }  // namespace xls

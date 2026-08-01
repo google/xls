@@ -25,6 +25,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
+#include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 
 namespace xls {
@@ -40,7 +41,7 @@ namespace xls {
 // another).
 absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
 PropagateGivensBackwards(
-    const RangeQueryEngine& engine, FunctionBase* function,
+    const QueryEngine& engine, FunctionBase* function,
     absl::flat_hash_map<Node*, IntervalSet> given,
     std::optional<absl::Span<Node* const>> reverse_topo_sort = std::nullopt);
 
@@ -48,14 +49,14 @@ PropagateGivensBackwards(
 //
 // Returns the data extracted from analyzing the given computation.
 inline absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
-PropagateOneGivenBackwards(const RangeQueryEngine& engine, Node* node,
+PropagateOneGivenBackwards(const QueryEngine& engine, Node* node,
                            const IntervalSet& given) {
   return PropagateGivensBackwards(engine, node->function_base(),
                                   {{node, given}});
 }
 
 absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
-PropagateOneGivenBackwards(const RangeQueryEngine& engine, Node* node,
+PropagateOneGivenBackwards(const QueryEngine& engine, Node* node,
                            const Bits& given);
 
 }  // namespace xls

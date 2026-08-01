@@ -23,18 +23,15 @@
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
-#include "xls/passes/range_query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
-#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 
@@ -51,9 +48,7 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
   // some bounds on the proc state elements themselves. This is useful for (eg)
   // proc_state_narrowing.
   ProcStateRangeQueryEngine()
-      : ternary_(std::make_unique<TernaryQueryEngine>()),
-        range_(std::make_unique<RangeQueryEngine>()),
-        inner_(UnownedUnionQueryEngine({ternary_.get(), range_.get()})) {}
+      : inner_(std::make_unique<PartialInfoQueryEngine>()) {}
   ProcStateRangeQueryEngine(ProcStateRangeQueryEngine&&) = default;
   ProcStateRangeQueryEngine(const ProcStateRangeQueryEngine&) = delete;
   ProcStateRangeQueryEngine& operator=(const ProcStateRangeQueryEngine&) =
@@ -65,99 +60,86 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
   // information over normal range analysis. The query engine can still be
   // populated if this is false but it is no different than a union of ternary
   // and range analyses.
-  inline static bool CanAnalyzeProcStateEvolution(FunctionBase* f) {
+  static bool CanAnalyzeProcStateEvolution(FunctionBase* f) {
     return f->IsProc();
   }
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
-    return inner_.GetIntervals(node);
+    return inner_->GetIntervals(node);
   }
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
-    return inner_.AtMostOneTrue(bits);
+    return inner_->AtMostOneTrue(bits);
   }
 
   bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override {
-    return inner_.AtLeastOneTrue(bits);
+    return inner_->AtLeastOneTrue(bits);
   }
 
   bool KnownEquals(const TreeBitLocation& a,
                    const TreeBitLocation& b) const override {
-    return inner_.KnownEquals(a, b);
+    return inner_->KnownEquals(a, b);
   }
 
   bool KnownNotEquals(const TreeBitLocation& a,
                       const TreeBitLocation& b) const override {
-    return inner_.KnownNotEquals(a, b);
+    return inner_->KnownNotEquals(a, b);
   }
 
   bool Implies(const TreeBitLocation& a,
                const TreeBitLocation& b) const override {
-    return inner_.Implies(a, b);
+    return inner_->Implies(a, b);
   }
 
   std::optional<Bits> ImpliedNodeValue(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override {
-    return inner_.ImpliedNodeValue(predicate_bit_values, node);
+    return inner_->ImpliedNodeValue(predicate_bit_values, node);
   }
 
   std::optional<TernaryVector> ImpliedNodeTernary(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override {
-    return inner_.ImpliedNodeTernary(predicate_bit_values, node);
-  }
-
-  IntervalSetTree GetIntervalSetTree(Node* node) const {
-    CHECK(range_);
-    return range_->GetIntervalSetTree(node);
-  }
-
-  absl::StatusOr<IntervalSetTreeView> GetIntervalSetTreeView(Node* node) const {
-    XLS_RET_CHECK(range_);
-    return range_->GetIntervalSetTreeView(node);
+    return inner_->ImpliedNodeTernary(predicate_bit_values, node);
   }
 
   bool AtMostOneBitTrue(Node* node) const override {
-    return inner_.AtMostOneBitTrue(node);
+    return inner_->AtMostOneBitTrue(node);
   }
   bool AtLeastOneBitTrue(Node* node) const override {
-    return inner_.AtLeastOneBitTrue(node);
+    return inner_->AtLeastOneBitTrue(node);
   }
   bool ExactlyOneBitTrue(Node* node) const override {
-    return inner_.ExactlyOneBitTrue(node);
+    return inner_->ExactlyOneBitTrue(node);
   }
 
   bool Covers(Node* n, const Bits& value) const override {
-    return inner_.Covers(n, value);
+    return inner_->Covers(n, value);
   }
 
   Bits MaxUnsignedValue(Node* n) const override {
-    return inner_.MaxUnsignedValue(n);
+    return inner_->MaxUnsignedValue(n);
   }
 
   Bits MinUnsignedValue(Node* n) const override {
-    return inner_.MinUnsignedValue(n);
+    return inner_->MinUnsignedValue(n);
   }
 
   // Returns whether any information is available for this node.
-  bool IsTracked(Node* node) const override { return inner_.IsTracked(node); }
+  bool IsTracked(Node* node) const override { return inner_->IsTracked(node); }
 
   std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
-    return inner_.GetTernary(node);
+    return inner_->GetTernary(node);
   }
 
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
       const absl::btree_set<PredicateState>& state) const override {
-    return inner_.SpecializeGivenPredicate(state);
+    return inner_->SpecializeGivenPredicate(state);
   }
 
  private:
-  // Actual range results from the proc-state aware analysis.
-  std::unique_ptr<TernaryQueryEngine> ternary_;
-  std::unique_ptr<RangeQueryEngine> range_;
-  UnownedUnionQueryEngine inner_;
+  std::unique_ptr<PartialInfoQueryEngine> inner_;
 };
 
 }  // namespace xls
