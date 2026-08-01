@@ -30,6 +30,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/optional_ref.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -39,7 +40,6 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval.h"
-#include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -50,99 +50,25 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/back_propagate_range_analysis.h"
 #include "xls/passes/dataflow_visitor.h"
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/query_engine.h"
-#include "xls/passes/range_query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
 
 namespace xls {
 
 namespace {
 
-class ProcStateGivens : public RangeDataProvider, public TernaryDataProvider {
- public:
-  ProcStateGivens(Proc* proc, absl::flat_hash_map<Node*, IntervalSet> intervals)
-      : proc_(proc), intervals_(std::move(intervals)) {}
-  absl::Status IterateFunction(DfsVisitor* visitor) override {
-    return proc_->Accept(visitor);
-  }
-
-  std::optional<RangeData> GetKnownIntervals(Node* node) final {
-    if (intervals_.contains(node) && !intervals_.at(node).IsEmpty()) {
-      return RangeData{
-          .ternary = interval_ops::ExtractTernaryVector(intervals_.at(node)),
-          .interval_set = IntervalSetTree::CreateSingleElementTree(
-              node->GetType(), intervals_.at(node))};
-    }
-    return std::nullopt;
-  }
-
-  std::optional<LeafTypeTree<TernaryVector>> GetKnownTernary(
-      Node* node) const final {
-    if (intervals_.contains(node) && !intervals_.at(node).IsEmpty()) {
-      CHECK(node->GetType()->IsBits());
-      return LeafTypeTree<TernaryVector>(
-          node->GetType(),
-          interval_ops::ExtractTernaryVector(intervals_.at(node)));
-    }
-    return std::nullopt;
-  }
-
- private:
-  Proc* proc_;
-  absl::flat_hash_map<Node*, IntervalSet> intervals_;
-};
-
-// A givens that restricts the iteration to only values that hit the proc-state
-// directly.
-class ProcStateEvolutionGivens : public ProcStateGivens {
- public:
-  ProcStateEvolutionGivens(absl::Span<Node* const> reverse_topo_sort,
-                           Node* target,
-                           absl::flat_hash_map<Node*, IntervalSet> intervals,
-                           const absl::flat_hash_set<Node*>& interesting_nodes)
-      : ProcStateGivens(target->function_base()->AsProcOrDie(),
-                        std::move(intervals)),
-        reverse_topo_sort_(reverse_topo_sort),
-        target_(target),
-        interesting_nodes_(interesting_nodes) {}
-
-  absl::Status IterateFunction(DfsVisitor* visitor) final {
-    for (auto it = reverse_topo_sort_.crbegin();
-         it != reverse_topo_sort_.crend(); ++it) {
-      // Don't bother filling in information for nodes which don't lead to the
-      // 'next' we're looking at.
-      if (interesting_nodes_.contains(*it)) {
-        XLS_RETURN_IF_ERROR((*it)->VisitSingleNode(visitor)) << *it;
-      }
-      if (*it == target_) {
-        // We got the actual next value, no need to continue;
-        break;
-      }
-    }
-    return absl::OkStatus();
-  }
-
- private:
-  absl::Span<Node* const> reverse_topo_sort_;
-  Node* target_;
-  const absl::flat_hash_set<Node*>& interesting_nodes_;
-};
-
-absl::StatusOr<std::optional<std::pair<TernaryVector, IntervalSet>>>
-ExtractContextSensitiveRange(
-    Proc* proc, Next* next, const RangeQueryEngine& rqe,
+absl::StatusOr<std::optional<PartialInformation>> ExtractContextSensitiveRange(
+    Proc* proc, Next* next, const QueryEngine& qe,
     absl::Span<Node* const> reverse_topo_sort,
     const NodeForwardDependencyAnalysis& next_dependent_information) {
   Node* pred = *next->predicate();
   XLS_ASSIGN_OR_RETURN(
       (absl::flat_hash_map<Node*, IntervalSet> results),
-      PropagateGivensBackwards(rqe, proc,
+      PropagateGivensBackwards(qe, proc,
                                {{pred, IntervalSet::Precise(UBits(1, 1))}},
                                reverse_topo_sort));
   // Check if anything interesting was found.
@@ -151,7 +77,7 @@ ExtractContextSensitiveRange(
                        const auto& [node, interval] = entry;
                        return node == pred || node->Is<Literal>() ||
                               interval.IsMaximal() ||
-                              interval == rqe.GetIntervals(node).Get({});
+                              interval == qe.GetIntervals(node).Get({});
                      })) {
     // Nothing except for literals, unconstrained values or already discovered
     // values found. There's no point in doing anything more.
@@ -161,20 +87,27 @@ ExtractContextSensitiveRange(
   // TODO(allight): A heuristic to avoid doing this in some cases (such as none
   // of the discovered facts are in the predecessors of value) might be
   // worthwhile here.
-  absl::flat_hash_set<Node*> dependencies =
-      next_dependent_information.NodesDependedOnBy(next);
-  ProcStateEvolutionGivens givens(reverse_topo_sort, next->value(),
-                                  std::move(results), dependencies);
-  RangeQueryEngine contextual_range;
-  XLS_RETURN_IF_ERROR(contextual_range.PopulateWithGivens(givens).status());
-  std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
-      contextual_range.GetTernary(next->value());
-  TernaryVector ternary_vec =
-      ternary.has_value() ? ternary->Get({})
-                          : TernaryVector(next->value()->BitCountOrDie(),
-                                          TernaryValue::kUnknown);
-  return std::make_pair(ternary_vec,
-                        contextual_range.GetIntervals(next->value()).Get({}));
+  absl::flat_hash_map<Node*, LeafTypeTree<PartialInformation>> givens;
+  givens.reserve(results.size());
+  for (const auto& [node, interval_set] : results) {
+    if (node->GetType()->IsBits() && !interval_set.IsEmpty()) {
+      PartialInformation info(interval_set);
+      if (info.IsImpossible()) {
+        return std::nullopt;
+      }
+      givens[node] = LeafTypeTree<PartialInformation>::CreateSingleElementTree(
+          node->GetType(), std::move(info));
+    }
+  }
+  PartialInfoQueryEngine contextual_range;
+  XLS_RETURN_IF_ERROR(
+      contextual_range.PopulateWithGivens(proc, std::move(givens)).status());
+  std::optional<SharedLeafTypeTree<PartialInformation>> info_tree =
+      contextual_range.GetInfo(next->value());
+  if (info_tree.has_value()) {
+    return info_tree->Get({});
+  }
+  return PartialInformation::Unconstrained(next->value()->BitCountOrDie());
 }
 
 bool AbsoluteValueLessThan(const Bits& l, const Bits& r) {
@@ -456,10 +389,11 @@ absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
 // function is relatively dense and any entry into a segment makes the entire
 // segment live. This enables us to do this state exploration with a relatively
 // small number of runs.
-absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
+absl::StatusOr<std::optional<PartialInformation>> NarrowUsingSegments(
     Proc* proc, StateElement* state_element, const IntervalSet& intervals,
     absl::Span<Node* const> topo_sort, const NodeForwardDependencyAnalysis& nda,
-    const absl::flat_hash_map<StateElement*, RangeData>& ground_truth) {
+    const absl::flat_hash_map<StateElement*, PartialInformation>&
+        ground_truth) {
   VLOG(3) << "Doing segment walk for " << state_element->ToString() << " on "
           << intervals;
   absl::flat_hash_set<Interval> remaining_intervals(
@@ -512,11 +446,11 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
   PartialInfoQueryEngine piqe;
   absl::flat_hash_map<Node*, LeafTypeTree<PartialInformation>> givens;
   givens.reserve(ground_truth.size());
-  for (const auto& [se, rd] : ground_truth) {
+  for (const auto& [se, info] : ground_truth) {
     StateRead* sr = proc->GetStateReadByStateElement(se);
     if (sr->GetType()->IsBits()) {
       givens[sr] = LeafTypeTree<PartialInformation>::CreateSingleElementTree(
-          sr->GetType(), PartialInformation(rd.interval_set.Get({})));
+          sr->GetType(), info);
     }
   }
   XLS_RETURN_IF_ERROR(
@@ -570,10 +504,7 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
     if (overlap == remaining_intervals.cend()) {
       // Didn't discover anything new. The current active intervals are the
       // final result.
-      return RangeData{
-          .ternary = interval_ops::ExtractTernaryVector(active_intervals),
-          .interval_set = IntervalSetTree::CreateSingleElementTree(
-              state_element->type(), active_intervals)};
+      return PartialInformation(active_intervals);
     }
     active_intervals.AddInterval(*overlap);
     active_intervals.Normalize();
@@ -585,9 +516,8 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
   return std::nullopt;
 }
 // Narrow ranges using the contextual information of the next predicates.
-absl::StatusOr<absl::flat_hash_map<StateElement*, RangeData>>
-FindContextualRanges(Proc* proc, const QueryEngine& qe,
-                     const RangeQueryEngine& rqe,
+absl::StatusOr<absl::flat_hash_map<StateElement*, PartialInformation>>
+FindContextualRanges(Proc* proc, const PartialInfoQueryEngine& qe,
                      const NodeForwardDependencyAnalysis& dependency_analysis,
                      absl::Span<Node* const> reverse_topo_sort) {
   // List of all the next instructions that change the param for each param.
@@ -613,27 +543,16 @@ FindContextualRanges(Proc* proc, const QueryEngine& qe,
   }
   // To avoid issues where changes to the param values leads to invalidating the
   // TernaryQueryEngine we do all the modifications at the end.
-  absl::flat_hash_map<StateElement*, RangeData> transforms;
+  absl::flat_hash_map<StateElement*, PartialInformation> transforms;
   for (const auto& [orig_state_element, updates] : modifying_nexts_for_state) {
     if (updates.empty()) {
       // The state only has identity updates? Strange but this will be cleaned
       // up by NextValueOptimizationPass so we can ignore it.
       continue;
     }
-    Value orig_init_value = orig_state_element->initial_value();
-    TernaryVector possible_values =
-        ternary_ops::BitsToTernary(orig_init_value.bits());
-
-    IntervalSet contextual_intervals =
-        IntervalSet::Precise(orig_init_value.bits());
+    PartialInformation info =
+        PartialInformation::Precise(orig_state_element->initial_value().bits());
     for (Next* next : updates) {
-      std::optional<SharedLeafTypeTree<TernaryVector>> context_free_ltt =
-          qe.GetTernary(next->value());
-      TernaryVector context_free =
-          context_free_ltt.has_value()
-              ? context_free_ltt->Get({})
-              : TernaryVector(next->value()->BitCountOrDie(),
-                              TernaryValue::kUnknown);
       // NB Only doing context-sensitive range analysis is a heuristic to avoid
       // performing the (somewhat) expensive range propagation when we have
       // already narrowed using static analysis. While its possible that better
@@ -644,42 +563,36 @@ FindContextualRanges(Proc* proc, const QueryEngine& qe,
       // TODO(allight): Once signed bounds are supported better we should check
       // this again and determine more precisely the sort of performance impact
       // always doing (non-trivial) range analysis would have.
-      if (ternary_ops::ToKnownBits(context_free).CountLeadingOnes() == 0 &&
-          next->predicate()) {
-        // Context-free query engine wasn't able to narrow this at all and we do
-        // have additional information in the form of a predicate. Try again
-        // with contextual information.
-        XLS_ASSIGN_OR_RETURN(
-            (std::optional<std::pair<TernaryVector, IntervalSet>>
-                 contextual_result),
-            ExtractContextSensitiveRange(proc, next, rqe, reverse_topo_sort,
-                                         dependency_analysis),
-            _ << next);
-        // Keep track of all the values that we can update to using ranges.
-        if (contextual_result) {
-          const auto& [contextual_tern, contextual_range] = *contextual_result;
-          possible_values =
-              ternary_ops::Intersection(possible_values, contextual_tern);
-          contextual_intervals =
-              IntervalSet::Combine(contextual_intervals, contextual_range);
-        } else {
-          possible_values =
-              ternary_ops::Intersection(possible_values, context_free);
-          contextual_intervals = IntervalSet::Combine(
-              contextual_intervals, interval_ops::FromTernary(context_free));
-        }
+
+      std::optional<SharedLeafTypeTree<PartialInformation>> context_free_ltt =
+          qe.GetInfo(next->value());
+      absl::optional_ref<const PartialInformation> context_free =
+          context_free_ltt.has_value() ? &context_free_ltt->Get({}) : nullptr;
+      if (!next->predicate() ||
+          (context_free.has_value() && context_free->KnownLeadingBits() > 0)) {
+        // We don't have any contextual information to add, or else we can
+        // narrow using just context-free analysis.
+        info.MeetWith(*context_free);
+        continue;
+      }
+
+      // Context-free query engine wasn't able to narrow this at all and we do
+      // have additional information in the form of a predicate. Try again
+      // with contextual information.
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<PartialInformation> contextual_result,
+          ExtractContextSensitiveRange(proc, next, qe, reverse_topo_sort,
+                                       dependency_analysis),
+          _ << next);
+      // Keep track of all the values that we can update to using ranges.
+      if (contextual_result) {
+        info.MeetWith(*contextual_result);
       } else {
-        possible_values =
-            ternary_ops::Intersection(possible_values, context_free);
-        contextual_intervals = IntervalSet::Combine(
-            contextual_intervals, interval_ops::FromTernary(context_free));
+        // No such luck; fall back to the context-free result.
+        info.MeetWith(*context_free);
       }
     }
-    transforms[orig_state_element] = RangeData{
-        .ternary = possible_values,
-        .interval_set = IntervalSetTree::CreateSingleElementTree(
-            orig_state_element->type(), contextual_intervals),
-    };
+    transforms.emplace(orig_state_element, std::move(info));
   }
   return transforms;
 }
@@ -693,7 +606,7 @@ FindContextualRanges(Proc* proc, const QueryEngine& qe,
 absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine::Populate(
     FunctionBase* f) {
   // Start with a basic range and ternary analysis to get base cases.
-  XLS_ASSIGN_OR_RETURN(ReachedFixpoint fixpoint, inner_.Populate(f));
+  XLS_ASSIGN_OR_RETURN(ReachedFixpoint fixpoint, inner_->Populate(f));
   // If we aren't able to actually analyze proc-state we are done here.
   if (!ProcStateRangeQueryEngine::CanAnalyzeProcStateEvolution(f)) {
     return fixpoint;
@@ -704,32 +617,25 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine::Populate(
                        ReverseTopoSort(proc));
   std::vector<Node*> topo_sort = reverse_topo_sort;
   absl::c_reverse(topo_sort);
-  // Get the nodes which actually affect the next-value nodes. We don't really
-  // care about anything else.
-  std::vector<Node*> interesting_nodes;
-  interesting_nodes.reserve(2 * proc->next_values().size());
-  for (Next* n : proc->next_values()) {
-    interesting_nodes.push_back(n);
-    interesting_nodes.push_back(n->value());
-  }
   NodeForwardDependencyAnalysis next_node_sources;
   XLS_RETURN_IF_ERROR(next_node_sources.Attach(proc).status());
 
   // TODO(allight): We could repeat the below and the loop until we hit a
   // fixed-point to fully incorporate all cross-param knowledge. This could be
   // quite slow however.
-  XLS_ASSIGN_OR_RETURN(
-      (absl::flat_hash_map<StateElement*, RangeData> initial_transforms),
-      FindContextualRanges(proc, inner_, *range_, next_node_sources,
-                           reverse_topo_sort));
+  XLS_ASSIGN_OR_RETURN((absl::flat_hash_map<StateElement*, PartialInformation>
+                            initial_transforms),
+                       FindContextualRanges(proc, *inner_, next_node_sources,
+                                            reverse_topo_sort));
   // Find implied ranges for each param. Note that we consider each parameter in
   // isolation. Technically we could go to fixed-point and maybe get better
   // bounds but that could take a while.
-  absl::flat_hash_map<StateElement*, RangeData> final_range_data;
-  for (const auto& [orig_state_element, t] : initial_transforms) {
-    const auto& [ternary, interval_set] = t;
+  absl::flat_hash_map<StateElement*, PartialInformation> final_range_data;
+  for (const auto& [orig_state_element, info] : initial_transforms) {
     int64_t known_leading =
-        ternary_ops::ToKnownBits(*ternary).CountLeadingOnes();
+        info.Ternary().has_value()
+            ? ternary_ops::ToKnownBits(*info.Ternary()).CountLeadingOnes()
+            : 0;
     // If we have known leading bits from the ternary analysis and only care
     // about state params use that. These are usually good enough except with
     // signed integer things (identified as only being able to eliminate the
@@ -740,8 +646,8 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine::Populate(
               << (orig_state_element->type()->GetFlatBitCount() - known_leading)
               << " bits (savings: " << known_leading
               << ") using back-prop/ternary. Interval is: "
-              << interval_set.Get({});
-      final_range_data[orig_state_element] = t;
+              << info.RangeOrMaximal();
+      final_range_data.emplace(orig_state_element, info);
       continue;
     }
     // Try for signed value compression. We *only* do this if there are no
@@ -756,43 +662,45 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine::Populate(
     // can move from one partition to another cutting down in the possible
     // values.
     XLS_ASSIGN_OR_RETURN(
-        std::optional<RangeData> narrowed,
-        NarrowUsingSegments(proc, orig_state_element, interval_set.Get({}),
+        std::optional<PartialInformation> narrowed,
+        NarrowUsingSegments(proc, orig_state_element, info.RangeOrMaximal(),
                             topo_sort, next_node_sources, initial_transforms));
     if (narrowed) {
-      VLOG(2)
-          << "Narrowed range of " << orig_state_element->ToString() << " to "
-          << (orig_state_element->type()->GetFlatBitCount() -
-              ternary_ops::ToKnownBits(*narrowed->ternary).CountLeadingOnes())
-          << " bits (savings: "
-          << ternary_ops::ToKnownBits(*narrowed->ternary).CountLeadingOnes()
-          << ") using segment walking. Interval is "
-          << narrowed->interval_set.Get({});
-      final_range_data[orig_state_element] = *narrowed;
+      int64_t narrowed_known_leading =
+          narrowed->Ternary().has_value()
+              ? ternary_ops::ToKnownBits(*narrowed->Ternary())
+                    .CountLeadingOnes()
+              : 0;
+      VLOG(2) << "Narrowed range of " << orig_state_element->ToString()
+              << " to "
+              << (orig_state_element->type()->GetFlatBitCount() -
+                  narrowed_known_leading)
+              << " bits (savings: " << narrowed_known_leading
+              << ") using segment walking. Interval is "
+              << narrowed->RangeOrMaximal();
+      final_range_data.emplace(orig_state_element, *narrowed);
     } else {
       VLOG(2) << "Unable to narrow range " << orig_state_element->ToString()
               << ". Segment walking unable to eliminate high bits. Interval is "
-              << interval_set.Get({});
+              << info.RangeOrMaximal();
     }
   }
 
   // We now have intervals for all params. We run one more query-engine run to
   // get final results.
-  TernaryQueryEngine spec_ternary;
-  RangeQueryEngine spec_range;
-
-  absl::flat_hash_map<Node*, IntervalSet> state_read_intervals;
-  state_read_intervals.reserve(final_range_data.size());
-  for (const auto& [state_element, range] : final_range_data) {
-    state_read_intervals[proc->GetStateReadByStateElement(state_element)] =
-        range.interval_set.Get({});
+  absl::flat_hash_map<Node*, LeafTypeTree<PartialInformation>> givens;
+  givens.reserve(final_range_data.size());
+  for (const auto& [state_element, info] : final_range_data) {
+    StateRead* sr = proc->GetStateReadByStateElement(state_element);
+    if (sr->GetType()->IsBits() && !info.IsImpossible()) {
+      givens[sr] = LeafTypeTree<PartialInformation>::CreateSingleElementTree(
+          sr->GetType(), info);
+    }
   }
-  ProcStateGivens givens(proc, std::move(state_read_intervals));
-  XLS_RETURN_IF_ERROR(spec_ternary.PopulateWithGivens(proc, givens).status());
-  XLS_RETURN_IF_ERROR(spec_range.PopulateWithGivens(givens).status());
-
-  *ternary_ = std::move(spec_ternary);
-  *range_ = std::move(spec_range);
+  auto spec_piqe = std::make_unique<PartialInfoQueryEngine>();
+  XLS_RETURN_IF_ERROR(
+      spec_piqe->PopulateWithGivens(proc, std::move(givens)).status());
+  inner_ = std::move(spec_piqe);
 
   return ReachedFixpoint::Changed;
 }

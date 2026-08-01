@@ -31,10 +31,12 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval_ops.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/partial_information.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/ternary.h"
@@ -161,17 +163,17 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
       continue;
     }
     StateRead* state_read = proc->GetStateReadByStateElement(state_element);
-    std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
-        qe.GetTernary(state_read);
-    if (!ternary) {
+    std::optional<SharedLeafTypeTree<PartialInformation>> info_ltt =
+        qe.GetInfo(state_read);
+    if (!info_ltt.has_value()) {
       continue;
     }
-    int64_t known_leading =
-        ternary_ops::ToKnownBits(ternary->Get({})).CountLeadingOnes();
+    const PartialInformation& info = info_ltt->Get({});
+    int64_t known_leading = info.KnownLeadingBits();
     if (known_leading != 0) {
       // TODO(allight): We could also narrow internal/trailing bits.
       TernarySpan known_leading_tern =
-          absl::MakeConstSpan(ternary->Get({})).last(known_leading);
+          absl::MakeConstSpan(*info.Ternary()).last(known_leading);
       XLS_RET_CHECK(ternary_ops::IsFullyKnown(known_leading_tern));
       Value orig_init_value = state_element->initial_value();
       VLOG(2) << "Narrowing state_read " << state_read << " from "
@@ -185,8 +187,11 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
       made_changes = true;
       continue;
     }
-    int64_t signed_bits = interval_ops::MinimumSignedBitCount(
-        qe.GetIntervals(state_read).Get({}));
+    if (!info.Range().has_value()) {
+      continue;
+    }
+    const IntervalSet& intervals = *info.Range();
+    int64_t signed_bits = interval_ops::MinimumSignedBitCount(intervals);
     int64_t signed_bits_removed = state_read->BitCountOrDie() - signed_bits;
     if (signed_bits_removed != 0) {
       Value orig_init_value = state_element->initial_value();
