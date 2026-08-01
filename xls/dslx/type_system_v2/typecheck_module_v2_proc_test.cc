@@ -711,5 +711,26 @@ proc Foo {
                   "Use of `Self` inside legacy procs is not supported.")));
 }
 
+TEST(TypecheckV2ProcTest, CallTestUtilityFromTestProcConfigSucceeds) {
+  EXPECT_THAT(R"(
+#[cfg(test)]
+fn helper() -> u32 { u32:42 }
+
+#[test_proc]
+proc MyTestProc {
+  terminator: chan<bool> out;
+  config(terminator: chan<bool> out) {
+    let val = helper();
+    (terminator,)
+  }
+  init {}
+  next(state: ()) {
+    send(join(), terminator, true);
+  }
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
 }  // namespace
 }  // namespace xls::dslx

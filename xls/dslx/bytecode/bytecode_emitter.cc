@@ -265,8 +265,18 @@ BytecodeEmitter::EmitExpression(
 
   XLS_RETURN_IF_ERROR(expr->AcceptExpr(&emitter));
 
-  return BytecodeFunction::Create(expr->owner(), /*source_fn=*/nullptr,
-                                  type_info, std::move(emitter.bytecode_));
+  const Function* source_fn = nullptr;
+  const AstNode* current = expr;
+  while (current != nullptr) {
+    if (current->kind() == AstNodeKind::kFunction) {
+      source_fn = absl::down_cast<const Function*>(current);
+      break;
+    }
+    current = current->parent();
+  }
+
+  return BytecodeFunction::Create(expr->owner(), source_fn, type_info,
+                                  std::move(emitter.bytecode_));
 }
 
 absl::Status BytecodeEmitter::HandleArray(const Array* node) {
