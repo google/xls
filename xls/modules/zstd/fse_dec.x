@@ -222,7 +222,7 @@ u32 = {
         let tok0 = join();
 
         // receive ctrl
-        let (_, ctrl, ctrl_valid) = recv_if_non_blocking(
+        let (tok0, ctrl, ctrl_valid) = recv_if_non_blocking(
             tok0, ctrl_r, state.fsm == FseDecoderFSM::RECV_CTRL, zero!<FseDecoderCtrl>());
         if ctrl_valid { trace_fmt!("ctrl: {:#x}", ctrl); } else {  };
         let state = if ctrl_valid {
@@ -299,7 +299,7 @@ u32 = {
         };
 
         let recv_sb_output = (do_read_bits && state.sent_buf_ctrl);
-        let (_, buf_data, buf_data_valid) =
+        let (tok0, buf_data, buf_data_valid) =
             recv_if_non_blocking(tok0, rsb_data_r, recv_sb_output, zero!<RefillingSBOutput>());
         if buf_data_valid {
             trace_fmt!("[FseDecoder] Received data {:#x} in state {}", buf_data, state.fsm);

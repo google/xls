@@ -58,8 +58,8 @@ void FlattenToSetInternal(const AstNode* node,
   }
 }
 
-BuiltinNameDef* GetBuiltinNameDef(Expr* callee) {
-  NameRef* name_ref = dynamic_cast<NameRef*>(callee);
+BuiltinNameDef* GetBuiltinNameDef(const Expr* callee) {
+  const NameRef* name_ref = dynamic_cast<const NameRef*>(callee);
   if (name_ref == nullptr) {
     return nullptr;
   }
@@ -148,7 +148,23 @@ bool IsBuiltinFn(Expr* callee, std::optional<std::string_view> target) {
   return true;
 }
 
-std::optional<std::string_view> GetBuiltinFnName(Expr* callee) {
+bool IsBuiltinChannelOp(const Expr* callee) {
+  std::optional<std::string_view> builtin_fn_name = GetBuiltinFnName(callee);
+  if (!builtin_fn_name.has_value()) {
+    return false;
+  }
+  static const absl::flat_hash_set<std::string> channel_ops = {
+      "recv",
+      "recv_if",
+      "recv_non_blocking",
+      "recv_if_non_blocking",
+      "send",
+      "send_if",
+  };
+  return channel_ops.contains(*builtin_fn_name);
+}
+
+std::optional<std::string_view> GetBuiltinFnName(const Expr* callee) {
   BuiltinNameDef* bnd = GetBuiltinNameDef(callee);
   if (bnd == nullptr) {
     return std::nullopt;
