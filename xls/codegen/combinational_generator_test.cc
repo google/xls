@@ -1941,6 +1941,26 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithNarrowStart) {
                                  result.verilog_text);
 }
 
+TEST_P(CombinationalGeneratorTest, ArraySliceWithZeroWidthLiteralStart) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue a = fb.Param("a", package.GetArrayType(1, u32));
+  BValue start = fb.Literal(UBits(0, 0));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.ArraySlice(
+                                             a, start, /*width=*/2)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  XLS_ASSERT_OK_AND_ASSIGN(Value a_value, Value::UBitsArray({7}, 32));
+  EXPECT_THAT(simulator.RunFunction({{"a", a_value}}),
+              IsOkAndHolds(Value::UBitsArray({7, 7}, 32).value()));
+  EXPECT_THAT(result.verilog_text,
+              testing::Not(testing::HasSubstr("0'h0")));
+}
+
 TEST_P(CombinationalGeneratorTest, ArraySliceWithWideStart) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
