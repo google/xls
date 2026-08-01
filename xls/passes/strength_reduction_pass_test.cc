@@ -913,8 +913,10 @@ TEST_F(StrengthReductionPassTest, AdderSplitOnNoCarryPropagateMultiple) {
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
-      m::Concat(m::Add(m::BitSlice(lhs.node(), /*start=*/2, /*width=*/3),
-                       m::BitSlice(rhs.node(), /*start=*/2, /*width=*/3)),
+      m::Concat(m::Add(m::BitSlice(lhs.node(), /*start=*/4, /*width=*/1),
+                       m::BitSlice(rhs.node(), /*start=*/4, /*width=*/1)),
+                m::Add(m::BitSlice(lhs.node(), /*start=*/2, /*width=*/2),
+                       m::BitSlice(rhs.node(), /*start=*/2, /*width=*/2)),
                 m::Add(m::BitSlice(lhs.node(), /*start=*/0, /*width=*/2),
                        m::BitSlice(rhs.node(), /*start=*/0, /*width=*/2))));
 }
@@ -952,7 +954,30 @@ TEST_F(StrengthReductionPassTest, SubSplitOnNoBorrowPropagateBit2) {
                        m::BitSlice(rhs.node(), /*start=*/0, /*width=*/3))));
 }
 
-TEST_F(StrengthReductionPassTest, SubSplitOnNoBorrowPropagateLowestBit) {
+TEST_F(StrengthReductionPassTest, AdderSplitOnNoCarryPropagateAdjacent) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p0 = fb.Param("p0", p->GetBitsType(5));
+  BValue p1 = fb.Param("p1", p->GetBitsType(5));
+  // Guarantees bit 1 and bit 2 of both operands are 0 ->
+  // propagate_carry[1]=0, propagate_carry[2]=0
+  BValue lhs = fb.And(p0, fb.Literal(UBits(0b11001, 5)));
+  BValue rhs = fb.And(p1, fb.Literal(UBits(0b11001, 5)));
+  fb.Add(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::Add(m::BitSlice(lhs.node(), /*start=*/3, /*width=*/2),
+                       m::BitSlice(rhs.node(), /*start=*/3, /*width=*/2)),
+                m::Add(m::BitSlice(lhs.node(), /*start=*/2, /*width=*/1),
+                       m::BitSlice(rhs.node(), /*start=*/2, /*width=*/1)),
+                m::Add(m::BitSlice(lhs.node(), /*start=*/0, /*width=*/2),
+                       m::BitSlice(rhs.node(), /*start=*/0, /*width=*/2))));
+}
+
+TEST_F(StrengthReductionPassTest, SubSplitOnNoBorrowPropagateMultiple) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue p0 = fb.Param("p0", p->GetBitsType(5));
@@ -964,12 +989,15 @@ TEST_F(StrengthReductionPassTest, SubSplitOnNoBorrowPropagateLowestBit) {
   fb.Subtract(lhs, rhs);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedVerifyEquivalence sve(f);
-  // Bit 1 is the lowest bit where lhs=1, rhs=0. Should split at bit 1+1=2.
+  // Bits 1 and 3 are bits where lhs=1, rhs=0.
+  // Should split at bits 1+1=2 and 3+1=4.
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
-      m::Concat(m::Sub(m::BitSlice(lhs.node(), /*start=*/2, /*width=*/3),
-                       m::BitSlice(rhs.node(), /*start=*/2, /*width=*/3)),
+      m::Concat(m::Sub(m::BitSlice(lhs.node(), /*start=*/4, /*width=*/1),
+                       m::BitSlice(rhs.node(), /*start=*/4, /*width=*/1)),
+                m::Sub(m::BitSlice(lhs.node(), /*start=*/2, /*width=*/2),
+                       m::BitSlice(rhs.node(), /*start=*/2, /*width=*/2)),
                 m::Sub(m::BitSlice(lhs.node(), /*start=*/0, /*width=*/2),
                        m::BitSlice(rhs.node(), /*start=*/0, /*width=*/2))));
 }
