@@ -3412,6 +3412,8 @@ pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>
 // If `is_nan` is true, then we make no guarantee about the value of any other members.
 struct RawProduct<SIGNED_EXP: u32, WIDE_FRACTION: u32> {
     is_nan: u1,
+    is_zero: u1,
+    is_inf: u1,
     sign: u1,
     bexp: sN[SIGNED_EXP],
     fraction: uN[WIDE_FRACTION],
@@ -3431,19 +3433,19 @@ pub fn raw_mul
     let x_significand = u1:1 ++ x.fraction;
     let y_significand = u1:1 ++ y.fraction;
 
-    // 2. Multiply integer significands, flushing input subnormals to 0.
-    let full_product =
-        if has_0_arg { uN[WIDE_FRACTION]:0 } else { std::umul(x_significand, y_significand) };
-
-    // 3. Add non-biased exponents.
+    // 2. Add non-biased exponents.
     //  - Remove the bias from the exponents, add them, then restore the bias.
     //  - Simplifies from
     //      (A - 127) + (B - 127) + 127 = exp
     //    to
     //      A + B - 127 = exp
     let bias = std::mask_bits<EXP_SZ>() as sN[SIGNED_EXP] >> uN[SIGNED_EXP]:1;
-    let exp = (x.bexp as sN[SIGNED_EXP]) + (y.bexp as sN[SIGNED_EXP]) - bias;
+    let unbiased_exp = (x.bexp as sN[SIGNED_EXP]) + (y.bexp as sN[SIGNED_EXP]) - bias;
 
+    // 3. Precompute what the exponent is depending on what binade the product's fraction is in.
+    //   - If there is carry over in the multiplication of the fractions, i.e. the product fraction
+    //     is in [2.0, 4.0), then we need to increment the exponent and drop fraction's MSB, which
+    //     then correctly represents the product as some exponent on a fraction in [1.0, 2.0).
     // Here is where we'd handle subnormals if we cared to.
     // If the exponent remains < 0, even after reapplying the bias,
     // then we'd calculate the extra exponent needed to get back to 0.
@@ -3451,9 +3453,22 @@ pub fn raw_mul
     // to capture that "extra" exponent.
     // Since we just flush subnormals, we don't have to do any of that.
     // Instead, if we're multiplying by 0, the result is 0.
-    let exp = if has_0_arg { sN[SIGNED_EXP]:0 } else { exp };
+    let exp_if_low_binade = if has_0_arg { sN[SIGNED_EXP]:0 } else { unbiased_exp };
+    let exp_if_high_binade = exp_if_low_binade + sN[SIGNED_EXP]:1;
+    let special_exp_val = std::unsigned_max_value<EXP_SZ>() as sN[SIGNED_EXP];
 
-    // 4. Normalize.
+    // The benefit to precomputing this is that the multiply is much slower and so we want to avoid
+    // any of these checks relying on which binade the result is in.
+    let is_inf_if_low = exp_if_low_binade >= special_exp_val;
+    let is_inf_if_high = exp_if_high_binade >= special_exp_val;
+    let is_zero_if_low = exp_if_low_binade <= sN[SIGNED_EXP]:0;
+    let is_zero_if_high = exp_if_high_binade <= sN[SIGNED_EXP]:0;
+
+    // 4. Multiply integer significands, flushing input subnormals to 0.
+    let full_product =
+        if has_0_arg { uN[WIDE_FRACTION]:0 } else { std::umul(x_significand, y_significand) };
+
+    // 5. Normalize.
     // The result is either in the lower binade [1.0, 2.0) or the upper binade [2.0, 4.0), and the
     // MSB tells us which one. This tells us where the leading 1 is (either the MSB or the next
     // bit), and how much to shift to get the real significand.
@@ -3462,22 +3477,24 @@ pub fn raw_mul
 
     // Update the exponent if we're in the upper binade (and thus didn't have to shift the
     // significand); we gained a new significant bit.
-    let exp = exp + (in_upper_binade as sN[SIGNED_EXP]);
+    let result_exp = if in_upper_binade { exp_if_high_binade } else { exp_if_low_binade };
 
     // We're done - except for special cases...
     let result_sign = x.sign != y.sign;
-    let result_exp = exp;
-    let result_fraction = product_significand;
 
-    // 5. Special cases!
+    // 6. Special cases!
     // We don't flush subnormals to zero here; users can handle that later.
     // The exponent can't be saturated at this point, so we can leave that to users as well.
     // We just need to handle infinite args and NaNs.
 
     // - Arg infinites. Any arg is infinite == result is infinite.
     let is_operand_inf = is_inf(x) || is_inf(y);
+    let result_is_inf = if in_upper_binade { is_inf_if_high } else { is_inf_if_low };
+    let result_is_inf = is_operand_inf || result_is_inf;
+    let result_is_zero = if in_upper_binade { is_zero_if_high } else { is_zero_if_low };
+
     let result_exp = if is_operand_inf { std::signed_max_value<SIGNED_EXP>() } else { result_exp };
-    let result_fraction = if is_operand_inf { uN[WIDE_FRACTION]:0 } else { result_fraction };
+    let result_fraction = if is_operand_inf { uN[WIDE_FRACTION]:0 } else { product_significand };
 
     // - NaNs. NaN trumps infinities, so we handle it last.
     //   inf * 0 = NaN, and so on.
@@ -3487,6 +3504,8 @@ pub fn raw_mul
 
     RawProduct<SIGNED_EXP, WIDE_FRACTION> {
         is_nan: is_result_nan,
+        is_zero: !is_result_nan && result_is_zero,
+        is_inf: !is_result_nan && result_is_inf,
         sign: result_sign,
         bexp: result_exp,
         fraction: result_fraction,
@@ -3513,14 +3532,13 @@ pub fn full_precision_mul
     // There's only a little work left to do - standardize NaNs, overflow/saturate infinites, flush
     // subnormals to 0, and drop the leading 1 from the fraction for normals,
 
-    let special_exp = std::unsigned_max_value<EXP_SZ>();
     if raw_product.is_nan {
         // - NaNs: standardize on quiet NaN
         qnan<EXP_SZ, FRACTION_SZ>()
-    } else if raw_product.bexp >= (special_exp as sN[SIGNED_EXP]) {
+    } else if raw_product.is_inf {
         // - Overflow infinites: saturate exp and clear fraction
         inf<EXP_SZ, FRACTION_SZ>(raw_product.sign)
-    } else if raw_product.bexp <= sN[SIGNED_EXP]:0 {
+    } else if raw_product.is_zero {
         // - Subnormals: flush to 0
         zero<EXP_SZ, FRACTION_SZ>(raw_product.sign)
     } else {
@@ -3574,7 +3592,7 @@ fn mul_no_round
     // compatability with reference implementations.
     // We only do this for the internal product - we otherwise don't handle
     // subnormal values (we flush them to 0).
-    let is_subnormal = raw_product.bexp <= sN[EXP_SIGN_CARRY]:0;
+    let is_subnormal = raw_product.is_zero;
     let result_exp = if is_subnormal { uN[EXP_CARRY]:0 } else { raw_product.bexp as uN[EXP_CARRY] };
     let result_fraction = if is_subnormal {
         raw_product.fraction >> (-raw_product.bexp as uN[EXP_CARRY])
