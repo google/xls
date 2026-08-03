@@ -363,18 +363,19 @@ TEST_F(CanonicalizePassTest, NextValueWithAlwaysTruePredicate) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(R"(
      proc test(st: bits[1], init={0}) {
         literal.1: bits[1] = literal(value=1)
-        next_value.2: () = next_value(param=st, value=literal.1, predicate=literal.1)
+        next_value.2: () = next_value(state_element=st, value=literal.1, predicate=literal.1)
      }
   )",
                                                   p.get()));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(m::StateRead("st"), m::Literal(1),
-                                  /*predicate=*/m::Literal(1))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(0)),
+      ElementsAre(m::NextWithStateElement(m::StateElement("st"), m::Literal(1),
+                                          /*predicate=*/m::Literal(1))));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(/*state_read=*/m::StateRead("st"),
-                                  /*value=*/m::Literal(1))));
+              ElementsAre(m::NextWithStateElement(m::StateElement("st"),
+                                                  /*value=*/m::Literal(1))));
 }
 
 TEST_F(CanonicalizePassTest, NextValueWithAlwaysFalsePredicate) {
@@ -382,13 +383,14 @@ TEST_F(CanonicalizePassTest, NextValueWithAlwaysFalsePredicate) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(R"(
      proc test(st: bits[1], init={1}) {
         literal.1: bits[1] = literal(value=0)
-        next_value.2: () = next_value(param=st, value=literal.1, predicate=literal.1)
+        next_value.2: () = next_value(state_element=st, value=literal.1, predicate=literal.1)
      }
   )",
                                                   p.get()));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::Next(m::StateRead("st"), m::Literal(0),
-                                  /*predicate=*/m::Literal(0))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(0)),
+      ElementsAre(m::NextWithStateElement(m::StateElement("st"), m::Literal(0),
+                                          /*predicate=*/m::Literal(0))));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(), IsEmpty());

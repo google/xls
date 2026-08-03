@@ -135,7 +135,8 @@ absl::StatusOr<ScheduledProc*> ScheduledProcBuilder::Build(
                             GetType(GetStateParam(index))->ToString(),
                             GetType(next_state[index])->ToString(), index));
       }
-      Next(GetStateParam(index), next_state[index]);
+      Next(BStateElement(proc()->GetStateElement(index), this),
+           next_state[index]);
     }
   }
   return Build();

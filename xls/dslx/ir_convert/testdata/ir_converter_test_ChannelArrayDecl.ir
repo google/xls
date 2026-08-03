@@ -13,5 +13,5 @@ top proc __test_module__main_0_next<>(__state: (), init={()}) {
   __token: token = literal(value=token, id=1)
   literal.3: bits[1] = literal(value=1, id=3)
   tuple.4: () = tuple(id=4)
-  next_value.5: () = next_value(param=__state, value=__state, id=5)
+  next_value.5: () = next_value(state_element=__state, value=__state, id=5)
 }

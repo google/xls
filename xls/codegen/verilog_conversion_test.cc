@@ -1573,7 +1573,7 @@ proc running_sum(first_cycle: bits[1], init={1}) {
   out_send: token = send(all_recv_tkn, sum, channel=out)
   loopback_send: token = send(out_send, sum, channel=loopback)
   lit0: bits[1] = literal(value=0)
-  next_first_cycle: () = next_value(param=first_cycle, value=lit0)
+  next_first_cycle: () = next_value(state_element=first_cycle, value=lit0)
 }
 )";
 
@@ -1758,9 +1758,9 @@ proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
   incremented_counter: bits[32] = add(counter, lit1)
   even_iteration: bits[1] = not(odd_iteration)
   send.1: token = send(tkn, counter, channel=out, id=1)
-  next_counter_odd: () = next_value(param=counter, value=counter, predicate=odd_iteration)
-  next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
-  next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
+  next_counter_odd: () = next_value(state_element=counter, value=counter, predicate=odd_iteration)
+  next_counter_even: () = next_value(state_element=counter, value=incremented_counter, predicate=even_iteration)
+  next_value.2: () = next_value(state_element=odd_iteration, value=even_iteration, id=2)
 }
 )";
 
@@ -1817,9 +1817,9 @@ proc bad_alternator(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
   incremented_counter: bits[32] = add(counter, lit1)
   even_iteration: bits[1] = not(odd_iteration)
   send.1: token = send(tkn, counter, channel=out, id=1)
-  next_counter_odd: () = next_value(param=counter, value=lit1, predicate=odd_iteration)
-  next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
-  next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
+  next_counter_odd: () = next_value(state_element=counter, value=lit1, predicate=odd_iteration)
+  next_counter_even: () = next_value(state_element=counter, value=incremented_counter, predicate=even_iteration)
+  next_value.2: () = next_value(state_element=odd_iteration, value=even_iteration, id=2)
 }
 )";
 
@@ -1881,8 +1881,8 @@ proc lookup_proc(x: bits[1], z: bits[1], init={0, 0}) {
   lookup_table: bits[7][4][1] = literal(value=[[0, 0, 0, 0]], id=7)
   entry: bits[7] = array_index(lookup_table, indices=[sel.3, sel.6], id=8)
   send.9: token = send(tkn, entry, channel=out, id=9)
-  next_value.10: () = next_value(param=x, value=x, id=10)
-  next_value.11: () = next_value(param=z, value=z, id=11)
+  next_value.10: () = next_value(state_element=x, value=x, id=10)
+  next_value.11: () = next_value(state_element=z, value=z, id=11)
 }
 )";
 
@@ -2092,7 +2092,7 @@ proc mux_proc(tkn: token, init={token}) {
   new_tkn: token = tuple_index(received, index=0, id=8)
   data: bits[7] = tuple_index(received, index=1, id=9)
   send.10: token = send(new_tkn, data, channel=out, id=10)
-  next_value.11: () = next_value(param=tkn, value=send.10, id=11)
+  next_value.11: () = next_value(state_element=tkn, value=send.10, id=11)
 }
 )";
 

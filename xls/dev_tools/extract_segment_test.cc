@@ -117,7 +117,7 @@ TEST_F(ExtractSegmentTest, NextNodesAsTuples) {
                                /*sink_nodes=*/{n.node()}, "extracted"));
   RecordProperty("res", f2->DumpIr());
   EXPECT_THAT(f2->return_value(),
-              m::Tuple(m::Param("a"), m::Add(m::Param("a"), m::Param("b")),
+              m::Tuple(m::Add(m::Param("a"), m::Param("b")),
                        m::Eq(m::Param("b"), m::Param("c"))));
   EXPECT_THAT(f2->params(), UnorderedElementsAre(m::Param("a"), m::Param("b"),
                                                  m::Param("c")));

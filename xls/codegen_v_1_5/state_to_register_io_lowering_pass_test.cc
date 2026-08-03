@@ -102,7 +102,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.14, __state, id=15)
     send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
-    next_value.17: () = next_value(param=__state, value=result_value, id=17)
+    next_value.17: () = next_value(state_element=__state, value=result_value, id=17)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=27)
   }
   rst: bits[1] = input_port(name=rst, id=19)
@@ -146,7 +146,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.13, __state, id=14)
     send.15: token = send(tok__1, result_value, predicate=literal.3, channel=test__result, id=15)
-    next_value.16: () = next_value(param=__state, value=result_value, id=16)
+    next_value.16: () = next_value(state_element=__state, value=result_value, id=16)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=26)
   }
   rst: bits[1] = input_port(name=rst, id=18)
@@ -196,7 +196,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_2: bits[1] = literal(value=1, id=29)
   controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
     active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=30)
-    next_value.17: () = next_value(param=__state, value=result_value, id=17)
+    next_value.17: () = next_value(state_element=__state, value=result_value, id=17)
     ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=32)
   }
 }
@@ -244,7 +244,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_2: bits[1] = literal(value=1, id=29)
   controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
     active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=30)
-    next_value.17: () = next_value(param=__state, value=tok, id=17)
+    next_value.17: () = next_value(state_element=__state, value=tok, id=17)
     ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=32)
   }
 }
@@ -304,7 +304,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_2: bits[1] = literal(value=1, id=29)
   controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
     active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=30)
-    next_value.25: () = next_value(param=__state, value=sel.24, predicate=ugt.22, id=25)
+    next_value.25: () = next_value(state_element=__state, value=sel.24, predicate=ugt.22, id=25)
     ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=43)
   }
   rst: bits[1] = input_port(name=rst, id=35)
@@ -356,8 +356,8 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_2: bits[1] = literal(value=1, id=110)
   controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
     active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=111)
-    next_value_23_0: () = next_value(param=__state_0, value=result_value, id=42)
-    next_value_23_1: () = next_value(param=__state_1, value=result_value, id=44)
+    next_value_23_0: () = next_value(state_element=__state_0, value=result_value, id=42)
+    next_value_23_1: () = next_value(state_element=__state_1, value=result_value, id=44)
     ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=112)
   }
 }
@@ -399,7 +399,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.14, __state, id=15)
     send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
-    next_value.17: () = next_value(param=__state, value=result_value, id=17)
+    next_value.17: () = next_value(state_element=__state, value=result_value, id=17)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=27)
   }
   rst: bits[1] = input_port(name=rst, id=19)
@@ -445,7 +445,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
     send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
     literal.201: bits[1] = literal(value=1, id=201)
     tuple.202: (bits[1], bits[24]) = tuple(literal.201, result_value, id=202)
-    next_value.17: () = next_value(param=__state, value=tuple.202, id=17)
+    next_value.17: () = next_value(state_element=__state, value=tuple.202, id=17)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=27)
   }
   rst: bits[1] = input_port(name=rst, id=19)
@@ -478,7 +478,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
     receive.10: (token, bits[24]) = receive(tok, predicate=literal.3, channel=b, id=10)
     tok__1: token = tuple_index(receive.10, index=0, id=12)
     tuple.202: (token, token) = tuple(tok, tok__1, id=202)
-    next_value.17: () = next_value(param=__state, value=tuple.202, id=17)
+    next_value.17: () = next_value(state_element=__state, value=tuple.202, id=17)
     ret stage_outputs_valid_0: bits[1] = and(stage_inputs_valid_0, active_inputs_valid_0, id=23)
   }
   rst: bits[1] = input_port(name=rst, id=19)

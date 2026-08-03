@@ -12,7 +12,7 @@ proc __test_module__producer_0_next<_output_c: bits[32] out>(__state: bits[32], 
   __token: token = literal(value=token, id=1)
   tuple.4: () = tuple(id=4)
   tok: token = send(after_all.5, __state, predicate=literal.3, channel=_output_c, id=6)
-  next_value.9: () = next_value(param=__state, value=add.8, id=9)
+  next_value.9: () = next_value(state_element=__state, value=add.8, id=9)
 }
 
 proc __test_module__consumer_0_next<_input_c: bits[32] in>(__state: bits[32], init={3}) {
@@ -21,13 +21,13 @@ proc __test_module__consumer_0_next<_input_c: bits[32] in>(__state: bits[32], in
   literal.12: bits[1] = literal(value=1, id=12)
   receive.15: (token, bits[32]) = receive(after_all.14, predicate=literal.12, channel=_input_c, id=15)
   i: bits[32] = tuple_index(receive.15, index=1, id=18)
-  __state: bits[32] = state_read(state_element=__state, id=11)
   add.19: bits[32] = add(i, i, id=19)
   __token: token = literal(value=token, id=10)
+  __state: bits[32] = state_read(state_element=__state, id=11)
   tuple.13: () = tuple(id=13)
   tuple_index.16: token = tuple_index(receive.15, index=0, id=16)
   tok: token = tuple_index(receive.15, index=0, id=17)
-  next_value.20: () = next_value(param=__state, value=add.19, id=20)
+  next_value.20: () = next_value(state_element=__state, value=add.19, id=20)
 }
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
@@ -36,10 +36,10 @@ top proc __test_module__main_0_next<>(__state: (), init={()}) {
   chan_interface _my_chan(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   proc_instantiation __test_module__producer_0_next_inst(_my_chan, proc=__test_module__producer_0_next)
   proc_instantiation __test_module__consumer_0_next_inst(_my_chan, proc=__test_module__consumer_0_next)
-  __state: () = state_read(state_element=__state, id=22)
   tuple.25: () = tuple(id=25)
   __token: token = literal(value=token, id=21)
+  __state: () = state_read(state_element=__state, id=22)
   literal.23: bits[1] = literal(value=1, id=23)
   tuple.24: () = tuple(id=24)
-  next_value.26: () = next_value(param=__state, value=tuple.25, id=26)
+  next_value.26: () = next_value(state_element=__state, value=tuple.25, id=26)
 }

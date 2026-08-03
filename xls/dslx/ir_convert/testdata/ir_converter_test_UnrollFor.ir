@@ -11,11 +11,11 @@ top proc __test_module__SomeProc_0_next<>(__state: (), init={()}) {
   i__2: bits[32] = literal(value=2, id=10)
   a__3: bits[32] = add(a__2, i__2, id=11)
   i__3: bits[32] = literal(value=3, id=12)
-  __state: () = state_read(state_element=__state, id=2)
   tuple.14: () = tuple(id=14)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   literal.3: bits[1] = literal(value=1, id=3)
   tuple.4: () = tuple(id=4)
   add.13: bits[32] = add(a__3, i__3, id=13)
-  next_value.15: () = next_value(param=__state, value=tuple.14, id=15)
+  next_value.15: () = next_value(state_element=__state, value=tuple.14, id=15)
 }

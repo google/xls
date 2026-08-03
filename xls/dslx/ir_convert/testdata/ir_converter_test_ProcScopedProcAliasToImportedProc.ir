@@ -13,5 +13,5 @@ top proc __imported__FooAlias_next<_output_c: bits[16] out>(__state: bits[16], i
   N: bits[32] = literal(value=16, id=4)
   tuple.5: () = tuple(id=5)
   tok: token = send(after_all.6, __state, predicate=literal.3, channel=_output_c, id=7)
-  next_value.10: () = next_value(param=__state, value=add.9, id=10)
+  next_value.10: () = next_value(state_element=__state, value=add.9, id=10)
 }

@@ -28,9 +28,9 @@ top proc __test_module__Top_0_next<_outs__0: bits[32] out, _outs__1: bits[32] ou
   receive.16: (token, bits[32]) = receive(tok__4, predicate=literal.3, channel=_ins__1, id=16)
   receive.23: (token, bits[32]) = receive(tok__7, predicate=literal.3, channel=_ins__2, id=23)
   receive.30: (token, bits[32]) = receive(tok__10, predicate=literal.3, channel=_ins__3, id=30)
-  __state: () = state_read(state_element=__state, id=2)
   tuple.34: () = tuple(id=34)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   tuple.4: () = tuple(id=4)
   tok: token = literal(value=token, id=5)
   tuple_index.10: token = tuple_index(receive.9, index=0, id=10)
@@ -45,5 +45,5 @@ top proc __test_module__Top_0_next<_outs__0: bits[32] out, _outs__1: bits[32] ou
   tuple_index.31: token = tuple_index(receive.30, index=0, id=31)
   tok__11: token = tuple_index(receive.30, index=0, id=32)
   tuple_index.33: bits[32] = tuple_index(receive.30, index=1, id=33)
-  next_value.35: () = next_value(param=__state, value=tuple.34, id=35)
+  next_value.35: () = next_value(state_element=__state, value=tuple.34, id=35)
 }

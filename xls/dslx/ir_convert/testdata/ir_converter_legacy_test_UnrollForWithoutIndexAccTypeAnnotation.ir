@@ -11,10 +11,10 @@ proc __test_module__SomeProc_0_next(__state: (), init={()}) {
   i__2: bits[32] = literal(value=2, id=9)
   a__3: bits[32] = add(a__2, i__2, id=10)
   i__3: bits[32] = literal(value=3, id=11)
-  __state: () = state_read(state_element=__state, id=2)
   tuple.13: () = tuple(id=13)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   literal.3: bits[1] = literal(value=1, id=3)
   add.12: bits[32] = add(a__3, i__3, id=12)
-  next_value.14: () = next_value(param=__state, value=tuple.13, id=14)
+  next_value.14: () = next_value(state_element=__state, value=tuple.13, id=14)
 }

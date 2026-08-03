@@ -123,8 +123,8 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
                                             /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(proc->next_values(),
-              ElementsAre(m::Next(m::StateRead(), m::Literal(3))));
+  EXPECT_THAT(proc->next_values(), ElementsAre(m::NextWithStateElement(
+                                       m::StateElement(), m::Literal(3))));
 }
 
 TEST_F(NextValueOptimizationPassTest,
@@ -166,23 +166,24 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLabels) {
                                             /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(
-                  m::NextWithLabel(
-                      m::StateRead(), m::Literal(2),
-                      m::Eq(m::BitSlice(m::StateRead(), 0, 1), m::Literal(1)),
-                      Optional(StrEq("label"))),
-                  m::NextWithLabel(
-                      m::StateRead(), m::Literal(1),
-                      m::Eq(m::BitSlice(m::StateRead(), 0, 2), m::Literal(2)),
-                      Optional(StrEq("label"))),
-                  m::NextWithLabel(
-                      m::StateRead(), m::Literal(2),
-                      m::Eq(m::BitSlice(m::StateRead(), 0, 3), m::Literal(4)),
-                      Optional(StrEq("label"))),
-                  m::NextWithLabel(m::StateRead(), m::Literal(0),
-                                   m::Eq(m::StateRead(), m::Literal(0)),
-                                   Optional(StrEq("label")))));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::NextWithStateElementWithLabel(
+              m::StateElement(), m::Literal(2),
+              m::Eq(m::BitSlice(m::StateRead(), 0, 1), m::Literal(1)),
+              Optional(StrEq("label"))),
+          m::NextWithStateElementWithLabel(
+              m::StateElement(), m::Literal(1),
+              m::Eq(m::BitSlice(m::StateRead(), 0, 2), m::Literal(2)),
+              Optional(StrEq("label"))),
+          m::NextWithStateElementWithLabel(
+              m::StateElement(), m::Literal(2),
+              m::Eq(m::BitSlice(m::StateRead(), 0, 3), m::Literal(4)),
+              Optional(StrEq("label"))),
+          m::NextWithStateElementWithLabel(m::StateElement(), m::Literal(0),
+                                           m::Eq(m::StateRead(), m::Literal(0)),
+                                           Optional(StrEq("label")))));
 }
 
 TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
@@ -204,14 +205,17 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(
-          m::Next(m::StateRead(), m::Literal(2),
-                  m::Eq(m::BitSlice(m::StateRead(), 0, 1), m::Literal(0b1))),
-          m::Next(m::StateRead(), m::Literal(1),
-                  m::Eq(m::BitSlice(m::StateRead(), 0, 2), m::Literal(0b10))),
-          m::Next(m::StateRead(), m::Literal(2),
-                  m::Eq(m::BitSlice(m::StateRead(), 0, 3), m::Literal(0b100))),
-          m::Next(m::StateRead(), m::Literal(0),
-                  m::Eq(m::StateRead(), m::Literal(0)))));
+          m::NextWithStateElement(
+              m::StateElement(), m::Literal(2),
+              m::Eq(m::BitSlice(m::StateRead(), 0, 1), m::Literal(0b1))),
+          m::NextWithStateElement(
+              m::StateElement(), m::Literal(1),
+              m::Eq(m::BitSlice(m::StateRead(), 0, 2), m::Literal(0b10))),
+          m::NextWithStateElement(
+              m::StateElement(), m::Literal(2),
+              m::Eq(m::BitSlice(m::StateRead(), 0, 3), m::Literal(0b100))),
+          m::NextWithStateElement(m::StateElement(), m::Literal(0),
+                                  m::Eq(m::StateRead(), m::Literal(0)))));
 }
 
 TEST_F(NextValueOptimizationPassTest, DecoupledPrioritySelectNextValue) {
@@ -260,16 +264,18 @@ TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
                                             /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(
-                  m::Next(m::StateRead(), m::Literal(2),
-                          m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 0, 1)),
-                  m::Next(m::StateRead(), m::Literal(1),
-                          m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 1, 1)),
-                  m::Next(m::StateRead(), m::Literal(2),
-                          m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 2, 1)),
-                  m::Next(m::StateRead(), m::Literal(3),
-                          m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 3, 1))));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::NextWithStateElement(m::StateElement(), m::Literal(2),
+                                  m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 0, 1)),
+          m::NextWithStateElement(m::StateElement(), m::Literal(1),
+                                  m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 1, 1)),
+          m::NextWithStateElement(m::StateElement(), m::Literal(2),
+                                  m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 2, 1)),
+          m::NextWithStateElement(
+              m::StateElement(), m::Literal(3),
+              m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 3, 1))));
 }
 
 TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
@@ -287,14 +293,15 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(),
-      UnorderedElementsAre(m::Next(m::StateRead(), m::Literal(2),
-                                   m::Eq(m::StateRead(), m::Literal(0))),
-                           m::Next(m::StateRead(), m::Literal(1),
-                                   m::Eq(m::StateRead(), m::Literal(1))),
-                           m::Next(m::StateRead(), m::Literal(2),
-                                   m::Eq(m::StateRead(), m::Literal(2))),
-                           m::Next(m::StateRead(), m::Literal(3),
-                                   m::Eq(m::StateRead(), m::Literal(3)))));
+      UnorderedElementsAre(
+          m::NextWithStateElement(m::StateElement(), m::Literal(2),
+                                  m::Eq(m::StateRead(), m::Literal(0))),
+          m::NextWithStateElement(m::StateElement(), m::Literal(1),
+                                  m::Eq(m::StateRead(), m::Literal(1))),
+          m::NextWithStateElement(m::StateElement(), m::Literal(2),
+                                  m::Eq(m::StateRead(), m::Literal(2))),
+          m::NextWithStateElement(m::StateElement(), m::Literal(3),
+                                  m::Eq(m::StateRead(), m::Literal(3)))));
 }
 
 TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
@@ -314,14 +321,15 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(),
-      UnorderedElementsAre(m::Next(m::StateRead(), m::Literal(2),
-                                   m::Eq(m::StateRead(), m::Literal(0))),
-                           m::Next(m::StateRead(), m::Literal(1),
-                                   m::Eq(m::StateRead(), m::Literal(1))),
-                           m::Next(m::StateRead(), m::Literal(2),
-                                   m::Eq(m::StateRead(), m::Literal(2))),
-                           m::Next(m::StateRead(), m::Literal(3),
-                                   m::UGt(m::StateRead(), m::Literal(2)))));
+      UnorderedElementsAre(
+          m::NextWithStateElement(m::StateElement(), m::Literal(2),
+                                  m::Eq(m::StateRead(), m::Literal(0))),
+          m::NextWithStateElement(m::StateElement(), m::Literal(1),
+                                  m::Eq(m::StateRead(), m::Literal(1))),
+          m::NextWithStateElement(m::StateElement(), m::Literal(2),
+                                  m::Eq(m::StateRead(), m::Literal(2))),
+          m::NextWithStateElement(m::StateElement(), m::Literal(3),
+                                  m::UGt(m::StateRead(), m::Literal(2)))));
 }
 
 TEST_F(NextValueOptimizationPassTest,
@@ -445,18 +453,22 @@ TEST_F(NextValueOptimizationPassTest, CascadingSmallSelectsNextValue) {
   ASSERT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
-                  m::Next(m::StateRead("x"), m::Literal(2),
-                          m::And(m::Eq(m::StateRead("a"), m::Literal(0)),
-                                 m::Eq(m::StateRead("b"), m::Literal(0)))),
-                  m::Next(m::StateRead("x"), m::Literal(1),
-                          m::And(m::Eq(m::StateRead("a"), m::Literal(0)),
-                                 m::Eq(m::StateRead("b"), m::Literal(1)))),
-                  m::Next(m::StateRead("x"), m::Literal(2),
-                          m::And(m::Eq(m::StateRead("a"), m::Literal(1)),
-                                 m::Eq(m::StateRead("b"), m::Literal(0)))),
-                  m::Next(m::StateRead("x"), m::Literal(3),
-                          m::And(m::Eq(m::StateRead("a"), m::Literal(1)),
-                                 m::Eq(m::StateRead("b"), m::Literal(1))))));
+                  m::NextWithStateElement(
+                      m::StateElement("x"), m::Literal(2),
+                      m::And(m::Eq(m::StateRead("a"), m::Literal(0)),
+                             m::Eq(m::StateRead("b"), m::Literal(0)))),
+                  m::NextWithStateElement(
+                      m::StateElement("x"), m::Literal(1),
+                      m::And(m::Eq(m::StateRead("a"), m::Literal(0)),
+                             m::Eq(m::StateRead("b"), m::Literal(1)))),
+                  m::NextWithStateElement(
+                      m::StateElement("x"), m::Literal(2),
+                      m::And(m::Eq(m::StateRead("a"), m::Literal(1)),
+                             m::Eq(m::StateRead("b"), m::Literal(0)))),
+                  m::NextWithStateElement(
+                      m::StateElement("x"), m::Literal(3),
+                      m::And(m::Eq(m::StateRead("a"), m::Literal(1)),
+                             m::Eq(m::StateRead("b"), m::Literal(1))))));
 }
 
 TEST_F(NextValueOptimizationPassTest,
@@ -482,12 +494,14 @@ TEST_F(NextValueOptimizationPassTest,
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(
-          m::Next(m::StateRead("x"),
-                  m::Select(m::StateRead("b"), {m::Literal(2), m::Literal(1)}),
-                  m::Eq(m::StateRead("a"), m::Literal(0))),
-          m::Next(m::StateRead("x"),
-                  m::Select(m::StateRead("b"), {m::Literal(2), m::Literal(3)}),
-                  m::Eq(m::StateRead("a"), m::Literal(1)))));
+          m::NextWithStateElement(
+              m::StateElement("x"),
+              m::Select(m::StateRead("b"), {m::Literal(2), m::Literal(1)}),
+              m::Eq(m::StateRead("a"), m::Literal(0))),
+          m::NextWithStateElement(
+              m::StateElement("x"),
+              m::Select(m::StateRead("b"), {m::Literal(2), m::Literal(3)}),
+              m::Eq(m::StateRead("a"), m::Literal(1)))));
 }
 
 void IrFuzzNextValueOptimization(FuzzPackageWithArgs fuzz_package_with_args) {

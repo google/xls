@@ -11,9 +11,9 @@ proc hw0_state_machine(implicit_token__receive_8: token, state_machine_state_mac
  state_machine_state_machine_hw0_state_machine: bits[1] = state_read(state_element=state_machine_state_machine_hw0_state_machine, id=80)
  receive.8: (token, bits[8]) = receive(implicit_token__receive_8, predicate=state_machine_state_machine_hw0_state_machine, channel=arg0, id=8, pos=[(0,11,8)])
  tuple_index.39: token = tuple_index(receive.8, index=0, id=39)
- next_value.27: () = next_value(param=implicit_token__receive_8, value=tuple_index.39, predicate=state_machine_state_machine_hw0_state_machine, id=27, pos=[(0,11,8)])
+ next_value.27: () = next_value(state_element=implicit_token__receive_8, value=tuple_index.39, predicate=state_machine_state_machine_hw0_state_machine, id=27, pos=[(0,11,8)])
  literal.107: bits[1] = literal(value=1, id=107)
- next_value.86: () = next_value(param=state_machine_state_machine_hw0_state_machine, value=literal.107, id=86)
+ next_value.86: () = next_value(state_element=state_machine_state_machine_hw0_state_machine, value=literal.107, id=86)
 }
 
 // CHECK:      xls.chan @arg0 {send_supported = false} : i8

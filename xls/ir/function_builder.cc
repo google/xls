@@ -1262,7 +1262,7 @@ BValue BuilderBase::Next(BValue state_read, BValue value,
                     loc);
   }
   return AddNode<xls::Next>(
-      loc, /*state_read=*/state_read.node(), /*value=*/value.node(),
+      loc, /*state_element=*/state_element, /*value=*/value.node(),
       /*predicate=*/pred.has_value() ? std::make_optional(pred->node())
                                      : std::nullopt,
       /*label=*/label, name);
@@ -1650,12 +1650,12 @@ absl::StatusOr<Proc*> ProcBuilder::Build() {
 
 absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
   if (!next_state.empty()) {
-    if (next_state.size() != state_params_.size()) {
+    if (next_state.size() != state_elements_.size()) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Number of recurrent state elements given (%d) does "
                           "not equal the number of state elements in the proc "
                           "(%d)",
-                          next_state.size(), state_params_.size()));
+                          next_state.size(), state_elements_.size()));
     }
     if (!proc()->next_values().empty()) {
       return absl::InvalidArgumentError(
@@ -1669,7 +1669,7 @@ absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
                             GetType(GetStateParam(index))->ToString(),
                             GetType(next_state[index])->ToString(), index));
       }
-      Next(GetStateParam(index), next_state[index]);
+      Next(GetStateElement(index), next_state[index]);
     }
   }
   return Build();
@@ -1690,6 +1690,8 @@ BValue ProcBuilder::StateElement(std::string_view name,
                                     state_read.status().message()),
                     loc);
   }
+  state_elements_.push_back(
+      BStateElement((*state_read)->state_element(), this));
   state_params_.push_back(CreateBValue(*state_read, loc));
   return state_params_.back();
 }
@@ -1721,7 +1723,8 @@ BStateElement ProcBuilder::UnreadStateElement(std::string_view name,
     SetError(statusor.status().message(), loc);
     return BStateElement();
   }
-  return BStateElement(*statusor, this);
+  state_elements_.push_back(BStateElement(*statusor, this));
+  return state_elements_.back();
 }
 
 BValue ProcBuilder::StateRead(BStateElement state_element,

@@ -1853,12 +1853,12 @@ TEST_P(NarrowingPassTest, ProcStateInformationIsUsed) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(snd.node(),
               m::Send(m::Literal(Value::Token()), m::Literal(UBits(1, 1))));
-  EXPECT_THAT(incr.node(),
-              m::Next(m::StateRead(), m::ZeroExt(m::Add()),
-                      m::ULt(m::Type("bits[4]"), m::Type("bits[4]"))));
-  EXPECT_THAT(rst.node(),
-              m::Next(m::StateRead(), m::Literal(),
-                      m::UGe(m::Type("bits[4]"), m::Type("bits[4]"))));
+  EXPECT_THAT(incr.node(), m::NextWithStateElement(
+                               m::StateElement("foo"), m::ZeroExt(m::Add()),
+                               m::ULt(m::Type("bits[4]"), m::Type("bits[4]"))));
+  EXPECT_THAT(rst.node(), m::NextWithStateElement(
+                              m::StateElement("foo"), m::Literal(),
+                              m::UGe(m::Type("bits[4]"), m::Type("bits[4]"))));
 }
 
 TEST_P(NarrowingPassTest, ArrayBoundsContextual) {

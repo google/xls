@@ -138,7 +138,7 @@ top scheduled_proc __test__P_0_next<a: bits[32] in, b: bits[32] in, result: bits
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.14, __state, id=15)
     send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
-    next_value.17: () = next_value(param=__state, value=result_value, id=17)
+    next_value.17: () = next_value(state_element=__state, value=result_value, id=17)
   }
 }
 )"));
@@ -171,7 +171,7 @@ top scheduled_proc __test__P_0_next<a: bits[32] in, b: bits[32] in, result: bits
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.14, __state, id=15)
     send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
-    next_value.17: () = next_value(param=__state, value=result_value, id=17)
+    next_value.17: () = next_value(state_element=__state, value=result_value, id=17)
   }
 }
 )",
@@ -204,7 +204,7 @@ top scheduled_proc __test__P_0_next<a: bits[32] in, b: bits[32] in, result: bits
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.14, __state, id=15)
     send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
-    next_value.17: () = next_value(param=__state, value=result_value, id=17)
+    next_value.17: () = next_value(state_element=__state, value=result_value, id=17)
   }
 }
 )",
@@ -238,7 +238,7 @@ top scheduled_proc __test__P_0_next(__state: bits[32], init={0}) {
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.13, __state, id=14)
     send.15: token = send(tok__1, result_value, predicate=literal.3, channel=test__result, id=15)
-    next_value.16: () = next_value(param=__state, value=result_value, id=16)
+    next_value.16: () = next_value(state_element=__state, value=result_value, id=16)
   }
 }
 )"));

@@ -9,7 +9,7 @@ proc __test_module__spawnee2_0_next<_in_param2: bits[32] in, _out_param2: bits[3
   __token: token = literal(value=token, id=1)
   literal.3: bits[1] = literal(value=1, id=3)
   tuple.4: () = tuple(id=4)
-  next_value.5: () = next_value(param=__state, value=__state, id=5)
+  next_value.5: () = next_value(state_element=__state, value=__state, id=5)
 }
 
 proc __test_module__spawnee_0_next<_in_param: bits[32] in, _out_param: bits[32] out>(__state: (), init={()}) {
@@ -20,7 +20,7 @@ proc __test_module__spawnee_0_next<_in_param: bits[32] in, _out_param: bits[32] 
   __token: token = literal(value=token, id=6)
   literal.8: bits[1] = literal(value=1, id=8)
   tuple.9: () = tuple(id=9)
-  next_value.10: () = next_value(param=__state, value=__state, id=10)
+  next_value.10: () = next_value(state_element=__state, value=__state, id=10)
 }
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
@@ -35,5 +35,5 @@ top proc __test_module__main_0_next<>(__state: (), init={()}) {
   __token: token = literal(value=token, id=11)
   literal.13: bits[1] = literal(value=1, id=13)
   tuple.14: () = tuple(id=14)
-  next_value.15: () = next_value(param=__state, value=__state, id=15)
+  next_value.15: () = next_value(state_element=__state, value=__state, id=15)
 }

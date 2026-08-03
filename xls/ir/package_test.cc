@@ -693,7 +693,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next_value.5: () = next_value(param=st, value=add.4, id=5)
+  next_value.5: () = next_value(state_element=st, value=add.4, id=5)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -778,7 +778,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next_value.5: () = next_value(param=st, value=add.4, id=5)
+  next_value.5: () = next_value(state_element=st, value=add.4, id=5)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -795,7 +795,7 @@ fn my_function2(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc2(st: bits[32], init={42}) {
   literal.11: bits[32] = literal(value=1, id=11)
   add.12: bits[32] = add(literal.11, st, id=12)
-  next_value.13: () = next_value(param=st, value=add.12, id=13)
+  next_value.13: () = next_value(state_element=st, value=add.12, id=13)
 }
 
 block my_block2(a: bits[32], b: bits[32], out: bits[32]) {
@@ -824,7 +824,7 @@ top fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next_value.5: () = next_value(param=st, value=add.4, id=5)
+  next_value.5: () = next_value(state_element=st, value=add.4, id=5)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -855,7 +855,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 top proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next_value.5: () = next_value(param=st, value=add.4, id=5)
+  next_value.5: () = next_value(state_element=st, value=add.4, id=5)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -886,7 +886,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next_value.5: () = next_value(param=st, value=add.4, id=5)
+  next_value.5: () = next_value(state_element=st, value=add.4, id=5)
 }
 
 top block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -917,7 +917,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next_value.5: () = next_value(param=st, value=add.4, id=5)
+  next_value.5: () = next_value(state_element=st, value=add.4, id=5)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {

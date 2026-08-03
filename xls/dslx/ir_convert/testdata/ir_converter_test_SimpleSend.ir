@@ -10,5 +10,5 @@ top proc __test_module__main_0_next<_out_param: bits[32] out>(__state: bits[32],
   __token: token = literal(value=token, id=1)
   tuple.4: () = tuple(id=4)
   send.6: token = send(literal.5, __state, predicate=literal.3, channel=_out_param, id=6)
-  next_value.7: () = next_value(param=__state, value=__state, id=7)
+  next_value.7: () = next_value(state_element=__state, value=__state, id=7)
 }

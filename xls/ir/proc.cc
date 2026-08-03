@@ -309,11 +309,7 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
           index, next_node->GetName(), next_node->GetType()->ToString(),
           init_value.ToString()));
     }
-    Next::StateIdentifier state_identifier =
-        uses_decoupled_next() ? Next::StateIdentifier(state_element)
-                              : Next::StateIdentifier(state_read);
-    XLS_RETURN_IF_ERROR(MakeNode<Next>(SourceInfo(), state_identifier,
-                                       *next_state,
+    XLS_RETURN_IF_ERROR(MakeNode<Next>(SourceInfo(), state_element, *next_state,
                                        /*predicate=*/std::nullopt,
                                        /*label=*/std::nullopt)
                             .status());
@@ -1013,13 +1009,9 @@ absl::StatusOr<StateElement*> Proc::TransformStateElement(
 
   // Identity-ify the old next nodes and create new ones.
   for (const NextTransformation& nt : transforms) {
-    Next::StateIdentifier state_identifier =
-        nt.old_next->has_state_read()
-            ? Next::StateIdentifier(new_state_read)
-            : Next::StateIdentifier(new_state_element);
     XLS_ASSIGN_OR_RETURN(
         Next * nxt,
-        MakeNodeWithName<Next>(nt.old_next->loc(), state_identifier,
+        MakeNodeWithName<Next>(nt.old_next->loc(), new_state_element,
                                nt.new_value, nt.new_predicate,
                                nt.old_next->label(), nt.old_next->GetName()));
     to_replace.push_back({nt.old_next, nxt});

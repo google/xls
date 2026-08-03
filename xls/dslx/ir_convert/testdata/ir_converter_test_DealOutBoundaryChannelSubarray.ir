@@ -16,16 +16,16 @@ proc __test_module__B_0_next<_outs__0: bits[32] out, _outs__1: bits[32] out, _in
   j__1: bits[32] = literal(value=1, id=12)
   tok__4: token = send(tok__3, j__1, predicate=literal.3, channel=_outs__1, id=13)
   receive.14: (token, bits[32]) = receive(tok__4, predicate=literal.3, channel=_ins__1, id=14)
-  __state: () = state_read(state_element=__state, id=2)
   tuple.18: () = tuple(id=18)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   tuple.4: () = tuple(id=4)
   tuple_index.9: token = tuple_index(receive.8, index=0, id=9)
   tuple_index.11: bits[32] = tuple_index(receive.8, index=1, id=11)
   tuple_index.15: token = tuple_index(receive.14, index=0, id=15)
   tok__5: token = tuple_index(receive.14, index=0, id=16)
   tuple_index.17: bits[32] = tuple_index(receive.14, index=1, id=17)
-  next_value.19: () = next_value(param=__state, value=tuple.18, id=19)
+  next_value.19: () = next_value(state_element=__state, value=tuple.18, id=19)
 }
 
 top proc __test_module__A_0_next<_outs__0_0: bits[32] out, _outs__1_0: bits[32] out, _outs__0_1: bits[32] out, _outs__1_1: bits[32] out, _ins__0_0: bits[32] in, _ins__1_0: bits[32] in, _ins__0_1: bits[32] in, _ins__1_1: bits[32] in>(__state: (), init={()}) {
@@ -46,5 +46,5 @@ top proc __test_module__A_0_next<_outs__0_0: bits[32] out, _outs__1_0: bits[32] 
   i__1: bits[32] = literal(value=1, id=24)
   tuple.25: () = tuple(id=25)
   tuple.26: () = tuple(id=26)
-  next_value.27: () = next_value(param=__state, value=__state, id=27)
+  next_value.27: () = next_value(state_element=__state, value=__state, id=27)
 }

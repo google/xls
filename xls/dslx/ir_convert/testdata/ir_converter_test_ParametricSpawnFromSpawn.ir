@@ -13,7 +13,7 @@ proc __test_module__spawnee2_0__16_next<_in_param2: bits[16] in, _out_param2: bi
   N: bits[32] = literal(value=16, id=4)
   tuple.5: () = tuple(id=5)
   send.8: token = send(literal.6, literal.7, predicate=literal.3, channel=_out_param2, id=8)
-  next_value.9: () = next_value(param=__state, value=__state, id=9)
+  next_value.9: () = next_value(state_element=__state, value=__state, id=9)
 }
 
 proc __test_module__spawnee_0__16_next<_in_param: bits[16] in, _out_param: bits[16] out>(__state: bits[16], init={3}) {
@@ -25,7 +25,7 @@ proc __test_module__spawnee_0__16_next<_in_param: bits[16] in, _out_param: bits[
   literal.12: bits[1] = literal(value=1, id=12)
   M: bits[32] = literal(value=16, id=13)
   tuple.14: () = tuple(id=14)
-  next_value.15: () = next_value(param=__state, value=__state, id=15)
+  next_value.15: () = next_value(state_element=__state, value=__state, id=15)
 }
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
@@ -40,5 +40,5 @@ top proc __test_module__main_0_next<>(__state: (), init={()}) {
   __token: token = literal(value=token, id=16)
   literal.18: bits[1] = literal(value=1, id=18)
   tuple.19: () = tuple(id=19)
-  next_value.20: () = next_value(param=__state, value=__state, id=20)
+  next_value.20: () = next_value(state_element=__state, value=__state, id=20)
 }

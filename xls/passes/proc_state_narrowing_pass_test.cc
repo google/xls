@@ -567,7 +567,7 @@ proc __sample__main_0_next(__state: bits[58], init={144115188075855871}) {
   x13: bits[58] = sel(x11, cases=[literal.339, __state], id=340, pos=[(0,42,38)])
   x12: bits[189] = concat(x5, x9, __state, x11, __state, id=343, pos=[(0,41,53)])
   x41: bits[58] = bit_slice_update(x13, x12, x9, id=258, pos=[(0,56,43)])
-  __state_next: () = next_value(param=__state, value=x41, id=348)
+  __state_next: () = next_value(state_element=__state, value=x41, id=348)
   output: token = send(after_all.225, x41, channel=state_out, id=349)
 }
 )";
@@ -601,8 +601,8 @@ proc __sample__main_0_next(__state: bits[54], init={12009599006321322}) {
   literal.308: bits[1] = literal(value=0, id=308)
   literal.313: bits[1] = literal(value=1, id=313)
   x14: token = send(x35, x2, channel=sample__x13, id=180)
-  next_value.184: () = next_value(param=__state, value=literal.48, predicate=literal.308, id=184)
-  next_value.198: () = next_value(param=__state, value=literal.48, predicate=literal.313, id=198)
+  next_value.184: () = next_value(state_element=__state, value=literal.48, predicate=literal.308, id=184)
+  next_value.198: () = next_value(state_element=__state, value=literal.48, predicate=literal.313, id=198)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(kProc, p.get()));

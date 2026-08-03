@@ -89,20 +89,20 @@ absl::StatusOr<UnionFind<Node*>> FindUntupleGroups(
       }
     } else if (n->Is<Gate>()) {  // gate.
       array_groups.Union(n->As<Gate>()->data(), n);
-    } else if (n->Is<Next>()) {
-      // Next needs both sides to be represented the same.
-      Next* next = n->As<Next>();
-      absl::Span<StateRead* const> state_reads =
-          f->AsProcOrDie()->GetStateReadsByStateElement(next->state_element());
-      XLS_RET_CHECK_EQ(state_reads.size(), 1)
-          << "State element '" << next->state_element()->name()
-          << "' has multiple StateReads which is not supported in "
-             "array_untuple_pass.";
-      // TODO(nelsonliang): Handle multiple state reads for a state element
-      // by unioning the state reads associated with a state_element and union
-      // them all with the next value.
-      array_groups.Union(state_reads.front(), next->value());
     }
+  }
+  for (Next* next : f->next_values()) {
+    // Next needs both sides to be represented the same.
+    absl::Span<StateRead* const> state_reads =
+        f->AsProcOrDie()->GetStateReadsByStateElement(next->state_element());
+    XLS_RET_CHECK_EQ(state_reads.size(), 1)
+        << "State element '" << next->state_element()->name()
+        << "' has multiple StateReads which is not supported in "
+           "array_untuple_pass.";
+    // TODO(nelsonliang): Handle multiple state reads for a state element
+    // by unioning the state reads associated with a state_element and union
+    // them all with the next value.
+    array_groups.Union(state_reads.front(), next->value());
   }
   return array_groups;
 }
@@ -357,12 +357,8 @@ class UntupleVisitor : public DfsVisitorWithDefault {
          iter::zip(iter::count(), state_read_values, update_values)) {
       XLS_RET_CHECK(state_read_node->Is<StateRead>());
       StateRead* state_read = state_read_node->As<StateRead>();
-      Next::StateIdentifier state_identifier =
-          n->has_state_read()
-              ? Next::StateIdentifier(state_read)
-              : Next::StateIdentifier(state_read->state_element());
       XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                  n->loc(), state_identifier, value,
+                                  n->loc(), state_read->state_element(), value,
                                   n->predicate(), n->label(), IdxName(n, idx))
                               .status());
     }

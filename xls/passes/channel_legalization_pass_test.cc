@@ -895,7 +895,7 @@ top proc my_proc<
   after_recv: token = after_all(recv0_tok, recv1_tok)
   send0: token = send(after_recv, recv0_data, predicate=use_input0, channel=out)
   send1: token = send(after_recv, recv1_data, predicate=use_input1, channel=out)
-  next_channel: () = next_value(param=input_channel, value=use_input0)
+  next_channel: () = next_value(state_element=input_channel, value=use_input0)
 }
     )",
         .builder_matcher =

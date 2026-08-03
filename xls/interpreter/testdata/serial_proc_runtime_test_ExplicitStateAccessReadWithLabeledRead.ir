@@ -21,7 +21,7 @@ top proc __test_module__main_0_next<>(__state: bits[32], init={0}) {
   y: bits[32] = add(add.14, curr, id=15)
   tuple.3: () = tuple(id=3)
   assert.18: token = assert(assert.9, or.17, message="State element written before read in same activation.", id=18)
-  next_value.19: () = next_value(param=__state, value=y, predicate=literal.2, label="main_write", id=19)
+  next_value.19: () = next_value(state_element=__state, value=y, predicate=literal.2, label="main_write", id=19)
   tuple.20: () = tuple(id=20)
   tuple.21: () = tuple(id=21)
 }

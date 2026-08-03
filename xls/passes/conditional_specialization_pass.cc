@@ -1044,6 +1044,31 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
                 << " so far: " << set.ToString();
         first_user = false;
       }
+
+      // Compute the intersection of the condition sets of the next values of
+      // the state element of this state read.
+      if (node->Is<StateRead>()) {
+        StateElement* se = node->As<StateRead>()->state_element();
+        std::optional<ConditionSet> combined_next_set;
+        for (Next* next : f->AsProcOrDie()->next_values(se)) {
+          ConditionSet next_set = condition_map.GetNodeConditionSet(next);
+          if (next->predicate().has_value() &&
+              !(*next->predicate())->Is<Literal>()) {
+            next_set.Union(condition_cache.GetImplied(Condition{
+                .node = *next->predicate(),
+                .partial =
+                    PartialInformation(IntervalSet::Precise(UBits(1, 1)))}));
+          }
+          if (!combined_next_set.has_value()) {
+            combined_next_set = std::move(next_set);
+          } else {
+            combined_next_set->Union(next_set);
+          }
+        }
+        if (combined_next_set.has_value()) {
+          set.Intersect(*combined_next_set);
+        }
+      }
     }
 
     // If the only user of this node is a single select arm then add a condition

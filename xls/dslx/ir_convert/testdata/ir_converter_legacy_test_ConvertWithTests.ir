@@ -56,8 +56,8 @@ proc __test_module__TestProc_0_next(__state: (), init={()}) {
   __token: token = literal(value=token, id=27)
   tok__3: token = tuple_index(receive.42, index=0, id=44)
   literal.47: bits[1] = literal(value=1, id=47)
-  __state: () = state_read(state_element=__state, id=28)
   tuple.49: () = tuple(id=49)
+  __state: () = state_read(state_element=__state, id=28)
   tok: token = send(after_all.30, tuple.31, predicate=literal.29, channel=test_module__tester_req, id=32)
   tuple_index.35: token = tuple_index(receive.34, index=0, id=35)
   tok__1: token = tuple_index(receive.34, index=0, id=36)
@@ -67,7 +67,7 @@ proc __test_module__TestProc_0_next(__state: (), init={()}) {
   tuple_index.45: () = tuple_index(receive.42, index=1, id=45)
   trace.46: token = trace(__token, literal.29, format="Message from a TestProc", data_operands=[], id=46)
   send.48: token = send(tok__3, literal.47, predicate=literal.29, channel=test_module__terminator, id=48)
-  next_value.50: () = next_value(param=__state, value=tuple.49, id=50)
+  next_value.50: () = next_value(state_element=__state, value=tuple.49, id=50)
 }
 
 proc __test_module__TestProc__TestUtilityProc_0_next(__state: (), init={()}) {
@@ -77,13 +77,13 @@ proc __test_module__TestProc__TestUtilityProc_0_next(__state: (), init={()}) {
   __token: token = literal(value=token, id=51)
   tok: token = tuple_index(receive.55, index=0, id=57)
   tuple.60: () = tuple(id=60)
-  __state: () = state_read(state_element=__state, id=52)
   tuple.62: () = tuple(id=62)
+  __state: () = state_read(state_element=__state, id=52)
   tuple_index.56: token = tuple_index(receive.55, index=0, id=56)
   tuple_index.58: () = tuple_index(receive.55, index=1, id=58)
   trace.59: token = trace(__token, literal.53, format="Message from a TestUtilityProc", data_operands=[], id=59)
   send.61: token = send(tok, tuple.60, predicate=literal.53, channel=test_module__tester_resp, id=61)
-  next_value.63: () = next_value(param=__state, value=tuple.62, id=63)
+  next_value.63: () = next_value(state_element=__state, value=tuple.62, id=63)
 }
 
 proc __test_module__TestProc__NormalProc_0_next(__state: (), init={()}) {
@@ -93,11 +93,11 @@ proc __test_module__TestProc__NormalProc_0_next(__state: (), init={()}) {
   __token: token = literal(value=token, id=64)
   tok: token = tuple_index(receive.68, index=0, id=70)
   tuple.73: () = tuple(id=73)
-  __state: () = state_read(state_element=__state, id=65)
   tuple.75: () = tuple(id=75)
+  __state: () = state_read(state_element=__state, id=65)
   tuple_index.69: token = tuple_index(receive.68, index=0, id=69)
   tuple_index.71: () = tuple_index(receive.68, index=1, id=71)
   trace.72: token = trace(__token, literal.66, format="Message from a NormalProc", data_operands=[], id=72)
   send.74: token = send(tok, tuple.73, predicate=literal.66, channel=test_module__user_resp, id=74)
-  next_value.76: () = next_value(param=__state, value=tuple.75, id=76)
+  next_value.76: () = next_value(state_element=__state, value=tuple.75, id=76)
 }

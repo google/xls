@@ -471,8 +471,8 @@ xls.eproc @eproc(%arg0: i32 loc("a"), %arg1: tuple<i32, i1> loc("b"),
   %tkn_out2, %result2, %done = xls.nonblocking_receive %tkn2, %arg2, @mychan : i32
   // XLS: [[not_pred:[^ ]*]]: bits[1] = not(
   %not_pred = xls.not %arg2 : i1
-  // XLS: next_value(param=a, value=a, predicate=pred
-  // XLS: next_value(param=a, value=[[literal]], predicate=[[not_pred]]
+  // XLS: next_value(state_element=a, value=a, predicate=pred
+  // XLS: next_value(state_element=a, value=[[literal]], predicate=[[not_pred]]
   %2 = xls.next_value [%arg2, %arg0], [%not_pred, %0] : (i32, i32) -> i32
   xls.yield %2, %arg1, %arg2, %arg3 : i32, tuple<i32, i1>, i1, bf16
 }
@@ -489,8 +489,8 @@ xls.eproc @eproc2(%state: tuple<i32, i1> loc("state"), %pred: i1 loc("pred")) ze
   // XLS: [[not_pred:[^ ]*]]: bits[1] = not(
   %not_pred = xls.not %pred : i1
 
-  // XLS: next_value(param=state, value=state, predicate=pred
-  // XLS: next_value(param=state, value=[[new_tuple]], predicate=[[not_pred]]
+  // XLS: next_value(state_element=state, value=state, predicate=pred
+  // XLS: next_value(state_element=state, value=[[new_tuple]], predicate=[[not_pred]]
   %next_state = xls.next_value [%pred, %state], [%not_pred, %new_tuple] : (tuple<i32, i1>, tuple<i32, i1>) -> tuple<i32, i1>
   xls.yield %next_state, %pred : tuple<i32, i1>, i1
 }

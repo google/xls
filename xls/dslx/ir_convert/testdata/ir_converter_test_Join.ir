@@ -37,7 +37,7 @@ proc __test_module__foo_0_next<>(__state: bits[32], init={0}) {
   tuple_index.18: token = tuple_index(receive.17, index=0, id=18)
   tok__2: token = tuple_index(receive.17, index=0, id=19)
   value: bits[32] = tuple_index(receive.17, index=1, id=20)
-  next_value.23: () = next_value(param=__state, value=add.22, id=23)
+  next_value.23: () = next_value(state_element=__state, value=add.22, id=23)
 }
 
 top proc __test_module__main_0_next<>(__state: (), init={()}) {
@@ -45,10 +45,10 @@ top proc __test_module__main_0_next<>(__state: (), init={()}) {
   chan_interface _my_chan(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface _my_chan(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   proc_instantiation __test_module__foo_0_next_inst(proc=__test_module__foo_0_next)
-  __state: () = state_read(state_element=__state, id=25)
   tuple.28: () = tuple(id=28)
   __token: token = literal(value=token, id=24)
+  __state: () = state_read(state_element=__state, id=25)
   literal.26: bits[1] = literal(value=1, id=26)
   tuple.27: () = tuple(id=27)
-  next_value.29: () = next_value(param=__state, value=tuple.28, id=29)
+  next_value.29: () = next_value(state_element=__state, value=tuple.28, id=29)
 }

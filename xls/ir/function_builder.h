@@ -1107,6 +1107,11 @@ class ProcBuilder : public BuilderBase {
     return state_params_.at(index);
   }
 
+  // Returns the BStateElement for the state element at the given index.
+  virtual BStateElement GetStateElement(int64_t index) const {
+    return state_elements_.at(index);
+  }
+
   absl::StatusOr<Proc*> Build();
 
   // Build the proc using the given BValues as the next state values. If
@@ -1175,6 +1180,8 @@ class ProcBuilder : public BuilderBase {
  private:
   // The BValues of the state parameters.
   std::vector<BValue> state_params_;
+  // The BStateElements of the state elements.
+  std::vector<BStateElement> state_elements_;
 };
 
 // A derived ProcBuilder which automatically manages tokens internally.  This

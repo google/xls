@@ -18,7 +18,7 @@ top proc __proc_iota__main_0_next(__state: (), init={()}) {
   tuple.7: () = tuple(id=7, pos=[(0,53,22)])
   __token: token = literal(value=token, id=4)
   literal.6: bits[1] = literal(value=1, id=6)
-  next_value.8: () = next_value(param=__state, value=tuple.7, id=8)
+  next_value.8: () = next_value(state_element=__state, value=tuple.7, id=8)
 }
 
 proc __proc_iota__main__producer_0_next(__state: bits[32], init={0}) {
@@ -29,7 +29,7 @@ proc __proc_iota__main__producer_0_next(__state: bits[32], init={0}) {
   literal.11: bits[1] = literal(value=1, id=11)
   __token: token = literal(value=token, id=9)
   tok: token = send(after_all.14, foo, predicate=literal.11, channel=proc_iota__my_chan, id=15)
-  next_value.16: () = next_value(param=__state, value=foo, id=16)
+  next_value.16: () = next_value(state_element=__state, value=foo, id=16)
 }
 
 proc __proc_iota__main__consumer_0__2_next(__state: bits[32], init={0}) {
@@ -44,5 +44,5 @@ proc __proc_iota__main__consumer_0__2_next(__state: bits[32], init={0}) {
   __token: token = literal(value=token, id=17)
   tuple_index.23: token = tuple_index(receive.22, index=0, id=23)
   tok: token = tuple_index(receive.22, index=0, id=24, pos=[(0,38,13)])
-  next_value.28: () = next_value(param=__state, value=add.27, id=28)
+  next_value.28: () = next_value(state_element=__state, value=add.27, id=28)
 }

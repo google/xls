@@ -5187,7 +5187,7 @@ top proc foo(count: bits[32], init={0}) {
   count_minus_one: bits[32] = sub(count, lit1)
   next_count: bits[32] = sel(pred, cases=[count_minus_one, recv_data])
   send_token: token = send(recv_token, recv_data, predicate=pred, channel=internal)
-  next_value_for_count: () = next_value(param=count, value=next_count)
+  next_value_for_count: () = next_value(state_element=count, value=next_count)
 }
 
 proc output_passthrough(state:(), init={()}) {
@@ -5199,7 +5199,7 @@ proc output_passthrough(state:(), init={()}) {
   literal1000: bits[32] = literal(value=1000)
   send_data: bits[32] = sel(recv_valid, cases=[literal1000, recv_data])
   send_token: token = send(recv_token, send_data, channel=out)
-  next_value_for_state: () = next_value(param=state, value=state)
+  next_value_for_state: () = next_value(state_element=state, value=state)
 }
 )";
 
@@ -5283,7 +5283,7 @@ top proc foo(count: bits[32], init={0}) {
   count_minus_one: bits[32] = sub(count, lit1)
   next_count: bits[32] = sel(pred, cases=[count_minus_one, recv_data])
   send_token: token = send(recv_token, recv_data, predicate=pred, channel=internal)
-  next_value_for_count: () = next_value(param=count, value=next_count)
+  next_value_for_count: () = next_value(state_element=count, value=next_count)
 }
 
 proc output_passthrough(state: bits[1], init={1}) {
@@ -5298,7 +5298,7 @@ proc output_passthrough(state: bits[1], init={1}) {
   send_data: bits[32] = sel(state, cases=[literal500, recv_data_or_literal])
   send_token: token = send(recv_token, send_data, channel=out)
   next_state: bits[1] = not(state)
-  next_value_for_state: () = next_value(param=state, value=next_state)
+  next_value_for_state: () = next_value(state_element=state, value=next_state)
 }
 )";
 
@@ -5393,7 +5393,7 @@ top proc foo(count: bits[2], init={0}) {
   send0_token: token = send(recv_token, recv_data, predicate=recv_valid, channel=internal)
   send1_token: token = send(send0_token, recv_data, predicate=recv_valid, channel=out1)
   next_count: bits[2] = add(count, lit1)
-  next_value_for_count: () = next_value(param=count, value=next_count)
+  next_value_for_count: () = next_value(state_element=count, value=next_count)
 }
 
 proc output_passthrough(state:bits[1], init={0}) {
@@ -5403,7 +5403,7 @@ proc output_passthrough(state:bits[1], init={0}) {
   recv_data: bits[32] = tuple_index(recv, index=1)
   send_token: token = send(recv_token, recv_data, predicate=state, channel=out0)
   next_state: bits[1] = not(state)
-  next_value_for_state: () = next_value(param=state, value=next_state)
+  next_value_for_state: () = next_value(state_element=state, value=next_state)
 }
   )";
 
@@ -5443,7 +5443,7 @@ proc input_passthrough<pt_data_in: bits[32] in, from_inner_proc: bits[32] out>(_
   tuple.21: () = tuple(id=21)
   tuple_index.17: token = tuple_index(receive.16, index=0, id=17)
   tok__1: token = send(tok, data, predicate=literal.14, channel=from_inner_proc, id=20)
-  next_value.23: () = next_value(param=__state, value=tuple.21, id=23)
+  next_value.23: () = next_value(state_element=__state, value=tuple.21, id=23)
 }
 
 top proc foo<data_in: bits[32] in, data_out: bits[32] out>(__state: (), init={()}) {
@@ -5462,7 +5462,7 @@ top proc foo<data_in: bits[32] in, data_out: bits[32] out>(__state: (), init={()
   tuple.11: () = tuple(id=11)
   tuple_index.7: token = tuple_index(receive.6, index=0, id=7)
   tok__2: token = send(tok__1, data, predicate=literal.4, channel=data_out, id=10)
-  next_value.13: () = next_value(param=__state, value=tuple.11, id=13)
+  next_value.13: () = next_value(state_element=__state, value=tuple.11, id=13)
 }
 )";
 

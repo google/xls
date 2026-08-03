@@ -1010,9 +1010,7 @@ Next::Next(const SourceInfo& loc, StateIdentifier state_identifier, Node* value,
                          : std::get<Node*>(state_identifier)
                                ->As<StateRead>()
                                ->state_element()),
-      state_read_(std::holds_alternative<Node*>(state_identifier)
-                      ? std::get<Node*>(state_identifier)
-                      : nullptr),
+      state_read_(nullptr),
       has_predicate_(predicate.has_value()),
       predicate_operand_index_(state_read_ == nullptr ? 1 : 2),
       label_(std::move(label)) {
@@ -1485,7 +1483,6 @@ absl::StatusOr<Node*> Next::CloneInNewFunction(
     new_predicate = new_operands[pred_idx];
   }
 
-  if (state_read_ == nullptr) {
     XLS_RET_CHECK(new_function->IsProc())
         << this << " cloning into " << new_function;
     XLS_ASSIGN_OR_RETURN(
@@ -1496,12 +1493,6 @@ absl::StatusOr<Node*> Next::CloneInNewFunction(
         loc(), new_function->AsProcOrDie()->GetStateElement(idx),
         new_operands[value_operand_number()], new_predicate, label(),
         GetNameView());
-  }
-  // TODO(meheff): Choose an appropriate name for the cloned node.
-  return new_function->MakeNodeWithName<Next>(
-      loc(), new_operands[kStateReadOperand],
-      new_operands[value_operand_number()], new_predicate, label(),
-      GetNameView());
 }
 
 bool Select::AllCases(const std::function<bool(Node*)>& p) const {

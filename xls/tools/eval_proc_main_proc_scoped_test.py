@@ -87,7 +87,7 @@ top proc ObserverTest<in: bits[32] in, out: bits[32] out>(st: bits[32], init={0}
   st: bits[32] = state_read(state_element=st, id=78)
   add.7: bits[32] = add(tuple_index.6, st, id=7)
   send.4: token = send(literal.2, st, channel=out, id=4)
-  next_value.8: () = next_value(param=st, value=add.7, id=8)
+  next_value.8: () = next_value(state_element=st, value=add.7, id=8)
 }
 
 block ObserverTest(clk: clock, in_data: bits[32], in_vld: bits[1], out_data: bits[32], rst: bits[1], out_rdy: bits[1], out_vld: bits[1], in_rdy: bits[1]) {
@@ -269,7 +269,7 @@ top proc SingleValueTest<in: bits[32] in, out: bits[32] out>(st: (), init={()}) 
   tuple_index.6: bits[32] = tuple_index(receive.3, index=1, id=6)
   st: () = state_read(state_element=st, id=9)
   send.4: token = send(literal.2, tuple_index.6, channel=out, id=4)
-  next_value.8: () = next_value(param=st, value=st, id=8)
+  next_value.8: () = next_value(state_element=st, value=st, id=8)
 }
 
 #[signature("""module_name: "SingleValueTest" data_ports { direction: PORT_DIRECTION_INPUT name: "in" width: 32 type { type_enum: BITS bit_count: 32 } } data_ports { direction: PORT_DIRECTION_OUTPUT name: "out" width: 32 type { type_enum: BITS bit_count: 32 } } data_ports { direction: PORT_DIRECTION_OUTPUT name: "out_vld" width: 1 type { type_enum: BITS bit_count: 1 } } data_ports { direction: PORT_DIRECTION_INPUT name: "out_rdy" width: 1 type { type_enum: BITS bit_count: 1 } } clock_name: "clk" reset { name: "rst" asynchronous: false active_low: false } combinational { } channel_interfaces { channel_name: "in" direction: CHANNEL_DIRECTION_RECEIVE type { type_enum: BITS bit_count: 32 } kind: CHANNEL_KIND_SINGLE_VALUE single_value { data_port_name: "in" } flop_kind: FLOP_KIND_NONE } channel_interfaces { channel_name: "out" direction: CHANNEL_DIRECTION_SEND type { type_enum: BITS bit_count: 32 } kind: CHANNEL_KIND_STREAMING streaming { flow_control: CHANNEL_FLOW_CONTROL_READY_VALID data_port_name: "out" ready_port_name: "out_rdy" valid_port_name: "out_vld" } flop_kind: FLOP_KIND_NONE } """)]

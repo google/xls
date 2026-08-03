@@ -50,5 +50,5 @@ top proc __test_module__main_0_next<_input_c: bits[32] out>(__state: bits[32], i
   tuple.42: () = tuple(id=42)
   tok: token = send(after_all.43, __state, predicate=literal.41, channel=_input_c, id=44)
   tuple_index.46: token = tuple_index(invoke.45, index=0, id=46)
-  next_value.48: () = next_value(param=__state, value=tuple_index.47, id=48)
+  next_value.48: () = next_value(state_element=__state, value=tuple_index.47, id=48)
 }

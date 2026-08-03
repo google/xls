@@ -854,10 +854,10 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kNext: {
-      XLS_RETURN_IF_ERROR(
+      XLS_ASSIGN_OR_RETURN(
+          Proc * proc,
           GetEffectiveProcOrError(fb, "next operations only supported in procs",
-                                  op_token.pos())
-              .status());
+                                  op_token.pos()));
       std::optional<BValue>* state_read =
           arg_parser.AddOptionalKeywordArg<BValue>("param");
       std::optional<IdentifierString>* state_element =
@@ -886,7 +886,6 @@ absl::StatusOr<BValue> Parser::ParseNode(
         bvalue = fb->Next(state_read->value(), *value, *predicate, label_string,
                           *loc, node_name);
       } else {
-        Proc* proc = fb->function()->AsProcOrDie();
         if (!proc->HasStateElement(state_element->value().value)) {
           return absl::InvalidArgumentError(absl::StrFormat(
               "State element '%s' not found for next_value @ %s",
@@ -896,7 +895,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
             StateElement * state_element,
             proc->GetStateElementByName(state_element->value().value));
         bvalue = fb->Next(
-            BStateElement(state_element, absl::down_cast<ProcBuilder*>(fb)),
+            BStateElement(state_element, dynamic_cast<ProcBuilder*>(fb)),
             *value, *predicate, label_string, *loc, node_name);
       }
       break;

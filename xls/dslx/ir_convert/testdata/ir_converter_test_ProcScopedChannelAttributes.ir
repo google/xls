@@ -6,10 +6,10 @@ top proc __test_module__main_0_next<>(__state: (), init={()}) {
   chan _my_chan0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=16, bypass=false, register_push_outputs=true, register_pop_outputs=true, input_flop_kind=zero_latency, output_flop_kind=flop)
   chan_interface _my_chan0(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   chan_interface _my_chan0(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
-  __state: () = state_read(state_element=__state, id=2)
   tuple.5: () = tuple(id=5)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   literal.3: bits[1] = literal(value=1, id=3)
   tuple.4: () = tuple(id=4)
-  next_value.6: () = next_value(param=__state, value=tuple.5, id=6)
+  next_value.6: () = next_value(state_element=__state, value=tuple.5, id=6)
 }

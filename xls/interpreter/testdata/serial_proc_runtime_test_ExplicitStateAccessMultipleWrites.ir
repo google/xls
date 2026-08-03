@@ -21,11 +21,11 @@ top proc __test_module__main_0_next<>(__state: bits[32], init={0}) {
   or.20: bits[1] = or(not.18, not.19, id=20)
   accum__1: bits[32] = add(accum, literal.13, id=14)
   tuple.3: () = tuple(id=3)
-  next_value.11: () = next_value(param=__state, value=accum, predicate=literal.2, id=11)
+  next_value.11: () = next_value(state_element=__state, value=accum, predicate=literal.2, id=11)
   tuple.12: () = tuple(id=12)
   assert.21: token = assert(assert.17, or.20, message="State element written after write in same activation.", id=21)
   or.22: bits[1] = or(literal.2, literal.2, id=22)
-  next_value.23: () = next_value(param=__state, value=accum__1, predicate=literal.2, id=23)
+  next_value.23: () = next_value(state_element=__state, value=accum__1, predicate=literal.2, id=23)
   tuple.24: () = tuple(id=24)
   tuple.25: () = tuple(id=25)
 }

@@ -19,5 +19,5 @@ proc __test_module__TestUtilityProc_0_next<req_r: () in, resp_s: () out>(__state
   tuple_index.9: token = tuple_index(receive.8, index=0, id=9)
   tuple_index.11: () = tuple_index(receive.8, index=1, id=11)
   send.13: token = send(tok, tuple.12, predicate=literal.3, channel=resp_s, id=13)
-  next_value.15: () = next_value(param=__state, value=tuple.14, id=15)
+  next_value.15: () = next_value(state_element=__state, value=tuple.14, id=15)
 }
