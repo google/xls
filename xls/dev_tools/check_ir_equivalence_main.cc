@@ -52,7 +52,6 @@
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/ir_equivalence.h"
 #include "xls/solvers/solver.h"
-#include "xls/solvers/z3_ir_translator.h"
 
 static constexpr std::string_view kUsage = R"(
 Verifies that the two provided XLS IR files are logically equivalent; that is,
