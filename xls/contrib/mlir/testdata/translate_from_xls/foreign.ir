@@ -1,0 +1,10 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package foreign_test
+
+// CHECK: func.func private @my_ffi_func(%arg0: i32, %arg1: i32) -> i32 attributes {xls.linkage = #xls.translation_linkage<@foreign_test : "my_verilog_module {fn} (.in0({a}), .in1({b}), .out({return}))", foreign>}
+#[ffi_proto("""code_template: "my_verilog_module {fn} (.in0({a}), .in1({b}), .out({return}))"
+""")]
+fn my_ffi_func(a: bits[32] id=1, b: bits[32] id=2) -> bits[32] {
+  ret add.3: bits[32] = add(a, b, id=3)
+}
