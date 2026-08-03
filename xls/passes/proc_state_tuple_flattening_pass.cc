@@ -177,12 +177,8 @@ absl::Status ReplaceProcState(Proc* proc,
       read->set_label(element.read_label);
     }
     for (const NextValue& next_value : element.next_values) {
-      Next::StateIdentifier state_identifier =
-          next_value.has_state_read
-              ? Next::StateIdentifier(read)
-              : Next::StateIdentifier(read->state_element());
       XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                  next_value.loc, state_identifier,
+                                  next_value.loc, read->state_element(),
                                   /*value=*/next_value.value,
                                   /*predicate=*/next_value.predicate,
                                   /*label=*/next_value.label, next_value.name)

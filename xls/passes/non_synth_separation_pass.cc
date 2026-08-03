@@ -275,19 +275,10 @@ class CloneProcAsFunctionVisitor : public DfsVisitorWithDefault {
         GetOrAddNonSynthStateElement(src_proc, next->state_element()));
 
     std::string non_synth_name = NodeNameFormat("%s_non_synth", next);
-    Next::StateIdentifier state_identifier;
-    if (next->has_state_read()) {
-      XLS_RET_CHECK(
-          non_synth_reads_map_.contains(next->state_read()->As<StateRead>()))
-          << "Did not create a non_synth state read for " << next;
-      state_identifier = Next::StateIdentifier(
-          non_synth_reads_map_[next->state_read()->As<StateRead>()]);
-    } else {
-      state_identifier = Next::StateIdentifier(non_synth_element);
-    }
+
     XLS_RETURN_IF_ERROR(
         src_proc
-            ->MakeNodeWithName<Next>(next->loc(), state_identifier,
+            ->MakeNodeWithName<Next>(next->loc(), non_synth_element,
                                      next->value(), next->predicate(),
                                      next->label(), non_synth_name)
             .status());

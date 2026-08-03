@@ -22,7 +22,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -818,8 +817,6 @@ class StateRead final : public Node {
 
 class Next final : public Node {
  public:
-  using StateIdentifier = std::variant<StateElement*, Node*>;
-
   static constexpr std::array<Op, 1> kOps = {Op::kNext};
   static constexpr int64_t kStateReadOperand = 0;
   static constexpr int64_t kValueOperand = 1;
@@ -827,7 +824,7 @@ class Next final : public Node {
   // StateIdentifier represents the state identifier for this Next node.
   // TODO: nelsonliang - Remove Node* (StateRead) alternative once all Next
   // nodes use a StateElement instead of a StateRead.
-  Next(const SourceInfo& loc, StateIdentifier state_identifier, Node* value,
+  Next(const SourceInfo& loc, StateElement* state_element, Node* value,
        std::optional<Node*> predicate, std::optional<std::string> label,
        std::string_view name, FunctionBase* function);
 
@@ -842,13 +839,6 @@ class Next final : public Node {
   }
 
   bool has_state_read() const { return state_read_ != nullptr; }
-
-  StateIdentifier state_identifier() const {
-    if (state_read_ != nullptr) {
-      return state_read_;
-    }
-    return state_element_;
-  }
 
   int64_t value_operand_number() const {
     return has_state_read() ? kValueOperand : 0;

@@ -126,7 +126,7 @@ RemoveConstantPredicate(
   VLOG(2) << "Identified node as always live; removing predicate: " << next;
   IdenticalNexts new_next;
   XLS_ASSIGN_OR_RETURN(new_next.main, next.main->ReplaceUsesWithNew<Next>(
-                                          next.main->state_identifier(),
+                                          next.main->state_element(),
                                           /*value=*/next.main->value(),
                                           /*predicate=*/std::nullopt,
                                           /*label=*/next.main->label()));
@@ -135,7 +135,7 @@ RemoveConstantPredicate(
     XLS_ASSIGN_OR_RETURN(
         new_next.non_synth,
         (*next.non_synth)
-            ->ReplaceUsesWithNew<Next>((*next.non_synth)->state_identifier(),
+            ->ReplaceUsesWithNew<Next>((*next.non_synth)->state_element(),
                                        /*value=*/(*next.non_synth)->value(),
                                        /*predicate=*/std::nullopt,
                                        /*label=*/(*next.non_synth)->label()));
@@ -208,7 +208,7 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
     std::string name = NodeNameFormat("%s_case_%d", next.main, i);
     XLS_ASSIGN_OR_RETURN(new_next.main,
                          proc->MakeNodeWithName<Next>(
-                             next.main->loc(), next.main->state_identifier(),
+                             next.main->loc(), next.main->state_element(),
                              /*value=*/selected_value.cases()[i], predicate,
                              /*label=*/next.main->label(), name));
     if (next.non_synth) {
@@ -222,7 +222,7 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
       XLS_ASSIGN_OR_RETURN(
           new_next.non_synth,
           proc->MakeNodeWithName<Next>(
-              (*next.non_synth)->loc(), (*next.non_synth)->state_identifier(),
+              (*next.non_synth)->loc(), (*next.non_synth)->state_element(),
               /*value=*/case_val, predicate, (*next.non_synth)->label(),
               non_synth_name));
     }
@@ -245,7 +245,7 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
     std::string name = NodeNameConcat(next.main, "_default_case");
     XLS_ASSIGN_OR_RETURN(
         new_next.main, proc->MakeNodeWithName<Next>(
-                           next.main->loc(), next.main->state_identifier(),
+                           next.main->loc(), next.main->state_element(),
                            /*value=*/*selected_value.default_value(), predicate,
                            next.main->label(), name));
     if (next.non_synth) {
@@ -257,7 +257,7 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
       XLS_ASSIGN_OR_RETURN(
           new_next.non_synth,
           proc->MakeNodeWithName<Next>(
-              (*next.non_synth)->loc(), (*next.non_synth)->state_identifier(),
+              (*next.non_synth)->loc(), (*next.non_synth)->state_element(),
               value, predicate, (*next.non_synth)->label(), non_synth_name));
     }
     new_next_values.push_back(new_next);

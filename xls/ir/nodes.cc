@@ -1000,16 +1000,12 @@ std::vector<Next*> StateRead::GetNextValues() const {
   return next_values;
 }
 
-Next::Next(const SourceInfo& loc, StateIdentifier state_identifier, Node* value,
+Next::Next(const SourceInfo& loc, StateElement* state_element, Node* value,
            std::optional<Node*> predicate, std::optional<std::string> label,
            std::string_view name, FunctionBase* function)
     : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
            function),
-      state_element_(std::holds_alternative<StateElement*>(state_identifier)
-                         ? std::get<StateElement*>(state_identifier)
-                         : std::get<Node*>(state_identifier)
-                               ->As<StateRead>()
-                               ->state_element()),
+      state_element_(state_element),
       state_read_(nullptr),
       has_predicate_(predicate.has_value()),
       predicate_operand_index_(state_read_ == nullptr ? 1 : 2),

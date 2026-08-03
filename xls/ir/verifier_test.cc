@@ -868,10 +868,11 @@ TEST_F(VerifierTest, NextNodeWithWrongType) {
   BValue lit0_width_1 = pb.Literal(UBits(0, 1));
   // Can't use pb.Next() because it checks the type without the verifier before
   // making the node.
-  EXPECT_THAT(pb.function()->MakeNode<Next>(SourceInfo(), s.node(),
-                                            // This shouldn't verify!
-                                            lit0_width_1.node(), pred.node(),
-                                            /*label=*/std::nullopt),
+  EXPECT_THAT(pb.function()->MakeNode<Next>(
+                  SourceInfo(), s.node()->As<StateRead>()->state_element(),
+                  // This shouldn't verify!
+                  lit0_width_1.node(), pred.node(),
+                  /*label=*/std::nullopt),
               StatusIs(absl::StatusCode::kInternal,
                        AllOf(HasSubstr("to have type bits[32]"),
                              HasSubstr("has type bits[1]"))));
@@ -904,14 +905,16 @@ TEST_F(VerifierTest, NextNodeWithWrongTypePredicate) {
   BValue s_plus_one = pb.Add(s, pb.Literal(UBits(1, 32)));
   // Can't use pb.Next() because it checks the type.
   XLS_ASSERT_OK(pb.function()
-                    ->MakeNode<Next>(SourceInfo(), s.node(),
+                    ->MakeNode<Next>(SourceInfo(),
+                                     s.node()->As<StateRead>()->state_element(),
                                      // This shouldn't verify!
                                      lit0.node(), pred.node(),
                                      /*label=*/std::nullopt)
                     .status());
-  EXPECT_THAT(pb.function()->MakeNode<Next>(SourceInfo(), s.node(),
-                                            s_plus_one.node(), not_pred.node(),
-                                            /*label=*/std::nullopt),
+  EXPECT_THAT(pb.function()->MakeNode<Next>(
+                  SourceInfo(), s.node()->As<StateRead>()->state_element(),
+                  s_plus_one.node(), not_pred.node(),
+                  /*label=*/std::nullopt),
               StatusIs(absl::StatusCode::kInternal,
                        AllOf(HasSubstr("to have bit count 1:"),
                              HasSubstr("had 32 bits"))));
