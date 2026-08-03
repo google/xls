@@ -234,6 +234,7 @@ class ClangTidyRunner {
   static std::vector<std::string> AssembleArgs(int argc, char** argv) {
     std::vector<std::string> result;
     result.push_back("--quiet");
+    result.push_back("--header-filter=''");
     result.push_back(absl::StrCat("--config-file=", kClangConfigFile));
     for (const std::string_view arg : kExtraArgs) {
       result.push_back(absl::StrCat("--extra-arg=", arg));
