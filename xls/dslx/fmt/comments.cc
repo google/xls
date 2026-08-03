@@ -90,6 +90,18 @@ std::vector<const CommentData*> Comments::GetComments(
   return results;
 }
 
+std::vector<const CommentData*> Comments::GetUnplacedComments(
+    const Span& node_span) const {
+  std::vector<const CommentData*> all = GetComments(node_span);
+  std::vector<const CommentData*> unplaced;
+  for (const auto* c : all) {
+    if (!WasPlaced(c)) {
+      unplaced.push_back(c);
+    }
+  }
+  return unplaced;
+}
+
 void Comments::RemoveComments(const Span& node_span) {
   for (int64_t i = node_span.start().lineno(); i <= node_span.limit().lineno();
        ++i) {

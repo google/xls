@@ -281,6 +281,25 @@ TEST(AstFmtTest, FormatLet) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "let x: u32 = u32:42");
 }
 
+TEST(AstFmtTest, FormatLetWithComment) {
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), "{ let x: u32 = // comment\n u32:42; }"};
+  Parser p("fake", &s);
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(StatementBlock * block,
+                           p.ParseBlockExpression(bindings));
+  Statement* stmt = block->statements().at(0);
+
+  Comments comments = Comments::Create(s.comments());
+
+  DocArena arena(file_table);
+  Formatter fmt(comments, arena);
+  DocRef doc = fmt.FormatStatement(*stmt, /*trailing_semi=*/false);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
+            "let x: u32 = // comment\n"
+            "    u32:42");
+}
+
 TEST(AstFmtTest, FormatVerbatimNodeTop) {
   FileTable file_table;
   Module m("test", /*fs_path=*/std::nullopt, file_table);
@@ -1970,6 +1989,51 @@ TEST_F(ModuleFmtTest, StructDefTwoParametrics) {
 }
 )";
   DoFmt(kProgram, kWantMultiline, 35);
+}
+
+TEST_F(ModuleFmtTest, StructDefParametricWrapping) {
+  const std::string kProgram =
+      "struct Point<M: u32, N: u32> { x: bits[M], y: bits[N] }\n";
+  const std::string_view kWant = R"(struct Point<M: u32,
+             N: u32> {
+    x: bits[M],
+    y: bits[N],
+}
+)";
+  DoFmt(kProgram, kWant, 25);
+}
+
+TEST_F(ModuleFmtTest, FuncDefParametricWrapping) {
+  const std::string kProgram =
+      "fn my_func<M: u32, N: u32>(x: bits[M]) -> bits[N] { x }\n";
+  const std::string_view kWant = R"(fn my_func
+    <M: u32, N: u32>
+    (x: bits[M])
+    -> bits[N] {
+    x
+}
+)";
+  DoFmt(kProgram, kWant, 25);
+}
+
+TEST_F(ModuleFmtTest, StructDefParametricComments) {
+  const std::string kProgram = R"(struct Point<
+    M: u32, // comment
+    N: u32 // comment2
+> {
+    x: bits[M],
+    y: bits[N],
+}
+)";
+  const std::string kWant = R"(struct Point
+    <M: u32, // comment
+     N: u32 // comment2
+     > {
+    x: bits[M],
+    y: bits[N],
+}
+)";
+  DoFmt(kProgram, kWant);
 }
 
 TEST_F(ModuleFmtTest, ImplSimple) {
@@ -4148,6 +4212,20 @@ TEST_F(ModuleFmtTest, TupleWithComment_GH_1678) {
     )
 }
 )");
+}
+
+TEST_F(FunctionFmtTest, ParametricBindingComments) {
+  const std::string_view original =
+      "fn f<N: u32 = {u32:1}, // comment\n"
+      "M: u32 = {u32:2} // comment2\n"
+      ">() {}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got,
+            "fn f\n"
+            "    <N: u32 = {u32:1}, // comment\n"
+            "     M: u32 = {u32:2} // comment2\n"
+            "     >() {\n"
+            "}");
 }
 
 TEST_F(ModuleFmtTest, TupleWithMultipleComments_GH_1678) {

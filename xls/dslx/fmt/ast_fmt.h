@@ -213,6 +213,9 @@ class Formatter {
   DocRef FormatMakeConditionalTest(const Conditional& n);
   DocRef FormatMatchArm(const MatchArm& n);
   DocRef FormatParametricArg(const ExprOrType& n);
+  DocRef FormatParametricBindings(
+      absl::Span<const ParametricBinding* const> bindings,
+      const Pos& final_limit, bool break_before_angle);
   DocRef FormatSingleStatementBlockInline(const StatementBlock& n,
                                           bool add_curls);
   DocRef FormatStructLeader(const TypeAnnotation* struct_ref);

@@ -86,7 +86,7 @@ std::optional<DocRef> Formatter::FormatCommentsBetween(
 
   std::vector<DocRef> pieces;
 
-  std::vector<const CommentData*> items = comments_.GetComments(span);
+  std::vector<const CommentData*> items = comments_.GetUnplacedComments(span);
   VLOG(3) << "Found " << items.size() << " comment data items";
   std::optional<Span> previous_comment_span;
   for (size_t i = 0; i < items.size(); ++i) {
@@ -712,7 +712,7 @@ DocRef Formatter::FormatAttr(const Attr& n) {
 std::optional<DocRef> Formatter::FormatCommentsNested(const Pos start,
                                                       const Pos limit) {
   std::vector<const CommentData*> items =
-      comments_.GetComments(Span(start, limit));
+      comments_.GetUnplacedComments(Span(start, limit));
   if (items.empty()) {
     return std::nullopt;
   }
@@ -2270,6 +2270,90 @@ DocRef Formatter::FormatParametricBindingPtr(const ParametricBinding* n) {
   return FormatParametricBinding(*n);
 }
 
+DocRef Formatter::FormatParametricBindings(
+    absl::Span<const ParametricBinding* const> bindings, const Pos& final_limit,
+    bool break_before_angle) {
+  if (bindings.empty()) {
+    return arena_.empty();
+  }
+  DocRef flat_parametrics =
+      ConcatNGroup(arena_, {arena_.oangle(),
+                            FormatJoin<const ParametricBinding*>(
+                                bindings, Joiner::kCommaSpace,
+                                [&](const ParametricBinding* n) {
+                                  return FormatParametricBindingPtr(n);
+                                }),
+                            arena_.cangle()});
+
+  std::vector<DocRef> pieces;
+  pieces.reserve(bindings.size());
+  bool prev_had_comment = false;
+  for (size_t i = 0; i < bindings.size(); ++i) {
+    const ParametricBinding* binding = bindings[i];
+    DocRef member = FormatParametricBinding(*binding);
+
+    std::vector<DocRef> this_pieces;
+    this_pieces.reserve(5);
+    if (i != 0 && !prev_had_comment) {
+      this_pieces.push_back(arena_.break1());
+    }
+    this_pieces.push_back(member);
+
+    prev_had_comment = false;
+    if (i + 1 != bindings.size()) {
+      this_pieces.push_back(arena_.comma());
+      // Check for comments between this and next binding.
+      Pos start = binding->span().limit();
+      Pos limit = bindings[i + 1]->span().start();
+      if (std::optional<DocRef> comments_doc =
+              FormatCommentsNested(start, limit)) {
+        this_pieces.push_back(arena_.space());
+        this_pieces.push_back(*comments_doc);
+        prev_had_comment = true;
+      }
+      pieces.push_back(ConcatNGroup(arena_, this_pieces));
+    } else {
+      // Check for comments after last binding.
+      Pos start = binding->span().limit();
+      if (std::optional<DocRef> comments_doc =
+              FormatCommentsNested(start, final_limit)) {
+        this_pieces.push_back(arena_.space());
+        this_pieces.push_back(*comments_doc);
+        prev_had_comment = true;
+      }
+      pieces.push_back(ConcatNGroup(arena_, this_pieces));
+    }
+  }
+  DocRef bindings_joined = ConcatNGroup(arena_, pieces);
+
+  DocRef parametric_guts = ConcatN(
+      arena_,
+      {arena_.oangle(), arena_.MakeAlign(bindings_joined), arena_.cangle()});
+
+  DocRef break_parametrics = ConcatNGroup(
+      arena_, {
+                  break_before_angle ? arena_.break0() : arena_.empty(),
+                  arena_.MakeFlatChoice(parametric_guts,
+                                        arena_.MakeNest(parametric_guts)),
+              });
+
+  Pos param_start = bindings.front()->span().start();
+  bool has_parametric_comments =
+      !comments_.GetComments(Span(param_start, final_limit)).empty();
+
+  if (has_parametric_comments) {
+    return ConcatNGroup(arena_,
+                        {arena_.hard_line(), arena_.MakeNest(parametric_guts)});
+  }
+  if (break_before_angle) {
+    return arena_.MakeNestIfFlatFits(
+        /*on_nested_flat_ref=*/flat_parametrics,
+        /*on_other_ref=*/break_parametrics);
+  } else {
+    return arena_.MakeFlatChoice(flat_parametrics, break_parametrics);
+  }
+}
+
 DocRef Formatter::FormatFunction(const Function& n, bool is_test) {
   std::vector<DocRef> signature_pieces;
 
@@ -2284,33 +2368,19 @@ DocRef Formatter::FormatFunction(const Function& n, bool is_test) {
   signature_pieces.push_back(arena_.MakeText(n.identifier()));
 
   if (n.IsParametric()) {
-    DocRef flat_parametrics =
-        ConcatNGroup(arena_, {arena_.oangle(),
-                              FormatJoin<const ParametricBinding*>(
-                                  n.parametric_bindings(), Joiner::kCommaSpace,
-                                  [&](const ParametricBinding* n) {
-                                    return FormatParametricBindingPtr(n);
-                                  }),
-                              arena_.cangle()});
-
-    DocRef parametric_guts =
-        ConcatN(arena_, {arena_.oangle(),
-                         arena_.MakeAlign(FormatJoin<const ParametricBinding*>(
-                             n.parametric_bindings(),
-                             Joiner::kCommaBreak1AsGroupNoTrailingComma,
-                             [&](const ParametricBinding* n) {
-                               return FormatParametricBindingPtr(n);
-                             })),
-                         arena_.cangle()});
-    DocRef break_parametrics = ConcatNGroup(
-        arena_, {
-                    arena_.break0(),
-                    arena_.MakeFlatChoice(parametric_guts,
-                                          arena_.MakeNest(parametric_guts)),
-                });
-    signature_pieces.push_back(arena_.MakeNestIfFlatFits(
-        /*on_nested_flat_ref=*/flat_parametrics,
-        /*on_other_ref=*/break_parametrics));
+    Pos final_parametric_limit;
+    if (!n.params().empty()) {
+      final_parametric_limit = n.params().front()->span().start();
+    } else if (n.return_type() != nullptr) {
+      final_parametric_limit = n.return_type()->span().start();
+    } else if (n.body() != nullptr) {
+      final_parametric_limit = n.body()->span().start();
+    } else {
+      final_parametric_limit = n.span().limit();
+    }
+    signature_pieces.push_back(FormatParametricBindings(
+        n.parametric_bindings(), final_parametric_limit,
+        /*break_before_angle=*/true));
   }
 
   {
@@ -2764,13 +2834,15 @@ DocRef Formatter::FormatStructDefBase(
   pieces.push_back(arena_.MakeText(n.identifier()));
 
   if (!n.parametric_bindings().empty()) {
-    pieces.push_back(arena_.oangle());
-    pieces.push_back(FormatJoin<const ParametricBinding*>(
-        n.parametric_bindings(), Joiner::kCommaSpace,
-        [&](const ParametricBinding* n) {
-          return FormatParametricBindingPtr(n);
-        }));
-    pieces.push_back(arena_.cangle());
+    Pos final_parametric_limit;
+    if (!n.members().empty()) {
+      final_parametric_limit = n.members().front()->span().start();
+    } else {
+      final_parametric_limit = n.span().limit();
+    }
+    pieces.push_back(FormatParametricBindings(n.parametric_bindings(),
+                                              final_parametric_limit,
+                                              /*break_before_angle=*/false));
   }
 
   pieces.push_back(arena_.space());
@@ -3014,6 +3086,12 @@ DocRef Formatter::FormatLet(const Let& n, bool trailing_semi) {
 
   leader_pieces.push_back(arena_.space());
   leader_pieces.push_back(arena_.equals());
+  Pos lhs_limit = n.type_annotation() != nullptr
+                      ? n.type_annotation()->span().limit()
+                      : n.name_def_tree()->span().limit();
+
+  std::optional<DocRef> comments_doc =
+      FormatCommentsNested(lhs_limit, n.rhs()->span().start());
 
   const DocRef rhs_doc_internal = FormatExpr(*n.rhs());
 
@@ -3025,7 +3103,11 @@ DocRef Formatter::FormatLet(const Let& n, bool trailing_semi) {
   }
 
   DocRef body;
-  if (IsBlockedExprNoLeader(*n.rhs()) || IsBlockedExprWithLeader(*n.rhs())) {
+  if (comments_doc.has_value()) {
+    body = ConcatN(arena_,
+                   {arena_.space(), *comments_doc, arena_.MakeNest(rhs_doc)});
+  } else if (IsBlockedExprNoLeader(*n.rhs()) ||
+             IsBlockedExprWithLeader(*n.rhs())) {
     // For blocked expressions we don't align them to the equals in the let,
     // because it'd shove constructs like `let really_long_identifier = for ...`
     // too far to the right hand side.
