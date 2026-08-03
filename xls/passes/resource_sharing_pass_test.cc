@@ -34,8 +34,10 @@
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/bit_provenance_analysis.h"
@@ -179,6 +181,107 @@ TEST_F(ResourceSharingPassTest,
   XLS_EXPECT_OK(ResourceSharingPass::PerformFoldingActions(
       f, next_node_id, &visibility_builder, nda_backwards,
       folding_actions_to_perform));
+}
+
+TEST_F(ResourceSharingPassTest,
+       CoerceOperandForSharing_NegationAndExtensionBugFix) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(8));
+  BValue c = fb.Param("c", p->GetBitsType(4));
+  BValue d = fb.Param("d", p->GetBitsType(4));
+  BValue add_node = fb.Add(a, b, SourceInfo(), "to_add");
+  BValue sub_node = fb.Subtract(c, d, SourceInfo(), "from_sub");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sub_node));
+
+  // Coerce operand index 1 (`d`) of `from_sub` when folding into `to_add`.
+  // Since `to_node` is Add and `from_node` is Sub, index 1 needs negation.
+  // Since `d` is 4-bit and `to_node` operand 1 (`b`) is 8-bit, it needs
+  // bitwidth extension (here sign-extension since is_signed=true).
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * coerced,
+      CoerceOperandForSharing(f, sub_node.node(), add_node.node(),
+                              /*op_id=*/1, /*is_signed=*/true));
+
+  // Check that the ExtendOp is applied to the negated operand.
+  EXPECT_THAT(coerced, xls::op_matchers::SignExt(xls::op_matchers::Neg(
+                           xls::op_matchers::Param("d"))));
+  EXPECT_EQ(coerced->BitCountOrDie(), 8);
+}
+
+TEST_F(ResourceSharingPassTest, CoerceOperandForSharing_AlreadyNegated) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(8));
+  BValue c = fb.Param("c", p->GetBitsType(4));
+  BValue d = fb.Param("d", p->GetBitsType(4));
+  BValue add_node = fb.Add(a, b, SourceInfo(), "to_add");
+  BValue neg_d = fb.Negate(d, SourceInfo(), "neg_d");
+  BValue sub_neg_node = fb.Subtract(c, neg_d, SourceInfo(), "from_sub_neg");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sub_neg_node));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * coerced,
+      CoerceOperandForSharing(f, sub_neg_node.node(), add_node.node(),
+                              /*op_id=*/1, /*is_signed=*/false));
+  ASSERT_EQ(coerced->op(), Op::kZeroExt);
+  EXPECT_EQ(coerced->operand(0), d.node());
+}
+
+TEST_F(ResourceSharingPassTest, ReplaceSharedNodeUsesAndRemove_Tests) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue to_node = fb.Add(x, y, SourceInfo(), "to_add");
+  BValue from_narrow = fb.Literal(UBits(5, 4));
+  BValue user_narrow =
+      fb.ZeroExtend(from_narrow, 16, SourceInfo(), "user_narrow");
+  BValue from_same = fb.Literal(UBits(10, 8));
+  BValue user_same = fb.ZeroExtend(from_same, 16, SourceInfo(), "user_same");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(user_same));
+
+  std::string narrow_name = std::string(from_narrow.node()->GetName());
+  std::string same_name = std::string(from_same.node()->GetName());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * replace_narrow,
+      ReplaceSharedNodeUsesAndRemove(f, from_narrow.node(), to_node.node()));
+  EXPECT_FALSE(f->HasNode(narrow_name));
+  ASSERT_EQ(user_narrow.node()->operand(0), replace_narrow);
+  ASSERT_EQ(replace_narrow->op(), Op::kBitSlice);
+  EXPECT_EQ(replace_narrow->operand(0), to_node.node());
+  EXPECT_EQ(replace_narrow->BitCountOrDie(), 4);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * replace_same,
+      ReplaceSharedNodeUsesAndRemove(f, from_same.node(), to_node.node()));
+  EXPECT_FALSE(f->HasNode(same_name));
+  ASSERT_EQ(user_same.node()->operand(0), replace_same);
+  EXPECT_EQ(replace_same, to_node.node());
+}
+
+TEST_F(ResourceSharingPassTest, ReplaceOperandsIfChanged_Tests) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(8));
+  BValue c = fb.Param("c", p->GetBitsType(8));
+  BValue add_node = fb.Add(a, b, SourceInfo(), "to_add");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(add_node));
+  (void)f;
+
+  EXPECT_EQ(add_node.node()->operand(0), a.node());
+  EXPECT_EQ(add_node.node()->operand(1), b.node());
+
+  // Replace operand 1 with `c`, keeping operand 0 as `a`.
+  std::vector<Node*> new_operands = {a.node(), c.node()};
+  XLS_ASSERT_OK(ReplaceOperandsIfChanged(add_node.node(), new_operands));
+
+  EXPECT_EQ(add_node.node()->operand(0), a.node());
+  EXPECT_EQ(add_node.node()->operand(1), c.node());
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {

@@ -1898,13 +1898,11 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     VLOG(3) << "      Step 1: generate the priority selects, one per input of "
                "the folding target";
     std::vector<Node*> new_operands;
-    Op extension_op = folding->IsSigned() ? Op::kSignExt : Op::kZeroExt;
     for (uint32_t op_id = 0; op_id < to_node->operand_count(); op_id++) {
       VLOG(4) << "        Operand " << op_id;
 
       // Fetch the current operand for the target of the folding action.
       Node* to_operand = to_node->operand(op_id);
-      int64_t to_operand_bitwidth = to_operand->BitCountOrDie();
 
       // Check if all sources have the same operand of the destination.
       // In this case, we do not to select which one to forward.
@@ -1935,57 +1933,12 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
       for (const auto& [from_node, _] : froms_to_use) {
         VLOG(4) << "          Source from " << from_node->ToString();
 
-        // Fetch the operand of the current source of the folding action
-        Node* from_operand = from_node->operand(op_id);
-        XLS_RET_CHECK_LE(from_operand->BitCountOrDie(),
-                         to_operand->BitCountOrDie())
-            << "Illegal bit widths for folding: " << from_node->ToString()
-            << " into: " << to_node->ToString();
-
-        // Check if we need to negate it
-        Node* from_operand_negated = from_operand;
-        if ((to_node->op() != from_node->op()) &&
-            to_node->OpIn({Op::kAdd, Op::kSub}) &&
-            from_node->OpIn({Op::kAdd, Op::kSub}) && (op_id == 1)) {
-          VLOG(4) << "            It needs to be negated";
-
-          // Negate the input operand because
-          //   sub(op0, op1)
-          // needs to be mapped to
-          //   add(op0, -op1)
-          //
-          //  or
-          //   add(opX, opY)
-          // needs to be mapped to
-          //   sub(opX, -opY)
-          //
-          // Check if the negated value is already available
-          if (from_operand->op() == Op::kNeg) {
-            VLOG(4) << "            The negated value is already available";
-            from_operand_negated = from_operand->operand(0);
-
-          } else {
-            VLOG(4) << "            Added the negated value";
-            XLS_ASSIGN_OR_RETURN(
-                from_operand_negated,
-                f->MakeNode<UnOp>(to_node->loc(), from_operand_negated,
-                                  Op::kNeg));
-          }
-        }
-
-        // Check if we need to cast it
-        Node* from_operand_casted = from_operand_negated;
-        if (from_operand->BitCountOrDie() < to_operand->BitCountOrDie()) {
-          VLOG(4) << "            It needs to be casted to "
-                  << to_operand_bitwidth << " bits";
-
-          // Cast the operand to the bit-width of the related operand of the
-          // target of the folding action
-          XLS_ASSIGN_OR_RETURN(
-              from_operand_casted,
-              f->MakeNode<ExtendOp>(to_node->loc(), from_operand,
-                                    to_operand_bitwidth, extension_op));
-        }
+        // Fetch and coerce the operand of the current source of the folding
+        // action.
+        XLS_ASSIGN_OR_RETURN(
+            Node * from_operand_casted,
+            CoerceOperandForSharing(f, from_node, to_node, op_id,
+                                    folding->IsSigned()));
 
         // Append the current operand of the current source of the folding
         // action
@@ -2025,41 +1978,16 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     // - Step 2: Replace the operands of the @to_node to use the results of the
     //           new selectors computed at Step 1.
     VLOG(3) << "      Step 2: update the target of the folding transformation";
-    for (int64_t op_id = int64_t{0}; op_id < to_node->operand_count();
-         op_id++) {
-      if (to_node->operand(op_id) == new_operands[op_id]) {
-        continue;
-      }
-      XLS_RETURN_IF_ERROR(
-          to_node->ReplaceOperandNumber(op_id, new_operands[op_id], true));
-    }
+    XLS_RETURN_IF_ERROR(ReplaceOperandsIfChanged(to_node, new_operands));
     VLOG(3) << "        " << to_node->ToString();
 
     // - Step 3: Replace every source of the folding action with the new
-    // @to_node
+    // @to_node and remove the dead sources.
     VLOG(3)
         << "      Step 3: update the def-use chains to use the new folded node";
     for (const auto& [from_node, _] : froms_to_use) {
-      XLS_RET_CHECK_LE(from_node->BitCountOrDie(), to_node->BitCountOrDie());
-
-      // Check if we need to take a slice of the result
-      Node* to_node_to_use = to_node;
-      if (from_node->BitCountOrDie() < to_node->BitCountOrDie()) {
-        // Take a slice of the result of the target of the folding action
-        XLS_ASSIGN_OR_RETURN(to_node_to_use,
-                             f->MakeNode<BitSlice>(from_node->loc(), to_node, 0,
-                                                   from_node->BitCountOrDie()));
-      }
-
-      // Replace
-      XLS_RETURN_IF_ERROR(from_node->ReplaceUsesWith(to_node_to_use));
-    }
-
-    // - Step 4: Remove all the sources of the folding action as they are now
-    //           dead
-    VLOG(3) << "      Step 4: remove the sources of the folding transformation";
-    for (const auto& [from_node, _] : froms_to_use) {
-      XLS_RETURN_IF_ERROR(f->RemoveNode(from_node));
+      XLS_RETURN_IF_ERROR(
+          ReplaceSharedNodeUsesAndRemove(f, from_node, to_node).status());
     }
     VLOG(3) << "      Folding completed";
   }
@@ -2263,6 +2191,66 @@ int64_t TimingAnalysis::GetDelayIncrease(
   auto it = delay_increase_.find(&folding_action);
   CHECK_NE(it, delay_increase_.end());
   return it->second;
+}
+
+absl::StatusOr<Node*> CoerceOperandForSharing(FunctionBase* f, Node* from_node,
+                                              Node* to_node, int64_t op_id,
+                                              bool is_signed) {
+  Node* from_operand = from_node->operand(op_id);
+  Node* to_operand = to_node->operand(op_id);
+  XLS_RET_CHECK_LE(from_operand->BitCountOrDie(), to_operand->BitCountOrDie())
+      << "Illegal bit widths for folding: " << from_node->ToString()
+      << " into: " << to_node->ToString();
+
+  Node* from_operand_processed = from_operand;
+  if ((to_node->op() != from_node->op()) &&
+      to_node->OpIn({Op::kAdd, Op::kSub}) &&
+      from_node->OpIn({Op::kAdd, Op::kSub}) && (op_id == 1)) {
+    if (from_operand->op() == Op::kNeg) {
+      from_operand_processed = from_operand->operand(0);
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          from_operand_processed,
+          f->MakeNode<UnOp>(to_node->loc(), from_operand_processed, Op::kNeg));
+    }
+  }
+
+  if (from_operand_processed->BitCountOrDie() < to_operand->BitCountOrDie()) {
+    Op extension_op = is_signed ? Op::kSignExt : Op::kZeroExt;
+    XLS_ASSIGN_OR_RETURN(
+        from_operand_processed,
+        f->MakeNode<ExtendOp>(to_node->loc(), from_operand_processed,
+                              to_operand->BitCountOrDie(), extension_op));
+  }
+  return from_operand_processed;
+}
+
+absl::StatusOr<Node*> ReplaceSharedNodeUsesAndRemove(FunctionBase* f,
+                                                     Node* from_node,
+                                                     Node* to_node) {
+  Node* to_node_to_use = to_node;
+  if (from_node->GetType()->IsBits() && to_node->GetType()->IsBits()) {
+    XLS_RET_CHECK_LE(from_node->BitCountOrDie(), to_node->BitCountOrDie());
+    if (from_node->BitCountOrDie() < to_node->BitCountOrDie()) {
+      XLS_ASSIGN_OR_RETURN(to_node_to_use,
+                           f->MakeNode<BitSlice>(from_node->loc(), to_node, 0,
+                                                 from_node->BitCountOrDie()));
+    }
+  }
+  XLS_RETURN_IF_ERROR(from_node->ReplaceUsesWith(to_node_to_use));
+  XLS_RETURN_IF_ERROR(f->RemoveNode(from_node));
+  return to_node_to_use;
+}
+
+absl::Status ReplaceOperandsIfChanged(Node* node,
+                                      absl::Span<Node* const> new_operands) {
+  XLS_RET_CHECK_EQ(node->operand_count(), new_operands.size());
+  for (int64_t i = 0; i < node->operand_count(); ++i) {
+    if (node->operand(i) != new_operands[i]) {
+      XLS_RETURN_IF_ERROR(node->ReplaceOperandNumber(i, new_operands[i], true));
+    }
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace xls
