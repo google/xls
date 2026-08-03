@@ -717,7 +717,8 @@ absl::StatusOr<PipelineScheduleProto> PipelineSchedule::ToProto(
             std::max(delay_to_node_start, node_path_delays.at(operand));
       }
     }
-    int64_t node_delay = delay_estimator.GetOperationDelayInPs(node).value();
+    XLS_ASSIGN_OR_RETURN(int64_t node_delay,
+                         delay_estimator.GetOperationDelayInPs(node));
     int64_t path_delay = delay_to_node_start + node_delay;
     node_delays[node] = node_delay;
     node_path_delays[node] = path_delay;

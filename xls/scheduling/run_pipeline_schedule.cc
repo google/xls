@@ -635,10 +635,9 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
   }
 
   if (options.pipeline_stages() == 1 &&
-      !options.clock_period_ps().has_value() &&
-      !options.failure_behavior().explain_infeasibility) {
+      !options.clock_period_ps().has_value()) {
     // No scheduling to be done, and there's no way to violate timing; just
-    // schedule everything (other than literals) in the first cycle.
+    // schedule everything timed into the first cycle.
     ScheduleCycleMap cycle_map;
     XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes, TopoSort(f));
     for (Node* node : topo_sort_nodes) {
@@ -650,12 +649,20 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         PipelineSchedule schedule,
         PipelineSchedule::Create(f, std::move(cycle_map),
                                  {.length = options.pipeline_stages()}));
-    XLS_RETURN_IF_ERROR(schedule.Verify());
-    XLS_RETURN_IF_ERROR(
-        schedule.VerifyConstraints(options.constraints(), options));
+    absl::Status status = schedule.Verify();
+    status.Update(schedule.VerifyConstraints(options.constraints(), options));
+    if (status.ok()) {
+      XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
+      return schedule;
+    }
 
-    XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
-    return schedule;
+    // If we don't need to explain the infeasibility, return the error.
+    if (!options.failure_behavior().explain_infeasibility) {
+      return std::move(status);
+    }
+
+    // If we do need to explain the infeasibility, fall through to the normal
+    // scheduling code to let it attempt to explain.
   }
 
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,

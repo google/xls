@@ -49,6 +49,12 @@ absl::StatusOr<int64_t> BinarySearchMaxTrueWithStatus(
     absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f,
     BinarySearchAssumptions assumptions) {
   XLS_RET_CHECK_LE(start, end);
+  if (assumptions == BinarySearchAssumptions::kEndKnownTrue ||
+      (start == end &&
+       assumptions == BinarySearchAssumptions::kStartKnownTrue)) {
+    // We're already done.
+    return end;
+  }
   if (assumptions != BinarySearchAssumptions::kStartKnownTrue) {
     XLS_ASSIGN_OR_RETURN(bool f_start, f(start));
     if (!f_start) {
@@ -79,6 +85,11 @@ absl::StatusOr<int64_t> BinarySearchMinTrueWithStatus(
     absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f,
     BinarySearchAssumptions assumptions) {
   XLS_RET_CHECK_LE(start, end);
+  if (assumptions == BinarySearchAssumptions::kStartKnownTrue ||
+      (start == end && assumptions == BinarySearchAssumptions::kEndKnownTrue)) {
+    // We're already done.
+    return start;
+  }
   if (assumptions != BinarySearchAssumptions::kEndKnownTrue) {
     XLS_ASSIGN_OR_RETURN(bool f_end, f(end));
     if (!f_end) {
