@@ -347,17 +347,6 @@ absl::Status SDCSchedulingModel::AddDefUseConstraints(
   // Nodes must be scheduled no later than their users.
   XLS_RETURN_IF_ERROR(AddCausalConstraint(node, user));
 
-  if (node->Is<StateRead>() && user.has_value() && user.value()->Is<Next>()) {
-    Next* next = user.value()->As<Next>();
-    if (next->has_state_read() && next->value() != node &&
-        next->predicate() != node) {
-      XLS_RET_CHECK_EQ(next->state_read(), node);
-      // We don't need to keep the param's value alive to this user, so no need
-      // for a lifetime constraint.
-      return absl::OkStatus();
-    }
-  }
-
   // If the user is dead after synthesis, we don't count its contribution to the
   // lifetime, assuming the synthesis tool will be able to strip any pipeline
   // registers used to persist the value.

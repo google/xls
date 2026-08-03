@@ -1217,10 +1217,6 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
       edge_set.Union(condition_cache.GetImplied(Condition{
           .node = predicate,
           .partial = PartialInformation(IntervalSet::Precise(UBits(1, 1)))}));
-      if (next->has_state_read()) {
-        condition_map.SetEdgeConditionSet(node, Next::kStateReadOperand,
-                                          edge_set);
-      }
       condition_map.SetEdgeConditionSet(node, next->value_operand_number(),
                                         std::move(edge_set));
     }
@@ -1341,15 +1337,6 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
                                  edge_set().ToString());
       if (edge_set().empty()) {
         continue;
-      }
-
-      if (node->Is<Next>()) {
-        Next* next = node->As<Next>();
-        if (next->has_state_read() && operand_no == Next::kStateReadOperand) {
-          // No point in specializing the state read, and it would make the node
-          // invalid anyway; this is just a pointer to the state element.
-          continue;
-        }
       }
 
       std::unique_ptr<QueryEngine> specialized_query_engine =

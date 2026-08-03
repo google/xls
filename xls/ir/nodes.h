@@ -818,8 +818,7 @@ class StateRead final : public Node {
 class Next final : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kNext};
-  static constexpr int64_t kStateReadOperand = 0;
-  static constexpr int64_t kValueOperand = 1;
+  static constexpr int64_t kValueOperand = 0;
 
   // StateIdentifier represents the state identifier for this Next node.
   // TODO: nelsonliang - Remove Node* (StateRead) alternative once all Next
@@ -832,24 +831,10 @@ class Next final : public Node {
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
 
-  Node* state_read() const {
-    CHECK(state_read_ != nullptr)
-        << "state_read() called on a Next node with only StateElement set";
-    return state_read_;
-  }
-
-  bool has_state_read() const { return state_read_ != nullptr; }
-
-  int64_t value_operand_number() const {
-    return has_state_read() ? kValueOperand : 0;
-  }
+  int64_t value_operand_number() const { return kValueOperand; }
 
   Node* value() const {
-    if (state_read_ == nullptr) {
       return operand(0);
-    } else {
-      return operand(1);
-    }
   }
 
   const std::optional<std::string>& label() const { return label_; }
@@ -894,16 +879,10 @@ class Next final : public Node {
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
-  StateElement* state_element() const {
-    if (state_element_ != nullptr) {
-      return state_element_;
-    }
-    return state_read_->As<StateRead>()->state_element();
-  }
+  StateElement* state_element() const { return state_element_; }
 
  private:
   StateElement* state_element_ = nullptr;
-  Node* state_read_ = nullptr;
   bool has_predicate_;
   const int64_t predicate_operand_index_;
   std::optional<std::string> label_;

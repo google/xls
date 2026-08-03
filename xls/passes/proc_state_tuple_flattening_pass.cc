@@ -140,7 +140,6 @@ struct NextValue {
   Node* value;
   std::optional<Node*> predicate;
   std::optional<std::string> label;
-  bool has_state_read;
 };
 struct AbstractStateElement {
   std::string name;
@@ -279,7 +278,6 @@ absl::Status FlattenState(Proc* proc) {
             .value = value,
             .predicate = predicate,
             .label = next->label(),
-            .has_state_read = next->has_state_read(),
         });
       }
     }

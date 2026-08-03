@@ -311,9 +311,7 @@ absl::StatusOr<ScheduleGraph> ScheduleGraph::CreateSynchronousGraph(
       backedges.push_back(ScheduleBackedge{
           .source = next,
           .destination =
-              next->has_state_read()
-                  ? next->state_read()
-                  : proc->GetStateReadByStateElement(next->state_element()),
+              proc->GetStateReadByStateElement(next->state_element()),
           .distance = LessThanInitiationInterval()});
     }
   }

@@ -186,9 +186,7 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
           << " cases.";
 
   auto get_state_read = [proc](Next* n) -> Node* {
-    return n->has_state_read()
-               ? n->state_read()
-               : proc->GetStateReadByStateElement(n->state_element());
+    return proc->GetStateReadByStateElement(n->state_element());
   };
 
   std::vector<IdenticalNexts> new_next_values;

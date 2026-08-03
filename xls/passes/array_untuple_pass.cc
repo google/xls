@@ -134,13 +134,8 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindExternalGroups(
       if (absl::c_all_of(state_read->users(), [&](Node* n) -> bool {
             if (n->Is<Next>()) {
               Next* nxt = n->As<Next>();
-              if (nxt->has_state_read()) {
-                return nxt->state_read() == nxt->value() &&
-                       nxt->state_read() == state_read;
-              } else {
-                return nxt->value() == state_read &&
-                       nxt->state_element() == state_read->state_element();
-              }
+              return nxt->value() == state_read &&
+                     nxt->state_element() == state_read->state_element();
             }
             // TODO(nelsonliang): Handle identity state elements by retrieving
             // all state reads and verifying all reads are identity updates.

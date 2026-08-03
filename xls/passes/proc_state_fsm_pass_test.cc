@@ -194,11 +194,9 @@ TEST_F(BaseProcStateFSMPassTest, LiteralChainDecoupled) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
-  EXPECT_TRUE(proc->uses_decoupled_next());
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->GetStateElementCount(), 1);
   EXPECT_EQ(proc->GetStateElement(0)->type()->GetFlatBitCount(), 1);
-  EXPECT_TRUE(proc->uses_decoupled_next());
 
   EXPECT_THAT(send.node(),
               m::Send(m::Literal(Value::Token()),

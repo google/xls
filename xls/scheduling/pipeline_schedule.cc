@@ -205,18 +205,6 @@ bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
     if (cycle(user) <= c) {
       continue;
     }
-    if (user->Is<Next>()) {
-      Next* user_next = user->As<Next>();
-      if (user_next->predicate() != node && user_next->value() != node &&
-          user_next->has_state_read()) {
-        CHECK_EQ(user_next->state_read(), node);
-        // This Next node only uses this StateRead node to target the state
-        // register it needs to write to; it doesn't actually need the value
-        // read out of the Param node, so we don't need to keep the value in
-        // pipeline registers for its sake.
-        continue;
-      }
-    }
     return true;
   }
 

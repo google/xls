@@ -212,11 +212,7 @@ class ProcIrInterpreter : public IrInterpreter {
         return SetValueResult(next, Value::Tuple({}));
       }
     }
-    (*active_next_values_)[next->has_state_read() ? next->state_read()
-                                                        ->As<StateRead>()
-                                                        ->state_element()
-                                                  : next->state_element()]
-        .push_back(next);
+    (*active_next_values_)[next->state_element()].push_back(next);
     return SetValueResult(next, Value::Tuple({}));
   }
 

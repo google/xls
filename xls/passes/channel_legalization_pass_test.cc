@@ -1045,9 +1045,6 @@ TEST_F(ChannelLegalizationPassIrTest, LegalizeDecoupledNext) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * f, pb.Build());
   XLS_ASSERT_OK(p->SetTop(f));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  for (Next* next : f->next_values()) {
-    EXPECT_FALSE(next->has_state_read());
-  }
 }
 
 INSTANTIATE_TEST_SUITE_P(

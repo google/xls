@@ -656,10 +656,6 @@ bool NextMatcher::MatchAndExplain(
   }
   const xls::Next* next = node->As<xls::Next>();
   if (state_element_.has_value()) {
-    if (next->has_state_read()) {
-      *listener << " is a coupled Next node, but expected decoupled";
-      return false;
-    }
     if (!state_element_->MatchAndExplain(next->state_element(), listener)) {
       *listener << " has incorrect state element";
       return false;

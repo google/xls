@@ -978,16 +978,7 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleNext(Next* next) override {
-    if (next->has_state_read()) {
-      XLS_RETURN_IF_ERROR(ExpectOperandCountRange(next, 2, 3));
-      if (!next->state_read()->Is<StateRead>()) {
-        return absl::InternalError(absl::StrFormat(
-            "Next node %s expects a state read for param; is: %v",
-            next->GetName(), *next->state_read()));
-      }
-    } else {
-      XLS_RETURN_IF_ERROR(ExpectOperandCountRange(next, 1, 2));
-    }
+    XLS_RETURN_IF_ERROR(ExpectOperandCountRange(next, 1, 2));
 
     if (next->predicate().has_value()) {
       XLS_ASSIGN_OR_RETURN(int64_t pred_idx, next->predicate_operand_number());
@@ -1003,15 +994,8 @@ class NodeChecker : public DfsVisitor {
     XLS_ASSIGN_OR_RETURN(int64_t index,
                          proc->GetStateElementIndex(next->state_element()));
 
-    if (next->has_state_read()) {
-      XLS_RETURN_IF_ERROR(ExpectOperandHasType(
-          next, /*operand_no=*/0, proc->GetStateElementType(index)));
-      return ExpectOperandHasType(next, /*operand_no=*/1,  // value is operand 1
-                                  proc->GetStateElementType(index));
-    } else {
-      return ExpectOperandHasType(next, /*operand_no=*/0,  // value is operand 0
-                                  proc->GetStateElementType(index));
-    }
+    return ExpectOperandHasType(next, /*operand_no=*/0,  // value is operand 0
+                                proc->GetStateElementType(index));
   }
 
   absl::Status HandleNewChannel(NewChannel* new_channel) override {

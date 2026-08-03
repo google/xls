@@ -670,10 +670,7 @@ absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
 absl::Status InvokeNextValueCallback(llvm::IRBuilder<>* builder, Next* next,
                                      llvm::Value* instance_ctx) {
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
-  StateElement* state_element =
-      next->has_state_read()
-          ? next->state_read()->As<StateRead>()->state_element()
-          : next->state_element();
+  StateElement* state_element = next->state_element();
   llvm::Value* state_element_idx = builder->getInt64(
       *next->function_base()->AsProcOrDie()->GetStateElementIndex(
           state_element));
@@ -2856,9 +2853,6 @@ absl::Status IrBuilderVisitor::HandleNeg(UnOp* neg) {
 
 absl::Status IrBuilderVisitor::HandleNext(Next* next) {
   std::vector<std::string> param_names;
-  if (next->has_state_read()) {
-    param_names.push_back("param");
-  }
   param_names.push_back("value");
   if (next->predicate().has_value()) {
     param_names.push_back("predicate");

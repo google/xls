@@ -127,8 +127,7 @@ TEST_F(DecomposeDataflowPassTest, DecoupledProcPassThroughTest) {
   BValue st = pb.StateRead(state_element);
   pb.Next(state_element, st);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
-  ASSERT_TRUE(proc->uses_decoupled_next());
+  XLS_ASSERT_OK(pb.Build());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }

@@ -874,8 +874,6 @@ TEST_F(VisibilityAnalysisTest, DecoupledNextNodeVisibility) {
   pb.Next(tok_elem, input_tok);
   XLS_ASSERT_OK_AND_ASSIGN(auto f, pb.Build());
 
-  EXPECT_TRUE(f->uses_decoupled_next());
-
   NodeForwardDependencyAnalysis nda;
   XLS_ASSERT_OK(nda.Attach(f));
   LazyPostDominatorAnalysis post_dom;

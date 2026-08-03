@@ -1016,29 +1016,16 @@ absl::StatusOr<StateElement*> Proc::TransformStateElement(
                                nt.old_next->label(), nt.old_next->GetName()));
     to_replace.push_back({nt.old_next, nxt});
     // Identity-ify the old next.
-    if (nt.old_next->has_state_read()) {
-      XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(
-          Next::kValueOperand, nt.old_next->state_read()));
-    } else {
-      XLS_ASSIGN_OR_RETURN(
-          Node * placeholder,
-          MakeNode<Literal>(nt.old_next->loc(),
-                            ZeroOfType(old_state_element->type())));
-      XLS_RET_CHECK(
-          nt.old_next->ReplaceOperand(nt.old_next->value(), placeholder));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * placeholder,
+        MakeNode<Literal>(nt.old_next->loc(),
+                          ZeroOfType(old_state_element->type())));
+    XLS_RET_CHECK(
+        nt.old_next->ReplaceOperand(nt.old_next->value(), placeholder));
   }
   for (const auto& [old_n, new_n] : to_replace) {
-    XLS_RETURN_IF_ERROR(old_n->ReplaceUsesWith(
-        new_n,
-        [&](Node* n) {
-          if (n->Is<Next>() && n->As<Next>()->has_state_read() &&
-              n->As<Next>()->state_read() == old_n) {
-            return false;
-          }
-          return true;
-        },
-        /*replace_implicit_uses=*/false));
+    XLS_RETURN_IF_ERROR(
+        old_n->ReplaceUsesWith(new_n, /*replace_implicit_uses=*/false));
   }
   return new_state_element;
 }

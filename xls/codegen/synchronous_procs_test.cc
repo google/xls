@@ -264,8 +264,6 @@ TEST_P(SynchronousProcsTest, DecoupledNextProc) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
   XLS_ASSERT_OK(package.SetTop(top));
 
-  ASSERT_TRUE(top->uses_decoupled_next());
-
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 

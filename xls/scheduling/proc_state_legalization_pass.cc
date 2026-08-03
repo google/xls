@@ -49,95 +49,6 @@ namespace xls {
 
 namespace {
 
-// Ensure that `state_read` is either unconditional or has a predicate that is
-// true whenever any of its corresponding `next_value`s are active.
-absl::StatusOr<bool> LegalizeStateReadPredicate(
-    Proc* proc, StateElement* state_element,
-    const SchedulingPassOptions& options) {
-  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
-  const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
-      proc->next_values(state_element);
-  if (!state_read->predicate().has_value() || next_values.empty()) {
-    // Already unconditional, or no explicit `next_value`s; nothing to do.
-    return false;
-  }
-  if (proc->uses_decoupled_next()) {
-    return false;
-  }
-
-  std::vector<Node*> predicates;
-  absl::flat_hash_set<Node*> predicates_set;
-  predicates.reserve(1 + next_values.size());
-  predicates_set.reserve(next_values.size());
-  for (Next* next : next_values) {
-    if (proc->GetStateReadByStateElement(next->state_element()) ==
-        next->value()) {
-      // This is a no-op next_value; we will narrow it to the case where the
-      // state read is active instead.
-      continue;
-    }
-    if (!next->predicate().has_value()) {
-      // Unconditional next_value; just remove the predicate.
-      XLS_RETURN_IF_ERROR(state_read->RemovePredicate());
-      return true;
-    }
-
-    // We can't just add the next-value predicate to the state read predicate
-    // directly, because it may create a cycle; the state read may be part of
-    // what decides whether the next-value is active. To fix this, we remove the
-    // state read from the predicate (erring on the side of reading too often).
-    XLS_ASSIGN_OR_RETURN(
-        Node * safe_predicate,
-        RemoveNodeFromBooleanExpression(state_read, *next->predicate(),
-                                        /*favored_outcome=*/true));
-    predicates.push_back(safe_predicate);
-    predicates_set.insert(safe_predicate);
-  }
-  if (predicates.empty()) {
-    // There are no non-trivial next_value nodes; any predicate is fine.
-    return false;
-  }
-
-  Node* state_read_predicate = *state_read->predicate();
-  if (state_read_predicate->op() == Op::kOr &&
-      predicates_set ==
-          absl::flat_hash_set<Node*>(predicates.begin(), predicates.end())) {
-    // The predicate is already trivially correct; nothing to do.
-    return false;
-  }
-  if (predicates_set.size() == 1 &&
-      predicates.front() == state_read_predicate) {
-    // The predicate is already trivially correct; nothing to do.
-    return false;
-  }
-
-  predicates.insert(predicates.begin(), state_read_predicate);
-  XLS_ASSIGN_OR_RETURN(
-      Node * new_predicate,
-      NaryOrIfNeeded(proc, predicates, /*name=*/"", state_read->loc()));
-  XLS_RETURN_IF_ERROR(state_read->ReplaceOperandNumber(
-      *state_read->predicate_operand_number(), new_predicate));
-  return true;
-}
-
-absl::StatusOr<bool> LegalizeStateReadPredicates(
-    Proc* proc, const SchedulingPassOptions& options) {
-  bool changed = false;
-
-  for (StateElement* state_element : proc->StateElements()) {
-    XLS_ASSIGN_OR_RETURN(
-        bool state_read_changed,
-        LegalizeStateReadPredicate(proc, state_element, options));
-    if (state_read_changed) {
-      VLOG(4) << "Generalized read predicate for state element: "
-              << state_element->name();
-      changed = true;
-    }
-  }
-
-  return changed;
-}
-
 absl::StatusOr<bool> AddMutualExclusionAssert(
     Proc* proc, StateElement* state_element,
     const SchedulingPassOptions& options) {
@@ -446,12 +357,6 @@ absl::StatusOr<bool> ProcStateLegalizationPass::RunOnFunctionBaseInternal(
   Proc* proc = f->AsProcOrDie();
 
   bool changed = false;
-
-  XLS_ASSIGN_OR_RETURN(bool read_predicates_changed,
-                       LegalizeStateReadPredicates(proc, options));
-  if (read_predicates_changed) {
-    changed = true;
-  }
 
   XLS_ASSIGN_OR_RETURN(bool mutex_asserts_added,
                        AddMutualExclusionAsserts(proc, options));

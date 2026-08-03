@@ -448,14 +448,9 @@ absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
         p->StateElements().begin(), p->StateElements().end());
     for (Next* next : p->next_values()) {
       if (next->value() !=
-          (next->has_state_read()
-               ? next->state_read()
-               : p->GetStateReadByStateElement(next->state_element()))) {
+          p->GetStateReadByStateElement(next->state_element())) {
         // This state param is not actually invariant.
-        invariant_state_elements.erase(
-            next->has_state_read()
-                ? next->state_read()->As<StateRead>()->state_element()
-                : next->state_element());
+        invariant_state_elements.erase(next->state_element());
       }
     }
     for (StateElement* invariant : invariant_state_elements) {
@@ -775,12 +770,8 @@ absl::StatusOr<Node*> SafeReplaceUsesWithNew(Node* target, Args... v) {
       return false;
     }
     Next* next = n->As<Next>();
-    if (next->has_state_read()) {
-      return next->state_read() == target;
-    } else {
-      return n->function_base()->AsProcOrDie()->GetStateReadByStateElement(
-                 next->state_element()) == target;
-    }
+    return n->function_base()->AsProcOrDie()->GetStateReadByStateElement(
+               next->state_element()) == target;
   };
   if (!target->Is<StateRead>() ||
       !absl::c_any_of(target->users(), is_state_read_of_next)) {
@@ -791,10 +782,6 @@ absl::StatusOr<Node*> SafeReplaceUsesWithNew(Node* target, Args... v) {
                   is_state_read_of_next);
   XLS_ASSIGN_OR_RETURN(
       auto result, target->ReplaceUsesWithNew<NodeT>(std::forward<Args>(v)...));
-  for (Node* n : state_read_users) {
-    XLS_RETURN_IF_ERROR(
-        n->As<Next>()->ReplaceOperandNumber(Next::kStateReadOperand, target));
-  }
   return result;
 }
 

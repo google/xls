@@ -984,20 +984,9 @@ bool StateRead::IsDefinitelyEqualTo(const Node* other) const {
 }
 
 std::vector<Next*> StateRead::GetNextValues() const {
-  std::vector<Next*> next_values;
-  if (function_base()->AsProcOrDie()->uses_decoupled_next()) {
-    const auto& next_values_se =
-        function_base()->AsProcOrDie()->next_values(state_element_);
-    next_values.insert(next_values.end(), next_values_se.begin(),
-                       next_values_se.end());
-  } else {
-    for (Node* user : users()) {
-      if (user->Is<Next>() && user->As<Next>()->state_read() == this) {
-        next_values.push_back(user->As<Next>());
-      }
-    }
-  }
-  return next_values;
+  const auto& nexts =
+      function_base()->AsProcOrDie()->next_values(state_element_);
+  return std::vector<Next*>(nexts.begin(), nexts.end());
 }
 
 Next::Next(const SourceInfo& loc, StateElement* state_element, Node* value,
@@ -1006,15 +995,11 @@ Next::Next(const SourceInfo& loc, StateElement* state_element, Node* value,
     : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
            function),
       state_element_(state_element),
-      state_read_(nullptr),
       has_predicate_(predicate.has_value()),
-      predicate_operand_index_(state_read_ == nullptr ? 1 : 2),
+      predicate_operand_index_(1),
       label_(std::move(label)) {
   CHECK(IsOpClass<Next>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Next`.";
-  if (state_read_ != nullptr) {
-    AddOperand(state_read_);
-  }
   AddOperand(value);
   AddOptionalOperand(predicate);
 }

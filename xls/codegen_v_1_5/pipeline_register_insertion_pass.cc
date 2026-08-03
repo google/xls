@@ -350,21 +350,7 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
           absl::Span<Node* const> stage_references =
               stage_references_it->second;
           for (Node* const user : stage_references) {
-            // The only exception: if the user is a Next and `node` is its
-            // corresponding StateRead, we need to avoid updating that specific
-            // operand, since no data is being passed. For simplicity, we put it
-            // back afterwards rather than actually avoiding the update.
-            bool restore_state_read = false;
-            if (user->Is<Next>()) {
-              Next* next = user->As<Next>();
-              restore_state_read =
-                  next->has_state_read() && next->state_read() == node;
-            }
             user->ReplaceOperand(node, live_node);
-            if (restore_state_read) {
-              XLS_RETURN_IF_ERROR(user->As<Next>()->ReplaceOperandNumber(
-                  Next::kStateReadOperand, node));
-            }
           }
         }
       }

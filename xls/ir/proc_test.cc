@@ -339,8 +339,6 @@ TEST_F(ProcTest, InsertStateElementDecoupled) {
   pb.Next(b_state_element, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  ASSERT_TRUE(proc->uses_decoupled_next());
-
   XLS_ASSERT_OK_AND_ASSIGN(Literal * zero_literal,
                            proc->MakeNodeWithName<Literal>(
                                SourceInfo(), Value(UBits(0, 32)), "zero"));
