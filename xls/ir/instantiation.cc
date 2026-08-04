@@ -23,7 +23,7 @@
 #include <variant>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
+#include "absl/container/linked_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -116,25 +116,33 @@ absl::Status BlockInstantiation::ReplaceBlock(Block* new_block) {
   // Check for compatibility.
   XLS_ASSIGN_OR_RETURN(InstantiationType type, type());
 
-  absl::flat_hash_map<std::string, Type*> new_block_input_ports;
-  new_block_input_ports.reserve(new_block->GetInputPorts().size());
-  for (InputPort* p : new_block->GetInputPorts()) {
-    new_block_input_ports[p->name()] = p->GetType();
-  }
-  if (new_block_input_ports != type.input_types()) {
+  absl::Span<InputPort* const> new_block_inputs = new_block->GetInputPorts();
+  if (new_block_inputs.size() != type.input_types().size()) {
     return absl::InvalidArgumentError(
-        "Input ports are not compatible with the new block.");
+        absl::StrFormat("Input ports size mismatch: %d vs %d",
+                        new_block_inputs.size(), type.input_types().size()));
+  }
+  for (InputPort* p : new_block_inputs) {
+    auto it = type.input_types().find(p->name());
+    if (it == type.input_types().end() || it->second != p->GetType()) {
+      return absl::InvalidArgumentError(
+          "Input ports are not compatible with the new block.");
+    }
   }
 
-  absl::flat_hash_map<std::string, Type*> new_block_output_ports;
-  new_block_output_ports.reserve(new_block->GetOutputPorts().size());
-  for (OutputPort* p : new_block->GetOutputPorts()) {
-    new_block_output_ports[p->name()] =
-        p->operand(OutputPort::kOperandOperand)->GetType();
-  }
-  if (new_block_output_ports != type.output_types()) {
+  absl::Span<OutputPort* const> new_block_outputs = new_block->GetOutputPorts();
+  if (new_block_outputs.size() != type.output_types().size()) {
     return absl::InvalidArgumentError(
-        "Output ports are not compatible with the new block.");
+        absl::StrFormat("Output ports size mismatch: %d vs %d",
+                        new_block_outputs.size(), type.output_types().size()));
+  }
+  for (OutputPort* p : new_block_outputs) {
+    auto it = type.output_types().find(p->name());
+    if (it == type.output_types().end() ||
+        it->second != p->operand(OutputPort::kOperandOperand)->GetType()) {
+      return absl::InvalidArgumentError(
+          "Output ports are not compatible with the new block.");
+    }
   }
 
   instantiated_block_ = new_block;
@@ -168,8 +176,8 @@ absl::StatusOr<InstantiationPort> BlockInstantiation::GetOutputPort(
 }
 
 absl::StatusOr<InstantiationType> BlockInstantiation::type() const {
-  absl::flat_hash_map<std::string, Type*> input_ports;
-  absl::flat_hash_map<std::string, Type*> output_ports;
+  absl::linked_hash_map<std::string, Type*> input_ports;
+  absl::linked_hash_map<std::string, Type*> output_ports;
   for (InputPort* p : instantiated_block()->GetInputPorts()) {
     input_ports[p->name()] = p->GetType();
   }
@@ -268,8 +276,8 @@ std::string ExternInstantiation::ToString() const {
 }
 
 absl::StatusOr<InstantiationType> ExternInstantiation::type() const {
-  absl::flat_hash_map<std::string, Type*> input_ports;
-  absl::flat_hash_map<std::string, Type*> output_ports;
+  absl::linked_hash_map<std::string, Type*> input_ports;
+  absl::linked_hash_map<std::string, Type*> output_ports;
   for (Param* p : function_->params()) {
     LeafTypeTree<std::monostate> ltt(p->GetType(), std::monostate{});
     XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachIndex(
@@ -329,13 +337,13 @@ absl::StatusOr<InstantiationPort> FifoInstantiation::GetInputPort(
 absl::StatusOr<InstantiationType> FifoInstantiation::type() const {
   Type* u1 = package_->GetBitsType(1);
 
-  absl::flat_hash_map<std::string, Type*> input_types = {
+  absl::linked_hash_map<std::string, Type*> input_types = {
       {std::string{kResetPortName}, u1},
       {std::string(kPushValidPortName), u1},
       {std::string(kPopReadyPortName), u1},
   };
 
-  absl::flat_hash_map<std::string, Type*> output_types = {
+  absl::linked_hash_map<std::string, Type*> output_types = {
       {std::string(kPopValidPortName), u1},
       {std::string(kPushReadyPortName), u1},
   };

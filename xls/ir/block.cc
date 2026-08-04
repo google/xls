@@ -31,6 +31,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/linked_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -1007,18 +1008,22 @@ absl::Status Block::ReplaceInstantiationWith(
   }
 
   // Construct old type with renamed ports:
-  auto input_types = old_type_orig.input_types();
-  auto output_types = old_type_orig.output_types();
-  for (auto& [orig_port_name, new_port_name] : port_renaming) {
+  absl::linked_hash_map<std::string, Type*> input_types =
+      old_type_orig.input_types();
+  absl::linked_hash_map<std::string, Type*> output_types =
+      old_type_orig.output_types();
+  for (const auto& [orig_port_name, new_port_name] : port_renaming) {
     if (input_types.contains(orig_port_name)) {
       auto node = input_types.extract(orig_port_name);
-      node.key() = new_port_name;
-      input_types.insert(std::move(node));
+      // Note that for flat_hash_map it's more idiomatic to set node.key() =
+      // new_port_name, but linked_hash_map doesn't allow that.
+      input_types.insert({new_port_name, std::move(node.mapped())});
     }
     if (output_types.contains(orig_port_name)) {
       auto node = output_types.extract(orig_port_name);
-      node.key() = new_port_name;
-      output_types.insert(std::move(node));
+      // Note that for flat_hash_map it's more idiomatic to set node.key() =
+      // new_port_name, but linked_hash_map doesn't allow that.
+      output_types.insert({new_port_name, std::move(node.mapped())});
     }
   }
   InstantiationType old_type_renamed =
