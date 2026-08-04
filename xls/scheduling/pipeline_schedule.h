@@ -84,6 +84,8 @@ class PipelineSchedule {
   // been placed in this schedule.
   int64_t cycle(const Node* node) const { return cycle_map_.at(node); }
 
+  bool empty() const { return cycle_map_.empty(); }
+
   // Returns the nodes scheduled in the given cycle. The node order is
   // guaranteed to be topological.
   absl::Span<Node* const> nodes_in_cycle(int64_t cycle) const;

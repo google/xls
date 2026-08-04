@@ -43,28 +43,50 @@ namespace {
 // Adds cycle constraints from a PipelineSchedule into SchedulingOptions.
 absl::Status AddCycleConstraints(const PipelineSchedule& schedule,
                                  SchedulingOptions& scheduling_options) {
+  if (schedule.empty()) {
+    return absl::OkStatus();
+  }
+
+  absl::flat_hash_map<Node*, int64_t> existing_constraints;
+  for (const SchedulingConstraint& constraint :
+       scheduling_options.constraints()) {
+    if (std::holds_alternative<NodeInCycleConstraint>(constraint)) {
+      const NodeInCycleConstraint& nic =
+          std::get<NodeInCycleConstraint>(constraint);
+      auto [it, inserted] =
+          existing_constraints.try_emplace(nic.GetNode(), nic.GetCycle());
+      if (!inserted && it->second != nic.GetCycle()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Node %s has conflicting cycle constraints: constrained to both %d "
+            "and %d",
+            nic.GetNode()->GetName(), it->second, nic.GetCycle()));
+      }
+    }
+  }
+
   for (int64_t c = 0; c < schedule.length(); ++c) {
     for (Node* node : schedule.nodes_in_cycle(c)) {
-      bool already_constrained = false;
-      for (const SchedulingConstraint& constraint :
-           scheduling_options.constraints()) {
-        if (std::holds_alternative<NodeInCycleConstraint>(constraint)) {
-          const NodeInCycleConstraint& nic =
-              std::get<NodeInCycleConstraint>(constraint);
-          if (nic.GetNode() == node) {
-            if (nic.GetCycle() != c) {
-              return absl::InvalidArgumentError(absl::StrFormat(
-                  "Schedule contradicts cycle constraints for node %s: "
-                  "scheduled for cycle %d, but constrained to cycle %d",
-                  node->GetName(), c, nic.GetCycle()));
-            }
-            already_constrained = true;
-          }
-        }
+      if (IsUntimed(node)) {
+        continue;
       }
-      if (!already_constrained && !IsUntimed(node)) {
+
+      auto it = existing_constraints.find(node);
+      if (it == existing_constraints.end()) {
+        // No existing constraint; add this one.
         scheduling_options.add_constraint(NodeInCycleConstraint(node, c));
+        continue;
       }
+
+      // Otherwise, there's an existing constraint; we either match it, or fail
+      // with a contradiction.
+      if (it->second == c) {
+        // Already constrained to this cycle.
+        continue;
+      }
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Schedule contradicts cycle constraints for node %s: "
+                          "scheduled for cycle %d, but constrained to cycle %d",
+                          node->GetName(), c, it->second));
     }
   }
   return absl::OkStatus();
