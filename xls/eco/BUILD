@@ -144,6 +144,11 @@ pytype_strict_contrib_test(
         "//xls/examples:riscv_simple.ir",  # unopt
         "//xls/examples:riscv_simple.opt.ir",  #opt
     ],
+    # These test relatively expensive Python code (the py_binary using it cares enough to call
+    # sys.setrecursionlimit()), so make them optonly. They are flaky with sanitizers.
+    # TODO: google/xls#3813 - remove when our GED implementation is C++ based and more extensively
+    # tested.
+    tags = ["optonly"],
     deps = [
         ":ir_diff",
         ":ir_diff_main_lib",
