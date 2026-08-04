@@ -102,10 +102,10 @@ TEST_F(ExtractSegmentTest, SourceAndSink) {
 TEST_F(ExtractSegmentTest, NextNodesAsTuples) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
-  auto a = pb.StateElement("a", UBits(0, 32));
-  auto b = pb.StateElement("b", UBits(0, 32));
-  auto c = pb.StateElement("c", UBits(0, 32));
-  auto d = pb.StateElement("d", UBits(0, 32));
+  auto a = pb.ReadStateElement("a", UBits(0, 32));
+  auto b = pb.ReadStateElement("b", UBits(0, 32));
+  auto c = pb.ReadStateElement("c", UBits(0, 32));
+  auto d = pb.ReadStateElement("d", UBits(0, 32));
   auto n = pb.Next(a, pb.Add(a, b), pb.Eq(b, c));
   pb.Next(b, pb.Add(c, d));
   pb.Next(c, pb.Add(a, d));

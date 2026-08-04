@@ -68,8 +68,8 @@ TEST_F(ProcStateBitsShatteringPassTest, SimpleSplitStateElement) {
       Channel * y_out, p->CreateStreamingChannel("y_out", ChannelOps::kSendOnly,
                                                  p->GetBitsType(16)));
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 16)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 16)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 16)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 16)));
   BValue send_x =
       pb.Send(x_out, pb.Literal(Value::Token()), x, /*loc=*/{}, "send_x");
   BValue send_y =

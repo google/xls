@@ -82,7 +82,7 @@ TEST_F(ScheduledBuilderTest, FunctionAssignNodeToStage) {
 TEST_F(ScheduledBuilderTest, BuildProcWithStages) {
   auto p = CreatePackage();
   ScheduledProcBuilder spb(TestName(), p.get());
-  BValue state = spb.StateElement("s", Value(UBits(0, 32)));
+  BValue state = spb.ReadStateElement("s", Value(UBits(0, 32)));
   BValue lit1 = spb.Literal(UBits(1, 32));
 
   spb.SetCurrentStage(0);
@@ -103,7 +103,7 @@ TEST_F(ScheduledBuilderTest, BuildProcWithStages) {
 TEST_F(ScheduledBuilderTest, ProcAssignNodeToStage) {
   auto p = CreatePackage();
   ScheduledProcBuilder spb(TestName(), p.get());
-  BValue state = spb.StateElement("s", Value(UBits(0, 32)));
+  BValue state = spb.ReadStateElement("s", Value(UBits(0, 32)));
 
   spb.SetCurrentStage(1);
   BValue neg_state = spb.Negate(state);

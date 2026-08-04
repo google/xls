@@ -90,7 +90,7 @@ class ProcTest : public IrTestBase {
 TEST_F(ProcTest, SimpleProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue state = pb.ReadStateElement("st", Value(UBits(42, 32)));
   BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({add}));
 
@@ -109,8 +109,8 @@ TEST_F(ProcTest, SimpleProc) {
 TEST_F(ProcTest, MutateProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue tkn = pb.StateElement("tkn", Value::Token());
-  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue tkn = pb.ReadStateElement("tkn", Value::Token());
+  BValue state = pb.ReadStateElement("st", Value(UBits(42, 32)));
   BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
   BValue after_all = pb.AfterAll({tkn});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({after_all, add}));
@@ -134,8 +134,8 @@ TEST_F(ProcTest, MutateProc) {
 TEST_F(ProcTest, AddAndRemoveState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue tkn = pb.StateElement("tkn", Value::Token());
-  BValue state = pb.StateElement("x", Value(UBits(42, 32)));
+  BValue tkn = pb.ReadStateElement("tkn", Value::Token());
+  BValue state = pb.ReadStateElement("x", Value(UBits(42, 32)));
   BValue add = pb.Add(pb.Literal(UBits(1, 32)), state, SourceInfo(), "my_add");
   BValue after_all = pb.AfterAll({tkn}, SourceInfo(), "my_after_all");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({after_all, add}));
@@ -244,8 +244,8 @@ TEST_F(ProcTest, StatelessProc) {
 TEST_F(ProcTest, MultipleStateReads) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue tkn = pb.StateElement("tkn", Value::Token());
-  BValue state = pb.StateElement("x", Value(UBits(42, 32)));
+  BValue tkn = pb.ReadStateElement("tkn", Value::Token());
+  BValue state = pb.ReadStateElement("x", Value(UBits(42, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({tkn, state}));
 
   StateElement* state_elem = proc->GetStateElement(1);
@@ -283,7 +283,7 @@ TEST_F(ProcTest, RemoveStateThatStillHasUse) {
   // intentionally create a malformed proc.
   Package p(TestName());
   ProcBuilder pb("p", &p);
-  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue state = pb.ReadStateElement("st", Value(UBits(42, 32)));
   BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({add}));
 
@@ -295,8 +295,8 @@ TEST_F(ProcTest, RemoveStateThatStillHasUse) {
 TEST_F(ProcTest, GetNextStateReadDecoupled) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(TestName(), "tkn", p.get());
-  BStateElement state_elem = pb.UnreadStateElement("x", Value(UBits(42, 32)),
-                                                   /*non_synthesizable=*/false);
+  BStateElement state_elem = pb.StateElement("x", Value(UBits(42, 32)),
+                                             /*non_synthesizable=*/false);
   BValue read = pb.StateRead(state_elem);
   BValue next_val = pb.Add(read, pb.Literal(Value(UBits(1, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
@@ -332,9 +332,8 @@ TEST_F(ProcTest, GetNextStateReadDecoupled) {
 TEST_F(ProcTest, InsertStateElementDecoupled) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BStateElement b_state_element =
-      pb.UnreadStateElement("st", Value(UBits(42, 32)),
-                            /*non_synthesizable=*/false);
+  BStateElement b_state_element = pb.StateElement("st", Value(UBits(42, 32)),
+                                                  /*non_synthesizable=*/false);
   pb.StateRead(b_state_element, std::nullopt);
   pb.Next(b_state_element, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -367,8 +366,8 @@ TEST_F(ProcTest, Clone) {
                                   p->GetBitsType(32)));
 
   ProcBuilder pb("p", p.get());
-  BValue tkn = pb.StateElement("tkn", Value::Token());
-  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue tkn = pb.ReadStateElement("tkn", Value::Token());
+  BValue state = pb.ReadStateElement("st", Value(UBits(42, 32)));
   BValue recv = pb.Receive(channel, tkn);
   BValue add1 = pb.Add(pb.Literal(UBits(1, 32)), state);
   BValue add2 = pb.Add(add1, pb.TupleIndex(recv, 1));
@@ -415,8 +414,8 @@ TEST_F(ProcTest, CloneProcScopedChannel) {
   BReceiveChannel inp =
       pb.AddInputChannel("input_chan", p->GetBitsType(32), {});
   BSendChannel out = pb.AddOutputChannel("chan", p->GetBitsType(32), {});
-  BValue tkn = pb.StateElement("tkn", Value::Token());
-  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue tkn = pb.ReadStateElement("tkn", Value::Token());
+  BValue state = pb.ReadStateElement("st", Value(UBits(42, 32)));
   BValue recv = pb.Receive(inp, tkn);
   BValue add1 = pb.Add(pb.Literal(UBits(1, 32)), state);
   BValue add2 = pb.Add(add1, pb.TupleIndex(recv, 1));
@@ -464,7 +463,7 @@ TEST_F(ProcTest, CloneNewStyle) {
   BSendChannel ch_b = pb.AddOutputChannel("b", p->GetBitsType(32));
   BChannelWithInterfaces ch_c = pb.AddChannel("c", p->GetBitsType(32), {});
 
-  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue state = pb.ReadStateElement("st", Value(UBits(42, 32)));
   BValue recv_a = pb.Receive(ch_a);
   BValue recv_c = pb.Receive(ch_c.receive_interface);
   pb.Send(ch_b, state);
@@ -597,11 +596,10 @@ top proc main<mainin: bits[32] in, mainout: bits[32] out>(__state: (), init={()}
 TEST_F(ProcTest, TransformStateElementDecoupled) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(TestName(), "tkn", p.get());
-  auto cond = pb.StateElement("cond", UBits(0, 1));
+  auto cond = pb.ReadStateElement("cond", UBits(0, 1));
 
-  BStateElement state_element =
-      pb.UnreadStateElement("st", Value(UBits(0b1010, 4)),
-                            /*non_synthesizable=*/false);
+  BStateElement state_element = pb.StateElement("st", Value(UBits(0b1010, 4)),
+                                                /*non_synthesizable=*/false);
 
   BValue st_read = pb.StateRead(state_element, std::nullopt, "my_read_label");
 
@@ -661,7 +659,7 @@ class ScheduledProcTest : public IrTestBase {
  protected:
   absl::StatusOr<ScheduledProc*> CreateScheduledProc(Package* p) {
     ScheduledProcBuilder pb("p", p);
-    pb.StateElement("st", Value(UBits(42, 32)));
+    pb.ReadStateElement("st", Value(UBits(42, 32)));
     return pb.Build({});
   }
 };

@@ -214,8 +214,8 @@ class CounterProcHelper {
   virtual absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb, Channel* out_channel,
                                           uint32_t start_value,
                                           uint32_t delta_each_round) {
-    BValue counter = pb.StateElement(kCounterStateElementName,
-                                     Value(UBits(start_value, 32)));
+    BValue counter = pb.ReadStateElement(kCounterStateElementName,
+                                         Value(UBits(start_value, 32)));
     pb.Send(out_channel, pb.Literal(Value::Token()), counter);
     BValue new_value = pb.Add(counter, pb.Literal(UBits(delta_each_round, 32)));
     return pb.Build({new_value});
@@ -310,10 +310,10 @@ class CounterProcWithMaxHelper : public CounterProcHelper {
   absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb, Channel* out_channel,
                                   uint32_t start_value,
                                   uint32_t delta_each_round) override {
-    BValue enable = pb.StateElement("enable", Value(UBits(1, 1)));
-    BValue counter =
-        pb.StateElement(kCounterStateElementName, Value(UBits(start_value, 32)),
-                        enable, /*non_synthesizable=*/false);
+    BValue enable = pb.ReadStateElement("enable", Value(UBits(1, 1)));
+    BValue counter = pb.ReadStateElement(kCounterStateElementName,
+                                         Value(UBits(start_value, 32)), enable,
+                                         /*non_synthesizable=*/false);
     pb.SendIf(out_channel, pb.Literal(Value::Token()), enable, counter);
     pb.Next(counter, pb.Add(counter, pb.Literal(UBits(delta_each_round, 32))),
             enable);
@@ -340,11 +340,11 @@ class DecoupledCounterProcHelper : public CounterProcWithMaxHelper {
                                   uint32_t start_value,
                                   uint32_t delta_each_round) override {
     BStateElement enable =
-        pb.UnreadStateElement(kEnableStateElementName, Value(UBits(1, 1)),
-                              /*non_synthesizable=*/false);
-    BStateElement counter = pb.UnreadStateElement(kCounterStateElementName,
-                                                  Value(UBits(start_value, 32)),
-                                                  /*non_synthesizable=*/false);
+        pb.StateElement(kEnableStateElementName, Value(UBits(1, 1)),
+                        /*non_synthesizable=*/false);
+    BStateElement counter =
+        pb.StateElement(kCounterStateElementName, Value(UBits(start_value, 32)),
+                        /*non_synthesizable=*/false);
     BValue enable_read = pb.StateRead(enable);
     BValue counter_read = pb.StateRead(counter, enable_read);
     pb.SendIf(out_channel, pb.Literal(Value::Token()), enable_read,

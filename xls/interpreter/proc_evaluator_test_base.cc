@@ -96,7 +96,7 @@ TEST_P(ProcEvaluatorTestBase, ProcIota) {
 
   // Create an output-only proc which counts up by 7 starting at 42.
   ProcBuilder pb("iota", package.get());
-  BValue counter = pb.StateElement("cnt", Value(UBits(42, 32)));
+  BValue counter = pb.ReadStateElement("cnt", Value(UBits(42, 32)));
   pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({new_value}));
@@ -185,7 +185,7 @@ TEST_P(ProcEvaluatorTestBase, ProcIota) {
 TEST_P(ProcEvaluatorTestBase, ProcWhichReturnsPreviousResults) {
   Package package(TestName());
   ProcBuilder pb("prev", &package);
-  BValue prev_input = pb.StateElement("prev_in", Value(UBits(55, 32)));
+  BValue prev_input = pb.ReadStateElement("prev_in", Value(UBits(55, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in, package.CreateStreamingChannel(
                                                 "in", ChannelOps::kSendReceive,
                                                 package.GetBitsType(32)));
@@ -394,7 +394,7 @@ TEST_P(ProcEvaluatorTestBase, ObserverTest) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                                   p->GetBitsType(32)));
-  BValue st = pb.StateElement("st", Value(UBits(0, 32)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(0, 32)));
   BValue tok_lit = pb.Literal(Value::Token());
   BValue res_tup = pb.ReceiveNonBlocking(ch_in, tok_lit);
   BValue send_tok = pb.Send(ch_out, tok_lit, st);
@@ -445,7 +445,7 @@ TEST_P(ProcEvaluatorTestBase, ConditionalReceiveProc) {
   // channel.
   Package package(TestName());
   ProcBuilder pb("conditional_send", &package);
-  BValue st = pb.StateElement("st", Value(UBits(1, 1)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(1, 1)));
   std::string_view ch_in_name = "in";
   std::string_view ch_out_name = "out";
 
@@ -543,7 +543,7 @@ TEST_P(ProcEvaluatorTestBase, ConditionalSendProc) {
                                      package.GetBitsType(32)));
 
   ProcBuilder pb("even", &package);
-  BValue prev = pb.StateElement("prev", Value(UBits(0, 32)));
+  BValue prev = pb.ReadStateElement("prev", Value(UBits(0, 32)));
   BValue is_even = pb.Eq(pb.BitSlice(prev, /*start=*/0, /*width=*/1),
                          pb.Literal(UBits(0, 1)));
   pb.SendIf(channel, pb.Literal(Value::Token()), is_even, prev);
@@ -622,7 +622,7 @@ TEST_P(ProcEvaluatorTestBase, UnconditionalNextProc) {
                                      package.GetBitsType(32)));
 
   ProcBuilder pb("counter", &package);
-  BValue counter = pb.StateElement("counter", Value(UBits(0, 32)));
+  BValue counter = pb.ReadStateElement("counter", Value(UBits(0, 32)));
   pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
   pb.Next(/*state_read=*/counter, /*value=*/incremented_counter);
@@ -690,8 +690,8 @@ TEST_P(ProcEvaluatorTestBase, ConditionalNextProc) {
                                      package.GetBitsType(32)));
 
   ProcBuilder pb("slow_counter", &package);
-  BValue counter = pb.StateElement("counter", Value(UBits(0, 32)));
-  BValue iteration = pb.StateElement("iteration", Value(UBits(0, 32)));
+  BValue counter = pb.ReadStateElement("counter", Value(UBits(0, 32)));
+  BValue iteration = pb.ReadStateElement("iteration", Value(UBits(0, 32)));
   pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
   BValue odd_iteration = pb.Eq(pb.BitSlice(iteration, /*start=*/0, /*width=*/1),
@@ -783,9 +783,8 @@ TEST_P(ProcEvaluatorTestBase, ConditionalNextProc) {
 TEST_P(ProcEvaluatorTestBase, DecoupledNextProc) {
   Package package(TestName());
   ProcBuilder pb("dec_next", &package);
-  BStateElement se =
-      pb.UnreadStateElement("state_element", Value(UBits(42, 32)),
-                            /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state_element", Value(UBits(42, 32)),
+                                     /*non_synthesizable=*/false);
   pb.StateRead(se);
   pb.Next(se, pb.Literal(UBits(56, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -818,8 +817,8 @@ TEST_P(ProcEvaluatorTestBase, CollidingNextValuesProc) {
                                      package.GetBitsType(32)));
 
   ProcBuilder pb("slow_counter", &package);
-  BValue counter = pb.StateElement("counter", Value(UBits(0, 32)));
-  BValue iteration = pb.StateElement("iteration", Value(UBits(0, 32)));
+  BValue counter = pb.ReadStateElement("counter", Value(UBits(0, 32)));
+  BValue iteration = pb.ReadStateElement("iteration", Value(UBits(0, 32)));
   pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
   BValue odd_iteration = pb.Eq(pb.BitSlice(iteration, /*start=*/0, /*width=*/1),
@@ -1046,8 +1045,8 @@ TEST_P(ProcEvaluatorTestBase, MultiStateElementProc) {
   //  a: accumulator starting at 0
   //  b: de-cumulator starting at 100
   ProcBuilder pb("multistate", package.get());
-  BValue a_state = pb.StateElement("a", Value(UBits(0, 32)));
-  BValue b_state = pb.StateElement("b", Value(UBits(100, 32)));
+  BValue a_state = pb.ReadStateElement("a", Value(UBits(0, 32)));
+  BValue b_state = pb.ReadStateElement("b", Value(UBits(100, 32)));
   BValue receive = pb.Receive(channel_in, pb.Literal(Value::Token()));
   BValue data = pb.TupleIndex(receive, 1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Add(a_state, data),
@@ -1290,7 +1289,7 @@ TEST_P(ProcEvaluatorTestBase, ProcSetState) {
 
   // Create an output-only proc which counts up by 7 starting at 42.
   ProcBuilder pb("iota", package.get());
-  BValue counter = pb.StateElement("cnt", Value(UBits(42, 32)));
+  BValue counter = pb.ReadStateElement("cnt", Value(UBits(42, 32)));
   pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({new_value}));

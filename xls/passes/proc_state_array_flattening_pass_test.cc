@@ -83,7 +83,7 @@ TEST_F(ProcStateArrayFlatteningPassTest, FlattenSize1ArrayParams) {
                                                    p->GetBitsType(8)));
   ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(Value state_init, Value::UBitsArray({1}, 8));
-  BValue state = pb.StateElement("state", state_init);
+  BValue state = pb.ReadStateElement("state", state_init);
   BValue state0 = pb.ArrayIndex(state, {pb.Literal(Value(UBits(0, 32)))});
   pb.Send(channel, pb.AfterAll({}), state0);
   BValue next_state = pb.ArrayUpdate(state, state0, {state0});
@@ -106,7 +106,7 @@ TEST_F(ProcStateArrayFlatteningPassTest, FlattenSize2ArrayParams) {
                                                    p->GetBitsType(8)));
   ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(Value state_init, Value::UBitsArray({1, 2}, 8));
-  BValue state = pb.StateElement("state", state_init);
+  BValue state = pb.ReadStateElement("state", state_init);
   BValue state0 = pb.ArrayIndex(state, {pb.Literal(Value(UBits(0, 32)))});
   pb.Send(channel, pb.AfterAll({}), state0);
   BValue next_state = pb.ArrayUpdate(
@@ -129,7 +129,7 @@ TEST_F(ProcStateArrayFlatteningPassTest,
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "simple_proc", "tkn", p.get());
 
-  BStateElement state = pb.UnreadStateElement(
+  BStateElement state = pb.StateElement(
       "state", Value::ArrayOrDie({Value(UBits(10, 32)), Value(UBits(20, 32))}),
       /*non_synthesizable=*/false);
   BValue read = pb.StateRead(state, /*predicate=*/std::nullopt,

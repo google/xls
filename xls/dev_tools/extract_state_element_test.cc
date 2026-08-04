@@ -48,10 +48,10 @@ TEST_F(ExtractStateElementTest, NoSendState) {
       p->CreateStreamingChannel("inp_chan", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue a = pb.StateElement("a", UBits(1, 32));
-  BValue b = pb.StateElement("b", UBits(1, 32));
-  BValue c = pb.StateElement("c", UBits(1, 32));
-  BValue d = pb.StateElement("d", UBits(1, 32));
+  BValue a = pb.ReadStateElement("a", UBits(1, 32));
+  BValue b = pb.ReadStateElement("b", UBits(1, 32));
+  BValue c = pb.ReadStateElement("c", UBits(1, 32));
+  BValue d = pb.ReadStateElement("d", UBits(1, 32));
   pb.Next(a, pb.Add(a, b));
   pb.Next(b, pb.Add(c, a));
   pb.Next(c, pb.Add(a, d));
@@ -75,10 +75,10 @@ TEST_F(ExtractStateElementTest, SendState) {
       p->CreateStreamingChannel("inp_chan", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue a = pb.StateElement("a", UBits(1, 32));
-  BValue b = pb.StateElement("b", UBits(1, 32));
-  BValue c = pb.StateElement("c", UBits(1, 32));
-  BValue d = pb.StateElement("d", UBits(1, 32));
+  BValue a = pb.ReadStateElement("a", UBits(1, 32));
+  BValue b = pb.ReadStateElement("b", UBits(1, 32));
+  BValue c = pb.ReadStateElement("c", UBits(1, 32));
+  BValue d = pb.ReadStateElement("d", UBits(1, 32));
   pb.Next(a, pb.Add(a, b));
   pb.Next(b, pb.Add(c, a));
   pb.Next(c, pb.Add(a, d));
@@ -100,18 +100,14 @@ TEST_F(ExtractStateElementTest, SendStateDecoupledNext) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
   BReceiveChannel chan = pb.AddInputChannel("inp_chan", p->GetBitsType(32));
-  BStateElement state_element_a =
-      pb.UnreadStateElement("a", Value(UBits(1, 32)),
-                            /*non_synthesizable=*/false);
-  BStateElement state_element_b =
-      pb.UnreadStateElement("b", Value(UBits(1, 32)),
-                            /*non_synthesizable=*/false);
-  BStateElement state_element_c =
-      pb.UnreadStateElement("c", Value(UBits(1, 32)),
-                            /*non_synthesizable=*/false);
-  BStateElement state_element_d =
-      pb.UnreadStateElement("d", Value(UBits(1, 32)),
-                            /*non_synthesizable=*/false);
+  BStateElement state_element_a = pb.StateElement("a", Value(UBits(1, 32)),
+                                                  /*non_synthesizable=*/false);
+  BStateElement state_element_b = pb.StateElement("b", Value(UBits(1, 32)),
+                                                  /*non_synthesizable=*/false);
+  BStateElement state_element_c = pb.StateElement("c", Value(UBits(1, 32)),
+                                                  /*non_synthesizable=*/false);
+  BStateElement state_element_d = pb.StateElement("d", Value(UBits(1, 32)),
+                                                  /*non_synthesizable=*/false);
   BValue a = pb.StateRead(state_element_a);
   BValue b = pb.StateRead(state_element_b);
   BValue c = pb.StateRead(state_element_c);

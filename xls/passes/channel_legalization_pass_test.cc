@@ -1008,8 +1008,8 @@ TEST_F(ChannelLegalizationPassIrTest, LegalizeWithTokenSel) {
   BSendChannel chan_out =
       pb.AddOutputChannel("out", p->GetBitsType(32), ChannelKind::kStreaming,
                           ChannelStrictness::kRuntimeMutuallyExclusive);
-  auto st = pb.StateElement("state", UBits(0, 1));
-  auto tok = pb.StateElement("tok", Value::Token());
+  auto st = pb.ReadStateElement("state", UBits(0, 1));
+  auto tok = pb.ReadStateElement("tok", Value::Token());
   auto not_st = pb.Not(st);
   auto tok_new_a1 = pb.SendIf(chan_out, tok, st, pb.Literal(UBits(32, 32)));
   auto tok_new_b1 = pb.SendIf(chan_out, tok, not_st, pb.Literal(UBits(12, 32)));
@@ -1030,11 +1030,11 @@ TEST_F(ChannelLegalizationPassIrTest, LegalizeDecoupledNext) {
   BSendChannel chan_out =
       pb.AddOutputChannel("out", p->GetBitsType(32), ChannelKind::kStreaming,
                           ChannelStrictness::kRuntimeMutuallyExclusive);
-  BStateElement st_elem = pb.UnreadStateElement("state", Value(UBits(0, 1)),
-                                                /*non_synthesizable=*/false);
+  BStateElement st_elem = pb.StateElement("state", Value(UBits(0, 1)),
+                                          /*non_synthesizable=*/false);
   BValue st = pb.StateRead(st_elem);
   BStateElement tok_elem =
-      pb.UnreadStateElement("tok", Value::Token(), /*non_synthesizable=*/false);
+      pb.StateElement("tok", Value::Token(), /*non_synthesizable=*/false);
   BValue tok = pb.StateRead(tok_elem);
 
   auto not_st = pb.Not(st);

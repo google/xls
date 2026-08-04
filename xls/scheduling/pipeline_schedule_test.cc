@@ -193,8 +193,8 @@ absl::StatusOr<LabeledFeedbackArcProc> BuildLabeledFeedbackArcProc(
 
   ProcBuilder pb("the_proc", package.get());
   BValue tkn = pb.Literal(Value::Token());
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
   BValue read = pb.StateRead(se, /*predicate=*/std::nullopt, read_label);
   BValue add_val = pb.Add(read, pb.Literal(UBits(1, 32)));
   pb.Send(out_ch, tkn, add_val);
@@ -776,7 +776,7 @@ TEST_P(PipelineScheduleTest, ProcSchedule) {
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(42, 16)));
   BValue rcv = pb.Receive(in_ch);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   BValue send = pb.Send(out_ch, out);
@@ -827,8 +827,8 @@ TEST_P(PipelineScheduleTest, MultistateProcSchedule) {
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BValue st0 = pb.StateElement("st0", Value(UBits(0, 16)));
-  BValue st1 = pb.StateElement("st1", Value(UBits(0, 16)));
+  BValue st0 = pb.ReadStateElement("st0", Value(UBits(0, 16)));
+  BValue st1 = pb.ReadStateElement("st1", Value(UBits(0, 16)));
   BValue rcv = pb.Receive(in_ch);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   BValue send = pb.Send(out_ch, out);
@@ -861,7 +861,7 @@ TEST_P(PipelineScheduleTest, ProcWithConditionalReceive) {
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(42, 16)));
   BValue cond = pb.Literal(UBits(0, 1));
   BValue rcv = pb.ReceiveIf(in_ch, cond);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
@@ -896,7 +896,7 @@ TEST_P(PipelineScheduleTest, ProcWithConditionalReceiveLongCondition) {
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(42, 16)));
   BValue cond = pb.Not(pb.Not(pb.Literal(UBits(0, 1))));
   BValue rcv = pb.ReceiveIf(in_ch, cond, SourceInfo(), "rcv");
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
@@ -1159,7 +1159,7 @@ TEST_P(PipelineScheduleTest, SendFollowedByDelayedReceiveWithState) {
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(32)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(32)));
   pb.proc()->SetInitiationInterval(2);
 
   BValue send = pb.Send(ch_out, tkn, state);
@@ -1189,7 +1189,7 @@ TEST_P(PipelineScheduleErrorTest, SuggestIncreasedPipelineLengthWhenNeeded) {
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(32)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(32)));
 
   BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
@@ -1220,7 +1220,7 @@ TEST_P(SdcOnlyPipelineScheduleErrorTest,
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(32)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(32)));
 
   BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
@@ -1250,7 +1250,7 @@ TEST_P(PipelineScheduleTest, UnboundedThroughputWorks) {
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(32)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(32)));
 
   BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
@@ -1285,7 +1285,7 @@ TEST_P(PipelineScheduleTest, MinimizedThroughputWorksWithGivenPipelineLength) {
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(32)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(32)));
 
   BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
@@ -1319,7 +1319,7 @@ TEST_P(PipelineScheduleTest, MinimizedThroughputWorksWithGivenClockPeriod) {
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(32)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(32)));
 
   BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
@@ -1355,7 +1355,7 @@ TEST_P(SdcOnlyPipelineScheduleErrorTest,
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(32)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(32)));
 
   BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
@@ -1388,7 +1388,7 @@ TEST_P(SdcOnlyPipelineScheduleErrorTest,
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(32)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(32)));
 
   BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
@@ -1421,7 +1421,7 @@ TEST_P(SdcOnlyPipelineScheduleErrorTest,
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(32)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(32)));
 
   BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
@@ -1475,8 +1475,8 @@ TEST_P(
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state0 = pb.StateElement("state0", Value(Bits(32)));
-  BValue state1 = pb.StateElement("state1", Value(Bits(32)));
+  BValue state0 = pb.ReadStateElement("state0", Value(Bits(32)));
+  BValue state1 = pb.ReadStateElement("state1", Value(Bits(32)));
 
   BValue send0 = pb.Send(ch_out0, tkn, state0);
   BValue send1 = pb.Send(ch_out1, tkn, state1);
@@ -1529,9 +1529,9 @@ TEST_P(
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state0 = pb.StateElement("state0", Value(Bits(32)));
-  BValue state1 = pb.StateElement("state1", Value(Bits(32)));
-  BValue state2 = pb.StateElement("state2", Value(Bits(32)));
+  BValue state0 = pb.ReadStateElement("state0", Value(Bits(32)));
+  BValue state1 = pb.ReadStateElement("state1", Value(Bits(32)));
+  BValue state2 = pb.ReadStateElement("state2", Value(Bits(32)));
 
   BValue send0 = pb.Send(ch_out0, tkn, state0);
   BValue send1 = pb.Send(ch_out1, tkn, state1);
@@ -1583,7 +1583,7 @@ void SuggestIncreasedClockPeriodWhenNecessaryCommon(
 
   ProcBuilder pb(test_name, &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(32)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(32)));
 
   pb.Send(ch_out, tkn, state);
   BValue add2 = pb.Add(state, pb.Literal(UBits(2, 32)));
@@ -1662,7 +1662,7 @@ TEST_P(SdcPrimaryPipelineScheduleTest, OptimizeForDynamicThroughput) {
 
   ProcBuilder pb(TestName(), &package);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(Bits(1)));
+  BValue state = pb.ReadStateElement("state", Value(Bits(1)));
   BValue recv = pb.Receive(ch_in, tkn);
   BValue recv_tkn = pb.TupleIndex(recv, 0);
   BValue change = pb.TupleIndex(recv, 1);
@@ -1722,7 +1722,7 @@ TEST_P(PipelineScheduleTest, ProcParamScheduledEarlyWithNextState) {
       p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u1));
   ProcBuilder pb(TestName(), &p);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(UBits(1, 1)));
+  BValue state = pb.ReadStateElement("state", Value(UBits(1, 1)));
   BValue nb_rcv = pb.ReceiveNonBlocking(in0, tkn);
   BValue nb_rcv_tkn = pb.TupleIndex(nb_rcv, 0);
   BValue nb_rcv_data = pb.TupleIndex(nb_rcv, 1);
@@ -1774,7 +1774,7 @@ TEST_P(PipelineScheduleTest, ProcParamScheduledAfterNextState) {
       p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u1));
   ProcBuilder pb(TestName(), &p);
   BValue tkn = pb.Literal(Value::Token());
-  BValue state = pb.StateElement("state", Value(UBits(1, 8)));
+  BValue state = pb.ReadStateElement("state", Value(UBits(1, 8)));
   BValue nb_rcv = pb.ReceiveNonBlocking(in0, tkn);
   BValue nb_rcv_tkn = pb.TupleIndex(nb_rcv, 0);
   BValue nb_rcv_data = pb.TupleIndex(nb_rcv, 1);
@@ -1814,8 +1814,8 @@ TEST_P(PipelineScheduleTest, ProcParamsScheduledInSameStage) {
       p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u1));
   ProcBuilder pb(TestName(), &p);
   BValue tkn = pb.Literal(Value::Token());
-  BValue a = pb.StateElement("a", Value(UBits(0, 1)));
-  BValue b = pb.StateElement("b", Value(UBits(1, 1)));
+  BValue a = pb.ReadStateElement("a", Value(UBits(0, 1)));
+  BValue b = pb.ReadStateElement("b", Value(UBits(1, 1)));
   BValue nb_rcv = pb.ReceiveNonBlocking(in0, tkn);
   BValue nb_rcv_tkn = pb.TupleIndex(nb_rcv, 0);
   BValue nb_rcv_data = pb.TupleIndex(nb_rcv, 1);
@@ -2126,7 +2126,7 @@ TEST_P(PipelineScheduleTest, ProcScheduleWithConstraints) {
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(42, 16)));
   BValue rcv = pb.Receive(in_ch);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   BValue send = pb.Send(out_ch, out);
@@ -2197,7 +2197,7 @@ TEST_P(PipelineScheduleTest, LoopbackChannelWithConstraint) {
       Channel * out_ch,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
   TokenlessProcBuilder pb("the_proc", "tkn", p.get());
-  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(42, 16)));
   BValue rcv = pb.Receive(loopback_ch);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   pb.Send(out_ch, out);
@@ -2316,8 +2316,8 @@ TEST_P(PipelineScheduleTest, ProcWithExplicitStateAccess) {
       p.CreateStreamingChannel("out_ch", ChannelOps::kSendOnly, u32));
 
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
   BValue current = pb.StateRead(se);
   BValue add_val = pb.Add(current, pb.Literal(UBits(1, 32)));
 
@@ -2345,8 +2345,8 @@ TEST_P(PipelineScheduleTest, ProcWithMultipleStateReads) {
       p.CreateStreamingChannel("out_ch", ChannelOps::kSendOnly, u32));
 
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
   BValue read1 = pb.StateRead(se);
 
   // Create a second read with a predicate
@@ -2378,8 +2378,8 @@ TEST_P(PipelineScheduleTest, ProcDecoupledFindMinimumCaseThroughput) {
       p.CreateStreamingChannel("out_ch", ChannelOps::kSendOnly, u32));
 
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
   BValue current = pb.StateRead(se);
   BValue first_add = pb.Add(current, pb.Literal(UBits(1, 32)));
   BValue second_add = pb.Add(first_add, pb.Literal(UBits(2, 32)));
@@ -2410,8 +2410,8 @@ TEST_P(PipelineScheduleTest, ProcDecoupledFindMinimumCaseThroughput) {
 TEST_P(PipelineScheduleErrorTest, ProcWithZeroReadsErrors) {
   Package p(TestName());
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
 
   BValue add_val = pb.Literal(UBits(42, 32));
   pb.Next(se, add_val);
@@ -2695,8 +2695,8 @@ TEST_F(PipelineScheduleTest, ProcFeedbackArcThroughputMultiProc) {
 
   // Proc 1: has ("W1", "R1")
   ProcBuilder pb1("proc_1", package.get());
-  BStateElement se1 = pb1.UnreadStateElement("st1", Value(UBits(0, 32)),
-                                             /*non_synthesizable=*/false);
+  BStateElement se1 = pb1.StateElement("st1", Value(UBits(0, 32)),
+                                       /*non_synthesizable=*/false);
   BValue read1 = pb1.StateRead(se1, /*predicate=*/std::nullopt, "R1");
   BValue add1 = pb1.Add(read1, pb1.Literal(UBits(1, 32)));
   pb1.Next(se1, add1, /*pred=*/std::nullopt, "W1");
@@ -2704,8 +2704,8 @@ TEST_F(PipelineScheduleTest, ProcFeedbackArcThroughputMultiProc) {
 
   // Proc 2: has ("W2", "R2")
   ProcBuilder pb2("proc_2", package.get());
-  BStateElement se2 = pb2.UnreadStateElement("st2", Value(UBits(0, 32)),
-                                             /*non_synthesizable=*/false);
+  BStateElement se2 = pb2.StateElement("st2", Value(UBits(0, 32)),
+                                       /*non_synthesizable=*/false);
   BValue read2 = pb2.StateRead(se2, /*predicate=*/std::nullopt, "R2");
   BValue add2 = pb2.Add(read2, pb2.Literal(UBits(1, 32)));
   pb2.Next(se2, add2, /*pred=*/std::nullopt, "W2");
@@ -2764,8 +2764,8 @@ TEST_F(PipelineScheduleTest, ProcStateReadBeforeWriteSucceeds) {
 
   ProcBuilder pb("the_proc", &p);
   BValue tkn = pb.Literal(Value::Token());
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
 
   // Read state value, add logic to force it late in the pipeline
   BValue read = pb.StateRead(se);
@@ -2808,8 +2808,8 @@ TEST_F(PipelineScheduleTest,
       p.CreateStreamingChannel("out_ch", ChannelOps::kSendOnly, u32));
   ProcBuilder pb("the_proc", &p);
   BValue tkn = pb.Literal(Value::Token());
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
   BValue rcv = pb.Receive(in_ch, tkn);
   BValue rcv_tkn = pb.TupleIndex(rcv, 0);
   BValue cond = pb.TupleIndex(rcv, 1);
@@ -2849,8 +2849,8 @@ TEST_F(PipelineScheduleTest,
 TEST_F(PipelineScheduleTest, DecoupledNextIsOutOfCycle) {
   Package p(TestName());
   ProcBuilder pb("the_proc", &p);
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
   BValue read = pb.StateRead(se);
   BValue next = pb.Next(se, read);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -2878,8 +2878,8 @@ TEST_F(PipelineScheduleTest, DecoupledNextIsOutOfCycle) {
 TEST_F(PipelineScheduleTest, ProcWriteBeforeReadFailsVerification) {
   Package p(TestName());
   ProcBuilder pb("the_proc", &p);
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
   BValue read = pb.StateRead(se);
   BValue next = pb.Next(se, pb.Literal(UBits(42, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -2909,8 +2909,8 @@ TEST_F(PipelineScheduleTest, ProcWriteBeforeReadFailsVerification) {
 TEST_F(PipelineScheduleTest, ProcFeedbackArcTooLongFailsVerification) {
   Package p(TestName());
   ProcBuilder pb("the_proc", &p);
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
   pb.StateRead(se);
   BValue next = pb.Next(se, pb.Literal(UBits(42, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());

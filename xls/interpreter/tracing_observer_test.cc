@@ -195,7 +195,7 @@ TEST_P(TracingObserverTest, SimpleFunction) {
 TEST_P(TracingObserverTest, ProcTick) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
-  BValue x_state = pb.StateElement("x", Value(UBits(10, 32)));
+  BValue x_state = pb.ReadStateElement("x", Value(UBits(10, 32)));
   XLS_ASSERT_OK(pb.Build({x_state}).status());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcRuntime> runtime,

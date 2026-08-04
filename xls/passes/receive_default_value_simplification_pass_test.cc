@@ -65,8 +65,8 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue pred = pb.StateElement("pred", Value(UBits(1, 1)));
-  pb.StateElement("s", Value(UBits(42, 32)));
+  BValue pred = pb.ReadStateElement("pred", Value(UBits(1, 1)));
+  pb.ReadStateElement("s", Value(UBits(42, 32)));
   BValue receive = pb.ReceiveIf(out, pred);
   BValue select = pb.Select(pred, {pb.Literal(UBits(0, 32)), receive});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
@@ -93,8 +93,8 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue pred = pb.StateElement("pred", Value(UBits(1, 1)));
-  pb.StateElement("s", Value(UBits(42, 32)));
+  BValue pred = pb.ReadStateElement("pred", Value(UBits(1, 1)));
+  pb.ReadStateElement("s", Value(UBits(42, 32)));
   BValue receive = pb.ReceiveIf(out, pred);
   BValue select = pb.PrioritySelect(pred, {receive}, pb.Literal(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
@@ -123,8 +123,8 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
       p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, tuple_type));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue pred = pb.StateElement("pred", Value(UBits(1, 1)));
-  pb.StateElement("s", ZeroOfType(tuple_type));
+  BValue pred = pb.ReadStateElement("pred", Value(UBits(1, 1)));
+  pb.ReadStateElement("s", ZeroOfType(tuple_type));
   BValue receive = pb.ReceiveIf(out, pred);
   BValue select =
       pb.Select(pred, {pb.Literal(ZeroOfType(tuple_type)), receive});
@@ -152,7 +152,7 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  pb.StateElement("s", Value(UBits(42, 32)));
+  pb.ReadStateElement("s", Value(UBits(42, 32)));
   auto [data, valid] = pb.ReceiveNonBlocking(out);
   BValue select = pb.Select(valid, {pb.Literal(UBits(0, 32)), data});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({select}));
@@ -179,8 +179,8 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue pred = pb.StateElement("pred", Value(UBits(1, 1)));
-  pb.StateElement("s", Value(UBits(42, 32)));
+  BValue pred = pb.ReadStateElement("pred", Value(UBits(1, 1)));
+  pb.ReadStateElement("s", Value(UBits(42, 32)));
   auto [data, valid] = pb.ReceiveIfNonBlocking(out, pred);
   BValue select = pb.Select(valid, {pb.Literal(UBits(0, 32)), data});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
@@ -206,8 +206,8 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest, SelectWithArmsSwitched) {
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue pred = pb.StateElement("pred", Value(UBits(1, 1)));
-  pb.StateElement("s", Value(UBits(42, 32)));
+  BValue pred = pb.ReadStateElement("pred", Value(UBits(1, 1)));
+  pb.ReadStateElement("s", Value(UBits(42, 32)));
   BValue receive = pb.ReceiveIf(out, pred);
   // Select arms are in the wrong position for transformation.
   BValue select = pb.Select(pred, {receive, pb.Literal(UBits(0, 32))});
@@ -225,8 +225,8 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue pred = pb.StateElement("pred", Value(UBits(1, 1)));
-  pb.StateElement("s", Value(UBits(42, 32)));
+  BValue pred = pb.ReadStateElement("pred", Value(UBits(1, 1)));
+  pb.ReadStateElement("s", Value(UBits(42, 32)));
   BValue receive = pb.Receive(out);
   BValue select = pb.Select(pred, {pb.Literal(UBits(0, 32)), receive});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
@@ -242,8 +242,8 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest, SelectWithNonZeroCase) {
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue pred = pb.StateElement("pred", Value(UBits(1, 1)));
-  pb.StateElement("s", Value(UBits(42, 32)));
+  BValue pred = pb.ReadStateElement("pred", Value(UBits(1, 1)));
+  pb.ReadStateElement("s", Value(UBits(42, 32)));
   BValue receive = pb.ReceiveIf(out, pred);
   BValue select = pb.Select(pred, {pb.Literal(UBits(123, 32)), receive});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
@@ -260,9 +260,9 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue pred0 = pb.StateElement("pred0", Value(UBits(1, 1)));
-  BValue pred1 = pb.StateElement("pred1", Value(UBits(1, 1)));
-  pb.StateElement("s", Value(UBits(42, 32)));
+  BValue pred0 = pb.ReadStateElement("pred0", Value(UBits(1, 1)));
+  BValue pred1 = pb.ReadStateElement("pred1", Value(UBits(1, 1)));
+  pb.ReadStateElement("s", Value(UBits(42, 32)));
   BValue receive = pb.ReceiveIf(out, pred0);
   BValue select = pb.Select(pred1, {pb.Literal(UBits(123, 32)), receive});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred0, pred1, select}));

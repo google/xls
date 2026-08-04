@@ -863,7 +863,7 @@ TEST_F(VerifierTest, NextNodeWithWrongType) {
   Package package("p");
 
   ProcBuilder pb("p", &package, /*should_verify=*/false);
-  BValue s = pb.StateElement("s", Value(UBits(0, 32)));
+  BValue s = pb.ReadStateElement("s", Value(UBits(0, 32)));
   BValue pred = pb.UGt(s, pb.Literal(UBits(10, 32)));
   BValue lit0_width_1 = pb.Literal(UBits(0, 1));
   // Can't use pb.Next() because it checks the type without the verifier before
@@ -897,7 +897,7 @@ TEST_F(VerifierTest, NextNodeWithWrongTypePredicate) {
   Package package("p");
 
   ProcBuilder pb("p", &package, /*should_verify=*/false);
-  BValue s = pb.StateElement("s", Value(UBits(0, 32)));
+  BValue s = pb.ReadStateElement("s", Value(UBits(0, 32)));
   BValue pred = pb.UGt(s, pb.Literal(UBits(10, 32)));
   // This shouldn't verify!
   BValue not_pred = pb.ZeroExtend(pb.Not(pred), 32);

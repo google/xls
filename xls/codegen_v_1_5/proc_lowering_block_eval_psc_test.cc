@@ -1047,8 +1047,8 @@ absl::StatusOr<Proc*> MakeDelayedLoopbackProc(std::string_view name,
                                               Channel* out, Package* p) {
   XLS_RET_CHECK(in->type() == out->type());
   ProcBuilder b(name, p);
-  BValue cnt = b.StateElement("cnt", Value(UBits(0, 32)));
-  BValue data = b.StateElement("cnt", Value(UBits(0, 32)));
+  BValue cnt = b.ReadStateElement("cnt", Value(UBits(0, 32)));
+  BValue data = b.ReadStateElement("cnt", Value(UBits(0, 32)));
 
   BValue cnt_eq_0 = b.Eq(cnt, b.Literal(UBits(0, 32)));
   BValue cnt_last = b.Eq(cnt, b.Literal(UBits(delay - 1, 32)));
@@ -1125,8 +1125,8 @@ absl::StatusOr<Proc*> MakeLoopingAccumulatorProc(std::string_view name,
   SourceInfo loc;
 
   ProcBuilder b(name, p);
-  BValue i = b.StateElement("i", ZeroOfType(input_ch->type()));
-  BValue accum = b.StateElement("accum", ZeroOfType(input_ch->type()));
+  BValue i = b.ReadStateElement("i", ZeroOfType(input_ch->type()));
+  BValue accum = b.ReadStateElement("accum", ZeroOfType(input_ch->type()));
 
   BValue zero = b.Literal(UBits(0, bit_count), loc, "zero");
   BValue one = b.Literal(UBits(1, bit_count), loc, "one");
@@ -1214,9 +1214,9 @@ absl::StatusOr<Proc*> MakeTupleAccumulator(std::string_view name, Channel* in,
       in->type()->AsTupleOrDie()->element_type(1)->AsBitsOrDie()->bit_count();
   ProcBuilder b(name, p);
 
-  BValue cnt = b.StateElement("cnt", Value(UBits(0, 1)));
-  BValue x_accum = b.StateElement("x_accum", Value(UBits(0, x_bit_count)));
-  BValue y_accum = b.StateElement("y_accum", Value(UBits(0, y_bit_count)));
+  BValue cnt = b.ReadStateElement("cnt", Value(UBits(0, 1)));
+  BValue x_accum = b.ReadStateElement("x_accum", Value(UBits(0, x_bit_count)));
+  BValue y_accum = b.ReadStateElement("y_accum", Value(UBits(0, y_bit_count)));
 
   BValue rcv_x_y = b.Receive(in, b.Literal(Value::Token()));
   BValue rcv_x_y_data = b.TupleIndex(rcv_x_y, 1);
@@ -1738,7 +1738,7 @@ TEST_F(ProcLoweringBlockEvalTest, NestedProcsTrivialInnerLoop) {
     //    if(!st): send(42)
     //    st = !st
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(1, 1)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(1, 1)));
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), st);
     bb.SendIf(b_to_a, bb.TupleIndex(rcv_from_a, 0), bb.Not(st),
               bb.Literal(UBits(42, 32)));
@@ -1785,7 +1785,7 @@ TEST_F(ProcLoweringBlockEvalTest, NestedProcsIota) {
 
   {
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(42, 32)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(42, 32)));
     bb.Send(b_to_a, bb.Literal(Value::Token()), bb.GetStateParam(0));
     bb.Next(st, bb.Add(st, bb.Literal(UBits(1, 32))));
     XLS_ASSERT_OK(bb.Build());
@@ -1828,7 +1828,7 @@ TEST_F(ProcLoweringBlockEvalTest, NestedProcsOddIota) {
 
   {
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(42, 32)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(42, 32)));
     bb.SendIf(b_to_a, bb.Literal(Value::Token()),
               bb.BitSlice(bb.GetStateParam(0), /*start=*/0, /*width=*/1),
               bb.GetStateParam(0));
@@ -1885,7 +1885,7 @@ TEST_F(ProcLoweringBlockEvalTest, SynchronizedNestedProcs) {
     //      send(out, y)
     //    st = !st
     ProcBuilder ab("A", p.get());
-    BValue st = ab.StateElement("st", Value(UBits(0, 1)));
+    BValue st = ab.ReadStateElement("st", Value(UBits(0, 1)));
     BValue rcv_in = ab.ReceiveIf(ch_in, ab.Literal(Value::Token()), st);
     BValue send_to_b = ab.SendIf(a_to_b, ab.TupleIndex(rcv_in, 0), st,
                                  ab.TupleIndex(rcv_in, 1));
@@ -1907,7 +1907,7 @@ TEST_F(ProcLoweringBlockEvalTest, SynchronizedNestedProcs) {
     //       send(b_to_a, x + 42)
     //    st = !st
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 1)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 1)));
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), st);
     bb.SendIf(b_to_a, bb.TupleIndex(rcv_from_a, 0), st,
               bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
@@ -1966,8 +1966,8 @@ TEST_F(ProcLoweringBlockEvalTest, NestedProcsNontrivialInnerLoop) {
     //     x += i
     //   snd(x)
     ProcBuilder bb("B", p.get());
-    BValue cnt = bb.StateElement("cnt", Value(UBits(0, 2)));
-    BValue accum = bb.StateElement("accum", Value(UBits(0, 32)));
+    BValue cnt = bb.ReadStateElement("cnt", Value(UBits(0, 2)));
+    BValue accum = bb.ReadStateElement("accum", Value(UBits(0, 32)));
 
     BValue cnt_eq_0 = bb.Eq(cnt, bb.Literal(UBits(0, 2)));
     BValue cnt_eq_3 = bb.Eq(cnt, bb.Literal(UBits(3, 2)));
@@ -2336,8 +2336,8 @@ TEST_F(ProcLoweringBlockEvalTest, DoubleNestedLoops) {
     //      send(b_to_a, z)
     //    cnt = !cnt
     ProcBuilder bb("B", p.get());
-    BValue cnt = bb.StateElement("cnt", Value(UBits(1, 1)));
-    BValue accum = bb.StateElement("accum", Value(UBits(0, 32)));
+    BValue cnt = bb.ReadStateElement("cnt", Value(UBits(1, 1)));
+    BValue accum = bb.ReadStateElement("accum", Value(UBits(0, 32)));
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), cnt);
     BValue next_accum = bb.Add(accum, bb.TupleIndex(rcv_from_a, 1),
                                SourceInfo(), "B_accum_next");
@@ -2367,8 +2367,8 @@ TEST_F(ProcLoweringBlockEvalTest, DoubleNestedLoops) {
     //     send(c_to_b, accum)
     //   cnt += 1
     ProcBuilder cb("C", p.get());
-    BValue cnt = cb.StateElement("cnt", Value(UBits(0, 2)));
-    BValue accum = cb.StateElement("accum", Value(UBits(0, 32)));
+    BValue cnt = cb.ReadStateElement("cnt", Value(UBits(0, 2)));
+    BValue accum = cb.ReadStateElement("accum", Value(UBits(0, 32)));
     BValue cnt_eq_0 = cb.Eq(cnt, cb.Literal(UBits(0, 2)));
     BValue cnt_eq_3 = cb.Eq(cnt, cb.Literal(UBits(3, 2)));
 
@@ -2802,7 +2802,7 @@ TEST_F(ProcLoweringBlockEvalTest, DelayedReceiveWithDataLossFifoDepth0) {
     //       send(b_to_a, x + 42)
     //    st = 1
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 1)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 1)));
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), st);
     bb.SendIf(b_to_a, bb.TupleIndex(rcv_from_a, 0), st,
               bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
@@ -2861,7 +2861,7 @@ TEST_F(ProcLoweringBlockEvalTest,
     //       send(b_to_a, x + 42)
     //    st = 1
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 1)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 1)));
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), st);
     bb.SendIf(b_to_a, bb.TupleIndex(rcv_from_a, 0), st,
               bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
@@ -2923,7 +2923,7 @@ TEST_F(ProcLoweringBlockEvalTest,
     //    send(b_to_a, x + 42)
     //    st = st + 1
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 32)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 32)));
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()),
                                      bb.UGe(st, bb.Literal(UBits(1, 32))));
     bb.Send(b_to_a, bb.TupleIndex(rcv_from_a, 0),
@@ -2985,7 +2985,7 @@ TEST_F(ProcLoweringBlockEvalTest, DelayedReceiveWithDataLossFifoDepth1) {
     //    send(b_to_a, x + 42)
     //    st = st + 1
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 32)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 32)));
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()),
                                      bb.UGe(st, bb.Literal(UBits(2, 32))));
     bb.Send(b_to_a, bb.TupleIndex(rcv_from_a, 0),
@@ -3043,7 +3043,7 @@ TEST_F(ProcLoweringBlockEvalTest, DataLoss) {
   //      send(out, y)
   //    st = !st
   ProcBuilder ab("A", p.get());
-  BValue st = ab.StateElement("st", Value(UBits(1, 1)));
+  BValue st = ab.ReadStateElement("st", Value(UBits(1, 1)));
   BValue rcv_in = ab.Receive(ch_in, ab.Literal(Value::Token()));
   BValue in_data = ab.TupleIndex(rcv_in, 1);
   BValue send_to_b = ab.Send(a_to_b, ab.TupleIndex(rcv_in, 0), in_data);
@@ -3101,7 +3101,7 @@ TEST_F(ProcLoweringBlockEvalTest, BlockingReceiveBlocksSendsForDepth0Fifos) {
     //    snd(a_to_b1)
     //    st = 1
     ProcBuilder ab("A", p.get());
-    BValue st = ab.StateElement("st", Value(UBits(0, 1)));
+    BValue st = ab.ReadStateElement("st", Value(UBits(0, 1)));
     BValue rcv = ab.Receive(ch_in, ab.Literal(Value::Token()));
     BValue send0 =
         ab.SendIf(a_to_b0, ab.TupleIndex(rcv, 0), st, ab.Literal(UBits(0, 32)));
@@ -3203,8 +3203,8 @@ TEST_F(ProcLoweringBlockEvalTest, TwoSendsOneReceive) {
     //     send (pass_result, acc)
     //   active = !active
     ProcBuilder bb("B", p.get());
-    BValue active = bb.StateElement("active", Value(UBits(0, 1)));
-    BValue acc = bb.StateElement("acc", Value(UBits(0, 32)));
+    BValue active = bb.ReadStateElement("active", Value(UBits(0, 1)));
+    BValue acc = bb.ReadStateElement("acc", Value(UBits(0, 32)));
     BValue rcv_x = bb.Receive(pass_inputs, bb.Literal(Value::Token()));
     BValue sum = bb.Add(acc, bb.TupleIndex(rcv_x, 1));
     bb.SendIf(pass_result, bb.Literal(Value::Token()), active, sum);
@@ -3270,8 +3270,8 @@ TEST_F(ProcLoweringBlockEvalTest, TwoReceivesOneSend) {
     //     send(result_out, result)
     //   new_input = !new_input
     ProcBuilder ab("A", p.get());
-    BValue new_input = ab.StateElement("new_input", UBits(1, 1));
-    BValue last_input = ab.StateElement("last_input", UBits(0, 32));
+    BValue new_input = ab.ReadStateElement("new_input", UBits(1, 1));
+    BValue last_input = ab.ReadStateElement("last_input", UBits(0, 32));
     BValue rcv_x = ab.ReceiveIf(x_in, ab.Literal(Value::Token()), new_input);
     BValue received_input = ab.TupleIndex(rcv_x, 1);
     BValue current_input =
@@ -3301,7 +3301,7 @@ TEST_F(ProcLoweringBlockEvalTest, TwoReceivesOneSend) {
     //   acc += x2
     //   send(pass_result, acc)
     ProcBuilder bb("B", p.get());
-    BValue acc = bb.StateElement("acc", Value(UBits(0, 32)));
+    BValue acc = bb.ReadStateElement("acc", Value(UBits(0, 32)));
     BValue rcv_x1 = bb.Receive(pass_inputs, bb.Literal(Value::Token()));
     BValue rcv_x2 = bb.Receive(pass_inputs, bb.TupleIndex(rcv_x1, 0));
     BValue sum = bb.Add(acc, bb.TupleIndex(rcv_x1, 1));
@@ -4107,7 +4107,7 @@ TEST_F(ProcLoweringBlockEvalTest, ReceivedValueSentAndNext) {
     //   send(out, st + x)
     //   st = in
     ProcBuilder ab("A", p.get());
-    BValue st = ab.StateElement("st", Value(UBits(0, 32)));
+    BValue st = ab.ReadStateElement("st", Value(UBits(0, 32)));
     BValue rcv_in = ab.Receive(ch_in, ab.Literal(Value::Token()));
     BValue rcv_tkn = ab.TupleIndex(rcv_in, 0);
     BValue rcv_data = ab.TupleIndex(rcv_in, 1);
@@ -4161,7 +4161,7 @@ TEST_F(ProcLoweringBlockEvalTest, OffsetSendAndReceive) {
     //     send(a_to_b, st)
     //   st = st + 1
     ProcBuilder ab("A", p.get());
-    BValue st = ab.StateElement("st", Value(UBits(0, 32)));
+    BValue st = ab.ReadStateElement("st", Value(UBits(0, 32)));
     BValue send_cond =
         ab.Eq(ab.And(st, ab.Literal(UBits(0xf, 32))), ab.Literal(UBits(0, 32)));
     ab.SendIf(a_to_b, ab.Literal(Value::Token()), send_cond, st);
@@ -4180,7 +4180,7 @@ TEST_F(ProcLoweringBlockEvalTest, OffsetSendAndReceive) {
     //     send(out, data)
     //   st = st + 1
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 32)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 32)));
     BValue cond =
         bb.Eq(bb.And(st, bb.Literal(UBits(7, 32))), bb.Literal(UBits(7, 32)));
     BValue rcv = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), cond);
@@ -4243,7 +4243,7 @@ TEST_F(ProcLoweringBlockEvalTest, InliningProducesCycle) {
     //   st = 1
     //
     ProcBuilder ab("A", p.get());
-    BValue st = ab.StateElement("st", Value(UBits(0, 1)));
+    BValue st = ab.ReadStateElement("st", Value(UBits(0, 1)));
     BValue rcv = ab.ReceiveIf(b_to_a, ab.Literal(Value::Token()), st);
     BValue rcv_token = ab.TupleIndex(rcv, 0);
     BValue rcv_data = ab.TupleIndex(rcv, 1);
@@ -4308,7 +4308,7 @@ TEST_F(ProcLoweringBlockEvalTest, MultipleSends) {
     //     send(a_to_b, input)
     //   st = !st
     TokenlessProcBuilder ab("A", "tkn", p.get());
-    BValue st = ab.StateElement("st", Value(UBits(0, 1)));
+    BValue st = ab.ReadStateElement("st", Value(UBits(0, 1)));
     BValue input = ab.Receive(ch_in);
     ab.SendIf(a_to_b, st, ab.Add(input, ab.Literal(UBits(10, 32))));
     ab.SendIf(a_to_b, ab.Not(st), input);
@@ -4365,7 +4365,7 @@ TEST_F(ProcLoweringBlockEvalTest, MultipleSendsInDifferentOrder) {
     //     send(a_to_b, input + 10)
     //   st = !st
     TokenlessProcBuilder ab("A", "tkn", p.get());
-    BValue st = ab.StateElement("st", Value(UBits(0, 1)));
+    BValue st = ab.ReadStateElement("st", Value(UBits(0, 1)));
     BValue input = ab.Receive(ch_in);
     ab.SendIf(a_to_b, ab.Not(st), input);
     ab.SendIf(a_to_b, st, ab.Add(input, ab.Literal(UBits(10, 32))));
@@ -4425,7 +4425,7 @@ TEST_F(ProcLoweringBlockEvalTest, MultipleReceivesFifoWithBypass) {
     //   send(out, x)
     //   st = !st
     TokenlessProcBuilder bb("B", "tkn", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 1)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 1)));
     BValue tmp0 = bb.Add(bb.ReceiveIf(a_to_b, st), bb.Literal(UBits(10, 32)));
     BValue tmp1 = bb.ReceiveIf(a_to_b, bb.Not(st));
     BValue x = bb.Select(st, tmp0, tmp1);
@@ -4482,7 +4482,7 @@ TEST_F(ProcLoweringBlockEvalTest, MultipleReceivesFifoDepth1) {
     //   send(out, x)
     //   st = !st
     TokenlessProcBuilder bb("B", "tkn", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 1)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 1)));
     BValue tmp0 = bb.Add(bb.ReceiveIf(a_to_b, st), bb.Literal(UBits(10, 32)));
     BValue tmp1 = bb.ReceiveIf(a_to_b, bb.Not(st));
     BValue x = bb.Select(st, tmp0, tmp1);
@@ -4542,7 +4542,7 @@ TEST_F(ProcLoweringBlockEvalTest, MultipleReceivesDoesNotFireEveryTick) {
     //   send(out, x)
     //   st = st + 1
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 2)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 2)));
     BValue tkn = bb.Literal(Value::Token());
     BValue recv0 =
         bb.ReceiveIf(a_to_b, tkn, bb.Eq(st, bb.Literal(UBits(0, 2))));
@@ -4613,7 +4613,7 @@ TEST_F(ProcLoweringBlockEvalTest,
     //   send(out, x)
     //   st = st + 1
     TokenlessProcBuilder bb("B", "tkn", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 2)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 2)));
     BValue st_eq_0 = bb.Eq(st, bb.Literal(UBits(0, 2)));
     BValue st_eq_1 = bb.Eq(st, bb.Literal(UBits(1, 2)));
     BValue st_eq_2 = bb.Eq(st, bb.Literal(UBits(2, 2)));
@@ -4676,7 +4676,7 @@ TEST_F(ProcLoweringBlockEvalTest, MultipleSendsAndReceives) {
     //     send(a_to_b, input)
     //   st = !st
     TokenlessProcBuilder ab("A", "tkn", p.get());
-    BValue st = ab.StateElement("st", Value(UBits(1, 1)));
+    BValue st = ab.ReadStateElement("st", Value(UBits(1, 1)));
     BValue input = ab.Receive(ch_in);
     ab.SendIf(a_to_b, st, ab.Add(input, ab.Literal(UBits(10, 32))));
     ab.SendIf(a_to_b, ab.Not(st), input);
@@ -4695,7 +4695,7 @@ TEST_F(ProcLoweringBlockEvalTest, MultipleSendsAndReceives) {
     //   send(out, x)
     //   st = !st
     TokenlessProcBuilder bb("B", "tkn", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 1)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 1)));
     BValue tmp0 = bb.Add(bb.ReceiveIf(a_to_b, st), bb.Literal(UBits(100, 32)));
     BValue tmp1 = bb.ReceiveIf(a_to_b, bb.Not(st));
     BValue x = bb.Select(st, tmp0, tmp1);
@@ -4757,7 +4757,7 @@ TEST_F(ProcLoweringBlockEvalTest, ReceiveIfsWithFalseCondition) {
     //   send(out1, y)
     //   st = !st
     ProcBuilder bb("B", p.get());
-    BValue st = bb.StateElement("st", Value(UBits(0, 1)));
+    BValue st = bb.ReadStateElement("st", Value(UBits(0, 1)));
     BValue rcv_x = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), st);
     BValue x = bb.Add(bb.TupleIndex(rcv_x, 1), bb.Literal(UBits(100, 32)));
     BValue rcv_y = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), bb.Not(st));
@@ -4850,7 +4850,7 @@ TEST_F(ProcLoweringBlockEvalTest,
 
   {
     ProcBuilder b("drop", p.get());
-    BValue done = b.StateElement("done", Value(UBits(0, 1)));
+    BValue done = b.ReadStateElement("done", Value(UBits(0, 1)));
     BValue recv = b.Receive(in0, b.Literal(Value::Token()));
     BValue recv_token = b.TupleIndex(recv, 0);
     BValue data = b.TupleIndex(recv, 1);

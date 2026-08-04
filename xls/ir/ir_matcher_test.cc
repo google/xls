@@ -353,8 +353,8 @@ TEST(IrMatchersTest, SendOps) {
           ChannelStrictness::kProvenMutuallyExclusive, 123));
 
   ProcBuilder b("test_proc", &p);
-  auto my_token = b.StateElement("my_token", Value::Token());
-  auto state = b.StateElement("my_state", Value(UBits(333, 32)));
+  auto my_token = b.ReadStateElement("my_token", Value::Token());
+  auto state = b.ReadStateElement("my_state", Value(UBits(333, 32)));
   auto send = b.Send(ch42, my_token, state);
   auto send_if = b.SendIf(ch123, my_token, b.Literal(UBits(1, 1)), {state});
   XLS_ASSERT_OK(b.Build({b.AfterAll({send, send_if}), state}).status());
@@ -375,8 +375,8 @@ TEST(IrMatchersTest, SendOps) {
 TEST(IrMatchersTest, ProcScopedChannels) {
   Package p("p");
   ProcBuilder b(NewStyleProc(), "test_proc", &p);
-  auto my_token = b.StateElement("my_token", Value::Token());
-  auto state = b.StateElement("my_state", Value(UBits(333, 32)));
+  auto my_token = b.ReadStateElement("my_token", Value::Token());
+  auto state = b.ReadStateElement("my_state", Value(UBits(333, 32)));
   BChannelWithInterfaces ch42 = b.AddChannel("ch42", p.GetBitsType(32));
   BSendChannel ch123 = b.AddOutputChannel("ch123", p.GetBitsType(32));
   auto send = b.Send(ch42.send_interface, my_token, state);
@@ -412,8 +412,8 @@ TEST(IrMatchersTest, ReceiveOps) {
           ChannelStrictness::kProvenMutuallyExclusive, 123));
 
   ProcBuilder b("test_proc", &p);
-  auto my_token = b.StateElement("my_token", Value::Token());
-  auto state = b.StateElement("my_state", Value(UBits(333, 32)));
+  auto my_token = b.ReadStateElement("my_token", Value::Token());
+  auto state = b.ReadStateElement("my_state", Value(UBits(333, 32)));
   auto receive = b.Receive(ch42, my_token);
   auto receive_if = b.ReceiveIf(ch123, my_token, b.Literal(UBits(1, 1)));
   XLS_ASSERT_OK(b.Build({b.AfterAll({b.TupleIndex(receive, 0),
@@ -547,7 +547,7 @@ TEST(IrMatchersTest, FunctionBaseMatcher) {
       p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
                                p.GetBitsType(32)));
   ProcBuilder pb("test_proc", &p);
-  BValue tok = pb.StateElement("tok", Value::Token());
+  BValue tok = pb.ReadStateElement("tok", Value::Token());
   BValue rcv = pb.Receive(ch0, tok);
   BValue rcv_token = pb.TupleIndex(rcv, 0);
   BValue rcv_data = pb.TupleIndex(rcv, 1);

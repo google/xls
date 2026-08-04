@@ -556,7 +556,7 @@ TEST_F(ScheduleBoundsTest, MinDelayAndIIInteraction) {
   BReceiveChannel ch_in = pb.AddInputChannel("in", p->GetBitsType(32));
   BSendChannel ch_out = pb.AddOutputChannel("out", p->GetBitsType(32));
 
-  BValue state = pb.StateElement("st", Value(UBits(0, 32)));
+  BValue state = pb.ReadStateElement("st", Value(UBits(0, 32)));
   BValue tkn = pb.Literal(Value::Token());
   BValue rcv = pb.Receive(ch_in, tkn);
   BValue rcv_tkn = pb.TupleIndex(rcv, 0);
@@ -980,7 +980,7 @@ TEST_F(ScheduleBoundsTest, ConvertSameChannelConstraint) {
 TEST_F(ScheduleBoundsTest, ConvertBackedgeConstraint) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
-  BValue st = pb.StateElement("st", Value(UBits(0, 32)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(0, 32)));
   BValue next_val = pb.Add(st, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({next_val}));
 

@@ -123,8 +123,8 @@ TEST_P(ProcStateEliminationPassTest, SimpleNonoptimizableStateProc) {
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)));
   pb.Send(out, pb.Add(x, y));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {pb.Not(x), pb.Not(y)}));
@@ -145,7 +145,7 @@ TEST_P(ProcStateEliminationPassTest, SimpleNonoptimizableTokenStateProc) {
                                                p->GetBitsType(32)));
 
   ProcBuilder pb("p", p.get());
-  BValue recvd = pb.Receive(in, pb.StateElement("tok", Value::Token()));
+  BValue recvd = pb.Receive(in, pb.ReadStateElement("tok", Value::Token()));
   BValue recv_tok = pb.TupleIndex(recvd, 0);
   BValue recv_val = pb.TupleIndex(recvd, 1);
   BValue send_tok = pb.Send(out, recv_tok, recv_val);
@@ -164,9 +164,9 @@ TEST_P(ProcStateEliminationPassTest, ProcWithDeadElements) {
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
-  BValue z = pb.StateElement("z", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)));
+  BValue z = pb.ReadStateElement("z", Value(UBits(0, 32)));
   pb.Send(out, x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
@@ -188,15 +188,15 @@ TEST_F(BaseProcStateEliminationPassTest, DecoupledDeadElements) {
   TokenlessProcBuilder pb("p", "tkn", p.get());
 
   // Register 'x': Live (read is sent to channel)
-  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element);
   pb.Send(out, x_read);
   pb.Next(x_element, pb.Not(x_read));
 
   // Register 'y': Dead (has 1 read but it is unused, write is a constant)
-  BStateElement y_element = pb.UnreadStateElement("y", Value(UBits(0, 32)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement y_element = pb.StateElement("y", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
   pb.StateRead(y_element);
   pb.Next(y_element, pb.Literal(UBits(5, 32)));
 
@@ -211,8 +211,8 @@ TEST_F(BaseProcStateEliminationPassTest, DecoupledDeadElements) {
 TEST_P(ProcStateEliminationPassTest, CrissCrossDeadElements) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {y, x}));
 
@@ -229,11 +229,11 @@ TEST_P(ProcStateEliminationPassTest, CrissCrossDeadAndLiveElements) {
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue a = pb.StateElement("a", Value(UBits(0, 32)));
-  BValue b = pb.StateElement("b", Value(UBits(0, 32)));
-  BValue c = pb.StateElement("c", Value(UBits(0, 32)));
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+  BValue a = pb.ReadStateElement("a", Value(UBits(0, 32)));
+  BValue b = pb.ReadStateElement("b", Value(UBits(0, 32)));
+  BValue c = pb.ReadStateElement("c", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)));
 
   pb.Send(out, c);
 
@@ -249,9 +249,9 @@ TEST_P(ProcStateEliminationPassTest, CrissCrossDeadAndLiveElements) {
 TEST_P(ProcStateEliminationPassTest, ProcWithZeroWidthElement) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 0)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 0)));
   BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(32));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)));
   BValue send = pb.Send(out, pb.Concat({x, y}));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {pb.Not(x), pb.Not(y)}));
@@ -273,9 +273,9 @@ TEST_P(ProcStateEliminationPassTest, StateElementsIntoTuplesAndOut) {
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
-  BValue z = pb.StateElement("z", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)));
+  BValue z = pb.ReadStateElement("z", Value(UBits(0, 32)));
 
   BValue xy = pb.Tuple({x, y});
   BValue xy_z = pb.Tuple({xy, z});
@@ -306,9 +306,9 @@ TEST_P(ProcStateEliminationPassTest, ProcWithPartiallyDeadStateElement) {
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
   Value zero(UBits(0, 32));
-  BValue dead_state = pb.StateElement("dead", Value::Tuple({zero, zero}));
+  BValue dead_state = pb.ReadStateElement("dead", Value::Tuple({zero, zero}));
   BValue not_dead_state =
-      pb.StateElement("not_dead", Value::Tuple({zero, zero}));
+      pb.ReadStateElement("not_dead", Value::Tuple({zero, zero}));
   // Send only one tuple element of the `not_dead` state.
   pb.Send(out, pb.TupleIndex(not_dead_state, 0));
   // Modify the active part of the `not_dead` state so it can't be eliminated.
@@ -338,9 +338,9 @@ TEST_P(ProcStateEliminationPassTest, ProcWithConstantStateElement) {
   Value zero(UBits(0, 32));
   Value one(UBits(1, 32));
   BValue constant_state =
-      pb.StateElement("constant", Value::Tuple({one, zero}));
+      pb.ReadStateElement("constant", Value::Tuple({one, zero}));
   BValue not_constant_state =
-      pb.StateElement("not_constant", Value::Tuple({zero, zero}));
+      pb.ReadStateElement("not_constant", Value::Tuple({zero, zero}));
   // Use one tuple element of both states.
   BValue state_usage = pb.Add(pb.TupleIndex(constant_state, 0),
                               pb.TupleIndex(not_constant_state, 0));
@@ -379,13 +379,13 @@ TEST_P(ProcStateEliminationPassTest, ProcWithImplicitlyConstantStateElements) {
   TokenlessProcBuilder pb("p", "tkn", p.get());
   Value zero(UBits(0, 32));
   Value one(UBits(1, 32));
-  BValue constant_state = pb.StateElement("constant", zero);
+  BValue constant_state = pb.ReadStateElement("constant", zero);
   BValue not_constant_state =
-      pb.StateElement("not_constant", Value::Tuple({zero, zero}));
+      pb.ReadStateElement("not_constant", Value::Tuple({zero, zero}));
   BValue implicit_constant_state_1 =
-      pb.StateElement("implicit_constant_1", one);
+      pb.ReadStateElement("implicit_constant_1", one);
   BValue implicit_constant_state_2 =
-      pb.StateElement("implicit_constant_2", one);
+      pb.ReadStateElement("implicit_constant_2", one);
   // Use one element of each state.
   pb.Send(out,
           pb.Or(pb.Or(constant_state, pb.TupleIndex(not_constant_state, 0)),
@@ -422,9 +422,9 @@ TEST_F(BaseProcStateEliminationPassTest, ProcWithWriteNoReads) {
                                                "chan", ChannelOps::kReceiveOnly,
                                                p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue live = pb.StateElement("live", UBits(0, 1));
+  BValue live = pb.ReadStateElement("live", UBits(0, 1));
   BValue dead = pb.Not(live);
-  BValue val = pb.StateElement("chan_val", UBits(0, 32));
+  BValue val = pb.ReadStateElement("chan_val", UBits(0, 32));
   BValue nv = pb.ReceiveIf(chan, pb.Literal(Value::Token()), live);
   pb.Next(val, pb.TupleIndex(nv, 1), live);
   pb.Next(val, val, dead);

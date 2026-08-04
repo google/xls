@@ -137,9 +137,9 @@ TEST_P(ProcStateFlatteningPassTest, StatelessProc) {
 TEST_P(ProcStateFlatteningPassTest, NontupleStateProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 64)));
-  BValue a = pb.StateElement("a", Value::UBitsArray({1, 2, 3}, 16).value());
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 64)));
+  BValue a = pb.ReadStateElement("a", Value::UBitsArray({1, 2, 3}, 16).value());
   XLS_ASSERT_OK(BuildProc(pb, {x, y, a}));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -148,7 +148,7 @@ TEST_P(ProcStateFlatteningPassTest, NontupleStateProc) {
 TEST_P(ProcStateFlatteningPassTest, EmptyTupleState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value::Tuple({}));
+  BValue x = pb.ReadStateElement("x", Value::Tuple({}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {x}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
@@ -163,10 +163,10 @@ TEST_P(ProcStateFlatteningPassTest, EmptyTupleState) {
 TEST_P(ProcStateFlatteningPassTest, MultipleEmptyTupleState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value::Tuple({}));
-  BValue y = pb.StateElement("y", Value::Tuple({}));
-  BValue z =
-      pb.StateElement("z", Value::Tuple({Value::Tuple({}), Value::Tuple({})}));
+  BValue x = pb.ReadStateElement("x", Value::Tuple({}));
+  BValue y = pb.ReadStateElement("y", Value::Tuple({}));
+  BValue z = pb.ReadStateElement(
+      "z", Value::Tuple({Value::Tuple({}), Value::Tuple({})}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {x, y, z}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 3);
@@ -181,10 +181,10 @@ TEST_P(ProcStateFlatteningPassTest, MultipleEmptyTupleState) {
 TEST_P(ProcStateFlatteningPassTest, EmptyTupleAndBitsState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value::Tuple({}));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
-  BValue z = pb.StateElement("z", Value::Tuple({}));
-  BValue q = pb.StateElement("q", Value(UBits(0, 64)));
+  BValue x = pb.ReadStateElement("x", Value::Tuple({}));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)));
+  BValue z = pb.ReadStateElement("z", Value::Tuple({}));
+  BValue q = pb.ReadStateElement("q", Value(UBits(0, 64)));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {x, y, z, pb.Add(q, q)}));
 
@@ -214,7 +214,7 @@ TEST_P(ProcStateFlatteningPassTest, EmptyTupleAndBitsState) {
 TEST_P(ProcStateFlatteningPassTest, TrivialTupleState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value::Tuple({Value(UBits(42, 32))}));
+  BValue x = pb.ReadStateElement("x", Value::Tuple({Value(UBits(42, 32))}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {x}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
@@ -233,7 +233,7 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleState) {
 TEST_P(ProcStateFlatteningPassTest, TrivialTupleStateWithNextExpression) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value::Tuple({Value(UBits(42, 32))}));
+  BValue x = pb.ReadStateElement("x", Value::Tuple({Value(UBits(42, 32))}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, BuildProc(pb, {pb.Tuple({pb.Not(pb.TupleIndex(x, 0))})}));
 
@@ -253,12 +253,12 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleStateWithNextExpression) {
 TEST_P(ProcStateFlatteningPassTest, ComplicatedState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue a = pb.StateElement(
+  BValue a = pb.ReadStateElement(
       "a",
       Value::Tuple({Value(UBits(1, 32)),
                     Value::Tuple({Value(UBits(2, 32)), Value(UBits(3, 32))})}));
-  BValue b = pb.StateElement("b", Value(UBits(4, 32)));
-  BValue c = pb.StateElement(
+  BValue b = pb.ReadStateElement("b", Value(UBits(4, 32)));
+  BValue c = pb.ReadStateElement(
       "c", Value::Tuple({Value(UBits(5, 32)), Value(UBits(6, 32))}));
 
   BValue next_a = pb.Tuple({b, c});
@@ -307,11 +307,11 @@ TEST_P(ProcStateFlatteningPassTest, ComplicatedState) {
 TEST_P(ProcStateFlatteningPassTest, NextPredicateIsState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue a = pb.StateElement(
+  BValue a = pb.ReadStateElement(
       "a",
       Value::Tuple({Value(UBits(1, 1)),
                     Value::Tuple({Value(UBits(2, 32)), Value(UBits(3, 32))})}));
-  BValue b = pb.StateElement("b", Value(UBits(1, 1)));
+  BValue b = pb.ReadStateElement("b", Value(UBits(1, 1)));
   BValue not_b = pb.Not(b);
 
   BValue next_a_if_b = a;
@@ -358,9 +358,9 @@ TEST_P(ProcStateFlatteningPassTest, NextValueDependsOnLaterState) {
   Value zero_tuple_value = Value::Tuple({zero_value, zero_value});
 
   ProcBuilder pb("p", p.get());
-  BValue a = pb.StateElement("a", zero_value);
-  BValue b = pb.StateElement("b", zero_value);
-  BValue c = pb.StateElement("c", zero_tuple_value);
+  BValue a = pb.ReadStateElement("a", zero_value);
+  BValue b = pb.ReadStateElement("b", zero_value);
+  BValue c = pb.ReadStateElement("c", zero_tuple_value);
   BValue zero = pb.Literal(zero_value);
   BValue zero_tuple = pb.Literal(zero_tuple_value);
   pb.Next(a, b);
@@ -427,7 +427,7 @@ TEST_F(ProcStateFlatteningPassTest,
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "simple_proc", "tkn", p.get());
 
-  BStateElement state = pb.UnreadStateElement(
+  BStateElement state = pb.StateElement(
       "state", Value::Tuple({Value(UBits(10, 32)), Value(UBits(20, 32))}),
       /*non_synthesizable=*/false);
   BValue read = pb.StateRead(state, /*predicate=*/std::nullopt,

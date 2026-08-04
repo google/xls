@@ -730,9 +730,9 @@ TEST_F(VisibilityAnalysisTest, VisibilityFallbackToPostDominatorIfManyEdges) {
 TEST_F(VisibilityAnalysisTest, StateElementsCanBeMutualExclusive) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
-  auto a = pb.StateElement("a", UBits(0, 4));
-  auto b = pb.StateElement("b", UBits(0, 4));
-  auto c = pb.StateElement("c", UBits(0, 4));
+  auto a = pb.ReadStateElement("a", UBits(0, 4));
+  auto b = pb.ReadStateElement("b", UBits(0, 4));
+  auto c = pb.ReadStateElement("c", UBits(0, 4));
   BReceiveChannel input = pb.AddInputChannel("op", p->GetBitsType(1));
   BReceiveChannel a_in = pb.AddInputChannel("a_in", p->GetBitsType(4));
   BReceiveChannel b_in = pb.AddInputChannel("b_in", p->GetBitsType(4));
@@ -798,8 +798,8 @@ TEST_F(VisibilityAnalysisTest, MutuallyExclusivePrioritySelectCases) {
 TEST_F(VisibilityAnalysisTest, StateUsedInValueIsVisible) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
-  auto a = pb.StateElement("a", UBits(0, 4));
-  auto b = pb.StateElement("b", UBits(0, 4));
+  auto a = pb.ReadStateElement("a", UBits(0, 4));
+  auto b = pb.ReadStateElement("b", UBits(0, 4));
   pb.Next(b, b);
   BReceiveChannel chan = pb.AddInputChannel("input", p->GetBitsType(4));
   auto input = pb.Receive(chan);
@@ -826,8 +826,8 @@ TEST_F(VisibilityAnalysisTest, StateUsedInValueIsVisible) {
 TEST_F(VisibilityAnalysisTest, StateUsedInPredicateIsVisible) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
-  auto a = pb.StateElement("a", UBits(0, 4));
-  auto b = pb.StateElement("b", UBits(0, 4));
+  auto a = pb.ReadStateElement("a", UBits(0, 4));
+  auto b = pb.ReadStateElement("b", UBits(0, 4));
   pb.Next(b, b);
   BReceiveChannel chan = pb.AddInputChannel("input", p->GetBitsType(4));
   auto input = pb.Receive(chan);
@@ -859,11 +859,11 @@ TEST_F(VisibilityAnalysisTest, StateUsedInPredicateIsVisible) {
 TEST_F(VisibilityAnalysisTest, DecoupledNextNodeVisibility) {
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc{}, TestName(), p.get());
-  BStateElement a_elem = pb.UnreadStateElement("a", Value(UBits(0, 4)),
-                                               /*non_synthesizable=*/false);
+  BStateElement a_elem = pb.StateElement("a", Value(UBits(0, 4)),
+                                         /*non_synthesizable=*/false);
   BValue a = pb.StateRead(a_elem);
-  BStateElement tok_elem = pb.UnreadStateElement("tkn", Value::Token(),
-                                                 /*non_synthesizable=*/false);
+  BStateElement tok_elem = pb.StateElement("tkn", Value::Token(),
+                                           /*non_synthesizable=*/false);
   BValue tok = pb.StateRead(tok_elem);
   BReceiveChannel chan = pb.AddInputChannel("input", p->GetBitsType(4));
   auto input = pb.Receive(chan, tok);

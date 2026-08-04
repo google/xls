@@ -73,7 +73,7 @@ TEST_F(RemoveIdentifiersPassTest, BasicProc) {
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc{}, "the_answer_proc", p.get());
   pb.AddChannel("secret_tunnel", p->GetBitsType(32));
-  auto start_param = pb.StateElement("astounding", Value(UBits(42, 32)));
+  auto start_param = pb.ReadStateElement("astounding", Value(UBits(42, 32)));
   pb.Next(start_param, start_param);
   XLS_ASSERT_OK_AND_ASSIGN(auto* orig_proc, pb.Build());
   XLS_ASSERT_OK(p->SetTop(orig_proc));

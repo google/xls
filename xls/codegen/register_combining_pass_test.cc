@@ -122,7 +122,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
   BSendChannel chan = pb.AddOutputChannel("chan", p->GetBitsType(32));
   auto tok = pb.InitialToken();
-  auto st = pb.StateElement("foo", UBits(1, 32));
+  auto st = pb.ReadStateElement("foo", UBits(1, 32));
   auto lit_1 = pb.Literal(UBits(1, 32));
   auto lit_2 = pb.Literal(UBits(2, 32));
   auto add_1 = pb.Add(st, lit_1);
@@ -197,8 +197,8 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
   auto tok = pb.InitialToken();
-  auto st1 = pb.StateElement("foo", UBits(1, 32));
-  auto st2 = pb.StateElement("bar", UBits(1, 32));
+  auto st1 = pb.ReadStateElement("foo", UBits(1, 32));
+  auto st2 = pb.ReadStateElement("bar", UBits(1, 32));
   auto lit_1 = pb.Literal(UBits(1, 32), SourceInfo(), "lit_1");
   auto lit_2 = pb.Literal(UBits(2, 32), SourceInfo(), "lit_2");
   auto lit_3 = pb.Literal(UBits(3, 32), SourceInfo(), "lit_3");
@@ -299,8 +299,8 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
   auto tok = pb.InitialToken();
-  auto st1 = pb.StateElement("foo", UBits(1, 32));
-  auto st2 = pb.StateElement("bar", UBits(1, 32));
+  auto st1 = pb.ReadStateElement("foo", UBits(1, 32));
+  auto st2 = pb.ReadStateElement("bar", UBits(1, 32));
   auto lit_1 = pb.Literal(UBits(1, 32), SourceInfo(), "lit_1");
   auto lit_2 = pb.Literal(UBits(2, 32), SourceInfo(), "lit_2");
   auto lit_3 = pb.Literal(UBits(3, 32), SourceInfo(), "lit_3");
@@ -411,7 +411,7 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
   auto tok = pb.InitialToken();
-  auto st = pb.StateElement("foo", UBits(1, 32));
+  auto st = pb.ReadStateElement("foo", UBits(1, 32));
   auto lit_1 = pb.Literal(UBits(1, 32));
   auto lit_2 = pb.Literal(UBits(2, 32));
   auto add_1 = pb.Add(st, lit_1);
@@ -489,9 +489,9 @@ TEST_F(RegisterCombiningPassTest, DoesntApplyToPredicatedReads) {
   TokenlessProcBuilder pb(TestName(), "tok", p.get());
   auto tok = pb.InitialToken();
   auto always_false = pb.Literal(UBits(0, 1));
-  auto st = pb.StateElement("foo", UBits(1, 32),
-                            /*read_predicate=*/always_false,
-                            /*non_synthesizable=*/false);
+  auto st = pb.ReadStateElement("foo", UBits(1, 32),
+                                /*read_predicate=*/always_false,
+                                /*non_synthesizable=*/false);
   auto lit_1 = pb.Literal(UBits(1, 32));
   auto always_false_2 = pb.Literal(UBits(0, 1));
   auto st_v = pb.Select(always_false_2, /*cases=*/{lit_1, st});

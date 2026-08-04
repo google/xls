@@ -73,12 +73,12 @@ TEST_F(ScheduleUtilTest, GetDeadAfterSynthesisNodesState) {
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
   BReceiveChannel chan = pb.AddInputChannel("foo", p->GetBitsType(32));
   BSendChannel chan_out = pb.AddOutputChannel("bar", p->GetBitsType(32));
-  BValue state = pb.StateElement("state_real", UBits(1, 32), std::nullopt,
-                                 /*non_synthesizable=*/false);
+  BValue state = pb.ReadStateElement("state_real", UBits(1, 32), std::nullopt,
+                                     /*non_synthesizable=*/false);
   pb.Send(chan_out, state);
   BValue non_synth_state =
-      pb.StateElement("nonsynth", UBits(0, 32), std::nullopt,
-                      /*non_synthesizable=*/false);
+      pb.ReadStateElement("nonsynth", UBits(0, 32), std::nullopt,
+                          /*non_synthesizable=*/false);
   BValue cond = pb.UGe(state, non_synth_state);
   BValue assert = pb.Assert(pb.InitialToken(), cond, "assert");
   BValue recv = pb.Receive(chan);
@@ -101,12 +101,13 @@ TEST_F(ScheduleUtilTest, GetDeadAfterSynthesisStateChasing) {
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tok", p.get());
   BReceiveChannel chan = pb.AddInputChannel("foo", p->GetBitsType(32));
   BSendChannel chan_out = pb.AddOutputChannel("bar", p->GetBitsType(32));
-  BValue state = pb.StateElement("state_real", UBits(1, 32), std::nullopt,
-                                 /*non_synthesizable=*/false);
+  BValue state = pb.ReadStateElement("state_real", UBits(1, 32), std::nullopt,
+                                     /*non_synthesizable=*/false);
   pb.Send(chan_out, state);
   // State is kept synth due to being the source of next cycles 'state_real'.
-  BValue synth_state = pb.StateElement("nonsynth", UBits(0, 32), std::nullopt,
-                                       /*non_synthesizable=*/false);
+  BValue synth_state =
+      pb.ReadStateElement("nonsynth", UBits(0, 32), std::nullopt,
+                          /*non_synthesizable=*/false);
   BValue cond = pb.UGe(state, synth_state);
   BValue assert = pb.Assert(pb.InitialToken(), cond, "assert");
   BValue recv = pb.Receive(chan);
@@ -238,8 +239,8 @@ TEST_F(ScheduleUtilTest, GetFeedbackArcsTest) {
 
   // Proc 1
   ProcBuilder pb1(TestName(), p.get());
-  BStateElement se1 = pb1.UnreadStateElement("state1", Value(UBits(42, 32)),
-                                             /*non_synthesizable=*/false);
+  BStateElement se1 = pb1.StateElement("state1", Value(UBits(42, 32)),
+                                       /*non_synthesizable=*/false);
   BValue read1 = pb1.StateRead(se1, /*predicate=*/std::nullopt, "my_read1");
   BValue add_val1 = pb1.Add(read1, pb1.Literal(UBits(1, 32)));
   pb1.Next(se1, add_val1, /*predicate=*/std::nullopt, "my_write1");
@@ -247,8 +248,8 @@ TEST_F(ScheduleUtilTest, GetFeedbackArcsTest) {
 
   // Proc 2
   ProcBuilder pb2("proc_2", p.get());
-  BStateElement se2 = pb2.UnreadStateElement("state2", Value(UBits(100, 32)),
-                                             /*non_synthesizable=*/false);
+  BStateElement se2 = pb2.StateElement("state2", Value(UBits(100, 32)),
+                                       /*non_synthesizable=*/false);
   BValue read2 = pb2.StateRead(se2, /*predicate=*/std::nullopt, "my_read2");
   BValue add_val2 = pb2.Add(read2, pb2.Literal(UBits(5, 32)));
   pb2.Next(se2, add_val2, /*predicate=*/std::nullopt, "my_write2");

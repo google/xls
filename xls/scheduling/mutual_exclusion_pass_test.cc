@@ -119,8 +119,8 @@ absl::StatusOr<Proc*> CreateTwoParallelSendsProc(Package* p,
                                                  std::string_view name,
                                                  Channel* channel) {
   ProcBuilder pb(name, p);
-  BValue tok = pb.StateElement("__token", Value::Token());
-  BValue st = pb.StateElement("__state", Value(UBits(0, 1)));
+  BValue tok = pb.ReadStateElement("__token", Value::Token());
+  BValue st = pb.ReadStateElement("__state", Value(UBits(0, 1)));
   BValue not_st = pb.Not(st);
   BValue lit50 = pb.Literal(UBits(50, 32));
   BValue lit60 = pb.Literal(UBits(60, 32));
@@ -569,7 +569,7 @@ TEST_P(MutualExclusionPassTest, AvoidsCycles) {
 TEST_P(MutualExclusionPassTest, MassiveNumberOfChannels) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
-  BValue state = pb.StateElement("val", UBits(0, 1));
+  BValue state = pb.ReadStateElement("val", UBits(0, 1));
   pb.Next(state, pb.Not(state));
   static constexpr int64_t kNumChannels = 128;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -599,7 +599,7 @@ TEST_P(MutualExclusionPassTest, MassiveNumberOfChannels) {
 TEST_P(MutualExclusionPassTest, MassiveNumberOfChannelsNoChange) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
-  BValue state = pb.StateElement("val", UBits(0, 1));
+  BValue state = pb.ReadStateElement("val", UBits(0, 1));
   pb.Next(state, pb.Not(state));
   static constexpr int64_t kNumChannels = 2048;
   XLS_ASSERT_OK_AND_ASSIGN(

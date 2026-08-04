@@ -83,7 +83,7 @@ TEST_F(ProcStateProvenanceNarrowingPassTest, BasicJoin) {
                                            p->GetBitsType(128)));
 
   // state is secretly a 4 element 32-bit array
-  auto st = fb.StateElement("foo", UBits(0, 128));
+  auto st = fb.ReadStateElement("foo", UBits(0, 128));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value near_end,
       Parser::ParseValue("0x0000_0000_FFFF_0000_0000_0000_0000_0000",

@@ -122,8 +122,8 @@ TEST_P(ProcStateFSMPassTest, SimpleNonoptimizableStateProc) {
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)));
   pb.Send(out, pb.Add(x, y));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {pb.Not(x), pb.Not(y)}));
@@ -144,7 +144,7 @@ TEST_P(ProcStateFSMPassTest, SimpleNonoptimizableTokenStateProc) {
                                                p->GetBitsType(32)));
 
   ProcBuilder pb("p", p.get());
-  BValue recvd = pb.Receive(in, pb.StateElement("tok", Value::Token()));
+  BValue recvd = pb.Receive(in, pb.ReadStateElement("tok", Value::Token()));
   BValue recv_tok = pb.TupleIndex(recvd, 0);
   BValue recv_val = pb.TupleIndex(recvd, 1);
   BValue send_tok = pb.Send(out, recv_tok, recv_val);
@@ -163,7 +163,7 @@ TEST_P(ProcStateFSMPassTest, LiteralChainOfSize1) {
                                                p->GetBitsType(32)));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(100, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(100, 32)));
   BValue lit = pb.Literal(Value(UBits(200, 32)));
   BValue send = pb.Send(out, x);
 
@@ -185,8 +185,8 @@ TEST_F(BaseProcStateFSMPassTest, LiteralChainDecoupled) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
   BSendChannel out = pb.AddOutputChannel("out", p->GetBitsType(32));
-  BStateElement x_elem = pb.UnreadStateElement("x", Value(UBits(100, 32)),
-                                               /*non_synthesizable=*/false);
+  BStateElement x_elem = pb.StateElement("x", Value(UBits(100, 32)),
+                                         /*non_synthesizable=*/false);
   BValue x = pb.StateRead(x_elem);
   BValue lit = pb.Literal(Value(UBits(200, 32)));
   BValue send = pb.Send(out, x);

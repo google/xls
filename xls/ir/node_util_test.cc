@@ -373,8 +373,8 @@ TEST_F(NodeUtilTest, ChannelNodes) {
       Channel * ch1, p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
                                               p.GetBitsType(32)));
   ProcBuilder b(TestName(), &p);
-  BValue tkn = b.StateElement("tkn", Value::Token());
-  BValue state = b.StateElement("st", Value(UBits(0, 0)));
+  BValue tkn = b.ReadStateElement("tkn", Value::Token());
+  BValue state = b.ReadStateElement("st", Value(UBits(0, 0)));
   BValue rcv = b.Receive(ch0, tkn);
   BValue send = b.Send(ch1, tkn, b.Literal(Value(UBits(42, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -411,7 +411,7 @@ TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithFunction) {
 TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithToken) {
   Package p("my_package");
   ProcBuilder b(TestName(), &p);
-  BValue tkn = b.StateElement("tkn", Value::Token());
+  BValue tkn = b.ReadStateElement("tkn", Value::Token());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch0, p.CreateStreamingChannel("ch0", ChannelOps::kReceiveOnly,
                                               p.GetBitsType(32)));

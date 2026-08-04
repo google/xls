@@ -252,8 +252,8 @@ TEST_P(SynchronousProcsTest, DecoupledNextProc) {
   Type* u32 = package.GetBitsType(32);
   BReceiveChannel in = pb.AddInputChannel("top_in", u32);
   BSendChannel out = pb.AddOutputChannel("top_out", u32);
-  BStateElement st_elem = pb.UnreadStateElement("accum", Value(UBits(0, 32)),
-                                                /*non_synthesizable=*/false);
+  BStateElement st_elem = pb.StateElement("accum", Value(UBits(0, 32)),
+                                          /*non_synthesizable=*/false);
   BValue st = pb.StateRead(st_elem);
   BValue received = pb.Receive(in);
   BValue next_st = pb.Add(st, received);

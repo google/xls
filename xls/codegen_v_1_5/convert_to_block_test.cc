@@ -75,8 +75,8 @@ TEST_F(ConvertToBlockTest, ProcWithExplicitStateAccessNextValueStateElement) {
   BSendChannel out_ch_interface =
       pb.AddOutputChannel("out_ch", p->GetBitsType(32));
 
-  BStateElement se = pb.UnreadStateElement("state", Value(UBits(0, 32)),
-                                           /*non_synthesizable=*/false);
+  BStateElement se = pb.StateElement("state", Value(UBits(0, 32)),
+                                     /*non_synthesizable=*/false);
   BValue state_read = pb.StateRead(se);
   BValue current = pb.Identity(state_read);
   BValue add_val = pb.Add(current, pb.Literal(UBits(1, 32)));

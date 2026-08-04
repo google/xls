@@ -67,7 +67,7 @@ class DeadFunctionEliminationPassTest : public IrTestBase {
   absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
                                                 Package* package) {
     TokenlessProcBuilder pb(NewStyleProc(), proc_name, "tkn", package);
-    BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+    BValue accum = pb.ReadStateElement("accum", Value(UBits(0, 32)));
     BReceiveChannel in_channel =
         pb.AddInputChannel("in_ch", package->GetBitsType(32));
     BValue input = pb.Receive(in_channel);
@@ -132,7 +132,7 @@ TEST_F(DeadFunctionEliminationPassTest, ProcCallingFunction) {
   XLS_ASSERT_OK(MakeFunction("not_called_by_proc", p.get()).status());
 
   TokenlessProcBuilder b(TestName(), "tkn", p.get());
-  b.StateElement("st", Value(UBits(0, 32)));
+  b.ReadStateElement("st", Value(UBits(0, 32)));
   BValue invoke = b.Invoke({b.GetStateParam(0)}, f);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({invoke}));
   XLS_ASSERT_OK(p->SetTop(proc));

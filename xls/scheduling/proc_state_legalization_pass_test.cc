@@ -97,8 +97,8 @@ TEST_P(ProcStateLegalizationPassTest, StatelessProc) {
 TEST_P(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({x, y}));
   XLS_ASSERT_OK(p->SetTop(proc));
 
@@ -109,8 +109,8 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
 TEST_P(ProcStateLegalizationPassTest, ProcWithChangingState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({y, x}));
   XLS_ASSERT_OK(p->SetTop(proc));
 
@@ -121,7 +121,7 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithChangingState) {
 TEST_P(ProcStateLegalizationPassTest, ProcWithUnconditionalNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   pb.Next(x, incremented);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -133,7 +133,7 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithUnconditionalNextValue) {
 TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue predicate = pb.Eq(x, pb.Literal(UBits(0, 32)));
   pb.Next(x, incremented, predicate);
@@ -155,7 +155,7 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
 TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue predicate = pb.Eq(x, pb.Literal(UBits(0, 32)));
   pb.Next(x, incremented, predicate);
@@ -185,7 +185,7 @@ TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
 TEST_P(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue decremented = pb.Subtract(x, pb.Literal(UBits(1, 32)));
   BValue predicate1 = pb.Eq(x, pb.Literal(UBits(0, 32)));
@@ -221,7 +221,7 @@ TEST_P(ProcStateLegalizationPassTest,
        ProcWithMultiplePredicatedNextValuesAndDefault) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue decremented = pb.Subtract(x, pb.Literal(UBits(1, 32)));
   BValue predicate1 = pb.Eq(x, pb.Literal(UBits(0, 32)));
@@ -261,7 +261,7 @@ TEST_P(ProcStateLegalizationPassTest,
        ProcWithNoExplicitDefaultNeededAndZ3Enabled) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue positive_predicate = pb.Eq(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, x, positive_predicate);
@@ -296,7 +296,7 @@ TEST_P(ProcStateLegalizationPassTest,
        ProcWithNoExplicitDefaultNeededButZ3Disabled) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue positive_predicate = pb.Eq(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, x, positive_predicate);
@@ -332,7 +332,7 @@ TEST_P(ProcStateLegalizationPassTest,
        ProcWithPredicatedNextValueAndSmallRlimit) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue predicate = pb.Eq(x, pb.Literal(UBits(0, 32)));
   pb.Next(x, incremented, predicate);
@@ -358,7 +358,7 @@ TEST_P(ProcStateLegalizationPassTest,
        ProcWithNoExplicitDefaultNeededButSmallRlimit) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue positive_predicate = pb.Eq(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, x, positive_predicate);
@@ -396,14 +396,14 @@ TEST_P(ProcStateLegalizationPassTest,
 TEST_P(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue x_even =
       pb.Eq(pb.UMod(x, pb.Literal(UBits(2, 32))), pb.Literal(UBits(0, 32)));
   BValue x_multiple_of_3 =
       pb.Eq(pb.UMod(x, pb.Literal(UBits(3, 32))), pb.Literal(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)),
-                             /*read_predicate=*/x_even,
-                             /*non_synthesizable=*/false);
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)),
+                                 /*read_predicate=*/x_even,
+                                 /*non_synthesizable=*/false);
   pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
   pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))), x_multiple_of_3);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -449,14 +449,14 @@ TEST_P(ProcStateLegalizationPassTest,
        ProcWithPredicatedStateReadAndPotentialCycle) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue x_even =
       pb.Eq(pb.UMod(x, pb.Literal(UBits(2, 32))), pb.Literal(UBits(0, 32)));
   BValue x_multiple_of_3 =
       pb.Eq(pb.UMod(x, pb.Literal(UBits(3, 32))), pb.Literal(UBits(0, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)),
-                             /*read_predicate=*/x_even,
-                             /*non_synthesizable=*/false);
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)),
+                                 /*read_predicate=*/x_even,
+                                 /*non_synthesizable=*/false);
   BValue y_even =
       pb.Eq(pb.UMod(y, pb.Literal(UBits(2, 32))), pb.Literal(UBits(0, 32)));
   pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
@@ -513,14 +513,14 @@ TEST_P(ProcStateLegalizationPassTest,
        ProcWithCorrectlyPredicatedStateReadAndNoDefaultNextNeeded) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue x_multiple_of_3 =
       pb.Eq(pb.UMod(x, pb.Literal(UBits(3, 32))), pb.Literal(UBits(0, 32)));
   BValue x_not_multiple_of_3 = pb.Not(x_multiple_of_3);
   BValue disjunction = pb.Or(x_multiple_of_3, x_not_multiple_of_3);
-  BValue y = pb.StateElement("y", Value(UBits(0, 32)),
-                             /*read_predicate=*/disjunction,
-                             /*non_synthesizable=*/false);
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 32)),
+                                 /*read_predicate=*/disjunction,
+                                 /*non_synthesizable=*/false);
   pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
   pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))), x_multiple_of_3);
   pb.Next(y, y, x_not_multiple_of_3);
@@ -571,15 +571,15 @@ TEST_P(ProcStateLegalizationPassTest,
        DecoupledProcWithCorrectlyPredicatedStateReadAndNoDefaultNextNeeded) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element);
   BValue x_multiple_of_3 = pb.Eq(pb.UMod(x_read, pb.Literal(UBits(3, 32))),
                                  pb.Literal(UBits(0, 32)));
   BValue x_not_multiple_of_3 = pb.Not(x_multiple_of_3);
   BValue disjunction = pb.Or(x_multiple_of_3, x_not_multiple_of_3);
-  BStateElement y_element = pb.UnreadStateElement("y", Value(UBits(0, 32)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement y_element = pb.StateElement("y", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
   BValue y_read = pb.StateRead(y_element, disjunction);
   pb.Next(x_element, pb.Add(x_read, pb.Literal(UBits(1, 32))));
   pb.Next(y_element, pb.Add(y_read, pb.Literal(UBits(1, 32))), x_multiple_of_3);
@@ -632,8 +632,8 @@ TEST_P(ProcStateLegalizationPassTest,
        DecoupledUnconditionalReadAndNextNoDefaultNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element);
   BValue x_add = pb.Add(x_read, pb.Literal(UBits(1, 32)));
   pb.Next(x_element, x_add);
@@ -649,13 +649,13 @@ TEST_P(ProcStateLegalizationPassTest,
 TEST_P(ProcStateLegalizationPassTest, DecoupledNoExplicitNextValueDefault) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element);
   BValue x_add = pb.Add(x_read, pb.Literal(UBits(1, 32)));
   pb.Next(x_element, x_add);
-  BStateElement y_element = pb.UnreadStateElement("y", Value(UBits(10, 32)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement y_element = pb.StateElement("y", Value(UBits(10, 32)),
+                                            /*non_synthesizable=*/false);
   BValue y_read = pb.StateRead(y_element);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   XLS_ASSERT_OK(p->SetTop(proc));
@@ -672,9 +672,9 @@ TEST_P(ProcStateLegalizationPassTest, DecoupledNoExplicitNextValueDefault) {
 TEST_P(ProcStateLegalizationPassTest, DecoupledPredicatedNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue cond = pb.StateElement("cond", Value(UBits(1, 1)));
-  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                  /*non_synthesizable=*/false);
+  BValue cond = pb.ReadStateElement("cond", Value(UBits(1, 1)));
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element, cond);
   BValue incremented = pb.Add(x_read, pb.Literal(UBits(1, 32)));
   BValue write_pred = pb.Eq(x_read, pb.Literal(UBits(0, 32)));
@@ -698,9 +698,9 @@ TEST_P(ProcStateLegalizationPassTest, DecoupledPredicatedNextValue) {
 TEST_P(ProcStateLegalizationPassTest, DecoupledMultiplePredicatedNextValues) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue cond = pb.StateElement("cond", Value(UBits(1, 1)));
-  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                  /*non_synthesizable=*/false);
+  BValue cond = pb.ReadStateElement("cond", Value(UBits(1, 1)));
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element, cond);
   BValue incremented_1 = pb.Add(x_read, pb.Literal(UBits(1, 32)));
   BValue write_pred_1 = pb.Eq(x_read, pb.Literal(UBits(0, 32)));

@@ -174,7 +174,7 @@ TEST_F(ExtractStageTest, ProcSchedule) {
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(42, 16)));
   BValue rcv = pb.Receive(in_ch);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   pb.Send(out_ch, out);

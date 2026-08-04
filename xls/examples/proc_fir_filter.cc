@@ -73,9 +73,9 @@ absl::StatusOr<Proc*> CreateFirFilter(std::string_view name,
   // convolution. Element 1 is the current input array x.
   ProcBuilder pb(name, package);
   BValue tok =
-      pb.StateElement(absl::StrFormat("%s_token", name), Value::Token());
+      pb.ReadStateElement(absl::StrFormat("%s_token", name), Value::Token());
   BValue state =
-      pb.StateElement(absl::StrFormat("%s_state", name), shiftreg_init);
+      pb.ReadStateElement(absl::StrFormat("%s_state", name), shiftreg_init);
 
   if (output_channel->type() != kernel_type->element_type()) {
     return absl::InvalidArgumentError(

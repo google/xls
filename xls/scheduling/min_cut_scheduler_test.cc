@@ -83,7 +83,7 @@ TEST_F(MinCutSchedulerTest, SimpleFunction) {
 TEST_F(MinCutSchedulerTest, SimpleProc) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
-  pb.StateElement("x", Value(UBits(0, 32)));
+  pb.ReadStateElement("x", Value(UBits(0, 32)));
   pb.Next(pb.GetStateParam(0),
           pb.Add(pb.GetStateParam(0), pb.Literal(UBits(1, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());

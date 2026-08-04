@@ -79,8 +79,8 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlySend) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("tkn", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 0)));
+  BValue token = pb.ReadStateElement("tkn", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 0)));
   token = pb.SendIf(channel, token, pb.Literal(UBits(0, 1)),
                     pb.Literal(UBits(1, 32)), SourceInfo(), "my_send");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
@@ -100,8 +100,8 @@ TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalse) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("tkn", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 0)));
+  BValue token = pb.ReadStateElement("tkn", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 0)));
   token = pb.SendIf(channel, token, pb.Literal(UBits(0, 1)),
                     pb.Literal(UBits(1, 32)));
   // Extra send so that this does something
@@ -122,7 +122,7 @@ TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalseNewStyle) {
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tkn", p.get());
   BSendChannel channel =
       pb.AddOutputChannel("test_channel", p->GetBitsType(32));
-  pb.StateElement("state", Value(UBits(0, 0)));
+  pb.ReadStateElement("state", Value(UBits(0, 0)));
   pb.SendIf(channel, pb.Literal(UBits(0, 1)), pb.Literal(UBits(1, 32)));
   // Extra send so that this does something
   pb.Send(channel, pb.Literal(UBits(1, 32)), SourceInfo(),
@@ -143,8 +143,8 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlyReceive) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("tkn", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 32)));
+  BValue token = pb.ReadStateElement("tkn", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 32)));
   BValue token_and_result =
       pb.ReceiveIf(channel, token, pb.Literal(UBits(0, 1)));
   token = pb.TupleIndex(token_and_result, 0);
@@ -162,9 +162,9 @@ TEST_F(UselessIORemovalPassTest, RemoveReceiveNonBlockingIfLiteralFalse) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("tkn", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 32)));
-  pb.StateElement("state_valid", Value(UBits(0, 1)));
+  BValue token = pb.ReadStateElement("tkn", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 32)));
+  pb.ReadStateElement("state_valid", Value(UBits(0, 1)));
   token = pb.TupleIndex(pb.Receive(channel, token), 0);
   BValue token_and_result_and_valid =
       pb.ReceiveIfNonBlocking(channel, token, pb.Literal(UBits(0, 1)));
@@ -193,8 +193,8 @@ TEST_F(UselessIORemovalPassTest, RemoveReceiveIfLiteralFalse) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("tkn", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 32)));
+  BValue token = pb.ReadStateElement("tkn", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 32)));
   token = pb.TupleIndex(pb.Receive(channel, token), 0);
   BValue token_and_result =
       pb.ReceiveIf(channel, token, pb.Literal(UBits(0, 1)));
@@ -223,8 +223,8 @@ TEST_F(UselessIORemovalPassTest, RemoveSendPredIfLiteralTrue) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("tkn", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 0)));
+  BValue token = pb.ReadStateElement("tkn", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 0)));
   token = pb.SendIf(channel, token, pb.Literal(UBits(1, 1)),
                     pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
@@ -248,8 +248,8 @@ TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("tkn", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 32)));
+  BValue token = pb.ReadStateElement("tkn", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 32)));
   BValue token_and_result =
       pb.ReceiveIf(channel, token, pb.Literal(UBits(1, 1)));
   token = pb.TupleIndex(token_and_result, 0);
@@ -274,8 +274,8 @@ TEST_F(UselessIORemovalPassTest, DontRemoveLastSendIfOnSendOnlyChannel) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("tkn", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 0)));
+  BValue token = pb.ReadStateElement("tkn", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 0)));
   token = pb.SendIf(channel, token, pb.Literal(UBits(0, 1)),
                     pb.Literal(UBits(1, 32)), SourceInfo(), "my_send");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
@@ -296,8 +296,8 @@ TEST_F(UselessIORemovalPassTest, DontRemoveLastReceiveIfOnReceiveOnlyChannel) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("tkn", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 32)));
+  BValue token = pb.ReadStateElement("tkn", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 32)));
   BValue token_and_result =
       pb.ReceiveIf(channel, token, pb.Literal(UBits(0, 1)));
   token = pb.TupleIndex(token_and_result, 0);

@@ -50,8 +50,8 @@ TEST_F(RemoveIdentifersTest, BasicProc) {
   ProcBuilder pb(NewStyleProc{}, "the_answer_proc", p.get());
   BChannelWithInterfaces orig_chan =
       pb.AddChannel("secret_tunnel", p->GetBitsType(32));
-  auto tok = pb.StateElement("secret_handshake", Value::Token());
-  auto start_param = pb.StateElement("astounding", Value(UBits(42, 32)));
+  auto tok = pb.ReadStateElement("secret_handshake", Value::Token());
+  auto start_param = pb.ReadStateElement("astounding", Value(UBits(42, 32)));
   auto recv = pb.Receive(orig_chan.receive_interface, tok, SourceInfo(),
                          "Unbelievable");
   auto next_param =

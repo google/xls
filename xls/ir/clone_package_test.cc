@@ -68,7 +68,7 @@ TEST_F(ClonePackageTest, BasicProc) {
                                                "chan", ChannelOps::kReceiveOnly,
                                                p->GetBitsType(32)));
   ProcBuilder pb("prc", p.get());
-  auto st = pb.StateElement("foo", UBits(32, 32));
+  auto st = pb.ReadStateElement("foo", UBits(32, 32));
   auto nv = pb.TupleIndex(pb.Receive(chan, pb.Literal(Value::Token())), 1);
   auto nv_even = pb.BitSlice(nv, 0, 1);
   pb.Next(st, pb.Add(st, nv), nv_even);
@@ -120,9 +120,9 @@ TEST_F(ClonePackageTest, BasicBlock) {
 TEST_F(ClonePackageTest, CloneProcWithNonSynthesizableState) {
   auto p = CreatePackage();
   ProcBuilder pb("prc", p.get());
-  auto st_synth = pb.StateElement("synth", UBits(32, 32));
-  auto st_non_synth =
-      pb.StateElement("non_synth", UBits(32, 32), /*non_synthesizable=*/true);
+  auto st_synth = pb.ReadStateElement("synth", UBits(32, 32));
+  auto st_non_synth = pb.ReadStateElement("non_synth", UBits(32, 32),
+                                          /*non_synthesizable=*/true);
   pb.Next(st_synth, st_synth);
   pb.Next(st_non_synth, st_non_synth);
   XLS_ASSERT_OK(pb.Build());

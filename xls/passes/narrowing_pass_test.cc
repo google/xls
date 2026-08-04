@@ -1836,7 +1836,7 @@ TEST_P(NarrowingPassTest, ProcStateInformationIsUsed) {
       auto chan, p->CreateSingleValueChannel("chan", ChannelOps::kSendOnly,
                                              p->GetBitsType(1)));
   ProcBuilder pb(TestName(), p.get());
-  BValue state_read = pb.StateElement("foo", UBits(0, 64));
+  BValue state_read = pb.ReadStateElement("foo", UBits(0, 64));
   // The sent value is always true.
   BValue snd = pb.Send(chan, pb.Literal(Value::Token()),
                        pb.ULt(state_read, pb.Literal(UBits(12, 64))));

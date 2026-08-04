@@ -35,7 +35,7 @@ class ProcStateRangeQueryEngineTest : public IrTestBase {};
 TEST_F(ProcStateRangeQueryEngineTest, BasicNarrow) {
   auto p = CreatePackage();
   ProcBuilder fb(TestName(), p.get());
-  BValue st = fb.StateElement("foo", UBits(0, 32));
+  BValue st = fb.ReadStateElement("foo", UBits(0, 32));
   BValue res = fb.Add(st, fb.Literal(UBits(12, 32)));
   fb.Next(st, fb.ZeroExtend(
                   fb.Add(fb.Literal(UBits(1, 3)), fb.BitSlice(st, 0, 3)), 32));
@@ -54,7 +54,7 @@ TEST_F(ProcStateRangeQueryEngineTest, BasicNarrow) {
 TEST_F(ProcStateRangeQueryEngineTest, Negatives) {
   auto p = CreatePackage();
   ProcBuilder fb(TestName(), p.get());
-  BValue st = fb.StateElement("foo", SBits(0, 32));
+  BValue st = fb.ReadStateElement("foo", SBits(0, 32));
   BValue res = fb.Add(st, fb.Literal(UBits(3, 32)));
   BValue res_pos = fb.Add(st, fb.Literal(UBits(7, 32)));
   // Count -7 to 7
@@ -80,9 +80,8 @@ TEST_F(ProcStateRangeQueryEngineTest, NegativesDecoupledNext) {
   auto p = CreatePackage();
   ProcBuilder fb(TestName(), p.get());
 
-  BStateElement state_element =
-      fb.UnreadStateElement("foo", Value(SBits(0, 32)),
-                            /*non_synthesizable=*/false);
+  BStateElement state_element = fb.StateElement("foo", Value(SBits(0, 32)),
+                                                /*non_synthesizable=*/false);
 
   BValue st = fb.StateRead(state_element);
   BValue res = fb.Add(st, fb.Literal(UBits(3, 32)));
@@ -110,7 +109,7 @@ TEST_F(ProcStateRangeQueryEngineTest, NegativesDecoupledNext) {
 TEST_F(ProcStateRangeQueryEngineTest, NegativesWithEq) {
   auto p = CreatePackage();
   ProcBuilder fb(TestName(), p.get());
-  BValue st = fb.StateElement("foo", SBits(0, 32));
+  BValue st = fb.ReadStateElement("foo", SBits(0, 32));
   BValue res = fb.Add(st, fb.Literal(UBits(3, 32)));
   BValue res_pos = fb.Add(st, fb.Literal(UBits(7, 32)));
   // Count -7 to 7
@@ -134,7 +133,7 @@ TEST_F(ProcStateRangeQueryEngineTest, NegativesWithEq) {
 TEST_F(ProcStateRangeQueryEngineTest, DecrementToZeroSigned) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
-  BValue state = pb.StateElement("the_state", UBits(7, 32));
+  BValue state = pb.ReadStateElement("the_state", UBits(7, 32));
   BValue cont = pb.SGt(state, pb.Literal(UBits(0, 32)));
   pb.Next(state, pb.Literal(UBits(7, 32)), pb.Not(cont));
   pb.Next(state, pb.Subtract(state, pb.Literal(UBits(1, 32))), cont);
@@ -151,7 +150,7 @@ TEST_F(ProcStateRangeQueryEngineTest, MaskReset) {
       Channel * chan, p->CreateStreamingChannel(
                           "chan", ChannelOps::kReceiveOnly, p->GetBitsType(1)));
   ProcBuilder pb(TestName(), p.get());
-  BValue state = pb.StateElement("the_state", UBits(0, 32));
+  BValue state = pb.ReadStateElement("the_state", UBits(0, 32));
   BValue reset = pb.TupleIndex(pb.Receive(chan, pb.Literal(Value::Token())), 1);
   BValue range_reset = pb.UGe(state, pb.Literal(UBits(8, 32)));
   BValue nxt_val =
@@ -172,7 +171,7 @@ TEST_F(ProcStateRangeQueryEngineTest, SelectReset) {
       Channel * chan, p->CreateStreamingChannel(
                           "chan", ChannelOps::kReceiveOnly, p->GetBitsType(1)));
   ProcBuilder pb(TestName(), p.get());
-  BValue state = pb.StateElement("the_state", UBits(0, 32));
+  BValue state = pb.ReadStateElement("the_state", UBits(0, 32));
   BValue reset = pb.TupleIndex(pb.Receive(chan, pb.Literal(Value::Token())), 1);
   BValue range_reset = pb.UGe(state, pb.Literal(UBits(8, 32)));
   BValue nxt_val = pb.Add(pb.Select(reset, pb.Literal(UBits(0, 32)), state),
@@ -190,7 +189,7 @@ TEST_F(ProcStateRangeQueryEngineTest, SelectReset) {
 TEST_F(ProcStateRangeQueryEngineTest, BitSliceCompare) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
-  BValue state = pb.StateElement("the_state", UBits(0, 32));
+  BValue state = pb.ReadStateElement("the_state", UBits(0, 32));
   BValue nxt_val = pb.Add(state, pb.Literal(UBits(1, 32)));
   BValue range_reset =
       pb.Ne(pb.BitSlice(nxt_val, 3, 29), pb.Literal(UBits(0, 29)));
@@ -207,7 +206,7 @@ TEST_F(ProcStateRangeQueryEngineTest, BitSliceCompare) {
 TEST_F(ProcStateRangeQueryEngineTest, OneBitStateUnconstrained) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
-  BValue state = pb.StateElement("the_state", UBits(0, 1));
+  BValue state = pb.ReadStateElement("the_state", UBits(0, 1));
   BReceiveChannel chan = pb.AddInputChannel("data", p->GetBitsType(1));
   pb.Next(state, pb.And(pb.Receive(chan), pb.Not(state)));
 
@@ -220,7 +219,7 @@ TEST_F(ProcStateRangeQueryEngineTest, OneBitStateUnconstrained) {
 TEST_F(ProcStateRangeQueryEngineTest, OneBitStateIsOne) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
-  BValue state = pb.StateElement("the_state", UBits(1, 1));
+  BValue state = pb.ReadStateElement("the_state", UBits(1, 1));
   BReceiveChannel chan = pb.AddInputChannel("data", p->GetBitsType(1));
   pb.Next(state, pb.Nand(pb.Receive(chan), pb.Not(state)));
 
@@ -233,7 +232,7 @@ TEST_F(ProcStateRangeQueryEngineTest, OneBitStateIsOne) {
 TEST_F(ProcStateRangeQueryEngineTest, OneBitStateIsZero) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
-  BValue state = pb.StateElement("the_state", UBits(0, 1));
+  BValue state = pb.ReadStateElement("the_state", UBits(0, 1));
   BReceiveChannel chan = pb.AddInputChannel("data", p->GetBitsType(1));
   pb.Next(state, pb.Nor(pb.Receive(chan), pb.Not(state)));
 

@@ -4051,7 +4051,8 @@ absl::Status FunctionConverter::InitProcDefStateElements(
     VLOG(10) << "Init value for " << state_name << ": `"
              << member_value.ToString() << "`";
     XLS_ASSIGN_OR_RETURN(Value init, member_value.ConvertToIr());
-    IrValue state_element_value = proc_builder->StateElement(state_name, init);
+    IrValue state_element_value =
+        proc_builder->ReadStateElement(state_name, init);
     state_name_proto->set_name(state_name);
     XLS_ASSIGN_OR_RETURN(auto type, ResolveTypeToIr(state_member_node->type()));
     *state_name_proto->mutable_type() = type->ToProto();
@@ -4341,18 +4342,17 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       state_name = absl::StrCat("__", p->identifier());
       Value init = f->params().size() > 1 ? initial_element.elements()[i]
                                           : initial_element;
-      xls::BStateElement unread_state_element =
-          builder_ptr->UnreadStateElement(state_name, init,
-                                          /*non_synthesizable=*/false);
+      xls::BStateElement state_element =
+          builder_ptr->StateElement(state_name, init,
+                                    /*non_synthesizable=*/false);
       XLS_RETURN_IF_ERROR(builder_ptr->GetError());
       state_name_proto->set_name(state_name);
       XLS_ASSIGN_OR_RETURN(auto type, ResolveTypeToIr(p->type_annotation()));
       *state_name_proto->mutable_type() = type->ToProto();
-      SetNodeToIr(f->params()[i]->name_def(),
-                  unread_state_element.state_element());
+      SetNodeToIr(f->params()[i]->name_def(), state_element.state_element());
     }
   } else {
-    state = builder_ptr->StateElement(state_name, initial_element);
+    state = builder_ptr->ReadStateElement(state_name, initial_element);
     PackageInterfaceProto::NamedValue* state_proto =
         proc_proto_.value()->add_state();
     *state_proto->mutable_name() = state_name;

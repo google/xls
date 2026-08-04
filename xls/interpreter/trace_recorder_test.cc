@@ -44,7 +44,7 @@ class TraceRecorderTest : public IrTestBase {};
 TEST_F(TraceRecorderTest, ProcRecording) {
   auto p = std::make_unique<Package>(TestName());
   ProcBuilder pb(TestName(), p.get());
-  BValue st_bval = pb.StateElement("st", Value(UBits(0, 32)));
+  BValue st_bval = pb.ReadStateElement("st", Value(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st_bval}));
   XLS_ASSERT_OK_AND_ASSIGN(Node * state_node, proc->GetNode("st"));
 

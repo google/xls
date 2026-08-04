@@ -101,8 +101,8 @@ TEST_F(DataflowGraphAnalysisTest, VShapeWithReceive) {
                                 p->GetBitsType(1)));
 
   ProcBuilder pb(TestName(), p.get());
-  BValue tok = pb.StateElement("tok", Value::Token());
-  BValue x = pb.StateElement("x", UBits(1, 1));
+  BValue tok = pb.ReadStateElement("tok", Value::Token());
+  BValue x = pb.ReadStateElement("x", UBits(1, 1));
   BValue recv = pb.Receive(input, tok);
   BValue recv_tok = pb.TupleIndex(recv, 0);
   BValue y = pb.TupleIndex(recv, 1);
@@ -228,8 +228,8 @@ TEST_F(DataflowGraphAnalysisTest, DisconnectedNode) {
 TEST_F(DataflowGraphAnalysisTest, MultipleOutputs) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 1)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 1)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 1)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 1)));
   BValue z = pb.And(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({x, z}));

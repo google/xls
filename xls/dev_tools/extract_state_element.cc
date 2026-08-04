@@ -162,7 +162,7 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
       XLS_ASSIGN_OR_RETURN(Type * ty, new_pkg->MapTypeFromOtherPackage(
                                           s->state_element()->type()));
       if (absl::c_contains(state_elements, s->state_element())) {
-        BValue copied_state = pb.StateElement(
+        BValue copied_state = pb.ReadStateElement(
             s->state_element()->name(), s->state_element()->initial_value(),
             s->predicate()
                 ? std::make_optional(BValue(old_to_new[*s->predicate()], &pb))

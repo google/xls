@@ -239,9 +239,9 @@ TEST_F(NodeTest, ReplaceSendChannel) {
       Channel * ch1, p->CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
                                                p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue tok = pb.StateElement("tok", Value::Token());
+  BValue tok = pb.ReadStateElement("tok", Value::Token());
   BValue send_on_c1 =
-      pb.StateElement("send_on_c1", Value(UBits(0, /*bit_count=*/1)));
+      pb.ReadStateElement("send_on_c1", Value(UBits(0, /*bit_count=*/1)));
   BValue send0_tok = pb.Send(ch0, tok, pb.Literal(UBits(123, 32)));
   BValue send1_tok =
       pb.SendIf(ch1, send0_tok, send_on_c1, pb.Literal(UBits(456, 32)));
@@ -275,11 +275,11 @@ TEST_F(NodeTest, ReplaceReceiveChannel) {
       Channel * ch3, p->CreateStreamingChannel("ch3", ChannelOps::kReceiveOnly,
                                                p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  BValue tok = pb.StateElement("tok", Value::Token());
+  BValue tok = pb.ReadStateElement("tok", Value::Token());
   BValue recv_on_c1 =
-      pb.StateElement("recv_on_c1", Value(UBits(0, /*bit_count=*/1)));
+      pb.ReadStateElement("recv_on_c1", Value(UBits(0, /*bit_count=*/1)));
   BValue recv_on_c2 =
-      pb.StateElement("recv_on_c1", Value(UBits(1, /*bit_count=*/1)));
+      pb.ReadStateElement("recv_on_c1", Value(UBits(1, /*bit_count=*/1)));
   BValue recv0 = pb.Receive(ch0, tok);
   BValue recv0_tok = pb.TupleIndex(recv0, /*idx=*/0);
   BValue recv1 = pb.ReceiveIf(ch1, recv0_tok, recv_on_c1);
@@ -636,7 +636,7 @@ TEST_F(NodeTest, ReplaceUsesWithNewInStage) {
   // We need a scheduled FunctionBase to test stage functionality.
   // Since FunctionBase is the base, we can use a ScheduledProc.
   ProcBuilder pb("p", p.get(), ScheduledProcTag());
-  BValue st = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(42, 32)));
   pb.proc()->AddEmptyStages(2);
   XLS_ASSERT_OK(pb.proc()->AddNodeToStage(0, st.node()).status());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));

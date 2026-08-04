@@ -139,7 +139,7 @@ TEST_F(GlobalChannelBlockStitchingPassTest, ExtraneousProcWithFunctionAsTop) {
   XLS_ASSERT_OK(p_->SetTop(f));
 
   TokenlessProcBuilder pb_main(TestName(), /*token_name=*/"tkn", p_.get());
-  BValue state = pb_main.StateElement("state", Value(UBits(0, 32)));
+  BValue state = pb_main.ReadStateElement("state", Value(UBits(0, 32)));
   pb_main.Add(state, pb_main.Literal(Value(UBits(1, 32))));
   XLS_ASSERT_OK(pb_main.Build().status());
 

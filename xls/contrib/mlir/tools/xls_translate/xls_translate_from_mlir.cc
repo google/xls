@@ -2126,7 +2126,7 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
         if (failed(literal)) {
           return failure();
         }
-        valueMap[arg] = fb.StateElement(get_name(arg), *literal);
+        valueMap[arg] = fb.ReadStateElement(get_name(arg), *literal);
       }
       auto out = convertFunction(translation_state, xls_region, valueMap, fb);
       if (failed(out)) {

@@ -113,7 +113,7 @@ TEST_F(AnalyzeCriticalPathTest, MultipathFunction) {
 TEST_F(AnalyzeCriticalPathTest, ProcWithState) {
   auto p = CreatePackage();
   TokenlessProcBuilder b(TestName(), "tkn", p.get());
-  auto st = b.StateElement("st", Value(UBits(0, 32)));
+  auto st = b.ReadStateElement("st", Value(UBits(0, 32)));
   auto neg = b.Negate(st);
   auto rev = b.Reverse(neg);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({rev}));

@@ -1675,11 +1675,11 @@ absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
   return Build();
 }
 
-BValue ProcBuilder::StateElement(std::string_view name,
-                                 const Value& initial_value,
-                                 std::optional<BValue> read_predicate,
-                                 bool non_synthesizable,
-                                 const SourceInfo& loc) {
+BValue ProcBuilder::ReadStateElement(std::string_view name,
+                                     const Value& initial_value,
+                                     std::optional<BValue> read_predicate,
+                                     bool non_synthesizable,
+                                     const SourceInfo& loc) {
   absl::StatusOr<xls::StateRead*> state_read = proc()->AppendStateElement(
       name, initial_value,
       read_predicate.has_value() ? std::make_optional(read_predicate->node())
@@ -1696,24 +1696,25 @@ BValue ProcBuilder::StateElement(std::string_view name,
   return state_params_.back();
 }
 
-BValue ProcBuilder::StateElement(std::string_view name,
-                                 const ValueBuilder& initial_value,
-                                 std::optional<BValue> read_predicate,
-                                 bool non_synthesizable,
-                                 const SourceInfo& loc) {
+BValue ProcBuilder::ReadStateElement(std::string_view name,
+                                     const ValueBuilder& initial_value,
+                                     std::optional<BValue> read_predicate,
+                                     bool non_synthesizable,
+                                     const SourceInfo& loc) {
   absl::StatusOr<Value> built = initial_value.Build();
   if (built.ok()) {
-    return StateElement(name, *built, read_predicate, non_synthesizable, loc);
+    return ReadStateElement(name, *built, read_predicate, non_synthesizable,
+                            loc);
   }
   return SetError(absl::StrFormat("Unable to create initial value due to %s",
                                   built.status().ToString()),
                   loc);
 }
 
-BStateElement ProcBuilder::UnreadStateElement(std::string_view name,
-                                              const Value& initial_value,
-                                              bool non_synthesizable,
-                                              const SourceInfo& loc) {
+BStateElement ProcBuilder::StateElement(std::string_view name,
+                                        const Value& initial_value,
+                                        bool non_synthesizable,
+                                        const SourceInfo& loc) {
   if (ErrorPending()) {
     return BStateElement();
   }

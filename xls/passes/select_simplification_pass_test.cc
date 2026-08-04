@@ -1833,10 +1833,10 @@ TEST_P(SelectSimplificationPassTest,
 TEST_P(SelectSimplificationPassTest, PredicatedStateReadFeedSelector) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
-  BStateElement state_element1 = pb.UnreadStateElement(
-      "state1", Value(UBits(0, 1)), /*non_synthesizable=*/false);
-  BStateElement state_element2 = pb.UnreadStateElement(
-      "state2", Value(UBits(0, 1)), /*non_synthesizable=*/false);
+  BStateElement state_element1 = pb.StateElement("state1", Value(UBits(0, 1)),
+                                                 /*non_synthesizable=*/false);
+  BStateElement state_element2 = pb.StateElement("state2", Value(UBits(0, 1)),
+                                                 /*non_synthesizable=*/false);
   BReceiveChannel in1 = pb.AddInputChannel("in1", p->GetBitsType(32));
   BReceiveChannel in2 = pb.AddInputChannel("in2", p->GetBitsType(32));
   BValue sr1 = pb.StateRead(state_element1);

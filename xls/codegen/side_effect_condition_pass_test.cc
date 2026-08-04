@@ -504,7 +504,7 @@ TEST_P(SideEffectConditionPassTest, SingleStageProc) {
       Channel * out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
   ProcBuilder pb("f", &package);
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   BValue y_recv = pb.Receive(in, pb.AfterAll({}));
   BValue y_token = pb.TupleIndex(y_recv, 0);
   BValue y = pb.TupleIndex(y_recv, 1);
@@ -653,7 +653,7 @@ TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfProc) {
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
   ProcBuilder pb("g", &package);
-  BValue x = pb.StateElement("x", Value(UBits(4, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(4, 32)));
   BValue recv = pb.Receive(in, pb.AfterAll({}));
   BValue recv_token = pb.TupleIndex(recv, 0);
   BValue recv_data = pb.TupleIndex(recv, 1);
@@ -732,7 +732,7 @@ TEST_P(SideEffectConditionPassTest, IIGreaterThanOne) {
   ProcBuilder pb("ii_greater_than_one", &package);
   pb.proc()->SetInitiationInterval(2);
 
-  BValue x = pb.StateElement("st", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("st", Value(UBits(0, 32)));
   BValue send0_token = pb.Send(out, pb.Literal(Value::Token()), x);
   BValue min_delay_token = pb.MinDelay(send0_token, /*delay=*/1);
   BValue recv_tuple = pb.Receive(in, min_delay_token);

@@ -67,7 +67,7 @@ class ProcStateNarrowingPassTest : public IrTestBase {
 TEST_F(ProcStateNarrowingPassTest, ZeroExtend) {
   auto p = CreatePackage();
   ProcBuilder fb(TestName(), p.get());
-  auto st = fb.StateElement("foo", UBits(0, 32));
+  auto st = fb.ReadStateElement("foo", UBits(0, 32));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto chan, p->CreateStreamingChannel("side_effect", ChannelOps::kSendOnly,
                                            p->GetBitsType(32)));
@@ -87,7 +87,7 @@ TEST_F(ProcStateNarrowingPassTest, ZeroExtend) {
 TEST_F(ProcStateNarrowingPassTest, ZeroExtendMultiple) {
   auto p = CreatePackage();
   ProcBuilder fb(TestName(), p.get());
-  auto st = fb.StateElement("foo", UBits(0, 32));
+  auto st = fb.ReadStateElement("foo", UBits(0, 32));
   auto onehot = fb.OneHot(st, LsbOrMsb::kLsb);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto chan, p->CreateStreamingChannel("side_effect", ChannelOps::kSendOnly,
@@ -118,7 +118,7 @@ TEST_F(ProcStateNarrowingPassTest, ZeroExtendMultiple) {
 TEST_F(ProcStateNarrowingPassTest, ZeroExtendWithBigInitial) {
   auto p = CreatePackage();
   ProcBuilder fb(TestName(), p.get());
-  auto st = fb.StateElement("foo", UBits(0xFF, 32));
+  auto st = fb.ReadStateElement("foo", UBits(0xFF, 32));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto chan, p->CreateStreamingChannel("side_effect", ChannelOps::kSendOnly,
                                            p->GetBitsType(32)));
@@ -142,7 +142,7 @@ TEST_F(ProcStateNarrowingPassTest, BasicLoop) {
       auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
                                             p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(1, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(1, 32));
   // State just counts up 1 to 6 then resets to 1.
   // NB Limit is exactly 6 and comparison is LT so that however the transform is
   // done the state fits in 3 bits.
@@ -171,8 +171,8 @@ TEST_F(ProcStateNarrowingPassTest, BasicLoopDecoupledNext) {
       auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
                                             p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  auto state_element = pb.UnreadStateElement("the_state", Value(UBits(1, 32)),
-                                             /*non_synthesizable=*/false);
+  auto state_element = pb.StateElement("the_state", Value(UBits(1, 32)),
+                                       /*non_synthesizable=*/false);
   BValue state = pb.StateRead(state_element);
   // State just counts up 1 to 6 then resets to 1.
   // NB Limit is exactly 6 and comparison is LT so that however the transform is
@@ -202,7 +202,7 @@ TEST_F(ProcStateNarrowingPassTest, BasicHalt) {
       auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
                                             p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(1, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(1, 32));
   pb.Send(chan, pb.Literal(Value::Token()), state);
   // State just counts up 1 to 7 then stops updating.
   // NB Limit is exactly 7 and comparison is LT so that however the transform is
@@ -236,7 +236,7 @@ TEST_F(ProcStateNarrowingPassTest, MultiPath) {
       p->CreateStreamingChannel("reset_chan", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(3)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(1, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(1, 32));
   auto send_tok = pb.Send(test_chan, pb.Literal(Value::Token()), state);
   // State just counts up 1 to 10 then stops updating.
   // Limit fits in 4 bits
@@ -269,7 +269,7 @@ TEST_F(ProcStateNarrowingPassTest, SignedCompareUnreachableNegatives) {
       auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
                                             p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(0, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(0, 32));
   pb.Send(chan, pb.Literal(Value::Token()), state);
   // State just counts up 1 to 7 then repeats
   // NB Limit is exactly 7 and comparison is LT so that however the transform is
@@ -303,7 +303,7 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationIsPerformed) {
   // even try state-exploration (guessing correctly that its unlikely to find
   // anything).
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(0, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(0, 32));
   pb.Send(chan, pb.Literal(Value::Token()), state);
   auto succ = pb.Add(state, pb.Literal(UBits(1, 32)));
   pb.Next(state, succ, pb.SLt(succ, pb.Literal(UBits(4, 32))));
@@ -339,7 +339,7 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPauses) {
       p->CreateStreamingChannel("do_pause", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(1)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(0, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(0, 32));
   pb.Send(chan, pb.Literal(Value::Token()), state);
   auto paused =
       pb.TupleIndex(pb.Receive(pause_chan, pb.Literal(Value::Token())), 1);
@@ -374,7 +374,7 @@ TEST_F(ProcStateNarrowingPassTest, NegativeNumbersAreNotRemoved) {
       auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
                                             p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(0, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(0, 32));
   pb.Send(chan, pb.Literal(Value::Token()), state);
   // State just counts up 1 to 7 then goes from -7 to 7 repeating
   // NB Limit is exactly 7 and comparison is LT so that however the transform is
@@ -415,7 +415,7 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPartialBackProp) {
       p->CreateStreamingChannel("do_pause", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(1)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(0, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(0, 32));
   pb.Send(chan, pb.Literal(Value::Token()), state);
   auto halve =
       pb.TupleIndex(pb.Receive(half_chan, pb.Literal(Value::Token())), 1);
@@ -451,7 +451,7 @@ TEST_F(ProcStateNarrowingPassTest, DecrementToZeroUnsigned) {
       auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
                                             p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(7, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(7, 32));
   pb.Send(chan, pb.Literal(Value::Token()), state);
   auto cont = pb.UGt(state, pb.Literal(UBits(0, 32)));
   pb.Next(state, pb.Literal(UBits(7, 32)), pb.Not(cont));
@@ -474,7 +474,7 @@ TEST_F(ProcStateNarrowingPassTest, DecrementToZeroSigned) {
       auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
                                             p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(7, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(7, 32));
   pb.Send(chan, pb.Literal(Value::Token()), state);
   auto cont = pb.SGt(state, pb.Literal(UBits(0, 32)));
   pb.Next(state, pb.Literal(UBits(7, 32)), pb.Not(cont));
@@ -499,7 +499,7 @@ TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPoints) {
       auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
                                             p->GetBitsType(32)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(5, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(5, 32));
   pb.Send(chan, pb.Literal(Value::Token()), state);
   auto cont = pb.SGt(state, pb.Literal(UBits(0, 32)));
   pb.Next(state, pb.Subtract(state, pb.Literal(UBits(1, 32))), cont);
@@ -531,7 +531,7 @@ TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPointsNoLiteralNexts) {
       p->CreateStreamingChannel("reset_chan", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(1)));
   ProcBuilder pb(TestName(), p.get());
-  auto state = pb.StateElement("the_state", UBits(5, 32));
+  auto state = pb.ReadStateElement("the_state", UBits(5, 32));
   pb.Send(chan, pb.Literal(Value::Token()), state);
   auto reset =
       pb.TupleIndex(pb.Receive(reset_chan, pb.Literal(Value::Token())), 1);

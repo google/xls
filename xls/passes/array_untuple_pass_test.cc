@@ -301,7 +301,7 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayWithNext) {
   //   bool ever_written;
   //   int data;
   // };
-  BValue state = pb.StateElement(
+  BValue state = pb.ReadStateElement(
       "foo", ValueBuilder::ArrayB({
                  ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0, 1)),
                                       ValueBuilder::Bits((UBits(1, 3)))}),
@@ -414,7 +414,7 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayImplicitNext) {
   //   bool ever_written;
   //   int data;
   // };
-  BValue state = pb.StateElement(
+  BValue state = pb.ReadStateElement(
       "foo", ValueBuilder::ArrayB({
                  ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0, 1)),
                                       ValueBuilder::Bits((UBits(1, 3)))}),
@@ -490,7 +490,7 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayWithInvoke) {
                            fb.BuildWithReturnValue(fb.Param("st", st_type)));
 
   ProcBuilder pb("inner", p.get());
-  BValue acc = pb.StateElement("acc", ZeroOfType(st_type));
+  BValue acc = pb.ReadStateElement("acc", ZeroOfType(st_type));
   BValue tok = pb.Literal(Value::Token());
   BValue red = pb.Invoke(absl::MakeConstSpan({acc}), f);
   BValue oa = pb.Literal(ValueBuilder::ArrayB({
@@ -546,7 +546,7 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayIdentityNextWithStateElement) {
           .Build());
 
   BStateElement state_elem =
-      pb.UnreadStateElement("my_state", init_val, /*non_synthesizable=*/false);
+      pb.StateElement("my_state", init_val, /*non_synthesizable=*/false);
   BValue state_read = pb.StateRead(state_elem);
 
   // Identity next (decoupled)
@@ -571,7 +571,7 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayNextWithStateElement) {
           .Build());
 
   BStateElement state_elem =
-      pb.UnreadStateElement("my_state", init_val, /*non_synthesizable=*/false);
+      pb.StateElement("my_state", init_val, /*non_synthesizable=*/false);
   BValue state_read = pb.StateRead(state_elem);
 
   BValue updated = pb.ArrayUpdate(

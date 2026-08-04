@@ -249,8 +249,8 @@ TEST_F(ConditionalSpecializationPassTest,
   BValue c = pb.Receive(ch_c);
   BValue pred = pb.Receive(ch_pred);
 
-  pb.StateElement("st0", Value(UBits(0, 32)));
-  pb.StateElement("st1", Value(UBits(0, 32)));
+  pb.ReadStateElement("st0", Value(UBits(0, 32)));
+  pb.ReadStateElement("st1", Value(UBits(0, 32)));
 
   BValue sel1 = pb.Select(pred, {a, b});
   BValue neg = pb.Negate(sel1);
@@ -1115,10 +1115,10 @@ TEST_F(ConditionalSpecializationPassTest, NextValueChangeDecoupled) {
   auto p = CreatePackage();
   ProcBuilder pb("my_proc", p.get());
 
-  BStateElement state_element_1 = pb.UnreadStateElement(
-      "value1", Value(UBits(1, 32)), /*non_synthesizable=*/false);
-  BStateElement state_element_2 = pb.UnreadStateElement(
-      "value2", Value(UBits(2, 32)), /*non_synthesizable=*/false);
+  BStateElement state_element_1 = pb.StateElement("value1", Value(UBits(1, 32)),
+                                                  /*non_synthesizable=*/false);
+  BStateElement state_element_2 = pb.StateElement("value2", Value(UBits(2, 32)),
+                                                  /*non_synthesizable=*/false);
 
   BValue read_value1 = pb.StateRead(state_element_1);
   BValue read_value2 = pb.StateRead(state_element_2);
@@ -1273,11 +1273,11 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecialization) {
   auto p = CreatePackage();
 
   TokenlessProcBuilder pb(TestName(), "tkn", p.get());
-  BValue index = pb.StateElement("index", UBits(0, 1));
+  BValue index = pb.ReadStateElement("index", UBits(0, 1));
   BValue index_is_0 = pb.Not(index);
   BValue index_is_1 = index;
-  BValue counter0 = pb.StateElement("counter0", UBits(0, 32));
-  BValue counter1 = pb.StateElement("counter1", UBits(5, 32));
+  BValue counter0 = pb.ReadStateElement("counter0", UBits(0, 32));
+  BValue counter1 = pb.ReadStateElement("counter1", UBits(5, 32));
   BValue selected_counter =
       pb.Select(index_is_1, {counter1}, /*on_false=*/counter0);
   BValue incremented_counter =
@@ -1309,10 +1309,10 @@ TEST_F(ConditionalSpecializationPassTest, EliminateDecoupledNoopNext) {
   auto p = CreatePackage();
   ProcBuilder pb("my_proc", p.get());
 
-  BStateElement state_element_0 = pb.UnreadStateElement(
-      "state0", Value(UBits(0, 32)), /*non_synthesizable=*/false);
-  BStateElement state_element_1 = pb.UnreadStateElement(
-      "state1", Value(UBits(0, 32)), /*non_synthesizable=*/false);
+  BStateElement state_element_0 = pb.StateElement("state0", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false);
+  BStateElement state_element_1 = pb.StateElement("state1", Value(UBits(0, 32)),
+                                                  /*non_synthesizable=*/false);
 
   BValue read_0 = pb.StateRead(state_element_0);
 
@@ -1335,10 +1335,10 @@ TEST_F(ConditionalSpecializationPassTest, HarderStateReadSpecialization) {
   auto p = CreatePackage();
 
   TokenlessProcBuilder pb(TestName(), "tkn", p.get());
-  BValue index = pb.StateElement("index", UBits(0, 2));
-  BValue counter0 = pb.StateElement("counter0", UBits(0, 32));
-  BValue counter1 = pb.StateElement("counter1", UBits(5, 32));
-  BValue counter2 = pb.StateElement("counter2", UBits(10, 32));
+  BValue index = pb.ReadStateElement("index", UBits(0, 2));
+  BValue counter0 = pb.ReadStateElement("counter0", UBits(0, 32));
+  BValue counter1 = pb.ReadStateElement("counter1", UBits(5, 32));
+  BValue counter2 = pb.ReadStateElement("counter2", UBits(10, 32));
   BValue index_not_0 = pb.Ne(index, pb.Literal(UBits(0, 2)));
   BValue index_not_1 = pb.Ne(index, pb.Literal(UBits(1, 2)));
   BValue selected_counter = pb.Select(
@@ -1382,11 +1382,11 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecializationDisabled) {
   auto p = CreatePackage();
 
   TokenlessProcBuilder pb(TestName(), "tkn", p.get());
-  BValue index = pb.StateElement("index", UBits(0, 1));
+  BValue index = pb.ReadStateElement("index", UBits(0, 1));
   BValue index_is_0 = pb.Not(index);
   BValue index_is_1 = index;
-  BValue counter0 = pb.StateElement("counter0", UBits(0, 32));
-  BValue counter1 = pb.StateElement("counter1", UBits(5, 32));
+  BValue counter0 = pb.ReadStateElement("counter0", UBits(0, 32));
+  BValue counter1 = pb.ReadStateElement("counter1", UBits(5, 32));
   BValue selected_counter =
       pb.Select(index_is_1, {counter1}, /*on_false=*/counter0);
   BValue incremented_counter =

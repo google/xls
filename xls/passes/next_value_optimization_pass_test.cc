@@ -87,7 +87,7 @@ TEST_F(NextValueOptimizationPassTest, StatelessProc) {
 TEST_F(NextValueOptimizationPassTest, DeadNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   pb.Next(/*state_read=*/x, /*value=*/pb.Literal(UBits(5, 32)),
           /*pred=*/pb.Literal(UBits(0, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -99,8 +99,8 @@ TEST_F(NextValueOptimizationPassTest, DeadNextValue) {
 TEST_F(NextValueOptimizationPassTest, DecoupledDeadNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("pb", p.get());
-  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
   pb.StateRead(x_element);
   pb.Next(/*state_element=*/x_element,
           /*value=*/pb.Literal(UBits(5, 32)),
@@ -113,7 +113,7 @@ TEST_F(NextValueOptimizationPassTest, DecoupledDeadNextValue) {
 TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)));
   pb.Next(/*state_read=*/x, /*value=*/pb.Literal(UBits(5, 32)),
           /*pred=*/pb.Literal(UBits(0, 1)));
   pb.Next(/*state_read=*/x, /*value=*/pb.Literal(UBits(3, 32)),
@@ -131,8 +131,8 @@ TEST_F(NextValueOptimizationPassTest,
        DecoupledNextValuesWithLiteralPredicates) {
   auto p = CreatePackage();
   ProcBuilder pb("pb", p.get());
-  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 32)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 32)),
+                                            /*non_synthesizable=*/false);
   pb.StateRead(x_element);
   pb.Next(/*state_element=*/x_element,
           /*value=*/pb.Literal(UBits(5, 32)),
@@ -153,7 +153,7 @@ TEST_F(NextValueOptimizationPassTest,
 TEST_F(NextValueOptimizationPassTest, NextValuesWithLabels) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 3)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 3)));
   BValue priority_select = pb.PrioritySelect(
       x,
       std::vector({pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
@@ -189,7 +189,7 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLabels) {
 TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 3)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 3)));
   BValue priority_select = pb.PrioritySelect(
       x,
       std::vector({pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
@@ -221,8 +221,8 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
 TEST_F(NextValueOptimizationPassTest, DecoupledPrioritySelectNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 3)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 3)),
+                                            /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element);
   BValue priority_select = pb.PrioritySelect(
       x_read,
@@ -253,7 +253,7 @@ TEST_F(NextValueOptimizationPassTest, DecoupledPrioritySelectNextValue) {
 TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 3)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 3)));
   BValue one_hot_x = pb.OneHot(x, LsbOrMsb::kMsb);
   BValue one_hot_select = pb.OneHotSelect(
       one_hot_x, std::vector{pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
@@ -281,7 +281,7 @@ TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
 TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 2)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 2)));
   BValue select = pb.Select(
       x, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2)),
                      pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
@@ -307,7 +307,7 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
 TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 2)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 2)));
   BValue select =
       pb.Select(x,
                 std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2)),
@@ -336,8 +336,8 @@ TEST_F(NextValueOptimizationPassTest,
        DecoupledSmallSelectNextValueWithDefault) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BStateElement x_element = pb.UnreadStateElement("x", Value(UBits(0, 2)),
-                                                  /*non_synthesizable=*/false);
+  BStateElement x_element = pb.StateElement("x", Value(UBits(0, 2)),
+                                            /*non_synthesizable=*/false);
   BValue x_read = pb.StateRead(x_element);
   BValue select =
       pb.Select(x_read,
@@ -366,19 +366,18 @@ TEST_F(NextValueOptimizationPassTest, NonSynthPassthroughDecoupling) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
 
-  BStateElement main_element =
-      pb.UnreadStateElement("main", Value(UBits(0, 32)),
-                            /*non_synthesizable=*/false);
+  BStateElement main_element = pb.StateElement("main", Value(UBits(0, 32)),
+                                               /*non_synthesizable=*/false);
   BValue main_read = pb.StateRead(main_element);
 
   BStateElement non_synth_element =
-      pb.UnreadStateElement("non_synth", Value(UBits(0, 32)),
-                            /*non_synthesizable=*/true);
+      pb.StateElement("non_synth", Value(UBits(0, 32)),
+                      /*non_synthesizable=*/true);
   pb.StateRead(non_synth_element);
 
   BStateElement selector_element =
-      pb.UnreadStateElement("selector", Value(UBits(0, 2)),
-                            /*non_synthesizable=*/false);
+      pb.StateElement("selector", Value(UBits(0, 2)),
+                      /*non_synthesizable=*/false);
   BValue selector_read = pb.StateRead(selector_element);
 
   BValue new_val = pb.Literal(Value(UBits(42, 32)));
@@ -423,7 +422,7 @@ TEST_F(NextValueOptimizationPassTest, NonSynthPassthroughDecoupling) {
 TEST_F(NextValueOptimizationPassTest, BigSelectNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 2)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 2)));
   BValue select = pb.Select(
       x, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2)),
                      pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
@@ -437,9 +436,9 @@ TEST_F(NextValueOptimizationPassTest, BigSelectNextValue) {
 TEST_F(NextValueOptimizationPassTest, CascadingSmallSelectsNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 2)));
-  BValue a = pb.StateElement("a", Value(UBits(0, 1)));
-  BValue b = pb.StateElement("b", Value(UBits(0, 1)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 2)));
+  BValue a = pb.ReadStateElement("a", Value(UBits(0, 1)));
+  BValue b = pb.ReadStateElement("b", Value(UBits(0, 1)));
   BValue select_b_1 = pb.Select(
       b, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2))});
   BValue select_b_2 = pb.Select(
@@ -475,9 +474,9 @@ TEST_F(NextValueOptimizationPassTest,
        DepthLimitedCascadingSmallSelectsNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 2)));
-  BValue a = pb.StateElement("a", Value(UBits(0, 1)));
-  BValue b = pb.StateElement("b", Value(UBits(0, 1)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 2)));
+  BValue a = pb.ReadStateElement("a", Value(UBits(0, 1)));
+  BValue b = pb.ReadStateElement("b", Value(UBits(0, 1)));
   BValue select_b_1 = pb.Select(
       b, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2))});
   BValue select_b_2 = pb.Select(

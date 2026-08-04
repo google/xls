@@ -1388,7 +1388,7 @@ TEST_P(PipelineGeneratorTest, ProcScopedChannelsWithLoopbackChannel) {
 absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
                                               Package* package) {
   TokenlessProcBuilder pb(NewStyleProc(), proc_name, "tkn", package);
-  BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+  BValue accum = pb.ReadStateElement("accum", Value(UBits(0, 32)));
   BReceiveChannel in_channel =
       pb.AddInputChannel("accum_in", package->GetBitsType(32));
   BValue input = pb.Receive(in_channel);

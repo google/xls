@@ -139,7 +139,7 @@ TEST_F(PipelineSchedulingPassTest, MultipleProcs) {
                                  Channel* channel) -> absl::StatusOr<Proc*> {
     ProcBuilder pb(name, p);
     BValue tok = pb.Literal(Value::Token());
-    BValue st = pb.StateElement("st", Value(UBits(0, 1)));
+    BValue st = pb.ReadStateElement("st", Value(UBits(0, 1)));
     BValue not_st = pb.Not(st);
     BValue lit50 = pb.Literal(UBits(50, 32));
     BValue lit60 = pb.Literal(UBits(60, 32));
@@ -188,7 +188,7 @@ TEST_F(PipelineSchedulingPassTest, MixedFunctionAndProcScheduling) {
 
   ProcBuilder pb("pr", p.get());
   BValue tok = pb.Literal(Value::Token());
-  BValue st = pb.StateElement("st", Value(UBits(0, 1)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(0, 1)));
   BValue not_st = pb.Not(st);
   pb.Send(ch, tok, st);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({not_st}));
@@ -208,7 +208,7 @@ TEST_F(PipelineSchedulingPassTest, MultipleProcsWithIOConstraint) {
                        Channel* channel_out) -> absl::StatusOr<Proc*> {
     ProcBuilder pb(name, p);
     BValue tok = pb.Literal(Value::Token());
-    BValue st = pb.StateElement("st", Value(UBits(0, 1)));
+    BValue st = pb.ReadStateElement("st", Value(UBits(0, 1)));
     BValue not_st = pb.Not(st);
     BValue recv = pb.ReceiveIf(channel_in, tok, st, SourceInfo(), "recv");
     BValue recv_tok = pb.TupleIndex(recv, 0);
@@ -418,7 +418,7 @@ TEST_F(PipelineSchedulingPassTest, MultiProcScopedChannels) {
     BChannelWithInterfaces tmp0_ch = pb.AddChannel("tmp0", p->GetBitsType(32));
     BChannelWithInterfaces tmp1_ch = pb.AddChannel("tmp1", p->GetBitsType(32));
 
-    BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+    BValue accum = pb.ReadStateElement("accum", Value(UBits(0, 32)));
     pb.InstantiateProc("inst0", leaf, {in, tmp0_ch.send_interface});
     pb.InstantiateProc("inst1", leaf,
                        {tmp0_ch.receive_interface, tmp1_ch.send_interface});

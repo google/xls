@@ -399,9 +399,9 @@ TEST_F(CanonicalizePassTest, NextValueWithAlwaysFalsePredicate) {
 TEST_F(CanonicalizePassTest, StateReadWithAlwaysTruePredicate) {
   auto p = CreatePackage();
   ProcBuilder pb("test", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 32)),
-                             /*read_predicate=*/pb.Literal(UBits(1, 1)),
-                             /*non_synthesizable=*/false);
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 32)),
+                                 /*read_predicate=*/pb.Literal(UBits(1, 1)),
+                                 /*non_synthesizable=*/false);
   pb.Next(x, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   EXPECT_THAT(proc->GetStateRead(0)->predicate(), Optional(m::Literal(1)));
@@ -416,9 +416,9 @@ TEST_F(CanonicalizePassTest, IgnoreMalformedPredicates) {
   BValue one_1 = pb.Literal(UBits(1, 1));
   BValue one_32 = pb.Literal(UBits(1, 32));
   BValue empty_tuple = pb.Tuple({});
-  BValue state = pb.StateElement("x", Value(UBits(0, 32)),
-                                 /*read_predicate=*/pb.Literal(UBits(0, 1)),
-                                 /*non_synthesizable=*/false);
+  BValue state = pb.ReadStateElement("x", Value(UBits(0, 32)),
+                                     /*read_predicate=*/pb.Literal(UBits(0, 1)),
+                                     /*non_synthesizable=*/false);
   BValue next = pb.Next(state, one_32, one_1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 

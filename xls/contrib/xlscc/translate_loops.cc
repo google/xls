@@ -1336,8 +1336,8 @@ Translator::GenerateIR_PipelinedLoopContents(
 
   // Construct initial state
   TrackedBValue last_iter_broke_in =
-      pb.StateElement(absl::StrFormat("%s__last_iter_broke", name_prefix),
-                      xls::Value(xls::UBits(1, 1)));
+      pb.ReadStateElement(absl::StrFormat("%s__last_iter_broke", name_prefix),
+                          xls::Value(xls::UBits(1, 1)));
   xls::StateElement* last_iter_broke_state =
       last_iter_broke_in.node()->As<xls::StateRead>()->state_element();
 
@@ -1345,8 +1345,8 @@ Translator::GenerateIR_PipelinedLoopContents(
       xls::Value default_lval_conds,
       CreateDefaultRawValue(context_out_lval_conds_ctype, loc));
   TrackedBValue lvalue_cond_value =
-      pb.StateElement(absl::StrFormat("%s__lvalue_conditions", name_prefix),
-                      default_lval_conds);
+      pb.ReadStateElement(absl::StrFormat("%s__lvalue_conditions", name_prefix),
+                          default_lval_conds);
   xls::StateElement* lvalue_cond_state =
       lvalue_cond_value.node()->As<xls::StateRead>()->state_element();
 
@@ -1373,7 +1373,7 @@ Translator::GenerateIR_PipelinedLoopContents(
       XLS_ASSIGN_OR_RETURN(xls::Value def, CreateDefaultRawValue(
                                                prev_value_type, GetLoc(*decl)));
 
-      TrackedBValue state_read_bval = pb.StateElement(
+      TrackedBValue state_read_bval = pb.ReadStateElement(
           absl::StrFormat("%s_%s", name_prefix, decl->getNameAsString()), def);
       xls::StateElement* state_elem =
           state_read_bval.node()->As<xls::StateRead>()->state_element();

@@ -648,10 +648,10 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
       p->CreateStreamingChannel("in_out", ChannelOps::kSendOnly, u32));
 
   TokenlessProcBuilder b(TestName(), "tkn", p.get());
-  BValue x = b.StateElement("x", Value(UBits(0, 32)));
-  BValue y = b.StateElement("y", Value(UBits(0, 32)));
-  BValue z = b.StateElement("z", Value(UBits(0, 32)));
-  BValue q = b.StateElement("q", Value(UBits(0, 32)));
+  BValue x = b.ReadStateElement("x", Value(UBits(0, 32)));
+  BValue y = b.ReadStateElement("y", Value(UBits(0, 32)));
+  BValue z = b.ReadStateElement("z", Value(UBits(0, 32)));
+  BValue q = b.ReadStateElement("q", Value(UBits(0, 32)));
   BValue literal_one = b.Literal(UBits(1, 32));
   BValue x_plus_one = b.Add(x, literal_one);
 
@@ -733,7 +733,7 @@ TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
 
   ProcBuilder b(TestName(), p.get());
   BValue tkn = b.Literal(Value::Token());
-  BValue q = b.StateElement("q", Value(UBits(0, 32)));
+  BValue q = b.ReadStateElement("q", Value(UBits(0, 32)));
 
   BValue received_pair = b.Receive(in, tkn);
   BValue received_token = b.TupleIndex(received_pair, 0);
@@ -1547,7 +1547,7 @@ TEST_F(BlockConversionTest, RamChannelsAreNotFlopped) {
       package->CreateStreamingChannel("other_out", ChannelOps::kSendOnly, u32));
 
   ProcBuilder pb("my_proc", package.get());
-  BValue st = pb.StateElement("st", Value::Tuple({}));
+  BValue st = pb.ReadStateElement("st", Value::Tuple({}));
 
   // RAM ops
   BValue lit10 = pb.Literal(UBits(10, 32));
@@ -2247,7 +2247,7 @@ class SimpleRunningCounterProcTestSweepFixture
         package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
     TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
-    BValue state = pb.StateElement("st", Value(UBits(0, 32)));
+    BValue state = pb.ReadStateElement("st", Value(UBits(0, 32)));
     BValue in_val = pb.Receive(ch_in);
 
     BValue next_state = pb.Add(in_val, state, SourceInfo(), "increment");
@@ -3218,8 +3218,8 @@ class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
     TokenlessProcBuilder pb(TestName(),
                             /*token_name=*/"tkn", &package);
 
-    BValue accum0 = pb.StateElement("accum0", Value(UBits(0, 32)));
-    BValue accum1 = pb.StateElement("accum1", Value(UBits(0, 32)));
+    BValue accum0 = pb.ReadStateElement("accum0", Value(UBits(0, 32)));
+    BValue accum1 = pb.ReadStateElement("accum1", Value(UBits(0, 32)));
 
     BValue in0_val = pb.Receive(ch_in0);
     BValue in1_val = pb.Receive(ch_in1);
@@ -3502,7 +3502,7 @@ class MultiIOWithStatePipelinedProcTest : public ProcConversionTestFixture {
         package.CreateStreamingChannel("out1", ChannelOps::kSendOnly, u32));
 
     TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
-    BValue state = pb.StateElement("st", Value(UBits(0, 32)));
+    BValue state = pb.ReadStateElement("st", Value(UBits(0, 32)));
 
     BValue in0_val = pb.Receive(ch_in0);
     BValue in1_val = pb.Receive(ch_in1);
@@ -5842,9 +5842,9 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveRegions) {
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(1)));
   auto tok = pb.Literal(Value::Token());
-  auto a = pb.StateElement("a", UBits(0, 1));
-  auto b = pb.StateElement("b", UBits(0, 1));
-  auto c = pb.StateElement("c", UBits(0, 1));
+  auto a = pb.ReadStateElement("a", UBits(0, 1));
+  auto b = pb.ReadStateElement("b", UBits(0, 1));
+  auto c = pb.ReadStateElement("c", UBits(0, 1));
   auto sv = pb.Or({a, b, c});
   auto send = pb.Send(chan_out, tok, sv);
   auto na = pb.Not(a);
@@ -5889,7 +5889,7 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveRegions) {
 TEST_F(BlockConversionTest, NodeToStageMapSimple) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(TestName(), "tok", p.get());
-  auto a = pb.StateElement("a", UBits(0, 2));
+  auto a = pb.ReadStateElement("a", UBits(0, 2));
   auto na = pb.Not(a, SourceInfo(), "not_a");
   auto nxt_a = pb.Next(a, na);
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
@@ -5935,9 +5935,9 @@ TEST_F(BlockConversionTest, NodeToStageMapMulti) {
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(2)));
   auto tok = pb.Literal(Value::Token());
-  auto a = pb.StateElement("a", UBits(0, 2));
-  auto b = pb.StateElement("b", UBits(0, 2));
-  auto c = pb.StateElement("c", UBits(0, 2));
+  auto a = pb.ReadStateElement("a", UBits(0, 2));
+  auto b = pb.ReadStateElement("b", UBits(0, 2));
+  auto c = pb.ReadStateElement("c", UBits(0, 2));
   auto na = pb.Not(a, SourceInfo(), "not_a");
   auto nb = pb.Not(b, SourceInfo(), "not_b");
   auto nc = pb.Not(c, SourceInfo(), "not_c");
@@ -6000,9 +6000,9 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveAndConcurrentRegions) {
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(1)));
   auto tok = pb.Literal(Value::Token());
-  auto a = pb.StateElement("a", UBits(0, 1));
-  auto b = pb.StateElement("b", UBits(0, 1));
-  auto c = pb.StateElement("c", UBits(0, 1));
+  auto a = pb.ReadStateElement("a", UBits(0, 1));
+  auto b = pb.ReadStateElement("b", UBits(0, 1));
+  auto c = pb.ReadStateElement("c", UBits(0, 1));
   auto sv = pb.Or({a, b, c});
   auto send = pb.Send(chan_out, tok, sv);
   auto na = pb.Not(a);
@@ -6052,9 +6052,9 @@ TEST_F(BlockConversionTest, SimpleConcurrentRegions) {
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(1)));
   auto tok = pb.Literal(Value::Token());
-  auto a = pb.StateElement("a", UBits(0, 1));
-  auto b = pb.StateElement("b", UBits(0, 1));
-  auto c = pb.StateElement("c", UBits(0, 1));
+  auto a = pb.ReadStateElement("a", UBits(0, 1));
+  auto b = pb.ReadStateElement("b", UBits(0, 1));
+  auto c = pb.ReadStateElement("c", UBits(0, 1));
   auto sv = pb.Or({a, b, c});
   auto send = pb.Send(chan_out, tok, sv);
   auto na = pb.Not(a);
@@ -6104,9 +6104,9 @@ TEST_F(BlockConversionTest, MultipleConcurrentRegions) {
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(2)));
   auto tok = pb.Literal(Value::Token());
-  auto a = pb.StateElement("a", UBits(0, 2));
-  auto b = pb.StateElement("b", UBits(0, 2));
-  auto c = pb.StateElement("c", UBits(0, 2));
+  auto a = pb.ReadStateElement("a", UBits(0, 2));
+  auto b = pb.ReadStateElement("b", UBits(0, 2));
+  auto c = pb.ReadStateElement("c", UBits(0, 2));
   auto na = pb.Not(a, SourceInfo(), "not_a");
   auto nb = pb.Not(b, SourceInfo(), "not_b");
   auto nc = pb.Not(c, SourceInfo(), "not_c");
@@ -6178,9 +6178,9 @@ TEST_F(BlockConversionTest, CoveringRegions) {
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(2)));
   auto tok = pb.Literal(Value::Token());
-  auto a = pb.StateElement("a", UBits(0, 2));
-  auto b = pb.StateElement("b", UBits(0, 2));
-  auto c = pb.StateElement("c", UBits(0, 2));
+  auto a = pb.ReadStateElement("a", UBits(0, 2));
+  auto b = pb.ReadStateElement("b", UBits(0, 2));
+  auto c = pb.ReadStateElement("c", UBits(0, 2));
   auto na = pb.Not(a, SourceInfo(), "not_a");
   auto nb = pb.Not(b, SourceInfo(), "not_b");
   auto nc = pb.Not(c, SourceInfo(), "not_c");
@@ -6252,7 +6252,7 @@ TEST_F(BlockConversionTest, PipelineRegisterStagesKnown) {
       Channel * x_out, p->CreateStreamingChannel("x_out", ChannelOps::kSendOnly,
                                                  p->GetBitsType(2)));
   TokenlessProcBuilder pb(TestName(), "tok", p.get());
-  auto a = pb.StateElement("a_val", UBits(0, 2));
+  auto a = pb.ReadStateElement("a_val", UBits(0, 2));
   auto na = pb.Not(a, SourceInfo(), "not_a");
   auto lit_one = pb.Literal(UBits(1, 2));
   auto na_plus_one = pb.Add(na, lit_one, SourceInfo(), "na_plus_one");
@@ -6583,7 +6583,7 @@ TEST_F(ProcConversionTestFixture, SimpleFunctionWithProcsPresent) {
 absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
                                               Package* package) {
   TokenlessProcBuilder pb(NewStyleProc(), proc_name, "tkn", package);
-  BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+  BValue accum = pb.ReadStateElement("accum", Value(UBits(0, 32)));
   BReceiveChannel in_channel =
       pb.AddInputChannel("accum_in", package->GetBitsType(32));
   BValue input = pb.Receive(in_channel);

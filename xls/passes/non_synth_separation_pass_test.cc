@@ -156,7 +156,7 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithStateRead) {
   auto p = CreatePackage();
   ProcBuilder pb("proc1", p.get());
   pb.Assert(pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)), "");
-  BValue state_read = pb.StateElement("state_read", UBits(0, 1));
+  BValue state_read = pb.ReadStateElement("state_read", UBits(0, 1));
   pb.Identity(state_read);
   XLS_ASSERT_OK(pb.Build());
   ScopedRecordIr sri(p.get());
@@ -172,8 +172,8 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledUnreadState) {
   auto p = CreatePackage();
   ProcBuilder pb("proc1", p.get());
   BStateElement state_element =
-      pb.UnreadStateElement("state_element", Value(UBits(0, 32)),
-                            /*non_synthesizable=*/false);
+      pb.StateElement("state_element", Value(UBits(0, 32)),
+                      /*non_synthesizable=*/false);
   pb.Assert(pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)), "");
   BValue value = pb.Literal(Value(UBits(42, 32)));
   pb.Next(state_element, value);
@@ -195,8 +195,8 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledReadWriteState) {
   auto p = CreatePackage();
   ProcBuilder pb("proc1", p.get());
   BStateElement state_element =
-      pb.UnreadStateElement("state_element", Value(UBits(0, 32)),
-                            /*non_synthesizable=*/false);
+      pb.StateElement("state_element", Value(UBits(0, 32)),
+                      /*non_synthesizable=*/false);
   BValue state_read = pb.StateRead(state_element);
   pb.Assert(pb.Literal(Value::Token()),
             pb.Eq(state_read, pb.Literal(UBits(0, 32))), "");
@@ -368,7 +368,7 @@ TEST_F(NonSynthSeparationPassTest, GateNodesAreReplacedWithSelects) {
 TEST_F(NonSynthSeparationPassTest, ProcHasSameAssertBehavior) {
   auto p = CreatePackage();
   ProcBuilder pb("proc1", p.get());
-  BValue read = pb.StateElement("foo", UBits(4, 32));
+  BValue read = pb.ReadStateElement("foo", UBits(4, 32));
   pb.Assert(pb.Literal(Value::Token(), SourceInfo(), "tok"),
             pb.Ne(pb.Literal(UBits(7, 32)), read), "foobar");
   pb.Next(read, pb.Add(read, pb.Literal(UBits(1, 32))));
@@ -386,7 +386,7 @@ TEST_F(NonSynthSeparationPassTest, ProcHasSameAssertBehavior) {
 TEST_F(NonSynthSeparationPassTest, ProcHasSameTraceBehavior) {
   auto p = CreatePackage();
   ProcBuilder pb("proc1", p.get());
-  BValue read = pb.StateElement("foo", UBits(4, 32));
+  BValue read = pb.ReadStateElement("foo", UBits(4, 32));
   pb.Trace(pb.Literal(Value::Token(), SourceInfo(), "tok"),
            pb.Literal(UBits(1, 1), SourceInfo(), "true"), {read},
            "value_is_{}");
@@ -405,8 +405,8 @@ TEST_F(NonSynthSeparationPassTest, ProcHasSameTraceBehavior) {
 TEST_F(NonSynthSeparationPassTest, ProcWithTokenStateElement) {
   auto p = CreatePackage();
   ProcBuilder pb("proc1", p.get());
-  BValue read = pb.StateElement("foo", Value::Token());
-  BValue v1 = pb.StateElement("bar", UBits(3, 32));
+  BValue read = pb.ReadStateElement("foo", Value::Token());
+  BValue v1 = pb.ReadStateElement("bar", UBits(3, 32));
   pb.Next(read, pb.Literal(Value::Token()));
   pb.Next(v1, pb.Literal(UBits(1, 32)));
   pb.Assert(read, pb.Eq(v1, pb.Literal(UBits(1, 32))), "foobar");

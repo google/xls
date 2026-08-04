@@ -77,7 +77,7 @@ absl::StatusOr<Proc*> CreateIotaProc(std::string_view proc_name,
                                      int64_t starting_value, int64_t step,
                                      Channel* channel, Package* package) {
   ProcBuilder pb(proc_name, package);
-  BValue st = pb.StateElement("st", Value(UBits(starting_value, 32)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(starting_value, 32)));
   pb.Send(channel, pb.Literal(Value::Token()), st);
 
   BValue new_value = pb.Add(st, pb.Literal(UBits(step, 32)));
@@ -90,7 +90,7 @@ absl::StatusOr<Proc*> CreateAccumProc(std::string_view proc_name,
                                       Channel* in_channel, Channel* out_channel,
                                       Package* package) {
   ProcBuilder pb(proc_name, package);
-  BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+  BValue accum = pb.ReadStateElement("accum", Value(UBits(0, 32)));
   BValue token_input = pb.Receive(in_channel, pb.Literal(Value::Token()));
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
@@ -102,7 +102,7 @@ absl::StatusOr<Proc*> CreateAccumProc(std::string_view proc_name,
 absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
                                               Package* package) {
   TokenlessProcBuilder pb(NewStyleProc(), proc_name, "tkn", package);
-  BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+  BValue accum = pb.ReadStateElement("accum", Value(UBits(0, 32)));
   BReceiveChannel in_channel =
       pb.AddInputChannel("accum_in", package->GetBitsType(32));
   BValue input = pb.Receive(in_channel);
@@ -136,9 +136,10 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(std::string_view proc_name,
   // Proc state is a two-tuple containing: character to write and remaining
   // number of times to write the character.
   ProcBuilder pb(proc_name, package);
-  BValue tok = pb.StateElement("tok", Value::Token());
-  BValue last_char = pb.StateElement("last_char", Value(UBits(0, 8)));
-  BValue num_remaining = pb.StateElement("num_remaining", Value(UBits(0, 32)));
+  BValue tok = pb.ReadStateElement("tok", Value::Token());
+  BValue last_char = pb.ReadStateElement("last_char", Value(UBits(0, 8)));
+  BValue num_remaining =
+      pb.ReadStateElement("num_remaining", Value(UBits(0, 32)));
   BValue receive_next = pb.Eq(num_remaining, pb.Literal(UBits(0, 32)));
   BValue receive_if = pb.ReceiveIf(in_channel, tok, receive_next);
   BValue receive_if_data = pb.TupleIndex(receive_if, 1);
@@ -194,7 +195,7 @@ TEST_P(ProcRuntimeTestBase, ObserverTest) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                                   p->GetBitsType(32)));
-  BValue st = pb.StateElement("st", Value(UBits(0, 32)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(0, 32)));
   BValue tok_lit = pb.Literal(Value::Token());
   BValue res_tup = pb.ReceiveNonBlocking(ch_in, tok_lit);
   BValue send_tok = pb.Send(ch_out, tok_lit, st);
@@ -407,8 +408,8 @@ TEST_P(ProcRuntimeTestBase, DegenerateProc) {
   // Tests interpreting a proc with no send or receive nodes.
   auto package = CreatePackage();
   ProcBuilder pb(TestName(), package.get());
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build({pb.StateElement("tok", Value::Token())}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, pb.Build({pb.ReadStateElement("tok", Value::Token())}));
   XLS_ASSERT_OK(package->SetTop(proc));
 
   std::unique_ptr<ProcRuntime> runtime =
@@ -865,7 +866,7 @@ TEST_P(ProcRuntimeTestBase, StateReset) {
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
   ProcBuilder pb("state_reset", package.get());
-  BValue st = pb.StateElement("st", Value(UBits(11, 32)));
+  BValue st = pb.ReadStateElement("st", Value(UBits(11, 32)));
   pb.Send(ch_out, pb.Literal(Value::Token()), st);
   BValue add_lit = pb.Literal(SBits(3, 32));
   BValue next_int = pb.Add(st, add_lit);
@@ -906,7 +907,7 @@ TEST_P(ProcRuntimeTestBase, NonBlockingReceivesProc) {
                                                package->GetBitsType(32)));
 
   ProcBuilder pb("nb_recv", package.get());
-  BValue tok = pb.StateElement("tok", Value::Token());
+  BValue tok = pb.ReadStateElement("tok", Value::Token());
 
   BValue in0_data_and_valid = pb.ReceiveNonBlocking(in0, tok);
   BValue in1_data_and_valid = pb.ReceiveNonBlocking(in1, tok);
@@ -1107,7 +1108,7 @@ TEST_P(ProcRuntimeTestBase, ProcSetState) {
 
   // Create an output-only proc which counts up by 7 starting at 42.
   ProcBuilder pb("iota", package.get());
-  BValue counter = pb.StateElement("cnt", Value(UBits(42, 32)));
+  BValue counter = pb.ReadStateElement("cnt", Value(UBits(42, 32)));
   pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({new_value}));

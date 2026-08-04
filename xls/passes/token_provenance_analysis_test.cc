@@ -56,7 +56,7 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
                                 p->GetBitsType(32)));
 
   ProcBuilder pb(TestName(), p.get());
-  pb.StateElement("state", Value(UBits(0, 0)));
+  pb.ReadStateElement("state", Value(UBits(0, 0)));
   BValue token = pb.Literal(Value::Token());
   BValue recv = pb.Receive(channel, token);
   BValue t1 = pb.TupleIndex(recv, 0);
@@ -126,8 +126,8 @@ TEST_F(TokenProvenanceAnalysisTest, TokenDAGSimple) {
                                 p->GetBitsType(32)));
 
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("token", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 0)));
+  BValue token = pb.ReadStateElement("token", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 0)));
   BValue recv = pb.Receive(channel, token);
   BValue t1 = pb.TupleIndex(recv, 0);
   BValue t2 = pb.Send(channel, t1, pb.Literal(UBits(50, 32)));
@@ -158,7 +158,7 @@ TEST_F(TokenProvenanceAnalysisTest, TokenDAGSimple) {
 TEST_F(TokenProvenanceAnalysisTest, TokenDAGVeryLongChain) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("token", Value::Token());
+  BValue token = pb.ReadStateElement("token", Value::Token());
   BValue t = token;
   for (int i = 0; i < 1000; ++i) {
     t = pb.Identity(t);
@@ -183,8 +183,8 @@ TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGSimple) {
                                 p->GetBitsType(32)));
 
   ProcBuilder pb(TestName(), p.get());
-  BValue token = pb.StateElement("token", Value::Token());
-  pb.StateElement("state", Value(UBits(0, 0)));
+  BValue token = pb.ReadStateElement("token", Value::Token());
+  pb.ReadStateElement("state", Value(UBits(0, 0)));
   BValue recv = pb.Receive(channel, token);
   BValue t1 = pb.TupleIndex(recv, 0);
   BValue t2 = pb.Send(channel, t1, pb.Literal(UBits(50, 32)));
@@ -249,9 +249,9 @@ TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGNestedTuples) {
 TEST_F(TokenProvenanceAnalysisTest, SelectOfTokens) {
   auto p = std::make_unique<Package>(TestName());
   ProcBuilder pb(TestName(), p.get());
-  BValue token1 = pb.StateElement("token1", Value::Token());
-  BValue token2 = pb.StateElement("token2", Value::Token());
-  BValue selector = pb.StateElement("selector", Value(UBits(0, 2)));
+  BValue token1 = pb.ReadStateElement("token1", Value::Token());
+  BValue token2 = pb.ReadStateElement("token2", Value::Token());
+  BValue selector = pb.ReadStateElement("selector", Value(UBits(0, 2)));
   BValue select = pb.Select(selector, {token1, token2, token2, token1});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({select, select, selector}));
   XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,

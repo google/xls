@@ -94,7 +94,7 @@ TEST_F(DecomposeDataflowPassTest, ProcTest) {
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
   TokenlessProcBuilder pb("p", "tkn", p.get());
-  BValue idx = pb.StateElement("idx", Value(UBits(0, 32)));
+  BValue idx = pb.ReadStateElement("idx", Value(UBits(0, 32)));
   BValue array = pb.Literal(Value::ArrayOrDie({
       Value(UBits(10, 32)),
       Value(UBits(20, 32)),
@@ -121,9 +121,8 @@ TEST_F(DecomposeDataflowPassTest, ProcTest) {
 TEST_F(DecomposeDataflowPassTest, DecoupledProcPassThroughTest) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
-  BStateElement state_element =
-      pb.UnreadStateElement("st", Value(UBits(42, 32)),
-                            /*non_synthesizable=*/false);
+  BStateElement state_element = pb.StateElement("st", Value(UBits(42, 32)),
+                                                /*non_synthesizable=*/false);
   BValue st = pb.StateRead(state_element);
   pb.Next(state_element, st);
 

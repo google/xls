@@ -229,8 +229,8 @@ TEST_F(PostDominatorAnalysisTest, DisconnectedNode) {
 TEST_F(PostDominatorAnalysisTest, MultipleOutputs) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 1)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 1)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 1)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 1)));
   BValue z = pb.And(x, y);
   pb.Next(x, x);
   BValue next_y = pb.Next(y, z);
@@ -276,8 +276,8 @@ TEST_F(LazyPostDominatorAnalysisTest, DiamondShape) {
 TEST_F(LazyPostDominatorAnalysisTest, MultipleOutputs) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 1)));
-  BValue y = pb.StateElement("y", Value(UBits(0, 1)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(0, 1)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(0, 1)));
   BValue z = pb.And(x, y);
   pb.Next(BStateElement(x.node()->As<StateRead>()->state_element()), x);
   BValue next_y =

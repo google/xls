@@ -508,9 +508,8 @@ TEST(FunctionBuilderTest, UnreadStateElementAndStateRead) {
   Package p("p");
   ProcBuilder b("unread_state_test", &p);
 
-  BStateElement state_element =
-      b.UnreadStateElement("my_state", Value(UBits(42, 32)),
-                           /*non_synthesizable=*/false);
+  BStateElement state_element = b.StateElement("my_state", Value(UBits(42, 32)),
+                                               /*non_synthesizable=*/false);
 
   BValue cond = b.Literal(UBits(1, 1));
   BValue not_cond = b.Not(cond);
@@ -547,8 +546,8 @@ TEST(FunctionBuilderTest, SendAndReceive) {
                                               p.GetBitsType(32)));
 
   ProcBuilder b("sending_receiving", &p);
-  BValue my_token = b.StateElement("my_token", Value::Token());
-  BValue state = b.StateElement("my_state", Value(UBits(42, 32)));
+  BValue my_token = b.ReadStateElement("my_token", Value::Token());
+  BValue state = b.ReadStateElement("my_state", Value(UBits(42, 32)));
   BValue send = b.Send(ch0, my_token, state);
   BValue receive = b.Receive(ch1, my_token);
   BValue pred = b.Literal(UBits(1, 1));
@@ -878,7 +877,7 @@ TEST(FunctionBuilderTest, DynamicCountedForTest) {
 TEST(FunctionBuilderTest, AddParamToProc) {
   Package p("p");
   ProcBuilder b("param_proc", &p);
-  BValue state = b.StateElement("my_state", Value(UBits(42, 32)));
+  BValue state = b.ReadStateElement("my_state", Value(UBits(42, 32)));
   b.Param("x", p.GetBitsType(32));
   EXPECT_THAT(
       b.Build({state}).status(),
@@ -899,7 +898,7 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BValue state = pb.StateElement("st", Value(UBits(42, 16)));
+  BValue state = pb.ReadStateElement("st", Value(UBits(42, 16)));
   BValue a_plus_b = pb.Add(pb.Receive(a_ch), pb.Receive(b_ch));
   pb.MinDelay(5);
   pb.Send(out_ch, pb.Add(state, a_plus_b), SourceInfo(), "final_send");
@@ -928,10 +927,10 @@ TEST(FunctionBuilderTest, StatelessProcBuilder) {
 TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
   Package p("p");
   ProcBuilder pb("the_proc", &p);
-  BValue tkn = pb.StateElement("tkn", Value::Token());
-  BValue x = pb.StateElement("x", Value(UBits(1, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(2, 32)));
-  BValue z = pb.StateElement("z", Value(UBits(3, 32)));
+  BValue tkn = pb.ReadStateElement("tkn", Value::Token());
+  BValue x = pb.ReadStateElement("x", Value(UBits(1, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(2, 32)));
+  BValue z = pb.ReadStateElement("z", Value(UBits(3, 32)));
 
   EXPECT_EQ(pb.GetStateParam(0).node()->GetName(), "tkn");
   EXPECT_EQ(pb.GetStateParam(1).node()->GetName(), "x");
@@ -964,9 +963,9 @@ TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
 TEST(FunctionBuilderTest, ProcWithNextValue) {
   Package p("p");
   ProcBuilder pb("the_proc", &p);
-  BValue x = pb.StateElement("x", Value(UBits(1, 1)));
-  BValue y = pb.StateElement("y", Value(UBits(2, 32)));
-  BValue z = pb.StateElement("z", Value(UBits(3, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(1, 1)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(2, 32)));
+  BValue z = pb.ReadStateElement("z", Value(UBits(3, 32)));
   BValue next = pb.Next(/*state_read=*/y, /*value=*/z, /*pred=*/x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
@@ -979,9 +978,9 @@ TEST(FunctionBuilderTest, ProcWithNextValue) {
 TEST(FunctionBuilderTest, ProcWithNextValueWithLabel) {
   Package p("p");
   ProcBuilder pb("the_proc", &p);
-  BValue x = pb.StateElement("x", Value(UBits(1, 1)));
-  BValue y = pb.StateElement("y", Value(UBits(2, 32)));
-  BValue z = pb.StateElement("z", Value(UBits(3, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(1, 1)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(2, 32)));
+  BValue z = pb.ReadStateElement("z", Value(UBits(3, 32)));
   y.node()->As<StateRead>()->set_label("y_label");
   BValue next = pb.Next(/*state_read=*/y, /*value=*/z, /*pred=*/x,
                         /*label=*/"y_next_label");
@@ -999,14 +998,14 @@ TEST(FunctionBuilderTest, StateReadIsDefinitelyEqualTo) {
   ProcBuilder pb("the_proc", &p);
   BValue pred = pb.Literal(UBits(1, 1));
   Value v = Value(UBits(0, 32));
-  BValue y_pred_label0 = pb.StateElement("y_pred_label0", v, pred,
-                                         /*non_synthesizable=*/false);
-  BValue y_pred_label1 = pb.StateElement("y_pred_label1", v, pred,
-                                         /*non_synthesizable=*/false);
-  BValue y_pred_nolabel = pb.StateElement("y_nolabel_nopred", v);
-  BValue y_nopred_label0 = pb.StateElement("y_nopred_label0", v);
-  BValue y_pred_label0_copy = pb.StateElement("y_nopred_copy", v, pred,
-                                              /*non_synthesizable=*/false);
+  BValue y_pred_label0 = pb.ReadStateElement("y_pred_label0", v, pred,
+                                             /*non_synthesizable=*/false);
+  BValue y_pred_label1 = pb.ReadStateElement("y_pred_label1", v, pred,
+                                             /*non_synthesizable=*/false);
+  BValue y_pred_nolabel = pb.ReadStateElement("y_nolabel_nopred", v);
+  BValue y_nopred_label0 = pb.ReadStateElement("y_nopred_label0", v);
+  BValue y_pred_label0_copy = pb.ReadStateElement("y_nopred_copy", v, pred,
+                                                  /*non_synthesizable=*/false);
 
   y_pred_label0.node()->As<StateRead>()->set_label("label0");
   y_pred_label1.node()->As<StateRead>()->set_label("label1");
@@ -1026,7 +1025,7 @@ TEST(FunctionBuilderTest, StateReadIsDefinitelyEqualTo) {
 TEST(FunctionBuilderTest, NextIsDefinitelyEqualTo) {
   Package p("p");
   ProcBuilder pb("the_proc", &p);
-  BValue s = pb.StateElement("s", Value(UBits(0, 32)));
+  BValue s = pb.ReadStateElement("s", Value(UBits(0, 32)));
   BValue pred = pb.Literal(UBits(1, 1));
   BValue v = pb.Literal(UBits(123, 32));
   BValue next_pred_label0 = pb.Next(s, v, pred, "label0");
@@ -1050,9 +1049,9 @@ TEST(FunctionBuilderTest, NextIsDefinitelyEqualTo) {
 TEST(FunctionBuilderTest, ProcWithNextValueBadPredicate) {
   Package p("p");
   ProcBuilder pb("the_proc", &p);
-  BValue x = pb.StateElement("x", Value(UBits(1, 32)));
-  BValue y = pb.StateElement("y", Value(UBits(2, 32)));
-  BValue z = pb.StateElement("z", Value(UBits(3, 32)));
+  BValue x = pb.ReadStateElement("x", Value(UBits(1, 32)));
+  BValue y = pb.ReadStateElement("y", Value(UBits(2, 32)));
+  BValue z = pb.ReadStateElement("z", Value(UBits(3, 32)));
   pb.Next(/*state_read=*/y, /*value=*/z, /*pred=*/x);
 
   EXPECT_THAT(pb.Build(/*next_state=*/{x, y, z}),
@@ -1065,7 +1064,7 @@ TEST(FunctionBuilderTest, ProcWithNextValueBadPredicate) {
 TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {
   Package p("p");
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
-  BValue state = pb.StateElement("st", Value(UBits(42, 16)));
+  BValue state = pb.ReadStateElement("st", Value(UBits(42, 16)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({state}));
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),

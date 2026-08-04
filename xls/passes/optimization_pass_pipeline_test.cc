@@ -352,7 +352,7 @@ TEST_F(OptimizationPipelineTest, ProcScopedChannels) {
     BChannelWithInterfaces tmp0_ch = pb.AddChannel("tmp0", p->GetBitsType(32));
     BChannelWithInterfaces tmp1_ch = pb.AddChannel("tmp1", p->GetBitsType(32));
 
-    BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+    BValue accum = pb.ReadStateElement("accum", Value(UBits(0, 32)));
     pb.InstantiateProc("inst0", leaf, {in, tmp0_ch.send_interface});
     pb.InstantiateProc("inst1", leaf,
                        {tmp0_ch.receive_interface, tmp1_ch.send_interface});
