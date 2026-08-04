@@ -505,5 +505,72 @@ TEST_F(PipelineSchedulingPassTest, GlopGivesNonIntegerSolutionsWithBadOptions) {
                HasSubstr("solver terminated with no_solution_found")));
 }
 
+TEST_F(PipelineSchedulingPassTest,
+       ProcScopedChannelsSpawnedProcWithIOConstraint) {
+  auto p = CreatePackage();
+
+  TokenlessProcBuilder pb_child(NewStyleProc(), "child_proc", "tkn", p.get());
+  BReceiveChannel child_in =
+      pb_child.AddInputChannel("child_in", p->GetBitsType(32));
+  BSendChannel child_out =
+      pb_child.AddOutputChannel("child_out", p->GetBitsType(32));
+  BValue recv_val = pb_child.Receive(child_in, SourceInfo(), "child_recv");
+  pb_child.Send(child_out, recv_val, SourceInfo(), "child_send");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * child_proc, pb_child.Build());
+
+  TokenlessProcBuilder pb_main(NewStyleProc(), "main_proc", "tkn", p.get());
+  ChannelConfig channel_config = ChannelConfig()
+                                     .WithFifoConfig(FifoConfig(
+                                         /*depth=*/1,
+                                         /*bypass=*/false,
+                                         /*register_push_outputs=*/true,
+                                         /*register_pop_outputs=*/false))
+                                     .WithInputFlopKind(FlopKind::kNone)
+                                     .WithOutputFlopKind(FlopKind::kNone);
+
+  BChannelWithInterfaces ch_in_to_child = pb_main.AddChannel(
+      "ch_in_to_child", p->GetBitsType(32), ChannelKind::kStreaming,
+      /*initial_values=*/{}, channel_config);
+  BChannelWithInterfaces ch_child_to_out = pb_main.AddChannel(
+      "ch_child_to_out", p->GetBitsType(32), ChannelKind::kStreaming,
+      /*initial_values=*/{}, channel_config);
+
+  BReceiveChannel main_in =
+      pb_main.AddInputChannel("main_in", p->GetBitsType(32));
+  BSendChannel main_out =
+      pb_main.AddOutputChannel("main_out", p->GetBitsType(32));
+
+  pb_main.Send(ch_in_to_child.send_interface, pb_main.Receive(main_in));
+  pb_main.Send(main_out, pb_main.Receive(ch_child_to_out.receive_interface));
+
+  pb_main.InstantiateProc(
+      "child_inst", child_proc,
+      {ch_in_to_child.receive_interface, ch_child_to_out.send_interface});
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * main_proc, pb_main.Build());
+
+  XLS_ASSERT_OK(p->SetTop(main_proc));
+
+  EXPECT_THAT(
+      RunPipelineSchedulingPass(
+          p.get(),
+          SchedulingOptions().pipeline_stages(5).add_constraint(IOConstraint(
+              /*source_channel=*/"child_in",
+              /*source_direction=*/IODirection::kReceive,
+              /*target_channel=*/"child_out",
+              /*target_direction=*/IODirection::kSend,
+              /*minimum_latency=*/3, /*maximum_latency=*/3))),
+      IsOkAndHolds(Pair(
+          true,  // changed = true, scheduling did something
+          SchedulingContextWithElements(UnorderedElementsAre(
+              Pair(main_proc, VerifiedPipelineSchedule()),
+              Pair(
+                  child_proc,
+                  AllOf(VerifiedPipelineSchedule(),
+                        LatencyIs(
+                            child_proc->GetNode("child_recv").value_or(nullptr),
+                            child_proc->GetNode("child_send").value_or(nullptr),
+                            Eq(3)))))))));
+}
+
 }  // namespace
 }  // namespace xls
