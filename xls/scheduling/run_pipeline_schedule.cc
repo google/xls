@@ -642,10 +642,18 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         cycle_map[node] = 0;
       }
     }
+    XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> dead_after_synthesis,
+                         GetDeadAfterSynthesisNodes(f));
+    XLS_ASSIGN_OR_RETURN(ScheduleGraph graph,
+                         ScheduleGraph::Create(f, dead_after_synthesis));
+    XLS_ASSIGN_OR_RETURN(int64_t min_clock_period_ps,
+                         ComputeCriticalPath(graph, io_delay_added));
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
         PipelineSchedule::Create(f, std::move(cycle_map),
-                                 {.length = options.pipeline_stages()}));
+                                 {.length = options.pipeline_stages(),
+                                  .min_clock_period_ps = std::max(
+                                      int64_t{1}, min_clock_period_ps)}));
     absl::Status status = schedule.Verify();
     status.Update(schedule.VerifyConstraints(options.constraints(), options));
     if (status.ok()) {

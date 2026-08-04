@@ -251,6 +251,24 @@ TEST_P(AsapPipelineScheduleTest, AsapScheduleTrivial) {
   EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(m::Param()));
 }
 
+TEST_P(AsapPipelineScheduleTest,
+       SingleStageUnspecifiedClockPeriodHasMinClockPeriod) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  fb.Not(x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1)));
+
+  EXPECT_EQ(schedule.length(), 1);
+  EXPECT_TRUE(schedule.min_clock_period_ps().has_value());
+  EXPECT_GT(*schedule.min_clock_period_ps(), 0);
+}
+
 TEST_P(PipelineScheduleErrorTest, OutrightInfeasibleSchedule) {
   // Create a schedule in which the critical path doesn't even fit in the
   // requested clock_period * stages.
