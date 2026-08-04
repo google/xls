@@ -227,6 +227,68 @@ impl Main {
 )");
 }
 
+TEST_F(LegacyProcConverterTest, StatelessWithSemicolon) {
+  DoLegacyProcConversionFmt(
+      R"(proc Producer {
+    s: chan<u32> out;
+    config(s: chan<u32> out) { (s,) }
+    init { () }
+    next(state: ()) {
+        send(join(), s, 42);
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Producer {
+    s: chan<u32> out,
+}
+
+impl Producer {
+    fn new(s: chan<u32> out) -> Self {
+        Producer { s }
+    }
+
+    fn next(self) {
+        send(join(), self.s, 42);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, StatefulWithLocalVar) {
+  DoLegacyProcConversionFmt(
+      R"(proc Stateful {
+    config() { () }
+    init { 0 }
+    next(state: u32) {
+        let state = state + 1;
+        state
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Stateful {
+    state: u32,
+}
+
+impl Stateful {
+    fn new() -> Self {
+        Stateful { state: 0 }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        let state = state + 1;
+        write(self.state, state);
+    }
+}
+)");
+}
+
 TEST_F(LegacyProcConverterTest, Comments) {
   DoLegacyProcConversionFmt(
       R"(proc Main {

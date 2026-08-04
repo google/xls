@@ -46,6 +46,26 @@ namespace xls::dslx {
 
 namespace {
 
+// Returns true if `stmt` is pointless as the last statement in a stateless
+// legacy proc next function. Note that a "stateless legacy proc" may be one
+// with a nominal empty-tuple state parameter, in which case next() may validly
+// return that empty tuple by name.
+bool IsRedundantStatelessNextReturn(const Statement* stmt,
+                                    std::string_view state_param_name) {
+  if (!std::holds_alternative<Expr*>(stmt->wrapped())) {
+    return false;
+  }
+  const Expr* expr = std::get<Expr*>(stmt->wrapped());
+  if (auto* tuple = dynamic_cast<const XlsTuple*>(expr); tuple != nullptr) {
+    return tuple->empty();
+  }
+  if (auto* name_ref = dynamic_cast<const NameRef*>(expr);
+      name_ref != nullptr) {
+    return name_ref->identifier() == state_param_name;
+  }
+  return false;
+}
+
 absl::StatusOr<bool> HasReferenceToAnyName(
     const AstNode* node, const absl::flat_hash_set<std::string_view>& names) {
   if (node == nullptr) {
@@ -966,9 +986,20 @@ class LegacyProcConverter : public Formatter {
     }
 
     const auto& next_stmts = cloned_next_body->statements();
-    int end_idx = (!already_has_explicit_state_access && !next_stmts.empty())
-                      ? next_stmts.size() - 1
-                      : next_stmts.size();
+    std::string_view state_param_name =
+        next_fn.params().empty()
+            ? std::string_view("")
+            : std::string_view(next_fn.params()[0]->identifier());
+    const bool has_redundant_stateless_return =
+        state_params.empty() && !next_stmts.empty() &&
+        IsRedundantStatelessNextReturn(next_stmts.back(), state_param_name);
+
+    bool should_drop_last = false;
+    if (!already_has_explicit_state_access && !next_stmts.empty()) {
+      should_drop_last =
+          !state_params.empty() || has_redundant_stateless_return;
+    }
+    int end_idx = should_drop_last ? next_stmts.size() - 1 : next_stmts.size();
 
     std::vector<DocRef> append_statements;
     if (!state_params.empty() && !already_has_explicit_state_access) {
@@ -999,7 +1030,15 @@ class LegacyProcConverter : public Formatter {
     }
 
     DocRef next_fn_doc;
-    if (next_stmts.size() <= 1 && state_params.empty()) {
+    bool is_empty_body = false;
+    if (state_params.empty()) {
+      if (next_stmts.empty()) {
+        is_empty_body = true;
+      } else if (next_stmts.size() == 1 && has_redundant_stateless_return) {
+        is_empty_body = true;
+      }
+    }
+    if (is_empty_body) {
       next_fn_doc = ConcatNGroup(arena_, {
                                              arena_.Make(Keyword::kFn),
                                              arena_.space(),
