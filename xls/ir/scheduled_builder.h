@@ -181,6 +181,11 @@ class ScheduledBlockBuilder : public BlockBuilder {
     current_stage_nodes_.push_back(state_read.node());
   }
 
+  BValue StateRead(BStateElement state_element,
+                   std::optional<BValue> predicate = std::nullopt,
+                   std::optional<std::string> label = std::nullopt,
+                   const SourceInfo& loc = SourceInfo());
+
  protected:
   void OnNodeAdded(Node* node) override;
 

@@ -836,20 +836,71 @@ absl::StatusOr<BValue> Parser::ParseNode(
       std::optional<QuotedString>* label =
           arg_parser.AddOptionalKeywordArg<QuotedString>("label");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
-      auto it = name_to_value->find(state_name->value);
-      if (it == name_to_value->end()) {
+      ProcBuilder* pb = dynamic_cast<ProcBuilder*>(fb);
+      Proc* proc = nullptr;
+      if (pb != nullptr) {
+        proc = pb->proc();
+      } else if (auto* sbb = dynamic_cast<ScheduledBlockBuilder*>(fb)) {
+        FunctionBase* source =
+            absl::down_cast<ScheduledBlock*>(sbb->block())->source();
+        if (source != nullptr && source->IsProc()) {
+          proc = absl::down_cast<Proc*>(source);
+        }
+      }
+
+      if (proc == nullptr) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("state_read operations only supported in procs or "
+                            "scheduled blocks with proc source @ %s",
+                            op_token.pos().ToHumanString()));
+      }
+
+      if (!proc->HasStateElement(state_name->value)) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Referred to state name that hadn't yet been "
                             "defined: %s @ %s",
                             state_name->value, op_token.pos().ToHumanString()));
       }
-      bvalue = it->second;
-      if (predicate->has_value()) {
-        XLS_RETURN_IF_ERROR(
-            bvalue.node()->As<StateRead>()->SetPredicate((*predicate)->node()));
-      }
-      if (label->has_value()) {
-        bvalue.node()->As<StateRead>()->set_label(label->value().value);
+      auto it = name_to_value->find(state_name->value);
+      if (it != name_to_value->end() && it->second.node()->Is<StateRead>() &&
+          it->second.node()->As<StateRead>()->state_element()->name() ==
+              state_name->value) {
+        // Use the existing state_element entry in name_to_value to modify the
+        // existing StateRead node. Then delete the state_element entry.
+        StateRead* existing_read = it->second.node()->As<StateRead>();
+        bvalue = it->second;
+        if (predicate->has_value()) {
+          XLS_RETURN_IF_ERROR(
+              existing_read->SetPredicate((*predicate)->node()));
+        }
+        if (label->has_value()) {
+          existing_read->set_label(label->value().value);
+        }
+        if (!node_name.empty() &&
+            node_name != existing_read->state_element()->name()) {
+          existing_read->SetName(node_name);
+        }
+        name_to_value->erase(it);
+      } else {
+        // Create a new state read.
+        XLS_ASSIGN_OR_RETURN(StateElement * state_element,
+                             proc->GetStateElementByName(state_name->value));
+        if (pb != nullptr) {
+          bvalue = pb->StateRead(BStateElement(state_element, pb), *predicate,
+                                 label->has_value()
+                                     ? std::make_optional(label->value().value)
+                                     : std::nullopt,
+                                 *loc);
+        } else if (auto* sbb = dynamic_cast<ScheduledBlockBuilder*>(fb)) {
+          bvalue = sbb->StateRead(BStateElement(state_element), *predicate,
+                                  label->has_value()
+                                      ? std::make_optional(label->value().value)
+                                      : std::nullopt,
+                                  *loc);
+        }
+        if (!node_name.empty() && bvalue.valid()) {
+          bvalue.node()->SetName(node_name);
+        }
       }
       break;
     }
@@ -1937,13 +1988,13 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
         for (StateElement* element : source_proc->StateElements()) {
           absl::Span<StateRead* const> reads =
               source_proc->GetStateReadsByStateElement(element);
-          // TODO: (nelsonliang) Make this work for multiple reads of the same
-          // state element. This will require populating `name_to_value` with
-          // entries for each `StateRead` node (keyed by node name) rather than
-          // one entry per state element (keyed by state element name).
-          XLS_RET_CHECK_EQ(reads.size(), 1);
-          name_to_value->emplace(element->name(),
-                                 bb->SourceNode(reads.front()));
+          if (!reads.empty()) {
+            name_to_value->emplace(element->name(),
+                                   bb->SourceNode(reads.front()));
+            for (StateRead* read : reads) {
+              name_to_value->emplace(read->GetName(), bb->SourceNode(read));
+            }
+          }
         }
       } else {
         return absl::InvalidArgumentError(absl::StrFormat(

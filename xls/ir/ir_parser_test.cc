@@ -558,6 +558,30 @@ proc foo( x: bits[32], y: (), z: bits[32], init={42, (), 123}) {
   EXPECT_EQ(proc->GetStateElementCount(), 3);
 }
 
+TEST(IrParserTest, ProcWithMultipleReadsOfSameStateElement) {
+  std::string program = R"(
+package test_module
+
+proc foo(__state: bits[32], __cond: bits[1], init={0, 1}) {
+  cond: bits[1] = state_read(state_element=__cond)
+  not_cond: bits[1] = not(cond)
+  read1: bits[32] = state_read(state_element=__state, predicate=cond)
+  read2: bits[32] = state_read(state_element=__state, predicate=not_cond)
+  next_value.1: () = next_value(state_element=__state, value=read1, predicate=cond)
+  next_value.2: () = next_value(state_element=__state, value=read2, predicate=not_cond)
+  next_value.3: () = next_value(state_element=__cond, value=not_cond)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
+  EXPECT_EQ(proc->GetStateElementCount(), 2);
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * state,
+                           proc->GetStateElementByName("__state"));
+  absl::Span<StateRead* const> reads = proc->GetStateReadsByStateElement(state);
+  EXPECT_EQ(reads.size(), 2);
+}
+
 TEST(IrParserTest, ProcWithTokenAfterStateElements) {
   std::string program = R"(
 package test
@@ -1230,6 +1254,28 @@ scheduled_block b() {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, pkg->GetBlock("b"));
   EXPECT_TRUE(block->IsScheduled());
   EXPECT_EQ(block->stages().size(), 0);
+}
+
+TEST(IrParserTest, ScheduledBlockWithMultipleStateReads) {
+  const std::string input = R"(package test
+scheduled_block b() {
+  source proc foo(__state: bits[32], init={0}) {
+  }
+  iv0: bits[1] = literal(value=1, id=1)
+  or0: bits[1] = literal(value=1, id=2)
+  controlled_stage(iv0, or0) {
+    active_inputs_valid aiv0: bits[1] = literal(value=1, id=3)
+    read1: bits[32] = state_read(state_element=__state, id=4)
+    read2: bits[32] = state_read(state_element=__state, id=5)
+    sum: bits[32] = add(read1, read2, id=6)
+    ret ov0: bits[1] = identity(aiv0, id=7)
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, pkg->GetBlock("b"));
+  EXPECT_TRUE(block->IsScheduled());
 }
 
 TEST(IrParserTest, ScheduledBlockWithEmptyStage) {

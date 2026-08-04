@@ -146,12 +146,8 @@ class DelayInfoMainTest(test_base.TestCase):
     ]).decode('utf-8')
     print(output)
     self.assertIn('# Critical path for state element __state', output)
-    self.assertIn(
-        '__state: bits[32] = state_read(state_element=__state,', output
-    )
-    self.assertIn(
-        'add: bits[32] = add(__state: bits[32], one: bits[32],', output
-    )
+    self.assertIn('sr: bits[32] = state_read(state_element=__state,', output)
+    self.assertIn('add: bits[32] = add(sr: bits[32], one: bits[32],', output)
     self.assertIn('next_state: () = next_value(state_element=__state,', output)
 
 
