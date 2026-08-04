@@ -29,14 +29,14 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_1: bits[1] = literal(value=1, id=24)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=25)
-    ____state__1: bits[32] = register_read(register=____state, id=39)
+    ____state__1: bits[32] = register_read(register=____state, id=40)
     result_value: bits[32] = add(umul.13, ____state__1, id=14)
     send.15: token = send(tok__1, result_value, predicate=literal.3, channel=test__result, id=15)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=26)
   }
   rst: bits[1] = input_port(name=rst, id=18)
-  and.40: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=40)
-  and.41: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=41)
-  register_write.42: () = register_write(result_value, register=____state, load_enable=and.40, reset=rst, id=42)
-  tuple.43: () = tuple(id=43)
+  and.41: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=41)
+  and.42: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=42)
+  register_write.43: () = register_write(result_value, register=____state, load_enable=and.41, reset=rst, id=43)
+  tuple.44: () = tuple(id=44)
 }

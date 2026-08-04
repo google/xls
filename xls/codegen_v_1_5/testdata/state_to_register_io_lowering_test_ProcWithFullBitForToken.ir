@@ -27,7 +27,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_inputs_valid_1: bits[1] = literal(value=1, id=24)
   stage_outputs_ready_1: bits[1] = literal(value=1, id=25)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
-    active_inputs_valid ____state_full: bits[1] = register_read(register=____state_full, id=44)
+    active_inputs_valid ____state_full: bits[1] = register_read(register=____state_full, id=45)
     send.16: token = send(tok__1, umul.14, predicate=literal.3, channel=result, id=16)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, ____state_full, id=27)
   }
@@ -35,15 +35,15 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_2: bits[1] = literal(value=1, id=29)
   controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
     active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=30)
-    identity.46: token = identity(tok, id=46)
+    identity.47: token = identity(tok, id=47)
     ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=32)
   }
   rst: bits[1] = input_port(name=rst, id=19)
-  literal.43: token = literal(value=token, id=43)
-  and.45: bits[1] = and(stage_outputs_valid_2, stage_outputs_ready_2, id=45)
-  and.47: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=47)
-  tuple.48: () = tuple(id=48)
-  and.49: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=49)
-  or.50: bits[1] = or(and.49, and.45, id=50)
-  register_write.51: () = register_write(and.45, register=____state_full, load_enable=or.50, reset=rst, id=51)
+  literal.44: token = literal(value=token, id=44)
+  and.46: bits[1] = and(stage_outputs_valid_2, stage_outputs_ready_2, id=46)
+  and.48: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=48)
+  tuple.49: () = tuple(id=49)
+  and.50: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=50)
+  or.51: bits[1] = or(and.50, and.46, id=51)
+  register_write.52: () = register_write(and.46, register=____state_full, load_enable=or.51, reset=rst, id=52)
 }

@@ -829,27 +829,54 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kStateRead: {
-      IdentifierString* state_name =
+      IdentifierString* state_element_name =
           arg_parser.AddKeywordArg<IdentifierString>("state_element");
       std::optional<BValue>* predicate =
           arg_parser.AddOptionalKeywordArg<BValue>("predicate");
       std::optional<QuotedString>* label =
           arg_parser.AddOptionalKeywordArg<QuotedString>("label");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
-      auto it = name_to_value->find(state_name->value);
-      if (it == name_to_value->end()) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Referred to state name that hadn't yet been "
-                            "defined: %s @ %s",
-                            state_name->value, op_token.pos().ToHumanString()));
+      XLS_ASSIGN_OR_RETURN(
+          Proc * proc, GetEffectiveProcOrError(
+                           fb, "state_read operations only supported in procs",
+                           op_token.pos()));
+      if (!state_element_names_.contains(state_element_name->value)) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Referred to state_element name that hadn't yet been "
+            "defined: %s @ %s",
+            state_element_name->value, op_token.pos().ToHumanString()));
       }
-      bvalue = it->second;
-      if (predicate->has_value()) {
-        XLS_RETURN_IF_ERROR(
-            bvalue.node()->As<StateRead>()->SetPredicate((*predicate)->node()));
+
+      // If an implicit state read already exists, delete it.
+      auto it = name_to_value->find(state_element_name->value);
+      if (it != name_to_value->end()) {
+        Node* old_read = it->second.node();
+        name_to_value->erase(it);
+        XLS_RETURN_IF_ERROR(old_read->function_base()->RemoveNode(old_read));
       }
-      if (label->has_value()) {
-        bvalue.node()->As<StateRead>()->set_label(label->value().value);
+
+      // Always create a new state read node.
+      XLS_ASSIGN_OR_RETURN(
+          StateElement * state_element,
+          proc->GetStateElementByName(state_element_name->value));
+
+      ProcBuilder* pb = dynamic_cast<ProcBuilder*>(fb);
+      if (pb != nullptr) {
+        bvalue = pb->StateRead(BStateElement(state_element, pb), *predicate,
+                               label->has_value()
+                                   ? std::make_optional(label->value().value)
+                                   : std::nullopt,
+                               *loc);
+      } else if (auto* sbb = dynamic_cast<ScheduledBlockBuilder*>(fb)) {
+        bvalue = sbb->StateRead(BStateElement(state_element), *predicate,
+                                label->has_value()
+                                    ? std::make_optional(label->value().value)
+                                    : std::nullopt,
+                                *loc);
+      }
+
+      if (!node_name.empty()) {
+        bvalue.SetName(node_name);
       }
       break;
     }
@@ -1937,13 +1964,9 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
         for (StateElement* element : source_proc->StateElements()) {
           absl::Span<StateRead* const> reads =
               source_proc->GetStateReadsByStateElement(element);
-          // TODO: (nelsonliang) Make this work for multiple reads of the same
-          // state element. This will require populating `name_to_value` with
-          // entries for each `StateRead` node (keyed by node name) rather than
-          // one entry per state element (keyed by state element name).
-          XLS_RET_CHECK_EQ(reads.size(), 1);
-          name_to_value->emplace(element->name(),
-                                 bb->SourceNode(reads.front()));
+          for (StateRead* read : reads) {
+            name_to_value->emplace(read->GetName(), bb->SourceNode(read));
+          }
         }
       } else {
         return absl::InvalidArgumentError(absl::StrFormat(
@@ -2274,6 +2297,7 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   for (int64_t i = 0; i < state_params.size(); ++i) {
     bool non_synthesizable =
         non_synthesizable_states.contains(state_params[i].name);
+    state_element_names_.insert(state_params[i].name);
     BValue param_bvalue = builder->ReadStateElement(
         state_params[i].name, init_values[i], non_synthesizable);
     (*name_to_value)[state_params[i].name] = param_bvalue;
@@ -2483,6 +2507,7 @@ absl::StatusOr<Proc*> Parser::ParseProcInternal(
   XLS_RETURN_IF_ERROR(
       scanner_.DropKeywordOrError(scheduled ? "scheduled_proc" : "proc"));
 
+  state_element_names_.clear();
   absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcBuilder> pb,
                        ParseProcSignature(&name_to_value, package, scheduled));
