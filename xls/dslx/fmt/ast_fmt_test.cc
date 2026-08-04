@@ -1438,6 +1438,16 @@ TEST_F(FunctionFmtTest, SingletonTupleWithLeadingComment) {
   EXPECT_EQ(got, expected);
 }
 
+TEST_F(FunctionFmtTest, EmptyTupleWithComment) {
+  const std::string_view original = R"(fn foo() {
+    let a = (
+        // just a comment
+    );
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 TEST_F(FunctionFmtTest, FunctionWithLambda) {
   const std::string_view original =
       R"(fn f() -> u32 { (|i, j| -> u32 { i + j + u32:2 })(u32:0, u32:1) })";
