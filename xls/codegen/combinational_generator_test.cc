@@ -1915,6 +1915,32 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateWithNarrowIndex) {
                                  result.verilog_text);
 }
 
+TEST_P(CombinationalGeneratorTest, ArrayUpdateWithNotIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue a = fb.Param("a", package.GetArrayType(4, u32));
+  BValue idx = fb.Not(fb.Param("idx", package.GetBitsType(1)));
+  BValue value = fb.Param("v", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.ArrayUpdate(a, value, {idx})));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  XLS_ASSERT_OK_AND_ASSIGN(Value a_value,
+                           Value::UBitsArray({10, 20, 30, 40}, 32));
+  EXPECT_THAT(simulator.RunFunction({{"a", a_value},
+                                     {"idx", Value(UBits(0, 1))},
+                                     {"v", Value(UBits(99, 32))}}),
+              IsOkAndHolds(Value::UBitsArray({10, 99, 30, 40}, 32).value()));
+  EXPECT_THAT(simulator.RunFunction({{"a", a_value},
+                                     {"idx", Value(UBits(1, 1))},
+                                     {"v", Value(UBits(99, 32))}}),
+              IsOkAndHolds(Value::UBitsArray({99, 20, 30, 40}, 32).value()));
+}
+
 TEST_P(CombinationalGeneratorTest, ArraySliceWithNarrowStart) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
