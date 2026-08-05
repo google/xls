@@ -263,6 +263,14 @@ absl::Status ConstexprEvaluator::HandleCast(const Cast* expr) {
 absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
   VLOG(3) << "ConstexprEvaluator::HandleChannelDecl : " << expr->ToString();
   const FileTable& file_table = *expr->owner()->file_table();
+
+  if (expr->fifo_depth().has_value()) {
+    XLS_RETURN_IF_ERROR(EvaluateToValue(import_data_, type_info_,
+                                        warning_collector_, bindings_,
+                                        expr->fifo_depth().value())
+                            .status());
+  }
+
   // Keep in mind that channels come in tuples, so peel out the first element.
   std::optional<Type*> maybe_decl_type = type_info_->GetItem(expr);
   if (!maybe_decl_type.has_value()) {

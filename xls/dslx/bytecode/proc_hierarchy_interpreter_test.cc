@@ -22,6 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
@@ -62,6 +63,8 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheckOrPrintError(
   return tm;
 }
 
+using ::absl_testing::StatusIs;
+using ::testing::AllOf;
 using ::testing::HasSubstr;
 
 class ProcHierarchyInterpreterTest : public ::testing::Test {
@@ -128,6 +131,44 @@ class ProcHierarchyInterpreterTest : public ::testing::Test {
     return absl::NotFoundError(
         absl::StrFormat("No ProcInstance found with ProcId `%s`", proc_id_str));
   }
+
+  // Sender's two sends must appear atomic within a tick; mid-tick yield lets
+  // the tester interleave between them.
+  static constexpr std::string_view kSendAtomicityProgram = R"(
+proc Sender {
+    ready_s: chan<bool> out;
+    data_s: chan<u32> out;
+    config(ready_s: chan<bool> out, data_s: chan<u32> out) { (ready_s, data_s) }
+    init { () }
+    next(state: ()) {
+        let tok = send(join(), ready_s, true);
+        send(tok, data_s, u32:42);
+    }
+}
+
+#[test_proc]
+proc SendAtomicityTest {
+    terminator: chan<bool> out;
+    ready_r: chan<bool> in;
+    data_r: chan<u32> in;
+
+    config(terminator: chan<bool> out) {
+        let (ready_s, ready_r) = chan<bool, u32:1>("ready");
+        let (data_s, data_r) = chan<u32, u32:1>("data");
+        spawn Sender(ready_s, data_s);
+        (terminator, ready_r, data_r)
+    }
+
+    init { u32:0 }
+
+    next(tick: u32) {
+        let (tok, _, ready) = recv_non_blocking(join(), ready_r, false);
+        let (tok, _, data_valid) = recv_non_blocking(tok, data_r, u32:0);
+        assert_eq(!ready || data_valid, true);
+        send_if(tok, terminator, tick == u32:9, true);
+        tick + u32:1
+    }
+})";
 
  protected:
   std::optional<ImportData> import_data_;
@@ -1466,6 +1507,353 @@ impl TestProc {
       TestResultData result,
       ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, BoundedFifoBlocksAndResumes) {
+  // Depth-1 channel forces the second send (via send_if) to block until
+  // drained; checks stack save/restore keeps values in order.
+  constexpr std::string_view kProgram = R"(
+proc Passthrough {
+    data_r: chan<u32> in;
+    result_s: chan<u32> out;
+
+    config(data_r: chan<u32> in, result_s: chan<u32> out) { (data_r, result_s) }
+
+    init { () }
+
+    next(state: ()) {
+        let (tok, data) = recv(join(), data_r);
+        send(tok, result_s, data);
+    }
+}
+
+#[test_proc]
+proc BoundedFifoTest {
+    terminator: chan<bool> out;
+    data_s: chan<u32> out;
+    result_r: chan<u32> in;
+
+    config(terminator: chan<bool> out) {
+        let (data_s, data_r) = chan<u32, u32:1>("data");
+        let (result_s, result_r) = chan<u32, u32:1>("result");
+        spawn Passthrough(data_r, result_s);
+        (terminator, data_s, result_r)
+    }
+
+    init { }
+
+    next(_: ()) {
+        let tok = join();
+        let tok = send(tok, data_s, u32:1);
+        let tok = send_if(tok, data_s, true, u32:2);
+
+        let (tok, result) = recv(tok, result_r);
+        assert_eq(result, u32:1);
+        let (tok, result) = recv(tok, result_r);
+        assert_eq(result, u32:2);
+
+        send(tok, terminator, true);
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
+                           ParseAndGetTestProc(kProgram, "BoundedFifoTest"));
+  auto options =
+      BytecodeInterpreterOptions().max_ticks(20).simulate_bounded_fifos(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
+}
+
+TEST_F(ProcHierarchyInterpreterTest, ImplStyleBoundedFifoBlocksAndResumes) {
+  // Same as above, but impl-style procs resolve member-channel depth via a
+  // separate path (GetFifoDepth), so it needs its own coverage.
+  constexpr std::string_view kProgram = R"(
+proc Passthrough {
+  data_in: chan<u32> in,
+  result_out: chan<u32> out,
+}
+
+impl Passthrough {
+  fn new(data_in: chan<u32> in, result_out: chan<u32> out) -> Self {
+    Passthrough { data_in, result_out }
+  }
+
+  fn next(self) {
+    let (tok, data) = recv(join(), self.data_in);
+    send(tok, self.result_out, data);
+  }
+}
+
+#[test]
+proc BoundedFifoProcDefTest {
+  terminator: chan<bool> out,
+  data_out: chan<u32> out,
+  result_in: chan<u32> in,
+}
+
+impl BoundedFifoProcDefTest {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (data_out, data_in) = chan<u32, u32:1>("data");
+    let (result_out, result_in) = chan<u32, u32:1>("result");
+    Passthrough::new(data_in, result_out).spawn();
+    BoundedFifoProcDefTest { terminator, data_out, result_in }
+  }
+
+  fn next(self) {
+    let tok = send(join(), self.data_out, u32:1);
+    let tok = send(tok, self.data_out, u32:2);
+
+    let (tok, result) = recv(tok, self.result_in);
+    assert_eq(result, u32:1);
+    let (tok, result) = recv(tok, self.result_in);
+    assert_eq(result, u32:2);
+
+    send(tok, self.terminator, true);
+  }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcDef * test_proc,
+      ParseAndGetTestProcDef(kProgram, "BoundedFifoProcDefTest"));
+  auto options =
+      BytecodeInterpreterOptions().max_ticks(20).simulate_bounded_fifos(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
+}
+
+TEST_F(ProcHierarchyInterpreterTest, FifoDepthAppliesPerChannelArrayElement) {
+  // Depth on a channel array must apply per-element, not to the array as a
+  // whole: element 0 blocks/resumes, element 1 never blocks.
+  constexpr std::string_view kProgram = R"(
+proc Passthrough {
+    in_ch: chan<u32> in;
+    out_ch: chan<u32> out;
+
+    init { () }
+
+    config(in_ch: chan<u32> in, out_ch: chan<u32> out) {
+        (in_ch, out_ch)
+    }
+    next(_: ()) {
+        let (tok, v) = recv(join(), in_ch);
+        send(tok, out_ch, v);
+    }
+}
+
+#[test_proc]
+proc FifoDepthArrayTest {
+    terminator: chan<bool> out;
+    data_out: chan<u32>[2] out;
+    data_in: chan<u32>[2] in;
+
+    init { () }
+
+    config(terminator: chan<bool> out) {
+        let (input_p, input_c) = chan<u32, u32:1>[2]("input");
+        let (output_p, output_c) = chan<u32, u32:1>[2]("output");
+        spawn Passthrough(input_c[0], output_p[0]);
+        spawn Passthrough(input_c[1], output_p[1]);
+        (terminator, input_p, output_c)
+    }
+
+    next(_: ()) {
+        let tok = join();
+        let tok = send(tok, data_out[0], u32:1);
+        let tok = send(tok, data_out[0], u32:2);
+        let tok = send(tok, data_out[1], u32:100);
+
+        let (tok, r0) = recv(tok, data_in[0]);
+        assert_eq(r0, u32:1);
+        let (tok, r0) = recv(tok, data_in[0]);
+        assert_eq(r0, u32:2);
+        let (tok, r1) = recv(tok, data_in[1]);
+        assert_eq(r1, u32:100);
+
+        send(tok, terminator, true);
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
+                           ParseAndGetTestProc(kProgram, "FifoDepthArrayTest"));
+  auto options =
+      BytecodeInterpreterOptions().max_ticks(20).simulate_bounded_fifos(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+  XLS_ASSERT_OK(Run(*interpreter, options));
+}
+
+TEST_F(ProcHierarchyInterpreterTest, ProcScheduleSeedIsDeterministic) {
+// PriorityMux's output depends on proc execution order, which makes this a
+// good scenario for checking a fixed schedule seed reproduces exactly.
+  constexpr std::string_view kProgram = R"(
+pub proc Writer<BASE_COUNT: u32> {
+    out_s: chan<u32> out;
+    config(out_s: chan<u32> out) { (out_s,) }
+    init { u32:0 }
+    next(count: u32) {
+        send(join(), out_s, BASE_COUNT + count);
+        count + u32:1
+    }
+}
+
+pub proc PriorityMux {
+    a_r: chan<u32> in;
+    b_r: chan<u32> in;
+    out_s: chan<u32> out;
+    config(a_r: chan<u32> in, b_r: chan<u32> in, out_s: chan<u32> out) {
+        (a_r, b_r, out_s)
+    }
+    init { () }
+    next(state: ()) {
+        let (tok, val_a, got_a) = recv_non_blocking(join(), a_r, u32:0);
+        let tok = if got_a {
+            send(tok, out_s, val_a)
+        } else {
+            let (tok, val_b) = recv(tok, b_r);
+            send(tok, out_s, val_b)
+        };
+    }
+}
+
+#[test_proc]
+proc PriorityMuxTest {
+    terminator: chan<bool> out;
+    out_r: chan<u32> in;
+
+    config(terminator: chan<bool> out) {
+        let (a_s, a_r) = chan<u32>("writer_a");
+        let (b_s, b_r) = chan<u32>("writer_b");
+        let (out_s, out_r) = chan<u32>("mux_out");
+        spawn Writer<u32:0>(a_s);
+        spawn Writer<u32:100>(b_s);
+        spawn PriorityMux(a_r, b_r, out_s);
+        (terminator, out_r)
+    }
+
+    init { u32:0 }
+
+    next(count: u32) {
+        let (tok, val) = recv_if(join(), out_r, count < u32:3, u32:0);
+        assert_eq(val < u32:10, true);
+        let done = count == u32:2;
+        send_if(tok, terminator, done, true);
+        if done { u32:0 } else { count + u32:1 }
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestProc * test_proc,
+      ParseAndGetTestProc(kProgram, "PriorityMuxTest"));
+  // Pin mid_tick_yield off; it defaults on with a schedule seed.
+  auto options = BytecodeInterpreterOptions()
+                     .max_ticks(20)
+                     .proc_schedule_seed(0)
+                     .mid_tick_yield(false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcHierarchyInterpreter> first,
+                           Create(test_proc, options));
+  absl::Status first_status = Run(*first, options);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcHierarchyInterpreter> second,
+                           Create(test_proc, options));
+  absl::Status second_status = Run(*second, options);
+
+  EXPECT_EQ(first_status, second_status);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, MidTickYieldInterleavesChannelOps) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestProc * test_proc,
+      ParseAndGetTestProc(kSendAtomicityProgram, "SendAtomicityTest"));
+
+  auto default_options = BytecodeInterpreterOptions().max_ticks(20);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> default_interpreter,
+      Create(test_proc, default_options));
+  XLS_ASSERT_OK(Run(*default_interpreter, default_options));
+
+  auto yield_options =
+      BytecodeInterpreterOptions().max_ticks(20).mid_tick_yield(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> yield_interpreter,
+      Create(test_proc, yield_options));
+  EXPECT_THAT(Run(*yield_interpreter, yield_options),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("were not equal")));
+}
+
+// Yield + schedule seed together hit the random (not FIFO) reinsertion path;
+// must stay deterministic for a fixed seed.
+TEST_F(ProcHierarchyInterpreterTest,
+       MidTickYieldWithScheduleSeedIsDeterministic) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestProc * test_proc,
+      ParseAndGetTestProc(kSendAtomicityProgram, "SendAtomicityTest"));
+  auto options = BytecodeInterpreterOptions()
+                     .max_ticks(20)
+                     .mid_tick_yield(true)
+                     .proc_schedule_seed(0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcHierarchyInterpreter> first,
+                           Create(test_proc, options));
+  absl::Status first_status = Run(*first, options);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcHierarchyInterpreter> second,
+                           Create(test_proc, options));
+  absl::Status second_status = Run(*second, options);
+
+  EXPECT_EQ(first_status, second_status);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, DeadlockDiagnosticsIncludeBlockedSend) {
+  // Deadlock message must mention blocked-on-send procs too, not just
+  // blocked-on-receive.
+  constexpr std::string_view kProgram = R"(
+proc StuckSender {
+  out_ch: chan<u32> out,
+}
+impl StuckSender {
+  fn new(out_ch: chan<u32> out) -> Self { StuckSender { out_ch } }
+  fn next(self) {
+    let tok = send(join(), self.out_ch, u32:1);
+    send(tok, self.out_ch, u32:2);
+  }
+}
+
+#[test]
+proc DeadlockOnSendTest {
+  terminator: chan<bool> out,
+  never_in: chan<u32> in,
+}
+impl DeadlockOnSendTest {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (data_out, _) = chan<u32, u32:1>("data");
+    StuckSender::new(data_out).spawn();
+    let (_, never_in) = chan<u32>("never");
+    DeadlockOnSendTest { terminator, never_in }
+  }
+  fn next(self) {
+    let (tok, _) = recv(join(), self.never_in);
+    send(tok, self.terminator, true);
+  }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcDef * test_proc,
+      ParseAndGetTestProcDef(kProgram, "DeadlockOnSendTest"));
+  auto options =
+      BytecodeInterpreterOptions().max_ticks(20).simulate_bounded_fifos(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcHierarchyInterpreter> interpreter,
+      Create(test_proc, options));
+
+  std::string terminal_channel_name{interpreter->GetInterfaceChannelName(0)};
+  absl::Status status =
+      interpreter->TickUntilOutput({{terminal_channel_name, 1}}).status();
+  EXPECT_THAT(status,
+              StatusIs(absl::StatusCode::kDeadlineExceeded,
+                       AllOf(HasSubstr("is blocked on receive on channel"),
+                             HasSubstr("is blocked on send on channel"))));
 }
 
 }  // namespace

@@ -985,6 +985,95 @@ proc tester_proc {
   EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
 }
 
+// A seed alone must not perturb scheduling; only randomize_proc_execution
+// should route it to the scheduler.
+TEST_P(ParseAndTestTest, RandomizeProcExecutionOptionThreadsSeedToScheduler) {
+  if (GetParam() != RunnerType::kDslxInterpreter) {
+    GTEST_SKIP() << "randomize_proc_execution is only implemented in the "
+                    "dslx interpreter";
+  }
+  constexpr std::string_view kProgram = R"(
+pub proc Writer<BASE_COUNT: u32> {
+  out_s: chan<u32> out;
+  config(out_s: chan<u32> out) { (out_s,) }
+  init { u32:0 }
+  next(count: u32) {
+    send(join(), out_s, BASE_COUNT + count);
+    count + u32:1
+  }
+}
+
+pub proc PriorityMux {
+  a_r: chan<u32> in;
+  b_r: chan<u32> in;
+  out_s: chan<u32> out;
+  config(a_r: chan<u32> in, b_r: chan<u32> in, out_s: chan<u32> out) {
+    (a_r, b_r, out_s)
+  }
+  init { () }
+  next(state: ()) {
+    let (tok, val_a, got_a) = recv_non_blocking(join(), a_r, u32:0);
+    let tok = if got_a {
+      send(tok, out_s, val_a)
+    } else {
+      let (tok, val_b) = recv(tok, b_r);
+      send(tok, out_s, val_b)
+    };
+  }
+}
+
+#[test_proc]
+proc PriorityMuxTest {
+  terminator: chan<bool> out;
+  out_r: chan<u32> in;
+
+  config(terminator: chan<bool> out) {
+    let (a_s, a_r) = chan<u32>("writer_a");
+    let (b_s, b_r) = chan<u32>("writer_b");
+    let (out_s, out_r) = chan<u32>("mux_out");
+    spawn Writer<u32:0>(a_s);
+    spawn Writer<u32:100>(b_s);
+    spawn PriorityMux(a_r, b_r, out_s);
+    (terminator, out_r)
+  }
+
+  init { u32:0 }
+
+  next(count: u32) {
+    let (tok, val) = recv_if(join(), out_r, count < u32:3, u32:0);
+    assert_eq(val < u32:10, true);
+    let done = count == u32:2;
+    send_if(tok, terminator, done, true);
+    if done { u32:0 } else { count + u32:1 }
+  }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  std::string filename(temp_file.path());
+
+  // Seed alone (no randomize_proc_execution) must not perturb scheduling.
+  ParseAndTestOptions seed_only_options;
+  seed_only_options.max_ticks = 20;
+  seed_only_options.seed = int64_t{0};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData seed_only_result,
+      ParseAndTest(kProgram, "test_module", filename, seed_only_options));
+  EXPECT_THAT(seed_only_result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+
+  // With it on, the same seed reaches the scheduler and can break the test.
+  // Pin mid_tick_yield off; it defaults on with randomize_proc_execution.
+  ParseAndTestOptions randomized_options;
+  randomized_options.max_ticks = 20;
+  randomized_options.randomize_proc_execution = true;
+  randomized_options.seed = int64_t{0};
+  randomized_options.mid_tick_yield = false;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData randomized_result,
+      ParseAndTest(kProgram, "test_module", filename, randomized_options));
+  EXPECT_THAT(randomized_result,
+              IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
+}
+
 inline constexpr std::string_view kTwoTests = R"(
 #[test] fn test_one() {}
 #[test] fn test_two() {}

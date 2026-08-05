@@ -426,7 +426,8 @@ absl::StatusOr<InterpValue> CreateChannelReference(
 
 absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
     const Type* type,
-    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
+    std::optional<absl::FunctionRef<int64_t(std::optional<const ChannelDecl*>)>>
+        channel_instance_allocator,
     std::optional<const AstNode*> definer) {
   if (auto* array_type = dynamic_cast<const ArrayType*>(type)) {
     XLS_ASSIGN_OR_RETURN(int dim_int, array_type->size().GetAsInt64());
@@ -442,7 +443,8 @@ absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
       lhs_elements.push_back(lhs_rhs.first);
       rhs_elements.push_back(lhs_rhs.second);
     }
-    int64_t array_id = (*channel_instance_allocator)();
+    // Array container IDs carry no declaration.
+    int64_t array_id = (*channel_instance_allocator)(/*depth=*/std::nullopt);
     return std::make_pair(
         InterpValue::MakeChannelArray(ChannelDirection::kOut, array_id,
                                       definer.has_value() ? *definer : nullptr,
@@ -456,9 +458,15 @@ absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
   const ChannelType* ct = dynamic_cast<const ChannelType*>(type);
   XLS_RET_CHECK_NE(ct, nullptr)
       << "Expected channel type but got: " << type->ToString();
+  std::optional<const ChannelDecl*> decl = std::nullopt;
+  if (definer.has_value()) {
+    if (auto* cd = dynamic_cast<const ChannelDecl*>(*definer)) {
+      decl = cd;
+    }
+  }
   std::optional<int64_t> channel_instance_id =
       channel_instance_allocator.has_value()
-          ? std::make_optional((*channel_instance_allocator)())
+          ? std::make_optional((*channel_instance_allocator)(decl))
           : std::nullopt;
   return std::make_pair(
       InterpValue::MakeChannelReference(ChannelDirection::kOut,

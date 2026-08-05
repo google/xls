@@ -139,7 +139,7 @@ std::optional<ValueFormatDescriptor> GetFormatDescriptorFromNumber(
 BytecodeEmitter::BytecodeEmitter(
     ImportData* import_data, const TypeInfo* type_info,
     const std::optional<ParametricEnv>& caller_bindings,
-    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
+    std::optional<ChannelInstanceAllocator> channel_instance_allocator,
     const BytecodeEmitterOptions& options)
     : import_data_(import_data),
       type_info_(type_info),
@@ -171,7 +171,7 @@ BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
 BytecodeEmitter::EmitProcConfig(
     ImportData* import_data, const TypeInfo* type_info, const Function& f,
     const std::optional<ParametricEnv>& caller_bindings,
-    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
+    std::optional<ChannelInstanceAllocator> channel_instance_allocator,
     const BytecodeEmitterOptions& options) {
   return EmitInternal(import_data, type_info, f, caller_bindings,
                       /*proc_members=*/{}, channel_instance_allocator, options);
@@ -193,7 +193,7 @@ BytecodeEmitter::EmitInternal(
     ImportData* import_data, const TypeInfo* type_info, const Function& f,
     const std::optional<ParametricEnv>& caller_bindings,
     const std::vector<NameDef*>& legacy_proc_members,
-    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
+    std::optional<ChannelInstanceAllocator> channel_instance_allocator,
     const BytecodeEmitterOptions& options) {
   XLS_RET_CHECK(type_info != nullptr);
 
@@ -821,7 +821,8 @@ absl::Status BytecodeEmitter::HandleChannelDecl(const ChannelDecl* node) {
 
   XLS_ASSIGN_OR_RETURN(auto in_out_channels,
                        CreateChannelReferencePair(&tuple_type->GetMemberType(0),
-                                                  channel_instance_allocator_));
+                                                  channel_instance_allocator_,
+                                                  node));
 
   Add(Bytecode::MakeLiteral(
       node->span(),

@@ -120,6 +120,11 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
         "lower_to_proc_scoped_channels",
         "lower_to_ir",
         "convert_tests",
+        "simulate_bounded_fifos",
+        "randomize_proc_execution",
+        "seed",
+        "trace_channels",
+        "mid_tick_yield",
     )
 
     dslx_test_args = dict(_dslx_test_args)

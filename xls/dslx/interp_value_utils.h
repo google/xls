@@ -26,6 +26,7 @@
 #include "absl/types/span.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/ir/format_preference.h"
@@ -128,10 +129,13 @@ absl::StatusOr<InterpValue> CreateChannelReference(
 // declaration produces. For example,
 //
 //   let (foo_s, foo_r) = chan<u32>("foo");
+// The allocator receives the ChannelDecl for the channel being allocated (so it
+// can evaluate the FIFO depth), or nullopt for array-container IDs which carry
+// no declaration.
 absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
     const Type* type,
-    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator =
-        std::nullopt,
+    std::optional<absl::FunctionRef<int64_t(std::optional<const ChannelDecl*>)>>
+        channel_instance_allocator = std::nullopt,
     std::optional<const AstNode*> definer = std::nullopt);
 
 // Gets the definer of the given channel or channel array.
