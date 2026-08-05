@@ -66,6 +66,7 @@ TEST_F(BlockFinalizationPassTest, BasicScheduledBlock) {
   BValue in = sbb.InputPort("in", p->GetBitsType(32));
   XLS_ASSERT_OK_AND_ASSIGN(Register * data_reg,
                            sblk->AddRegister("data_reg", p->GetBitsType(32)));
+  in.node()->As<InputPort>()->set_system_verilog_type("my_type");
 
   BValue iv0 = sbb.Literal(UBits(1, 1));
   BValue or0 = sbb.Literal(UBits(1, 1));
@@ -82,7 +83,8 @@ TEST_F(BlockFinalizationPassTest, BasicScheduledBlock) {
   BValue neg1 =
       sbb.Subtract(sbb.Literal(UBits(0, 32), SourceInfo(), "neg_zero"), add0);
   sbb.RegisterWrite(data_reg, neg1);
-  sbb.OutputPort("out", neg1);
+  BValue out = sbb.OutputPort("out", neg1);
+  out.node()->As<OutputPort>()->set_system_verilog_type("my_type");
   BValue aiv1 = sbb.Literal(UBits(1, 1));
   BValue ov1 = sbb.Literal(UBits(1, 1));
   sbb.EndStage(aiv1, ov1);
@@ -105,10 +107,14 @@ TEST_F(BlockFinalizationPassTest, BasicScheduledBlock) {
   EXPECT_EQ(block->node_count(), node_count_before);
   ASSERT_TRUE(block->GetClockPort().has_value());
   EXPECT_EQ(block->GetClockPort()->name, "clk");
-  EXPECT_EQ(block->GetInputPort("in").value()->direction(),
-            PortDirection::kInput);
-  EXPECT_EQ(block->GetOutputPort("out").value()->direction(),
-            PortDirection::kOutput);
+
+  XLS_ASSERT_OK_AND_ASSIGN(InputPort * input_port, block->GetInputPort("in"));
+  EXPECT_EQ(input_port->direction(), PortDirection::kInput);
+  EXPECT_EQ(input_port->system_verilog_type(), "my_type");
+  XLS_ASSERT_OK_AND_ASSIGN(OutputPort * output_port,
+                           block->GetOutputPort("out"));
+  EXPECT_EQ(output_port->direction(), PortDirection::kOutput);
+  EXPECT_EQ(output_port->system_verilog_type(), "my_type");
   EXPECT_TRUE(block->GetRegister("data_reg").ok());
 
   EXPECT_THAT(p->blocks(),
