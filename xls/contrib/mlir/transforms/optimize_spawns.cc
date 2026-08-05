@@ -95,7 +95,8 @@ class SendOfBlockingReceiveOp : public OpRewritePattern<SSendOp> {
       std::optional<FifoConfig> fifoConfig = combineFifoConfigs(
           sendChanOp.getFifoConfig(), recvChanOp.getFifoConfig());
       if (fifoConfig) {
-        recvChanOp.setFifoConfigAttr(*fifoConfig);
+        rewriter.modifyOpInPlace(
+            recvChanOp, [&] { recvChanOp.setFifoConfigAttr(*fifoConfig); });
       }
       Value sendChanReceiver = sendChanOp.getIn();
       rewriter.replaceUsesWithIf(sendChanReceiver, recvChan,
@@ -138,10 +139,18 @@ class SendOfBlockingReceiveOp : public OpRewritePattern<SSendOp> {
     std::sort(channelIndices.begin(), channelIndices.end());
     std::reverse(channelIndices.begin(), channelIndices.end());
 
-    for (int64_t chanIdx : channelIndices) {
-      sproc.getNext().eraseArgument(chanIdx);
-      sproc.getSpawns().front().getTerminator()->eraseOperand(chanIdx);
-    }
+    Operation* terminator = sproc.getSpawns().front().getTerminator();
+    rewriter.modifyOpInPlace(terminator, [&] {
+      for (int64_t chanIdx : channelIndices) {
+        terminator->eraseOperand(chanIdx);
+      }
+    });
+
+    rewriter.modifyOpInPlace(sproc, [&] {
+      for (int64_t chanIdx : channelIndices) {
+        sproc.getNext().eraseArgument(chanIdx);
+      }
+    });
     return success();
   }
 

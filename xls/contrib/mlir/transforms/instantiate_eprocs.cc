@@ -96,7 +96,7 @@ class InstantiateEprocPattern : public OpRewritePattern<InstantiateEprocOp> {
                                                    attr.getLeafReference()));
     });
     replacer.recursivelyReplaceElementsIn(cloned);
-    op.erase();
+    rewriter.eraseOp(op);
     return success();
   }
 
