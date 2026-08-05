@@ -708,8 +708,16 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate(
   // Build the index match condition.
   Expression* indices_match = nullptr;
   for (int64_t i = 0; i < indices.size(); ++i) {
-    Expression* eq = file_->Equals(indices[i].expression,
-                                   index_loops[i]->genvar(), SourceInfo());
+    Expression* idx_expr = indices[i].expression;
+    int64_t idx_width = indices[i].xls_type->bit_count();
+    if (idx_width < 32 && !idx_expr->IsIndexableExpression() &&
+        !idx_expr->IsLiteral()) {
+      idx_expr = file_->Concat(
+          {file_->Literal(0, 32 - idx_width, SourceInfo()), idx_expr},
+          SourceInfo());
+    }
+    Expression* eq =
+        file_->Equals(idx_expr, index_loops[i]->genvar(), SourceInfo());
     indices_match = (indices_match == nullptr)
                         ? eq
                         : file_->LogicalAnd(indices_match, eq, SourceInfo());
