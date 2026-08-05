@@ -32,6 +32,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -46,11 +47,29 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
  public:
   explicit TypeRefUnwrapper(const ImportData& import_data,
                             bool include_generic = false)
-      : import_data_(import_data), include_generic_(include_generic) {}
+      : mutable_import_data_(nullptr),
+        import_data_(import_data),
+        include_generic_(include_generic) {}
+
+  TypeRefUnwrapper(ImportData& import_data,
+                   const TypecheckModuleFn& typecheck_imported_module,
+                   bool include_generic = false)
+      : mutable_import_data_(&import_data),
+        import_data_(import_data),
+        include_generic_(include_generic),
+        typecheck_imported_module_(typecheck_imported_module) {}
 
   absl::Status HandleColonRef(const ColonRef* colon_ref) override {
-    XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
-                         GetImportedModuleInfo(colon_ref, import_data_));
+    std::optional<ModuleInfo*> import_module;
+    if (mutable_import_data_ != nullptr &&
+        typecheck_imported_module_.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          import_module, GetImportedModuleInfo(colon_ref, *mutable_import_data_,
+                                               *typecheck_imported_module_));
+    } else {
+      XLS_ASSIGN_OR_RETURN(import_module,
+                           GetImportedModuleInfo(colon_ref, import_data_));
+    }
     if (import_module.has_value()) {
       XLS_ASSIGN_OR_RETURN(
           ModuleMember member,
@@ -158,8 +177,10 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
   }
 
  private:
+  ImportData* mutable_import_data_;
   const ImportData& import_data_;
   bool include_generic_;
+  std::optional<TypecheckModuleFn> typecheck_imported_module_;
 
   // These fields get populated as we visit nodes.
   std::vector<ExprOrType> parametrics_;
@@ -186,6 +207,19 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
   return unwrapper.GetStructOrProcRef();
 }
 
+absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
+    const TypeAnnotation* annotation, ImportData& import_data,
+    const TypecheckModuleFn& typecheck_imported_module, bool include_generic) {
+  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>() &&
+      !annotation->IsAnnotation<TypeVariableTypeAnnotation>()) {
+    return std::nullopt;
+  }
+  TypeRefUnwrapper unwrapper(import_data, typecheck_imported_module,
+                             include_generic);
+  XLS_RETURN_IF_ERROR(annotation->Accept(&unwrapper));
+  return unwrapper.GetStructOrProcRef();
+}
+
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(
     const ColonRef* ref, const ImportData& import_data) {
   TypeRefUnwrapper unwrapper(import_data);
@@ -207,6 +241,24 @@ absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
   if (subject.has_value() && std::holds_alternative<Import*>(*subject)) {
     Import* import = std::get<Import*>(*subject);
     return import_data.Get(ImportTokens(import->subject()));
+  }
+  return std::nullopt;
+}
+
+absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
+    const ColonRef* colon_ref, ImportData& import_data,
+    const TypecheckModuleFn& typecheck_imported_module) {
+  std::optional<ImportSubject> subject = colon_ref->ResolveImportSubject();
+  if (subject.has_value() && std::holds_alternative<Import*>(*subject)) {
+    Import* import = std::get<Import*>(*subject);
+    ImportTokens tokens(import->subject());
+    if (!import_data.Contains(tokens)) {
+      XLS_RETURN_IF_ERROR(DoImport(typecheck_imported_module, tokens,
+                                   &import_data, colon_ref->span(),
+                                   import_data.vfs())
+                              .status());
+    }
+    return import_data.Get(tokens);
   }
   return std::nullopt;
 }
@@ -245,6 +297,16 @@ absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
   XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> ref,
                        GetStructOrProcRef(annotation, import_data));
+  return ref.has_value() ? std::make_optional(ref->def) : std::nullopt;
+}
+
+absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
+    const TypeAnnotation* annotation, ImportData& import_data,
+    const TypecheckModuleFn& typecheck_imported_module) {
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<StructOrProcRef> ref,
+      GetStructOrProcRef(annotation, import_data, typecheck_imported_module,
+                         /*include_generic=*/false));
   return ref.has_value() ? std::make_optional(ref->def) : std::nullopt;
 }
 

@@ -68,14 +68,6 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
 
   InferenceTable* table = import_data->GetOrCreateInferenceTable();
   XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings, table));
-  if (semantics_analysis != nullptr) {
-    XLS_RETURN_IF_ERROR(semantics_analysis->RunPreTypeCheckPass(
-        *module, *warnings, *import_data));
-  }
-  XLS_ASSIGN_OR_RETURN(TypecheckFlagsProto flags, GetTypecheckFlagsProto());
-  std::unique_ptr<TypeSystemTracer> tracer =
-      TypeSystemTracer::Create(flags.dump_traces(), flags.time_every_action());
-  auto& tracer_ref = *tracer;
   auto typecheck_imported_module =
       [import_data, warnings, error_handler, trait_deriver](
           std::unique_ptr<Module> module, std::filesystem::path path) {
@@ -85,6 +77,14 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
                                  std::move(semantics_analysis), error_handler,
                                  trait_deriver);
       };
+  if (semantics_analysis != nullptr) {
+    XLS_RETURN_IF_ERROR(semantics_analysis->RunPreTypeCheckPass(
+        *module, *warnings, *import_data, typecheck_imported_module));
+  }
+  XLS_ASSIGN_OR_RETURN(TypecheckFlagsProto flags, GetTypecheckFlagsProto());
+  std::unique_ptr<TypeSystemTracer> tracer =
+      TypeSystemTracer::Create(flags.dump_traces(), flags.time_every_action());
+  auto& tracer_ref = *tracer;
   XLS_RETURN_IF_ERROR(PopulateTable(table, module.get(), import_data, warnings,
                                     typecheck_imported_module));
   XLS_ASSIGN_OR_RETURN(

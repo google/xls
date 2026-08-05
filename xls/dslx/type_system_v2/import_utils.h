@@ -23,6 +23,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -36,6 +37,13 @@ namespace xls::dslx {
 // `.def=nullptr` and `.is_generic=true`.
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
     const TypeAnnotation* annotation, const ImportData& import_data,
+    bool include_generic = false);
+
+// Variant that forces the type checking of an imported module, if encountered
+// during the resolution.
+absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
+    const TypeAnnotation* annotation, ImportData& import_data,
+    const TypecheckModuleFn& typecheck_imported_module,
     bool include_generic = false);
 
 // Variant that takes a `ColonRef`. This will only yield a struct ref if the
@@ -61,6 +69,12 @@ GetTypeVariableTypeAnnotationForSubject(const ColonRef* ref,
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
     const TypeAnnotation* annotation, const ImportData& import_data);
 
+// Variant that forces the type checking of an imported module, if encountered
+// during the resolution.
+absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
+    const TypeAnnotation* annotation, ImportData& import_data,
+    const TypecheckModuleFn& typecheck_imported_module);
+
 // If `f` is in an impl, returns the struct or proc def that the impl belongs
 // to; otherwise returns `nullopt`.
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
@@ -81,6 +95,11 @@ absl::StatusOr<ModuleMember> GetPublicModuleMember(const Module& module,
 // Retrieves the `ModuleInfo` for the given `ColonRef`.
 absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
     const ColonRef* colon_ref, const ImportData& import_data);
+
+// Variant that forces the type checking of the imported module.
+absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
+    const ColonRef* colon_ref, ImportData& import_data,
+    const TypecheckModuleFn& typecheck_imported_module);
 
 // Gets the enum definition for the enum type referred to by `annotation`.
 absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(

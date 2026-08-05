@@ -818,6 +818,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
+        "//xls/dslx:import_routines",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/type_system:deduce_utils",

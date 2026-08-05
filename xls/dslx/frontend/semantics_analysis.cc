@@ -46,6 +46,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
@@ -588,8 +589,11 @@ class ProcStateVisitor : public AstNodeVisitorWithDefault {
  public:
   // Creates a visitor using `import_data` and the given `StructDef` for the
   // builtin `State` struct.
-  ProcStateVisitor(ImportData& import_data, StructDef* state_struct_def)
-      : import_data_(import_data), state_struct_def_(state_struct_def) {}
+  ProcStateVisitor(ImportData& import_data, StructDef* state_struct_def,
+                   const TypecheckModuleFn& typecheck_imported_module)
+      : import_data_(import_data),
+        state_struct_def_(state_struct_def),
+        typecheck_imported_module_(typecheck_imported_module) {}
 
   absl::Status HandleFunction(const Function* node) override {
     // Legacy proc has multiple pointers to functions within the AST. This could
@@ -622,8 +626,9 @@ class ProcStateVisitor : public AstNodeVisitorWithDefault {
       if (IsChannelOrChannelArrayAnnotation(type)) {
         continue;
       }
-      XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
-                           GetStructOrProcDef(type, import_data_));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<const StructDefBase*> def,
+          GetStructOrProcDef(type, import_data_, typecheck_imported_module_));
       if (def.has_value() && (*def)->kind() == AstNodeKind::kProcDef) {
         continue;
       }
@@ -653,6 +658,7 @@ class ProcStateVisitor : public AstNodeVisitorWithDefault {
 
   ImportData& import_data_;
   StructDef* const state_struct_def_;
+  const TypecheckModuleFn& typecheck_imported_module_;
   absl::flat_hash_set<const Function*> processed_fns_;
 };
 
@@ -719,7 +725,8 @@ SemanticsAnalysis::SemanticsAnalysis(bool suppress_warnings)
 
 absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
     Module& module, WarningCollector& warning_collector,
-    ImportData& import_data) {
+    ImportData& import_data,
+    const TypecheckModuleFn& typecheck_imported_module) {
   ProcDefTrivialNextGenerator next_generator;
   XLS_RETURN_IF_ERROR(module.Accept(&next_generator));
 
@@ -728,7 +735,8 @@ absl::Status SemanticsAnalysis::RunPreTypeCheckPass(
                          import_data.GetBuiltinStubsModule());
     XLS_ASSIGN_OR_RETURN(StructDef * state_struct_def,
                          builtins->GetMemberOrError<StructDef>("State"));
-    ProcStateVisitor state_visitor(import_data, state_struct_def);
+    ProcStateVisitor state_visitor(import_data, state_struct_def,
+                                   typecheck_imported_module);
     XLS_RETURN_IF_ERROR(module.Accept(&state_visitor));
   }
   XLS_RETURN_IF_ERROR(RewriteLambdas(module, import_data));

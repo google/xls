@@ -23,6 +23,7 @@
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/warning_collector.h"
 
@@ -38,9 +39,10 @@ class SemanticsAnalysis {
  public:
   SemanticsAnalysis(bool suppress_warnings = false);
 
-  absl::Status RunPreTypeCheckPass(Module& module,
-                                   WarningCollector& warning_collector,
-                                   ImportData& import_data);
+  absl::Status RunPreTypeCheckPass(
+      Module& module, WarningCollector& warning_collector,
+      ImportData& import_data,
+      const TypecheckModuleFn& typecheck_imported_module);
 
   absl::Status RunPostTypeCheckPass(WarningCollector& warning_collector);
 

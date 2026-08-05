@@ -12,17 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
+#include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_kind.h"
 
 // Tests for `proc` definitions, spawning, channels, and state access.
 namespace xls::dslx {
@@ -709,6 +717,85 @@ proc Foo {
   )",
               TypecheckFails(HasSubstr(
                   "Use of `Self` inside legacy procs is not supported.")));
+}
+
+TEST(TypecheckV2ProcTest, ProcDefWithImportedStructMember) {
+  constexpr std::string_view kImported = R"(
+pub struct Foo {
+  bar: u32,
+}
+)";
+
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+import imported;
+
+proc Main {
+  c: chan<u32> in,
+  foo: imported::Foo,
+}
+
+impl Main {
+  fn new(c: chan<u32> in) -> Self {
+    Main { c: c, foo: imported::Foo { bar: 0 } }
+  }
+}
+)";
+
+  absl::flat_hash_map<std::filesystem::path, std::string> files;
+  files[std::filesystem::path("/imported.x")] = std::string(kImported);
+  auto vfs = std::make_unique<FakeFilesystem>(std::move(files),
+                                              std::filesystem::path("/"));
+
+  ImportData import_data =
+      CreateImportData(xls::kDefaultDslxStdlibPath,
+                       /*additional_search_paths=*/{std::filesystem::path("/")},
+                       kAllWarningsSet, std::move(vfs));
+
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("foo: State<imported::Foo>", "State {}"))));
+}
+
+TEST(TypecheckV2ProcTest, ProcDefWithImportedProcMember) {
+  constexpr std::string_view kImported = R"(
+pub proc Foo {}
+impl Foo {
+  fn new() -> Self { Foo {} }
+}
+)";
+
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+
+import imported;
+
+proc Main {
+  c: chan<u32> in,
+  foo: imported::Foo,
+}
+
+impl Main {
+  fn new(c: chan<u32> in) -> Self {
+    Main { c: c, foo: imported::Foo::new() }
+  }
+}
+)";
+
+  absl::flat_hash_map<std::filesystem::path, std::string> files;
+  files[std::filesystem::path("/imported.x")] = std::string(kImported);
+  auto vfs = std::make_unique<FakeFilesystem>(std::move(files),
+                                              std::filesystem::path("/"));
+
+  ImportData import_data =
+      CreateImportData(xls::kDefaultDslxStdlibPath,
+                       /*additional_search_paths=*/{std::filesystem::path("/")},
+                       kAllWarningsSet, std::move(vfs));
+
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("foo: imported::Foo", "Foo {}"))));
 }
 
 }  // namespace
