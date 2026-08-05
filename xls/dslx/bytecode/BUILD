@@ -290,6 +290,7 @@ cc_library(
         "//xls/ir:evaluator_result_cc_proto",
         "//xls/ir:format_preference",
         "//xls/ir:format_strings",
+        "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

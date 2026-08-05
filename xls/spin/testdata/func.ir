@@ -1,0 +1,7 @@
+package func
+
+file_number 0 "xls/spin/testdata/func.x"
+
+top fn __func__myfunc(a: bits[32] id=1, b: bits[32] id=2) -> bits[32] {
+  ret add.3: bits[32] = add(a, b, id=3, pos=[(0,0,35)])
+}
