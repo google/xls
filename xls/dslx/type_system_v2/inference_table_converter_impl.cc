@@ -1789,9 +1789,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         member_types.push_back(std::move(concrete_member_type));
       }
       if (struct_def_base->kind() == AstNodeKind::kStructDef) {
-        std::unique_ptr<Type> type = std::make_unique<StructType>(
+        std::unique_ptr<StructType> type = std::make_unique<StructType>(
             std::move(member_types),
             *absl::down_cast<const StructDef*>(struct_def_base));
+        type->alias(struct_def_base->identifier());
         XLS_RETURN_IF_ERROR(
             AddCachedType(struct_def_base, struct_context, *type));
         return type;

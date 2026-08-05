@@ -91,6 +91,7 @@ class Token {
          "scheduled_proc",
          "scheduled_fn",
          "stage",
+         "struct",
          "scheduled_block",
          "source",
          "controlled_stage",

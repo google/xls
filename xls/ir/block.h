@@ -155,6 +155,9 @@ class Block : public FunctionBase {
   absl::StatusOr<OutputPort*> AddOutputPort(
       std::string_view name, Node* operand,
       const SourceInfo& loc = SourceInfo());
+  absl::StatusOr<OutputPort*> AddOutputPort(
+      std::string_view name, Node* operand, Type* type,
+      const SourceInfo& loc = SourceInfo());
 
   // Add/get a clock port to the block. The clock is not represented as a value
   // within the IR (no input_port operation), but rather a ClockPort

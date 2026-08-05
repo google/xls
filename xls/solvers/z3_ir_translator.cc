@@ -1523,6 +1523,8 @@ absl::StatusOr<Z3_ast> IrTranslator::FromLeafTypeTree(
   switch (ty->kind()) {
     case TypeKind::kToken:
     case TypeKind::kBits:
+    // TODO: handle kStruct properly.
+    case TypeKind::kStruct:
       // Already a leaf value.
       return ast.Get({});
     case TypeKind::kTuple: {

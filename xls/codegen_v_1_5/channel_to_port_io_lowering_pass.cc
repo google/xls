@@ -340,7 +340,7 @@ absl::StatusOr<Connector> AddPortsForSend(
   XLS_ASSIGN_OR_RETURN(
       Node * data,
       block->AddOutputPort(absl::StrCat(ChannelRefName(channel), data_suffix),
-                           placeholder_data));
+                           placeholder_data, ChannelRefType(channel)));
 
   if (std::optional<PackageInterfaceProto::Channel> c =
           ::xls::verilog::FindChannelInterface(
@@ -348,6 +348,11 @@ absl::StatusOr<Connector> AddPortsForSend(
               ChannelRefName(channel));
       c && c->has_sv_type()) {
     data->As<OutputPort>()->set_system_verilog_type(c->sv_type());
+  }
+
+  // TODO: change StructType impl so we can use `Is<StructType>` here.
+  if (auto is_struct = dynamic_cast<StructType*>(ChannelRefType(channel))) {
+    data->As<OutputPort>()->set_system_verilog_type(is_struct->name());
   }
 
   std::optional<Node*> valid;
@@ -408,12 +413,18 @@ absl::StatusOr<Connector> AddPortsForReceive(
       Node * data,
       block->AddInputPort(absl::StrCat(ChannelRefName(channel), data_suffix),
                           ChannelRefType(channel)));
+  data->SetType(ChannelRefType(channel));
   if (std::optional<PackageInterfaceProto::Channel> c =
           ::xls::verilog::FindChannelInterface(
               options.codegen_options.package_interface(),
               ChannelRefName(channel));
       c.has_value() && c->has_sv_type()) {
     data->As<InputPort>()->set_system_verilog_type(c->sv_type());
+  }
+
+  // TODO: change StructType impl so we can use `Is<StructType>` here.
+  if (auto is_struct = dynamic_cast<StructType*>(ChannelRefType(channel))) {
+    data->As<InputPort>()->set_system_verilog_type(is_struct->name());
   }
 
   std::optional<Node*> valid;

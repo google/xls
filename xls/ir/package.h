@@ -33,6 +33,7 @@
 #include "xls/ir/fileno.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/struct.h"
 #include "xls/ir/transform_metrics.pb.h"
 #include "xls/ir/type.h"
 #include "xls/ir/type_manager.h"
@@ -134,6 +135,16 @@ class Package {
   TupleType* GetTupleType(absl::Span<Type* const> element_types) {
     return type_manager_.GetTupleType(element_types);
   }
+  StructType* GetStructType(std::string_view name) {
+    return type_manager_.GetStructType(name);
+  }
+  StructType* GetStructType(const std::string& name,
+                            absl::Span<Type* const> element_types) {
+    return type_manager_.GetStructType(name, element_types);
+  }
+  StructType* GetStructType(absl::Span<Type* const> element_types) {
+    return type_manager_.GetStructType(element_types);
+  }
   TokenType* GetTokenType() { return type_manager_.GetTokenType(); }
   FunctionType* GetFunctionType(absl::Span<Type* const> args_types,
                                 Type* return_type) {
@@ -164,6 +175,7 @@ class Package {
   Function* AddFunction(std::unique_ptr<Function> f);
   Proc* AddProc(std::unique_ptr<Proc> proc);
   Block* AddBlock(std::unique_ptr<Block> block);
+  StructDef* AddStruct(std::unique_ptr<StructDef> item);
 
   // Return a new name-uniquer that will generate unique names for top-level
   // constructs in this package. Note that this uniquer will not track what is
@@ -277,6 +289,10 @@ class Package {
     return absl::MakeSpan(blocks_);
   }
   absl::Span<const std::unique_ptr<Block>> blocks() const { return blocks_; }
+
+  absl::Span<const std::unique_ptr<StructDef>> structs() const {
+    return structs_;
+  }
 
   // Returns the procs, functions, and blocks in this package (all types derived
   // from FunctionBase).
@@ -495,6 +511,7 @@ class Package {
   std::vector<std::unique_ptr<Function>> functions_;
   std::vector<std::unique_ptr<Proc>> procs_;
   std::vector<std::unique_ptr<Block>> blocks_;
+  std::vector<std::unique_ptr<StructDef>> structs_;
 
   // Underlying manager for types used in this package.
   TypeManager type_manager_;

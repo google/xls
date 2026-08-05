@@ -1553,3 +1553,41 @@ xls_dslx_verilog(
     library = ":const_match_dslx",
     verilog_file = "const_match.sv",
 )
+
+xls_dslx_library(
+    name = "structs_dslx",
+    srcs = ["structs.x"],
+)
+
+xls_dslx_test(
+    name = "structs_dslx_test",
+    size = "small",
+    srcs = ["structs.x"],
+    evaluator = "ir-interpreter"
+)
+
+xls_dslx_ir(
+    name = "structs_ir",
+    dslx_top = "Sender",
+    ir_file = "structs.ir",
+    library = ":structs_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "structs_opt_ir",
+    srcs = ["structs.x"],
+    dslx_top = "Sender",
+)
+
+xls_dslx_verilog(
+    name = "structs_verilog",
+    codegen_args = {
+        "module_name": "Sender",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+    },
+    dslx_top = "Sender",
+    library = ":structs_dslx",
+    verilog_file = "structs.sv",
+)

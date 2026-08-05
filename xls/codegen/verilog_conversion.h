@@ -22,6 +22,7 @@
 #include "xls/codegen/codegen_residual_data.pb.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/ir/block.h"
+#include "xls/ir/struct.h"
 
 namespace xls {
 namespace verilog {
@@ -35,6 +36,10 @@ absl::StatusOr<std::string> GenerateVerilog(
     Block* top, const CodegenOptions& options,
     VerilogLineMap* verilog_line_map = nullptr,
     CodegenResidualData* output_residual_data = nullptr);
+
+absl::StatusOr<std::string> GenerateVerilog(Package* package,
+                                            xls::StructDef* item,
+                                            const CodegenOptions& options);
 
 }  // namespace verilog
 }  // namespace xls

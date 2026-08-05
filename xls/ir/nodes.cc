@@ -60,6 +60,14 @@ Type* GetTupleType(Package* package, absl::Span<Node* const> operands) {
   return package->GetTupleType(operand_types);
 }
 
+Type* GetStructType(Package* package, absl::Span<Node* const> operands) {
+  std::vector<Type*> operand_types;
+  for (Node* operand : operands) {
+    operand_types.push_back(operand->GetType());
+  }
+  return package->GetStructType(operand_types);
+}
+
 Type* GetConcatType(Package* package, absl::Span<Node* const> operands) {
   int64_t width = 0;
   for (Node* operand : operands) {
@@ -1155,8 +1163,9 @@ absl::StatusOr<Node*> InputPort::CloneInNewFunction(
 }
 
 OutputPort::OutputPort(const SourceInfo& loc, Node* operand,
-                       std::string_view name, FunctionBase* function)
-    : PortNode(loc, Op::kOutputPort, function->package()->GetTupleType({}),
+                       std::string_view name, Type* type,
+                       FunctionBase* function)
+    : PortNode(loc, Op::kOutputPort, type,
                name, /*system_verilog_type=*/std::nullopt, function) {
   AddOperand(operand);
 }
@@ -1164,8 +1173,8 @@ OutputPort::OutputPort(const SourceInfo& loc, Node* operand,
 OutputPort::OutputPort(const SourceInfo& loc, Node* operand,
                        std::string_view name,
                        std::optional<std::string> system_verilog_type,
-                       FunctionBase* function)
-    : PortNode(loc, Op::kOutputPort, function->package()->GetTupleType({}),
+                       Type* type, FunctionBase* function)
+    : PortNode(loc, Op::kOutputPort, type,
                name, system_verilog_type, function) {
   AddOperand(operand);
 }
@@ -1174,7 +1183,7 @@ absl::StatusOr<Node*> OutputPort::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<OutputPort>(
-      loc(), new_operands[0], name(), system_verilog_type());
+      loc(), new_operands[0], name(), system_verilog_type(), type_);
 }
 
 RegisterRead::RegisterRead(const SourceInfo& loc, Register* reg,

@@ -586,15 +586,15 @@ class OutputPort final : public PortNode {
   static constexpr int64_t kOperandOperand = 0;
 
   OutputPort(const SourceInfo& loc, Node* operand, std::string_view name,
-             FunctionBase* function);
+             Type* type, FunctionBase* function);
   OutputPort(const SourceInfo& loc, Node* operand, std::string_view name,
-             std::optional<std::string> system_verilog_type,
+             std::optional<std::string> system_verilog_type, Type* type,
              FunctionBase* function);
 
   // Get the value that this port sends.
   Node* output_source() const { return operand(kOperandOperand); }
 
-  Type* port_type() const override { return output_source()->GetType(); }
+  Type* port_type() const override { return GetType(); }
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,

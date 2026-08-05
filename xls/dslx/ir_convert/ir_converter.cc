@@ -654,6 +654,20 @@ absl::Status AddContentsToPackage(
         "Warnings encountered and warnings-as-errors set.");
   }
 
+  for (StructDef* struct_def : typechecked_module->module->GetStructDefs()) {
+    auto item = std::make_unique<xls::StructDef>(
+        struct_def->name_def()->ToString());
+    for (StructMemberNode* member : struct_def->members()) {
+      std::optional<Type*> t =
+          typechecked_module->type_info->GetItem(member);
+      XLS_RET_CHECK(t.has_value());
+      XLS_ASSIGN_OR_RETURN(xls::Type* ir_type, TypeToIr(conv->package.get(), **t,
+                                                        ParametricEnv{}));
+      item->AddMember(ir_type, member->name());
+    }
+    conv->package->AddStruct(std::move(item));
+  }
+
   if (entry.has_value()) {
     XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
         typechecked_module->module, entry.value(), /*import_data=*/import_data,

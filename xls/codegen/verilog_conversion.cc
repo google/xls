@@ -954,7 +954,7 @@ class BlockGenerator {
             node_exprs_.at(output_port->operand(0));
         if (std::holds_alternative<Expression*>(output_expr)) {
           XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
-              output_port->GetName(), output_port->operand(0)->GetType(),
+              output_port->GetName(), output_port->port_type(),
               std::get<Expression*>(output_expr),
               output_port->system_verilog_type()));
         }
@@ -1313,6 +1313,44 @@ absl::StatusOr<std::string> GenerateVerilog(
   VLOG(2) << "Verilog output:";
   XLS_VLOG_LINES(2, text);
 
+  return text;
+}
+
+absl::StatusOr<std::string> GenerateVerilog(Package* package,
+                                            xls::StructDef* item,
+                                            const CodegenOptions& options) {
+  VLOG(2) << absl::StreamFormat(
+      "Generating Verilog for struct `%s`:", item->name());
+  XLS_VLOG_LINES(2, item->DumpIr());
+
+  FileType file_type = options.use_system_verilog() ? FileType::kSystemVerilog
+                                                    : FileType::kVerilog;
+  AnnotationType annotation_type =
+      GetAnnotationType(options.source_annotation_strategy(), file_type);
+  auto fileno_to_name = package->fileno_to_name();
+
+  VerilogFile file(file_type, annotation_type, fileno_to_name);
+
+  std::vector<verilog::Def*> struct_members;
+  for (const auto& [type, name] : item->members()) {
+    DataType* data_type = file.BitVectorType(type->GetFlatBitCount(),
+                                             SourceInfo());
+    struct_members.push_back(file.Make<verilog::Def>(
+        SourceInfo(), name,
+        data_type->IsUserDefined() ? verilog::DataKind::kUser
+                                   : verilog::DataKind::kLogic,
+        data_type));
+  }
+  verilog::Struct* verilog_struct = file.Make<verilog::Struct>(SourceInfo(),
+                                                               struct_members);
+  Typedef* struct_typedef = file.Make<Typedef>(
+      SourceInfo(), file.Make<Def>(SourceInfo(), item->name(), DataKind::kUser, verilog_struct));
+  TypedefType* struct_typedef_type = file.Make<TypedefType>(SourceInfo(), struct_typedef);
+
+  LineInfo line_info;
+  std::string text = struct_typedef->Emit(&line_info);
+  VLOG(2) << "Verilog output:";
+  XLS_VLOG_LINES(2, text);
   return text;
 }
 

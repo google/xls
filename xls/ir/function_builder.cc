@@ -1157,9 +1157,14 @@ BValue BuilderBase::ReceiveIf(BReceiveChannelRef channel, BValue token,
         loc);
   }
   ReceiveChannelRef raw_channel = ResolveBReceiveChannelRef(channel);
+  Type* channel_ref_type = ChannelRefType(raw_channel);
+  if (channel_ref_type->IsStruct()) {
+    channel_ref_type = function_->package()->GetTupleType(
+        channel_ref_type->AsStructOrDie()->element_types());
+  }
   return AddNode<xls::Receive>(
       loc, token.node(), pred.node(), ChannelRefName(raw_channel),
-      /*is_blocking=*/true, ChannelRefType(raw_channel), name);
+      /*is_blocking=*/true, channel_ref_type, name);
 }
 
 BValue BuilderBase::ReceiveIfNonBlocking(BReceiveChannelRef channel,

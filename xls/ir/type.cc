@@ -41,6 +41,8 @@ std::string TypeKindToString(TypeKind type_kind) {
       return "array";
     case TypeKind::kToken:
       return "token";
+    case TypeKind::kStruct:
+      return "struct";
   }
   return absl::StrFormat("<invalid TypeKind %d>", static_cast<int>(type_kind));
 }
@@ -212,6 +214,14 @@ std::string FunctionType::ToString() const {
   }
   return absl::StrCat("(", absl::StrJoin(pieces, ", "), ") -> ",
                       return_type()->ToString());
+}
+
+std::string StructType::ToString() const {
+  return name_;
+}
+
+TypeProto StructType::ToProto() const {
+  return TypeProto();
 }
 
 std::ostream& operator<<(std::ostream& os, const Type* type) {

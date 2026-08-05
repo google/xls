@@ -551,7 +551,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   OK_HANDLER(ConstAssert)
   OK_HANDLER(EnumDef)
   OK_HANDLER(ParametricBinding)
-  OK_HANDLER(StructDef)
   OK_HANDLER(TypeAlias)
   // keep-sorted end
 #undef DEFAULT_HANDLE

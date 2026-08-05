@@ -285,11 +285,16 @@ std::string Block::DumpIr(const IrAnnotator& annotate) const {
           absl::StrFormat("%s: %s", std::get<InputPort*>(port)->GetName(),
                           std::get<InputPort*>(port)->GetType()->ToString())));
     } else {
+      OutputPort* output_port = std::get<OutputPort*>(port);
+      if (output_port->system_verilog_type().has_value()) {
+        LOG(INFO) << *output_port->system_verilog_type();
+      }
+      LOG(INFO) << output_port->port_type()->ToString();
       Annotation annotation =
-          annotate.NodeAnnotation(std::get<OutputPort*>(port));
+          annotate.NodeAnnotation(output_port);
       port_strings.push_back(annotation.Decorate(absl::StrFormat(
-          "%s: %s", std::get<OutputPort*>(port)->GetName(),
-          std::get<OutputPort*>(port)->operand(0)->GetType()->ToString())));
+          "%s: %s", output_port->GetName(),
+          output_port->port_type()->ToString())));
     }
   }
   std::string res = absl::StrFormat("%s%s%sblock %s(%s) {\n", DumpAttributes(),
@@ -454,12 +459,18 @@ absl::StatusOr<InputPort*> Block::AddInputPort(std::string_view name,
 absl::StatusOr<OutputPort*> Block::AddOutputPort(std::string_view name,
                                                  Node* operand,
                                                  const SourceInfo& loc) {
+  return AddOutputPort(name, operand, operand->GetType(), loc);
+}
+
+absl::StatusOr<OutputPort*> Block::AddOutputPort(std::string_view name,
+                                                 Node* operand, Type* type,
+                                                 const SourceInfo& loc) {
   if (ports_by_name_.contains(name)) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Block %s already contains a port named %s", this->name(), name));
   }
   OutputPort* port =
-      AddNode(std::make_unique<OutputPort>(loc, operand, name, this));
+      AddNode(std::make_unique<OutputPort>(loc, operand, name, type, this));
 
   if (name != port->GetName()) {
     // The name uniquer changed the given name of the output port to preserve
@@ -1280,11 +1291,16 @@ absl::StatusOr<Block*> Block::Clone(
       XLS_ASSIGN_OR_RETURN(
           original_to_clone[node],
           cloned_block->AddInputPort(src->name(), mapped_type, src->loc()));
+      original_to_clone[node]->As<InputPort>()
+          ->set_system_verilog_type(src->system_verilog_type());
     } else if (node->Is<OutputPort>()) {
       OutputPort* src = node->As<OutputPort>();
       XLS_ASSIGN_OR_RETURN(original_to_clone[node],
                            cloned_block->AddOutputPort(
-                               src->name(), cloned_operands[0], src->loc()));
+                               src->name(), cloned_operands[0],
+                               src->port_type(), src->loc()));
+      original_to_clone[node]->As<OutputPort>()
+          ->set_system_verilog_type(src->system_verilog_type());
     } else if (node->Is<RegisterRead>()) {
       RegisterRead* src = node->As<RegisterRead>();
       XLS_ASSIGN_OR_RETURN(

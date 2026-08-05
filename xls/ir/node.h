@@ -92,6 +92,7 @@ class Node {
   absl::Status VisitSingleNode(DfsVisitor* visitor);
 
   Type* GetType() const { return type_; }
+  void SetType(Type* type) { type_ = type; }
 
   // Precondition: this node's result type must be known to be a `BitsType`.
   //

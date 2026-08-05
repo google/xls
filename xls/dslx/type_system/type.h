@@ -528,9 +528,10 @@ class StructType : public StructTypeBase {
   StructType(std::vector<std::unique_ptr<Type>> members,
              const StructDef& struct_def,
              absl::flat_hash_map<std::string, TypeDim>
-                 nominal_type_dims_by_identifier = {})
+                 nominal_type_dims_by_identifier = {}, std::string alias = "")
       : StructTypeBase(std::move(members), struct_def,
-                       std::move(nominal_type_dims_by_identifier)) {}
+                       std::move(nominal_type_dims_by_identifier)),
+        alias_(std::move(alias)) {}
 
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleStruct(*this);
@@ -538,7 +539,8 @@ class StructType : public StructTypeBase {
 
   std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<StructType>(CloneSpan(members()), nominal_type(),
-                                        nominal_type_dims_by_identifier());
+                                        nominal_type_dims_by_identifier(),
+                                        alias());
   }
 
   const StructDef& nominal_type() const {
@@ -548,6 +550,12 @@ class StructType : public StructTypeBase {
   std::string ToInlayHintString() const override {
     return nominal_type().identifier();
   }
+
+  void alias(std::string val) { alias_ = std::move(val); }
+  std::string alias() const { return alias_; }
+
+ private:
+  std::string alias_;
 };
 
 // Represents a proc that is formatted like a struct and may contain members

@@ -57,6 +57,13 @@ Value ValueOfType(Type* type,
     }
     case TypeKind::kToken:
       return Value::Token();
+    case TypeKind::kStruct: {
+      std::vector<Value> elements;
+      for (Type* element_type : type->AsStructOrDie()->element_types()) {
+        elements.push_back(ValueOfType(element_type, fbits));
+      }
+      return Value::Tuple(elements);
+    }
   }
   LOG(FATAL) << "Invalid kind: " << type->kind();
 }
