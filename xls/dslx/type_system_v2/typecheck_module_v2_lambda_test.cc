@@ -880,8 +880,7 @@ const_assert!(RES == u32:1);
       TypecheckSucceeds(HasNodeWithType("RES", "uN[32]")));
 }
 
-// TODO(erinzmoore): Enable once generic struct instantiation is supported.
-TEST(TypecheckV2Test, DISABLED_LambdaUsesGenericTypeAsStruct) {
+TEST(TypecheckV2Test, LambdaUsesGenericTypeAsStruct) {
   EXPECT_THAT(
       R"(
 #![feature(generics)]
@@ -890,15 +889,45 @@ struct S<N: u32> {
   x: uN[N]
 }
 
+impl S<N> {
+  const DIM: u32 = N;
+}
+
 fn main<T: type>() -> T[5] {
-  type MyS = T;
-  map(u32:0..5, |i| -> MyS { MyS{x: i} })
+  map(uN[T::DIM]:0..5, |i| -> T { T{x: i} })
 }
 
 const ONE = main<S<16>>();
 const TWO = main<S<8>>();
-const_assert!(ONE[1] == S<u16>{x: 1});
-const_assert!(TWO[4] == S<u8>{x: 4});
+const_assert!(ONE[1] == S<16>{x: 1});
+const_assert!(TWO[4] == S<8>{x: 4});
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "S { x: uN[16] }[5]"),
+                              HasNodeWithType("TWO", "S { x: uN[8] }[5]"))));
+}
+
+TEST(TypecheckV2Test, LambdaUsesGenericTypeAsStructThroughAlias) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<N: u32> {
+  x: uN[N]
+}
+
+impl S<N> {
+  const DIM: u32 = N;
+}
+
+fn main<T: type>() -> T[5] {
+  type MyS = T;
+  map(uN[MyS::DIM]:0..5, |i| -> MyS { MyS{x: i} })
+}
+
+const ONE = main<S<16>>();
+const TWO = main<S<8>>();
+const_assert!(ONE[1] == S<16>{x: 1});
+const_assert!(TWO[4] == S<8>{x: 4});
 )",
       TypecheckSucceeds(AllOf(HasNodeWithType("ONE", "S { x: uN[16] }[5]"),
                               HasNodeWithType("TWO", "S { x: uN[8] }[5]"))));

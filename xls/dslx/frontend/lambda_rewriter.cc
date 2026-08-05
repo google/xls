@@ -377,7 +377,7 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
       absl::flat_hash_map<const AstNode*, AstNode*>& node_replacements) {
     NameDef* lambda_struct_nd = module->Make<NameDef>(
         parent_binding->span(), parent_binding->identifier() + "_ls",
-        /*definer=*/nullptr);
+        parent_binding->name_def()->definer());
     XLS_ASSIGN_OR_RETURN(AstNode * cloned_ta,
                          CloneAst(parent_binding->type_annotation()));
 
@@ -429,7 +429,7 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
     NameDef* lambda_struct_nd = module->Make<NameDef>(
         original_nd->span(),
         absl::Substitute("$0_ls", original_nd->identifier()),
-        /*definer=*/nullptr);
+        original_nd->definer());
     ParametricBinding* lambda_struct_binding = module->Make<ParametricBinding>(
         lambda_struct_nd, module->Make<GenericTypeAnnotation>(Span::None()),
         /*default_expr_or_type=*/std::nullopt);
@@ -452,7 +452,6 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
                            GetStructOrProcRef(original_type_ref, import_data_));
       if (lambda_type_ref == nullptr) {
         lambda_type_ref = module->Make<TypeRef>(original_nd->span(), type_def);
-        lambda_struct_nd->set_definer(original_nd->definer());
       }
       node_replacements.emplace(
           original_type_ref,
