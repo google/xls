@@ -1251,14 +1251,6 @@ void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
     // - a smaller perturbation to the destination of the folding action.
     int64_t f0_id = f0->GetTo()->id();
     int64_t f1_id = f1->GetTo()->id();
-    if (f0->GetTo()->OpIn({Op::kAdd, Op::kDynamicBitSlice}) ||
-        f1->GetTo()->OpIn({Op::kAdd, Op::kDynamicBitSlice})) {
-      // These nodes behave differently than the others. They tend to lead to
-      // better area savings even when their folding leads to higher delay
-      // spread. Because of this, we rely on the ID-based tie breaker rather
-      // than delay-based metrics.
-      return f0_id > f1_id;
-    }
     uint64_t f0_delay_delta = ta.GetDelayIncrease(*f0);
     uint64_t f1_delay_delta = ta.GetDelayIncrease(*f1);
     double f0_delay_spread = ta.GetDelaySpread(*f0);
@@ -1273,6 +1265,23 @@ void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
     double f1_delay_total =
         (static_cast<double>(f1_delay_delta) * kDelayDeltaWeight) +
         f1_delay_spread;
+
+    // Certain nodes (Add and DynamicBitSlice) behave differently than others.
+    // They tend to lead to better area savings even when their folding leads to
+    // higher delay spread. We ignore their delay information as those with
+    // higher delay spread still can yield better area savings, and we
+    // prioritize larger node IDs to maintain pre-existing arbitrary behavior.
+    bool f0_special = f0->GetTo()->OpIn({Op::kAdd, Op::kDynamicBitSlice});
+    bool f1_special = f1->GetTo()->OpIn({Op::kAdd, Op::kDynamicBitSlice});
+    if (f0_special) {
+      f0_delay_total = 0;
+      f0_id *= -1;
+    }
+    if (f1_special) {
+      f1_delay_total = 0;
+      f1_id *= -1;
+    }
+
     return std::forward_as_tuple(f0_delay_total, f0_id) <
            std::forward_as_tuple(f1_delay_total, f1_id);
   };

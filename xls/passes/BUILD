@@ -4585,6 +4585,7 @@ cc_test(
     deps = [
         ":bdd_query_engine",
         ":bit_provenance_analysis",
+        ":critical_path_delay_analysis",
         ":folding_graph",
         ":node_dependency_analysis",
         ":optimization_pass",
@@ -4598,6 +4599,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/estimators",
         "//xls/estimators/area_model:area_estimators",
+        "//xls/estimators/delay_model:delay_estimator",
         "//xls/estimators/delay_model:delay_estimators",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
         "//xls/fuzzer/ir_fuzzer:ir_fuzz_test_library",
@@ -4606,6 +4608,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/solvers:ir_equivalence_testutils",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/status",

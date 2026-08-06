@@ -29,6 +29,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimators.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
@@ -39,8 +40,10 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/bit_provenance_analysis.h"
+#include "xls/passes/critical_path_delay_analysis.h"
 #include "xls/passes/folding_graph.h"
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
@@ -282,6 +285,103 @@ TEST_F(ResourceSharingPassTest, ReplaceOperandsIfChanged_Tests) {
 
   EXPECT_EQ(add_node.node()->operand(0), a.node());
   EXPECT_EQ(add_node.node()->operand(1), c.node());
+}
+
+TEST_F(
+    ResourceSharingPassTest,
+    SortFoldingActionsInDescendingOrderOfTheirAreaSavings_SpecialNodePriority) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+
+  // Construct two Add nodes (special in comparator) and two Sub nodes (normal).
+  // ID order: id(add_low) < id(sub_mid) < id(add_high) < id(sub_highest).
+  BValue add_low = fb.Add(x, y, SourceInfo(), "add_low");
+  BValue sub_mid = fb.Subtract(x, y, SourceInfo(), "sub_mid");
+  BValue add_high = fb.Add(x, y, SourceInfo(), "add_high");
+  BValue sub_highest = fb.Subtract(x, y, SourceInfo(), "sub_highest");
+
+  // Create helper nodes for intermediate and high delays.
+  BValue from_mid = fb.Add(add_low, x, SourceInfo(), "from_mid");
+  BValue mul1 = fb.UMul(x, y);
+  BValue mul2 = fb.UMul(mul1, y);
+  BValue from_high = fb.Add(mul2, x, SourceInfo(), "from_high");
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      fb.BuildWithReturnValue(fb.Tuple(
+          {add_low, sub_mid, add_high, sub_highest, from_mid, from_high})));
+
+  auto make_action = [&](Node* target, Node* source = nullptr) {
+    std::vector<std::pair<Node*, VisibilityEdges>> sources;
+    if (source != nullptr) {
+      sources.push_back({source, {}});
+    }
+    return std::make_unique<NaryFoldingAction>(
+        std::move(sources), target, VisibilityEdges{}, /*area_saved=*/0.0);
+  };
+
+  // The comparator doesn't care that we specify no source nodes, and this
+  // allows us to conveniently express a folding of no delay spread / increase.
+  auto make_add_low = [&] { return make_action(add_low.node()); };
+  auto make_sub_mid = [&] {
+    return make_action(sub_mid.node(), from_mid.node());
+  };
+  auto make_add_high = [&] {
+    return make_action(add_high.node(), from_mid.node());
+  };
+  auto make_sub_highest = [&] {
+    return make_action(sub_highest.node(), from_mid.node());
+  };
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  CriticalPathDelayAnalysis delay_analysis(delay_estimator);
+  XLS_ASSERT_OK(delay_analysis.Attach(f));
+
+  auto sort_and_get_names = [&](std::unique_ptr<NaryFoldingAction> a,
+                                std::unique_ptr<NaryFoldingAction> b,
+                                std::unique_ptr<NaryFoldingAction> c,
+                                std::unique_ptr<NaryFoldingAction> d) {
+    std::vector<std::unique_ptr<NaryFoldingAction>> actions;
+    actions.push_back(std::move(a));
+    actions.push_back(std::move(b));
+    actions.push_back(std::move(c));
+    actions.push_back(std::move(d));
+    TimingAnalysis ta(actions, delay_analysis);
+    SortFoldingActionsInDescendingOrderOfTheirAreaSavings(actions, ta);
+    return std::vector<std::string>{
+        actions[0]->GetTo()->GetName(), actions[1]->GetTo()->GetName(),
+        actions[2]->GetTo()->GetName(), actions[3]->GetTo()->GetName()};
+  };
+
+  // In the sorting comparator:
+  // 1. Special nodes (Add, DynamicBitSlice) are prioritized over normal nodes
+  //    when area savings are equal. So both add_low and add_high come before
+  //    both sub_mid and sub_highest.
+  // 2. For special nodes, delay information is ignored, and we tie-break by
+  //    larger node ID, so add_high > add_low despite the add_high fold having
+  //    worse delay characteristics.
+  // 3. For normal nodes, we tie-break by smaller delay total and smaller ID.
+  //    Since both sub_mid and sub_highest have the same delay characteristics,
+  //    smaller ID wins, so sub_mid > sub_highest.
+  const std::vector<std::string> kExpected = {"add_high", "add_low", "sub_mid",
+                                              "sub_highest"};
+
+  // Verify a few input permutations to expose weak comparator hardening bugs.
+  EXPECT_EQ(sort_and_get_names(make_add_low(), make_sub_mid(), make_add_high(),
+                               make_sub_highest()),
+            kExpected);
+  EXPECT_EQ(sort_and_get_names(make_add_low(), make_add_high(), make_sub_mid(),
+                               make_sub_highest()),
+            kExpected);
+  EXPECT_EQ(sort_and_get_names(make_sub_mid(), make_add_high(), make_add_low(),
+                               make_sub_highest()),
+            kExpected);
+  EXPECT_EQ(sort_and_get_names(make_sub_highest(), make_sub_mid(),
+                               make_add_high(), make_add_low()),
+            kExpected);
 }
 
 void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {

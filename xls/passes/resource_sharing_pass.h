@@ -514,6 +514,12 @@ class TimingAnalysis {
   absl::flat_hash_map<NaryFoldingAction*, double> delay_spread_;
 };
 
+// This function sorts the folding actions given as input in descending order
+// based on the amount of area they save and timing metrics.
+void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
+    std::vector<std::unique_ptr<NaryFoldingAction>>& folding_actions,
+    TimingAnalysis& ta);
+
 // Estimates the area of a single input selection (multiplexing) logic required
 // for resource sharing.
 absl::StatusOr<double> EstimateAreaForSelectingASingleInput(
