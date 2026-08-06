@@ -866,7 +866,7 @@ const Z:u31 = match X {
 }
 
 TEST(TypecheckV2Test, MatchArmDuplicated) {
-  EXPECT_THAT(R"(
+  constexpr std::string_view kProgram = R"(
 const X = u32:1;
 const Y = u32:2;
 const Z = match X {
@@ -875,9 +875,74 @@ const Z = match X {
   u32:1 => Y,
   _ => Y
 };
+)";
+
+  EXPECT_THAT(
+      kProgram,
+      TypecheckFailsWithPayload(
+          AllOf(HasSubstr("Exact-duplicate pattern match detected `u32:1`"),
+                HasSubstr("previously @ fake.x:7:3-7:8")),
+          AllOf(HasSpan(6, 2, 6, 7), HasSpan(8, 2, 8, 7))));
+}
+
+TEST(TypecheckV2Test, MatchEnumVariantDuplicatedAcrossAlternativeArms) {
+  constexpr std::string_view kProgram = R"(
+enum E: u2 {
+  A = 0,
+  B = 1,
+  C = 2,
+}
+
+fn f(value: E) -> u32 {
+  match value {
+    E::A => u32:0,
+    E::B | E::A => u32:1,
+    E::C => u32:2,
+  }
+}
+)";
+
+  EXPECT_THAT(
+      kProgram,
+      TypecheckFailsWithPayload(
+          AllOf(HasSubstr("Exact-duplicate pattern match detected `E::A`"),
+                HasSubstr("previously @ fake.x:12:5-12:9")),
+          AllOf(HasSpan(11, 4, 11, 8), HasSpan(12, 11, 12, 15))));
+}
+
+// `E::A` and `Alias::A` denote the same enum member when `type Alias = E`.
+// Accepting both match arms is a bug: the later arm can never run, but the
+// duplicate check compares their different source spellings and misses it.
+// TODO(dank): Resolve each pattern to its enum member before comparing
+// identities, then enable this regression.
+TEST(TypecheckV2Test, DISABLED_MatchEnumVariantDuplicatedThroughTypeAlias) {
+  EXPECT_THAT(
+      R"(
+enum E: u2 { A = 0, B = 1 }
+type Alias = E;
+
+fn f(value: E) -> u32 {
+  match value {
+    E::A => u32:0,
+    Alias::A => u32:1,
+    E::B => u32:2,
+  }
+}
 )",
-              TypecheckFails(
-                  HasSubstr("Exact-duplicate pattern match detected `u32:1`")));
+      TypecheckFails(HasSubstr("Exact-duplicate pattern match detected")));
+}
+
+TEST(TypecheckV2Test, MatchEnumVariantAlternativesRemainValid) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+enum E: u2 { A = 0, B = 1, C = 2 }
+
+fn f(value: E) -> u32 {
+  match value {
+    E::A => u32:0,
+    E::B | E::C => u32:1,
+  }
+}
+)"));
 }
 
 TEST(TypecheckV2Test, MatchNonExhaustive) {
