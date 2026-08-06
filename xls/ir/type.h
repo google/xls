@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/base/casts.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/container/linked_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
@@ -84,10 +85,10 @@ class Type {
   // Returns the count of bits required to represent the underlying type; e.g.
   // for tuples this will be the sum of the bit count from all its members, for
   // a "bits" type it will be the count of bits.
-  virtual int64_t GetFlatBitCount() const = 0;
+  int64_t GetFlatBitCount() const { return bit_count_; }
 
   // Returns the number of leaf Bits types in this object.
-  virtual int64_t leaf_count() const = 0;
+  int64_t leaf_count() const { return leaf_types_.size(); }
 
   virtual std::string ToString() const = 0;
 
@@ -96,8 +97,44 @@ class Type {
     absl::Format(&sink, "%s", tpe.ToString());
   }
 
+  absl::Span<Type* const> leaf_types() const { return leaf_types_; }
+  Type* leaf_type(int64_t leaf_index) const { return leaf_types_[leaf_index]; }
+
+  absl::Span<const std::vector<int64_t>> tree_index_vectors() const {
+    return tree_index_vectors_;
+  }
+  absl::Span<const int64_t> tree_index(int64_t leaf_index) const {
+    return tree_index_vectors_[leaf_index];
+  }
+
+  // Find the subtype and first-leaf offset (in the flat `leaf_types` vector)
+  // at the given `tree_index`, which is interpreted as a sequence of indices
+  // into nested composite types (tuples and arrays).
+  std::pair<Type*, int64_t> GetSubtypeAndOffset(
+      absl::Span<const int64_t> tree_index);
+
+  // Find the subtype at the given `tree_index`, which is interpreted as a
+  // sequence of indices into nested composite types (tuples and arrays).
+  Type* GetSubtype(absl::Span<const int64_t> tree_index) {
+    return GetSubtypeAndOffset(tree_index).first;
+  }
+
+  // Find the offset of the first leaf (in the flat `leaf_types` vector)
+  // belonging to the subtype at the given `tree_index`. `tree_index` is
+  // interpreted as a sequence of indices into nested composite types (tuples
+  // and arrays).
+  int64_t GetLinearOffset(absl::Span<const int64_t> tree_index) {
+    return GetSubtypeAndOffset(tree_index).second;
+  }
+
  protected:
   explicit Type(TypeKind kind) : kind_(kind) {}
+
+  int64_t bit_count_;
+
+  // Structural metadata pre-populated during subclass construction
+  absl::InlinedVector<Type*, 1> leaf_types_;
+  absl::InlinedVector<std::vector<int64_t>, 1> tree_index_vectors_;
 
  private:
   TypeKind kind_;
@@ -110,20 +147,18 @@ std::ostream& operator<<(std::ostream& os, const Type* type);
 class BitsType : public Type {
  public:
   explicit BitsType(int64_t bit_count);
+  BitsType(const BitsType& other);
+  BitsType(BitsType&& other);
+  BitsType& operator=(const BitsType& other);
+  BitsType& operator=(BitsType&& other);
   ~BitsType() override = default;
   int64_t bit_count() const { return bit_count_; }
 
   TypeProto ToProto() const override;
   bool IsEqualTo(const Type* other) const override;
-  int64_t GetFlatBitCount() const override { return bit_count(); }
-
-  int64_t leaf_count() const override { return 1; }
 
   // Returns a string like "bits[32]".
   std::string ToString() const override;
-
- private:
-  int64_t bit_count_;
 };
 
 // Represents a type that is a tuple (of values of other potentially different
@@ -132,13 +167,7 @@ class BitsType : public Type {
 // Note that tuples can be empty.
 class TupleType : public Type {
  public:
-  explicit TupleType(absl::Span<Type* const> members)
-      : Type(TypeKind::kTuple), members_(members.begin(), members.end()) {
-    leaf_count_ = 0;
-    for (Type* t : members) {
-      leaf_count_ += t->leaf_count();
-    }
-  }
+  explicit TupleType(absl::Span<Type* const> members);
   ~TupleType() override = default;
   std::string ToString() const override;
 
@@ -154,19 +183,16 @@ class TupleType : public Type {
   // Returns the element types of the tuple.
   absl::Span<Type* const> element_types() const { return members_; }
 
-  int64_t leaf_count() const override { return leaf_count_; }
-
-  int64_t GetFlatBitCount() const override {
-    int64_t total = 0;
-    for (const Type* type : members_) {
-      total += type->GetFlatBitCount();
-    }
-    return total;
+  absl::Span<const int64_t> member_leaf_offsets() const {
+    return member_leaf_offsets_;
+  }
+  int64_t member_leaf_offset(int64_t index) const {
+    return member_leaf_offsets_[index];
   }
 
  private:
-  int64_t leaf_count_;
   std::vector<Type*> members_;
+  std::vector<int64_t> member_leaf_offsets_;
 };
 
 // Represents a type that is a one-dimensional array of identical types.
@@ -174,8 +200,7 @@ class TupleType : public Type {
 // Note that arrays can be empty.
 class ArrayType : public Type {
  public:
-  explicit ArrayType(int64_t size, Type* element_type)
-      : Type(TypeKind::kArray), size_(size), element_type_(element_type) {}
+  explicit ArrayType(int64_t size, Type* element_type);
   ~ArrayType() override = default;
   std::string ToString() const override;
 
@@ -186,14 +211,6 @@ class ArrayType : public Type {
   int64_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
 
-  int64_t GetFlatBitCount() const override {
-    return element_type_->GetFlatBitCount() * size_;
-  }
-
-  int64_t leaf_count() const override {
-    return size_ * element_type()->leaf_count();
-  }
-
  private:
   int64_t size_;
   Type* element_type_;
@@ -202,16 +219,16 @@ class ArrayType : public Type {
 // Represents a token type used for ordering channel accesses.
 class TokenType : public Type {
  public:
-  explicit TokenType() : Type(TypeKind::kToken) {}
+  explicit TokenType();
+  TokenType(const TokenType& other);
+  TokenType(TokenType&& other);
+  TokenType& operator=(const TokenType& other);
+  TokenType& operator=(TokenType&& other);
   ~TokenType() override = default;
   std::string ToString() const override;
 
   TypeProto ToProto() const override;
   bool IsEqualTo(const Type* other) const override;
-
-  // Tokens contain no bits.
-  int64_t GetFlatBitCount() const override { return 0; }
-  int64_t leaf_count() const override { return 1; }
 };
 
 // Represents a type that is a function with parameters and return type.

@@ -14,6 +14,8 @@
 
 #include "xls/ir/type.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
@@ -27,7 +29,9 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::Pair;
 
 TEST(TypeTest, TestVariousTypes) {
   BitsType b42(42);
@@ -238,6 +242,129 @@ TEST(TypeTest, InstantiationType) {
   InstantiationType it9(/*input_types=*/{{"foo", man.GetBitsType(3)}},
                         /*output_types=*/{{"bar", man.GetBitsType(32)}});
   EXPECT_NE(it1, it9);
+}
+
+TEST(TypeTest, StructuralMetadataBitsAndToken) {
+  BitsType b32(32);
+  TokenType token;
+
+  EXPECT_THAT(b32.leaf_types(), ElementsAre(&b32));
+  EXPECT_EQ(b32.leaf_type(0), &b32);
+  EXPECT_THAT(b32.tree_index_vectors(), ElementsAre(ElementsAre()));
+  EXPECT_THAT(b32.tree_index(0), ElementsAre());
+  EXPECT_EQ(b32.GetLinearOffset({}), 0);
+
+  EXPECT_THAT(token.leaf_types(), ElementsAre(&token));
+  EXPECT_EQ(token.leaf_type(0), &token);
+  EXPECT_THAT(token.tree_index_vectors(), ElementsAre(ElementsAre()));
+  EXPECT_THAT(token.tree_index(0), ElementsAre());
+  EXPECT_EQ(token.GetLinearOffset({}), 0);
+}
+
+TEST(TypeTest, StructuralMetadataArrayOfTuples) {
+  BitsType b8(8);
+  BitsType b16(16);
+  TupleType tuple({&b8, &b16});
+  ArrayType array_of_tuples(2, &tuple);
+
+  EXPECT_EQ(array_of_tuples.leaf_count(), 4);
+  EXPECT_THAT(array_of_tuples.leaf_types(), ElementsAre(&b8, &b16, &b8, &b16));
+
+  EXPECT_THAT(array_of_tuples.tree_index(0), ElementsAre(0, 0));
+  EXPECT_THAT(array_of_tuples.tree_index(1), ElementsAre(0, 1));
+  EXPECT_THAT(array_of_tuples.tree_index(2), ElementsAre(1, 0));
+  EXPECT_THAT(array_of_tuples.tree_index(3), ElementsAre(1, 1));
+
+  EXPECT_EQ(array_of_tuples.GetLinearOffset({0, 0}), 0);
+  EXPECT_EQ(array_of_tuples.GetLinearOffset({0, 1}), 1);
+  EXPECT_EQ(array_of_tuples.GetLinearOffset({1, 0}), 2);
+  EXPECT_EQ(array_of_tuples.GetLinearOffset({1, 1}), 3);
+}
+
+TEST(TypeTest, StructuralMetadataTupleOfTuplesWithEmptyTuples) {
+  BitsType b8(8);
+  BitsType b16(16);
+  BitsType b32(32);
+  TupleType empty_tuple({});
+  TupleType inner1({&b8, &b16});
+  TupleType inner2({&b32});
+  TupleType tuple({&empty_tuple, &inner1, &empty_tuple, &inner2});
+
+  EXPECT_EQ(tuple.leaf_count(), 3);
+  EXPECT_THAT(tuple.leaf_types(), ElementsAre(&b8, &b16, &b32));
+  EXPECT_THAT(tuple.member_leaf_offsets(), ElementsAre(0, 0, 2, 2));
+
+  EXPECT_EQ(tuple.member_leaf_offset(0), 0);
+  EXPECT_EQ(tuple.member_leaf_offset(1), 0);
+  EXPECT_EQ(tuple.member_leaf_offset(2), 2);
+  EXPECT_EQ(tuple.member_leaf_offset(3), 2);
+
+  EXPECT_THAT(tuple.tree_index(0), ElementsAre(1, 0));
+  EXPECT_THAT(tuple.tree_index(1), ElementsAre(1, 1));
+  EXPECT_THAT(tuple.tree_index(2), ElementsAre(3, 0));
+
+  EXPECT_EQ(tuple.GetLinearOffset({1, 0}), 0);
+  EXPECT_EQ(tuple.GetLinearOffset({1, 1}), 1);
+  EXPECT_EQ(tuple.GetLinearOffset({3, 0}), 2);
+}
+
+TEST(TypeTest, StructuralMetadataTupleOfArrays) {
+  BitsType b8(8);
+  BitsType b16(16);
+  ArrayType a1(2, &b8);
+  ArrayType a2(3, &b16);
+  TupleType tuple({&a1, &a2});
+
+  EXPECT_EQ(tuple.leaf_count(), 5);
+  EXPECT_THAT(tuple.leaf_types(), ElementsAre(&b8, &b8, &b16, &b16, &b16));
+  EXPECT_THAT(tuple.member_leaf_offsets(), ElementsAre(0, 2));
+
+  EXPECT_THAT(tuple.tree_index(0), ElementsAre(0, 0));
+  EXPECT_THAT(tuple.tree_index(1), ElementsAre(0, 1));
+  EXPECT_THAT(tuple.tree_index(2), ElementsAre(1, 0));
+  EXPECT_THAT(tuple.tree_index(3), ElementsAre(1, 1));
+  EXPECT_THAT(tuple.tree_index(4), ElementsAre(1, 2));
+
+  EXPECT_EQ(tuple.GetLinearOffset({0, 0}), 0);
+  EXPECT_EQ(tuple.GetLinearOffset({0, 1}), 1);
+  EXPECT_EQ(tuple.GetLinearOffset({1, 0}), 2);
+  EXPECT_EQ(tuple.GetLinearOffset({1, 1}), 3);
+  EXPECT_EQ(tuple.GetLinearOffset({1, 2}), 4);
+}
+
+TEST(TypeTest, StructuralMetadataDeeplyNestedType) {
+  BitsType b8(8);
+  BitsType b16(16);
+  ArrayType inner_arr(2, &b8);
+  TupleType inner_tuple({&inner_arr, &b16});
+  ArrayType deep_type(2, &inner_tuple);
+
+  EXPECT_EQ(deep_type.leaf_count(), 6);
+  EXPECT_THAT(deep_type.leaf_types(),
+              ElementsAre(&b8, &b8, &b16, &b8, &b8, &b16));
+
+  EXPECT_THAT(deep_type.tree_index(0), ElementsAre(0, 0, 0));
+  EXPECT_THAT(deep_type.tree_index(1), ElementsAre(0, 0, 1));
+  EXPECT_THAT(deep_type.tree_index(2), ElementsAre(0, 1));
+  EXPECT_THAT(deep_type.tree_index(3), ElementsAre(1, 0, 0));
+  EXPECT_THAT(deep_type.tree_index(4), ElementsAre(1, 0, 1));
+  EXPECT_THAT(deep_type.tree_index(5), ElementsAre(1, 1));
+
+  EXPECT_EQ(deep_type.GetLinearOffset({0, 0, 0}), 0);
+  EXPECT_EQ(deep_type.GetLinearOffset({0, 0, 1}), 1);
+  EXPECT_EQ(deep_type.GetLinearOffset({0, 1}), 2);
+  EXPECT_EQ(deep_type.GetLinearOffset({1, 0, 0}), 3);
+  EXPECT_EQ(deep_type.GetLinearOffset({1, 0, 1}), 4);
+  EXPECT_EQ(deep_type.GetLinearOffset({1, 1}), 5);
+
+  EXPECT_EQ(deep_type.GetSubtype({0}), &inner_tuple);
+  EXPECT_EQ(deep_type.GetSubtype({0, 0}), &inner_arr);
+  EXPECT_EQ(deep_type.GetSubtype({0, 1}), &b16);
+
+  EXPECT_THAT(deep_type.GetSubtypeAndOffset({0}),
+              Pair(&inner_tuple, int64_t{0}));
+  EXPECT_THAT(deep_type.GetSubtypeAndOffset({1, 0}),
+              Pair(&inner_arr, int64_t{3}));
 }
 
 }  // namespace

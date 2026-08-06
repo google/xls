@@ -15,17 +15,22 @@
 #include "xls/ir/type.h"
 
 #include <cstdint>
+#include <iterator>
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "cppitertools/enumerate.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/xls_type.pb.h"
 
@@ -72,6 +77,35 @@ absl::StatusOr<TupleType*> Type::AsTuple() {
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Type is not a tuple: ", *this));
+}
+
+std::pair<Type*, int64_t> Type::GetSubtypeAndOffset(
+    absl::Span<const int64_t> tree_index) {
+  Type* cur = this;
+  int64_t offset = 0;
+  for (int64_t idx : tree_index) {
+    if (cur->IsArray()) {
+      ArrayType* array_type = cur->AsArrayOrDie();
+      CHECK_GE(idx, 0);
+      CHECK_LT(idx, array_type->size())
+          << "Index out of bounds: [" << absl::StrJoin(tree_index, ", ")
+          << "] vs " << *array_type;
+      Type* elem_type = array_type->element_type();
+      offset += idx * elem_type->leaf_count();
+      cur = elem_type;
+    } else if (cur->IsTuple()) {
+      TupleType* tuple_type = cur->AsTupleOrDie();
+      CHECK_GE(idx, 0);
+      CHECK_LT(idx, tuple_type->size())
+          << "Index out of bounds: [" << absl::StrJoin(tree_index, ", ")
+          << "] vs " << *tuple_type;
+      offset += tuple_type->member_leaf_offset(idx);
+      cur = tuple_type->element_type(idx);
+    } else {
+      LOG(FATAL) << "Type is not indexable: " << *cur;
+    }
+  }
+  return {cur, offset};
 }
 
 TypeProto BitsType::ToProto() const {
@@ -163,9 +197,110 @@ std::string TupleType::ToString() const {
   return absl::StrCat("(", absl::StrJoin(pieces, ", "), ")");
 }
 
-BitsType::BitsType(int64_t bit_count)
-    : Type(TypeKind::kBits), bit_count_(bit_count) {
-  CHECK_GE(bit_count_, 0);
+BitsType::BitsType(int64_t bit_count) : Type(TypeKind::kBits) {
+  CHECK_GE(bit_count, 0);
+  bit_count_ = bit_count;
+  leaf_types_ = {this};
+  tree_index_vectors_ = {{}};
+}
+
+BitsType::BitsType(const BitsType& other) : Type(TypeKind::kBits) {
+  bit_count_ = other.bit_count_;
+  leaf_types_ = {this};
+  tree_index_vectors_ = {{}};
+}
+
+BitsType::BitsType(BitsType&& other) : Type(TypeKind::kBits) {
+  bit_count_ = other.bit_count_;
+  leaf_types_ = {this};
+  tree_index_vectors_ = {{}};
+}
+
+BitsType& BitsType::operator=(const BitsType& other) {
+  bit_count_ = other.bit_count_;
+  leaf_types_ = {this};
+  tree_index_vectors_ = {{}};
+  return *this;
+}
+
+BitsType& BitsType::operator=(BitsType&& other) {
+  bit_count_ = other.bit_count_;
+  leaf_types_ = {this};
+  tree_index_vectors_ = {{}};
+  return *this;
+}
+
+TokenType::TokenType() : Type(TypeKind::kToken) {
+  bit_count_ = 0;
+  leaf_types_ = {this};
+  tree_index_vectors_ = {{}};
+}
+
+TokenType::TokenType(const TokenType& other) : Type(TypeKind::kToken) {
+  bit_count_ = 0;
+  leaf_types_ = {this};
+  tree_index_vectors_ = {{}};
+}
+
+TokenType::TokenType(TokenType&& other) : Type(TypeKind::kToken) {
+  bit_count_ = 0;
+  leaf_types_ = {this};
+  tree_index_vectors_ = {{}};
+}
+
+TokenType& TokenType::operator=(const TokenType& other) {
+  bit_count_ = 0;
+  leaf_types_ = {this};
+  tree_index_vectors_ = {{}};
+  return *this;
+}
+
+TokenType& TokenType::operator=(TokenType&& other) {
+  bit_count_ = 0;
+  leaf_types_ = {this};
+  tree_index_vectors_ = {{}};
+  return *this;
+}
+
+TupleType::TupleType(absl::Span<Type* const> members)
+    : Type(TypeKind::kTuple), members_(members.begin(), members.end()) {
+  bit_count_ = 0;
+  int64_t leaf_count = absl::c_accumulate(
+      members, 0,
+      [](int64_t sum, Type* member) { return sum + member->leaf_count(); });
+  leaf_types_.reserve(leaf_count);
+  tree_index_vectors_.reserve(leaf_count);
+  member_leaf_offsets_.reserve(members.size());
+  for (const auto& [i, member_type] : iter::enumerate(members)) {
+    member_leaf_offsets_.push_back(leaf_types_.size());
+    absl::c_copy(member_type->leaf_types(), std::back_inserter(leaf_types_));
+    for (int64_t j = 0; j < member_type->leaf_count(); ++j) {
+      std::vector<int64_t>& tree_index = tree_index_vectors_.emplace_back();
+      tree_index.reserve(member_type->tree_index_vectors()[j].size() + 1);
+      tree_index.push_back(i);
+      absl::c_copy(member_type->tree_index_vectors()[j],
+                   std::back_inserter(tree_index));
+    }
+    bit_count_ += member_type->GetFlatBitCount();
+  }
+}
+
+ArrayType::ArrayType(int64_t size, Type* element_type)
+    : Type(TypeKind::kArray), size_(size), element_type_(element_type) {
+  bit_count_ = size * element_type->GetFlatBitCount();
+
+  leaf_types_.reserve(size * element_type->leaf_count());
+  tree_index_vectors_.reserve(size * element_type->leaf_count());
+  for (int64_t i = 0; i < size; ++i) {
+    absl::c_copy(element_type->leaf_types(), std::back_inserter(leaf_types_));
+    for (int64_t j = 0; j < element_type->leaf_count(); ++j) {
+      std::vector<int64_t>& tree_index = tree_index_vectors_.emplace_back();
+      tree_index.reserve(element_type->tree_index_vectors()[j].size() + 1);
+      tree_index.push_back(i);
+      absl::c_copy(element_type->tree_index_vectors()[j],
+                   std::back_inserter(tree_index));
+    }
+  }
 }
 
 std::string BitsType::ToString() const {
