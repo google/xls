@@ -1282,6 +1282,70 @@ TEST_F(FunctionFmtTest, CommentParagraphThenStatement) {
   EXPECT_EQ(got, original);
 }
 
+// A blank line separating two comment paragraphs is preserved.
+TEST_F(FunctionFmtTest, TwoCommentParagraphsKeepBlankLine) {
+  const std::string_view original =
+      R"(fn f() {
+    // paragraph one
+    // still paragraph one
+
+    // paragraph two
+    let x = u32:42;
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+// A block of abutted comment lines that each fit stays one line
+// per source line.
+TEST_F(FunctionFmtTest, AbuttedCommentBlockPreserved) {
+  const std::string_view original =
+      R"(fn f() {
+    // line one
+    // line two
+    // line three
+    let x = u32:42;
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+// A single comment line that exceeds the column budget is reflowed across
+// multiple lines, each carrying the "//" prefix.
+TEST_F(FunctionFmtTest, OverlongCommentReflowsToMultipleLines) {
+  const std::string_view original =
+      R"(fn f() {
+    // this is a really long explanatory comment that is going to exceed the hundred column budget for sure yes it will
+    let x = u32:42;
+})";
+  const std::string_view want =
+      R"(fn f() {
+    // this is a really long explanatory comment that is going to exceed the hundred column budget
+    // for sure yes it will
+    let x = u32:42;
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, want);
+}
+
+// Comments reflow smoothly onto next line when there is space.
+TEST_F(FunctionFmtTest, SecondCommentLineReflowsUpIntoAvailableSpace) {
+  const std::string_view original =
+      R"(fn f() {
+    // one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen
+    // nineteen twenty
+    let x = u32:42;
+})";
+  const std::string_view want =
+      R"(fn f() {
+    // one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen
+    // sixteen seventeen eighteen nineteen twenty
+    let x = u32:42;
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, LetRhsIsOverLongFor) {
   const std::string_view original =
       R"(fn f() {
