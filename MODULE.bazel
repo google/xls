@@ -182,6 +182,10 @@ bazel_dep(name = "openroad", repo_name = "org_theopenroadproject")
 git_override(
     module_name = "rules_hdl",
     commit = "19cf04d10582d37119a4adbf0cb4fd681c05a3fb",
+    patch_strip = 1,
+    patches = [
+        "//dependency_support/rules_hdl:no_cache_dir.patch",
+    ],
     remote = "https://github.com/hdl/bazel_rules_hdl.git",
 )
 
