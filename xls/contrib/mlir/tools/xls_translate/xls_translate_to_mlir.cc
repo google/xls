@@ -1472,6 +1472,23 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
 
   builder.insert(func);
 
+  if (xls_func.ForeignFunctionData().has_value()) {
+    const ::xls::ForeignFunctionData& ffd = *xls_func.ForeignFunctionData();
+    std::optional<int64_t> delay_ps;
+    if (ffd.has_delay_ps()) {
+      delay_ps = ffd.delay_ps();
+    }
+    std::string pkg_name = xls_func.package()->name();
+    if (pkg_name.empty()) {
+      pkg_name = "foreign_package";
+    }
+    func.setVisibility(SymbolTable::Visibility::Private);
+    func->setAttr(kLinkageAttr, xls::TranslationLinkage::get(
+                                    ctx, SymbolRefAttr::get(ctx, pkg_name),
+                                    builder.getStringAttr(ffd.code_template()),
+                                    xls::LinkageKind::kForeign, delay_ps));
+  }
+
   // Add function to package context:
   if (auto err = state.setFunction(xls_func.name(),
                                    SymbolRefAttr::get(func.getNameAttr()));

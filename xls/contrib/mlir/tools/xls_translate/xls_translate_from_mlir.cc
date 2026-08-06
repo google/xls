@@ -15,6 +15,8 @@
 #include "xls/contrib/mlir/tools/xls_translate/xls_translate_from_mlir.h"
 
 #include <cassert>
+#include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -45,6 +47,7 @@
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/include/mlir/IR/Attributes.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/BuiltinTypeInterfaces.h"
@@ -1615,6 +1618,111 @@ FailureOr<std::string> generateCodeTemplate(FuncOp func,
   return os.str();
 }
 
+static std::string rewriteCodeTemplateParams(llvm::StringRef code_template,
+                                             FuncOp func,
+                                             ::xls::Function* xlsFunc) {
+  std::string result = code_template.str();
+  llvm::SmallVector<std::string> old_params;
+  size_t pos = 0;
+  while (pos < code_template.size()) {
+    pos = code_template.find('.', pos);
+    if (pos == llvm::StringRef::npos) {
+      break;
+    }
+    ++pos;
+
+    while (pos < code_template.size() &&
+           (std::isalnum(static_cast<unsigned char>(code_template[pos])) ||
+            code_template[pos] == '_')) {
+      ++pos;
+    }
+    while (pos < code_template.size() &&
+           std::isspace(static_cast<unsigned char>(code_template[pos]))) {
+      ++pos;
+    }
+    if (pos >= code_template.size() || code_template[pos] != '(') {
+      continue;
+    }
+    ++pos;
+
+    while (pos < code_template.size() &&
+           std::isspace(static_cast<unsigned char>(code_template[pos]))) {
+      ++pos;
+    }
+    if (pos >= code_template.size() || code_template[pos] != '{') {
+      continue;
+    }
+    ++pos;
+
+    size_t param_start = pos;
+    while (pos < code_template.size() &&
+           (std::isalnum(static_cast<unsigned char>(code_template[pos])) ||
+            code_template[pos] == '_' || code_template[pos] == '.')) {
+      ++pos;
+    }
+    if (pos == param_start) {
+      continue;
+    }
+    std::string param_name = code_template.slice(param_start, pos).str();
+    if (param_name != "return" &&
+        !llvm::StringRef(param_name).starts_with("return.")) {
+      old_params.push_back(param_name);
+    }
+  }
+
+  llvm::SmallVector<bool> arg_matched(func.getNumArguments(), false);
+  llvm::SmallVector<std::string> unmatched;
+  llvm::SmallVector<std::pair<std::string, unsigned>> old_param_to_arg_idx;
+
+  for (const std::string& old_p : old_params) {
+    bool matched = false;
+    for (unsigned i = 0; i < func.getNumArguments(); ++i) {
+      std::string arg_name;
+      if (auto arg_attr =
+              func.getArgAttrOfType<mlir::StringAttr>(i, "xls.name")) {
+        arg_name = arg_attr.getValue().str();
+      }
+      if (!arg_name.empty() && arg_name == old_p) {
+        old_param_to_arg_idx.push_back({old_p, i});
+        arg_matched[i] = true;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      unmatched.push_back(old_p);
+    }
+  }
+
+  unsigned next_arg_idx = 0;
+  for (const std::string& old_p : unmatched) {
+    while (next_arg_idx < arg_matched.size() && arg_matched[next_arg_idx]) {
+      ++next_arg_idx;
+    }
+    if (next_arg_idx < func.getNumArguments()) {
+      old_param_to_arg_idx.push_back({old_p, next_arg_idx});
+      arg_matched[next_arg_idx] = true;
+      ++next_arg_idx;
+    }
+  }
+
+  for (const auto& [old_p, arg_idx] : old_param_to_arg_idx) {
+    if (arg_idx < xlsFunc->params().size()) {
+      std::string old_token = "{" + old_p + "}";
+      std::string new_token =
+          "{" + std::string(xlsFunc->params()[arg_idx]->name()) + "}";
+      size_t search_pos = 0;
+      while ((search_pos = result.find(old_token, search_pos)) !=
+             std::string::npos) {
+        result.replace(search_pos, old_token.length(), new_token);
+        search_pos += new_token.length();
+      }
+    }
+  }
+
+  return result;
+}
+
 LogicalResult annotateForeignFunction(FuncOp func, ::xls::Function& xlsFunc) {
   if (func.getResultTypes().size() != 1) {
     return func->emitError() << "there should be one result when importing"
@@ -1642,15 +1750,22 @@ LogicalResult annotateForeignFunction(FuncOp func, ::xls::Function& xlsFunc) {
     }
   }
 
-  auto importTemplate =
-      generateCodeTemplate(func, &xlsFunc, linkage.getFunction().strref(),
-                           resultName, func.getResultTypes().front());
-  if (failed(importTemplate)) {
-    return failure();
+  std::string importTemplate;
+  if (linkage.getFunction().strref().contains("{fn}")) {
+    importTemplate = rewriteCodeTemplateParams(linkage.getFunction().strref(),
+                                               func, &xlsFunc);
+  } else {
+    auto generated =
+        generateCodeTemplate(func, &xlsFunc, linkage.getFunction().strref(),
+                             resultName, func.getResultTypes().front());
+    if (failed(generated)) {
+      return failure();
+    }
+    importTemplate = *generated;
   }
 
   absl::StatusOr<::xls::ForeignFunctionData> ffd =
-      ::xls::ForeignFunctionDataCreateFromTemplate(importTemplate.value());
+      ::xls::ForeignFunctionDataCreateFromTemplate(importTemplate);
   if (!ffd.ok()) {
     llvm::errs() << "Failed to create foreign function data: "
                  << ffd.status().message() << "\n";
@@ -2183,7 +2298,10 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
       } else {
         // Capture mapping to built function.
         translation_state.addFunction(xls_region.getName(), s.value());
-        if (isImportedVerilog) {
+        auto linkage =
+            cast<FuncOp>(op)->getAttrOfType<TranslationLinkage>(kLinkageAttr);
+        if (isImportedVerilog ||
+            (linkage && linkage.getKind() == LinkageKind::kForeign)) {
           if (failed(annotateForeignFunction(cast<FuncOp>(op), *s.value()))) {
             op.emitOpError() << "failed to annotate foreign function: "
                              << xls_region.getName();
