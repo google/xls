@@ -35,8 +35,10 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/passes/bdd_evaluator.h"
@@ -790,37 +792,34 @@ bool VisibilityAnalysis::IsMutuallyExclusive(Node* one, Node* other) const {
   return bdd.Implies(*GetInfo(one), bdd.Not(*GetInfo(other))) == bdd.one();
 }
 
-absl::StatusOr<bool> OperandVisibilityAnalysis::IsVisibilityIndependentOf(
-    Node* operand, Node* node, std::vector<Node*>& sources) const {
-  std::vector<Node*> conditions;
-  if (node->Is<PrioritySelect>()) {
-    conditions.push_back(node->As<PrioritySelect>()->selector());
-  } else if (node->Is<Select>()) {
-    conditions.push_back(node->As<Select>()->selector());
-  } else if (node->Is<Send>() && node->As<Send>()->predicate().has_value()) {
-    conditions.push_back(*node->As<Send>()->predicate());
-  } else if (node->Is<Next>() && node->As<Next>()->predicate().has_value()) {
-    conditions.push_back(*node->As<Next>()->predicate());
-  } else if (node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
-    for (Node* other_op : node->operands()) {
-      if (other_op != operand) {
-        conditions.push_back(other_op);
-      }
-    }
-  } else {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Unsupported node type for visibility expression: %s",
-                        node->ToString()));
-  }
-
-  for (Node* condition : conditions) {
+absl::StatusOr<bool> IsVisibilityIndependentOf(
+    const NodeForwardDependencyAnalysis& nda, Node* operand, Node* node,
+    absl::Span<Node* const> sources) {
+  auto are_sources_independent_of = [&](Node* condition) {
     for (Node* source : sources) {
-      if (nda_->IsDependent(source, condition)) {
+      if (nda.IsDependent(source, condition)) {
         return false;
       }
     }
+    return true;
+  };
+
+  if (auto gs = GenericSelect::From(node); gs.ok()) {
+    return are_sources_independent_of(gs->selector());
   }
-  return true;
+  if (auto predicate = GetPredicateUsedByNode(node); predicate.ok()) {
+    return !predicate->has_value() || are_sources_independent_of(**predicate);
+  }
+  if (node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
+    for (Node* other_op : node->operands()) {
+      if (other_op != operand && !are_sources_independent_of(other_op)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Unsupported node type for visibility expression: %s", node->ToString()));
 }
 
 namespace {
@@ -889,9 +888,10 @@ VisibilityAnalysis::GetEdgesForMutuallyExclusiveVisibilityExpr(
     for (Node* user : node->users()) {
       if (operand_visibility_->OperandVisibilityThroughNode(node, user) !=
           bdd_query_engine_->bdd().one()) {
-        XLS_ASSIGN_OR_RETURN(bool is_independent,
-                             operand_visibility_->IsVisibilityIndependentOf(
-                                 node, user, sources));
+        XLS_ASSIGN_OR_RETURN(
+            bool is_independent,
+            IsVisibilityIndependentOf(operand_visibility_->nda(), node, user,
+                                      sources));
         if (is_independent) {
           edges.push_back({node, user});
         } else {
@@ -1182,4 +1182,40 @@ void SingleSelectVisibilityAnalysis::UserRemoved(Node* node, Node* user) {
   ClearCache();
 }
 
+bool VisibilityDependsOn(
+    const NodeForwardDependencyAnalysis& nda,
+    const absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>&
+        conditional_edges,
+    Node* target) {
+  const FunctionBase* f = nda.bound_function();
+  if (!f->Contains(target)) {
+    return false;
+  }
+  for (const auto& edge : conditional_edges) {
+    Node* node = edge.node;
+    Node* operand = edge.operand;
+    if (!f->Contains(node)) {
+      continue;
+    }
+    if (auto gs = GenericSelect::From(node); gs.ok()) {
+      if (f->Contains(gs->selector()) &&
+          nda.IsDependent(target, gs->selector())) {
+        return true;
+      }
+    } else if (auto predicate = GetPredicateUsedByNode(node);
+               predicate.ok() && predicate->has_value()) {
+      if (f->Contains(**predicate) && nda.IsDependent(target, **predicate)) {
+        return true;
+      }
+    } else if (node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
+      for (Node* other_op : node->operands()) {
+        if (other_op != operand && f->Contains(other_op) &&
+            nda.IsDependent(target, other_op)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
 }  // namespace xls

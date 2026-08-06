@@ -107,15 +107,13 @@ class OperandVisibilityAnalysis : public ChangeListener {
   BddNodeIndex OperandVisibilityThroughNode(Node* operand, Node* node) const;
   virtual BddNodeIndex OperandVisibilityThroughNode(OperandNode& pair) const;
 
-  absl::StatusOr<bool> IsVisibilityIndependentOf(
-      Node* operand, Node* node, std::vector<Node*>& sources) const;
-
   void NodeAdded(Node* node) override;
   void NodeDeleted(Node* node) override;
   void OperandChanged(Node* node, Node* old_operand,
                       absl::Span<const int64_t> operand_nos) override;
   void OperandRemoved(Node* node, Node* old_operand) override;
   void OperandAdded(Node* node) override;
+  const NodeForwardDependencyAnalysis& nda() const { return *nda_; }
 
  protected:
   const NodeForwardDependencyAnalysis* nda_;
@@ -348,6 +346,10 @@ class VisibilityAnnotator : public IrAnnotator {
  private:
   const VisibilityAnalysis* vis_;
 };
+
+absl::StatusOr<bool> IsVisibilityIndependentOf(
+    const NodeForwardDependencyAnalysis& nda, Node* operand, Node* node,
+    absl::Span<Node* const> sources);
 
 }  // namespace xls
 
