@@ -2376,6 +2376,37 @@ fn foo(a: u32, b: u32) -> u32 {
   }
 }
 
+TEST(AstClonerTest, ConstantSetsNameDefDefinerOnClone) {
+  constexpr std::string_view kProgram = R"(
+const ANSWER = u32:42;
+
+fn read() -> u32 {
+  ANSWER
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "constant.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * original,
+                           module->GetConstantDef("ANSWER"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * cloned,
+                           clone->GetConstantDef("ANSWER"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * read,
+                           clone->GetMemberOrError<Function>("read"));
+
+  EXPECT_NE(cloned->name_def(), original->name_def());
+  EXPECT_EQ(cloned->name_def()->definer(), cloned);
+
+  std::optional<NameRef*> reference = FindFirstNameRefWithId(read, "ANSWER");
+  ASSERT_TRUE(reference.has_value());
+  ASSERT_TRUE(std::holds_alternative<const NameDef*>((*reference)->name_def()));
+  EXPECT_EQ(std::get<const NameDef*>((*reference)->name_def()),
+            cloned->name_def());
+}
+
 TEST(AstClonerTest, ImportSetsNameDefDefinerOnClone) {
   constexpr std::string_view kImportedProgram =
       "pub const PLACEHOLDER = u32:0;";

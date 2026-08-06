@@ -295,10 +295,13 @@ class AstCloner : public AstNodeVisitor {
       new_type_annotation = absl::down_cast<TypeAnnotation*>(
           old_to_new_.at(n->type_annotation()));
     }
-    old_to_new_[n] = module(n)->Make<ConstantDef>(
-        n->span(), absl::down_cast<NameDef*>(old_to_new_.at(n->name_def())),
-        new_type_annotation, absl::down_cast<Expr*>(old_to_new_.at(n->value())),
-        n->is_public());
+    NameDef* new_name_def =
+        absl::down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    ConstantDef* new_constant = module(n)->Make<ConstantDef>(
+        n->span(), new_name_def, new_type_annotation,
+        absl::down_cast<Expr*>(old_to_new_.at(n->value())), n->is_public());
+    new_name_def->set_definer(new_constant);
+    old_to_new_[n] = new_constant;
     return absl::OkStatus();
   }
 
