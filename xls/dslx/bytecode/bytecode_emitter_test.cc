@@ -142,7 +142,7 @@ fn expect_fail() -> u32 {
 
 TEST(BytecodeEmitterTest, DestructuringLet) {
   constexpr std::string_view kProgram = R"(
-fn has_name_def_tree() -> (u32, u64, uN[128]) {
+fn has_tuple_pattern() -> (u32, u64, uN[128]) {
   let (a, b, (c, d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
   assert_eq(a, u4:0);
   assert_eq(b, u8:1);
@@ -154,7 +154,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   ImportData import_data(CreateImportDataForTest());
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      EmitBytecodes(&import_data, kProgram, "has_name_def_tree"));
+      EmitBytecodes(&import_data, kProgram, "has_tuple_pattern"));
 
   EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
                               import_data.file_table()),

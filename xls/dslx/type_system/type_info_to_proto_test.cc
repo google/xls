@@ -33,6 +33,8 @@
 namespace xls::dslx {
 namespace {
 
+constexpr int kLegacyNameDefTreeAstNodeKindProtoValue = 21;
+
 std::string TestName() {
   return ::testing::UnitTest::GetInstance()->current_test_info()->name();
 }
@@ -190,6 +192,41 @@ fn bit_update() -> u8 {
   EXPECT_THAT(nodes_text,
               ::testing::HasSubstr("bit_slice_update(u8:0, u3:0, true)"));
   EXPECT_THAT(nodes_text, ::testing::Not(::testing::HasSubstr("<no-file>")));
+}
+
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
+       TuplePatternUsesDistinctAstNodeKind) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck("fn f() -> u32 { let (x, y) = (u32:1, u32:2); x }",
+                        "fake.x", "fake", &import_data, nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip,
+                           TypeInfoToProto(*tm.type_info, tm.module));
+  XLS_ASSERT_OK(ToHumanString(tip, import_data, import_data.file_table()));
+
+  bool found_tuple_pattern = false;
+  for (const AstNodeTypeInfoProto& node : tip.nodes()) {
+    found_tuple_pattern |= node.kind() == AST_NODE_KIND_TUPLE_PATTERN;
+    EXPECT_NE(static_cast<int>(node.kind()),
+              kLegacyNameDefTreeAstNodeKindProtoValue);
+  }
+  EXPECT_TRUE(found_tuple_pattern);
+}
+
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
+       RejectsLegacyNameDefTreeAstNodeKind) {
+  ImportData import_data = CreateImportDataForTest();
+  AstNodeTypeInfoProto legacy;
+  legacy.set_kind(
+      static_cast<AstNodeKindProto>(kLegacyNameDefTreeAstNodeKindProtoValue));
+  legacy.mutable_type()->mutable_token_type();
+
+  EXPECT_THAT(
+      ToHumanString(legacy, import_data, import_data.file_table()),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          ::testing::HasSubstr("Legacy NameDefTree type-info entries")));
 }
 
 }  // namespace

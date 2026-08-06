@@ -258,7 +258,7 @@ fn f() {
             "Definition of `a` (type `uN[32]`) is not used in function `f`");
 }
 
-TEST(TypecheckV2Test, AllowSomeUnusedDefInNameDefTree) {
+TEST(TypecheckV2Test, AllowSomeUnusedDefInTuplePattern) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 fn f(A: (u32, u32)[5]) -> (u32, u32) {
   for (i, (a, b)) in A {

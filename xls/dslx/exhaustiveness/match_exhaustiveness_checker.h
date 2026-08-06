@@ -41,7 +41,7 @@ class MatchExhaustivenessChecker {
 
   // Returns whether we've reached a point of exhaustiveness after incorporating
   // the given `pattern`.
-  bool AddPattern(const NameDefTree& pattern);
+  bool AddPattern(const PatternTree& pattern);
 
   // Returns whether, based on already-added patterns, we're exhaustive.
   bool IsExhaustive() const;

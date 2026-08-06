@@ -561,9 +561,8 @@ class AstGenerator {
   absl::StatusOr<TypedExpr> GenerateExprOfType(Context* ctx,
                                                TypeAnnotation* type);
 
-  // Generate a MatchArmPattern with type 'type'. The pattern is represented as
-  // an xls::dslx::NameDefTree.
-  absl::StatusOr<NameDefTree*> GenerateMatchArmPattern(
+  // Generates a match-arm PatternTree with type 'type'.
+  absl::StatusOr<PatternTree> GenerateMatchArmPattern(
       Context* ctx, const TypeAnnotation* type);
 
   // Generate a Match expression.

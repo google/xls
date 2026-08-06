@@ -4525,10 +4525,10 @@ fn f(x: u8) -> u2 {
   Match* m = dynamic_cast<Match*>(expr);
   ASSERT_NE(m, nullptr);
   const MatchArm* arm = m->arms()[0];
-  const NameDefTree* pattern = arm->patterns()[0];
+  const PatternTree& pattern = arm->patterns()[0];
 
   // Check that the pattern is just a leaf NameRef.
-  NameRef* name_ref = std::get<NameRef*>(pattern->leaf());
+  NameRef* name_ref = std::get<NameRef*>(pattern);
   ASSERT_NE(name_ref, nullptr);
   EXPECT_EQ(name_ref->identifier(), "FOO");
 
