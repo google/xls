@@ -42,6 +42,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -532,6 +533,39 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                            "is currently unsupported.",
                            function->identifier()),
           file_table_);
+    }
+
+    // Only allow calling (new-style) spawn from inside a proc (legacy or
+    // impl-based), or (new!) a test function.
+    XLS_ASSIGN_OR_RETURN(bool is_proc_def_spawn,
+                         IsProcDefSpawnFunction(function));
+    if (is_proc_def_spawn) {
+      // If the spawn is in a proc, OK.
+      // If the spawn is in a test function, OK.
+      // Otherwise, error.
+      bool valid_spawn = false;
+      if (caller.has_value()) {
+        // Legacy procs can call new-style spawn.
+        valid_spawn = (*caller)->IsInProc();
+
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<const StructDefBase*> containing_struct_or_proc,
+            GetContainingStructOrProcDef(invocation, import_data_));
+        if (containing_struct_or_proc.has_value() &&
+            (*containing_struct_or_proc)->kind() == AstNodeKind::kProcDef) {
+          // impl-based procs can call spawn
+          valid_spawn = true;
+        } else {
+          // Test functions can call spawn
+          valid_spawn |=
+              GetAttribute(*caller, AttributeKind::kTest).has_value();
+        }
+      }
+      if (!valid_spawn) {
+        return TypeInferenceErrorStatus(invocation->span(), nullptr,
+                                        "Cannot spawn outside a proc or test.",
+                                        file_table_);
+      }
     }
 
     // Come up with the actual args by merging the possible target object

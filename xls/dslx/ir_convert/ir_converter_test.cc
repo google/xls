@@ -3232,8 +3232,9 @@ TEST_F(IrConverterTest, InvalidChannelDecl) {
   })";
 
   auto import_data = CreateImportDataForTest();
+  // This is now a typecheck violation instead of IR Converter check.
   EXPECT_THAT(ConvertOneFunctionForTest(program, "main", import_data),
-              StatusIs(absl::StatusCode::kInternal,
+              StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Channels can only be declared in")));
 }
 
@@ -3252,8 +3253,8 @@ fn main() {
 
   auto import_data = CreateImportDataForTest();
   EXPECT_THAT(ConvertOneFunctionForTest(program, "main", import_data),
-              StatusIs(absl::StatusCode::kUnimplemented,
-                       HasSubstr("Functions cannot spawn procs.")));
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot spawn outside a")));
 }
 
 TEST_F(IrConverterTest, InvalidSpawnProcScopedChannel) {
@@ -3270,8 +3271,8 @@ fn main() {
 )";
   auto import_data = CreateImportDataForTest();
   EXPECT_THAT(ConvertOneFunctionForTest(program, "main", import_data),
-              StatusIs(absl::StatusCode::kUnimplemented,
-                       HasSubstr("Functions cannot spawn procs.")));
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot spawn outside")));
 }
 
 TEST_F(IrConverterTest, InvalidSpawnInNextProcScoped) {

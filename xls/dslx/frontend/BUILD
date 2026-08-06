@@ -834,6 +834,22 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "test_function_transformer",
+    srcs = ["test_function_transformer.cc"],
+    hdrs = ["test_function_transformer.h"],
+    deps = [
+        ":ast",
+        ":ast_cloner",
+        ":ast_node_visitor_with_default",
+        ":module",
+        "//xls/common:attribute_data",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:import_data",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
 cc_test(
     name = "fuzz_domain_rewriter_test",
     srcs = ["fuzz_domain_rewriter_test.cc"],

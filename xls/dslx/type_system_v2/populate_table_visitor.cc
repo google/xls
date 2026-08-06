@@ -170,6 +170,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleChannelDecl(const ChannelDecl* node) override {
     VLOG(5) << "HandleChannelDecl: " << node->ToString()
             << " with type: " << node->type()->ToString();
+    if (!handle_proc_functions_ && !in_test_fn_ && !in_parametric_fn_) {
+      return TypeInferenceErrorStatus(
+          node->span(), /*type=*/nullptr,
+          "Channels can only be declared in a proc or test.", file_table_);
+    }
     if (node->fifo_depth().has_value()) {
       Expr* fifo_depth = *node->fifo_depth();
       XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(fifo_depth, "fifo_depth"));
@@ -1422,6 +1427,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleTrait(const Trait*) override { return absl::OkStatus(); }
 
+  absl::Status HandleTestFunction(const TestFunction* node) override {
+    VLOG(5) << "HandleTestFunction: " << node->ToString();
+    in_test_fn_ = true;
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
+    in_test_fn_ = false;
+    return absl::OkStatus();
+  }
+
   absl::Status HandleFunction(const Function* node) override {
     // Proc functions are reachable via both the `Module` and the `Proc`, as an
     // oddity of how procs are set up in the AST. We only want to handle them in
@@ -1430,12 +1443,16 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     if (node->IsInProc() && !handle_proc_functions_) {
       return absl::OkStatus();
     }
+    in_parametric_fn_ = node->IsParametric();
 
     VLOG(5) << "HandleFunction: " << node->ToString()
             << ", parametric: " << node->IsParametric();
     for (const ParametricBinding* binding : node->parametric_bindings()) {
       XLS_RETURN_IF_ERROR(binding->Accept(this));
     }
+
+    bool was_in_test_fn = in_test_fn_;
+    in_test_fn_ |= GetAttribute(node, AttributeKind::kTest).has_value();
 
     const TypeAnnotation* return_type = GetReturnType(module_, *node);
     XLS_RETURN_IF_ERROR(return_type->Accept(this));
@@ -1471,7 +1488,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     // Descend into the function body.
-    return node->body()->Accept(this);
+    auto body_status = node->body()->Accept(this);
+    in_test_fn_ = was_in_test_fn;
+    in_parametric_fn_ = false;
+    return body_status;
   }
 
   absl::Status HandleFuzzTestFunction(const FuzzTestFunction* node) override {
@@ -1551,6 +1571,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleSpawn(const Spawn* node) override {
     VLOG(5) << "HandleSpawn: " << node->ToString();
+    if (!handle_proc_functions_ && !in_test_fn_) {
+      return TypeInferenceErrorStatus(
+          *node->GetSpan(), nullptr,
+          absl::Substitute("Cannot spawn outside a `proc` or proc test"),
+          file_table_);
+    }
     XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->config(), "config"));
     XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node->next(), "next"));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
@@ -1607,11 +1633,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
     VLOG(5) << "HandleInvocation: " << node->ToString();
 
-    // If we're outside a proc, we can't call proc-only builtins.
-    if (!handle_proc_functions_ && ProcOnlyFunction(node->callee())) {
+    // If we're outside a proc, we can't call proc-only builtins, except if
+    // we're in a test function.
+    if (!(handle_proc_functions_ || in_test_fn_) &&
+        ProcOnlyFunction(node->callee())) {
       return TypeInferenceErrorStatus(
           *node->GetSpan(), nullptr,
-          absl::Substitute("Cannot call `$0` outside a `proc`",
+          absl::Substitute("Cannot call `$0` outside a `proc` or proc test",
                            node->callee()->ToString()),
           file_table_);
     }
@@ -2249,6 +2277,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   TypecheckModuleFn typecheck_imported_module_;
   bool handle_proc_functions_ = false;
   bool in_fuzz_test_domain_ = false;
+  bool in_test_fn_ = false;
+  bool in_parametric_fn_ = false;
 };
 
 }  // namespace

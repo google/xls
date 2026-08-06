@@ -805,9 +805,10 @@ class Visitor : public AstNodeVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(
         std::optional<const StructDefBase*> proc_def,
         GetContainingStructOrProcDef(invocation, import_data_));
-    XLS_RET_CHECK(proc_def.has_value());
-    ti_->AddProcDefSpawn(absl::down_cast<const ProcDef*>(*proc_def),
-                         external_initializer);
+    if (proc_def.has_value()) {
+      ti_->AddProcDefSpawn(absl::down_cast<const ProcDef*>(*proc_def),
+                           external_initializer);
+    }
     return absl::OkStatus();
   }
 
