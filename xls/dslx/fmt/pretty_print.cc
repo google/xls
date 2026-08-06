@@ -201,10 +201,19 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                       << "` text: `" << prefixed.text << "`";
               std::vector<std::string_view> lines =
                   absl::StrSplit(prefixed.text, '\n');
+
+              // The comment text is newline-terminated, so the final '\n'
+              // produces a trailing empty element. We drop it.
+              if (!lines.empty() && lines.back().empty()) {
+                lines.pop_back();
+              }
               const std::string& prefix = prefixed.prefix;
 
+              bool need_prefix = true;
+
               for (size_t i = 0; i < lines.size(); ++i) {
-                std::string_view line = lines[i];
+                std::string_view line =
+                    absl::StripTrailingAsciiWhitespace(lines[i]);
 
                 // Remaining columns at this indentation level.
                 const int64_t remaining_cols =
@@ -212,13 +221,23 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
 
                 VLOG(5) << "PrefixedReflow; handling line: `" << line
                         << "` remaining cols: " << remaining_cols;
-                if (prefix.size() + line.size() < remaining_cols) {
+                if (static_cast<int64_t>(prefix.size() + line.size()) <
+                    remaining_cols) {
                   // If it all fits in available cols, place it there in its
                   // entirety.
-                  emit(absl::StrCat(prefix, line));
+                  if (need_prefix) {
+                    emit(absl::StrCat(prefix, line));
+                  } else {
+                    emit(line);
+                  }
+
                   if (i + 1 != lines.size()) {
                     emit_cr(entry.indent());
                   }
+
+                  // Since we are on a new line due to emit_cr, we will need
+                  // a prefix.
+                  need_prefix = true;
                 } else {
                   // Otherwise, place tokens until we encounter EOL and then
                   // wrap. We make sure we put at least one token on each line
@@ -240,16 +259,22 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                       absl::MakeConstSpan(toks);
 
                   while (!remaining_toks.empty()) {
-                    emit(prefix);
-                    emit(std::string(leading_whitespace_size, ' '));
+                    if (need_prefix) {
+                      emit(prefix);
+                      emit(std::string(leading_whitespace_size, ' '));
+                    }
 
-                    // After we emit the prefix we make sure we emit at least
-                    // one token.
                     while (!remaining_toks.empty()) {
-                      std::string_view tok = remaining_toks.front();
-                      remaining_toks.remove_prefix(1);
+                      // Emit one guaranteed token only on a fresh line.
+                      if (need_prefix) {
+                        std::string_view tok = remaining_toks.front();
+                        remaining_toks.remove_prefix(1);
 
-                      emit(tok);
+                        emit(tok);
+                      }
+
+                      // We don't need a prefix in the middle of a line.
+                      need_prefix = false;
 
                       if (!remaining_toks.empty()) {
                         // If the next token isn't going to fit we make a
@@ -267,14 +292,29 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                                   << " tok width: " << next_tok.size()
                                   << " text width: " << entry.text_width();
                           emit_cr(entry.indent());
+                          need_prefix = true;  // Prefix needed on newline.
                           break;
-                        }
+                        } else {
+                          // If the next token is going to fit we just put a
+                          // space char.
+                          emit(" ");
 
-                        // If the next token is going to fit we just put a
-                        // space char.
-                        emit(" ");
+                          // Emit token.
+                          std::string_view tok = remaining_toks.front();
+                          remaining_toks.remove_prefix(1);
+
+                          emit(tok);
+                        }
                       }
                     }
+                  }
+                  // If this wrapped line ended with the cursor at or past the
+                  // width there is no room for the next source line to reflow
+                  // up onto it, so we terminate the line here.
+                  if (i + 1 != lines.size() &&
+                      virtual_outcol >= entry.text_width()) {
+                    emit_cr(entry.indent());
+                    need_prefix = true;
                   }
                   // Note: we do not make a trailing newline, because "docs" are
                   // supposed to be self contained (i.e. emitting only their own

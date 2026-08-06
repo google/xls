@@ -88,36 +88,43 @@ std::optional<DocRef> Formatter::FormatCommentsBetween(
 
   std::vector<const CommentData*> items = comments_.GetComments(span);
   VLOG(3) << "Found " << items.size() << " comment data items";
+
   std::optional<Span> previous_comment_span;
+  std::string running_comment = "";
   for (size_t i = 0; i < items.size(); ++i) {
     const CommentData* comment_data = items[i];
     comments_.PlaceComment(comment_data);
 
-    // If the previous comment line and this comment line are abutted (i.e.
-    // contiguous lines with comments), we don't put a newline between them.
+    // If the previous comment line and this comment line are not abutted
+    // (i.e. not contiguous lines with comments), we flush running_comment.
     if (previous_comment_span.has_value() &&
         previous_comment_span->start().lineno() + 1 !=
             comment_data->span.start().lineno()) {
-      VLOG(3) << "previous comment span: "
+      VLOG(3) << "previous block, last comment span: "
               << previous_comment_span.value().ToString(file_table)
-              << " this comment span: "
+              << " new block, first comment span: "
               << comment_data->span.ToString(file_table)
-              << " -- inserting hard line";
+              << " -- flushing previous block, inserting hard line";
+      pieces.push_back(arena_.MakePrefixedReflow("//", running_comment));
       pieces.push_back(arena_.hard_line());
+      pieces.push_back(arena_.hard_line());
+
+      running_comment = "";
     }
 
-    pieces.push_back(arena_.MakePrefixedReflow(
-        "//",
-        std::string{absl::StripTrailingAsciiWhitespace(comment_data->text)}));
-
-    if (i + 1 != items.size()) {
-      pieces.push_back(arena_.hard_line());
-    }
+    running_comment += comment_data->text;
 
     previous_comment_span = comment_data->span;
     if (last_comment_span != nullptr) {
       *last_comment_span = comment_data->span;
     }
+  }
+
+  // If running_comment is not empty, flush it. We don't add a hardline
+  // to maintain the property that emitted comment docs do not have
+  // trailing hardlines.
+  if (running_comment != "") {
+    pieces.push_back(arena_.MakePrefixedReflow("//", running_comment));
   }
 
   if (pieces.empty()) {
