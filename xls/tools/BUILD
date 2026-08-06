@@ -390,6 +390,7 @@ cc_library(
         "//xls/estimators/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "//xls/ir:node_util",
         "//xls/ir:ram_rewrite_cc_proto",
         "//xls/ir:verifier",
         "//xls/passes",

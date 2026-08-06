@@ -57,38 +57,6 @@ std::string GetFilename(Fileno fileno, VerilogFile* file) {
   return {};
 }
 
-std::string VastNode::PreEmit(LineInfo* line_info) {
-  if (loc().locations.empty()) {
-    return {};
-  }
-  switch (file()->annotation_type()) {
-    case AnnotationType::kNone: {
-      return {};
-    }
-    case AnnotationType::kComment: {
-      auto append_location = [&](std::string* out,
-                                 const SourceLocation& location) {
-        auto f = GetFilename(location.fileno(), file());
-        auto l = location.lineno().value();
-        auto c = location.colno().value();
-        absl::StrAppendFormat(out, "%s:%d:%d", f, l, c);
-      };
-      auto res = absl::StrJoin(loc().locations, " ", append_location);
-      return absl::StrFormat("// %s", res);
-    }
-    case AnnotationType::kLineDirective: {
-      auto first_loc = loc().locations.begin();
-      auto fileno = first_loc->fileno();
-      std::string filename = GetFilename(fileno, file());
-      return absl::StrFormat("`line %d \"%s\" 0", first_loc->lineno().value(),
-                             filename);
-    }
-    default: {
-      return {};
-    }
-  }
-}
-
 namespace {
 
 int64_t NumberOfNewlines(std::string_view string) {
@@ -189,6 +157,40 @@ static absl::Status NoteDefined(absl::flat_hash_set<std::string>* defined_names,
 }
 
 }  // namespace
+
+std::string VastNode::PreEmit(LineInfo* line_info) {
+  if (loc().locations.empty()) {
+    return {};
+  }
+  switch (file()->annotation_type()) {
+    case AnnotationType::kNone: {
+      return {};
+    }
+    case AnnotationType::kComment: {
+      auto append_location = [&](std::string* out,
+                                 const SourceLocation& location) {
+        auto f = GetFilename(location.fileno(), file());
+        auto l = location.lineno().value();
+        auto c = location.colno().value();
+        absl::StrAppendFormat(out, "// %s:%d:%d", f, l, c);
+      };
+      std::string result =
+          absl::StrJoin(loc().locations, "\n", append_location);
+      LineInfoIncrease(line_info, NumberOfNewlines(result));
+      return result;
+    }
+    case AnnotationType::kLineDirective: {
+      auto first_loc = loc().locations.begin();
+      auto fileno = first_loc->fileno();
+      std::string filename = GetFilename(fileno, file());
+      return absl::StrFormat("`line %d \"%s\" 0", first_loc->lineno().value(),
+                             filename);
+    }
+    default: {
+      return {};
+    }
+  }
+}
 
 // Converts a `DataKind` to its SystemVerilog name, if any. Emitting a data type
 // in most contexts requires the containing entity to emit both the `DataKind`
@@ -534,6 +536,7 @@ std::string VerilogFile::Emit(LineInfo* line_info) const {
         [=](auto* m) {
           std::string pre_emit = m->PreEmit(line_info);
           if (!pre_emit.empty()) {
+            LineInfoIncrease(line_info, 1);
             return pre_emit + "\n" + m->Emit(line_info);
           }
           return m->Emit(line_info);
@@ -571,6 +574,7 @@ std::string CaseArm::Emit(LineInfo* line_info) const {
       Visitor{[=](Expression* named) {
                 std::string pre_emit = named->PreEmit(line_info);
                 if (!pre_emit.empty()) {
+                  LineInfoIncrease(line_info, 1);
                   return pre_emit + "\n" + named->Emit(line_info);
                 }
                 return named->Emit(line_info);
@@ -596,6 +600,7 @@ std::string StatementBlock::Emit(LineInfo* line_info) const {
     std::string pre_emit = statement->PreEmit(line_info);
     if (!pre_emit.empty()) {
       lines.push_back(pre_emit);
+      LineInfoIncrease(line_info, 1);
     }
     lines.push_back(statement->Emit(line_info));
     LineInfoIncrease(line_info, 1);
@@ -651,6 +656,7 @@ std::string MacroStatementBlock::Emit(LineInfo* line_info) const {
     std::string pre_emit = statement->PreEmit(line_info);
     if (!pre_emit.empty()) {
       absl::StrAppend(&result, Indent(pre_emit), "\n");
+      LineInfoIncrease(line_info, 1);
     }
     absl::StrAppend(&result, Indent(statement->Emit(line_info)), "\n");
     LineInfoIncrease(line_info, 1);
@@ -782,6 +788,7 @@ std::string VerilogFunction::Emit(LineInfo* line_info) const {
     std::string pre_emit = reg_def->PreEmit(line_info);
     if (!pre_emit.empty()) {
       lines.push_back(pre_emit);
+      LineInfoIncrease(line_info, 1);
     }
     lines.push_back(reg_def->Emit(line_info));
     LineInfoIncrease(line_info, 1);
@@ -1330,6 +1337,7 @@ std::string EmitModuleMember(LineInfo* line_info, const ModuleMember& member) {
       [=](auto* d) {
         std::string pre_emit = d->PreEmit(line_info);
         if (!pre_emit.empty()) {
+          LineInfoIncrease(line_info, 1);
           return pre_emit + "\n" + d->Emit(line_info);
         }
         return d->Emit(line_info);

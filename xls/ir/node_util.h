@@ -85,6 +85,9 @@ bool IsLiteralWithRunOfSetBits(Node* node, int64_t* leading_zero_count,
                                int64_t* set_bit_count,
                                int64_t* trailing_zero_count);
 
+// Merges and deduplicates every SourceLocation across `operands`.
+SourceInfo MergeLocs(absl::Span<Node* const> operands);
+
 // Returns whether node is a literal "mask" value, which is of the form:
 // 0b[0]*[1]+
 //

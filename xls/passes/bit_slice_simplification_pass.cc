@@ -102,7 +102,8 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
     XLS_ASSIGN_OR_RETURN(
         Node * unscaled_index,
         scaled_index->function_base()->MakeNode<BitSlice>(
-            SourceInfo(), scaled_index, /*start=*/bits_to_remove,
+            scaled_index->loc(), scaled_index,
+            /*start=*/bits_to_remove,
             /*width=*/scaled_index->BitCountOrDie() - bits_to_remove));
     return unscaled_index;
   }
@@ -762,7 +763,7 @@ absl::StatusOr<Node*> EquivalentStaticBitSlice(
 
   XLS_RET_CHECK(start.IsBits());
   if (bits_ops::UGreaterThanOrEqual(start.bits(), operand_width)) {
-    return to_slice->function_base()->MakeNode<Literal>(SourceInfo(),
+    return to_slice->function_base()->MakeNode<Literal>(loc,
                                                         Value(UBits(0, width)));
   }
   int64_t start_index = static_cast<int64_t>(*start.bits().ToUint64());
@@ -875,9 +876,10 @@ absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice,
                                bit_slice->loc(), bit_slice->to_slice(),
                                /*start=*/element_start,
                                /*width=*/bit_count - element_start));
-      XLS_ASSIGN_OR_RETURN(array_element,
-                           bit_slice->function_base()->MakeNode<ExtendOp>(
-                               SourceInfo(), slice, width, Op::kZeroExt));
+      XLS_ASSIGN_OR_RETURN(
+          array_element,
+          bit_slice->function_base()->MakeNode<ExtendOp>(
+              MergeLocs({bit_slice, slice}), slice, width, Op::kZeroExt));
     }
     array_elements.push_back(array_element);
   }
@@ -891,7 +893,7 @@ absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice,
   if (addressable_items > array_elements.size()) {
     XLS_ASSIGN_OR_RETURN(past_the_end,
                          bit_slice->function_base()->MakeNode<Literal>(
-                             SourceInfo(), Value(UBits(0, width))));
+                             bit_slice->loc(), Value(UBits(0, width))));
     addressable_items = array_elements.size();
   }
   XLS_ASSIGN_OR_RETURN(
@@ -971,9 +973,10 @@ absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update,
                                update->loc(), update->to_update(),
                                /*start=*/element_start,
                                /*width=*/bit_count - element_start));
-      XLS_ASSIGN_OR_RETURN(array_element,
-                           update->function_base()->MakeNode<ExtendOp>(
-                               SourceInfo(), slice, width, Op::kZeroExt));
+      XLS_ASSIGN_OR_RETURN(
+          array_element,
+          update->function_base()->MakeNode<ExtendOp>(
+              MergeLocs({update, slice}), slice, width, Op::kZeroExt));
     }
     array_elements.push_back(array_element);
   }
@@ -993,9 +996,10 @@ absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update,
           ? Bits::MinBitCountUnsigned(array_elements.size() - 1)
           : 1;
   for (int64_t i = 0; i < array_elements.size(); ++i) {
-    XLS_ASSIGN_OR_RETURN(Literal * element_index,
-                         array_update->function_base()->MakeNode<Literal>(
-                             SourceInfo(), Value(UBits(i, index_width))));
+    XLS_ASSIGN_OR_RETURN(
+        Literal * element_index,
+        array_update->function_base()->MakeNode<Literal>(
+            array_update->loc(), Value(UBits(i, index_width))));
     XLS_ASSIGN_OR_RETURN(Node * updated_array_element,
                          array_update->function_base()->MakeNode<ArrayIndex>(
                              array_update->loc(), array_update,
@@ -1006,7 +1010,9 @@ absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update,
       // Disregard any bits past the end of the original bit vector.
       XLS_ASSIGN_OR_RETURN(updated_array_element,
                            array_update->function_base()->MakeNode<BitSlice>(
-                               SourceInfo(), updated_array_element, /*start=*/0,
+                               MergeLocs({array_update, updated_array_element}),
+                               updated_array_element,
+                               /*start=*/0,
                                /*width=*/bit_count - (i * width)));
     }
     updated_array_elements.push_back(updated_array_element);
