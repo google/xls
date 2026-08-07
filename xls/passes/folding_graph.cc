@@ -32,10 +32,12 @@
 #include "absl/types/span.h"
 #include "ortools/graph/cliques.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
+#include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/visibility_analysis.h"
 #include "ortools/graph/connected_components.h"
 
@@ -415,6 +417,37 @@ absl::StatusOr<std::unique_ptr<NaryFoldingAction>> NaryFoldingAction::Clone(
       other.area_saved(), std::move(clone_sinks));
 
   return clone_action;
+}
+
+bool WouldCommittingFoldingActionCreateDataCycle(
+    const NodeForwardDependencyAnalysis& nda, const BinaryFoldingAction& fold) {
+  const FunctionBase* f = nda.bound_function();
+  for (int64_t op_id = 0; op_id < fold.GetTo()->operand_count(); ++op_id) {
+    Node* from_op = fold.GetFrom()->operand(op_id);
+    Node* to_op = fold.GetTo()->operand(op_id);
+    if (from_op != to_op && f->Contains(from_op) &&
+        nda.IsDependent(fold.GetTo(), from_op)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+absl::StatusOr<bool> WouldCommittingFoldingActionCreateVisibilityCycle(
+    const NodeForwardDependencyAnalysis& nda, const BinaryFoldingAction& fold) {
+  for (const FoldingAction::VisibilityEdges* edges :
+       {&fold.GetFromVisibilityEdges(), &fold.GetToVisibilityEdges()}) {
+    for (const auto& edge : *edges) {
+      XLS_ASSIGN_OR_RETURN(
+          bool is_independent,
+          IsVisibilityIndependentOf(nda, edge.operand, edge.node,
+                                    {fold.GetFrom(), fold.GetTo()}));
+      if (!is_independent) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 }  // namespace xls

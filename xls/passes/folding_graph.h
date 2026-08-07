@@ -29,6 +29,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
+#include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/visibility_analysis.h"
 #include "ortools/graph/graph.h"
 
@@ -244,6 +245,23 @@ class FoldingGraph {
   void IdentifyCliques();
 };
 
+// Check if building visibility expression as result of performing this folding
+// would create a data cycle.
+bool WouldCommittingFoldingActionCreateDataCycle(
+    const NodeForwardDependencyAnalysis& nda, const BinaryFoldingAction& fold);
+
+// Check if building visibility expression as result of performing this folding
+// would create a visibility cycle.
+absl::StatusOr<bool> WouldCommittingFoldingActionCreateVisibilityCycle(
+    const NodeForwardDependencyAnalysis& nda, const BinaryFoldingAction& fold);
+
+inline absl::StatusOr<bool> WouldCommittingFoldingActionCreateCycle(
+    const NodeForwardDependencyAnalysis& nda, const BinaryFoldingAction& fold) {
+  if (WouldCommittingFoldingActionCreateDataCycle(nda, fold)) {
+    return true;
+  }
+  return WouldCommittingFoldingActionCreateVisibilityCycle(nda, fold);
+}
 }  // namespace xls
 
 #endif  // XLS_PASSES_FOLDING_GRAPH_H_
