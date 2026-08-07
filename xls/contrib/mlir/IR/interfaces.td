@@ -1,5 +1,5 @@
-#ifndef HWIR_INTERFACES
-#define HWIR_INTERFACES
+#ifndef XLS_CONTRIB_MLIR_IR_INTERFACES_TD
+#define XLS_CONTRIB_MLIR_IR_INTERFACES_TD
 
 include "mlir/IR/OpBase.td"
 
@@ -97,4 +97,4 @@ def LiteralMemberOpInterface : OpInterface<"LiteralMemberOpInterface"> {
   ];
 }
 
-#endif
+#endif  // XLS_CONTRIB_MLIR_IR_INTERFACES_TD

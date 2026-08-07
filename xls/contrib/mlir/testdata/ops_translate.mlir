@@ -349,6 +349,13 @@ func.func @one_hot_sel(%arg0: i2, %arg1: i32, %arg2: i32) -> i32 {
   return %0 : i32
 }
 
+// MLIR-LABEL: func.func @one_hot_sel_tuple
+func.func @one_hot_sel_tuple(%arg0: i2, %arg1: tuple<i8, i16>, %arg2: tuple<i8, i16>) -> tuple<i8, i16> {
+  // MLIR: %{{.*}} = "xls.one_hot_sel"(%{{.*}}, %{{.*}}, %{{.*}}) : (i2, tuple<i8, i16>, tuple<i8, i16>) -> tuple<i8, i16>
+  %0 = "xls.one_hot_sel"(%arg0, %arg1, %arg2) : (i2, tuple<i8, i16>, tuple<i8, i16>) -> tuple<i8, i16>
+  return %0 : tuple<i8, i16>
+}
+
 // MLIR-LABEL: func.func @priority_sel
 func.func @priority_sel(%arg0: i2, %arg1: i32, %arg2: i32) -> i32 {
   // MLIR: %{{.*}} = xls.priority_sel %{{.*}} in [%{{.*}}, %{{.*}}] else %{{.*}} : (i2, [i32, i32], i32) -> i32

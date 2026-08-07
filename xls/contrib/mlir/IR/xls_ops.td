@@ -1,5 +1,5 @@
-#ifndef HWIR_XLS_OPS
-#define HWIR_XLS_OPS
+#ifndef XLS_CONTRIB_MLIR_IR_XLS_OPS_TD
+#define XLS_CONTRIB_MLIR_IR_XLS_OPS_TD
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
@@ -1254,9 +1254,6 @@ def Xls_SelOp : Xls_Op<"sel", [
   ];
 }
 
-// TODO: OneHotSelOp restricts cases to Xls_Bits, but upstream XLS allows tuple
-// types for one_hot_sel (like PrioritySelOp uses Xls_BitsOrTuple). This should
-// be extended to Xls_BitsOrTuple to match XLS semantics.
 def Xls_OneHotSelOp : Xls_Op<"one_hot_sel", [
   Pure,
   ShapesAreConsistent<["cases", "result"]>,
@@ -1276,10 +1273,10 @@ def Xls_OneHotSelOp : Xls_Op<"one_hot_sel", [
   }];
   let arguments = (ins
     Xls_Bits:$selector,
-    Variadic<Xls_Bits>:$cases
+    Variadic<Xls_BitsOrTuple>:$cases
   );
   let results = (outs
-    Xls_Bits:$result
+    Xls_BitsOrTuple:$result
   );
 }
 
@@ -2814,5 +2811,5 @@ def Xls_ImportVerilogFileOp : Xls_Op<"import_verilog_file", [Symbol,
   }];
 }
 
-#endif
+#endif  // XLS_CONTRIB_MLIR_IR_XLS_OPS_TD
 
