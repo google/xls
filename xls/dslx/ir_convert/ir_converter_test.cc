@@ -7449,5 +7449,66 @@ pub fn main(c: C) -> bits[32] {
   XLS_ASSERT_OK(ConvertModuleForTest(kDslxProgram));
 }
 
+TEST_F(IrConverterTest, ConvertOneProcDefWithSpawn) {
+  constexpr std::string_view kModule = R"(
+#![feature(explicit_state_access)]
+
+proc Child {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Child {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Child { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val + u32:1);
+  }
+}
+
+proc Parent {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Parent {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    let (to_child, child_in) = chan<u32>("to_child");
+    let (child_out, from_child) = chan<u32>("from_child");
+    Child::new(child_in, child_out).spawn();
+    Parent { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  PackageConversionData conv{.package =
+                                 std::make_unique<Package>(tm.module->name())};
+  // Note that, unlike some other ProcDef tests, we are requesting here to
+  // convert starting with the `Parent` ProcDef rather than top-down in its
+  // module. This ordering can trigger different problems.
+  XLS_ASSERT_OK(ConvertOneFunctionIntoPackage(
+      tm.module, "Parent", &import_data,
+      /*parametric_env=*/nullptr, kProcScopedChannelOptions, &conv));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * parent_proc,
+                           conv.package->GetTopAsProc());
+  EXPECT_EQ(parent_proc->name(), "__test_module__Parent_next");
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * child_proc,
+                           conv.package->GetProc("__test_module__Child_next"));
+  EXPECT_NE(child_proc, nullptr);
+}
+
 }  // namespace
 }  // namespace xls::dslx

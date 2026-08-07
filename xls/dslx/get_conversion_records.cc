@@ -395,12 +395,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
     for (const InterpValue& external_initializer : spawns) {
       const ProcDef* spawnee =
           external_initializer.GetProcInitializerOrDie().proc_def();
-      if (spawnee->owner() == p->owner()) {
-        continue;
-      }
 
-      // Proc is outside this module; get additional conversion records from
-      // its spawning and add to our list of records.
+      // Get additional conversion records from the spawned proc and add to our
+      // list of records.
       XLS_ASSIGN_OR_RETURN(
           ProcInitializerWithTypeInfo canonical_initializer,
           proc_owner_ti->GetCanonicalProcInitializer(external_initializer));
