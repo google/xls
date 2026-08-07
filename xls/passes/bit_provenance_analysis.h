@@ -56,6 +56,9 @@ class TreeBitSources {
     BitRange& operator=(BitRange&&) = default;
 
     // What node these bits come from.
+    //
+    // NOTE: `source_node()` is not necessarily bits-typed if the bit originated
+    // from an aggregate type (tuple or array); see `source_tree_index()`.
     Node* source_node() const { return source_node_; }
 
     // How many bits wide is this segment.
@@ -177,6 +180,12 @@ class BitProvenanceAnalysis {
 
   // Get the tree-bit-location which provides the original source of the given
   // bit.
+  //
+  // NOTE: `TreeBitLocation::node()` is not necessarily bits-typed. If the bit
+  // originated from an aggregate type (e.g. tuple or array parameter), `node()`
+  // will be that aggregate node with `tree_index()` specifying the path to the
+  // leaf element. To obtain a bits-typed Node* representing the bit, use
+  // `MaterializeTreeBit`.
   absl::StatusOr<TreeBitLocation> GetSource(const TreeBitLocation& bit) const;
 
   bool IsTracked(Node* n) const;
@@ -192,6 +201,25 @@ class BitProvenanceAnalysis {
  private:
   std::unique_ptr<internal::BitProvenanceVisitor> visitor_;
 };
+
+// Materializes a 1-bit Bits-typed Node* representing the exact bit at
+// `location`.
+//
+// NOTE: `location.node()` is not necessarily bits-typed (e.g., if the bit
+// originated from an aggregate parameter). This function handles compound
+// types by traversing `location.tree_index()` with `TupleIndex` / `ArrayIndex`
+// nodes down to the leaf element, and creating a `BitSlice` if the leaf element
+// is wider than 1 bit. Reuses existing users when available.
+absl::StatusOr<Node*> MaterializeTreeBit(const TreeBitLocation& location);
+
+// Materializes a `width`-bit Bits-typed Node* starting at `location`.
+// Note: `location.node()` is not necessarily bits-typed.
+absl::StatusOr<Node*> MaterializeTreeBitRange(const TreeBitLocation& location,
+                                              int64_t width);
+
+// Materializes a Bits-typed Node* representing the given BitRange source.
+absl::StatusOr<Node*> MaterializeTreeBitRange(
+    const TreeBitSources::BitRange& range);
 
 }  // namespace xls
 

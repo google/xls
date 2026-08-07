@@ -29,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/passes/bdd_query_engine.h"
@@ -180,20 +181,10 @@ absl::StatusOr<Node*> ExpressionBuilder::FindOrMakeBitSlice(Node* selector,
   if (auto it = bitslice_cache_.find(key); it != bitslice_cache_.end()) {
     return it->second;
   }
-  for (Node* user : selector->users()) {
-    if (user->Is<BitSlice>()) {
-      auto bitslice = user->As<BitSlice>();
-      if (bitslice->start() == start && bitslice->width() == width) {
-        bitslice_cache_[key] = bitslice;
-        return bitslice;
-      }
-    }
-  }
-  XLS_ASSIGN_OR_RETURN(Node * selector_bits,
-                       selector->function_base()->MakeNode<BitSlice>(
-                           selector->loc(), selector, start, width));
-  bitslice_cache_[key] = selector_bits;
-  return selector_bits;
+  XLS_ASSIGN_OR_RETURN(BitSlice * bitslice,
+                       xls::FindOrMakeBitSlice(selector, start, width));
+  bitslice_cache_[key] = bitslice;
+  return bitslice;
 }
 
 absl::StatusOr<Node*> ExpressionBuilder::FindOrMakeUnaryNode(Op op,

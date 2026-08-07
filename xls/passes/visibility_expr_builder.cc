@@ -188,19 +188,13 @@ absl::StatusOr<Node*> VisibilityBuilder::GetNonRepeatedSourceOf(
   const auto& source_ranges = trimmed_bit_sources_tree.Get({}).ranges();
   if (source_ranges.size() == 1) {
     const TreeBitSources::BitRange& single_range = source_ranges[0];
-    Node* source = single_range.source_node();
-    // Clone the source node if building expressions in a temp function.
-    XLS_ASSIGN_OR_RETURN(source, MakeParamIfTmpFunc(source, func));
-    // If derived from a single range of contiguous bits, find or create a bit
-    // slice (skip this if the range covers the entire source node)
-    if (single_range.source_bit_index_low() != 0 ||
-        source->GetType()->GetFlatBitCount() != single_range.bit_width()) {
-      XLS_ASSIGN_OR_RETURN(
-          source,
-          FindOrMakeBitSlice(source, single_range.source_bit_index_low(),
-                             single_range.bit_width()));
-    }
-    return source;
+    TreeBitLocation loc(single_range.source_node(),
+                        single_range.source_bit_index_low(),
+                        single_range.source_tree_index());
+    XLS_ASSIGN_OR_RETURN(
+        Node * source_node,
+        MaterializeTreeBitRange(loc, single_range.bit_width()));
+    return MakeParamIfTmpFunc(source_node, func);
   }
 
   // Default to the operand itself without further knowledge

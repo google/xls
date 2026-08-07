@@ -1422,6 +1422,85 @@ absl::StatusOr<Node*> RestoreKnownBits(Node* split,
                          split->loc());
 }
 
+std::optional<TupleIndex*> FindTupleIndexUser(Node* node, int64_t index) {
+  auto it =
+      std::find_if(node->users().begin(), node->users().end(), [&](Node* user) {
+        return user->Is<TupleIndex>() &&
+               user->As<TupleIndex>()->index() == index;
+      });
+  if (it != node->users().end()) {
+    return (*it)->As<TupleIndex>();
+  }
+  return std::nullopt;
+}
+
+std::optional<ArrayIndex*> FindArrayIndexUser(Node* node, int64_t index) {
+  auto it =
+      std::find_if(node->users().begin(), node->users().end(), [&](Node* user) {
+        if (!user->Is<ArrayIndex>()) {
+          return false;
+        }
+        ArrayIndex* array_index = user->As<ArrayIndex>();
+        if (array_index->array() != node ||
+            array_index->indices().size() != 1 ||
+            !array_index->indices()[0]->Is<Literal>()) {
+          return false;
+        }
+        const Value& val = array_index->indices()[0]->As<Literal>()->value();
+        return val.IsBits() && val.bits().FitsInInt64Unsigned() &&
+               val.bits().UnsignedToInt64().value() == index;
+      });
+  if (it != node->users().end()) {
+    return (*it)->As<ArrayIndex>();
+  }
+  return std::nullopt;
+}
+
+std::optional<BitSlice*> FindBitSliceUser(Node* node, int64_t start,
+                                          int64_t width) {
+  auto it =
+      std::find_if(node->users().begin(), node->users().end(), [&](Node* user) {
+        return user->Is<BitSlice>() && user->As<BitSlice>()->start() == start &&
+               user->As<BitSlice>()->width() == width;
+      });
+  if (it != node->users().end()) {
+    return (*it)->As<BitSlice>();
+  }
+  return std::nullopt;
+}
+
+absl::StatusOr<TupleIndex*> FindOrMakeTupleIndex(Node* node, int64_t index) {
+  if (std::optional<TupleIndex*> existing = FindTupleIndexUser(node, index)) {
+    return *existing;
+  }
+  return node->function_base()->MakeNode<TupleIndex>(node->loc(), node, index);
+}
+
+absl::StatusOr<ArrayIndex*> FindOrMakeArrayIndex(Node* node, int64_t index) {
+  if (std::optional<ArrayIndex*> existing = FindArrayIndexUser(node, index)) {
+    return *existing;
+  }
+  Type* type = node->GetType();
+  XLS_RET_CHECK(type->IsArray()) << "Node must be array-typed, got: " << type;
+  int64_t index_size = std::max(
+      int64_t{1}, Bits::MinBitCountUnsigned(type->AsArrayOrDie()->size()));
+  XLS_ASSIGN_OR_RETURN(Literal * idx_node,
+                       node->function_base()->MakeNode<Literal>(
+                           node->loc(), Value(UBits(index, index_size))));
+  return node->function_base()->MakeNode<ArrayIndex>(
+      node->loc(), node, std::vector<Node*>{idx_node});
+}
+
+absl::StatusOr<BitSlice*> FindOrMakeBitSlice(Node* node, int64_t start,
+                                             int64_t width) {
+  if (std::optional<BitSlice*> existing =
+          FindBitSliceUser(node, start, width)) {
+    return *existing;
+  }
+  return node->function_base()->MakeNode<BitSlice>(node->loc(), node, start,
+                                                   width);
+}
+
 absl::StatusOr<Node*> SliceTuple(Node* tuple, int64_t start,
                                  std::optional<int64_t> count) {
   XLS_RET_CHECK(tuple->GetType()->IsTuple()) << "Not a tuple: " << tuple;
