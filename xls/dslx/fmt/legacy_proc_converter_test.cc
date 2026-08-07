@@ -1171,5 +1171,52 @@ impl MyStruct {
 )");
 }
 
+TEST_F(LegacyProcConverterTest, ProcWithCopyrightComment) {
+  DoLegacyProcConversionFmt(std::string(R"(// Copyright 2026 The XLS Authors
+//
+// Other info
+// ...
+
+proc Producer {
+    s: chan<u32> out;
+    config(input_s: chan<u32> out) {
+        (input_s,)
+    }
+    init {
+        0
+    }
+    next(state: u32) {
+        send(join(), s, state);
+        state + 1
+    }
+}
+)"),
+                            std::string(R"(// Copyright 2026 The XLS Authors
+//
+// Other info
+// ...
+
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Producer {
+    s: chan<u32> out,
+    state: u32,
+}
+
+impl Producer {
+    fn new(input_s: chan<u32> out) -> Self {
+        Producer { s: input_s, state: 0 }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        send(join(), self.s, state);
+        write(self.state, state + 1);
+    }
+}
+)"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

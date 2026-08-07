@@ -74,7 +74,9 @@ std::vector<const CommentData*> Comments::GetComments(
   // Implementation note: this will typically be a single access (as most things
   // will be on a single line), so we prefer a flat hash map to a btree map.
   std::vector<const CommentData*> results;
-  for (int64_t i = node_span.start().lineno(); i <= node_span.limit().lineno();
+  for (int64_t i = node_span.start().lineno();
+       last_data_limit_.has_value() && i <= node_span.limit().lineno() &&
+       i <= last_data_limit_->lineno();
        ++i) {
     if (auto it = line_to_comment_.find(i); it != line_to_comment_.end()) {
       // Check that the comment is properly contained within the given

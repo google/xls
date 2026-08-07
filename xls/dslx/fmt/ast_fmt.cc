@@ -33,6 +33,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
@@ -3293,21 +3294,83 @@ static int NumHardLinesAfter(const AstNode* node, const ModuleMember& member,
   return num_hard_lines;
 }
 
+std::optional<Pos> Formatter::FormatTopCopyrightNotice(
+    const Module& n, std::vector<DocRef>& pieces) {
+  Fileno fileno = Fileno(0);
+  if (!n.top().empty() && ToAstNode(n.top()[0])->GetSpan().has_value()) {
+    fileno = ToAstNode(n.top()[0])->GetSpan()->start().fileno();
+  }
+  std::vector<const CommentData*> unplaced = comments_.GetUnplacedComments(Span(
+      Pos(fileno, 0, 0), Pos(fileno, std::numeric_limits<int64_t>::max(), 0)));
+  if (unplaced.empty() ||
+      !absl::StrContains(absl::AsciiStrToLower(unplaced[0]->text),
+                         "copyright")) {
+    return std::nullopt;
+  }
+  std::optional<Span> attr_span = n.GetAttributeSpan();
+  if (attr_span.has_value() && attr_span->start() < unplaced[0]->span.start()) {
+    return std::nullopt;
+  }
+  size_t unbroken_count = 1;
+  for (size_t k = 1; k < unplaced.size(); ++k) {
+    if (unplaced[k]->span.start().lineno() ==
+        unplaced[k - 1]->span.start().lineno() + 1) {
+      unbroken_count++;
+    } else {
+      break;
+    }
+  }
+  Pos limit = unplaced[unbroken_count - 1]->span.limit();
+  std::optional<DocRef> comments_doc =
+      FormatCommentsBetween(std::nullopt, limit);
+  if (!comments_doc.has_value()) {
+    return std::nullopt;
+  }
+  pieces.push_back(*comments_doc);
+  pieces.push_back(arena_.hard_line());
+
+  std::optional<Pos> next_pos;
+  if (unbroken_count < unplaced.size() &&
+      (!attr_span.has_value() ||
+       unplaced[unbroken_count]->span.start() < attr_span->start())) {
+    next_pos = unplaced[unbroken_count]->span.start();
+  } else if (n.attributes().empty() && !n.top().empty() &&
+             ToAstNode(n.top()[0])->GetSpan().has_value()) {
+    next_pos = ToAstNode(n.top()[0])->GetSpan()->start();
+  }
+  if (next_pos.has_value() &&
+      next_pos->lineno() >
+          unplaced[unbroken_count - 1]->span.start().lineno() + 1) {
+    pieces.push_back(arena_.hard_line());
+  }
+  return limit;
+}
+
 absl::StatusOr<DocRef> Formatter::FormatModule(const Module& n) {
   std::vector<DocRef> pieces;
 
   std::optional<Span> last_comment_span;
-  std::optional<Pos> last_entity_pos;
+  std::optional<Pos> last_entity_pos = FormatTopCopyrightNotice(n, pieces);
+  bool has_formatted_copyright_notice = last_entity_pos.has_value();
+
   if (!n.attributes().empty()) {
+    bool has_comments_before_attributes = false;
     if (std::optional<Span> span = n.GetAttributeSpan(); span.has_value()) {
       if (std::optional<DocRef> comments_doc = FormatCommentsBetween(
-              std::nullopt, span->limit(), &last_comment_span);
+              last_entity_pos, span->start(), &last_comment_span);
           comments_doc.has_value()) {
+        has_comments_before_attributes = true;
         pieces.push_back(comments_doc.value());
         pieces.push_back(arena_.hard_line());
-        pieces.push_back(arena_.hard_line());
+        if (last_comment_span.has_value() &&
+            span->start().lineno() > last_comment_span->limit().lineno()) {
+          pieces.push_back(arena_.hard_line());
+        }
       }
       last_entity_pos = span->limit();
+    }
+    if (has_formatted_copyright_notice && !has_comments_before_attributes) {
+      pieces.push_back(arena_.hard_line());
     }
 
     for (ModuleAttribute annotation : n.attributes()) {
@@ -3403,7 +3466,8 @@ absl::StatusOr<DocRef> Formatter::FormatModule(const Module& n) {
     const Pos& member_limit = member_span->limit();
 
     // Check the start of this member is >= the last member limit.
-    if (last_entity_pos.has_value()) {
+    if (last_entity_pos.has_value() &&
+        member_start != Pos(member_start.fileno(), 0, 0)) {
       CHECK_GE(member_start, last_entity_pos.value());
     }
 
@@ -3424,7 +3488,8 @@ absl::StatusOr<DocRef> Formatter::FormatModule(const Module& n) {
     }
 
     // Check the last member position is monotonically increasing.
-    if (last_entity_pos.has_value()) {
+    if (last_entity_pos.has_value() &&
+        member_start != Pos(member_start.fileno(), 0, 0)) {
       CHECK_GT(member_span->limit(), last_entity_pos.value());
     }
 

@@ -106,6 +106,14 @@ class Formatter {
   // source line as `from`
   bool FirstCommentTrails(const Pos& from, const Pos& to);
 
+  // Formats any top-of-file copyright header comments if present, returning
+  // the limit Pos if formatted. Note that this does not hoist a copyright
+  // notice above module attributes or other comments, if those were above the
+  // copyright notice in the original input. The idea is to not inject anything
+  // above an existing copyright notice, as a result of formatting.
+  std::optional<Pos> FormatTopCopyrightNotice(const Module& n,
+                                              std::vector<DocRef>& pieces);
+
   template <typename T>
   DocRef FormatImplOrTrait(const T& n, Keyword keyword,
                            DocRef name_or_struct_ref);

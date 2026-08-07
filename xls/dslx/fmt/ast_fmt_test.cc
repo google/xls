@@ -4346,5 +4346,51 @@ fn test_flat_struct(s: MyStruct) -> bool {
 )");
 }
 
+TEST_F(ModuleFmtTest, CopyrightNoticeThenModuleAttribute) {
+  DoFmt(R"(// Copyright 2025 The XLS Authors
+//
+// More copyright stuff
+
+#![feature(generics)]
+
+fn main() {}
+)");
+}
+
+TEST_F(ModuleFmtTest, CopyrightNoticeWithGapThenModuleComments) {
+  DoFmt(R"(// Copyright 2025 The XLS Authors
+//
+// More copyright stuff
+
+//! Module level doc comments.
+
+fn main() {}
+)");
+}
+
+TEST_F(ModuleFmtTest, NoMoveOfCopyrightAboveOriginalPlace) {
+  constexpr std::string_view kProgram = R"(// Random stuff
+
+// Copyright 2025 The XLS Authors
+//
+// More copyright stuff
+
+//! Module level doc comments.
+
+fn main() {}
+)";
+
+  DoFmt(std::string(kProgram));
+}
+
+TEST_F(ModuleFmtTest, CopyrightNoticeWithGapThenFnDef) {
+  DoFmt(R"(// Copyright 2025 The XLS Authors
+//
+// More copyright stuff
+
+fn main() {}
+)");
+}
+
 }  // namespace
 }  // namespace xls::dslx
