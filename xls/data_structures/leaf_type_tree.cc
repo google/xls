@@ -15,12 +15,12 @@
 #include "xls/data_structures/leaf_type_tree.h"
 
 #include <cstdint>
-#include <optional>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "absl/container/inlined_vector.h"
+#include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -67,47 +67,6 @@ absl::StatusOr<SubArraySize> GetSubArraySize(Type* type, int64_t index_depth) {
 
 namespace {
 
-std::pair<Type*, int64_t> GetSubtypeAndOffsetHelper(
-    Type* t, absl::Span<int64_t const> index, int64_t offset) {
-  if (index.empty()) {
-    return {t, offset};
-  }
-  if (t->IsArray()) {
-    CHECK(!index.empty());
-    CHECK_LT(index[0], t->AsArrayOrDie()->size());
-    Type* element_type = t->AsArrayOrDie()->element_type();
-    return GetSubtypeAndOffsetHelper(
-        element_type, index.subspan(1),
-        offset + index[0] * element_type->leaf_count());
-  }
-  CHECK(t->IsTuple());
-  TupleType* tuple_type = t->AsTupleOrDie();
-  CHECK_LT(index[0], tuple_type->size());
-  int64_t element_offset = 0;
-  for (int64_t i = 0; i < index[0]; ++i) {
-    element_offset += tuple_type->element_type(i)->leaf_count();
-  }
-  return GetSubtypeAndOffsetHelper(tuple_type->element_type(index[0]),
-                                   index.subspan(1), offset + element_offset);
-}
-
-void GetLeafTypesHelper(Type* t, absl::InlinedVector<Type*, 1>* leaf_types) {
-  if (IsLeafType(t)) {
-    leaf_types->push_back(t);
-    return;
-  }
-  if (t->IsArray()) {
-    for (int64_t i = 0; i < t->AsArrayOrDie()->size(); ++i) {
-      GetLeafTypesHelper(t->AsArrayOrDie()->element_type(), leaf_types);
-    }
-    return;
-  }
-  CHECK(t->IsTuple());
-  for (int64_t i = 0; i < t->AsTupleOrDie()->size(); ++i) {
-    GetLeafTypesHelper(t->AsTupleOrDie()->element_type(i), leaf_types);
-  }
-}
-
 std::string ToStringHelper(Type* subtype,
                            absl::Span<const std::string> elements,
                            bool multiline, int64_t indent,
@@ -150,101 +109,7 @@ std::string ToStringHelper(Type* subtype,
   return elements[linear_index++];
 }
 
-// Returns the index of the first leaf element in the type. This requires
-// searching through the type as some branches of the type may be dead-ends due
-// to empty tuples.
-std::optional<Type*> FirstLeafIndex(Type* type, std::vector<int64_t>* index) {
-  if (IsLeafType(type)) {
-    return type;
-  }
-  if (type->leaf_count() == 0) {
-    return std::nullopt;
-  }
-
-  if (type->IsArray()) {
-    index->push_back(0);
-    std::optional<Type*> leaf_type =
-        FirstLeafIndex(type->AsArrayOrDie()->element_type(), index);
-    CHECK(leaf_type.has_value());
-    return leaf_type;
-  }
-  CHECK(type->IsTuple());
-  TupleType* tuple_type = type->AsTupleOrDie();
-  for (int64_t i = 0; i < tuple_type->size(); ++i) {
-    Type* element_type = tuple_type->element_type(i);
-    if (element_type->leaf_count() > 0) {
-      index->push_back(i);
-      std::optional<Type*> leaf_type = FirstLeafIndex(element_type, index);
-      CHECK(leaf_type.has_value());
-      return leaf_type;
-    }
-  }
-  LOG(FATAL) << "Tuple should have had leaf element due to leaf_count() > 0.";
-}
-
-// For aggregate types, returns the type of the element at the given index.
-Type* ChildType(Type* type, int64_t index) {
-  if (type->IsArray()) {
-    return type->AsArrayOrDie()->element_type();
-  }
-  CHECK(type->IsTuple());
-  return type->AsTupleOrDie()->element_type(index);
-}
-
-// For aggregate types, returns the number immediate (non-transitive) elements
-// in the type (e.g., the number of elements in an array type).
-int64_t TypeSize(Type* type) {
-  if (type->IsArray()) {
-    return type->AsArrayOrDie()->size();
-  }
-  CHECK(type->IsTuple());
-  return type->AsTupleOrDie()->size();
-}
-
-// Helper for `LeafTypeIterator::Advance`. Adjusts the type indices so they are
-// they are inbounds. Calling after incrementing the last element of `index`
-// advances the type index. Returns the leaf type of the next index or
-// std::nullopt if the iteration is at the end.
-std::optional<Type*> AdvanceHelper(Type* type, std::vector<int64_t>* index,
-                                   int64_t depth) {
-  if (depth == index->size()) {
-    if (IsLeafType(type)) {
-      return type;
-    }
-    index->push_back(0);
-  }
-
-  // Walk through the indices until a leaf-type is found.
-  for (; (*index)[depth] < TypeSize(type); ++(*index)[depth]) {
-    std::optional<Type*> leaf_type =
-        AdvanceHelper(ChildType(type, (*index)[depth]), index, depth + 1);
-    if (leaf_type.has_value()) {
-      return leaf_type;
-    }
-  }
-  // No leaf type was found (or the indices overflowed).
-  index->pop_back();
-  return std::nullopt;
-}
-
 }  // namespace
-
-std::pair<Type*, int64_t> GetSubtypeAndOffset(Type* t,
-                                              absl::Span<int64_t const> index) {
-  return GetSubtypeAndOffsetHelper(t, index, /*offset=*/0);
-}
-
-absl::InlinedVector<Type*, 1> GetLeafTypes(Type* t) {
-  absl::InlinedVector<Type*, 1> leaf_types;
-  GetLeafTypesHelper(t, &leaf_types);
-  return leaf_types;
-}
-
-int64_t GetLeafTypeOffset(Type* t, absl::Span<int64_t const> index) {
-  auto [subtype, offset] = GetSubtypeAndOffset(t, index);
-  CHECK(IsLeafType(subtype));
-  return offset;
-}
 
 std::string ToString(Type* t, absl::Span<const std::string> elements,
                      bool multiline) {
@@ -255,22 +120,41 @@ std::string ToString(Type* t, absl::Span<const std::string> elements,
 LeafTypeTreeIterator::LeafTypeTreeIterator(
     Type* type, absl::Span<const int64_t> index_prefix)
     : root_type_(type),
-      type_index_(index_prefix.begin(), index_prefix.end()),
       prefix_size_(index_prefix.size()),
-      linear_index_(0) {
-  leaf_type_ = FirstLeafIndex(type, &type_index_);
-}
+      linear_index_(0),
+      type_index_(index_prefix.begin(), index_prefix.end()) {}
 
 bool LeafTypeTreeIterator::Advance() {
-  CHECK(leaf_type_.has_value());
-  if (type_index_.size() == prefix_size_) {
-    leaf_type_ = std::nullopt;
-    return false;
-  }
-  ++type_index_.back();
+  CHECK(!AtEnd());
   ++linear_index_;
-  leaf_type_ = AdvanceHelper(root_type_, &type_index_, prefix_size_);
-  return !leaf_type_.has_value();
+
+  // Reset the type index to just the prefix; the rest of it will be computed
+  // on demand if needed in `type_index()` below.
+  type_index_.resize(prefix_size_);
+
+  return !AtEnd();
+}
+
+absl::Span<const int64_t> LeafTypeTreeIterator::type_index() const {
+  CHECK(!AtEnd());
+  if (prefix_size_ == 0) {
+    return root_type_->tree_index_vectors()[linear_index_];
+  }
+  if (type_index_.size() > prefix_size_) {
+    // Already computed!
+    return type_index_;
+  }
+
+  // Lazily initialize the type index; it's currently equal to the prefix.
+  absl::Span<const int64_t> tree_index =
+      root_type_->tree_index_vectors()[linear_index_];
+  if (tree_index.empty()) {
+    // It turns out the prefix *is* the type index.
+    return type_index_;
+  }
+  type_index_.reserve(prefix_size_ + tree_index.size());
+  absl::c_copy(tree_index, std::back_inserter(type_index_));
+  return type_index_;
 }
 
 std::string LeafTypeTreeIterator::ToString() const {
@@ -279,8 +163,8 @@ std::string LeafTypeTreeIterator::ToString() const {
   }
   return absl::StrFormat(
       "root_type=%s, leaf_type=%s, type_index={%s}, linear_index=%d",
-      root_type_->ToString(), leaf_type_.value()->ToString(),
-      absl::StrJoin(type_index_, ","), linear_index_);
+      root_type_->ToString(), root_type_->leaf_type(linear_index_)->ToString(),
+      absl::StrJoin(type_index(), ","), linear_index_);
 }
 
 }  // namespace leaf_type_tree_internal

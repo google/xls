@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 #define XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <iterator>
@@ -33,6 +34,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "cppitertools/zip.hpp"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -49,22 +51,6 @@ template <typename T>
 class SharedLeafTypeTree;
 
 namespace leaf_type_tree_internal {
-
-// Returns a pair containing the type and linear element offset (within the
-// flattened vector of leaf elements) for the given type index within
-// `type`. The index can be the index of a leaf element or interior node in the
-// tree (i.e., an aggregate type).
-std::pair<Type*, int64_t> GetSubtypeAndOffset(Type* t,
-                                              absl::Span<int64_t const> index);
-
-// Returns the leaf types for the type `t`. Returned as an inlined vector to
-// match internal storage of LeafTypeTree.
-absl::InlinedVector<Type*, 1> GetLeafTypes(Type* t);
-
-// Returns the leaf element linear offset in the flattened representation of
-// type `t` for the given type-index `index`. CHECK fails if the index is not
-// the index of a leaf element.
-int64_t GetLeafTypeOffset(Type* t, absl::Span<const int64_t> index);
 
 // Returns a string representation of a type tree of the given type with the
 // given flattened representation of elements. See ToString method of
@@ -97,11 +83,9 @@ class LeafTypeTreeView {
  public:
   using DataT = const T;
   using DataContainerT = absl::Span<const T>;
-  using TypeContainerT = absl::Span<Type* const>;
 
-  LeafTypeTreeView(Type* type, absl::Span<const T> elements,
-                   absl::Span<Type* const> leaf_types)
-      : type_(type), elements_(elements), leaf_types_(leaf_types) {}
+  LeafTypeTreeView(Type* type, absl::Span<const T> elements)
+      : type_(type), elements_(elements) {}
   LeafTypeTreeView(const LeafTypeTreeView<T>& other) = default;
   LeafTypeTreeView& operator=(const LeafTypeTreeView<T>& other) = default;
   LeafTypeTreeView(LeafTypeTreeView<T>&& other) = default;
@@ -117,22 +101,17 @@ class LeafTypeTreeView {
   // Args:
   //    t: top-level type
   //    elements: flattened leaf data element for type `t`
-  //    leaf_types: leaf_types of type `t`
   //    index: type index of the subtree for which the view is created. If
   //        empty, a view is created for the entire tree.
   static LeafTypeTreeView<T> CreateFromSpans(Type* t,
                                              absl::Span<const T> elements,
-                                             absl::Span<Type* const> leaf_types,
                                              absl::Span<const int64_t> index) {
-    CHECK_EQ(elements.size(), leaf_types.size());
     if (index.empty()) {
-      return LeafTypeTreeView<T>(t, elements, leaf_types);
+      return LeafTypeTreeView<T>(t, elements);
     }
-    auto [subtype, linear_offset] =
-        leaf_type_tree_internal::GetSubtypeAndOffset(t, index);
+    auto [subtype, linear_offset] = t->GetSubtypeAndOffset(index);
     return LeafTypeTreeView<T>(
-        subtype, elements.subspan(linear_offset, subtype->leaf_count()),
-        leaf_types.subspan(linear_offset, subtype->leaf_count()));
+        subtype, elements.subspan(linear_offset, subtype->leaf_count()));
   }
 
   // These methods are mirrors of those on LeafTypeTree. See LeafTypeTree for
@@ -140,12 +119,12 @@ class LeafTypeTreeView {
   Type* type() const { return type_; }
   int64_t size() const { return elements_.size(); }
   const T& Get(absl::Span<int64_t const> index) const {
-    return elements_[leaf_type_tree_internal::GetLeafTypeOffset(type(), index)];
+    return elements_[type()->GetLinearOffset(index)];
   }
   absl::Span<T const> elements() const { return elements_; }
-  absl::Span<Type* const> leaf_types() const { return leaf_types_; }
+  absl::Span<Type* const> leaf_types() const { return type_->leaf_types(); }
   LeafTypeTreeView<T> AsView(absl::Span<const int64_t> index = {}) const {
-    return CreateFromSpans(type(), elements(), leaf_types(), index);
+    return CreateFromSpans(type(), elements(), index);
   }
   std::string ToString(const std::function<std::string(const T&)>& f) const {
     return leaf_type_tree_internal::ToString(
@@ -174,7 +153,6 @@ class LeafTypeTreeView {
  private:
   Type* type_;
   absl::Span<const T> elements_;
-  absl::Span<Type* const> leaf_types_;
 };
 
 // A mutable view of a LeafTypeTree. Leaf data members are mutable but the
@@ -187,7 +165,6 @@ class MutableLeafTypeTreeView {
  public:
   using DataT = T;
   using DataContainerT = absl::Span<T>;
-  using TypeContainerT = absl::Span<Type* const>;
 
   MutableLeafTypeTreeView(const MutableLeafTypeTreeView<T>& other) = default;
   MutableLeafTypeTreeView& operator=(const MutableLeafTypeTreeView<T>& other) =
@@ -195,9 +172,8 @@ class MutableLeafTypeTreeView {
   MutableLeafTypeTreeView(MutableLeafTypeTreeView<T>&& other) = default;
   MutableLeafTypeTreeView& operator=(MutableLeafTypeTreeView<T>&& other) =
       default;
-  MutableLeafTypeTreeView(Type* type, absl::Span<T> elements,
-                          absl::Span<Type* const> leaf_types)
-      : type_(type), elements_(elements), leaf_types_(leaf_types) {}
+  MutableLeafTypeTreeView(Type* type, absl::Span<T> elements)
+      : type_(type), elements_(elements) {}
 
   // Factory function for creating a view (or view of a subtree) of a
   // LeafTypeTree. This should only be used internally.
@@ -209,17 +185,14 @@ class MutableLeafTypeTreeView {
   //    index: type index of the subtree for which the view is created. If
   //        empty, a view is created for the entire tree.
   static MutableLeafTypeTreeView<T> CreateFromSpans(
-      Type* t, absl::Span<T> elements, absl::Span<Type* const> leaf_types,
-      absl::Span<const int64_t> index) {
+      Type* t, absl::Span<T> elements, absl::Span<const int64_t> index) {
     if (index.empty()) {
-      return MutableLeafTypeTreeView<T>(t, elements, leaf_types);
+      return MutableLeafTypeTreeView<T>(t, elements);
     }
-    auto [subtype, linear_offset] =
-        leaf_type_tree_internal::GetSubtypeAndOffset(t, index);
+    auto [subtype, linear_offset] = t->GetSubtypeAndOffset(index);
     return MutableLeafTypeTreeView<T>(
         subtype,
-        absl::MakeSpan(elements).subspan(linear_offset, subtype->leaf_count()),
-        leaf_types.subspan(linear_offset, subtype->leaf_count()));
+        absl::MakeSpan(elements).subspan(linear_offset, subtype->leaf_count()));
   }
 
   // These methods mirror methods on LeafTypeTree. See LeafTypeTree for
@@ -227,21 +200,19 @@ class MutableLeafTypeTreeView {
   Type* type() const { return type_; }
   int64_t size() const { return elements_.size(); }
   T& Get(absl::Span<int64_t const> index) const {
-    return elements_[leaf_type_tree_internal::GetLeafTypeOffset(type(), index)];
+    return elements_[type()->GetLinearOffset(index)];
   }
   void Set(absl::Span<int64_t const> index, const T& value) const {
-    elements_[leaf_type_tree_internal::GetLeafTypeOffset(type(), index)] =
-        value;
+    elements_[type()->GetLinearOffset(index)] = value;
   }
   absl::Span<T> elements() const { return elements_; }
-  absl::Span<Type* const> leaf_types() const { return leaf_types_; }
+  absl::Span<Type* const> leaf_types() const { return type_->leaf_types(); }
   LeafTypeTreeView<T> AsView(absl::Span<const int64_t> index = {}) const {
-    return LeafTypeTreeView<T>::CreateFromSpans(type(), elements(),
-                                                leaf_types(), index);
+    return LeafTypeTreeView<T>::CreateFromSpans(type(), elements(), index);
   }
   MutableLeafTypeTreeView<T> AsMutableView(
       absl::Span<const int64_t> index = {}) const {
-    return CreateFromSpans(type(), elements(), leaf_types(), index);
+    return CreateFromSpans(type(), elements(), index);
   }
   std::string ToString(const std::function<std::string(const T&)>& f) const {
     return leaf_type_tree_internal::ToString(
@@ -260,7 +231,6 @@ class MutableLeafTypeTreeView {
  private:
   Type* type_;
   absl::Span<T> elements_;
-  absl::Span<Type* const> leaf_types_;
 };
 
 namespace leaf_type_tree_internal {
@@ -293,7 +263,7 @@ class LeafTypeTreeIterator {
   // must not be at end of space.
   Type* leaf_type() const {
     CHECK(!AtEnd());
-    return leaf_type_.value();
+    return root_type_->leaf_type(linear_index_);
   }
 
   // Returns the linear index of the current point into a flattened
@@ -305,13 +275,10 @@ class LeafTypeTreeIterator {
 
   // Returns the multi-dimensional type index of the current point. Iterator
   // must not be at end of space.
-  absl::Span<const int64_t> type_index() const {
-    CHECK(!AtEnd());
-    return type_index_;
-  }
+  absl::Span<const int64_t> type_index() const;
 
   // Returns true if the iterator is at the end of the space.
-  bool AtEnd() const { return !leaf_type_.has_value(); }
+  bool AtEnd() const { return linear_index_ == root_type_->leaf_count(); }
 
   // Advances the iterator to the next leaf index. Returns true if the iterator
   // reached the end of the type. Iterator must not be at end of space.
@@ -321,13 +288,11 @@ class LeafTypeTreeIterator {
 
  private:
   Type* root_type_;
-  std::vector<int64_t> type_index_;
   // Number of elements in the index_prefix.
   int64_t prefix_size_;
   int64_t linear_index_;
-  // Leaf type at the current position. If nullopt then the iterator is at the
-  // end.
-  std::optional<Type*> leaf_type_;
+
+  mutable std::vector<int64_t> type_index_;
 };
 
 }  // namespace leaf_type_tree_internal
@@ -363,7 +328,6 @@ template <typename T>
 class LeafTypeTree {
  public:
   using DataContainerT = absl::InlinedVector<T, 1>;
-  using TypeContainerT = absl::InlinedVector<Type*, 1>;
 
   LeafTypeTree() : type_(nullptr) {}
   LeafTypeTree(const LeafTypeTree<T>& other) = default;
@@ -375,22 +339,16 @@ class LeafTypeTree {
 
   // Creates a leaf type tree in which each data member is default constructed.
   explicit LeafTypeTree(Type* type)
-      : type_(type),
-        elements_(type->leaf_count()),
-        leaf_types_(leaf_type_tree_internal::GetLeafTypes(type)) {}
+      : type_(type), elements_(type->leaf_count()) {}
 
   // Creates a leaf type tree in which each data member set to `init_value`.
   LeafTypeTree(Type* type, const T& init_value)
-      : type_(type),
-        elements_(type->leaf_count(), init_value),
-        leaf_types_(leaf_type_tree_internal::GetLeafTypes(type)) {}
+      : type_(type), elements_(type->leaf_count(), init_value) {}
 
   // Constructor which takes a flattened representation of the leaf elements.
   LeafTypeTree(Type* type, absl::Span<const T> elements)
-      : type_(type),
-        elements_(elements.begin(), elements.end()),
-        leaf_types_(leaf_type_tree_internal::GetLeafTypes(type)) {
-    CHECK_EQ(elements_.size(), leaf_types_.size());
+      : type_(type), elements_(elements.begin(), elements.end()) {
+    CHECK_EQ(elements_.size(), type->leaf_count());
   }
 
   SharedLeafTypeTree<T> AsShared() &&;
@@ -403,7 +361,6 @@ class LeafTypeTree {
     LeafTypeTree<T> ltt;
     ltt.type_ = type;
     ltt.elements_ = std::move(elements);
-    ltt.leaf_types_ = leaf_type_tree_internal::GetLeafTypes(type);
     return ltt;
   }
 
@@ -413,7 +370,6 @@ class LeafTypeTree {
     LeafTypeTree<T> ltt;
     ltt.type_ = type;
     ltt.elements_.push_back(std::move(element));
-    ltt.leaf_types_ = leaf_type_tree_internal::GetLeafTypes(type);
     return ltt;
   }
 
@@ -424,9 +380,8 @@ class LeafTypeTree {
       Type* type, std::function<absl::StatusOr<T>(Type* leaf_type)> f) {
     LeafTypeTree<T> ltt;
     ltt.type_ = type;
-    ltt.leaf_types_ = leaf_type_tree_internal::GetLeafTypes(type);
-    ltt.elements_.reserve(ltt.leaf_types_.size());
-    for (Type* leaf_type : ltt.leaf_types_) {
+    ltt.elements_.reserve(type->leaf_count());
+    for (Type* leaf_type : type->leaf_types()) {
       XLS_ASSIGN_OR_RETURN(T value, f(leaf_type));
       ltt.elements_.push_back(std::move(value));
     }
@@ -458,16 +413,15 @@ class LeafTypeTree {
   // recursive traversal through the object's XLS type. The Type index must
   // correspond to a leaf Bits-type element in the object's XLS type.
   T& Get(absl::Span<int64_t const> index) {
-    return elements_[leaf_type_tree_internal::GetLeafTypeOffset(type(), index)];
+    return elements_[type()->GetLinearOffset(index)];
   }
   const T& Get(absl::Span<int64_t const> index) const {
-    return elements_[leaf_type_tree_internal::GetLeafTypeOffset(type(), index)];
+    return elements_[type()->GetLinearOffset(index)];
   }
 
   // Sets the element at the given Type index to the given value.
   void Set(absl::Span<int64_t const> index, const T& value) {
-    elements_[leaf_type_tree_internal::GetLeafTypeOffset(type(), index)] =
-        value;
+    elements_[type()->GetLinearOffset(index)] = value;
   }
 
   // Returns the values stored in this container.
@@ -478,20 +432,19 @@ class LeafTypeTree {
 
   // Returns the types of each leaf in the XLS type of this object. The order
   // of these types corresponds to the order of elements().
-  absl::Span<Type* const> leaf_types() const { return leaf_types_; }
+  absl::Span<Type* const> leaf_types() const { return type_->leaf_types(); }
 
   // Returns an immutable view of the LeafTypeTree.
   LeafTypeTreeView<T> AsView(absl::Span<const int64_t> index = {}) const
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return LeafTypeTreeView<T>::CreateFromSpans(type(), elements(),
-                                                leaf_types(), index);
+    return LeafTypeTreeView<T>::CreateFromSpans(type(), elements(), index);
   }
 
   // Returns a mutable view of the LeafTypeTree.
   MutableLeafTypeTreeView<T> AsMutableView(absl::Span<const int64_t> index = {})
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return MutableLeafTypeTreeView<T>::CreateFromSpans(type(), elements(),
-                                                       leaf_types(), index);
+                                                       index);
   }
 
   // Returns the stringified elements of the LeafTypeTree in a structured
@@ -541,7 +494,6 @@ class LeafTypeTree {
  protected:
   Type* type_;
   DataContainerT elements_;
-  TypeContainerT leaf_types_;
 };
 
 namespace leaf_type_tree_internal {
@@ -568,8 +520,7 @@ absl::StatusOr<SubArraySize> GetSubArraySize(Type* type, int64_t index_depth);
 
 template <typename T, typename ViewT>
 absl::Status ForEachSubArrayHelper(
-    Type* type, absl::Span<T> elements, absl::Span<Type* const> leaf_types,
-    int64_t index_depth,
+    Type* type, absl::Span<T> elements, int64_t index_depth,
     const std::function<absl::Status(ViewT view,
                                      absl::Span<const int64_t> index)>& f) {
   XLS_ASSIGN_OR_RETURN(
@@ -580,8 +531,7 @@ absl::Status ForEachSubArrayHelper(
   do {
     XLS_RETURN_IF_ERROR(
         f(ViewT(subarray_size.type,
-                elements.subspan(linear_index, subarray_size.element_count),
-                leaf_types.subspan(linear_index, subarray_size.element_count)),
+                elements.subspan(linear_index, subarray_size.element_count)),
           array_index));
     linear_index += subarray_size.element_count;
   } while (!leaf_type_tree_internal::IncrementArrayIndex(subarray_size.bounds,
@@ -602,7 +552,6 @@ class SharedLeafTypeTree {
  public:
   using DataT = const T;
   using DataContainerT = absl::Span<const T>;
-  using TypeContainerT = absl::Span<Type* const>;
 
   // If you want to have an owned copy use ToOwned. To get an unowned view use
   // AsView. Doing an implicit copy is probably not what you ever want.
@@ -709,12 +658,9 @@ absl::StatusOr<LeafTypeTree<T>> CreateArray(
     XLS_RET_CHECK_EQ(array_type->element_type(), element.type());
   }
   typename LeafTypeTree<T>::DataContainerT data_vector;
-  data_vector.reserve(elements.size());
+  data_vector.reserve(array_type->leaf_count());
   for (int64_t i = 0; i < elements.size(); ++i) {
-    for (int64_t j = 0; j < elements[i].size(); ++j) {
-      const T& leaf = elements[i].elements()[j];
-      data_vector.push_back(leaf);
-    }
+    absl::c_copy(elements[i].elements(), std::back_inserter(data_vector));
   }
   return LeafTypeTree<T>::CreateFromVector(array_type, std::move(data_vector));
 }
@@ -772,24 +718,27 @@ template <typename T>
 absl::StatusOr<LeafTypeTree<T>> SliceArray(ArrayType* result_array_type,
                                            const LeafTypeTreeView<T> source,
                                            int64_t start) {
+  ArrayType* source_array_type = source.type()->AsArrayOrDie();
   XLS_RET_CHECK_EQ(result_array_type->element_type(),
-                   source.type()->AsArrayOrDie()->element_type());
+                   source_array_type->element_type());
   XLS_RET_CHECK_GE(start, 0);
-  XLS_RET_CHECK_GT(source.type()->AsArrayOrDie()->size(), 0);
+  XLS_RET_CHECK_GT(source_array_type->size(), 0);
+
   typename LeafTypeTree<T>::DataContainerT result;
-  result.reserve(source.AsView({0}).size() * result_array_type->size());
+  int64_t elem_leaves = source_array_type->element_type()->leaf_count();
+  result.reserve(elem_leaves * result_array_type->size());
   auto add_all = [&](LeafTypeTreeView<T> v) {
     absl::c_copy(v.elements(), std::back_inserter(result));
   };
-  int64_t source_size = source.type()->AsArrayOrDie()->size();
+  int64_t source_size = source_array_type->size();
   for (int64_t i = 0; i < result_array_type->size(); ++i) {
-    int64_t source_off = SaturatingAdd<int64_t>(i, start).result;
-    if (source_off < source_size) {
-      add_all(source.AsView({source_off}));
-    } else {
-      // Repeat of last element
-      add_all(source.AsView({source.type()->AsArrayOrDie()->size() - 1}));
-    }
+    int64_t source_idx =
+        std::min(SaturatingAdd<int64_t>(i, start).result, source_size - 1);
+    int64_t leaf_offset =
+        source_idx *
+        source.type()->AsArrayOrDie()->element_type()->leaf_count();
+    absl::c_copy(source.elements().subspan(leaf_offset, elem_leaves),
+                 std::back_inserter(result));
   }
   return LeafTypeTree<T>::CreateFromVector(result_array_type,
                                            std::move(result));
@@ -806,12 +755,9 @@ absl::StatusOr<LeafTypeTree<T>> CreateTuple(
     XLS_RET_CHECK_EQ(tuple_type->element_type(i), elements[i].type());
   }
   typename LeafTypeTree<T>::DataContainerT data_vector;
-  data_vector.reserve(elements.size());
+  data_vector.reserve(tuple_type->leaf_count());
   for (int64_t i = 0; i < elements.size(); ++i) {
-    for (int64_t j = 0; j < elements[i].size(); ++j) {
-      const T& leaf = elements[i].elements()[j];
-      data_vector.push_back(leaf);
-    }
+    absl::c_copy(elements[i].elements(), std::back_inserter(data_vector));
   }
   return LeafTypeTree<T>::CreateFromVector(tuple_type, std::move(data_vector));
 }
@@ -1059,8 +1005,8 @@ absl::Status ForEachSubArray(
     const std::function<absl::Status(MutableLeafTypeTreeView<T> view,
                                      absl::Span<const int64_t> index)>& f) {
   return leaf_type_tree_internal::ForEachSubArrayHelper<
-      T, MutableLeafTypeTreeView<T>>(ltt.type(), ltt.elements(),
-                                     ltt.leaf_types(), index_depth, f);
+      T, MutableLeafTypeTreeView<T>>(ltt.type(), ltt.elements(), index_depth,
+                                     f);
 }
 
 template <typename T>
@@ -1070,7 +1016,7 @@ absl::Status ForEachSubArray(
                                      absl::Span<const int64_t> index)>& f) {
   return leaf_type_tree_internal::ForEachSubArrayHelper<const T,
                                                         LeafTypeTreeView<T>>(
-      ltt.type(), ltt.elements(), ltt.leaf_types(), index_depth, f);
+      ltt.type(), ltt.elements(), index_depth, f);
 }
 
 // Returns the first leaf index for which 'matcher' returns true. The
@@ -1081,21 +1027,17 @@ template <typename T, typename Matcher>
                                  absl::Span<int64_t const>>)
 absl::StatusOr<std::optional<std::vector<int64_t>>> FindMatchingIndex(
     LeafTypeTreeView<T> view, Matcher matcher) {
-  std::optional<std::vector<int64_t>> results;
-  XLS_RETURN_IF_ERROR(
-      ForEachIndex(view,
-                   [&](Type* t, const T& v,
-                       absl::Span<int64_t const> index) -> absl::Status {
-                     if (!results) {
-                       XLS_ASSIGN_OR_RETURN(auto res, matcher(t, v, index));
-                       if (res) {
-                         results.emplace(index.begin(), index.end());
-                       }
-                     }
-                     return absl::OkStatus();
-                   }));
-  return results;
+  for (const auto& [leaf_type, leaf_value, index] :
+       iter::zip(view.type()->leaf_types(), view.elements(),
+                 view.type()->tree_index_vectors())) {
+    XLS_ASSIGN_OR_RETURN(bool match, matcher(leaf_type, leaf_value, index));
+    if (match) {
+      return std::vector<int64_t>(index.begin(), index.end());
+    }
+  }
+  return std::nullopt;
 }
+
 }  // namespace leaf_type_tree
 
 template <typename T>
