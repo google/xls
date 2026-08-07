@@ -1936,11 +1936,6 @@ absl::Status Translator::GenerateIRBlockCheck(
     channel_names_in_block.insert(channel.name());
   }
 
-  if (top_decls.size() != block.channels_size()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Top function has %i parameters, but block proto defines %i channels",
-        top_decls.size(), block.channels_size()));
-  }
   for (const ExternalChannelInfo& top_decl : top_decls) {
     const clang::NamedDecl* decl = top_decl.decl;
 
@@ -1950,12 +1945,6 @@ absl::Status Translator::GenerateIRBlockCheck(
           decl->getNameAsString()));
     }
     channel_names_in_block.erase(decl->getNameAsString());
-  }
-
-  if (!channel_names_in_block.empty()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Block proto contains %i channels not in function prototype",
-        channel_names_in_block.size()));
   }
 
   return absl::OkStatus();

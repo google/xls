@@ -578,6 +578,7 @@ class LValue {
   }
 
   bool is_select() const { return is_select_; }
+  bool is_channel() const { return channel_leaf_ != nullptr; }
   const TrackedBValue& cond() const { return cond_; }
   std::shared_ptr<LValue> lvalue_true() const { return lvalue_true_; }
   std::shared_ptr<LValue> lvalue_false() const { return lvalue_false_; }

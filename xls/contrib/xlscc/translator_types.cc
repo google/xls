@@ -929,7 +929,7 @@ int CChannelType::GetBitWidth() const { return item_type_->GetBitWidth(); }
 std::shared_ptr<CType> CChannelType::GetItemType() const { return item_type_; }
 
 CChannelType::operator std::string() const {
-  if (op_type_ == OpType::kRead || op_type_ == OpType::kWrite) {
+  if (memory_size_ > 0) {
     return absl::StrFormat("memory<%s,%i>", string(*item_type_), memory_size_);
   }
   return absl::StrFormat("channel<%s,%s>", string(*item_type_),
