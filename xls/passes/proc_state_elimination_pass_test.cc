@@ -81,9 +81,9 @@ class ProcStateEliminationPassTest
         return pb.Build(next_state);
       case NextValueType::kNextValueNodes: {
         for (int64_t index = 0; index < next_state.size(); ++index) {
-          BValue state_read = pb.GetStateParam(index);
+          BStateElement state_element = pb.GetStateElement(index);
           BValue next_value = next_state[index];
-          pb.Next(state_read, next_value);
+          pb.Next(state_element, next_value);
         }
         return pb.Build();
       }
@@ -206,6 +206,21 @@ TEST_F(BaseProcStateEliminationPassTest, DecoupledDeadElements) {
   // State element y gets cleaned up
   EXPECT_EQ(proc->GetStateElementCount(), 1);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "x");
+}
+
+TEST_P(ProcStateEliminationPassTest, MultipleStateReads) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BStateElement x_element =
+      pb.StateElement("x", Value(UBits(42, 32)), /*non_synthesizable=*/false);
+  BValue r1 = pb.StateRead(x_element);
+  BValue r2 = pb.StateRead(x_element);
+  BValue next_val = pb.Add(r1, r2);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {next_val}));
+
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(proc->GetStateElementCount(), 0);
 }
 
 TEST_P(ProcStateEliminationPassTest, CrissCrossDeadElements) {
