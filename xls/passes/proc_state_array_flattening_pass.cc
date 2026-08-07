@@ -103,10 +103,10 @@ class ArrayToTupleStateTransformer : public Proc::StateElementTransformer {
         NodeNameConcat(old_state_read, "_as_array"));
   }
   absl::StatusOr<Node*> TransformNextValue(Proc* proc,
-                                           StateRead* new_state_read,
+                                           StateElement* new_state_element,
                                            Next* old_next) final {
     VLOG(3) << "Transforming next value";
-    XLS_RET_CHECK(new_state_read->GetType()->IsTuple());
+    XLS_RET_CHECK(new_state_element->type()->IsTuple());
     return ConvertArrayToTuple(old_next->value());
   }
 };

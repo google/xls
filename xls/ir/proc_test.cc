@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -67,13 +68,13 @@ class ProcTest : public IrTestBase {
                                   Op::kNeg);
     }
     absl::StatusOr<Node*> TransformNextValue(Proc* proc,
-                                             StateRead* new_state_read,
+                                             StateElement* new_state_element,
                                              Next* old_next) override {
       return proc->MakeNode<UnOp>(old_next->value()->loc(), old_next->value(),
                                   Op::kNeg);
     }
     absl::StatusOr<std::optional<Node*>> TransformNextPredicate(
-        Proc* proc, StateRead* new_state_read, Next* old_next) override {
+        Proc* proc, StateElement* new_state_element, Next* old_next) override {
       XLS_ASSIGN_OR_RETURN(
           Node * true_const,
           proc->MakeNode<Literal>(old_next->loc(), Value::Bool(true)));
@@ -653,6 +654,62 @@ TEST_F(ProcTest, TransformStateElementDecoupled) {
                       new_st_element,
                       m::Neg(m::Sub(m::Neg(new_st), m::Literal(UBits(1, 4)))),
                       m::And(m::Literal(UBits(1, 1)), m::Not(cond.node())))));
+}
+
+TEST_F(ProcTest, TransformStateElementMultipleReads) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  auto cond1 = pb.ReadStateElement("cond1", UBits(0, 1));
+  auto cond2 = pb.ReadStateElement("cond2", UBits(0, 1));
+
+  BStateElement state_element = pb.StateElement("st", Value(UBits(0b1010, 4)),
+                                                /*non_synthesizable=*/false);
+
+  BValue st_read1 = pb.StateRead(state_element, cond1, "read1");
+  BValue st_read2 = pb.StateRead(state_element, cond2, "read2");
+
+  BValue next_val1 = pb.Add(st_read1, pb.Literal(UBits(1, 4)));
+  BValue next_val2 = pb.Subtract(st_read2, pb.Literal(UBits(1, 4)));
+
+  pb.Next(state_element, next_val1, cond1);
+  pb.Next(state_element, next_val2, cond2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  TestTransformer tt;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StateElement * new_st_element,
+      proc->TransformStateElement(state_element.state_element(),
+                                  Value(UBits(0b0101, 4)), tt));
+
+  absl::Span<StateRead* const> new_reads =
+      proc->GetStateReadsByStateElement(new_st_element);
+  ASSERT_EQ(new_reads.size(), 2);
+
+  StateRead* new_st1 = new_reads[0];
+  StateRead* new_st2 = new_reads[1];
+
+  EXPECT_THAT(st_read1.node(), m::StateRead(testing::Not("st")));
+  EXPECT_THAT(st_read1.node()->users(), ::testing::IsEmpty());
+  EXPECT_THAT(st_read2.node(), m::StateRead(testing::Not("st")));
+  EXPECT_THAT(st_read2.node()->users(), ::testing::IsEmpty());
+
+  EXPECT_EQ(new_st1->label(), "read1");
+  EXPECT_EQ(new_st2->label(), "read2");
+
+  EXPECT_EQ(new_st1->predicate().value(), cond1.node());
+  EXPECT_EQ(new_st2->predicate().value(), cond2.node());
+
+  EXPECT_THAT(proc->next_values(new_st_element),
+              UnorderedElementsAre(
+                  m::NextWithStateElement(
+                      new_st_element,
+                      m::Neg(m::Add(m::Neg(new_st1), m::Literal(UBits(1, 4)))),
+                      m::And(m::Literal(UBits(1, 1)), cond1.node())),
+                  m::NextWithStateElement(
+                      new_st_element,
+                      m::Neg(m::Sub(m::Neg(new_st2), m::Literal(UBits(1, 4)))),
+                      m::And(m::Literal(UBits(1, 1)), cond2.node()))));
 }
 
 class ScheduledProcTest : public IrTestBase {

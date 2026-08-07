@@ -166,7 +166,7 @@ class NarrowTransform final : public Proc::StateElementTransformer {
   }
 
   absl::StatusOr<Node*> TransformNextValue(Proc* proc,
-                                           StateRead* new_state_read,
+                                           StateElement* new_state_element,
                                            Next* old_next) final {
     std::vector<Node*> concat_args;
     concat_args.reserve(segments_.size());

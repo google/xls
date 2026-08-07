@@ -55,16 +55,14 @@ struct ProcStateNarrowTransform : public Proc::StateElementTransformer {
 
   int64_t known_leading() const { return known_leading_; }
   absl::StatusOr<Node*> TransformNextValue(Proc* proc,
-                                           StateRead* new_state_read,
+                                           StateElement* new_state_element,
                                            Next* old_next) final {
     XLS_RET_CHECK_EQ(
-        new_state_read->GetType()->GetFlatBitCount() + known_leading_,
-        proc->GetStateReadByStateElement(old_next->state_element())
-            ->GetType()
-            ->GetFlatBitCount());
+        new_state_element->type()->GetFlatBitCount() + known_leading_,
+        old_next->state_element()->type()->GetFlatBitCount());
     return proc->MakeNodeWithName<BitSlice>(
         old_next->loc(), old_next->value(), /*start=*/0,
-        /*width=*/new_state_read->GetType()->GetFlatBitCount(),
+        /*width=*/new_state_element->type()->GetFlatBitCount(),
         NodeNameFormat("unexpand_for_%s", old_next));
   }
 

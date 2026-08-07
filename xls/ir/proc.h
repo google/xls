@@ -175,17 +175,16 @@ class Proc : public FunctionBase {
     // Called with the new_state_read node and the next-node (Without any
     // updates applied to it). Must return a node which adapts the old_next's
     // value() node to the value of the corresponding next on new_param.
-    virtual absl::StatusOr<Node*> TransformNextValue(Proc* proc,
-                                                     StateRead* new_state_read,
-                                                     Next* old_next) {
-      XLS_RET_CHECK(old_next->value()->GetType() == new_state_read->GetType());
+    virtual absl::StatusOr<Node*> TransformNextValue(
+        Proc* proc, StateElement* new_state_element, Next* old_next) {
+      XLS_RET_CHECK(old_next->value()->GetType() == new_state_element->type());
       return old_next->value();
     }
-    // Caled with the new_state_read node and the next-node (Without any updates
+    // Caled with the new_state_element and the next-node (Without any updates
     // applied to it). Must return a node which will be the new 'predicate' for
-    // the corresponding 'next' on the new_state_read.
+    // the corresponding 'next' on the new_state_element.
     virtual absl::StatusOr<std::optional<Node*>> TransformNextPredicate(
-        Proc* proc, StateRead* new_state_read, Next* old_next) {
+        Proc* proc, StateElement* new_state_element, Next* old_next) {
       return old_next->predicate();
     }
   };
