@@ -24,6 +24,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
@@ -137,7 +138,10 @@ class BinaryDecisionDiagram {
     return nodes_.capacity() * sizeof(decltype(nodes_)::value_type) +
            variable_base_nodes_.capacity() *
                sizeof(decltype(variable_base_nodes_)::value_type) +
-           node_map_.capacity() * sizeof(decltype(node_map_)::value_type) +
+           node_map_by_var_.capacity() *
+               sizeof(decltype(node_map_by_var_)::value_type) +
+           total_node_map_capacity_ *
+               sizeof(decltype(node_map_by_var_)::value_type::value_type) +
            ite_cache_.approximate_memory_use();
   }
 
@@ -305,11 +309,39 @@ class BinaryDecisionDiagram {
   BddNodeIndex free_node_head_;
   internal::BddIdTy nodes_size_;
 
-  // A map from BDD node content (variable id, high child, low child) to the
-  // index of the respective node. This map is used to ensure that no duplicate
-  // nodes are created.
-  using NodeKey = std::tuple<BddVariable, BddNodeIndex, BddNodeIndex>;
-  absl::flat_hash_map<NodeKey, BddNodeIndex> node_map_;
+  class NodeKey {
+   public:
+    NodeKey(BddNodeIndex high, BddNodeIndex low)
+        : value_((static_cast<uint64_t>(static_cast<uint32_t>(high.value()))
+                  << 32) |
+                 static_cast<uint64_t>(static_cast<uint32_t>(low.value()))) {
+      static_assert(sizeof(BddNodeIndex) == sizeof(uint32_t));
+    }
+
+    BddNodeIndex high() const { return BddNodeIndex(value_ >> 32); }
+    BddNodeIndex low() const { return BddNodeIndex(value_ & 0xFFFFFFFF); }
+
+    bool operator==(const NodeKey& other) const = default;
+
+    template <typename H>
+    friend H AbslHashValue(H h, const NodeKey& key) {
+      return H::combine(std::move(h), key.value_);
+    }
+
+    template <typename Sink>
+    friend void AbslStringify(Sink& sink, const NodeKey& key) {
+      absl::Format(&sink, "({}, {})", key.high(), key.low());
+    }
+
+   private:
+    uint64_t value_;
+  };
+
+  // A map from BDD node child indices (variable id, high child, low child) to
+  // the index of the respective node. This map is used to ensure that no
+  // duplicate nodes are created.
+  std::vector<absl::flat_hash_map<NodeKey, BddNodeIndex>> node_map_by_var_;
+  size_t total_node_map_capacity_ = 0;
 
   // A cache from if-then-else expression to the node corresponding to that
   // expression. The key elements are (condition, if-true, if-false). This

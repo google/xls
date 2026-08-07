@@ -21,7 +21,6 @@
 #include <limits>
 #include <optional>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -103,11 +102,14 @@ BddNodeIndex BinaryDecisionDiagram::GetOrCreateNode(BddVariable var,
     return variable_base_nodes_[var.value()].value();
   }
 
-  // Otherwise, this is a normal node and is kept in node_map_.
-  NodeKey key = std::make_tuple(var, high, low);
-  auto it = node_map_.lazy_emplace(key, [&](const auto& ctor) {
-    // Compute the number of paths that the new node will have to the terminal
-    // nodes 0 and 1. Use int64s to avoid overflowing and saturate at INT32_MAX.
+  // Otherwise, this is a normal node and is kept in node_map_by_var_.
+  auto& node_map = node_map_by_var_.at(var.value());
+  size_t prev_capacity = node_map.capacity();
+  NodeKey key(high, low);
+  auto it = node_map.lazy_emplace(key, [&](const auto& ctor) {
+    // Compute the number of paths that the new node will have to the
+    // terminal nodes 0 and 1. Use int64s to avoid overflowing and saturate
+    // at INT32_MAX.
     int32_t paths =
         std::min(static_cast<int64_t>(GetNode(low).path_count) +
                      GetNode(high).path_count,
@@ -115,6 +117,7 @@ BddNodeIndex BinaryDecisionDiagram::GetOrCreateNode(BddVariable var,
     BddNodeIndex node_index = CreateNode(BddNode(var, high, low, paths));
     ctor(key, node_index);
   });
+  total_node_map_capacity_ += node_map.capacity() - prev_capacity;
   return it->second;
 }
 size_t BinaryDecisionDiagram::DynamicIteCache::approximate_memory_use() const {
@@ -412,6 +415,7 @@ BddNodeIndex BinaryDecisionDiagram::NewVariable() {
   BddVariable var = BddVariable(variable_base_nodes_.size());
   BddNodeIndex index = CreateVariableBaseNode(var);
   variable_base_nodes_.push_back(index);
+  node_map_by_var_.emplace_back();
   return index;
 }
 
@@ -433,7 +437,8 @@ std::vector<BddNodeIndex> BinaryDecisionDiagram::NewVariables(int64_t count) {
   // to optimize for both cases.
   //
   // [0] https://en.cppreference.com/w/cpp/container/vector/reserve
-  ReserveVector(variable_base_nodes_.size() + count, variable_base_nodes_);
+  const size_t new_size = variable_base_nodes_.size() + count;
+  ReserveVector(new_size, variable_base_nodes_);
 
   std::vector<BddNodeIndex> indexes;
   indexes.reserve(count);
@@ -443,6 +448,8 @@ std::vector<BddNodeIndex> BinaryDecisionDiagram::NewVariables(int64_t count) {
     variable_base_nodes_.push_back(index);
     indexes.push_back(index);
   }
+
+  node_map_by_var_.resize(new_size);
   return indexes;
 }
 
@@ -622,16 +629,22 @@ absl::StatusOr<std::vector<BddNodeIndex>> BinaryDecisionDiagram::GarbageCollect(
   for (auto [idx, live] : iter::enumerate(live_variables)) {
     if (!live) {
       variable_base_nodes_[idx] = std::nullopt;
+      node_map_by_var_.at(idx) = absl::flat_hash_map<NodeKey, BddNodeIndex>();
     }
   }
 
   ite_cache_.GarbageCollect(live_nodes);
 
-  // clear out the node_map_ of references to deleted things.
-  absl::erase_if(node_map_, [&live_nodes](const auto& entry) {
-    const auto& [key, value] = entry;
-    return !live_nodes.Get(value.value());
-  });
+  // clear out `node_map_by_var_` of references to deleted things.
+  total_node_map_capacity_ = 0;
+  for (auto& node_map : node_map_by_var_) {
+    absl::erase_if(node_map, [&live_nodes](const auto& entry) {
+      const auto& [key, value] = entry;
+      return !live_nodes.Get(value.value());
+    });
+    node_map.rehash(0);
+    total_node_map_capacity_ += node_map.capacity();
+  }
   nodes_size_ = cnt_live;
   prev_nodes_size_ = nodes_size_;
   if constexpr (kDebug) {

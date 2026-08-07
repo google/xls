@@ -188,6 +188,7 @@ cc_library(
         "//xls/common:math_util",
         "//xls/common:strong_int",
         "//xls/common/status:ret_check",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/log",
