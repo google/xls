@@ -2165,6 +2165,23 @@ TEST_F(ArithSimplificationPassTest, UGeMask) {
           m::AndReduce(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/2))));
 }
 
+TEST_F(ArithSimplificationPassTest, UGtMaskMinusOne) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn f(x: bits[4]) -> bits[1] {
+      literal.1: bits[4] = literal(value=0b0010)
+      ret result: bits[1] = ugt(x, literal.1)
+    }
+)",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Or(
+          m::OrReduce(m::BitSlice(m::Param("x"), /*start=*/2, /*width=*/2)),
+          m::AndReduce(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/2))));
+}
+
 TEST_F(ArithSimplificationPassTest, UGtMaskAllOnes) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
