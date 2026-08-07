@@ -1552,9 +1552,14 @@ DocRef Formatter::FormatTuple(const XlsTuple& n) {
   // Append comments between the last element and the end of the tuple
   if (std::optional<DocRef> terminal_comment = FormatCommentsBetween(
           last_tuple_element_span_limit, tuple_span.limit(), nullptr)) {
-    // Add trailing comma before the terminal comment too.
-    guts = ConcatN(arena_, {guts, arena_.comma(), arena_.space(),
-                            terminal_comment.value()});
+    if (n.empty()) {
+      // Edge case: comment inside empty tuple. Don't add comma here.
+      guts = ConcatN(arena_, {guts, terminal_comment.value()});
+    } else {
+      // Add trailing comma before the terminal comment too.
+      guts = ConcatN(arena_, {guts, arena_.comma(), arena_.space(),
+                              terminal_comment.value()});
+    }
   } else if (n.members().size() == 1) {
     // No trailing comment, but add a comma if it's a singleton.
     guts = ConcatN(arena_, {guts, arena_.comma()});
