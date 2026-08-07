@@ -182,6 +182,7 @@ absl::StatusOr<verilog::CodegenResult> ConvertBlockToVerilog(
   verilog::CodegenPassOptions pass_options{
       .codegen_options = options,
   };
+  pass_options.ir_dump_path = options.ir_dump_path().value_or("");
   XLS_RETURN_IF_ERROR(CreatePostBlockConversionPipeline(active_opt_context)
                           ->Run(package, pass_options, &active_pass_results,
                                 compatibility_context)

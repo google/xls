@@ -59,6 +59,7 @@ absl::Status ConvertToBlock(
       .codegen_options = std::move(codegen_options),
       .package_schedule = std::move(schedule),
   };
+  options.ir_dump_path = options.codegen_options.ir_dump_path().value_or("");
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockConversionPass> pipeline,
                        CreateBlockConversionPassPipeline());
