@@ -4953,6 +4953,7 @@ xls_pass(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",

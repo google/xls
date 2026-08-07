@@ -1662,12 +1662,13 @@ absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
           "Cannot use Build(next_state) when also using next_value nodes.");
     }
     for (int64_t index = 0; index < next_state.size(); ++index) {
-      if (GetType(next_state[index]) != GetType(GetStateParam(index))) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Recurrent state type %s does not match provided "
-                            "state type %s for element %d.",
-                            GetType(GetStateParam(index))->ToString(),
-                            GetType(next_state[index])->ToString(), index));
+      if (GetType(next_state[index]) !=
+          GetStateElement(index).state_element()->type()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Recurrent state type %s does not match provided "
+            "state type %s for element %d.",
+            GetStateElement(index).state_element()->type()->ToString(),
+            GetType(next_state[index])->ToString(), index));
       }
       Next(GetStateElement(index), next_state[index]);
     }
