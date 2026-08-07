@@ -15,6 +15,7 @@
 // Arbitrary-precision floating point routines.
 import std;
 import abs_diff;
+import lza;
 
 pub struct APFloat<EXP_SZ: u32, FRACTION_SZ: u32> {
     sign: bits[1],  // Sign bit.
@@ -3061,7 +3062,7 @@ fn or_last_bit<WIDTH: u32>(value: bits[WIDTH], lsb: u1) -> bits[WIDTH] {
 // The bit widths of different float components are given
 // in comments throughout this implementation, listed
 // relative to the widths of a standard float32.
-pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
+pub fn add<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
     (a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
     // WIDE_EXP: Widened exponent to capture a possible carry bit.
@@ -3134,13 +3135,35 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
     let carry_fraction = or_last_bit(carry_fraction, abs_fraction[0:1]);
 
     // If we cancelled higher bits, then we'll need to shift left.
-    // Leading zeroes will be 1 if there's no carry or cancellation.
-    let leading_zeroes = std::clzt(abs_fraction);
+    const CLZ_WIDTH: u32 = std::clog2(WIDE_FRACTION + u32:1);
+    let (cancel_shift, is_approx) = if USE_LZA {
+        // For subtraction, lza is off-by-one at most and will be corrected later by examining the
+        // shifted_fraction. For addition, when there is carry, this is discarded, and when there
+        // is no carry, clz is exactly 1, because fraction sum is in range [1.0, 2.0)
+        let (approx_lz, _) =
+            lza::lza<WIDE_FRACTION>(wide_x as uN[WIDE_FRACTION], addend_y as uN[WIDE_FRACTION]);
+        (if x.sign != y.sign { approx_lz } else { uN[CLZ_WIDTH]:1 }, true)
+    } else {
+        // Leading zeroes will be 1 if there's no carry or cancellation.
+        (std::clzt(abs_fraction), false)
+    };
 
     // Manually apply https://github.com/google/xls/issues/1274
-    let cancel_fraction = abs_fraction as uN[WIDE_FRACTION + u32:1] << leading_zeroes;
+    let cancel_fraction = abs_fraction as uN[WIDE_FRACTION + u32:1] << cancel_shift;
     let cancel_fraction = (cancel_fraction >> u32:1) as uN[NORMALIZED_FRACTION];
     let shifted_fraction = if carry_bit { carry_fraction } else { cancel_fraction };
+
+    let (shifted_fraction, leading_zeroes) = if is_approx && !carry_bit {
+        // Leading zeroes will be off-by-one at most if there is cancellation. As an optimization,
+        // we correct this in a separate shift-left instead of using LZA detection.
+        let lz_off_by_one = shifted_fraction[-1:] == u1:0;
+        let final_fraction =
+            if lz_off_by_one { shifted_fraction << u32:1 } else { shifted_fraction };
+        let final_lz = if lz_off_by_one { cancel_shift + uN[CLZ_WIDTH]:1 } else { cancel_shift };
+        (final_fraction, final_lz)
+    } else {
+        (shifted_fraction, if carry_bit { uN[CLZ_WIDTH]:0 } else { cancel_shift })
+    };
 
     // Step 4: Rounding.
     // Rounding down is a no-op, since we eventually have to shift off
@@ -3233,11 +3256,21 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact fraction values in the NaN case).
-pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32>
+pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {true}>
     (x: APFloat<EXP_SZ, FRACTION_SZ>, y: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
     let y = APFloat<EXP_SZ, FRACTION_SZ> { sign: !y.sign, bexp: y.bexp, fraction: y.fraction };
-    add(x, y)
+    add<EXP_SZ, FRACTION_SZ, USE_LZA>(x, y)
+}
+
+#[quickcheck(exhaustive)]
+fn add_clz_lza_equivalence(a: APFloat<u32:3, u32:3>, b: APFloat<u32:3, u32:3>) -> bool {
+    add<u32:3, u32:3, true>(a, b) == add<u32:3, u32:3, false>(a, b)
+}
+
+#[quickcheck]
+fn add_clz_lza_equivalence_f32(a: APFloat<u32:8, u32:23>, b: APFloat<u32:8, u32:23>) -> bool {
+    add<u32:8, u32:23, true>(a, b) == add<u32:8, u32:23, false>(a, b)
 }
 
 // add is thoroughly tested elsewhere so a few simple tests is sufficient.

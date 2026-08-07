@@ -101,7 +101,32 @@ xls_dslx_prove_quickcheck_test(
 xls_dslx_library(
     name = "apfloat_dslx",
     srcs = ["apfloat.x"],
-    deps = [":abs_diff_dslx"],
+    deps = [
+        ":abs_diff_dslx",
+        ":lza_dslx",
+    ],
+)
+
+xls_dslx_library(
+    name = "lza_dslx",
+    srcs = ["lza.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "lza_dslx_fmt_test",
+    src = "lza.x",
+    opportunistic_postcondition = True,
+)
+
+xls_dslx_test(
+    name = "lza_dslx_test",
+    srcs = ["lza.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_prove_quickcheck_test(
+    name = "lza_dslx_prove_quickcheck_test",
+    srcs = ["lza.x"],
 )
 
 xls_dslx_test(
