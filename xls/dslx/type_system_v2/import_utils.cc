@@ -346,6 +346,24 @@ absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
   return unwrapper.GetEnumDef();
 }
 
+absl::StatusOr<std::optional<const NameDef*>> ResolveEnumMember(
+    const ColonRef* colon_ref, const ImportData& import_data) {
+  TypeRefUnwrapper unwrapper(import_data);
+  XLS_RETURN_IF_ERROR(ToAstNode(colon_ref->subject())->Accept(&unwrapper));
+
+  std::optional<const NameDef*> enum_member;
+  if (std::optional<const EnumDef*> enum_def = unwrapper.GetEnumDef();
+      enum_def.has_value()) {
+    for (const EnumMember& member : (*enum_def)->values()) {
+      if (member.name_def->identifier() == colon_ref->attr()) {
+        enum_member = member.name_def;
+        break;
+      }
+    }
+  }
+  return enum_member;
+}
+
 bool IsImport(const ColonRef* colon_ref) {
   if (colon_ref->ResolveImportSubject().has_value()) {
     return true;
