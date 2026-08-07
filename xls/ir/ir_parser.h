@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -429,6 +430,7 @@ class Parser {
 
   bool AtEof() const { return scanner_.AtEof(); }
 
+  absl::flat_hash_set<std::string> state_element_names_;
   Scanner scanner_;
 };
 

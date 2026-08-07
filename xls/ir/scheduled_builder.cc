@@ -15,6 +15,8 @@
 #include "xls/ir/scheduled_builder.h"
 
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <utility>
 
 #include "absl/algorithm/container.h"
@@ -35,6 +37,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
@@ -229,6 +232,44 @@ void ScheduledBlockBuilder::SetSourceReturnValue(Node* return_value) {
   CHECK(source_fn != nullptr);
   sb->SetSourceReturnValue(return_value);
   source_fn->set_return_type(return_value->GetType());
+}
+
+BValue ScheduledBlockBuilder::StateRead(BStateElement state_element,
+                                        std::optional<BValue> predicate,
+                                        std::optional<std::string> label,
+                                        const SourceInfo& loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!state_element.valid()) {
+    return BValue();
+  }
+  ScheduledBlock* sb = block();
+  if (sb->source() == nullptr || !sb->source()->IsProc()) {
+    return SetError("Block has no proc source for StateRead", loc);
+  }
+  Proc* proc = absl::down_cast<Proc*>(sb->source());
+  absl::StatusOr<StateElement*> se_or_status =
+      proc->GetStateElementByName(state_element.state_element()->name());
+  if (!se_or_status.ok() ||
+      se_or_status.value() != state_element.state_element()) {
+    return SetError(
+        absl::StrFormat("State element %s does not belong to the source proc",
+                        state_element.state_element()->name()),
+        loc);
+  }
+  absl::StatusOr<xls::StateRead*> state_read =
+      function()->MakeNodeWithName<xls::StateRead>(
+          loc, state_element.state_element(),
+          predicate.has_value() ? std::make_optional(predicate->node())
+                                : std::nullopt,
+          label, state_element.state_element()->name());
+  if (!state_read.ok()) {
+    return SetError(absl::StrFormat("Unable to add state read: %s",
+                                    state_read.status().message()),
+                    loc);
+  }
+  return CreateBValue(*state_read, loc);
 }
 
 }  // namespace xls

@@ -214,18 +214,19 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
 
   StateElement* old_state_element = GetStateElement(index);
   auto old_state_read_it = state_reads_.find(old_state_element);
-  XLS_RET_CHECK(old_state_read_it != state_reads_.end());
-  for (StateRead* read : old_state_read_it->second) {
-    if (!read->users().empty()) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Cannot remove state element %d of proc %s, existing "
-                          "state read %s has uses",
-                          index, name(), read->GetNameView()));
+  if (old_state_read_it != state_reads_.end()) {
+    for (StateRead* read : old_state_read_it->second) {
+      if (!read->users().empty()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Cannot remove state element %d of proc %s, existing "
+            "state read %s has uses",
+            index, name(), read->GetNameView()));
+      }
+      XLS_RETURN_IF_ERROR(FunctionBase::RemoveNode(read));
     }
-    XLS_RETURN_IF_ERROR(RemoveNode(read));
+    // TODO(allight): This should ideally not need to be done manually.
+    state_reads_.erase(old_state_read_it);
   }
-  // TODO(allight): This should ideally not need to be done manually.
-  state_reads_.erase(old_state_read_it);
 
   state_elements_.erase(old_state_element->name());
   state_vec_.erase(state_vec_.begin() + index);
@@ -238,7 +239,7 @@ absl::Status Proc::RemoveAllStateElements() {
   for (const auto& [elem, reads] : state_reads_) {
     for (StateRead* read : reads) {
       if (read != nullptr) {
-        XLS_RETURN_IF_ERROR(RemoveNode(read))
+        XLS_RETURN_IF_ERROR(FunctionBase::RemoveNode(read))
             << "Cannot remove " << elem->ToString() << " of proc " << name()
             << " because read '" << read->ToString()
             << "' could not be removed.";
@@ -1092,6 +1093,24 @@ void Proc::MoveNonLogicFrom(Proc& other) {
   proc_instantiations_ = std::move(other.proc_instantiations_);
   channels_ = std::move(other.channels_);
   channel_vec_ = std::move(other.channel_vec_);
+}
+
+absl::Status Proc::RemoveNode(Node* n) {
+  if (n->Is<StateRead>()) {
+    StateRead* read = n->As<StateRead>();
+    auto it = state_reads_.find(read->state_element());
+    if (it != state_reads_.end()) {
+      std::vector<StateRead*>& reads = it->second;
+      auto read_it = std::find(reads.begin(), reads.end(), read);
+      if (read_it != reads.end()) {
+        reads.erase(read_it);
+      }
+      if (reads.empty()) {
+        state_reads_.erase(it);
+      }
+    }
+  }
+  return FunctionBase::RemoveNode(n);
 }
 
 }  // namespace xls
