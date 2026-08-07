@@ -719,6 +719,201 @@ proc Foo {
                   "Use of `Self` inside legacy procs is not supported.")));
 }
 
+TEST(TypecheckV2ProcTest, SpawnProcWithImplInTestFunctionSucceeds) {
+  EXPECT_THAT(R"(
+proc PassThrough {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl PassThrough {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    PassThrough { c_in, c_out }
+  }
+  fn next(self) {
+    let (tok, val) = recv(join(), self.c_in);
+    send(tok, self.c_out, val);
+  }
+}
+
+#[test]
+fn test_pass_through() {
+  let (in_w, in_r) = chan<u32>("in");
+  let (out_w, out_r) = chan<u32>("out");
+  PassThrough::new(in_r, out_w).spawn();
+  let tok = send(join(), in_w, u32:42);
+  let (tok, val) = recv(tok, out_r);
+  assert_eq(val, u32:42)
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2ProcTest, ChannelOpsInTestFunctionSucceeds) {
+  EXPECT_THAT(R"(
+#[test]
+fn my_test_fn() {
+  let (p, c) = chan<u32>("test_chan");
+  let tok = send(join(), p, u32:42);
+  let (tok, val) = recv(tok, c);
+  assert_eq(val, u32:42)
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2ProcTest, ChannelDeclInNormalFunctionFails) {
+  EXPECT_THAT(R"(
+fn bad_function() {
+  let (p, c) = chan<u32>("test_chan");
+  ()
+}
+)",
+              TypecheckFails(HasSubstr(
+                  "Channels can only be declared in a proc or test")));
+}
+
+TEST(TypecheckV2ProcTest, ChannelSendInNormalFunctionFails) {
+  EXPECT_THAT(R"(
+fn bad_function(p: chan<u32> out) {
+  let tok = send(join(), p, u32:42);
+  ()
+}
+)",
+              TypecheckFails(HasSubstr(
+                  "Cannot call `send` outside a `proc` or proc test")));
+}
+
+TEST(TypecheckV2ProcTest, NewSpawnInNormalFunctionFails) {
+  EXPECT_THAT(
+      R"(
+proc Dummy {
+  c: chan<u32> out,
+}
+impl Dummy {
+  fn new(c: chan<u32> out) -> Self {
+    Dummy { c }
+  }
+  fn next(self) {}
+}
+
+fn bad_function(p: chan<u32> out) {
+  Dummy::new(p).spawn();
+  ()
+}
+)",
+      TypecheckFails(HasSubstr("Cannot spawn outside a proc or test.")));
+}
+
+TEST(TypecheckV2ProcTest, ChannelOpsInTestUtilityFails) {
+  EXPECT_THAT(R"(
+#[cfg(test)]
+fn helper(p: chan<u32> out, c: chan<u32> in) -> u32 {
+  let tok = send(join(), p, u32:42);
+  let (tok, val) = recv(tok, c);
+  val
+}
+)",
+              TypecheckFails(HasSubstr(
+                  "Cannot call `send` outside a `proc` or proc test")));
+}
+
+TEST(TypecheckV2ProcTest, SpawnInTestUtilityFails) {
+  EXPECT_THAT(
+      R"(
+proc Dummy {
+  c: chan<u32> out,
+}
+impl Dummy {
+  fn new(c: chan<u32> out) -> Self {
+    Dummy { c }
+  }
+  fn next(self) {}
+}
+
+#[cfg(test)]
+fn helper(p: chan<u32> out) {
+  Dummy::new(p).spawn();
+  ()
+}
+)",
+      TypecheckFails(HasSubstr("Cannot spawn outside a proc or test.")));
+}
+
+TEST(TypecheckV2ProcTest, ChannelRecvInNormalFunctionFails) {
+  EXPECT_THAT(R"(
+fn bad_function(c: chan<u32> in) {
+  let (tok, val) = recv(join(), c);
+  ()
+}
+)",
+              TypecheckFails(HasSubstr(
+                  "Cannot call `recv` outside a `proc` or proc test")));
+}
+
+TEST(TypecheckV2ProcTest, ChannelJoinInNormalFunctionFails) {
+  EXPECT_THAT(R"(
+fn bad_function() {
+  let tok = join();
+  ()
+}
+)",
+              TypecheckFails(HasSubstr(
+                  "Cannot call `join` outside a `proc` or proc test")));
+}
+
+TEST(TypecheckV2ProcTest, ChannelRecvInTestUtilityFails) {
+  EXPECT_THAT(R"(
+#[cfg(test)]
+fn helper(c: chan<u32> in) -> u32 {
+  let (tok, val) = recv(join(), c);
+  val
+}
+)",
+              TypecheckFails(HasSubstr(
+                  "Cannot call `recv` outside a `proc` or proc test")));
+}
+
+TEST(TypecheckV2ProcTest, ChannelJoinInTestUtilityFails) {
+  EXPECT_THAT(R"(
+#[cfg(test)]
+fn helper() -> token {
+  join()
+}
+)",
+              TypecheckFails(HasSubstr(
+                  "Cannot call `join` outside a `proc` or proc test")));
+}
+
+TEST(TypecheckV2ProcTest, SpawnImportedProcDefInTestFunctionSucceeds) {
+  std::string_view kImported = R"(
+pub proc P {
+    c_out: chan<u32> out,
+}
+impl P {
+    fn new(c_out: chan<u32> out) -> Self {
+        P { c_out: c_out }
+    }
+    fn next(self) {}
+}
+)";
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+#[test]
+fn my_test() {
+  let (c_out, c_in) = chan<u32>("my_chan");
+  imported::P::new(c_out).spawn();
+  ()
+}
+)";
+
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
 TEST(TypecheckV2ProcTest, ProcDefWithImportedStructMember) {
   constexpr std::string_view kImported = R"(
 pub struct Foo {

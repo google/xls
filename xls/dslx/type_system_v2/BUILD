@@ -223,6 +223,7 @@ cc_library(
         ":type_system_tracer",
         ":unify_type_annotations",
         ":validate_concrete_type",
+        "//xls/common:attribute_data",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",

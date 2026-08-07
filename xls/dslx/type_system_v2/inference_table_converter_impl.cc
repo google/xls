@@ -42,6 +42,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "xls/common/attribute_data.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -533,6 +534,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                            function->identifier()),
           file_table_);
     }
+
+    XLS_RETURN_IF_ERROR(ValidateSpawnContext(invocation, function, caller));
 
     // Come up with the actual args by merging the possible target object
     // (`some_struct` in the case of `some_struct.foo(args)`), with the vector
@@ -1839,6 +1842,40 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   }
 
  private:
+  // If the invocation is a spawn of an impl-based proc, makes sure it's valid:
+  // can only be within a proc, or from within a test function.
+  absl::Status ValidateSpawnContext(
+      const Invocation* invocation, const Function* function,
+      std::optional<const Function*> caller) const {
+    XLS_ASSIGN_OR_RETURN(bool is_proc_def_spawn,
+                         IsProcDefSpawnFunction(function));
+    if (!is_proc_def_spawn) {
+      return absl::OkStatus();
+    }
+
+    if (caller.has_value()) {
+      // Legacy procs can call new-style spawn.
+      if ((*caller)->IsInProc()) {
+        return absl::OkStatus();
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<const StructDefBase*> containing_struct_or_proc,
+          GetContainingStructOrProcDef(invocation, import_data_));
+      if (containing_struct_or_proc.has_value() &&
+          (*containing_struct_or_proc)->kind() == AstNodeKind::kProcDef) {
+        // impl-based procs can call spawn
+        return absl::OkStatus();
+      } else if (GetAttribute(*caller, AttributeKind::kTest).has_value()) {
+        // Test functions can (now) call spawn
+        return absl::OkStatus();
+      }
+    }
+    return TypeInferenceErrorStatus(invocation->span(), nullptr,
+                                    "Cannot spawn outside a proc or test.",
+                                    file_table_);
+  }
+
   // Wraps the given external error handler in the narrower error handler
   // interface used by `TypeAnnotationResolver`. This allows the resolver to
   // raise an error using the limited information it has, and the returned
