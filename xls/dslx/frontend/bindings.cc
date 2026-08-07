@@ -122,6 +122,7 @@ std::string BoundNodeGetTypeString(const BoundNode& bn) {
                              [](ConstantDef*) { return "ConstantDef"; },
                              [](StructDef*) { return "StructDef"; },
                              [](ProcDef*) { return "ProcDef"; },
+                             [](SumDef*) { return "SumDef"; },
                              [](NameDef*) { return "NameDef"; },
                              [](BuiltinNameDef*) { return "BuiltinNameDef"; },
                              [](Import*) { return "Import"; },
