@@ -87,6 +87,61 @@ std::vector<Node*> RemoveRedundantNodes(
 
 }  // namespace
 
+std::optional<ShiftedBitView> IsOneShiftedBit(Node* node) {
+  // Match: shll(zext(b), literal(k))
+  if (node->op() == Op::kShll) {
+    Node* shift_base = node->operand(0);
+    Node* shift_amount = node->operand(1);
+    if (shift_base->op() == Op::kZeroExt &&
+        IsSingleBitType(shift_base->operand(0)) &&
+        shift_amount->Is<Literal>()) {
+      absl::StatusOr<uint64_t> k_u64 =
+          shift_amount->As<Literal>()->value().bits().ToUint64();
+      if (!k_u64.ok()) {
+        return std::nullopt;
+      }
+      return ShiftedBitView{.b = shift_base->operand(0),
+                            .k = static_cast<int64_t>(*k_u64)};
+    }
+  }
+
+  // Match: concat(0..., b, 0...)
+  if (node->Is<Concat>()) {
+    std::optional<int64_t> b_operand_index;
+    for (int64_t i = 0; i < node->operand_count(); ++i) {
+      Node* operand = node->operand(i);
+      if (!IsSingleBitType(operand)) {
+        continue;
+      }
+      if (b_operand_index.has_value()) {
+        // More than one 1-bit operand.
+        return std::nullopt;
+      }
+      b_operand_index = i;
+    }
+    if (!b_operand_index.has_value()) {
+      return std::nullopt;
+    }
+
+    for (int64_t i = 0; i < node->operand_count(); ++i) {
+      if (i == *b_operand_index) {
+        continue;
+      }
+      if (!IsLiteralZero(node->operand(i))) {
+        return std::nullopt;
+      }
+    }
+
+    int64_t k = 0;
+    for (int64_t i = *b_operand_index + 1; i < node->operand_count(); ++i) {
+      k += node->operand(i)->BitCountOrDie();
+    }
+    return ShiftedBitView{.b = node->operand(*b_operand_index), .k = k};
+  }
+
+  return std::nullopt;
+}
+
 bool IsLiteralWithRunOfSetBits(Node* node, int64_t* leading_zero_count,
                                int64_t* set_bit_count,
                                int64_t* trailing_zero_count) {
