@@ -16,14 +16,69 @@
 #define XLS_IR_PROC_TESTUTILS_H_
 
 #include <cstdint>
+#include <optional>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 
 namespace xls {
+
+// A struct which represents a single IO action, either a send or a receive.
+struct IOAction {
+  // Whether this action is a send or a receive.
+  bool is_send;
+  // The data that was sent or received.
+  BValue data;
+  // A boolean value which is whether the action is attempted (eg for a
+  // send_if).
+  BValue executed;
+  // A boolean value which is whether the action completes, whether or not a
+  // value is actually returned/sent. If false then the action is blocked due to
+  // fifo full/empty.
+  BValue completes;
+
+  // Additional optional BValue that the input/output gen can fill in for use
+  // wherever it is required.
+  std::optional<BValue> context;
+};
+
+struct ActivationAction {
+  // What activation we are on. The first activation is index 0.
+  int64_t activation_index;
+  // State vector after this activation. Values are only valid if
+  // 'activation_complete' is true.
+  absl::flat_hash_map<StateElement*, BValue> end_state;
+  // Values which are sent out from this activation.
+  absl::flat_hash_map<SendChannelRef, IOAction> sent_values;
+  // Map from a receive node to the IO action describing the receive.
+  absl::flat_hash_map<ReceiveChannelRef, IOAction> receives_finished;
+  // Boolean value which is true if the activation completed and false if it
+  // blocked on a send/recv.
+  //
+  // This is the and of all the IOAction.completes values.
+  BValue activation_complete;
+
+  // Mapping from original proc Node* to its unrolled BValue in this activation.
+  absl::flat_hash_map<Node*, BValue> node_values;
+};
+
+// A struct which represents the unrolled proc.
+struct UnrolledProc {
+  // The unrolled function created in the proc's package.
+  Function* function = nullptr;
+  // State at the end of each activation.
+  std::vector<ActivationAction> activations;
+  // Initial state of the proc.
+  absl::flat_hash_map<StateElement*, BValue> initial_state;
+};
 
 // Helper to convert a proc into a function which performs 'activation_count'
 // activations. Input and output channels never block (though if non-blocking
@@ -52,9 +107,23 @@ namespace xls {
 // channels so this should not be messed with.
 //
 // This is only intended for use with testing tools such as z3.
+// Helper to unroll a proc 'activation_count' times and return the complete
+// UnrolledProc data structure, including the unrolled Function* as well as the
+// intermediate node_values for every activation.
+//
+// If 'cleanup' is true, runs DCE and inlining on the unrolled function. When
+// checking intermediate non-IO node constancy, set 'cleanup' to false so
+// intermediate nodes are not eliminated by DCE.
 absl::StatusOr<Function*> UnrollProcToFunction(
     Proc* p, int64_t activation_count, bool include_state,
     const Value& token_value = Value::Tuple({Value(UBits(0xdeadbeef, 32))}));
+
+// Version of `UnrollProcToFunction` that also returns the intermediate
+// node_values for every activation.
+absl::StatusOr<UnrolledProc> UnrollProc(
+    Proc* p, int64_t activation_count, bool include_state,
+    const Value& token_value = Value::Tuple({Value(UBits(0xdeadbeef, 32))}),
+    bool cleanup = true);
 
 // Helper to convert a proc into a function which performs 'activation_count'
 // activations consuming up to 'output_value_count' values and producing up to

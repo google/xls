@@ -4403,6 +4403,44 @@ xls_pass(
     ],
 )
 
+xls_pass(
+    name = "non_synth_removal_pass",
+    srcs = ["non_synth_removal_pass.cc"],
+    hdrs = ["non_synth_removal_pass.h"],
+    pass_class = "NonSynthRemovalPass",
+    deps = [
+        ":dce_pass",
+        ":dfe_pass",
+        ":non_synth_separation_pass",
+        ":optimization_pass",
+        ":optimization_pass_registry",
+        ":pass_base",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "non_synth_removal_pass_test",
+    srcs = ["non_synth_removal_pass_test.cc"],
+    deps = [
+        ":non_synth_removal_pass",
+        ":optimization_pass",
+        ":pass_base",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "non_synth_separation_pass_test",
     srcs = ["non_synth_separation_pass_test.cc"],

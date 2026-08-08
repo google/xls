@@ -17,7 +17,12 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//xls/build_rules:py_oss_defs.bzl", "pytype_strict_binary", "pytype_strict_contrib_test", "pytype_strict_library")
-load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_equivalence_test")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "xls_dslx_ir",
+    "xls_dslx_library",
+    "xls_ir_equivalence_test",
+)
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -997,5 +1002,104 @@ cc_library(
         "//xls/ir",
         "//xls/ir:source_location",
         "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "proc_constancy_checker",
+    srcs = ["proc_constancy_checker.cc"],
+    hdrs = ["proc_constancy_checker.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "//xls/ir:proc_testutils",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/passes:non_synth_removal_pass",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
+        "//xls/solvers:z3_ir_translator",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@z3//:api",
+    ],
+)
+
+cc_test(
+    name = "proc_constancy_checker_test",
+    srcs = ["proc_constancy_checker_test.cc"],
+    deps = [
+        ":proc_constancy_checker",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:source_location",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "proc_constancy_checker_main",
+    srcs = ["proc_constancy_checker_main.cc"],
+    deps = [
+        ":proc_constancy_checker",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_parser",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "//xls/solvers:z3_ir_translator",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@z3//:api",
+    ],
+)
+
+xls_dslx_library(
+    name = "constancy_test_dslx",
+    srcs = ["testdata/constancy_test.x"],
+)
+
+xls_dslx_ir(
+    name = "constancy_test",
+    dslx_top = "test_proc",
+    ir_file = "testdata/constancy_test.ir",
+    library = ":constancy_test_dslx",
+)
+
+pytype_strict_contrib_test(
+    name = "proc_constancy_checker_main_test",
+    srcs = ["proc_constancy_checker_main_test.py"],
+    data = [
+        ":proc_constancy_checker_main",
+        ":testdata/constancy_test.ir",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "@abseil-py//absl/testing:absltest",
     ],
 )

@@ -59,49 +59,6 @@
 namespace xls {
 
 namespace {
-// A struct which represents a single IO action, either a send or a receive.
-struct IOAction {
-  // Whether this action is a send or a receive.
-  bool is_send;
-  // The data that was sent or received.
-  BValue data;
-  // A boolean value which is whether the action is attempted (eg for a
-  // send_if).
-  BValue executed;
-  // A boolean value which is whether the action completes, whether or not a
-  // value is actually returned/sent. If false then the action is blocked due to
-  // fifo full/empty.
-  BValue completes;
-
-  // Additional optional BValue that the input/output gen can fill in for use
-  // wherever it is required.
-  std::optional<BValue> context;
-};
-
-struct ActivationAction {
-  // What activation we are on. The first activation is index 0.
-  int64_t activation_index;
-  // State vector after this activation. Values are only valid if
-  // 'activation_complete' is true.
-  absl::flat_hash_map<StateElement*, BValue> end_state;
-  // Values which are sent out from this activation.
-  absl::flat_hash_map<SendChannelRef, IOAction> sent_values;
-  // Map from a receive node to the IO action describing the receive.
-  absl::flat_hash_map<ReceiveChannelRef, IOAction> receives_finished;
-  // Boolean value which is true if the activation completed and false if it
-  // blocked on a send/recv.
-  //
-  // This is the and of all the IOAction.completes values.
-  BValue activation_complete;
-};
-
-// A struct which represents the unrolled proc.
-struct UnrolledProc {
-  // State at the end of each activation.
-  std::vector<ActivationAction> activations;
-  // Initial state of the proc.
-  absl::flat_hash_map<StateElement*, BValue> initial_state;
-};
 
 // A concept for a function that can generate inputs for a given receive.
 //
@@ -177,6 +134,7 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
                 ? ios_complete.front()
                 : fb_.And(ios_complete, SourceInfo(),
                           /*name=*/absl::StrCat("act_complete_", activation_)),
+        .node_values = std::move(values_),
     };
   }
 
@@ -520,10 +478,10 @@ absl::Status CleanupFunction(Function* f) {
 
 }  // namespace
 
-absl::StatusOr<Function*> UnrollProcToFunction(Proc* p,
-                                               int64_t activation_count,
-                                               bool include_state,
-                                               const Value& token_value) {
+absl::StatusOr<UnrolledProc> UnrollProc(Proc* p, int64_t activation_count,
+                                        bool include_state,
+                                        const Value& token_value,
+                                        bool cleanup) {
   XLS_RET_CHECK_GT(activation_count, 0)
       << "At least one activation is required.";
   if (include_state) {
@@ -639,9 +597,23 @@ absl::StatusOr<Function*> UnrollProcToFunction(Proc* p,
   }
   XLS_ASSIGN_OR_RETURN(Function * result,
                        fb.BuildWithReturnValue(fb.Tuple(return_values)));
-  XLS_RETURN_IF_ERROR(CleanupFunction(result));
+  if (cleanup) {
+    XLS_RETURN_IF_ERROR(CleanupFunction(result));
+  }
+  unrolled.function = result;
   VLOG(2) << "Proc: \n" << p->DumpIr() << "To Func: \n" << result->DumpIr();
-  return result;
+  return unrolled;
+}
+
+absl::StatusOr<Function*> UnrollProcToFunction(Proc* p,
+                                               int64_t activation_count,
+                                               bool include_state,
+                                               const Value& token_value) {
+  XLS_ASSIGN_OR_RETURN(
+      UnrolledProc unrolled,
+      UnrollProc(p, activation_count, include_state, token_value,
+                 /*cleanup=*/true));
+  return unrolled.function;
 }
 
 namespace {
