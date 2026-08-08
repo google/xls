@@ -151,6 +151,101 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
   return unscaled_index;
 }
 
+// Simplifies bit-slices that extract the carry bit from an addition of a
+// zero-extended value and a literal:
+//
+//   x: bits[N]
+//   zext: bits[W] = zero_ext(x) or concat(0..., x)   (W > N)
+//   sum: bits[W] = add(zext, K)                      (K is a literal)
+//   ret: bits[1] = bit_slice(sum, start=N, width=1)
+//
+// This bit slice extracts the carry-out bit of x + K (in N bits). Rewrite it
+// into a simpler comparison against a literal.
+static absl::StatusOr<bool> SimplifyCarryExtraction(BitSlice* bit_slice) {
+  if (bit_slice->width() != 1) {
+    return false;
+  }
+  Node* add = bit_slice->operand(0);
+  if (add->op() != Op::kAdd) {
+    return false;
+  }
+  const int64_t add_width = add->BitCountOrDie();
+  Node* add_lhs = add->operand(0);
+  Node* add_rhs = add->operand(1);
+
+  // Match (zero_ext(v), literal) in either operand order.
+  std::optional<ZeroExtendedBitsView> maybe_v;
+  Literal* literal = nullptr;
+  if (!MatchNodesInAnyOrder(
+          add_lhs, add_rhs,
+          [](Node* n) { return MatchZeroExtendedBits(n).has_value(); },
+          [](Node* n) { return n->Is<Literal>(); },
+          [&](Node* zeroext_node, Node* literal_node) {
+            maybe_v = MatchZeroExtendedBits(zeroext_node);
+            literal = literal_node->As<Literal>();
+          })) {
+    return false;
+  }
+  DCHECK(maybe_v.has_value());
+  DCHECK(literal != nullptr);
+  DCHECK_EQ(maybe_v->result_width, add_width);
+
+  Node* v = maybe_v->base;  // bits[N]
+  const int64_t n_width = maybe_v->base_width;
+  DCHECK_LT(n_width, add_width);
+  if (n_width <= 0) {
+    return false;
+  }
+  if (bit_slice->start() != n_width) {
+    return false;
+  }
+  const Bits k = literal->value().bits();
+  DCHECK_EQ(k.bit_count(), add_width);
+
+  // Let `A = zero_ext(v)` (so `A[N] = 0`) and `B = k` (so `B[N] = b_n`).
+  // Then `sum[N] = b_n XOR carry_in`, where `carry_in` is the carry-out from
+  // adding the low N bits: `v + k_low`.
+  const bool b_n = k.Get(n_width);
+  Bits k_low_wide = k.Slice(0, n_width);
+  if (k_low_wide.IsZero()) {
+    // No carry-in is possible; sum[N] == bN.
+    XLS_RETURN_IF_ERROR(
+        bit_slice->ReplaceUsesWithNew<Literal>(Value(UBits(b_n ? 1 : 0, 1)))
+            .status());
+    return true;
+  }
+
+  // `carry_in(v + k_low)` <=> `v >= 2^N - k_low`
+  Bits k_low_ext = bits_ops::ZeroExtend(k_low_wide, n_width + 1);
+  Bits two_pow_n = Bits::PowerOfTwo(n_width, /*bit_count=*/n_width + 1);
+  Bits threshold_ext = bits_ops::Sub(two_pow_n, k_low_ext);
+  Bits threshold = threshold_ext.Slice(0, n_width);
+  XLS_ASSIGN_OR_RETURN(Node * threshold_literal,
+                       bit_slice->function_base()->MakeNode<Literal>(
+                           bit_slice->loc(), Value(threshold)));
+
+  if (!b_n) {
+    XLS_ASSIGN_OR_RETURN(Node * cmp,
+                         bit_slice->function_base()->MakeNode<CompareOp>(
+                             bit_slice->loc(), v, threshold_literal, Op::kUGe));
+    VLOG(3) << absl::StreamFormat(
+        "Replacing bitslice(add(zext(x), k), start=N) => uge(x, T): %s",
+        bit_slice->GetName());
+    XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(cmp));
+    return true;
+  }
+
+  // `bN==1`: `sum[N] == !carry_in == v < threshold`
+  XLS_ASSIGN_OR_RETURN(Node * cmp,
+                       bit_slice->function_base()->MakeNode<CompareOp>(
+                           bit_slice->loc(), v, threshold_literal, Op::kULt));
+  VLOG(3) << absl::StreamFormat(
+      "Replacing bitslice(add(zext(x), k), start=N) => ult(x, T): %s",
+      bit_slice->GetName());
+  XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(cmp));
+  return true;
+}
+
 // Attempts to replace the given bit slice with a simpler or more canonical
 // form. Returns true if the bit slice was replaced. Any newly created
 // bit-slices are added to the worklist.
@@ -158,6 +253,12 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
                                       std::deque<BitSlice*>* worklist) {
   Node* operand = bit_slice->operand(0);
   BitsType* operand_type = operand->GetType()->AsBitsOrDie();
+
+  XLS_ASSIGN_OR_RETURN(bool carry_rewritten,
+                       SimplifyCarryExtraction(bit_slice));
+  if (carry_rewritten) {
+    return true;
+  }
 
   // Creates a new bit slice and adds it to the worklist.
   auto make_bit_slice = [&](const SourceInfo& loc, Node* operand, int64_t start,
