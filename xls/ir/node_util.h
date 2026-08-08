@@ -595,6 +595,32 @@ absl::StatusOr<Node*> RemoveNodeFromBooleanExpression(Node* to_remove,
                                                       Node* expression,
                                                       bool favored_outcome);
 
+// Returns an existing TupleIndex user extracting `index` from `node` if one
+// exists.
+std::optional<TupleIndex*> FindTupleIndexUser(Node* node, int64_t index);
+
+// Returns an existing ArrayIndex user that indexes `node` with a single
+// literal index equal to `index` if one exists.
+std::optional<ArrayIndex*> FindArrayIndexUser(Node* node, int64_t index);
+
+// Returns an existing BitSlice user of `node` with the given start and width if
+// one exists.
+std::optional<BitSlice*> FindBitSliceUser(Node* node, int64_t start,
+                                          int64_t width);
+
+// Finds an existing TupleIndex user extracting `index` from `node`, or creates
+// one in `node`'s function.
+absl::StatusOr<TupleIndex*> FindOrMakeTupleIndex(Node* node, int64_t index);
+
+// Finds an existing single-literal ArrayIndex user indexing `node` at `index`,
+// or creates one in `node`'s function.
+absl::StatusOr<ArrayIndex*> FindOrMakeArrayIndex(Node* node, int64_t index);
+
+// Finds an existing BitSlice user of `node` with (start, width), or creates
+// one in `node`'s function.
+absl::StatusOr<BitSlice*> FindOrMakeBitSlice(Node* node, int64_t start,
+                                             int64_t width);
+
 // Takes a node with a tuple type and creates and returns a node which contains
 // the 'count' elements of the tuple starting at 'start'.
 absl::StatusOr<Node*> SliceTuple(Node* tuple, int64_t start,

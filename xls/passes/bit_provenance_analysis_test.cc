@@ -26,10 +26,13 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/passes/query_engine.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -436,6 +439,50 @@ TEST_F(BitProvenanceAnalysisTest, SingleSourceBitRepeatedMultipleTimes) {
       IsTreeBitSources(
           ElementsAre(IsBitRange(x.node(), /*source_bit_index_low=*/4,
                                  /*dest_bit_index_low=*/3, /*bit_width=*/1))));
+}
+
+TEST_F(BitProvenanceAnalysisTest, MaterializeTreeBitFromTuple) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* tuple_type = p->GetTupleType({p->GetBitsType(1), p->GetBitsType(8)});
+  BValue tup = fb.Param("tup", tuple_type);
+  BValue tup_1 = fb.TupleIndex(tup, 1);
+  BValue slice = fb.BitSlice(tup_1, 3, 1);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(slice).status());
+
+  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK_AND_ASSIGN(TreeBitLocation source,
+                           bpa.GetSource(TreeBitLocation(slice.node(), 0)));
+  EXPECT_EQ(source.node(), tup.node());
+  EXPECT_EQ(source.bit_index(), 3);
+  EXPECT_THAT(source.tree_index(), ElementsAre(1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * materialized, MaterializeTreeBit(source));
+  EXPECT_THAT(materialized,
+              m::BitSlice(m::TupleIndex(m::Param("tup"), 1), 3, 1));
+}
+
+TEST_F(BitProvenanceAnalysisTest, MaterializeTreeBitFromArray) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* array_type = p->GetArrayType(4, p->GetBitsType(8));
+  BValue arr = fb.Param("arr", array_type);
+  BValue arr_2 = fb.ArrayIndex(arr, {fb.Literal(UBits(2, 32))});
+  BValue slice = fb.BitSlice(arr_2, 5, 2);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(slice).status());
+
+  BitProvenanceAnalysis bpa;
+  XLS_ASSERT_OK_AND_ASSIGN(TreeBitLocation source,
+                           bpa.GetSource(TreeBitLocation(slice.node(), 0)));
+  EXPECT_EQ(source.node(), arr.node());
+  EXPECT_EQ(source.bit_index(), 5);
+  EXPECT_THAT(source.tree_index(), ElementsAre(2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * materialized_range,
+                           MaterializeTreeBitRange(source, /*width=*/2));
+  EXPECT_THAT(
+      materialized_range,
+      m::BitSlice(m::ArrayIndex(m::Param("arr"), {m::Literal(2)}), 5, 2));
 }
 
 }  // namespace

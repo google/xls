@@ -26,11 +26,13 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/passes/dataflow_visitor.h"
@@ -430,6 +432,46 @@ BitProvenanceAnalysis::TrimRepeatedSourceBits(
     }
   }
   return res;
+}
+
+absl::StatusOr<Node*> MaterializeTreeBitRange(const TreeBitLocation& location,
+                                              int64_t width) {
+  Node* current = location.node();
+  Type* type = current->GetType();
+
+  for (int64_t idx : location.tree_index()) {
+    if (type->IsTuple()) {
+      XLS_ASSIGN_OR_RETURN(current, FindOrMakeTupleIndex(current, idx));
+    } else if (type->IsArray()) {
+      XLS_ASSIGN_OR_RETURN(current, FindOrMakeArrayIndex(current, idx));
+    } else {
+      return absl::InternalError(absl::StrFormat(
+          "Unexpected type during tree traversal: %s", type->ToString()));
+    }
+    type = current->GetType();
+  }
+
+  XLS_RET_CHECK(type->IsBits())
+      << "Leaf node in MaterializeTreeBit must be bits-typed, got: "
+      << type->ToString();
+
+  if (location.bit_index() == 0 && current->BitCountOrDie() == width) {
+    return current;
+  }
+
+  return FindOrMakeBitSlice(current, location.bit_index(), width);
+}
+
+absl::StatusOr<Node*> MaterializeTreeBit(const TreeBitLocation& location) {
+  return MaterializeTreeBitRange(location, /*width=*/1);
+}
+
+absl::StatusOr<Node*> MaterializeTreeBitRange(
+    const TreeBitSources::BitRange& range) {
+  return MaterializeTreeBitRange(
+      TreeBitLocation(range.source_node(), range.source_bit_index_low(),
+                      range.source_tree_index()),
+      range.bit_width());
 }
 
 }  // namespace xls
