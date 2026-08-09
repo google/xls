@@ -292,5 +292,21 @@ TEST_F(VisibilityExprBuilderTest, VisibilityExpressionWithOneKeptEdge) {
   EXPECT_THAT(is_x_used.first, m::Literal(1));
 }
 
+TEST_F(VisibilityExprBuilderTest, FindsSourceOfTupleOperandInComparison) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* tuple_type = p->GetTupleType({p->GetBitsType(1), p->GetBitsType(4)});
+  BValue tup = fb.Param("tup", tuple_type);
+  BValue bit0 = fb.TupleIndex(tup, 0);
+  BValue y = fb.Param("y", p->GetBitsType(4));
+  BValue y_and_bit0 = fb.And(y, fb.SignExtend(bit0, 4));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(y_and_bit0));
+
+  std::pair<Node*, VisibilityEstimator::AreaDelay> is_y_used;
+  XLS_ASSERT_OK_AND_ASSIGN(is_y_used,
+                           BuildDefaultVisibilityExpr(f, y.node(), {}));
+  EXPECT_THAT(is_y_used.first, m::TupleIndex(m::Param("tup"), 0));
+}
+
 }  // namespace
 }  // namespace xls

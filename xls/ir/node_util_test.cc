@@ -1313,5 +1313,65 @@ TEST_F(NodeUtilTest, NodeNameFormat) {
   EXPECT_EQ(NodeNameFormat("lit: %s", c.node()), "lit: lit_42");
 }
 
+TEST_F(NodeUtilTest, FindAndFindOrMakeTupleIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue tup =
+      fb.Param("tup", p->GetTupleType({p->GetBitsType(8), p->GetBitsType(16)}));
+  BValue elem0 = fb.TupleIndex(tup, 0);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(elem0).status());
+
+  EXPECT_EQ(FindTupleIndexUser(tup.node(), 0), elem0.node());
+  EXPECT_EQ(FindTupleIndexUser(tup.node(), 1), std::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TupleIndex * found0,
+                           FindOrMakeTupleIndex(tup.node(), 0));
+  EXPECT_EQ(found0, elem0.node());
+
+  XLS_ASSERT_OK_AND_ASSIGN(TupleIndex * made1,
+                           FindOrMakeTupleIndex(tup.node(), 1));
+  EXPECT_THAT(made1, m::TupleIndex(m::Param("tup"), 1));
+  EXPECT_EQ(FindTupleIndexUser(tup.node(), 1), made1);
+}
+
+TEST_F(NodeUtilTest, FindAndFindOrMakeArrayIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue arr = fb.Param("arr", p->GetArrayType(4, p->GetBitsType(8)));
+  BValue elem2 = fb.ArrayIndex(arr, {fb.Literal(UBits(2, 32))});
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(elem2).status());
+
+  EXPECT_EQ(FindArrayIndexUser(arr.node(), 2), elem2.node());
+  EXPECT_EQ(FindArrayIndexUser(arr.node(), 0), std::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ArrayIndex * found2,
+                           FindOrMakeArrayIndex(arr.node(), 2));
+  EXPECT_EQ(found2, elem2.node());
+
+  XLS_ASSERT_OK_AND_ASSIGN(ArrayIndex * made0,
+                           FindOrMakeArrayIndex(arr.node(), 0));
+  EXPECT_THAT(made0, m::ArrayIndex(m::Param("arr"), {m::Literal(0)}));
+  EXPECT_EQ(FindArrayIndexUser(arr.node(), 0), made0);
+}
+
+TEST_F(NodeUtilTest, FindAndFindOrMakeBitSlice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue slice = fb.BitSlice(x, 4, 8);
+  XLS_ASSERT_OK(fb.BuildWithReturnValue(slice).status());
+
+  EXPECT_EQ(FindBitSliceUser(x.node(), 4, 8), slice.node());
+  EXPECT_EQ(FindBitSliceUser(x.node(), 0, 4), std::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(BitSlice * found,
+                           FindOrMakeBitSlice(x.node(), 4, 8));
+  EXPECT_EQ(found, slice.node());
+
+  XLS_ASSERT_OK_AND_ASSIGN(BitSlice * made, FindOrMakeBitSlice(x.node(), 0, 4));
+  EXPECT_THAT(made, m::BitSlice(m::Param("x"), 0, 4));
+  EXPECT_EQ(FindBitSliceUser(x.node(), 0, 4), made);
+}
+
 }  // namespace
 }  // namespace xls

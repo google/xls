@@ -40,6 +40,12 @@
 namespace xls {
 
 // Abstraction representing a particular bit of a particular XLS Node.
+//
+// NOTE: `node()` is not necessarily bits-typed. If the bit originated from an
+// aggregate type (such as a tuple or array parameter), `node()` can be
+// aggregate-typed (tuple/array), with `tree_index()` specifying the path to the
+// leaf element within the aggregate. To extract a bits-typed Node* for this
+// location, see `MaterializeTreeBit` in `bit_provenance_analysis.h`.
 class TreeBitLocation {
  public:
   TreeBitLocation() : node_(nullptr), bit_index_(0) {}
