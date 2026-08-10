@@ -1,0 +1,17 @@
+module ArrayUpdateWithNotIndex(
+  input wire [127:0] a,
+  input wire idx,
+  input wire [31:0] v,
+  output wire [127:0] out
+);
+  wire [31:0] a_unflattened[4];
+  assign a_unflattened[0] = a[31:0];
+  assign a_unflattened[1] = a[63:32];
+  assign a_unflattened[2] = a[95:64];
+  assign a_unflattened[3] = a[127:96];
+  wire [31:0] array_update_10[4];
+  assign out = {array_update_10[3], array_update_10[2], array_update_10[1], array_update_10[0]};
+  for (genvar __i0 = 0; __i0 < 4; __i0 = __i0 + 1) begin : gen__array_update_10_0
+    assign array_update_10[__i0] = {31'h0000_0000, ~idx} == __i0 ? v : a_unflattened[__i0];
+  end
+endmodule
