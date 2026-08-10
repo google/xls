@@ -2287,6 +2287,12 @@ DocRef Formatter::FormatFunction(const Function& n, bool is_test) {
       fn_pieces.push_back(FormatBlock(
           *n.body(), FormatBlockOptions{.add_curls = false,
                                         .force_multiline = force_multiline}));
+
+      // Add hard line before closing parentheses if empty function has
+      // comments.
+      if (comments_.HasComments(n.body()->span())) {
+        fn_pieces.push_back(arena_.hard_line());
+      }
       fn_pieces.push_back(arena_.ccurl());
     } else {
       // For non-empty functions, we break after the signature and before

@@ -392,6 +392,14 @@ TEST_F(FunctionFmtTest, FormatEmptyFn) {
   EXPECT_EQ(got, "fn f() {}");
 }
 
+// A function whose body contains only a comment must still emit a line
+// break before the closing curl.
+TEST_F(FunctionFmtTest, FormatCommentOnlyFnBody) {
+  const std::string_view original = "fn f(){//bar\n}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, "fn f() {\n    //bar\n}");
+}
+
 TEST_F(FunctionFmtTest, LogicalOrLhsForArrayIndex) {
   const std::string_view original = "fn f(a: u32, b: u32){(a||b)[3]}";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
