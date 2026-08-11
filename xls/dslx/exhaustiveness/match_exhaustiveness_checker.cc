@@ -204,8 +204,19 @@ IntervalPatternLeaf ToIntervalPatternLeaf(const PatternTree& pattern) {
             return SomeWildcard();
           },
           [&](Number* number) -> IntervalPatternLeaf { return number; },
+          [&](SumVariantPayloadPattern* /*constructor_pattern*/)
+              -> IntervalPatternLeaf {
+            LOG(FATAL) << "SumVariantPayloadPattern not yet supported in "
+                          "MatchExhaustivenessChecker";
+            return SomeWildcard();
+          },
           [&](RestOfTuple* rest_of_tuple) -> IntervalPatternLeaf {
             LOG(FATAL) << "RestOfTuple not valid for conversion to "
+                          "IntervalPatternLeaf";
+            return SomeWildcard();
+          },
+          [&](StructPattern* /*unused*/) -> IntervalPatternLeaf {
+            LOG(FATAL) << "StructPattern not valid for conversion to "
                           "IntervalPatternLeaf";
             return SomeWildcard();
           },
@@ -294,6 +305,10 @@ std::vector<IntervalPatternLeaf> ExpandPatternLeaves(
               types_index += 1;
             },
             [&](const Number* n) {
+              result.push_back(ToIntervalPatternLeaf(node));
+              types_index += 1;
+            },
+            [&](const SumVariantPayloadPattern* /*unused*/) {
               result.push_back(ToIntervalPatternLeaf(node));
               types_index += 1;
             },
