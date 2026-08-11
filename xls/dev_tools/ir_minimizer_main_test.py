@@ -732,6 +732,36 @@ top proc foo<input: bits[32] in, output:bits[32] out>(foo: bits[32], bar: bits[3
         encoding='utf-8',
     )
 
+  def test_proc_multiple_reads(self):
+    input_ir = """package foo
+
+top proc foo<input: bits[32] in, output:bits[32] out>(x: bits[32], init={42}) {
+  chan_interface input(direction=receive, kind=streaming, strictness=proven_mutually_exclusive)
+  chan_interface output(direction=send, kind=streaming, strictness=proven_mutually_exclusive)
+  tkn: token = literal(value=token, id=1000)
+  read1: bits[32] = state_read(state_element=x)
+  read2: bits[32] = state_read(state_element=x)
+  receive.1: (token, bits[32]) = receive(tkn, channel=input)
+  tuple_index.2: bits[32] = tuple_index(receive.1, index=1)
+  add: bits[32] = add(read1, read2)
+  send.3: token = send(tkn, add, channel=output)
+  next_value.4: () = next_value(state_element=x, value=tuple_index.2)
+}
+"""
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
+    # The minimizer should not crash.
+    subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
+
   def test_verify_return_code(self):
     # If the test script never successfully runs, then ir_minimizer_main should
     # return nonzero.

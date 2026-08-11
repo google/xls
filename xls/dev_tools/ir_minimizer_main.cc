@@ -444,30 +444,47 @@ absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
   if (f->IsProc()) {
     Proc* p = f->AsProcOrDie();
     absl::flat_hash_set<StateElement*> dead_state_elements;
-    absl::flat_hash_set<StateElement*> invariant_state_elements(
-        p->StateElements().begin(), p->StateElements().end());
+    absl::flat_hash_set<StateElement*> invariant_state_elements;
+    for (StateElement* se : p->StateElements()) {
+      if (p->GetStateReadsByStateElement(se).empty()) {
+        dead_state_elements.insert(se);
+      } else {
+        invariant_state_elements.insert(se);
+      }
+    }
+
     for (Next* next : p->next_values()) {
-      if (next->value() !=
-          p->GetStateReadByStateElement(next->state_element())) {
-        // This state param is not actually invariant.
+      if (dead_state_elements.contains(next->state_element())) {
+        continue;
+      }
+      absl::Span<StateRead* const> reads =
+          p->GetStateReadsByStateElement(next->state_element());
+      if (!absl::c_linear_search(reads, next->value())) {
         invariant_state_elements.erase(next->state_element());
       }
     }
-    for (StateElement* invariant : invariant_state_elements) {
-      // Replace all uses of invariant state elements (i.e.: ones where
-      // next[i] == param[i]) with a literal of the initial value.
-      Value init_value = invariant->initial_value();
-      Node* state_read = p->GetStateReadByStateElement(invariant);
-      absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
-          p->next_values(invariant);
-      for (Next* next : next_values) {
+
+    // 1. Remove next values for all dead and invariant state elements.
+    std::vector<Next*> next_values(p->next_values().begin(),
+                                   p->next_values().end());
+    for (Next* next : next_values) {
+      if (dead_state_elements.contains(next->state_element()) ||
+          invariant_state_elements.contains(next->state_element())) {
         XLS_RETURN_IF_ERROR(p->RemoveNode(next));
       }
-      XLS_RETURN_IF_ERROR(
-          state_read->ReplaceUsesWithNew<Literal>(init_value).status());
+    }
+
+    // 2. Replace uses of reads for invariant state elements.
+    for (StateElement* invariant : invariant_state_elements) {
+      Value init_value = invariant->initial_value();
+      for (StateRead* read : p->GetStateReadsByStateElement(invariant)) {
+        XLS_RETURN_IF_ERROR(
+            read->ReplaceUsesWithNew<Literal>(init_value).status());
+      }
       dead_state_elements.insert(invariant);
     }
 
+    // 3. Remove the state elements themselves.
     bool changed = false;
     for (StateElement* dead : dead_state_elements) {
       XLS_ASSIGN_OR_RETURN(int64_t index, p->GetStateElementIndex(dead));

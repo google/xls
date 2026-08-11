@@ -270,6 +270,8 @@ class Proc : public FunctionBase {
 
   bool HasImplicitUse(Node* node) const override;
 
+  absl::Status RemoveNode(Node* n) override;
+
   // Creates a clone of the proc with the new name `new_name`. Proc is
   // owned by `target_package`. `channel_remapping` dictates how to map channel
   // names to new channel names in the cloned version; if a key is unavailable

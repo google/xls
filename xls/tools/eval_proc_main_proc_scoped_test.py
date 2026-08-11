@@ -1332,13 +1332,15 @@ out: {
             node_stats(
                 node_id=4,
                 node_text=(
-                    "send.4: token = send(literal.2, st, channel=out, id=4)"
+                    "send.4: token = send(literal.2, st__1, channel=out, id=4)"
                 ),
                 set_bits=TOKEN,
             ),
             node_stats(
                 node_id=78,
-                node_text="st: bits[32] = state_read(state_element=st, id=78)",
+                node_text=(
+                    "st__1: bits[32] = state_read(state_element=st, id=78)"
+                ),
                 set_bits=_value_32_bits(0b11),
                 total_bit_count=32,
                 unset_bit_count=30,

@@ -73,6 +73,7 @@ absl::StatusOr<bool> ReplaceNode(Block* block, Node* old_node, Node* new_node,
 
   if (old_node->Is<StateRead>()) {
     XLS_RETURN_IF_ERROR(block->RemoveNodeFromStage(old_node).status());
+    XLS_RETURN_IF_ERROR(old_node->function_base()->RemoveNode(old_node));
     return false;
   }
   if (old_node->IsDead()) {

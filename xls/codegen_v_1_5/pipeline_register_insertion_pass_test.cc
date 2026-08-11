@@ -434,7 +434,6 @@ TEST_F(PipelineRegisterInsertionPassTest, TestCombinedRegisters) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
-  sbb.AddStateReadToCurrentStage(acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
@@ -474,7 +473,6 @@ TEST_F(PipelineRegisterInsertionPassTest, TestRegistersDontCombine) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
-  sbb.AddStateReadToCurrentStage(acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
@@ -516,7 +514,6 @@ TEST_F(PipelineRegisterInsertionPassTest, TestCombinedRegistersWithState) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
-  sbb.AddStateReadToCurrentStage(acc);
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
   // Stage 1
@@ -573,7 +570,6 @@ TEST_F(PipelineRegisterInsertionPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
-  sbb.AddStateReadToCurrentStage(acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
@@ -633,7 +629,6 @@ TEST_F(PipelineRegisterInsertionPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
-  sbb.AddStateReadToCurrentStage(acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
@@ -642,7 +637,6 @@ TEST_F(PipelineRegisterInsertionPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
   BValue z = sbb.SourceNode(source_z);
-  sbb.AddStateReadToCurrentStage(z);
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
   // Stage 2 - ends mutex region 1
@@ -700,7 +694,6 @@ TEST_F(PipelineRegisterInsertionPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
-  sbb.AddStateReadToCurrentStage(acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
@@ -713,7 +706,6 @@ TEST_F(PipelineRegisterInsertionPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
   BValue z = sbb.SourceNode(source_z);
-  sbb.AddStateReadToCurrentStage(z);
   sbb.Next(acc, v0);
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
@@ -767,7 +759,6 @@ TEST_F(PipelineRegisterInsertionPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
-  sbb.AddStateReadToCurrentStage(acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
@@ -785,7 +776,6 @@ TEST_F(PipelineRegisterInsertionPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
   BValue z = sbb.SourceNode(source_z);
-  sbb.AddStateReadToCurrentStage(z);
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
   // Stage 4
@@ -838,8 +828,6 @@ TEST_F(PipelineRegisterInsertionPassTest,
       Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
   BValue z = sbb.SourceNode(source_z);
-  sbb.AddStateReadToCurrentStage(acc);
-  sbb.AddStateReadToCurrentStage(z);
   BValue next_acc = sbb.Add(x, acc, SourceInfo(), "next_acc");
   sbb.Next(acc, next_acc);
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
@@ -894,7 +882,6 @@ TEST_F(PipelineRegisterInsertionPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(StateRead * source_read,
                            source->AddStateRead(source_se));
   BValue acc = sbb.SourceNode(source_read);
-  sbb.AddStateReadToCurrentStage(acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
   sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
 
