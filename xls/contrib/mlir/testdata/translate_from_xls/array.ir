@@ -35,3 +35,12 @@ fn test_array(a: bits[32][2] id=1, b: bits[32][4] id=2) -> bits[32][2] {
   // CHECK: {{.*}} = "xls.array_update"([[ARG1]], [[LIT2]], [[LIT1]]) : (!xls.array<2xi32>, i32, i32) -> !xls.array<2xi32>
   ret array_update.10: bits[32][2] = array_update(a, literal.4, indices=[literal.3], id=10)
 }
+
+// CHECK: func @test_multidim_array_index([[ARG_2D:%.*]]: !xls.array<4x!xls.array<3xi32>>, [[IDX0:%.*]]: i32, [[IDX1:%.*]]: i32) -> i32 {
+// CHECK-NEXT: [[SUB_ARR:%.*]] = "xls.array_index"([[ARG_2D]], [[IDX0]]) : (!xls.array<4x!xls.array<3xi32>>, i32) -> !xls.array<3xi32>
+// CHECK-NEXT: [[ELEM:%.*]] = "xls.array_index"([[SUB_ARR]], [[IDX1]]) : (!xls.array<3xi32>, i32) -> i32
+// CHECK-NEXT: return [[ELEM]] : i32
+fn test_multidim_array_index(a: bits[32][3][4] id=20, idx0: bits[32] id=21, idx1: bits[32] id=22) -> bits[32] {
+  ret array_index.23: bits[32] = array_index(a, indices=[idx0, idx1], id=23)
+}
+

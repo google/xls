@@ -40,6 +40,7 @@
 #include "mlir/include/mlir/IR/Location.h"
 #include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/OwningOpRef.h"
+#include "mlir/include/mlir/IR/SymbolTable.h"
 #include "mlir/include/mlir/IR/TypeRange.h"
 #include "mlir/include/mlir/IR/Types.h"
 #include "mlir/include/mlir/IR/Value.h"
@@ -589,30 +590,40 @@ absl::StatusOr<Operation*> translateOp(::xls::Array& node, OpBuilder& builder,
 absl::StatusOr<Operation*> translateOp(::xls::ArrayIndex& node,
                                        OpBuilder& builder,
                                        TranslationState& state) {
-  auto xls_arg =
-      state.getMlirValue(node.operands()[::xls::ArrayIndex::kArgOperand]->id());
+  auto xls_arg = state.getMlirValue(node.array()->id());
   if (!xls_arg.ok()) {
     return xls_arg.status();
   }
 
-  if (node.indices().length() != 1) {
+  if (node.indices().empty()) {
     return absl::InternalError(
-        "MLIR currently only supports ArrayIndex with a single index!");
-  }
-  auto xls_index = state.getMlirValue(
-      node.operands()[::xls::ArrayIndex::kIndexOperandStart]->id());
-  if (!xls_arg.ok()) {
-    return xls_arg.status();
+        "ArrayIndex must have at least one index operand");
   }
 
-  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
   }
 
-  return xls::ArrayIndexOp::create(builder, *loc, result_type, *xls_arg,
-                                   *xls_index);
+  Value curr_array = *xls_arg;
+  ::xls::Type* curr_xls_type = node.array()->GetType();
+  Operation* last_op = nullptr;
+
+  for (::xls::Node* index_node : node.indices()) {
+    auto xls_index = state.getMlirValue(index_node->id());
+    if (!xls_index.ok()) {
+      return xls_index.status();
+    }
+
+    curr_xls_type = curr_xls_type->AsArrayOrDie()->element_type();
+    Type elem_mlir_type = translateType(curr_xls_type, builder);
+
+    last_op = xls::ArrayIndexOp::create(builder, *loc, elem_mlir_type,
+                                        curr_array, *xls_index);
+    curr_array = last_op->getResult(0);
+  }
+
+  return last_op;
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ArrayConcat& node,
