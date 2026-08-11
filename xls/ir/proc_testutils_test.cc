@@ -471,6 +471,67 @@ TEST_F(UnrollProcTest, PredicatedReceives) {
   EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(UnrollProcTest, ConditionalReadNextStateNoOp) {
+  auto p = CreatePackage();
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  auto false_pred = pb.Literal(UBits(0, 1));
+  auto x = pb.ReadStateElement("x", UBits(10, 4), false_pred,
+                               /*non_synthesizable=*/false);
+
+  pb.Next(x, pb.Literal(UBits(15, 4)), false_pred);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  auto x_val = fb.Literal(UBits(10, 4));
+  auto state_tuple = fb.Tuple({x_val});
+  auto empty_tuple = fb.Tuple({});
+  auto activation_tuple = fb.Tuple({state_tuple, empty_tuple});
+  fb.Tuple({activation_tuple});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToFunction(proc, 1, /*include_state=*/true));
+
+  RecordProperty("func", f->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("converted", converted->DumpIr());
+  EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
+}
+
+TEST_F(UnrollProcTest, MultipleTokenStateReadsWithRetention) {
+  auto p = CreatePackage();
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  BStateElement tok_elem = pb.StateElement("tok", Value::Token(),
+                                           /*non_synthesizable=*/false);
+  BValue tok_read1 = pb.StateRead(tok_elem);
+  BValue tok_read2 = pb.StateRead(tok_elem);
+  auto next_tok = pb.AfterAll({tok_read1, tok_read2});
+
+  auto pred = pb.Literal(UBits(1, 1));
+  pb.Next(tok_elem, next_tok, pred);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  auto token_val = fb.Tuple({fb.Literal(UBits(42, 32))});
+  auto state_0 = fb.Tuple({token_val});
+  auto act_0 = fb.Tuple({state_0, fb.Tuple({})});
+  auto state_1 = fb.Tuple({token_val});
+  auto act_1 = fb.Tuple({state_1, fb.Tuple({})});
+  fb.Tuple({act_0, act_1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToFunction(proc, 2, /*include_state=*/true,
+                           Value::Tuple({Value(UBits(42, 32))})));
+
+  RecordProperty("func", f->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("converted", converted->DumpIr());
+  EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(UnrollProcUntimedTest, Simple) {
   auto p = CreatePackage();
   FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());

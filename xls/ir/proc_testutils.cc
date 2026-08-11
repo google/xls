@@ -172,7 +172,8 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
         absl::c_reverse(selectors);
         state_val =
             fb_.PrioritySelect(fb_.Concat(selectors), cases,
-                               /*default_value=*/values_[reads.front()]);
+                               /*default_value=*/
+                               prev_activation_.end_state.at(state_element));
       }
       states[state_element] = state_val;
     }
@@ -428,8 +429,12 @@ absl::StatusOr<UnrolledProc> UnrollProcToFunctionInternal(
       << "At least one activation is required.";
   UnrolledProc result;
   for (StateElement* state_element : p->StateElements()) {
-    result.initial_state[state_element] =
-        fb.Literal(state_element->initial_value());
+    if (state_element->type()->IsToken()) {
+      result.initial_state[state_element] = fb.Literal(token_value);
+    } else {
+      result.initial_state[state_element] =
+          fb.Literal(state_element->initial_value());
+    }
   }
   ActivationAction initial_state{
       .activation_index = -1,
