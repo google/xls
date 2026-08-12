@@ -68,6 +68,9 @@ struct PassOptionsBase {
   // are present in run_only_passes and not present in skip_passes will be run.
   std::vector<std::string> skip_passes;
 
+  // If present, optimization will end when this pass is reached.
+  std::string stop_before;
+
   // If present, how many passes will be allowed to run to completion. NB
   // Passes which do not cause any changes are counted in this limit. When this
   // limit is reached all subsequent passes perform no changes. NB The total
@@ -388,6 +391,10 @@ class PassBase {
   virtual std::string_view base_short_name() const { return short_name_; }
   virtual std::string long_name() const { return long_name_; }
 
+  virtual bool contains_pass(std::string_view name) const {
+    return short_name_ == name;
+  }
+
   // Generate a proto that can be used to reconstitute this pass. By default is
   // 'short_name()'
   // TODO(allight): This is not very elegant. Ideally the registry could handle
@@ -422,6 +429,11 @@ class PassBase {
     }
 
     std::string_view base_short_name = this->base_short_name();
+    if (base_short_name == options.stop_before) {
+      VLOG(1) << "Skipping pass \'" << this->short_name()
+              << "\'. Contained in stop_before option.";
+      return false;
+    }
     if (std::find_if(options.skip_passes.begin(), options.skip_passes.end(),
                      [&](const std::string& name) {
                        return base_short_name == name;
@@ -669,6 +681,20 @@ class CompoundPassBase : public PassBase<OptionsT, ContextT...> {
       : Pass(short_name, long_name) {}
   ~CompoundPassBase() override = default;
 
+  bool contains_pass(std::string_view name) const override {
+    // Check if this pass matches
+    if (PassBase<OptionsT, ContextT...>::contains_pass(name)) {
+      return true;
+    }
+
+    for (const auto& pass : passes_) {
+      if (pass->contains_pass(name)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
     PassPipelineProto::Element res;
     for (const auto& p : this->passes()) {
@@ -884,7 +910,11 @@ absl::StatusOr<bool> CompoundPassBase<OptionsT, ContextT...>::RunNested(
   }
 
   bool changed = false;
+  bool encountered_stop_pass = false;
   for (const auto& pass : passes_) {
+    if (encountered_stop_pass) {
+      break;
+    }
     VLOG(1) << absl::StreamFormat(
         "Running %s (%s, #%d) pass on package %s as part of compound pass %s "
         "[pass #: %d]",
@@ -897,6 +927,12 @@ absl::StatusOr<bool> CompoundPassBase<OptionsT, ContextT...>::RunNested(
         _ << "Failed as part of compound pass " << this->short_name() << " #"
           << results->current_invocation().pass_number());
     changed = changed || pass_changed;
+
+    // Check for stop_before after the pass itself runs, to allow child compound
+    // passes to run passes up until the stop_before pass.
+    if (pass->contains_pass(options.stop_before)) {
+      encountered_stop_pass = true;
+    }
   }
 
   if (changed) {

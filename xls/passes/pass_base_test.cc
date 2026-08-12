@@ -660,6 +660,170 @@ TEST_F(PassBaseTest, InvariantCheckerAddedEarly) {
   EXPECT_EQ(checker->run_count(), 6);
 }
 
+TEST_F(PassBaseTest, SkipBefore_nestedSkipLeaf_SkipsLeafAndLater) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK(fb.Build());
+  OptimizationCompoundPass top("top_compound", "Top Compound Pass");
+  top.Add<NodeAdderPass>(/*nodes_to_add=*/0);
+
+  auto* top_checker = top.AddInvariantChecker<CounterChecker>();
+
+  OptimizationCompoundPass* sub0 =
+      top.Add<OptimizationCompoundPass>("subcompound0", "Subcompound Pass 0");
+  sub0->Add<NodeAdderPass>(/*nodes_to_add=*/10);
+
+  OptimizationCompoundPass* sub1 =
+      top.Add<OptimizationCompoundPass>("subcompound1", "Subcompound Pass 1");
+  sub1->Add<NodeAdderPass>(/*nodes_to_add=*/100);
+  sub1->Add<NodeAdderPass>(/*nodes_to_add=*/80);
+  sub1->Add<NodeAdderPass>(/*nodes_to_add=*/0);
+
+  auto* sub1_checker = sub1->AddInvariantChecker<CounterChecker>();
+
+  PassResults results;
+  OptimizationContext context;
+  OptimizationPassOptions options;
+
+  // Skip the last two passes in subcompound1.
+  options.stop_before = "node_adder_80";
+  EXPECT_THAT(top.Run(p.get(), options, &results, context), IsOkAndHolds(true));
+
+  EXPECT_THAT(results.ToProto(),
+              proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+                total_passes: 6
+                pass_metrics {
+                  pass_name: "top_compound"
+                  changed: 1
+                  pass_numbers: 0
+                  nested_results {
+                    pass_name: "node_adder_0"
+                    changed: 0
+                    pass_numbers: 1
+                  }
+                  nested_results {
+                    pass_name: "subcompound0"
+                    changed: 1
+                    pass_numbers: 2
+                    nested_results {
+                      pass_name: "node_adder_10"
+                      changed: 1
+                      pass_numbers: 3
+                    }
+                  }
+                  nested_results {
+                    pass_name: "subcompound1"
+                    changed: 1
+                    pass_numbers: 4
+                    nested_results {
+                      pass_name: "node_adder_100"
+                      changed: 1
+                      pass_numbers: 5
+                    }
+                  }
+                }
+              )pb")));
+
+  // Top pass, subcompound0, node_adder_10, subcompound1, and node_adder_100 are
+  // counted. node_adder_0 is not counted because it does not change the IR.
+  EXPECT_EQ(top_checker->run_count(), 5);
+
+  // subcompound1 and node_adder_100 are counted.
+  EXPECT_EQ(sub1_checker->run_count(), 2);
+}
+
+TEST_F(PassBaseTest, SkipBefore_nestedSkipInner_SkipsCompoundPass) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK(fb.Build());
+  OptimizationCompoundPass top("top_compound", "Top Compound Pass");
+  top.Add<NodeAdderPass>(/*nodes_to_add=*/5);
+
+  auto* top_checker = top.AddInvariantChecker<CounterChecker>();
+
+  OptimizationCompoundPass* sub0 =
+      top.Add<OptimizationCompoundPass>("subcompound0", "Subcompound Pass 0");
+  sub0->Add<NodeAdderPass>(/*nodes_to_add=*/10);
+
+  OptimizationCompoundPass* sub1 =
+      top.Add<OptimizationCompoundPass>("subcompound1", "Subcompound Pass 1");
+  sub1->Add<NodeAdderPass>(/*nodes_to_add=*/100);
+  sub1->Add<NodeAdderPass>(/*nodes_to_add=*/80);
+  sub1->Add<NodeAdderPass>(/*nodes_to_add=*/0);
+
+  auto* sub1_checker = sub1->AddInvariantChecker<CounterChecker>();
+
+  PassResults results;
+  OptimizationContext context;
+  OptimizationPassOptions options;
+
+  // Only run top compound pass and node_adder_0.
+  options.stop_before = "subcompound0";
+  EXPECT_THAT(top.Run(p.get(), options, &results, context), IsOkAndHolds(true));
+
+  EXPECT_THAT(results.ToProto(),
+              proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+                total_passes: 2
+                pass_metrics {
+                  pass_name: "top_compound"
+                  changed: 1
+                  pass_numbers: 0
+                  nested_results {
+                    pass_name: "node_adder_5"
+                    changed: 1
+                    pass_numbers: 1
+                  }
+                }
+              )pb")));
+
+  // Top pass and node_adder_5 are counted.
+  EXPECT_EQ(top_checker->run_count(), 2);
+
+  // sub1_checker should not be run at all; it occurs after the skipped pass.
+  EXPECT_EQ(sub1_checker->run_count(), 0);
+}
+
+TEST_F(PassBaseTest, SkipBefore_nestedSkipTop_SkipsAllPasses) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK(fb.Build());
+  OptimizationCompoundPass top("top_compound", "Top Compound Pass");
+  top.Add<NodeAdderPass>(/*nodes_to_add=*/0);
+
+  auto* top_checker = top.AddInvariantChecker<CounterChecker>();
+
+  OptimizationCompoundPass* sub0 =
+      top.Add<OptimizationCompoundPass>("subcompound0", "Subcompound Pass 0");
+  sub0->Add<NodeAdderPass>(/*nodes_to_add=*/10);
+
+  OptimizationCompoundPass* sub1 =
+      top.Add<OptimizationCompoundPass>("subcompound1", "Subcompound Pass 1");
+  sub1->Add<NodeAdderPass>(/*nodes_to_add=*/100);
+  sub1->Add<NodeAdderPass>(/*nodes_to_add=*/80);
+  sub1->Add<NodeAdderPass>(/*nodes_to_add=*/0);
+
+  PassResults results;
+  OptimizationContext context;
+  OptimizationPassOptions options;
+
+  // Stop before running any passes
+  options.stop_before = "top_compound";
+  EXPECT_THAT(top.Run(p.get(), options, &results, context),
+              IsOkAndHolds(false));
+
+  EXPECT_THAT(results.ToProto(),
+              proto_testing::Partially(proto_testing::EqualsProto(R"pb(
+                total_passes: 0
+                pass_metrics {}
+              )pb")));
+
+  // No passes change IR
+  EXPECT_EQ(top_checker->run_count(), 0);
+}
+
 TEST_F(PassBaseTest, NestedCompoundPass) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

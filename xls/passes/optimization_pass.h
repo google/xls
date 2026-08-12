@@ -190,6 +190,9 @@ struct OptimizationPassOptions : public PassOptionsBase {
     return std::move(*this);
   }
 
+  // Stop optimization when the given pass is encountered.
+  // std::string stop_before = "";
+
   // Optimize for best case throughput, even at the cost of area.
   bool optimize_for_best_case_throughput = false;
 
