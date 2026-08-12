@@ -14,6 +14,7 @@
 
 #include "xls/passes/array_untuple_pass.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <optional>
@@ -91,18 +92,23 @@ absl::StatusOr<UnionFind<Node*>> FindUntupleGroups(
       array_groups.Union(n->As<Gate>()->data(), n);
     }
   }
-  for (Next* next : f->next_values()) {
-    // Next needs both sides to be represented the same.
-    absl::Span<StateRead* const> state_reads =
-        f->AsProcOrDie()->GetStateReadsByStateElement(next->state_element());
-    XLS_RET_CHECK_EQ(state_reads.size(), 1)
-        << "State element '" << next->state_element()->name()
-        << "' has multiple StateReads which is not supported in "
-           "array_untuple_pass.";
-    // TODO(nelsonliang): Handle multiple state reads for a state element
-    // by unioning the state reads associated with a state_element and union
-    // them all with the next value.
-    array_groups.Union(state_reads.front(), next->value());
+  if (f->IsProc()) {
+    for (StateElement* state_element : f->AsProcOrDie()->StateElements()) {
+      absl::Span<StateRead* const> state_reads =
+          f->AsProcOrDie()->GetStateReadsByStateElement(state_element);
+      const auto& next_nodes = f->next_values(state_element);
+      std::vector<Node*> nodes_to_union;
+      nodes_to_union.reserve(state_reads.size() + next_nodes.size());
+      for (StateRead* sr : state_reads) {
+        nodes_to_union.push_back(sr);
+      }
+      for (Next* nxt : next_nodes) {
+        nodes_to_union.push_back(nxt->value());
+      }
+      for (size_t i = 1; i < nodes_to_union.size(); ++i) {
+        array_groups.Union(nodes_to_union[0], nodes_to_union[i]);
+      }
+    }
   }
   return array_groups;
 }
@@ -129,19 +135,28 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindExternalGroups(
     // Don't mess with params that are only used in identity updates. Would
     // infinite loop otherwise since we don't remove these very often.
     for (StateElement* state_element : f->AsProcOrDie()->StateElements()) {
-      StateRead* state_read =
-          f->AsProcOrDie()->GetStateReadByStateElement(state_element);
-      if (absl::c_all_of(state_read->users(), [&](Node* n) -> bool {
-            if (n->Is<Next>()) {
-              Next* nxt = n->As<Next>();
-              return nxt->value() == state_read &&
-                     nxt->state_element() == state_read->state_element();
-            }
-            // TODO(nelsonliang): Handle identity state elements by retrieving
-            // all state reads and verifying all reads are identity updates.
+      absl::Span<StateRead* const> state_reads =
+          f->AsProcOrDie()->GetStateReadsByStateElement(state_element);
+      bool only_used_in_identity_updates = true;
+      for (StateRead* state_read : state_reads) {
+        auto is_identity_update = [&](Node* n) -> bool {
+          if (!n->Is<Next>()) {
             return false;
-          })) {
-        excluded.insert(groups.Find(state_read));
+          }
+          Next* nxt = n->As<Next>();
+          return nxt->value() == state_read &&
+                 nxt->state_element() == state_read->state_element();
+        };
+
+        if (!absl::c_all_of(state_read->users(), is_identity_update)) {
+          only_used_in_identity_updates = false;
+          break;
+        }
+      }
+      if (only_used_in_identity_updates && !state_reads.empty()) {
+        // Use front as the representative of the group in UnionFind
+        // because they all refer to the same state_element
+        excluded.insert(groups.Find(state_reads.front()));
       }
     }
   }
@@ -300,42 +315,51 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     if (!CanUntuple(state_read)) {
       return DefaultHandler(state_read);
     }
-    // TODO(nelsonliang): When supporting multiple state reads for a single
-    // state element, split state element and create new UnreadStateElements.
-    // Will add it to a map to be tracked by the UntupleVisitor.Add state read
-    // node for each new state element.
     XLS_RET_CHECK(state_read->function_base()->IsProc());
     VLOG(2) << "Untuple-ing state read " << state_read;
     Proc* proc = state_read->function_base()->AsProcOrDie();
     StateElement* state_element = state_read->state_element();
-    Value init = state_element->initial_value();
     TupleType* element =
         state_element->type()->AsArrayOrDie()->element_type()->AsTupleOrDie();
     std::vector<Node*> res;
     res.reserve(element->size());
+
+    // First explicit state_read, split the state element.
+    if (!split_state_elements_.contains(state_element)) {
+      Value init = state_element->initial_value();
+      std::vector<StateElement*> split_elements;
+      split_elements.reserve(element->size());
+      for (int64_t i = 0; i < element->size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(Value element_array, GetElementArray(init, i));
+        XLS_ASSIGN_OR_RETURN(
+            StateElement * new_element,
+            proc->AppendUnreadStateElement(
+                absl::StrFormat("%s_tuple_element_%d", state_element->name(),
+                                i),
+                std::move(element_array), state_element->non_synthesizable(),
+                state_read->loc()));
+        split_elements.push_back(new_element);
+      }
+      split_state_elements_[state_element] = std::move(split_elements);
+    }
+
+    const std::vector<StateElement*>& split_elements =
+        split_state_elements_.at(state_element);
+    XLS_RET_CHECK_EQ(split_elements.size(), element->size());
     for (int64_t i = 0; i < element->size(); ++i) {
-      XLS_ASSIGN_OR_RETURN(Value element_array, GetElementArray(init, i));
       XLS_ASSIGN_OR_RETURN(
-          *std::back_inserter(res),
-          proc->AppendStateElement(
-              absl::StrFormat("%s_tuple_element_%d", state_element->name(), i),
-              std::move(element_array), /*read_predicate=*/std::nullopt,
-              /*next_state=*/std::nullopt, state_element->non_synthesizable()));
+          StateRead * new_read,
+          proc->AddStateRead(split_elements[i], state_read->predicate(),
+                             state_read->label(), state_read->loc()));
+      res.push_back(new_read);
     }
     return RecordUntuple(state_read, std::move(res));
   }
 
   absl::Status HandleNext(Next* n) override {
-    // TODO(nelsonliang): Handle multiple state reads for the same state
-    // element by creating a new next node using the state_element constructor
-    // for each state element that was split.
     Proc* proc = n->function_base()->AsProcOrDie();
     absl::Span<StateRead* const> state_reads =
         proc->GetStateReadsByStateElement(n->state_element());
-    XLS_RET_CHECK_EQ(state_reads.size(), 1)
-        << "State element '" << n->state_element()->name()
-        << "' has multiple StateReads which is not supported in "
-           "array_untuple_pass.";
     Node* state_read = state_reads.front();
     if (!CanUntuple(state_read)) {
       return DefaultHandler(n);
@@ -344,16 +368,16 @@ class UntupleVisitor : public DfsVisitorWithDefault {
     changed_ = true;
     XLS_RET_CHECK(CanUntuple(n->value()))
         << "Unable to untuple both state read and value.";
-    XLS_RET_CHECK(components_.contains(state_read));
+    XLS_RET_CHECK(split_state_elements_.contains(n->state_element()));
+    const std::vector<StateElement*>& split_elements =
+        split_state_elements_.at(n->state_element());
     XLS_RET_CHECK(components_.contains(n->value()));
-    absl::Span<Node* const> state_read_values = components_.at(state_read);
     absl::Span<Node* const> update_values = components_.at(n->value());
-    for (const auto& [idx, state_read_node, value] :
-         iter::zip(iter::count(), state_read_values, update_values)) {
-      XLS_RET_CHECK(state_read_node->Is<StateRead>());
-      StateRead* state_read = state_read_node->As<StateRead>();
+    XLS_RET_CHECK_EQ(split_elements.size(), update_values.size());
+    for (const auto& [idx, state_element, value] :
+         iter::zip(iter::count(), split_elements, update_values)) {
       XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                  n->loc(), state_read->state_element(), value,
+                                  n->loc(), state_element, value,
                                   n->predicate(), n->label(), IdxName(n, idx))
                               .status());
     }
@@ -621,6 +645,8 @@ class UntupleVisitor : public DfsVisitorWithDefault {
   UnionFind<Node*>& groups_;
   const absl::flat_hash_set<Node*>& excluded_groups_;
   absl::flat_hash_map<Node*, std::vector<Node*>> components_;
+  absl::flat_hash_map<StateElement*, std::vector<StateElement*>>
+      split_state_elements_;
   bool changed_ = false;
 };
 

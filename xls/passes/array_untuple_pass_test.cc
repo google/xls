@@ -602,6 +602,124 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayNextWithStateElement) {
               UnorderedElementsAre(m::NextWithStateElement(se1, _)));
 }
 
+TEST_F(ArrayUntuplePassTest, ProcStateArrayWithMultipleReads) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value init_val,
+      ValueBuilder::Array(
+          {ValueBuilder::Tuple({Value(UBits(0, 1)), Value(UBits(1, 3))}),
+           ValueBuilder::Tuple({Value(UBits(0, 1)), Value(UBits(2, 3))})})
+          .Build());
+
+  BStateElement state_elem =
+      pb.StateElement("foo", init_val, /*non_synthesizable=*/false);
+
+  BStateElement cond1_elem = pb.StateElement("cond1_state", Value(UBits(0, 1)),
+                                             /*non_synthesizable=*/false);
+
+  BValue cond1 = pb.StateRead(cond1_elem);
+  BValue cond2 = pb.Not(cond1);
+  pb.Next(cond1_elem, cond1);
+
+  BValue read1 = pb.StateRead(state_elem, cond1);
+  BValue read2 = pb.StateRead(state_elem, cond2);
+
+  BValue idx = pb.Literal(UBits(0, 3));
+
+  // One identity update, one non-identity update
+  pb.Next(state_elem, read1, cond1);
+
+  BValue update_val2 =
+      pb.Tuple({pb.Literal(UBits(0, 1)), pb.Literal(UBits(4, 3))});
+  BValue updated2 = pb.ArrayUpdate(read2, update_val2, {idx});
+  pb.Next(state_elem, updated2, cond2);
+
+  Type* tuple_type = p->GetTupleType({p->GetBitsType(1), p->GetBitsType(3)});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_out,
+      p->CreateStreamingChannel("chan_out", ChannelOps::kSendOnly, tuple_type));
+  BValue tok = pb.Literal(Value::Token());
+  BValue send_val1 = pb.ArrayIndex(read1, {idx});
+  BValue send_val2 = pb.ArrayIndex(read2, {idx});
+  pb.SendIf(chan_out, tok, cond1, send_val1);
+  pb.SendIf(chan_out, tok, cond2, send_val2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(pr, /*activation_count=*/4,
+                                            /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      pr->StateElements(),
+      IsSupersetOf({m::StateElement("foo_tuple_element_0", "bits[1][2]"),
+                    m::StateElement("foo_tuple_element_1", "bits[3][2]")}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se0,
+                           pr->GetStateElementByName("foo_tuple_element_0"));
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * se1,
+                           pr->GetStateElementByName("foo_tuple_element_1"));
+
+  EXPECT_THAT(pr->next_values(se0),
+              UnorderedElementsAre(
+                  m::NextWithStateElement(se0, _, m::StateRead("cond1_state")),
+                  m::NextWithStateElement(
+                      se0, _, m::Not(m::StateRead("cond1_state")))));
+
+  EXPECT_THAT(pr->next_values(se1),
+              UnorderedElementsAre(
+                  m::NextWithStateElement(se1, _, m::StateRead("cond1_state")),
+                  m::NextWithStateElement(
+                      se1, _, m::Not(m::StateRead("cond1_state")))));
+}
+
+TEST_F(ArrayUntuplePassTest, ProcStateArrayWithMultipleReadsIdentityNoOp) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value init_val,
+      ValueBuilder::Array(
+          {ValueBuilder::Tuple({Value(UBits(0, 1)), Value(UBits(1, 3))}),
+           ValueBuilder::Tuple({Value(UBits(0, 1)), Value(UBits(2, 3))})})
+          .Build());
+
+  BStateElement state_elem =
+      pb.StateElement("foo", init_val, /*non_synthesizable=*/false);
+
+  BStateElement cond1_elem = pb.StateElement("cond1_state", Value(UBits(0, 1)),
+                                             /*non_synthesizable=*/false);
+
+  BValue cond1 = pb.StateRead(cond1_elem);
+  BValue cond2 = pb.Not(cond1);
+  pb.Next(cond1_elem, cond1);
+
+  BValue read1 = pb.StateRead(state_elem, cond1);
+  BValue read2 = pb.StateRead(state_elem, cond2);
+
+  // Both next values are identity updates
+  pb.Next(state_elem, read1, cond1);
+  pb.Next(state_elem, read2, cond2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan_out, p->CreateStreamingChannel(
+                         "chan_out", ChannelOps::kSendOnly, p->GetBitsType(1)));
+  BValue tok = pb.Literal(Value::Token());
+  pb.Send(chan_out, tok, cond1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(pr, /*activation_count=*/4,
+                                            /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(p.get()), IsOkAndHolds(false));
+
+  EXPECT_THAT(pr->StateElements(),
+              UnorderedElementsAre(m::StateElement("foo"),
+                                   m::StateElement("cond1_state")));
+}
+
 void IrFuzzArrayUntuple(FuzzPackageWithArgs fuzz_package_with_args) {
   ArrayUntuplePass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
