@@ -1718,6 +1718,45 @@ ResourceSharingPass::SelectFoldingActions(
   return folding_actions_to_perform;
 }
 
+absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
+ResourceSharingPass::SelectFoldingActionsForGraph(
+    FunctionBase* f, FoldingGraph* folding_graph,
+    const absl::btree_set<MutuallyExclPair>& mutual_exclusivity,
+    const VisibilityAnalyses& visibility,
+    const OptimizationPassOptions& options,
+    OptimizationContext& context) const {
+  if (options.area_estimator == nullptr) {
+    return absl::InvalidArgumentError(
+        "Selecting folding actions requires an area estimator");
+  }
+  if (options.delay_estimator == nullptr) {
+    return absl::InvalidArgumentError(
+        "Selecting folding actions requires a delay estimator");
+  }
+
+  auto critical_path_delay =
+      std::make_unique<CriticalPathDelayAnalysis>(options.delay_estimator);
+  XLS_RETURN_IF_ERROR(critical_path_delay->Attach(f).status());
+
+  NodeBackwardDependencyAnalysis nda_backwards;
+  XLS_RETURN_IF_ERROR(nda_backwards.Attach(f).status());
+
+  int64_t next_node_id = 0;
+  for (auto node : f->nodes()) {
+    next_node_id = std::max(next_node_id, node->id());
+  }
+  next_node_id++;
+
+  BitProvenanceAnalysis bpa;
+  VisibilityEstimator visibility_estimator(
+      next_node_id - 1, visibility.bdd_engine.get(), *visibility.nda, bpa,
+      options.area_estimator, options.delay_estimator);
+
+  return SelectFoldingActions(context, folding_graph, mutual_exclusivity,
+                              visibility, nda_backwards, *critical_path_delay,
+                              options, &visibility_estimator);
+}
+
 namespace {
 
 using NodeAndEdges = std::pair<Node*, FoldingAction::VisibilityEdges>;
@@ -2110,13 +2149,6 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
           << options.area_estimator->name() << "\" and delay model \""
           << options.delay_estimator->name() << "\"";
 
-  auto critical_path_delay =
-      std::make_unique<CriticalPathDelayAnalysis>(options.delay_estimator);
-  XLS_RETURN_IF_ERROR(critical_path_delay->Attach(f).status());
-
-  NodeBackwardDependencyAnalysis nda_backwards;
-  XLS_RETURN_IF_ERROR(nda_backwards.Attach(f).status());
-
   XLS_ASSIGN_OR_RETURN(VisibilityAnalyses visibilities,
                        VisibilityAnalyses::Create(f, config_));
 
@@ -2133,11 +2165,6 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
           [this](Node* n) { return ShouldTargetNodeForMutualExclusion(n); },
           visibilities));
 
-  BitProvenanceAnalysis bpa;
-  VisibilityEstimator visibility_estimator(
-      next_node_id - 1, visibilities.bdd_engine.get(), *visibilities.nda, bpa,
-      options.area_estimator, options.delay_estimator);
-
   // Identify the set of legal folding actions
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
@@ -2150,9 +2177,16 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<NaryFoldingAction>>
           folding_actions_to_perform,
-      SelectFoldingActions(context, &folding_graph, mutual_exclusivity,
-                           visibilities, nda_backwards, *critical_path_delay,
-                           options, &visibility_estimator));
+      SelectFoldingActionsForGraph(f, &folding_graph, mutual_exclusivity,
+                                   visibilities, options, context));
+
+  BitProvenanceAnalysis bpa;
+  VisibilityEstimator visibility_estimator(
+      next_node_id - 1, visibilities.bdd_engine.get(), *visibilities.nda, bpa,
+      options.area_estimator, options.delay_estimator);
+
+  NodeBackwardDependencyAnalysis nda_backwards;
+  XLS_RETURN_IF_ERROR(nda_backwards.Attach(f).status());
 
   // Perform the folding
   XLS_ASSIGN_OR_RETURN(
