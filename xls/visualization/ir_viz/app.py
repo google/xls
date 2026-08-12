@@ -230,7 +230,7 @@ def static_handler(filename):
 
   try:
     content = runfiles.get_contents_as_text(
-        werkzeug.security.safe_join('xls/visualization/ir_viz', filename)
+        werkzeug.security.safe_join('xls/visualization/ir_viz', filename)  # pyrefly: ignore[bad-argument-type]
     )
   except FileNotFoundError:
     flask.abort(404)

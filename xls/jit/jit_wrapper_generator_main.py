@@ -127,8 +127,8 @@ def find_named_entry(
 ) -> Optional[_T]:
   for f in lst:
     if (
-        f.base.name == function_name
-        or f.base.name.removeprefix(f"__{interface_name}__") == function_name
+        f.base.name == function_name  # pyrefly: ignore[missing-attribute]
+        or f.base.name.removeprefix(f"__{interface_name}__") == function_name  # pyrefly: ignore[missing-attribute]
     ):
       return f
   return None

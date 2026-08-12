@@ -171,7 +171,7 @@ def main(argv: Sequence[str]) -> None:
     print("Can't generate a test-main without an input & result")
     return
   print("Generating main.cc")
-  subprocess.run(
+  subprocess.run(  # pyrefly: ignore[no-matching-overload]
       [
           runfiles.get_path(_DUMP_MAIN),
           "-output",

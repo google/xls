@@ -99,9 +99,9 @@ def maybe_plot_estimator_and_data_points(
   if specialization_details:
     title += ' ' + str(specialization_details)
 
-  coeffs = estimator.params
+  coeffs = estimator.params  # pyrefly: ignore[missing-attribute]
 
-  if len(estimator.estimator_expressions) == 1:
+  if len(estimator.estimator_expressions) == 1:  # pyrefly: ignore[missing-attribute]
     fig, ax = pyplot.subplots(figsize=_2D_GRAPH_FIGSIZE)
 
     # Plot the real data points as circles.
@@ -110,12 +110,13 @@ def maybe_plot_estimator_and_data_points(
     ax.plot(x_actual, y_actual, 'o')
 
     # Compute the R^2 score and add the score to the graph
-    r2_score = get_r2_score(np.vectorize(estimation_f)(x_actual), y_actual)
+    r2_score = get_r2_score(np.vectorize(estimation_f)(x_actual), y_actual)  # pyrefly: ignore[bad-argument-type]
     title += f', $R^2$ = {r2_score:.2f}'
 
     # Describe the equation
     if isinstance(estimator, estimator_model.AreaRegressionEstimator):
       estimator_description = (
+          # pyrefly: ignore[bad-index]
           f'f(x) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x^2 + {coeffs[2]:.2f} *'
           f' xlog(x) + {coeffs[3]:.2f} * x + {coeffs[4]:.2f} *'
           ' log(x)\nwhere x ='
@@ -123,6 +124,7 @@ def maybe_plot_estimator_and_data_points(
       )
     elif isinstance(estimator, estimator_model.RegressionEstimator):
       estimator_description = (
+          # pyrefly: ignore[bad-index]
           f'f(x) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x + {coeffs[2]:.2f} *'
           ' log(x)\nwhere x ='
           f' {estimator_model.estimator_expression_description(estimator.estimator_expressions[0])}'
@@ -141,7 +143,7 @@ def maybe_plot_estimator_and_data_points(
     pyplot.title(title)
     ax.set_xlabel(
         estimator_model.estimator_expression_description(
-            estimator.estimator_expressions[0]
+            estimator.estimator_expressions[0]  # pyrefly: ignore[bad-index]
         )
     )
     if metric == estimator_model.Metric.DELAY_METRIC:
@@ -153,7 +155,7 @@ def maybe_plot_estimator_and_data_points(
     pyplot.ylim(bottom=0)
     pyplot.xlim(left=1)
 
-  elif len(estimator.estimator_expressions) == 2:
+  elif len(estimator.estimator_expressions) == 2:  # pyrefly: ignore[bad-argument-type]
     x_actual = [dp.factors[0] for dp in estimator.raw_data_points]
     y_actual = [dp.factors[1] for dp in estimator.raw_data_points]
     z_actual = [dp.measurement for dp in estimator.raw_data_points]
@@ -162,13 +164,14 @@ def maybe_plot_estimator_and_data_points(
 
     # Compute the R^2 score and add the score to the graph
     r2_score = get_r2_score(
-        np.vectorize(estimation_f)(x_actual, y_actual), z_actual
+        np.vectorize(estimation_f)(x_actual, y_actual), z_actual  # pyrefly: ignore[bad-argument-type]
     )
     title += f', $R^2$ = {r2_score:.2f}'
 
     # Describe the equation
     if isinstance(estimator, estimator_model.AreaRegressionEstimator):
       estimator_description = (
+          # pyrefly: ignore[bad-index]
           f'f(x,y) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x^2 +'
           f' {coeffs[3]:.2f} *'
           f' xlog(x) + {coeffs[5]:.2f} * x + {coeffs[7]:.2f} * log(x) +\n'
@@ -179,6 +182,7 @@ def maybe_plot_estimator_and_data_points(
       )
     elif isinstance(estimator, estimator_model.RegressionEstimator):
       estimator_description = (
+          # pyrefly: ignore[bad-index]
           f'f(x,y) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x + {coeffs[2]:.2f} *'
           f' log(x) + {coeffs[3]:.2f} * y + {coeffs[4]:.2f} * log(y)\nwhere x ='
           f' {estimator_model.estimator_expression_description(estimator.estimator_expressions[0])}\ny'
@@ -221,12 +225,12 @@ def maybe_plot_estimator_and_data_points(
     pyplot.title(title)
     ax.set_xlabel(
         estimator_model.estimator_expression_description(
-            estimator.estimator_expressions[0]
+            estimator.estimator_expressions[0]  # pyrefly: ignore[bad-index]
         )
     )
     ax.set_ylabel(
         estimator_model.estimator_expression_description(
-            estimator.estimator_expressions[1]
+            estimator.estimator_expressions[1]  # pyrefly: ignore[bad-index]
         )
     )
     if metric == estimator_model.Metric.DELAY_METRIC:

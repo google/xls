@@ -51,7 +51,7 @@ def main(argv):
     raise app.UsageError('Too many command-line arguments.')
 
   em = estimator_model_pb2.EstimatorModel()
-  with gfile.open(_INPUT.value, 'r') as f:
+  with gfile.open(_INPUT.value, 'r') as f:  # pyrefly: ignore[bad-argument-type]
     em = text_format.Parse(f.read(), em)
 
   oss = estimator_model_pb2.OpSamplesList()

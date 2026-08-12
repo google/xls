@@ -827,9 +827,9 @@ def main(argv):
         "--top",
         function_to_instrument_proto.name.xls_name,
         "--input_file",
-        inputs_tmp.name,
+        inputs_tmp.name,  # pyrefly: ignore[unbound-name]
         "--expected_file",
-        outputs_tmp.name,
+        outputs_tmp.name,  # pyrefly: ignore[unbound-name]
         "--use_llvm_jit"
         if (FLAGS.backend == "serial_jit")
         else "--nouse_llvm_jit",
@@ -839,7 +839,7 @@ def main(argv):
     subprocess.check_output(args)
   else:
 
-    with open(reset_ticks_tmp.name) as x:
+    with open(reset_ticks_tmp.name) as x:  # pyrefly: ignore[unbound-name]
       ticks_per_frame = x.read().split()
 
     ticks_per_frame = filter(lambda x: int(x) > 0, ticks_per_frame)

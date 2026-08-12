@@ -81,7 +81,7 @@ class IrPatch:
             )
         else:
           pb_edit_path.operation = ir_patch_pb2.Operation.UPDATE
-          pb_node_edit_path.node.name, pb_node_edit_path.updated_node.name = (
+          pb_node_edit_path.node.name, pb_node_edit_path.updated_node.name = (  # pyrefly: ignore[bad-assignment]
               node_edit_path[0],
               node_edit_path[1],
           )
@@ -206,7 +206,7 @@ class IrPatch:
       os.makedirs(directory_path)
 
     with open(self.export_path, 'wb') as f:
-      f.write(self.serialized_proto)
+      f.write(self.serialized_proto)  # pyrefly: ignore[bad-argument-type]
     print(
         f'Wrote proto: {self.export_path}\t file size:'
         f' {os.path.getsize(self.export_path)} bytes'

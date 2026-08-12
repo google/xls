@@ -141,7 +141,7 @@ def create_op_to_points_mapping(
   result = collections.defaultdict(list)
   for point in dps:
     result[point.operation.op].append(point)
-  return result
+  return result  # pyrefly: ignore[bad-return]
 
 
 def update_op_data_points(
@@ -208,11 +208,11 @@ def main(argv):
     raise app.UsageError('Too many command-line arguments.')
 
   oms = estimator_model_pb2.OpModels()
-  with gfile.open(_OP_MODELS.value, 'r') as f:
+  with gfile.open(_OP_MODELS.value, 'r') as f:  # pyrefly: ignore[bad-argument-type]
     oms = text_format.Parse(f.read(), oms)
 
   dps = estimator_model_pb2.DataPoints()
-  with gfile.open(_DATA_POINTS.value, 'r') as f:
+  with gfile.open(_DATA_POINTS.value, 'r') as f:  # pyrefly: ignore[bad-argument-type]
     dps = text_format.Parse(f.read(), dps)
 
   em = estimator_model_pb2.EstimatorModel()
@@ -222,7 +222,7 @@ def main(argv):
 
   if _UPDATE_MODE.value != UpdateMode.NONE:
     em.data_points.extend(
-        update_data_points(_OUTPUT.value, dps, _UPDATE_MODE.value).data_points
+        update_data_points(_OUTPUT.value, dps, _UPDATE_MODE.value).data_points  # pyrefly: ignore[bad-argument-type]
     )
   else:
     for dp in dps.data_points:

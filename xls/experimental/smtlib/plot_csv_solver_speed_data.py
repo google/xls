@@ -70,12 +70,12 @@ def plot_csv_data(fname):
       else:
         data = [float(elm) for elm in row[1:]]
         label = row[0]
-        plt.scatter(x_axis, data, label=label)
+        plt.scatter(x_axis, data, label=label)  # pyrefly: ignore[unbound-name]
         print(f'row[1:] = {row[1:]}, label = {row[0]}')
       line_count += 1
     if FLAGS.xscale == 'log':
       plt.xscale('log', basex=2)
-    plt.xlabel(xlabel)
+    plt.xlabel(xlabel)  # pyrefly: ignore[unbound-name]
     if FLAGS.yscale == 'log':
       plt.yscale('log', basey=10)
     plt.ylabel('Solve Time (ms)')

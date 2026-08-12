@@ -58,7 +58,7 @@ _RPC_PORT = flags.DEFINE_integer(
 )
 _MAX_THREADS = flags.DEFINE_integer(
     'max_threads',
-    max(os.cpu_count() // 2, 1),
+    max(os.cpu_count() // 2, 1),  # pyrefly: ignore[unsupported-operation]
     'Max number of threads for parallelizing the generation of data points.',
 )
 _CHECKPOINT_PATH = flags.DEFINE_string(
@@ -402,12 +402,12 @@ def main(_):
   if _BAZEL_BIN_PATH.value:
     config.bazel_bin_path = os.path.realpath(_BAZEL_BIN_PATH.value)
   else:
-    config.bazel_bin_path = None
+    config.bazel_bin_path = None  # pyrefly: ignore[bad-assignment]
 
   if _OPENROAD_PATH.value:
     config.openroad_path = os.path.realpath(_OPENROAD_PATH.value)
   else:
-    config.openroad_path = None
+    config.openroad_path = None  # pyrefly: ignore[bad-assignment]
 
   if config.openroad_path:
     target_task = [

@@ -240,7 +240,7 @@ def _operation_estimator_expression(
         expression.rhs_expression, operation
     )
     e = estimator_model_pb2.EstimatorExpression.BinaryOperation
-    return {
+    return {  # pyrefly: ignore[bad-return]
         e.ADD: lambda: lhs_value + rhs_value,
         e.DIVIDE: lambda: lhs_value / (1.0 if rhs_value < 1.0 else rhs_value),
         e.MAX: lambda: max(lhs_value, rhs_value),

@@ -65,7 +65,7 @@ _OP_INCLUDE_LIST = flags.DEFINE_list(
 )
 _MAX_THREADS = flags.DEFINE_integer(
     'max_threads',
-    max(os.cpu_count() // 2, 1),
+    max(os.cpu_count() // 2, 1),  # pyrefly: ignore[unsupported-operation]
     'Max number of threads for parallelizing the generation of data points.',
 )
 

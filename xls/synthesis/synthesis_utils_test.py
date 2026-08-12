@@ -58,13 +58,13 @@ class SynthesisUtilsTest(absltest.TestCase):
   def test_bisect_1_to_3_ghz_by_100mhz(self):
     seq = [10 + i for i in range(21)]
     max_index, results = self._run_bisect(seq)
-    self.assertEqual(seq[max_index], 28)
+    self.assertEqual(seq[max_index], 28)  # pyrefly: ignore[bad-index]
     self.assertEqual(results, [(20, 1.0), (26, 1.0), (29, -1.0), (28, 1.0)])
 
   def test_bisect_2_to_3_ghz_by_100mhz(self):
     seq = [20 + i for i in range(11)]
     max_index, results = self._run_bisect(seq)
-    self.assertEqual(seq[max_index], 28)
+    self.assertEqual(seq[max_index], 28)  # pyrefly: ignore[bad-index]
     self.assertEqual(results, [(25, 1.0), (28, 1.0), (30, -1.0), (29, -1.0)])
 
   def test_bisect_3_to_4_ghz_by_100mhz_does_not_meet_timing(self):
@@ -80,7 +80,7 @@ class SynthesisUtilsTest(absltest.TestCase):
     )
     frun = lambda x: -1.0 if x >= 2.9 else 0
     max_index, results = self._run_bisect(seq, frun=frun)
-    self.assertAlmostEqual(seq[max_index], 2.8)
+    self.assertAlmostEqual(seq[max_index], 2.8)  # pyrefly: ignore[bad-index]
     self.assertEqual(results, [(2.0, 0), (2.6, 0), (2.9, -1.0), (2.8, 0)])
 
   def test_bisect_frequencies(self):

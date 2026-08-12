@@ -118,14 +118,14 @@ class WrappedIr:
   @property
   def can_be_specialized(self) -> bool:
     return (
-        all(p.specialized_type is not None for p in self.params)
+        all(p.specialized_type is not None for p in self.params)  # pyrefly: ignore[not-iterable]
         and self.result is not None
         and self.result.specialized_type is not None
     )
 
   @property
   def params_and_result(self):
-    return list(self.params) + [self.result]
+    return list(self.params) + [self.result]  # pyrefly: ignore[bad-argument-type]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -245,7 +245,7 @@ def to_c_type(t: type_pb2.TypeProto) -> Optional[str]:
     elems = [to_c_type(e) for e in t.tuple_elements]
     if any(e is None for e in elems):
       return None
-    return f"std::tuple<{', '.join(elems)}>"
+    return f"std::tuple<{', '.join(elems)}>"  # pyrefly: ignore[no-matching-overload]
   elif the_type == type_pb2.TypeProto.ARRAY:
     elem_c_type = to_c_type(t.array_element)
     if elem_c_type is None:
@@ -334,7 +334,7 @@ def _combine_tuple_domains(
   if all(domain[1] and domain[0] is not None for domain in child_domains):
     # All children are "native", so just use fuzztest::TupleOf.
     elems = [domain[0] for domain in child_domains]
-    return f"fuzztest::TupleOf({', '.join(elems)})", True
+    return f"fuzztest::TupleOf({', '.join(elems)})", True  # pyrefly: ignore[no-matching-overload]
 
   # Some children are not "native", so use fuzztest::Map to convert them to
   # xls::Value.

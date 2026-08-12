@@ -278,8 +278,8 @@ def main(argv: Sequence[str]) -> None:
     raise app.UsageError("Non-function entrypoints not supported.")
   aot = _AotInfo(
       entrypoint=entrypoint,
-      result_str=_RESULT.value,
-      result_mask_str=_MASK.value,
+      result_str=_RESULT.value,  # pyrefly: ignore[bad-argument-type]
+      result_mask_str=_MASK.value,  # pyrefly: ignore[bad-argument-type]
       args_str=_INPUT.value,
       write_result=_WRITE_RESULT.value,
   )
