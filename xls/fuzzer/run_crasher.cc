@@ -46,8 +46,8 @@ ABSL_FLAG(bool, only_check_config, false,
 namespace xls {
 namespace {
 
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
+#if defined(ADDRESS_SANITIZER) || defined(HWADDRESS_SANITIZER) || \
+    defined(MEMORY_SANITIZER) || defined(THREAD_SANITIZER)
 constexpr bool kCanRunIverilogSimulator = false;
 #else
 constexpr bool kCanRunIverilogSimulator = true;
@@ -72,8 +72,7 @@ absl::Status RealMain(const std::filesystem::path& crasher_path,
   } else if (!kCanRunIverilogSimulator &&
              crasher.options().simulator() == "iverilog" &&
              crasher.options().simulate()) {
-    LOG(INFO)
-        << "Skipping iverilog simulator because MSAN/ASAN/TSAN is enabled.";
+    LOG(INFO) << "Skipping iverilog simulator because sanitizers are enabled.";
     SampleOptions options = crasher.options();
     options.set_simulate(false);
     crasher = Sample(crasher.input_text(), options, crasher.testvector());

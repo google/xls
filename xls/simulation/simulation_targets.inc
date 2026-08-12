@@ -16,6 +16,7 @@
 // in the INSTANTIATE_TEST_SUITE_P invocation.
 inline constexpr SimulationTarget kDefaultSimulationTargets[] = {
 #if !defined(ABSL_HAVE_ADDRESS_SANITIZER) && \
+    !defined(ABSL_HAVE_HWADDRESS_SANITIZER) && \
     !defined(ABSL_HAVE_MEMORY_SANITIZER)
     // iverilog crashes with ASAN.
     {.simulator = "iverilog", .use_system_verilog = false},
@@ -27,6 +28,7 @@ inline constexpr SimulationTarget kDefaultSimulationTargets[] = {
 // INSTANTIATE_TEST_SUITE_P invocation.
 inline constexpr SimulationTarget kVerilogOnlySimulationTargets[] = {
 #if !defined(ABSL_HAVE_ADDRESS_SANITIZER) && \
+    !defined(ABSL_HAVE_HWADDRESS_SANITIZER) && \
     !defined(ABSL_HAVE_MEMORY_SANITIZER)
     // iverilog crashes with ASAN.
     {.simulator = "iverilog", .use_system_verilog = false},
