@@ -17,14 +17,19 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_annotator.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
@@ -167,6 +172,128 @@ absl::StatusOr<UnrolledProc> UnrollProc(
 absl::StatusOr<Function*> UnrollProcToUntimedFunction(
     Proc* p, int64_t activation_count, int64_t input_value_count,
     int64_t output_value_count, bool count_recvs = true);
+
+// Struct which holds what happens on a channel for each activation.
+struct ChannelActions {
+  struct SingleAction {
+    // The value consumed/produced by the channel. For output channels the
+    // values are the values sent. For input channels the values are the values
+    // received.
+    Value value;
+    // What activation this value was sent/received on.
+    int64_t activation_number;
+  };
+
+  // The actions taken by the channel. This must always be in increasing
+  // activation-number order and each activation number must be used at most
+  // once.
+  std::vector<SingleAction> actions;
+};
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const ChannelActions& actions) {
+  absl::Format(&sink, "[%v]", absl::StrJoin(actions.actions, ",\t"));
+}
+template <typename Sink>
+void AbslStringify(Sink& sink, const ChannelActions::SingleAction& actions) {
+  absl::Format(&sink, "%s@%d", actions.value.ToHumanString(),
+               actions.activation_number);
+}
+
+inline bool operator==(const ChannelActions::SingleAction& lhs,
+                       const ChannelActions::SingleAction& rhs) {
+  return lhs.value == rhs.value &&
+         lhs.activation_number == rhs.activation_number;
+}
+inline bool operator!=(const ChannelActions::SingleAction& lhs,
+                       const ChannelActions::SingleAction& rhs) {
+  return !(lhs == rhs);
+}
+inline bool operator==(const ChannelActions& lhs, const ChannelActions& rhs) {
+  return lhs.actions == rhs.actions;
+}
+inline bool operator!=(const ChannelActions& lhs, const ChannelActions& rhs) {
+  return !(lhs == rhs);
+}
+
+// Struct which holds the results of running a proc for a small number of
+// activations.
+struct ProcResults {
+  // What each channel received/sent on each activation.
+  absl::flat_hash_map<ChannelRef, ChannelActions> channel_actions;
+  // The value of each node on each activation.
+  absl::flat_hash_map<Node*, std::vector<Value>> node_values;
+};
+
+// Helper to get info about what an (isolated) proc does when run for a certain
+// number of activations. Given the number of activations, lists of inputs
+// available and the size of the output-channels it will run the proc until
+// either the activations are executed or any channel blocks and returns
+// information about what every node is on each activation and what values on
+// what activation each channel produces/consumes.
+//
+// This should only be used on isolated procs (ie procs which do not communicate
+// with other procs).
+absl::StatusOr<ProcResults> GetProcResults(
+    Proc* p, int64_t activation_count, int64_t output_value_count,
+    const absl::flat_hash_map<ReceiveChannelRef, std::vector<Value>>& inputs);
+
+// IR Annotator that adds ProcResults to the IR.
+//
+// It shows results like:
+//   node | [val1, val2, ...]
+//   chan | [val1@<act>, val2@<act>, ...]
+class ProcResultsAnnotator : public IrAnnotator {
+ public:
+  explicit ProcResultsAnnotator(ProcResults results)
+      : results_(std::move(results)) {}
+  Annotation NodeAnnotation(Node* node) const override;
+  Annotation ChannelAnnotation(Channel* chan) const override;
+  Annotation ChannelInterfaceAnnotation(
+      const ChannelInterface* iface) const override;
+
+ private:
+  ProcResults results_;
+};
+
+// Helper to create a proc-results annotator (which ignores failures)
+class ProcResultsAnnotatorOrNothing final : public IrAnnotator {
+ public:
+  explicit ProcResultsAnnotatorOrNothing(
+      Proc* p, int64_t activation_count, int64_t output_value_count,
+      const absl::flat_hash_map<ReceiveChannelRef, std::vector<Value>>&
+          inputs) {
+    auto proc_results =
+        GetProcResults(p, activation_count, output_value_count, inputs);
+    if (proc_results.ok()) {
+      annotator_.emplace(std::move(proc_results.value()));
+    } else {
+      LOG(WARNING) << "Failed to get proc results: " << proc_results.status();
+    }
+  }
+  Annotation NodeAnnotation(Node* node) const override {
+    if (annotator_) {
+      return annotator_->NodeAnnotation(node);
+    }
+    return {};
+  }
+  Annotation ChannelAnnotation(Channel* chan) const override {
+    if (annotator_) {
+      return annotator_->ChannelAnnotation(chan);
+    }
+    return {};
+  }
+  Annotation ChannelInterfaceAnnotation(
+      const ChannelInterface* chan) const override {
+    if (annotator_) {
+      return annotator_->ChannelInterfaceAnnotation(chan);
+    }
+    return {};
+  }
+
+ private:
+  std::optional<ProcResultsAnnotator> annotator_;
+};
 
 }  // namespace xls
 

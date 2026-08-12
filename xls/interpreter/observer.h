@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -53,7 +54,13 @@ class CollectingEvaluationObserver : public EvaluationObserver {
   // No-op for collecting observer.
   void Tick() override {}
 
-  absl::flat_hash_map<Node*, std::vector<Value>>& values() { return values_; }
+  absl::flat_hash_map<Node*, std::vector<Value>>& values() & { return values_; }
+  const absl::flat_hash_map<Node*, std::vector<Value>>& values() const& {
+    return values_;
+  }
+  absl::flat_hash_map<Node*, std::vector<Value>>&& values() && {
+    return std::move(values_);
+  }
 
  private:
   absl::flat_hash_map<Node*, std::vector<Value>> values_;

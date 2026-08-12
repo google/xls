@@ -16,6 +16,7 @@
 
 #include <cstdint>
 
+#include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -28,6 +29,8 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/proc.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
 namespace xls::solvers {
@@ -91,6 +94,67 @@ TEST_F(Z3IrEquivalenceTestutilsTest, EquivArraySlice) {
   }
   XLS_ASSERT_OK(
       res.node()->ReplaceImplicitUsesWith(transformed.node()).status());
+}
+
+TEST_F(Z3IrEquivalenceTestutilsTest, ProcOutputEquivalenceFailure) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, "proc_a", p.get());
+  BReceiveChannel chan_in = pb.AddInputChannel("chan_in", p->GetBitsType(8));
+  BSendChannel chan_out = pb.AddOutputChannel("chan_out", p->GetBitsType(8));
+  auto tok = pb.ReadStateElement("tok", Value::Token());
+  auto state = pb.ReadStateElement("state", UBits(0, 8));
+  auto recv = pb.Receive(chan_in, tok);
+  auto nxt_val = pb.Add(pb.TupleIndex(recv, 1), pb.Literal(UBits(1, 8)));
+  auto final_tok = pb.Send(chan_out, pb.TupleIndex(recv, 0), nxt_val);
+  pb.Next(state, state);
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc_a, pb.Build());
+
+  XLS_ASSERT_OK(p->SetTop(proc_a));
+
+  EXPECT_NONFATAL_FAILURE(
+      [&]() {
+        ScopedVerifyProcOutputEquivalence::Options options;
+        options.input_value_count = 2;
+        options.output_value_count = 2;
+        options.activation_count = 2;
+        ScopedVerifyProcOutputEquivalence checker(proc_a, options);
+
+        XLS_ASSERT_OK_AND_ASSIGN(
+            Literal * new_lit,
+            proc_a->MakeNode<Literal>(SourceInfo(), Value(UBits(2, 8))));
+        XLS_ASSERT_OK(nxt_val.node()->ReplaceOperandNumber(1, new_lit));
+      }(),
+      "ScopedVerifyProcOutputEquivalence failed to prove");
+}
+
+TEST_F(Z3IrEquivalenceTestutilsTest, ProcEquivalenceFailure) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, "proc_a", p.get());
+  BReceiveChannel chan_in = pb.AddInputChannel("chan_in", p->GetBitsType(8));
+  BSendChannel chan_out = pb.AddOutputChannel("chan_out", p->GetBitsType(8));
+  auto tok = pb.ReadStateElement("tok", Value::Token());
+  auto state = pb.ReadStateElement("state", UBits(0, 8));
+  auto recv = pb.Receive(chan_in, tok);
+  auto nxt_val = pb.Add(pb.TupleIndex(recv, 1), pb.Literal(UBits(1, 8)));
+  auto final_tok = pb.Send(chan_out, pb.TupleIndex(recv, 0), nxt_val);
+  pb.Next(state, state);
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc_a, pb.Build());
+
+  XLS_ASSERT_OK(p->SetTop(proc_a));
+
+  EXPECT_NONFATAL_FAILURE(
+      [&]() {
+        ScopedVerifyProcEquivalence checker(proc_a, /*activation_count=*/2,
+                                            /*include_state=*/true);
+
+        XLS_ASSERT_OK_AND_ASSIGN(
+            Literal * new_lit,
+            proc_a->MakeNode<Literal>(SourceInfo(), Value(UBits(2, 8))));
+        XLS_ASSERT_OK(nxt_val.node()->ReplaceOperandNumber(1, new_lit));
+      }(),
+      "ScopedVerifyProcEquivalence failed to prove");
 }
 
 }  // namespace

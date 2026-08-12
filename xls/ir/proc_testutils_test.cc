@@ -15,6 +15,7 @@
 #include "xls/ir/proc_testutils.h"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -30,6 +31,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_annotator.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -44,6 +46,7 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::xls::solvers::IsProvenFalse;
 using ::xls::solvers::IsProvenTrue;
 using ::xls::solvers::ScopedVerifyProcEquivalence;
@@ -51,6 +54,268 @@ using ::xls::solvers::TryProveEquivalence;
 
 class UnrollProcTest : public IrTestBase {};
 class UnrollProcUntimedTest : public IrTestBase {};
+class GetProcResultsTest : public IrTestBase {};
+
+MATCHER_P2(ActionIs, value, activation,
+           absl::StrFormat("Action is %s%v@%v", negation ? "not " : "",
+                           testing::DescribeMatcher<Value>(value),
+                           testing::DescribeMatcher<int64_t>(activation))) {
+  bool value_match =
+      testing::ExplainMatchResult(value, arg.value, result_listener);
+  bool activation_match = testing::ExplainMatchResult(
+      activation, arg.activation_number, result_listener);
+  return value_match && activation_match;
+}
+
+TEST_F(GetProcResultsTest, OldStyleProcBasic) {
+  auto p = CreatePackage();
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kReceiveOnly,
+                                             p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ret_ch, p->CreateStreamingChannel("ret_ch", ChannelOps::kSendOnly,
+                                             p->GetBitsType(4)));
+  auto tok = pb.ReadStateElement("tok", Value::Token());
+  auto state = pb.ReadStateElement("cnt", UBits(10, 4));
+  auto recv = pb.Receive(foo_ch, tok);
+  auto recv_token = pb.TupleIndex(recv, 0);
+  auto recv_data = pb.TupleIndex(recv, 1);
+  auto nxt_val = pb.Add(state, recv_data);
+  auto final_tok = pb.Send(ret_ch, recv_token, nxt_val);
+  pb.Next(state, pb.Add(state, pb.Literal(UBits(1, 4))));
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcResults results,
+      GetProcResults(proc, /*activation_count=*/2, /*output_value_count=*/2,
+                     {{foo_ch, {Value(UBits(1, 4)), Value(UBits(2, 4))}}}));
+
+  EXPECT_EQ(results.channel_actions.size(), 2);
+  EXPECT_TRUE(results.channel_actions.contains(foo_ch));
+  EXPECT_TRUE(results.channel_actions.contains(ret_ch));
+
+  const ChannelActions& foo_actions = results.channel_actions.at(foo_ch);
+  EXPECT_THAT(foo_actions.actions,
+              testing::ElementsAre(ActionIs(Value(UBits(1, 4)), 0),
+                                   ActionIs(Value(UBits(2, 4)), 1)));
+
+  const ChannelActions& ret_actions = results.channel_actions.at(ret_ch);
+  EXPECT_THAT(ret_actions.actions,
+              testing::ElementsAre(ActionIs(Value(UBits(11, 4)), 0),
+                                   ActionIs(Value(UBits(13, 4)), 1)));
+
+  EXPECT_TRUE(results.node_values.contains(nxt_val.node()));
+  EXPECT_THAT(results.node_values.at(nxt_val.node()),
+              testing::ElementsAre(Value(UBits(11, 4)), Value(UBits(13, 4))));
+}
+
+TEST_F(GetProcResultsTest, OldStyleProcBlocksOnInput) {
+  auto p = CreatePackage();
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kReceiveOnly,
+                                             p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ret_ch, p->CreateStreamingChannel("ret_ch", ChannelOps::kSendOnly,
+                                             p->GetBitsType(4)));
+  auto tok = pb.ReadStateElement("tok", Value::Token());
+  auto state = pb.ReadStateElement("cnt", UBits(10, 4));
+  auto recv = pb.Receive(foo_ch, tok);
+  auto recv_token = pb.TupleIndex(recv, 0);
+  auto recv_data = pb.TupleIndex(recv, 1);
+  auto nxt_val = pb.Add(state, recv_data);
+  auto final_tok = pb.Send(ret_ch, recv_token, nxt_val);
+  pb.Next(state, pb.Add(state, pb.Literal(UBits(1, 4))));
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcResults results,
+      GetProcResults(proc, /*activation_count=*/3, /*output_value_count=*/3,
+                     {{foo_ch, {Value(UBits(1, 4))}}}));
+
+  const ChannelActions& foo_actions = results.channel_actions.at(foo_ch);
+  EXPECT_THAT(foo_actions.actions,
+              testing::ElementsAre(ActionIs(Value(UBits(1, 4)), 0)));
+
+  const ChannelActions& ret_actions = results.channel_actions.at(ret_ch);
+  EXPECT_THAT(ret_actions.actions,
+              testing::ElementsAre(ActionIs(Value(UBits(11, 4)), 0)));
+
+  EXPECT_TRUE(results.node_values.contains(nxt_val.node()));
+  EXPECT_THAT(results.node_values.at(nxt_val.node()),
+              testing::ElementsAre(Value(UBits(11, 4))));
+}
+
+TEST_F(GetProcResultsTest, NewStyleProcBasic) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_proc"), p.get());
+  BReceiveChannel chan_in = pb.AddInputChannel("chan_in", p->GetBitsType(8));
+  BSendChannel chan_out = pb.AddOutputChannel("chan_out", p->GetBitsType(8));
+  auto tok = pb.ReadStateElement("tok", Value::Token());
+  auto state = pb.ReadStateElement("state", UBits(20, 8));
+
+  auto recv = pb.Receive(chan_in, tok);
+  auto recv_token = pb.TupleIndex(recv, 0);
+  auto recv_data = pb.TupleIndex(recv, 1);
+  auto nxt_val = pb.Add(state, recv_data);
+  auto final_tok = pb.Send(chan_out, recv_token, nxt_val);
+  pb.Next(state, pb.Add(state, pb.Literal(UBits(2, 8))));
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcResults results,
+      GetProcResults(proc, /*activation_count=*/2, /*output_value_count=*/2,
+                     {{chan_in.channel_interface(),
+                       {Value(UBits(1, 8)), Value(UBits(2, 8))}}}));
+
+  EXPECT_EQ(results.channel_actions.size(), 2);
+  EXPECT_TRUE(results.channel_actions.contains(chan_in.channel_interface()));
+  EXPECT_TRUE(results.channel_actions.contains(chan_out.channel_interface()));
+
+  const ChannelActions& in_actions =
+      results.channel_actions.at(chan_in.channel_interface());
+  EXPECT_THAT(in_actions.actions,
+              testing::ElementsAre(ActionIs(Value(UBits(1, 8)), 0),
+                                   ActionIs(Value(UBits(2, 8)), 1)));
+
+  const ChannelActions& out_actions =
+      results.channel_actions.at(chan_out.channel_interface());
+  EXPECT_THAT(out_actions.actions,
+              testing::ElementsAre(ActionIs(Value(UBits(21, 8)), 0),
+                                   ActionIs(Value(UBits(24, 8)), 1)));
+
+  EXPECT_TRUE(results.node_values.contains(nxt_val.node()));
+  EXPECT_THAT(results.node_values.at(nxt_val.node()),
+              testing::ElementsAre(Value(UBits(21, 8)), Value(UBits(24, 8))));
+}
+
+TEST_F(GetProcResultsTest, NewStyleProcWithInstantiationFails) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  Proc* leaf_proc;
+  {
+    ProcBuilder pb(NewStyleProc{}, "leaf", p.get());
+    BSendChannel ch = pb.AddOutputChannel("out", u32);
+    pb.Send(ch, pb.Literal(Value::Token()), pb.Literal(UBits(0, 32)));
+    XLS_ASSERT_OK_AND_ASSIGN(leaf_proc, pb.Build());
+  }
+
+  ProcBuilder pb(NewStyleProc{}, "top_proc", p.get());
+  BChannelWithInterfaces int_ch = pb.AddChannel("ch", u32);
+  pb.InstantiateProc("leaf_inst", leaf_proc, {int_ch.send_interface});
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, pb.Build());
+
+  EXPECT_THAT(
+      GetProcResults(top_proc, /*activation_count=*/2, /*output_value_count=*/2,
+                     {}),
+      StatusIs(absl::StatusCode::kInternal,
+               testing::HasSubstr("Only single-proc results are supported.")));
+}
+
+TEST_F(GetProcResultsTest, ProcResultsAnnotatorOldStyle) {
+  auto p = CreatePackage();
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kReceiveOnly,
+                                             p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ret_ch, p->CreateStreamingChannel("ret_ch", ChannelOps::kSendOnly,
+                                             p->GetBitsType(4)));
+  auto tok = pb.ReadStateElement("tok", Value::Token());
+  auto state = pb.ReadStateElement("cnt", UBits(10, 4));
+  auto recv = pb.Receive(foo_ch, tok);
+  auto recv_token = pb.TupleIndex(recv, 0);
+  auto recv_data = pb.TupleIndex(recv, 1);
+  auto nxt_val = pb.Add(state, recv_data);
+  auto final_tok = pb.Send(ret_ch, recv_token, nxt_val);
+  pb.Next(state, pb.Add(state, pb.Literal(UBits(1, 4))));
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcResults results,
+      GetProcResults(proc, /*activation_count=*/2, /*output_value_count=*/2,
+                     {{foo_ch, {Value(UBits(1, 4)), Value(UBits(2, 4))}}}));
+
+  ProcResultsAnnotator annotator(results);
+
+  Annotation node_ann = annotator.NodeAnnotation(nxt_val.node());
+  ASSERT_TRUE(node_ann.suffix.has_value());
+  EXPECT_EQ(*node_ann.suffix, " | [11,\t13]");
+
+  Annotation chan_ann = annotator.ChannelAnnotation(ret_ch);
+  ASSERT_TRUE(chan_ann.suffix.has_value());
+  EXPECT_EQ(*chan_ann.suffix, " | [11@0,\t13@1]");
+
+  Annotation dummy_ann = annotator.NodeAnnotation(nullptr);
+  EXPECT_FALSE(dummy_ann.suffix.has_value());
+}
+
+TEST_F(GetProcResultsTest, ProcResultsAnnotatorNewStyle) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_proc"), p.get());
+  BReceiveChannel chan_in = pb.AddInputChannel("chan_in", p->GetBitsType(8));
+  BSendChannel chan_out = pb.AddOutputChannel("chan_out", p->GetBitsType(8));
+  auto tok = pb.ReadStateElement("tok", Value::Token());
+  auto state = pb.ReadStateElement("state", UBits(20, 8));
+
+  auto recv = pb.Receive(chan_in, tok);
+  auto recv_token = pb.TupleIndex(recv, 0);
+  auto recv_data = pb.TupleIndex(recv, 1);
+  auto nxt_val = pb.Add(state, recv_data);
+  auto final_tok = pb.Send(chan_out, recv_token, nxt_val);
+  pb.Next(state, pb.Add(state, pb.Literal(UBits(2, 8))));
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcResults results,
+      GetProcResults(proc, /*activation_count=*/2, /*output_value_count=*/2,
+                     {{chan_in.channel_interface(),
+                       {Value(UBits(1, 8)), Value(UBits(2, 8))}}}));
+
+  ProcResultsAnnotator annotator(results);
+
+  Annotation iface_ann =
+      annotator.ChannelInterfaceAnnotation(chan_out.channel_interface());
+  ASSERT_TRUE(iface_ann.suffix.has_value());
+  EXPECT_EQ(*iface_ann.suffix, " | [21@0,\t24@1]");
+}
+
+TEST_F(GetProcResultsTest, ProcResultsAnnotatorDumpIr) {
+  auto p = CreatePackage();
+  ProcBuilder pb(NewStyleProc{}, absl::StrCat(TestName(), "_proc"), p.get());
+  BReceiveChannel chan_in = pb.AddInputChannel("chan_in", p->GetBitsType(8));
+  BSendChannel chan_out = pb.AddOutputChannel("chan_out", p->GetBitsType(8));
+  auto tok = pb.ReadStateElement("tok", Value::Token());
+  auto state = pb.ReadStateElement("state", UBits(20, 8));
+
+  auto recv = pb.Receive(chan_in, tok);
+  auto recv_token = pb.TupleIndex(recv, 0);
+  auto recv_data = pb.TupleIndex(recv, 1);
+  auto nxt_val = pb.Add(state, recv_data);
+  auto final_tok = pb.Send(chan_out, recv_token, nxt_val);
+  pb.Next(state, pb.Add(state, pb.Literal(UBits(2, 8))));
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcResults results,
+      GetProcResults(proc, /*activation_count=*/2, /*output_value_count=*/2,
+                     {{chan_in.channel_interface(),
+                       {Value(UBits(1, 8)), Value(UBits(2, 8))}}}));
+
+  ProcResultsAnnotator annotator(results);
+  std::string dumped = proc->DumpIr(annotator);
+  RecordProperty("dumped", dumped);
+  EXPECT_THAT(dumped, testing::HasSubstr(" | [21,\t24]"));
+  EXPECT_THAT(dumped, testing::HasSubstr(" | [21@0,\t24@1]"));
+}
+
 TEST_F(UnrollProcTest, BasicProcEquivalence) {
   auto p = CreatePackage();
   FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());

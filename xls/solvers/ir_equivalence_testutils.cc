@@ -14,6 +14,7 @@
 
 #include "xls/solvers/ir_equivalence_testutils.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -21,26 +22,32 @@
 #include <string_view>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/strip.h"
 #include "absl/time/time.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_testutils.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_testutils.h"
+#include "xls/ir/value.h"
 #include "xls/solvers/ir_equivalence.h"
 #include "xls/solvers/prover_matchers.h"
 #include "xls/solvers/solver.h"
@@ -55,6 +62,127 @@ static constexpr bool kHasMsan =
 #else
     false;
 #endif
+
+absl::flat_hash_map<ReceiveChannelRef, std::vector<Value>> ExtractProcInputs(
+    Proc* p, Function* f, const ProvenFalse& fail) {
+  absl::flat_hash_map<ReceiveChannelRef, std::vector<Value>> inputs;
+  if (!fail.counterexample.ok()) {
+    return inputs;
+  }
+  const auto& counterexample_map = *fail.counterexample;
+
+  absl::flat_hash_map<std::string, ReceiveChannelRef> name_to_channel_ref;
+  if (p->is_new_style_proc()) {
+    for (ChannelInterface* interface : p->interface()) {
+      if (interface->direction() == ChannelDirection::kReceive) {
+        name_to_channel_ref[interface->name()] =
+            static_cast<ReceiveChannelInterface*>(interface);
+      }
+    }
+  } else {
+    for (Channel* channel : p->package()->channels()) {
+      name_to_channel_ref[std::string(channel->name())] = channel;
+    }
+  }
+
+  for (Node* node : f->nodes()) {
+    if (node->Is<Param>()) {
+      Param* param = node->As<Param>();
+      std::string_view param_name_view = param->name();
+      if (absl::ConsumePrefix(&param_name_view, "available_")) {
+        auto it = name_to_channel_ref.find(param_name_view);
+        if (it == name_to_channel_ref.end()) {
+          continue;
+        }
+        auto value_it = counterexample_map.find(param);
+        if (value_it == counterexample_map.end()) {
+          continue;
+        }
+        if (value_it->second.IsArray()) {
+          auto array_elements = value_it->second.elements();
+          inputs[it->second] =
+              std::vector<Value>(array_elements.begin(), array_elements.end());
+        }
+      }
+    }
+  }
+  return inputs;
+}
+
+absl::flat_hash_map<ReceiveChannelRef, std::vector<Value>> ExtractProcInputsSeq(
+    Proc* p, Function* f, const ProvenFalse& fail) {
+  absl::flat_hash_map<ReceiveChannelRef, std::vector<Value>> inputs;
+  if (!fail.counterexample.ok()) {
+    return inputs;
+  }
+  const auto& counterexample_map = *fail.counterexample;
+
+  absl::flat_hash_map<std::string, ReceiveChannelRef> name_to_channel_ref;
+  if (p->is_new_style_proc()) {
+    for (ChannelInterface* interface : p->interface()) {
+      if (interface->direction() == ChannelDirection::kReceive) {
+        name_to_channel_ref[std::string(interface->name())] =
+            static_cast<ReceiveChannelInterface*>(interface);
+      }
+    }
+  } else {
+    for (Channel* channel : p->package()->channels()) {
+      name_to_channel_ref[std::string(channel->name())] = channel;
+    }
+  }
+
+  // For each channel, what we received on each activation (or std::nullopt if
+  // the channel was empty at that activation).
+  absl::flat_hash_map<ReceiveChannelRef, std::vector<std::optional<Value>>>
+      channel_values;
+
+  for (Node* node : f->nodes()) {
+    if (!node->Is<Param>()) {
+      continue;
+    }
+    Param* param = node->As<Param>();
+    std::string_view name = param->name();
+    if (!absl::ConsumePrefix(&name, "recv_data_act")) {
+      ADD_FAILURE() << "Unable to parse param name: " << param->ToString();
+      continue;
+    }
+    size_t underscore_pos = name.find('_');
+    if (underscore_pos == std::string_view::npos) {
+      ADD_FAILURE() << "Unable to parse param name: " << param->ToString();
+      continue;
+    }
+    std::string_view act_idx_str = name.substr(0, underscore_pos);
+    std::string_view channel_name = name.substr(underscore_pos + 1);
+    int64_t act_idx = 0;
+    if (!absl::SimpleAtoi(act_idx_str, &act_idx)) {
+      ADD_FAILURE() << "Unable to parse param name activation number: "
+                    << param->ToString();
+      continue;
+    }
+    auto it = name_to_channel_ref.find(channel_name);
+    if (it != name_to_channel_ref.end()) {
+      auto value_it = counterexample_map.find(param);
+      if (value_it != counterexample_map.end()) {
+        if (channel_values[it->second].size() <= act_idx) {
+          channel_values[it->second].resize(act_idx + 1, std::nullopt);
+        }
+        channel_values[it->second][act_idx] = value_it->second;
+      }
+    }
+  }
+
+  for (const auto& [recv_ref, act_values] : channel_values) {
+    std::vector<Value>& vec = inputs[recv_ref];
+    for (const std::optional<Value>& val : act_values) {
+      if (val) {
+        vec.push_back(*val);
+      }
+    }
+  }
+
+  return inputs;
+}
+
 }  // namespace
 
 using ::absl_testing::IsOkAndHolds;
@@ -155,13 +283,33 @@ void ScopedVerifyProcEquivalence::RunProcVerification() {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       UnrollProcToFunction(final_p_cloned, activation_count_, include_state_));
-  EXPECT_THAT(
-      TryProveEquivalence(original_f, f, ignore_asserts_, kind_, limit_),
-      IsOkAndHolds(IsProvenTrue()));
+  absl::StatusOr<ProverResult> equiv =
+      TryProveEquivalence(original_f, f, ignore_asserts_, kind_, limit_);
+  EXPECT_THAT(equiv, IsOkAndHolds(IsProvenTrue()));
   if (testing::Test::HasFailure()) {
-    testing::Test::RecordProperty("original",
-                                  original_ir.value_or(original_p_->DumpIr()));
-    testing::Test::RecordProperty("final", p_->DumpIr());
+    std::string original_dumped;
+    std::string final_dumped;
+    if (equiv.ok() && std::holds_alternative<ProvenFalse>(*equiv)) {
+      const ProvenFalse& fail = std::get<ProvenFalse>(*equiv);
+      auto original_inputs =
+          ExtractProcInputsSeq(original_p_, original_f, fail);
+      auto final_inputs = ExtractProcInputsSeq(final_p_cloned, f, fail);
+
+      xls::ProcResultsAnnotatorOrNothing original_annotator(
+          original_p_, activation_count_,
+          /*output_value_count=*/activation_count_, original_inputs);
+      original_dumped = original_p_->DumpIr(original_annotator);
+
+      xls::ProcResultsAnnotatorOrNothing final_annotator(
+          final_p_cloned, activation_count_,
+          /*output_value_count=*/activation_count_, final_inputs);
+      final_dumped = final_p_cloned->DumpIr(final_annotator);
+    } else {
+      original_dumped = original_p_->DumpIr();
+      final_dumped = final_p_cloned->DumpIr();
+    }
+    testing::Test::RecordProperty("original", original_dumped);
+    testing::Test::RecordProperty("final", final_dumped);
   }
 }
 
@@ -263,13 +411,33 @@ void ScopedVerifyProcOutputEquivalence::RunProcVerification() {
           final_p_cloned,
           options_.final_activation_count.value_or(options_.activation_count),
           options_.input_value_count, options_.output_value_count));
-  EXPECT_THAT(TryProveEquivalence(original_f, f,
-                                  /*ignore_asserts=*/true, kind_, limit_),
-              IsOkAndHolds(IsProvenTrue()));
+  auto equiv = TryProveEquivalence(original_f, f,
+                                   /*ignore_asserts=*/true, kind_, limit_);
+  EXPECT_THAT(equiv, IsOkAndHolds(IsProvenTrue()));
   if (testing::Test::HasFailure()) {
-    testing::Test::RecordProperty("original",
-                                  original_ir.value_or(original_p_->DumpIr()));
-    testing::Test::RecordProperty("final", p_->DumpIr());
+    std::string original_dumped;
+    std::string final_dumped;
+    if (equiv.ok() && std::holds_alternative<ProvenFalse>(*equiv)) {
+      const ProvenFalse& fail = std::get<ProvenFalse>(*equiv);
+      auto original_inputs = ExtractProcInputs(original_p_, original_f, fail);
+      auto final_inputs = ExtractProcInputs(final_p_cloned, f, fail);
+
+      xls::ProcResultsAnnotatorOrNothing original_annotator(
+          original_p_, options_.activation_count, options_.output_value_count,
+          original_inputs);
+      original_dumped = original_p_->DumpIr(original_annotator);
+
+      xls::ProcResultsAnnotatorOrNothing final_annotator(
+          final_p_cloned,
+          options_.final_activation_count.value_or(options_.activation_count),
+          options_.output_value_count, final_inputs);
+      final_dumped = final_p_cloned->DumpIr(final_annotator);
+    } else {
+      original_dumped = original_p_->DumpIr();
+      final_dumped = final_p_cloned->DumpIr();
+    }
+    testing::Test::RecordProperty("original", original_dumped);
+    testing::Test::RecordProperty("final", final_dumped);
   }
 }
 
