@@ -305,6 +305,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:metadata_output_cc_proto",
         "//xls/contrib/xlscc:translator",
+        "//xls/ir",
         "@googletest//:gtest",
         "@protobuf",
         "@protobuf//:differencer",

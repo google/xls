@@ -78,6 +78,12 @@ message FunctionPrototype {
   // Can be a method without a this_type if it's static
   optional bool is_method = 10;
   optional bool returns_reference = 11;
+  repeated FunctionSlice slices = 12;
+}
+
+message FunctionSlice {
+  optional string ir_name = 1;
+  optional string debug_after_op_name = 2;
 }
 
 // The name of a C++ symbol / object.

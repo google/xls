@@ -208,6 +208,7 @@ def _xls_cc_ir_impl(ctx):
         "debug_ir_trace_loop_control",
         "debug_print_fsm_states",
         "debug_trace_activation_barriers",
+        "debug_fsm_trace",
         "channel_strictness",
         "default_channel_strictness",
         "max_unroll_iters",

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <list>
 #include <memory>
@@ -1133,6 +1134,9 @@ NewFSMGenerator::GenerateNewFSMInvocation(
   TrackedBValue last_slice_active = pb.Literal(xls::UBits(1, 1), body_loc);
   TrackedBValue last_op_out_value;
 
+  std::vector<TrackedBValue> slices_active;
+  slices_active.resize(func.slices.size());
+
   absl::flat_hash_map<int64_t, TrackedBValue>
       jump_conditions_by_begin_slice_index;
 
@@ -1432,6 +1436,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
           generated_conditions,
           next_value_conditions_by_state_element_and_value, pb, body_loc));
     }
+
+    slices_active.at(slice_index) = slice_active;
   }  // slices
 
   // Shared function calls
@@ -1491,6 +1497,23 @@ NewFSMGenerator::GenerateNewFSMInvocation(
              .after_conditional_activation_transition},
         absl::StrFormat(
             "finished_iteration? {:b} last_slice_active {:b} after_act {:b}"));
+  }
+
+  // Add traces for debugger
+  if (debug_ir_trace_flags_ & DebugIrTraceFlags_FSMTrace) {
+    TrackedBValue token = pb.Literal(xls::Value::Token(), body_loc,
+                                     /*name=*/"token");
+    std::vector<TrackedBValue> slices_active_reverse_bvals;
+    slices_active_reverse_bvals.reserve(slices_active.size());
+    std::reverse_copy(slices_active.begin(), slices_active.end(),
+                      std::back_inserter(slices_active_reverse_bvals));
+
+    TrackedBValue slices_active_bval =
+        pb.Concat(ToNativeBValues(slices_active_reverse_bvals), body_loc);
+    pb.Trace(token, pb.Literal(xls::UBits(1, 1)),
+             /*args=*/
+             {slices_active_bval},
+             absl::StrFormat("FSM DEBUG TRACE: slices_active {:x}"));
   }
 
   TrackedBValue return_value;
