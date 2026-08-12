@@ -402,8 +402,8 @@ TEST(FunctionJitTest, PackedAndUnpackedSmokeWide) {
 
   // 80-bit data is represented as an i128 with 16 byte alignment.
   // TODO(allight): 2023-11-30: The fact this is needed is unfortunate.
-  alignas(16)
-      uint8_t input_data[] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa};
+  alignas(16) uint8_t input_data[16] = {0x1, 0x2, 0x3, 0x4, 0x5,
+                                        0x6, 0x7, 0x8, 0x9, 0xa};
   {
     uint8_t output_data[10];
     PackedBitsView<80> input(input_data, 0);
@@ -416,11 +416,12 @@ TEST(FunctionJitTest, PackedAndUnpackedSmokeWide) {
   {
     // 80-bit data is represented as an i128 with 16 byte alignment.
     // TODO(allight): 2023-11-30: The fact this is needed is unfortunate.
-    alignas(16) uint8_t output_data[10];
+    alignas(16) uint8_t output_data[16];
     BitsView<80> input(input_data);
     MutableBitsView<80> output(output_data);
     XLS_ASSERT_OK(jit->RunWithUnpackedViews(input, output));
-    EXPECT_THAT(output_data,
+    // Check only the first 10 bytes (80 bits).
+    EXPECT_THAT(absl::MakeSpan(output_data, 10),
                 ElementsAre(0x2, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa));
   }
 }
