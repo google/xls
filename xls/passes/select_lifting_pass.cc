@@ -509,8 +509,10 @@ absl::StatusOr<bool> CheckLatencyIncrease(
                              select_to_optimize.AsNode()->loc()));
     XLS_ASSIGN_OR_RETURN(
         tmp_lifted_op,
-        func->MakeNode<ArrayIndex>(SourceInfo(), info.shared_node,
-                                   absl::Span<Node* const>{tmp_new_select}));
+        func->MakeNode<ArrayIndex>(
+            MergeLocs({select_to_optimize.AsNode(), info.shared_node,
+                       tmp_new_select}),
+            info.shared_node, absl::Span<Node* const>{tmp_new_select}));
   } else {
     Type* other_operand_type = nullptr;
     if (!info.other_operands.empty()) {
@@ -560,7 +562,9 @@ absl::StatusOr<bool> CheckLatencyIncrease(
       case Op::kShra: {
         XLS_ASSIGN_OR_RETURN(
             tmp_lifted_op,
-            func->MakeNode<BinOp>(SourceInfo(), lhs, rhs, info.lifted_op));
+            func->MakeNode<BinOp>(
+                MergeLocs({select_to_optimize.AsNode(), lhs, rhs}), lhs, rhs,
+                info.lifted_op));
         break;
       }
       case Op::kAnd:
@@ -568,8 +572,9 @@ absl::StatusOr<bool> CheckLatencyIncrease(
       case Op::kXor: {
         XLS_ASSIGN_OR_RETURN(
             tmp_lifted_op,
-            func->MakeNode<NaryOp>(SourceInfo(), std::vector<Node*>{lhs, rhs},
-                                   info.lifted_op));
+            func->MakeNode<NaryOp>(
+                MergeLocs({select_to_optimize.AsNode(), lhs, rhs}),
+                std::vector<Node*>{lhs, rhs}, info.lifted_op));
         break;
       }
       case Op::kUMul:
@@ -577,7 +582,7 @@ absl::StatusOr<bool> CheckLatencyIncrease(
         XLS_ASSIGN_OR_RETURN(
             tmp_lifted_op,
             func->MakeNode<ArithOp>(
-                SourceInfo(), lhs, rhs,
+                MergeLocs({select_to_optimize.AsNode(), lhs, rhs}), lhs, rhs,
                 select_to_optimize.AsNode()->GetType()->GetFlatBitCount(),
                 info.lifted_op));
         break;
@@ -837,8 +842,9 @@ absl::StatusOr<TransformationResult> LiftSelectForArrayIndex(
   VLOG(3) << "    Step 1: add the new arrayIndex node";
   XLS_ASSIGN_OR_RETURN(
       Node * new_array_index,
-      func->MakeNode<ArrayIndex>(SourceInfo(), array_reference,
-                                 absl::MakeConstSpan({new_select})));
+      func->MakeNode<ArrayIndex>(
+          MergeLocs({select_to_optimize.AsNode(), array_reference, new_select}),
+          array_reference, absl::MakeConstSpan({new_select})));
 
   // Step 2: replace the uses of the original "select" node with the only
   //         exception of the new array access
@@ -935,17 +941,18 @@ absl::StatusOr<TransformationResult> LiftSelectForBinaryOperation(
     case Op::kShrl:
     case Op::kShra: {
       XLS_ASSIGN_OR_RETURN(
-          new_binop,
-          func->MakeNode<BinOp>(SourceInfo(), lhs, rhs, info.lifted_op));
+          new_binop, func->MakeNode<BinOp>(
+                         MergeLocs({select_to_optimize.AsNode(), lhs, rhs}),
+                         lhs, rhs, info.lifted_op));
       break;
     }
     case Op::kAnd:
     case Op::kOr:
     case Op::kXor: {
       XLS_ASSIGN_OR_RETURN(
-          new_binop,
-          func->MakeNode<NaryOp>(SourceInfo(), std::vector<Node*>{lhs, rhs},
-                                 info.lifted_op));
+          new_binop, func->MakeNode<NaryOp>(
+                         MergeLocs({select_to_optimize.AsNode(), lhs, rhs}),
+                         std::vector<Node*>{lhs, rhs}, info.lifted_op));
       break;
     }
     case Op::kUMul:
@@ -953,7 +960,7 @@ absl::StatusOr<TransformationResult> LiftSelectForBinaryOperation(
       XLS_ASSIGN_OR_RETURN(
           new_binop,
           func->MakeNode<ArithOp>(
-              SourceInfo(), lhs, rhs,
+              MergeLocs({select_to_optimize.AsNode(), lhs, rhs}), lhs, rhs,
               select_to_optimize.AsNode()->GetType()->GetFlatBitCount(),
               info.lifted_op));
     } break;

@@ -1252,6 +1252,57 @@ TEST_P(VastTest, CommentAnnotations) {
 endmodule)");
 }
 
+TEST_P(VastTest, MultiLocationCommentAnnotations) {
+  absl::flat_hash_map<Fileno, std::string> filemap = {
+      {Fileno(0), std::string("test.x")}};
+  VerilogFile f(GetFileType(), AnnotationType::kComment, filemap);
+
+  Module* m = f.AddModule("top", SourceInfo());
+  SourceInfo multi(std::vector<SourceLocation>{
+      SourceLocation(Fileno(0), Lineno(1), Colno(1)),
+      SourceLocation(Fileno(0), Lineno(2), Colno(3))});
+  XLS_ASSERT_OK(m->AddReg("a", f.BitVectorType(8, SourceInfo()), multi));
+
+  EXPECT_EQ(m->Emit(/*line_info=*/nullptr),
+            R"(module top;
+  // test.x:1:1
+  // test.x:2:3
+  reg [7:0] a;
+endmodule)");
+}
+
+TEST_P(VastTest, MultiLocationCommentAnnotationsLineInfo) {
+  absl::flat_hash_map<Fileno, std::string> filemap = {
+      {Fileno(0), std::string("test.x")}};
+  VerilogFile f(GetFileType(), AnnotationType::kComment, filemap);
+
+  Module* m = f.AddModule("top", SourceInfo());
+  SourceInfo multi(std::vector<SourceLocation>{
+      SourceLocation(Fileno(0), Lineno(1), Colno(1)),
+      SourceLocation(Fileno(0), Lineno(2), Colno(3))});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a, m->AddReg("a", f.BitVectorType(8, SourceInfo()), multi));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+
+  LineInfo line_info;
+  EXPECT_EQ(f.Emit(&line_info),
+            R"(module top;
+  // test.x:1:1
+  // test.x:2:3
+  reg [7:0] a;
+  reg [7:0] b;
+endmodule
+)");
+  EXPECT_EQ(line_info.LookupNode(a->def()).value(),
+            std::vector<LineSpan>{LineSpan(3, 3)});
+  EXPECT_EQ(line_info.LookupNode(b->def()).value(),
+            std::vector<LineSpan>{LineSpan(4, 4)});
+  EXPECT_EQ(line_info.LookupNode(m).value(),
+            std::vector<LineSpan>{LineSpan(0, 5)});
+}
+
 TEST_P(VastTest, DirectiveAnnotations) {
   absl::flat_hash_map<Fileno, std::string> filemap = {
       {Fileno(0), std::string("test.x")}};

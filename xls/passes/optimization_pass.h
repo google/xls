@@ -50,6 +50,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/ram_rewrite.pb.h"

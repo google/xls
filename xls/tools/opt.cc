@@ -35,6 +35,7 @@
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/package.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/verifier.h"

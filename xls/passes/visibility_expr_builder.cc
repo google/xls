@@ -411,7 +411,7 @@ absl::StatusOr<Node*> VisibilityBuilder::BuildVisibilityIRExpr(
     const absl::flat_hash_set<Node*>& sinks) {
   XLS_ASSIGN_OR_RETURN(
       Literal * always_visible,
-      func->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+      func->MakeNode<Literal>(node->loc(), Value(UBits(1, 1))));
   absl::flat_hash_map<Node*, Node*> node_to_visibility_ir_cache;
   absl::flat_hash_map<std::tuple<Op, Node*, Node*>, Node*> binary_op_cache;
   return BuildVisibilityIRExprFromEdges(func, node, node, conditional_edges,

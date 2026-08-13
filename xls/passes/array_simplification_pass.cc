@@ -272,7 +272,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
       const int64_t operand_no = i + ArrayIndex::kIndexOperandStart;
       XLS_ASSIGN_OR_RETURN(Node * zero,
                            array_index->function_base()->MakeNode<Literal>(
-                               SourceInfo(), Value(UBits(0, 1))));
+                               index->loc(), Value(UBits(0, 1))));
       XLS_RETURN_IF_ERROR(array_index->ReplaceOperandNumber(
           operand_no, zero, /*type_must_match=*/false));
     }
@@ -728,8 +728,9 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
     if (remaining_indices.empty()) {
       updated_value = array_update->update_value();
     } else {
-      XLS_ASSIGN_OR_RETURN(Node * zero, func->MakeNode<Literal>(
-                                            SourceInfo(), Value(UBits(0, 1))));
+      XLS_ASSIGN_OR_RETURN(
+          Node * zero,
+          func->MakeNode<Literal>(array_update->loc(), Value(UBits(0, 1))));
       XLS_ASSIGN_OR_RETURN(
           Node * remaining_array,
           array_update->function_base()->MakeNode<ArrayIndex>(

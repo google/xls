@@ -27,6 +27,7 @@
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/passes/area_accumulated_analysis.h"
 #include "xls/passes/bdd_query_engine.h"

@@ -30,6 +30,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
@@ -140,15 +141,19 @@ absl::StatusOr<bool> PushDownMinDelay(AfterAll* node) {
     Node* new_input = nullptr;
     if (new_delay > 0) {
       XLS_ASSIGN_OR_RETURN(
-          new_input,
-          f->MakeNode<MinDelay>(SourceInfo(), input->operand(0), new_delay));
+          new_input, f->MakeNode<MinDelay>(MergeLocs({node, input->operand(0)}),
+                                           input->operand(0), new_delay));
     } else {
       new_input = input->operand(0);
     }
     new_operands.push_back(new_input);
   }
-  XLS_ASSIGN_OR_RETURN(Node * new_node,
-                       f->MakeNode<AfterAll>(SourceInfo(), new_operands));
+  std::vector<Node*> loc_operands = {node};
+  loc_operands.insert(loc_operands.end(), new_operands.begin(),
+                      new_operands.end());
+  XLS_ASSIGN_OR_RETURN(
+      Node * new_node,
+      f->MakeNode<AfterAll>(MergeLocs(loc_operands), new_operands));
   XLS_RETURN_IF_ERROR(
       node->ReplaceUsesWithNew<MinDelay>(new_node, least_delay).status());
   XLS_RETURN_IF_ERROR(f->RemoveNode(node));
@@ -190,8 +195,12 @@ absl::StatusOr<bool> CollapseAfterAll(AfterAll* node) {
       new_operands.push_back(operand);
     }
 
-    XLS_ASSIGN_OR_RETURN(Node * replacement,
-                         f->MakeNode<AfterAll>(SourceInfo(), new_operands));
+    std::vector<Node*> loc_operands = {user};
+    loc_operands.insert(loc_operands.end(), new_operands.begin(),
+                        new_operands.end());
+    XLS_ASSIGN_OR_RETURN(
+        Node * replacement,
+        f->MakeNode<AfterAll>(MergeLocs(loc_operands), new_operands));
     XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(replacement));
     XLS_RETURN_IF_ERROR(f->RemoveNode(user));
     changed = true;
@@ -303,8 +312,12 @@ absl::StatusOr<bool> RemoveDuplicateAfterAll(AfterAll* node) {
     std::vector<Node*> sorted_operands(operands.begin(), operands.end());
     std::sort(sorted_operands.begin(), sorted_operands.end(),
               Node::NodeIdLessThan());
-    XLS_ASSIGN_OR_RETURN(Node * replacement,
-                         f->MakeNode<AfterAll>(SourceInfo(), sorted_operands));
+    std::vector<Node*> loc_operands = {node};
+    loc_operands.insert(loc_operands.end(), sorted_operands.begin(),
+                        sorted_operands.end());
+    XLS_ASSIGN_OR_RETURN(
+        Node * replacement,
+        f->MakeNode<AfterAll>(MergeLocs(loc_operands), sorted_operands));
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(replacement));
     XLS_RETURN_IF_ERROR(f->RemoveNode(node));
     return true;

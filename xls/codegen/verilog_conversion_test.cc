@@ -173,6 +173,21 @@ class VerilogConversionTest : public VerilogTestBase {
     return bb.Build();
   }
 
+  // Make and return a block which ANDs two u32 numbers with source location
+  absl::StatusOr<Block*> MakeAnnotationTestBlock(std::string_view name,
+                                                 Package* package) {
+    package->SetFileno(Fileno(0), "test.x");
+    Type* u32 = package->GetBitsType(32);
+    BlockBuilder bb(name, package);
+    BValue a = bb.InputPort("a", u32);
+    BValue b = bb.InputPort("b", u32);
+    SourceInfo multi(std::vector<SourceLocation>{
+        SourceLocation(Fileno(0), Lineno(1), Colno(1)),
+        SourceLocation(Fileno(0), Lineno(2), Colno(3))});
+    bb.OutputPort("sum", bb.And(a, b, multi));
+    return bb.Build();
+  }
+
   absl::StatusOr<CodegenResult> MakeMultiProc(FifoConfig fifo_config,
                                               uint64_t data_width) {
     Package package(TestName());
@@ -2525,6 +2540,53 @@ INSTANTIATE_TEST_SUITE_P(
                          // output flopping
                          testing::ValuesIn(kFloppingParams))),
     ParameterizedTestNameWithFlopping<ZeroWidthVerilogConversionTest>);
+
+TEST_P(VerilogConversionTest, StrategyNoneEmitsNoAnnotations) {
+  Package package(TestBaseName());
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           MakeAnnotationTestBlock(TestBaseName(), &package));
+
+  CodegenOptions options = codegen_options();
+  options.source_annotation_strategy(
+      CodegenOptions::SourceAnnotationStrategy::kNone);
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+
+  EXPECT_THAT(verilog, testing::Not(testing::HasSubstr("test.x")));
+}
+
+TEST_P(VerilogConversionTest, StrategyCommentEmitsLocationComments) {
+  Package package(TestBaseName());
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           MakeAnnotationTestBlock(TestBaseName(), &package));
+
+  CodegenOptions options = codegen_options();
+  options.source_annotation_strategy(
+      CodegenOptions::SourceAnnotationStrategy::kComment);
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+
+  EXPECT_THAT(verilog, testing::HasSubstr("// test.x:1:1"));
+  EXPECT_THAT(verilog, testing::HasSubstr("// test.x:2:3"));
+}
+
+TEST_P(VerilogConversionTest, StrategyLineDirectiveEmitsLineDirectives) {
+  Package package(TestBaseName());
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           MakeAnnotationTestBlock(TestBaseName(), &package));
+
+  CodegenOptions options = codegen_options();
+  options.source_annotation_strategy(
+      CodegenOptions::SourceAnnotationStrategy::kLineDirective);
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+
+  if (UseSystemVerilog()) {
+    EXPECT_THAT(verilog, testing::HasSubstr("`line 1 \"test.x\" 0"));
+  } else {
+    EXPECT_THAT(verilog, testing::Not(testing::HasSubstr("test.x")));
+  }
+}
 
 }  // namespace
 }  // namespace verilog

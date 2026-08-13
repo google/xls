@@ -404,7 +404,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
           Value(precise_value.value()).ToString(), node->ToString());
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
-          f->MakeNode<Literal>(SourceInfo(), Value(precise_value.value())));
+          f->MakeNode<Literal>(node->loc(), Value(precise_value.value())));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
                                   equivalences.at(node).node, literal, Op::kEq)
                               .status());
@@ -423,7 +423,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
           Value(precise_value.value()).ToString(), node->ToString());
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
-          f->MakeNode<Literal>(SourceInfo(), Value(precise_value.value())));
+          f->MakeNode<Literal>(node->loc(), Value(precise_value.value())));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
                                   equivalences.at(node).node, literal, Op::kNe)
                               .status());
@@ -441,7 +441,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
                                     node->ToString());
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
-          f->MakeNode<Literal>(SourceInfo(), Value(limit.value())));
+          f->MakeNode<Literal>(node->loc(), Value(limit.value())));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
                                   equivalences.at(node).node, literal, Op::kULt)
                               .status());
@@ -458,7 +458,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
                                     node->ToString());
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
-          f->MakeNode<Literal>(SourceInfo(), Value(limit.value())));
+          f->MakeNode<Literal>(node->loc(), Value(limit.value())));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
                                   equivalences.at(node).node, literal, Op::kUGt)
                               .status());
