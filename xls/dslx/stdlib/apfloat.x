@@ -3256,7 +3256,7 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact fraction values in the NaN case).
-pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {true}>
+pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32, USE_LZA: bool = {false}>
     (x: APFloat<EXP_SZ, FRACTION_SZ>, y: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
     let y = APFloat<EXP_SZ, FRACTION_SZ> { sign: !y.sign, bexp: y.bexp, fraction: y.fraction };
