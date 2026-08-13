@@ -71,10 +71,12 @@ namespace {
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Key;
 using ::testing::Not;
+using ::testing::Truly;
 using ::testing::UnorderedElementsAre;
 
 class Result {
@@ -1371,6 +1373,133 @@ TEST_F(NodeUtilTest, FindAndFindOrMakeBitSlice) {
   XLS_ASSERT_OK_AND_ASSIGN(BitSlice * made, FindOrMakeBitSlice(x.node(), 0, 4));
   EXPECT_THAT(made, m::BitSlice(m::Param("x"), 0, 4));
   EXPECT_EQ(FindBitSliceUser(x.node(), 0, 4), made);
+}
+
+TEST_F(NodeUtilTest, SignedAndUnsignedOperations) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+
+  // Arithmetic ops
+  BValue smul = fb.SMul(x, y);
+  BValue smulp = fb.SMulp(x, y);
+  BValue sdiv = fb.SDiv(x, y);
+  BValue smod = fb.SMod(x, y);
+
+  BValue umul = fb.UMul(x, y);
+  BValue umulp = fb.UMulp(x, y);
+  BValue udiv = fb.UDiv(x, y);
+  BValue umod = fb.UMod(x, y);
+
+  // Comparison ops
+  BValue eq = fb.Eq(x, y);
+  BValue ne = fb.Ne(x, y);
+  BValue sle = fb.SLe(x, y);
+  BValue slt = fb.SLt(x, y);
+  BValue sge = fb.SGe(x, y);
+  BValue sgt = fb.SGt(x, y);
+  BValue ule = fb.ULe(x, y);
+  BValue ult = fb.ULt(x, y);
+  BValue uge = fb.UGe(x, y);
+  BValue ugt = fb.UGt(x, y);
+
+  // Shift and extension ops
+  BValue shra = fb.Shra(x, y);
+  BValue shrl = fb.Shrl(x, y);
+  BValue sign_ext = fb.SignExtend(x, 64);
+  BValue zero_ext = fb.ZeroExtend(x, 64);
+
+  // Sign-agnostic / other ops
+  BValue add = fb.Add(x, y);
+  BValue sub = fb.Subtract(x, y);
+  BValue negate = fb.Negate(x);
+  BValue not_op = fb.Not(x);
+  BValue and_op = fb.And(x, y);
+  BValue or_op = fb.Or(x, y);
+  BValue xor_op = fb.Xor(x, y);
+  BValue shll = fb.Shll(x, y);
+  BValue concat = fb.Concat({x, y});
+  BValue slice = fb.BitSlice(x, 0, 16);
+  BValue lit = fb.Literal(UBits(42, 32));
+
+  XLS_ASSERT_OK(fb.Build().status());
+
+  std::vector<Node*> signed_arithmetic = {smul.node(), smulp.node(),
+                                          sdiv.node(), smod.node()};
+  std::vector<Node*> unsigned_arithmetic = {umul.node(), umulp.node(),
+                                            udiv.node(), umod.node()};
+  std::vector<Node*> signed_compare_only = {sle.node(), slt.node(), sge.node(),
+                                            sgt.node()};
+  std::vector<Node*> unsigned_compare_only = {ule.node(), ult.node(),
+                                              uge.node(), ugt.node()};
+  std::vector<Node*> common_compare = {eq.node(), ne.node()};
+  std::vector<Node*> signed_shift_and_ext = {shra.node(), sign_ext.node()};
+  std::vector<Node*> unsigned_shift_and_ext = {shrl.node(), zero_ext.node()};
+  std::vector<Node*> sign_agnostic_examples = {
+      add.node(),    sub.node(),   negate.node(), not_op.node(),
+      and_op.node(), or_op.node(), xor_op.node(), shll.node(),
+      concat.node(), slice.node(), lit.node(),    x.node()};
+
+  // IsSignedArithmetic
+  EXPECT_THAT(signed_arithmetic, Each(Truly(IsSignedArithmetic)));
+  EXPECT_THAT(unsigned_arithmetic, Each(Not(Truly(IsSignedArithmetic))));
+  EXPECT_THAT(signed_compare_only, Each(Not(Truly(IsSignedArithmetic))));
+  EXPECT_THAT(unsigned_compare_only, Each(Not(Truly(IsSignedArithmetic))));
+  EXPECT_THAT(common_compare, Each(Not(Truly(IsSignedArithmetic))));
+  EXPECT_THAT(signed_shift_and_ext, Each(Not(Truly(IsSignedArithmetic))));
+  EXPECT_THAT(unsigned_shift_and_ext, Each(Not(Truly(IsSignedArithmetic))));
+  EXPECT_THAT(sign_agnostic_examples, Each(Not(Truly(IsSignedArithmetic))));
+
+  // IsUnsignedArithmetic
+  EXPECT_THAT(unsigned_arithmetic, Each(Truly(IsUnsignedArithmetic)));
+  EXPECT_THAT(signed_arithmetic, Each(Not(Truly(IsUnsignedArithmetic))));
+  EXPECT_THAT(signed_compare_only, Each(Not(Truly(IsUnsignedArithmetic))));
+  EXPECT_THAT(unsigned_compare_only, Each(Not(Truly(IsUnsignedArithmetic))));
+  EXPECT_THAT(common_compare, Each(Not(Truly(IsUnsignedArithmetic))));
+  EXPECT_THAT(signed_shift_and_ext, Each(Not(Truly(IsUnsignedArithmetic))));
+  EXPECT_THAT(unsigned_shift_and_ext, Each(Not(Truly(IsUnsignedArithmetic))));
+  EXPECT_THAT(sign_agnostic_examples, Each(Not(Truly(IsUnsignedArithmetic))));
+
+  // IsSignedCompare
+  EXPECT_THAT(common_compare, Each(Truly(IsSignedCompare)));
+  EXPECT_THAT(signed_compare_only, Each(Truly(IsSignedCompare)));
+  EXPECT_THAT(unsigned_compare_only, Each(Not(Truly(IsSignedCompare))));
+  EXPECT_THAT(signed_arithmetic, Each(Not(Truly(IsSignedCompare))));
+  EXPECT_THAT(unsigned_arithmetic, Each(Not(Truly(IsSignedCompare))));
+  EXPECT_THAT(signed_shift_and_ext, Each(Not(Truly(IsSignedCompare))));
+  EXPECT_THAT(unsigned_shift_and_ext, Each(Not(Truly(IsSignedCompare))));
+  EXPECT_THAT(sign_agnostic_examples, Each(Not(Truly(IsSignedCompare))));
+
+  // IsUnsignedCompare
+  EXPECT_THAT(common_compare, Each(Truly(IsUnsignedCompare)));
+  EXPECT_THAT(unsigned_compare_only, Each(Truly(IsUnsignedCompare)));
+  EXPECT_THAT(signed_compare_only, Each(Not(Truly(IsUnsignedCompare))));
+  EXPECT_THAT(signed_arithmetic, Each(Not(Truly(IsUnsignedCompare))));
+  EXPECT_THAT(unsigned_arithmetic, Each(Not(Truly(IsUnsignedCompare))));
+  EXPECT_THAT(signed_shift_and_ext, Each(Not(Truly(IsUnsignedCompare))));
+  EXPECT_THAT(unsigned_shift_and_ext, Each(Not(Truly(IsUnsignedCompare))));
+  EXPECT_THAT(sign_agnostic_examples, Each(Not(Truly(IsUnsignedCompare))));
+
+  // IsSigned
+  EXPECT_THAT(signed_arithmetic, Each(Truly(IsSigned)));
+  EXPECT_THAT(common_compare, Each(Truly(IsSigned)));
+  EXPECT_THAT(signed_compare_only, Each(Truly(IsSigned)));
+  EXPECT_THAT(signed_shift_and_ext, Each(Truly(IsSigned)));
+  EXPECT_THAT(unsigned_arithmetic, Each(Not(Truly(IsSigned))));
+  EXPECT_THAT(unsigned_compare_only, Each(Not(Truly(IsSigned))));
+  EXPECT_THAT(unsigned_shift_and_ext, Each(Not(Truly(IsSigned))));
+  EXPECT_THAT(sign_agnostic_examples, Each(Not(Truly(IsSigned))));
+
+  // IsUnsigned
+  EXPECT_THAT(unsigned_arithmetic, Each(Truly(IsUnsigned)));
+  EXPECT_THAT(common_compare, Each(Truly(IsUnsigned)));
+  EXPECT_THAT(unsigned_compare_only, Each(Truly(IsUnsigned)));
+  EXPECT_THAT(unsigned_shift_and_ext, Each(Truly(IsUnsigned)));
+  EXPECT_THAT(signed_arithmetic, Each(Not(Truly(IsUnsigned))));
+  EXPECT_THAT(signed_compare_only, Each(Not(Truly(IsUnsigned))));
+  EXPECT_THAT(signed_shift_and_ext, Each(Not(Truly(IsUnsigned))));
+  EXPECT_THAT(sign_agnostic_examples, Each(Not(Truly(IsUnsigned))));
 }
 
 }  // namespace

@@ -788,6 +788,24 @@ bool IsSignedCompare(Node* node) {
   }
 }
 
+bool IsSignedArithmetic(Node* node) {
+  return node->OpIn({Op::kSMul, Op::kSDiv, Op::kSMulp, Op::kSMod});
+}
+
+bool IsUnsignedArithmetic(Node* node) {
+  return node->OpIn({Op::kUMul, Op::kUDiv, Op::kUMulp, Op::kUMod});
+}
+
+bool IsUnsigned(Node* node) {
+  return IsUnsignedCompare(node) || IsUnsignedArithmetic(node) ||
+         node->OpIn({Op::kZeroExt, Op::kShrl});
+}
+
+bool IsSigned(Node* node) {
+  return IsSignedCompare(node) || IsSignedArithmetic(node) ||
+         node->OpIn({Op::kSignExt, Op::kShra});
+}
+
 absl::StatusOr<Op> OpToNonReductionOp(Op reduce_op) {
   switch (reduce_op) {
     case Op::kAndReduce:

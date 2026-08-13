@@ -374,6 +374,18 @@ inline absl::StatusOr<Node*> ReplaceWithOr(
 bool IsUnsignedCompare(Node* node);
 bool IsSignedCompare(Node* node);
 
+// Whether node is signed or unsigned arithmetic (k{S|U}{Mul|Mulp|Div|Mod}).
+bool IsSignedArithmetic(Node* node);
+bool IsUnsignedArithmetic(Node* node);
+
+// Whether the node is signed/unsigned comparison, arithmetic, or sign/zero
+// extension, or arithmetic or logical shift right. Note the latter don't have
+// nice wrappers like arithmetic / comparison do, because they are one of each.
+// It follows from the above definition that a node can be both not unsigned and
+// not signed.
+bool IsUnsigned(Node* node);
+bool IsSigned(Node* node);
+
 // For <AndReduce, OrReduce, XorReduce>, returns <And, Or, Xor>.
 absl::StatusOr<Op> OpToNonReductionOp(Op reduce_op);
 
