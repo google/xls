@@ -308,11 +308,14 @@ absl::StatusOr<ScheduleGraph> ScheduleGraph::CreateSynchronousGraph(
     }
 
     for (Next* next : proc->next_values()) {
-      backedges.push_back(ScheduleBackedge{
-          .source = next,
-          .destination =
-              proc->GetStateReadByStateElement(next->state_element()),
-          .distance = LessThanInitiationInterval()});
+      absl::Span<StateRead* const> reads =
+          proc->GetStateReadsByStateElement(next->state_element());
+      for (StateRead* read : reads) {
+        backedges.push_back(
+            ScheduleBackedge{.source = next,
+                             .destination = read,
+                             .distance = LessThanInitiationInterval()});
+      }
     }
   }
 

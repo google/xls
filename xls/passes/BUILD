@@ -2800,6 +2800,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:state_element",
         "//xls/ir:value",
+        "//xls/solvers:ir_equivalence_testutils",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],

@@ -297,6 +297,35 @@ TEST_P(SynchronousProcsTest, DecoupledNextProc) {
               absl_testing::IsOkAndHolds(outputs));
 }
 
+TEST_P(SynchronousProcsTest, MultipleStateReadsProc) {
+  Package package(TestBaseName());
+
+  TokenlessProcBuilder pb(NewStyleProc(), "my_proc", "tkn", &package);
+  Type* u32 = package.GetBitsType(32);
+  BReceiveChannel in = pb.AddInputChannel("top_in", u32);
+  BSendChannel out = pb.AddOutputChannel("top_out", u32);
+  BStateElement st_elem = pb.StateElement("accum", Value(UBits(0, 32)),
+                                          /*non_synthesizable=*/false);
+  BValue st1 = pb.StateRead(st_elem);
+  BValue st2 = pb.StateRead(st_elem);
+  BValue received = pb.Receive(in);
+  BValue next_st = pb.Add(pb.Add(st1, st2), received);
+
+  pb.Next(st_elem, next_st);
+  pb.Send(out, next_st);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
+  XLS_ASSERT_OK(package.SetTop(top));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(top));
+
+  EXPECT_THAT(RunSynchronousPipelineSchedule(
+                  &package, TestDelayEstimator(),
+                  SchedulingOptions().clock_period_ps(1), elab),
+              absl_testing::IsOk());
+}
+
 INSTANTIATE_TEST_SUITE_P(PipelineGeneratorTestInstantiation,
                          SynchronousProcsTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

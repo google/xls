@@ -30,6 +30,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
@@ -117,9 +118,8 @@ absl::StatusOr<bool> MaybeSplitStateElements(
     // to use STL set intersection algorithms.
     std::vector<int64_t> split_ends;
     bool could_benefit_from_splitting = false;
-    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
     for (Next* next : proc->next_values(state_element)) {
-      if (next->value() == state_read) {
+      if (IsNoOpNext(next)) {
         // This is a no-op next-value; it doesn't affect whether or not it's
         // beneficial to split the state element, since it'll convert to a no-op
         // next-value anyway.

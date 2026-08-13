@@ -36,6 +36,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -94,6 +95,83 @@ TEST_F(ProcStateBitsShatteringPassTest, SimpleSplitStateElement) {
   EXPECT_THAT(send_y.node(),
               m::Send(m::Literal(Value::Token()), m::StateRead("y")))
       << proc->DumpIr();
+}
+
+TEST_F(ProcStateBitsShatteringPassTest, ProcStateMultipleReadsOneIdentityNext) {
+  auto p = CreatePackage();
+
+  ProcBuilder pb(TestName(), p.get());
+  BStateElement x =
+      pb.StateElement("x", Value(UBits(0, 16)), /*non_synthesizable=*/false);
+
+  BStateElement cond_elem = pb.StateElement("cond", Value(UBits(0, 1)),
+                                            /*non_synthesizable=*/false);
+
+  BValue cond = pb.StateRead(cond_elem);
+  BValue not_cond = pb.Not(cond);
+  pb.Next(cond_elem, cond);
+
+  BValue read1 = pb.StateRead(x, cond);
+  BValue read2 = pb.StateRead(x, not_cond);
+
+  // Identity next
+  pb.Next(x, read1, cond);
+  // Non-identity next that benefits from splitting:
+  BValue x_lo = pb.BitSlice(read2, /*start=*/0, /*width=*/6);
+  BValue x_mid = pb.BitSlice(read2, /*start=*/6, /*width=*/1);
+  BValue x_hi = pb.BitSlice(read2, /*start=*/7, /*width=*/9);
+  BValue new_x_mid = pb.Select(pb.OrReduce(x_lo), {x_mid, pb.Not(x_mid)});
+  BValue concat = pb.Concat({x_hi, new_x_mid, x_lo});
+
+  pb.Next(x, concat, not_cond);
+
+  BValue tok = pb.Literal(Value::Token());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_out, p->CreateStreamingChannel("x_out", ChannelOps::kSendOnly,
+                                                 p->GetBitsType(16)));
+  pb.SendIf(x_out, tok, cond, read1);
+  pb.SendIf(x_out, tok, not_cond, concat);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                            /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true))
+      << proc->DumpIr();
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * new_x,
+                           proc->GetStateElementByName("x"));
+  EXPECT_THAT(new_x->type(), m::Type("(bits[6], bits[1], bits[9])"));
+}
+
+TEST_F(ProcStateBitsShatteringPassTest, ProcStateMultipleReadsAllIdentityNext) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  BStateElement x =
+      pb.StateElement("x", Value(UBits(0, 16)), /*non_synthesizable=*/false);
+
+  BStateElement cond_elem = pb.StateElement("cond", Value(UBits(0, 1)),
+                                            /*non_synthesizable=*/false);
+
+  BValue cond = pb.StateRead(cond_elem);
+  BValue not_cond = pb.Not(cond);
+  pb.Next(cond_elem, cond);
+
+  BValue read1 = pb.StateRead(x, cond);
+  BValue read2 = pb.StateRead(x, not_cond);
+
+  // All next values are identity
+  pb.Next(x, read1, cond);
+  pb.Next(x, read2, not_cond);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                            /*include_state=*/true);
+  ScopedRecordIr sri(p.get());
+  // False due to no change.
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false)) << proc->DumpIr();
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * new_x,
+                           proc->GetStateElementByName("x"));
+  EXPECT_THAT(new_x->type(), m::Type("bits[16]"));
 }
 
 void IrFuzzProcStateBitsShattering(FuzzPackageWithArgs fuzz_package_with_args) {
