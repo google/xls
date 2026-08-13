@@ -1699,6 +1699,37 @@ let result = for (i, array) in u32:0..8 {
 }(u4[8]:[0, ...]);
 ```
 
+### Lambda Expressions
+
+DSLX provides support for lambda expressions, which are most useful within `map`
+as a way to iterate over an array without using a `for` loop.
+
+#### Syntax
+
+```
+| index [: type-of-index] | [ -> return-type] { body-expression }
+```
+
+#### Examples
+
+Square each element between 0 and 9, inclusive.
+
+```dslx-snippet
+map(0..10, |i| { i * i })
+```
+
+Create an array where every even number is replaced with 0.
+
+```dslx-snippet
+map(0..10, |i| { if i % 2 == 0 { 0 } else { i }})
+```
+
+Create a 2D array where each element is the sum of the indices.
+
+```dslx-snippet
+map(u32:0..5, |i: u32| -> u32[5] { map(u32:0..5, |j: u32| -> u32 { i + j }) })
+```
+
 ### Numerical Conversions
 
 DSLX adopts the
