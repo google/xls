@@ -638,6 +638,12 @@ class Translator final : public GeneratorBase,
   // so that IO operations can be generated without calling GenerateIR_Block()
   bool io_test_mode_ = false;
 
+  // These are members so that local channels can also have strictness optionss
+  // applied as they are created.
+  xlscc::ChannelOptions channel_options_;
+  absl::flat_hash_map<std::string, xls::ChannelStrictness>
+      unused_strictness_options_;
+
   const int64_t kNumSubBlockModeBits = 8;
 
   struct InstTypeHash {

@@ -308,6 +308,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     xls::Package* package, const HLSBlock& block, int top_level_init_interval,
     const ChannelOptions& channel_options) {
   package_ = package;
+  channel_options_ = channel_options;
 
   absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
   for (const HLSChannel& channel : block.channels()) {
@@ -334,8 +335,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
   const xls::SourceInfo body_loc = GetLoc(*definition);
 
   std::list<ExternalChannelInfo> top_decls;
-  absl::flat_hash_map<std::string, xls::ChannelStrictness>
-      unused_strictness_options = channel_options.strictness_map;
+  unused_strictness_options_ = channel_options.strictness_map;
   for (int pidx = 0; pidx < definition->getNumParams(); ++pidx) {
     const clang::ParmVarDecl* param = definition->getParamDecl(pidx);
 
@@ -355,7 +355,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     ExternalChannelInfo channel_info = {.decl = param};
     XLS_ASSIGN_OR_RETURN(channel_info.strictness,
                          GetChannelStrictness(*param, channel_options,
-                                              unused_strictness_options));
+                                              unused_strictness_options_));
     if (channel_spec.type() == ChannelType::CHANNEL_TYPE_DIRECT_IN) {
       channel_info.interface_type = InterfaceType::kDirect;
       XLS_ASSIGN_OR_RETURN(StrippedType stripped,
@@ -397,17 +397,21 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
     top_decls.push_back(channel_info);
   }
-  if (!unused_strictness_options.empty()) {
+
+  auto ret = GenerateIR_Block(package, block, /*this_type=*/nullptr,
+                              /*this_decl=*/nullptr, top_decls, body_loc,
+                              top_level_init_interval,
+                              /*force_static=*/true,
+                              /*member_references_become_channels=*/false);
+
+  // Check including local channels?
+  if (!unused_strictness_options_.empty()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Unused channel strictness options: %s",
-                        ToString(unused_strictness_options)));
+                        ToString(unused_strictness_options_)));
   }
 
-  return GenerateIR_Block(package, block, /*this_type=*/nullptr,
-                          /*this_decl=*/nullptr, top_decls, body_loc,
-                          top_level_init_interval,
-                          /*force_static=*/true,
-                          /*member_references_become_channels=*/false);
+  return ret;
 }
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
@@ -691,6 +695,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
     xls::Package* package, HLSBlock* block_spec_out,
     int top_level_init_interval, const ChannelOptions& channel_options) {
   package_ = package;
+  channel_options_ = channel_options;
   block_spec_out->Clear();
 
   // Create external channels
@@ -1936,11 +1941,6 @@ absl::Status Translator::GenerateIRBlockCheck(
     channel_names_in_block.insert(channel.name());
   }
 
-  if (top_decls.size() != block.channels_size()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Top function has %i parameters, but block proto defines %i channels",
-        top_decls.size(), block.channels_size()));
-  }
   for (const ExternalChannelInfo& top_decl : top_decls) {
     const clang::NamedDecl* decl = top_decl.decl;
 
@@ -1950,12 +1950,6 @@ absl::Status Translator::GenerateIRBlockCheck(
           decl->getNameAsString()));
     }
     channel_names_in_block.erase(decl->getNameAsString());
-  }
-
-  if (!channel_names_in_block.empty()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Block proto contains %i channels not in function prototype",
-        channel_names_in_block.size()));
   }
 
   return absl::OkStatus();

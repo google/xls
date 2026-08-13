@@ -116,9 +116,7 @@ TEST_F(TranslatorMemoryTest, MemoryReadStructExplicitIOOp) {
 
 TEST_F(TranslatorMemoryTest, MemoryReadIOOpSubroutine) {
   const std::string content = R"(
-       #include "/xls_builtin.h"
-
-       int ReadIt(__xls_memory<short, 21>& mem, int addr) {
+       int ReadIt(__xls_memory<int, 32>& mem, int addr) {
         return mem[addr];
        }
 
@@ -127,7 +125,7 @@ TEST_F(TranslatorMemoryTest, MemoryReadIOOpSubroutine) {
                        __xls_memory<int, 32>& memory,
                        __xls_channel<int>& out) {
          const int addr = in.read();
-         const int val = memory[addr];
+         const int val = ReadIt(memory, addr);
          out.write(3*val);
        })";
 
@@ -1639,6 +1637,286 @@ TEST_F(TranslatorMemoryTest, PassChannelAliased) {
       /*outputs=*/
       {IOOpTest("memory__read", xls::Value(xls::UBits(7, 5)), true),
        IOOpTest("out", 30, true)});
+}
+
+TEST_F(TranslatorMemoryTest, MemoryLocallyDeclared) {
+  const std::string content = R"(
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& out) {
+      static __xls_memory<short, 21> foo_store;
+      out.write(foo_store[13] + 3);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("foo_store");
+    ch_in->set_type(CHANNEL_TYPE_MEMORY);
+    ch_in->set_depth(21);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["foo_store_read_response"] = {
+      xls::Value::Tuple({xls::Value(xls::SBits(100, 16))}),
+      xls::Value::Tuple({xls::Value(xls::SBits(50, 16))}),
+      xls::Value::Tuple({xls::Value(xls::SBits(12, 16))})};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(103, 32)),
+                    xls::Value(xls::SBits(53, 32)),
+                    xls::Value(xls::SBits(15, 32))};
+  outputs["foo_store_read_request"] = {
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      }),
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      }),
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      })};
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
+TEST_F(TranslatorMemoryTest, MemoryLocallyDeclaredAsArrayRead) {
+  const std::string content = R"(
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& out) {
+      static short foo_store[21] [[clang::annotate_type("hls_memory")]];
+      out.write(foo_store[13] + 3);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("foo_store");
+    ch_in->set_type(CHANNEL_TYPE_MEMORY);
+    ch_in->set_depth(21);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["foo_store_read_response"] = {
+      xls::Value::Tuple({xls::Value(xls::SBits(100, 16))}),
+      xls::Value::Tuple({xls::Value(xls::SBits(50, 16))}),
+      xls::Value::Tuple({xls::Value(xls::SBits(12, 16))})};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(103, 32)),
+                    xls::Value(xls::SBits(53, 32)),
+                    xls::Value(xls::SBits(15, 32))};
+  outputs["foo_store_read_request"] = {
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      }),
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      }),
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      })};
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
+TEST_F(TranslatorMemoryTest, MemoryLocallyDeclaredAsArrayWrite) {
+  const std::string content = R"(
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in) {
+      static short foo_store[21] [[clang::annotate_type("hls_memory")]];
+      foo_store[13] = in.read() + 3;
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("foo_store");
+    ch_in->set_type(CHANNEL_TYPE_MEMORY);
+    ch_in->set_depth(21);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("in");
+    ch_out->set_is_input(true);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["foo_store_write_response"] = {
+      xls::Value::Tuple({}), xls::Value::Tuple({}), xls::Value::Tuple({})};
+  inputs["in"] = {xls::Value(xls::SBits(100, 32)),
+                  xls::Value(xls::SBits(50, 32)),
+                  xls::Value(xls::SBits(12, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["foo_store_write_request"] = {
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),    // addr
+          xls::Value(xls::SBits(103, 16)),  // value
+          xls::Value::Tuple({})             // mask
+      }),
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),   // addr
+          xls::Value(xls::SBits(53, 16)),  // value
+          xls::Value::Tuple({})            // mask
+      }),
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),   // addr
+          xls::Value(xls::SBits(15, 16)),  // value
+          xls::Value::Tuple({})            // mask
+      })};
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
+TEST_F(TranslatorMemoryTest, MemoryLocallyDeclaredAsArraySubroutine) {
+  const std::string content = R"(
+    short sub(
+      short (&foo_store)[21] [[clang::annotate_type("hls_memory")]]) {
+      return foo_store[13] + 3;
+    }
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& out) {
+      static short foo_store[21]  [[clang::annotate_type("hls_memory")]];
+      const short x = sub(foo_store);
+      out.write(x);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("foo_store");
+    ch_in->set_type(CHANNEL_TYPE_MEMORY);
+    ch_in->set_depth(21);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["foo_store_read_response"] = {
+      xls::Value::Tuple({xls::Value(xls::SBits(100, 16))}),
+      xls::Value::Tuple({xls::Value(xls::SBits(50, 16))}),
+      xls::Value::Tuple({xls::Value(xls::SBits(12, 16))})};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(103, 32)),
+                    xls::Value(xls::SBits(53, 32)),
+                    xls::Value(xls::SBits(15, 32))};
+  outputs["foo_store_read_request"] = {
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      }),
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      }),
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      })};
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
+TEST_F(TranslatorMemoryTest, MemoryLocallyDeclaredAsArraySubroutine2) {
+  const std::string content = R"(
+    short sub(
+      short foo_store[21] [[clang::annotate_type("hls_memory")]]) {
+      return foo_store[13] + 3;
+    }
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& out) {
+      static short foo_store[21]  [[clang::annotate_type("hls_memory")]];
+      const short x = sub(foo_store);
+      out.write(x);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("foo_store");
+    ch_in->set_type(CHANNEL_TYPE_MEMORY);
+    ch_in->set_depth(21);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["foo_store_read_response"] = {
+      xls::Value::Tuple({xls::Value(xls::SBits(100, 16))}),
+      xls::Value::Tuple({xls::Value(xls::SBits(50, 16))}),
+      xls::Value::Tuple({xls::Value(xls::SBits(12, 16))})};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(103, 32)),
+                    xls::Value(xls::SBits(53, 32)),
+                    xls::Value(xls::SBits(15, 32))};
+  outputs["foo_store_read_request"] = {
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      }),
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      }),
+      xls::Value::Tuple({
+          xls::Value(xls::UBits(13, 5)),  // addr
+          xls::Value::Tuple({})           // mask
+      })};
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
+TEST_F(TranslatorMemoryTest, AddressOfMemoryAsArray) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& out) {
+      static short foo_store[21]  [[clang::annotate_type("hls_memory")]];
+      short* x = &foo_store[10];
+      out.write(x[1]);
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("only supported")));
 }
 
 }  // namespace
