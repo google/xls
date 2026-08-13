@@ -147,6 +147,14 @@ inline bool IsNotOf(const Node* node, const Node* inverted) {
   return node->op() == Op::kNot && node->operand(0) == inverted;
 }
 
+// Returns true if the given `next` node is an identity update (i.e. it updates
+// the state element with a StateRead of the same state element).
+inline bool IsNoOpNext(const Next* next) {
+  return next->value()->Is<StateRead>() &&
+         next->value()->As<StateRead>()->state_element() ==
+             next->state_element();
+}
+
 // Returns a LeafTypeTree of IR expressions, where each expression extracts the
 // value of the corresponding leaf element of the given node. Note that this
 // constructs new IR expressions, and so changes the IR.

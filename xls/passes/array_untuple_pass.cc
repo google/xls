@@ -137,23 +137,12 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindExternalGroups(
     for (StateElement* state_element : f->AsProcOrDie()->StateElements()) {
       absl::Span<StateRead* const> state_reads =
           f->AsProcOrDie()->GetStateReadsByStateElement(state_element);
-      bool only_used_in_identity_updates = true;
-      for (StateRead* state_read : state_reads) {
-        auto is_identity_update = [&](Node* n) -> bool {
-          if (!n->Is<Next>()) {
-            return false;
-          }
-          Next* nxt = n->As<Next>();
-          return nxt->value() == state_read &&
-                 nxt->state_element() == state_read->state_element();
-        };
-
-        if (!absl::c_all_of(state_read->users(), is_identity_update)) {
-          only_used_in_identity_updates = false;
-          break;
-        }
-      }
-      if (only_used_in_identity_updates && !state_reads.empty()) {
+      if (!state_reads.empty() &&
+          absl::c_all_of(state_reads, [&](StateRead* state_read) {
+            return absl::c_all_of(state_read->users(), [&](Node* n) {
+              return n->Is<Next>() && IsNoOpNext(n->As<Next>());
+            });
+          })) {
         // Use front as the representative of the group in UnionFind
         // because they all refer to the same state_element
         excluded.insert(groups.Find(state_reads.front()));

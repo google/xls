@@ -2611,6 +2611,7 @@ xls_pass(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:state_element",
         "//xls/ir:type",
