@@ -638,6 +638,28 @@ std::optional<const Function*> GetContainingFunction(const AstNode* node) {
   return std::nullopt;
 }
 
+bool IsInTestEntity(const Function* f) {
+  if (f == nullptr) {
+    return false;
+  }
+  if (f->is_test_utility()) {
+    return true;
+  }
+  if (f->parent() != nullptr &&
+      (f->parent()->kind() == AstNodeKind::kTestFunction ||
+       f->parent()->kind() == AstNodeKind::kFuzzTestFunction)) {
+    return true;
+  }
+  if (f->IsInProc() && f->proc().has_value()) {
+    const Proc* proc = *f->proc();
+    if (proc->parent() != nullptr &&
+        proc->parent()->kind() == AstNodeKind::kTestProc) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::optional<const Expr*> GetContainingLoop(const AstNode* node) {
   const AstNode* current = node->parent();
   while (current != nullptr) {

@@ -39,7 +39,7 @@ using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
-TEST(TypecheckV2Test, ComparisonAsFunctionArgument) {
+TEST(TypecheckV2FunctionTest, ComparisonAsFunctionArgument) {
   EXPECT_THAT(R"(
 fn foo(a: bool) -> bool { a }
 const Y = foo(1 != 2);
@@ -49,7 +49,7 @@ const Y = foo(1 != 2);
                                       HasNodeWithType("2", "uN[2]"))));
 }
 
-TEST(TypecheckV2Test, FunctionCallReturningNothing) {
+TEST(TypecheckV2FunctionTest, FunctionCallReturningNothing) {
   EXPECT_THAT(
       R"(
 fn foo() { () }
@@ -59,7 +59,7 @@ const Y = foo();
                               HasNodeWithType("const Y = foo();", "()"))));
 }
 
-TEST(TypecheckV2Test, FunctionCallReturningInteger) {
+TEST(TypecheckV2FunctionTest, FunctionCallReturningInteger) {
   EXPECT_THAT(
       R"(
 fn foo() -> u32 { 3 }
@@ -69,7 +69,7 @@ const Y = foo();
                               HasNodeWithType("const Y = foo();", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, FunctionCallReturningBool) {
+TEST(TypecheckV2FunctionTest, FunctionCallReturningBool) {
   EXPECT_THAT(
       R"(
 fn foo() -> bool { true }
@@ -79,7 +79,7 @@ const Y = foo();
                               HasNodeWithType("const Y = foo();", "uN[1]"))));
 }
 
-TEST(TypecheckV2Test, FunctionCallReturningFunctionCall) {
+TEST(TypecheckV2FunctionTest, FunctionCallReturningFunctionCall) {
   EXPECT_THAT(
       R"(
 fn bar() -> s32 { 123 }
@@ -91,7 +91,8 @@ const Y = foo();
                               HasNodeWithType("const Y = foo();", "sN[32]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionInWrongContextWithoutInvocation) {
+TEST(TypecheckV2FunctionTest,
+     ParametricFunctionInWrongContextWithoutInvocation) {
   EXPECT_THAT(
       R"(
 fn foo<N: u32>() -> uN[N] { 3 }
@@ -101,7 +102,7 @@ const Y: u32 = foo;
                                "a parametric function not being invoked")));
 }
 
-TEST(TypecheckV2Test, SumOfLiteralsAndParametricFunctionCall) {
+TEST(TypecheckV2FunctionTest, SumOfLiteralsAndParametricFunctionCall) {
   EXPECT_THAT(
       R"(
 fn foo<N: u32>() -> uN[N] { 3 }
@@ -110,7 +111,7 @@ const Y = 1 + 2 + 3 + foo<32>();
       TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionWithParametricBinopParamType) {
+TEST(TypecheckV2FunctionTest, ParametricFunctionWithParametricBinopParamType) {
   // The point here is to ensure that we solve for A and B by matching against
   // `uN[A][B][C]`, and the unsolvable `A * B` doesn't derail the solution of
   // any parametrics.
@@ -137,7 +138,8 @@ fn main() {
                               HasNodeWithType("result2", "uN[3][4][5][6]"))));
 }
 
-TEST(TypecheckV2Test, FunctionReturningMismatchingIntegerAutoTypeFails) {
+TEST(TypecheckV2FunctionTest,
+     FunctionReturningMismatchingIntegerAutoTypeFails) {
   EXPECT_THAT(R"(
 fn foo() -> u4 { 65536 }
 const Y = foo();
@@ -145,7 +147,7 @@ const Y = foo();
               TypecheckFails(HasSizeMismatch("u17", "u4")));
 }
 
-TEST(TypecheckV2Test, FunctionReturningTooLargeExplicitTypeFails) {
+TEST(TypecheckV2FunctionTest, FunctionReturningTooLargeExplicitTypeFails) {
   EXPECT_THAT(R"(
 const X = u32:65536;
 fn foo() -> u4 { X }
@@ -154,7 +156,8 @@ const Y = foo();
               TypecheckFails(HasSizeMismatch("u32", "u4")));
 }
 
-TEST(TypecheckV2Test, FunctionReturningIntegerWithWrongSignednessFails) {
+TEST(TypecheckV2FunctionTest,
+     FunctionReturningIntegerWithWrongSignednessFails) {
   EXPECT_THAT(R"(
 const X = s32:65536;
 fn foo() -> u32 { X }
@@ -163,7 +166,7 @@ const Y = foo();
               TypecheckFails(HasSignednessMismatch("s32", "u32")));
 }
 
-TEST(TypecheckV2Test, FunctionCallReturningPassedInInteger) {
+TEST(TypecheckV2FunctionTest, FunctionCallReturningPassedInInteger) {
   EXPECT_THAT(
       R"(
 fn foo(a: u32) -> u32 { a }
@@ -173,7 +176,7 @@ const Y = foo(4);
                               HasNodeWithType("const Y = foo(4);", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, FunctionCallReturningSumOfPassedInIntegers) {
+TEST(TypecheckV2FunctionTest, FunctionCallReturningSumOfPassedInIntegers) {
   EXPECT_THAT(R"(
 fn foo(a: u32, b: u32) -> u32 { a + b }
 const Y = foo(4, 5);
@@ -183,7 +186,7 @@ const Y = foo(4, 5);
                         HasNodeWithType("const Y = foo(4, 5);", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, FunctionCallPassingInFunctionCalls) {
+TEST(TypecheckV2FunctionTest, FunctionCallPassingInFunctionCalls) {
   EXPECT_THAT(
       R"(
 fn foo(a: u32, b: u32) -> u32 { a + b }
@@ -194,7 +197,7 @@ const Y = foo(foo(3, 2), foo(4, 5));
           HasNodeWithType("const Y = foo(foo(3, 2), foo(4, 5));", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, FunctionCallPassingInSum) {
+TEST(TypecheckV2FunctionTest, FunctionCallPassingInSum) {
   EXPECT_THAT(R"(
 const X: u32 = 4;
 const Z: u32 = 5;
@@ -206,7 +209,7 @@ const Y = foo(X + Z);
                         HasNodeWithType("const Y = foo(X + Z);", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, FunctionCallWithUnusedResult) {
+TEST(TypecheckV2FunctionTest, FunctionCallWithUnusedResult) {
   EXPECT_THAT(R"(
 fn foo(a: u32) -> u32 { a }
 
@@ -220,7 +223,7 @@ fn bar() -> u32 {
                                       HasNodeWithType("foo(6)", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, FunctionCallForwardingChannelParam) {
+TEST(TypecheckV2FunctionTest, FunctionCallForwardingChannelParam) {
   EXPECT_THAT(R"(
 fn foo(c: chan<u32> in) {}
 fn bar(c: chan<u32> in) { foo(c); }
@@ -228,7 +231,7 @@ fn bar(c: chan<u32> in) { foo(c); }
               TypecheckSucceeds(AllOf(HasNodeWithType("foo(c)", "()"))));
 }
 
-TEST(TypecheckV2Test, FunctionCallPassingInTooManyArgumentsFails) {
+TEST(TypecheckV2FunctionTest, FunctionCallPassingInTooManyArgumentsFails) {
   EXPECT_THAT(R"(
 fn foo(a: u4) -> u4 { a }
 const Y:u32 = foo(1, 2);
@@ -236,7 +239,7 @@ const Y:u32 = foo(1, 2);
               TypecheckFails(HasSubstr("Expected 1 argument(s) but got 2.")));
 }
 
-TEST(TypecheckV2Test, FunctionCallPassingInTooFewArgumentsFails) {
+TEST(TypecheckV2FunctionTest, FunctionCallPassingInTooFewArgumentsFails) {
   EXPECT_THAT(R"(
 fn foo(a: u4, b: u4) -> u4 { a + b }
 const Y:u32 = foo(1);
@@ -244,7 +247,7 @@ const Y:u32 = foo(1);
               TypecheckFails(HasSubstr("Expected 2 argument(s) but got 1.")));
 }
 
-TEST(TypecheckV2Test, FunctionCallPassingInTooLargeAutoSizeFails) {
+TEST(TypecheckV2FunctionTest, FunctionCallPassingInTooLargeAutoSizeFails) {
   EXPECT_THAT(R"(
 fn foo(a: u4) -> u4 { a }
 const Y = foo(32767);
@@ -252,7 +255,8 @@ const Y = foo(32767);
               TypecheckFails(HasSizeMismatch("u15", "u4")));
 }
 
-TEST(TypecheckV2Test, FunctionCallPassingInTooLargeExplicitIntegerSizeFails) {
+TEST(TypecheckV2FunctionTest,
+     FunctionCallPassingInTooLargeExplicitIntegerSizeFails) {
   EXPECT_THAT(R"(
 const X:u32 = 1;
 fn foo(a: u4) -> u4 { a }
@@ -261,7 +265,7 @@ const Y = foo(X);
               TypecheckFails(HasSizeMismatch("u32", "u4")));
 }
 
-TEST(TypecheckV2Test, FunctionCallPassingInWrongSignednessFails) {
+TEST(TypecheckV2FunctionTest, FunctionCallPassingInWrongSignednessFails) {
   EXPECT_THAT(R"(
 const X:u32 = 1;
 fn foo(a: s32) -> s32 { a }
@@ -270,7 +274,7 @@ const Y = foo(X);
               TypecheckFails(HasSignednessMismatch("u32", "s32")));
 }
 
-TEST(TypecheckV2Test, FunctionCallMismatchingLhsTypeFails) {
+TEST(TypecheckV2FunctionTest, FunctionCallMismatchingLhsTypeFails) {
   EXPECT_THAT(R"(
 fn foo(a: u4) -> u4 { a }
 const Y:u32 = foo(1);
@@ -278,7 +282,7 @@ const Y:u32 = foo(1);
               TypecheckFails(HasSizeMismatch("u4", "u32")));
 }
 
-TEST(TypecheckV2Test, FunctionCallToNonFunctionFails) {
+TEST(TypecheckV2FunctionTest, FunctionCallToNonFunctionFails) {
   EXPECT_THAT(R"(
 const X = u32:4;
 const Y = X(1);
@@ -286,7 +290,8 @@ const Y = X(1);
               TypecheckFails(HasSubstr("callee `X` is not a function")));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionCallWithTooManyParametricsFails) {
+TEST(TypecheckV2FunctionTest,
+     ParametricFunctionCallWithTooManyParametricsFails) {
   EXPECT_THAT(R"(
 fn foo<N: u32>() -> u32 { N }
 const X = foo<3, 4>();
@@ -294,7 +299,7 @@ const X = foo<3, 4>();
               TypecheckFails(HasSubstr("Too many parametric values supplied")));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionReturningIntegerParameter) {
+TEST(TypecheckV2FunctionTest, ParametricFunctionReturningIntegerParameter) {
   EXPECT_THAT(R"(
 fn foo<N: u32>() -> u32 { N }
 const X = foo<3>();
@@ -303,7 +308,8 @@ const X = foo<3>();
                   AllOf(HasNodeWithType("const X = foo<3>();", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionReturningIntegerOfParameterSize) {
+TEST(TypecheckV2FunctionTest,
+     ParametricFunctionReturningIntegerOfParameterSize) {
   EXPECT_THAT(R"(
 fn foo<N: u32>() -> uN[N] { 5 }
 const X = foo<16>();
@@ -314,7 +320,7 @@ const Y = foo<17>();
                         HasNodeWithType("const Y = foo<17>();", "uN[17]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionReturningIntegerOfNPlus1Size) {
+TEST(TypecheckV2FunctionTest, ParametricFunctionReturningIntegerOfNPlus1Size) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N + 1]) -> uN[N + 1] { a }
 const X = foo<16>(1);
@@ -324,7 +330,8 @@ const Y = foo<17>(2);
                                       HasNodeWithType("Y", "uN[18]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionReturningIntegerOfParameterSignedness) {
+TEST(TypecheckV2FunctionTest,
+     ParametricFunctionReturningIntegerOfParameterSignedness) {
   EXPECT_THAT(R"(
 fn foo<S: bool>() -> xN[S][32] { 5 }
 const X = foo<false>();
@@ -335,7 +342,7 @@ const Y = foo<true>();
                         HasNodeWithType("const Y = foo<true>();", "sN[32]"))));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionReturningIntegerOfParameterSignednessAndSize) {
   EXPECT_THAT(R"(
 fn foo<S: bool, N: u32>() -> xN[S][N] { 5 }
@@ -347,7 +354,8 @@ const Y = foo<true, 11>();
                   HasNodeWithType("const Y = foo<true, 11>();", "sN[11]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionReturningIntegerOfCastedDifference) {
+TEST(TypecheckV2FunctionTest,
+     ParametricFunctionReturningIntegerOfCastedDifference) {
   EXPECT_THAT(R"(
 fn f<A: s32, B: s32>(a: u32) -> uN[(B - A) as u32] {
    a as uN[(B - A) as u32]
@@ -359,7 +367,8 @@ const Y = f<1, 4>(50);
                                       HasNodeWithType("Y", "uN[3]"))));
 }
 
-TEST(TypecheckV2Test, FunctionReturningIntegerOfSumOfInferredParametrics) {
+TEST(TypecheckV2FunctionTest,
+     FunctionReturningIntegerOfSumOfInferredParametrics) {
   EXPECT_THAT(R"(
 fn f<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[A + B] {
    a as uN[A + B] + b as uN[A + B]
@@ -371,7 +380,8 @@ const Y = f(u32:30, u40:40);
                                       HasNodeWithType("Y", "uN[72]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionTakingIntegerOfParameterizedSize) {
+TEST(TypecheckV2FunctionTest,
+     ParametricFunctionTakingIntegerOfParameterizedSize) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const X = foo<10>(u10:5);
@@ -382,7 +392,7 @@ const Y = foo<11>(u11:5);
                   HasNodeWithType("const Y = foo<11>(u11:5);", "uN[11]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionWithNonInferrableParametric) {
+TEST(TypecheckV2FunctionTest, ParametricFunctionWithNonInferrableParametric) {
   EXPECT_THAT(R"(
 fn foo<M: u32, N: u32>(a: uN[M]) -> uN[M] { a }
 const X = foo(u10:5);
@@ -391,7 +401,7 @@ const X = foo(u10:5);
                   "Could not infer parametric(s): N of function `foo`")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionTakingIntegerOfParameterizedSignedness) {
   EXPECT_THAT(R"(
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
@@ -403,7 +413,7 @@ const Y = foo<true>(s32:5);
                   HasNodeWithType("const Y = foo<true>(s32:5);", "sN[32]"))));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionTakingIntegerOfParameterizedSignednessAndSize) {
   EXPECT_THAT(
       R"(
@@ -416,7 +426,7 @@ const Y = foo<true, 11>(s11:5);
                 HasNodeWithType("const Y = foo<true, 11>(s11:5);", "sN[11]"))));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionTakingIntegerOfDefaultParameterizedSize) {
   EXPECT_THAT(
       R"(
@@ -426,7 +436,7 @@ const X = foo(u10:5);
       TypecheckSucceeds(HasNodeWithType("const X = foo(u10:5);", "uN[10]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionTakingIntegerOfOverriddenDefaultParameterizedSize) {
   EXPECT_THAT(R"(
 fn foo<N: u32 = {10}>(a: uN[N]) -> uN[N] { a }
@@ -436,7 +446,7 @@ const X = foo<11>(u11:5);
                   HasNodeWithType("const X = foo<11>(u11:5);", "uN[11]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionTakingIntegerWithDependentDefaultParametric) {
   EXPECT_THAT(R"(
 fn foo<M: u32, N: u32 = {M + 1}>(a: uN[N]) -> uN[N] { a }
@@ -446,7 +456,7 @@ const X = foo<11>(u12:5);
                   HasNodeWithType("const X = foo<11>(u12:5);", "uN[12]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionWithDefaultDependingOnInferredParametric) {
   EXPECT_THAT(
       R"(
@@ -456,7 +466,7 @@ const X = foo(u10:5);
       TypecheckSucceeds(HasNodeWithType("const X = foo(u10:5);", "uN[10]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionWithInferredThenDefaultThenInferredParametric) {
   EXPECT_THAT(
       R"(
@@ -469,7 +479,7 @@ const X = foo(u3:1, [u24:6, u24:7, u24:8, u24:9]);
           "const X = foo(u3:1, [u24:6, u24:7, u24:8, u24:9]);", "uN[3]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionTakingIntegerOfParameterizedSignednessAndSizeWithSum) {
   // The point here is to make sure that the uN[N] type annotation being
   // propagated onto a complex subtree in global scope is correctly dealt with.
@@ -483,7 +493,7 @@ const Z = foo<32>(X + Y + X + 50);
                   "const Z = foo<32>(X + Y + X + 50);", "uN[32]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionWithArgumentMismatchingParameterizedSizeFails) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
@@ -492,7 +502,7 @@ const X = foo<10>(u11:5);
               TypecheckFails(HasSizeMismatch("u11", "uN[10]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionWithArgumentMismatchingParameterizedSignednessFails) {
   EXPECT_THAT(R"(
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
@@ -501,7 +511,8 @@ const X = foo<true>(u32:5);
               TypecheckFails(HasSignednessMismatch("xN[1][32]", "u32")));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionCallingAnotherParametricFunction) {
+TEST(TypecheckV2FunctionTest,
+     ParametricFunctionCallingAnotherParametricFunction) {
   EXPECT_THAT(R"(
 fn bar<A: u32>(a: uN[A]) -> uN[A] { a + 1 }
 fn foo<A: u32, B: u32>(a: uN[A]) -> uN[B] { bar<B>(2) }
@@ -511,7 +522,7 @@ const X = foo<24, 23>(4);
                   HasNodeWithType("const X = foo<24, 23>(4);", "uN[23]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionCallingAnotherParametricFunctionMultiUse) {
   EXPECT_THAT(R"(
 fn bar<A: u32>(a: uN[A]) -> uN[A] { a + 1 }
@@ -523,7 +534,7 @@ const Y = foo<32>(5);
                                       HasNodeWithType("Y", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionInvocationNesting) {
+TEST(TypecheckV2FunctionTest, ParametricFunctionInvocationNesting) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
 const X = foo<24>(foo<24>(4) + foo<24>(5));
@@ -532,7 +543,7 @@ const X = foo<24>(foo<24>(4) + foo<24>(5));
                   "const X = foo<24>(foo<24>(4) + foo<24>(5));", "uN[24]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionUsingGlobalConstantInParametricDefault) {
   EXPECT_THAT(R"(
 const X = u32:3;
@@ -543,7 +554,7 @@ const Z = foo<12>(u15:1);
                   HasNodeWithType("const Z = foo<12>(u15:1);", "uN[15]")));
 }
 
-TEST(TypecheckV2Test,
+TEST(TypecheckV2FunctionTest,
      ParametricFunctionCallUsingGlobalConstantInParametricArgument) {
   EXPECT_THAT(
       R"(
@@ -554,7 +565,7 @@ const Z = foo<X>(u3:1);
       TypecheckSucceeds(HasNodeWithType("const Z = foo<X>(u3:1);", "uN[3]")));
 }
 
-TEST(TypecheckV2Test, ParametricFunctionCallFollowedByTypePropagation) {
+TEST(TypecheckV2FunctionTest, ParametricFunctionCallFollowedByTypePropagation) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const Y = foo<15>(u15:1);
@@ -563,7 +574,7 @@ const Z = Y + 1;
               TypecheckSucceeds(HasNodeWithType("const Z = Y + 1;", "uN[15]")));
 }
 
-TEST(TypecheckV2Test, UnaryOperatorInFunction) {
+TEST(TypecheckV2FunctionTest, UnaryOperatorInFunction) {
   EXPECT_THAT(
       R"(
 fn foo(y: bool) -> bool {
@@ -573,7 +584,7 @@ fn foo(y: bool) -> bool {
       TypecheckSucceeds(HasNodeWithType("!y", "uN[1]")));
 }
 
-TEST(TypecheckV2Test, UnaryOperatorOnInvalidTypeInFunction) {
+TEST(TypecheckV2FunctionTest, UnaryOperatorOnInvalidTypeInFunction) {
   EXPECT_THAT(
       R"(
 fn foo(y: (u32, u3)) -> (u32, u3) {
@@ -586,7 +597,7 @@ const F = foo((u32:5, u3:0));
           "Unary operations can only be applied to bits-typed operands.")));
 }
 
-TEST(TypecheckV2Test, LogicalBinopAsFnReturn) {
+TEST(TypecheckV2FunctionTest, LogicalBinopAsFnReturn) {
   EXPECT_THAT(R"(
 fn foo(x: bool, y: bool) -> bool {
   x || y
@@ -597,7 +608,7 @@ fn foo(x: bool, y: bool) -> bool {
                                       HasNodeWithType("x || y", "uN[1]"))));
 }
 
-TEST(TypecheckV2Test, LogicalBinopAsFnReturnWrongReturnType) {
+TEST(TypecheckV2FunctionTest, LogicalBinopAsFnReturnWrongReturnType) {
   EXPECT_THAT(
       R"(
 fn foo(x: bool, y: bool) -> u32 {
@@ -607,7 +618,7 @@ fn foo(x: bool, y: bool) -> u32 {
       TypecheckFails(HasSizeMismatch("bool", "u32")));
 }
 
-TEST(TypecheckV2Test, LogicalBinopAsFnReturnWrongLhsType) {
+TEST(TypecheckV2FunctionTest, LogicalBinopAsFnReturnWrongLhsType) {
   EXPECT_THAT(R"(
 fn foo(x: u32, y: bool) -> bool {
   x || y
@@ -616,7 +627,7 @@ fn foo(x: u32, y: bool) -> bool {
               TypecheckFails(HasSizeMismatch("u32", "bool")));
 }
 
-TEST(TypecheckV2Test, LogicalBinopAsFnReturnWrongParameterTypes) {
+TEST(TypecheckV2FunctionTest, LogicalBinopAsFnReturnWrongParameterTypes) {
   EXPECT_THAT(R"(
 fn foo(x: u32, y: u32) -> bool {
   x || y
@@ -625,7 +636,7 @@ fn foo(x: u32, y: u32) -> bool {
               TypecheckFails(HasSizeMismatch("u32", "bool")));
 }
 
-TEST(TypecheckV2Test, IfTestFnCall) {
+TEST(TypecheckV2FunctionTest, IfTestFnCall) {
   EXPECT_THAT(R"(
 fn f() -> bool { true }
 const X = if f() { u32:1 } else { u32:0 };
@@ -633,7 +644,7 @@ const X = if f() { u32:1 } else { u32:0 };
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, IfTestBadFnCall) {
+TEST(TypecheckV2FunctionTest, IfTestBadFnCall) {
   EXPECT_THAT(R"(
 fn f() -> u32 { u32:1 }
 const X = if f() { u32:1 } else { u32:0 };
@@ -641,7 +652,7 @@ const X = if f() { u32:1 } else { u32:0 };
               TypecheckFails(HasSizeMismatch("u32", "bool")));
 }
 
-TEST(TypecheckV2Test, FnReturnsIf) {
+TEST(TypecheckV2FunctionTest, FnReturnsIf) {
   EXPECT_THAT(R"(
 fn f(x:u10) -> u32 { if x>u10:0 { u32:1 } else { u32:0 } }
 const X = f(u10:1);
@@ -649,7 +660,7 @@ const X = f(u10:1);
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, CallFnWithIf) {
+TEST(TypecheckV2FunctionTest, CallFnWithIf) {
   EXPECT_THAT(R"(
 fn f(x:u32) -> u32 { x }
 const X = f(if true { u32:1 } else { u32:0 });
@@ -657,7 +668,7 @@ const X = f(if true { u32:1 } else { u32:0 });
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, ElseIfNotBool) {
+TEST(TypecheckV2FunctionTest, ElseIfNotBool) {
   EXPECT_THAT(R"(const X = if false {
     u32:1
 } else if u32:1 {
@@ -668,7 +679,7 @@ TEST(TypecheckV2Test, ElseIfNotBool) {
               TypecheckFails(HasSizeMismatch("u32", "bool")));
 }
 
-TEST(TypecheckV2Test, MatchArmFromFn) {
+TEST(TypecheckV2FunctionTest, MatchArmFromFn) {
   EXPECT_THAT(R"(
 fn f() -> u32 { u32:0 }
 const X = u32:1;
@@ -681,7 +692,7 @@ const Z = match X {
               TypecheckSucceeds(HasNodeWithType("Z", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, MatchInFn) {
+TEST(TypecheckV2FunctionTest, MatchInFn) {
   EXPECT_THAT(R"(
 fn f(a: u32) -> u32 {
   match a {
@@ -694,7 +705,8 @@ const Z = f(u32:1);
               TypecheckSucceeds(HasNodeWithType("Z", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, ImportedParametricFunctionWithConstantInSignature) {
+TEST(TypecheckV2FunctionTest,
+     ImportedParametricFunctionWithConstantInSignature) {
   constexpr std::string_view kImported = R"(
 pub struct Foo {
   value: u32
@@ -714,7 +726,7 @@ const Y = imported::foo<1>(u5:2);
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "uN[5]"))));
 }
 
-TEST(TypecheckV2Test, RShiftAsFnReturn) {
+TEST(TypecheckV2FunctionTest, RShiftAsFnReturn) {
   EXPECT_THAT(R"(
 fn foo(x: u32, y: u2) -> u32 {
   x >> y
@@ -723,7 +735,7 @@ fn foo(x: u32, y: u2) -> u32 {
               TypecheckSucceeds(HasNodeWithType("x >> y", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, LShiftAsReturnFromParametricFn) {
+TEST(TypecheckV2FunctionTest, LShiftAsReturnFromParametricFn) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(x: u32) -> uN[N] {
   uN[N]:1 << x
@@ -735,7 +747,7 @@ const VAL = foo<u32:3>(u32:1);
                   HasNodeWithType("const VAL = foo<u32:3>(u32:1);", "uN[3]")));
 }
 
-TEST(TypecheckV2Test, LetInParametricFn) {
+TEST(TypecheckV2FunctionTest, LetInParametricFn) {
   EXPECT_THAT(R"(
 fn f<N: u32>() -> uN[N] {
   const ZERO = uN[N]:0;
@@ -751,7 +763,7 @@ fn main() {
                                       HasNodeWithType("four_bits", "uN[4]"))));
 }
 
-TEST(TypecheckV2Test, ParametricConstantUsingParametricFunction) {
+TEST(TypecheckV2FunctionTest, ParametricConstantUsingParametricFunction) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
 
@@ -768,7 +780,7 @@ const Y = uN[S<10>::N_PLUS_1_VALUE]:0;
                                       HasNodeWithType("Y", "uN[11]"))));
 }
 
-TEST(TypecheckV2Test, ParametricFromFunctionUsedInConstantReference) {
+TEST(TypecheckV2FunctionTest, ParametricFromFunctionUsedInConstantReference) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
 
@@ -787,7 +799,7 @@ const C9 = f<9>();
                                       HasNodeWithType("C9", "uN[9]"))));
 }
 
-TEST(TypecheckV2Test, TypeAliasInParametricFn) {
+TEST(TypecheckV2FunctionTest, TypeAliasInParametricFn) {
   EXPECT_THAT(R"(
 fn f<T: u32>() -> uN[T] {
   type Ret = uN[T];
@@ -803,19 +815,19 @@ fn main() {
                                       HasNodeWithType("y", "uN[15]"))));
 }
 
-TEST(TypecheckV2Test, SliceOfNonBitsFails) {
+TEST(TypecheckV2FunctionTest, SliceOfNonBitsFails) {
   EXPECT_THAT(
       "const X = [u32:1, 2, 3][0:2];",
       TypecheckFails(HasSubstr("Value to slice is not of 'bits' type.")));
 }
 
-TEST(TypecheckV2Test, WidthSliceOfNonBitsFails) {
+TEST(TypecheckV2FunctionTest, WidthSliceOfNonBitsFails) {
   EXPECT_THAT(
       "const X = [u32:1, u32:2, u32:3][0+:u2];",
       TypecheckFails(HasSubstr("Expected a bits-like type; got: `u32[3]`")));
 }
 
-TEST(TypecheckV2Test, UnrollForInParametricFunction) {
+TEST(TypecheckV2FunctionTest, UnrollForInParametricFunction) {
   EXPECT_THAT(
       R"(
 fn factorial<N: u32>() -> u32 {
@@ -833,7 +845,7 @@ const_assert!(Y == 24);
                               HasNodeWithType("Y", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, ImportParametricFunctionWithDefaultExpression) {
+TEST(TypecheckV2FunctionTest, ImportParametricFunctionWithDefaultExpression) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32, M: u32 = {N + 1}>() -> uN[M] { uN[M]:0 }
 )";
@@ -850,7 +862,7 @@ fn main() -> u5 {
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("var", "uN[5]"))));
 }
 
-TEST(TypecheckV2Test, ImportParametricFunctionWithMultipleInvocations) {
+TEST(TypecheckV2FunctionTest, ImportParametricFunctionWithMultipleInvocations) {
   constexpr std::string_view kImported = R"(
 pub fn add_one(x: u32) -> u32 { x + 1 }
 
@@ -897,7 +909,7 @@ fn main() -> u26 {
           HasNodeWithType("VAR3", "uN[8]")))));
 }
 
-TEST(TypecheckV2Test, ImportParametricFunction) {
+TEST(TypecheckV2FunctionTest, ImportParametricFunction) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32>() -> uN[N] { uN[N]:0 }
 )";
@@ -914,7 +926,7 @@ fn main() -> u4 {
                   HasNodeWithType("imported::some_function<4>()", "uN[4]"))));
 }
 
-TEST(TypecheckV2Test, ImportParametricFunctionInferredValue) {
+TEST(TypecheckV2FunctionTest, ImportParametricFunctionInferredValue) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32 = {4}>() -> uN[N] { uN[N]:0 }
 )";
@@ -931,7 +943,7 @@ fn main() -> u4 {
                   HasNodeWithType("imported::some_function()", "uN[4]"))));
 }
 
-TEST(TypecheckV2Test, ImportParametricFunctionSizeMismatch) {
+TEST(TypecheckV2FunctionTest, ImportParametricFunctionSizeMismatch) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32>() -> uN[N] { uN[N]:0 }
 )";
@@ -948,7 +960,7 @@ fn main() -> u8 {
                        HasSizeMismatch("uN[4]", "u8")));
 }
 
-TEST(TypecheckV2Test, ImportFunction) {
+TEST(TypecheckV2FunctionTest, ImportFunction) {
   constexpr std::string_view kImported = R"(
 pub fn some_function(x: u32) -> u32 { x }
 )";
@@ -965,7 +977,7 @@ fn main() -> u32 {
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("var", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, ImportNonExistingFunction) {
+TEST(TypecheckV2FunctionTest, ImportNonExistingFunction) {
   constexpr std::string_view kImported = "";
   constexpr std::string_view kProgram = R"(
 import imported;
@@ -981,7 +993,7 @@ fn main() -> u32 {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("doesn't exist")));
 }
 
-TEST(TypecheckV2Test, ImportNonPublicFunction) {
+TEST(TypecheckV2FunctionTest, ImportNonPublicFunction) {
   constexpr std::string_view kImported = R"(
 fn some_function(x: u32) -> u32 { x }
 )";
@@ -999,7 +1011,7 @@ fn main() -> u32 {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
 }
 
-TEST(TypecheckV2Test, DISABLED_UseFunction) {
+TEST(TypecheckV2FunctionTest, DISABLED_UseFunction) {
   constexpr std::string_view kImported = R"(
 pub fn get_val() -> u5[3] {
   u5[3]:[1, 2, 3]
@@ -1022,7 +1034,8 @@ fn main() -> u5 {
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("get_val()[1]", "u5"))));
 }
 
-TEST(TypecheckV2Test, ModuleWithParametricProcAliasCallingParametricFn) {
+TEST(TypecheckV2FunctionTest,
+     ModuleWithParametricProcAliasCallingParametricFn) {
   XLS_EXPECT_OK(TypecheckV2(R"(fn bar<Y: u32>(i: uN[Y]) -> uN[Y] {
     i + i
 }
@@ -1043,13 +1056,13 @@ proc Foo<N: u32> {
 proc Bar = Foo<16>;)"));
 }
 
-TEST(TypecheckV2Test, ProcAliasTargetingBuiltinFails) {
+TEST(TypecheckV2FunctionTest, ProcAliasTargetingBuiltinFails) {
   EXPECT_THAT(
       "proc Bar = join;",
       TypecheckFails(HasSubstr("Proc alias must have a proc as a target.")));
 }
 
-TEST(TypecheckV2Test, ProcAliasTargetingFunctionFails) {
+TEST(TypecheckV2FunctionTest, ProcAliasTargetingFunctionFails) {
   EXPECT_THAT(
       R"(
 fn foo() {}
@@ -1058,7 +1071,7 @@ proc Bar = foo;
       TypecheckFails(HasSubstr("Proc alias must have a proc as a target.")));
 }
 
-TEST(TypecheckV2Test, ImplConstantMethodInvocationOnTargetObject) {
+TEST(TypecheckV2FunctionTest, ImplConstantMethodInvocationOnTargetObject) {
   EXPECT_THAT(R"(
 struct A {
   x: u32,
@@ -1083,7 +1096,7 @@ fn test_fn() -> u32 {
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2Test, QuickcheckFn) {
+TEST(TypecheckV2FunctionTest, QuickcheckFn) {
   EXPECT_THAT(
       R"(
 #[quickcheck]
@@ -1092,7 +1105,7 @@ fn f() -> bool { true }
       TypecheckSucceeds(HasNodeWithType("f", "() -> uN[1]")));
 }
 
-TEST(TypecheckV2Test, QuickcheckFnBoolAlias) {
+TEST(TypecheckV2FunctionTest, QuickcheckFnBoolAlias) {
   EXPECT_THAT(
       R"(
 type BoolAlias = bool;
@@ -1102,7 +1115,7 @@ fn f() -> BoolAlias { true }
       TypecheckSucceeds(HasNodeWithType("f", "() -> uN[1]")));
 }
 
-TEST(TypecheckV2Test, QuickcheckFnU1) {
+TEST(TypecheckV2FunctionTest, QuickcheckFnU1) {
   EXPECT_THAT(
       R"(
 #[quickcheck]
@@ -1111,7 +1124,7 @@ fn f() -> u1 { u1:1 }
       TypecheckSucceeds(HasNodeWithType("f", "() -> uN[1]")));
 }
 
-TEST(TypecheckV2Test, QuickcheckFnNotBool) {
+TEST(TypecheckV2FunctionTest, QuickcheckFnNotBool) {
   EXPECT_THAT(
       R"(
 #[quickcheck]
@@ -1120,7 +1133,7 @@ fn f() -> u32 { u32:0 }
       TypecheckFails(HasTypeMismatch("uN[1]", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, QuickcheckFnAliasNotBool) {
+TEST(TypecheckV2FunctionTest, QuickcheckFnAliasNotBool) {
   EXPECT_THAT(
       R"(
 type IntAlias = u32;
@@ -1130,7 +1143,7 @@ fn f() -> IntAlias { IntAlias:0 }
       TypecheckFails(HasTypeMismatch("uN[1]", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, ImportedEnumInFunction) {
+TEST(TypecheckV2FunctionTest, ImportedEnumInFunction) {
   constexpr std::string_view kImported = R"(
 pub enum MyEnum {
   A = s8:0,
@@ -1155,7 +1168,7 @@ const_assert!(f(imported::MyEnum::C) as s8 == 127);
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("x", "MyEnum"))));
 }
 
-TEST(TypecheckV2Test, ComparisonOfReturnValues) {
+TEST(TypecheckV2FunctionTest, ComparisonOfReturnValues) {
   EXPECT_THAT(R"(
 fn foo(a: u32) -> u32 { a }
 const Y = foo(1) > foo(2);
@@ -1165,7 +1178,7 @@ const Y = foo(1) > foo(2);
                                       HasNodeWithType("foo(2)", "uN[32]"))));
 }
 
-TEST(TypecheckV2Test, TypeColonRefAsArgumentFails) {
+TEST(TypecheckV2FunctionTest, TypeColonRefAsArgumentFails) {
   constexpr std::string_view kImported = R"(
 pub type T = u32;
 )";
@@ -1184,7 +1197,7 @@ fn g() {
                HasSubstr("Cannot pass a type as a function argument.")));
 }
 
-TEST(TypecheckV2Test, UnassignedReturnValueIgnored) {
+TEST(TypecheckV2FunctionTest, UnassignedReturnValueIgnored) {
   EXPECT_THAT(
       R"(
 fn ignored() -> u32 { u32:0 }
@@ -1197,7 +1210,7 @@ fn main() -> u32 {
       TypecheckSucceeds(HasNodeWithType("ignored()", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, BasicLet) {
+TEST(TypecheckV2FunctionTest, BasicLet) {
   EXPECT_THAT(
       R"(
 fn f() -> u4 {
@@ -1209,7 +1222,7 @@ fn f() -> u4 {
                               HasNodeWithType("x", "uN[4]"))));
 }
 
-TEST(TypecheckV2Test, FuzzTestDomainsSuccess) {
+TEST(TypecheckV2FunctionTest, FuzzTestDomainsSuccess) {
   EXPECT_THAT(R"(
 #[fuzz_test(domains=`u32:0..1`)]
 fn f(x: u32) {}
@@ -1217,7 +1230,7 @@ fn f(x: u32) {}
               TypecheckSucceeds(::testing::_));
 }
 
-TEST(TypecheckV2Test, FuzzTestBadRange) {
+TEST(TypecheckV2FunctionTest, FuzzTestBadRange) {
   EXPECT_THAT(R"(
 #[fuzz_test(domains=`u32:0..u64:1`)]
 fn f(x: u32) {}
@@ -1225,7 +1238,7 @@ fn f(x: u32) {}
               TypecheckFails(HasSizeMismatch("u32", "u64")));
 }
 
-TEST(TypecheckV2Test, FuzzTestDomainNotSupported) {
+TEST(TypecheckV2FunctionTest, FuzzTestDomainNotSupported) {
   EXPECT_THAT(
       R"(
 #[fuzz_test(domains=`u8:0`)]
@@ -1234,13 +1247,44 @@ fn f(x: u8) {}
       TypecheckFails(HasSubstr("Unsupported fuzz test domain `u8:0`")));
 }
 
-TEST(TypecheckV2Test, FuzzTestConstRange) {
+TEST(TypecheckV2FunctionTest, FuzzTestConstRange) {
   EXPECT_THAT(R"(
 const C = u32:0..1;
 #[fuzz_test(domains=`C`)]
 fn f(x: u32) {}
 )",
               TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2FunctionTest, CallingTestUtilitySucceeds) {
+  EXPECT_THAT(R"(
+#[cfg(test)]
+fn helper(input: u32) -> u32 {
+  input
+}
+
+#[test]
+fn my_test_fn() {
+  let val = helper(u32:42);
+  assert_eq(val, u32:42)
+}
+)",
+              TypecheckSucceeds(::testing::_));
+}
+
+TEST(TypecheckV2FunctionTest, CallTestUtilityFromNormalFunctionConstLetFails) {
+  EXPECT_THAT(
+      R"(
+#[cfg(test)]
+fn helper() -> u32 { u32:4 }
+
+fn normal_fn() -> u32 {
+  let x: u32[helper()] = [u32:1, 2, 3, 4];
+  x[0]
+}
+)",
+      TypecheckFails(HasSubstr(
+          "Test utility function 'helper' can only be called from tests")));
 }
 
 }  // namespace

@@ -1115,7 +1115,7 @@ fn main() {
       AllOf(HasSubstr("constexpr evaluation detected rollover in operation"),
             HasSubstr("left-hand value `0`"),
             HasSubstr("right-hand value `2147483648`"),
-            HasSubstr("in bar\nin foo\nfrom fake.x:6:27-6:30")));
+            HasSubstr("in bar\nin foo\nin p\nfrom fake.x:6:27-6:30")));
 }
 
 TEST(TypecheckV2GenericsTest, InstantiateGenericTypeAsStruct) {

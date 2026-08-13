@@ -256,6 +256,10 @@ bool ContainedWithinFunction(const Invocation& invocation,
 // Retrieves the containing function of `node`, if any.
 std::optional<const Function*> GetContainingFunction(const AstNode* node);
 
+// Returns true if `f` is a test entity (test utility, test function, or inside
+// a test proc).
+bool IsInTestEntity(const Function* f);
+
 // Retrieves the containing `for`, `const for` or `unroll_for!` of `node`, if
 // any.
 std::optional<const Expr*> GetContainingLoop(const AstNode* node);
