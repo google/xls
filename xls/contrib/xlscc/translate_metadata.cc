@@ -184,6 +184,17 @@ absl::Status Translator::GenerateFunctionMetadata(
                            proto_static_value->mutable_declaration_location());
   }
   // TODO: Add lvalues if found->second->this_lvalue != null
+
+  // Record slice metadata.
+  const GeneratedFunction* generated_function = found->second.get();
+  for (const GeneratedFunctionSlice& slice : generated_function->slices) {
+    xlscc_metadata::FunctionSlice* slice_proto = output->add_slices();
+    slice_proto->set_ir_name(slice.function->name().c_str());
+    if (slice.after_op != nullptr) {
+      slice_proto->set_debug_after_op_name(Debug_OpName(*slice.after_op));
+    }
+  }
+
   return absl::OkStatus();
 }
 

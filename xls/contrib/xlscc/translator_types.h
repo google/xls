@@ -1329,6 +1329,7 @@ enum DebugIrTraceFlags {
   DebugIrTraceFlags_PrevStateIOReferences = 8,
   DebugIrTraceFlags_OptimizationWarnings = 16,
   DebugIrTraceFlags_ActivationBarriers = 32,
+  DebugIrTraceFlags_FSMTrace = 64,
 };
 
 struct NextStateValue {

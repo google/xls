@@ -25,6 +25,7 @@
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
+#include "xls/ir/package.h"
 
 namespace xlscc {
 namespace {
@@ -219,6 +220,9 @@ TEST_F(TranslatorMetadataTest, NamespaceStructArray) {
         is_reference: true
         is_const: false
       }
+      slices {
+        ir_name: "i_am_top"
+      }
     })";
   xlscc_metadata::MetadataOutput ref_meta;
   ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
@@ -356,6 +360,9 @@ TEST_F(TranslatorMetadataTest, NamespaceNestedStruct) {
         }
         is_reference: true
         is_const: false
+      }
+      slices {
+        ir_name: "i_am_top"
       }
     }
   )";
@@ -501,6 +508,9 @@ TEST_F(TranslatorMetadataTest, ArrayOfStructs) {
         is_reference: true
         is_const: false
       }
+      slices {
+        ir_name: "i_am_top"
+      }
     }
 
   )";
@@ -564,6 +574,9 @@ TEST_F(TranslatorMetadataTest, RefConstParams) {
         is_reference: true
         is_const: false
       }
+      slices {
+        ir_name: "i_am_top"
+      }
     }
   )";
   xlscc_metadata::MetadataOutput ref_meta;
@@ -622,6 +635,9 @@ TEST_F(TranslatorMetadataTest, StaticInt) {
             big_endian_bytes: "\026\000\000\000"
           }
         }
+      }
+      slices {
+        ir_name: "my_package"
       }
     }
   )";
@@ -683,6 +699,9 @@ TEST_F(TranslatorMetadataTest, StaticIntNegative) {
             big_endian_bytes: "\377\377\377\377"
           }
         }
+      }
+      slices {
+        ir_name: "my_package"
       }
     }
   )";
@@ -759,6 +778,9 @@ TEST_F(TranslatorMetadataTest, StaticFloats) {
           }
         }
       }
+      slices {
+        ir_name: "my_package"
+      }
     }
   )";
   xlscc_metadata::MetadataOutput ref_meta;
@@ -813,6 +835,9 @@ TEST_F(TranslatorMetadataTest, StaticBool) {
         value {
           as_bool: true
         }
+      }
+      slices {
+        ir_name: "my_package"
       }
     }
   )";
@@ -886,6 +911,9 @@ TEST_F(TranslatorMetadataTest, StaticArray) {
             }
           }
         }
+      }
+      slices {
+        ir_name: "my_package"
       }
     }
   )";
@@ -1011,6 +1039,9 @@ TEST_F(TranslatorMetadataTest, StaticStruct) {
           }
         }
       }
+      slices {
+        ir_name: "my_package"
+      }
     }
   )";
   xlscc_metadata::MetadataOutput ref_meta;
@@ -1108,6 +1139,9 @@ TEST_F(TranslatorMetadataTest, Static2DArray) {
           }
         }
       }
+      slices {
+        ir_name: "my_package"
+      }
     }
   )";
   xlscc_metadata::MetadataOutput ref_meta;
@@ -1184,6 +1218,9 @@ TEST_F(TranslatorMetadataTest, CharDeclarations) {
         is_reference: false
         is_const: false
       }
+      slices {
+        ir_name: "my_package"
+      }
     }
   )";
   xlscc_metadata::MetadataOutput ref_meta;
@@ -1243,6 +1280,9 @@ TEST_F(TranslatorMetadataTest, SyntheticInt) {
         }
         is_reference: false
         is_const: false
+      }
+      slices {
+        ir_name: "i_am_top"
       }
     }
   )";
@@ -1313,6 +1353,9 @@ TEST_F(TranslatorMetadataTest, StaticSyntheticInt) {
         value {
           as_bits: "\000\000\000\034"
         }
+      }
+      slices {
+        ir_name: "i_am_top"
       }
     }
   )";
@@ -1398,6 +1441,9 @@ TEST_F(TranslatorMetadataTest, ReturnReference) {
       is_const: false
       is_method: true
       returns_reference: true
+      slices {
+        ir_name: "me"
+      }
     }
   )";
   xlscc_metadata::MetadataOutput ref_meta;
@@ -1575,6 +1621,9 @@ TEST_F(TranslatorMetadataTest, StaticBits) {
           }
         }
       }
+      slices {
+        ir_name: "i_am_top"
+      }
     }
 
   )";
@@ -1666,6 +1715,9 @@ TEST_F(TranslatorMetadataTest, EnumMember) {
       }
       is_const: false
       is_method: true
+      slices {
+        ir_name: "Run"
+      }
     }
   )";
   xlscc_metadata::MetadataOutput ref_meta;
@@ -1713,6 +1765,35 @@ TEST_F(TranslatorMetadataTest, XlsFixedBitIndexNoCrash) {
 
   XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
                            translator_->GenerateMetadata());
+}
+
+TEST_F(TranslatorMetadataTest, NewFSMSlices) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+        out.write(a);
+      }
+    };
+  )";
+
+  generate_new_fsm_ = true;
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  HLSBlock block_spec;
+  XLS_ASSERT_OK(
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
+                           translator_->GenerateMetadata());
+  EXPECT_EQ(meta.top_func_proto().slices().size(), 3);
 }
 
 }  // namespace
