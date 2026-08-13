@@ -195,9 +195,8 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
                                    const QueryEngine& query_engine,
                                    BitProvenanceAnalysis& provenance) {
   Bits unchanged_bits = Bits::AllOnes(initial_bits.bit_count());
-  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
   for (Next* next : proc->next_values(state_element)) {
-    if (next->value() == state_read) {
+    if (IsNoOpNext(next)) {
       // Pass-through nexts are trivially unaffecting.
       continue;
     }
@@ -223,7 +222,9 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
     const TreeBitSources& sources = sources_tree.Get({});
     InlineBitmap provenance_unchanged_bm(initial_bits.bit_count());
     for (const auto& segment : sources.ranges()) {
-      if (segment.source_node() == state_read &&
+      if (segment.source_node()->Is<StateRead>() &&
+          segment.source_node()->As<StateRead>()->state_element() ==
+              state_element &&
           segment.source_tree_index().empty() &&
           segment.source_bit_index_low() == segment.dest_bit_index_low() &&
           segment.source_bit_index_high() == segment.dest_bit_index_high()) {

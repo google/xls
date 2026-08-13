@@ -115,6 +115,84 @@ TEST_F(ProcStateProvenanceNarrowingPassTest, BasicJoin) {
               UnorderedElementsAre(m::StateElement("foo", p->GetBitsType(64))));
 }
 
+TEST_F(ProcStateProvenanceNarrowingPassTest, MultipleReadsModifySingleRead) {
+  absl::SetVLogLevel("proc_state_provenance_narrowing_pass", 3);
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan1, p->CreateStreamingChannel("out1", ChannelOps::kSendOnly,
+                                            p->GetBitsType(16)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan2, p->CreateStreamingChannel("out2", ChannelOps::kSendOnly,
+                                            p->GetBitsType(16)));
+  ProcBuilder pb(TestName(), p.get());
+
+  BStateElement x =
+      pb.StateElement("x", Value(UBits(0, 16)), /*non_synthesizable=*/false);
+  BStateElement cond_elem =
+      pb.StateElement("cond", Value(UBits(0, 1)), /*non_synthesizable=*/false);
+
+  BValue cond = pb.StateRead(cond_elem);
+  BValue x_read = pb.StateRead(x, cond);
+  BValue x_read_2 = pb.StateRead(x, pb.Not(cond));
+
+  pb.Next(x, x_read, cond);
+
+  BValue top_8 = pb.BitSlice(x_read_2, 8, 8);
+  BValue bottom_8 = pb.BitSlice(x_read_2, 0, 8);
+  BValue top_8_modified = pb.Not(top_8);
+  BValue x_next_modified = pb.Concat({top_8_modified, bottom_8});
+  pb.Next(x, x_next_modified, pb.Not(cond));
+
+  pb.Next(cond_elem, pb.Not(cond));
+
+  pb.SendIf(chan1, pb.Literal(Value::Token()), cond, x_read);
+  pb.SendIf(chan2, pb.Literal(Value::Token()), pb.Not(cond), x_read_2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/6,
+                                            /*include_state=*/false);
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("x", p->GetBitsType(8)),
+                                   m::StateElement("cond", p->GetBitsType(1))));
+}
+
+TEST_F(ProcStateProvenanceNarrowingPassTest, MultipleReadsNoOpNext) {
+  absl::SetVLogLevel("proc_state_provenance_narrowing_pass", 3);
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan1, p->CreateStreamingChannel("out1", ChannelOps::kSendOnly,
+                                            p->GetBitsType(16)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan2, p->CreateStreamingChannel("out2", ChannelOps::kSendOnly,
+                                            p->GetBitsType(16)));
+  ProcBuilder pb(TestName(), p.get());
+
+  BStateElement x =
+      pb.StateElement("x", Value(UBits(0, 16)), /*non_synthesizable=*/false);
+  BStateElement cond_elem =
+      pb.StateElement("cond", Value(UBits(0, 1)), /*non_synthesizable=*/false);
+
+  BValue cond = pb.StateRead(cond_elem);
+  BValue x_read = pb.StateRead(x, cond);
+  BValue x_read_2 = pb.StateRead(x, pb.Not(cond));
+  pb.Next(x, x_read, cond);
+  pb.Next(x, x_read_2, pb.Not(cond));
+  pb.Next(cond_elem, cond);
+  pb.SendIf(chan1, pb.Literal(Value::Token()), cond, x_read);
+  pb.SendIf(chan2, pb.Literal(Value::Token()), pb.Not(cond), x_read_2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/6,
+                                            /*include_state=*/false);
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+  // No Changes to state elements so they're removed
+  EXPECT_THAT(proc->StateElements(), testing::IsEmpty());
+}
+
 void IrFuzzProcStateProvenanceNarrowing(
     FuzzPackageWithArgs fuzz_package_with_args) {
   ProcStateProvenanceNarrowingPass pass;
