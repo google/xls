@@ -3975,8 +3975,7 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
   }
   VLOG(10) << "Populating channel for " << value.ToString() << " in conv "
            << std::hex << (uint64_t)this;
-  channel_or_array_id_to_object_[*value.GetChannelReferenceOrDie()
-                                      .GetChannelId()] = channel_or_array;
+  channel_or_array_id_to_object_[GetChannelOrArrayId(value)] = channel_or_array;
   XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
       *proc_id_, param->name_def(), channel_or_array));
   return absl::OkStatus();
@@ -4094,8 +4093,13 @@ FunctionConverter::CreateProcDefInstance(const ProcDef* proc_def) {
 absl::Status FunctionConverter::ExpandProcDefChannelReference(
     const InterpValue& channel_or_array_value,
     std::vector<ChannelInterface*>& out) {
-  ChannelOrArray channel_or_array = channel_or_array_id_to_object_.at(
+  const auto channel_or_array_it = channel_or_array_id_to_object_.find(
       GetChannelOrArrayId(channel_or_array_value));
+  XLS_RET_CHECK(channel_or_array_it != channel_or_array_id_to_object_.end())
+      << "No channel or array object is mapped to: "
+      << channel_or_array_value.ToString();
+
+  ChannelOrArray channel_or_array = channel_or_array_it->second;
   ChannelDirection direction =
       GetChannelOrArrayDirection(channel_or_array_value);
 

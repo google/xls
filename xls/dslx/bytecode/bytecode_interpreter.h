@@ -237,22 +237,33 @@ class ProcDefChannelManager : public InterpValueChannelManager {
   // constructor, this function should be used to associate the original channel
   // ID with the Param that is the definer of the forwarded ChannelReference.
   void Forward(int64_t channel_id, const TypeInfo* ti, const Param* param) {
-    InterpValueChannel* channel = channels_.at(channel_id).get();
-    forwarded_channels_.insert_or_assign(std::make_pair(ti, param), channel);
+    const auto it = channels_.find(channel_id);
+    CHECK(it != channels_.end()) << "Channel ID " << channel_id
+                                 << " was not allocated before forwarding.";
+    forwarded_channels_.insert_or_assign(std::make_pair(ti, param),
+                                         it->second.get());
   }
 
   InterpValueChannel& GetChannel(
       const TypeInfo* ti,
       const InterpValue::ChannelReference& channel_ref) override {
     CHECK(channel_ref.GetChannelId().has_value());
+    if (channel_ref.GetDefiner().has_value() &&
+        (*channel_ref.GetDefiner())->kind() == AstNodeKind::kParam) {
+      auto it = forwarded_channels_.find(
+          std::make_pair(ti, *channel_ref.GetDefiner()));
+      if (it != forwarded_channels_.end()) {
+        return *it->second;
+      }
+    }
+
     const auto it_by_id = channels_.find(*channel_ref.GetChannelId());
     if (it_by_id != channels_.end()) {
       return *it_by_id->second;
     }
 
-    CHECK(channel_ref.GetDefiner().has_value());
-    return *forwarded_channels_.at(
-        std::make_pair(ti, *channel_ref.GetDefiner()));
+    LOG(FATAL) << "Channel reference not found for channel ID: "
+               << *channel_ref.GetChannelId();
   }
 
  private:

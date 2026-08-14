@@ -67,6 +67,22 @@ bool HasExplicitStateAccess(const Proc& proc, const TypeInfo* ti,
   return IsProcDefStateType(**type, import_data);
 }
 
+void ForwardProcDefChannels(ProcDefChannelManager* channel_manager,
+                            const ProcDef* proc, TypeInfo* ti,
+                            const Param* param, const InterpValue& val) {
+  if (val.IsChannelReference()) {
+    const InterpValue::ChannelReference& channel_ref =
+        val.GetChannelReferenceOrDie();
+    VLOG(5) << "Binding forwarded channel " << val.ToString() << " in proc "
+            << proc->identifier() << " with param: " << param->ToString();
+    channel_manager->Forward(*channel_ref.GetChannelId(), ti, param);
+  } else if (val.IsChannelArray()) {
+    for (const InterpValue& elem : val.GetChannelArrayOrDie().elements()) {
+      ForwardProcDefChannels(channel_manager, proc, ti, param, elem);
+    }
+  }
+}
+
 // Specialization of BytecodeInterpreter for executing Proc `config` functions.
 // These are special b/c they define a tree of ProcInstances that we need to
 // collect at the end so we can "tick" them. Only this class, unlike
@@ -378,15 +394,10 @@ absl::Status ProcHierarchyInterpreter::AddProcDefInstance(
 
   for (const auto& [param, forwarded_value] :
        initializer.GetProcInitializerOrDie().forwarded_values()) {
-    if (forwarded_value.IsChannelReference()) {
-      const InterpValue::ChannelReference& channel_ref =
-          forwarded_value.GetChannelReferenceOrDie();
-      VLOG(5) << "Binding forwarded channel " << forwarded_value.ToString()
-              << " in proc " << proc->identifier()
-              << " with param: " << param->ToString();
-      absl::down_cast<ProcDefChannelManager*>(channel_manager_.get())
-          ->Forward(*channel_ref.GetChannelId(), ti, param);
-    }
+    XLS_RETURN_IF_ERROR(AllocateChannelOrArray(proc, forwarded_value));
+    ForwardProcDefChannels(
+        absl::down_cast<ProcDefChannelManager*>(channel_manager_.get()), proc,
+        ti, param, forwarded_value);
   }
 
   AddProcInstance(ProcInstance(proc, std::move(next_interpreter),
@@ -414,17 +425,16 @@ absl::Status ProcHierarchyInterpreter::AllocateChannelOrArray(
   if (value.IsChannelReference()) {
     const InterpValue::ChannelReference& channel_ref =
         value.GetChannelReferenceOrDie();
-    if (channel_ref.GetDefiner().has_value() &&
-        (*channel_ref.GetDefiner())->kind() == AstNodeKind::kChannelDecl) {
+    if (channel_ref.GetChannelId().has_value()) {
       VLOG(5) << "Allocating channel " << value.ToString() << " in proc "
               << proc->identifier();
-
-      const InterpValue::ChannelReference& channel_ref =
-          value.GetChannelReferenceOrDie();
-      XLS_RETURN_IF_ERROR(channel_manager_
-                              ->AllocateChannel(*channel_ref.GetChannelId(),
-                                                *channel_ref.GetDefiner())
-                              .status());
+      const AstNode* definer = channel_ref.GetDefiner().has_value()
+                                   ? *channel_ref.GetDefiner()
+                                   : proc;
+      XLS_RETURN_IF_ERROR(
+          channel_manager_
+              ->AllocateChannel(*channel_ref.GetChannelId(), definer)
+              .status());
     }
     return absl::OkStatus();
   }
@@ -500,8 +510,7 @@ absl::Status ProcHierarchyInterpreter::AddInterfaceChannel(
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue channel_reference,
-      CreateChannelReference(channel_type->direction(), channel_type,
-                             channel_instance_allocator));
+      CreateChannelReference(channel_type, channel_instance_allocator));
 
   XLS_RET_CHECK(channel != nullptr);
   interface_args_.push_back(channel_reference);

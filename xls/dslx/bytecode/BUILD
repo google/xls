@@ -399,6 +399,7 @@ cc_test(
         "//xls/dslx/run_routines",
         "//xls/dslx/type_system:type_info",
         "//xls/ir:format_preference",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",

@@ -115,9 +115,21 @@ absl::StatusOr<std::string> InterpValueAsString(const InterpValue& v);
 // ChannelReferences is returned. `channel_instance_allocator`, if specified, is
 // called to set the instance ID of each ChannelReference as they are created.
 absl::StatusOr<InterpValue> CreateChannelReference(
-    ChannelDirection direction, const Type* type,
+    const Type* type,
     std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator =
         std::nullopt);
+
+// Creates a ChannelReference or ChannelArray InterpValue. `type` is the type of
+// the channel node not the payload type. `type` may be an array in which case a
+// ChannelArray InterpValue is returned (recursively handling nested arrays).
+// `channel_instance_allocator`, if specified, is called to set the instance ID
+// of each channel as they are created. `definer`, if specified, sets the AST
+// definition node associated with the channel reference or channel array.
+absl::StatusOr<InterpValue> CreateChannelReferenceOrArray(
+    const Type* type,
+    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator =
+        std::nullopt,
+    std::optional<const AstNode*> definer = std::nullopt);
 
 // Creates a pair of ChannelReference InterpValues. The first element has
 // channel direction "out" while the second element has channel direction

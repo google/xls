@@ -738,30 +738,26 @@ class Visitor : public AstNodeVisitorWithDefault {
     std::vector<InterpValue> external_instance_args;
     external_instance_args.reserve(internal_initializer.members().size());
     for (const InterpValue& internal_arg : internal_initializer.members()) {
-      if (internal_arg.IsChannelReference()) {
-        std::optional<InterpValue> external_arg =
-            GetProcDefArgReplacement(internal_arg, arg_values);
-        if (external_arg.has_value()) {
-          external_instance_args.push_back(*external_arg);
-          continue;
-        }
+      std::optional<InterpValue> external_arg =
+          GetProcDefArgReplacement(internal_arg, arg_values);
+      if (external_arg.has_value()) {
+        external_instance_args.push_back(*external_arg);
+      } else {
+        external_instance_args.push_back(internal_arg);
       }
-      external_instance_args.push_back(internal_arg);
     }
 
     std::vector<std::pair<const Param*, InterpValue>>
         external_instance_forwarded_values;
     for (const auto& [param, internal_arg] :
          internal_initializer.forwarded_values()) {
-      if (internal_arg.IsChannelReference()) {
-        std::optional<InterpValue> external_arg =
-            GetProcDefArgReplacement(internal_arg, arg_values);
-        if (external_arg.has_value()) {
-          external_instance_forwarded_values.emplace_back(param, *external_arg);
-          continue;
-        }
+      std::optional<InterpValue> external_arg =
+          GetProcDefArgReplacement(internal_arg, arg_values);
+      if (external_arg.has_value()) {
+        external_instance_forwarded_values.emplace_back(param, *external_arg);
+      } else {
+        external_instance_forwarded_values.emplace_back(param, internal_arg);
       }
-      external_instance_forwarded_values.emplace_back(param, internal_arg);
     }
 
     XLS_RETURN_IF_ERROR(ti_->NoteProcConstructorInvocation(
@@ -789,13 +785,41 @@ class Visitor : public AstNodeVisitorWithDefault {
   std::optional<InterpValue> GetProcDefArgReplacement(
       const InterpValue& internal_arg,
       const absl::flat_hash_map<const Param*, InterpValue>& replacements) {
+    if (!internal_arg.IsChannelReference() && !internal_arg.IsChannelArray()) {
+      return std::nullopt;
+    }
+
     std::optional<const AstNode*> definer =
-        internal_arg.GetChannelReferenceOrDie().GetDefiner();
+        GetChannelOrArrayDefiner(internal_arg);
     if (definer.has_value() && (*definer)->kind() == AstNodeKind::kParam) {
       const Param* param = absl::down_cast<const Param*>(*definer);
       const auto it = replacements.find(param);
       if (it != replacements.end()) {
         return it->second;
+      }
+    }
+
+    if (internal_arg.IsChannelArray()) {
+      std::vector<InterpValue> new_elements;
+      new_elements.reserve(
+          internal_arg.GetChannelArrayOrDie().elements().size());
+      bool replaced_any = false;
+      for (const InterpValue& elem :
+           internal_arg.GetChannelArrayOrDie().elements()) {
+        std::optional<InterpValue> new_elem =
+            GetProcDefArgReplacement(elem, replacements);
+        if (new_elem.has_value()) {
+          new_elements.push_back(*new_elem);
+          replaced_any = true;
+        } else {
+          new_elements.push_back(elem);
+        }
+      }
+      if (replaced_any) {
+        return InterpValue::MakeChannelArray(
+            internal_arg.GetChannelArrayOrDie().direction(),
+            internal_arg.GetChannelArrayOrDie().channel_array_id(),
+            internal_arg.GetChannelArrayOrDie().definer(), new_elements);
       }
     }
 
@@ -862,9 +886,10 @@ class Visitor : public AstNodeVisitorWithDefault {
     std::optional<const ChannelType*> channel_type =
         type_.GetDirectOrElementChannelType();
     if (channel_type.has_value()) {
-      InterpValue value = InterpValue::MakeChannelReference(
-          (*channel_type)->direction(), /*id=*/++*next_channel_id_,
-          /*definer=*/node);
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue value,
+          CreateChannelReferenceOrArray(
+              &type_, [this] { return ++*next_channel_id_; }, node));
       ti_->NoteConstExpr(node, value);
       ti_->NoteConstExpr(node->name_def(), value);
     }
@@ -922,9 +947,9 @@ class Visitor : public AstNodeVisitorWithDefault {
       // Note that currently we only track proc retention of channel and channel
       // array params, both of which have ChannelReference InterpValues. It may
       // be necessary in the future to track retention of spawned procs.
-      if (value->IsChannelReference()) {
+      if (value->IsChannelReference() || value->IsChannelArray()) {
         std::optional<const AstNode*> definer =
-            value->GetChannelReferenceOrDie().GetDefiner();
+            GetChannelOrArrayDefiner(*value);
         if (definer.has_value() && (*definer)->kind() == AstNodeKind::kParam) {
           retained_params.insert(absl::down_cast<const Param*>(*definer));
         }
@@ -942,7 +967,8 @@ class Visitor : public AstNodeVisitorWithDefault {
         // As above, we only track forwarding of channel and channel array
         // params currently.
         std::optional<InterpValue> param_value = ti_->GetConstExprOption(param);
-        if (param_value.has_value() && param_value->IsChannelReference()) {
+        if (param_value.has_value() && (param_value->IsChannelReference() ||
+                                        param_value->IsChannelArray())) {
           forwarded_values.emplace_back(param, *param_value);
         }
       }

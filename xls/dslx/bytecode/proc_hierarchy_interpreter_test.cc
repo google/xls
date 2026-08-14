@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/bytecode/proc_hierarchy_interpreter.h"
 
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -21,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -1316,6 +1318,124 @@ impl TopProc {
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
 }
 
+TEST_F(ProcHierarchyInterpreterTest, ProcDefSpawnWith2DChannelArray) {
+  constexpr std::string_view kProgram = R"(
+proc SomeProc {
+  ins: chan<u32>[2] in,
+  outs: chan<u32>[2] out,
+}
+
+impl SomeProc {
+  fn new(ins: chan<u32>[2] in, outs: chan<u32>[2] out) -> Self {
+    SomeProc { ins, outs }
+  }
+
+  fn next(self) {
+    const for (i, _) in u32:0..2 {
+      let (tok, v) = recv(token(), self.ins[i]);
+      let _tok = send(tok, self.outs[i], v + u32:10);
+    }(());
+  }
+}
+
+#[test]
+proc TopProc {
+  terminator: chan<bool> out,
+  outs: chan<u32>[2][2] out,
+  reply_ins: chan<u32>[2][2] in,
+}
+
+impl TopProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (outs, ins) = chan<u32>[2][2]("ins_outs");
+    let (reply_outs, reply_ins) = chan<u32>[2][2]("reply");
+    SomeProc::new(ins[0], reply_outs[0]).spawn();
+    SomeProc::new(ins[1], reply_outs[1]).spawn();
+    TopProc { terminator, outs, reply_ins }
+  }
+
+  fn next(self) {
+    let tok = const for (i, tok) in u32:0..2 {
+      const for (j, tok) in u32:0..2 {
+        let tok = send(tok, self.outs[i][j], i * u32:2 + j);
+        let (tok, val) = recv(tok, self.reply_ins[i][j]);
+        assert_eq(val, i * u32:2 + j + u32:10);
+        tok
+      }(tok)
+    }(token());
+    send(tok, self.terminator, true);
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest,
+       ProcDefSpawnWithChannelArrayParameterIndexing) {
+  constexpr std::string_view kProgram = R"(
+proc SomeProc {
+  in_ch: chan<u32> in,
+}
+
+impl SomeProc {
+  fn new(in_ch: chan<u32> in) -> Self {
+    SomeProc { in_ch }
+  }
+
+  fn next(self) {
+    let (_, v) = recv(token(), self.in_ch);
+    trace_fmt!("recv: {}", v);
+  }
+}
+
+proc MiddleProc {}
+
+impl MiddleProc {
+  fn new(ins: chan<u32>[2] in) -> Self {
+    SomeProc::new(ins[0]).spawn();
+    SomeProc::new(ins[1]).spawn();
+    MiddleProc {}
+  }
+}
+
+#[test]
+proc TopProc {
+  terminator: chan<bool> out,
+  outs: chan<u32>[2] out,
+}
+
+impl TopProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (outs, ins) = chan<u32>[2]("ins_outs");
+    MiddleProc::new(ins).spawn();
+    TopProc { terminator, outs }
+  }
+
+  fn next(self) {
+    let t = const for (i, t) in u32:0..2 {
+      send(t, self.outs[i], i)
+    }(token());
+    send(t, self.terminator, true);
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
 TEST_F(ProcHierarchyInterpreterTest, TraceProcDefChannelArray) {
   constexpr std::string_view kProgram = R"(
 proc Incrementer {
@@ -1465,6 +1585,72 @@ impl TestProc {
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, "test", std::string{temp_file.path()}, options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
+TEST_F(ProcHierarchyInterpreterTest, MultiModuleChannelForwarding) {
+  // Note that part of what is being tested here is robustness of the
+  // interpreter's channel bookkeeping to the fact that type inference may
+  // assign overlapping channel ID values in different modules.
+  constexpr std::string_view kImportedProgram = R"(
+pub proc ChildProc {
+  in_ch: chan<u32> in,
+  out_ch: chan<u32> out,
+}
+
+impl ChildProc {
+  pub fn new(in_ch: chan<u32> in, out_ch: chan<u32> out) -> Self {
+    ChildProc { in_ch, out_ch }
+  }
+
+  fn next(self) {
+    let (tok, val) = recv(token(), self.in_ch);
+    let _tok = send(tok, self.out_ch, val + u32:100);
+  }
+}
+)";
+
+  constexpr std::string_view kMainProgram = R"(
+import my_child_module as child_mod;
+
+#[test]
+proc TopProc {
+  terminator: chan<bool> out,
+  out_ch: chan<u32> out,
+  in_ch: chan<u32> in,
+}
+
+impl TopProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (outs, ins) = chan<u32>("ch1");
+    let (reply_outs, reply_ins) = chan<u32>("ch2");
+    child_mod::ChildProc::new(ins, reply_outs).spawn();
+    TopProc { terminator, out_ch: outs, in_ch: reply_ins }
+  }
+
+  fn next(self) {
+    let tok = send(token(), self.out_ch, u32:50);
+    let (tok, val) = recv(tok, self.in_ch);
+    assert_eq(val, u32:150);
+    send(tok, self.terminator, true);
+  }
+}
+)";
+
+  ParseAndTestOptions options;
+  const std::filesystem::path root("/");
+  options.vfs_factory = [root, kImportedProgram, kMainProgram] {
+    return std::make_unique<FakeFilesystem>(
+        absl::flat_hash_map<std::filesystem::path, std::string>{
+            {"/test.x", std::string(kMainProgram)},
+            {"/my_child_module.x", std::string(kImportedProgram)},
+        },
+        root);
+  };
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kMainProgram, "test", "/test.x", options));
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
 }
 
