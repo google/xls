@@ -50,11 +50,11 @@ class Quantize {
       }
       bool rounded;
       if constexpr (F2 > F + 1) {
-        XlsInt<F2 - F - 1, FromSigned> deleted_bits(0);
-#pragma hls_unroll yes
-        for (int i = 0; i < F2 - F - 1; ++i) {
-          deleted_bits[i] = orig_val[i];
-        }
+        // Slice, not a per-bit loop: each val[i] access lowers to a
+        // full-width barrel shifter (the index is runtime-typed even
+        // unrolled), which made this loop emit O(W^2) IR nodes.
+        const XlsInt<F2 - F - 1, false> deleted_bits(
+            orig_val.template slc<F2 - F - 1>(0));
         auto zero = XlsInt<F2 - F - 1>(0);
         rounded = (zero != deleted_bits);
       } else {
@@ -77,7 +77,11 @@ class Quantize {
       carry_out = false;
       if (qb) {
         res++;
-        carry_out = (res == 0);
+        if constexpr (W < FromW) {
+          carry_out = (res.template slc<W>(0) == XlsInt<W, false>(0));
+        } else {
+          carry_out = (res == 0);
+        }
       }
     }
     return res;
@@ -108,10 +112,15 @@ class Overflow {
           return synth_only_internal::MaxValue<W, S>::Value();
         } else {
           if constexpr (o_mode == ac_datatypes::AC_SAT_SYM) {
-            auto one = XlsInt<1, false>(1);
-            return (XlsInt<W, S>(synth_only_internal::MinValue<W, S>::Value()) |
-                    one)
-                .storage;
+            if constexpr (W == 1) {
+              return synth_only_internal::MinValue<W, S>::Value();
+            } else {
+              auto one = XlsInt<1, false>(1);
+              return (XlsInt<W, S>(
+                          synth_only_internal::MinValue<W, S>::Value()) |
+                      one)
+                  .storage;
+            }
           } else {
             return synth_only_internal::MinValue<W, S>::Value();
           }
@@ -205,7 +214,7 @@ class Adjustment {
     constexpr bool QUAN_INC =
         F2 > F &&
         !(Q == ac_datatypes::AC_TRN || (Q == ac_datatypes::AC_TRN_ZERO && !S2));
-    bool carry_out;
+    bool carry_out = false;
     __xls_bits<W> current_val =
         ResizeAndQuantize<W, I, S, W2, I2, S2, Q, O>::Adjust(in, carry_out);
     if constexpr (O != ac_datatypes::AC_WRAP &&
@@ -214,7 +223,7 @@ class Adjustment {
                        I2 - S2 +
                            (QUAN_INC ||
                             (S2 && O == ac_datatypes::AC_SAT_SYM &&
-                             (O2 == ac_datatypes::AC_SAT_SYM || F2 > F))))) {
+                             (O2 != ac_datatypes::AC_SAT_SYM || F2 > F))))) {
       const XlsInt<W2, S2> input_val(in);
       const XlsInt<W, S> current_val_int(current_val);
 
@@ -222,15 +231,27 @@ class Adjustment {
       bool deleted_bits_one = true;
       bool all_ones = true;
       if constexpr (I2 > I) {
-#pragma hls_unroll yes
-        for (int i = W2 - (I2 - I); i < W2; ++i) {
-          deleted_bits_zero &= !input_val[i];
-          deleted_bits_one &= input_val[i];
-          all_ones &= input_val[i];
-        }
+        constexpr int kDel = (I2 - I) < W2 ? (I2 - I) : W2;
+        const XlsInt<kDel, false> del_bits(
+            input_val.template slc<kDel>(W2 - kDel));
+        deleted_bits_zero = (del_bits == XlsInt<kDel, false>(0));
+        all_ones = (del_bits == XlsInt<kDel, false>(~XlsInt<kDel, false>(0)));
+        deleted_bits_one = all_ones;
         if (carry_out) {
-          deleted_bits_zero = !deleted_bits_zero;
-          deleted_bits_one = !deleted_bits_one;
+          if constexpr (S2) {
+            const XlsInt<kDel, false> del_plus =
+                del_bits + XlsInt<kDel, false>(1);
+            deleted_bits_zero = (del_plus == XlsInt<kDel, false>(0));
+            deleted_bits_one =
+                (del_plus == XlsInt<kDel, false>(~XlsInt<kDel, false>(0)));
+          } else {
+            deleted_bits_zero = false;
+            deleted_bits_one = !deleted_bits_one;
+          }
+        }
+      } else if constexpr (!S2) {
+        if (carry_out) {
+          deleted_bits_zero = false;
         }
       }
       bool neg_src = S2 && input_val < 0 && !(carry_out & all_ones);
@@ -238,7 +259,11 @@ class Adjustment {
       bool overflow = !neg_src && (neg_trg || !deleted_bits_zero);
       overflow |= neg_src && (!neg_trg || !deleted_bits_one);
       if constexpr (O == ac_datatypes::AC_SAT_SYM && S && S2) {
-        overflow |= neg_src && (W > 1 ? deleted_bits_zero : true);
+        if constexpr (W > 1) {
+          overflow |= neg_src && (current_val_int.template slc<W - 1>(0) == 0);
+        } else {
+          overflow |= neg_src;
+        }
       }
       return Overflow<W, S, O>::Adjust(current_val, overflow, neg_src);
     } else {
@@ -341,6 +366,33 @@ class [[hls_no_tuple]] XlsFixed {
   typedef XlsInt<Log2Ceil<Width + 1>, false> index_t;
 
   inline bool is_neg() const { return sign && ((*this) < 0); }
+
+  template <ac_datatypes::ac_special_val V>
+  inline XlsFixed& set_val() {
+    static_assert(
+        !(V == ac_datatypes::AC_VAL_QUANTUM && Width == 1 && Signed),
+        "set_val<AC_VAL_QUANTUM> on a 1-bit signed type: the ac library "
+        "stores a non-canonical +1 here, unrepresentable in 1 signed bit");
+    if constexpr (V == ac_datatypes::AC_VAL_0) {
+      val = 0;
+    } else if constexpr (V == ac_datatypes::AC_VAL_QUANTUM) {
+      val = 1;
+    } else if constexpr (V == ac_datatypes::AC_VAL_MAX) {
+      val = synth_only_internal::MaxValue<Width, Signed>::Value();
+    } else if constexpr (V == ac_datatypes::AC_VAL_MIN) {
+      val = synth_only_internal::MinValue<Width, Signed>::Value();
+      if constexpr (Signed && Overflow == ac_datatypes::AC_SAT_SYM) {
+        if constexpr (Width == 1) {
+          val = 0;
+        } else {
+          val = val | XlsInt<Width, false>(1);
+        }
+      }
+    } else {
+      static_assert(false, "Unsupported special value");
+    }
+    return *this;
+  }
 
   inline int to_int() const {
     auto ret(Adjustment<32, 32, true, ac_datatypes::AC_TRN,
@@ -573,16 +625,17 @@ class [[hls_no_tuple]] XlsFixed {
     constexpr int Num_w = Width + AC_MAX(ToW - ToI, 0);
     constexpr int Num_i = IntegerWidth;
     XlsFixed<Num_w, Num_i, Signed> a(*this);
-    auto adj_a =
-        ConvertBits<Num_w, Result::width, Signed>::Convert(a.val.storage);
-    auto adj_b =
-        ConvertBits<ToW, Result::width, ToSign>::Convert(o.val.storage);
+    constexpr int OpW = AC_MAX(
+        Result::width, AC_MAX(Num_w + ((Result::sign && !Signed) ? 1 : 0),
+                              ToW + ((Result::sign && !ToSign) ? 1 : 0)));
+    auto adj_a = ConvertBits<Num_w, OpW, Signed>::Convert(a.val.storage);
+    auto adj_b = ConvertBits<ToW, OpW, ToSign>::Convert(o.val.storage);
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_4_(aid): bits[i] = "
         "identity(a, pos=(loc)) }"
         : "=r"(ret.val.storage)
         : "i"(Result::width),
-          "parama"(DivideWithSign<Result::width, Result::sign>::Operate(
-              adj_a, adj_b)));
+          "parama"(SliceBits<OpW, Result::width>::Convert(
+              DivideWithSign<OpW, Result::sign>::Operate(adj_a, adj_b))));
     return ret;
   }
   template <int ToW, int ToI, bool ToSign, ac_datatypes::ac_q_mode ToQ,
@@ -882,6 +935,21 @@ class [[hls_no_tuple]] XlsFixed {
     return (*this);
   }
 
+  inline XlsFixed operator>>(int offset) const {
+    return (*this) >> XlsInt<32, true>(offset);
+  }
+  inline XlsFixed operator>>=(int offset) {
+    (*this) = (*this) >> XlsInt<32, true>(offset);
+    return (*this);
+  }
+  inline XlsFixed operator<<(int offset) const {
+    return (*this) << XlsInt<32, true>(offset);
+  }
+  inline XlsFixed operator<<=(int offset) {
+    (*this) = (*this) << XlsInt<32, true>(offset);
+    return (*this);
+  }
+
   template <int ToW, int ToI, bool ToSign,
             ac_datatypes::ac_q_mode ToQuantization,
             ac_datatypes::ac_o_mode ToOverflow>
@@ -1036,6 +1104,22 @@ XLS_FX_ASSIGN_OP_WITH_AC_INT(/=)
 XLS_FX_ASSIGN_OP_WITH_AC_INT(&=)
 XLS_FX_ASSIGN_OP_WITH_AC_INT(|=)
 XLS_FX_ASSIGN_OP_WITH_AC_INT(^=)
+
+namespace ac {
+
+template <ac_datatypes::ac_special_val V, int W, int I, bool S,
+          ac_datatypes::ac_q_mode Q, ac_datatypes::ac_o_mode O, size_t Size>
+inline bool init_array(XlsFixed<W, I, S, Q, O> (&a)[Size], int n) {
+  XlsFixed<W, I, S, Q, O> t;
+  t.template set_val<V>();
+#pragma hls_unroll yes
+  for (int i = 0; i < n && i < Size; i++) {
+    a[i] = t;
+  }
+  return true;
+}
+
+}  // namespace ac
 
 #undef ac_fixed
 

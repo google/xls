@@ -391,6 +391,16 @@ class LessOrEqWithSign<Width, true> {
 
 // The point of XlsIntBase is to provide different conversions
 //  for signed and unsigned ints. It is the base class to XlsInt.
+struct XlsIntNoBuiltinConv {};
+template <bool Fits, typename T>
+struct XlsIntConvType {
+  typedef T t;
+};
+template <typename T>
+struct XlsIntConvType<false, T> {
+  typedef XlsIntNoBuiltinConv t;
+};
+
 template <int Width, bool Signed>
 class [[hls_synthetic_int]] XlsIntBase {};
 
@@ -404,7 +414,8 @@ class [[hls_synthetic_int]] XlsIntBase<Width, false> {
 
   inline XlsIntBase(const __xls_bits<Width> o) : storage(o) {}
 
-  inline operator unsigned long long() const {
+  inline operator typename XlsIntConvType<Width <= 64, unsigned long long>::t()
+      const {
     static_assert(Width <= 64);
     __xls_bits<64> ret(ConvertBits<Width, 64, false>::Convert(storage));
     unsigned long long reti;
@@ -440,7 +451,7 @@ class [[hls_synthetic_int]] XlsIntBase<Width, true> {
 
   inline XlsIntBase(__xls_bits<Width> o) : storage(o) {}
 
-  inline operator long long() const {
+  inline operator typename XlsIntConvType<Width <= 64, long long>::t() const {
     static_assert(Width <= 64);
     __xls_bits<64> ret(ConvertBits<Width, 64, true>::Convert(storage));
     long long reti;
@@ -807,13 +818,16 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
   BINARY_OP(-, "sub", minus);
 
   BINARY_OP_WITH_SIGN(*, MultiplyWithSign, mult);
-  BINARY_OP_WITH_SIGN(%, ModuloWithSign, mod);
 
   template <int ToW, bool ToSign>
   inline typename rt<ToW, ToSign>::div operator/(
       const XlsInt<ToW, ToSign> &o) const {
     typedef typename rt<ToW, ToSign>::div Result;
-    typedef XlsInt<std::max(ToW, Width), ToSign | Signed> Operands;
+    typedef XlsInt<std::max(std::max(Width + ((!Signed && ToSign) ? 1 : 0),
+                                     ToW + ((Signed && !ToSign) ? 1 : 0)),
+                            static_cast<int>(Result::width)),
+                   Signed || ToSign>
+        Operands;
     Operands as = *this;
     Operands bs = o;
     Operands ret;
@@ -828,6 +842,31 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
   template <int ToW, bool ToSign>
   inline XlsInt operator/=(const XlsInt<ToW, ToSign> &o) {
     (*this) = (*this) / o;
+    return (*this);
+  }
+
+  template <int ToW, bool ToSign>
+  inline typename rt<ToW, ToSign>::mod operator%(
+      const XlsInt<ToW, ToSign>& o) const {
+    typedef typename rt<ToW, ToSign>::mod Result;
+    typedef XlsInt<std::max(Width + ((!Signed && ToSign) ? 1 : 0),
+                            ToW + ((Signed && !ToSign) ? 1 : 0)),
+                   Signed || ToSign>
+        Operands;
+    Operands as = *this;
+    Operands bs = o;
+    Operands ret;
+    asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_4_(aid): bits[i] = "
+        "identity(a, pos=(loc)) }"
+        : "=r"(ret.storage)
+        : "i"(Operands::width),
+          "parama"(ModuloWithSign<Operands::width, Operands::sign>::Operate(
+              as.storage, bs.storage)));
+    return (Result)ret;
+  }
+  template <int ToW, bool ToSign>
+  inline XlsInt operator%=(const XlsInt<ToW, ToSign>& o) {
+    (*this) = (*this) % o;
     return (*this);
   }
 
@@ -1054,6 +1093,10 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
 
   template <ac_datatypes::ac_special_val V>
   inline XlsInt &set_val() {
+    static_assert(
+        !(V == ac_datatypes::AC_VAL_QUANTUM && Width == 1 && Signed),
+        "set_val<AC_VAL_QUANTUM> on a 1-bit signed type: the ac library "
+        "stores a non-canonical +1 here, unrepresentable in 1 signed bit");
     if constexpr (V == ac_datatypes::AC_VAL_0) {
       *this = 0;
     } else if constexpr (V == ac_datatypes::AC_VAL_MIN) {

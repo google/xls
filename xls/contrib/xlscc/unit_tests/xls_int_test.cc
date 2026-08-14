@@ -741,6 +741,97 @@ TEST_F(XlsIntTest, ACCompatibleDivisionWidth) {
   RunAcDatatypeTest({}, 4, content);
 }
 
+TEST_F(XlsIntTest, ModuloWideByNarrowUnsigned) {
+  const std::string content = R"(
+       #include "xls_int.h"
+       long long my_package() {
+        XlsInt<16, false> ax = 4660;
+        XlsInt<4, false> bx = 10;
+        return (ax % bx).to_long();
+       })";
+  ac_int<16, false> ax = 4660;
+  ac_int<4, false> bx = 10;
+  RunAcDatatypeTest({}, (ax % bx).to_long(), content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ModuloWideByNarrowSigned) {
+  const std::string content = R"(
+       #include "xls_int.h"
+       long long my_package() {
+        XlsInt<32, true> ax = 1000;
+        XlsInt<8, true> bx = 7;
+        return (ax % bx).to_long();
+       })";
+  ac_int<32, true> ax = 1000;
+  ac_int<8, true> bx = 7;
+  RunAcDatatypeTest({}, (ax % bx).to_long(), content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, DivideSignedMinByMinusOneNeedsResultWidth) {
+  const std::string content = R"(
+       #include "xls_int.h"
+       long long my_package() {
+        XlsInt<2, true> ax = -2;
+        XlsInt<1, true> bx = 1;  // 1-bit signed: wraps to -1
+        return (ax / bx).to_long();
+       })";
+  ac_int<2, true> ax = -2;
+  ac_int<1, true> bx = 1;
+  RunAcDatatypeTest({}, (ax / bx).to_long(), content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, DivideSignedByUnsignedGuardBit) {
+  const std::string content = R"(
+       #include "xls_int.h"
+       long long my_package() {
+        XlsInt<4, true> ax = -6;
+        XlsInt<4, false> bx = 12;
+        return (ax / bx).to_long();
+       })";
+  ac_int<4, true> ax = -6;
+  ac_int<4, false> bx = 12;
+  RunAcDatatypeTest({}, (ax / bx).to_long(), content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, TernaryWithWideArithmeticResult) {
+  const std::string content = R"(
+       #include "xls_int.h"
+       long long my_package(long long a, long long b) {
+        XlsInt<64, false> ax = a;
+        XlsInt<64, false> bx = b;
+        return ((a & 1) ? 1 : (ax + bx)).to_uint64();
+       })";
+  ac_int<64, false> ax = 2;
+  ac_int<64, false> bx = 5;
+  RunAcDatatypeTest({{"a", 2}, {"b", 5}},
+                    ((ax.to_uint64() & 1) ? 1 : (ax + bx)).to_uint64(), content,
+                    xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}, {"b", 5}}, 1, content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, SetValQuantum) {
+  const std::string content = R"(
+       #include "xls_int.h"
+       long long my_package() {
+        XlsInt<1, false> q1;
+        q1.set_val<ac_datatypes::AC_VAL_QUANTUM>();
+        XlsInt<5, true> q5;
+        q5.set_val<ac_datatypes::AC_VAL_QUANTUM>();
+        return q1.to_long() * 10 + q5.to_long();
+       })";
+  ac_int<1, false> q1;
+  q1.set_val<AC_VAL_QUANTUM>();
+  ac_int<5, true> q5;
+  q5.set_val<AC_VAL_QUANTUM>();
+  RunAcDatatypeTest({}, q1.to_long() * 10 + q5.to_long(), content,
+                    xabsl::SourceLocation::current());
+}
+
 TEST_F(XlsIntTest, Reverse) {
   const std::string content = R"(
     #include "xls_int.h"
