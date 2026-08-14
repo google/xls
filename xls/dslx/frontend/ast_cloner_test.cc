@@ -2825,5 +2825,92 @@ TEST(AstClonerTest, StructDefWithSelfReference) {
   EXPECT_EQ(foo_clone->ToString(), kProgram);
 }
 
+void FindNameRefs(const AstNode* node, std::vector<const NameRef*>& name_refs) {
+  if (node->kind() == AstNodeKind::kNameRef) {
+    name_refs.push_back(absl::down_cast<const NameRef*>(node));
+  }
+  for (const AstNode* child : node->GetChildren(true)) {
+    if (child != nullptr) {
+      FindNameRefs(child, name_refs);
+    }
+  }
+}
+
+TEST(AstClonerTest, CloneModuleWithBuiltins) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let x = token();
+  ()
+})";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModule(*module));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           cloned_module->GetMemberOrError<Function>("main"));
+  std::vector<const NameRef*> name_refs;
+  FindNameRefs(f, name_refs);
+  const NameRef* token_ref = nullptr;
+  for (auto* ref : name_refs) {
+    if (ref->identifier() == "token") {
+      token_ref = ref;
+      break;
+    }
+  }
+  ASSERT_NE(token_ref, nullptr);
+  ASSERT_TRUE(token_ref->IsBuiltin());
+  auto builtin_variant = token_ref->name_def();
+  auto* builtin_def = std::get<BuiltinNameDef*>(builtin_variant);
+  EXPECT_EQ(builtin_def->owner(), cloned_module.get());
+}
+
+TEST(AstClonerTest, CloneImplParentage) {
+  constexpr std::string_view kProgram = R"(
+struct S {}
+impl S {
+  fn f(self) {}
+}
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModule(*module));
+
+  std::vector<Impl*> impls = cloned_module->GetImpls();
+  ASSERT_EQ(impls.size(), 1);
+  Impl* cloned_impl = impls[0];
+
+  for (const auto& member : cloned_impl->members()) {
+    AstNode* member_node = ToAstNode(member);
+    EXPECT_EQ(member_node->parent(), cloned_impl);
+  }
+}
+
+TEST(AstClonerTest, CloneStructParentage) {
+  constexpr std::string_view kProgram = R"(
+struct S {
+  x: u32,
+}
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModule(*module));
+
+  std::vector<StructDef*> structs = cloned_module->GetStructDefs();
+  ASSERT_EQ(structs.size(), 1);
+  StructDef* cloned_struct = structs[0];
+
+  for (const auto* member : cloned_struct->members()) {
+    EXPECT_EQ(member->type()->parent(), cloned_struct);
+    EXPECT_EQ(member->name_def()->parent(), member);
+    EXPECT_EQ(member->parent(), nullptr);
+  }
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -782,15 +782,22 @@ class AstCloner : public AstNodeVisitor {
     // If it's a ref to a cloned def, then point it to the cloned def.
     // Otherwise, it may be a ref to a def that is outside the scope being
     // cloned.
-    auto it = old_to_new_.end();
+    AnyNameDef new_name_def;
     if (std::holds_alternative<const NameDef*>(n->name_def())) {
-      it = old_to_new_.find(std::get<const NameDef*>(n->name_def()));
+      const NameDef* old_def = std::get<const NameDef*>(n->name_def());
+      auto it = old_to_new_.find(old_def);
+      if (it != old_to_new_.end()) {
+        new_name_def = absl::down_cast<NameDef*>(it->second);
+      } else {
+        new_name_def = old_def;
+      }
+    } else {
+      const BuiltinNameDef* old_def = std::get<BuiltinNameDef*>(n->name_def());
+      new_name_def =
+          module(n)->GetOrCreateBuiltinNameDef(old_def->identifier());
     }
-    old_to_new_[n] = module(n)->Make<NameRef>(
-        n->span(), n->identifier(),
-        it == old_to_new_.end() ? n->name_def()
-                                : absl::down_cast<NameDef*>(it->second),
-        n->in_parens());
+    old_to_new_[n] = module(n)->Make<NameRef>(n->span(), n->identifier(),
+                                              new_name_def, n->in_parens());
     return absl::OkStatus();
   }
 
@@ -1015,6 +1022,7 @@ class AstCloner : public AstNodeVisitor {
       new_member->SetAttributes(new_attributes);
       new_struct_def->AddMember(new_member);
     }
+    new_struct_def->SetParentage();
 
     if (n->impl().has_value()) {
       if (!old_to_new_.contains(n->impl().value())) {
@@ -1078,6 +1086,7 @@ class AstCloner : public AstNodeVisitor {
       }
     }
     new_impl->set_members(new_members);
+    new_impl->SetParentage();
     return absl::OkStatus();
   }
 
