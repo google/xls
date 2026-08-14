@@ -841,6 +841,10 @@ class Visitor : public AstNodeVisitorWithDefault {
       ti_->AddProcDefSpawn(absl::down_cast<const ProcDef*>(*proc_def),
                            external_initializer);
     }
+    // Proc def spawns should be considered constexprs, but their value is just
+    // the empty tuple. Downstream processes (e.g., bytecode interpreter, IR
+    // converter) should already take care of spawns, ignoring the const value.
+    ti_->NoteConstExpr(invocation, InterpValue::MakeTuple({}));
     return absl::OkStatus();
   }
 

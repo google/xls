@@ -834,6 +834,40 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "test_function_transformer",
+    srcs = ["test_function_transformer.cc"],
+    hdrs = ["test_function_transformer.h"],
+    deps = [
+        ":ast",
+        ":ast_cloner",
+        ":ast_node_visitor_with_default",
+        ":module",
+        "//xls/common:attribute_data",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
+        "//xls/dslx/type_system:type_info",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "test_function_transformer_test",
+    srcs = ["test_function_transformer_test.cc"],
+    deps = [
+        ":module",
+        ":test_function_transformer",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "fuzz_domain_rewriter_test",
     srcs = ["fuzz_domain_rewriter_test.cc"],
