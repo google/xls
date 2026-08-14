@@ -135,6 +135,25 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "semantics_analysis_test",
+    srcs = ["semantics_analysis_test.cc"],
+    deps = [
+        ":ast",
+        ":module",
+        ":semantics_analysis",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_collector",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "token_parser",
     srcs = ["token_parser.cc"],
@@ -843,11 +862,17 @@ cc_library(
         ":ast_cloner",
         ":ast_node_visitor_with_default",
         ":module",
+        ":pos",
+        ":type_to_type_annotation",
         "//xls/common:attribute_data",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
+        "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
     ],
@@ -857,14 +882,34 @@ cc_test(
     name = "test_function_transformer_test",
     srcs = ["test_function_transformer_test.cc"],
     deps = [
+        ":ast",
         ":module",
         ":test_function_transformer",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "type_to_type_annotation",
+    srcs = ["type_to_type_annotation.cc"],
+    hdrs = ["type_to_type_annotation.h"],
+    deps = [
+        ":ast",
+        ":module",
+        ":pos",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/type_system:type",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -878,6 +923,27 @@ cc_test(
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
         "@abseil-cpp//absl/base",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "type_to_type_annotation_test",
+    srcs = ["type_to_type_annotation_test.cc"],
+    deps = [
+        ":ast",
+        ":module",
+        ":type_to_type_annotation",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/type_system:type",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
