@@ -4501,6 +4501,7 @@ cc_library(
         "//xls/ir:interval",
         "//xls/ir:interval_ops",
         "//xls/ir:interval_set",
+        "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:partial_info",
         "//xls/ir:state_element",

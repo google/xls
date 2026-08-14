@@ -51,6 +51,49 @@ TEST_F(ProcStateRangeQueryEngineTest, BasicNarrow) {
   EXPECT_EQ(qe.MaxUnsignedValue(res.node()), UBits(19, 32));
 }
 
+TEST_F(ProcStateRangeQueryEngineTest, MultipleStateReads) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  BStateElement state_element = pb.StateElement("state", Value(UBits(0, 32)),
+                                                /*non_synthesizable=*/false);
+  BStateElement cond_elem =
+      pb.StateElement("cond", Value(UBits(0, 1)), /*non_synthesizable=*/false);
+  BValue cond = pb.StateRead(cond_elem);
+
+  BValue read1 = pb.StateRead(state_element, cond);
+  BValue read2 = pb.StateRead(state_element, pb.Not(cond));
+  BValue add1 = pb.Add(read1, pb.Literal(UBits(6, 32)));
+  BValue add2 = pb.Add(read2, pb.Literal(UBits(30, 32)));
+
+  pb.Next(state_element,
+          pb.ZeroExtend(
+              pb.Add(pb.Literal(UBits(1, 3)), pb.BitSlice(read1, 0, 3)), 32),
+          cond);
+
+  pb.Next(state_element,
+          pb.ZeroExtend(
+              pb.Add(pb.Literal(UBits(1, 3)), pb.BitSlice(read2, 0, 3)), 32),
+          pb.Not(cond));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(read1.node())), "[[0, 7]]");
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(read2.node())), "[[0, 7]]");
+  EXPECT_EQ(qe.MinUnsignedValue(read1.node()), UBits(0, 32));
+  EXPECT_EQ(qe.MaxUnsignedValue(read1.node()), UBits(7, 32));
+  EXPECT_EQ(qe.MinUnsignedValue(read2.node()), UBits(0, 32));
+  EXPECT_EQ(qe.MaxUnsignedValue(read2.node()), UBits(7, 32));
+
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(add1.node())), "[[6, 13]]");
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(add2.node())),
+            "[[30, 37]]");
+  EXPECT_EQ(qe.MinUnsignedValue(add1.node()), UBits(6, 32));
+  EXPECT_EQ(qe.MaxUnsignedValue(add1.node()), UBits(13, 32));
+  EXPECT_EQ(qe.MinUnsignedValue(add2.node()), UBits(30, 32));
+  EXPECT_EQ(qe.MaxUnsignedValue(add2.node()), UBits(37, 32));
+}
+
 TEST_F(ProcStateRangeQueryEngineTest, Negatives) {
   auto p = CreatePackage();
   ProcBuilder fb(TestName(), p.get());
@@ -74,6 +117,49 @@ TEST_F(ProcStateRangeQueryEngineTest, Negatives) {
       absl::StrFormat("[[0, 10], [%v, %v]]", SBits(-7 + 3, 32), SBits(-1, 32)));
   EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(res_pos.node())),
             "[[0, 14]]");
+}
+
+TEST_F(ProcStateRangeQueryEngineTest, MultipleStateReadsSigned) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  BStateElement state_element = pb.StateElement("state", Value(SBits(0, 32)),
+                                                /*non_synthesizable=*/false);
+  BStateElement cond_elem =
+      pb.StateElement("cond", Value(UBits(0, 1)), /*non_synthesizable=*/false);
+  BValue cond = pb.StateRead(cond_elem);
+  BValue read1 = pb.StateRead(state_element, cond);
+  BValue read2 = pb.StateRead(state_element, pb.Not(cond));
+  BValue res1 = pb.Add(read1, pb.Literal(UBits(3, 32)));
+  BValue res2 = pb.Add(read2, pb.Literal(UBits(15, 32)));
+
+  // Loop 1 (under cond): Counts -7 to 7 by 1
+  auto in_loop1 = pb.SLt(read1, pb.Literal(SBits(7, 32)));
+  pb.Next(state_element, pb.Add(read1, pb.Literal(UBits(1, 32))),
+          pb.And(cond, in_loop1));
+  pb.Next(state_element, pb.Literal(SBits(-7, 32)),
+          pb.And(cond, pb.Not(in_loop1)));
+
+  // Loop 2 (under !cond): Counts -15 to 15 by 1
+  auto in_loop2 = pb.SLt(read2, pb.Literal(SBits(15, 32)));
+  pb.Next(state_element, pb.Add(read2, pb.Literal(UBits(1, 32))),
+          pb.And(pb.Not(cond), in_loop2));
+  pb.Next(state_element, pb.Literal(SBits(-15, 32)),
+          pb.And(pb.Not(cond), pb.Not(in_loop2)));
+
+  pb.Next(cond_elem, pb.Not(cond));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(
+      IntervalSetTreeToString(qe.GetIntervals(read1.node())),
+      absl::StrFormat("[[0, 15], [%v, %v]]", SBits(-15, 32), SBits(-1, 32)));
+  EXPECT_EQ(
+      IntervalSetTreeToString(qe.GetIntervals(read2.node())),
+      absl::StrFormat("[[0, 15], [%v, %v]]", SBits(-15, 32), SBits(-1, 32)));
+  EXPECT_EQ(
+      IntervalSetTreeToString(qe.GetIntervals(res1.node())),
+      absl::StrFormat("[[0, 18], [%v, %v]]", SBits(-12, 32), SBits(-1, 32)));
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(res2.node())), "[[0, 30]]");
 }
 
 TEST_F(ProcStateRangeQueryEngineTest, NegativesDecoupledNext) {
@@ -130,6 +216,7 @@ TEST_F(ProcStateRangeQueryEngineTest, NegativesWithEq) {
   EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(res_pos.node())),
             "[[0, 14]]");
 }
+
 TEST_F(ProcStateRangeQueryEngineTest, DecrementToZeroSigned) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());

@@ -42,6 +42,7 @@
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/partial_information.h"
@@ -508,29 +509,31 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
   CHECK(remaining_intervals.contains(Interval::Precise(init_value.bits())))
       << "Initial value not included in constant values.";
   remaining_intervals.erase(Interval::Precise(init_value.bits()));
-  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
   PartialInfoQueryEngine piqe;
   absl::flat_hash_map<Node*, LeafTypeTree<PartialInformation>> givens;
   givens.reserve(ground_truth.size());
   for (const auto& [se, rd] : ground_truth) {
-    StateRead* sr = proc->GetStateReadByStateElement(se);
-    if (sr->GetType()->IsBits()) {
-      givens[sr] = LeafTypeTree<PartialInformation>::CreateSingleElementTree(
-          sr->GetType(), PartialInformation(rd.interval_set.Get({})));
+    for (StateRead* sr : proc->GetStateReadsByStateElement(se)) {
+      if (sr->GetType()->IsBits()) {
+        givens[sr] = LeafTypeTree<PartialInformation>::CreateSingleElementTree(
+            sr->GetType(), PartialInformation(rd.interval_set.Get({})));
+      }
     }
   }
   XLS_RETURN_IF_ERROR(
       piqe.PopulateWithGivens(proc, std::move(givens)).status());
-
   while (!remaining_intervals.empty()) {
-    // Update the given for the state read node.
-    XLS_RETURN_IF_ERROR(
-        piqe.ReplaceGiven(
-                state_read,
-                LeafTypeTree<PartialInformation>::CreateSingleElementTree(
-                    state_read->GetType(),
-                    PartialInformation(active_intervals)))
-            .status());
+    for (StateRead* state_read :
+         proc->GetStateReadsByStateElement(state_element)) {
+      // Update the given for the state read node.
+      XLS_RETURN_IF_ERROR(
+          piqe.ReplaceGiven(
+                  state_read,
+                  LeafTypeTree<PartialInformation>::CreateSingleElementTree(
+                      state_read->GetType(),
+                      PartialInformation(active_intervals)))
+              .status());
+    }
 
     // Get what this says all ranges are.
     IntervalSet run_intervals = active_intervals;
@@ -539,7 +542,7 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
     for (Next* n : proc->next_values(state_element)) {
       // Nexts which don't update anything (either due to just being passthrough
       // or having a known-false predicate) don't need to be taken into account.
-      if (n->value() == proc->GetStateReadByStateElement(state_element) ||
+      if (IsNoOpNext(n) ||
           (n->predicate() && piqe.IsAllZeros(*n->predicate()))) {
         continue;
       }
@@ -606,7 +609,7 @@ FindContextualRanges(Proc* proc, const QueryEngine& qe,
       // TODO(allight): We might want to use data-flow to better track whether
       // things have changed. This should probably be good enough in practice
       // however.
-      if (proc->GetStateReadByStateElement(state_element) != n->value()) {
+      if (!IsNoOpNext(n)) {
         nexts.push_back(n);
       }
     }
@@ -784,8 +787,10 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine::Populate(
   absl::flat_hash_map<Node*, IntervalSet> state_read_intervals;
   state_read_intervals.reserve(final_range_data.size());
   for (const auto& [state_element, range] : final_range_data) {
-    state_read_intervals[proc->GetStateReadByStateElement(state_element)] =
-        range.interval_set.Get({});
+    for (StateRead* state_read :
+         proc->GetStateReadsByStateElement(state_element)) {
+      state_read_intervals[state_read] = range.interval_set.Get({});
+    }
   }
   ProcStateGivens givens(proc, std::move(state_read_intervals));
   XLS_RETURN_IF_ERROR(spec_ternary.PopulateWithGivens(proc, givens).status());
