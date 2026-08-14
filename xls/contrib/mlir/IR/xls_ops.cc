@@ -320,12 +320,12 @@ OpFoldResult ConstantScalarOp::fold(FoldAdaptor adaptor) {
 void CountedForOp::setCalleeFromCallable(CallInterfaceCallable callee) {
   // Direct call.
   if (FlatSymbolRefAttr calleeAttr = getToApplyAttr()) {
-    auto symRef = callee.get<SymbolRefAttr>();
+    auto symRef = cast<SymbolRefAttr>(callee);
     setToApplyAttr(cast<FlatSymbolRefAttr>(symRef));
     return;
   }
   // Indirect call, callee Value is the first operand.
-  setOperand(0, callee.get<Value>());
+  setOperand(0, cast<Value>(callee));
 }
 
 // Verify that the xls.linkage attribute for importing Verilog is valid
@@ -413,11 +413,11 @@ LogicalResult ArrayIndexStaticOp::canonicalize(ArrayIndexStaticOp op,
 void VectorizedCallOp::setCalleeFromCallable(CallInterfaceCallable callee) {
   // Direct call.
   if (FlatSymbolRefAttr calleeAttr = getCalleeAttr()) {
-    auto symRef = callee.get<SymbolRefAttr>();
+    auto symRef = cast<SymbolRefAttr>(callee);
     return setCalleeAttr(cast<FlatSymbolRefAttr>(symRef));
   }
   // Indirect call, callee Value is the first operand.
-  return setOperand(0, callee.get<Value>());
+  return setOperand(0, cast<Value>(callee));
 }
 
 LogicalResult VectorizedCallOp::verifySymbolUses(
