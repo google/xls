@@ -566,6 +566,8 @@ class FunctionConverter {
   absl::Status DefineProcDefChannelOrArrayIfLocal(const ProcDef* proc_def,
                                                   const InterpValue& value,
                                                   const TypeInfo* ti);
+  void PopulateChannelOrArrayIdToObject(const InterpValue& value,
+                                        const ChannelOrArray& channel_or_array);
   absl::Status ExpandProcDefChannelReference(
       const InterpValue& channel_or_array_value,
       std::vector<ChannelInterface*>& out);

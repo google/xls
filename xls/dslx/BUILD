@@ -265,6 +265,7 @@ cc_test(
     name = "interp_value_utils_test",
     srcs = ["interp_value_utils_test.cc"],
     deps = [
+        ":channel_direction",
         ":interp_value",
         ":interp_value_utils",
         "//xls/common:xls_gunit_main",

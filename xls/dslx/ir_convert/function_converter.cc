@@ -3857,7 +3857,7 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArrayIfLocal(
   }
 
   const AstNode* definer = GetChannelOrArrayDefiner(value);
-  if (definer->kind() != AstNodeKind::kChannelDecl) {
+  if (definer == nullptr || definer->kind() != AstNodeKind::kChannelDecl) {
     return absl::OkStatus();
   }
 
@@ -3889,6 +3889,24 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArrayIfLocal(
       /*name_def=*/std::nullopt, value, &direction_type, channel_decls);
 }
 
+void FunctionConverter::PopulateChannelOrArrayIdToObject(
+    const InterpValue& value, const ChannelOrArray& channel_or_array) {
+  channel_or_array_id_to_object_[GetChannelOrArrayId(value)] = channel_or_array;
+  if (!std::holds_alternative<ChannelArray*>(channel_or_array)) {
+    return;
+  }
+
+  ChannelArray* array = std::get<ChannelArray*>(channel_or_array);
+  std::vector<InterpValue> leaves = GetLeafChannelReferences(value);
+  if (leaves.size() == array->channels().size()) {
+    for (int i = 0; i < leaves.size(); ++i) {
+      channel_or_array_id_to_object_
+          [*leaves[i].GetChannelReferenceOrDie().GetChannelId()] =
+              absl::ConvertVariantTo<ChannelOrArray>(array->channels()[i]);
+    }
+  }
+}
+
 template <typename NodeType>
 absl::Status FunctionConverter::DefineProcDefChannelOrArray(
     const NodeType* node, std::optional<const NameDef*> name_def,
@@ -3902,9 +3920,8 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
     flow_control = struct_member_node->GetChannelFlowControl();
   }
 
-  std::optional<const AstNode*> definer_opt = GetChannelOrArrayDefiner(value);
-  XLS_RET_CHECK(definer_opt.has_value());
-  const AstNode* definer = *definer_opt;
+  const AstNode* definer = GetChannelOrArrayDefiner(value);
+  XLS_RET_CHECK(definer != nullptr);
 
   if (definer->kind() == AstNodeKind::kChannelDecl) {
     VLOG(5) << "Generating owned channel for: " << definer->ToString();
@@ -3924,8 +3941,7 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
       XLS_RET_CHECK(full_decl_tuple.IsTuple());
       const std::vector<InterpValue> ends = full_decl_tuple.GetValuesOrDie();
       for (int i = 0; i < ends.size(); i++) {
-        channel_or_array_id_to_object_[GetChannelOrArrayId(ends[i])] =
-            channel_or_array;
+        PopulateChannelOrArrayIdToObject(ends[i], channel_or_array);
       }
     }
 
@@ -3975,7 +3991,7 @@ absl::Status FunctionConverter::DefineProcDefChannelOrArray(
   }
   VLOG(10) << "Populating channel for " << value.ToString() << " in conv "
            << std::hex << (uint64_t)this;
-  channel_or_array_id_to_object_[GetChannelOrArrayId(value)] = channel_or_array;
+  PopulateChannelOrArrayIdToObject(value, channel_or_array);
   XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
       *proc_id_, param->name_def(), channel_or_array));
   return absl::OkStatus();
@@ -4093,6 +4109,14 @@ FunctionConverter::CreateProcDefInstance(const ProcDef* proc_def) {
 absl::Status FunctionConverter::ExpandProcDefChannelReference(
     const InterpValue& channel_or_array_value,
     std::vector<ChannelInterface*>& out) {
+  if (channel_or_array_value.IsChannelArray()) {
+    for (const InterpValue& elem :
+         channel_or_array_value.GetChannelArrayOrDie().elements()) {
+      XLS_RETURN_IF_ERROR(ExpandProcDefChannelReference(elem, out));
+    }
+    return absl::OkStatus();
+  }
+
   const auto channel_or_array_it = channel_or_array_id_to_object_.find(
       GetChannelOrArrayId(channel_or_array_value));
   XLS_RET_CHECK(channel_or_array_it != channel_or_array_id_to_object_.end())
@@ -4144,9 +4168,17 @@ absl::Status FunctionConverter::AddProcDefInstantiation(
     const InterpValue& external_arg = external_members[i];
     const InterpValue& canonical_arg = canonical_members[i];
 
-    if ((!external_arg.IsChannelReference() &&
-         !external_arg.IsChannelArray()) ||
-        external_arg.Eq(canonical_arg)) {
+    if (!external_arg.IsChannelReference() && !external_arg.IsChannelArray()) {
+      continue;
+    }
+    // Only pass interface channels (defined as constructor/proc parameters) in
+    // `channel_args`. Internal channels declared inside the child proc via
+    // `chan(...)` are owned by the child proc and should not be passed.
+    // Note: We check the canonical definer's kind rather than comparing values
+    // with `external_arg.Eq(canonical_arg)` because channel instance IDs can
+    // collide across modules.
+    const AstNode* definer = GetChannelOrArrayDefiner(canonical_arg);
+    if (definer->kind() != AstNodeKind::kParam) {
       continue;
     }
 
@@ -4170,9 +4202,13 @@ absl::Status FunctionConverter::AddProcDefInstantiation(
     const auto& [canonical_param, canonical_value] =
         canonical_forwarded_values[i];
 
-    if ((!external_value.IsChannelReference() &&
-         !external_value.IsChannelArray()) ||
-        external_value.Eq(canonical_value)) {
+    if (!external_value.IsChannelReference() &&
+        !external_value.IsChannelArray()) {
+      continue;
+    }
+    // As above, only forward interface channels defined as parameters.
+    const AstNode* definer = GetChannelOrArrayDefiner(canonical_value);
+    if (definer == nullptr || definer->kind() != AstNodeKind::kParam) {
       continue;
     }
 

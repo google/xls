@@ -50,6 +50,18 @@ absl::StatusOr<InterpValue> InterpValueFromString(std::string_view s) {
   return dslx::ValueToInterpValue(value);
 }
 
+void CollectLeafChannelReferences(const InterpValue& channel_or_array,
+                                  std::vector<InterpValue>& leaves) {
+  if (channel_or_array.IsChannelArray()) {
+    for (const InterpValue& elem :
+         channel_or_array.GetChannelArrayOrDie().elements()) {
+      CollectLeafChannelReferences(elem, leaves);
+    }
+  } else if (channel_or_array.IsChannelReference()) {
+    leaves.push_back(channel_or_array);
+  }
+}
+
 }  // namespace
 
 absl::StatusOr<InterpValue> CastBitsToArray(const InterpValue& bits_value,
@@ -509,7 +521,9 @@ absl::StatusOr<InterpValue> CreateChannelReferenceOrArray(
 const AstNode* GetChannelOrArrayDefiner(const InterpValue& channel_or_array) {
   return channel_or_array.IsChannelArray()
              ? channel_or_array.GetChannelArrayOrDie().definer()
-             : *channel_or_array.GetChannelReferenceOrDie().GetDefiner();
+             : channel_or_array.GetChannelReferenceOrDie()
+                   .GetDefiner()
+                   .value_or(nullptr);
 }
 
 int64_t GetChannelOrArrayId(const InterpValue& channel_or_array) {
@@ -523,6 +537,13 @@ ChannelDirection GetChannelOrArrayDirection(
   return channel_or_array.IsChannelArray()
              ? channel_or_array.GetChannelArrayOrDie().direction()
              : channel_or_array.GetChannelReferenceOrDie().GetDirection();
+}
+
+std::vector<InterpValue> GetLeafChannelReferences(
+    const InterpValue& channel_or_array) {
+  std::vector<InterpValue> leaves;
+  CollectLeafChannelReferences(channel_or_array, leaves);
+  return leaves;
 }
 
 absl::StatusOr<std::string> FormatInterpValue(const InterpValue& value,

@@ -2154,6 +2154,186 @@ impl TopProc {
   ExpectIr(conv.DumpIr());
 }
 
+TEST_F(IrConverterTest, ProcDefWith2DChannelArrayDealingOutSubArrays) {
+  constexpr std::string_view kModule = R"(
+proc SomeProc {
+  ins: chan<u32>[2] in,
+  outs: chan<u32>[2] out,
+}
+
+impl SomeProc {
+  fn new(ins: chan<u32>[2] in, outs: chan<u32>[2] out) -> Self {
+    SomeProc { ins, outs }
+  }
+
+  fn next(self) {
+    const for (i, _) in u32:0..2 {
+      let (tok, v) = recv(token(), self.ins[i]);
+      let _tok = send(tok, self.outs[i], v + 10);
+    }(());
+  }
+}
+
+proc TopProc {
+  outs: chan<u32>[2][2] out,
+  reply_ins: chan<u32>[2][2] in,
+}
+
+impl TopProc {
+  fn new() -> Self {
+    let (outs, ins) = chan<u32>[2][2]("ins_outs");
+    let (reply_outs, reply_ins) = chan<u32>[2][2]("reply");
+    SomeProc::new(ins[0], reply_outs[0]).spawn();
+    SomeProc::new(ins[1], reply_outs[1]).spawn();
+    TopProc { outs, reply_ins }
+  }
+
+  fn next(self) {
+    const for (i, _) in u32:0..2 {
+      const for (j, _) in u32:0..2 {
+        let tok = send(token(), self.outs[i][j], i * 2 + j);
+        let (_tok, val) = recv(tok, self.reply_ins[i][j]);
+        assert_eq(val, i * 2 + j + 10);
+      }(());
+    }(());
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ProcDefTakingChannelArrayAndDealingOutElements) {
+  constexpr std::string_view kModule = R"(
+proc SomeProc {
+  in_ch: chan<u32> in,
+}
+
+impl SomeProc {
+  fn new(in_ch: chan<u32> in) -> Self {
+    SomeProc { in_ch }
+  }
+
+  fn next(self) {
+    let (_, v) = recv(token(), self.in_ch);
+    trace_fmt!("recv: {}", v);
+  }
+}
+
+proc MiddleProc {}
+
+impl MiddleProc {
+  fn new(ins: chan<u32>[2] in) -> Self {
+    SomeProc::new(ins[0]).spawn();
+    SomeProc::new(ins[1]).spawn();
+    MiddleProc {}
+  }
+}
+
+proc TopProc {
+  outs: chan<u32>[2] out,
+}
+
+impl TopProc {
+  fn new() -> Self {
+    let (outs, ins) = chan<u32>[2]("ins_outs");
+    MiddleProc::new(ins).spawn();
+    TopProc { outs }
+  }
+
+  fn next(self) {
+    const for (i, _) in u32:0..2 {
+      send(token(), self.outs[i], i);
+    }(());
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
+TEST_F(IrConverterTest, ProcDefTaking2DChannelArrayAndDealingOutSubArrays) {
+  constexpr std::string_view kModule = R"(
+proc SomeProc {
+  in_ch: chan<u32> in,
+}
+
+impl SomeProc {
+  fn new(in_ch: chan<u32> in) -> Self {
+    SomeProc { in_ch }
+  }
+
+  fn next(self) {
+    let (_, v) = recv(token(), self.in_ch);
+    trace_fmt!("recv: {}", v);
+  }
+}
+
+proc InnerProc {}
+
+impl InnerProc {
+  fn new(ins: chan<u32>[2] in) -> Self {
+    SomeProc::new(ins[0]).spawn();
+    SomeProc::new(ins[1]).spawn();
+    InnerProc {}
+  }
+}
+
+proc MiddleProc {}
+
+impl MiddleProc {
+  fn new(ins: chan<u32>[2][2] in) -> Self {
+    InnerProc::new(ins[0]).spawn();
+    InnerProc::new(ins[1]).spawn();
+    MiddleProc {}
+  }
+}
+
+proc TopProc {
+  outs: chan<u32>[2][2] out,
+}
+
+impl TopProc {
+  fn new() -> Self {
+    let (outs, ins) = chan<u32>[2][2]("ins_outs");
+    MiddleProc::new(ins).spawn();
+    TopProc { outs }
+  }
+
+  fn next(self) {
+    const for (i, _) in u32:0..2 {
+      const for (j, _) in u32:0..2 {
+        send(token(), self.outs[i][j], i * 2 + j);
+      }(());
+    }(());
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(PackageConversionData conv,
+                           ConvertModuleToPackage(tm.module, &import_data,
+                                                  kProcScopedChannelOptions));
+  ExpectIr(conv.DumpIr());
+}
+
 TEST_F(IrConverterTest, ProcDefWithForwardedAndRetainedChannels) {
   constexpr std::string_view kModule = R"(
 proc SomeProc {
@@ -2814,6 +2994,61 @@ impl Main {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(kProgram, kProcScopedChannelOptions, &import_data));
+  ExpectIr(converted);
+}
+
+TEST_F(IrConverterTest, MultiModuleChannelForwarding) {
+  auto import_data = CreateImportDataForTest();
+
+  constexpr std::string_view kImportedProgram = R"(
+pub proc ChildProc {
+  in_ch: chan<u32> in,
+  out_ch: chan<u32> out,
+}
+
+impl ChildProc {
+  pub fn new(in_ch: chan<u32> in, out_ch: chan<u32> out) -> Self {
+    ChildProc { in_ch, out_ch }
+  }
+
+  fn next(self) {
+    let (tok, val) = recv(token(), self.in_ch);
+    let _tok = send(tok, self.out_ch, val + u32:100);
+  }
+}
+)";
+
+  XLS_EXPECT_OK(ParseAndTypecheck(kImportedProgram, "my_child_module.x",
+                                  "my_child_module", &import_data));
+
+  constexpr std::string_view kMainProgram = R"(
+import my_child_module as child_mod;
+
+proc TopProc {
+  out_ch: chan<u32> out,
+  in_ch: chan<u32> in,
+}
+
+impl TopProc {
+  fn new() -> Self {
+    let (outs, ins) = chan<u32>("ch1");
+    let (reply_outs, reply_ins) = chan<u32>("ch2");
+    child_mod::ChildProc::new(ins, reply_outs).spawn();
+    TopProc { out_ch: outs, in_ch: reply_ins }
+  }
+
+  fn next(self) {
+    let tok = send(token(), self.out_ch, u32:50);
+    let (_tok, val) = recv(tok, self.in_ch);
+    assert_eq(val, u32:150);
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kMainProgram, kProcScopedChannelOptions,
+                           &import_data));
   ExpectIr(converted);
 }
 

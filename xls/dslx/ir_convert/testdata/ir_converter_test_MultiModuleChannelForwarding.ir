@@ -1,0 +1,46 @@
+package test_module
+
+file_number 0 "my_child_module.x"
+file_number 1 "test_module.x"
+
+proc __my_child_module__ChildProc_next<_in_ch: bits[32] in, _out_ch: bits[32] out>() {
+  chan_interface _in_ch(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _out_ch(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  literal.3: token = literal(value=token, id=3)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.4: (token, bits[32]) = receive(literal.3, predicate=literal.2, channel=_in_ch, id=4)
+  val: bits[32] = tuple_index(receive.4, index=1, id=7)
+  literal.8: bits[32] = literal(value=100, id=8)
+  tok: token = tuple_index(receive.4, index=0, id=6)
+  add.9: bits[32] = add(val, literal.8, id=9)
+  __token: token = literal(value=token, id=1)
+  tuple_index.5: token = tuple_index(receive.4, index=0, id=5)
+  _tok: token = send(tok, add.9, predicate=literal.2, channel=_out_ch, id=10)
+  tuple.11: () = tuple(id=11)
+}
+
+proc __test_module__TopProc_next<>() {
+  chan _ch1(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _ch1(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _ch1(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan _ch2(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+  chan_interface _ch2(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface _ch2(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  proc_instantiation __my_child_module__ChildProc_next_inst(_ch1, _ch2, proc=__my_child_module__ChildProc_next)
+  literal.14: token = literal(value=token, id=14)
+  literal.15: bits[32] = literal(value=50, id=15)
+  literal.13: bits[1] = literal(value=1, id=13)
+  tok: token = send(literal.14, literal.15, predicate=literal.13, channel=_ch1, id=16)
+  receive.17: (token, bits[32]) = receive(tok, predicate=literal.13, channel=_ch2, id=17)
+  val: bits[32] = tuple_index(receive.17, index=1, id=20)
+  literal.21: bits[32] = literal(value=150, id=21)
+  not.23: bits[1] = not(literal.13, id=23)
+  eq.22: bits[1] = eq(val, literal.21, id=22)
+  __token: token = literal(value=token, id=12)
+  or.24: bits[1] = or(not.23, eq.22, id=24)
+  tuple_index.18: token = tuple_index(receive.17, index=0, id=18)
+  _tok: token = tuple_index(receive.17, index=0, id=19)
+  assert.25: token = assert(__token, or.24, message="Assertion failure via assert_eq @ test_module.x:20:14-20:28", label="assert_eq(val, u32:150)", id=25)
+  tuple.26: () = tuple(id=26)
+  tuple.27: () = tuple(id=27)
+}

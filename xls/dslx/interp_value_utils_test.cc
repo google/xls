@@ -26,6 +26,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -276,6 +277,26 @@ TEST(InterpValueHelpersTest, ValueToInterpValueEnum) {
   EXPECT_THAT(ValueToInterpValue(Value(UBits(3, 32)), &enum_type),
               IsOkAndHolds(Eq(InterpValue::MakeEnum(
                   UBits(3, 32), /*is_signed=*/false, &enum_def))));
+}
+
+TEST(InterpValueHelpersTest, GetLeafChannelReferences) {
+  InterpValue ch0 = InterpValue::MakeChannelReference(ChannelDirection::kIn, 0);
+  InterpValue ch1 = InterpValue::MakeChannelReference(ChannelDirection::kIn, 1);
+  InterpValue ch2 = InterpValue::MakeChannelReference(ChannelDirection::kIn, 2);
+  InterpValue ch3 = InterpValue::MakeChannelReference(ChannelDirection::kIn, 3);
+
+  InterpValue sub_arr0 = InterpValue::MakeChannelArray(
+      ChannelDirection::kIn, 10, /*definer=*/nullptr, {ch0, ch1});
+  InterpValue sub_arr1 = InterpValue::MakeChannelArray(
+      ChannelDirection::kIn, 11, /*definer=*/nullptr, {ch2, ch3});
+  InterpValue arr2d = InterpValue::MakeChannelArray(
+      ChannelDirection::kIn, 12, /*definer=*/nullptr, {sub_arr0, sub_arr1});
+
+  EXPECT_THAT(GetLeafChannelReferences(ch0), testing::ElementsAre(ch0));
+  EXPECT_THAT(GetLeafChannelReferences(sub_arr0),
+              testing::ElementsAre(ch0, ch1));
+  EXPECT_THAT(GetLeafChannelReferences(arr2d),
+              testing::ElementsAre(ch0, ch1, ch2, ch3));
 }
 
 }  // namespace

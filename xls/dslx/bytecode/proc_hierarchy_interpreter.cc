@@ -70,16 +70,12 @@ bool HasExplicitStateAccess(const Proc& proc, const TypeInfo* ti,
 void ForwardProcDefChannels(ProcDefChannelManager* channel_manager,
                             const ProcDef* proc, TypeInfo* ti,
                             const Param* param, const InterpValue& val) {
-  if (val.IsChannelReference()) {
+  for (const InterpValue& leaf : GetLeafChannelReferences(val)) {
     const InterpValue::ChannelReference& channel_ref =
-        val.GetChannelReferenceOrDie();
-    VLOG(5) << "Binding forwarded channel " << val.ToString() << " in proc "
+        leaf.GetChannelReferenceOrDie();
+    VLOG(5) << "Binding forwarded channel " << leaf.ToString() << " in proc "
             << proc->identifier() << " with param: " << param->ToString();
     channel_manager->Forward(*channel_ref.GetChannelId(), ti, param);
-  } else if (val.IsChannelArray()) {
-    for (const InterpValue& elem : val.GetChannelArrayOrDie().elements()) {
-      ForwardProcDefChannels(channel_manager, proc, ti, param, elem);
-    }
   }
 }
 

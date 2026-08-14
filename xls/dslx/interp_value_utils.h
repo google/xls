@@ -156,6 +156,11 @@ int64_t GetChannelOrArrayId(const InterpValue& channel_or_array);
 ChannelDirection GetChannelOrArrayDirection(
     const InterpValue& channel_or_array);
 
+// Returns all leaf ChannelReference InterpValues from a ChannelReference or
+// ChannelArray InterpValue in row-major order.
+std::vector<InterpValue> GetLeafChannelReferences(
+    const InterpValue& channel_or_array);
+
 // Formats an InterpValue to a string according to format preference.
 absl::StatusOr<std::string> FormatInterpValue(const InterpValue& value,
                                               FormatPreference preference);
