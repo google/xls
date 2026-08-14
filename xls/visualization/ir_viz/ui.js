@@ -191,27 +191,44 @@ document.addEventListener('DOMContentLoaded', function() {
           irVisualization.getIrText(document.getElementById('ir-source-text'));
       runPassesBtn.disabled = true;
 
-      const xmr = new XMLHttpRequest();
-      xmr.open('POST', '/run_passes');
-      xmr.addEventListener('load', function() {
-        runPassesBtn.disabled = false;
-        if (xmr.status >= 200 && xmr.status < 400) {
-          const response = JSON.parse(xmr.responseText);
-          if (response.error_code == 'ok') {
-            document.getElementById('ir-source-text').textContent = response.ir;
-            inputChangeHandler();
-          } else {
-            const src_status = document.getElementById('source-status');
-            src_status.classList.remove('alert-dark', 'alert-success');
-            src_status.classList.add('alert-danger');
-            src_status.textContent = response.message;
-          }
-        }
-      });
-      const data = new FormData();
-      data.append('text', text);
-      data.append('passes', passes);
-      xmr.send(data);
+      irVisualization.compressText(text)
+          .then(compressedBlob => {
+            const xmr = new XMLHttpRequest();
+            xmr.open('POST', '/run_passes');
+            xmr.addEventListener('error', function() {
+              runPassesBtn.disabled = false;
+            });
+            xmr.addEventListener('abort', function() {
+              runPassesBtn.disabled = false;
+            });
+            xmr.addEventListener('load', function() {
+              runPassesBtn.disabled = false;
+              if (xmr.status >= 200 && xmr.status < 400) {
+                const response = JSON.parse(xmr.responseText);
+                if (response.error_code == 'ok') {
+                  document.getElementById('ir-source-text').textContent =
+                      response.ir;
+                  inputChangeHandler();
+                } else {
+                  const src_status = document.getElementById('source-status');
+                  src_status.classList.remove('alert-dark', 'alert-success');
+                  src_status.classList.add('alert-danger');
+                  src_status.textContent = response.message;
+                }
+              }
+            });
+            const data = new FormData();
+            if (compressedBlob) {
+              data.append('text_gzip', compressedBlob, 'ir.gz');
+            } else {
+              data.append('text', text);
+            }
+            data.append('passes', passes);
+            xmr.send(data);
+          })
+          .catch(() => {
+            runPassesBtn.disabled = false;
+          });
     });
   }
 

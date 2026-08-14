@@ -65,6 +65,29 @@ function getIrText(element) {
 }
 
 /**
+ * Compresses a string using gzip if supported by the browser.
+ * Returns a Promise that resolves to a Blob containing gzip-compressed data,
+ * or null if CompressionStream is not available or compression fails.
+ * @param {string} text
+ * @return {!Promise<?Blob>}
+ * @suppress {missingProperties}
+ */
+function compressText(text) {
+  if (typeof CompressionStream === 'undefined') {
+    return Promise.resolve(null);
+  }
+  try {
+    const cs = new CompressionStream('gzip');
+    const blob = new Blob([text]);
+    const stream = blob.stream().pipeThrough(cs);
+    const response = new Response(stream);
+    return response.blob();
+  } catch (e) {
+    return Promise.resolve(null);
+  }
+}
+
+/**
  * Returns the offset of the selection (cursor) within a text element.
  * TODO(meheff): Move this into a separate file and share with hls/xls/ui tool.
  * @param {!Element} node
@@ -611,8 +634,29 @@ class IrVisualizer {
     }
     this.parseInFlight_ = true;
     const text = getIrText(this.irElement_);
-    const xmr = new XMLHttpRequest();
-    xmr.open('POST', '/graph');
+    compressText(text)
+        .then(compressedBlob => {
+          this.sendGraphRequest_(text, compressedBlob, cb);
+        })
+        .catch(e => {
+          this.sendGraphRequest_(text, null, cb);
+        });
+  }
+
+  /**
+   * Sends the graph request to the server with either compressed or raw IR
+   * text.
+   * @param {string} text
+   * @param {?Blob} compressedBlob
+   * @param {?function()} cb
+   * @private
+   */
+  sendGraphRequest_(text, compressedBlob, cb) {
+    if (getIrText(this.irElement_) != text) {
+      this.parseInFlight_ = false;
+      this.parseAndHighlightIr(cb);
+      return;
+    }
     const self = this;
     let cleanedUp = false;
     const cleanup = () => {
@@ -623,6 +667,8 @@ class IrVisualizer {
         cb();
       }
     };
+    const xmr = new XMLHttpRequest();
+    xmr.open('POST', '/graph');
     xmr.addEventListener('error', cleanup);
     xmr.addEventListener('abort', cleanup);
     xmr.addEventListener('load', function() {
@@ -635,7 +681,6 @@ class IrVisualizer {
           return;
         }
 
-        // TODO: define a type for the graph object.
         const response = /** @type {!Object} */ (JSON.parse(xmr.responseText));
         if (getIrText(self.irElement_) != text) {
           reparse = true;
@@ -680,7 +725,11 @@ class IrVisualizer {
       }
     });
     const data = new FormData();
-    data.append('text', text);
+    if (compressedBlob) {
+      data.append('text_gzip', compressedBlob, 'ir.gz');
+    } else {
+      data.append('text', text);
+    }
     xmr.send(data);
   }
 
@@ -748,4 +797,5 @@ class IrVisualizer {
 exports = {
   IrVisualizer,
   getIrText,
+  compressText,
 };

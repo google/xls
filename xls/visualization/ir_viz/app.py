@@ -17,12 +17,13 @@ Exposes a text box to edit or cut-and-paste XLS IR to render as a graph.
 """
 
 import functools
+import gzip
 import json
 import os
 import subprocess
 import sys
 import tempfile
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 from absl import app
 from absl import flags
@@ -72,6 +73,8 @@ IR_EXAMPLES_FILE_LIST = 'xls/visualization/ir_viz/ir_examples_file_list.txt'
 
 webapp = flask.Flask('XLS UI')
 webapp.debug = True
+# Allow large payloads (e.g. large IR files) without Werkzeug 413 limits.
+webapp.config['MAX_CONTENT_LENGTH'] = None
 
 # Set of pre-canned examples as a list of (name, IR text) tuples. By default
 # these are loaded from IR_EXAMPLES_FILE_LIST unless --example_ir_dir is given.
@@ -81,6 +84,66 @@ OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
 IR_TO_JSON_MAIN_PATH = runfiles.get_path(
     'xls/visualization/ir_viz/ir_to_json_main'
 )
+
+
+def _get_request_ir_text(req: flask.Request, field_name: str = 'text') -> str:
+  """Extracts IR text from the request, handling optional gzip decompression."""
+  gzip_field = f'{field_name}_gzip'
+  if gzip_field in req.files:
+    return gzip.decompress(req.files[gzip_field].read()).decode('utf-8')
+  if field_name in req.form:
+    return req.form[field_name]
+  data = req.get_data()
+  if (
+      data.startswith(b'\x1f\x8b')
+      or 'gzip' in req.headers.get('Content-Encoding', '').lower()
+  ):
+    return gzip.decompress(data).decode('utf-8')
+  return data.decode('utf-8')
+
+
+def _make_response(
+    body: Union[str, bytes],
+    mimetype: str = 'application/json',
+    status: int = 200,
+) -> flask.Response:
+  """Returns a Flask Response, gzip-compressing the body if requested."""
+  if isinstance(body, str):
+    body_bytes = body.encode('utf-8')
+  else:
+    body_bytes = body
+
+  accept_encoding = flask.request.headers.get('Accept-Encoding', '').lower()
+  if 'gzip' in accept_encoding and len(body_bytes) > 512:
+    compressed = gzip.compress(body_bytes)
+    return flask.Response(
+        response=compressed,
+        status=status,
+        mimetype=mimetype,
+        headers={
+            'Content-Encoding': 'gzip',
+            'Content-Length': str(len(compressed)),
+            'Vary': 'Accept-Encoding',
+        },
+    )
+
+  return flask.Response(
+      response=body_bytes,
+      status=status,
+      mimetype=mimetype,
+      headers={
+          'Content-Length': str(len(body_bytes)),
+          'Vary': 'Accept-Encoding',
+      },
+  )
+
+
+def _json_response(
+    data: dict[str, object], status: int = 200
+) -> flask.Response:
+  return _make_response(
+      json.dumps(data), mimetype='application/json', status=status
+  )
 
 
 def load_precanned_examples() -> List[Tuple[str, str]]:
@@ -261,7 +324,7 @@ def example_handler(filename: str):
 @webapp.route('/graph', methods=['POST'])
 def graph_handler():
   """Parses the posted text and returns a parse status."""
-  text = flask.request.form['text']
+  text = _get_request_ir_text(flask.request, 'text')
   with tempfile.NamedTemporaryFile(
       mode='w', encoding='utf-8', prefix='ir_viz.', suffix='.ir'
   ) as tmp_ir:
@@ -286,23 +349,27 @@ def graph_handler():
       )
     except subprocess.CalledProcessError as e:
       logging.error('Error: %s', e.stderr)
-      return flask.jsonify(
+      return _json_response(
           {'error_code': 'error', 'message': e.stderr or str(e)}
       )
     except Exception as e:  # pylint: disable=broad-except
       # TODO(meheff): Switch to more-specific exception.
       logging.error('Error: %s', e)
-      return flask.jsonify({'error_code': 'error', 'message': str(e)})
+      return _json_response({'error_code': 'error', 'message': str(e)})
 
-  graph = json.loads(json_text)
-  jsonified = flask.jsonify({'error_code': 'ok', 'graph': graph})
-  return jsonified
+  json_text = json_text.strip()
+  if json_text.startswith('{') and json_text.endswith('}'):
+    response_body = f'{{"error_code": "ok", "graph": {json_text}}}'
+  else:
+    graph = json.loads(json_text)
+    response_body = json.dumps({'error_code': 'ok', 'graph': graph})
+  return _make_response(response_body, mimetype='application/json')
 
 
 @webapp.route('/run_passes', methods=['POST'])
 def run_passes_handler():
   """Runs specified passes on the posted IR text and returns the new IR."""
-  text = flask.request.form.get('text', '')
+  text = _get_request_ir_text(flask.request, 'text')
   passes = flask.request.form.get('passes', '')
   with tempfile.NamedTemporaryFile(
       mode='w', encoding='utf-8', prefix='ir_viz.', suffix='.ir'
@@ -329,14 +396,14 @@ def run_passes_handler():
       new_ir = tmp_out.read()
     except subprocess.CalledProcessError as e:
       logging.error('Error: %s', e.stderr)
-      return flask.jsonify(
+      return _json_response(
           {'error_code': 'error', 'message': e.stderr or str(e)}
       )
     except Exception as e:  # pylint: disable=broad-except
       logging.error('Error: %s', e)
-      return flask.jsonify({'error_code': 'error', 'message': str(e)})
+      return _json_response({'error_code': 'error', 'message': str(e)})
 
-  return flask.jsonify({'error_code': 'ok', 'ir': new_ir})
+  return _json_response({'error_code': 'ok', 'ir': new_ir})
 
 
 def main(argv):
