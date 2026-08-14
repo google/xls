@@ -621,6 +621,7 @@ pytype_strict_contrib_test(
     deps = [
         "//xls/common:runfiles",
         "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
 import os
 import re
 import stat
@@ -21,6 +22,7 @@ import textwrap
 from typing import Optional
 
 from absl.testing import absltest
+from absl.testing import parameterized
 from xls.common import runfiles
 
 IR_MINIMIZER_MAIN_PATH = runfiles.get_path('xls/dev_tools/ir_minimizer_main')
@@ -226,7 +228,7 @@ def node_count(ir: str, op: Optional[str] = None) -> int:
   return count
 
 
-class IrMinimizerMainTest(absltest.TestCase):
+class IrMinimizerMainTest(parameterized.TestCase):
 
   def _maybe_record_property(self, name, value):
     if callable(getattr(self, 'recordProperty', None)):
@@ -1141,6 +1143,64 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
         r'ret smulp[\w\.]*: \(bits\[8\], bits\[8\]\) = smulp\(literal[\w\.]*,'
         r' literal[\w\.]*',
     )
+
+  @parameterized.named_parameters(
+      dict(
+          testcase_name='with_high_slice_user',
+          ir=textwrap.dedent("""\
+              package widening
+
+              top fn muls(x: bits[32], y: bits[32]) -> bits[32] {
+                product: bits[64] = smul(x, y)
+                ret high: bits[32] = bit_slice(product, start=32, width=32)
+              }
+          """),
+          script_commands=["/usr/bin/env grep 'smul' $1"],
+          expected_patterns=['smul'],
+      ),
+      dict(
+          testcase_name='dead',
+          ir=textwrap.dedent("""\
+              package widening_dead
+
+              top fn muld(x: bits[32], y: bits[32]) -> bits[32] {
+                dead_product: bits[64] = umul(x, y)
+                ret keep: bits[32] = add(x, y)
+              }
+          """),
+          script_commands=[
+              "/usr/bin/env grep 'umul' $1 && /usr/bin/env grep 'add' $1"
+          ],
+          expected_patterns=['umul', 'add'],
+      ),
+  )
+  def test_trim_widening_mul(
+      self,
+      ir: str,
+      script_commands: Sequence[str],
+      expected_patterns: Sequence[str],
+  ):
+    ir_file = self.create_tempfile(content=ir)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(test_sh_file.full_path, script_commands)
+    output = subprocess.run(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params=true',
+            ir_file.full_path,
+        ],
+        capture_output=True,
+        encoding='utf-8',
+        check=False,
+    )
+    self.assertEqual(
+        output.returncode,
+        0,
+        f'Minimization died mid-run: stderr {output.stderr!r}',
+    )
+    for expected in expected_patterns:
+      self.assertIn(expected, output.stdout)
 
 
 if __name__ == '__main__':

@@ -943,6 +943,18 @@ struct ClonedNodeInfo {
   std::optional<int64_t> param_index;
 };
 
+// Returns whether all operands of `node` have at least `start + new_width`
+// bits.
+bool CanSliceOperands(Node* node, int64_t start, int64_t new_width) {
+  for (Node* operand : node->operands()) {
+    if (!operand->GetType()->IsBits() ||
+        operand->BitCountOrDie() < start + new_width) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // Slices node operands and clones the node to use the reduced width operands.
 absl::StatusOr<ClonedNodeInfo> SliceOperandsAndCloneNode(Node* node,
                                                          int64_t start,
@@ -1043,6 +1055,9 @@ absl::StatusOr<SimplificationResult> TrimBitsOfNode(Node* node,
   if (node->users().empty()) {
     int64_t new_width = absl::Uniform<int64_t>(rng, 1, orig_width);
     int64_t start = absl::Uniform<int64_t>(rng, 0, orig_width - new_width + 1);
+    if (!CanSliceOperands(node, start, new_width)) {
+      return SimplificationResult::kDidNotChange;
+    }
     XLS_ASSIGN_OR_RETURN(ClonedNodeInfo clone_info,
                          SliceOperandsAndCloneNode(node, start, new_width));
     XLS_RETURN_IF_ERROR(ReplaceNodeInPlace(
@@ -1059,6 +1074,9 @@ absl::StatusOr<SimplificationResult> TrimBitsOfNode(Node* node,
     return SimplificationResult::kDidNotChange;
   }
 
+  if (!CanSliceOperands(node, slice->start, slice->new_width)) {
+    return SimplificationResult::kDidNotChange;
+  }
   XLS_ASSIGN_OR_RETURN(
       ClonedNodeInfo clone_info,
       SliceOperandsAndCloneNode(node, slice->start, slice->new_width));
