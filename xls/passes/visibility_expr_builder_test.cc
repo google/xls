@@ -14,6 +14,7 @@
 
 #include "xls/passes/visibility_expr_builder.h"
 
+#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -306,6 +307,40 @@ TEST_F(VisibilityExprBuilderTest, FindsSourceOfTupleOperandInComparison) {
   XLS_ASSERT_OK_AND_ASSIGN(is_y_used,
                            BuildDefaultVisibilityExpr(f, y.node(), {}));
   EXPECT_THAT(is_y_used.first, m::TupleIndex(m::Param("tup"), 0));
+}
+
+TEST_F(VisibilityExprBuilderTest, PrioritySelectLargeCaseIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  constexpr int64_t kNumCases = 100;
+  constexpr int64_t kTargetCase = 90;
+  BValue cond = fb.Param("c", p->GetBitsType(8));
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue default_val = fb.Param("d", p->GetBitsType(32));
+
+  // selector[i] == (cond >= i)
+  std::vector<BValue> selector_bits;
+  selector_bits.reserve(kNumCases);
+  for (int64_t i = 0; i < kNumCases; ++i) {
+    selector_bits.push_back(fb.UGe(cond, fb.Literal(UBits(i, 8))));
+  }
+  BValue selectors = fb.Concat(selector_bits);
+
+  // x and y are mutually exclusive, x is used if cond == kTargetCase
+  std::vector<BValue> cases(kNumCases, default_val);
+  cases[kTargetCase] = x;
+  cases[kNumCases - 1] = y;
+  BValue prio = fb.PrioritySelect(selectors, cases, fb.Literal(UBits(0, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(prio));
+
+  std::pair<Node*, VisibilityEstimator::AreaDelay> is_x_used;
+  XLS_ASSERT_OK_AND_ASSIGN(is_x_used,
+                           BuildDefaultVisibilityExpr(f, x.node(), {y.node()}));
+  EXPECT_THAT(
+      is_x_used.first,
+      m::Eq(m::BitSlice(selectors.node(), 0, kTargetCase + 1),
+            m::Literal(Bits::PowerOfTwo(kTargetCase, kTargetCase + 1))));
 }
 
 }  // namespace

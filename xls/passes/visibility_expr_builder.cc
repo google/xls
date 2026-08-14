@@ -118,8 +118,8 @@ absl::StatusOr<Node*> VisibilityBuilder::GetVisibilityExprForPrioritySelect(
         XLS_ASSIGN_OR_RETURN(Node * bits_to_i,
                              FindOrMakeBitSlice(selector, 0, i + 1));
         XLS_ASSIGN_OR_RETURN(
-            Node * one, func->MakeNode<Literal>(select->loc(),
-                                                Value(UBits(1 << i, i + 1))));
+            Node * one, func->MakeNode<Literal>(
+                            select->loc(), Value(Bits::PowerOfTwo(i, i + 1))));
         XLS_ASSIGN_OR_RETURN(
             selector_bit_i,
             func->MakeNode<CompareOp>(select->loc(), bits_to_i, one, Op::kEq));
