@@ -621,34 +621,30 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         function_type->return_type()));
     XLS_RETURN_IF_ERROR(AddAnnotationsAndConvertParameters(
         function_type, actual_args, caller_context, caller));
-    XLS_ASSIGN_OR_RETURN(TypeInfo * parent_ti, GetTypeInfo(caller_context));
 
     // All invocations need to be recorded in `TypeInfo`. For most
     // non-parametric callees, this is simple; the identity of the callee
     // `Function` object cannot even depend on generics in the caller. The
     // exception is impl functions; a caller with a generic parametric can use
     // that to dispatch the same invocation to different possible impls.
-    XLS_ASSIGN_OR_RETURN(TypeInfo * function_owner_ti,
-                         GetTypeInfo(caller_context));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * caller_ti, GetTypeInfo(caller_context));
     if (caller_context.has_value() && (*caller_context)->is_invocation() &&
         function_and_target_object.target_object.has_value()) {
       auto& caller_details =
           std::get<ParametricInvocationDetails>((*caller_context)->details());
-      XLS_RETURN_IF_ERROR(parent_ti->AddInvocationTypeInfo(
+      XLS_RETURN_IF_ERROR(caller_ti->AddInvocationTypeInfo(
           *invocation, function, caller_details.callee,
-          table_.GetParametricEnv(caller_context), ParametricEnv{},
-          function_owner_ti));
+          table_.GetParametricEnv(caller_context), ParametricEnv{}, caller_ti));
     } else {
-      XLS_RETURN_IF_ERROR(parent_ti->AddInvocation(
+      XLS_RETURN_IF_ERROR(caller_ti->AddInvocation(
           *invocation, function, caller.has_value() ? *caller : nullptr,
-          function_owner_ti));
+          caller_ti));
     }
 
     if (invocation->originating_invocation().has_value()) {
-      XLS_ASSIGN_OR_RETURN(parent_ti, GetTypeInfo(caller_context));
-      XLS_RETURN_IF_ERROR(parent_ti->AddInvocation(
+      XLS_RETURN_IF_ERROR(caller_ti->AddInvocation(
           **invocation->originating_invocation(), function,
-          caller.has_value() ? *caller : nullptr, function_owner_ti));
+          caller.has_value() ? *caller : nullptr, caller_ti));
     }
     XLS_RETURN_IF_ERROR(NoteIfRequiresImplicitToken(
         caller, function_and_target_object.function, invocation->callee()));
