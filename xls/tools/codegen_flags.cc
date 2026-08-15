@@ -217,6 +217,12 @@ ABSL_FLAG(std::string, block_metrics_path, "",
 ABSL_FLAG(std::string, source_annotation_strategy, "none",
           "What strategy to use annotating generated code with references "
           "the DSLX source code. Options are 'none', 'comment', 'directive'");
+ABSL_FLAG(
+    bool, preserve_ports, true,
+    "True by default; specifies that XLS should use a consistent naming scheme "
+    "for boundary ports. If disabled (with `--nopreserve_ports`), anything "
+    "that consumes the generated Verilog should use the block "
+    "signature/metadata to find the ports corresponding to each channel.");
 
 struct SeedSeq {
   std::vector<int32_t> elements;

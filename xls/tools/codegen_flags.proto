@@ -124,6 +124,11 @@ message CodegenFlagsProto {
   // Debugging flag to cause the block conversion to dump its pass results.
   string ir_dump_path = 45;
 
+  // If true, use a consistent naming scheme for boundary ports. If false, may
+  // vary port names and/or reuse ports at the boundary, and users are expected
+  // to use the block signature to find ports.
+  bool preserve_ports = 46;
+
   // Space for pass-specific configuration extensions.
   extensions 20000 to max;
 }

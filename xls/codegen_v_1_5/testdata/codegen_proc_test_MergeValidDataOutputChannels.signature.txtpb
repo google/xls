@@ -1,0 +1,111 @@
+module_name: "merge_outputs_proc"
+data_ports {
+  direction: PORT_DIRECTION_INPUT
+  name: "in"
+  width: 32
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+}
+data_ports {
+  direction: PORT_DIRECTION_INPUT
+  name: "in_vld"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+data_ports {
+  direction: PORT_DIRECTION_OUTPUT
+  name: "in_rdy"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+data_ports {
+  direction: PORT_DIRECTION_OUTPUT
+  name: "out0"
+  width: 32
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+}
+data_ports {
+  direction: PORT_DIRECTION_OUTPUT
+  name: "out0_vld"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+data_ports {
+  direction: PORT_DIRECTION_OUTPUT
+  name: "out1_vld"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+clock_name: "clk"
+reset {
+  name: "rst"
+  asynchronous: false
+  active_low: false
+}
+pipeline {
+  latency: 1
+  initiation_interval: 1
+}
+channel_interfaces {
+  channel_name: "in"
+  direction: CHANNEL_DIRECTION_RECEIVE
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+  kind: CHANNEL_KIND_STREAMING
+  streaming {
+    flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+    data_port_name: "in"
+    ready_port_name: "in_rdy"
+    valid_port_name: "in_vld"
+  }
+  flop_kind: FLOP_KIND_NONE
+}
+channel_interfaces {
+  channel_name: "out0"
+  direction: CHANNEL_DIRECTION_SEND
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+  kind: CHANNEL_KIND_STREAMING
+  streaming {
+    flow_control: CHANNEL_FLOW_CONTROL_VALID_DATA
+    data_port_name: "out0"
+    valid_port_name: "out0_vld"
+  }
+  flop_kind: FLOP_KIND_NONE
+}
+channel_interfaces {
+  channel_name: "out1"
+  direction: CHANNEL_DIRECTION_SEND
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+  kind: CHANNEL_KIND_STREAMING
+  streaming {
+    flow_control: CHANNEL_FLOW_CONTROL_VALID_DATA
+    data_port_name: "out0"
+    valid_port_name: "out1_vld"
+  }
+  flop_kind: FLOP_KIND_NONE
+}

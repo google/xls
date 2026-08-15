@@ -1,0 +1,43 @@
+module merge_outputs_proc(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] in,
+  input wire in_vld,
+  output wire in_rdy,
+  output wire [31:0] out0,
+  output wire out0_vld,
+  output wire out1_vld
+);
+  reg __out0_already_done_reg;
+  reg __out1_already_done_reg;
+  reg p1_inputs_valid;
+  wire and_80;
+  wire and_82;
+  wire and_92;
+  wire or_93;
+  wire and_95;
+  wire or_96;
+  wire or_97;
+  assign and_80 = in_vld & ~__out0_already_done_reg;
+  assign and_82 = in_vld & ~__out1_already_done_reg;
+  assign and_92 = and_80 & ~in_vld;
+  assign or_93 = and_80 | in_vld;
+  assign and_95 = and_82 & ~in_vld;
+  assign or_96 = and_82 | in_vld;
+  assign or_97 = in_vld | p1_inputs_valid;
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      __out0_already_done_reg <= 1'h0;
+      __out1_already_done_reg <= 1'h0;
+      p1_inputs_valid <= 1'h0;
+    end else begin
+      __out0_already_done_reg <= or_93 ? and_92 : __out0_already_done_reg;
+      __out1_already_done_reg <= or_96 ? and_95 : __out1_already_done_reg;
+      p1_inputs_valid <= or_97 ? in_vld : p1_inputs_valid;
+    end
+  end
+  assign in_rdy = in_vld;
+  assign out0 = in;
+  assign out0_vld = and_80;
+  assign out1_vld = and_82;
+endmodule

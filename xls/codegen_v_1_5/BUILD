@@ -51,6 +51,7 @@ xls_codegen_pass_registry(
         ":signature_generation_pass",
         ":block_finalization_pass",
         ":register_cleanup_pass",
+        ":merge_ports_pass",
     ],
     pipeline = "codegen_pass_pipeline.txtpb",
     tags = ["keep_dep"],
@@ -206,6 +207,42 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:register",
         "//xls/ir:source_location",
+        "//xls/passes:pass_base",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+xls_codegen_pass(
+    name = "merge_ports_pass",
+    srcs = ["merge_ports_pass.cc"],
+    hdrs = ["merge_ports_pass.h"],
+    pass_class = "MergePortsPass",
+    deps = [
+        ":block_conversion_pass",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/passes:pass_base",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "merge_ports_pass_test",
+    srcs = ["merge_ports_pass_test.cc"],
+    deps = [
+        ":block_conversion_pass",
+        ":merge_ports_pass",
+        "//xls/codegen:codegen_options",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
         "//xls/passes:pass_base",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",

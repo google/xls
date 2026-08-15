@@ -464,6 +464,10 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options.set_ir_dump_path(p.ir_dump_path());
   }
 
+  if (p.has_preserve_ports()) {
+    options.preserve_ports(p.preserve_ports());
+  }
+
   XLS_RETURN_IF_ERROR(CodegenFlagsHandlerRegistry::Process(p, options));
   return options;
 }

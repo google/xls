@@ -150,6 +150,9 @@ CODEGEN_FIELDS = {
                                   "to generate comments, 'directive' to generate SystemVerilog `line directives, " +
                                   "or 'none'",
     "find_bounds_strategy": "Scheduler algorithm to use for finding minimum bounds.",
+    "preserve_ports": "If true, use a consistent naming scheme for boundary ports. If false, may " +
+                      "vary port names and/or reuse ports at the boundary, and users are " +
+                      "expected to use the block signature to find ports.",
 }
 
 SCHEDULING_FIELDS = {

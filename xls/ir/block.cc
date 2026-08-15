@@ -679,21 +679,18 @@ absl::Status Block::RemoveNode(Node* n) {
             "Data port for channel `%s` in block `%s` removed: %s",
             metadata.channel_name, name(), metadata.data_port.value());
         metadata.data_port = std::nullopt;
-        break;
       } else if (metadata.ready_port.has_value() &&
                  port_name == *metadata.ready_port) {
         VLOG(3) << absl::StreamFormat(
             "Ready port for channel `%s` in block `%s` removed: %s",
             metadata.channel_name, name(), metadata.ready_port.value());
         metadata.ready_port = std::nullopt;
-        break;
       } else if (metadata.valid_port.has_value() &&
                  port_name == *metadata.valid_port) {
         VLOG(3) << absl::StreamFormat(
             "Valid port for channel `%s` in block `%s` removed: %s",
             metadata.channel_name, name(), metadata.valid_port.value());
         metadata.valid_port = std::nullopt;
-        break;
       }
     }
   } else if (RegisterRead* reg_read = dynamic_cast<RegisterRead*>(n)) {

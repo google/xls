@@ -390,6 +390,126 @@ TEST_P(CodegenProcTest, CombinationalSingleProcWithProcScopedChannels) {
                                  result.verilog_text);
 }
 
+TEST_P(CodegenProcTest, MergeValidDataOutputChannels) {
+  Package package(TestBaseName());
+
+  TokenlessProcBuilder pb(NewStyleProc(), "merge_outputs_proc", "tkn",
+                          &package);
+  BReceiveChannel in = pb.AddInputChannel("in", package.GetBitsType(32));
+  BSendChannel out0 = pb.AddOutputChannel(
+      "out0", package.GetBitsType(32), ChannelKind::kStreaming,
+      /*strictness=*/std::nullopt, FlowControl::kValidData);
+  out0.channel_interface()->SetFlopKind(FlopKind::kNone);
+  BSendChannel out1 = pb.AddOutputChannel(
+      "out1", package.GetBitsType(32), ChannelKind::kStreaming,
+      /*strictness=*/std::nullopt, FlowControl::kValidData);
+  out1.channel_interface()->SetFlopKind(FlopKind::kNone);
+
+  BValue val = pb.Receive(in);
+  pb.Send(out0, val);
+  pb.Send(out1, val);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
+
+  verilog::ResetProto reset_proto;
+  reset_proto.set_name("rst");
+  reset_proto.set_asynchronous(false);
+  reset_proto.set_active_low(false);
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(
+          &package,
+          verilog::CodegenOptions()
+              .clock_name("clk")
+              .emit_as_pipeline(true)
+              .register_merge_strategy(
+                  verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly)
+              .preserve_ports(false)
+              .reset(reset_proto.name(), reset_proto.asynchronous(),
+                     reset_proto.active_low(), reset_proto.reset_data_path())
+              .use_system_verilog(UseSystemVerilog()),
+          SchedulingOptions().clock_period_ps(50).pipeline_stages(2),
+          &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  ExpectSignatureEqualToGoldenFile(
+      SignatureGoldenFilePath(kTestName, kTestdataPath), result.signature);
+
+  verilog::ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  absl::flat_hash_map<std::string, std::vector<Bits>> inputs = {
+      {"in", {UBits(10, 32), UBits(42, 32)}}};
+  absl::flat_hash_map<std::string, std::vector<Bits>> outputs = {
+      {"out0", {UBits(10, 32), UBits(42, 32)}},
+      {"out1", {UBits(10, 32), UBits(42, 32)}}};
+  EXPECT_THAT(simulator.RunInputSeriesProc(inputs, {{"out0", 2}, {"out1", 2}}),
+              IsOkAndHolds(outputs));
+}
+
+TEST_P(CodegenProcTest, MergeReadyValidOutputChannels) {
+  Package package(TestBaseName());
+
+  TokenlessProcBuilder pb(NewStyleProc(), "merge_outputs_proc", "tkn",
+                          &package);
+  BReceiveChannel in = pb.AddInputChannel("in", package.GetBitsType(32));
+  BSendChannel out0 = pb.AddOutputChannel(
+      "out0", package.GetBitsType(32), ChannelKind::kStreaming,
+      /*strictness=*/std::nullopt, FlowControl::kReadyValid);
+  out0.channel_interface()->SetFlopKind(FlopKind::kNone);
+  BSendChannel out1 = pb.AddOutputChannel(
+      "out1", package.GetBitsType(32), ChannelKind::kStreaming,
+      /*strictness=*/std::nullopt, FlowControl::kReadyValid);
+  out1.channel_interface()->SetFlopKind(FlopKind::kNone);
+
+  BValue val = pb.Receive(in);
+  pb.Send(out0, val);
+  pb.Send(out1, val);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
+
+  verilog::ResetProto reset_proto;
+  reset_proto.set_name("rst");
+  reset_proto.set_asynchronous(false);
+  reset_proto.set_active_low(false);
+
+  TestDelayEstimator delay_estimator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      verilog::CodegenResult result,
+      Codegen(
+          &package,
+          verilog::CodegenOptions()
+              .clock_name("clk")
+              .emit_as_pipeline(true)
+              .register_merge_strategy(
+                  verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly)
+              .preserve_ports(false)
+              .reset(reset_proto.name(), reset_proto.asynchronous(),
+                     reset_proto.active_low(), reset_proto.reset_data_path())
+              .use_system_verilog(UseSystemVerilog()),
+          SchedulingOptions().clock_period_ps(50).pipeline_stages(2),
+          &delay_estimator));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+  ExpectSignatureEqualToGoldenFile(
+      SignatureGoldenFilePath(kTestName, kTestdataPath), result.signature);
+
+  verilog::ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  absl::flat_hash_map<std::string, std::vector<Bits>> inputs = {
+      {"in", {UBits(10, 32), UBits(42, 32)}}};
+  absl::flat_hash_map<std::string, std::vector<Bits>> outputs = {
+      {"out0", {UBits(10, 32), UBits(42, 32)}},
+      {"out1", {UBits(10, 32), UBits(42, 32)}}};
+  EXPECT_THAT(simulator.RunInputSeriesProc(inputs, {{"out0", 2}, {"out1", 2}}),
+              IsOkAndHolds(outputs));
+}
+
 INSTANTIATE_TEST_SUITE_P(CodegenProcTestInstantiation, CodegenProcTest,
                          testing::ValuesIn(verilog::kDefaultSimulationTargets),
                          verilog::ParameterizedTestName<CodegenProcTest>);

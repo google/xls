@@ -464,6 +464,15 @@ class CodegenOptions {
     return assert_on_valid_data_not_ready_;
   }
 
+  // If true, name all ports consistently with their channel names, and ensure
+  // all ports are distinct. If false, may vary port names and/or reuse ports at
+  // the boundary; variations must be reflected in the block signature.
+  CodegenOptions& preserve_ports(bool value) {
+    preserve_ports_ = value;
+    return *this;
+  }
+  bool preserve_ports() const { return preserve_ports_; }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -509,6 +518,7 @@ class CodegenOptions {
   std::optional<CodegenResidualData> residual_data_;
   std::optional<std::string> ir_dump_path_;
   bool assert_on_valid_data_not_ready_ = false;
+  bool preserve_ports_ = true;
 
   std::vector<std::shared_ptr<CodegenOptionExtension>> extensions_;
 };

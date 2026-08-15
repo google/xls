@@ -237,6 +237,25 @@ class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
     XLS_EXPECT_OK(ValidateVerilog(text, macro_definitions, includes));
   }
 
+  // EXPECTs that the given ModuleSignature is equal to the golden reference
+  // file specified by golden_file_path.
+  //
+  // `golden_file_path` should be relative to the main XLS source directory.
+  //
+  // To update golden file run test binary directly (not via bazel run/test)
+  // with --test_update_golden_files:
+  //
+  //   ./path/to/foo_test --test_update_golden_files
+  //
+  void ExpectSignatureEqualToGoldenFile(
+      const std::filesystem::path& golden_file_path,
+      const ModuleSignature& signature,
+      xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
+    // TODO(epastor): This should parse the golden textproto and compare to it.
+    // For now, we just compare strings.
+    ExpectEqualToGoldenFile(golden_file_path, signature.AsTextProto(), loc);
+  }
+
   // Returns the path to the testdata file associated with a unit test. The
   // return path has the form:
   //
@@ -255,6 +274,23 @@ class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
     std::string filename =
         absl::StrFormat("%s_%s.%s", test_file_name, TestBaseName(),
                         UseSystemVerilog() ? "svtxt" : "vtxt");
+    return testdata_dir / filename;
+  }
+
+  // Returns the path to the signature testdata file associated with a unit
+  // test. The return path has the form:
+  //
+  //  ${XLS_top}/${testdata_dir}/${test_file_name}_${TestBaseName}.signature.txtpb
+  //
+  // test_file_name should be the name of the test file without the .cc
+  // extension. testdata_dir should be the path of the testdata directory
+  // relative to the XLS source top.
+  virtual std::filesystem::path SignatureGoldenFilePath(
+      std::string_view test_file_name,
+      const std::filesystem::path& testdata_dir) {
+    // We suffix the golden reference files with ".signature.txtpb".
+    std::string filename = absl::StrFormat("%s_%s.signature.txtpb",
+                                           test_file_name, TestBaseName());
     return testdata_dir / filename;
   }
 

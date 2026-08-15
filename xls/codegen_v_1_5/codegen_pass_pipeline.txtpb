@@ -42,6 +42,7 @@ compound_passes: [
       "proc_instantiation_lowering",
       "global_channel_block_stitching",
       "global_channel_removal",
+      "merge_ports",
       "signature_generation",
       "block_finalization"
     ]

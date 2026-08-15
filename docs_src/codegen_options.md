@@ -616,6 +616,15 @@ response-receive are scheduled to match the RAM's latency.
     read in are not simultaneously activatable and the registers are the same
     type.
 
+-   `--preserve_ports` (on by default) requires XLS to use a consistent naming
+    scheme for boundary ports, documented elsewhere; this is required for most
+    manual stitching contexts, since the ports will be referred to be name. If
+    disabled (with `--nopreserve_ports`), XLS is allowed to (e.g.) share a
+    single output port for multiple equivalent purposes, and otherwise change
+    the exact port design at the boundary; users who disable this must make sure
+    their stitcher & other tools use XLS's emitted block signature/metadata
+    information to find the ports corresponding to a channel.
+
 # Miscellaneous
 
 -   `--randomize_order_seed`, if provided, controls the seed used to randomize
