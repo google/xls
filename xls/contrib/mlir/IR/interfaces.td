@@ -1,5 +1,5 @@
-#ifndef HWIR_INTERFACES
-#define HWIR_INTERFACES
+#ifndef XLS_CONTRIB_MLIR_IR_INTERFACES
+#define XLS_CONTRIB_MLIR_IR_INTERFACES
 
 include "mlir/IR/OpBase.td"
 

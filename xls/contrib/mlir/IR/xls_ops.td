@@ -1,5 +1,5 @@
-#ifndef HWIR_XLS_OPS
-#define HWIR_XLS_OPS
+#ifndef XLS_CONTRIB_MLIR_IR_OPS
+#define XLS_CONTRIB_MLIR_IR_OPS
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
