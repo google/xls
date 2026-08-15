@@ -30,7 +30,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -504,7 +506,6 @@ static absl::Status ValidateProto(const ModuleSignatureProto& proto) {
            (a == CHANNEL_DIRECTION_SEND && b == PORT_DIRECTION_INPUT);
   };
 
-  absl::flat_hash_set<std::string> channel_ports_seen;
   for (const ChannelInterfaceProto& channel : proto.channel_interfaces()) {
     if (!channel.has_channel_name() || channel.channel_name().empty()) {
       return absl::InvalidArgumentError("A name is required for all channels.");
@@ -528,11 +529,6 @@ static absl::Status ValidateProto(const ModuleSignatureProto& proto) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Data port '%s' of channel '%s' is not the correct direction",
             *data_port, channel.channel_name()));
-      }
-      auto [_, inserted] = channel_ports_seen.insert(*data_port);
-      if (!inserted) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Port '%s' is used by multiple channels.", *data_port));
       }
     }
     if (channel.has_streaming()) {
@@ -558,13 +554,6 @@ static absl::Status ValidateProto(const ModuleSignatureProto& proto) {
               "Valid port '%s' of channel '%s' is not the correct direction",
               streaming.valid_port_name(), channel.channel_name()));
         }
-        auto [_, inserted] =
-            channel_ports_seen.insert(streaming.valid_port_name());
-        if (!inserted) {
-          return absl::InvalidArgumentError(
-              absl::StrFormat("Port '%s' is used by multiple channels.",
-                              streaming.valid_port_name()));
-        }
       }
       if (streaming.has_ready_port_name()) {
         if (streaming.flow_control() != CHANNEL_FLOW_CONTROL_READY_VALID) {
@@ -585,13 +574,6 @@ static absl::Status ValidateProto(const ModuleSignatureProto& proto) {
           return absl::InvalidArgumentError(absl::StrFormat(
               "Ready port '%s' of channel '%s' is not the correct direction",
               streaming.ready_port_name(), channel.channel_name()));
-        }
-        auto [_, inserted] =
-            channel_ports_seen.insert(streaming.ready_port_name());
-        if (!inserted) {
-          return absl::InvalidArgumentError(
-              absl::StrFormat("Port '%s' is used by multiple channels.",
-                              streaming.ready_port_name()));
         }
       }
     }
@@ -868,24 +850,40 @@ ModuleSignature::GetChannelInterfaceByName(
   return *iter;
 }
 
+absl::StatusOr<std::vector<std::string>>
+ModuleSignature::GetChannelInterfaceNamesForPort(
+    std::string_view port_name) const {
+  std::vector<std::string> channel_interface_names;
+  for (const ChannelInterfaceProto& channel_interface :
+       proto_.channel_interfaces()) {
+    if (channel_interface.has_streaming()) {
+      if (channel_interface.streaming().data_port_name() == port_name ||
+          channel_interface.streaming().ready_port_name() == port_name ||
+          channel_interface.streaming().valid_port_name() == port_name) {
+        channel_interface_names.push_back(channel_interface.channel_name());
+      }
+    } else if (channel_interface.single_value().data_port_name() == port_name) {
+      channel_interface_names.push_back(channel_interface.channel_name());
+    }
+  }
+  return channel_interface_names;
+}
+
 absl::StatusOr<std::string> ModuleSignature::GetChannelInterfaceNameForPort(
     std::string_view port_name) const {
-  auto iter = absl::c_find_if(
-      proto_.channel_interfaces(),
-      [&](const ChannelInterfaceProto& channel_interface) {
-        if (channel_interface.has_streaming()) {
-          return channel_interface.streaming().data_port_name() == port_name ||
-                 channel_interface.streaming().ready_port_name() == port_name ||
-                 channel_interface.streaming().valid_port_name() == port_name;
-        }
-        return channel_interface.single_value().data_port_name() == port_name;
-      });
-  if (iter == proto_.channel_interfaces().end()) {
+  XLS_ASSIGN_OR_RETURN(std::vector<std::string> channel_interface_names,
+                       GetChannelInterfaceNamesForPort(port_name));
+  if (channel_interface_names.empty()) {
     return absl::NotFoundError(absl::StrFormat(
         "No port named `%s` or port is not associated with a channel.",
         port_name));
   }
-  return iter->channel_name();
+  if (channel_interface_names.size() > 1) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Port '%s' is associated with multiple channel interfaces: %s",
+        port_name, absl::StrJoin(channel_interface_names, ", ")));
+  }
+  return channel_interface_names.front();
 }
 
 std::vector<ChannelProto> ModuleSignature::GetChannels() {

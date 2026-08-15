@@ -247,6 +247,8 @@ class ModuleSignature {
   std::vector<ChannelInterfaceProto> GetInputChannelInterfaces() const;
   std::vector<ChannelInterfaceProto> GetOutputChannelInterfaces() const;
 
+  absl::StatusOr<std::vector<std::string>> GetChannelInterfaceNamesForPort(
+      std::string_view port_name) const;
   absl::StatusOr<std::string> GetChannelInterfaceNameForPort(
       std::string_view port_name) const;
 
