@@ -645,6 +645,12 @@ bool IsExpensiveToEvaluate(
       Op::kShra,
       Op::kBitSliceUpdate,
       Op::kDynamicBitSlice,
+      Op::kUMul,
+      Op::kSMul,
+      Op::kUDiv,
+      Op::kSDiv,
+      Op::kUMod,
+      Op::kSMod,
   });
   if (is_complex_evaluation) {
     return node->operand(0)->GetType()->GetFlatBitCount() >
