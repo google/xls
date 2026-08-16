@@ -138,6 +138,34 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWant);
 }
 
+TEST(XlsCApiTest, VastLiteralRejectsZeroWidthBits) {
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_bits* bits = nullptr;
+  char* error_out = nullptr;
+  absl::Cleanup free_error([&] {
+    if (error_out != nullptr) {
+      xls_c_str_free(error_out);
+    }
+  });
+  ASSERT_TRUE(
+      xls_bits_make_ubits(/*bit_count=*/0, /*value=*/0, &error_out, &bits));
+  ASSERT_EQ(error_out, nullptr);
+  absl::Cleanup free_bits([&] { xls_bits_free(bits); });
+
+  xls_vast_literal* literal = nullptr;
+  EXPECT_FALSE(xls_vast_verilog_file_make_literal(
+      f, bits, xls_format_preference_hex, /*emit_bit_count=*/true, &error_out,
+      &literal));
+  ASSERT_NE(error_out, nullptr);
+  EXPECT_EQ(literal, nullptr);
+  EXPECT_NE(std::string_view{error_out}.find("zero-bit"),
+            std::string_view::npos);
+}
+
 // Test that creates a module definition that continuous-assigns a slice of the
 // input to the output.
 TEST(XlsCApiTest, ContinuousAssignmentOfSlice) {
