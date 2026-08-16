@@ -32,7 +32,10 @@ BANT=$($(dirname $0)/get-bant-path.sh)
 #    to consider them as potential reason to depend on.
 #    (//xls/contrib/xlscc:synth_only provides
 #    //xls/contrib/xlscc:synth_only_headers)
-"${BANT}" dwyu --graph-augment=... --bracket-include=ignore "$@"
+#  * Use --pp-ifdef=strict to thoroughly only follow ifdef branches
+#    (while looking for include files) that are positively included
+"${BANT}" dwyu \
+  --graph-augment=... --bracket-include=ignore --pp-ifdef=strict "$@"
 
 BANT_EXIT=$?
 if [ ${BANT_EXIT} -eq ${BANT_EXIT_ON_DWYU_ISSUES} ]; then
