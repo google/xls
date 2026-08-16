@@ -847,7 +847,6 @@ cc_library(
         "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:Analysis",
         "@llvm-project//llvm:BitWriter",
-        "@llvm-project//llvm:JITLink",
         "@llvm-project//llvm:OrcJIT",  # build_cleaner: keep
         "@llvm-project//llvm:Passes",
         "@llvm-project//llvm:Support",

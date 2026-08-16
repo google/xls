@@ -4590,13 +4590,11 @@ cc_test(
     name = "folding_graph_test",
     srcs = ["folding_graph_test.cc"],
     deps = [
-        ":bdd_query_engine",
         ":folding_graph",
         ":node_dependency_analysis",
         ":visibility_analysis",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
