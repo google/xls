@@ -35,6 +35,7 @@ namespace xls::dslx {
   X("assert!", kAssert)                        \
   X("assert_eq", kAssertEq)                    \
   X("assert_lt", kAssertLt)                    \
+  X("assert_ne", kAssertNe)                    \
   X("bit_count", kBitCount)                    \
   X("bit_slice_update", kBitSliceUpdate)       \
   X("ceillog2", kCeilLog2)                     \
