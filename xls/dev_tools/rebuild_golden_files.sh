@@ -12,13 +12,20 @@ XLS_TARGET_EXCLUDE="//xls/common:golden_files_test"
 
 if [[ "$@" ]]
 then
-  TEST_TARGETS=($(bazel query "kind(rule, $@)" --output=label_kind --keep_going | /bin/grep -E '^cc_test' | cut -f3 -d ' ' || /bin/true))
-  RUN_TARGETS=($(bazel query "kind(rule, $@)" --output=label_kind --keep_going | /bin/grep -E '^_xls_update_golden' | cut -f3 -d ' ' || /bin/true))
+  TEST_TARGET_PATTERN="$@"
+  UPDATE_TARGET_PATTERN="$@"
 else
   # Keep-going and ignore failures as the query hits irrelevant errors in OSS.
-  TEST_TARGETS=($(bazel query "kind(cc_test, rdeps($XLS_TARGET_PATTERN,//xls/common:golden_files) except ($XLS_TARGET_EXCLUDE))" --keep_going || /bin/true))
-  RUN_TARGETS=($(bazel query "kind(_xls_update_golden, $XLS_TARGET_PATTERN) except (attr(tags, \"no_update_golden\", $XLS_TARGET_PATTERN) + $XLS_TARGET_EXCLUDE)" --keep_going || /bin/true))
+  TEST_TARGET_PATTERN="(rdeps($XLS_TARGET_PATTERN,//xls/common:golden_files) + rdeps($XLS_TARGET_PATTERN,//xls/common:golden_files_py)) except ($XLS_TARGET_EXCLUDE)"
+  UPDATE_TARGET_PATTERN="$XLS_TARGET_PATTERN except (attr(tags, \"no_update_golden\", $XLS_TARGET_PATTERN) + $XLS_TARGET_EXCLUDE)"
 fi
+
+TEST_TARGETS=($(bazel query "kind('(py_test|cc_test)', $TEST_TARGET_PATTERN)" --keep_going || /bin/true))
+
+# Run frozen file sha256 updates first so downstream consumers of the frozen files can build.
+FROZEN_UPDATE_TARGETS=($(bazel query "attr(target_name, '.*_frozen$', kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN))" --keep_going || /bin/true))
+OTHER_RUN_TARGETS=($(bazel query "(kind(_xls_update_golden, $UPDATE_TARGET_PATTERN) + kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN)) except attr(target_name, '.*_frozen$', kind(_xls_update_sha256, $UPDATE_TARGET_PATTERN))" --keep_going || /bin/true))
+RUN_TARGETS=("${FROZEN_UPDATE_TARGETS[@]}" "${OTHER_RUN_TARGETS[@]}")
 
 if [[ ! -f "$(pwd)/WORKSPACE" ]]
 then
@@ -26,9 +33,9 @@ then
   exit 1
 fi
 
-# Some dependencies do not build properly with --spawn_strategyy=standalone so
+# Some dependencies do not build properly with --spawn_strategy=standalone so
 # build the targets normally first.
-bazel build -c opt ${TEST_TARGETS[@]} ${RUN_TARGETS[@]}
+bazel build -c opt --keep_going ${TEST_TARGETS[@]}
 
 bazel test -c opt \
   --test_strategy=standalone \

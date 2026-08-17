@@ -538,6 +538,17 @@ pytype_strict_library(
 )
 
 pytype_strict_library(
+    name = "golden_files_py",
+    testonly = True,
+    srcs = ["golden_files.py"],
+    deps = [
+        ":runfiles",
+        "@abseil-py//absl/flags",
+        "@abseil-py//absl/logging",
+    ],
+)
+
+pytype_strict_library(
     name = "multiprocess",
     srcs = ["multiprocess.py"],
     deps = ["@abseil-py//absl:app"],
