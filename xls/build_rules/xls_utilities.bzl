@@ -75,7 +75,7 @@ _check_sha256sum_test_attrs = {
     ),
 }
 
-check_sha256sum_test = rule(
+_check_sha256sum_test = rule(
     doc = """Validates the sha256sum checksum of a source file with a user-defined checksum.
 
 This rule is typically used to ensure that the contents of a file is
@@ -97,6 +97,69 @@ Examples:
     attrs = _check_sha256sum_test_attrs,
     test = True,
 )
+
+def _update_sha256_impl(ctx):
+    update_bin = ctx.actions.declare_file(ctx.label.name + "-binary.sh")
+    target_label = "//" + ctx.label.package + ":" + ctx.attr.target_name
+    src_path = ctx.file.src.path
+    if ctx.file.src.is_source:
+        src_relpath = src_path
+    else:
+        src_relpath = src_path[len(ctx.file.src.root.path) + 1:]
+    ctx.actions.write(
+        output = update_bin,
+        content = r"""#!/usr/bin/env bash
+
+set -xeuo pipefail
+
+SRC="{src}"
+TARGET="{target}"
+NEW_SHA=$(sha256sum "$SRC" | cut -d ' ' -f1)
+
+cd "$BUILD_WORKING_DIRECTORY"
+buildozer "set sha256sum \"$NEW_SHA\"" "$TARGET" || [[ $? -eq 3 ]]
+""".format(
+            src = src_relpath,
+            target = target_label,
+        ),
+        is_executable = True,
+    )
+    return DefaultInfo(
+        executable = update_bin,
+        files = depset(direct = [update_bin]),
+        runfiles = ctx.runfiles(files = [update_bin, ctx.file.src]),
+    )
+
+_xls_update_sha256 = rule(
+    implementation = _update_sha256_impl,
+    attrs = {
+        "src": attr.label(
+            allow_single_file = True,
+            doc = "Label of the source file to calculate sha256 of.",
+            mandatory = True,
+        ),
+        "target_name": attr.string(
+            doc = "Name of the target whose sha256sum attribute should be updated.",
+            mandatory = True,
+        ),
+    },
+    executable = True,
+)
+
+def check_sha256sum_test(name, src, sha256sum, tags = [], **kwargs):
+    _check_sha256sum_test(
+        name = name,
+        src = src,
+        sha256sum = sha256sum,
+        tags = tags,
+        **kwargs
+    )
+    _xls_update_sha256(
+        name = name + "_update_golden",
+        src = src,
+        target_name = name,
+        tags = tags + ["local", "manual"],
+    )
 
 def _check_sha256sum_frozen_impl(ctx):
     """The implementation of the 'check_sha256sum_frozen' rule.
@@ -160,7 +223,7 @@ _check_sha256sum_frozen_attrs = {
     ),
 }
 
-check_sha256sum_frozen = rule(
+_check_sha256sum_frozen_rule = rule(
     doc = """Produces a frozen file if the sha256sum checksum of a source file matches a user-defined checksum.
 
 As projects cut releases or freeze, it's important to know that
@@ -230,6 +293,22 @@ Examples:
     implementation = _check_sha256sum_frozen_impl,
     attrs = _check_sha256sum_frozen_attrs,
 )
+
+def check_sha256sum_frozen(name, src, sha256sum, frozen_file, tags = [], **kwargs):
+    _check_sha256sum_frozen_rule(
+        name = name,
+        src = src,
+        sha256sum = sha256sum,
+        frozen_file = frozen_file,
+        tags = tags,
+        **kwargs
+    )
+    _xls_update_sha256(
+        name = name + "_update_golden",
+        src = src,
+        target_name = name,
+        tags = tags + ["local", "manual"],
+    )
 
 proto_data_tool_attrs = {
     "_proto2bin_tool": attr.label(

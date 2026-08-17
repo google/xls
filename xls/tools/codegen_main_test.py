@@ -16,30 +16,17 @@
 """Tests for xls.tools.codegen_main."""
 
 import inspect
-import os
 import subprocess
 
-from absl import flags
 from google.protobuf import text_format
 
 from absl.testing import absltest
 from absl.testing import parameterized
 from xls.codegen import codegen_residual_data_pb2
 from xls.codegen import module_signature_pb2
+from xls.common import golden_files
 from xls.common import runfiles
 from xls.common import test_base
-
-_UPDATE_GOLDEN = flags.DEFINE_bool(
-    'test_update_golden_files',
-    False,
-    'whether to update golden reference files',
-)
-_XLS_SOURCE_DIR = flags.DEFINE_string(
-    'xls_source_dir',
-    '',
-    'base path to use to update golden files, note this will cause writes '
-    'within the given directory',
-)
 CODEGEN_MAIN_PATH = runfiles.get_path('xls/tools/codegen_main')
 SHA256_IR_PATH = runfiles.get_path('xls/examples/sha256.opt.ir')
 PIPELINE_METRICS_MAIN_PATH = runfiles.get_path(
@@ -140,26 +127,14 @@ class CodeGenMainTest(parameterized.TestCase):
   def _compare_to_golden(self, got: str) -> None:
     """Compares the obtained verilog to a golden reference file.
 
-    Writes to file if the --update_golden flag was given.
+    Writes to file if the --test_update_golden_files flag was given.
 
     Args:
       got: Verilog obtained from XLS to compare against the golden reference.
     """
     caller: str = inspect.stack()[1].function
     path: str = f'xls/tools/testdata/codegen_main_test__{caller}.vtxt'
-    if _UPDATE_GOLDEN.value:
-      dirpath, xls = os.path.split(_XLS_SOURCE_DIR.value.rstrip('/'))
-      assert xls == 'xls', (
-          _XLS_SOURCE_DIR.value,
-          'should end with `/xls/` got',
-          xls,
-      )
-      path_to_write: str = os.path.join(dirpath, path)
-      with open(path_to_write, 'w') as f:
-        f.write(got)
-    else:
-      want: str = runfiles.get_contents_as_text(path)
-      self.assertMultiLineEqual(got, want)
+    golden_files.expect_equal_to_golden_file(path, got)
 
   def test_combinational(self):
     ir_file = self.create_tempfile(content=NOT_ADD_IR)

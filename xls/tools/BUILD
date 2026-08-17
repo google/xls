@@ -966,6 +966,7 @@ pytype_strict_contrib_test(
     deps = [
         "//xls/codegen:codegen_residual_data_py_pb2",
         "//xls/codegen:module_signature_py_pb2",
+        "//xls/common:golden_files_py",
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "@abseil-py//absl/flags",
