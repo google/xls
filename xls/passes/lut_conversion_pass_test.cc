@@ -14,21 +14,32 @@
 
 #include "xls/passes/lut_conversion_pass.h"
 
+#include <optional>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/package.h"
+#include "xls/ir/ternary.h"
+#include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/stateless_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 
 namespace xls {
@@ -37,6 +48,7 @@ namespace {
 namespace m = ::xls::op_matchers;
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::ElementsAreArray;
 
 class LutConversionPassTest : public IrTestBase {
  protected:
@@ -49,6 +61,40 @@ class LutConversionPassTest : public IrTestBase {
                                    context);
   }
 };
+
+absl::StatusOr<std::vector<Bits>> ComputeLutSelectCasesForNode(Function* f,
+                                                               Node* node) {
+  OptimizationContext context;
+  auto query_engine = UnionQueryEngine::Of(
+      StatelessQueryEngine(),
+      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, f));
+  XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
+
+  std::vector<LutConversionCandidate> candidates;
+  XLS_ASSIGN_OR_RETURN(candidates,
+                       LutConversionPass::ComputeLutConversionCandidates(
+                           f, query_engine, context));
+
+  // Find the candidate that we want to test.
+  LutConversionCandidate candidate;
+  for (const auto& c : candidates) {
+    if (c.node == node) {
+      candidate = c;
+      break;
+    }
+  }
+  XLS_RET_CHECK_EQ(candidate.node, node);
+
+  std::vector<SharedLeafTypeTree<TernaryVector>> cut_ternaries;
+  cut_ternaries.reserve(candidate.min_cut.size());
+  for (Node* cut_node : candidate.min_cut) {
+    std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
+        query_engine.GetTernary(cut_node);
+    cut_ternaries.push_back(*std::move(ternary));
+  }
+  return LutConversionPass::ComputeLutSelectCases(candidate, cut_ternaries,
+                                                  query_engine);
+}
 
 TEST_F(LutConversionPassTest, SimpleSelectNoChange) {
   auto p = CreatePackage();
@@ -82,6 +128,18 @@ TEST_F(LutConversionPassTest, DoubledSelector) {
   )",
                                                        p.get()));
 
+  XLS_ASSERT_OK_AND_ASSIGN(Node * selector, f->GetNode("selector"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bits> selector_cases,
+                           ComputeLutSelectCasesForNode(f, selector));
+
+  // add(x, x) produces case values that are twice the index value
+  std::vector<Bits> expected_cases = {
+      UBits(/*value=*/0, /*bit_count=*/3), UBits(/*value=*/2, /*bit_count=*/3),
+      UBits(/*value=*/4, /*bit_count=*/3), UBits(/*value=*/6, /*bit_count=*/3),
+      UBits(/*value=*/0, /*bit_count=*/3), UBits(/*value=*/2, /*bit_count=*/3),
+      UBits(/*value=*/4, /*bit_count=*/3), UBits(/*value=*/6, /*bit_count=*/3)};
+  EXPECT_THAT(selector_cases, ElementsAreArray(expected_cases));
+
   solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
@@ -108,6 +166,19 @@ TEST_F(LutConversionPassTest, TripledSelector) {
 
   solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * selector, f->GetNode("selector"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bits> selector_cases,
+                           ComputeLutSelectCasesForNode(f, selector));
+
+  // add(doubled_x, x) produces case values that are 3x the index value
+  std::vector<Bits> expected_cases = {
+      UBits(/*value=*/0, /*bit_count=*/3), UBits(/*value=*/3, /*bit_count=*/3),
+      UBits(/*value=*/6, /*bit_count=*/3), UBits(/*value=*/1, /*bit_count=*/3),
+      UBits(/*value=*/4, /*bit_count=*/3), UBits(/*value=*/7, /*bit_count=*/3),
+      UBits(/*value=*/2, /*bit_count=*/3), UBits(/*value=*/5, /*bit_count=*/3)};
+  EXPECT_THAT(selector_cases, ElementsAreArray(expected_cases));
+
   EXPECT_THAT(
       f->return_value(),
       m::Select(m::Param("x"),
@@ -155,6 +226,16 @@ TEST_F(LutConversionPassTest, IneligibleDominator) {
   )",
                                                        p.get()));
 
+  XLS_ASSERT_OK_AND_ASSIGN(Node * selector, f->GetNode("selector"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bits> selector_cases,
+                           ComputeLutSelectCasesForNode(f, selector));
+
+  // selector equals index - 1, for 2-bit size.
+  std::vector<Bits> expected_cases = {
+      UBits(/*value=*/3, /*bit_count=*/2), UBits(/*value=*/0, /*bit_count=*/2),
+      UBits(/*value=*/1, /*bit_count=*/2), UBits(/*value=*/2, /*bit_count=*/2)};
+  EXPECT_THAT(selector_cases, ElementsAreArray(expected_cases));
+
   solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
@@ -182,6 +263,22 @@ TEST_F(LutConversionPassTest, MultipleSources) {
   )",
                                                        p.get()));
 
+  XLS_ASSERT_OK_AND_ASSIGN(Node * selector, f->GetNode("selector"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bits> selector_cases,
+                           ComputeLutSelectCasesForNode(f, selector));
+
+  // Min cut is [x, y] nodes, so cases will be ordered with the Y bit being the
+  // MSB in the case index and the X bits being the 2 LSBs in the case index.
+  std::vector<Bits> expected_cases = {UBits(/*value=*/0, /*bit_count=*/5),
+                                      UBits(/*value=*/6, /*bit_count=*/5),
+                                      UBits(/*value=*/12, /*bit_count=*/5),
+                                      UBits(/*value=*/18, /*bit_count=*/5),
+                                      UBits(/*value=*/25, /*bit_count=*/5),
+                                      UBits(/*value=*/31, /*bit_count=*/5),
+                                      UBits(/*value=*/5, /*bit_count=*/5),
+                                      UBits(/*value=*/11, /*bit_count=*/5)};
+  EXPECT_THAT(selector_cases, ElementsAreArray(expected_cases));
+
   solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
@@ -206,6 +303,15 @@ TEST_F(LutConversionPassTest, ComplexExample) {
     }
   )",
                                                        p.get()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * selector, f->GetNode("sel.6"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bits> selector_cases,
+                           ComputeLutSelectCasesForNode(f, selector));
+
+  std::vector<Bits> expected_cases = {
+      UBits(/*value=*/0, /*bit_count=*/2), UBits(/*value=*/1, /*bit_count=*/2),
+      UBits(/*value=*/0, /*bit_count=*/2), UBits(/*value=*/1, /*bit_count=*/2)};
+  EXPECT_THAT(selector_cases, ElementsAreArray(expected_cases));
 
   solvers::ScopedVerifyEquivalence stays_equivalent(f);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));

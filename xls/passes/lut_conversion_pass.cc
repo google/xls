@@ -189,33 +189,6 @@ absl::StatusOr<std::optional<LutConversionCandidate>> GetLutCandidate(
   };
 }
 
-absl::StatusOr<std::vector<LutConversionCandidate>>
-ComputeLutConversionCandidates(FunctionBase* func,
-                               const QueryEngine& query_engine,
-                               OptimizationContext& context) {
-  std::optional<DataflowGraphAnalysis> dataflow_graph_analysis;
-
-  // By running in reverse topological order, the analyses will stay valid for
-  // all nodes we're considering through the full pass.
-  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
-                       context.ReverseTopoSort(func));
-
-  std::vector<LutConversionCandidate> candidates;
-  for (Node* node : reverse_topo_sort_nodes) {
-    if (node->IsDead()) {
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<LutConversionCandidate> candidate,
-        GetLutCandidate(node, query_engine, dataflow_graph_analysis));
-    if (candidate.has_value()) {
-      candidates.push_back(std::move(candidate.value()));
-    }
-  }
-
-  return candidates;
-}
-
 absl::StatusOr<bool> MergeLutIntoSelects(
     const LutConversionCandidate& candidate, const QueryEngine& query_engine) {
   std::vector<SharedLeafTypeTree<TernaryVector>> cut_ternaries;
@@ -242,8 +215,103 @@ absl::StatusOr<bool> MergeLutIntoSelects(
     }
   }
 
+  XLS_ASSIGN_OR_RETURN(std::vector<Bits> new_case_sequence,
+                       LutConversionPass::ComputeLutSelectCases(
+                           candidate, cut_ternaries, query_engine));
+
+  if (absl::c_all_of(new_case_sequence, [&](const Bits& index) {
+        return index == new_case_sequence.front();
+      })) {
+    // We've proven that only one case is ever selected; just use that
+    // directly.
+    for (Node* user : candidate.candidate_users) {
+      XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(
+          GetCase(user->As<Select>(), new_case_sequence.front())));
+    }
+    return true;
+  }
+
+  // Assemble the new selector out of the unknown bits of the min-cut nodes.
+  std::vector<Node*> selector_pieces;
+  selector_pieces.reserve(candidate.min_cut.size());
+  for (size_t i = 0; i < candidate.min_cut.size(); ++i) {
+    LeafTypeTree<Bits> unknown_positions_ltt =
+        leaf_type_tree::Map<Bits, TernaryVector>(
+            cut_ternaries[i].AsView(),
+            [&](const TernaryVector& ternary) -> Bits {
+              return bits_ops::Not(ternary_ops::ToKnownBits(ternary));
+            });
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_selector_piece,
+        GatherBits(candidate.min_cut[i], unknown_positions_ltt.AsView()));
+    selector_pieces.push_back(new_selector_piece);
+  }
+
+  Node* new_selector;
+  XLS_RET_CHECK(!selector_pieces.empty());
+  if (selector_pieces.size() == 1) {
+    new_selector = selector_pieces.front();
+  } else {
+    // `ComputeLutSelectCases` uses earlier min_cut nodes' values as
+    // lower-ordered bits when determining case values, so we need to reverse
+    // the order of selector pieces to match the concat's ordering with
+    // `new_case_sequence`.
+    absl::c_reverse(selector_pieces);
+    XLS_ASSIGN_OR_RETURN(new_selector,
+                         candidate.node->function_base()->MakeNode<Concat>(
+                             candidate.node->loc(), selector_pieces));
+  }
+
+  for (Node* user : candidate.candidate_users) {
+    absl::FixedArray<Node*> new_cases(new_case_sequence.size());
+    for (size_t i = 0; i < new_case_sequence.size(); ++i) {
+      new_cases[i] = GetCase(user->As<Select>(), new_case_sequence[i]);
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_select,
+        user->ReplaceUsesWithNew<Select>(new_selector, new_cases,
+                                         /*default_value=*/std::nullopt));
+    VLOG(3) << "Replaced " << user->GetName()
+            << " with: " << new_select->ToString();
+  }
+  return true;
+}
+
+}  // namespace
+
+absl::StatusOr<std::vector<LutConversionCandidate>>
+LutConversionPass::ComputeLutConversionCandidates(
+    FunctionBase* func, const QueryEngine& query_engine,
+    OptimizationContext& context) {
+  std::optional<DataflowGraphAnalysis> dataflow_graph_analysis;
+
+  // By running in reverse topological order, the analyses will stay valid for
+  // all nodes we're considering through the full pass.
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> reverse_topo_sort_nodes,
+                       context.ReverseTopoSort(func));
+
+  std::vector<LutConversionCandidate> candidates;
+  for (Node* node : reverse_topo_sort_nodes) {
+    if (node->IsDead()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<LutConversionCandidate> candidate,
+        GetLutCandidate(node, query_engine, dataflow_graph_analysis));
+    if (candidate.has_value()) {
+      candidates.push_back(std::move(candidate.value()));
+    }
+  }
+
+  return candidates;
+}
+
+absl::StatusOr<std::vector<Bits>> LutConversionPass::ComputeLutSelectCases(
+    const LutConversionCandidate& candidate,
+    std::vector<SharedLeafTypeTree<TernaryVector>>& cut_ternaries,
+    const QueryEngine& query_engine) {
   // Populate an interpreter with all known values that feed into the
-  // selector.
+  // node.
   IrInterpreter base_interpreter;
   std::vector<Node*> to_visit({candidate.node});
   absl::flat_hash_set<Node*> visited;
@@ -284,7 +352,7 @@ absl::StatusOr<bool> MergeLutIntoSelects(
   MixedRadixIterate(
       values_radix, [&](const std::vector<int64_t>& value_indices) {
         // Invoke an interpreter using known values & these values on the
-        // min-cut to compute the value of the selector.
+        // min-cut to compute the value of the node.
         IrInterpreter interpreter = base_interpreter;
         for (size_t i = 0; i < value_indices.size(); ++i) {
           Node* cut_node = candidate.min_cut[i];
@@ -322,63 +390,8 @@ absl::StatusOr<bool> MergeLutIntoSelects(
       });
   XLS_RETURN_IF_ERROR(status);
   XLS_RET_CHECK_EQ(new_case_sequence.size(), new_case_count);
-
-  if (absl::c_all_of(new_case_sequence, [&](const Bits& index) {
-        return index == new_case_sequence.front();
-      })) {
-    // We've proven that only one case is ever selected; just use that
-    // directly.
-    for (Node* user : candidate.candidate_users) {
-      XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(
-          GetCase(user->As<Select>(), new_case_sequence.front())));
-    }
-    return true;
-  }
-
-  // Assemble the new selector out of the unknown bits of the min-cut nodes.
-  std::vector<Node*> selector_pieces;
-  selector_pieces.reserve(candidate.min_cut.size());
-  for (size_t i = 0; i < candidate.min_cut.size(); ++i) {
-    LeafTypeTree<Bits> unknown_positions_ltt =
-        leaf_type_tree::Map<Bits, TernaryVector>(
-            cut_ternaries[i].AsView(),
-            [&](const TernaryVector& ternary) -> Bits {
-              return bits_ops::Not(ternary_ops::ToKnownBits(ternary));
-            });
-    XLS_ASSIGN_OR_RETURN(
-        Node * new_selector_piece,
-        GatherBits(candidate.min_cut[i], unknown_positions_ltt.AsView()));
-    selector_pieces.push_back(new_selector_piece);
-  }
-
-  Node* new_selector;
-  XLS_RET_CHECK(!selector_pieces.empty());
-  if (selector_pieces.size() == 1) {
-    new_selector = selector_pieces.front();
-  } else {
-    // Concat assumes big-endian order.
-    absl::c_reverse(selector_pieces);
-    XLS_ASSIGN_OR_RETURN(new_selector,
-                         candidate.node->function_base()->MakeNode<Concat>(
-                             candidate.node->loc(), selector_pieces));
-  }
-
-  for (Node* user : candidate.candidate_users) {
-    absl::FixedArray<Node*> new_cases(new_case_count);
-    for (int64_t i = 0; i < new_case_count; ++i) {
-      new_cases[i] = GetCase(user->As<Select>(), new_case_sequence[i]);
-    }
-    XLS_ASSIGN_OR_RETURN(
-        Node * new_select,
-        user->ReplaceUsesWithNew<Select>(new_selector, new_cases,
-                                         /*default_value=*/std::nullopt));
-    VLOG(3) << "Replaced " << user->GetName()
-            << " with: " << new_select->ToString();
-  }
-  return true;
+  return new_case_sequence;
 }
-
-}  // namespace
 
 RedundancyGuard LutConversionPass::GetRedundancyGuard(
     const OptimizationPassOptions& options,
@@ -402,7 +415,8 @@ absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<LutConversionCandidate> lut_conversion_candidates,
-      ComputeLutConversionCandidates(func, query_engine, context));
+      LutConversionPass::ComputeLutConversionCandidates(func, query_engine,
+                                                        context));
 
   bool changed = false;
 
