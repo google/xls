@@ -196,6 +196,96 @@ TEST_F(ProcStateNarrowingPassTest, BasicLoopDecoupledNext) {
                                          "the_state", p->GetBitsType(3))));
 }
 
+TEST_F(ProcStateNarrowingPassTest, MultipleStateReadsUbits) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  BStateElement state = pb.StateElement("state", Value(UBits(0, 32)),
+                                        /*non_synthesizable=*/false);
+  BStateElement cond_elem =
+      pb.StateElement("cond", Value(UBits(0, 1)), /*non_synthesizable=*/false);
+
+  BValue cond = pb.StateRead(cond_elem);
+
+  BValue three_bit_width = pb.StateRead(state, cond);
+  BValue five_bit_width = pb.StateRead(state, pb.Not(cond));
+
+  // If in cond loop up to 7 adding 1 else add 1 up to 30.
+  auto in_loop_3bit = pb.ULt(three_bit_width, pb.Literal(UBits(7, 32)));
+  auto in_loop_5bit = pb.ULt(five_bit_width, pb.Literal(UBits(30, 32)));
+
+  pb.Next(state, pb.Add(three_bit_width, pb.Literal(UBits(1, 32))),
+          pb.And(cond, in_loop_3bit));
+  pb.Next(state, pb.Literal(UBits(1, 32)), pb.And(cond, pb.Not(in_loop_3bit)));
+
+  pb.Next(state, pb.Add(five_bit_width, pb.Literal(UBits(1, 32))),
+          pb.And(pb.Not(cond), in_loop_5bit));
+  pb.Next(state, pb.Literal(UBits(1, 32)),
+          pb.And(pb.Not(cond), pb.Not(in_loop_5bit)));
+
+  pb.Next(cond_elem, pb.Not(cond));
+
+  pb.Send(chan, pb.Literal(Value::Token()),
+          pb.Select(cond, three_bit_width, five_bit_width));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                            /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("state", p->GetBitsType(5)),
+                                   m::StateElement("cond", p->GetBitsType(1))));
+}
+
+TEST_F(ProcStateNarrowingPassTest, MultipleStateReadsSbits) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  BStateElement state = pb.StateElement("state", Value(SBits(0, 32)),
+                                        /*non_synthesizable=*/false);
+  BStateElement cond_elem =
+      pb.StateElement("cond", Value(UBits(0, 1)), /*non_synthesizable=*/false);
+
+  BValue cond = pb.StateRead(cond_elem);
+
+  BValue four_bit_width = pb.StateRead(state, cond);
+  BValue five_bit_width = pb.StateRead(state, pb.Not(cond));
+
+  // Loop 1 (under cond): Counts -7 to 7 by 1
+  auto in_loop_4bit = pb.SLt(four_bit_width, pb.Literal(SBits(7, 32)));
+  pb.Next(state, pb.Add(four_bit_width, pb.Literal(UBits(1, 32))),
+          pb.And(cond, in_loop_4bit));
+  pb.Next(state, pb.Literal(SBits(-7, 32)), pb.And(cond, pb.Not(in_loop_4bit)));
+
+  // Loop 2 (under !cond): Counts -15 to 15 by 1
+  auto in_loop_5bit = pb.SLt(five_bit_width, pb.Literal(SBits(15, 32)));
+  pb.Next(state, pb.Add(five_bit_width, pb.Literal(UBits(1, 32))),
+          pb.And(pb.Not(cond), in_loop_5bit));
+  pb.Next(state, pb.Literal(SBits(-15, 32)),
+          pb.And(pb.Not(cond), pb.Not(in_loop_5bit)));
+
+  pb.Next(cond_elem, pb.Not(cond));
+
+  pb.Send(chan, pb.Literal(Value::Token()),
+          pb.Select(cond, four_bit_width, five_bit_width));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                            /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("state", p->GetBitsType(5)),
+                                   m::StateElement("cond", p->GetBitsType(1))));
+}
+
 TEST_F(ProcStateNarrowingPassTest, BasicHalt) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
