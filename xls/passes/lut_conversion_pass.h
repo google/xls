@@ -20,12 +20,27 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/ternary.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
+
+// Candidates for LUT conversion. Only select nodes are supported currently.
+struct LutConversionCandidate {
+  Node* node;
+
+  // Represents the set of ancestor nodes that have the smallest sum of unknown
+  // bits feeding into this candidate node.
+  std::vector<Node*> min_cut;
+  std::vector<Node*> candidate_users;
+  int64_t min_cut_unknown_bits;
+};
 
 // Pass which opportunistically converts nodes to lookup tables (selects) where
 // we can prove it's beneficial.
@@ -165,6 +180,21 @@ class LutConversionPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "LUT Conversion") {}
   ~LutConversionPass() override = default;
 
+  // Computes the candidate nodes to convert to LUTs for the given function.
+  static absl::StatusOr<std::vector<LutConversionCandidate>>
+  ComputeLutConversionCandidates(FunctionBase* func,
+                                 const QueryEngine& query_engine,
+                                 OptimizationContext& context);
+
+  // Computes the sequence of case values for the new select of the given
+  // LUT candidate. When computing case values, earlier `cut_ternaries` elements
+  // populate lower-ordered bits of the selector (i.e. each case's index) and
+  // later elements populate higher-ordered bits.
+  static absl::StatusOr<std::vector<Bits>> ComputeLutSelectCases(
+      const LutConversionCandidate& candidate,
+      std::vector<SharedLeafTypeTree<TernaryVector>>& cut_ternaries,
+      const QueryEngine& query_engine);
+
   RedundancyGuard GetRedundancyGuard(
       const OptimizationPassOptions& options,
       OptimizationContext& context) const override;
@@ -173,17 +203,6 @@ class LutConversionPass : public OptimizationFunctionBasePass {
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results, OptimizationContext& context) const override;
-};
-
-// Candidates for LUT conversion. Only select nodes are supported currently.
-struct LutConversionCandidate {
-  Node* node;
-
-  // Represents the set of ancestor nodes that have the smallest sum of unknown
-  // bits feeding into this candidate node.
-  std::vector<Node*> min_cut;
-  std::vector<Node*> candidate_users;
-  int64_t min_cut_unknown_bits;
 };
 
 }  // namespace xls
