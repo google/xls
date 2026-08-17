@@ -13,81 +13,86 @@
 // limitations under the License.
 
 #![feature(type_inference_v2)]
+#![feature(explicit_state_access)]
+#![feature(generics)]
 
 proc Falsy {
-    req_r: chan<()> in;
-    resp_s: chan<bool> out;
+    req_r: chan<()> in,
+    resp_s: chan<bool> out,
+}
 
-    config(req_r: chan<()> in, resp_s: chan<bool> out) { (req_r, resp_s) }
+impl Falsy {
+    fn new(req_r: chan<()> in, resp_s: chan<bool> out) -> Self {
+        Falsy { req_r, resp_s }
+    }
 
-    init {  }
-
-    next(_: ()) {
-        let (tok, _d) = recv(join(), req_r);
-        let tok = send(tok, resp_s, false);
+    fn next(self) {
+        let (tok, _d) = recv(join(), self.req_r);
+        let tok = send(tok, self.resp_s, false);
     }
 }
 
 proc Truthy {
-    req_r: chan<()> in;
-    resp_s: chan<bool> out;
+    req_r: chan<()> in,
+    resp_s: chan<bool> out,
+}
 
-    config(req_r: chan<()> in, resp_s: chan<bool> out) { (req_r, resp_s) }
+impl Truthy {
+    fn new(req_r: chan<()> in, resp_s: chan<bool> out) -> Self {
+        Truthy { req_r, resp_s }
+    }
 
-    init {  }
-
-    next(_: ()) {
-        let (tok, _d) = recv(join(), req_r);
-        let tok = send(tok, resp_s, true);
+    fn next(self) {
+        let (tok, _d) = recv(join(), self.req_r);
+        let tok = send(tok, self.resp_s, true);
     }
 }
 
-proc Foo<CONFIG: bool> {
-    config(req_r: chan<()> in, resp_s: chan<bool> out) {
-        const if CONFIG { spawn Truthy(req_r, resp_s); } else { spawn Falsy(req_r, resp_s); };
-        ()
+proc Foo<CONFIG: bool> {}
+
+impl Foo<CONFIG> {
+    fn new(req_r: chan<()> in, resp_s: chan<bool> out) -> Self {
+        const if CONFIG {
+            Truthy::new(req_r, resp_s).spawn();
+        } else {
+            Falsy::new(req_r, resp_s).spawn();
+        };
+        Foo {}
     }
-
-    init {  }
-
-    next(_: ()) {  }
 }
 
-proc Main {
-    config(req_r: chan<()>[2] in, resp_s: chan<bool>[2] out) {
-        spawn Foo<true>(req_r[0], resp_s[0]);
-        spawn Foo<false>(req_r[1], resp_s[1]);
-        ()
+proc Main {}
+
+impl Main {
+    fn new(req_r: chan<()>[2] in, resp_s: chan<bool>[2] out) -> Self {
+        Foo<true>::new(req_r[0], resp_s[0]).spawn();
+        Foo<false>::new(req_r[1], resp_s[1]).spawn();
+        Main {}
     }
-
-    init {  }
-
-    next(_: ()) {  }
 }
 
-#[test_proc]
+#[test]
 proc TestMain {
-    req_s: chan<()>[2] out;
-    resp_r: chan<bool>[2] in;
-    terminator: chan<bool> out;
+    req_s: chan<()>[2] out,
+    resp_r: chan<bool>[2] in,
+    terminator: chan<bool> out,
+}
 
-    config(terminator: chan<bool> out) {
+impl TestMain {
+    fn new(terminator: chan<bool> out) -> Self {
         let (req_s, req_r) = chan<()>[2]("req");
         let (resp_s, resp_r) = chan<bool>[2]("resp");
-        spawn Main(req_r, resp_s);
-
-        (req_s, resp_r, terminator)
+        Main::new(req_r, resp_s).spawn();
+        TestMain { req_s, resp_r, terminator }
     }
 
-    init {  }
-
-    next(_: ()) {
-        let tok = send(join(), req_s[0], ());
-        let (tok, resp) = recv(tok, resp_r[0]);
+    fn next(self) {
+        let tok = send(join(), self.req_s[0], ());
+        let (tok, resp) = recv(tok, self.resp_r[0]);
         assert_eq(resp, true);
-        let tok = send(join(), req_s[1], ());
-        let (tok, resp) = recv(tok, resp_r[1]);
+        let tok = send(join(), self.req_s[1], ());
+        let (tok, resp) = recv(tok, self.resp_r[1]);
         assert_eq(resp, false);
-        let tok = send(tok, terminator, true);
+        let tok = send(tok, self.terminator, true);
     }
 }

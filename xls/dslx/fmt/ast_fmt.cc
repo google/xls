@@ -907,6 +907,40 @@ DocRef Formatter::FormatSingleStatementBlockInline(const StatementBlock& n,
   return arena_.MakeFlatChoice(block_group, arena_.MakeNest(block_group));
 }
 
+// Returns the start position in the source of an AST node (recursing through
+// prefix subexpressions like `callee()` of Invocations, `lhs()` of Attrs /
+// Indexes / TupleIndexes, etc.).
+static Pos GetNodeStartPos(const AstNode* node) {
+  if (node == nullptr) {
+    return Pos(Fileno(0), 0, 0);
+  }
+  std::optional<Pos> start;
+  if (auto* inv = dynamic_cast<const Invocation*>(node)) {
+    start = GetNodeStartPos(inv->callee());
+  } else if (auto* attr = dynamic_cast<const Attr*>(node)) {
+    start = GetNodeStartPos(attr->lhs());
+  } else if (auto* idx = dynamic_cast<const Index*>(node)) {
+    start = GetNodeStartPos(idx->lhs());
+  } else if (auto* tuple_idx = dynamic_cast<const TupleIndex*>(node)) {
+    start = GetNodeStartPos(tuple_idx->lhs());
+  } else if (auto* cast = dynamic_cast<const Cast*>(node)) {
+    start = GetNodeStartPos(cast->expr());
+  } else if (auto* binop = dynamic_cast<const Binop*>(node)) {
+    start = GetNodeStartPos(binop->lhs());
+  } else if (auto* stmt = dynamic_cast<const Statement*>(node)) {
+    start = absl::visit(
+        [](const auto* wrapped) { return GetNodeStartPos(wrapped); },
+        stmt->wrapped());
+  }
+  if (std::optional<Span> span = node->GetSpan()) {
+    if (start.has_value() && start->fileno() == span->start().fileno()) {
+      return std::min(*start, span->start());
+    }
+    return start.value_or(span->start());
+  }
+  return start.value_or(Pos(Fileno(0), 0, 0));
+}
+
 // Note: we only add leading/trailing spaces in the block if add_curls is true.
 DocRef Formatter::FormatBlock(const StatementBlock& n,
                               const FormatBlockOptions& options) {
@@ -972,7 +1006,7 @@ DocRef Formatter::FormatBlock(const StatementBlock& n,
     // Get the start position for the statement.
     std::optional<Span> stmt_span = stmt->GetSpan();
     CHECK(stmt_span.has_value()) << stmt->ToString();
-    const Pos& stmt_start = stmt_span->start();
+    const Pos stmt_start = GetNodeStartPos(stmt);
     const Pos& stmt_limit = stmt_span->limit();
 
     VLOG(5) << "stmt: `" << stmt->ToString()

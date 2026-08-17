@@ -185,11 +185,35 @@ class LegacyProcConverter : public Formatter {
         n.attributes().contains(ModuleAttribute::kExplicitStateAccess);
     bool has_generics = n.attributes().contains(ModuleAttribute::kGenerics);
 
+    std::optional<Span> attr_span = n.GetAttributeSpan();
+    if (!attr_span.has_value() && comments_.last_data_limit().has_value()) {
+      Fileno fileno = comments_.last_data_limit()->fileno();
+      std::vector<const CommentData*> unplaced = comments_.GetUnplacedComments(
+          Span(Pos(fileno, 0, 0),
+               Pos(fileno, std::numeric_limits<int64_t>::max(), 0)));
+      if (!unplaced.empty() &&
+          absl::StrContains(absl::AsciiStrToLower(unplaced[0]->text),
+                            "copyright")) {
+        Pos limit = unplaced[0]->span.limit();
+        for (size_t k = 1; k < unplaced.size(); ++k) {
+          if (unplaced[k]->span.start().lineno() ==
+              unplaced[k - 1]->span.start().lineno() + 1) {
+            limit = unplaced[k]->span.limit();
+          } else {
+            break;
+          }
+        }
+        attr_span = Span(limit, limit);
+      } else {
+        attr_span = Span(Pos(fileno, 0, 0), Pos(fileno, 0, 0));
+      }
+    }
+
     if (!has_explicit_state_access) {
-      mutable_n.AddAttribute(ModuleAttribute::kExplicitStateAccess);
+      mutable_n.AddAttribute(ModuleAttribute::kExplicitStateAccess, attr_span);
     }
     if (!has_generics) {
-      mutable_n.AddAttribute(ModuleAttribute::kGenerics);
+      mutable_n.AddAttribute(ModuleAttribute::kGenerics, attr_span);
     }
 
     XLS_ASSIGN_OR_RETURN(DocRef doc, Formatter::FormatModule(n));
@@ -422,8 +446,7 @@ class LegacyProcConverter : public Formatter {
   // After:
   //   MyProc::new(a, b).spawn()
   DocRef FormatSpawn(const Spawn& n) override {
-    std::vector<DocRef> pieces;
-    pieces.push_back(FormatExpr(*n.callee()));
+    std::vector<DocRef> callee_pieces = {FormatExpr(*n.callee())};
 
     if (!n.explicit_parametrics().empty()) {
       std::vector<DocRef> parametric_docs;
@@ -436,31 +459,47 @@ class LegacyProcConverter : public Formatter {
               FormatTypeAnnotation(*std::get<TypeAnnotation*>(et)));
         }
       }
-      pieces.push_back(ConcatNGroup(
-          arena_, {arena_.oangle(),
-                   FormatJoin(parametric_docs, Joiner::kCommaBreak1,
-                              /*group=*/false),
-                   arena_.cangle()}));
+      callee_pieces.push_back(
+          ConcatNGroup(arena_, {arena_.oangle(),
+                                FormatJoin(parametric_docs, Joiner::kCommaSpace,
+                                           /*group=*/false),
+                                arena_.cangle()}));
     }
 
-    pieces.push_back(arena_.MakeText("::new"));
+    callee_pieces.push_back(arena_.MakeText("::new"));
+    DocRef callee_doc = ConcatNGroup(arena_, callee_pieces);
 
-    std::vector<DocRef> arg_docs;
-    arg_docs.reserve(n.config()->args().size());
-    for (const Expr* arg : n.config()->args()) {
-      arg_docs.push_back(FormatExpr(*arg));
-    }
+    DocRef args_doc_internal = FormatJoin<const Expr*>(
+        n.config()->args(), Joiner::kCommaBreak1AsGroupNoTrailingComma,
+        [this](const Expr* e) { return Format(e); });
 
-    DocRef args_guts =
-        FormatJoin(arg_docs, Joiner::kCommaBreak1, /*group=*/false);
-    pieces.push_back(arena_.oparen());
-    pieces.push_back(arena_.MakeNestIfFlatFits(
-        /*on_nested_flat_ref=*/args_guts,
-        /*on_other_ref=*/arena_.MakeAlign(args_guts)));
-    pieces.push_back(arena_.cparen());
-    pieces.push_back(arena_.MakeText(".spawn()"));
+    std::vector<DocRef> arg_pieces = {
+        arena_.MakeNestIfFlatFits(
+            /*on_nested_flat_ref=*/args_doc_internal,
+            /*on_other_ref=*/arena_.MakeAlign(args_doc_internal)),
+        arena_.cparen()};
+    DocRef args_doc = ConcatNGroup(arena_, arg_pieces);
+    DocRef args_doc_nested = arena_.MakeNest(args_doc);
 
-    return ConcatNGroup(arena_, pieces);
+    DocRef new_flat =
+        ConcatN(arena_, {callee_doc, arena_.oparen(), args_doc});
+    DocRef new_leader_flat =
+        ConcatN(arena_, {callee_doc, arena_.oparen(), arena_.break0(),
+                         args_doc_nested});
+    DocRef new_call_doc = arena_.MakeGroup(
+        arena_.MakeFlatChoice(/*on_flat=*/new_flat,
+                              /*on_break=*/new_leader_flat));
+
+    DocRef dot_spawn =
+        ConcatN(arena_, {new_call_doc, arena_.dot(), arena_.MakeText("spawn")});
+    DocRef spawn_flat =
+        ConcatN(arena_, {dot_spawn, arena_.oparen(), arena_.cparen()});
+    DocRef spawn_leader_flat =
+        ConcatN(arena_, {dot_spawn, arena_.oparen(), arena_.break0(),
+                         arena_.MakeNest(arena_.cparen())});
+    return arena_.MakeGroup(
+        arena_.MakeFlatChoice(/*on_flat=*/spawn_flat,
+                              /*on_break=*/spawn_leader_flat));
   }
 
  private:
@@ -572,7 +611,19 @@ class LegacyProcConverter : public Formatter {
     signature_pieces.push_back(arena_.space());
     signature_pieces.push_back(arena_.MakeText(n.identifier()));
 
-    if (n.IsParametric() || !additional_parametrics.empty()) {
+    if (!n.parametric_bindings().empty() && additional_parametrics.empty()) {
+      Pos final_parametric_limit;
+      if (!members.empty()) {
+        final_parametric_limit = members.front()->span().start();
+      } else if (!state_params.empty()) {
+        final_parametric_limit = state_params.front()->span().start();
+      } else {
+        final_parametric_limit = n.span().limit();
+      }
+      signature_pieces.push_back(FormatParametricBindings(
+          n.parametric_bindings(), final_parametric_limit,
+          /*break_before_angle=*/false));
+    } else if (n.IsParametric() || !additional_parametrics.empty()) {
       std::vector<DocRef> parametric_docs;
       parametric_docs.reserve(n.parametric_bindings().size() +
                               additional_parametrics.size());
@@ -582,11 +633,21 @@ class LegacyProcConverter : public Formatter {
       for (const DocRef& doc : additional_parametrics) {
         parametric_docs.push_back(doc);
       }
-      signature_pieces.push_back(
+      DocRef flat_parametrics =
           ConcatNGroup(arena_, {arena_.oangle(),
                                 FormatJoin(parametric_docs, Joiner::kCommaSpace,
                                            /*group=*/false),
-                                arena_.cangle()}));
+                                arena_.cangle()});
+      DocRef bindings_joined =
+          FormatJoin(parametric_docs, Joiner::kCommaBreak1, /*group=*/false);
+      DocRef parametric_guts = ConcatN(
+          arena_,
+          {arena_.oangle(), arena_.MakeAlign(bindings_joined), arena_.cangle()});
+      DocRef break_parametrics = ConcatNGroup(
+          arena_, {arena_.MakeFlatChoice(parametric_guts,
+                                         arena_.MakeNest(parametric_guts))});
+      signature_pieces.push_back(
+          arena_.MakeFlatChoice(flat_parametrics, break_parametrics));
     }
     signature_pieces.push_back(arena_.space());
     signature_pieces.push_back(arena_.ocurl());
@@ -755,14 +816,22 @@ class LegacyProcConverter : public Formatter {
         arena_.Make(Keyword::kFn),
         arena_.space(),
         arena_.MakeText("new"),
-        params_doc,
-        arena_.space(),
-        arena_.arrow(),
-        arena_.space(),
-        arena_.MakeText("Self"),
-        arena_.space(),
-        arena_.ocurl(),
     };
+    std::vector<DocRef> params_pieces;
+    params_pieces.push_back(arena_.break0());
+    params_pieces.push_back(params_doc);
+
+    std::vector<DocRef> return_pieces;
+    return_pieces.push_back(arena_.break1());
+    return_pieces.push_back(arena_.arrow());
+    return_pieces.push_back(arena_.space());
+    return_pieces.push_back(arena_.MakeText("Self"));
+    return_pieces.push_back(arena_.space());
+    return_pieces.push_back(arena_.ocurl());
+    params_pieces.push_back(ConcatNGroup(arena_, return_pieces));
+
+    new_sig_pieces.push_back(
+        arena_.MakeNest(ConcatNGroup(arena_, params_pieces)));
 
     const auto& config_stmts = n.config().body()->statements();
     std::vector<DocRef> append_statements;
@@ -803,11 +872,12 @@ class LegacyProcConverter : public Formatter {
                     FormatBlockOptions{.start_idx = 0,
                                        .end_idx = end_idx,
                                        .append_statements = append_statements,
-                                       .add_curls = false});
+                                       .add_curls = false,
+                                       .force_multiline = true});
     std::vector<DocRef> new_body = {
-        arena_.break1(),
+        arena_.hard_line(),
         body_doc,
-        arena_.break1(),
+        arena_.hard_line(),
         arena_.ccurl(),
     };
 
@@ -1059,11 +1129,12 @@ class LegacyProcConverter : public Formatter {
                              .prepend_statements = prepend_statements,
                              .append_statements = append_statements,
                              .force_trailing_semi = true,
-                             .add_curls = false});
+                             .add_curls = false,
+                             .force_multiline = true});
       std::vector<DocRef> next_body = {
-          arena_.break1(),
+          arena_.hard_line(),
           body_doc,
-          arena_.break1(),
+          arena_.hard_line(),
           arena_.ccurl(),
       };
       next_fn_doc = ConcatNGroup(arena_, {
@@ -1121,7 +1192,7 @@ class LegacyProcConverter : public Formatter {
       }
       impl_target = ConcatNGroup(
           arena_, {impl_target, arena_.oangle(),
-                   FormatJoin(parametric_names, Joiner::kCommaBreak1,
+                   FormatJoin(parametric_names, Joiner::kCommaSpace,
                               /*group=*/false),
                    arena_.cangle()});
     }

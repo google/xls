@@ -1,4 +1,6 @@
 #![feature(type_inference_v2)]
+#![feature(explicit_state_access)]
+#![feature(generics)]
 
 // Copyright 2022 The XLS Authors
 //
@@ -18,19 +20,21 @@
 // are scheduled to be exactly 2 cycles apart in the BUILD file.
 
 proc main {
-  req: chan<u32> out;
-  resp: chan<u32> in;
+    req: chan<u32> out,
+    resp: chan<u32> in,
+    state: u32,
+}
 
-  init { u32: 0 }
+impl main {
+    fn new(req: chan<u32> out, resp: chan<u32> in) -> Self {
+        main { req, resp, state: u32:0 }
+    }
 
-  config(req: chan<u32> out, resp: chan<u32> in) {
-    (req, resp)
-  }
-
-  next(state: u32) {
-    let request = state * state;
-    let tok = send(join(), req, request);
-    let (tok, _response) = recv(tok, resp);
-    state + u32:1
-  }
+    fn next(self) {
+        let state = read(self.state);
+        let request = state * state;
+        let tok = send(join(), self.req, request);
+        let (tok, _response) = recv(tok, self.resp);
+        write(self.state, state + u32:1);
+    }
 }

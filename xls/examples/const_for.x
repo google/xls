@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
 fn const_for_mask<N: u32>() -> u8 {
     const for (idx, mask): (u32, u8) in u32:0..N {
         mask | (u8:1 << idx)
@@ -27,51 +30,52 @@ fn const_for_test() {
 fn main() -> u8 { const_for_mask<u32:3>() }
 
 proc ConstForInst {
-    req_r: chan<()> in;
-    resp_s: chan<u32> out;
+    req_r: chan<()> in,
+    resp_s: chan<u32> out,
+}
 
-    config(req_r: chan<()> in, resp_s: chan<u32> out) { (req_r, resp_s) }
+impl ConstForInst {
+    fn new(req_r: chan<()> in, resp_s: chan<u32> out) -> Self {
+        ConstForInst { req_r, resp_s }
+    }
 
-    init {  }
-
-    next(_: ()) {
-        let (tok, _d) = recv(join(), req_r);
+    fn next(self) {
+        let (tok, _d) = recv(join(), self.req_r);
         let result = const for (idx, mask): (u32, u32) in u32:0..u32:5 {
             mask | (u32:1 << idx)
         }(u32:0);
-        let tok = send(tok, resp_s, result);
+        let tok = send(tok, self.resp_s, result);
     }
 }
 
 const NUM_OF_CHANNELS = u32:2;
 
-#[test_proc]
+#[test]
 proc ConstForProcSpawnTest {
-    req_s: chan<()>[NUM_OF_CHANNELS] out;
-    resp_r: chan<u32>[NUM_OF_CHANNELS] in;
-    terminator: chan<bool> out;
+    req_s: chan<()>[NUM_OF_CHANNELS] out,
+    resp_r: chan<u32>[NUM_OF_CHANNELS] in,
+    terminator: chan<bool> out,
+}
 
-    config(terminator: chan<bool> out) {
+impl ConstForProcSpawnTest {
+    fn new(terminator: chan<bool> out) -> Self {
         let (req_s, req_r) = chan<()>[NUM_OF_CHANNELS]("req");
         let (resp_s, resp_r) = chan<u32>[NUM_OF_CHANNELS]("resp");
         const for (idx, _): (u32, ()) in u32:0..NUM_OF_CHANNELS {
-            spawn ConstForInst(req_r[idx], resp_s[idx]);
+            ConstForInst::new(req_r[idx], resp_s[idx]).spawn();
         }(());
-
-        (req_s, resp_r, terminator)
+        ConstForProcSpawnTest { req_s, resp_r, terminator }
     }
 
-    init {  }
-
-    next(_: ()) {
-        let tok = send(join(), req_s[0], ());
-        let (tok, resp) = recv(tok, resp_r[0]);
+    fn next(self) {
+        let tok = send(join(), self.req_s[0], ());
+        let (tok, resp) = recv(tok, self.resp_r[0]);
         assert_eq(resp, u32:0b11111);
 
-        let tok = send(join(), req_s[1], ());
-        let (tok, resp) = recv(tok, resp_r[1]);
+        let tok = send(join(), self.req_s[1], ());
+        let (tok, resp) = recv(tok, self.resp_r[1]);
         assert_eq(resp, u32:0b11111);
 
-        let tok = send(tok, terminator, true);
+        let tok = send(tok, self.terminator, true);
     }
 }

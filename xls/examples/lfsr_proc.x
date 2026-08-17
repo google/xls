@@ -12,6 +12,8 @@
 // limitations under the License.
 
 #![feature(type_inference_v2)]
+#![feature(explicit_state_access)]
+#![feature(generics)]
 
 ////////////////////////////////////////////////////////////////////////////////
 // LFSR proc
@@ -26,62 +28,64 @@
 import xls.examples.lfsr;
 
 proc user_module<BIT_WIDTH: u32> {
-  output_s: chan<uN[BIT_WIDTH]> out;
-  seed_and_mask_r: chan<(uN[BIT_WIDTH], uN[BIT_WIDTH])> in;
-
-  init {
-    // state = (seed, tap_mask)
-    (uN[BIT_WIDTH]:1, uN[BIT_WIDTH]:1)
-  }
-
-  config(output_s: chan<uN[BIT_WIDTH]> out, seed_and_mask_r: chan<(uN[BIT_WIDTH], uN[BIT_WIDTH])> in) {
-    (output_s, seed_and_mask_r)
-  }
-
-  next(state: (uN[BIT_WIDTH], uN[BIT_WIDTH])) {
-    let (tok, new_state, _) = recv_non_blocking(join(), seed_and_mask_r, state);
-    send(tok, output_s, new_state.0);
-    (lfsr::lfsr(new_state.0, new_state.1), new_state.1)
-  }
+    output_s: chan<uN[BIT_WIDTH]> out,
+    seed_and_mask_r: chan<(uN[BIT_WIDTH], uN[BIT_WIDTH])> in,
+    state: (uN[BIT_WIDTH], uN[BIT_WIDTH]),
 }
 
-#[test_proc]
+impl user_module<BIT_WIDTH> {
+    // state = (seed, tap_mask)
+    fn new
+        (output_s: chan<uN[BIT_WIDTH]> out, seed_and_mask_r: chan<(uN[BIT_WIDTH], uN[BIT_WIDTH])> in)
+        -> Self {
+        user_module { output_s, seed_and_mask_r, state: (uN[BIT_WIDTH]:1, uN[BIT_WIDTH]:1) }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        let (tok, new_state, _) = recv_non_blocking(join(), self.seed_and_mask_r, state);
+        send(tok, self.output_s, new_state.0);
+        write(self.state, (lfsr::lfsr(new_state.0, new_state.1), new_state.1));
+    }
+}
+
+#[test]
 proc test {
-  value_r: chan<u8> in;
-  seed_s: chan<(u8, u8)> out;
-  terminator: chan<bool> out;
+    value_r: chan<u8> in,
+    seed_s: chan<(u8, u8)> out,
+    terminator: chan<bool> out,
+}
 
-  init { () }
+impl test {
+    fn new(terminator: chan<bool> out) -> Self {
+        let (value_s, value_r) = chan<u8>("value");
+        let (seed_s, seed_r) = chan<(u8, u8)>("seed");
+        user_module<u32:8>::new(value_s, seed_r).spawn();
+        test { value_r, seed_s, terminator }
+    }
 
-  config(terminator: chan<bool> out) {
-    let (value_s, value_r) = chan<u8>("value");
-    let (seed_s, seed_r) = chan<(u8, u8)>("seed");
-    spawn user_module<u32:8>(value_s, seed_r);
-    (value_r, seed_s, terminator)
-  }
+    fn next(self) {
+        let (tok, value) = recv(join(), self.value_r);
+        assert_eq(value, u8:1);
 
-  next(state: ()) {
-      let (tok, value) = recv(join(), value_r);
-      assert_eq(value, u8:1);
+        let tok = send(tok, self.seed_s, (u8:1, u8:0b10111000));
+        let (tok, value) = recv(tok, self.value_r);
+        assert_eq(value, u8:1);
+        let (tok, value) = recv(tok, self.value_r);
+        assert_eq(value, u8:2);
+        let (tok, value) = recv(tok, self.value_r);
+        assert_eq(value, u8:4);
+        let (tok, value) = recv(tok, self.value_r);
+        assert_eq(value, u8:8);
+        let (tok, value) = recv(tok, self.value_r);
+        assert_eq(value, u8:17);
 
-      let tok = send(tok, seed_s, (u8:1, u8:0b10111000));
-      let (tok, value) = recv(tok, value_r);
-      assert_eq(value, u8:1);
-      let (tok, value) = recv(tok, value_r);
-      assert_eq(value, u8:2);
-      let (tok, value) = recv(tok, value_r);
-      assert_eq(value, u8:4);
-      let (tok, value) = recv(tok, value_r);
-      assert_eq(value, u8:8);
-      let (tok, value) = recv(tok, value_r);
-      assert_eq(value, u8:17);
+        let tok = send(tok, self.seed_s, (u8:237, u8:0b10111000));
+        let (tok, value) = recv(tok, self.value_r);
+        assert_eq(value, u8:237);
+        let (tok, value) = recv(tok, self.value_r);
+        assert_eq(value, u8:219);
 
-      let tok = send(tok, seed_s, (u8:237, u8:0b10111000));
-      let (tok, value) = recv(tok, value_r);
-      assert_eq(value, u8:237);
-      let (tok, value) = recv(tok, value_r);
-      assert_eq(value, u8:219);
-
-      let tok = send(tok, terminator, true);
-  }
+        let tok = send(tok, self.terminator, true);
+    }
 }

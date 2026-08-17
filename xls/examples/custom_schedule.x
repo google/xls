@@ -1,4 +1,6 @@
 #![feature(type_inference_v2)]
+#![feature(explicit_state_access)]
+#![feature(generics)]
 
 // Copyright 2024 The XLS Authors
 //
@@ -17,24 +19,27 @@
 // This is just an example proc to display how io_constraints can force particular schedules if
 // needed.
 pub proc Accumulator {
-    data_in: chan<uN[8]> in;
-    activate: chan<uN[1]> in;
-    data_out: chan<uN[256]> out;
-    old_state: chan<uN[256]> out;
+    data_in: chan<uN[8]> in,
+    activate: chan<uN[1]> in,
+    data_out: chan<uN[256]> out,
+    old_state: chan<uN[256]> out,
+    acc: uN[256],
+}
 
-    config(data_in: chan<uN[8]> in, activate: chan<uN[1]> in, data_out: chan<uN[256]> out,
-           old_state: chan<uN[256]> out) {
-        (data_in, activate, data_out, old_state)
+impl Accumulator {
+    fn new
+        (data_in: chan<uN[8]> in, activate: chan<uN[1]> in, data_out: chan<uN[256]> out,
+         old_state: chan<uN[256]> out) -> Self {
+        Accumulator { data_in, activate, data_out, old_state, acc: uN[256]:0 }
     }
 
-    init { uN[256]:0 }
-
-    next(acc: uN[256]) {
-        let (tok, next_recv) = recv(join(), data_in);
-        let tok = send(tok, old_state, acc);
+    fn next(self) {
+        let acc = read(self.acc);
+        let (tok, next_recv) = recv(join(), self.data_in);
+        let tok = send(tok, self.old_state, acc);
         let to_send = acc + (next_recv as uN[256]);
-        let tok = send(tok, data_out, to_send);
-        let (tok, act) = recv(tok, activate);
-        if act { to_send } else { acc }
+        let tok = send(tok, self.data_out, to_send);
+        let (tok, act) = recv(tok, self.activate);
+        write(self.acc, if act { to_send } else { acc });
     }
 }
