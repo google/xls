@@ -1718,7 +1718,7 @@ type MyOtherTypeAlias = MyTypeAlias;
 
   xls_dslx_import_data* import_data = xls_dslx_import_data_create(
       std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
-      ABSL_ARRAYSIZE(additional_search_paths));
+      std::size(additional_search_paths));
   ASSERT_NE(import_data, nullptr);
   absl::Cleanup free_import_data(
       [=] { xls_dslx_import_data_free(import_data); });
@@ -1814,7 +1814,7 @@ type Widgets = my_imported_module::Widget[2];
 
   xls_dslx_import_data* import_data = xls_dslx_import_data_create(
       std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
-      ABSL_ARRAYSIZE(additional_search_paths));
+      std::size(additional_search_paths));
   ASSERT_NE(import_data, nullptr);
   absl::Cleanup free_import_data(
       [&] { xls_dslx_import_data_free(import_data); });
@@ -1955,7 +1955,7 @@ TEST(XlsCApiTest, DslxInspectImportModuleMember) {
 
   xls_dslx_import_data* import_data = xls_dslx_import_data_create(
       std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
-      ABSL_ARRAYSIZE(additional_search_paths));
+      std::size(additional_search_paths));
   ASSERT_NE(import_data, nullptr);
   absl::Cleanup free_import_data(
       [&] { xls_dslx_import_data_free(import_data); });
@@ -2149,8 +2149,8 @@ fn main(x: u32) -> u32 {
   xls_dslx_module_member* removed[] = {unused_member};
   xls_dslx_typechecked_module* cloned_tm = nullptr;
   ASSERT_TRUE(xls_dslx_typechecked_module_clone_removing_members(
-      tm, removed, ABSL_ARRAYSIZE(removed), "top_clone_members", import_data,
-      &error, &cloned_tm));
+      tm, removed, std::size(removed), "top_clone_members", import_data, &error,
+      &cloned_tm));
   ASSERT_EQ(error, nullptr);
   absl::Cleanup free_cloned_tm(
       [=] { xls_dslx_typechecked_module_free(cloned_tm); });
@@ -2174,7 +2174,7 @@ fn main(x: u32) -> u32 {
   xls_dslx_function* removed_functions[] = {unused_fn};
   xls_dslx_typechecked_module* cloned_tm_functions = nullptr;
   ASSERT_TRUE(xls_dslx_typechecked_module_clone_removing_functions(
-      tm, removed_functions, ABSL_ARRAYSIZE(removed_functions),
+      tm, removed_functions, std::size(removed_functions),
       "top_clone_functions", import_data, &error, &cloned_tm_functions));
   ASSERT_EQ(error, nullptr);
   absl::Cleanup free_cloned_tm_functions(
@@ -2250,8 +2250,7 @@ fn main(x: u32) -> u32 {
   xls_dslx_function* removed[] = {helper_fn};
   xls_dslx_typechecked_module* cloned_tm = nullptr;
   EXPECT_FALSE(xls_dslx_typechecked_module_clone_removing_functions(
-      tm, removed, ABSL_ARRAYSIZE(removed), "top", import_data, &error,
-      &cloned_tm));
+      tm, removed, std::size(removed), "top", import_data, &error, &cloned_tm));
   EXPECT_NE(error, nullptr);
   absl::Cleanup free_error([&] { xls_c_str_free(error); });
   EXPECT_THAT(error, HasSubstr("helper"));
