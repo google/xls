@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -151,6 +152,40 @@ absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
     return true;
   }
   return false;
+}
+
+absl::Status SplitBinOp(Node* node, absl::Span<const int64_t> split_points) {
+  Node* lhs = node->operand(0);
+  Node* rhs = node->operand(1);
+  int64_t width = node->BitCountOrDie();
+
+  std::vector<int64_t> bounds;
+  bounds.push_back(0);
+  bounds.insert(bounds.end(), split_points.begin(), split_points.end());
+  bounds.push_back(width);
+
+  std::vector<Node*> parts;
+  for (int64_t i = bounds.size() - 2; i >= 0; --i) {
+    int64_t seg_start = bounds[i];
+    int64_t seg_width = bounds[i + 1] - bounds[i];
+
+    XLS_ASSIGN_OR_RETURN(Node * lhs_slice,
+                         node->function_base()->MakeNodeWithName<BitSlice>(
+                             node->loc(), lhs, seg_start, seg_width,
+                             NodeNameFormat("%s_slice", lhs)));
+    XLS_ASSIGN_OR_RETURN(Node * rhs_slice,
+                         node->function_base()->MakeNodeWithName<BitSlice>(
+                             node->loc(), rhs, seg_start, seg_width,
+                             NodeNameFormat("%s_slice", rhs)));
+    XLS_ASSIGN_OR_RETURN(Node * part,
+                         node->function_base()->MakeNodeWithName<BinOp>(
+                             node->loc(), lhs_slice, rhs_slice, node->op(),
+                             NodeNameFormat("%s_split", node)));
+    parts.push_back(part);
+  }
+
+  XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(parts).status());
+  return absl::OkStatus();
 }
 
 // Attempts to strength-reduce the given node. Returns true if successful.
@@ -611,92 +646,47 @@ absl::StatusOr<bool> StrengthReduceNode(Node* node,
     return ternary_tree->Get({});
   };
   if (SplitsEnabled(opt_level) && node->op() == Op::kAdd) {
-    Node* add = node;
     Node* lhs = node->operand(0);
     Node* rhs = node->operand(1);
 
     TernaryVector propagate_carry =
         ternary_ops::Or(get_ternary(lhs), get_ternary(rhs));
-    if (auto non_propagate_it =
-            absl::c_find(propagate_carry, TernaryValue::kKnownZero);
-        non_propagate_it != propagate_carry.end() &&
-        non_propagate_it != propagate_carry.end() - 1) {
-      int64_t split_point =
-          std::distance(propagate_carry.begin(), non_propagate_it) + 1;
-      VLOG(2) << "Add cannot propagate carries to bit " << split_point
-              << "; replacing with two adders: " << add->ToString();
 
-      XLS_ASSIGN_OR_RETURN(Node * trailing_lhs,
-                           node->function_base()->MakeNode<BitSlice>(
-                               node->loc(), lhs, 0, split_point));
-      XLS_ASSIGN_OR_RETURN(Node * leading_lhs,
-                           node->function_base()->MakeNode<BitSlice>(
-                               node->loc(), lhs, split_point,
-                               lhs->BitCountOrDie() - split_point));
-      XLS_ASSIGN_OR_RETURN(Node * trailing_rhs,
-                           node->function_base()->MakeNode<BitSlice>(
-                               node->loc(), rhs, 0, split_point));
-      XLS_ASSIGN_OR_RETURN(Node * leading_rhs,
-                           node->function_base()->MakeNode<BitSlice>(
-                               node->loc(), rhs, split_point,
-                               rhs->BitCountOrDie() - split_point));
+    std::vector<int64_t> split_points;
+    for (int64_t i = 0; i < propagate_carry.size() - 1; ++i) {
+      if (propagate_carry[i] == TernaryValue::kKnownZero) {
+        split_points.push_back(i + 1);
+      }
+    }
 
-      XLS_ASSIGN_OR_RETURN(Node * leading_add,
-                           add->function_base()->MakeNode<BinOp>(
-                               add->loc(), leading_lhs, leading_rhs, Op::kAdd));
-      XLS_ASSIGN_OR_RETURN(
-          Node * trailing_add,
-          add->function_base()->MakeNode<BinOp>(add->loc(), trailing_lhs,
-                                                trailing_rhs, Op::kAdd));
-      XLS_RETURN_IF_ERROR(
-          add->ReplaceUsesWithNew<Concat>(
-                 absl::Span<Node* const>{leading_add, trailing_add})
-              .status());
+    if (!split_points.empty()) {
+      VLOG(2) << "Add cannot propagate carries at bits "
+              << absl::StrJoin(split_points, ", ") << "; replacing with "
+              << split_points.size() + 1 << " adders: " << node->ToString();
+      XLS_RETURN_IF_ERROR(SplitBinOp(node, split_points));
       return true;
     }
   }
   if (SplitsEnabled(opt_level) && node->op() == Op::kSub) {
-    Node* sub = node;
     Node* lhs = node->operand(0);
     Node* rhs = node->operand(1);
 
     TernaryVector borrow_stop =
         ternary_ops::And(get_ternary(lhs), ternary_ops::Not(get_ternary(rhs)));
-    if (auto borrow_stop_it =
-            absl::c_find(borrow_stop, TernaryValue::kKnownOne);
-        borrow_stop_it != borrow_stop.end() &&
-        borrow_stop_it != borrow_stop.end() - 1) {
-      int64_t split_point =
-          std::distance(borrow_stop.begin(), borrow_stop_it) + 1;
-      VLOG(2) << "Sub cannot propagate borrows to bit " << split_point
-              << "; replacing with two subtractors: " << sub->ToString();
 
-      XLS_ASSIGN_OR_RETURN(Node * trailing_lhs,
-                           node->function_base()->MakeNode<BitSlice>(
-                               node->loc(), lhs, 0, split_point));
-      XLS_ASSIGN_OR_RETURN(Node * leading_lhs,
-                           node->function_base()->MakeNode<BitSlice>(
-                               node->loc(), lhs, split_point,
-                               lhs->BitCountOrDie() - split_point));
-      XLS_ASSIGN_OR_RETURN(Node * trailing_rhs,
-                           node->function_base()->MakeNode<BitSlice>(
-                               node->loc(), rhs, 0, split_point));
-      XLS_ASSIGN_OR_RETURN(Node * leading_rhs,
-                           node->function_base()->MakeNode<BitSlice>(
-                               node->loc(), rhs, split_point,
-                               rhs->BitCountOrDie() - split_point));
+    std::vector<int64_t> split_points;
+    for (int64_t i = 0; i < borrow_stop.size() - 1; ++i) {
+      if (borrow_stop[i] == TernaryValue::kKnownOne) {
+        split_points.push_back(i + 1);
+      }
+    }
 
-      XLS_ASSIGN_OR_RETURN(Node * leading_sub,
-                           sub->function_base()->MakeNode<BinOp>(
-                               sub->loc(), leading_lhs, leading_rhs, Op::kSub));
-      XLS_ASSIGN_OR_RETURN(
-          Node * trailing_sub,
-          sub->function_base()->MakeNode<BinOp>(sub->loc(), trailing_lhs,
-                                                trailing_rhs, Op::kSub));
-      XLS_RETURN_IF_ERROR(
-          sub->ReplaceUsesWithNew<Concat>(
-                 absl::Span<Node* const>{leading_sub, trailing_sub})
-              .status());
+    if (!split_points.empty()) {
+      VLOG(2) << "Sub cannot propagate borrows at bits "
+              << absl::StrJoin(split_points, ", ") << "; replacing with "
+              << split_points.size() + 1
+              << " subtractors: " << node->ToString();
+      XLS_RETURN_IF_ERROR(SplitBinOp(node, split_points));
       return true;
     }
   }
