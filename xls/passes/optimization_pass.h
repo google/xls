@@ -216,6 +216,12 @@ class OptimizationContext {
   // Create or get a shared node data constructed using the given args. All args
   // must live at least as long as the entire compilation (including keeping
   // pointers allocated).
+  //
+  // IMPORTANT: This must be used purely as a performance optimization. Any
+  // user of sharedNodeData should be able to replace the shared analysis with a
+  // fully local one at the call site without affecting the pass behavior in any
+  // way other than performance. All analyses stored using this must be fully
+  // recreatable using only the IR.
   template <typename AnalysisT, typename... Args>
     requires(std::is_base_of_v<ChangeListener, AnalysisT> &&
              std::constructible_from<AnalysisT, Args...> &&
@@ -234,8 +240,18 @@ class OptimizationContext {
     return res;
   }
 
+  // Create or get a shared query engine constructed using the given args. All
+  // args must live at least as long as the entire compilation (including
+  // keeping pointers allocated).
+  //
   // TODO(allight): We should refactor this to return status-or. The only reason
   // its not already is that its used in a ton of places.
+  //
+  // IMPORTANT: This must be used purely as a performance optimization. Any
+  // user of SharedQueryEngine should be able to replace the shared analysis
+  // with a fully local one at the call site without affecting the pass behavior
+  // in any way other than performance. All analyses stored using this must be
+  // fully recreatable using only the IR.
   template <typename QueryEngineT, typename... Args>
     requires(std::is_base_of_v<QueryEngine, QueryEngineT> &&
              (std::constructible_from<QueryEngineT, Args...> ||
