@@ -14,6 +14,7 @@
 
 #include "xls/passes/proc_state_narrowing_pass.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -158,23 +159,33 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
               << state_element->type()->ToString();
       continue;
     }
-    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
-    std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
-        qe.GetTernary(state_read);
-    if (!ternary) {
-      continue;
+    absl::Span<StateRead* const> state_reads =
+        proc->GetStateReadsByStateElement(state_element);
+    std::optional<TernaryVector> combined_ternary;
+    for (StateRead* state_read : state_reads) {
+      std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
+          qe.GetTernary(state_read);
+      if (!ternary.has_value()) {
+        continue;
+      }
+      if (!combined_ternary.has_value()) {
+        combined_ternary = ternary->Get({});
+        continue;
+      }
+      combined_ternary =
+          ternary_ops::Intersection(*combined_ternary, ternary->Get({}));
     }
     int64_t known_leading =
-        ternary_ops::ToKnownBits(ternary->Get({})).CountLeadingOnes();
+        ternary_ops::ToKnownBits(*combined_ternary).CountLeadingOnes();
     if (known_leading != 0) {
       // TODO(allight): We could also narrow internal/trailing bits.
       TernarySpan known_leading_tern =
-          absl::MakeConstSpan(ternary->Get({})).last(known_leading);
+          absl::MakeConstSpan(*combined_ternary).last(known_leading);
       XLS_RET_CHECK(ternary_ops::IsFullyKnown(known_leading_tern));
       Value orig_init_value = state_element->initial_value();
-      VLOG(2) << "Narrowing state_read " << state_read << " from "
-              << state_read->BitCountOrDie() << " to "
-              << (state_read->BitCountOrDie() - known_leading)
+      VLOG(2) << "Narrowing state_element " << state_element->name() << " from "
+              << state_element->type()->GetFlatBitCount() << " to "
+              << (state_element->type()->GetFlatBitCount() - known_leading)
               << " bits (removing " << known_leading
               << " bits) using known-leading bits.";
       XLS_RETURN_IF_ERROR(RemoveLeadingBits(
@@ -183,21 +194,25 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
       made_changes = true;
       continue;
     }
-    int64_t signed_bits = interval_ops::MinimumSignedBitCount(
-        qe.GetIntervals(state_read).Get({}));
-    int64_t signed_bits_removed = state_read->BitCountOrDie() - signed_bits;
+    int64_t max_signed_bits = 0;
+    for (StateRead* state_read : state_reads) {
+      int64_t signed_bits = interval_ops::MinimumSignedBitCount(
+          qe.GetIntervals(state_read).Get({}));
+      max_signed_bits = std::max(max_signed_bits, signed_bits);
+    }
+    int64_t signed_bits_removed =
+        state_element->type()->GetFlatBitCount() - max_signed_bits;
     if (signed_bits_removed != 0) {
       Value orig_init_value = state_element->initial_value();
-      VLOG(2) << "Narrowing state_read " << state_read << " from "
-              << state_read->BitCountOrDie() << " to "
-              << (state_read->BitCountOrDie() - known_leading)
-              << " bits (removing " << known_leading
+      VLOG(2) << "Narrowing state_element " << state_element->name() << " from "
+              << state_element->type()->GetFlatBitCount() << " to "
+              << max_signed_bits << " bits (removing " << signed_bits_removed
               << " bits) using sign-extend.";
       XLS_RETURN_IF_ERROR(RemoveSignBits(proc, state_element, orig_init_value,
-                                         /*real_size=*/signed_bits));
+                                         /*real_size=*/max_signed_bits));
       made_changes = true;
     }
-    VLOG(2) << "Unable to narrow " << state_read
+    VLOG(2) << "Unable to narrow " << state_element->name()
             << " due to finding that no leading bits are known and signed "
                "interval is not narrowable.";
   }
