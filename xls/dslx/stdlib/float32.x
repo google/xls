@@ -361,9 +361,13 @@ fn from_uint32_test() {
     assert_eq(expected, actual);
 }
 
-pub fn add(x: F32, y: F32) -> F32 { apfloat::add(x, y) }
+pub fn add<USE_LZA: bool = {false}>(x: F32, y: F32) -> F32 {
+    apfloat::add<F32_EXP_SZ, F32_FRACTION_SZ, USE_LZA>(x, y)
+}
 
-pub fn sub(x: F32, y: F32) -> F32 { apfloat::sub(x, y) }
+pub fn sub<USE_LZA: bool = {false}>(x: F32, y: F32) -> F32 {
+    apfloat::sub<F32_EXP_SZ, F32_FRACTION_SZ, USE_LZA>(x, y)
+}
 
 pub fn mul(x: F32, y: F32) -> F32 { apfloat::mul(x, y) }
 

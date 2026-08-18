@@ -147,9 +147,24 @@ class FloatLibcall<Op Op, string Name> :
         (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b),
           PureCall, VectorCall)>;
 
-def : FloatLibcall<Arith_AddFOp, "add">;
+// The float instances library (for monomorphic instances of parametric routines like add/sub).
+defvar FloatInstancesLib = CS<"xls/dslx/stdlib/float_instances.x">;
+
+class FloatInstancesLibcall<Op Op, string FnSuffix, Type ElementType, string TypeName> :
+    Pat<(Op:$op $a, $b, /*FastMathFlags=*/$_, /*RoundingMode=*/$_),
+        (Xls_CallDslxOp FloatInstancesLib, CS<TypeName # "_" # FnSuffix>,
+          (variadic $a, $b), PureCall, VectorCall),
+        [(ScalarOrTensorOf<ElementType> $a)]>;
+
+multiclass FloatInstancesBinaryOp<Op Op, string FnSuffix> {
+  def : FloatInstancesLibcall<Op, FnSuffix, F32, "float32">;
+  def : FloatInstancesLibcall<Op, FnSuffix, BF16, "bfloat16">;
+  def : FloatInstancesLibcall<Op, FnSuffix, F64, "float64">;
+}
+
+defm : FloatInstancesBinaryOp<Arith_AddFOp, "add">;
 def : FloatLibcall<Arith_MulFOp, "mul">;
-def : FloatLibcall<Arith_SubFOp, "sub">;
+defm : FloatInstancesBinaryOp<Arith_SubFOp, "sub">;
 
 def : Pat<(Arith_ExtFOp:$op $a, /*FastMathFlags=*/$_),
           (Xls_CallDslxOp ExtLib, CS<"ext">, (variadic $a), PureCall, VectorCall)>;

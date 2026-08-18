@@ -43,7 +43,8 @@ TEST(AotCompileTest, BasicUsage) {
   Value f32_one = F32Value(false, 0x7f, 0);
   Value f32_two = F32Value(false, 0x80, 0);
   Value f32_three = F32Value(false, 0x80, 0x400000);
-  XLS_ASSERT_OK_AND_ASSIGN(Value result, xls::fp::add(f32_one, f32_two));
+  XLS_ASSERT_OK_AND_ASSIGN(Value result,
+                           xls::fp::float32_add(f32_one, f32_two));
   EXPECT_EQ(result, f32_three);
 }
 
@@ -79,7 +80,7 @@ TEST(AotCompileTest, CompoundType) {
 // In non-opt mode, argument values are type-checked using DCHECK.
 TEST(AotCompileTest, InvalidTypes) {
   Value a = Value::Tuple({});
-  EXPECT_DEATH((void)xls::fp::add(a, a),
+  EXPECT_DEATH((void)xls::fp::float32_add(a, a),
                testing::HasSubstr(
                    "Value `()` is not of type `(bits[1], bits[8], bits[23])`"));
 }

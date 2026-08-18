@@ -168,12 +168,29 @@ xls_dslx_test(
     dslx_test_args = {"compare": "jit"},
 )
 
+xls_dslx_library(
+    name = "float_instances_dslx",
+    srcs = ["float_instances.x"],
+    deps = [
+        ":bfloat16_dslx",
+        ":float32_dslx",
+        ":float64_dslx",
+    ],
+)
+
+xls_dslx_fmt_test(
+    name = "float_instances_dslx_fmt_test",
+    src = "float_instances.x",
+    opportunistic_postcondition = True,
+)
+
 xls_dslx_opt_ir(
     name = "bfloat16_add",
-    dslx_top = "add",
+    dslx_top = "bfloat16_add",
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "bfloat16_add.ir",
-    library = "bfloat16_dslx",
+    library = ":float_instances_dslx",
+    opt_ir_file = "bfloat16_add.opt.ir",
 )
 
 # TODO: xls_ir_equivalence_test takes a long time. Tag enormous and manual.
@@ -197,10 +214,11 @@ xls_benchmark_ir(
 
 xls_dslx_opt_ir(
     name = "bfloat16_sub",
-    dslx_top = "sub",
+    dslx_top = "bfloat16_sub",
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "bfloat16_sub.ir",
-    library = "bfloat16_dslx",
+    library = ":float_instances_dslx",
+    opt_ir_file = "bfloat16_sub.opt.ir",
 )
 
 # TODO: xls_ir_equivalence_test takes a long time. Tag enormous and manual.
@@ -282,10 +300,10 @@ xls_dslx_test(
 
 xls_dslx_opt_ir(
     name = "float32_add",
-    dslx_top = "add",
+    dslx_top = "float32_add",
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_add.ir",
-    library = ":float32_dslx",
+    library = ":float_instances_dslx",
     opt_ir_file = "float32_add.opt.ir",
 )
 
@@ -325,10 +343,10 @@ cc_xls_ir_jit_wrapper(
 
 xls_dslx_opt_ir(
     name = "float32",
-    dslx_top = "sub",
+    dslx_top = "float32_sub",
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float32_sub.ir",
-    library = ":float32_dslx",
+    library = ":float_instances_dslx",
     opt_ir_file = "float32_sub.opt.ir",
 )
 
@@ -521,10 +539,10 @@ xls_dslx_test(
 
 xls_dslx_opt_ir(
     name = "float64_add",
-    dslx_top = "add",
+    dslx_top = "float64_add",
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float64_add.ir",
-    library = "float64_dslx",
+    library = ":float_instances_dslx",
     opt_ir_file = "float64_add.opt.ir",
 )
 
@@ -550,10 +568,10 @@ cc_xls_ir_jit_wrapper(
 
 xls_dslx_opt_ir(
     name = "float64_sub",
-    dslx_top = "sub",
+    dslx_top = "float64_sub",
     ir_conv_args = {"lower_to_proc_scoped_channels": "true"},
     ir_file = "float64_sub.ir",
-    library = ":float64_dslx",
+    library = ":float_instances_dslx",
     opt_ir_file = "float64_sub.opt.ir",
 )
 
@@ -715,8 +733,16 @@ exports_files(glob(include = ["*.x"]))
 filegroup(
     name = "ir_examples",
     srcs = [
+        ":bfloat16_add.ir",
+        ":bfloat16_add.opt.ir",
+        ":bfloat16_mul.ir",
+        ":bfloat16_mul.opt.ir",
+        ":bfloat16_sub.ir",
+        ":bfloat16_sub.opt.ir",
         ":float32_add.ir",
         ":float32_add.opt.ir",
+        ":float32_fma.ir",
+        ":float32_fma.opt.ir",
         ":float32_mul.ir",
         ":float32_mul.opt.ir",
         ":float32_sub.ir",

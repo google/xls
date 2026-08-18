@@ -114,9 +114,13 @@ pub fn to_uint16(x: HF16) -> u16 { apfloat::to_uint<u32:16>(x) }
 
 pub fn tag(f: HF16) -> FloatTag { apfloat::tag(f) }
 
-pub fn add(x: HF16, y: HF16) -> HF16 { apfloat::add(x, y) }
+pub fn add<USE_LZA: bool = {false}>(x: HF16, y: HF16) -> HF16 {
+    apfloat::add<HF16::EXP_SIZE, HF16::FRACTION_SIZE, USE_LZA>(x, y)
+}
 
-pub fn sub(x: HF16, y: HF16) -> HF16 { apfloat::sub(x, y) }
+pub fn sub<USE_LZA: bool = {false}>(x: HF16, y: HF16) -> HF16 {
+    apfloat::sub<HF16::EXP_SIZE, HF16::FRACTION_SIZE, USE_LZA>(x, y)
+}
 
 pub fn mul(x: HF16, y: HF16) -> HF16 { apfloat::mul(x, y) }
 

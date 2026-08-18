@@ -164,9 +164,13 @@ fn tag_test() {
     assert_eq(tag(qnan()), FloatTag::NAN);
 }
 
-pub fn add(x: F64, y: F64) -> F64 { apfloat::add(x, y) }
+pub fn add<USE_LZA: bool = {false}>(x: F64, y: F64) -> F64 {
+    apfloat::add<F64_EXP_SZ, F64_FRACTION_SZ, USE_LZA>(x, y)
+}
 
-pub fn sub(x: F64, y: F64) -> F64 { apfloat::sub(x, y) }
+pub fn sub<USE_LZA: bool = {false}>(x: F64, y: F64) -> F64 {
+    apfloat::sub<F64_EXP_SZ, F64_FRACTION_SZ, USE_LZA>(x, y)
+}
 
 pub fn mul(x: F64, y: F64) -> F64 { apfloat::mul(x, y) }
 
