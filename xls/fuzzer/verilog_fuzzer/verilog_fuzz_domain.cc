@@ -14,6 +14,7 @@
 
 #include "xls/fuzzer/verilog_fuzzer/verilog_fuzz_domain.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -113,6 +114,7 @@ fuzztest::Domain<CodegenFlagsProto> CodegenFlagsDomain() {
 fuzztest::Domain<SchedulingOptionsFlagsProto>
 NoFdoSchedulingOptionsFlagsDomain() {
   return fuzztest::Arbitrary<SchedulingOptionsFlagsProto>()
+      .WithInt64Field("pipeline_stages", fuzztest::InRange<int64_t>(0, 1000))
       .WithFieldUnset("use_fdo")
       .WithFieldUnset("fdo_iteration_number")
       .WithFieldUnset("fdo_delay_driven_path_number")
