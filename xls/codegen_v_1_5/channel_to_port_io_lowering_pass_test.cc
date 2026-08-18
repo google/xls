@@ -619,10 +619,8 @@ TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputFlopValidData) {
   ASSERT_NE(data_write, nullptr);
   ASSERT_NE(valid_write, nullptr);
 
-  ASSERT_TRUE(valid_write->load_enable().has_value());
-
-  // Data register should be enabled by the valid signal
-  ASSERT_TRUE(data_write->load_enable().has_value());
+  EXPECT_FALSE(valid_write->load_enable().has_value());
+  EXPECT_TRUE(data_write->load_enable().has_value());
 }
 
 TEST_F(ChannelToPortIoLoweringPassTest, StreamingOutputSkid) {

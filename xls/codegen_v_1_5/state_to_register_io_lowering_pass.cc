@@ -15,6 +15,7 @@
 #include "xls/codegen_v_1_5/state_to_register_io_lowering_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -91,9 +92,11 @@ absl::StatusOr<Node*> NodeOrOne(FunctionBase* fb, std::optional<Node*> node) {
 }
 
 absl::StatusOr<Register*> CreateFullRegisterAndRead(
-    Block* block, const StateElement& state_element,
+    ScheduledBlock* block, const StateElement& state_element,
     std::optional<Node*> read_predicate, const Next& last_write,
-    int read_stage_index, Stage& read_stage) {
+    int64_t read_stage_index) {
+  Stage& read_stage = block->stages()[read_stage_index];
+
   XLS_ASSIGN_OR_RETURN(
       Register * reg_full,
       block->AddRegister(absl::StrCat("__", state_element.name(), "_full"),
@@ -134,13 +137,14 @@ absl::StatusOr<Register*> CreateFullRegisterAndRead(
   return reg_full;
 }
 
-absl::Status AddFullRegisterWrite(Block* block, Register* reg_full,
+absl::Status AddFullRegisterWrite(ScheduledBlock* block, Register* reg_full,
                                   std::optional<Node*> read_predicate,
-                                  const Stage& read_stage,
+                                  int64_t read_stage_index,
                                   const SourceInfo& last_write_loc,
                                   std::optional<Node*> write_load_enable) {
-  std::vector<Node*> full_from_read_operands{read_stage.outputs_valid(),
-                                             read_stage.outputs_ready()};
+  XLS_ASSIGN_OR_RETURN(Node * stage_done,
+                       block->GetOrCreateStageDone(read_stage_index));
+  std::vector<Node*> full_from_read_operands({stage_done});
   if (read_predicate.has_value()) {
     full_from_read_operands.push_back(*read_predicate);
   }
@@ -184,7 +188,6 @@ absl::Status LowerStateElement(ScheduledBlock* block,
       block->UniquifyNodeName(absl::StrCat("__", state_element.name()));
 
   XLS_ASSIGN_OR_RETURN(int read_stage_index, block->GetStageIndex(read));
-  Stage& read_stage = block->stages()[read_stage_index];
   Node* reg_read_or_zero = nullptr;
   Register* state_register = nullptr;
   if (has_data) {
@@ -224,10 +227,9 @@ absl::Status LowerStateElement(ScheduledBlock* block,
   // to track whether the state is currently valid.
   Register* reg_full = nullptr;
   if (last_write_stage_index > read_stage_index) {
-    XLS_ASSIGN_OR_RETURN(
-        reg_full,
-        CreateFullRegisterAndRead(block, state_element, read_predicate,
-                                  *last_write, read_stage_index, read_stage));
+    XLS_ASSIGN_OR_RETURN(reg_full, CreateFullRegisterAndRead(
+                                       block, state_element, read_predicate,
+                                       *last_write, read_stage_index));
   }
 
   std::vector<Node*> all_write_conditions;
@@ -257,8 +259,9 @@ absl::Status LowerStateElement(ScheduledBlock* block,
     //
     // If we have a full bit to update, we compute the condition even if this is
     // just a self-assignment.
-    std::vector<Node*> condition_operands{stage.outputs_valid(),
-                                          stage.outputs_ready()};
+    XLS_ASSIGN_OR_RETURN(Node * stage_done,
+                         block->GetOrCreateStageDone(stage_index));
+    std::vector<Node*> condition_operands({stage_done});
     if (predicate.has_value()) {
       condition_operands.push_back(*predicate);
     }
@@ -352,7 +355,7 @@ absl::Status LowerStateElement(ScheduledBlock* block,
                                           /*name=*/"", last_write_loc));
     }
     XLS_RETURN_IF_ERROR(AddFullRegisterWrite(block, reg_full, read_predicate,
-                                             read_stage, last_write_loc,
+                                             read_stage_index, last_write_loc,
                                              full_write_enable));
   }
 

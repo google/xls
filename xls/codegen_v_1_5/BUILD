@@ -413,7 +413,6 @@ xls_codegen_pass(
         "//xls/ir:value",
         "//xls/passes:pass_base",
         "@abseil-cpp//absl/base",
-        "@abseil-cpp//absl/container:fixed_array",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",

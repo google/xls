@@ -634,6 +634,8 @@ class ScheduledBlock : public Block {
       const absl::flat_hash_map<std::string, std::string>& reg_name_map = {},
       const absl::flat_hash_map<const Block*, Block*>& block_instantiation_map =
           {}) const {
+    CHECK_EQ(source_, nullptr)
+        << "Cannot clone a scheduled block with a source entity.";
     XLS_ASSIGN_OR_RETURN(Block * cloned_block,
                          Block::Clone(new_name, target_package, reg_name_map,
                                       block_instantiation_map));
@@ -658,6 +660,10 @@ class ScheduledBlock : public Block {
                         block_instantiation_map,
                         /*preserve_schedule=*/false);
   }
+
+  // Returns the stage done signal for the given stage index. Creates one if it
+  // doesn't exist.
+  absl::StatusOr<Node*> GetOrCreateStageDone(int64_t stage_index);
 
  private:
   std::unique_ptr<FunctionBase> source_;

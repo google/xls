@@ -22,7 +22,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   }
   rst: bits[1] = input_port(name=rst, id=19)
   literal.206: (token, token) = literal(value=(token, token), id=206)
-  and.207: bits[1] = and(stage_outputs_valid_0, stage_outputs_ready_0, id=207)
+  p0_stage_done: bits[1] = and(stage_outputs_valid_0, stage_outputs_ready_0, id=207)
   and.208: bits[1] = and(stage_inputs_valid_0, active_inputs_valid_0, id=208)
   tuple.209: () = tuple(id=209)
 }

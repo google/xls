@@ -34,8 +34,8 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=27)
   }
   rst: bits[1] = input_port(name=rst, id=19)
-  and.42: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=42)
+  p1_stage_done: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=42)
   and.43: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=43)
-  register_write.44: () = register_write(result_value, register=____state, load_enable=and.42, reset=rst, id=44)
+  register_write.44: () = register_write(result_value, register=____state, load_enable=p1_stage_done, reset=rst, id=44)
   tuple.45: () = tuple(id=45)
 }
