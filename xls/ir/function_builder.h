@@ -1165,7 +1165,7 @@ class ProcBuilder : public BuilderBase {
 
   // Adds a state element to the proc without creating a state read.
   BStateElement StateElement(std::string_view name, const Value& initial_value,
-                             bool non_synthesizable,
+                             bool non_synthesizable = false,
                              const SourceInfo& loc = SourceInfo());
 
   // Adds a state read node for an existing state element.

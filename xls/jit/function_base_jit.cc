@@ -20,6 +20,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -60,7 +61,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
-#include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/jit/aot_entrypoint.pb.h"
@@ -132,8 +132,8 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
   // specified will be added to the function signature after all other
   // args.
   static LlvmFunctionWrapper Create(
-      std::string_view name, absl::Span<Node* const> input_args,
-      absl::Span<Node* const> output_args, llvm::Type* return_type,
+      std::string_view name, absl::Span<JitStoredValue const> input_args,
+      absl::Span<JitStoredValue const> output_args, llvm::Type* return_type,
       const JitBuilderContext& jit_context,
       std::optional<FunctionArg> extra_arg = std::nullopt) {
     llvm::Type* ptr_type = llvm::PointerType::get(jit_context.context(), 0);
@@ -161,14 +161,23 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
       fn->getArg(6)->setName(extra_arg->name);
     }
 
-    LlvmFunctionWrapper wrapper(input_args, output_args);
-    wrapper.fn_ = fn;
-    wrapper.fn_type_ = function_type;
-    auto basic_block = llvm::BasicBlock::Create(fn->getContext(), "entry", fn,
-                                                /*InsertBefore=*/nullptr);
-    wrapper.entry_builder_ = std::make_unique<llvm::IRBuilder<>>(basic_block);
+    // NB We need to translate the input and output args to handle
+    // state-elements.
+    absl::flat_hash_map<JitStoredValue, int64_t> input_indices;
+    for (int i = 0; i < input_args.size(); ++i) {
+      input_indices[input_args[i]] = i;
+    }
+    absl::flat_hash_map<JitStoredValue, std::vector<int64_t>> output_indices;
+    for (int i = 0; i < output_args.size(); ++i) {
+      output_indices[output_args[i]].push_back(i);
+    }
 
-    return wrapper;
+    return LlvmFunctionWrapper(
+        fn, function_type,
+        std::make_unique<llvm::IRBuilder<>>(
+            llvm::BasicBlock::Create(fn->getContext(), "entry", fn,
+                                     /*InsertBefore=*/nullptr)),
+        std::move(input_indices), std::move(output_indices));
   }
 
   llvm::Function* function() const { return fn_; }
@@ -177,24 +186,26 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
 
   // Returns whether `node` is one of the nodes whose value is passed in via the
   // `inputs` function argument.
-  bool IsInputNode(Node* node) const final {
+  bool IsInputNode(JitStoredValue node) const final {
     return input_indices_.contains(node);
   }
 
   // Returns the index within the array passed into the `input` function
   // argument corresponding to `node`. CHECK fails if `node` is not an input
   // node.
-  int64_t GetInputArgIndex(Node* node) const { return input_indices_.at(node); }
+  int64_t GetInputArgIndex(JitStoredValue node) const {
+    return input_indices_.at(node);
+  }
 
   // Returns the input buffer for `node` by loading the pointer from the
   // `inputs` argument. `node` must be an input node.
-  llvm::Value* GetInputBuffer(Node* node, llvm::IRBuilder<>& builder) {
+  llvm::Value* GetInputBuffer(JitStoredValue node, llvm::IRBuilder<>& builder) {
     return LoadPointerFromPointerArray(GetInputArgIndex(node), GetInputsArg(),
                                        &builder);
   }
 
   absl::StatusOr<llvm::Value*> GetInputBufferFrom(
-      Node* node, llvm::Value* base_ptr,
+      JitStoredValue node, llvm::Value* base_ptr,
       llvm::IRBuilder<>& builder) const final {
     XLS_RET_CHECK(IsInputNode(node));
     return LoadPointerFromPointerArray(GetInputArgIndex(node), base_ptr,
@@ -203,7 +214,9 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
 
   // Returns whether `node` is one of the nodes whose value should be written to
   // one of the output buffers passed in via the `inputs` function argument.
-  bool IsOutputNode(Node* node) const { return output_indices_.contains(node); }
+  bool IsOutputNode(JitStoredValue node) const {
+    return output_indices_.contains(node);
+  }
   bool IsOutputPortOrRegister(Node* node) const {
     return IsOutputNode(node) &&
            (node->Is<OutputPort>() || node->Is<RegisterWrite>());
@@ -211,14 +224,14 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
 
   // Returns the index(es) within the array passed into the `output` function
   // argument corresponding to `node`. `node` must be an output node.
-  absl::Span<const int64_t> GetOutputArgIndices(Node* node) const {
+  absl::Span<const int64_t> GetOutputArgIndices(JitStoredValue node) const {
     return output_indices_.at(node);
   }
 
   // Returns the output buffer(s) passed in via `outputs` function argument
   // corresponding to `node`. Created by loading pointers from the `outputs`
   // array argument.  `node` must be an output node.
-  std::vector<llvm::Value*> GetOutputBuffers(Node* node,
+  std::vector<llvm::Value*> GetOutputBuffers(JitStoredValue node,
                                              llvm::IRBuilder<>& builder) {
     std::vector<llvm::Value*> output_buffers;
     for (int64_t i : GetOutputArgIndices(node)) {
@@ -230,7 +243,8 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
 
   // Returns the first output buffer(s) passed in via `outputs` function
   // argument corresponding to `node`. `node` must be an output node.
-  llvm::Value* GetFirstOutputBuffer(Node* node, llvm::IRBuilder<>& builder) {
+  llvm::Value* GetFirstOutputBuffer(JitStoredValue node,
+                                    llvm::IRBuilder<>& builder) {
     return LoadPointerFromPointerArray(GetOutputArgIndices(node).front(),
                                        GetOutputsArg(), &builder);
   }
@@ -262,27 +276,23 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
   }
 
  private:
-  LlvmFunctionWrapper(absl::Span<Node* const> input_args,
-                      absl::Span<Node* const> output_args)
-      : input_args_(input_args.begin(), input_args.end()),
-        output_args_(output_args.begin(), output_args.end()) {
-    for (int64_t i = 0; i < input_args.size(); ++i) {
-      CHECK(!input_indices_.contains(input_args[i]));
-      input_indices_[input_args[i]] = i;
-    }
-    for (int64_t i = 0; i < output_args.size(); ++i) {
-      output_indices_[output_args[i]].push_back(i);
-    }
-  }
+  LlvmFunctionWrapper(
+      llvm::Function* fn, llvm::FunctionType* fn_type,
+      std::unique_ptr<llvm::IRBuilder<>>&& entry_builder,
+      absl::flat_hash_map<JitStoredValue, int64_t>&& input_args,
+      absl::flat_hash_map<JitStoredValue, std::vector<int64_t>>&& output_args)
+      : fn_(fn),
+        fn_type_(fn_type),
+        entry_builder_(std::move(entry_builder)),
+        input_indices_(std::move(input_args)),
+        output_indices_(std::move(output_args)) {}
 
   llvm::Function* fn_;
   llvm::FunctionType* fn_type_;
   std::unique_ptr<llvm::IRBuilder<>> entry_builder_;
 
-  std::vector<Node*> input_args_;
-  std::vector<Node*> output_args_;
-  absl::flat_hash_map<Node*, int64_t> input_indices_;
-  absl::flat_hash_map<Node*, std::vector<int64_t>> output_indices_;
+  absl::flat_hash_map<JitStoredValue, int64_t> input_indices_;
+  absl::flat_hash_map<JitStoredValue, std::vector<int64_t>> output_indices_;
 };
 
 // The kinds of allocations assigned to xls::Nodes by BufferAllocator.
@@ -301,6 +311,17 @@ enum class AllocationKind : uint8_t {
   // which are materialized as LLVM constants at their uses.
   kNone,
 };
+
+inline std::ostream& operator<<(std::ostream& os, AllocationKind kind) {
+  switch (kind) {
+    case AllocationKind::kTempBlock:
+      return os << "kTempBlock";
+    case AllocationKind::kAlloca:
+      return os << "kAlloca";
+    case AllocationKind::kNone:
+      return os << "kNone";
+  }
+}
 
 // Allocator for the buffers used to hold xls::Node values within jitted
 // functions.
@@ -504,10 +525,14 @@ absl::StatusOr<std::vector<Partition>> PartitionFunctionBase(FunctionBase* f) {
 }
 
 // Get the type this node reserves as input.
-Type* InputType(const Node* node) { return node->GetType(); }
+Type* InputType(const JitStoredValue& val) { return val.type(); }
 
 // Get the type this node outputs into the functions return value.
-Type* OutputType(const Node* node) {
+Type* OutputType(const JitStoredValue& val) {
+  if (!val.is_node()) {
+    return val.state_element()->type();
+  }
+  Node* node = val.node();
   if (node->Is<RegisterWrite>() || node->Is<OutputPort>()) {
     // Operand 0 is the data we write to the register/port
     return node->operand(0)->GetType();
@@ -556,8 +581,8 @@ Type* OutputType(const Node* node) {
 // buffers are passed in via the `input`/`output` arguments of the function.
 absl::StatusOr<llvm::Function*> BuildPartitionFunction(
     std::string_view name, const Partition& partition,
-    absl::Span<Node* const> global_input_nodes,
-    absl::Span<Node* const> global_output_nodes,
+    absl::Span<JitStoredValue const> global_input_nodes,
+    absl::Span<JitStoredValue const> global_output_nodes,
     const BufferAllocator& allocator, JitBuilderContext& jit_context) {
   LlvmFunctionWrapper wrapper = LlvmFunctionWrapper::Create(
       name, global_input_nodes, global_output_nodes,
@@ -570,20 +595,28 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
 
   // The pointers to the buffers of nodes in the partition.
   absl::flat_hash_map<Node*, llvm::Value*> value_buffers;
+  auto to_storage = [&](Node* n) -> JitStoredValue {
+    if (n->Is<StateRead>()) {
+      return n->As<StateRead>()->state_element();
+    }
+    return n;
+  };
   for (Node* node : partition.nodes) {
-    if (wrapper.IsInputNode(node)) {
+    JitStoredValue stored_value = to_storage(node);
+    if (wrapper.IsInputNode(stored_value)) {
       // Node is an input node. We need to generate a node function for  this
       // node to call callbacks on the node.
       XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
-      if (wrapper.IsOutputNode(node)) {
+      if (wrapper.IsOutputNode(stored_value)) {
         // `node` is also an output node. This can occur, for example, if a
         // state param is the next state value for a proc.
-        llvm::Value* input_buffer = wrapper.GetInputBuffer(node, b);
-        for (llvm::Value* output_buffer : wrapper.GetOutputBuffers(node, b)) {
-          LlvmMemcpy(
-              output_buffer, input_buffer,
-              jit_context.type_converter().GetTypeByteSize(OutputType(node)),
-              b);
+        llvm::Value* input_buffer = wrapper.GetInputBuffer(stored_value, b);
+        for (llvm::Value* output_buffer :
+             wrapper.GetOutputBuffers(stored_value, b)) {
+          LlvmMemcpy(output_buffer, input_buffer,
+                     jit_context.type_converter().GetTypeByteSize(
+                         OutputType(stored_value)),
+                     b);
         }
       }
     }
@@ -591,14 +624,26 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
     // Gather the buffers to which the value of `node` must be written.
     std::vector<llvm::Value*> output_buffers;
     if (node->Is<Next>()) {
-      // next_value nodes store their output in the state-read's location, and
+      // next_value nodes store their output in a state-read's location, and
       // return nothing themselves.
-      StateRead* state_read =
-          node->function_base()->AsProcOrDie()->GetStateReadByStateElement(
-              node->As<Next>()->state_element());
-      XLS_RET_CHECK(allocator.GetAllocationKind(state_read) ==
-                    AllocationKind::kNone);
-      output_buffers = wrapper.GetOutputBuffers(state_read, b);
+      //
+      // To catch bugs/errors check that as expected all the state reads have no
+      // allocation.
+      XLS_RET_CHECK(absl::c_all_of(
+          node->function_base()->AsProcOrDie()->GetStateReadsByStateElement(
+              node->As<Next>()->state_element()),
+          [&](StateRead* sr) {
+            return allocator.GetAllocationKind(sr) == AllocationKind::kNone;
+          }))
+          << "Bad allocation kind for state read of "
+          << node->As<Next>()->state_element()->ToString();
+      output_buffers =
+          wrapper.GetOutputBuffers(node->As<Next>()->state_element(), b);
+    } else if (node->Is<StateRead>()) {
+      // All state-reads are input nodes
+      XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone)
+          << allocator.GetAllocationKind(node);
+      output_buffers = {};
     } else if (wrapper.IsInputNode(node)) {
       XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
       output_buffers = {};
@@ -643,7 +688,10 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
         continue;
       }
       llvm::Value* arg;
-      if (wrapper.IsInputNode(operand)) {
+      if (operand->Is<StateRead>()) {
+        arg = wrapper.GetInputBuffer(operand->As<StateRead>()->state_element(),
+                                     b);
+      } else if (wrapper.IsInputNode(operand)) {
         // `operand` is a global input. Load the pointer to the buffer from the
         // input array argument.
         arg = wrapper.GetInputBuffer(operand, b);
@@ -708,7 +756,7 @@ absl::Status AllocateBuffers(absl::Span<const Partition> partitions,
                                              partition.nodes.end());
     for (Node* node : partition.nodes) {
       if (wrapper.IsInputNode(node) || wrapper.IsOutputNode(node) ||
-          ShouldMaterializeAtUse(node)) {
+          ShouldMaterializeAtUse(node) || node->Is<StateRead>()) {
         allocator.SetAllocationKind(node, AllocationKind::kNone);
       } else if (!node->function_base()->HasImplicitUse(node) &&
                  std::all_of(
@@ -727,10 +775,11 @@ absl::Status AllocateBuffers(absl::Span<const Partition> partitions,
 
 // Returns the nodes which comprise the inputs to a jitted function implementing
 // `function_base`. These nodes are passed in via the `inputs` argument.
-std::vector<Node*> GetJittedFunctionInputs(FunctionBase* function_base) {
+std::vector<JitStoredValue> GetJittedFunctionInputs(
+    FunctionBase* function_base) {
   if (function_base->IsBlock()) {
     Block* block = function_base->AsBlockOrDie();
-    std::vector<Node*> out;
+    std::vector<JitStoredValue> out;
     out.reserve(block->GetInputPorts().size() + block->GetRegisters().size());
     absl::c_copy(block->GetInputPorts(), std::back_inserter(out));
     absl::c_transform(
@@ -740,20 +789,19 @@ std::vector<Node*> GetJittedFunctionInputs(FunctionBase* function_base) {
   }
   if (function_base->IsProc()) {
     Proc* proc = function_base->AsProcOrDie();
-    std::vector<Node*> out;
-    absl::c_transform(
-        proc->StateElements(), std::back_inserter(out),
-        [&](StateElement* st) { return proc->GetStateReadByStateElement(st); });
+    std::vector<JitStoredValue> out(proc->StateElements().begin(),
+                                    proc->StateElements().end());
     return out;
   }
-  std::vector<Node*> inputs(function_base->params().begin(),
-                            function_base->params().end());
+  std::vector<JitStoredValue> inputs(function_base->params().begin(),
+                                     function_base->params().end());
   return inputs;
 }
 
 // Returns the nodes whose values are passed out of a jitted function. Buffers
 // to hold these node values are passed in via the `outputs` argument.
-std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
+std::vector<JitStoredValue> GetJittedFunctionOutputs(
+    FunctionBase* function_base) {
   if (function_base->IsFunction()) {
     // The output of a function is its return value.
     Function* f = function_base->AsFunctionOrDie();
@@ -766,7 +814,7 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
     //   (3) Second, and later RegisterWrites of each register (if any).
     // Multiple RegisterWrites are reconciled at the end of each cycle.
     Block* block = function_base->AsBlockOrDie();
-    std::vector<Node*> out;
+    std::vector<JitStoredValue> out;
     out.reserve(block->GetOutputPorts().size() + block->GetRegisters().size());
     absl::c_copy(block->GetOutputPorts(), std::back_inserter(out));
     for (Register* reg : block->GetRegisters()) {
@@ -782,12 +830,8 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
   // The outputs of a proc are the next state values - which will be stored in
   // the memory locations for the state reads.
   Proc* proc = function_base->AsProcOrDie();
-  std::vector<Node*> outputs;
-  outputs.reserve(proc->StateElements().size());
-  absl::c_transform(
-      proc->StateElements(), std::back_inserter(outputs),
-      [&](StateElement* st) { return proc->GetStateReadByStateElement(st); });
-  return outputs;
+  return std::vector<JitStoredValue>(proc->StateElements().begin(),
+                                     proc->StateElements().end());
 }
 
 // Build an llvm::Function implementing the given FunctionBase. The jitted
@@ -851,8 +895,8 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
   // have each function assign its own tmp buffer starting from 0 and make the
   // overall tmp-buffer the topo sort.
   std::string base_name = jit_context.MangleFunctionName(xls_function);
-  std::vector<Node*> inputs = GetJittedFunctionInputs(xls_function);
-  std::vector<Node*> outputs = GetJittedFunctionOutputs(xls_function);
+  std::vector<JitStoredValue> inputs = GetJittedFunctionInputs(xls_function);
+  std::vector<JitStoredValue> outputs = GetJittedFunctionOutputs(xls_function);
   LlvmFunctionWrapper wrapper = LlvmFunctionWrapper::Create(
       base_name, inputs, outputs, llvm::Type::getInt64Ty(jit_context.context()),
       jit_context,
@@ -1179,8 +1223,8 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
     FunctionBase* xls_function, llvm::Function* callee,
     JitBuilderContext& jit_context) {
   llvm::LLVMContext* context = &jit_context.context();
-  std::vector<Node*> inputs = GetJittedFunctionInputs(xls_function);
-  std::vector<Node*> outputs = GetJittedFunctionOutputs(xls_function);
+  std::vector<JitStoredValue> inputs = GetJittedFunctionInputs(xls_function);
+  std::vector<JitStoredValue> outputs = GetJittedFunctionOutputs(xls_function);
   LlvmFunctionWrapper wrapper = LlvmFunctionWrapper::Create(
       absl::StrFormat("%s_packed",
                       jit_context.MangleFunctionName(xls_function)),
@@ -1208,9 +1252,9 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
   llvm::Type* pointer_array_type =
       llvm::ArrayType::get(llvm::PointerType::getUnqual(*context), 0);
   for (int64_t i = 0; i < inputs.size(); ++i) {
-    Node* input = inputs[i];
+    const JitStoredValue& input = inputs[i];
     llvm::Value* input_buffer = wrapper.entry_builder().CreateAlloca(
-        jit_context.type_converter().ConvertToLlvmType(input->GetType()));
+        jit_context.type_converter().ConvertToLlvmType(input.type()));
     llvm::Value* gep = wrapper.entry_builder().CreateGEP(
         pointer_array_type, input_arg_array,
         {
@@ -1219,11 +1263,11 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
         });
     wrapper.entry_builder().CreateStore(input_buffer, gep);
 
-    if (input->GetType()->GetFlatBitCount() > 0) {
+    if (input.type()->GetFlatBitCount() > 0) {
       llvm::Value* packed_buffer = LoadPointerFromPointerArray(
           i, wrapper.GetInputsArg(), &wrapper.entry_builder());
       XLS_RETURN_IF_ERROR(UnpackValue(
-          packed_buffer, input_buffer, input->GetType(), /*bit_offset=*/0,
+          packed_buffer, input_buffer, input.type(), /*bit_offset=*/0,
           jit_context.type_converter(), &wrapper.entry_builder()));
     }
   }
@@ -1232,7 +1276,7 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
       wrapper.entry_builder().CreateAlloca(llvm::ArrayType::get(
           llvm::PointerType::get(*context, 0), outputs.size()));
   for (int64_t i = 0; i < outputs.size(); ++i) {
-    Node* output = outputs[i];
+    const JitStoredValue& output = outputs[i];
     llvm::Value* output_buffer = wrapper.entry_builder().CreateAlloca(
         jit_context.type_converter().ConvertToLlvmType(OutputType(output)));
     llvm::Value* gep = wrapper.entry_builder().CreateGEP(
@@ -1258,7 +1302,7 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
 
   // After returning, pack the value into the return value buffer.
   for (int64_t i = 0; i < outputs.size(); ++i) {
-    Node* output = outputs[i];
+    const JitStoredValue& output = outputs[i];
 
     // Declare the return argument as an iX, and pack the actual data as such
     // an integer.
@@ -1387,12 +1431,12 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
     }
   }
 
-  for (const Node* input : GetJittedFunctionInputs(xls_function)) {
+  for (const JitStoredValue input : GetJittedFunctionInputs(xls_function)) {
     Type* input_type = InputType(input);
     jitted_function.input_buffer_metadata_.push_back(
         jit_context.type_converter().GetTypeBufferMetadata(input_type));
   }
-  for (const Node* output : GetJittedFunctionOutputs(xls_function)) {
+  for (const JitStoredValue output : GetJittedFunctionOutputs(xls_function)) {
     Type* output_type = OutputType(output);
     jitted_function.output_buffer_metadata_.push_back(
         jit_context.type_converter().GetTypeBufferMetadata(output_type));

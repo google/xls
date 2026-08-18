@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/btree_map.h"
@@ -31,6 +32,7 @@
 #include "llvm/include/llvm/IR/Value.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/type.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/llvm_type_converter.h"
 
@@ -152,6 +154,25 @@ struct NodeFunction {
   bool has_metadata_args;
 };
 
+// A helper to represent some data that we want to store/pass into a jitted
+// function. These are used to name slots which can be filled by xls::Value
+// flattened in some way.
+//
+// TODO(allight): We probably want to make StateElement a node or something with
+// a common base class, that would make this simpler. See design docs.
+struct JitStoredValue : public std::variant<Node*, StateElement*> {
+  using std::variant<Node*, StateElement*>::variant;
+  bool is_node() const { return std::holds_alternative<Node*>(*this); }
+  Node* node() const { return std::get<Node*>(*this); }
+  StateElement* state_element() const { return std::get<StateElement*>(*this); }
+  Type* type() const {
+    if (is_node()) {
+      return node()->GetType();
+    }
+    return state_element()->type();
+  }
+};
+
 // Information about the layout of the 'metadata' args that can be optionally
 // requested for node functions.
 class JitCompilationMetadata {
@@ -160,9 +181,10 @@ class JitCompilationMetadata {
   // Get the value of the node 'n' in the input arguments at base_ptr. The
   // base_ptr point to the full input array.
   virtual absl::StatusOr<llvm::Value*> GetInputBufferFrom(
-      Node* n, llvm::Value* base_ptr, llvm::IRBuilder<>& builder) const = 0;
+      JitStoredValue n, llvm::Value* base_ptr,
+      llvm::IRBuilder<>& builder) const = 0;
   // Is 'node' an input and therefore in the global input metadata.
-  virtual bool IsInputNode(Node* n) const = 0;
+  virtual bool IsInputNode(JitStoredValue n) const = 0;
 };
 
 // Create an llvm::Function implementing `node`. `output_arg_count` is the

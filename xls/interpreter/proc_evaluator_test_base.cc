@@ -25,6 +25,8 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "cppitertools/enumerate.hpp"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/observer.h"
@@ -33,11 +35,14 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
+
+namespace m = xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -805,6 +810,103 @@ TEST_P(ProcEvaluatorTestBase, DecoupledNextProc) {
                               .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(56, 32))));
+}
+TEST_P(ProcEvaluatorTestBase, DecoupledReadProc) {
+  Package package(TestName());
+  ProcBuilder pb("dec_read", &package);
+  // Interview mode.
+  //
+  // HW accelerated fizzbuzz!
+  //
+  // http://memegen/9829064674212827#?e=0
+  Value zero_v(UBits(0x0, 32));
+  BStateElement cnt = pb.StateElement("counter", zero_v);
+  BStateElement norm_cnt = pb.StateElement("norm_cnt", zero_v);
+  BStateElement fizz_cnt = pb.StateElement("fizz_cnt", zero_v);
+  BStateElement buzz_cnt = pb.StateElement("buzz_cnt", zero_v);
+  BStateElement fizzbuzz_cnt = pb.StateElement("fizzbuzz_cnt", zero_v);
+
+  auto zero = pb.Literal(zero_v);
+  auto one = pb.Literal(UBits(1, 32));
+  auto cnt_rd = pb.Add(pb.StateRead(cnt), one);
+  pb.Next(cnt, cnt_rd);
+
+  auto is_fizz = pb.Eq(pb.UMod(cnt_rd, pb.Literal(UBits(3, 32))), zero);
+  auto is_buzz = pb.Eq(pb.UMod(cnt_rd, pb.Literal(UBits(5, 32))), zero);
+  // To actually test multiple reads we uselessly separate the fizz & fizzbuzz
+  // cases as well as the buzz & fizzbuzz cases.
+  auto is_only_fizz = pb.And(is_fizz, pb.Not(is_buzz));
+  auto is_only_buzz = pb.And(is_buzz, pb.Not(is_fizz));
+  auto is_fizzbuzz = pb.And(is_fizz, is_buzz);
+  auto is_normal = pb.Not(pb.Or({is_fizz, is_buzz}));
+
+  auto norm_cnt_rd = pb.StateRead(norm_cnt, is_normal);
+  auto fizz_cnt_rd_is_fizz = pb.StateRead(fizz_cnt, is_only_fizz);
+  auto buzz_cnt_rd_is_buzz = pb.StateRead(buzz_cnt, is_only_buzz);
+  auto fizz_cnt_rd_is_fizzbuzz = pb.StateRead(fizz_cnt, is_fizzbuzz);
+  auto buzz_cnt_rd_is_fizzbuzz = pb.StateRead(buzz_cnt, is_fizzbuzz);
+  auto fizzbuzz_cnt_rd = pb.StateRead(fizzbuzz_cnt, is_fizzbuzz);
+
+  pb.Next(norm_cnt, pb.Add(norm_cnt_rd, one), is_normal);
+  pb.Next(fizz_cnt, pb.Add(fizz_cnt_rd_is_fizz, one), is_only_fizz);
+  pb.Next(buzz_cnt, pb.Add(buzz_cnt_rd_is_buzz, one), is_only_buzz);
+  pb.Next(fizz_cnt, pb.Add(fizz_cnt_rd_is_fizzbuzz, one), is_fizzbuzz);
+  pb.Next(buzz_cnt, pb.Add(buzz_cnt_rd_is_fizzbuzz, one), is_fizzbuzz);
+  pb.Next(fizzbuzz_cnt, pb.Add(fizzbuzz_cnt_rd, one), is_fizzbuzz);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
+
+  ASSERT_THAT(
+      proc->StateElements(),
+      ElementsAre(m::StateElement("counter"), m::StateElement("norm_cnt"),
+                  m::StateElement("fizz_cnt"), m::StateElement("buzz_cnt"),
+                  m::StateElement("fizzbuzz_cnt")));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(&package);
+  std::unique_ptr<ProcEvaluator> evaluator =
+      GetParam().CreateEvaluator(proc, queue_manager.get());
+
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+
+  constexpr int64_t kNumIterations = 50;
+  // Just use a simple c++ oracle.
+  struct Result {
+    int32_t counter;
+    int32_t norm_cnt;
+    int32_t fizz_cnt;
+    int32_t buzz_cnt;
+    int32_t fizzbuzz_cnt;
+  };
+  std::vector<Result> results{{0, 0, 0, 0, 0}};
+  results.reserve(kNumIterations);
+  for (int32_t i = 1; i < kNumIterations + 1; ++i) {
+    const Result& last = results.back();
+    results.push_back(Result{
+        .counter = i,
+        .norm_cnt = last.norm_cnt + (i % 3 != 0 && i % 5 != 0),
+        .fizz_cnt = last.fizz_cnt + (i % 3 == 0),
+        .buzz_cnt = last.buzz_cnt + (i % 5 == 0),
+        .fizzbuzz_cnt = last.fizzbuzz_cnt + (i % 3 == 0 && i % 5 == 0),
+    });
+  }
+
+  for (const auto& [idx, r] :
+       iter::enumerate(absl::MakeConstSpan(results).subspan(1))) {
+    EXPECT_THAT(evaluator->Tick(*continuation),
+                IsOkAndHolds(TickResult{
+                    .execution_state = TickExecutionState::kCompleted,
+                    .channel_instance = std::nullopt,
+                    .progress_made = true}));
+    EXPECT_THAT(
+        continuation->GetState(),
+        ElementsAre(Value(UBits(r.counter, 32)), Value(UBits(r.norm_cnt, 32)),
+                    Value(UBits(r.fizz_cnt, 32)), Value(UBits(r.buzz_cnt, 32)),
+                    Value(UBits(r.fizzbuzz_cnt, 32))))
+        << "idx: " << (idx + 1);
+  }
 }
 TEST_P(ProcEvaluatorTestBase, CollidingNextValuesProc) {
   // Create an output-only proc which increments its counter value only every

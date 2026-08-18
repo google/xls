@@ -14,6 +14,8 @@
 #include "xls/jit/ir_builder_visitor.h"
 
 #include <algorithm>
+#include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -54,6 +56,7 @@
 #include "llvm/include/llvm/Support/TypeSize.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/block.h"
@@ -64,11 +67,13 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_flattening.h"
 #include "xls/ir/value_utils.h"
 #include "xls/jit/jit_callbacks.h"
 #include "xls/jit/llvm_type_converter.h"
@@ -1059,12 +1064,17 @@ absl::StatusOr<NodeIrContext> NodeIrContext::CreateForInputNode(
     Node* node, bool include_wrapper_args,
     const JitCompilationMetadata& metadata, JitBuilderContext& jit_context) {
   NodeIrContext nc(node, include_wrapper_args, metadata, jit_context);
+  int64_t param_count = 1;
   nc.operand_args_.push_back(node);
   nc.operand_to_arg_[node] = 0;
+  if (node->Is<StateRead>() && node->As<StateRead>()->predicate()) {
+    nc.operand_args_.push_back(*node->As<StateRead>()->predicate());
+    nc.operand_to_arg_[*node->As<StateRead>()->predicate()] = 1;
+    param_count += 1;
+  }
 
   // Deduplicate the operands. If an operand appears more than once in the IR
   // node, map them to a single argument in the llvm Function for the mode.
-  int64_t param_count = 1;
   if (include_wrapper_args) {
     param_count += 6;
   } else {
@@ -1092,6 +1102,13 @@ absl::StatusOr<NodeIrContext> NodeIrContext::CreateForInputNode(
   nc.llvm_function_->getArg(0)->setName(
       absl::StrCat(OpToString(node->op()), "_ptr"));
   int64_t arg_no = 1;
+
+  if (node->Is<StateRead>() && node->As<StateRead>()->predicate()) {
+    std::string name = NodeNameFormat(
+        "predicate_%s_of_%s_ptr", *node->As<StateRead>()->predicate(), node);
+    nc.llvm_function_->getArg(arg_no++)->setName(name.empty() ? "predicate_ptr"
+                                                              : name);
+  }
   if (include_wrapper_args) {
     nc.llvm_function_->getArg(arg_no++)->setName("inputs");
     nc.llvm_function_->getArg(arg_no++)->setName("outputs");
@@ -1113,6 +1130,8 @@ absl::StatusOr<NodeIrContext> NodeIrContext::CreateForInputNode(
 
 absl::StatusOr<llvm::Value*> NodeIrContext::LoadGlobalInput(
     Node* input, llvm::IRBuilder<>* builder) {
+  // This is used only for register-read.
+  XLS_RET_CHECK(input->Is<RegisterRead>());
   XLS_RET_CHECK(has_metadata_args_);
   XLS_RET_CHECK(metadata_.IsInputNode(input));
   // XLS_RET_CHECK(this->GetInputPtrsArg())
@@ -3258,8 +3277,37 @@ absl::Status IrBuilderVisitor::HandleShrl(BinOp* binop) {
 absl::Status IrBuilderVisitor::HandleStateRead(StateRead* state_read) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewInputNodeIrContext(state_read));
-  return FinalizeNodeIrContextWithPointerToValue(
-      std::move(node_context), node_context.GetInputNodePtr(state_read));
+  llvm::Value* result = node_context.GetInputNodePtr(state_read);
+  if (state_read->predicate()) {
+    // A value to set the state-read to in non-predicated cases. Trying to make
+    // something recognizable.
+    constexpr std::array<uint8_t, 8> kUnpredicatedValue =
+        // 0xDE, 0xAD, 0xBE, 0xEF, 0xT0, 0xC0, 0xFF, 0xEE
+        std::bit_cast<std::array<uint8_t, 8>>(uint64_t{0xDEADBEEF70C0FFEE});
+    InlineBitmap unpredicated(state_read->GetType()->GetFlatBitCount());
+    for (int i = 0; i < unpredicated.byte_count(); ++i) {
+      unpredicated.SetByte(i,
+                           kUnpredicatedValue[i % kUnpredicatedValue.size()]);
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Value val_unpred,
+        UnflattenBitsToValue(Bits::FromBitmap(std::move(unpredicated)),
+                             state_read->GetType()));
+    XLS_ASSIGN_OR_RETURN(
+        llvm::Value * llvm_unpred,
+        type_converter()->ToLlvmConstant(state_read->GetType(), val_unpred));
+    llvm::Value* alloca_unpred = node_context.entry_builder().CreateAlloca(
+        type_converter()->ConvertToLlvmType(state_read->GetType()), nullptr,
+        "predicate_off_ptr");
+    node_context.entry_builder().CreateStore(llvm_unpred, alloca_unpred);
+    llvm::Value* is_on = node_context.entry_builder().CreateICmpNE(
+        node_context.LoadOperand(0),
+        llvm::ConstantInt::get(node_context.LoadOperand(0)->getType(), 0));
+    result =
+        node_context.entry_builder().CreateSelect(is_on, result, alloca_unpred);
+  }
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 result);
 }
 
 absl::Status IrBuilderVisitor::HandleSub(BinOp* binop) {
