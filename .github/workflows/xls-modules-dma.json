@@ -1,0 +1,37 @@
+{
+  "dma": {
+    "name": "//xls/modules/dma",
+    "rules": [
+      {
+        "ir": "csr_opt_ir_benchmark",
+        "verilog": "verilog_csr",
+        "synthesis": "csr_benchmark_synth",
+        "pnr": "csr_place_and_route"
+      },
+      {
+        "ir": "axi_csr_opt_ir_benchmark",
+        "verilog": "verilog_axi_csr",
+        "synthesis": "axi_csr_benchmark_synth",
+        "pnr": "axi_csr_place_and_route"
+      },
+      {
+        "ir": "address_generator_opt_ir_benchmark",
+        "verilog": "verilog_address_generator",
+        "synthesis": "address_generator_benchmark_synth",
+        "pnr": "address_generator_place_and_route"
+      },
+      {
+        "ir": "frontend_reader_opt_ir_benchmark",
+        "verilog": "verilog_frontend_reader",
+        "synthesis": "frontend_reader_benchmark_synth",
+        "pnr": "frontend_reader_place_and_route"
+      },
+      {
+        "ir": "frontend_writer_opt_ir_benchmark",
+        "verilog": "verilog_frontend_writer",
+        "synthesis": "frontend_writer_benchmark_synth",
+        "pnr": "frontend_writer_place_and_route"
+      }
+    ]
+  }
+}
