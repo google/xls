@@ -54,6 +54,7 @@
 #include "xls/ir/ir_annotator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
@@ -1647,6 +1648,29 @@ Block::GetChannelsWithMappedPorts() const {
   }
   std::sort(result.begin(), result.end());
   return result;
+}
+
+absl::StatusOr<Node*> ScheduledBlock::GetOrCreateStageDone(
+    int64_t stage_index) {
+  if (stage_index < 0 || stage_index >= stages().size()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Stage index %d is out of bounds for block with %d "
+                        "stages",
+                        stage_index, stages().size()));
+  }
+  Stage& stage = stages()[stage_index];
+  if (stage.stage_done() != nullptr) {
+    return stage.stage_done();
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * stage_done,
+      MakeNodeWithName<NaryOp>(
+          SourceInfo(),
+          absl::MakeConstSpan({stage.outputs_valid(), stage.outputs_ready()}),
+          Op::kAnd, absl::StrFormat("p%d_stage_done", stage_index)));
+  stage.set_stage_done(stage_done);
+  return stage_done;
 }
 
 }  // namespace xls

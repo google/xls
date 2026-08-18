@@ -81,7 +81,7 @@ std::string PipelineSignalName(std::string_view root, int64_t stage) {
 }
 
 absl::StatusOr<RegisterRead*> CreatePipelineRegister(
-    std::string_view name, Node* node, int64_t stage_index, Node* stage_done,
+    std::string_view name, Node* node, int64_t stage_index,
     ScheduledBlock* block, const BlockConversionPassOptions& options) {
   std::optional<Value> reset_value;
   std::optional<Node*> reset_signal;
@@ -94,6 +94,9 @@ absl::StatusOr<RegisterRead*> CreatePipelineRegister(
 
   XLS_ASSIGN_OR_RETURN(Register * reg,
                        block->AddRegister(name, node->GetType(), reset_value));
+
+  XLS_ASSIGN_OR_RETURN(Node * stage_done,
+                       block->GetOrCreateStageDone(stage_index));
 
   Node* load_enable = stage_done;
   if (block->GetResetPort().has_value() &&
@@ -116,13 +119,12 @@ absl::StatusOr<RegisterRead*> CreatePipelineRegister(
   // NOTE: The RegisterWrite is added to the block, but not to the stage. Its
   //       `load_enable` depends on `outputs_ready`, which comes from outside
   //       the stage (and in practice, often from the next stage).
-  XLS_RETURN_IF_ERROR(
-      block
-          ->MakeNodeWithName<RegisterWrite>(
-              node->loc(), /*data=*/node, load_enable,
-              /*reset=*/reset_signal, reg,
-              block->UniquifyNodeName(absl::StrCat(name, "_write")))
-          .status());
+  XLS_RETURN_IF_ERROR(block
+                          ->MakeNodeWithName<RegisterWrite>(
+                              node->loc(), /*data=*/node, load_enable,
+                              /*reset=*/reset_signal, reg,
+                              absl::StrCat(name, "_write"))
+                          .status());
   XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
                        block->MakeNodeWithNameInStage<RegisterRead>(
                            stage_index + 1, node->loc(), reg,
@@ -137,7 +139,7 @@ absl::StatusOr<RegisterRead*> CreatePipelineRegister(
 // Returns the (unstaged) node reporting the pipeline register's value.
 // (If only one pipeline register is used, this will be the RegisterRead.)
 absl::StatusOr<Node*> AddPipelineRegisterFor(
-    Node* node, int64_t stage_index, Node* stage_done, ScheduledBlock* block,
+    Node* node, int64_t stage_index, ScheduledBlock* block,
     const BlockConversionPassOptions& options) {
   std::string base_name = PipelineSignalName(node->GetName(), stage_index);
 
@@ -162,8 +164,7 @@ absl::StatusOr<Node*> AddPipelineRegisterFor(
         XLS_ASSIGN_OR_RETURN(
             Node * reg_read,
             CreatePipelineRegister(absl::StrFormat("%s_index%d", base_name, i),
-                                   split_node, stage_index, stage_done, block,
-                                   options));
+                                   split_node, stage_index, block, options));
         split_registers[i] = reg_read;
       }
 
@@ -177,8 +178,7 @@ absl::StatusOr<Node*> AddPipelineRegisterFor(
   }
 
   // Create a single register to store the node, and return the register read.
-  return CreatePipelineRegister(base_name, node, stage_index, stage_done, block,
-                                options);
+  return CreatePipelineRegister(base_name, node, stage_index, block, options);
 }
 
 // Determine which stages are mutually exclusive with each other.
@@ -328,7 +328,6 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
     return false;
   }
 
-  std::vector<Node*> stage_done(block->stages().size(), nullptr);
   for (const auto& [node, references] : cross_stage_references) {
     auto stage_it = last_stage_referencing.find(node);
     CHECK(stage_it != last_stage_referencing.end());
@@ -340,8 +339,6 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
     bool live_node_is_pipelined = false;
     for (int64_t stage_index = orig_stage_index;
          stage_index <= last_stage_index; ++stage_index) {
-      const Stage& stage = block->stages()[stage_index];
-
       if (live_node != node) {
         // Update all references to `node` in the current stage to point to the
         // live node holding its value.
@@ -425,20 +422,9 @@ absl::StatusOr<bool> PipelineRegisterInsertionPass::InsertPipelineRegisters(
       }
 
       // Store the current value in the next pipeline register.
-      if (stage_done[stage_index] == nullptr) {
-        XLS_ASSIGN_OR_RETURN(stage_done[stage_index],
-                             block->MakeNodeWithName<NaryOp>(
-                                 SourceInfo(),
-                                 absl::MakeConstSpan({stage.outputs_valid(),
-                                                      stage.outputs_ready()}),
-                                 Op::kAnd,
-                                 block->UniquifyNodeName(PipelineSignalName(
-                                     "stage_done", stage_index))));
-      }
       XLS_ASSIGN_OR_RETURN(
           live_node,
-          AddPipelineRegisterFor(live_node, stage_index,
-                                 stage_done[stage_index], block, options));
+          AddPipelineRegisterFor(live_node, stage_index, block, options));
       live_node_update_stage = stage_index;
       live_node_is_pipelined = true;
     }

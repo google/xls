@@ -171,12 +171,7 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
         } else {
           XLS_ASSIGN_OR_RETURN(
               internal_condition_by_stage[stage_index],
-              scheduled_block->MakeNodeWithName<NaryOp>(
-                  SourceInfo(),
-                  absl::MakeConstSpan(
-                      {scheduled_block->stages()[stage_index].outputs_valid(),
-                       scheduled_block->stages()[stage_index].outputs_ready()}),
-                  Op::kAnd, absl::StrFormat("p%d_stage_done", stage_index)));
+              scheduled_block->GetOrCreateStageDone(stage_index));
         }
       }
 

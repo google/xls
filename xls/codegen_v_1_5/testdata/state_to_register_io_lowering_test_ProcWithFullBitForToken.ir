@@ -40,10 +40,10 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   }
   rst: bits[1] = input_port(name=rst, id=19)
   literal.44: token = literal(value=token, id=44)
-  and.46: bits[1] = and(stage_outputs_valid_2, stage_outputs_ready_2, id=46)
+  p2_stage_done: bits[1] = and(stage_outputs_valid_2, stage_outputs_ready_2, id=46)
   and.48: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=48)
   tuple.49: () = tuple(id=49)
-  and.50: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=50)
-  or.51: bits[1] = or(and.50, and.46, id=51)
-  register_write.52: () = register_write(and.46, register=____state_full, load_enable=or.51, reset=rst, id=52)
+  p1_stage_done: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=50)
+  or.51: bits[1] = or(p1_stage_done, p2_stage_done, id=51)
+  register_write.52: () = register_write(p2_stage_done, register=____state_full, load_enable=or.51, reset=rst, id=52)
 }

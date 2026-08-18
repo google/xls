@@ -81,12 +81,17 @@ struct Connector {
   std::optional<Node*> valid;
   std::optional<Node*> ready;
 
+  // If present, this is a connector where the output is committed at a specific
+  // time. (Usually used for Sends)
+  std::optional<Node*> commit;
+
+  bool is_one_shot = false;
+
   // Used only for one-shot connections.
-  std::optional<Node*> reset_one_shot;
   std::optional<std::pair<Node*, /*operand_no=*/int64_t>> incoming_valid;
   std::optional<Node*> ready_port;
 
-  absl::Status MakeOneShot(Node* new_reset_one_shot, Node* new_outgoing_valid,
+  absl::Status MakeOneShot(Node* new_outgoing_valid,
                            std::optional<Node*> visible_ready,
                            std::pair<Node*, int64_t> incoming_valid_operand);
 
@@ -215,16 +220,15 @@ absl::Status Connector::ReplaceReadySignal(Node* value) const {
 }
 
 absl::Status Connector::MakeOneShot(
-    Node* new_reset_one_shot, Node* new_outgoing_valid,
-    std::optional<Node*> visible_ready,
+    Node* new_outgoing_valid, std::optional<Node*> visible_ready,
     std::pair<Node*, int64_t> incoming_valid_operand) {
-  CHECK(!reset_one_shot.has_value());
+  CHECK(!is_one_shot);
   CHECK_EQ(direction, ChannelDirection::kSend);
   CHECK(valid.has_value());
 
   XLS_RETURN_IF_ERROR(ReplaceValidSignal(new_outgoing_valid));
 
-  reset_one_shot = new_reset_one_shot;
+  is_one_shot = true;
   incoming_valid = incoming_valid_operand;
   ready_port = ready;
   ready = visible_ready;
@@ -352,6 +356,7 @@ absl::StatusOr<Connector> AddPortsForSend(
 
   std::optional<Node*> valid;
   std::optional<Node*> ready;
+  std::optional<Node*> placeholder_commit;
   if (ChannelRefKind(channel) == ChannelKind::kStreaming) {
     XLS_ASSIGN_OR_RETURN(
         Node * placeholder_valid,
@@ -372,13 +377,17 @@ absl::StatusOr<Connector> AddPortsForSend(
                   options.codegen_options.streaming_channel_ready_suffix()),
               block->package()->GetBitsType(1)));
     }
+    XLS_ASSIGN_OR_RETURN(
+        placeholder_commit,
+        block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(0, 1))));
   }
 
   Connector connector{.direction = ChannelDirection::kSend,
                       .kind = ConnectionKind::kExternal,
                       .data = data,
                       .valid = valid,
-                      .ready = ready};
+                      .ready = ready,
+                      .commit = placeholder_commit};
 
   XLS_ASSIGN_OR_RETURN(
       FlopKind flop_kind,
@@ -749,17 +758,17 @@ absl::Status ConnectReceivesToConnector(
     }
 
     // The ready signal from this receive is:
-    //     (predicate AND outputs_ready AND outputs_valid)
-    absl::InlinedVector<Node*, 3> recv_finishing_requirements;
-    recv_finishing_requirements.push_back(stage.outputs_valid());
-    recv_finishing_requirements.push_back(stage.outputs_ready());
+    //     (predicate AND stage_done)
+    XLS_ASSIGN_OR_RETURN(Node * stage_done,
+                         block->GetOrCreateStageDone(stage_index));
+    Node* recv_finishing = stage_done;
     if (predicate.has_value()) {
-      recv_finishing_requirements.push_back(*predicate);
+      XLS_ASSIGN_OR_RETURN(
+          recv_finishing,
+          block->MakeNode<NaryOp>(receive->loc(),
+                                  absl::MakeConstSpan({stage_done, *predicate}),
+                                  Op::kAnd));
     }
-    XLS_ASSIGN_OR_RETURN(
-        Node * recv_finishing,
-        block->MakeNode<NaryOp>(receive->loc(), recv_finishing_requirements,
-                                Op::kAnd));
     ready_signals.push_back(recv_finishing);
 
     if (connector.valid.has_value() && is_blocking) {
@@ -865,11 +874,18 @@ absl::Status ConnectReceivesToConnector(
                             .status());
     XLS_RETURN_IF_ERROR(block->RemoveNode(receive));
   }
-  if (connector.ready.has_value()) {
+  if (!ready_signals.empty()) {
     XLS_ASSIGN_OR_RETURN(
         Node * ready_signal,
         JoinWithOr(block, ready_signals, /*combine_literals=*/false));
-    XLS_RETURN_IF_ERROR(connector.ReplaceReadySignal(ready_signal));
+
+    if (connector.ready.has_value()) {
+      XLS_RETURN_IF_ERROR(connector.ReplaceReadySignal(ready_signal));
+    }
+
+    // The receive is committed exactly when the ready signal is asserted (even
+    // if we don't expose the ready signal).
+    connector.commit = ready_signal;
   }
 
   return absl::OkStatus();
@@ -967,23 +983,21 @@ absl::Status ConnectSendsToConnector(
       }
     }
 
-    if (connector.reset_one_shot.has_value()) {
-      // Make sure to reset the connector's one-shot logic when this send
-      // actually resolves.
-      absl::InlinedVector<Node*, 3> finished_conditions(
-          {stage.outputs_valid(), stage.outputs_ready()});
-      if (predicate.has_value()) {
-        finished_conditions.push_back(*predicate);
-      }
-      XLS_ASSIGN_OR_RETURN(Node * finished,
-                           block->MakeNodeWithName<NaryOp>(
-                               send->loc(), finished_conditions, Op::kAnd,
-                               absl::StrCat(send->GetName(), "_finished")));
+    // Make sure to update the commit signal with the finished condition for
+    // this send.
+    XLS_ASSIGN_OR_RETURN(Node * finished,
+                         block->GetOrCreateStageDone(stage_index));
+    if (predicate.has_value()) {
       XLS_ASSIGN_OR_RETURN(
-          connector.reset_one_shot,
-          ReplaceWithOr(
-              *connector.reset_one_shot,
-              absl::MakeConstSpan({finished, *connector.reset_one_shot})));
+          finished, block->MakeNode<NaryOp>(
+                        send->loc(),
+                        absl::MakeConstSpan({*predicate, finished}), Op::kAnd));
+    }
+    if (!connector.commit.has_value()) {
+      connector.commit = finished;
+    } else {
+      XLS_ASSIGN_OR_RETURN(*connector.commit,
+                           ReplaceWithOr(*connector.commit, finished));
     }
 
     XLS_RETURN_IF_ERROR(send->ReplaceUsesWith(token));
@@ -1106,9 +1120,6 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
       channel_name.empty() ? "__" : absl::StrCat("__", channel_name, "_");
 
   // When implementing one-shot logic for a streaming send channel...
-  // 0. We add a placeholder node to represent the "reset_one_shot" signal; this
-  //    will be replaced as various users connect their reset signals, but we
-  //    need to reference it in the logic we generate.
   // 1. We add a 1-bit "already_done" register, with a `RegisterRead`.
   // 2. We patch the outgoing valid signal, replacing it with:
   //    `AND(incoming_valid, !already_done)`.
@@ -1117,20 +1128,22 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
   //    `OR(incoming_ready, already_done)`.
   // 4. We add the `RegisterWrite` for "already_done"; this needs to start out
   //    disabled, be set to 1 when the outgoing valid & incoming ready signals
-  //    are both asserted, but be set to 0 as soon as the "reset_one_shot"
-  //    signal is asserted.
+  //    are both asserted, but be reset to 0 as soon as the "commit" signal is
+  //    asserted.
   //    a. Set `data` to:
-  //       `AND(outgoing_valid, incoming_ready, !reset_one_shot)`.
+  //       `AND(outgoing_valid, incoming_ready, !commit)`.
   //    b. Set `load_enable` to:
-  //       `OR(AND(outgoing_valid, incoming_ready), reset_one_shot)`.
+  //       `OR(AND(outgoing_valid, incoming_ready), commit)`.
 
   Node* incoming_valid = *connector.ValidSignal();
   std::optional<Node*> incoming_ready = connector.ready;
 
-  // 0. Placeholder node for the "reset_one_shot" signal.
-  XLS_ASSIGN_OR_RETURN(
-      Node * reset_one_shot,
-      block->MakeNode<Literal>(SourceInfo(), Value(UBits(0, 1))));
+  // Ensure `connector.commit` is populated.
+  if (!connector.commit.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        connector.commit,
+        block->MakeNode<Literal>(SourceInfo(), Value(UBits(0, 1))));
+  }
 
   // 1. Add the "already_done" register.
   XLS_ASSIGN_OR_RETURN(
@@ -1173,15 +1186,16 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
                        SourceInfo(), absl::MakeConstSpan(done_srcs), Op::kAnd));
   XLS_ASSIGN_OR_RETURN(
       Node * not_resetting,
-      block->MakeNode<UnOp>(SourceInfo(), reset_one_shot, Op::kNot));
+      block->MakeNode<UnOp>(SourceInfo(), *connector.commit, Op::kNot));
   XLS_ASSIGN_OR_RETURN(
       Node * already_done_data,
       block->MakeNode<NaryOp>(
           SourceInfo(), absl::MakeConstSpan({done, not_resetting}), Op::kAnd));
   XLS_ASSIGN_OR_RETURN(
       Node * already_done_load_enable,
-      block->MakeNode<NaryOp>(
-          SourceInfo(), absl::MakeConstSpan({done, reset_one_shot}), Op::kOr));
+      block->MakeNode<NaryOp>(SourceInfo(),
+                              absl::MakeConstSpan({done, *connector.commit}),
+                              Op::kOr));
   XLS_RETURN_IF_ERROR(
       block
           ->MakeNode<RegisterWrite>(SourceInfo(), already_done_data,
@@ -1191,7 +1205,7 @@ absl::Status AddOneShotLogic(Connector& connector, ScheduledBlock* block,
 
   // Actually record all of these changes in the connector, so it can correctly
   // handle these signals.
-  return connector.MakeOneShot(reset_one_shot, outgoing_valid, visible_ready,
+  return connector.MakeOneShot(outgoing_valid, visible_ready,
                                incoming_valid_location);
 }
 
@@ -1435,11 +1449,6 @@ absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
                            /*load_enable=*/std::nullopt, from_valid));
 
   // 2. Construct and update the ready signal.
-  Node* from_rdy_src = nullptr;
-  if (from_rdy.has_value()) {
-    CHECK_EQ((*from_rdy)->operand_count(), 1);
-    from_rdy_src = (*from_rdy)->operand(0);
-  }
   Register* data_reg = data_reg_read->GetRegister();
   Register* valid_reg = valid_reg_read->GetRegister();
 
@@ -1449,29 +1458,38 @@ absl::Status AddRegisterToRDVNodes(Node* from_data, Node* from_valid,
       block->MakeNodeWithName<UnOp>(/*loc=*/SourceInfo(), valid_reg_read,
                                     Op::kNot, not_valid_name));
 
-  std::string valid_load_en_name = absl::StrCat(name_prefix, "_valid_load_en");
-  std::vector<Node*> valid_load_en_srcs =
-      from_rdy.has_value() ? std::vector<Node*>({from_rdy_src, not_valid})
-                           : std::vector<Node*>({not_valid});
-  XLS_ASSIGN_OR_RETURN(Node * valid_load_en,
-                       block->MakeNodeWithName<NaryOp>(
-                           /*loc=*/SourceInfo(), valid_load_en_srcs, Op::kOr,
-                           valid_load_en_name));
-
-  std::string data_load_en_name = absl::StrCat(name_prefix, "_load_en");
-  XLS_ASSIGN_OR_RETURN(
-      Node * data_load_en,
-      block->MakeNodeWithName<NaryOp>(
-          /*loc=*/SourceInfo(), std::vector<Node*>({from_valid, valid_load_en}),
-          Op::kAnd, data_load_en_name));
-
+  Node* flop_rdy = nullptr;
   if (from_rdy.has_value()) {
-    CHECK((*from_rdy)->ReplaceOperand(from_rdy_src, data_load_en));
+    CHECK_EQ((*from_rdy)->operand_count(), 1);
+    Node* from_rdy_src = (*from_rdy)->operand(0);
+
+    // The flop is ready to receive new data if it's draining OR empty.
+    XLS_ASSIGN_OR_RETURN(
+        flop_rdy, block->MakeNodeWithName<NaryOp>(
+                      /*loc=*/SourceInfo(),
+                      absl::MakeConstSpan({from_rdy_src, not_valid}), Op::kOr,
+                      absl::StrCat(name_prefix, "_flop_rdy")));
+    XLS_RETURN_IF_ERROR((*from_rdy)->ReplaceOperandNumber(0, flop_rdy));
+  }
+
+  Node* data_load_en = nullptr;
+  if (flop_rdy == nullptr) {
+    // No backpressure, so the data just loads whenever the input is valid.
+    data_load_en = from_valid;
+  } else {
+    // The data loads whenever the input is valid & we're ready to receive it.
+    XLS_ASSIGN_OR_RETURN(
+        data_load_en,
+        block->MakeNodeWithName<NaryOp>(
+            /*loc=*/SourceInfo(), absl::MakeConstSpan({from_valid, flop_rdy}),
+            Op::kAnd, absl::StrCat(name_prefix, "_load_en")));
   }
 
   // 3. Update load enables for the data and valid registers.
   XLS_RETURN_IF_ERROR(UpdateRegisterLoadEn(data_load_en, data_reg, block));
-  XLS_RETURN_IF_ERROR(UpdateRegisterLoadEn(valid_load_en, valid_reg, block));
+  if (flop_rdy != nullptr) {
+    XLS_RETURN_IF_ERROR(UpdateRegisterLoadEn(flop_rdy, valid_reg, block));
+  }
 
   return absl::OkStatus();
 }
@@ -1550,8 +1568,22 @@ absl::Status AddIOFlopsForReceive(Connector& connector, FlopKind flop_kind,
   if (flop_kind == FlopKind::kNone) {
     return absl::OkStatus();
   }
+
+  std::optional<Node*> consumer_ready = connector.ready;
+  if (!connector.ready.has_value() && connector.commit.has_value()) {
+    // This is a kValidData receive; the consumer is ready exactly if the
+    // operation is being committed.
+    //
+    // We wrap the commit signal in an identity operation to make sure later
+    // operations don't interfere with it by trying to patch the signal.
+    XLS_ASSIGN_OR_RETURN(
+        consumer_ready,
+        block->MakeNodeWithName<UnOp>(
+            /*loc=*/SourceInfo(), *connector.commit, Op::kIdentity,
+            absl::StrCat(ChannelRefName(channel), "_consumer_ready")));
+  }
   return AddFlopToRDVNodes(flop_kind, connector.data, *connector.valid,
-                           connector.ready, ChannelRefName(channel), block);
+                           consumer_ready, ChannelRefName(channel), block);
 }
 
 absl::Status AddIOFlopsForSend(Connector& connector, FlopKind flop_kind,

@@ -20,7 +20,6 @@
 #include <string>
 
 #include "absl/base/casts.h"
-#include "absl/container/fixed_array.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -97,18 +96,6 @@ absl::StatusOr<bool> FlowControlInsertionPass::InsertFlowControl(
     return changed;
   }
 
-  absl::FixedArray<Node*> stage_done(block->stages().size());
-  for (int64_t stage_index = 0; stage_index < block->stages().size();
-       ++stage_index) {
-    const Stage& stage = block->stages()[stage_index];
-    XLS_ASSIGN_OR_RETURN(
-        stage_done[stage_index],
-        block->MakeNode<NaryOp>(
-            SourceInfo(),
-            absl::MakeConstSpan({stage.outputs_valid(), stage.outputs_ready()}),
-            Op::kAnd));
-  }
-
   // Replace all `inputs_valid` entries with appropriate valid registers:
   // - Stage 0 has no previous stage, so its inputs are always valid.
   // - Stage i > 0: The inputs for stage i become valid if stage i-1 completes
@@ -132,8 +119,10 @@ absl::StatusOr<bool> FlowControlInsertionPass::InsertFlowControl(
        ++stage_index) {
     const Stage& stage = block->stages()[stage_index];
 
-    Node* prev_stage_done = stage_done[stage_index - 1];
-    Node* cur_stage_done = stage_done[stage_index];
+    XLS_ASSIGN_OR_RETURN(Node * prev_stage_done,
+                         block->GetOrCreateStageDone(stage_index - 1));
+    XLS_ASSIGN_OR_RETURN(Node * cur_stage_done,
+                         block->GetOrCreateStageDone(stage_index));
 
     const SourceInfo& loc = stage.inputs_valid()->loc();
     std::string inputs_valid_name =
@@ -163,13 +152,11 @@ absl::StatusOr<bool> FlowControlInsertionPass::InsertFlowControl(
                                 loc, data, load_enable,
                                 /*reset=*/block->GetResetPort(),
                                 /*reg=*/inputs_valid_reg,
-                                block->UniquifyNodeName(
-                                    absl::StrCat(inputs_valid_name, "_write")))
+                                absl::StrCat(inputs_valid_name, "_write"))
                             .status());
-    XLS_ASSIGN_OR_RETURN(
-        RegisterRead * inputs_valid,
-        block->MakeNodeWithName<RegisterRead>(
-            loc, inputs_valid_reg, block->UniquifyNodeName(inputs_valid_name)));
+    XLS_ASSIGN_OR_RETURN(RegisterRead * inputs_valid,
+                         block->MakeNodeWithName<RegisterRead>(
+                             loc, inputs_valid_reg, inputs_valid_name));
     XLS_RETURN_IF_ERROR(stage.inputs_valid()->ReplaceUsesWith(inputs_valid));
     changed = true;
   }
@@ -206,7 +193,8 @@ absl::StatusOr<bool> FlowControlInsertionPass::InsertFlowControl(
     XLS_ASSIGN_OR_RETURN(
         Node * next_stage_empty,
         block->MakeNode<UnOp>(loc, next_stage.inputs_valid(), Op::kNot));
-    Node* next_stage_done = stage_done[stage_index + 1];
+    XLS_ASSIGN_OR_RETURN(Node * next_stage_done,
+                         block->GetOrCreateStageDone(stage_index + 1));
     XLS_RETURN_IF_ERROR(
         stage.outputs_ready()
             ->ReplaceUsesWithNew<NaryOp>(

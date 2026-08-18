@@ -14,28 +14,28 @@ module neg_proc(
   reg [31:0] __out_reg;
   reg __out_valid_reg;
   wire out_valid_inv;
-  wire out_valid_load_en;
-  wire out_load_en;
+  wire out_flop_rdy;
   wire stage_outputs_valid_0;
   wire in_valid_inv;
-  wire in_valid_load_en;
-  wire in_load_en;
+  wire in_flop_rdy;
   wire stage_0_idle;
   wire __in_inactive;
   wire __out_inactive;
+  wire in_load_en;
   wire [31:0] negate;
+  wire out_load_en;
   wire pipeline_and_io_idle;
   assign out_valid_inv = ~__out_valid_reg;
-  assign out_valid_load_en = out_rdy | out_valid_inv;
-  assign out_load_en = __in_valid_reg & out_valid_load_en;
-  assign stage_outputs_valid_0 = __in_valid_reg & out_load_en;
+  assign out_flop_rdy = out_rdy | out_valid_inv;
+  assign stage_outputs_valid_0 = __in_valid_reg & out_flop_rdy;
   assign in_valid_inv = ~__in_valid_reg;
-  assign in_valid_load_en = stage_outputs_valid_0 | in_valid_inv;
-  assign in_load_en = in_vld & in_valid_load_en;
+  assign in_flop_rdy = stage_outputs_valid_0 | in_valid_inv;
   assign stage_0_idle = ~__in_valid_reg;
-  assign __in_inactive = ~(in_vld & in_load_en);
+  assign __in_inactive = ~(in_vld & in_flop_rdy);
   assign __out_inactive = ~(__out_valid_reg & out_rdy);
+  assign in_load_en = in_vld & in_flop_rdy;
   assign negate = -__in_reg;
+  assign out_load_en = __in_valid_reg & out_flop_rdy;
   assign pipeline_and_io_idle = stage_0_idle & __in_inactive & __out_inactive;
   always_ff @ (posedge clk) begin
     if (rst) begin
@@ -45,12 +45,12 @@ module neg_proc(
       __out_valid_reg <= 1'h0;
     end else begin
       __in_reg <= in_load_en ? in : __in_reg;
-      __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
+      __in_valid_reg <= in_flop_rdy ? in_vld : __in_valid_reg;
       __out_reg <= out_load_en ? negate : __out_reg;
-      __out_valid_reg <= out_valid_load_en ? __in_valid_reg : __out_valid_reg;
+      __out_valid_reg <= out_flop_rdy ? __in_valid_reg : __out_valid_reg;
     end
   end
-  assign in_rdy = in_load_en;
+  assign in_rdy = in_flop_rdy;
   assign out = __out_reg;
   assign out_vld = __out_valid_reg;
   assign idle = pipeline_and_io_idle;

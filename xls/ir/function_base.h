@@ -136,6 +136,7 @@ class Stage {
 
   void set_outputs_ready(Node* outputs_ready) {
     outputs_ready_ = outputs_ready;
+    stage_done_ = nullptr;
   }
 
   // Returns the node that signals whether all active inputs to this stage are
@@ -154,7 +155,14 @@ class Stage {
 
   void set_outputs_valid(Node* outputs_valid) {
     outputs_valid_ = outputs_valid;
+    stage_done_ = nullptr;
   }
+
+  // Returns the cached node that signals whether this stage is finishing
+  // executing, or nullptr if no such node exists.
+  Node* stage_done() const { return stage_done_; }
+
+  void set_stage_done(Node* stage_done) { stage_done_ = stage_done; }
 
   bool DependsOn(Node* node) const;
 
@@ -166,6 +174,8 @@ class Stage {
   Node* outputs_ready_ = nullptr;
   Node* active_inputs_valid_ = nullptr;
   Node* outputs_valid_ = nullptr;
+
+  Node* stage_done_ = nullptr;
 };
 
 // Base class for Functions and Procs. A holder of a set of nodes.

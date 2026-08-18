@@ -15,27 +15,27 @@ module proc0__1(
   reg __internal_valid_reg;
   reg p1_inputs_valid;
   wire internal_valid_inv;
-  wire internal_valid_load_en;
-  wire internal_load_en;
+  wire internal_flop_rdy;
   wire stage_outputs_valid_1;
   wire stage_outputs_ready_0;
-  wire p0_stage_done__1;
+  wire p0_stage_done;
   wire in_valid_inv;
-  wire in_valid_load_en;
+  wire in_flop_rdy;
   wire in_load_en;
   wire [31:0] negate;
-  wire or_213;
+  wire internal_load_en;
+  wire or_209;
   assign internal_valid_inv = ~__internal_valid_reg;
-  assign internal_valid_load_en = internal_rdy | internal_valid_inv;
-  assign internal_load_en = p1_inputs_valid & internal_valid_load_en;
-  assign stage_outputs_valid_1 = p1_inputs_valid & internal_load_en;
+  assign internal_flop_rdy = internal_rdy | internal_valid_inv;
+  assign stage_outputs_valid_1 = p1_inputs_valid & internal_flop_rdy;
   assign stage_outputs_ready_0 = ~p1_inputs_valid | stage_outputs_valid_1;
-  assign p0_stage_done__1 = __in_valid_reg & stage_outputs_ready_0;
+  assign p0_stage_done = __in_valid_reg & stage_outputs_ready_0;
   assign in_valid_inv = ~__in_valid_reg;
-  assign in_valid_load_en = p0_stage_done__1 | in_valid_inv;
-  assign in_load_en = in_vld & in_valid_load_en;
+  assign in_flop_rdy = p0_stage_done | in_valid_inv;
+  assign in_load_en = in_vld & in_flop_rdy;
   assign negate = -p0_data;
-  assign or_213 = p0_stage_done__1 | stage_outputs_valid_1;
+  assign internal_load_en = p1_inputs_valid & internal_flop_rdy;
+  assign or_209 = p0_stage_done | stage_outputs_valid_1;
   always_ff @ (posedge clk) begin
     if (rst) begin
       p0_data <= 32'h0000_0000;
@@ -45,15 +45,15 @@ module proc0__1(
       __internal_valid_reg <= 1'h0;
       p1_inputs_valid <= 1'h0;
     end else begin
-      p0_data <= p0_stage_done__1 ? __in_reg : p0_data;
+      p0_data <= p0_stage_done ? __in_reg : p0_data;
       __in_reg <= in_load_en ? in : __in_reg;
-      __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
+      __in_valid_reg <= in_flop_rdy ? in_vld : __in_valid_reg;
       __internal_reg <= internal_load_en ? negate : __internal_reg;
-      __internal_valid_reg <= internal_valid_load_en ? p1_inputs_valid : __internal_valid_reg;
-      p1_inputs_valid <= or_213 ? p0_stage_done__1 : p1_inputs_valid;
+      __internal_valid_reg <= internal_flop_rdy ? p1_inputs_valid : __internal_valid_reg;
+      p1_inputs_valid <= or_209 ? p0_stage_done : p1_inputs_valid;
     end
   end
-  assign in_rdy = in_load_en;
+  assign in_rdy = in_flop_rdy;
   assign internal = __internal_reg;
   assign internal_vld = __internal_valid_reg;
 endmodule
@@ -76,27 +76,27 @@ module proc1(
   reg __out_valid_reg;
   reg p1_inputs_valid;
   wire out_valid_inv;
-  wire out_valid_load_en;
-  wire out_load_en;
+  wire out_flop_rdy;
   wire stage_outputs_valid_1;
   wire stage_outputs_ready_0;
-  wire p0_stage_done__1;
+  wire p0_stage_done;
   wire internal_valid_inv;
-  wire internal_valid_load_en;
+  wire internal_flop_rdy;
   wire internal_load_en;
   wire [31:0] negate;
-  wire or_271;
+  wire out_load_en;
+  wire or_266;
   assign out_valid_inv = ~__out_valid_reg;
-  assign out_valid_load_en = out_rdy | out_valid_inv;
-  assign out_load_en = p1_inputs_valid & out_valid_load_en;
-  assign stage_outputs_valid_1 = p1_inputs_valid & out_load_en;
+  assign out_flop_rdy = out_rdy | out_valid_inv;
+  assign stage_outputs_valid_1 = p1_inputs_valid & out_flop_rdy;
   assign stage_outputs_ready_0 = ~p1_inputs_valid | stage_outputs_valid_1;
-  assign p0_stage_done__1 = __internal_valid_reg & stage_outputs_ready_0;
+  assign p0_stage_done = __internal_valid_reg & stage_outputs_ready_0;
   assign internal_valid_inv = ~__internal_valid_reg;
-  assign internal_valid_load_en = p0_stage_done__1 | internal_valid_inv;
-  assign internal_load_en = internal_vld & internal_valid_load_en;
+  assign internal_flop_rdy = p0_stage_done | internal_valid_inv;
+  assign internal_load_en = internal_vld & internal_flop_rdy;
   assign negate = -p0_data;
-  assign or_271 = p0_stage_done__1 | stage_outputs_valid_1;
+  assign out_load_en = p1_inputs_valid & out_flop_rdy;
+  assign or_266 = p0_stage_done | stage_outputs_valid_1;
   always_ff @ (posedge clk) begin
     if (rst) begin
       p0_data <= 32'h0000_0000;
@@ -106,15 +106,15 @@ module proc1(
       __out_valid_reg <= 1'h0;
       p1_inputs_valid <= 1'h0;
     end else begin
-      p0_data <= p0_stage_done__1 ? __internal_reg : p0_data;
+      p0_data <= p0_stage_done ? __internal_reg : p0_data;
       __internal_reg <= internal_load_en ? internal : __internal_reg;
-      __internal_valid_reg <= internal_valid_load_en ? internal_vld : __internal_valid_reg;
+      __internal_valid_reg <= internal_flop_rdy ? internal_vld : __internal_valid_reg;
       __out_reg <= out_load_en ? negate : __out_reg;
-      __out_valid_reg <= out_valid_load_en ? p1_inputs_valid : __out_valid_reg;
-      p1_inputs_valid <= or_271 ? p0_stage_done__1 : p1_inputs_valid;
+      __out_valid_reg <= out_flop_rdy ? p1_inputs_valid : __out_valid_reg;
+      p1_inputs_valid <= or_266 ? p0_stage_done : p1_inputs_valid;
     end
   end
-  assign internal_rdy = internal_load_en;
+  assign internal_rdy = internal_flop_rdy;
   assign out = __out_reg;
   assign out_vld = __out_valid_reg;
 endmodule
@@ -130,35 +130,35 @@ module proc0(
   output wire [31:0] out,
   output wire out_vld
 );
-  wire instantiation_output_154;
-  wire [31:0] instantiation_output_157;
-  wire instantiation_output_158;
-  wire instantiation_output_167;
-  wire [31:0] instantiation_output_169;
-  wire instantiation_output_170;
-  wire instantiation_output_161;
-  wire [31:0] instantiation_output_163;
-  wire instantiation_output_164;
+  wire instantiation_output_152;
+  wire [31:0] instantiation_output_155;
+  wire instantiation_output_156;
+  wire instantiation_output_165;
+  wire [31:0] instantiation_output_167;
+  wire instantiation_output_168;
+  wire instantiation_output_159;
+  wire [31:0] instantiation_output_161;
+  wire instantiation_output_162;
 
   // ===== Instantiations
   proc0__1 proc0__1_inst0 (
     .rst(rst),
     .in(in),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_161),
-    .in_rdy(instantiation_output_154),
-    .internal(instantiation_output_157),
-    .internal_vld(instantiation_output_158),
+    .internal_rdy(instantiation_output_159),
+    .in_rdy(instantiation_output_152),
+    .internal(instantiation_output_155),
+    .internal_vld(instantiation_output_156),
     .clk(clk)
   );
   proc1 proc1_inst1 (
     .rst(rst),
-    .internal(instantiation_output_163),
-    .internal_vld(instantiation_output_164),
+    .internal(instantiation_output_161),
+    .internal_vld(instantiation_output_162),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_167),
-    .out(instantiation_output_169),
-    .out_vld(instantiation_output_170),
+    .internal_rdy(instantiation_output_165),
+    .out(instantiation_output_167),
+    .out_vld(instantiation_output_168),
     .clk(clk)
   );
   xls_fifo_wrapper #(
@@ -170,14 +170,14 @@ module proc0(
   ) fifo_internal (
     .clk(clk),
     .rst(rst),
-    .push_data(instantiation_output_157),
-    .push_valid(instantiation_output_158),
-    .pop_ready(instantiation_output_167),
-    .push_ready(instantiation_output_161),
-    .pop_data(instantiation_output_163),
-    .pop_valid(instantiation_output_164)
+    .push_data(instantiation_output_155),
+    .push_valid(instantiation_output_156),
+    .pop_ready(instantiation_output_165),
+    .push_ready(instantiation_output_159),
+    .pop_data(instantiation_output_161),
+    .pop_valid(instantiation_output_162)
   );
-  assign in_rdy = instantiation_output_154;
-  assign out = instantiation_output_169;
-  assign out_vld = instantiation_output_170;
+  assign in_rdy = instantiation_output_152;
+  assign out = instantiation_output_167;
+  assign out_vld = instantiation_output_168;
 endmodule
