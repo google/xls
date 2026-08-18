@@ -160,9 +160,13 @@ fn increment_fraction_bf16_test() {
     assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:254, fraction: u7:0x7f }), inf(u1:1));
 }
 
-pub fn add(x: BF16, y: BF16) -> BF16 { apfloat::add(x, y) }
+pub fn add<USE_LZA: bool = {false}>(x: BF16, y: BF16) -> BF16 {
+    apfloat::add<BF16::EXP_SIZE, BF16::FRACTION_SIZE, USE_LZA>(x, y)
+}
 
-pub fn sub(x: BF16, y: BF16) -> BF16 { apfloat::sub(x, y) }
+pub fn sub<USE_LZA: bool = {false}>(x: BF16, y: BF16) -> BF16 {
+    apfloat::sub<BF16::EXP_SIZE, BF16::FRACTION_SIZE, USE_LZA>(x, y)
+}
 
 pub fn mul(x: BF16, y: BF16) -> BF16 { apfloat::mul(x, y) }
 

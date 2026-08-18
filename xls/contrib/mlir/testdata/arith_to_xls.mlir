@@ -51,7 +51,7 @@ func.func @and(%arg0: tensor<3x3xi32>, %arg1: tensor<3x3xi32>) -> tensor<3x3xi32
 
 // CHECK-LABEL: addf
 // CHECK: call_dslx
-// CHECK-SAME: "add"
+// CHECK-SAME: "float32_add"
 func.func @addf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf32> attributes { "xls" = true } {
   %0 = arith.addf %arg0, %arg1 : tensor<3x3xf32>
   return %0 : tensor<3x3xf32>
@@ -59,7 +59,7 @@ func.func @addf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf3
 
 // CHECK-LABEL: subf
 // CHECK: call_dslx
-// CHECK-SAME: "sub"
+// CHECK-SAME: "float32_sub"
 func.func @subf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf32> attributes { "xls" = true } {
   %0 = arith.subf %arg0, %arg1 : tensor<3x3xf32>
   return %0 : tensor<3x3xf32>
