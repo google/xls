@@ -40,6 +40,9 @@ using BlockConversionFunctionBasePass =
     FunctionBasePass<BlockConversionPassOptions, BlockConversionContext>;
 using BlockConversionCompoundPass =
     CompoundPassBase<BlockConversionPassOptions, BlockConversionContext>;
+using BlockConversionFixedPointCompoundPass =
+    FixedPointCompoundPassBase<BlockConversionPassOptions,
+                               BlockConversionContext>;
 
 }  // namespace xls::codegen
 

@@ -103,8 +103,14 @@ class CompoundPassAdder final : public CodegenPassGenerator {
     return std::make_unique<CompoundPassAdder>(registry, compound_);
   }
   absl::StatusOr<std::unique_ptr<BlockConversionPass>> Generate() const final {
-    auto res = std::make_unique<BlockConversionCompoundPass>(
-        compound_.short_name(), compound_.long_name());
+    std::unique_ptr<BlockConversionCompoundPass> res;
+    if (compound_.fixedpoint()) {
+      res = std::make_unique<BlockConversionFixedPointCompoundPass>(
+          compound_.short_name(), compound_.long_name());
+    } else {
+      res = std::make_unique<BlockConversionCompoundPass>(
+          compound_.short_name(), compound_.long_name());
+    }
     for (const auto& pass : compound_.passes()) {
       XLS_ASSIGN_OR_RETURN(auto* generator, registry().Generator(pass));
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockConversionPass> pass_instance,
