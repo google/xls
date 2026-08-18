@@ -1092,12 +1092,31 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
         changed = true;
       }
       if (this == stage.outputs_valid()) {
-        XLS_RETURN_IF_ERROR(AddNodeToStageInternal(stage_index, replacement));
+        if (function_base()->IsStaged(replacement)) {
+          XLS_ASSIGN_OR_RETURN(int64_t replacement_stage_index,
+                               function_base()->GetStageIndex(replacement));
+          XLS_RET_CHECK_EQ(replacement_stage_index, stage_index)
+              << "Replacement node for `outputs_valid` of stage " << stage_index
+              << "is in a different stage (" << replacement_stage_index
+              << "): " << this->ToString() << " -> " << replacement->ToString();
+        } else {
+          XLS_RETURN_IF_ERROR(AddNodeToStageInternal(stage_index, replacement));
+        }
         stage.set_outputs_valid(replacement);
         changed = true;
       }
       if (this == stage.active_inputs_valid()) {
-        XLS_RETURN_IF_ERROR(AddNodeToStageInternal(stage_index, replacement));
+        if (function_base()->IsStaged(replacement)) {
+          XLS_ASSIGN_OR_RETURN(int64_t replacement_stage_index,
+                               function_base()->GetStageIndex(replacement));
+          XLS_RET_CHECK_EQ(replacement_stage_index, stage_index)
+              << "Replacement node for `active_inputs_valid` of stage "
+              << stage_index << "is in a different stage ("
+              << replacement_stage_index << "): " << this->ToString() << " -> "
+              << replacement->ToString();
+        } else {
+          XLS_RETURN_IF_ERROR(AddNodeToStageInternal(stage_index, replacement));
+        }
         stage.set_active_inputs_valid(replacement);
         changed = true;
       }
