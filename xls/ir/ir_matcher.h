@@ -1269,6 +1269,7 @@ inline ::testing::Matcher<const ::xls::Node*> OutputPort(
 //   EXPECT_THAT(x, m::StateRead());
 //   EXPECT_THAT(x, m::StateRead("x"));
 //   EXPECT_THAT(x, m::StateRead(HasSubstr("substr")));
+//   EXPECT_THAT(x, m::StateRead("x", m::Literal(predicate)));
 //   EXPECT_THAT(x, m::StateReadWithLabel("x", "label"));
 //   EXPECT_THAT(x, m::StateReadWithLabel("x", m::Literal(predicate), "label"));
 class StateReadMatcher : public NodeMatcher {
@@ -1343,6 +1344,23 @@ inline ::testing::Matcher<const ::xls::Node*> StateRead(
 
 inline ::testing::Matcher<const ::xls::Node*> StateRead() {
   return ::xls::op_matchers::StateReadMatcher(std::nullopt, std::nullopt);
+}
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::Node*> StateRead(
+    T state_element_name, ::testing::Matcher<const Node*> predicate)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return ::xls::op_matchers::StateReadMatcher(
+      internal::NameMatcherInternal(std::string_view{state_element_name}),
+      std::nullopt, {predicate});
+}
+
+inline ::testing::Matcher<const ::xls::Node*> StateRead(
+    ::testing::Matcher<const std::string> name,
+    ::testing::Matcher<const Node*> predicate) {
+  return ::xls::op_matchers::StateReadMatcher(std::move(name), std::nullopt,
+                                              {predicate});
 }
 
 // Next matcher. Supported forms:

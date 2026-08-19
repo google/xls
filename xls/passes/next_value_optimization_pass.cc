@@ -185,8 +185,17 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
               (selected_value.default_value() ? 1 : 0))
           << " cases.";
 
-  auto get_state_read = [proc](Next* n) -> Node* {
-    return proc->GetStateReadByStateElement(n->state_element());
+  auto get_non_synth_val = [&](Next* main_next) -> Node* {
+    if (IsNoOpNext(main_next)) {
+      StateRead* main_sr = main_next->value()->As<StateRead>();
+      for (StateRead* sr : proc->GetStateReadsByStateElement(
+               (*next.non_synth)->state_element())) {
+        if (sr->predicate() == main_sr->predicate()) {
+          return sr;
+        }
+      }
+    }
+    return main_next->value();
   };
 
   std::vector<IdenticalNexts> new_next_values;
@@ -214,9 +223,7 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
           NodeNameFormat("%s_case_%d", *next.non_synth, i);
       // Change main pass-through updates to pass-through on the non-synth one
       // too.
-      Node* case_val = selected_value.cases()[i] == get_state_read(next.main)
-                           ? get_state_read(*next.non_synth)
-                           : selected_value.cases()[i];
+      Node* case_val = get_non_synth_val(new_next.main);
       XLS_ASSIGN_OR_RETURN(
           new_next.non_synth,
           proc->MakeNodeWithName<Next>(
@@ -249,9 +256,7 @@ absl::StatusOr<std::optional<std::vector<IdenticalNexts>>> SplitSelect(
     if (next.non_synth) {
       std::string non_synth_name =
           NodeNameConcat(*next.non_synth, "_default_case");
-      Node* value = *selected_value.default_value() == get_state_read(next.main)
-                        ? get_state_read(*next.non_synth)
-                        : *selected_value.default_value();
+      Node* value = get_non_synth_val(new_next.main);
       XLS_ASSIGN_OR_RETURN(
           new_next.non_synth,
           proc->MakeNodeWithName<Next>(

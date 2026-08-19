@@ -419,6 +419,97 @@ TEST_F(NextValueOptimizationPassTest, NonSynthPassthroughDecoupling) {
               m::UGt(m::StateRead("selector"), m::Literal(1)))));
 }
 
+TEST_F(NextValueOptimizationPassTest, NonSynthPassthroughMultipleReads) {
+  auto p = CreatePackage();
+
+  ProcBuilder pb("p", p.get());
+  BStateElement main_element = pb.StateElement("main", Value(UBits(0, 32)),
+                                               /*non_synthesizable=*/false);
+  BStateElement non_synth_element = pb.StateElement(
+      "main_non_synth", Value(UBits(0, 32)), /*non_synthesizable=*/true);
+
+  BStateElement cond_element =
+      pb.StateElement("cond", Value(UBits(0, 1)), /*non_synthesizable=*/false);
+
+  BValue cond = pb.StateRead(cond_element);
+  BValue not_cond = pb.Not(cond);
+
+  BValue read1 = pb.StateRead(main_element, cond);
+  BValue read2 = pb.StateRead(main_element, not_cond);
+
+  BValue non_synth_read1 = pb.StateRead(non_synth_element, cond);
+  BValue non_synth_read2 = pb.StateRead(non_synth_element, not_cond);
+
+  BStateElement selector_element = pb.StateElement(
+      "selector", Value(UBits(0, 1)), /*non_synthesizable=*/false);
+  BValue selector_read = pb.StateRead(selector_element);
+
+  BValue select1 = pb.Select(
+      selector_read, /*cases=*/{read1, pb.Literal(Value(UBits(42, 32)))});
+  BValue select2 = pb.Select(
+      selector_read, /*cases=*/{read2, pb.Literal(Value(UBits(100, 32)))});
+
+  pb.Next(main_element, select1, /*predicate=*/cond);
+  pb.Next(non_synth_element, select1, /*predicate=*/cond);
+
+  pb.Next(main_element, select2, /*predicate=*/not_cond);
+  pb.Next(non_synth_element, select2, /*predicate=*/not_cond);
+
+  pb.Next(cond_element, cond);
+  pb.Next(selector_element, selector_read);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                            /*include_state=*/true);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          // Cond is true, read1 used for main, non_synth_read1 for non-synth
+          m::NextWithStateElement(
+              main_element.state_element(), read1.node(),
+              m::And(m::StateRead("cond"),
+                     m::Eq(m::StateRead("selector"), m::Literal(0)))),
+          m::NextWithStateElement(
+              main_element.state_element(), m::Literal(42),
+              m::And(m::StateRead("cond"),
+                     m::Eq(m::StateRead("selector"), m::Literal(1)))),
+          m::NextWithStateElement(
+              non_synth_element.state_element(), non_synth_read1.node(),
+              m::And(m::StateRead("cond"),
+                     m::Eq(m::StateRead("selector"), m::Literal(0)))),
+          m::NextWithStateElement(
+              non_synth_element.state_element(), m::Literal(42),
+              m::And(m::StateRead("cond"),
+                     m::Eq(m::StateRead("selector"), m::Literal(1)))),
+
+          // Cond is false, read2 used for main, non_synth_read2 for non-synth
+          m::NextWithStateElement(
+              main_element.state_element(), read2.node(),
+              m::And(m::Not(m::StateRead("cond")),
+                     m::Eq(m::StateRead("selector"), m::Literal(0)))),
+          m::NextWithStateElement(
+              main_element.state_element(), m::Literal(100),
+              m::And(m::Not(m::StateRead("cond")),
+                     m::Eq(m::StateRead("selector"), m::Literal(1)))),
+          m::NextWithStateElement(
+              non_synth_element.state_element(), non_synth_read2.node(),
+              m::And(m::Not(m::StateRead("cond")),
+                     m::Eq(m::StateRead("selector"), m::Literal(0)))),
+          m::NextWithStateElement(
+              non_synth_element.state_element(), m::Literal(100),
+              m::And(m::Not(m::StateRead("cond")),
+                     m::Eq(m::StateRead("selector"), m::Literal(1)))),
+
+          // Control state elements
+          m::NextWithStateElement(cond_element.state_element(), cond.node()),
+          m::NextWithStateElement(selector_element.state_element(),
+                                  selector_read.node())));
+}
+
 TEST_F(NextValueOptimizationPassTest, BigSelectNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
