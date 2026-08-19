@@ -25,7 +25,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -141,12 +140,15 @@ struct NextValue {
   std::optional<Node*> predicate;
   std::optional<std::string> label;
 };
+struct AbstractStateRead {
+  Node* placeholder;
+  std::optional<Node*> predicate;
+  std::optional<std::string> label;
+};
 struct AbstractStateElement {
   std::string name;
   Value initial_value;
-  Node* placeholder;
-  std::optional<Node*> read_predicate;
-  std::optional<std::string> read_label;
+  std::vector<AbstractStateRead> state_reads;
   std::vector<NextValue> next_values;
   bool non_synthesizable;
 };
@@ -167,22 +169,23 @@ absl::Status ReplaceProcState(Proc* proc,
   XLS_RETURN_IF_ERROR(proc->RemoveAllStateElements());
   for (const AbstractStateElement& element : elements) {
     XLS_ASSIGN_OR_RETURN(
-        StateRead * read,
-        proc->AppendStateElement(
-            element.name, element.initial_value, element.read_predicate,
-            /*next_state=*/std::nullopt, element.non_synthesizable));
-    read->SetLoc(element.placeholder->loc());
-    if (element.read_label.has_value()) {
-      read->set_label(element.read_label);
+        StateElement * state_element,
+        proc->AppendUnreadStateElement(element.name, element.initial_value,
+                                       element.non_synthesizable));
+    for (const AbstractStateRead& read : element.state_reads) {
+      XLS_ASSIGN_OR_RETURN(
+          StateRead * state_read,
+          proc->AddStateRead(state_element, read.predicate, read.label,
+                             read.placeholder->loc()));
+      XLS_RETURN_IF_ERROR(read.placeholder->ReplaceUsesWith(state_read));
     }
     for (const NextValue& next_value : element.next_values) {
       XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                  next_value.loc, read->state_element(),
+                                  next_value.loc, state_element,
                                   /*value=*/next_value.value,
                                   /*predicate=*/next_value.predicate,
                                   /*label=*/next_value.label, next_value.name)
                               .status());
-      XLS_RETURN_IF_ERROR(element.placeholder->ReplaceUsesWith(read));
     }
   }
   return absl::OkStatus();
@@ -192,23 +195,14 @@ absl::Status ReplaceProcState(Proc* proc,
 // array typed elements) in the proc state are flattened into their constituent
 // components.
 absl::Status FlattenState(Proc* proc) {
-  // Currently this pass assumes exactly one state read per state element. In
-  // the future, we could support multiple reads per state element.
-  for (StateElement* state_element : proc->StateElements()) {
-    XLS_RET_CHECK_EQ(proc->GetStateReadsByStateElement(state_element).size(), 1)
-        << absl::StreamFormat(
-               "State element '%s' has %d reads, but this pass only supports "
-               "exactly one read per state element.",
-               state_element->name(),
-               proc->GetStateReadsByStateElement(state_element).size());
-  }
   std::vector<Node*> identities;
   std::vector<AbstractStateElement> elements;
 
   for (int64_t state_index = 0; state_index < proc->GetStateElementCount();
        ++state_index) {
     StateElement* state_element = proc->GetStateElement(state_index);
-    StateRead* state_read = proc->GetStateReadByStateElement(state_element);
+    absl::Span<StateRead* const> state_reads =
+        proc->GetStateReadsByStateElement(state_element);
 
     // Gather the flattened initial values and next state elements.
     std::vector<Value> init_values =
@@ -217,7 +211,6 @@ absl::Status FlattenState(Proc* proc) {
 
     // Construct a StateElement for each component of the flattened state
     // element.
-    std::vector<Node*> placeholders;
     int64_t elements_offset = elements.size();
     auto component_suffix = [num_components](int64_t c) {
       return (num_components == 1) ? "" : absl::StrCat("_", c);
@@ -230,14 +223,52 @@ absl::Status FlattenState(Proc* proc) {
       element.name = absl::StrCat(state_element->name(), component_suffix(i));
       element.non_synthesizable = state_element->non_synthesizable();
       element.initial_value = init_values[i];
-      XLS_ASSIGN_OR_RETURN(
-          element.placeholder,
-          proc->MakeNode<Literal>(state_read->loc(), init_values[i]));
-      element.read_predicate = state_read->predicate();
-      element.read_label = state_read->label();
-
-      placeholders.push_back(element.placeholder);
       elements.push_back(std::move(element));
+    }
+    // Construct AbstractStateReads for each component of the flattened state
+    // element.
+    for (StateRead* state_read : state_reads) {
+      std::vector<Node*> placeholders;
+      placeholders.reserve(num_components);
+      for (int64_t i = 0; i < num_components; ++i) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * placeholder,
+            proc->MakeNode<Literal>(state_read->loc(), init_values[i]));
+        placeholders.push_back(placeholder);
+        elements[elements_offset + i].state_reads.push_back(AbstractStateRead{
+            .placeholder = placeholder,
+            .predicate = state_read->predicate(),
+            .label = state_read->label(),
+        });
+      }
+      // Before we replace the references to the old state param, we need to
+      // ensure that any users that are also being replaced have an identity
+      // node put in place; this prevents us from accidentally referencing the
+      // placeholder after it's intended to be replaced with the new state
+      // param.
+      Node* state_read_identity = nullptr;
+      // Copy the users of the state read to avoid invalidating the iterator.
+      std::vector<Node*> users(state_read->users().begin(),
+                               state_read->users().end());
+      for (Node* user : users) {
+        if (!user->OpIn({Op::kStateRead, Op::kNext})) {
+          continue;
+        }
+        if (state_read_identity == nullptr) {
+          XLS_ASSIGN_OR_RETURN(state_read_identity,
+                               proc->MakeNode<UnOp>(state_read->loc(),
+                                                    state_read, Op::kIdentity));
+          identities.push_back(state_read_identity);
+        }
+        user->ReplaceOperand(state_read, state_read_identity);
+      }
+
+      // Create a node of the same type as the old state param but constructed
+      // from the new (decomposed) state params placeholders.
+      XLS_ASSIGN_OR_RETURN(
+          Node * old_param_replacement,
+          ComposeNode(state_read->GetType(), placeholders, proc));
+      XLS_RETURN_IF_ERROR(state_read->ReplaceUsesWith(old_param_replacement));
     }
 
     // Construct NextValues for each next value & component of the flattened
@@ -290,34 +321,6 @@ absl::Status FlattenState(Proc* proc) {
           next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
       XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
     }
-
-    // Before we replace the references to the old state param, we need to
-    // ensure that any users that are also being replaced have an identity node
-    // put in place; this prevents us from accidentally referencing the
-    // placeholder after it's intended to be replaced with the new state param.
-    Node* state_read_identity = nullptr;
-    // Copy the users of the state read to avoid invalidating the iterator.
-    std::vector<Node*> users(state_read->users().begin(),
-                             state_read->users().end());
-    for (Node* user : users) {
-      if (!user->OpIn({Op::kStateRead, Op::kNext})) {
-        continue;
-      }
-      if (state_read_identity == nullptr) {
-        XLS_ASSIGN_OR_RETURN(
-            state_read_identity,
-            proc->MakeNode<UnOp>(state_read->loc(), state_read, Op::kIdentity));
-        identities.push_back(state_read_identity);
-      }
-      user->ReplaceOperand(state_read, state_read_identity);
-    }
-
-    // Create a node of the same type as the old state param but constructed
-    // from the new (decomposed) state params placeholders.
-    XLS_ASSIGN_OR_RETURN(
-        Node * old_param_replacement,
-        ComposeNode(state_read->GetType(), placeholders, proc));
-    XLS_RETURN_IF_ERROR(state_read->ReplaceUsesWith(old_param_replacement));
   }
 
   XLS_RETURN_IF_ERROR(ReplaceProcState(proc, elements));

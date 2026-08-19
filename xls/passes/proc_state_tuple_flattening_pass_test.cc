@@ -54,6 +54,7 @@ using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::StartsWith;
+using ::testing::StrEq;
 using ::testing::UnorderedElementsAre;
 
 enum class NextValueType : std::uint8_t {
@@ -454,6 +455,66 @@ TEST_F(ProcStateFlatteningPassTest,
   EXPECT_THAT(proc->nodes(),
               Contains(m::NextWithStateElementWithLabel(
                   _, _, std::optional<std::string>("my_write_label"))));
+}
+
+TEST_F(ProcStateFlatteningPassTest, MultipleStateReads) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), "simple_proc", "tkn", p.get());
+  BSendChannel out_ch = pb.AddOutputChannel(
+      "out", p->GetTupleType({p->GetBitsType(16), p->GetBitsType(32)}));
+  BStateElement cond_elem =
+      pb.StateElement("cond", Value(UBits(0, 1)), /*non_synthesizable=*/false);
+  BValue cond = pb.StateRead(cond_elem);
+  BValue not_cond = pb.Not(cond);
+
+  BStateElement state_elem = pb.StateElement(
+      "state", Value::Tuple({Value(UBits(10, 16)), Value(UBits(20, 32))}),
+      /*non_synthesizable=*/false);
+
+  BValue read1 = pb.StateRead(state_elem, cond, "read_cond");
+  BValue read2 = pb.StateRead(state_elem, not_cond, "read_not_cond");
+
+  BValue next_val1 =
+      pb.Tuple({pb.Add(pb.TupleIndex(read1, 0), pb.Literal(UBits(1, 16))),
+                pb.Add(pb.TupleIndex(read1, 1), pb.Literal(UBits(2, 32)))});
+  BValue next_val2 =
+      pb.Tuple({pb.Add(pb.TupleIndex(read2, 0), pb.Literal(UBits(3, 16))),
+                pb.Add(pb.TupleIndex(read2, 1), pb.Literal(UBits(4, 32)))});
+  pb.Next(state_elem, next_val1, cond, "next_cond");
+  pb.Next(state_elem, next_val2, not_cond, "next_not_cond");
+
+  pb.Next(cond_elem, not_cond);
+
+  pb.Send(out_ch, pb.Select(cond, {next_val1, next_val2}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/2,
+                                            /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+
+  PassResults results;
+  OptimizationContext context;
+  ASSERT_THAT(ProcStateTupleFlatteningPass().Run(
+                  p.get(), OptimizationPassOptions(), &results, context),
+              IsOkAndHolds(true));
+  // Expect state gets split into two state elements.
+  EXPECT_THAT(proc->StateElements(),
+              ElementsAre(m::StateElement("cond", Value(UBits(0, 1))),
+                          m::StateElement("state_0", Value(UBits(10, 16))),
+                          m::StateElement("state_1", Value(UBits(20, 32)))));
+
+  // Expect both state reads are associated with both of the new state
+  // elements.
+  EXPECT_THAT(
+      proc->GetStateReadsByStateElement(proc->GetStateElement(1)),
+      UnorderedElementsAre(
+          m::StateRead("state_0", /*predicate=*/m::StateRead("cond")),
+          m::StateRead("state_0", /*predicate=*/m::Not(m::StateRead("cond")))));
+  EXPECT_THAT(
+      proc->GetStateReadsByStateElement(proc->GetStateElement(2)),
+      UnorderedElementsAre(
+          m::StateRead("state_1", /*predicate=*/m::StateRead("cond")),
+          m::StateRead("state_1", /*predicate=*/m::Not(m::StateRead("cond")))));
 }
 
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateFlatteningPassTest,
