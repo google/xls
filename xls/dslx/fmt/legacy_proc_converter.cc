@@ -14,6 +14,8 @@
 
 #include "xls/dslx/fmt/legacy_proc_converter.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -177,19 +179,16 @@ class LegacyProcConverter : public Formatter {
  public:
   using Formatter::Formatter;
 
-  // Adds the explicit state access feature flag to the module if not already
-  // present, because impl-style procs require it.
+  // Adds the explicit state access and generics feature flags to the module
+  // if not already present, because impl-style procs require them.
   absl::StatusOr<DocRef> FormatModule(const Module& n) override {
     Module& mutable_n = const_cast<Module&>(n);
-    bool has_explicit_state_access =
-        n.attributes().contains(ModuleAttribute::kExplicitStateAccess);
-    bool has_generics = n.attributes().contains(ModuleAttribute::kGenerics);
-
-    if (!has_explicit_state_access) {
-      mutable_n.AddAttribute(ModuleAttribute::kExplicitStateAccess);
+    if (!n.attributes().contains(ModuleAttribute::kExplicitStateAccess)) {
+      mutable_n.AddAttribute(ModuleAttribute::kExplicitStateAccess,
+                             std::nullopt);
     }
-    if (!has_generics) {
-      mutable_n.AddAttribute(ModuleAttribute::kGenerics);
+    if (!n.attributes().contains(ModuleAttribute::kGenerics)) {
+      mutable_n.AddAttribute(ModuleAttribute::kGenerics, std::nullopt);
     }
 
     XLS_ASSIGN_OR_RETURN(DocRef doc, Formatter::FormatModule(n));
@@ -245,6 +244,7 @@ class LegacyProcConverter : public Formatter {
     }
 
     std::vector<const Param*> state_params;
+    state_params.reserve(n.next().params().size());
     for (const Param* param : n.next().params()) {
       if (auto* tuple_type = dynamic_cast<const TupleTypeAnnotation*>(
               param->type_annotation());
@@ -253,39 +253,37 @@ class LegacyProcConverter : public Formatter {
       }
     }
 
-    // Perform checks for direct constant references in members and state
-    // params.
     absl::flat_hash_set<std::string_view> local_constant_names;
-    for (auto const& [name, _] : local_constants_) {
+    for (const auto& [name, _] : local_constants_) {
       local_constant_names.insert(name);
     }
-    for (const ProcMember* member : members) {
-      auto has_ref_status = HasReferenceToAnyName(member->type_annotation(),
-                                                  local_constant_names);
-      if (!has_ref_status.ok()) {
-        status_ = has_ref_status.status();
+    for (const Param* state_param : state_params) {
+      auto has_ref = HasReferenceToAnyName(state_param->type_annotation(),
+                                           local_constant_names);
+      if (!has_ref.ok()) {
+        status_ = has_ref.status();
         return arena_.empty();
       }
-      if (has_ref_status.value()) {
+      if (has_ref.value()) {
         status_ = absl::InvalidArgumentError(absl::StrFormat(
-            "Proc member `%s` references a constant declared "
-            "inside the proc, which is not allowed in impl-style procs.",
-            member->identifier()));
+            "Proc state parameter `%s` references a constant declared inside "
+            "the proc, which is not allowed in impl-style procs.",
+            state_param->identifier()));
         return arena_.empty();
       }
     }
-    for (const Param* param : state_params) {
-      auto has_ref_status =
-          HasReferenceToAnyName(param->type_annotation(), local_constant_names);
-      if (!has_ref_status.ok()) {
-        status_ = has_ref_status.status();
+    for (const ProcMember* member : members) {
+      auto has_ref = HasReferenceToAnyName(member->type_annotation(),
+                                           local_constant_names);
+      if (!has_ref.ok()) {
+        status_ = has_ref.status();
         return arena_.empty();
       }
-      if (has_ref_status.value()) {
+      if (has_ref.value()) {
         status_ = absl::InvalidArgumentError(absl::StrFormat(
-            "Proc state parameter `%s` references a constant declared "
-            "inside the proc, which is not allowed in impl-style procs.",
-            param->identifier()));
+            "Proc member `%s` references a constant declared inside "
+            "the proc",
+            member->identifier()));
         return arena_.empty();
       }
     }
@@ -325,24 +323,20 @@ class LegacyProcConverter : public Formatter {
     }
 
     // Process needed type aliases and filter proc_level_decls.
-    std::vector<DocRef> additional_parametric_docs;
-    std::vector<DocRef> additional_parametric_names;
+    std::vector<ParametricBinding*> additional_parametrics;
     std::vector<const AstNode*> remaining_proc_level_decls;
-    additional_parametric_docs.reserve(proc_level_decls.size());
-    additional_parametric_names.reserve(proc_level_decls.size());
+    additional_parametrics.reserve(proc_level_decls.size());
     remaining_proc_level_decls.reserve(proc_level_decls.size());
 
     for (const AstNode* node : proc_level_decls) {
       if (auto* t = dynamic_cast<const TypeAlias*>(node)) {
         if (needed_type_aliases.contains(t->identifier())) {
-          auto param_doc_status = ProcessNeededTypeAlias(*t);
-          if (!param_doc_status.ok()) {
-            status_ = param_doc_status.status();
+          auto param_status = ProcessNeededTypeAlias(*t, n.owner());
+          if (!param_status.ok()) {
+            status_ = param_status.status();
             return arena_.empty();
           }
-          additional_parametric_docs.push_back(param_doc_status.value());
-          additional_parametric_names.push_back(
-              arena_.MakeText(t->identifier()));
+          additional_parametrics.push_back(param_status.value());
           continue;
         }
       }
@@ -352,23 +346,27 @@ class LegacyProcConverter : public Formatter {
     bool already_has_explicit_state_access =
         !state_params.empty() && HasExplicitStateAccess(n.next().body());
 
-    std::vector<DocRef> impl_decl_docs;
-    impl_decl_docs.reserve(remaining_proc_level_decls.size());
-    for (const AstNode* node : remaining_proc_level_decls) {
-      if (auto* c = dynamic_cast<const ConstantDef*>(node)) {
-        impl_decl_docs.push_back(FormatConstantDef(*c));
-      } else if (auto* t = dynamic_cast<const TypeAlias*>(node)) {
-        impl_decl_docs.push_back(
-            arena_.MakeConcat(FormatTypeAlias(*t), arena_.semi()));
-      }
+    Pos last_stmt_limit = members.empty() ? n.body_span().start()
+                                          : members.back()->span().limit();
+    ProcDef* proc_def = CreateSyntheticProcDef(n, is_test, state_params,
+                                               members, additional_parametrics);
+    Function* new_fn =
+        CreateSyntheticNewFunction(n, proc_def, state_params, members);
+    Function* next_fn = CreateSyntheticNextFunction(
+        n, proc_def, already_has_explicit_state_access, state_params);
+    Impl* impl = CreateSyntheticImpl(
+        n, proc_def, new_fn, next_fn, remaining_proc_level_decls,
+        proc_def->parametric_bindings(), last_stmt_limit);
+
+    std::optional<DocRef> init_comments;
+    if (n.config().span().start() < n.init().span().start()) {
+      init_comments = FormatCommentsBetween(n.config().span().limit(),
+                                            n.init().span().limit());
     }
+    current_init_comments_ = init_comments;
 
-    DocRef proc_decl_doc = FormatProcBlock(n, is_test, state_params, members,
-                                           additional_parametric_docs);
-
-    DocRef impl_block_doc =
-        FormatImplBlock(n, already_has_explicit_state_access, state_params,
-                        members, impl_decl_docs, additional_parametric_names);
+    DocRef proc_decl_doc = Formatter::FormatProcDef(*proc_def);
+    DocRef impl_block_doc = Formatter::FormatImpl(*impl);
 
     std::vector<DocRef> final_pieces{proc_decl_doc, arena_.hard_line(),
                                      arena_.hard_line(), impl_block_doc};
@@ -401,6 +399,7 @@ class LegacyProcConverter : public Formatter {
       return arena_.empty();
     }
     std::vector<DocRef> pieces;
+    pieces.reserve(3);
     if (n.expected_fail_label().has_value()) {
       pieces.push_back(
           arena_.MakeText(absl::StrFormat("#[test(expected_fail_label=\"%s\")]",
@@ -413,8 +412,8 @@ class LegacyProcConverter : public Formatter {
     return ConcatN(arena_, pieces);
   }
 
-  // Formats a legacy `spawn` statement into an impl-style instantiation and
-  // spawn.
+  // Formats a legacy `spawn` statement by creating a synthetic AST Invocation
+  // chain `Callee::new(...).spawn()` and delegating to FormatInvocation.
   //
   // Before:
   //   spawn MyProc(a, b)
@@ -422,45 +421,50 @@ class LegacyProcConverter : public Formatter {
   // After:
   //   MyProc::new(a, b).spawn()
   DocRef FormatSpawn(const Spawn& n) override {
-    std::vector<DocRef> pieces;
-    pieces.push_back(FormatExpr(*n.callee()));
+    Module* owner = n.owner();
+    Span span = n.span();
 
+    ColonRef::Subject subject;
     if (!n.explicit_parametrics().empty()) {
-      std::vector<DocRef> parametric_docs;
-      parametric_docs.reserve(n.explicit_parametrics().size());
-      for (const ExprOrType& et : n.explicit_parametrics()) {
-        if (std::holds_alternative<Expr*>(et)) {
-          parametric_docs.push_back(FormatExpr(*std::get<Expr*>(et)));
-        } else {
-          parametric_docs.push_back(
-              FormatTypeAnnotation(*std::get<TypeAnnotation*>(et)));
-        }
+      TypeRef* type_ref = nullptr;
+      if (auto* name_ref = dynamic_cast<const NameRef*>(n.callee())) {
+        auto* name_def =
+            owner->Make<NameDef>(span, name_ref->identifier(), nullptr);
+        auto* proc_def = owner->Make<ProcDef>(
+            span, name_def, std::vector<ParametricBinding*>{},
+            std::vector<StructMemberNode*>{}, /*is_public=*/false);
+        type_ref = owner->Make<TypeRef>(span, proc_def);
+      } else if (auto* colon_ref = dynamic_cast<const ColonRef*>(n.callee())) {
+        type_ref = owner->Make<TypeRef>(span, const_cast<ColonRef*>(colon_ref));
       }
-      pieces.push_back(ConcatNGroup(
-          arena_, {arena_.oangle(),
-                   FormatJoin(parametric_docs, Joiner::kCommaBreak1,
-                              /*group=*/false),
-                   arena_.cangle()}));
+      if (type_ref != nullptr) {
+        subject = owner->Make<TypeRefTypeAnnotation>(span, type_ref,
+                                                     n.explicit_parametrics());
+      } else {
+        subject = owner->Make<NameRef>(span, n.callee()->ToString(),
+                                       static_cast<const NameDef*>(nullptr));
+      }
+    } else {
+      if (auto* name_ref = dynamic_cast<const NameRef*>(n.callee())) {
+        subject = const_cast<NameRef*>(name_ref);
+      } else if (auto* colon_ref = dynamic_cast<const ColonRef*>(n.callee())) {
+        subject = const_cast<ColonRef*>(colon_ref);
+      } else {
+        subject = owner->Make<NameRef>(span, n.callee()->ToString(),
+                                       static_cast<const NameDef*>(nullptr));
+      }
     }
 
-    pieces.push_back(arena_.MakeText("::new"));
-
-    std::vector<DocRef> arg_docs;
-    arg_docs.reserve(n.config()->args().size());
-    for (const Expr* arg : n.config()->args()) {
-      arg_docs.push_back(FormatExpr(*arg));
-    }
-
-    DocRef args_guts =
-        FormatJoin(arg_docs, Joiner::kCommaBreak1, /*group=*/false);
-    pieces.push_back(arena_.oparen());
-    pieces.push_back(arena_.MakeNestIfFlatFits(
-        /*on_nested_flat_ref=*/args_guts,
-        /*on_other_ref=*/arena_.MakeAlign(args_guts)));
-    pieces.push_back(arena_.cparen());
-    pieces.push_back(arena_.MakeText(".spawn()"));
-
-    return ConcatNGroup(arena_, pieces);
+    auto* new_colon_ref = owner->Make<ColonRef>(span, subject, "new");
+    std::vector<Expr*> config_args(n.config()->args().begin(),
+                                   n.config()->args().end());
+    auto* new_invocation = owner->Make<Invocation>(
+        span, new_colon_ref, std::move(config_args),
+        /*explicit_parametrics=*/std::vector<ExprOrType>{});
+    auto* dot_spawn = owner->Make<Attr>(span, new_invocation, "spawn");
+    auto* spawn_invocation = owner->Make<Invocation>(
+        span, dot_spawn, std::vector<Expr*>{}, std::vector<ExprOrType>{});
+    return Formatter::FormatInvocation(*spawn_invocation);
   }
 
  private:
@@ -507,7 +511,8 @@ class LegacyProcConverter : public Formatter {
     return absl::OkStatus();
   }
 
-  absl::StatusOr<DocRef> ProcessNeededTypeAlias(const TypeAlias& t) {
+  absl::StatusOr<ParametricBinding*> ProcessNeededTypeAlias(const TypeAlias& t,
+                                                            Module* owner) {
     std::function<absl::StatusOr<std::optional<AstNode*>>(
         const AstNode*, Module*,
         const absl::flat_hash_map<const AstNode*, AstNode*>&)>
@@ -537,139 +542,69 @@ class LegacyProcConverter : public Formatter {
         CloneNode<TypeAnnotation>(
             const_cast<TypeAnnotation*>(&t.type_annotation()), replacer));
 
-    DocRef rhs_doc = FormatTypeAnnotation(*substituted_rhs);
-
-    DocRef param_doc = ConcatNGroup(
-        arena_, {arena_.MakeText(t.identifier()), arena_.colon(),
-                 arena_.space(), arena_.Make(Keyword::kType), arena_.space(),
-                 arena_.equals(), arena_.space(), rhs_doc});
-    return param_doc;
+    NameDef* name_def = owner->Make<NameDef>(t.span(), t.identifier(), nullptr);
+    GenericTypeAnnotation* type_annot =
+        owner->Make<GenericTypeAnnotation>(t.span());
+    return owner->Make<ParametricBinding>(name_def, type_annot,
+                                          ExprOrType(substituted_rhs));
   }
 
-  // Formats the new `proc` block containing member fields and channels.
-  DocRef FormatProcBlock(const Proc& n, bool is_test,
-                         absl::Span<const Param* const> state_params,
-                         absl::Span<const ProcMember* const> members,
-                         absl::Span<const DocRef> additional_parametrics) {
-    std::vector<DocRef> attribute_pieces;
+  ProcDef* CreateSyntheticProcDef(
+      const Proc& n, bool is_test, absl::Span<const Param* const> state_params,
+      absl::Span<const ProcMember* const> members,
+      absl::Span<ParametricBinding* const> additional_parametrics) {
+    Module* owner = n.owner();
+    Pos members_limit = members.empty() ? n.body_span().start()
+                                        : members.back()->span().limit();
+    Span synthetic_span(n.span().start(), members_limit);
+
+    std::vector<StructMemberNode*> struct_members;
+    struct_members.reserve(members.size() + state_params.size());
+    for (const ProcMember* member : members) {
+      auto* name_def =
+          owner->Make<NameDef>(member->span(), member->identifier(), nullptr);
+      struct_members.push_back(owner->Make<StructMemberNode>(
+          member->span(), name_def, member->span(),
+          const_cast<TypeAnnotation*>(member->type_annotation())));
+    }
+    for (const Param* state_param : state_params) {
+      Span state_span(members_limit, members_limit);
+      auto* name_def =
+          owner->Make<NameDef>(state_span, state_param->identifier(), nullptr);
+      struct_members.push_back(owner->Make<StructMemberNode>(
+          state_span, name_def, state_span,
+          const_cast<TypeAnnotation*>(state_param->type_annotation())));
+    }
+
+    std::vector<ParametricBinding*> all_parametric_bindings;
+    all_parametric_bindings.reserve(n.parametric_bindings().size() +
+                                    additional_parametrics.size());
+    for (const ParametricBinding* pb : n.parametric_bindings()) {
+      all_parametric_bindings.push_back(const_cast<ParametricBinding*>(pb));
+    }
+    for (ParametricBinding* pb : additional_parametrics) {
+      all_parametric_bindings.push_back(pb);
+    }
+
+    auto* name_def = owner->Make<NameDef>(n.span(), n.identifier(), nullptr);
+    auto* proc_def =
+        owner->Make<ProcDef>(synthetic_span, name_def, all_parametric_bindings,
+                             struct_members, n.is_public());
     if (n.is_test_utility() && !is_test) {
-      attribute_pieces.push_back(
-          ConcatN(arena_, {
-                              arena_.MakeText("#"),
-                              arena_.obracket(),
-                              arena_.MakeText(std::string(kCfgTestAttr)),
-                              arena_.cbracket(),
-                              arena_.hard_line(),
-                          }));
+      proc_def->AddAttribute(owner->Make<Attribute>(
+          n.span(), std::nullopt,
+          AttributeData(AttributeKind::kCfg, {std::string("test")})));
     }
-
-    std::vector<DocRef> signature_pieces;
-    if (n.is_public()) {
-      signature_pieces.push_back(arena_.Make(Keyword::kPub));
-      signature_pieces.push_back(arena_.space());
-    }
-    signature_pieces.push_back(arena_.Make(Keyword::kProc));
-    signature_pieces.push_back(arena_.space());
-    signature_pieces.push_back(arena_.MakeText(n.identifier()));
-
-    if (n.IsParametric() || !additional_parametrics.empty()) {
-      std::vector<DocRef> parametric_docs;
-      parametric_docs.reserve(n.parametric_bindings().size() +
-                              additional_parametrics.size());
-      for (const ParametricBinding* pb : n.parametric_bindings()) {
-        parametric_docs.push_back(FormatParametricBindingPtr(pb));
-      }
-      for (const DocRef& doc : additional_parametrics) {
-        parametric_docs.push_back(doc);
-      }
-      signature_pieces.push_back(
-          ConcatNGroup(arena_, {arena_.oangle(),
-                                FormatJoin(parametric_docs, Joiner::kCommaSpace,
-                                           /*group=*/false),
-                                arena_.cangle()}));
-    }
-    signature_pieces.push_back(arena_.space());
-    signature_pieces.push_back(arena_.ocurl());
-
-    int num_members = members.size() + state_params.size();
-    std::vector<DocRef> body_pieces;
-    body_pieces.reserve(num_members * 2);
-
-    Pos last_stmt_limit = n.body_span().start();
-    for (int i = 0; i < num_members; ++i) {
-      std::string_view identifier;
-      const TypeAnnotation* type_annotation = nullptr;
-      std::optional<DocRef> comments;
-
-      if (i < members.size()) {
-        const ProcMember* member = members[i];
-        identifier = member->identifier();
-        type_annotation = member->type_annotation();
-        comments =
-            FormatCommentsBetween(last_stmt_limit, member->span().start());
-        last_stmt_limit = member->span().limit();
-      } else {
-        const Param* state_param = state_params[i - members.size()];
-        identifier = state_param->identifier();
-        type_annotation = state_param->type_annotation();
-      }
-
-      std::vector<DocRef> line_pieces;
-      if (comments.has_value()) {
-        line_pieces.push_back(*comments);
-        line_pieces.push_back(arena_.hard_line());
-      }
-      bool is_last = (i + 1 == num_members);
-      DocRef comma_doc =
-          is_last ? arena_.MakeFlatChoice(arena_.empty(), arena_.comma())
-                  : arena_.comma();
-      line_pieces.push_back(ConcatN(
-          arena_,
-          {arena_.MakeText(std::string(identifier)), arena_.colon(),
-           arena_.space(), FormatTypeAnnotation(*type_annotation), comma_doc}));
-      body_pieces.push_back(ConcatN(arena_, line_pieces));
-      if (!is_last) {
-        body_pieces.push_back(arena_.hard_line());
-      }
-    }
-
-    DocRef proc_decl_doc;
-    if (num_members == 0) {
-      proc_decl_doc =
-          ConcatNGroup(arena_, {
-                                   ConcatNGroup(arena_, attribute_pieces),
-                                   ConcatNGroup(arena_, signature_pieces),
-                                   arena_.break0(),
-                                   arena_.ccurl(),
-                               });
-    } else {
-      proc_decl_doc = ConcatNGroup(
-          arena_, {
-                      ConcatNGroup(arena_, attribute_pieces),
-                      ConcatNGroup(arena_, signature_pieces),
-                      arena_.hard_line(),
-                      arena_.MakeNest(ConcatN(arena_, body_pieces)),
-                      arena_.hard_line(),
-                      arena_.ccurl(),
-                  });
-    }
-    return proc_decl_doc;
+    return proc_def;
   }
 
-  // Formats the legacy `config` and `init` functions into the constructor
-  // `fn new`.
-  //
-  // Before:
-  //   config(x: chan<u32> in) { (x,) }
-  //   init { u32:42 }
-  //
-  // After:
-  //   fn new(x: chan<u32> in) -> Self {
-  //       Foo { x, state: u32:42 }
-  //   }
-  DocRef FormatNewFunction(const Proc& n,
-                           absl::Span<const Param* const> state_params,
-                           absl::Span<const ProcMember* const> members) {
+  Function* CreateSyntheticNewFunction(
+      const Proc& n, ProcDef* proc_def,
+      absl::Span<const Param* const> state_params,
+      absl::Span<const ProcMember* const> members) {
+    Module* owner = n.owner();
+    Span span = n.config().span();
+
     const XlsTuple* config_tuple = nullptr;
     if (!n.config().body()->statements().empty()) {
       const Statement* last_config_stmt =
@@ -684,21 +619,16 @@ class LegacyProcConverter : public Formatter {
       CHECK_EQ(config_tuple->members().size(), members.size());
     }
 
-    DocRef init_val_doc;
     const Expr* init_expr = nullptr;
     const StatementBlock* init_body = n.init().body();
     const auto& init_stmts = init_body->statements();
     if (init_stmts.size() == 1) {
       init_expr = std::get<Expr*>(init_stmts[0]->wrapped());
-      init_val_doc = FormatExpr(*init_expr);
-    } else {
-      init_val_doc = FormatBlock(*init_body);
-      if (init_body != nullptr && !init_body->empty() &&
-          !init_body->trailing_semi()) {
-        const Statement* last_stmt = init_body->statements().back();
-        if (std::holds_alternative<Expr*>(last_stmt->wrapped())) {
-          init_expr = std::get<Expr*>(last_stmt->wrapped());
-        }
+    } else if (init_body != nullptr && !init_body->empty() &&
+               !init_body->trailing_semi()) {
+      const Statement* last_stmt = init_body->statements().back();
+      if (std::holds_alternative<Expr*>(last_stmt->wrapped())) {
+        init_expr = std::get<Expr*>(last_stmt->wrapped());
       }
     }
 
@@ -712,226 +642,123 @@ class LegacyProcConverter : public Formatter {
         init_tuple != nullptr &&
         init_tuple->members().size() == state_params.size();
 
-    std::vector<DocRef> struct_init_pieces =
-        FormatStructInitPieces(config_tuple, state_params, members, init_expr,
-                               init_val_doc, init_tuple);
-
-    DocRef struct_init_doc;
-    if (struct_init_pieces.empty()) {
-      struct_init_doc =
-          ConcatNGroup(arena_, {
-                                   arena_.MakeText(n.identifier()),
-                                   arena_.space(),
-                                   arena_.ocurl(),
-                                   arena_.ccurl(),
-                               });
-    } else {
-      DocRef members_flat =
-          FormatJoin(struct_init_pieces, Joiner::kCommaBreak1, /*group=*/false);
-      DocRef on_flat = ConcatN(arena_, {arena_.space(), members_flat,
-                                        arena_.space(), arena_.ccurl()});
-      DocRef on_break = ConcatN(
-          arena_,
-          {
-              arena_.hard_line(),
-              arena_.MakeNest(FormatJoin(
-                  struct_init_pieces, Joiner::kCommaHardlineTrailingCommaAlways,
-                  /*group=*/false)),
-              arena_.hard_line(),
-              arena_.ccurl(),
-          });
-      struct_init_doc =
-          ConcatNGroup(arena_, {
-                                   arena_.MakeText(n.identifier()),
-                                   arena_.space(),
-                                   arena_.ocurl(),
-                                   arena_.MakeFlatChoice(on_flat, on_break),
-                               });
-    }
-
-    DocRef params_doc = FormatParams(n.config().params());
-
-    std::vector<DocRef> new_sig_pieces = {
-        arena_.Make(Keyword::kFn),
-        arena_.space(),
-        arena_.MakeText("new"),
-        params_doc,
-        arena_.space(),
-        arena_.arrow(),
-        arena_.space(),
-        arena_.MakeText("Self"),
-        arena_.space(),
-        arena_.ocurl(),
-    };
-
+    std::vector<Statement*> new_statements;
     const auto& config_stmts = n.config().body()->statements();
-    std::vector<DocRef> append_statements;
-    append_statements.reserve(2);
-    if (!state_params.empty() && state_params.size() > 1) {
-      if (init_yields_tuple_per_state_param) {
-        if (init_stmts.size() > 1) {
-          DocRef prefix_doc = FormatBlock(
-              *init_body, FormatBlockOptions{.start_idx = 0,
-                                             .end_idx = static_cast<int>(
-                                                 init_stmts.size() - 1),
-                                             .force_trailing_semi = true,
-                                             .add_curls = false,
-                                             .add_nest = false});
-          append_statements.push_back(prefix_doc);
-        }
-      } else {
-        DocRef let_init =
-            ConcatNGroup(arena_, {arena_.MakeText("let init_state ="),
-                                  arena_.space(), init_val_doc, arena_.semi()});
-        append_statements.push_back(let_init);
-      }
-    }
-    append_statements.push_back(struct_init_doc);
-
-    int end_idx;
+    int config_end_idx;
     if (members.empty()) {
       if (!config_stmts.empty() && IsLiteralEmptyTuple(config_stmts.back())) {
-        end_idx = config_stmts.size() - 1;
+        config_end_idx = config_stmts.size() - 1;
       } else {
-        end_idx = config_stmts.size();
+        config_end_idx = config_stmts.size();
       }
     } else {
-      end_idx = config_stmts.empty() ? 0 : config_stmts.size() - 1;
+      config_end_idx = config_stmts.empty() ? 0 : config_stmts.size() - 1;
     }
-    DocRef body_doc =
-        FormatBlock(*n.config().body(),
-                    FormatBlockOptions{.start_idx = 0,
-                                       .end_idx = end_idx,
-                                       .append_statements = append_statements,
-                                       .add_curls = false});
-    std::vector<DocRef> new_body = {
-        arena_.break1(),
-        body_doc,
-        arena_.break1(),
-        arena_.ccurl(),
-    };
-
-    DocRef new_fn_doc = ConcatNGroup(
-        arena_,
-        {ConcatNGroup(arena_, new_sig_pieces), ConcatN(arena_, new_body)});
-
-    Pos last_stmt_limit = n.body_span().start();
-    if (!members.empty()) {
-      last_stmt_limit = members.back()->span().limit();
+    new_statements.reserve(config_end_idx + init_stmts.size() + 1);
+    for (int i = 0; i < config_end_idx; ++i) {
+      new_statements.push_back(config_stmts[i]);
     }
 
-    std::optional<DocRef> new_comments =
-        FormatCommentsBetween(last_stmt_limit, n.config().span().start());
-    std::optional<DocRef> init_comments = FormatCommentsBetween(
-        n.config().span().limit(), n.init().span().start());
+    Pos body_start = (config_end_idx == 0 && init_stmts.size() > 1)
+                         ? n.init().body()->span().start().BumpCol()
+                         : n.config().body()->span().start().BumpCol();
+    Pos prev_pos = new_statements.empty()
+                       ? body_start
+                       : new_statements.back()->GetSpan()->limit();
 
-    std::vector<DocRef> new_fn_pieces;
-    if (new_comments.has_value()) {
-      new_fn_pieces.push_back(*new_comments);
-      new_fn_pieces.push_back(arena_.hard_line());
-    }
-    if (init_comments.has_value()) {
-      new_fn_pieces.push_back(*init_comments);
-      new_fn_pieces.push_back(arena_.hard_line());
-    }
-    new_fn_pieces.push_back(new_fn_doc);
-    return ConcatN(arena_, new_fn_pieces);
-  }
-
-  // Helper for `FormatNewFunction` which creates the pieces of the struct
-  // initializer returned by the generated `new` function. These are sourced
-  // from the legacy `init` function and the legacy `config` function.
-  std::vector<DocRef> FormatStructInitPieces(
-      const XlsTuple* config_tuple, absl::Span<const Param* const> state_params,
-      absl::Span<const ProcMember* const> members, const Expr* init_expr,
-      DocRef init_val_doc, const XlsTuple* init_tuple) {
-    std::vector<DocRef> struct_init_pieces;
-    struct_init_pieces.reserve(members.size() + state_params.size());
-    for (int i = 0; i < members.size(); ++i) {
-      const ProcMember* member = members[i];
-      const Expr* member_init_expr = config_tuple->members()[i];
-      bool is_shorthand = false;
-      if (auto* name_ref = dynamic_cast<const NameRef*>(member_init_expr);
-          name_ref != nullptr &&
-          name_ref->identifier() == member->identifier()) {
-        is_shorthand = true;
+    if (init_stmts.size() > 1) {
+      for (size_t i = 0; i < init_stmts.size() - 1; ++i) {
+        new_statements.push_back(init_stmts[i]);
       }
+      prev_pos = new_statements.back()->GetSpan()->limit();
+    }
 
-      if (is_shorthand) {
-        struct_init_pieces.push_back(arena_.MakeText(member->identifier()));
-      } else {
-        DocRef val_doc = FormatExpr(*member_init_expr);
-        struct_init_pieces.push_back(
-            ConcatNGroup(arena_, {arena_.MakeText(member->identifier()),
-                                  arena_.colon(), arena_.space(), val_doc}));
+    if (!state_params.empty() && state_params.size() > 1) {
+      if (!init_yields_tuple_per_state_param) {
+        auto* name_def = owner->Make<NameDef>(Span(prev_pos, prev_pos),
+                                              "init_state", nullptr);
+        auto* let_stmt =
+            owner->Make<Let>(Span(prev_pos, prev_pos), name_def, nullptr,
+                             const_cast<Expr*>(init_expr), /*is_const=*/false);
+        new_statements.push_back(owner->Make<Statement>(let_stmt));
+        prev_pos = let_stmt->GetSpan()->limit();
+      }
+    }
+
+    std::vector<std::pair<std::string, Expr*>> struct_members;
+    struct_members.reserve(members.size() + state_params.size());
+    if (config_tuple != nullptr) {
+      for (int i = 0; i < members.size(); ++i) {
+        struct_members.push_back({std::string(members[i]->identifier()),
+                                  config_tuple->members()[i]});
       }
     }
     if (!state_params.empty()) {
       if (state_params.size() == 1) {
-        bool is_state_shorthand = false;
-        if (init_expr != nullptr) {
-          if (auto* name_ref = dynamic_cast<const NameRef*>(init_expr);
-              name_ref != nullptr &&
-              name_ref->identifier() == state_params[0]->identifier()) {
-            is_state_shorthand = true;
-          }
-        }
-
-        if (is_state_shorthand) {
-          struct_init_pieces.push_back(
-              arena_.MakeText(state_params[0]->identifier()));
-        } else {
-          struct_init_pieces.push_back(ConcatNGroup(
-              arena_, {arena_.MakeText(state_params[0]->identifier()),
-                       arena_.colon(), arena_.space(), init_val_doc}));
+        struct_members.push_back({std::string(state_params[0]->identifier()),
+                                  const_cast<Expr*>(init_expr)});
+      } else if (init_yields_tuple_per_state_param) {
+        for (int i = 0; i < state_params.size(); ++i) {
+          struct_members.push_back({std::string(state_params[i]->identifier()),
+                                    init_tuple->members()[i]});
         }
       } else {
-        if (init_tuple != nullptr &&
-            init_tuple->members().size() == state_params.size()) {
-          for (int i = 0; i < state_params.size(); ++i) {
-            DocRef init_val_i_doc = FormatExpr(*init_tuple->members()[i]);
-            struct_init_pieces.push_back(ConcatNGroup(
-                arena_, {arena_.MakeText(state_params[i]->identifier()),
-                         arena_.colon(), arena_.space(), init_val_i_doc}));
-          }
-        } else {
-          for (int i = 0; i < state_params.size(); ++i) {
-            struct_init_pieces.push_back(ConcatNGroup(
-                arena_,
-                {arena_.MakeText(state_params[i]->identifier()), arena_.colon(),
-                 arena_.space(),
-                 arena_.MakeText(absl::StrFormat("init_state.%d", i))}));
-          }
+        for (int i = 0; i < state_params.size(); ++i) {
+          Span tuple_span(prev_pos, prev_pos);
+          auto* name_ref = owner->Make<NameRef>(
+              tuple_span, "init_state", static_cast<const NameDef*>(nullptr));
+          auto* num = owner->Make<Number>(tuple_span, std::to_string(i),
+                                          NumberKind::kOther, nullptr);
+          auto* tuple_idx = owner->Make<TupleIndex>(tuple_span, name_ref, num);
+          struct_members.push_back(
+              {std::string(state_params[i]->identifier()), tuple_idx});
         }
       }
     }
-    return struct_init_pieces;
+
+    Span struct_span(prev_pos, prev_pos);
+    auto* struct_type_ref = owner->Make<TypeRef>(struct_span, proc_def);
+    auto* struct_type_annot = owner->Make<TypeRefTypeAnnotation>(
+        struct_span, struct_type_ref, std::vector<ExprOrType>{});
+    auto* struct_instance = owner->Make<StructInstance>(
+        struct_span, struct_type_annot, struct_members);
+    new_statements.push_back(owner->Make<Statement>(struct_instance));
+
+    Pos body_start_pos = (config_end_idx == 0 && init_stmts.size() > 1)
+                             ? n.init().body()->span().start()
+                             : n.config().body()->span().start();
+    Pos body_limit_pos = n.config().body()->span().limit();
+    if (body_start_pos > body_limit_pos) {
+      body_limit_pos = body_start_pos;
+    }
+    Span body_span(body_start_pos, body_limit_pos);
+    auto* new_body = owner->Make<StatementBlock>(body_span, new_statements,
+                                                 /*trailing_semi=*/false);
+    auto* return_type = owner->Make<SelfTypeAnnotation>(span, false, nullptr);
+    auto* fn_name_def = owner->Make<NameDef>(span, "new", nullptr);
+    return owner->Make<Function>(
+        span, fn_name_def, std::vector<ParametricBinding*>{},
+        n.config().params(), return_type, new_body, FunctionTag::kNormal,
+        /*is_public=*/false, /*is_stub=*/false);
   }
 
-  // Formats the legacy `next` function to read and write state member
-  // variables.
-  //
-  // Before:
-  //   next(state: u32) {
-  //       state + u32:1
-  //   }
-  //
-  // After:
-  //   fn next(self) {
-  //       let state = read(self.state);
-  //       let next_state = state + u32:1;
-  //       write(self.state, next_state);
-  //   }
-  std::optional<DocRef> FormatNextFunction(
-      const Proc& n, bool already_has_explicit_state_access,
+  Function* CreateSyntheticNextFunction(
+      const Proc& n, ProcDef* proc_def, bool already_has_explicit_state_access,
       absl::Span<const Param* const> state_params) {
     const Function& next_fn = n.next();
-
+    Pos last_before_next_limit =
+        std::max(n.config().span().limit(), n.init().span().limit());
     if (!(!state_params.empty() || FunctionDoesAnything(next_fn) ||
-          comments_.HasComments(
-              Span(n.init().span().limit(), next_fn.span().limit())))) {
-      return std::nullopt;
+          (last_before_next_limit <= next_fn.span().limit() &&
+           comments_.HasComments(
+               Span(last_before_next_limit, next_fn.span().limit()))))) {
+      return nullptr;
     }
+
+    Module* owner = n.owner();
+    Span span = next_fn.span();
+    Pos body_start = next_fn.body()->span().start().BumpCol();
+    Span start_span(body_start, body_start);
 
     auto replacer = [&](const AstNode* node, Module* module,
                         const absl::flat_hash_map<const AstNode*, AstNode*>&)
@@ -951,14 +778,10 @@ class LegacyProcConverter : public Formatter {
           }
         }
         if (is_member || is_state_param) {
-          NameDef* self_def = next_fn.params().empty()
-                                  ? nullptr
-                                  : next_fn.params()[0]->name_def();
-          auto* self_ref =
-              module->Make<NameRef>(name_ref->span(), "self", self_def);
-          auto* attr_node = module->Make<Attr>(name_ref->span(), self_ref,
-                                               name_ref->identifier());
-          return attr_node;
+          auto* self_ref = module->Make<NameRef>(
+              name_ref->span(), "self", static_cast<const NameDef*>(nullptr));
+          return module->Make<Attr>(name_ref->span(), self_ref,
+                                    name_ref->identifier());
         }
       }
       return std::nullopt;
@@ -969,21 +792,6 @@ class LegacyProcConverter : public Formatter {
                                   replacer);
     CHECK_OK(cloned_next_body_status.status());
     StatementBlock* cloned_next_body = cloned_next_body_status.value();
-
-    std::vector<DocRef> prepend_statements;
-    if (!state_params.empty() && !already_has_explicit_state_access) {
-      prepend_statements.reserve(state_params.size());
-      for (const Param* state_param : state_params) {
-        DocRef read_stmt = ConcatNGroup(
-            arena_, {arena_.MakeText("let"), arena_.space(),
-                     arena_.MakeText(state_param->identifier()), arena_.space(),
-                     arena_.equals(), arena_.space(),
-                     arena_.MakeText(absl::StrFormat(
-                         "read(self.%s)", state_param->identifier())),
-                     arena_.semi()});
-        prepend_statements.push_back(read_stmt);
-      }
-    }
 
     const auto& next_stmts = cloned_next_body->statements();
     std::string_view state_param_name =
@@ -1001,163 +809,163 @@ class LegacyProcConverter : public Formatter {
     }
     int end_idx = should_drop_last ? next_stmts.size() - 1 : next_stmts.size();
 
-    std::vector<DocRef> append_statements;
+    bool is_empty_body = false;
+    if (state_params.empty()) {
+      if (next_stmts.empty() ||
+          (next_stmts.size() == 1 && has_redundant_stateless_return)) {
+        is_empty_body = true;
+      }
+    }
+
+    NameDef* self_name_def = owner->Make<NameDef>(span, "self", nullptr);
+    TypeAnnotation* self_type =
+        owner->Make<SelfTypeAnnotation>(span, false, nullptr);
+    Param* self_param = owner->Make<Param>(self_name_def, self_type);
+
+    std::vector<Statement*> statements;
+    size_t state_stmt_count =
+        already_has_explicit_state_access || state_params.empty()
+            ? 0
+            : (state_params.size() +
+               (state_params.size() > 1 ? 1 + state_params.size() : 1));
+    statements.reserve(state_stmt_count + end_idx);
     if (!state_params.empty() && !already_has_explicit_state_access) {
-      append_statements.reserve(state_params.size());
-      CHECK(!next_stmts.empty());
-      const Expr* final_expr = std::get<Expr*>(next_stmts.back()->wrapped());
-      if (state_params.size() == 1) {
-        DocRef write_stmt = ConcatNGroup(
-            arena_, {arena_.MakeText(absl::StrFormat(
-                         "write(self.%s,", state_params[0]->identifier())),
-                     arena_.space(), FormatExpr(*final_expr),
-                     arena_.MakeText(")"), arena_.semi()});
-        append_statements.push_back(write_stmt);
-      } else {
-        DocRef let_stmt = ConcatNGroup(
-            arena_, {arena_.MakeText("let next_state ="), arena_.space(),
-                     FormatExpr(*final_expr), arena_.semi()});
-        append_statements.push_back(let_stmt);
-        for (int i = 0; i < state_params.size(); ++i) {
-          DocRef write_stmt =
-              ConcatNGroup(arena_, {arena_.MakeText(absl::StrFormat(
-                                        "write(self.%s, next_state.%d)",
-                                        state_params[i]->identifier(), i)),
-                                    arena_.semi()});
-          append_statements.push_back(write_stmt);
+      for (const Param* state_param : state_params) {
+        auto* self_ref = owner->Make<NameRef>(
+            start_span, "self", static_cast<const NameDef*>(self_name_def));
+        auto* self_attr =
+            owner->Make<Attr>(start_span, self_ref, state_param->identifier());
+        auto* read_ref = owner->Make<NameRef>(
+            start_span, "read", static_cast<const NameDef*>(nullptr));
+        auto* read_invoc = owner->Make<Invocation>(
+            start_span, read_ref, std::vector<Expr*>{self_attr});
+        auto* let_name = owner->Make<NameDef>(
+            start_span, state_param->identifier(), nullptr);
+        auto* let_stmt =
+            owner->Make<Let>(start_span, let_name, nullptr, read_invoc, false);
+        statements.push_back(owner->Make<Statement>(let_stmt));
+      }
+    }
+
+    if (!is_empty_body) {
+      for (int i = 0; i < end_idx; ++i) {
+        statements.push_back(next_stmts[i]);
+      }
+      if (!state_params.empty() && !already_has_explicit_state_access) {
+        CHECK(!next_stmts.empty());
+        const Expr* final_expr = std::get<Expr*>(next_stmts.back()->wrapped());
+        Pos prev_pos = statements.empty()
+                           ? body_start
+                           : statements.back()->GetSpan()->limit();
+        if (state_params.size() == 1) {
+          Span write_span(prev_pos, prev_pos);
+          auto* self_ref = owner->Make<NameRef>(
+              write_span, "self", static_cast<const NameDef*>(self_name_def));
+          auto* self_attr = owner->Make<Attr>(write_span, self_ref,
+                                              state_params[0]->identifier());
+          auto* write_ref = owner->Make<NameRef>(
+              write_span, "write", static_cast<const NameDef*>(nullptr));
+          auto* write_invoc = owner->Make<Invocation>(
+              write_span, write_ref,
+              std::vector<Expr*>{self_attr, const_cast<Expr*>(final_expr)});
+          statements.push_back(owner->Make<Statement>(write_invoc));
+        } else {
+          Span let_span(prev_pos, prev_pos);
+          auto* next_state_name =
+              owner->Make<NameDef>(let_span, "next_state", nullptr);
+          auto* let_stmt =
+              owner->Make<Let>(let_span, next_state_name, nullptr,
+                               const_cast<Expr*>(final_expr), false);
+          statements.push_back(owner->Make<Statement>(let_stmt));
+          prev_pos = let_stmt->GetSpan()->limit();
+          Span end_span(prev_pos, prev_pos);
+          for (int i = 0; i < state_params.size(); ++i) {
+            auto* self_ref = owner->Make<NameRef>(
+                end_span, "self", static_cast<const NameDef*>(self_name_def));
+            auto* self_attr = owner->Make<Attr>(end_span, self_ref,
+                                                state_params[i]->identifier());
+            auto* next_state_ref = owner->Make<NameRef>(
+                end_span, "next_state",
+                static_cast<const NameDef*>(next_state_name));
+            auto* num = owner->Make<Number>(end_span, std::to_string(i),
+                                            NumberKind::kOther, nullptr);
+            auto* tuple_idx =
+                owner->Make<TupleIndex>(end_span, next_state_ref, num);
+            auto* write_ref = owner->Make<NameRef>(
+                end_span, "write", static_cast<const NameDef*>(nullptr));
+            auto* write_invoc = owner->Make<Invocation>(
+                end_span, write_ref, std::vector<Expr*>{self_attr, tuple_idx});
+            statements.push_back(owner->Make<Statement>(write_invoc));
+          }
         }
       }
     }
 
-    DocRef next_fn_doc;
-    bool is_empty_body = false;
-    if (state_params.empty()) {
-      if (next_stmts.empty()) {
-        is_empty_body = true;
-      } else if (next_stmts.size() == 1 && has_redundant_stateless_return) {
-        is_empty_body = true;
-      }
-    }
-    if (is_empty_body) {
-      next_fn_doc = ConcatNGroup(arena_, {
-                                             arena_.Make(Keyword::kFn),
-                                             arena_.space(),
-                                             arena_.MakeText("next"),
-                                             arena_.oparen(),
-                                             arena_.MakeText("self"),
-                                             arena_.cparen(),
-                                             arena_.space(),
-                                             arena_.ocurl(),
-                                             arena_.break0(),
-                                             arena_.ccurl(),
-                                         });
-    } else {
-      DocRef body_doc = FormatBlock(
-          *cloned_next_body,
-          FormatBlockOptions{.start_idx = 0,
-                             .end_idx = end_idx,
-                             .prepend_statements = prepend_statements,
-                             .append_statements = append_statements,
-                             .force_trailing_semi = true,
-                             .add_curls = false});
-      std::vector<DocRef> next_body = {
-          arena_.break1(),
-          body_doc,
-          arena_.break1(),
-          arena_.ccurl(),
-      };
-      next_fn_doc = ConcatNGroup(arena_, {
-                                             arena_.Make(Keyword::kFn),
-                                             arena_.space(),
-                                             arena_.MakeText("next"),
-                                             arena_.oparen(),
-                                             arena_.MakeText("self"),
-                                             arena_.cparen(),
-                                             arena_.space(),
-                                             arena_.ocurl(),
-                                             ConcatN(arena_, next_body),
-                                         });
-    }
-
-    std::optional<DocRef> next_comments =
-        FormatCommentsBetween(n.init().span().limit(), n.next().span().start());
-    std::vector<DocRef> next_fn_pieces;
-    if (next_comments.has_value()) {
-      next_fn_pieces.push_back(*next_comments);
-      next_fn_pieces.push_back(arena_.hard_line());
-    }
-    next_fn_pieces.push_back(next_fn_doc);
-    return ConcatN(arena_, next_fn_pieces);
+    auto* next_body =
+        owner->Make<StatementBlock>(span, statements, /*trailing_semi=*/true);
+    auto* next_name_def = owner->Make<NameDef>(span, "next", nullptr);
+    return owner->Make<Function>(
+        span, next_name_def, std::vector<ParametricBinding*>{},
+        std::vector<Param*>{self_param}, nullptr, next_body,
+        FunctionTag::kNormal, /*is_public=*/false, /*is_stub=*/false);
   }
 
-  // Formats the `impl` block enclosing the `new` and `next` member functions.
-  //
-  // Before: init(), config(), and next() were inside the proc.
-  //
-  // After:
-  //   impl Foo {
-  //       fn new(...) -> Self { ... }
-  //       fn next(self) { ... }
-  //   }
-  DocRef FormatImplBlock(const Proc& n, bool already_has_explicit_state_access,
-                         absl::Span<const Param* const> state_params,
-                         absl::Span<const ProcMember* const> members,
-                         absl::Span<const DocRef> module_decl_docs,
-                         absl::Span<const DocRef> additional_parametric_names) {
-    DocRef final_new_fn = FormatNewFunction(n, state_params, members);
-    std::optional<DocRef> final_next_fn =
-        FormatNextFunction(n, already_has_explicit_state_access, state_params);
+  DocRef FormatFunction(const Function& n, bool is_test = false) override {
+    if (current_init_comments_.has_value() && n.identifier() == "new") {
+      DocRef comments = *current_init_comments_;
+      current_init_comments_ = std::nullopt;
+      return ConcatN(arena_, {comments, arena_.hard_line(),
+                              Formatter::FormatFunction(n, is_test)});
+    }
+    return Formatter::FormatFunction(n, is_test);
+  }
 
-    DocRef impl_target = arena_.MakeText(n.identifier());
-    if (n.IsParametric() || !additional_parametric_names.empty()) {
-      std::vector<DocRef> parametric_names;
-      parametric_names.reserve(n.parametric_bindings().size() +
-                               additional_parametric_names.size());
-      for (const ParametricBinding* pb : n.parametric_bindings()) {
-        parametric_names.push_back(arena_.MakeText(pb->identifier()));
+  Impl* CreateSyntheticImpl(
+      const Proc& n, ProcDef* proc_def, Function* new_fn, Function* next_fn,
+      absl::Span<const AstNode* const> remaining_proc_level_decls,
+      absl::Span<ParametricBinding* const> all_parametric_bindings,
+      Pos last_stmt_limit) {
+    Module* owner = n.owner();
+    Span span(last_stmt_limit, n.span().limit());
+
+    TypeRef* type_ref = owner->Make<TypeRef>(span, proc_def);
+    std::vector<ExprOrType> impl_parametrics;
+    impl_parametrics.reserve(all_parametric_bindings.size());
+    for (const ParametricBinding* pb : all_parametric_bindings) {
+      impl_parametrics.push_back(ExprOrType(
+          owner->Make<NameRef>(span, pb->identifier(),
+                               static_cast<const NameDef*>(pb->name_def()))));
+    }
+    TypeRefTypeAnnotation* struct_ref =
+        owner->Make<TypeRefTypeAnnotation>(span, type_ref, impl_parametrics);
+
+    std::vector<ImplMember> members;
+    members.reserve(remaining_proc_level_decls.size() + 2);
+    for (const AstNode* node : remaining_proc_level_decls) {
+      if (auto* c = dynamic_cast<const ConstantDef*>(node)) {
+        members.push_back(const_cast<ConstantDef*>(c));
+      } else if (auto* t = dynamic_cast<const TypeAlias*>(node)) {
+        members.push_back(const_cast<TypeAlias*>(t));
       }
-      for (const DocRef& doc : additional_parametric_names) {
-        parametric_names.push_back(doc);
-      }
-      impl_target = ConcatNGroup(
-          arena_, {impl_target, arena_.oangle(),
-                   FormatJoin(parametric_names, Joiner::kCommaBreak1,
-                              /*group=*/false),
-                   arena_.cangle()});
+    }
+    members.push_back(new_fn);
+    if (next_fn != nullptr) {
+      members.push_back(next_fn);
     }
 
-    std::vector<DocRef> impl_guts;
-    impl_guts.reserve(module_decl_docs.size() * 3 + 4);
-    for (const DocRef& doc : module_decl_docs) {
-      impl_guts.push_back(arena_.MakeNest(doc));
-      impl_guts.push_back(arena_.hard_line());
-      impl_guts.push_back(arena_.hard_line());
+    auto* impl =
+        owner->Make<Impl>(span, struct_ref, members, /*is_public=*/false);
+    new_fn->set_impl(impl);
+    if (next_fn != nullptr) {
+      next_fn->set_impl(impl);
     }
-    impl_guts.push_back(arena_.MakeNest(final_new_fn));
-    if (final_next_fn.has_value()) {
-      impl_guts.push_back(arena_.hard_line());
-      impl_guts.push_back(arena_.hard_line());
-      impl_guts.push_back(arena_.MakeNest(*final_next_fn));
-    }
-
-    DocRef impl_block_doc =
-        ConcatNGroup(arena_, {
-                                 arena_.Make(Keyword::kImpl),
-                                 arena_.space(),
-                                 impl_target,
-                                 arena_.space(),
-                                 arena_.ocurl(),
-                                 arena_.hard_line(),
-                                 ConcatN(arena_, impl_guts),
-                                 arena_.hard_line(),
-                                 arena_.ccurl(),
-                             });
-    return impl_block_doc;
+    return impl;
   }
 
   absl::flat_hash_map<std::string_view, const ConstantDef*> local_constants_;
   absl::flat_hash_map<std::string_view, const TypeAlias*> local_type_aliases_;
   std::optional<absl::flat_hash_set<std::string>> current_proc_member_names_;
+  std::optional<DocRef> current_init_comments_;
   absl::Status status_ = absl::OkStatus();
 };
 
