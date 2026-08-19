@@ -13,47 +13,52 @@
 // limitations under the License.
 
 #![feature(type_inference_v2)]
+#![feature(explicit_state_access)]
+#![feature(generics)]
 
 // A simple proc that forwards the received information from
 // an input channel to an output channel.
 
 proc Passthrough {
-    data_r: chan<u32> in;
-    data_s: chan<u32> out;
+    data_r: chan<u32> in,
+    data_s: chan<u32> out,
+}
 
-    config(data_r: chan<u32> in, data_s: chan<u32> out) { (data_r, data_s) }
+impl Passthrough {
+    fn new(data_r: chan<u32> in, data_s: chan<u32> out) -> Self {
+        Passthrough { data_r, data_s }
+    }
 
-    init { () }
-
-    next(state: ()) {
-        let (tok, data) = recv(join(), data_r);
-        let tok = send(tok, data_s, data);
+    fn next(self) {
+        let (tok, data) = recv(join(), self.data_r);
+        let tok = send(tok, self.data_s, data);
     }
 }
 
-#[test_proc]
+#[test]
 proc PassthroughTest {
-    terminator: chan<bool> out;
-    data_s: chan<u32> out;
-    data_r: chan<u32> in;
+    terminator: chan<bool> out,
+    data_s: chan<u32> out,
+    data_r: chan<u32> in,
+    count: u32,
+}
 
-    config(terminator: chan<bool> out) {
+impl PassthroughTest {
+    fn new(terminator: chan<bool> out) -> Self {
         let (data_s, data_r) = chan<u32>("data");
-        spawn Passthrough(data_r, data_s);
-        (terminator, data_s, data_r)
+        Passthrough::new(data_r, data_s).spawn();
+        PassthroughTest { terminator, data_s, data_r, count: u32:10 }
     }
 
-    init { u32:10 }
-
-    next(count: u32) {
+    fn next(self) {
+        let count = read(self.count);
         let tok: token = join();
         let data_to_send = count * count;
-        let tok = send(tok, data_s, data_to_send);
-        let (tok, received_data) = recv(tok, data_r);
+        let tok = send(tok, self.data_s, data_to_send);
+        let (tok, received_data) = recv(tok, self.data_r);
 
         assert_eq(data_to_send, received_data);
-        send_if(tok, terminator, count == u32:0, true);
-
-        count - u32:1
+        send_if(tok, self.terminator, count == u32:0, true);
+        write(self.count, count - u32:1);
     }
 }

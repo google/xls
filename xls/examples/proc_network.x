@@ -12,52 +12,61 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
 // Simple example proc network showing spawning and channels.
 
 proc A_proc {
-    inp: chan<s32> in;
-    output: chan<s32> out;
-    ext: chan<s32> in;
+    inp: chan<s32> in,
+    output: chan<s32> out,
+    ext: chan<s32> in,
+}
 
-    config(inp: chan<s32> in, output: chan<s32> out, ext: chan<s32> in) { (inp, output, ext) }
+impl A_proc {
+    fn new(inp: chan<s32> in, output: chan<s32> out, ext: chan<s32> in) -> Self {
+        A_proc { inp, output, ext }
+    }
 
-    init { () }
-
-    next(st: ()) {
-        let (tok, data_1) = recv(join(), ext);
-        let (tok, data_2, _) = recv_non_blocking(join(), inp, s32:0);
-        send(tok, output, data_1 + data_2 + s32:1);
+    fn next(self) {
+        let (tok, data_1) = recv(join(), self.ext);
+        let (tok, data_2, _) = recv_non_blocking(join(), self.inp, s32:0);
+        send(tok, self.output, data_1 + data_2 + s32:1);
     }
 }
 
 // Spawned 3 times.
 proc B_proc {
-    inp: chan<s32> in;
-    output: chan<s32> out;
+    inp: chan<s32> in,
+    output: chan<s32> out,
+}
 
-    config(inp: chan<s32> in, output: chan<s32> out) { (inp, output) }
+impl B_proc {
+    fn new(inp: chan<s32> in, output: chan<s32> out) -> Self {
+        B_proc { inp, output }
+    }
 
-    init { () }
-
-    next(st: ()) {
-        let (tok, data) = recv(join(), inp);
-        send(tok, output, data + s32:100);
+    fn next(self) {
+        let (tok, data) = recv(join(), self.inp);
+        send(tok, self.output, data + s32:100);
     }
 }
 
 proc C_proc {
-    inp: chan<s32> in;
-    output: chan<s32> out;
-    ext: chan<s32> out;
+    inp: chan<s32> in,
+    output: chan<s32> out,
+    ext: chan<s32> out,
+}
 
-    config(inp: chan<s32> in, output: chan<s32> out, ext: chan<s32> out) { (inp, output, ext) }
+impl C_proc {
+    fn new(inp: chan<s32> in, output: chan<s32> out, ext: chan<s32> out) -> Self {
+        C_proc { inp, output, ext }
+    }
 
-    init { () }
-
-    next(st: ()) {
-        let (tok, data) = recv(join(), inp);
-        send(tok, output, data + s32:10000);
-        send(tok, ext, data + s32:10000);
+    fn next(self) {
+        let (tok, data) = recv(join(), self.inp);
+        send(tok, self.output, data + s32:10000);
+        send(tok, self.ext, data + s32:10000);
     }
 }
 
@@ -67,12 +76,14 @@ proc C_proc {
 // EXT -> A
 // C -> EXT
 pub proc Initiator {
-    ext_in: chan<s32> in;
-    ext_out: chan<s32> out;
-    init_snd: chan<s32> out;
-    init_recv: chan<s32> in;
+    ext_in: chan<s32> in,
+    ext_out: chan<s32> out,
+    init_snd: chan<s32> out,
+    init_recv: chan<s32> in,
+}
 
-    config(ext_in: chan<s32> in, ext_out: chan<s32> out) {
+impl Initiator {
+    fn new(ext_in: chan<s32> in, ext_out: chan<s32> out) -> Self {
         let (c_ext, init_rcv) = chan<s32>("init_in_chans");
         let (init_snd, a_ext) = chan<s32>("init_out_chans");
         let (a_to_b1_out, a_to_b1_in) = chan<s32>("a_to_b1");
@@ -80,43 +91,41 @@ pub proc Initiator {
         let (b2_to_b3_out, b2_to_b3_in) = chan<s32>("b2_to_b3");
         let (b3_to_c_out, b3_to_c_in) = chan<s32>("b3_to_c");
         let (c_to_a_out, c_to_a_in) = chan<s32>("c_to_a");
-        spawn A_proc(c_to_a_in, a_to_b1_out, a_ext);
-        spawn B_proc(a_to_b1_in, b1_to_b2_out);
-        spawn B_proc(b1_to_b2_in, b2_to_b3_out);
-        spawn B_proc(b2_to_b3_in, b3_to_c_out);
-        spawn C_proc(b3_to_c_in, c_to_a_out, c_ext);
-        (ext_in, ext_out, init_snd, init_rcv)
+        A_proc::new(c_to_a_in, a_to_b1_out, a_ext).spawn();
+        B_proc::new(a_to_b1_in, b1_to_b2_out).spawn();
+        B_proc::new(b1_to_b2_in, b2_to_b3_out).spawn();
+        B_proc::new(b2_to_b3_in, b3_to_c_out).spawn();
+        C_proc::new(b3_to_c_in, c_to_a_out, c_ext).spawn();
+        Initiator { ext_in, ext_out, init_snd, init_recv: init_rcv }
     }
 
-    init { () }
-
-    next(st: ()) {
-        let (tok, data) = recv(join(), ext_in);
-        let tok = send(tok, init_snd, data);
-        let (tok, res) = recv(tok, init_recv);
-        send(tok, ext_out, res);
+    fn next(self) {
+        let (tok, data) = recv(join(), self.ext_in);
+        let tok = send(tok, self.init_snd, data);
+        let (tok, res) = recv(tok, self.init_recv);
+        send(tok, self.ext_out, res);
     }
 }
 
-#[test_proc]
+#[test]
 proc Testing {
-    terminator: chan<bool> out;
-    ext_send: chan<s32> out;
-    ext_recv: chan<s32> in;
+    terminator: chan<bool> out,
+    ext_send: chan<s32> out,
+    ext_recv: chan<s32> in,
+}
 
-    config(terminator: chan<bool> out) {
+impl Testing {
+    fn new(terminator: chan<bool> out) -> Self {
         let (c_ext, init_snd) = chan<s32>("init_in_chans");
         let (init_recv, a_ext) = chan<s32>("init_out_chans");
-        spawn Initiator(a_ext, c_ext);
-        (terminator, init_recv, init_snd)
+        Initiator::new(a_ext, c_ext).spawn();
+        Testing { terminator, ext_send: init_recv, ext_recv: init_snd }
     }
 
-    init { () }
-
-    next(st: ()) {
-        let tok = send(join(), ext_send, s32:0);
-        let (tok, data) = recv(tok, ext_recv);
+    fn next(self) {
+        let tok = send(join(), self.ext_send, s32:0);
+        let (tok, data) = recv(tok, self.ext_recv);
         assert_eq(data, s32:10301);
-        send(tok, terminator, true);
+        send(tok, self.terminator, true);
     }
 }

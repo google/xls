@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #![feature(type_inference_v2)]
+#![feature(explicit_state_access)]
+#![feature(generics)]
 
 import float32;
 import xls.examples.apfloat_fmac;
@@ -22,50 +24,52 @@ type F32 = float32::F32;
 const F32_ZERO = float32::zero(false);
 const F32_ONE = float32::one(false);
 
-proc fp32_fmac {
-    init { () }
+proc fp32_fmac {}
 
-    config(input_a: chan<F32> in, input_b: chan<F32> in,
-          reset: chan<bool> in, output: chan<F32> out) {
-        spawn apfloat_fmac::fmac<u32:8, u32:23>(input_a, input_b, reset, output);
+impl fp32_fmac {
+    fn new
+        (input_a: chan<F32> in, input_b: chan<F32> in, reset: chan<bool> in, output: chan<F32> out)
+        -> Self {
+        apfloat_fmac::fmac<u32:8, u32:23>::new(input_a, input_b, reset, output).spawn();
+        fp32_fmac {}
     }
 
     // Nothing to do here - the spawned fmac does all the lifting.
-    next(state: ()) { () }
+    fn next(self) {}
 }
 
-#[test_proc]
+#[test]
 proc smoke_test {
-    input_a_s: chan<F32> out;
-    input_b_s: chan<F32> out;
-    reset_s: chan<bool> out;
-    output_r: chan<F32> in;
-    terminator: chan<bool> out;
+    input_a_s: chan<F32> out,
+    input_b_s: chan<F32> out,
+    reset_s: chan<bool> out,
+    output_r: chan<F32> in,
+    terminator: chan<bool> out,
+}
 
-    init { () }
-
-    config(terminator: chan<bool> out) {
+impl smoke_test {
+    fn new(terminator: chan<bool> out) -> Self {
         let (input_a_s, input_a_r) = chan<F32>("input_a");
         let (input_b_s, input_b_r) = chan<F32>("input_b");
         let (reset_s, reset_r) = chan<bool>("reset");
         let (output_s, output_r) = chan<F32>("output");
-        spawn fp32_fmac(input_a_r, input_b_r, reset_r, output_s);
-        (input_a_s, input_b_s, reset_s, output_r, terminator)
+        fp32_fmac::new(input_a_r, input_b_r, reset_r, output_s).spawn();
+        smoke_test { input_a_s, input_b_s, reset_s, output_r, terminator }
     }
 
-    next(state: ()) {
-        let tok = send(join(), input_a_s, F32_ZERO);
-        let tok = send(tok, input_b_s, F32_ZERO);
-        let tok = send(tok, reset_s, false);
-        let (tok, result) = recv(tok, output_r);
+    fn next(self) {
+        let tok = send(join(), self.input_a_s, F32_ZERO);
+        let tok = send(tok, self.input_b_s, F32_ZERO);
+        let tok = send(tok, self.reset_s, false);
+        let (tok, result) = recv(tok, self.output_r);
         assert_eq(result, F32_ZERO);
 
-        let tok = send(tok, input_a_s, F32_ONE);
-        let tok = send(tok, input_b_s, F32_ZERO);
-        let tok = send(tok, reset_s, false);
-        let (tok, result) = recv(tok, output_r);
+        let tok = send(tok, self.input_a_s, F32_ONE);
+        let tok = send(tok, self.input_b_s, F32_ZERO);
+        let tok = send(tok, self.reset_s, false);
+        let (tok, result) = recv(tok, self.output_r);
         assert_eq(result, F32_ZERO);
 
-        let tok = send(tok, terminator, true);
+        let tok = send(tok, self.terminator, true);
     }
 }

@@ -12,36 +12,41 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
 // From `ProcWithUnconvertibleConfigGivesUsefulError` IR converter test
 // as an example of proc that cannot be converted to IR.
 proc Generator {
-  out_ch: chan<u32> out;
-  val: u32;
-
-  init {()}
-  config(out_ch: chan<u32> out, val: u32, val2: u32) {
-    (out_ch, val + val2)
-  }
-  next(state: ()) {
-    send(join(), out_ch, val);
-  }
+    out_ch: chan<u32> out,
+    val: u32,
 }
 
-#[test_proc]
+impl Generator {
+    fn new(out_ch: chan<u32> out, val: u32, val2: u32) -> Self {
+        Generator { out_ch, val: val + val2 }
+    }
+
+    fn next(self) {
+        send(join(), self.out_ch, self.val);
+    }
+}
+
+#[test]
 proc Testing {
-  terminator: chan<bool> out;
-  response: chan<u32> in;
+    terminator: chan<bool> out,
+    response: chan<u32> in,
+}
 
-  init {  }
+impl Testing {
+    fn new(terminator: chan<bool> out) -> Self {
+        let (s, r) = chan<u32, u32:1>("test_chan");
+        Generator::new(s, u32:66, u32:99).spawn();
+        Testing { terminator, response: r }
+    }
 
-  config(terminator: chan<bool> out){
-    let (s, r) = chan<u32, u32:1>("test_chan");
-    spawn Generator(s, u32:66, u32:99);
-    (terminator, r)
-  }
-
-  next(state: ()) {
-    let (tok, data) = recv(join(), response);
-    send(tok, terminator, true);
-  }
+    fn next(self) {
+        let (tok, data) = recv(join(), self.response);
+        send(tok, self.terminator, true);
+    }
 }

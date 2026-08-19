@@ -13,45 +13,53 @@
 // limitations under the License.
 
 #![feature(type_inference_v2)]
+#![feature(explicit_state_access)]
+#![feature(generics)]
 
 // Basic example showing how a proc network can be created and connected.
 
 proc producer {
-    s: chan<u32> out;
+    s: chan<u32> out,
+    i: u32,
+}
 
-    config(input_s: chan<u32> out) { (input_s,) }
+impl producer {
+    fn new(input_s: chan<u32> out) -> Self {
+        producer { s: input_s, i: u32:0 }
+    }
 
-    init { u32:0 }
-
-    next(i: u32) {
+    fn next(self) {
+        let i = read(self.i);
         let foo = i + u32:1;
-        let tok = send(join(), s, foo);
-        foo
+        let tok = send(join(), self.s, foo);
+        write(self.i, foo);
     }
 }
 
 proc consumer<N: u32> {
-    r: chan<u32> in;
+    r: chan<u32> in,
+    i: u32,
+}
 
-    config(input_r: chan<u32> in) { (input_r,) }
+impl consumer<N> {
+    fn new(input_r: chan<u32> in) -> Self {
+        consumer { r: input_r, i: u32:0 }
+    }
 
-    init { u32:0 }
-
-    next(i: u32) {
-        let (tok, e) = recv(join(), r);
-        i + e + N
+    fn next(self) {
+        let i = read(self.i);
+        let (tok, e) = recv(join(), self.r);
+        write(self.i, i + e + N);
     }
 }
 
-proc main {
-    config() {
+proc main {}
+
+impl main {
+    fn new() -> Self {
         let (s, r) = chan<u32, u32:1>("my_chan");
-        spawn producer(s);
-        spawn consumer<u32:2>(r);
-        ()
+        producer::new(s).spawn();
+        consumer<u32:2>::new(r).spawn();
+        main {}
     }
-
-    init { () }
-
-    next(state: ()) { () }
 }

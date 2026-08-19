@@ -24,64 +24,77 @@
 // across activations.
 
 #![feature(type_inference_v2)]
+#![feature(explicit_state_access)]
+#![feature(generics)]
 
 pub proc serialized_decomposer {
-  ch_in: chan<uN[128]> in;
-  result1: chan<u32> out;
-  result2: chan<u32> out;
-  result3: chan<u32> out;
-  result4: chan<u32> out;
-
-  init { token() }
-
-  config(ch_in: chan<uN[128]> in, result1: chan<u32> out, result2: chan<u32> out, result3: chan<u32> out, result4: chan<u32> out) {
-    (ch_in, result1, result2, result3, result4)
-  }
-
-  next(tok: token) {
-    let (input_tok, val) = recv(token(), ch_in);
-    let tok = join(tok, input_tok);
-    let tok = send(tok, result1, val[0:32]);
-    let tok = send(tok, result2, val[32:64]);
-    let tok = send(tok, result3, val[64:96]);
-    send(tok, result4, val[96:128])
-  }
+    ch_in: chan<uN[128]> in,
+    result1: chan<u32> out,
+    result2: chan<u32> out,
+    result3: chan<u32> out,
+    result4: chan<u32> out,
+    tok: token,
 }
 
+impl serialized_decomposer {
+    fn new
+        (ch_in: chan<uN[128]> in, result1: chan<u32> out, result2: chan<u32> out,
+         result3: chan<u32> out, result4: chan<u32> out) -> Self {
+        serialized_decomposer { ch_in, result1, result2, result3, result4, tok: token() }
+    }
 
-#[test_proc]
+    fn next(self) {
+        let tok = read(self.tok);
+        let (input_tok, val) = recv(token(), self.ch_in);
+        let tok = join(tok, input_tok);
+        let tok = send(tok, self.result1, val[0:32]);
+        let tok = send(tok, self.result2, val[32:64]);
+        let tok = send(tok, self.result3, val[64:96]);
+        write(self.tok, send(tok, self.result4, val[96:128]));
+    }
+}
+
+#[test]
 proc serialized_decomposer_smoke_test {
-    data_in_s: chan<uN[128]> out;
-    data_out_1_r: chan<u32> in;
-    data_out_2_r: chan<u32> in;
-    data_out_3_r: chan<u32> in;
-    data_out_4_r: chan<u32> in;
-    terminator: chan<bool> out;
+    data_in_s: chan<uN[128]> out,
+    data_out_1_r: chan<u32> in,
+    data_out_2_r: chan<u32> in,
+    data_out_3_r: chan<u32> in,
+    data_out_4_r: chan<u32> in,
+    terminator: chan<bool> out,
+}
 
-    init { () }
-
-    config(terminator: chan<bool> out) {
+impl serialized_decomposer_smoke_test {
+    fn new(terminator: chan<bool> out) -> Self {
         let (data_in_s, data_in_r) = chan<uN[128]>("data_in");
         let (data_out_1_s, data_out_1_r) = chan<u32>("data_out_1");
         let (data_out_2_s, data_out_2_r) = chan<u32>("data_out_2");
         let (data_out_3_s, data_out_3_r) = chan<u32>("data_out_3");
         let (data_out_4_s, data_out_4_r) = chan<u32>("data_out_4");
-        spawn serialized_decomposer(data_in_r, data_out_1_s, data_out_2_s, data_out_3_s, data_out_4_s);
-
-        (data_in_s, data_out_1_r, data_out_2_r, data_out_3_r, data_out_4_r, terminator)
+        serialized_decomposer::new(
+            data_in_r, data_out_1_s, data_out_2_s, data_out_3_s, data_out_4_s).spawn(
+            );
+        serialized_decomposer_smoke_test {
+            data_in_s,
+            data_out_1_r,
+            data_out_2_r,
+            data_out_3_r,
+            data_out_4_r,
+            terminator,
+        }
     }
 
-    next(st: ()) {
-        let tok = send(token(), data_in_s, uN[128]:18446744073709551616);
-        let (tok, v1) = recv(tok, data_out_1_r);
+    fn next(self) {
+        let tok = send(token(), self.data_in_s, uN[128]:18446744073709551616);
+        let (tok, v1) = recv(tok, self.data_out_1_r);
         assert_eq(v1, u32:0);
-        let (tok, v2) = recv(tok, data_out_2_r);
+        let (tok, v2) = recv(tok, self.data_out_2_r);
         assert_eq(v2, u32:0);
-        let (tok, v3) = recv(tok, data_out_3_r);
+        let (tok, v3) = recv(tok, self.data_out_3_r);
         assert_eq(v3, u32:1);
-        let (tok, v4) = recv(tok, data_out_4_r);
+        let (tok, v4) = recv(tok, self.data_out_4_r);
         assert_eq(v4, u32:0);
 
-        send(tok, terminator, true);
+        send(tok, self.terminator, true);
     }
 }

@@ -677,6 +677,44 @@ impl MyProc<X, Y> {
 )");
 }
 
+TEST_F(LegacyProcConverterTest, ParametricProcWithManyParametrics) {
+  DoLegacyProcConversionFmt(
+      R"(proc MyProc<A: u32, B: u32, C: u32, D: u32, E: u32> {
+    s: chan<u32> out;
+    config(s: chan<u32> out) {
+        (s,)
+    }
+    init {
+        u32:0
+    }
+    next(state: u32) {
+        send(join(), s, state + A + B + C + D + E);
+        state + 1
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc MyProc<A: u32, B: u32, C: u32, D: u32, E: u32> {
+    s: chan<u32> out,
+    state: u32,
+}
+
+impl MyProc<A, B, C, D, E> {
+    fn new(s: chan<u32> out) -> Self {
+        MyProc { s, state: u32:0 }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        send(join(), self.s, state + A + B + C + D + E);
+        write(self.state, state + 1);
+    }
+}
+)");
+}
+
 TEST_F(LegacyProcConverterTest, TestProc) {
   DoLegacyProcConversionFmt(
       R"(proc Producer {
@@ -1216,6 +1254,193 @@ impl Producer {
     }
 }
 )"));
+}
+
+TEST_F(LegacyProcConverterTest, LongNewSignature) {
+  DoLegacyProcConversionFmt(
+      R"(proc MyProc {
+    first_long_channel_input: chan<u32> in;
+    second_long_channel_input: chan<u32> in;
+    third_long_channel_input: chan<u32> in;
+    fourth_long_channel_output: chan<u32> out;
+    config(first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in, third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out) {
+        (first_long_channel_input, second_long_channel_input, third_long_channel_input, fourth_long_channel_output)
+    }
+    init { () }
+    next(state: ()) {
+        let (tok, val) = recv(join(), first_long_channel_input);
+        send(tok, fourth_long_channel_output, val);
+        ()
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc MyProc {
+    first_long_channel_input: chan<u32> in,
+    second_long_channel_input: chan<u32> in,
+    third_long_channel_input: chan<u32> in,
+    fourth_long_channel_output: chan<u32> out,
+}
+
+impl MyProc {
+    fn new
+        (first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in,
+         third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out)
+        -> Self {
+        MyProc {
+            first_long_channel_input,
+            second_long_channel_input,
+            third_long_channel_input,
+            fourth_long_channel_output,
+        }
+    }
+
+    fn next(self) {
+        let (tok, val) = recv(join(), self.first_long_channel_input);
+        send(tok, self.fourth_long_channel_output, val);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, ParametricProcWithDefaults) {
+  DoLegacyProcConversionFmt(
+      R"(proc MyProc<FIRST_PARAM_WIDTH: u32, SECOND_PARAM_SIZE: u32, THIRD_PARAM_ADDR_WIDTH: u32 = {FIRST_PARAM_WIDTH + SECOND_PARAM_SIZE}> {
+    s: chan<bits[FIRST_PARAM_WIDTH]> out;
+    config(s: chan<bits[FIRST_PARAM_WIDTH]> out) {
+        (s,)
+    }
+    init { () }
+    next(state: ()) {
+        send(join(), s, bits[FIRST_PARAM_WIDTH]:0);
+        ()
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc MyProc<FIRST_PARAM_WIDTH: u32, SECOND_PARAM_SIZE: u32,
+            THIRD_PARAM_ADDR_WIDTH: u32 = {FIRST_PARAM_WIDTH + SECOND_PARAM_SIZE}> {
+    s: chan<bits[FIRST_PARAM_WIDTH]> out,
+}
+
+impl MyProc<FIRST_PARAM_WIDTH, SECOND_PARAM_SIZE, THIRD_PARAM_ADDR_WIDTH> {
+    fn new(s: chan<bits[FIRST_PARAM_WIDTH]> out) -> Self {
+        MyProc { s }
+    }
+
+    fn next(self) {
+        send(join(), self.s, bits[FIRST_PARAM_WIDTH]:0);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, LongSpawnStatement) {
+  DoLegacyProcConversionFmt(
+      R"(proc Child {
+    first_long_channel_input: chan<u32> in;
+    second_long_channel_input: chan<u32> in;
+    third_long_channel_input: chan<u32> in;
+    fourth_long_channel_output: chan<u32> out;
+    config(first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in, third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out) {
+        (first_long_channel_input, second_long_channel_input, third_long_channel_input, fourth_long_channel_output)
+    }
+    init { () }
+    next(state: ()) {
+        let (tok, val) = recv(join(), first_long_channel_input);
+        ()
+    }
+}
+
+proc Parent {
+    config(first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in, third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out) {
+        spawn Child(first_long_channel_input, second_long_channel_input, third_long_channel_input, fourth_long_channel_output);
+        ()
+    }
+    init { () }
+    next(state: ()) { () }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Child {
+    first_long_channel_input: chan<u32> in,
+    second_long_channel_input: chan<u32> in,
+    third_long_channel_input: chan<u32> in,
+    fourth_long_channel_output: chan<u32> out,
+}
+
+impl Child {
+    fn new
+        (first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in,
+         third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out)
+        -> Self {
+        Child {
+            first_long_channel_input,
+            second_long_channel_input,
+            third_long_channel_input,
+            fourth_long_channel_output,
+        }
+    }
+
+    fn next(self) {
+        let (tok, val) = recv(join(), self.first_long_channel_input);
+    }
+}
+
+proc Parent {}
+
+impl Parent {
+    fn new
+        (first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in,
+         third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out)
+        -> Self {
+        Child::new(
+            first_long_channel_input, second_long_channel_input, third_long_channel_input,
+            fourth_long_channel_output).spawn(
+            );
+        Parent {}
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, CopyrightNoticeWithFollowingComments) {
+  DoLegacyProcConversionFmt(
+      R"(// Copyright 2026 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+
+// Module comments.
+proc MyProc {
+    config() { () }
+    init { () }
+    next(state: ()) { () }
+}
+)",
+      R"(// Copyright 2026 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+// Module comments.
+proc MyProc {}
+
+impl MyProc {
+    fn new() -> Self {
+        MyProc {}
+    }
+}
+)");
 }
 
 }  // namespace

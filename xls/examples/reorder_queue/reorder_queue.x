@@ -1,5 +1,7 @@
 #![feature(type_inference_v2)]
 #![feature(channel_attributes)]
+#![feature(explicit_state_access)]
+#![feature(generics)]
 
 // Copyright 2025 The XLS Authors
 //
@@ -81,27 +83,33 @@ struct ReorderQueueState<T_WIDTH: u32, BUFFER_SIZE: u32, INDEX_WIDTH: u32> {
     buffer: BufferEntry<T_WIDTH>[BUFFER_SIZE],
 }
 
-pub proc reorder_queue<T_WIDTH: u32, BUFFER_SIZE: u32, TAG_WIDTH:
-u32 = {
-    u32:1 + std::flog2(BUFFER_SIZE - u32:1)}>
-{
-    type Tag = uN[TAG_WIDTH];
-    type T = uN[T_WIDTH];
+pub proc reorder_queue<T_WIDTH: u32, BUFFER_SIZE: u32,
+                       TAG_WIDTH: u32 = {u32:1 + std::flog2(BUFFER_SIZE - u32:1)},
+                       Tag: type = uN[TAG_WIDTH], T: type = uN[T_WIDTH]> {
+    ch_in: chan<(Tag, T)> in,
+    ch_out: chan<T> out,
+    state: ReorderQueueState<T_WIDTH, BUFFER_SIZE, TAG_WIDTH>,
+}
+
+impl reorder_queue<T_WIDTH, BUFFER_SIZE, TAG_WIDTH, Tag, T> {
     type Entry = BufferEntry<T_WIDTH>;
-    ch_in: chan<(Tag, T)> in;
-    ch_out: chan<T> out;
 
-    config(ch_in: chan<(Tag, T)> in, ch_out: chan<T> out) { (ch_in, ch_out) }
-
-    init {
-        ReorderQueueState {
-            head: HeadPosition { tag: Tag:0, generation_parity: u1:0 },
-            buffer: Entry[BUFFER_SIZE]:[Entry { data: zero!<T>(), generation_parity: u1:1 }, ...],
+    fn new(ch_in: chan<(Tag, T)> in, ch_out: chan<T> out) -> Self {
+        reorder_queue {
+            ch_in,
+            ch_out,
+            state: ReorderQueueState {
+                head: HeadPosition { tag: Tag:0, generation_parity: u1:0 },
+                buffer: Entry[BUFFER_SIZE]:[
+                    Entry { data: zero!<T>(), generation_parity: u1:1 }, ...
+                ],
+            },
         }
     }
 
-    next(state: ReorderQueueState<T_WIDTH, BUFFER_SIZE, TAG_WIDTH>) {
-        let (tok, in_val, in_valid) = recv_non_blocking(join(), ch_in, zero!<(Tag, T)>());
+    fn next(self) {
+        let state = read(self.state);
+        let (tok, in_val, in_valid) = recv_non_blocking(join(), self.ch_in, zero!<(Tag, T)>());
         let (in_tag, in_data) = in_val;
 
         // Determine output availability and select output data
@@ -137,7 +145,7 @@ u32 = {
 
         // TODO: https://github.com/google/xls/issues/1453 - Make this a non-blocking send so we can
         // handle backpressure by not advancing the head, rather than by stalling the entire proc.
-        send_if(tok, ch_out, should_send, out_data);
+        send_if(tok, self.ch_out, should_send, out_data);
 
         // If outputted, advance head and potentially flip generation on wrap-around
         let advance = should_send;
@@ -153,23 +161,21 @@ u32 = {
         } else {
             state.head
         };
-
-        ReorderQueueState { head: next_head, buffer: next_buffer }
+        write(self.state, ReorderQueueState { head: next_head, buffer: next_buffer });
     }
 }
 
 // Example instantiation:
-pub proc reorder_queue_32_16 {
+pub proc reorder_queue_32_16 {}
+
+impl reorder_queue_32_16 {
     type Tag = uN[4];
     type T = uN[32];
 
-    config(ch_in: chan<(Tag, T)> in, ch_out: chan<T> out) {
-        spawn reorder_queue<32, 16>(ch_in, ch_out);
+    fn new(ch_in: chan<(Tag, T)> in, ch_out: chan<T> out) -> Self {
+        reorder_queue<32, 16>::new(ch_in, ch_out).spawn();
+        reorder_queue_32_16 {}
     }
-
-    init {  }
-
-    next(state: ()) {  }
 }
 
 // Testing:
@@ -215,28 +221,29 @@ const TEST_TICKS = TestTick[12]:[
     TestTick { send: false, tag: 0, data: 0, recv: false, output: 0 },
 ];
 
-#[test_proc]
+#[test]
 proc reorder_queue_test {
-    to_queue: chan<(TestTag, TestT)> out;
-    from_queue: chan<TestT> in;
-    terminator: chan<bool> out;
+    to_queue: chan<(TestTag, TestT)> out,
+    from_queue: chan<TestT> in,
+    terminator: chan<bool> out,
+}
 
-    config(terminator: chan<bool> out) {
+impl reorder_queue_test {
+    fn new(terminator: chan<bool> out) -> Self {
         let (ch_in_s, ch_in_r) = #[channel(depth=0)]
                                  chan<(TestTag, TestT)>("queue_in_ch");
         let (ch_out_s, ch_out_r) = #[channel(depth=0)]
                                    chan<TestT>("queue_out_ch");
-        spawn reorder_queue<TEST_T_WIDTH, TEST_BUFFER_SIZE, TEST_TAG_WIDTH>(ch_in_r, ch_out_s);
-        (ch_in_s, ch_out_r, terminator)
+        reorder_queue<TEST_T_WIDTH, TEST_BUFFER_SIZE, TEST_TAG_WIDTH>::new(ch_in_r, ch_out_s).spawn(
+            );
+        reorder_queue_test { to_queue: ch_in_s, from_queue: ch_out_r, terminator }
     }
 
-    init { () }
-
-    next(state: ()) {
+    fn next(self) {
         let tok = for (i, tok) in u32:0..TEST_LENGTH {
             trace_fmt!("tick: {}", i);
             let send_tok = send_if(
-                tok, to_queue, TEST_TICKS[i].send, (TEST_TICKS[i].tag, TEST_TICKS[i].data));
+                tok, self.to_queue, TEST_TICKS[i].send, (TEST_TICKS[i].tag, TEST_TICKS[i].data));
             if TEST_TICKS[i].send {
                 trace_fmt!("sent: (tag: {}, data: {})", TEST_TICKS[i].tag, TEST_TICKS[i].data);
             };
@@ -245,19 +252,19 @@ proc reorder_queue_test {
                 // timing-sensitive test specifications for this to work; it currently fails when
                 // simulated without the schedule taken into account, because the simulator doesn't
                 // guarantee that the `reorder_queue`'s send will execute before this resolves.
-                let (recv_tok, out_data) = recv(send_tok, from_queue);
+                let (recv_tok, out_data) = recv(send_tok, self.from_queue);
                 trace_fmt!("received: {}, expected: {}", out_data, TEST_TICKS[i].output);
                 assert!(out_data == TEST_TICKS[i].output, "output_data_mismatch");
                 recv_tok
             } else {
                 let (recv_tok, out_data, received) =
-                    recv_non_blocking(send_tok, from_queue, zero!<TestT>());
+                    recv_non_blocking(send_tok, self.from_queue, zero!<TestT>());
                 if received { trace_fmt!("unexpectedly received: {}", out_data); };
                 assert!(!received, "output_validity_mismatch");
                 recv_tok
             }
         }(join());
 
-        send(tok, terminator, true);
+        send(tok, self.terminator, true);
     }
 }
