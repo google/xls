@@ -1069,6 +1069,9 @@ class Translator final : public GeneratorBase,
   absl::StatusOr<IOOpReturn> InterceptIOOp(const clang::Expr* expr,
                                            const xls::SourceInfo& loc,
                                            CValue assignment_value = CValue());
+  absl::StatusOr<IOOpReturn> InterceptTraceStreamOp(
+      const clang::Expr* expr, const xls::SourceInfo& loc,
+      CValue assignment_value = CValue());
 
   // IOOp must have io_call, and op members filled in
   // This will add a parameter for IO input if needed,

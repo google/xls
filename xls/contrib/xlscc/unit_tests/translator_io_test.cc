@@ -2046,6 +2046,64 @@ TEST_F(TranslatorIOTest, DebugTraceStructWithReference) {
                                      testing::HasSubstr("LValue")));
 }
 
+TEST_F(TranslatorIOTest, DebugTraceStream) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int r = in.read();
+         if(r != 7) {
+          __xlscc_trace_stream << "Value is " << r << ", blah " << 100;
+         }
+         out.write(3*r);
+       })";
+
+  {
+    auto trace_tuple = xls::Value::Tuple({xls::Value(xls::UBits(1, 1)),
+                                          xls::Value(xls::UBits(10, 32)),
+                                          xls::Value(xls::UBits(100, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 10, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}, blah {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 30, true)});
+  }
+  {
+    auto trace_tuple = xls::Value::Tuple({xls::Value(xls::UBits(0, 1)),
+                                          xls::Value(xls::UBits(7, 32)),
+                                          xls::Value(xls::UBits(100, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 7, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}, blah {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 21, true)});
+  }
+}
+
+TEST_F(TranslatorIOTest, DebugTraceStreamUnknownType) {
+  const std::string content = R"(
+       struct Thing {
+         int x;
+       };
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int r = in.read();
+         if(r != 7) {
+          Thing blah;
+          __xlscc_trace_stream << "Value is " << r << ", blah " << blah;
+         }
+         out.write(3*r);
+       })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("type")));
+}
+
 }  // namespace
 
 }  // namespace xlscc

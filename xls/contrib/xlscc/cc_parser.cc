@@ -1516,6 +1516,16 @@ void __xlscc_assert(const char*message, bool condition, const char*label=nullptr
 // See XLS IR trace op format
 void __xlscc_trace(const char*fmt, ...) { }
 
+class __xlscc_trace_stream_type {
+ public:
+  template<typename T>
+  __xlscc_trace_stream_type& operator<<(const T& val) {
+    return *this;
+  }
+};
+
+__xlscc_trace_stream_type __xlscc_trace_stream;
+
 // Forces the FSM to a new activation / initiation.
 // The transition will be conditional on the context like an IO operation.
 template<bool conditional>
