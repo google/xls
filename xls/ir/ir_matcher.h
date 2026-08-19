@@ -1269,14 +1269,16 @@ inline ::testing::Matcher<const ::xls::Node*> OutputPort(
 //   EXPECT_THAT(x, m::StateRead());
 //   EXPECT_THAT(x, m::StateRead("x"));
 //   EXPECT_THAT(x, m::StateRead(HasSubstr("substr")));
-//
+//   EXPECT_THAT(x, m::StateReadWithLabel("x", "label"));
+//   EXPECT_THAT(x, m::StateReadWithLabel("x", m::Literal(predicate), "label"));
 class StateReadMatcher : public NodeMatcher {
  public:
   explicit StateReadMatcher(
       std::optional<::testing::Matcher<const std::string>> state_element_name,
       std::optional<::testing::Matcher<const std::optional<std::string>&>>
-          label = std::nullopt)
-      : NodeMatcher(Op::kStateRead, /*operands=*/{}),
+          label = std::nullopt,
+      absl::Span<const ::testing::Matcher<const Node*>> operands = {})
+      : NodeMatcher(Op::kStateRead, operands),
         state_element_name_(std::move(state_element_name)),
         label_(std::move(label)) {}
 
@@ -1290,7 +1292,7 @@ class StateReadMatcher : public NodeMatcher {
 };
 
 template <typename T>
-inline ::testing::Matcher<const ::xls::Node*> StateRead(
+inline ::testing::Matcher<const ::xls::Node*> StateReadWithLabel(
     T state_element_name,
     ::testing::Matcher<const std::optional<std::string>&> label)
   requires(std::is_convertible_v<T, std::string_view>)
@@ -1300,10 +1302,29 @@ inline ::testing::Matcher<const ::xls::Node*> StateRead(
       label);
 }
 
-inline ::testing::Matcher<const ::xls::Node*> StateRead(
+inline ::testing::Matcher<const ::xls::Node*> StateReadWithLabel(
     ::testing::Matcher<const std::string> name,
     ::testing::Matcher<const std::optional<std::string>&> label) {
   return ::xls::op_matchers::StateReadMatcher(std::move(name), label);
+}
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::Node*> StateReadWithLabel(
+    T state_element_name, ::testing::Matcher<const Node*> predicate,
+    ::testing::Matcher<const std::optional<std::string>&> label)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return ::xls::op_matchers::StateReadMatcher(
+      internal::NameMatcherInternal(std::string_view{state_element_name}),
+      label, {predicate});
+}
+
+inline ::testing::Matcher<const ::xls::Node*> StateReadWithLabel(
+    ::testing::Matcher<const std::string> name,
+    ::testing::Matcher<const Node*> predicate,
+    ::testing::Matcher<const std::optional<std::string>&> label) {
+  return ::xls::op_matchers::StateReadMatcher(std::move(name), label,
+                                              {predicate});
 }
 
 template <typename T>

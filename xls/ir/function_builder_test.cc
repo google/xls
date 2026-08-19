@@ -990,7 +990,7 @@ TEST(FunctionBuilderTest, ProcWithNextValueWithLabel) {
               m::NextWithStateElementWithLabel(
                   proc->GetStateElementByName("y").value(), m::StateRead("z"),
                   m::StateRead("x"), Optional(StrEq("y_next_label"))));
-  EXPECT_THAT(y.node(), m::StateRead("y", Optional(StrEq("y_label"))));
+  EXPECT_THAT(y.node(), m::StateReadWithLabel("y", Optional(StrEq("y_label"))));
 }
 
 TEST(FunctionBuilderTest, StateReadIsDefinitelyEqualTo) {

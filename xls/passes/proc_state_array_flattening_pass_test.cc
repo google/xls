@@ -149,7 +149,7 @@ TEST_F(ProcStateArrayFlatteningPassTest,
 
   EXPECT_THAT(RunArrayFlattening(proc), IsOkAndHolds(true));
   EXPECT_THAT(proc->nodes(),
-              Contains(m::StateRead(
+              Contains(m::StateReadWithLabel(
                   "state", std::optional<std::string>("my_read_label"))));
   EXPECT_THAT(
       proc->nodes(),

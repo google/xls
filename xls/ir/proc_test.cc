@@ -638,8 +638,8 @@ TEST_F(ProcTest, TransformStateElementDecoupled) {
                                       m::Literal(0), m::Not(cond.node())));
 
   // Make sure that 'new_state_read' takes over the name and everything.
-  EXPECT_THAT(new_st,
-              m::StateRead("st", std::optional<std::string>("my_read_label")));
+  EXPECT_THAT(new_st, m::StateReadWithLabel(
+                          "st", std::optional<std::string>("my_read_label")));
   EXPECT_THAT(new_st->users(), UnorderedElementsAre(m::Neg(new_st)));
 
   // Verify new next nodes (labeled and unlabeled)
