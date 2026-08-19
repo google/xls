@@ -449,7 +449,7 @@ TEST_F(ProcStateFlatteningPassTest,
                   p.get(), OptimizationPassOptions(), &results, context),
               IsOkAndHolds(true));
   EXPECT_THAT(proc->nodes(),
-              Contains(m::StateRead(
+              Contains(m::StateReadWithLabel(
                   "state_0", std::optional<std::string>("my_read_label"))));
   EXPECT_THAT(proc->nodes(),
               Contains(m::NextWithStateElementWithLabel(
