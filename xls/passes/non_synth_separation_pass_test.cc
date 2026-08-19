@@ -218,6 +218,33 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledReadWriteState) {
                                                         m::Literal(42))));
 }
 
+TEST_F(NonSynthSeparationPassTest, NonSynthReadAndNextPreservesPredicate) {
+  auto p = CreatePackage();
+  ProcBuilder pb("proc1", p.get());
+  BStateElement cond_element =
+      pb.StateElement("cond", Value(UBits(1, 1)), /*non_synthesizable=*/false);
+  BValue cond_read = pb.StateRead(cond_element);
+  BStateElement data_element =
+      pb.StateElement("data", Value(UBits(0, 32)), /*non_synthesizable=*/false);
+  BValue data_read = pb.StateRead(data_element, cond_read);
+  pb.Assert(pb.Literal(Value::Token()),
+            pb.Eq(data_read, pb.Literal(UBits(0, 32))), "");
+  pb.Next(cond_element, pb.Not(cond_read));
+  pb.Next(data_element, data_read, cond_read);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StateElement * data_element_non_synth,
+                           proc->GetStateElementByName("data_non_synth"));
+  EXPECT_THAT(
+      proc->GetStateReadsByStateElement(data_element_non_synth),
+      testing::ElementsAre(m::StateRead("data_non_synth", cond_read.node())));
+  EXPECT_THAT(proc->next_values(data_element_non_synth),
+              testing::ElementsAre(m::NextWithStateElement(
+                  data_element_non_synth, data_read.node(), cond_read.node())));
+}
+
 TEST_F(NonSynthSeparationPassTest, FunctionsAreClonedWithNoDuplicateNames) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
