@@ -528,7 +528,6 @@ cc_library(
         ":inference_table",
         ":inference_table_utils",
         ":type_annotation_utils",
-        "//xls/common:attribute_data",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

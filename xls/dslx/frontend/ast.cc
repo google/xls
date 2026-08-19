@@ -1219,6 +1219,17 @@ std::string TypeVariableTypeAnnotation::ToString() const {
                       type_variable_->ToString());
 }
 
+bool TypeVariableTypeAnnotation::IsGeneric() const {
+  if (type_variable()->GetDefiner() == nullptr) {
+    return false;
+  }
+  if (type_variable()->GetDefiner()->kind() != AstNodeKind::kTypeAnnotation) {
+    return false;
+  }
+  return absl::down_cast<const TypeAnnotation*>(type_variable()->GetDefiner())
+      ->IsAnnotation<GenericTypeAnnotation>();
+}
+
 // -- class MemberTypeAnnotation
 
 MemberTypeAnnotation::MemberTypeAnnotation(Module* owner, Span span,

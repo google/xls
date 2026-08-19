@@ -661,6 +661,8 @@ class TypeVariableTypeAnnotation : public TypeAnnotation {
     return v->HandleTypeVariableTypeAnnotation(this);
   }
 
+  bool IsGeneric() const;
+
  private:
   const NameRef* const type_variable_;
   bool internal_;

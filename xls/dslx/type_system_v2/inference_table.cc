@@ -108,7 +108,9 @@ absl::StatusOr<InferenceVariableKind> TypeAnnotationToInferenceVariableKind(
         return InferenceVariableKind::kInteger;
     }
   }
-  if (annotation->IsAnnotation<GenericTypeAnnotation>()) {
+  if (annotation->IsAnnotation<GenericTypeAnnotation>() ||
+      (annotation->IsAnnotation<TypeVariableTypeAnnotation>() &&
+       annotation->AsAnnotation<TypeVariableTypeAnnotation>()->IsGeneric())) {
     return InferenceVariableKind::kType;
   }
   if (GetSignednessAndBitCount(annotation).ok() ||
@@ -635,7 +637,7 @@ class InferenceTableImpl : public InferenceTable {
     XLS_ASSIGN_OR_RETURN(
         std::vector<const TypeAnnotation*> annotations,
         GetTypeAnnotationsForTypeVariable(parametric_context, variable));
-    XLS_RET_CHECK_EQ(annotations.size(), 1);
+    XLS_RET_CHECK(!annotations.empty());
     return const_cast<TypeAnnotation*>(annotations[0]);
   }
 

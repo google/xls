@@ -1452,5 +1452,257 @@ const_assert!(TWO[4] == S<8>{x: 4});
                               HasNodeWithType("TWO", "S { x: uN[8] }[5]"))));
 }
 
+TEST(TypecheckV2GenericsTest, StructConstantAndTypeDefinedByParametrics) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<T: type, C: T> { }
+
+impl S<T, C> {
+  const CONST = C;
+}
+
+const FIVE = S<u32, u32:5>::CONST;
+const FIVE_AGAIN = S<u32, FIVE>::CONST;
+const SIX = S<u24, u24:6>::CONST;
+const TRUE = S<bool, true>::CONST;
+
+const_assert!(FIVE == u32:5);
+const_assert!(FIVE_AGAIN == u32:5);
+const_assert!(SIX == u24:6);
+const_assert!(TRUE == true);
+
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("FIVE", "uN[32]"),
+                              HasNodeWithType("TRUE", "uN[1]"))));
+}
+
+TEST(TypecheckV2GenericsTest,
+     StructConstantAndTypeDefinedByParametricsTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<T: type, C: T> { }
+
+impl S<T, C> {
+  const CONST: T = C;
+}
+
+const FIVE = S<u16, u32:5>::CONST;
+)",
+      TypecheckFails(HasSizeMismatch("uN[32]", "uN[16]")));
+}
+
+TEST(TypecheckV2GenericsTest,
+     StructConstantAndTypeDefinedByParametricsTypeMismatchOnStruct) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<T: type, C: T> { }
+
+impl S<T, C> {
+  const CONST: T = C;
+}
+
+const FIVE_STRUCT = S<u16, u32:5>{};
+)",
+      TypecheckFails(HasSizeMismatch("uN[32]", "uN[16]")));
+}
+
+TEST(TypecheckV2GenericsTest,
+     StructConstantAndTypeDefinedByParametricsTypeMismatchIndirect) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<T: type, C: T> { }
+
+impl S<T, C> {
+  const CONST: T = C;
+}
+
+const FIVE = u32:5;
+const FIVE_STRUCT = S<u16, FIVE>{};
+)",
+      TypecheckFails(HasSizeMismatch("uN[32]", "uN[16]")));
+}
+
+TEST(TypecheckV2GenericsTest, StructConstantAndTypeDefinedByNestedParametrics) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<T: type, C: T> { }
+
+impl S<T, C> {
+  const CONST: T = C;
+}
+
+fn main<T: type, C: T>() -> T {
+  S<T, C>::CONST
+}
+
+const FIVE = main<u32, u32:5>();
+const SIX = main<u32, u32:6>();
+const TRUE = main<bool, true>();
+
+const_assert!(FIVE == u32:5);
+const_assert!(TRUE == true);
+
+)",
+      TypecheckSucceeds(HasNodeWithType("FIVE", "uN[32]")));
+}
+
+TEST(TypecheckV2GenericsTest,
+     StructConstantAndTypeDefinedByNestedParametricsTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<T: type, C: T> { }
+
+impl S<T, C> {
+  const CONST: T = C;
+}
+
+fn main<T: type, C: T>() -> T {
+  S<T, C>::CONST
+}
+
+const FIVE = main<u24, u32:5>();
+)",
+      TypecheckFails(HasSizeMismatch("uN[32]", "uN[24]")));
+}
+
+TEST(TypecheckV2GenericsTest, ConstantAndTypeInDifferentContexts) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+fn five<T: type>() -> T {
+  T:5
+}
+
+fn main<T: type, C: T>() -> T {
+  C - five<T>()
+}
+
+const FIVE = main<u32, u32:10>();
+const SIX = main<u16, u16:11>();
+
+const_assert!(FIVE == u32:5);
+const_assert!(SIX == u16:6);
+
+)",
+      TypecheckSucceeds(HasNodeWithType("FIVE", "uN[32]")));
+}
+
+TEST(TypecheckV2GenericsTest, TypeInStructDefConstantInImplFn) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+struct S<T: type> {}
+
+impl S<T> {
+  fn add_one<C: T>() -> T {
+    C + 1
+  }
+}
+
+const FIVE = S<u32>::add_one<u32:4>();
+const SIX = S<u16>::add_one<u16:5>();
+
+const_assert!(FIVE == u32:5);
+const_assert!(SIX == u16:6);
+
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("FIVE", "uN[32]"),
+                              HasNodeWithType("SIX", "uN[16]"))));
+}
+
+TEST(TypecheckV2GenericsTest, TypeInStructDefConstantInImplFnTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+struct S<T: type> {}
+
+impl S<T> {
+  fn add_one<C: T>() -> T {
+    C + 1
+  }
+}
+
+const FIVE = S<u32>::add_one<u16:4>();
+
+)",
+      TypecheckFails(HasSizeMismatch("uN[32]", "uN[16]")));
+}
+
+// TODO(erinzmoore): Support this case.
+TEST(TypecheckV2GenericsTest, DISABLED_StructConstantAndTypeSolvedFor) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+struct S<T: type, C: T> { a: T, b: uN[C] }
+const CONST = S { a: u32:1, b: u16:2 };
+
+const_assert!(CONST.b == u16:2);
+)",
+      TypecheckSucceeds(HasNodeWithType("CONST", "S { a: uN[32], b: uN[16]")));
+}
+
+// TODO(erinzmoore): Support this case.
+TEST(TypecheckV2GenericsTest, DISABLED_StructConstantAndTypeUsedInImplFn) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct lm<T: type, C: T> {}
+
+impl lm<T, C> {
+  const CONST : T = C;
+
+  fn call(i: T) -> T {
+    i + CONST
+  }
+}
+
+fn main<T: type>() -> T[5] {
+  const LOCAL_CONST = T:5;
+  map(T:0..5, lm<T, LOCAL_CONST>{}.call)
+}
+
+const RES = main<u32>();
+const RES2 = main<u16>();
+
+const_assert!(RES == [u32:5, 6, 7, 8, 9]);
+const_assert!(RES2 == [u16:5, 6, 7, 8, 9]);
+
+)",
+      TypecheckSucceeds(HasNodeWithType("RES", "uN[32][5]")));
+}
+
+// TODO(erinzmoore): Support inferring the type of C from T.
+TEST(TypecheckV2GenericsTest,
+     DISABLED_StructConstantAndTypeDefinedByParametricsTypeFromT) {
+  EXPECT_THAT(
+      R"(
+#![feature(generics)]
+
+struct S<T: type, C: T> { }
+
+impl S<T, C> {
+  const CONST = C;
+}
+
+const FIVE = S<u32, 5>::CONST;
+const_assert!(FIVE == u32:5);
+)",
+      TypecheckSucceeds(HasNodeWithType("FIVE", "uN[32]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
