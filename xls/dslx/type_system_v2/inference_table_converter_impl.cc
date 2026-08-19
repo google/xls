@@ -1467,9 +1467,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         }
         continue;
       }
-      XLS_ASSIGN_OR_RETURN(
-          std::unique_ptr<Type> binding_type,
-          Concretize(binding->type_annotation(), std::nullopt));
       std::optional<InterpValue> value;
       const auto it = env_values.find(binding->identifier());
       if (it != env_values.end()) {
@@ -1487,13 +1484,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                        struct_context, binding->type_annotation(),
                        std::get<Expr*>(*binding->default_expr_or_type()))));
       }
-
+      XLS_RETURN_IF_ERROR(PropagateGenericTypeToParametric(
+          binding, value_exprs.at(binding->name_def()), parent_context,
+          struct_context));
       VLOG(6) << "Setting binding: " << binding->identifier()
               << " in context: " << ToString(struct_context)
               << " to value: " << value->ToString();
-
-      ti->SetItem(binding->name_def(), *binding_type);
       ti->NoteConstExpr(binding->name_def(), *value);
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<Type> binding_type,
+          Concretize(binding->type_annotation(), std::nullopt));
+      ti->SetItem(binding->name_def(), *binding_type);
     }
     table_.SetParametricValueExprs(struct_context, std::move(value_exprs));
     if (ref.def->impl().has_value()) {
@@ -2165,6 +2166,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         invocation_context->type_info()->NoteConstExpr(binding->name_def(),
                                                        value);
         values.emplace(binding->name_def()->identifier(), value);
+        XLS_RETURN_IF_ERROR(PropagateGenericTypeToParametric(
+            binding, const_cast<Expr*>(expr->expr()), expr->context(),
+            invocation_context));
       } else {
         implicit_parametrics.insert(binding);
       }
@@ -2517,6 +2521,39 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return values;
   }
 
+  //  In the case of a generically-typed parametric, e.g.
+  //   struct<T: type, C: T> ...
+  //  propagate the type of C to T.
+  absl::Status PropagateGenericTypeToParametric(
+      const ParametricBinding* binding, ExprOrType value_expr,
+      std::optional<const ParametricContext*> expr_context,
+      std::optional<const ParametricContext*> parametric_context) {
+    if (!binding->type_annotation()
+             ->IsAnnotation<TypeVariableTypeAnnotation>()) {
+      return absl::OkStatus();
+    }
+    if (!binding->type_annotation()
+             ->AsAnnotation<TypeVariableTypeAnnotation>()
+             ->IsGeneric()) {
+      return absl::OkStatus();
+    }
+    XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> ta,
+                         resolver_->ResolveAndUnifyTypeAnnotationsForNode(
+                             expr_context, ToAstNode(value_expr)));
+    if (ta.has_value()) {
+      VLOG(6) << "Propagating type " << (*ta)->ToString()
+              << " to type variable: " << binding->type_annotation()->ToString()
+              << " in context " << ToString(parametric_context);
+      return table_.AddTypeAnnotationToVariableForParametricContext(
+          parametric_context,
+          binding->type_annotation()
+              ->AsAnnotation<TypeVariableTypeAnnotation>()
+              ->type_variable(),
+          *ta);
+    }
+    return absl::OkStatus();
+  }
+
   // Replaces parametrics and constants in a `type` which is being passed
   // (explicitly or implicitly) as a type parametric. This is necessary because
   // it amounts to passing the type over a parametric context boundary. For
@@ -2606,8 +2643,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         table_.GetCachedParametricStructContext(&def, env);
 
     TypeInfo* instance_type_info;
+    std::optional<const ParametricContext*> concretize_context = parent_context;
     if (context_result.has_value()) {
       instance_type_info = context_result->context->type_info();
+      concretize_context = context_result->context;
     } else {
       // If the context is not yet cached, create a temporary TypeInfo to
       // instantiate the struct for now. At this stage, we may not have full
@@ -2633,7 +2672,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<Type> binding_type,
-          Concretize(binding->type_annotation(), parent_context));
+          Concretize(binding->type_annotation(), concretize_context));
       instance_type_info->SetItem(binding->name_def(), *binding_type);
       instance_type_info->NoteConstExpr(binding->name_def(), value);
       // We need a span that is local to the module we are creating AST nodes

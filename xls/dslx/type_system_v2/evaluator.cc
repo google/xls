@@ -123,20 +123,26 @@ class EvaluatorImpl : public Evaluator {
       const Expr* expr) override {
     TypeSystemTrace trace = tracer_.TraceEvaluate(parametric_context, expr);
 
+    // Only attempt to concretize if the type annotation is not a generic TVTA.
+    // Otherwise, we will still attempt to evaluate the expression and use its
+    // result to determine the type.
+    bool concretize =
+        !(type_annotation->IsAnnotation<TypeVariableTypeAnnotation>() &&
+          type_annotation->AsAnnotation<TypeVariableTypeAnnotation>()
+              ->IsGeneric());
     // This is the type of the parametric binding we are talking about, which is
     // typically a built-in type, but the way we are concretizing it here would
     // support it being a complex type that even refers to other parametrics.
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<Type> type,
-        converter_.Concretize(type_annotation, parametric_context,
-                              /*needs_conversion_before_eval=*/false));
+    if (concretize) {
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<Type> type,
+          converter_.Concretize(type_annotation, parametric_context,
+                                /*needs_conversion_before_eval=*/false));
+      type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
+    }
     if (!type_info->Contains(const_cast<Expr*>(expr))) {
       XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
           expr, /*function=*/std::nullopt, parametric_context));
-    }
-    if (type_annotation->owner() == &module_) {
-      // Prevent bleed-over from a different module.
-      type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
     }
 
     // TODO(williamjhuang) - See ConstexprEvaluator::InterpretExpr(const Expr*)
