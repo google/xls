@@ -23,6 +23,7 @@
 #include <cstring>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -79,16 +80,19 @@ class CseNode {
   CseNode& operator=(CseNode&&) = default;
   CseNode& operator=(const CseNode&) = default;
   CseNode(Op op, std::vector<CseNode*> operands,
-          std::variant<int64_t, std::vector<uint8_t>> misc_data, Type* type)
+          std::variant<int64_t, std::vector<uint8_t>> misc_data, Type* type,
+          std::optional<int64_t> stage_index = std::nullopt)
       : op_(op),
         operands_(std::move(operands)),
         misc_data_(std::move(misc_data)),
         type_(type),
+        stage_index_(stage_index),
         id_(-1) {}
   CseNode(Node* n, std::vector<CseNode*> operands,
-          std::variant<int64_t, std::vector<uint8_t>> misc_data)
+          std::variant<int64_t, std::vector<uint8_t>> misc_data,
+          std::optional<int64_t> stage_index = std::nullopt)
       : CseNode(n->op(), std::move(operands), std::move(misc_data),
-                n->GetType()) {}
+                n->GetType(), stage_index) {}
 
   bool is_forced_unique() const {
     return std::holds_alternative<int64_t>(misc_data_);
@@ -109,6 +113,9 @@ class CseNode {
     if (type_ != other.type_) {
       return false;
     }
+    if (stage_index_ != other.stage_index_) {
+      return false;
+    }
     if (operands_.size() != other.operands_.size()) {
       return false;
     }
@@ -124,7 +131,7 @@ class CseNode {
   // Required for absl::Hash.
   template <typename H>
   friend H AbslHashValue(H h, const CseNode& c) {
-    h = H::combine(std::move(h), c.op_, c.misc_data_, c.type_);
+    h = H::combine(std::move(h), c.op_, c.misc_data_, c.type_, c.stage_index_);
     for (const CseNode* operand : c.operands_) {
       h = H::combine(std::move(h), operand);
     }
@@ -150,6 +157,9 @@ class CseNode {
   // CseNode.
   std::variant<int64_t, std::vector<uint8_t>> misc_data_;
   Type* type_;
+  // The stage index of the node, if it is in a scheduled function.
+  std::optional<int64_t> stage_index_;
+
   // id used for sorting only. Not considered part of the struct for hash or eq.
   int64_t id_;
 };
@@ -203,6 +213,10 @@ class CseNodeArena {
           std::back_inserter(operands), Get(operand),
           _ << "Unable to cse " << n << " due to operand being unvisited");
     }
+    std::optional<int64_t> stage_index;
+    if (n->function_base()->IsStaged(n)) {
+      XLS_ASSIGN_OR_RETURN(stage_index, n->function_base()->GetStageIndex(n));
+    }
     if (OpIsCommutative(n->op())) {
       absl::c_sort(operands,
                    [](CseNode* a, CseNode* b) { return a->id() < b->id(); });
@@ -225,18 +239,21 @@ class CseNodeArena {
       case Op::kArrayIndex: {
         return std::make_unique<CseNode>(
             n, std::move(operands),
-            std::vector<uint8_t>{n->As<ArrayIndex>()->assumed_in_bounds()});
+            std::vector<uint8_t>{n->As<ArrayIndex>()->assumed_in_bounds()},
+            stage_index);
       }
       // assumed_in_bounds_
       case Op::kArrayUpdate: {
         return std::make_unique<CseNode>(
             n, std::move(operands),
-            std::vector<uint8_t>{n->As<ArrayUpdate>()->assumed_in_bounds()});
+            std::vector<uint8_t>{n->As<ArrayUpdate>()->assumed_in_bounds()},
+            stage_index);
       }
       // start
       case Op::kBitSlice: {
-        return std::make_unique<CseNode>(
-            n, std::move(operands), bytes_data(n->As<BitSlice>()->start()));
+        return std::make_unique<CseNode>(n, std::move(operands),
+                                         bytes_data(n->As<BitSlice>()->start()),
+                                         stage_index);
       }
       // priority
       case Op::kOneHot: {
@@ -244,12 +261,14 @@ class CseNodeArena {
             n, std::move(operands),
             std::vector<uint8_t>{n->As<OneHot>()->priority() == LsbOrMsb::kLsb
                                      ? uint8_t{1}
-                                     : uint8_t{0}});
+                                     : uint8_t{0}},
+            stage_index);
       }
       // index
       case Op::kTupleIndex: {
         return std::make_unique<CseNode>(
-            n, std::move(operands), bytes_data(n->As<TupleIndex>()->index()));
+            n, std::move(operands), bytes_data(n->As<TupleIndex>()->index()),
+            stage_index);
       }
       // trip-count, stride, body-function
       case Op::kCountedFor: {
@@ -259,28 +278,31 @@ class CseNodeArena {
         add_bytes(data, static_cast<int64_t>(std::bit_cast<intptr_t>(
                             n->As<CountedFor>()->body())));
         return std::make_unique<CseNode>(n, std::move(operands),
-                                         std::move(data));
+                                         std::move(data), stage_index);
       }
       // function
       case Op::kDynamicCountedFor: {
         return std::make_unique<CseNode>(
             n, std::move(operands),
             bytes_data(static_cast<int64_t>(
-                std::bit_cast<intptr_t>(n->As<DynamicCountedFor>()->body()))));
+                std::bit_cast<intptr_t>(n->As<DynamicCountedFor>()->body()))),
+            stage_index);
       }
       // function
       case Op::kInvoke: {
         return std::make_unique<CseNode>(
             n, std::move(operands),
             bytes_data(static_cast<int64_t>(
-                std::bit_cast<intptr_t>(n->As<Invoke>()->to_apply()))));
+                std::bit_cast<intptr_t>(n->As<Invoke>()->to_apply()))),
+            stage_index);
       }
       // function
       case Op::kMap: {
         return std::make_unique<CseNode>(
             n, std::move(operands),
             bytes_data(static_cast<int64_t>(
-                std::bit_cast<intptr_t>(n->As<Map>()->to_apply()))));
+                std::bit_cast<intptr_t>(n->As<Map>()->to_apply()))),
+            stage_index);
       }
       // The actual literal value (or 'do not cse' if !common_literals_)
       case Op::kLiteral: {
@@ -292,10 +314,11 @@ class CseNodeArena {
           XLS_RET_CHECK(proto.SerializeToArray(data.data(), data.size()))
               << "Failed to serialize literal for " << n;
           return std::make_unique<CseNode>(n, std::move(operands),
-                                           std::move(data));
+                                           std::move(data), stage_index);
         }
         // We don't want to merge literals so just make each of them unique.
-        return std::make_unique<CseNode>(n, std::move(operands), non_cse_id_++);
+        return std::make_unique<CseNode>(n, std::move(operands), non_cse_id_++,
+                                         stage_index);
       }
       // do not cse. All of these should never be merged since they are
       // side-effecting.
@@ -317,7 +340,8 @@ class CseNodeArena {
       case Op::kSendChannelEnd:
       case Op::kStateRead:
       case Op::kTrace: {
-        return std::make_unique<CseNode>(n, std::move(operands), non_cse_id_++);
+        return std::make_unique<CseNode>(n, std::move(operands), non_cse_id_++,
+                                         stage_index);
       }
       // everything below here does not need any additional information.
       case Op::kAdd:
@@ -372,7 +396,7 @@ class CseNodeArena {
       case Op::kXorReduce:
       case Op::kZeroExt: {
         return std::make_unique<CseNode>(n, std::move(operands),
-                                         std::vector<uint8_t>{});
+                                         std::vector<uint8_t>{}, stage_index);
       }
     }
   }

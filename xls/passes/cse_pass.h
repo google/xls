@@ -32,7 +32,7 @@ namespace xls {
 // to the `replacements` hash map if it is not `nullptr`. Note that for many
 // common uses of the `replacements` map, you'll want to compute the transitive
 // closure of the relation rather than using it as-is.
-absl::StatusOr<bool> RunCse(FunctionBase* f,
+absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext& context,
                             absl::flat_hash_map<Node*, Node*>* replacements,
                             bool common_literals = true);
 
