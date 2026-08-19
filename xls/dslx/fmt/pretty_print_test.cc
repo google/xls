@@ -213,6 +213,36 @@ TEST(PrettyPrintTest, PrefixedReflowCustomSpacingBeforeToken) {
   EXPECT_EQ(PrettyPrint(arena, ref, 40), R"(//     I like this many spaces)");
 }
 
+// A block of abutted comment lines that each fit is preserved one-per-line,
+// with the prefix reintroduced on every line.
+TEST(PrettyPrintTest, PrefixedReflowMultiLineAllFit) {
+  FileTable file_table;
+  DocArena arena(file_table);
+  DocRef ref = arena.MakePrefixedReflow("//", " alpha\n beta\n gamma");
+  EXPECT_EQ(PrettyPrint(arena, ref, 20), R"(// alpha
+// beta
+// gamma)");
+}
+
+// When a line overflows and the next line fits in the remaining columns,
+// the next line reflows onto the wrapped line WITHOUT a second prefix.
+TEST(PrettyPrintTest, PrefixedReflowMultiLineOverflowThenFitContinues) {
+  FileTable file_table;
+  DocArena arena(file_table);
+  DocRef ref = arena.MakePrefixedReflow("//", " aaaa bbbb cccc\n dddd");
+  EXPECT_EQ(PrettyPrint(arena, ref, 16), R"(// aaaa bbbb
+// cccc dddd)");
+}
+
+// A lower line does not reflow upward into a line that did not overflow.
+TEST(PrettyPrintTest, PrefixedReflowMultiLineBoundaryPreserved) {
+  FileTable file_table;
+  DocArena arena(file_table);
+  DocRef ref = arena.MakePrefixedReflow("//", " one\n two");
+  EXPECT_EQ(PrettyPrint(arena, ref, 40), R"(// one
+// two)");
+}
+
 // Scenario where we use NestIfFlatFits and the "on_other_ref" DOES NOT fits
 // inline into the current line so we emit the "on_nested_flat_ref" into the
 // subsequent line (it does fit there).
