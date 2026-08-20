@@ -83,6 +83,7 @@ TEST(FunctionConverterTest, ConvertsSimpleFunctionWithAsserts) {
         assert!(u32:42 == u32:31 + u32:1, "foo");
         assert_eq(u32:42, u32:31 + u32:1);
         assert_lt(u32:41, u32:31 + u32:1);
+        assert_ne(u32:41, u32:31 + u32:1);
       })",
                         "test_module.x", "test_module", &import_data));
 

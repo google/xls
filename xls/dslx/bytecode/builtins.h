@@ -92,6 +92,10 @@ absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
                                 InterpreterStack& stack, const Frame& frame,
                                 const BytecodeInterpreterOptions& options,
                                 const std::optional<ProcId>& caller_proc_id);
+absl::Status RunBuiltinAssertNe(const Bytecode& bytecode,
+                                InterpreterStack& stack, const Frame& frame,
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id);
 
 // Returns a differences string in the style of Rust's pretty_assertions.
 // All lines are indented by two positions.
