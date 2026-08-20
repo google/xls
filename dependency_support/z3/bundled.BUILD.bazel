@@ -32,6 +32,13 @@ package(
 
 gen_srcs()
 
+# Z3 declares its 4-argument `allocate` under `Z3DEBUG` but gates the `alloc()`
+# macro that calls it on `_DEBUG`, which our toolchain sets in `-c dbg` builds.
+config_setting(
+    name = "dbg_build",
+    values = {"compilation_mode": "dbg"},
+)
+
 common_copts = [
     "-fexceptions",
     "-fsigned-char",
@@ -49,7 +56,10 @@ common_copts = [
     "-D_EXTERNAL_RELEASE",
     "-D_LINUX_",
     "-D_NO_OMP_",
-]
+] + select({
+    ":dbg_build": ["-DZ3DEBUG"],
+    "//conditions:default": [],
+})
 
 common_linkopts = [
     "-lpthread",
