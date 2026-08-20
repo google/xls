@@ -5,23 +5,23 @@ module AddNegateFlopOutputsNotInputs(
   output wire [7:0] out
 );
   // ===== Pipe stage 0:
-  wire [7:0] p0_add_30_comb;
-  assign p0_add_30_comb = x + y;
+  wire [7:0] p0_add_33_comb;
+  assign p0_add_33_comb = x + y;
 
   // Registers for pipe stage 0:
   reg [7:0] p0_add_3;
   always @ (posedge clk) begin
-    p0_add_3 <= p0_add_30_comb;
+    p0_add_3 <= p0_add_33_comb;
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] p1_neg_32_comb;
-  assign p1_neg_32_comb = -p0_add_3;
+  wire [7:0] p1_neg_35_comb;
+  assign p1_neg_35_comb = -p0_add_3;
 
   // Registers for pipe stage 1:
   reg [7:0] out__output_flop;
   always @ (posedge clk) begin
-    out__output_flop <= p1_neg_32_comb;
+    out__output_flop <= p1_neg_35_comb;
   end
   assign out = out__output_flop;
 endmodule

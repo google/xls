@@ -169,13 +169,13 @@ TEST_P(SideEffectConditionPassTest, UnchangedWithNoSideEffects) {
   BValue x = bb.SourceNode(source_x);
   BValue y = bb.SourceNode(source_y);
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   BValue p1_input_valid = bb.Literal(UBits(1, 1));
   bb.StartStage(p1_input_valid, bb.Literal(UBits(1, 1)));
   bb.SetSourceReturnValue(bb.Add(x, y).node());
   BValue p1_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p1_aiv, bb.And(p1_input_valid, p1_aiv));
+  bb.EndStage(p1_aiv, bb.Literal(UBits(1, 1)), bb.And(p1_input_valid, p1_aiv));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * top, bb.Build());
   XLS_ASSERT_OK(package.SetTop(top));
@@ -221,7 +221,7 @@ TEST_F(SideEffectConditionPassTest, UnchangedIfCombinationalFunction) {
   BValue sum = bb.Add(x, y);
   bb.SetSourceReturnValue(bb.Tuple({assertion, sum}).node());
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * top, bb.Build());
   ASSERT_NE(top, nullptr);
@@ -268,7 +268,7 @@ TEST_P(SideEffectConditionPassTest, CombinationalProc) {
                    "xy_plus_1_gt_4"),
             /*message=*/"bar", /*label=*/"foo", SourceInfo(), "assertion");
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   XLS_ASSERT_OK(bb.Build().status());
 
@@ -343,14 +343,14 @@ TEST_P(SideEffectConditionPassTest, FunctionAssertionWorks) {
   BValue assertion_bval = bb.Assert(tkn, x_gt_y, /*message=*/"bar",
                                     /*label=*/"foo", SourceInfo(), "assertion");
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   BValue p1_input_valid = bb.Literal(UBits(1, 1));
   bb.StartStage(p1_input_valid, bb.Literal(UBits(1, 1)));
   BValue sum = bb.Add(x, y);
   bb.SetSourceReturnValue(bb.Tuple({assertion_bval, sum}).node());
   BValue p1_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p1_aiv, bb.And(p1_input_valid, p1_aiv));
+  bb.EndStage(p1_aiv, bb.Literal(UBits(1, 1)), bb.And(p1_input_valid, p1_aiv));
 
   XLS_ASSERT_OK(bb.Build().status());
 
@@ -437,14 +437,14 @@ TEST_P(SideEffectConditionPassTest, FunctionTraceWorks) {
   BValue trace_bval = bb.Trace(tkn, not_x_gt_y, {x}, "x = {}",
                                /*verbosity=*/0, SourceInfo(), "trace");
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   BValue p1_input_valid = bb.Literal(UBits(1, 1));
   bb.StartStage(p1_input_valid, bb.Literal(UBits(1, 1)));
   BValue sum = bb.Add(x, y);
   bb.SetSourceReturnValue(bb.Tuple({trace_bval, sum}).node());
   BValue p1_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p1_aiv, bb.And(p1_input_valid, p1_aiv));
+  bb.EndStage(p1_aiv, bb.Literal(UBits(1, 1)), bb.And(p1_input_valid, p1_aiv));
 
   XLS_ASSERT_OK(bb.Build().status());
 
@@ -530,7 +530,7 @@ TEST_P(SideEffectConditionPassTest, FunctionCoverWorks) {
   BValue y = bb.SourceNode(source_y);
   BValue not_x_gt_y = bb.ULe(x, y, SourceInfo(), "not_x_gt_y");
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   BValue p1_input_valid = bb.Literal(UBits(1, 1));
   bb.StartStage(p1_input_valid, bb.Literal(UBits(1, 1)));
@@ -538,7 +538,7 @@ TEST_P(SideEffectConditionPassTest, FunctionCoverWorks) {
            "cover_");
   bb.SetSourceReturnValue(bb.Add(x, y).node());
   BValue p1_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p1_aiv, bb.And(p1_input_valid, p1_aiv));
+  bb.EndStage(p1_aiv, bb.Literal(UBits(1, 1)), bb.And(p1_input_valid, p1_aiv));
 
   XLS_ASSERT_OK(bb.Build().status());
 
@@ -595,7 +595,7 @@ TEST_P(SideEffectConditionPassTest, SingleStageProc) {
   bb.Send(out, assertion_bval, sum);
   bb.Next(x, sum);
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   XLS_ASSERT_OK(bb.Build().status());
 
@@ -668,7 +668,7 @@ TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfFunction) {
   BValue xy_plus_1 = bb.Add(bb.UMul(x, y), bb.Literal(UBits(1, 32)),
                             SourceInfo(), "xy_plus_1");
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   BValue p1_input_valid = bb.Literal(UBits(1, 1));
   bb.StartStage(p1_input_valid, bb.Literal(UBits(1, 1)));
@@ -678,7 +678,7 @@ TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfFunction) {
                                     /*label=*/"foo", SourceInfo(), "assertion");
   bb.SetSourceReturnValue(bb.Tuple({assertion_bval, xy_plus_1}).node());
   BValue p1_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p1_aiv, bb.And(p1_input_valid, p1_aiv));
+  bb.EndStage(p1_aiv, bb.Literal(UBits(1, 1)), bb.And(p1_input_valid, p1_aiv));
 
   XLS_ASSERT_OK(bb.Build().status());
 
@@ -772,7 +772,7 @@ TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfProc) {
       bb.Add(xy, bb.Literal(UBits(1, 32)), SourceInfo(), "xy_plus_1");
   bb.Next(x, bb.Literal(UBits(1, 32)));
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   BValue p1_input_valid = bb.Literal(UBits(1, 1));
   bb.StartStage(p1_input_valid, bb.Literal(UBits(1, 1)));
@@ -782,7 +782,7 @@ TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfProc) {
             /*label=*/"foo", SourceInfo(), "assertion");
   bb.Send(out, recv_token, xy_plus_1);
   BValue p1_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p1_aiv, bb.And(p1_input_valid, p1_aiv));
+  bb.EndStage(p1_aiv, bb.Literal(UBits(1, 1)), bb.And(p1_input_valid, p1_aiv));
 
   XLS_ASSERT_OK(bb.Build().status());
 
@@ -869,7 +869,7 @@ TEST_P(SideEffectConditionPassTest, IIGreaterThanOne) {
   BValue send0_token = bb.Send(out, bb.Literal(Value::Token()), x);
   BValue min_delay_token = bb.MinDelay(send0_token, /*delay=*/1);
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   BValue p1_input_valid = bb.Literal(UBits(1, 1));
   bb.StartStage(p1_input_valid, bb.Literal(UBits(1, 1)));
@@ -884,7 +884,7 @@ TEST_P(SideEffectConditionPassTest, IIGreaterThanOne) {
   bb.Send(in_out, assertion_bval, recv_data);
   bb.Next(x, recv_data);
   BValue p1_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p1_aiv, bb.And(p1_input_valid, p1_aiv));
+  bb.EndStage(p1_aiv, bb.Literal(UBits(1, 1)), bb.And(p1_input_valid, p1_aiv));
 
   XLS_ASSERT_OK(bb.Build().status());
 
@@ -958,13 +958,13 @@ TEST_P(SideEffectConditionPassTest, FunctionWithActiveLowReset) {
   bb.Assert(bb.AfterAll({}), bb.ULe(x, y), "Saw x > y", "assert_x_le_y",
             SourceInfo(), /*name=*/"assertion");
   BValue p0_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p0_aiv, bb.And(p0_input_valid, p0_aiv));
+  bb.EndStage(p0_aiv, bb.Literal(UBits(1, 1)), bb.And(p0_input_valid, p0_aiv));
 
   BValue p1_input_valid = bb.Literal(UBits(1, 1));
   bb.StartStage(p1_input_valid, bb.Literal(UBits(1, 1)));
   bb.SetSourceReturnValue(bb.Add(x, y).node());
   BValue p1_aiv = bb.Literal(UBits(1, 1));
-  bb.EndStage(p1_aiv, bb.And(p1_input_valid, p1_aiv));
+  bb.EndStage(p1_aiv, bb.Literal(UBits(1, 1)), bb.And(p1_input_valid, p1_aiv));
 
   XLS_ASSERT_OK(bb.Build().status());
 

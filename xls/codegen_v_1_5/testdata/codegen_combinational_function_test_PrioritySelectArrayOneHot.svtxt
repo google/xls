@@ -20,19 +20,19 @@ module main(
   assign d_unflattened[1] = d[31:16];
   assign d_unflattened[2] = d[47:32];
   assign d_unflattened[3] = d[63:48];
-  wire [1:0] one_hot_21;
-  wire [2:0] one_hot_31;
-  wire [15:0] one_hot_sel_36[4];
-  wire eq_33;
-  assign one_hot_21 = {!p, p};
-  assign one_hot_31 = {one_hot_21[1:0] == 2'h0, one_hot_21[1] && !one_hot_21[0], one_hot_21[0]};
-  assign one_hot_sel_36[0] = x_unflattened[0] & {16{one_hot_21[0]}} | y_unflattened[0] & {16{one_hot_21[1]}};
-  assign one_hot_sel_36[1] = x_unflattened[1] & {16{one_hot_21[0]}} | y_unflattened[1] & {16{one_hot_21[1]}};
-  assign one_hot_sel_36[2] = x_unflattened[2] & {16{one_hot_21[0]}} | y_unflattened[2] & {16{one_hot_21[1]}};
-  assign one_hot_sel_36[3] = x_unflattened[3] & {16{one_hot_21[0]}} | y_unflattened[3] & {16{one_hot_21[1]}};
-  assign eq_33 = one_hot_21 == one_hot_31[1:0];
-  assign out = {one_hot_sel_36[3], one_hot_sel_36[2], one_hot_sel_36[1], one_hot_sel_36[0]};
+  wire [1:0] one_hot_22;
+  wire [2:0] one_hot_33;
+  wire [15:0] one_hot_sel_38[4];
+  wire eq_35;
+  assign one_hot_22 = {!p, p};
+  assign one_hot_33 = {one_hot_22[1:0] == 2'h0, one_hot_22[1] && !one_hot_22[0], one_hot_22[0]};
+  assign one_hot_sel_38[0] = x_unflattened[0] & {16{one_hot_22[0]}} | y_unflattened[0] & {16{one_hot_22[1]}};
+  assign one_hot_sel_38[1] = x_unflattened[1] & {16{one_hot_22[0]}} | y_unflattened[1] & {16{one_hot_22[1]}};
+  assign one_hot_sel_38[2] = x_unflattened[2] & {16{one_hot_22[0]}} | y_unflattened[2] & {16{one_hot_22[1]}};
+  assign one_hot_sel_38[3] = x_unflattened[3] & {16{one_hot_22[0]}} | y_unflattened[3] & {16{one_hot_22[1]}};
+  assign eq_35 = one_hot_22 == one_hot_33[1:0];
+  assign out = {one_hot_sel_38[3], one_hot_sel_38[2], one_hot_sel_38[1], one_hot_sel_38[0]};
   `ifdef ASSERT_ON
-  __xls_invariant_priority_sel_27_selector_one_hot_A: assert final ($isunknown(eq_33) || eq_33) else $fatal(0, "Selector one_hot.21 was expected to be one-hot, and is not.");
+  __xls_invariant_priority_sel_28_selector_one_hot_A: assert final ($isunknown(eq_35) || eq_35) else $fatal(0, "Selector one_hot.22 was expected to be one-hot, and is not.");
   `endif  // ASSERT_ON
 endmodule

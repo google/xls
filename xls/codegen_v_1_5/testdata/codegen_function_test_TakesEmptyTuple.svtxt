@@ -55,13 +55,13 @@ module TakesEmptyTuple(
   end
 
   // ===== Pipe stage 5:
-  wire [7:0] p5_add_92_comb;
-  assign p5_add_92_comb = p3_a + p3_c;
+  wire [7:0] p5_add_101_comb;
+  assign p5_add_101_comb = p3_a + p3_c;
 
   // Registers for pipe stage 5:
   reg [7:0] out__output_flop;
   always_ff @ (posedge clk) begin
-    out__output_flop <= p5_add_92_comb;
+    out__output_flop <= p5_add_101_comb;
   end
   assign out = out__output_flop;
 endmodule

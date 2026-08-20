@@ -623,7 +623,8 @@ absl::StatusOr<Node*> ReplaceWithAnd(Node* old_node,
                                      absl::Span<Node* const> new_nodes,
                                      bool combine_literals,
                                      std::string_view name,
-                                     std::optional<SourceInfo> loc) {
+                                     std::optional<SourceInfo> loc,
+                                     const std::function<bool(Node*)>& filter) {
   FunctionBase* f = old_node->function_base();
   std::vector<Node*> operands;
   operands.reserve(new_nodes.size() + 1);
@@ -649,7 +650,8 @@ absl::StatusOr<Node*> ReplaceWithAnd(Node* old_node,
     old_node->ClearName();
     replacement->SetNameDirectly(old_name);
   }
-  XLS_RETURN_IF_ERROR(old_node->ReplaceUsesWith(replacement));
+  XLS_RETURN_IF_ERROR(old_node->ReplaceUsesWith(
+      replacement, [&](Node* n) { return n != replacement && filter(n); }));
   return replacement;
 }
 
@@ -730,7 +732,8 @@ absl::StatusOr<Node*> ReplaceWithOr(Node* old_node,
                                     absl::Span<Node* const> new_nodes,
                                     bool combine_literals,
                                     std::string_view name,
-                                    std::optional<SourceInfo> loc) {
+                                    std::optional<SourceInfo> loc,
+                                    const std::function<bool(Node*)>& filter) {
   FunctionBase* f = old_node->function_base();
   std::vector<Node*> operands;
   operands.reserve(new_nodes.size() + 1);
@@ -756,7 +759,8 @@ absl::StatusOr<Node*> ReplaceWithOr(Node* old_node,
     old_node->ClearName();
     replacement->SetNameDirectly(old_name);
   }
-  XLS_RETURN_IF_ERROR(old_node->ReplaceUsesWith(replacement));
+  XLS_RETURN_IF_ERROR(old_node->ReplaceUsesWith(
+      replacement, [&](Node* n) { return n != replacement && filter(n); }));
   return replacement;
 }
 

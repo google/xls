@@ -1009,6 +1009,7 @@ class ScheduledBlockTest : public IrTestBase {
     Node* iv0;
     Node* or0;
     Node* aiv0;
+    Node* aor0;
     Node* ov0;
   };
   absl::StatusOr<TestBlock> CreateScheduledBlock(Package* p) {
@@ -1019,10 +1020,12 @@ class ScheduledBlockTest : public IrTestBase {
     BValue x = bb.InputPort("x", p->GetBitsType(32));
     bb.OutputPort("out", x);
     BValue aiv0 = bb.Literal(UBits(1, 1), SourceInfo(), "aiv0");
+    BValue aor0 = bb.Literal(UBits(1, 1), SourceInfo(), "aor0");
     BValue ov0 = bb.Literal(UBits(1, 1), SourceInfo(), "ov0");
-    bb.EndStage(aiv0, ov0);
+    bb.EndStage(aiv0, aor0, ov0);
     XLS_ASSIGN_OR_RETURN(ScheduledBlock * block, bb.Build());
-    return TestBlock{block, iv0.node(), or0.node(), aiv0.node(), ov0.node()};
+    return TestBlock{block,       iv0.node(),  or0.node(),
+                     aiv0.node(), aor0.node(), ov0.node()};
   }
 
   void ExpectIr(std::string_view got, std::string_view test_name) {
@@ -1054,9 +1057,12 @@ TEST_F(ScheduledBlockTest, StageAddAndClear) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * aiv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
   XLS_ASSERT_OK_AND_ASSIGN(
+      Node * aor1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
       Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
-  Stage stage1(iv1, or1, aiv1, ov1);
+  Stage stage1(iv1, or1, aiv1, aor1, ov1);
   stage1.AddNode(aiv1);
+  stage1.AddNode(aor1);
   stage1.AddNode(ov1);
   block->AddStage(std::move(stage1));
 
@@ -1069,9 +1075,12 @@ TEST_F(ScheduledBlockTest, StageAddAndClear) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * aiv2, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
   XLS_ASSERT_OK_AND_ASSIGN(
+      Node * aor2, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
       Node * ov2, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
-  Stage stage2(iv2, or2, aiv2, ov2);
+  Stage stage2(iv2, or2, aiv2, aor2, ov2);
   stage2.AddNode(aiv2);
+  stage2.AddNode(aor2);
   stage2.AddNode(ov2);
   block->AddStage(std::move(stage2));
   EXPECT_EQ(block->stages().size(), 3);
@@ -1080,7 +1089,7 @@ TEST_F(ScheduledBlockTest, StageAddAndClear) {
   EXPECT_TRUE(block->stages().empty());
 
   // Re-stage nodes to satisfy the verifier on destruction.
-  block->AddStage(Stage(tb.iv0, tb.or0, tb.aiv0, tb.ov0));
+  block->AddStage(Stage(tb.iv0, tb.or0, tb.aiv0, tb.aor0, tb.ov0));
   for (Node* node : block->nodes()) {
     if (!block->IsStaged(node)) {
       XLS_ASSERT_OK(block->AddNodeToStage(0, node).status());
@@ -1100,9 +1109,12 @@ TEST_F(ScheduledBlockTest, GetStageIndex) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * aiv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
   XLS_ASSERT_OK_AND_ASSIGN(
+      Node * aor1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
       Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
-  Stage stage1(iv1, or1, aiv1, ov1);
+  Stage stage1(iv1, or1, aiv1, aor1, ov1);
   stage1.AddNode(aiv1);
+  stage1.AddNode(aor1);
   stage1.AddNode(ov1);
   block->AddStage(std::move(stage1));
 
@@ -1126,9 +1138,12 @@ TEST_F(ScheduledBlockTest, AddNodeToStage) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * aiv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
   XLS_ASSERT_OK_AND_ASSIGN(
+      Node * aor1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
       Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
-  Stage stage1(iv1, or1, aiv1, ov1);
+  Stage stage1(iv1, or1, aiv1, aor1, ov1);
   stage1.AddNode(aiv1);
+  stage1.AddNode(aor1);
   stage1.AddNode(ov1);
   block->AddStage(std::move(stage1));
 
@@ -1153,9 +1168,12 @@ TEST_F(ScheduledBlockTest, MakeNodeInStage) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * aiv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
   XLS_ASSERT_OK_AND_ASSIGN(
+      Node * aor1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
       Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
-  Stage stage1(iv1, or1, aiv1, ov1);
+  Stage stage1(iv1, or1, aiv1, aor1, ov1);
   stage1.AddNode(aiv1);
+  stage1.AddNode(aor1);
   stage1.AddNode(ov1);
   block->AddStage(std::move(stage1));
 
@@ -1176,9 +1194,12 @@ TEST_F(ScheduledBlockTest, MakeNodeWithNameInStage) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * aiv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
   XLS_ASSERT_OK_AND_ASSIGN(
+      Node * aor1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
       Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
-  Stage stage1(iv1, or1, aiv1, ov1);
+  Stage stage1(iv1, or1, aiv1, aor1, ov1);
   stage1.AddNode(aiv1);
+  stage1.AddNode(aor1);
   stage1.AddNode(ov1);
   block->AddStage(std::move(stage1));
 
@@ -1207,9 +1228,12 @@ TEST_F(ScheduledBlockTest, CloneScheduledBlock) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * aiv1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
   XLS_ASSERT_OK_AND_ASSIGN(
+      Node * aor1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
       Node * ov1, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
-  Stage stage1(iv1, or1, aiv1, ov1);
+  Stage stage1(iv1, or1, aiv1, aor1, ov1);
   stage1.AddNode(aiv1);
+  stage1.AddNode(aor1);
   stage1.AddNode(ov1);
   block->AddStage(std::move(stage1));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1219,10 +1243,13 @@ TEST_F(ScheduledBlockTest, CloneScheduledBlock) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * aiv2, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
   XLS_ASSERT_OK_AND_ASSIGN(
+      Node * aor2, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
+  XLS_ASSERT_OK_AND_ASSIGN(
       Node * ov2, block->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
-  Stage stage2(iv2, or2, aiv2, ov2);
-  stage1.AddNode(aiv2);
-  stage1.AddNode(ov2);
+  Stage stage2(iv2, or2, aiv2, aor2, ov2);
+  stage2.AddNode(aiv2);
+  stage2.AddNode(aor2);
+  stage2.AddNode(ov2);
   block->AddStage(std::move(stage2));
 
   XLS_ASSERT_OK(block->MakeNodeWithNameInStage<Literal>(

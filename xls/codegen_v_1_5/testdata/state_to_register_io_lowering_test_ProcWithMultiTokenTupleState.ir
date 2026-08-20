@@ -12,6 +12,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=21)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=22)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=28)
     after_all.5: token = after_all(id=5)
     receive.6: (token, bits[24]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
     tok: token = tuple_index(receive.6, index=0, id=8)
@@ -22,7 +23,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   }
   rst: bits[1] = input_port(name=rst, id=19)
   literal.206: (token, token) = literal(value=(token, token), id=206)
-  p0_stage_done: bits[1] = and(stage_outputs_valid_0, stage_outputs_ready_0, id=207)
+  p0_stage_done: bits[1] = and(stage_outputs_valid_0, stage_outputs_ready_0, active_outputs_ready_0, id=207)
   and.208: bits[1] = and(stage_inputs_valid_0, active_inputs_valid_0, id=208)
   tuple.209: () = tuple(id=209)
 }

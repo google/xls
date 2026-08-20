@@ -15,9 +15,9 @@ module ArrayUpdateWithNarrowIndex(
   assign a_unflattened[7] = a[255:224];
   assign a_unflattened[8] = a[287:256];
   assign a_unflattened[9] = a[319:288];
-  wire [31:0] array_update_18[10];
-  assign out = {array_update_18[9], array_update_18[8], array_update_18[7], array_update_18[6], array_update_18[5], array_update_18[4], array_update_18[3], array_update_18[2], array_update_18[1], array_update_18[0]};
-  for (genvar __i0 = 0; __i0 < 10; __i0 = __i0 + 1) begin : gen__array_update_18_0
-    assign array_update_18[__i0] = idx == __i0 ? v : a_unflattened[__i0];
+  wire [31:0] array_update_19[10];
+  assign out = {array_update_19[9], array_update_19[8], array_update_19[7], array_update_19[6], array_update_19[5], array_update_19[4], array_update_19[3], array_update_19[2], array_update_19[1], array_update_19[0]};
+  for (genvar __i0 = 0; __i0 < 10; __i0 = __i0 + 1) begin : gen__array_update_19_0
+    assign array_update_19[__i0] = idx == __i0 ? v : a_unflattened[__i0];
   end
 endmodule

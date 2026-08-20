@@ -63,15 +63,18 @@ class ProcInstantiation;
 class Stage {
  public:
   Stage(Node* inputs_valid, Node* outputs_ready, Node* active_inputs_valid,
-        Node* outputs_valid)
+        Node* active_outputs_ready, Node* outputs_valid)
       : inputs_valid_(inputs_valid),
         outputs_ready_(outputs_ready),
         active_inputs_valid_(active_inputs_valid),
+        active_outputs_ready_(active_outputs_ready),
         outputs_valid_(outputs_valid) {
     CHECK_EQ(inputs_valid_ == nullptr, outputs_ready_ == nullptr);
+    CHECK_EQ(inputs_valid_ == nullptr, active_inputs_valid_ == nullptr);
+    CHECK_EQ(inputs_valid_ == nullptr, active_outputs_ready_ == nullptr);
     CHECK_EQ(inputs_valid_ == nullptr, outputs_valid_ == nullptr);
   }
-  Stage() : Stage(nullptr, nullptr, nullptr, nullptr) {}
+  Stage() : Stage(nullptr, nullptr, nullptr, nullptr, nullptr) {}
 
   Stage(const Stage& other) = default;
   Stage& operator=(const Stage& other) = default;
@@ -120,7 +123,8 @@ class Stage {
 
   bool IsControlled() const {
     return inputs_valid_ != nullptr && outputs_ready_ != nullptr &&
-           active_inputs_valid_ != nullptr && outputs_valid_ != nullptr;
+           active_inputs_valid_ != nullptr &&
+           active_outputs_ready_ != nullptr && outputs_valid_ != nullptr;
   }
 
   // Returns the node that signals whether it would be valid for this stage to
@@ -148,6 +152,15 @@ class Stage {
     active_inputs_valid_ = active_inputs_valid;
   }
 
+  // Returns the node that signals whether all active outputs of this stage are
+  // ready; i.e., that all send channels can accept the outgoing data.
+  Node* active_outputs_ready() const { return active_outputs_ready_; }
+
+  void set_active_outputs_ready(Node* active_outputs_ready) {
+    active_outputs_ready_ = active_outputs_ready;
+    stage_done_ = nullptr;
+  }
+
   // Returns the node that signals whether it would be safe for this stage to be
   // done executing; i.e., that all logic nodes are updated by the current
   // activation, and all active outputs have completed execution.
@@ -173,6 +186,7 @@ class Stage {
   Node* inputs_valid_ = nullptr;
   Node* outputs_ready_ = nullptr;
   Node* active_inputs_valid_ = nullptr;
+  Node* active_outputs_ready_ = nullptr;
   Node* outputs_valid_ = nullptr;
 
   Node* stage_done_ = nullptr;

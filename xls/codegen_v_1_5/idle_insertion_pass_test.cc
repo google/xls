@@ -58,7 +58,8 @@ TEST_F(IdleInsertionPassTest, PassDoesNothingIfAddIdleOutputIsFalse) {
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue out = sbb.Add(in, sbb.Literal(UBits(1, 32)));
   sbb.OutputPort("out", out);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * block, sbb.Build());
   block->SetSource(std::make_unique<Function>(TestName(), p.get()));
 
@@ -74,7 +75,8 @@ TEST_F(IdleInsertionPassTest, IdleIsFalseForFunctionWithNoValidControl) {
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue out = sbb.Add(in, sbb.Literal(UBits(1, 32)));
   sbb.OutputPort("out", out);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * scheduled_block, sbb.Build());
   scheduled_block->SetSource(std::make_unique<Function>(TestName(), p.get()));
 
@@ -99,6 +101,7 @@ TEST_F(IdleInsertionPassTest, SingleStagePipeline) {
   // outputs_valid=1, outputs_ready=1
   sbb.EndStage(
       sbb.Literal(UBits(1, 1), SourceInfo(), /*name=*/"aiv"),
+      sbb.Literal(UBits(1, 1), SourceInfo(), /*name=*/"aor"),
       sbb.Literal(UBits(1, 1), SourceInfo(), /*name=*/"outputs_valid"));
   XLS_ASSERT_OK(sbb.Build());
 
@@ -134,6 +137,8 @@ TEST_F(IdleInsertionPassTest, MultiStagePipeline) {
   BValue p0 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
   sbb.EndStage(
       sbb.Literal(UBits(1, 1), SourceInfo(), /*name=*/"p0_active_inputs_valid"),
+      sbb.Literal(UBits(1, 1), SourceInfo(),
+                  /*name=*/"p0_active_outputs_ready"),
       sbb.Literal(UBits(1, 1), SourceInfo(), /*name=*/"p0_outputs_valid"));
 
   // Stage 1
@@ -145,6 +150,8 @@ TEST_F(IdleInsertionPassTest, MultiStagePipeline) {
   sbb.OutputPort("out", out);
   sbb.EndStage(
       sbb.Literal(UBits(1, 1), SourceInfo(), /*name=*/"p1_active_inputs_valid"),
+      sbb.Literal(UBits(1, 1), SourceInfo(),
+                  /*name=*/"p1_active_outputs_ready"),
       sbb.Literal(UBits(1, 1), SourceInfo(), /*name=*/"p1_outputs_valid"));
 
   XLS_ASSERT_OK(sbb.Build());

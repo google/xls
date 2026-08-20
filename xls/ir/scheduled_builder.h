@@ -138,7 +138,8 @@ class ScheduledBlockBuilder : public BlockBuilder {
   void StartStage(BValue stage_inputs_valid, BValue stage_outputs_ready);
 
   // End the current stage.
-  void EndStage(BValue active_inputs_valid, BValue stage_outputs_valid);
+  void EndStage(BValue active_inputs_valid, BValue active_outputs_ready,
+                BValue stage_outputs_valid);
 
   // Use to put nodes outside of stages without ending the current stage.
   void SuspendStaging();

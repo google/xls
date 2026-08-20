@@ -2572,4 +2572,41 @@ block my_block(rst: bits[1]) {
                        HasSubstr("Invalid module signature")));
 }
 
+TEST(IrParserErrorTest, ControlledStageMissingActiveOutputsReady) {
+  constexpr std::string_view input = R"(package test
+scheduled_block b() {
+  iv0: bits[1] = literal(value=1, id=1)
+  or0: bits[1] = literal(value=1, id=2)
+  controlled_stage(iv0, or0) {
+    active_inputs_valid aiv0: bits[1] = literal(value=1, id=3)
+    ret ov0: bits[1] = identity(aiv0, id=4)
+  }
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(input).status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "No 'active_outputs_ready' node found in controlled_stage")));
+}
+
+TEST(IrParserErrorTest, ControlledStageMissingActiveInputsValid) {
+  constexpr std::string_view input = R"(package test
+scheduled_block b() {
+  iv0: bits[1] = literal(value=1, id=1)
+  or0: bits[1] = literal(value=1, id=2)
+  controlled_stage(iv0, or0) {
+    active_outputs_ready aor0: bits[1] = literal(value=1, id=3)
+    ret ov0: bits[1] = identity(aor0, id=4)
+  }
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(input).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "No 'active_inputs_valid' node found in controlled_stage")));
+}
+
 }  // namespace xls

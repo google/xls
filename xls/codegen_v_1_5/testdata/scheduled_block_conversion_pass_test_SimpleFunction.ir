@@ -12,16 +12,18 @@ top scheduled_block __test__f(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=10)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=11)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=12)
     umul.5: bits[32] = umul(a, b, id=5)
     umul.6: bits[32] = umul(c, d, id=6)
-    ret stage_outputs_valid_0: bits[1] = and(stage_inputs_valid_0, active_inputs_valid_0, id=12)
+    ret stage_outputs_valid_0: bits[1] = and(stage_inputs_valid_0, active_inputs_valid_0, id=13)
   }
-  stage_inputs_valid_1: bits[1] = literal(value=1, id=13)
-  stage_outputs_ready_1: bits[1] = literal(value=1, id=14)
+  stage_inputs_valid_1: bits[1] = literal(value=1, id=14)
+  stage_outputs_ready_1: bits[1] = literal(value=1, id=15)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
-    active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=15)
+    active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=16)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=17)
     add.7: bits[32] = add(umul.5, umul.6, id=7)
-    ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=16)
+    ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=18)
   }
   rst: bits[1] = input_port(name=rst, id=8)
   ret add.7

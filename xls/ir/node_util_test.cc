@@ -1502,5 +1502,61 @@ TEST_F(NodeUtilTest, SignedAndUnsignedOperations) {
   EXPECT_THAT(sign_agnostic_examples, Each(Not(Truly(IsUnsigned))));
 }
 
+TEST_F(NodeUtilTest, ReplaceWithAndWithFilter) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue not_a = fb.Not(a, SourceInfo(), "not_a");
+  BValue and_ab = fb.And(not_a, b, SourceInfo(), "and_ab");
+  BValue xor_ac = fb.Xor(not_a, c, SourceInfo(), "xor_ac");
+  fb.Tuple({and_ab, xor_ac});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  Node* not_a_node = f->GetNode("not_a").value();
+  Node* b_node = f->GetNode("b").value();
+  Node* and_ab_node = f->GetNode("and_ab").value();
+  Node* xor_ac_node = f->GetNode("xor_ac").value();
+
+  // Replace uses of not_a with not_a & b, but exclude and_ab.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * replacement,
+      ReplaceWithAnd(not_a_node, b_node, /*combine_literals=*/true,
+                     /*name=*/"", std::nullopt,
+                     [&](Node* user) { return user != and_ab_node; }));
+
+  EXPECT_EQ(and_ab_node->operand(0), not_a_node);
+  EXPECT_EQ(xor_ac_node->operand(0), replacement);
+}
+
+TEST_F(NodeUtilTest, ReplaceWithOrWithFilter) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue not_a = fb.Not(a, SourceInfo(), "not_a");
+  BValue and_ab = fb.And(not_a, b, SourceInfo(), "and_ab");
+  BValue xor_ac = fb.Xor(not_a, c, SourceInfo(), "xor_ac");
+  fb.Tuple({and_ab, xor_ac});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  Node* not_a_node = f->GetNode("not_a").value();
+  Node* b_node = f->GetNode("b").value();
+  Node* and_ab_node = f->GetNode("and_ab").value();
+  Node* xor_ac_node = f->GetNode("xor_ac").value();
+
+  // Replace uses of not_a with not_a | b, but exclude and_ab.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * replacement,
+      ReplaceWithOr(not_a_node, b_node, /*combine_literals=*/true,
+                    /*name=*/"", std::nullopt,
+                    [&](Node* user) { return user != and_ab_node; }));
+
+  EXPECT_EQ(and_ab_node->operand(0), not_a_node);
+  EXPECT_EQ(xor_ac_node->operand(0), replacement);
+}
+
 }  // namespace
 }  // namespace xls

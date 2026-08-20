@@ -8,7 +8,7 @@ module SDiv(
       sdiv_32b = rhs == 32'h0000_0000 ? (lhs[31] ? 32'h8000_0000 : 32'h7fff_ffff) : (lhs == 32'h8000_0000 && rhs == 32'hffff_ffff ? 32'h8000_0000 : $unsigned($signed(lhs) / $signed(rhs)));
     end
   endfunction
-  wire [31:0] sdiv_15;
-  assign sdiv_15 = sdiv_32b(x, y);
-  assign out = sdiv_15;
+  wire [31:0] sdiv_16;
+  assign sdiv_16 = sdiv_32b(x, y);
+  assign out = sdiv_16;
 endmodule

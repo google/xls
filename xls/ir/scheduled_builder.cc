@@ -154,8 +154,10 @@ void ScheduledBlockBuilder::StartStage(BValue stage_inputs_valid,
 }
 
 void ScheduledBlockBuilder::EndStage(BValue active_inputs_valid,
+                                     BValue active_outputs_ready,
                                      BValue stage_outputs_valid) {
   CHECK(active_inputs_valid.valid());
+  CHECK(active_outputs_ready.valid());
   CHECK(stage_outputs_valid.valid());
   CHECK_NE(current_stage_inputs_valid_, nullptr);
   CHECK_NE(current_stage_outputs_ready_, nullptr);
@@ -163,7 +165,8 @@ void ScheduledBlockBuilder::EndStage(BValue active_inputs_valid,
   staging_nodes_ = false;
 
   Stage stage{current_stage_inputs_valid_, current_stage_outputs_ready_,
-              active_inputs_valid.node(), stage_outputs_valid.node()};
+              active_inputs_valid.node(), active_outputs_ready.node(),
+              stage_outputs_valid.node()};
   current_stage_inputs_valid_ = nullptr;
   current_stage_outputs_ready_ = nullptr;
   for (Node* node : current_stage_nodes_) {

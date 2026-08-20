@@ -61,12 +61,14 @@ TEST_F(RegisterCleanupPassTest, AssertConditionFromPriorStage) {
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue condition = sbb.UGe(x, sbb.Literal(UBits(3, 32)));
   sbb.RegisterWrite(reg, condition);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   sbb.Assert(sbb.AfterAll({}), sbb.RegisterRead(reg), "failure", std::nullopt,
              SourceInfo{}, "assert0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 

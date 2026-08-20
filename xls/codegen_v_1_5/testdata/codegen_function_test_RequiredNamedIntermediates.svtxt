@@ -15,13 +15,13 @@ module RequiredNamedIntermediates(
   end
 
   // ===== Pipe stage 1:
-  wire [4:0] p1_add_29_comb;
-  assign p1_add_29_comb = x__input_flop[4:0] + y__input_flop[4:0];
+  wire [4:0] p1_add_30_comb;
+  assign p1_add_30_comb = x__input_flop[4:0] + y__input_flop[4:0];
 
   // Registers for pipe stage 1:
   reg [4:0] out__output_flop;
   always_ff @ (posedge clk) begin
-    out__output_flop <= p1_add_29_comb;
+    out__output_flop <= p1_add_30_comb;
   end
   assign out = out__output_flop;
 endmodule

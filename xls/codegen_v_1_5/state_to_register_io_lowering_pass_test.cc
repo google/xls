@@ -47,6 +47,7 @@ top scheduled_block __test__f(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=10)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=11)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=17)
     umul.5: bits[32] = umul(a, b, id=5)
     umul.6: bits[32] = umul(c, d, id=6)
     ret stage_outputs_valid_0: bits[1] = and(stage_inputs_valid_0, active_inputs_valid_0, id=12)
@@ -55,6 +56,7 @@ top scheduled_block __test__f(clk: clock, rst: bits[1]) {
   stage_outputs_ready_1: bits[1] = literal(value=1, id=14)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=15)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=18)
     add.7: bits[32] = add(umul.5, umul.6, id=7)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=16)
   }
@@ -85,6 +87,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=21)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=22)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=28)
     after_all.5: token = after_all(id=5)
     receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
     tok: token = tuple_index(receive.6, index=0, id=8)
@@ -99,6 +102,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_1: bits[1] = literal(value=1, id=25)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=26)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=29)
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.14, __state, id=15)
     send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
@@ -129,6 +133,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=20)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=21)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=27)
     after_all.4: token = after_all(id=4)
     receive.5: (token, bits[32]) = receive(after_all.4, predicate=literal.3, channel=test__a, id=5)
     tok: token = tuple_index(receive.5, index=0, id=7)
@@ -143,6 +148,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_1: bits[1] = literal(value=1, id=24)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=25)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=28)
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.13, __state, id=14)
     send.15: token = send(tok__1, result_value, predicate=literal.3, channel=test__result, id=15)
@@ -179,6 +185,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
     b_value: bits[32] = tuple_index(receive.10, index=1, id=13)
     umul.14: bits[32] = umul(a_value, b_value, id=14)
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=22)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=33)
     tok__1: token = tuple_index(receive.10, index=0, id=12)
     ret stage_outputs_valid_0: bits[1] = and(stage_inputs_valid_0, active_inputs_valid_0, id=23)
   }
@@ -189,6 +196,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.14, __state, id=15)
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=26)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=34)
     send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=27)
   }
@@ -196,6 +204,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_2: bits[1] = literal(value=1, id=29)
   controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
     active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=30)
+    active_outputs_ready active_outputs_ready_2: bits[1] = literal(value=1, id=35)
     next_value.17: () = next_value(state_element=__state, value=result_value, id=17)
     ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=32)
   }
@@ -228,6 +237,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
     b_value: bits[32] = tuple_index(receive.10, index=1, id=13)
     umul.14: bits[32] = umul(a_value, b_value, id=14)
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=22)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=33)
     tok__1: token = tuple_index(receive.10, index=0, id=12)
     ret stage_outputs_valid_0: bits[1] = and(stage_inputs_valid_0, active_inputs_valid_0, id=23)
   }
@@ -237,6 +247,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
     __state: token = state_read(state_element=__state, id=2)
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=26)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=34)
     send.16: token = send(tok__1, umul.14, predicate=literal.3, channel=result, id=16)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=27)
   }
@@ -244,6 +255,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_2: bits[1] = literal(value=1, id=29)
   controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
     active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=30)
+    active_outputs_ready active_outputs_ready_2: bits[1] = literal(value=1, id=35)
     next_value.17: () = next_value(state_element=__state, value=tok, id=17)
     ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=32)
   }
@@ -268,6 +280,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=37)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=38)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=44)
     after_all.5: token = after_all(id=5)
     literal.3: bits[1] = literal(value=1, id=3)
     receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
@@ -284,6 +297,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_1: bits[1] = literal(value=1, id=41)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=42)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=45)
     __state: bits[32] = state_read(state_element=__state, predicate=ugt.16, id=2)
     __token: token = literal(value=token, id=1)
     tuple.4: () = tuple(id=4)
@@ -304,6 +318,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_2: bits[1] = literal(value=1, id=29)
   controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
     active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=30)
+    active_outputs_ready active_outputs_ready_2: bits[1] = literal(value=1, id=46)
     next_value.25: () = next_value(state_element=__state, value=sel.24, predicate=ugt.22, id=25)
     ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=43)
   }
@@ -330,6 +345,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=101)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=102)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=113)
     after_all.5: token = after_all(id=5)
     receive.31: (token, bits[32]) = receive(after_all.5, channel=a, id=31)
     tok: token = tuple_index(receive.31, index=0, id=8)
@@ -348,6 +364,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_1: bits[1] = literal(value=1, id=106)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=107)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=114)
     result_value: bits[32] = add(add.17, __state_1, id=20)
     send.33: token = send(tok__1, result_value, channel=result, id=33)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=108)
@@ -356,6 +373,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_2: bits[1] = literal(value=1, id=110)
   controlled_stage(stage_inputs_valid_2, stage_outputs_ready_2) {
     active_inputs_valid active_inputs_valid_2: bits[1] = literal(value=1, id=111)
+    active_outputs_ready active_outputs_ready_2: bits[1] = literal(value=1, id=115)
     next_value_23_0: () = next_value(state_element=__state_0, value=result_value, id=42)
     next_value_23_1: () = next_value(state_element=__state_1, value=result_value, id=44)
     ret stage_outputs_valid_2: bits[1] = and(stage_inputs_valid_2, active_inputs_valid_2, id=112)
@@ -382,6 +400,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=21)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=22)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=28)
     after_all.5: token = after_all(id=5)
     receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
     tok: token = tuple_index(receive.6, index=0, id=8)
@@ -396,6 +415,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_1: bits[1] = literal(value=1, id=25)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=26)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=29)
     __state: bits[32] = state_read(state_element=__state, id=2)
     result_value: bits[32] = add(umul.14, __state, id=15)
     send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
@@ -425,6 +445,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=21)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=22)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=28)
     after_all.5: token = after_all(id=5)
     receive.6: (token, bits[24]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
     tok: token = tuple_index(receive.6, index=0, id=8)
@@ -439,6 +460,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_1: bits[1] = literal(value=1, id=25)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=26)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=29)
     __state: (bits[1], bits[24]) = state_read(state_element=__state, id=2)
     state_bits: bits[24] = tuple_index(__state, index=1, id=200)
     result_value: bits[24] = add(umul.14, state_bits, id=15)
@@ -471,6 +493,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=21)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=22)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=28)
     __state: (token, token) = state_read(state_element=__state, id=2)
     after_all.5: token = after_all(id=5)
     receive.6: (token, bits[24]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
