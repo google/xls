@@ -205,8 +205,8 @@ TEST_F(BaseProcStateFSMPassTest, LiteralChainDecoupled) {
                                 /*default_value=*/m::Literal(200))));
 
   EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(m::NextWithStateElement(
-                  m::StateElement("state_machine_x"), ::testing::_)));
+              UnorderedElementsAre(
+                  m::Next(m::StateElement("state_machine_x"), ::testing::_)));
 }
 
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateFSMPassTest,

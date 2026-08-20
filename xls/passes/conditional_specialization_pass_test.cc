@@ -1107,8 +1107,8 @@ TEST_F(ConditionalSpecializationPassTest, NextValueChange) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * f, p->GetProc("Delay_proc"));
   EXPECT_THAT(f->next_values(f->GetStateElement(0)),
-              ElementsAre(m::NextWithStateElement(
-                  m::StateElement("value1"), m::StateRead("value2"), m::Eq())));
+              ElementsAre(m::Next(m::StateElement("value1"),
+                                  m::StateRead("value2"), m::Eq())));
 }
 
 TEST_F(ConditionalSpecializationPassTest, NextValueChangeDecoupled) {
@@ -1134,10 +1134,9 @@ TEST_F(ConditionalSpecializationPassTest, NextValueChangeDecoupled) {
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   // The next state_element should be optimized to simply be value_2 in the case
   // the predicate is true.
-  EXPECT_THAT(
-      proc->next_values(state_element_1.state_element()),
-      ElementsAre(m::NextWithStateElement(state_element_1.state_element(),
-                                          m::StateRead("value2"), m::Eq())));
+  EXPECT_THAT(proc->next_values(state_element_1.state_element()),
+              ElementsAre(m::Next(state_element_1.state_element(),
+                                  m::StateRead("value2"), m::Eq())));
 }
 
 TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughNot) {
@@ -1327,8 +1326,8 @@ TEST_F(ConditionalSpecializationPassTest, EliminateDecoupledNoopNext) {
 
   EXPECT_THAT(proc->next_values(), testing::SizeIs(1));
   EXPECT_THAT(proc->next_values(),
-              testing::Contains(m::NextWithStateElement(
-                  state_element_1.state_element(), m::Literal(42))));
+              testing::Contains(
+                  m::Next(state_element_1.state_element(), m::Literal(42))));
 }
 
 TEST_F(ConditionalSpecializationPassTest, HarderStateReadSpecialization) {

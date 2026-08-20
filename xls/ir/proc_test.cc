@@ -117,16 +117,15 @@ TEST_F(ProcTest, MutateProc) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({after_all, add}));
 
   ASSERT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::NextWithStateElement(
-                  m::StateElement("tkn"), m::AfterAll(m::StateRead("tkn")))));
+              ElementsAre(m::Next(m::StateElement("tkn"),
+                                  m::AfterAll(m::StateRead("tkn")))));
   Next* next_tkn = *proc->next_values(proc->GetStateElement(0)).begin();
   XLS_ASSERT_OK(proc->RemoveNode(next_tkn));
   XLS_ASSERT_OK(proc->RemoveNode(after_all.node()));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)), IsEmpty());
 
-  ASSERT_THAT(
-      proc->next_values(proc->GetStateElement(1)),
-      ElementsAre(m::NextWithStateElement(m::StateElement("st"), m::Add())));
+  ASSERT_THAT(proc->next_values(proc->GetStateElement(1)),
+              ElementsAre(m::Next(m::StateElement("st"), m::Add())));
   Next* next_st = *proc->next_values(proc->GetStateElement(1)).begin();
   XLS_ASSERT_OK(proc->RemoveNode(next_st));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)), IsEmpty());
@@ -176,16 +175,14 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(1)->initial_value(), Value(UBits(42, 32)));
   EXPECT_EQ(proc->GetStateElement(2)->initial_value(), Value(UBits(100, 32)));
   EXPECT_EQ(proc->GetStateElement(3)->initial_value(), Value(UBits(123, 32)));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::NextWithStateElement(m::StateElement("tkn"),
-                                                  m::Name("my_after_all"))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(0)),
+      ElementsAre(m::Next(m::StateElement("tkn"), m::Name("my_after_all"))));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::NextWithStateElement(m::StateElement("x"),
-                                                  m::Name("my_add"))));
+              ElementsAre(m::Next(m::StateElement("x"), m::Name("my_add"))));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(2)), IsEmpty());
   EXPECT_THAT(proc->next_values(proc->GetStateElement(3)),
-              ElementsAre(m::NextWithStateElement(m::StateElement("z"),
-                                                  m::Literal(0))));
+              ElementsAre(m::Next(m::StateElement("z"), m::Literal(0))));
 
   XLS_ASSERT_OK(proc->RemoveStateElement(2));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
@@ -221,12 +218,11 @@ TEST_F(ProcTest, AddAndRemoveState) {
       HasSubstr("proc p(foo: bits[32], tkn: token, x: bits[32], z: "
                 "bits[32], bar: bits[64], init={123, token, 42, 123, 1}"));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)), IsEmpty());
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::NextWithStateElement(m::StateElement("tkn"),
-                                                  m::Name("my_after_all"))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(1)),
+      ElementsAre(m::Next(m::StateElement("tkn"), m::Name("my_after_all"))));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(2)),
-              ElementsAre(m::NextWithStateElement(m::StateElement("x"),
-                                                  m::Name("my_add"))));
+              ElementsAre(m::Next(m::StateElement("x"), m::Name("my_add"))));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(3)), IsEmpty());
   EXPECT_THAT(proc->next_values(proc->GetStateElement(4)), IsEmpty());
 }
@@ -323,11 +319,10 @@ TEST_F(ProcTest, GetNextStateReadDecoupled) {
                         /*label=*/std::nullopt, "second_next")
                     .status());
   EXPECT_EQ(state_read->GetNextValues().size(), 2);
-  EXPECT_THAT(
-      state_read->GetNextValues(),
-      UnorderedElementsAre(
-          m::NextWithStateElement(state_elem.state_element(), m::Add()),
-          m::NextWithStateElement(state_elem.state_element(), m::Literal(43))));
+  EXPECT_THAT(state_read->GetNextValues(),
+              UnorderedElementsAre(
+                  m::Next(state_elem.state_element(), m::Add()),
+                  m::Next(state_elem.state_element(), m::Literal(43))));
 }
 
 TEST_F(ProcTest, InsertStateElementDecoupled) {
@@ -354,9 +349,8 @@ TEST_F(ProcTest, InsertStateElementDecoupled) {
 
   // Verify that the new Next node is decoupled.
   EXPECT_EQ(proc->GetStateElementCount(), 2);
-  EXPECT_THAT(
-      proc->next_values(new_state_element),
-      ElementsAre(m::NextWithStateElement(new_state_element, m::Literal(0))));
+  EXPECT_THAT(proc->next_values(new_state_element),
+              ElementsAre(m::Next(new_state_element, m::Literal(0))));
 }
 
 TEST_F(ProcTest, Clone) {
@@ -630,12 +624,11 @@ TEST_F(ProcTest, TransformStateElementDecoupled) {
 
   // Verify old next nodes are identity-ified (labeled and unlabeled)
   EXPECT_THAT(add_st.node(),
-              m::NextWithStateElementWithLabel(
-                  state_element.state_element(), m::Literal(0), cond.node(),
-                  std::optional<std::string>("my_next_label")));
-  EXPECT_THAT(sub_st.node(),
-              m::NextWithStateElement(state_element.state_element(),
-                                      m::Literal(0), m::Not(cond.node())));
+              m::NextWithLabel(state_element.state_element(), m::Literal(0),
+                               cond.node(),
+                               std::optional<std::string>("my_next_label")));
+  EXPECT_THAT(sub_st.node(), m::Next(state_element.state_element(),
+                                     m::Literal(0), m::Not(cond.node())));
 
   // Make sure that 'new_state_read' takes over the name and everything.
   EXPECT_THAT(new_st, m::StateReadWithLabel(
@@ -643,17 +636,17 @@ TEST_F(ProcTest, TransformStateElementDecoupled) {
   EXPECT_THAT(new_st->users(), UnorderedElementsAre(m::Neg(new_st)));
 
   // Verify new next nodes (labeled and unlabeled)
-  EXPECT_THAT(proc->next_values(new_st_element),
-              UnorderedElementsAre(
-                  m::NextWithStateElementWithLabel(
-                      new_st_element,
-                      m::Neg(m::Add(m::Neg(new_st), m::Literal(UBits(1, 4)))),
-                      m::And(m::Literal(UBits(1, 1)), cond.node()),
-                      std::optional<std::string>("my_next_label")),
-                  m::NextWithStateElement(
-                      new_st_element,
-                      m::Neg(m::Sub(m::Neg(new_st), m::Literal(UBits(1, 4)))),
-                      m::And(m::Literal(UBits(1, 1)), m::Not(cond.node())))));
+  EXPECT_THAT(
+      proc->next_values(new_st_element),
+      UnorderedElementsAre(
+          m::NextWithLabel(
+              new_st_element,
+              m::Neg(m::Add(m::Neg(new_st), m::Literal(UBits(1, 4)))),
+              m::And(m::Literal(UBits(1, 1)), cond.node()),
+              std::optional<std::string>("my_next_label")),
+          m::Next(new_st_element,
+                  m::Neg(m::Sub(m::Neg(new_st), m::Literal(UBits(1, 4)))),
+                  m::And(m::Literal(UBits(1, 1)), m::Not(cond.node())))));
 }
 
 TEST_F(ProcTest, TransformStateElementMultipleReads) {
@@ -700,16 +693,15 @@ TEST_F(ProcTest, TransformStateElementMultipleReads) {
   EXPECT_EQ(new_st1->predicate().value(), cond1.node());
   EXPECT_EQ(new_st2->predicate().value(), cond2.node());
 
-  EXPECT_THAT(proc->next_values(new_st_element),
-              UnorderedElementsAre(
-                  m::NextWithStateElement(
-                      new_st_element,
-                      m::Neg(m::Add(m::Neg(new_st1), m::Literal(UBits(1, 4)))),
-                      m::And(m::Literal(UBits(1, 1)), cond1.node())),
-                  m::NextWithStateElement(
-                      new_st_element,
-                      m::Neg(m::Sub(m::Neg(new_st2), m::Literal(UBits(1, 4)))),
-                      m::And(m::Literal(UBits(1, 1)), cond2.node()))));
+  EXPECT_THAT(
+      proc->next_values(new_st_element),
+      UnorderedElementsAre(
+          m::Next(new_st_element,
+                  m::Neg(m::Add(m::Neg(new_st1), m::Literal(UBits(1, 4)))),
+                  m::And(m::Literal(UBits(1, 1)), cond1.node())),
+          m::Next(new_st_element,
+                  m::Neg(m::Sub(m::Neg(new_st2), m::Literal(UBits(1, 4)))),
+                  m::And(m::Literal(UBits(1, 1)), cond2.node()))));
 }
 
 class ScheduledProcTest : public IrTestBase {

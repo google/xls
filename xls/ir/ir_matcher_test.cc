@@ -751,5 +751,70 @@ TEST(IrMatchersTest, ArrayIndex) {
               HasSubstr("Unexpected value of assumed_in_bounds"));
 }
 
+TEST(IrMatchersTest, Next) {
+  Package p("p");
+  ProcBuilder pb("p", &p);
+  BStateElement cond_element = pb.StateElement("cond", Value(UBits(1, 1)));
+  BStateElement state_element = pb.StateElement("state", Value(UBits(42, 32)));
+
+  BValue cond = pb.StateRead(cond_element);
+  BValue not_cond = pb.Not(cond);
+
+  BValue read1 = pb.StateRead(state_element, cond);
+  BValue read2 = pb.StateRead(state_element, not_cond);
+
+  BValue add = pb.Add(read1, pb.Literal(UBits(1, 32)));
+  BValue mul = pb.UMul(read2, pb.Literal(UBits(2, 32)));
+
+  BValue next_cond = pb.Next(cond_element, cond);
+  BValue next1 = pb.Next(state_element, add, cond);
+  BValue next2 = pb.Next(state_element, mul, not_cond, "next2_label");
+
+  XLS_ASSERT_OK(pb.Build().status());
+
+  // Unconditional Next (next_cond)
+  EXPECT_THAT(next_cond.node(), m::Next());
+  EXPECT_THAT(next_cond.node(), m::Next(m::StateRead("cond")));
+  EXPECT_THAT(next_cond.node(),
+              m::Next(cond_element.state_element(), m::StateRead("cond")));
+  EXPECT_THAT(next_cond.node(), m::Next("cond", m::StateRead("cond")));
+  EXPECT_THAT(next_cond.node(),
+              ::testing::Not(m::Next("state", m::StateRead("cond"))));
+
+  // Predicated Next without label (next1)
+  EXPECT_THAT(next1.node(), m::Next());
+  EXPECT_THAT(next1.node(), m::Next(m::Add(), m::StateRead("cond")));
+  EXPECT_THAT(next1.node(), m::Next(state_element.state_element(), m::Add(),
+                                    m::StateRead("cond")));
+  EXPECT_THAT(next1.node(), m::Next("state", m::Add(), m::StateRead("cond")));
+  EXPECT_THAT(next1.node(),
+              ::testing::Not(m::Next("cond", m::Add(), m::StateRead("cond"))));
+
+  // Predicated Next with label (next2)
+  EXPECT_THAT(next2.node(), m::Next());
+  EXPECT_THAT(next2.node(), m::Next(m::UMul(), m::Not(m::StateRead("cond"))));
+  EXPECT_THAT(next2.node(), m::Next(state_element.state_element(), m::UMul(),
+                                    m::Not(m::StateRead("cond"))));
+  EXPECT_THAT(next2.node(),
+              m::Next("state", m::UMul(), m::Not(m::StateRead("cond"))));
+
+  EXPECT_THAT(
+      next2.node(),
+      m::NextWithLabel(m::UMul(), m::Not(m::StateRead("cond")), "next2_label"));
+  EXPECT_THAT(next2.node(),
+              m::NextWithLabel(state_element.state_element(), m::UMul(),
+                               m::Not(m::StateRead("cond")), "next2_label"));
+  EXPECT_THAT(next2.node(),
+              m::NextWithLabel("state", m::UMul(), m::Not(m::StateRead("cond")),
+                               "next2_label"));
+
+  EXPECT_THAT(
+      next2.node(),
+      ::testing::Not(m::Next("cond", m::UMul(), m::Not(m::StateRead("cond")))));
+  EXPECT_THAT(next2.node(), ::testing::Not(m::NextWithLabel(
+                                "state", m::UMul(),
+                                m::Not(m::StateRead("cond")), "wrong_label")));
+}
+
 }  // namespace
 }  // namespace xls

@@ -360,24 +360,21 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayWithNext) {
   };
   EXPECT_THAT(pr->next_values(),
               UnorderedElementsAre(
-                  m::NextWithStateElement(m::StateElement("foo"),
-                                          m::StateRead("foo"), _),
-                  m::NextWithStateElement(m::StateElement("foo"),
-                                          m::StateRead("foo"), _),
-                  m::NextWithStateElement(m::StateElement("foo"),
-                                          m::StateRead("foo"), _),
-                  m::NextWithStateElement(state_element_of_type("bits[1][4]"),
-                                          state_read_of_type("bits[1][4]"), _),
-                  m::NextWithStateElement(state_element_of_type("bits[1][4]"),
-                                          m::Type("bits[1][4]"), _),
-                  m::NextWithStateElement(state_element_of_type("bits[1][4]"),
-                                          m::Type("bits[1][4]"), _),
-                  m::NextWithStateElement(state_element_of_type("bits[3][4]"),
-                                          state_read_of_type("bits[3][4]"), _),
-                  m::NextWithStateElement(state_element_of_type("bits[3][4]"),
-                                          m::Type("bits[3][4]"), _),
-                  m::NextWithStateElement(state_element_of_type("bits[3][4]"),
-                                          m::Type("bits[3][4]"), _)));
+                  m::Next(m::StateElement("foo"), m::StateRead("foo"), _),
+                  m::Next(m::StateElement("foo"), m::StateRead("foo"), _),
+                  m::Next(m::StateElement("foo"), m::StateRead("foo"), _),
+                  m::Next(state_element_of_type("bits[1][4]"),
+                          state_read_of_type("bits[1][4]"), _),
+                  m::Next(state_element_of_type("bits[1][4]"),
+                          m::Type("bits[1][4]"), _),
+                  m::Next(state_element_of_type("bits[1][4]"),
+                          m::Type("bits[1][4]"), _),
+                  m::Next(state_element_of_type("bits[3][4]"),
+                          state_read_of_type("bits[3][4]"), _),
+                  m::Next(state_element_of_type("bits[3][4]"),
+                          m::Type("bits[3][4]"), _),
+                  m::Next(state_element_of_type("bits[3][4]"),
+                          m::Type("bits[3][4]"), _)));
 }
 
 TEST_F(ArrayUntuplePassTest, ProcStateArrayImplicitNext) {
@@ -596,10 +593,8 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayNextWithStateElement) {
                                                    "my_state_tuple_element_1"));
 
   // Verify next values are decoupled (no state_read operand)
-  EXPECT_THAT(pr->next_values(se0),
-              UnorderedElementsAre(m::NextWithStateElement(se0, _)));
-  EXPECT_THAT(pr->next_values(se1),
-              UnorderedElementsAre(m::NextWithStateElement(se1, _)));
+  EXPECT_THAT(pr->next_values(se0), UnorderedElementsAre(m::Next(se0, _)));
+  EXPECT_THAT(pr->next_values(se1), UnorderedElementsAre(m::Next(se1, _)));
 }
 
 TEST_F(ArrayUntuplePassTest, ProcStateArrayWithMultipleReads) {
@@ -664,15 +659,13 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayWithMultipleReads) {
 
   EXPECT_THAT(pr->next_values(se0),
               UnorderedElementsAre(
-                  m::NextWithStateElement(se0, _, m::StateRead("cond1_state")),
-                  m::NextWithStateElement(
-                      se0, _, m::Not(m::StateRead("cond1_state")))));
+                  m::Next(se0, _, m::StateRead("cond1_state")),
+                  m::Next(se0, _, m::Not(m::StateRead("cond1_state")))));
 
   EXPECT_THAT(pr->next_values(se1),
               UnorderedElementsAre(
-                  m::NextWithStateElement(se1, _, m::StateRead("cond1_state")),
-                  m::NextWithStateElement(
-                      se1, _, m::Not(m::StateRead("cond1_state")))));
+                  m::Next(se1, _, m::StateRead("cond1_state")),
+                  m::Next(se1, _, m::Not(m::StateRead("cond1_state")))));
 }
 
 TEST_F(ArrayUntuplePassTest, ProcStateArrayWithMultipleReadsIdentityNoOp) {
