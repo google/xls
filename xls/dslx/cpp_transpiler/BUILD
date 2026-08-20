@@ -54,6 +54,7 @@ cc_library(
     hdrs = ["cpp_emitter.h"],
     deps = [
         "//xls/common:case_converters",
+        "//xls/common:cpp_name_utils",
         "//xls/common:indent",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

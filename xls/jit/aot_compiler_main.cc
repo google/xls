@@ -46,6 +46,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/jit/aot_cpp_header.h"
 #include "xls/jit/aot_entrypoint.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/block_jit.h"
@@ -63,11 +64,16 @@ aot_compiler <flags>
 
 Compile the given IR file to an object file and a proto file.
 
-If --output_proto/--output_textproto is given and all of --output_object,
---output_llvm_ir, --output_llvm_opt_ir, and --output_asm are not given, the
-compilation will not be performed and only the proto will be generated. This is
-significantly faster than performing the compilation and can be used to quickly
-check the output of the compiler.
+If --output_proto/--output_textproto/--output_cpp_header is given and all of
+--output_object, --output_llvm_ir, --output_llvm_opt_ir, and --output_asm are
+not given, the compilation will not be performed and only the metadata
+(proto and/or C++ header) will be generated. This is significantly faster than
+performing the compilation and can be used to quickly check the output of the
+compiler.
+
+When --output_cpp_header is requested, --cpp_namespace and --cpp_entrypoint_name
+must also be given; together they describe the self-contained C++20 header which
+reproduces the packed ABI of the compiled entrypoint.
 )";
 
 ABSL_FLAG(std::string, input, "", "Path to the IR to compile.");
@@ -87,6 +93,21 @@ ABSL_FLAG(std::optional<std::string>, output_proto, std::nullopt,
 ABSL_FLAG(std::optional<std::string>, output_textproto, std::nullopt,
           "Path to write a textproto AotPackageEntrypointsProto describing the "
           "ABI of the generated object file.");
+ABSL_FLAG(std::optional<std::string>, output_cpp_header, std::nullopt,
+          "Path at which to write a self-contained C++20 header describing the "
+          "packed ABI of the compiled function. Requires --cpp_namespace and "
+          "--cpp_entrypoint_name.");
+ABSL_FLAG(
+    std::optional<std::string>, cpp_namespace, std::nullopt,
+    "C++ namespace (sequence of identifiers separated by \"::\") in which "
+    "the generated C++ header is placed. Required when --output_cpp_header "
+    "is set.");
+ABSL_FLAG(
+    std::optional<std::string>, cpp_entrypoint_name, std::nullopt,
+    "Stable C++ identifier (a namespace dedicated to one entrypoint) used "
+    "in the generated C++ header. It must not depend on the DSLX/IR "
+    "mangling or the symbol salt. Required when --output_cpp_header is "
+    "set.");
 ABSL_FLAG(std::optional<std::string>, output_llvm_ir, std::nullopt,
           "Path at which to write the output llvm file.");
 ABSL_FLAG(std::optional<std::string>, output_llvm_opt_ir, std::nullopt,
@@ -195,6 +216,9 @@ absl::Status RealMain(const std::string& input_ir_path,
                       const std::optional<std::string>& output_proto_path,
                       bool include_msan, int64_t llvm_opt_level,
                       const std::optional<std::string>& output_textproto_path,
+                      const std::optional<std::string>& output_cpp_header_path,
+                      const std::optional<std::string>& cpp_namespace,
+                      const std::optional<std::string>& cpp_entrypoint_name,
                       const std::optional<std::string>& output_llvm_ir_path,
                       const std::optional<std::string>& output_llvm_opt_ir_path,
                       const std::optional<std::string>& output_asm_path,
@@ -229,6 +253,19 @@ absl::Status RealMain(const std::string& input_ir_path,
   }
   VLOG(1) << "Compiling function\n" << f->DumpIr();
 
+  if (output_cpp_header_path && !cpp_namespace) {
+    return absl::InvalidArgumentError(
+        "--cpp_namespace is required when --output_cpp_header is given.");
+  }
+  if (output_cpp_header_path && !cpp_entrypoint_name) {
+    return absl::InvalidArgumentError(
+        "--cpp_entrypoint_name is required when --output_cpp_header is given.");
+  }
+  if (!output_cpp_header_path && (cpp_namespace || cpp_entrypoint_name)) {
+    return absl::InvalidArgumentError(
+        "--cpp_namespace and --cpp_entrypoint_name may only be used with "
+        "--output_cpp_header.");
+  }
   std::optional<JitObjectCode> object_code;
   bool generate_skeleton = !output_object_path && !output_llvm_ir_path &&
                            !output_llvm_opt_ir_path && !output_asm_path;
@@ -266,13 +303,13 @@ absl::Status RealMain(const std::string& input_ir_path,
     XLS_ASSIGN_OR_RETURN(object_code,
                          BlockJit::CreateObjectCode(elab, jit_opts));
   }
+  std::optional<std::string> output_object_contents;
   if (output_object_path) {
-    XLS_RETURN_IF_ERROR(SetFileContents(
-        *output_object_path, std::string(object_code->object_code.begin(),
-                                         object_code->object_code.end())));
+    output_object_contents.emplace(object_code->object_code.begin(),
+                                   object_code->object_code.end());
   }
 
-  if (output_proto_path || output_textproto_path) {
+  if (output_proto_path || output_textproto_path || output_cpp_header_path) {
     AotPackageEntrypointsProto all_entrypoints;
     *all_entrypoints.mutable_data_layout() =
         object_code->data_layout.getStringRepresentation();
@@ -286,15 +323,45 @@ absl::Status RealMain(const std::string& input_ir_path,
               object_code->package ? object_code->package.get() : package.get(),
               oc, include_msan, type_converter));
     }
+    std::optional<std::string> textproto;
+    std::optional<std::string> serialized_proto;
+    std::optional<std::string> cpp_header;
     if (output_textproto_path) {
-      std::string text;
-      XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(all_entrypoints, &text));
-      XLS_RETURN_IF_ERROR(SetFileContents(*output_textproto_path, text));
+      textproto.emplace();
+      XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(
+          all_entrypoints, &*textproto));
     }
     if (output_proto_path) {
-      XLS_RETURN_IF_ERROR(SetFileContents(*output_proto_path,
-                                          all_entrypoints.SerializeAsString()));
+      serialized_proto = all_entrypoints.SerializeAsString();
     }
+    if (output_cpp_header_path) {
+      XLS_ASSIGN_OR_RETURN(
+          cpp_header,
+          xls::GenerateAotCppHeader(all_entrypoints,
+                                    AotCppHeaderOptions{
+                                        .cpp_namespace = *cpp_namespace,
+                                        .entrypoint_name = *cpp_entrypoint_name,
+                                    }));
+    }
+    // Validate and construct every requested representation before changing
+    // any output file.
+    if (output_textproto_path) {
+      XLS_RETURN_IF_ERROR(SetFileContents(*output_textproto_path, *textproto));
+    }
+    if (output_proto_path) {
+      XLS_RETURN_IF_ERROR(
+          SetFileContents(*output_proto_path, *serialized_proto));
+    }
+    if (output_cpp_header_path) {
+      XLS_RETURN_IF_ERROR(
+          SetFileContents(*output_cpp_header_path, *cpp_header));
+    }
+  }
+  // Header/metadata validation above must succeed before any requested object
+  // file is replaced.
+  if (output_object_path) {
+    XLS_RETURN_IF_ERROR(
+        SetFileContents(*output_object_path, *output_object_contents));
   }
   if (output_llvm_ir_path) {
     if (only_unopt_llvm_ir) {
@@ -339,6 +406,9 @@ int main(int argc, char** argv) {
       input_ir_path, top, output_object_path, output_proto_path, include_msan,
       absl::GetFlag(FLAGS_llvm_opt_level),
       absl::GetFlag(FLAGS_output_textproto),
+      absl::GetFlag(FLAGS_output_cpp_header),
+      absl::GetFlag(FLAGS_cpp_namespace),
+      absl::GetFlag(FLAGS_cpp_entrypoint_name),
       absl::GetFlag(FLAGS_output_llvm_ir),
       absl::GetFlag(FLAGS_output_llvm_opt_ir), absl::GetFlag(FLAGS_output_asm),
       absl::GetFlag(FLAGS_symbol_salt), expected_kind);
