@@ -718,6 +718,147 @@ TEST_P(ProcStateLegalizationPassTest, DecoupledMultiplePredicatedNextValues) {
                                      m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
+TEST_P(ProcStateLegalizationPassTest, MultipleStateReadsNoExplicitWrites) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue cond = pb.ReadStateElement("cond", Value(UBits(1, 1)));
+  BValue not_cond = pb.Not(cond);
+  BStateElement state_element = pb.StateElement("state", Value(UBits(42, 32)));
+  BValue read1 = pb.StateRead(state_element, cond, "read_cond");
+  BValue read2 = pb.StateRead(state_element, not_cond, "read_not_cond");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+
+  // Verify that a default next_value is added for each state read.
+  EXPECT_THAT(proc->next_values(state_element.state_element()),
+              UnorderedElementsAre(m::Next(state_element.state_element(),
+                                           read1.node(), cond.node()),
+                                   m::Next(state_element.state_element(),
+                                           read2.node(), not_cond.node())));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(
+      asserts,
+      UnorderedElementsAre(
+          // Read mutex assert: verifies at most one state read is active.
+          m::Assert(_, m::Eq(m::Concat(cond.node(), not_cond.node()),
+                             m::BitSlice(m::OneHot(m::Concat()))))));
+}
+
+TEST_P(ProcStateLegalizationPassTest,
+       MultipleStateReadsWithExplicitPredicatedNextValues) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue cond = pb.ReadStateElement("cond", Value(UBits(1, 1)));
+  BValue not_cond = pb.Not(cond);
+  BStateElement state_element = pb.StateElement("state", Value(UBits(0, 32)));
+  BValue read1 = pb.StateRead(state_element, cond, "read_cond");
+  BValue read2 = pb.StateRead(state_element, not_cond, "read_not_cond");
+
+  BValue inc_1 = pb.Add(read1, pb.Literal(UBits(1, 32)));
+  BValue write_pred_1 = pb.Eq(read1, pb.Literal(UBits(0, 32)));
+  pb.Next(state_element, inc_1, write_pred_1);
+
+  BValue inc_2 = pb.Add(read2, pb.Literal(UBits(2, 32)));
+  BValue write_pred_2 = pb.Eq(read2, pb.Literal(UBits(1, 32)));
+  pb.Next(state_element, inc_2, write_pred_2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+
+  // Verify explicit writes and default writes for each state read.
+  EXPECT_THAT(
+      proc->next_values(state_element.state_element()),
+      UnorderedElementsAre(
+          m::Next(state_element.state_element(), inc_1.node(),
+                  write_pred_1.node()),
+          m::Next(state_element.state_element(), inc_2.node(),
+                  write_pred_2.node()),
+          // Default write for read 1: keeps read 1 value when neither
+          // explicit write fires.
+          m::Next(state_element.state_element(), read1.node(),
+                  m::And(cond.node(),
+                         m::Nor(write_pred_1.node(), write_pred_2.node()))),
+          // Default write for read 2: keeps read 2 value when neither
+          // explicit write fires.
+          m::Next(state_element.state_element(), read2.node(),
+                  m::And(not_cond.node(),
+                         m::Nor(write_pred_1.node(), write_pred_2.node())))));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(
+      asserts,
+      UnorderedElementsAre(
+          // Read mutex assert: at most one state read can be active.
+          m::Assert(_, m::Eq(m::Concat(cond.node(), not_cond.node()),
+                             m::BitSlice(m::OneHot(m::Concat())))),
+          // Write mutex assert: at most one explicit next_value can fire.
+          m::Assert(_,
+                    m::Eq(m::Concat(write_pred_1.node(), write_pred_2.node()),
+                          m::BitSlice(m::OneHot(m::Concat())))),
+          // Write-without-read assert for write 1: write_pred_1 cannot fire
+          // unless at least one read (cond OR not_cond) was active.
+          m::Assert(_, m::Or(m::Or(cond.node(), not_cond.node()),
+                             m::Not(write_pred_1.node()))),
+          // Write-without-read assert for write 2: write_pred_2 cannot fire
+          // unless at least one read (cond OR not_cond) was active.
+          m::Assert(_, m::Or(m::Or(cond.node(), not_cond.node()),
+                             m::Not(write_pred_2.node())))));
+}
+
+TEST_P(ProcStateLegalizationPassTest, MultipleStateReadsIdempotentNextValues) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue cond = pb.ReadStateElement("cond", Value(UBits(1, 1)));
+  BValue not_cond = pb.Not(cond);
+
+  BStateElement state_element = pb.StateElement("state", Value(UBits(0, 32)));
+  BValue read1 = pb.StateRead(state_element, cond, "read_cond");
+  BValue read2 = pb.StateRead(state_element, not_cond, "read_not_cond");
+
+  BValue inc_1 = pb.Add(read1, pb.Literal(UBits(1, 32)));
+  BValue write_pred_1 = pb.Eq(read1, pb.Literal(UBits(0, 32)));
+  pb.Next(state_element, inc_1, write_pred_1);
+
+  BValue inc_2 = pb.Add(read2, pb.Literal(UBits(2, 32)));
+  BValue write_pred_2 = pb.Eq(read2, pb.Literal(UBits(1, 32)));
+  pb.Next(state_element, inc_2, write_pred_2);
+
+  BValue no_explicit_next = pb.Nor({write_pred_1, write_pred_2});
+  // Explicit default writes for read1 and read2:
+  pb.Next(state_element, read1, pb.And(cond, no_explicit_next));
+  pb.Next(state_element, read2, pb.And(not_cond, no_explicit_next));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(p->SetTop(proc));
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+
+  // Verify that no additional default next_values were added.
+  EXPECT_THAT(
+      proc->next_values(state_element.state_element()),
+      UnorderedElementsAre(
+          m::Next(state_element.state_element(), inc_1.node(),
+                  write_pred_1.node()),
+          m::Next(state_element.state_element(), inc_2.node(),
+                  write_pred_2.node()),
+          m::Next(state_element.state_element(), read1.node(),
+                  m::And(cond.node(),
+                         m::Nor(write_pred_1.node(), write_pred_2.node()))),
+          m::Next(state_element.state_element(), read2.node(),
+                  m::And(not_cond.node(),
+                         m::Nor(write_pred_1.node(), write_pred_2.node())))));
+}
+
 INSTANTIATE_TEST_SUITE_P(ProcStateLegalizationPassTestSuite,
                          ProcStateLegalizationPassTest,
                          testing::Values(false, true));
