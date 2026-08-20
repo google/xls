@@ -891,6 +891,22 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "type_to_type_annotation",
+    srcs = ["type_to_type_annotation.cc"],
+    hdrs = ["type_to_type_annotation.h"],
+    deps = [
+        ":ast",
+        ":module",
+        ":pos",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/type_system:type",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
 cc_test(
     name = "fuzz_domain_rewriter_test",
     srcs = ["fuzz_domain_rewriter_test.cc"],
@@ -901,6 +917,27 @@ cc_test(
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
         "@abseil-cpp//absl/base",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "type_to_type_annotation_test",
+    srcs = ["type_to_type_annotation_test.cc"],
+    deps = [
+        ":ast",
+        ":module",
+        ":type_to_type_annotation",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/type_system:type",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
