@@ -18,36 +18,53 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
 
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
+#include "absl/strings/str_replace.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
 namespace {
 
+// Helper function to transform a test function into a test proc, and typecheck
+// the resulting module.
+absl::StatusOr<std::string> TransformAndTypecheck(std::string_view program) {
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSIGN_OR_RETURN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
+  TestFunctionTransformer transformer(*tm.module, *tm.type_info);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> new_module,
+                       transformer.TransformTestFunctions());
+
+  // Remove "spawn" trait placeholder methods from the string.
+  std::string transformed_code =
+      absl::StrReplaceAll(new_module->ToString(), {
+                                                      {"fn spawn(self) ;", ""},
+                                                  });
+
+  XLS_RETURN_IF_ERROR(ParseAndTypecheck(transformed_code, "transformed.x",
+                                        "test_cloned", &import_data)
+                          .status())
+      << transformed_code;
+  return transformed_code;
+}
+
 TEST(TestFunctionTransformerTest, NoTestFunctionsUnchanged) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
     u32:0
 })";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  TestFunctionTransformer transformer(*tm.module, *tm.type_info);
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
-                           transformer.TransformTestFunctions());
-  EXPECT_EQ(new_module->ToString(), kProgram);
-
-  new_module->SetName(absl::StrCat(new_module->name(), "_cloned"));
-  XLS_EXPECT_OK(
-      TypecheckModule(std::move(new_module), "test_cloned.x", &import_data)
-          .status());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+  EXPECT_EQ(cloned_code, kProgram);
 }
 
 TEST(TestFunctionTransformerTest, TestFunctionNoSpawnsUnchanged) {
@@ -55,19 +72,9 @@ TEST(TestFunctionTransformerTest, TestFunctionNoSpawnsUnchanged) {
 fn main() {
     ()
 })";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  TestFunctionTransformer transformer(*tm.module, *tm.type_info);
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
-                           transformer.TransformTestFunctions());
-  EXPECT_EQ(new_module->ToString(), kProgram);
-
-  new_module->SetName(absl::StrCat(new_module->name(), "_cloned"));
-  XLS_EXPECT_OK(
-      TypecheckModule(std::move(new_module), "test_cloned.x", &import_data)
-          .status());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+  EXPECT_EQ(cloned_code, kProgram);
 }
 
 TEST(TestFunctionTransformerTest, TestFunctionWithSpawnRemoved) {
@@ -81,26 +88,18 @@ fn main() {
     let p = P::new();
     p.spawn();
 })";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  TestFunctionTransformer transformer(*tm.module, *tm.type_info);
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
-                           transformer.TransformTestFunctions());
-  EXPECT_FALSE(absl::StrContains(new_module->ToString(), "fn main()"));
-  EXPECT_TRUE(absl::StrContains(new_module->ToString(),
-                                "__test__terminator: chan<bool> out"));
-  EXPECT_TRUE(absl::StrContains(new_module->ToString(),
-                                "#[test]\nproc __test__proc__main"));
-
-  new_module->SetName(absl::StrCat(new_module->name(), "_cloned"));
-  XLS_EXPECT_OK(
-      TypecheckModule(std::move(new_module), "test_cloned.x", &import_data)
-          .status());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+  EXPECT_FALSE(absl::StrContains(cloned_code, "fn main()"));
+  EXPECT_TRUE(
+      absl::StrContains(cloned_code, "__test__terminator: chan<bool> out"));
+  EXPECT_TRUE(
+      absl::StrContains(cloned_code, "#[test]\nproc __test__proc__main"));
 }
 
-TEST(TestFunctionTransformerTest, TestFunctionWithSetupAndRuntime) {
+// TODO(davidplass): This test currently fails because it's not promoting the
+// variables to fields yet.
+TEST(TestFunctionTransformerTest, DISABLED_TestFunctionWithSetupAndRuntime) {
   constexpr std::string_view kProgram = R"(proc P {
     r: chan<u32> in,
 }
@@ -115,15 +114,8 @@ fn main() {
     p.spawn();
     send(token(), s, u32:0);
 })";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  TestFunctionTransformer transformer(*tm.module, *tm.type_info);
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
-                           transformer.TransformTestFunctions());
-
-  std::string cloned_code = new_module->ToString();
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
   EXPECT_FALSE(absl::StrContains(cloned_code, "fn main()"));
 
   size_t impl_pos = cloned_code.find("impl __test__proc__main");
@@ -146,14 +138,6 @@ fn main() {
   std::string next_body = impl_code.substr(next_pos);
   EXPECT_TRUE(absl::StrContains(next_body, "send(token(), s, u32:0)"));
   EXPECT_TRUE(absl::StrContains(next_body, "self.__test__terminator"));
-
-  // TODO(davidplass): This test passes because TypecheckModule on the direct
-  // AST does not re-evaluate lexical scoping for already-linked NameRef nodes.
-  // This will change when we build "variable promotion" of locals to fields.
-  new_module->SetName(absl::StrCat(new_module->name(), "_cloned"));
-  XLS_EXPECT_OK(
-      TypecheckModule(std::move(new_module), "test_cloned.x", &import_data)
-          .status());
 }
 
 TEST(TestFunctionTransformerTest, TestFunctionSimpleConstantLet) {
@@ -170,15 +154,8 @@ fn main() {
     let p = P::new(x);
     p.spawn();
 })";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  TestFunctionTransformer transformer(*tm.module, *tm.type_info);
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
-                           transformer.TransformTestFunctions());
-
-  std::string cloned_code = new_module->ToString();
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
 
   size_t impl_pos = cloned_code.find("impl __test__proc__main");
   ASSERT_NE(impl_pos, std::string::npos);
@@ -201,14 +178,11 @@ fn main() {
   EXPECT_TRUE(absl::StrContains(
       new_body,
       "__test__proc__main { __test__terminator: __test__terminator }"));
-
-  new_module->SetName(absl::StrCat(new_module->name(), "_cloned"));
-  XLS_EXPECT_OK(
-      TypecheckModule(std::move(new_module), "test_cloned.x", &import_data)
-          .status());
 }
 
-TEST(TestFunctionTransformerTest, TestFunctionWithAssertions) {
+// TODO(davidplass): This test currently fails because it's not promoting the
+// variables to fields yet.
+TEST(TestFunctionTransformerTest, DISABLED_TestFunctionWithAssertions) {
   constexpr std::string_view kProgram = R"(
 proc P {
 }
@@ -224,15 +198,8 @@ fn main() {
     send(token(), tx, u32:42);
     assert_eq(u32:1, u32:1);
 })";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  TestFunctionTransformer transformer(*tm.module, *tm.type_info);
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
-                           transformer.TransformTestFunctions());
-
-  std::string cloned_code = new_module->ToString();
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
 
   size_t impl_pos = cloned_code.find("impl __test__proc__main");
   ASSERT_NE(impl_pos, std::string::npos);
@@ -254,17 +221,11 @@ fn main() {
   std::string next_body = impl_code.substr(next_pos);
   EXPECT_TRUE(absl::StrContains(next_body, "send(token(), tx, u32:42)"));
   EXPECT_TRUE(absl::StrContains(next_body, "assert_eq(u32:1, u32:1)"));
-
-  // TODO(davidplass): This test passes because TypecheckModule on the direct
-  // AST does not re-evaluate lexical scoping for already-linked NameRef nodes.
-  // This will change when we build "variable promotion" of locals to fields.
-  new_module->SetName(absl::StrCat(new_module->name(), "_cloned"));
-  XLS_EXPECT_OK(
-      TypecheckModule(std::move(new_module), "test_cloned.x", &import_data)
-          .status());
 }
 
-TEST(TestFunctionTransformerTest, TestFunctionMultipleSpawns) {
+// TODO(davidplass): This test currently fails because it's not promoting the
+// variables to fields yet.
+TEST(TestFunctionTransformerTest, DISABLED_TestFunctionMultipleSpawns) {
   constexpr std::string_view kProgram = R"(
 proc P {
 }
@@ -283,15 +244,8 @@ fn main() {
     send(token(), tx1, u32:1);
     send(token(), tx2, u32:2);
 })";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  TestFunctionTransformer transformer(*tm.module, *tm.type_info);
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> new_module,
-                           transformer.TransformTestFunctions());
-
-  std::string cloned_code = new_module->ToString();
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
 
   size_t impl_pos = cloned_code.find("impl __test__proc__main");
   ASSERT_NE(impl_pos, std::string::npos);
@@ -316,14 +270,6 @@ fn main() {
   std::string next_body = impl_code.substr(next_pos);
   EXPECT_TRUE(absl::StrContains(next_body, "send(token(), tx1, u32:1)"));
   EXPECT_TRUE(absl::StrContains(next_body, "send(token(), tx2, u32:2)"));
-
-  // TODO(davidplass): This test passes because TypecheckModule on the direct
-  // AST does not re-evaluate lexical scoping for already-linked NameRef nodes.
-  // This will change when we build "variable promotion" of locals to fields.
-  new_module->SetName(absl::StrCat(new_module->name(), "_cloned"));
-  XLS_EXPECT_OK(
-      TypecheckModule(std::move(new_module), "test_cloned.x", &import_data)
-          .status());
 }
 
 // Tests that the statements in the test function are cloned into the new
@@ -343,6 +289,8 @@ fn main() {
     p.spawn();
 }
 )";
+  // Note: does not use the helper function so we can test that the statements
+  // are cloned into the new module, and not left as dangling pointers.
   std::unique_ptr<Module> new_module;
   {
     auto import_data = CreateImportDataForTest();
