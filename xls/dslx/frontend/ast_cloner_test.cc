@@ -2912,5 +2912,163 @@ struct S {
   }
 }
 
+TEST(AstClonerTest, StructMemberClonesDifferentNonStateWrappedType) {
+  constexpr std::string_view kProgram = R"(
+struct S {
+  x: u32,
+  y: u16,
+}
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * s,
+                           module->GetMemberOrError<StructDef>("S"));
+  ASSERT_EQ(s->members().size(), 2);
+  StructMemberNode* x_member = s->members()[0];
+  StructMemberNode* y_member = s->members()[1];
+
+  x_member->set_non_state_wrapped_type(y_member->type());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModule(*module));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * cloned_s,
+                           cloned_module->GetMemberOrError<StructDef>("S"));
+  ASSERT_EQ(cloned_s->members().size(), 2);
+  StructMemberNode* cloned_x = cloned_s->members()[0];
+  StructMemberNode* cloned_y = cloned_s->members()[1];
+
+  EXPECT_EQ(cloned_x->non_state_wrapped_type(), cloned_y->type());
+  EXPECT_NE(cloned_x->non_state_wrapped_type(),
+            x_member->non_state_wrapped_type());
+}
+
+TEST(AstClonerTest, StatefulProcClonesNonStateWrappedType) {
+  constexpr std::string_view kProgram = R"(
+#![feature(explicit_state_access)]
+proc Counter {
+    state: u32,
+}
+impl Counter {
+    fn new() -> Self { Counter { state: u32:0 } }
+    fn next(self) {
+        let s = read(self.state);
+        write(self.state, s + u32:1);
+    }
+}
+)";
+  FileTable file_table;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "fake_path.x", "the_module", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * proc,
+                           tm.module->GetMemberOrError<ProcDef>("Counter"));
+  ASSERT_EQ(proc->members().size(), 1);
+  StructMemberNode* member = proc->members()[0];
+
+  // After typechecking, member->type() should be State<u32> and
+  // member->non_state_wrapped_type() should be u32
+  ASSERT_NE(member->type(), member->non_state_wrapped_type());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModule(*tm.module));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcDef * cloned_proc,
+                           cloned_module->GetMemberOrError<ProcDef>("Counter"));
+  ASSERT_EQ(cloned_proc->members().size(), 1);
+  StructMemberNode* cloned_member = cloned_proc->members()[0];
+
+  EXPECT_NE(cloned_member->type(), cloned_member->non_state_wrapped_type());
+  EXPECT_NE(cloned_member->non_state_wrapped_type(),
+            member->non_state_wrapped_type());
+  EXPECT_EQ(cloned_member->non_state_wrapped_type()->ToString(),
+            member->non_state_wrapped_type()->ToString());
+}
+
+// Verifies that MemberTypeAnnotation preserves its
+// `use_wrapped_type_if_proc_state` value when cloned. This flag is used during
+// typechecking of stateful procs. If true, member access (like `self.state`)
+// resolves to the wrapped `State<T>` type. If false (e.g. after we rewrite
+// state access to read/write), it resolves to the unwrapped `T` type. It must
+// be preserved during cloning to ensure the cloned AST is typechecked
+// consistently.
+TEST(AstClonerTest, MemberAnnotationPreservesUseWrappedTypeIfProcState) {
+  constexpr std::string_view kProgram =
+      R"(
+struct Point {
+    x: u32,
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * point,
+                           module->GetMemberOrError<StructDef>("Point"));
+  const MemberTypeAnnotation* annotation = module->Make<MemberTypeAnnotation>(
+      Span::Fake(),
+      module->Make<TypeRefTypeAnnotation>(
+          Span::Fake(), module->Make<TypeRef>(Span::Fake(), point),
+          /*parametrics=*/std::vector<ExprOrType>()),
+      "x",
+      /*use_wrapped_type_if_proc_state=*/false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));
+  auto* cloned_annotation = absl::down_cast<const MemberTypeAnnotation*>(clone);
+  EXPECT_FALSE(cloned_annotation->use_wrapped_type_if_proc_state());
+}
+
+// Verifies that CloneModuleRemovingMembers does not clone AST nodes that belong
+// to external modules. If a TypeRef in the module being cloned points directly
+// to a StructDef in an external module (which happens for the builtin `State`
+// struct in stateful procs), the cloner must preserve the pointer to the
+// external StructDef instead of cloning it into the target module. Cloning it
+// would break pointer identity checks in the typechecker.
+TEST(AstClonerTest, CloneModuleRemovingMembersPreservesExternalNodes) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ext_parsed,
+      ParseModule("struct Ext {}", "ext.x", "ext", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * ext_struct,
+                           ext_parsed->GetMemberOrError<StructDef>("Ext"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto main_module,
+      ParseModule("struct S { x: u32 }", "main.x", "main", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * s,
+                           main_module->GetMemberOrError<StructDef>("S"));
+  ASSERT_EQ(s->members().size(), 1);
+  StructMemberNode* member = s->members()[0];
+
+  TypeRefTypeAnnotation* ext_type_annot =
+      main_module->Make<TypeRefTypeAnnotation>(
+          Span::Fake(), main_module->Make<TypeRef>(Span::Fake(), ext_struct),
+          /*parametrics=*/std::vector<ExprOrType>());
+
+  member->set_type(ext_type_annot);
+
+  const std::array<const AstNode*, 0> removed = {};
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModuleRemovingMembers(*main_module, removed));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * cloned_s,
+                           cloned_module->GetMemberOrError<StructDef>("S"));
+  ASSERT_EQ(cloned_s->members().size(), 1);
+  StructMemberNode* cloned_member = cloned_s->members()[0];
+
+  auto* cloned_type_annot =
+      dynamic_cast<TypeRefTypeAnnotation*>(cloned_member->type());
+  ASSERT_NE(cloned_type_annot, nullptr);
+  TypeRef* cloned_type_ref = cloned_type_annot->type_ref();
+
+  EXPECT_TRUE(
+      std::holds_alternative<StructDef*>(cloned_type_ref->type_definition()));
+  EXPECT_EQ(std::get<StructDef*>(cloned_type_ref->type_definition()),
+            ext_struct);
+}
+
 }  // namespace
 }  // namespace xls::dslx
