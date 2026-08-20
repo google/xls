@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -106,6 +107,43 @@ absl::Status VerifyName(FunctionBase* function_base) {
     return absl::InternalError(absl::StrFormat(
         "Function/proc/block name '%s' is a keyword", function_base->name()));
   }
+  return absl::OkStatus();
+}
+
+absl::Status VerifyProcStateElements(Proc* proc) {
+  absl::flat_hash_set<std::string> state_element_names;
+  absl::flat_hash_set<std::string> state_element_map_names;
+  absl::flat_hash_set<StateElement*> state_elements;
+  for (StateElement* state_element : proc->StateElements()) {
+    state_elements.insert(state_element);
+    state_element_names.insert(state_element->name());
+    XLS_RET_CHECK_EQ(state_element,
+                     proc->StateElementMap().at(state_element->name()).get())
+        << absl::StreamFormat(
+               "State element '%s' in state element vector but not in state "
+               "element map",
+               state_element->name());
+  }
+  for (const auto& [name, state_element] : proc->StateElementMap()) {
+    state_element_map_names.insert(name);
+    XLS_RET_CHECK(state_elements.contains(state_element.get()))
+        << absl::StreamFormat(
+               "State element '%s' in state element map but not in state "
+               "element vector",
+               name);
+  }
+  XLS_RET_CHECK(state_element_names == state_element_map_names)
+      << absl::StreamFormat(
+             "State element names in state element vector and map differ for "
+             "proc '%s'",
+             proc->name());
+  XLS_RET_CHECK_EQ(state_elements.size(), state_element_map_names.size())
+      << absl::StreamFormat(
+             "Number of state elements in state element vector and map differ "
+             "for proc '%s'",
+             proc->name());
+  XLS_RET_CHECK_EQ(state_elements.size(), proc->StateElements().size());
+  XLS_RET_CHECK_EQ(state_elements.size(), proc->StateElementMap().size());
   return absl::OkStatus();
 }
 
@@ -876,6 +914,7 @@ absl::Status VerifyProc(Proc* proc, const VerifyOptions& options) {
   XLS_VLOG_LINES(4, proc->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(proc));
+  XLS_RETURN_IF_ERROR(VerifyProcStateElements(proc));
 
   if (proc->is_new_style_proc()) {
     XLS_RETURN_IF_ERROR(VerifyProcScopedChannels(proc));
