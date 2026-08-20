@@ -628,6 +628,14 @@ class ProcStateVisitor : public AstNodeVisitorWithDefault {
         continue;
       }
 
+      if (auto* tr_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
+        if (ToAstNode(tr_type->type_ref()->type_definition()) ==
+            state_struct_def_) {
+          // Already wrapped
+          continue;
+        }
+      }
+
       member->set_type(
           CreateStateTypeAnnotation(node->owner(), type, type->span()));
     }
