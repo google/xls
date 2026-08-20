@@ -137,7 +137,7 @@ enum MyEnum : u8 {
   B = "A",
 }
 )",
-      TypecheckFails(HasTypeMismatch("u8[u32:1]", "u8")));
+      TypecheckFails(HasTypeMismatch("u8[1]", "u8")));
 }
 
 TEST(TypecheckV2Test, EmptyEnumIsSemanticSum) {

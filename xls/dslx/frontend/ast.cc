@@ -1361,10 +1361,16 @@ std::vector<AstNode*> ArrayTypeAnnotation::GetChildren(bool want_types) const {
 }
 
 std::string ArrayTypeAnnotation::ToString() const {
-  return dim_is_min_ ? absl::StrFormat("%s[>= %s]", element_type_->ToString(),
-                                       dim_->ToString())
-                     : absl::StrFormat("%s[%s]", element_type_->ToString(),
-                                       dim_->ToString());
+  std::string dim_str = dim_->ToString();
+  if (dim_->kind() == AstNodeKind::kNumber) {
+    const Number* num_dim = absl::down_cast<const Number*>(dim_);
+    if (num_dim->IsU32Type()) {
+      dim_str = num_dim->ToStringNoType();
+    }
+  }
+  return dim_is_min_
+             ? absl::StrFormat("%s[>= %s]", element_type_->ToString(), dim_str)
+             : absl::StrFormat("%s[%s]", element_type_->ToString(), dim_str);
 }
 
 // -- class SelfTypeAnnotation
@@ -2921,7 +2927,14 @@ std::string ChannelTypeAnnotation::ToString() const {
   std::vector<std::string> dims;
   if (dims_.has_value()) {
     for (const Expr* dim : dims_.value()) {
-      dims.push_back(absl::StrCat("[", dim->ToString(), "]"));
+      std::string dim_str = dim->ToString();
+      if (dim->kind() == AstNodeKind::kNumber) {
+        const Number* num_dim = absl::down_cast<const Number*>(dim);
+        if (num_dim->IsU32Type()) {
+          dim_str = num_dim->ToStringNoType();
+        }
+      }
+      dims.push_back(absl::StrCat("[", dim_str, "]"));
     }
   }
   return absl::StrFormat("chan<%s>%s %s", payload_->ToString(),

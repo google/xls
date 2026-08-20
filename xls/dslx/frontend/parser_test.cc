@@ -3219,7 +3219,7 @@ TEST_F(ParserTest, BitCount) {
 
 TEST_F(ParserTest, ElementCount) {
   RoundTripExpr("element_count<u32[u32:5]>()", {},
-                /*populate_dslx_builtins=*/true, "element_count<u32[u32:5]>()");
+                /*populate_dslx_builtins=*/true, "element_count<u32[5]>()");
 }
 
 TEST_F(ParserTest, ConfiguredValueOr) {
