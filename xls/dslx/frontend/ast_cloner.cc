@@ -1017,6 +1017,13 @@ class AstCloner : public AstNodeVisitor {
           CastIfNotVerbatim<NameDef*>(old_to_new_.at(member->name_def())));
       auto* new_member = m->Make<StructMemberNode>(
           member->span(), new_name, member->colon_span(), new_type);
+      if (member->non_state_wrapped_type() != member->type()) {
+        XLS_RETURN_IF_ERROR(ReplaceOrVisit(member->non_state_wrapped_type()));
+        XLS_ASSIGN_OR_RETURN(TypeAnnotation * new_non_state_wrapped_type,
+                             CastIfNotVerbatim<TypeAnnotation*>(old_to_new_.at(
+                                 member->non_state_wrapped_type())));
+        new_member->set_non_state_wrapped_type(new_non_state_wrapped_type);
+      }
       XLS_ASSIGN_OR_RETURN(std::vector<Attribute*> new_attributes,
                            CloneAttributes(member->attributes()));
       new_member->SetAttributes(new_attributes);
@@ -1329,7 +1336,7 @@ class AstCloner : public AstNodeVisitor {
     old_to_new_[n] = module(n)->Make<MemberTypeAnnotation>(
         n->span(),
         absl::down_cast<const TypeAnnotation*>(old_to_new_[n->struct_type()]),
-        n->member_name());
+        n->member_name(), n->use_wrapped_type_if_proc_state());
     return absl::OkStatus();
   }
 
@@ -1755,6 +1762,13 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModuleRemovingMembers(
         -> absl::StatusOr<std::optional<AstNode*>> {
       if (auto cached = global_map.find(node); cached != global_map.end()) {
         return cached->second;
+      }
+
+      if (node->owner() != &module) {
+        // Don't clone nodes that aren't in the original module. (We don't
+        // return std::nullopt here because that would cause the node to be
+        // cloned, instead of being replaced by itself.)
+        return const_cast<AstNode*>(node);
       }
 
       if (node->kind() == AstNodeKind::kNameRef) {
