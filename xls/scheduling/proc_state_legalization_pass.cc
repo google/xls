@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "absl/container/btree_set.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -49,7 +48,7 @@ namespace xls {
 
 namespace {
 
-absl::StatusOr<bool> AddMutualExclusionAssert(
+absl::StatusOr<bool> AddNextValueMutualExclusionAssert(
     Proc* proc, StateElement* state_element,
     const SchedulingPassOptions& options) {
   const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
@@ -111,15 +110,86 @@ absl::StatusOr<bool> AddMutualExclusionAssert(
   return true;
 }
 
+absl::StatusOr<bool> AddStateReadMutualExclusionAssert(
+    Proc* proc, StateElement* state_element,
+    const SchedulingPassOptions& options) {
+  absl::Span<StateRead* const> state_reads =
+      proc->GetStateReadsByStateElement(state_element);
+  if (state_reads.size() < 2) {
+    return false;
+  }
+  std::string label =
+      absl::StrCat("__", state_element->name(), "__at_most_one_read_assert");
+  if (proc->HasNode(label)) {
+    return absl::InternalError(absl::StrFormat(
+        "Read mutual exclusion assert already exists for state "
+        "element '%s'; was this pass run twice? assert label: %s",
+        state_element->name(), label));
+  }
+  std::vector<Node*> predicate_list;
+  Node* true_lit = nullptr;
+  for (StateRead* state_read : state_reads) {
+    if (state_read->predicate().has_value()) {
+      predicate_list.push_back(*state_read->predicate());
+    } else {
+      if (true_lit == nullptr) {
+        XLS_ASSIGN_OR_RETURN(
+            true_lit, proc->MakeNode<Literal>(SourceInfo(), Value::Bool(true)));
+      }
+      predicate_list.push_back(true_lit);
+    }
+  }
+  XLS_ASSIGN_OR_RETURN(
+      Node * predicates,
+      proc->MakeNodeWithName<Concat>(
+          SourceInfo(), predicate_list,
+          absl::StrCat("__", state_element->name(), "__read_predicates")));
+  XLS_ASSIGN_OR_RETURN(
+      Node * one_hot_predicates,
+      proc->MakeNode<OneHot>(SourceInfo(), predicates, LsbOrMsb::kLsb));
+  XLS_ASSIGN_OR_RETURN(Node * at_most_one_predicate,
+                       proc->MakeNode<BitSlice>(
+                           SourceInfo(), one_hot_predicates, /*start=*/0,
+                           /*width=*/one_hot_predicates->BitCountOrDie() - 1));
+  XLS_ASSIGN_OR_RETURN(
+      Node * at_most_one_read,
+      proc->MakeNodeWithName<CompareOp>(
+          SourceInfo(), predicates, at_most_one_predicate, Op::kEq,
+          absl::StrCat("__", state_element->name(), "__at_most_one_read")));
+  XLS_ASSIGN_OR_RETURN(Node * tkn,
+                       proc->MakeNode<Literal>(SourceInfo(), Value::Token()));
+  XLS_RETURN_IF_ERROR(
+      proc->MakeNodeWithName<Assert>(
+              SourceInfo(), tkn,
+              /*condition=*/at_most_one_read,
+              /*message=*/
+              absl::StrCat("More than one StateRead active for state element: ",
+                           state_element->name()),
+              /*label=*/label,
+              /*original_label=*/std::nullopt,
+              /*name=*/label)
+          .status());
+  return true;
+}
+
 absl::StatusOr<bool> AddMutualExclusionAsserts(
     Proc* proc, const SchedulingPassOptions& options) {
   bool changed = false;
 
   for (StateElement* state_element : proc->StateElements()) {
-    XLS_ASSIGN_OR_RETURN(bool assert_added, AddMutualExclusionAssert(
-                                                proc, state_element, options));
-    if (assert_added) {
-      VLOG(4) << "Added mutual exclusion assert for state element: "
+    XLS_ASSIGN_OR_RETURN(
+        bool write_assert_added,
+        AddNextValueMutualExclusionAssert(proc, state_element, options));
+    if (write_assert_added) {
+      VLOG(4) << "Added next_value mutual exclusion assert for state element: "
+              << state_element->name();
+      changed = true;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        bool read_assert_added,
+        AddStateReadMutualExclusionAssert(proc, state_element, options));
+    if (read_assert_added) {
+      VLOG(4) << "Added state_read mutual exclusion assert for state element: "
               << state_element->name();
       changed = true;
     }
@@ -131,18 +201,32 @@ absl::StatusOr<bool> AddMutualExclusionAsserts(
 absl::StatusOr<bool> AddWriteWithoutReadAsserts(
     Proc* proc, StateElement* state_element,
     const SchedulingPassOptions& options) {
-  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
-  if (!state_read->predicate().has_value()) {
-    return false;
-  }
+  absl::Span<StateRead* const> state_reads =
+      proc->GetStateReadsByStateElement(state_element);
 
   const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
       proc->next_values(state_element);
   if (next_values.empty()) {
     return false;
   }
+  std::vector<Node*> state_read_predicates;
+  for (StateRead* state_read : state_reads) {
+    if (state_read->predicate().has_value()) {
+      state_read_predicates.push_back(*state_read->predicate());
+    } else {
+      // State read is unconditional, so no write-without-read assert needed.
+      return false;
+    }
+  }
+  // If there are multiple state reads, we need to OR their predicates together
+  // to see if any of them are active.
+  XLS_ASSIGN_OR_RETURN(
+      Node * any_read_active,
+      NaryOrIfNeeded(proc, state_read_predicates,
+                     absl::StrCat("__", state_element->name(),
+                                  "__state_read_predicates_nary_or"),
+                     SourceInfo()));
 
-  std::vector<Node*> predicate_list;
   for (Next* next : next_values) {
     XLS_RET_CHECK(next->predicate().has_value());
     XLS_ASSIGN_OR_RETURN(
@@ -155,8 +239,7 @@ absl::StatusOr<bool> AddWriteWithoutReadAsserts(
         Node * no_write_without_read,
         proc->MakeNodeWithName<NaryOp>(
             SourceInfo(),
-            absl::MakeConstSpan({*state_read->predicate(), next_not_triggered}),
-            Op::kOr,
+            absl::MakeConstSpan({any_read_active, next_not_triggered}), Op::kOr,
             absl::StrCat("__", state_element->name(), "__no_next_", next->id(),
                          "_without_read")));
     std::string label = absl::StrCat("__", state_element->name(), "__next_",
@@ -207,7 +290,6 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
                                          StateElement* state_element,
                                          const SchedulingPassOptions& options) {
   absl::btree_set<Node*, Node::NodeIdLessThan> predicates;
-  StateRead* state_read = proc->GetStateReadByStateElement(state_element);
   for (Next* next : proc->next_values(state_element)) {
     if (next->predicate().has_value()) {
       predicates.insert(*next->predicate());
@@ -216,50 +298,62 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
       return false;
     }
   }
-
+  absl::Span<StateRead* const> state_reads =
+      proc->GetStateReadsByStateElement(state_element);
+  // No explicit `next_value` node; leave the state element unchanged by
+  // default.
   if (predicates.empty()) {
-    // No explicit `next_value` node; leave the state element unchanged by
-    // default.
-    XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                                state_read->loc(), state_element,
-                                /*value=*/state_read,
-                                /*predicate=*/state_read->predicate(),
-                                /*label=*/std::nullopt,
-                                absl::StrCat(state_element->name(), "_default"))
-                            .status());
+    for (StateRead* state_read : state_reads) {
+      XLS_RETURN_IF_ERROR(
+          proc->MakeNodeWithName<Next>(
+                  state_read->loc(), state_element,
+                  /*value=*/state_read,
+                  /*predicate=*/state_read->predicate(),
+                  /*label=*/std::nullopt,
+                  absl::StrCat(state_element->name(), "_default_",
+                               state_read->GetName()))
+              .status());
+    }
     return true;
   }
+
+  auto get_underlying_default_predicate = [](Next* next) -> Node* {
+    StateRead* state_read = next->value()->As<StateRead>();
+    Node* pred = *next->predicate();
+    if (state_read->predicate().has_value() && pred->OpIn({Op::kAnd}) &&
+        pred->operands().size() == 2) {
+      if (pred->operand(0) == *state_read->predicate()) {
+        return pred->operand(1);
+      }
+      if (pred->operand(1) == *state_read->predicate()) {
+        return pred->operand(0);
+      }
+    }
+    return pred;
+  };
 
   // Check if we already have an explicit "if nothing else fires" `next_value`
   // node, which keeps things cleaner and makes sure this pass is idempotent.
   for (Next* next : proc->next_values(state_element)) {
-    Node* predicate = *next->predicate();
-
-    absl::btree_set<Node*, Node::NodeIdLessThan> other_conditions = predicates;
-    other_conditions.erase(predicate);
-
-    if (other_conditions.empty()) {
+    if (!IsNoOpNext(next) || !next->predicate().has_value()) {
       continue;
     }
 
-    if (state_read->predicate().has_value() && predicate->OpIn({Op::kAnd}) &&
-        predicate->operands().size() == 2) {
-      // Check to see if this is just an `and` with the state read predicate. If
-      // so, take the other operand & see if it's a not/nor of the other
-      // conditions.
-      if (predicate->operand(0) == *state_read->predicate()) {
-        predicate = predicate->operand(1);
-      } else if (predicate->operand(1) == *state_read->predicate()) {
-        predicate = predicate->operand(0);
-      } else {
-        // It's not, so we can't trivially recognize it as being of the right
-        // form.
-        continue;
-      }
-    }
-
+    Node* predicate = get_underlying_default_predicate(next);
     if (!predicate->OpIn({Op::kNot, Op::kNor})) {
       continue;
+    }
+
+    // Remove all next_value predicates that use this default condition from
+    // `other_conditions`, leaving only the explicit write conditions.
+    absl::btree_set<Node*, Node::NodeIdLessThan> other_conditions = predicates;
+    for (Next* other_next : proc->next_values(state_element)) {
+      if (!IsNoOpNext(other_next) || !other_next->predicate().has_value()) {
+        continue;
+      }
+      if (get_underlying_default_predicate(other_next) == predicate) {
+        other_conditions.erase(*other_next->predicate());
+      }
     }
 
     absl::btree_set<Node*, Node::NodeIdLessThan> excluded_conditions(
@@ -307,24 +401,30 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
   // Explicitly mark the state element as unchanged when no other `next_value`
   // node is active.
   XLS_ASSIGN_OR_RETURN(
-      Node * default_predicate,
+      Node * no_explicit_next_active,
       NaryNorIfNeeded(proc, std::vector(predicates.begin(), predicates.end()),
-                      /*name=*/"", state_read->loc()));
-  if (state_read->predicate().has_value()) {
-    XLS_ASSIGN_OR_RETURN(
-        default_predicate,
-        proc->MakeNode<NaryOp>(
-            state_read->loc(),
-            absl::MakeConstSpan({*state_read->predicate(), default_predicate}),
-            Op::kAnd));
+                      absl::StrCat("__", state_element->name(),
+                                   "__no_explicit_next_active"),
+                      SourceInfo()));
+  for (StateRead* state_read : state_reads) {
+    Node* default_predicate = no_explicit_next_active;
+    if (state_read->predicate().has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          default_predicate,
+          proc->MakeNode<NaryOp>(state_read->loc(),
+                                 absl::MakeConstSpan({*state_read->predicate(),
+                                                      no_explicit_next_active}),
+                                 Op::kAnd));
+    }
+    XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
+                                state_read->loc(), state_element,
+                                /*value=*/state_read,
+                                /*predicate=*/default_predicate,
+                                /*label=*/std::nullopt,
+                                absl::StrCat(state_element->name(), "_default_",
+                                             state_read->GetName()))
+                            .status());
   }
-  XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
-                              state_read->loc(), state_element,
-                              /*value=*/state_read,
-                              /*predicate=*/default_predicate,
-                              /*label=*/std::nullopt,
-                              absl::StrCat(state_element->name(), "_default"))
-                          .status());
   return true;
 }
 
