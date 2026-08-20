@@ -370,7 +370,7 @@ compound_passes: [
   {
     long_name: "Post-inlining passes"
     short_name: "post-inlining"
-    passes: ["post-inlining-opt(>=1)", "dce", "label-recovery", "resource_sharing"]
+    passes: ["post-inlining-opt(>=1)", "dce", "label-recovery", "resource_sharing", "collapse_select_chains", "dce"]
     comment: "Passes performed after inlining"
   },
   {

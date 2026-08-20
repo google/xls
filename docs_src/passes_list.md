@@ -777,22 +777,14 @@ The pass currently focuses on the following key areas:
     ret my_and: bits[1] = and(A, B)
 
 
-3.  **Collapse of Select Chains into OneHotSelects** (at `opt_level >= 2`):
-    Chains of binary `select` operations, particularly where one case of a
-    `select` feeds into another `select` (e.g.,
-    `sel(pred_a, {val_a, sel(pred_b, {val_b, default_val})})`), are
-    transformed into a single `one_hot_select` if the selectors are provably
-    disjoint (at most one can be true at any given time). This simplifies the
-    IR structure and can lead to more efficient hardware implementations.
-
-4.  **Replacement of Two-Way OneHotSelect with Select** (at `opt_level >=
+3.  **Replacement of Two-Way OneHotSelect with Select** (at `opt_level >=
     2`):
     A `one_hot_select` with a 2-bit selector that is known to be one-hot can
     be replaced with a simpler `select` operation, as the one-hot property
     means the decision effectively depends on a single bit. This reduces the
     complexity of the select operation.
 
-5.  **Simplification of PrioritySelect Operations** (at `opt_level >= 1`):
+4.  **Simplification of PrioritySelect Operations** (at `opt_level >= 1`):
     If BDD analysis determines that the selector of a `priority_select` is
     guaranteed to have at least one bit set within a certain range, the
     `priority_select` can be narrowed. This involves trimming higher-priority
@@ -849,22 +841,14 @@ The pass currently focuses on the following key areas:
     ret my_and: bits[1] = and(A, B)
 
 
-3.  **Collapse of Select Chains into OneHotSelects** (at `opt_level >= 2`):
-    Chains of binary `select` operations, particularly where one case of a
-    `select` feeds into another `select` (e.g.,
-    `sel(pred_a, {val_a, sel(pred_b, {val_b, default_val})})`), are
-    transformed into a single `one_hot_select` if the selectors are provably
-    disjoint (at most one can be true at any given time). This simplifies the
-    IR structure and can lead to more efficient hardware implementations.
-
-4.  **Replacement of Two-Way OneHotSelect with Select** (at `opt_level >=
+3.  **Replacement of Two-Way OneHotSelect with Select** (at `opt_level >=
     2`):
     A `one_hot_select` with a 2-bit selector that is known to be one-hot can
     be replaced with a simpler `select` operation, as the one-hot property
     means the decision effectively depends on a single bit. This reduces the
     complexity of the select operation.
 
-5.  **Simplification of PrioritySelect Operations** (at `opt_level >= 1`):
+4.  **Simplification of PrioritySelect Operations** (at `opt_level >= 1`):
     If BDD analysis determines that the selector of a `priority_select` is
     guaranteed to have at least one bit set within a certain range, the
     `priority_select` can be narrowed. This involves trimming higher-priority
@@ -921,22 +905,14 @@ The pass currently focuses on the following key areas:
     ret my_and: bits[1] = and(A, B)
 
 
-3.  **Collapse of Select Chains into OneHotSelects** (at `opt_level >= 2`):
-    Chains of binary `select` operations, particularly where one case of a
-    `select` feeds into another `select` (e.g.,
-    `sel(pred_a, {val_a, sel(pred_b, {val_b, default_val})})`), are
-    transformed into a single `one_hot_select` if the selectors are provably
-    disjoint (at most one can be true at any given time). This simplifies the
-    IR structure and can lead to more efficient hardware implementations.
-
-4.  **Replacement of Two-Way OneHotSelect with Select** (at `opt_level >=
+3.  **Replacement of Two-Way OneHotSelect with Select** (at `opt_level >=
     2`):
     A `one_hot_select` with a 2-bit selector that is known to be one-hot can
     be replaced with a simpler `select` operation, as the one-hot property
     means the decision effectively depends on a single bit. This reduces the
     complexity of the select operation.
 
-5.  **Simplification of PrioritySelect Operations** (at `opt_level >= 1`):
+4.  **Simplification of PrioritySelect Operations** (at `opt_level >= 1`):
     If BDD analysis determines that the selector of a `priority_select` is
     guaranteed to have at least one bit set within a certain range, the
     `priority_select` can be narrowed. This involves trimming higher-priority
@@ -1511,6 +1487,27 @@ activations and preventing simultaneous access.
 
 
 [Header](http://github.com/google/xls/tree/main/xls/passes/channel_legalization_pass.h)
+
+
+
+
+
+
+## collapse_select_chains - BDD-based Select Chain Collapsing {#collapse_select_chains}
+
+
+Pass which collapses chains of selects with disjoint selectors into a single
+one-hot-select.
+
+Chains of binary `select` operations, particularly where one case of a
+`select` feeds into another `select` (e.g.,
+`sel(pred_a, {val_a, sel(pred_b, {val_b, default_val})})`), are transformed
+into a single `one_hot_select` if the selectors are provably disjoint (at
+most one can be true at any given time). This simplifies the IR structure and
+can lead to more efficient hardware implementations.
+
+
+[Header](http://github.com/google/xls/tree/main/xls/passes/collapse_select_chains_pass.h)
 
 
 
@@ -4631,6 +4628,8 @@ Passes performed after inlining
 - [dce](#dce)
 - [label-recovery](#label-recovery)
 - [resource_sharing](#resource_sharing)
+- [collapse_select_chains](#collapse_select_chains)
+- [dce](#dce)
 
 
 
