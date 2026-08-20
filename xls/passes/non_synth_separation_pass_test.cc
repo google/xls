@@ -186,9 +186,9 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledUnreadState) {
       StateElement * state_element_non_synth,
       proc->GetStateElementByName("state_element_non_synth"));
   EXPECT_TRUE(state_element_non_synth->non_synthesizable());
-  EXPECT_THAT(proc->next_values(),
-              testing::Contains(m::NextWithStateElement(state_element_non_synth,
-                                                        m::Literal(42))));
+  EXPECT_THAT(
+      proc->next_values(),
+      testing::Contains(m::Next(state_element_non_synth, m::Literal(42))));
 }
 
 TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledReadWriteState) {
@@ -213,9 +213,9 @@ TEST_F(NonSynthSeparationPassTest, ProcIsClonedWithDecoupledReadWriteState) {
       StateElement * state_element_non_synth,
       proc->GetStateElementByName("state_element_non_synth"));
   EXPECT_TRUE(state_element_non_synth->non_synthesizable());
-  EXPECT_THAT(proc->next_values(),
-              testing::Contains(m::NextWithStateElement(state_element_non_synth,
-                                                        m::Literal(42))));
+  EXPECT_THAT(
+      proc->next_values(),
+      testing::Contains(m::Next(state_element_non_synth, m::Literal(42))));
 }
 
 TEST_F(NonSynthSeparationPassTest, NonSynthReadAndNextPreservesPredicate) {
@@ -241,7 +241,7 @@ TEST_F(NonSynthSeparationPassTest, NonSynthReadAndNextPreservesPredicate) {
       proc->GetStateReadsByStateElement(data_element_non_synth),
       testing::ElementsAre(m::StateRead("data_non_synth", cond_read.node())));
   EXPECT_THAT(proc->next_values(data_element_non_synth),
-              testing::ElementsAre(m::NextWithStateElement(
+              testing::ElementsAre(m::Next(
                   data_element_non_synth, data_read.node(), cond_read.node())));
 }
 

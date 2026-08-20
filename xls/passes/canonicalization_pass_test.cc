@@ -367,15 +367,14 @@ TEST_F(CanonicalizePassTest, NextValueWithAlwaysTruePredicate) {
      }
   )",
                                                   p.get()));
-  EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::NextWithStateElement(m::StateElement("st"), m::Literal(1),
-                                          /*predicate=*/m::Literal(1))));
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
+              ElementsAre(m::Next(m::StateElement("st"), m::Literal(1),
+                                  /*predicate=*/m::Literal(1))));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::NextWithStateElement(m::StateElement("st"),
-                                                  /*value=*/m::Literal(1))));
+              ElementsAre(m::Next(m::StateElement("st"),
+                                  /*value=*/m::Literal(1))));
 }
 
 TEST_F(CanonicalizePassTest, NextValueWithAlwaysFalsePredicate) {
@@ -387,10 +386,9 @@ TEST_F(CanonicalizePassTest, NextValueWithAlwaysFalsePredicate) {
      }
   )",
                                                   p.get()));
-  EXPECT_THAT(
-      proc->next_values(proc->GetStateElement(0)),
-      ElementsAre(m::NextWithStateElement(m::StateElement("st"), m::Literal(0),
-                                          /*predicate=*/m::Literal(0))));
+  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
+              ElementsAre(m::Next(m::StateElement("st"), m::Literal(0),
+                                  /*predicate=*/m::Literal(0))));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(), IsEmpty());

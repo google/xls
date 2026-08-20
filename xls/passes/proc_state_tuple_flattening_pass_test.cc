@@ -201,15 +201,14 @@ TEST_P(ProcStateFlatteningPassTest, EmptyTupleAndBitsState) {
   EXPECT_EQ(proc->GetStateRead(0)->GetName(), "y");
   EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(0, 32)));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::NextWithStateElement(m::StateElement("y"),
-                                                  m::StateRead("y"))));
+              ElementsAre(m::Next(m::StateElement("y"), m::StateRead("y"))));
 
   EXPECT_EQ(proc->GetStateRead(1)->GetName(), "q");
   EXPECT_EQ(proc->GetStateElement(1)->initial_value(), Value(UBits(0, 64)));
   EXPECT_THAT(
       proc->next_values(proc->GetStateElement(1)),
-      ElementsAre(m::NextWithStateElement(
-          m::StateElement("q"), m::Add(m::StateRead("q"), m::StateRead("q")))));
+      ElementsAre(m::Next(m::StateElement("q"),
+                          m::Add(m::StateRead("q"), m::StateRead("q")))));
 }
 
 TEST_P(ProcStateFlatteningPassTest, TrivialTupleState) {
@@ -226,9 +225,9 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleState) {
 
   EXPECT_EQ(proc->GetStateRead(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(42, 32)));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              UnorderedElementsAre(m::NextWithStateElement(m::StateElement("x"),
-                                                           m::StateRead("x"))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(0)),
+      UnorderedElementsAre(m::Next(m::StateElement("x"), m::StateRead("x"))));
 }
 
 TEST_P(ProcStateFlatteningPassTest, TrivialTupleStateWithNextExpression) {
@@ -247,8 +246,8 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleStateWithNextExpression) {
   EXPECT_EQ(proc->GetStateRead(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(42, 32)));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              UnorderedElementsAre(m::NextWithStateElement(
-                  m::StateElement("x"), m::Not(m::StateRead("x")))));
+              UnorderedElementsAre(
+                  m::Next(m::StateElement("x"), m::Not(m::StateRead("x")))));
 }
 
 TEST_P(ProcStateFlatteningPassTest, ComplicatedState) {
@@ -275,34 +274,34 @@ TEST_P(ProcStateFlatteningPassTest, ComplicatedState) {
   EXPECT_EQ(proc->GetStateElementCount(), 6);
 
   EXPECT_EQ(proc->GetStateRead(0)->GetName(), "a_0");
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              UnorderedElementsAre(m::NextWithStateElement(
-                  m::StateElement("a_0"), m::StateRead("b"))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(0)),
+      UnorderedElementsAre(m::Next(m::StateElement("a_0"), m::StateRead("b"))));
 
   EXPECT_EQ(proc->GetStateRead(1)->GetName(), "a_1");
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              UnorderedElementsAre(m::NextWithStateElement(
-                  m::StateElement("a_1"), m::StateRead("c_0"))));
+              UnorderedElementsAre(
+                  m::Next(m::StateElement("a_1"), m::StateRead("c_0"))));
 
   EXPECT_EQ(proc->GetStateRead(2)->GetName(), "a_2");
   EXPECT_THAT(proc->next_values(proc->GetStateElement(2)),
-              UnorderedElementsAre(m::NextWithStateElement(
-                  m::StateElement("a_2"), m::StateRead("c_1"))));
+              UnorderedElementsAre(
+                  m::Next(m::StateElement("a_2"), m::StateRead("c_1"))));
 
   EXPECT_EQ(proc->GetStateRead(3)->GetName(), "b");
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(3)),
-              UnorderedElementsAre(m::NextWithStateElement(
-                  m::StateElement("b"), m::StateRead("a_0"))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(3)),
+      UnorderedElementsAre(m::Next(m::StateElement("b"), m::StateRead("a_0"))));
 
   EXPECT_EQ(proc->GetStateRead(4)->GetName(), "c_0");
   EXPECT_THAT(proc->next_values(proc->GetStateElement(4)),
-              UnorderedElementsAre(m::NextWithStateElement(
-                  m::StateElement("c_0"), m::StateRead("a_1"))));
+              UnorderedElementsAre(
+                  m::Next(m::StateElement("c_0"), m::StateRead("a_1"))));
 
   EXPECT_EQ(proc->GetStateRead(5)->GetName(), "c_1");
   EXPECT_THAT(proc->next_values(proc->GetStateElement(5)),
-              UnorderedElementsAre(m::NextWithStateElement(
-                  m::StateElement("c_1"), m::StateRead("a_2"))));
+              UnorderedElementsAre(
+                  m::Next(m::StateElement("c_1"), m::StateRead("a_2"))));
 }
 
 TEST_P(ProcStateFlatteningPassTest, NextPredicateIsState) {
@@ -329,25 +328,21 @@ TEST_P(ProcStateFlatteningPassTest, NextPredicateIsState) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true)) << p->DumpIr();
 
   EXPECT_EQ(proc->GetStateElementCount(), 4);
-  EXPECT_THAT(
-      proc->nodes(),
-      AllOf(Contains(m::NextWithStateElement(m::StateElement("a_0"), _,
-                                             m::StateRead(StartsWith("b")))),
-            Contains(
-                m::NextWithStateElement(m::StateElement("a_0"), _,
-                                        m::Not(m::StateRead(StartsWith("b"))))),
-            Contains(m::NextWithStateElement(m::StateElement("a_1"), _,
-                                             m::StateRead(StartsWith("b")))),
-            Contains(
-                m::NextWithStateElement(m::StateElement("a_1"), _,
-                                        m::Not(m::StateRead(StartsWith("b"))))),
-            Contains(m::NextWithStateElement(m::StateElement("a_2"), _,
-                                             m::StateRead(StartsWith("b")))),
-            Contains(
-                m::NextWithStateElement(m::StateElement("a_2"), _,
-                                        m::Not(m::StateRead(StartsWith("b"))))),
-            Contains(m::NextWithStateElement(
-                m::StateElement("b"), m::Not(m::StateRead(StartsWith("b")))))));
+  EXPECT_THAT(proc->nodes(),
+              AllOf(Contains(m::Next(m::StateElement("a_0"), _,
+                                     m::StateRead(StartsWith("b")))),
+                    Contains(m::Next(m::StateElement("a_0"), _,
+                                     m::Not(m::StateRead(StartsWith("b"))))),
+                    Contains(m::Next(m::StateElement("a_1"), _,
+                                     m::StateRead(StartsWith("b")))),
+                    Contains(m::Next(m::StateElement("a_1"), _,
+                                     m::Not(m::StateRead(StartsWith("b"))))),
+                    Contains(m::Next(m::StateElement("a_2"), _,
+                                     m::StateRead(StartsWith("b")))),
+                    Contains(m::Next(m::StateElement("a_2"), _,
+                                     m::Not(m::StateRead(StartsWith("b"))))),
+                    Contains(m::Next(m::StateElement("b"),
+                                     m::Not(m::StateRead(StartsWith("b")))))));
 }
 
 // We previously had a use-after-free bug if we flattened state while one
@@ -375,19 +370,17 @@ TEST_P(ProcStateFlatteningPassTest, NextValueDependsOnLaterState) {
   EXPECT_EQ(proc->GetStateElementCount(), 4);
 
   EXPECT_THAT(proc->next_values(proc->GetStateElement(0)),
-              ElementsAre(m::NextWithStateElement(m::StateElement("a"),
-                                                  m::StateRead("b"))));
+              ElementsAre(m::Next(m::StateElement("a"), m::StateRead("b"))));
   EXPECT_THAT(proc->next_values(proc->GetStateElement(1)),
-              ElementsAre(m::NextWithStateElement(m::StateElement("b"),
-                                                  m::Literal(0))));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(2)),
-              ElementsAre(m::NextWithStateElement(
-                  m::StateElement("c_0"),
-                  m::TupleIndex(m::Literal(zero_tuple_value), 0))));
-  EXPECT_THAT(proc->next_values(proc->GetStateElement(3)),
-              ElementsAre(m::NextWithStateElement(
-                  m::StateElement("c_1"),
-                  m::TupleIndex(m::Literal(zero_tuple_value), 1))));
+              ElementsAre(m::Next(m::StateElement("b"), m::Literal(0))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(2)),
+      ElementsAre(m::Next(m::StateElement("c_0"),
+                          m::TupleIndex(m::Literal(zero_tuple_value), 0))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateElement(3)),
+      ElementsAre(m::Next(m::StateElement("c_1"),
+                          m::TupleIndex(m::Literal(zero_tuple_value), 1))));
 }
 
 // We previously had a bug where a later state element's `next_value` that
@@ -452,9 +445,10 @@ TEST_F(ProcStateFlatteningPassTest,
   EXPECT_THAT(proc->nodes(),
               Contains(m::StateReadWithLabel(
                   "state_0", std::optional<std::string>("my_read_label"))));
-  EXPECT_THAT(proc->nodes(),
-              Contains(m::NextWithStateElementWithLabel(
-                  _, _, std::optional<std::string>("my_write_label"))));
+  EXPECT_THAT(
+      proc->nodes(),
+      Contains(m::NextWithLabel(m::StateElement(), _,
+                                std::optional<std::string>("my_write_label"))));
 }
 
 TEST_F(ProcStateFlatteningPassTest, MultipleStateReads) {

@@ -1363,21 +1363,18 @@ inline ::testing::Matcher<const ::xls::Node*> StateRead(
                                               {predicate});
 }
 
-// Next matcher. Supported forms:
+// Next matcher (`state` is StateElement* or "state_element_name") Supported
+// Forms:
 //
-//   EXPECT_THAT(x, m::Next());
-//   EXPECT_THAT(x, m::Next(m::StateRead("foo"), m::Literal(1)));
-//   EXPECT_THAT(x, m::Next(m::StateRead("foo"), m::Literal(1), m::Literal(1)));
-//   EXPECT_THAT(x, m::NextWithLabel(m::StateRead("foo"), m::Literal(1),
-//   "label"));
-//
-//   Decoupled forms (asserts that the next node has no StateRead operand):
-//   EXPECT_THAT(x, m::NextWithStateElement(se, m::Literal(1)));
-//   EXPECT_THAT(x, m::NextWithStateElement(se, m::Literal(1), m::Literal(1)));
-//   EXPECT_THAT(x, m::NextWithStateElementWithLabel(se, m::Literal(1),
-//   "label"));
-//   EXPECT_THAT(x, m::NextWithStateElementWithLabel(se, m::Literal(1),
-//   m::Literal(1), "label"));
+//   m::Next()
+//   m::Next(value)
+//   m::Next(value, predicate)
+//   m::Next(state, value)
+//   m::Next(state, value, predicate)
+//   m::NextWithLabel(value, label)
+//   m::NextWithLabel(value, predicate, label)
+//   m::NextWithLabel(state, value, label)
+//   m::NextWithLabel(state, value, predicate, label)
 class NextMatcher : public NodeMatcher {
  public:
   explicit NextMatcher(
@@ -1400,54 +1397,154 @@ class NextMatcher : public NodeMatcher {
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Next() { return NextMatcher(); }
+
 inline ::testing::Matcher<const ::xls::Node*> Next(
-    ::testing::Matcher<const Node*> state_read,
     ::testing::Matcher<const Node*> value) {
-  return NextMatcher({state_read, value});
-}
-inline ::testing::Matcher<const ::xls::Node*> Next(
-    ::testing::Matcher<const Node*> state_read,
-    ::testing::Matcher<const Node*> value,
-    ::testing::Matcher<const Node*> predicate) {
-  return NextMatcher({state_read, value, predicate});
-}
-inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
-    ::testing::Matcher<const Node*> state_read,
-    ::testing::Matcher<const Node*> value,
-    ::testing::Matcher<const std::optional<std::string>&> label) {
-  return NextMatcher({state_read, value}, label);
-}
-inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
-    ::testing::Matcher<const Node*> state_read,
-    ::testing::Matcher<const Node*> value,
-    ::testing::Matcher<const Node*> predicate,
-    ::testing::Matcher<const std::optional<std::string>&> label) {
-  return NextMatcher({state_read, value, predicate}, label);
+  return NextMatcher({value});
 }
 
-inline ::testing::Matcher<const ::xls::Node*> NextWithStateElement(
+inline ::testing::Matcher<const ::xls::Node*> Next(
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate) {
+  return NextMatcher({value, predicate});
+}
+
+inline ::testing::Matcher<const ::xls::Node*> Next(
     ::testing::Matcher<const ::xls::StateElement*> state_element,
     ::testing::Matcher<const Node*> value) {
   return NextMatcher({value}, std::nullopt, state_element);
 }
-inline ::testing::Matcher<const ::xls::Node*> NextWithStateElement(
+
+inline ::testing::Matcher<const ::xls::Node*> Next(
     ::testing::Matcher<const ::xls::StateElement*> state_element,
     ::testing::Matcher<const Node*> value,
     ::testing::Matcher<const Node*> predicate) {
   return NextMatcher({value, predicate}, std::nullopt, state_element);
 }
-inline ::testing::Matcher<const ::xls::Node*> NextWithStateElementWithLabel(
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::Node*> Next(
+    T state_element_name, ::testing::Matcher<const Node*> value)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return Next(StateElement(state_element_name), value);
+}
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::Node*> Next(
+    T state_element_name, ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return Next(StateElement(state_element_name), value, predicate);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const std::optional<std::string>&> label) {
+  return NextMatcher({value}, label);
+}
+
+template <typename L>
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    ::testing::Matcher<const Node*> value, L label)
+  requires(std::is_convertible_v<L, std::string_view>)
+{
+  return NextWithLabel(value, ::testing::Optional(std::string(label)));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate,
+    ::testing::Matcher<const std::optional<std::string>&> label) {
+  return NextMatcher({value, predicate}, label);
+}
+
+template <typename L>
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate, L label)
+  requires(std::is_convertible_v<L, std::string_view>)
+{
+  return NextWithLabel(value, predicate,
+                       ::testing::Optional(std::string(label)));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
     ::testing::Matcher<const ::xls::StateElement*> state_element,
     ::testing::Matcher<const Node*> value,
     ::testing::Matcher<const std::optional<std::string>&> label) {
   return NextMatcher({value}, label, state_element);
 }
-inline ::testing::Matcher<const ::xls::Node*> NextWithStateElementWithLabel(
+
+template <typename L>
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    ::testing::Matcher<const ::xls::StateElement*> state_element,
+    ::testing::Matcher<const Node*> value, L label)
+  requires(std::is_convertible_v<L, std::string_view>)
+{
+  return NextWithLabel(state_element, value,
+                       ::testing::Optional(std::string(label)));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
     ::testing::Matcher<const ::xls::StateElement*> state_element,
     ::testing::Matcher<const Node*> value,
     ::testing::Matcher<const Node*> predicate,
     ::testing::Matcher<const std::optional<std::string>&> label) {
   return NextMatcher({value, predicate}, label, state_element);
+}
+
+template <typename L>
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    ::testing::Matcher<const ::xls::StateElement*> state_element,
+    ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate, L label)
+  requires(std::is_convertible_v<L, std::string_view>)
+{
+  return NextWithLabel(state_element, value, predicate,
+                       ::testing::Optional(std::string(label)));
+}
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    T state_element_name, ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const std::optional<std::string>&> label)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return NextWithLabel(StateElement(state_element_name), value, label);
+}
+
+template <typename T, typename L>
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    T state_element_name, ::testing::Matcher<const Node*> value, L label)
+  requires(std::is_convertible_v<T, std::string_view> &&
+           std::is_convertible_v<L, std::string_view>)
+{
+  return NextWithLabel(StateElement(state_element_name), value,
+                       ::testing::Optional(std::string(label)));
+}
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    T state_element_name, ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate,
+    ::testing::Matcher<const std::optional<std::string>&> label)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return NextWithLabel(StateElement(state_element_name), value, predicate,
+                       label);
+}
+
+template <typename T, typename L>
+inline ::testing::Matcher<const ::xls::Node*> NextWithLabel(
+    T state_element_name, ::testing::Matcher<const Node*> value,
+    ::testing::Matcher<const Node*> predicate, L label)
+  requires(std::is_convertible_v<T, std::string_view> &&
+           std::is_convertible_v<L, std::string_view>)
+{
+  return NextWithLabel(StateElement(state_element_name), value, predicate,
+                       ::testing::Optional(std::string(label)));
 }
 
 // RegisterRead matcher. Matches register name only. Supported forms:
