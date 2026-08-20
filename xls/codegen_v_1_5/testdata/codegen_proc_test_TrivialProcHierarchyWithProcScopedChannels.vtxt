@@ -11,32 +11,32 @@ module leaf_proc(
   reg [31:0] p0_tuple_index_5;
   reg [31:0] __accum;
   reg p1_inputs_valid;
-  wire stage_outputs_valid_1;
+  wire p1_stage_done;
   wire stage_outputs_ready_0;
   wire p0_stage_done;
-  wire or_107;
-  wire [31:0] add_108;
-  wire or_111;
-  assign stage_outputs_valid_1 = p1_inputs_valid & accum_out_rdy;
-  assign stage_outputs_ready_0 = ~p1_inputs_valid | stage_outputs_valid_1;
+  wire or_114;
+  wire [31:0] add_115;
+  wire or_118;
+  assign p1_stage_done = p1_inputs_valid & accum_out_rdy;
+  assign stage_outputs_ready_0 = ~p1_inputs_valid | p1_stage_done;
   assign p0_stage_done = accum_in_vld & stage_outputs_ready_0;
-  assign or_107 = p0_stage_done | rst;
-  assign add_108 = __accum + p0_tuple_index_5;
-  assign or_111 = p0_stage_done | stage_outputs_valid_1;
+  assign or_114 = p0_stage_done | rst;
+  assign add_115 = __accum + p0_tuple_index_5;
+  assign or_118 = p0_stage_done | p1_stage_done;
   always @ (posedge clk) begin
-    p0_tuple_index_5 <= or_107 ? accum_in : p0_tuple_index_5;
+    p0_tuple_index_5 <= or_114 ? accum_in : p0_tuple_index_5;
   end
   always @ (posedge clk) begin
     if (rst) begin
       __accum <= 32'h0000_0000;
       p1_inputs_valid <= 1'h0;
     end else begin
-      __accum <= stage_outputs_valid_1 ? add_108 : __accum;
-      p1_inputs_valid <= or_111 ? p0_stage_done : p1_inputs_valid;
+      __accum <= p1_stage_done ? add_115 : __accum;
+      p1_inputs_valid <= or_118 ? p0_stage_done : p1_inputs_valid;
     end
   end
   assign accum_in_rdy = p0_stage_done;
-  assign accum_out = add_108;
+  assign accum_out = add_115;
   assign accum_out_vld = p1_inputs_valid;
 endmodule
 
@@ -51,9 +51,9 @@ module a_top_proc(
   output wire [31:0] out_ch,
   output wire out_ch_vld
 );
-  wire instantiation_output_81;
-  wire [31:0] instantiation_output_82;
-  wire instantiation_output_83;
+  wire instantiation_output_85;
+  wire [31:0] instantiation_output_86;
+  wire instantiation_output_87;
 
   // ===== Instantiations
   leaf_proc inst (
@@ -61,12 +61,12 @@ module a_top_proc(
     .accum_in(in_ch),
     .accum_in_vld(in_ch_vld),
     .accum_out_rdy(out_ch_rdy),
-    .accum_in_rdy(instantiation_output_81),
-    .accum_out(instantiation_output_82),
-    .accum_out_vld(instantiation_output_83),
+    .accum_in_rdy(instantiation_output_85),
+    .accum_out(instantiation_output_86),
+    .accum_out_vld(instantiation_output_87),
     .clk(clk)
   );
-  assign in_ch_rdy = instantiation_output_81;
-  assign out_ch = instantiation_output_82;
-  assign out_ch_vld = instantiation_output_83;
+  assign in_ch_rdy = instantiation_output_85;
+  assign out_ch = instantiation_output_86;
+  assign out_ch_vld = instantiation_output_87;
 endmodule

@@ -94,12 +94,14 @@ TEST_F(PipelineRegisterInsertionPassTest, TestNoCrossStageUses) {
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue x_plus_1 = sbb.Add(x, sbb.Literal(UBits(1, 32)));
   sbb.OutputPort("x_plus_1", x_plus_1);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue y_plus_1 = sbb.Add(y, sbb.Literal(UBits(1, 32)));
   sbb.OutputPort("y_plus_1", y_plus_1);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -116,12 +118,14 @@ TEST_F(PipelineRegisterInsertionPassTest, TestSingleStageForwarding) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue v0 = sbb.Add(x, y, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue neg_v0 = sbb.Negate(v0);
   sbb.OutputPort("out", neg_v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -139,15 +143,18 @@ TEST_F(PipelineRegisterInsertionPassTest, TestMultiStageForwarding) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue v0 = sbb.Add(x, y, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue neg_v0 = sbb.Negate(v0);
   sbb.OutputPort("out", neg_v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -166,17 +173,20 @@ TEST_F(PipelineRegisterInsertionPassTest, TestFanoutToDifferentStages) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue v0 = sbb.Add(x, y, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue neg_v0_s1 = sbb.Negate(v0);
   sbb.OutputPort("out1", neg_v0_s1);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue neg_v0_s2 = sbb.Negate(v0);
   sbb.OutputPort("out2", neg_v0_s2);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -195,14 +205,16 @@ TEST_F(PipelineRegisterInsertionPassTest, TestTupleSplitting) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue v0 = sbb.Tuple({x, sbb.Literal(UBits(0, 0)), y}, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue index0 = sbb.TupleIndex(v0, 0);
   BValue index2 = sbb.TupleIndex(v0, 2);
   BValue add = sbb.Add(index0, sbb.ZeroExtend(index2, 32));
   sbb.OutputPort("out", add);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -221,12 +233,14 @@ TEST_F(PipelineRegisterInsertionPassTest, TestPipelineSimulation) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue mul4 = sbb.UMul(in, sbb.Literal(UBits(4, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue add1 = sbb.Add(mul4, sbb.Literal(UBits(1, 32)));
   sbb.OutputPort("out", add1);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK(sbb.Build());
 
@@ -262,11 +276,13 @@ TEST_F(PipelineRegisterInsertionPassTest, TestResetSimulation) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue in_plus_1 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   sbb.OutputPort("out", in_plus_1);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK(sbb.Build());
 
@@ -310,11 +326,12 @@ TEST_F(PipelineRegisterInsertionPassTest, TestStalledPipeline) {
   sbb.StartStage(sbb.Literal(UBits(1, 1)), s0r_in);
   BValue s0v_in = sbb.InputPort("s0v_in", p->GetBitsType(1));
   BValue v = sbb.Add(in, sbb.Literal(UBits(1, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), s0v_in);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)), s0v_in);
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   sbb.OutputPort("out", v);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK(sbb.Build());
 
@@ -368,11 +385,12 @@ TEST_F(PipelineRegisterInsertionPassTest, TestPipelineBubble) {
   sbb.StartStage(sbb.Literal(UBits(1, 1)), s0r_in);
   BValue s0v_in = sbb.InputPort("s0v_in", p->GetBitsType(1));
   BValue v = sbb.Add(in, sbb.Literal(UBits(1, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), s0v_in);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)), s0v_in);
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   sbb.OutputPort("out", v);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK(sbb.Build());
 
@@ -435,16 +453,19 @@ TEST_F(PipelineRegisterInsertionPassTest, TestCombinedRegisters) {
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue neg_v0 = sbb.Negate(v0);
   sbb.Next(acc, neg_v0);
   sbb.OutputPort("out", neg_v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -474,16 +495,19 @@ TEST_F(PipelineRegisterInsertionPassTest, TestRegistersDontCombine) {
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue neg_v0 = sbb.Negate(v0);
   sbb.Next(acc, neg_v0);
   sbb.OutputPort("out", neg_v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -514,27 +538,32 @@ TEST_F(PipelineRegisterInsertionPassTest, TestCombinedRegistersWithState) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * source_acc, source->AppendStateElement(
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 1
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 2
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 3
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 4 - ends mutex region
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue neg_v0 = sbb.Negate(v0);
   sbb.Next(acc, neg_v0);
   sbb.OutputPort("out", neg_v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -571,27 +600,32 @@ TEST_F(PipelineRegisterInsertionPassTest,
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 1
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 2 - ends mutex region
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   sbb.Next(acc, v0, /*pred=*/sbb.Eq(v0, sbb.Literal(UBits(0, 32))));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 3
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 4
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue neg_v0 = sbb.Negate(v0);
   sbb.Next(acc, neg_v0, /*pred=*/sbb.Ne(v0, sbb.Literal(UBits(0, 32))));
   sbb.OutputPort("out", neg_v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -630,34 +664,40 @@ TEST_F(PipelineRegisterInsertionPassTest,
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 1 - starts mutex region 2
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
   BValue z = sbb.SourceNode(source_z);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 2 - ends mutex region 1
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   sbb.Next(acc, v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 3
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 4
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 5 - ends mutex region 2
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   sbb.Next(z, sbb.Literal(UBits(1, 32)));
   BValue neg_v0 = sbb.Negate(v0);
   sbb.OutputPort("out", neg_v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -695,11 +735,13 @@ TEST_F(PipelineRegisterInsertionPassTest,
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 1
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 2 - ends mutex region 1, starts mutex region 2
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
@@ -707,22 +749,26 @@ TEST_F(PipelineRegisterInsertionPassTest,
       Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
   BValue z = sbb.SourceNode(source_z);
   sbb.Next(acc, v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 3
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 4
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 5 - ends mutex region 2
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   sbb.Next(z, sbb.Literal(UBits(1, 32)));
   BValue neg_v0 = sbb.Negate(v0);
   sbb.OutputPort("out", neg_v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -760,34 +806,40 @@ TEST_F(PipelineRegisterInsertionPassTest,
                                                   "acc", Value(UBits(0, 32))));
   BValue acc = sbb.SourceNode(source_acc);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 1
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 2 - ends mutex region 2
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   sbb.Next(acc, v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 3 - starts mutex region 2
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * source_z, source->AppendStateElement("z", Value(UBits(0, 32))));
   BValue z = sbb.SourceNode(source_z);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 4
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 5 - ends mutex region 2
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   sbb.Next(z, sbb.Literal(UBits(1, 32)));
   BValue neg_v0 = sbb.Negate(v0);
   sbb.OutputPort("out", neg_v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -830,7 +882,8 @@ TEST_F(PipelineRegisterInsertionPassTest,
   BValue z = sbb.SourceNode(source_z);
   BValue next_acc = sbb.Add(x, acc, SourceInfo(), "next_acc");
   sbb.Next(acc, next_acc);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 1 - update `z`, ending a mutex region on stages [0, 1]
   // Also uses `acc`, requiring a pipeline register for `acc` if we behave
@@ -840,7 +893,8 @@ TEST_F(PipelineRegisterInsertionPassTest,
   BValue out = sbb.Add(acc, z, SourceInfo(), "out");
   sbb.OutputPort("result", out);
 
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -883,18 +937,21 @@ TEST_F(PipelineRegisterInsertionPassTest,
                            source->AddStateRead(source_se));
   BValue acc = sbb.SourceNode(source_read);
   BValue v0 = sbb.Add(x, acc, SourceInfo(), "v0");
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 1
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   // Stage 2 - ends mutex region
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue neg_v0 = sbb.Negate(v0);
   sbb.Next(BStateElement(source_se), neg_v0);
   sbb.OutputPort("out", neg_v0);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 

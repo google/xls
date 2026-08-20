@@ -24,7 +24,7 @@ module main(
       endcase
     end
   endfunction
-  wire [31:0] priority_sel_45;
-  assign priority_sel_45 = priority_sel_32b_2way(p, x, y, d);
-  assign out = {priority_sel_32b_2way(p, {x[31:16], x[15:0]}, {y[31:16], y[15:0]}, {d[31:16], d[15:0]}), priority_sel_45[31:16], priority_sel_45[15:0]};
+  wire [31:0] priority_sel_46;
+  assign priority_sel_46 = priority_sel_32b_2way(p, x, y, d);
+  assign out = {priority_sel_32b_2way(p, {x[31:16], x[15:0]}, {y[31:16], y[15:0]}, {d[31:16], d[15:0]}), priority_sel_46[31:16], priority_sel_46[15:0]};
 endmodule

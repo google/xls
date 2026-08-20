@@ -1087,41 +1087,52 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
     for (int stage_index = 0; stage_index < block->stages().size();
          stage_index++) {
       Stage& stage = block->stages()[stage_index];
+
+      // Incoming signals
       if (this == stage.inputs_valid()) {
         stage.set_inputs_valid(replacement);
         changed = true;
       }
+      if (this == stage.outputs_ready()) {
+        stage.set_outputs_ready(replacement);
+        changed = true;
+      }
+
+      // Outgoing or internal signals
       if (this == stage.outputs_valid()) {
-        if (function_base()->IsStaged(replacement)) {
+        if (block->IsStaged(replacement)) {
           XLS_ASSIGN_OR_RETURN(int64_t replacement_stage_index,
-                               function_base()->GetStageIndex(replacement));
+                               block->GetStageIndex(replacement));
           XLS_RET_CHECK_EQ(replacement_stage_index, stage_index)
               << "Replacement node for `outputs_valid` of stage " << stage_index
               << "is in a different stage (" << replacement_stage_index
               << "): " << this->ToString() << " -> " << replacement->ToString();
-        } else {
+        } else if (!replacement->Is<PortNode>()) {
           XLS_RETURN_IF_ERROR(AddNodeToStageInternal(stage_index, replacement));
         }
         stage.set_outputs_valid(replacement);
         changed = true;
       }
       if (this == stage.active_inputs_valid()) {
-        if (function_base()->IsStaged(replacement)) {
+        if (block->IsStaged(replacement)) {
           XLS_ASSIGN_OR_RETURN(int64_t replacement_stage_index,
-                               function_base()->GetStageIndex(replacement));
+                               block->GetStageIndex(replacement));
           XLS_RET_CHECK_EQ(replacement_stage_index, stage_index)
               << "Replacement node for `active_inputs_valid` of stage "
               << stage_index << "is in a different stage ("
               << replacement_stage_index << "): " << this->ToString() << " -> "
               << replacement->ToString();
-        } else {
+        } else if (!replacement->Is<PortNode>()) {
           XLS_RETURN_IF_ERROR(AddNodeToStageInternal(stage_index, replacement));
         }
         stage.set_active_inputs_valid(replacement);
         changed = true;
       }
-      if (this == stage.outputs_ready()) {
-        stage.set_outputs_ready(replacement);
+      if (this == stage.active_outputs_ready()) {
+        if (!replacement->Is<PortNode>() && !block->IsStaged(replacement)) {
+          XLS_RETURN_IF_ERROR(AddNodeToStageInternal(stage_index, replacement));
+        }
+        stage.set_active_outputs_ready(replacement);
         changed = true;
       }
     }

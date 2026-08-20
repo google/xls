@@ -3555,13 +3555,20 @@ absl::Status Parser::ParseControlledStage(
   builder->StartStage(inputs_valid, outputs_ready);
 
   std::optional<BValue> active_inputs_valid;
+  std::optional<BValue> active_outputs_ready;
   std::optional<BValue> outputs_valid;
   while (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
     bool is_active_inputs_valid =
         scanner_.TryDropKeyword("active_inputs_valid");
+    bool is_active_outputs_ready =
+        scanner_.TryDropKeyword("active_outputs_ready");
     bool is_ret = scanner_.TryDropKeyword("ret");
-    if (is_ret && !is_active_inputs_valid) {
+    if (is_ret && !is_active_inputs_valid && !is_active_outputs_ready) {
       is_active_inputs_valid = scanner_.TryDropKeyword("active_inputs_valid");
+      if (!is_active_inputs_valid) {
+        is_active_outputs_ready =
+            scanner_.TryDropKeyword("active_outputs_ready");
+      }
     }
     XLS_ASSIGN_OR_RETURN(BValue result, ParseNode(builder, name_to_value));
     (*name_to_value)[result.node()->GetName()] = result;
@@ -3573,6 +3580,14 @@ absl::Status Parser::ParseControlledStage(
             result.node()->loc().ToString()));
       }
       active_inputs_valid = result;
+    }
+    if (is_active_outputs_ready) {
+      if (active_outputs_ready.has_value()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "More than one active_outputs_ready found in controlled_stage @ %s",
+            result.node()->loc().ToString()));
+      }
+      active_outputs_ready = result;
     }
     if (is_ret) {
       if (outputs_valid.has_value()) {
@@ -3589,13 +3604,19 @@ absl::Status Parser::ParseControlledStage(
         "No 'active_inputs_valid' node found in controlled_stage @ %s",
         scanner_.PeekTokenOrDie().pos().ToHumanString()));
   }
+  if (!active_outputs_ready.has_value()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "No 'active_outputs_ready' node found in controlled_stage @ %s",
+        scanner_.PeekTokenOrDie().pos().ToHumanString()));
+  }
   if (!outputs_valid.has_value()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("No 'ret' node found in controlled_stage @ %s",
                         scanner_.PeekTokenOrDie().pos().ToHumanString()));
   }
 
-  builder->EndStage(*active_inputs_valid, *outputs_valid);
+  builder->EndStage(*active_inputs_valid, *active_outputs_ready,
+                    *outputs_valid);
 
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose));
   return absl::OkStatus();

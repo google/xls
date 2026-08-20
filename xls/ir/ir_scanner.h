@@ -94,7 +94,8 @@ class Token {
          "scheduled_block",
          "source",
          "controlled_stage",
-         "active_inputs_valid"});
+         "active_inputs_valid",
+         "active_outputs_ready"});
     return *keywords;
   }
 

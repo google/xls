@@ -971,16 +971,10 @@ absl::Status ConnectSendsToConnector(
                 Op::kOr));
       }
 
-      if (stage.outputs_valid()->Is<Literal>() &&
-          stage.outputs_valid()->As<Literal>()->value().IsAllOnes()) {
-        XLS_RETURN_IF_ERROR(
-            stage.outputs_valid()->ReplaceUsesWith(send_done_or_inactive));
-      } else {
-        XLS_RETURN_IF_ERROR(ReplaceWithAnd(stage.outputs_valid(),
-                                           send_done_or_inactive,
-                                           /*combine_literals=*/false)
-                                .status());
-      }
+      XLS_RETURN_IF_ERROR(ReplaceWithAnd(stage.active_outputs_ready(),
+                                         send_done_or_inactive,
+                                         /*combine_literals=*/false)
+                              .status());
     }
 
     // Make sure to update the commit signal with the finished condition for

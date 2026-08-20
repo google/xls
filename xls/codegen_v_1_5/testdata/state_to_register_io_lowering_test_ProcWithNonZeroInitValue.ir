@@ -14,6 +14,7 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_0: bits[1] = literal(value=1, id=21)
   controlled_stage(stage_inputs_valid_0, stage_outputs_ready_0) {
     active_inputs_valid active_inputs_valid_0: bits[1] = literal(value=1, id=22)
+    active_outputs_ready active_outputs_ready_0: bits[1] = literal(value=1, id=28)
     after_all.5: token = after_all(id=5)
     receive.6: (token, bits[32]) = receive(after_all.5, predicate=literal.3, channel=a, id=6)
     tok: token = tuple_index(receive.6, index=0, id=8)
@@ -28,14 +29,15 @@ top scheduled_block __test__P_0_next(clk: clock, rst: bits[1]) {
   stage_outputs_ready_1: bits[1] = literal(value=1, id=25)
   controlled_stage(stage_inputs_valid_1, stage_outputs_ready_1) {
     active_inputs_valid active_inputs_valid_1: bits[1] = literal(value=1, id=26)
-    ____state__1: bits[32] = register_read(register=____state, id=41)
+    active_outputs_ready active_outputs_ready_1: bits[1] = literal(value=1, id=29)
+    ____state__1: bits[32] = register_read(register=____state, id=48)
     result_value: bits[32] = add(umul.14, ____state__1, id=15)
     send.16: token = send(tok__1, result_value, predicate=literal.3, channel=result, id=16)
     ret stage_outputs_valid_1: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=27)
   }
   rst: bits[1] = input_port(name=rst, id=19)
-  p1_stage_done: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, id=42)
-  and.43: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=43)
-  register_write.44: () = register_write(result_value, register=____state, load_enable=p1_stage_done, reset=rst, id=44)
-  tuple.45: () = tuple(id=45)
+  p1_stage_done: bits[1] = and(stage_outputs_valid_1, stage_outputs_ready_1, active_outputs_ready_1, id=49)
+  and.50: bits[1] = and(stage_inputs_valid_1, active_inputs_valid_1, id=50)
+  register_write.51: () = register_write(result_value, register=____state, load_enable=p1_stage_done, reset=rst, id=51)
+  tuple.52: () = tuple(id=52)
 }

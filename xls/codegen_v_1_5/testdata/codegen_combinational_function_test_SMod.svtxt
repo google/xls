@@ -8,7 +8,7 @@ module SMod(
       smod_32b = rhs == 32'h0000_0000 ? 32'h0000_0000 : $unsigned($signed(lhs) % $signed(rhs));
     end
   endfunction
-  wire [31:0] smod_15;
-  assign smod_15 = smod_32b(x, y);
-  assign out = smod_15;
+  wire [31:0] smod_16;
+  assign smod_16 = smod_32b(x, y);
+  assign out = smod_16;
 endmodule

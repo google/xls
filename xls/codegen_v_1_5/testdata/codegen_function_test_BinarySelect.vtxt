@@ -18,13 +18,13 @@ module BinarySelect(
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] p1_sel_29_comb;
-  assign p1_sel_29_comb = s__input_flop ? x__input_flop : y__input_flop;
+  wire [7:0] p1_sel_30_comb;
+  assign p1_sel_30_comb = s__input_flop ? x__input_flop : y__input_flop;
 
   // Registers for pipe stage 1:
   reg [7:0] out__output_flop;
   always @ (posedge clk) begin
-    out__output_flop <= p1_sel_29_comb;
+    out__output_flop <= p1_sel_30_comb;
   end
   assign out = out__output_flop;
 endmodule

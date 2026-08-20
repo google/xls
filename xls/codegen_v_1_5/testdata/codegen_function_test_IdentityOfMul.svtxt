@@ -23,13 +23,13 @@ module identity_of_mul(
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] p1_umul_24_comb;
-  assign p1_umul_24_comb = umul8b_8b_x_8b(x__input_flop, y__input_flop);
+  wire [7:0] p1_umul_25_comb;
+  assign p1_umul_25_comb = umul8b_8b_x_8b(x__input_flop, y__input_flop);
 
   // Registers for pipe stage 1:
   reg [7:0] out__output_flop;
   always_ff @ (posedge clk) begin
-    out__output_flop <= p1_umul_24_comb;
+    out__output_flop <= p1_umul_25_comb;
   end
   assign out = out__output_flop;
 endmodule

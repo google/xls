@@ -111,6 +111,9 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
           Node * active_inputs_valid,
           AddPlaceholder(*block, absl::StrCat("active_inputs_valid_", i)));
       XLS_ASSIGN_OR_RETURN(
+          Node * active_outputs_ready,
+          AddPlaceholder(*block, absl::StrCat("active_outputs_ready_", i)));
+      XLS_ASSIGN_OR_RETURN(
           Node * stage_outputs_valid,
           block->MakeNodeWithName<NaryOp>(
               SourceInfo(),
@@ -118,9 +121,10 @@ absl::StatusOr<bool> ScheduledBlockConversionPass::RunInternal(
               Op::kAnd, absl::StrCat("stage_outputs_valid_", i)));
 
       Stage stage(stage_inputs_valid, stage_outputs_ready, active_inputs_valid,
-                  stage_outputs_valid);
+                  active_outputs_ready, stage_outputs_valid);
 
       stage.AddNode(active_inputs_valid);
+      stage.AddNode(active_outputs_ready);
       const Stage& old_stage = old_fb->stages()[i];
       for (Node* node : old_stage) {
         stage.AddNode(node);

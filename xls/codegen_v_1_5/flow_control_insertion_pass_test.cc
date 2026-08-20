@@ -79,7 +79,8 @@ TEST_F(FlowControlInsertionPassTest, SingleStagePipeline) {
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue out = sbb.Add(in, sbb.Literal(UBits(1, 32)));
   sbb.OutputPort("out", out);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
   ASSERT_EQ(sb->stages().size(), 1);
 
@@ -100,12 +101,14 @@ TEST_F(FlowControlInsertionPassTest, MultiStagePipelineFullThroughput) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue p0 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue out = sbb.UMul(p0, sbb.Literal(UBits(2, 32)));
   sbb.OutputPort("out", out);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK(sbb.Build());
 
@@ -135,12 +138,13 @@ TEST_F(FlowControlInsertionPassTest, PipelineStallDueToBackpressure) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue p0 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue out = sbb.UMul(p0, sbb.Literal(UBits(2, 32)));
   sbb.OutputPort("out", out);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), s1_ov_in);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)), s1_ov_in);
 
   XLS_ASSERT_OK(sbb.Build());
 
@@ -193,12 +197,13 @@ TEST_F(FlowControlInsertionPassTest, PipelineBubblePropagation) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue p0 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), s0_ov_in);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)), s0_ov_in);
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue out = sbb.UMul(p0, sbb.Literal(UBits(2, 32)));
   sbb.OutputPort("out", out);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK(sbb.Build());
 
@@ -250,12 +255,14 @@ TEST_F(FlowControlInsertionPassTest, CorrectResetBehavior) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue p0 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue out = sbb.UMul(p0, sbb.Literal(UBits(2, 32)));
   sbb.OutputPort("out", out);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 
@@ -279,16 +286,17 @@ TEST_F(FlowControlInsertionPassTest, FillingPipelineBubbles) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue p0 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), s0_ov_in);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)), s0_ov_in);
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue p1 = sbb.UMul(p0, sbb.Literal(UBits(2, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue out = sbb.Add(p1, sbb.Literal(UBits(3, 32)));
   sbb.OutputPort("out", out);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), s2_ov_in);
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)), s2_ov_in);
 
   XLS_ASSERT_OK(sbb.Build());
 
@@ -364,12 +372,14 @@ TEST_F(FlowControlInsertionPassTest, TrivialFunctionFlowControl) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue p0 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue out = sbb.UMul(p0, sbb.Literal(UBits(2, 32)));
   sbb.OutputPort("out", out);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK(sbb.Build().status());
 
@@ -389,12 +399,14 @@ TEST_F(FlowControlInsertionPassTest, FunctionFlowControlOmitsBackpressure) {
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue p0 = sbb.Add(in, sbb.Literal(UBits(1, 32)));
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   sbb.StartStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
   BValue out = sbb.UMul(p0, sbb.Literal(UBits(2, 32)));
   sbb.OutputPort("out", out);
-  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)));
+  sbb.EndStage(sbb.Literal(UBits(1, 1)), sbb.Literal(UBits(1, 1)),
+               sbb.Literal(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(ScheduledBlock * sb, sbb.Build());
 

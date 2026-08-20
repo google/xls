@@ -74,14 +74,19 @@ class StageSectioner : public DfsVisitorWithDefault {
       const Stage& stage = fb_->stages()[i];
       current_stage_ = i;
 
-      // Push active inputs valid to the beginning of the stage.
+      // Push active inputs valid and active outputs ready to the beginning of
+      // the stage.
       if (stage.active_inputs_valid() != nullptr) {
         XLS_RETURN_IF_ERROR(stage.active_inputs_valid()->Accept(this));
+      }
+      if (stage.active_outputs_ready() != nullptr) {
+        XLS_RETURN_IF_ERROR(stage.active_outputs_ready()->Accept(this));
       }
 
       for (Node* node : stage) {
         if (node != stage.outputs_valid() &&
-            node != stage.active_inputs_valid()) {
+            node != stage.active_inputs_valid() &&
+            node != stage.active_outputs_ready()) {
           XLS_RETURN_IF_ERROR(node->Accept(this));
         }
       }
@@ -212,6 +217,10 @@ absl::StatusOr<Stage> Stage::Clone(
     XLS_ASSIGN_OR_RETURN(cloned_stage.active_inputs_valid_,
                          map_node(active_inputs_valid_));
   }
+  if (active_outputs_ready_ != nullptr) {
+    XLS_ASSIGN_OR_RETURN(cloned_stage.active_outputs_ready_,
+                         map_node(active_outputs_ready_));
+  }
   if (outputs_valid_ != nullptr) {
     XLS_ASSIGN_OR_RETURN(cloned_stage.outputs_valid_, map_node(outputs_valid_));
   }
@@ -278,14 +287,18 @@ std::string FunctionBase::DumpFunctionBaseNodes(
 
       struct ScheduledAnnotations : public IrAnnotator {
        public:
-        ScheduledAnnotations(Node* outputs_valid, Node* active_inputs_valid)
+        ScheduledAnnotations(Node* outputs_valid, Node* active_inputs_valid,
+                             Node* active_outputs_ready)
             : outputs_valid_(outputs_valid),
-              active_inputs_valid_(active_inputs_valid) {}
+              active_inputs_valid_(active_inputs_valid),
+              active_outputs_ready_(active_outputs_ready) {}
         Annotation NodeAnnotation(Node* node) const override {
           if (node == outputs_valid_) {
             return {.prefix = "ret"};
           } else if (node == active_inputs_valid_) {
             return {.prefix = "active_inputs_valid"};
+          } else if (node == active_outputs_ready_) {
+            return {.prefix = "active_outputs_ready"};
           }
           return {};
         }
@@ -293,6 +306,7 @@ std::string FunctionBase::DumpFunctionBaseNodes(
        private:
         Node* outputs_valid_;
         Node* active_inputs_valid_;
+        Node* active_outputs_ready_;
       };
 
       Node* first = *section.begin();
@@ -300,7 +314,8 @@ std::string FunctionBase::DumpFunctionBaseNodes(
         const Stage& stage = stages()[*GetStageIndex(first)];
         IrAnnotatorJoiner joiner(
             ScheduledAnnotations(stage.outputs_valid(),
-                                 stage.active_inputs_valid()),
+                                 stage.active_inputs_valid(),
+                                 stage.active_outputs_ready()),
             IrAnnotatorRef(annotate));
         if (stage.IsControlled()) {
           absl::StrAppendFormat(&res, "  controlled_stage(%s, %s) {\n",

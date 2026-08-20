@@ -8,7 +8,7 @@ module UMod(
       umod_32b = rhs == 32'h0000_0000 ? 32'h0000_0000 : lhs % rhs;
     end
   endfunction
-  wire [31:0] umod_15;
-  assign umod_15 = umod_32b(x, y);
-  assign out = umod_15;
+  wire [31:0] umod_16;
+  assign umod_16 = umod_32b(x, y);
+  assign out = umod_16;
 endmodule

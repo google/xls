@@ -336,12 +336,14 @@ absl::StatusOr<Node*> JoinWithOr(FunctionBase* f,
 absl::StatusOr<Node*> ReplaceWithAnd(
     Node* old_node, absl::Span<Node* const> new_nodes,
     bool combine_literals = true, std::string_view name = "",
-    std::optional<SourceInfo> loc = std::nullopt);
+    std::optional<SourceInfo> loc = std::nullopt,
+    const std::function<bool(Node*)>& filter = [](Node*) { return true; });
 inline absl::StatusOr<Node*> ReplaceWithAnd(
     Node* old_node, Node* new_node, bool combine_literals = true,
-    std::string_view name = "", std::optional<SourceInfo> loc = std::nullopt) {
+    std::string_view name = "", std::optional<SourceInfo> loc = std::nullopt,
+    const std::function<bool(Node*)>& filter = [](Node*) { return true; }) {
   return ReplaceWithAnd(old_node, absl::MakeConstSpan({new_node}),
-                        combine_literals, name, loc);
+                        combine_literals, name, loc, filter);
 }
 
 // Replaces all uses of `old_node` with `old_node OR new_nodes...`, expressing
@@ -361,12 +363,14 @@ inline absl::StatusOr<Node*> ReplaceWithAnd(
 absl::StatusOr<Node*> ReplaceWithOr(
     Node* old_node, absl::Span<Node* const> new_nodes,
     bool combine_literals = true, std::string_view name = "",
-    std::optional<SourceInfo> loc = std::nullopt);
+    std::optional<SourceInfo> loc = std::nullopt,
+    const std::function<bool(Node*)>& filter = [](Node*) { return true; });
 inline absl::StatusOr<Node*> ReplaceWithOr(
     Node* old_node, Node* new_node, bool combine_literals = true,
-    std::string_view name = "", std::optional<SourceInfo> loc = std::nullopt) {
+    std::string_view name = "", std::optional<SourceInfo> loc = std::nullopt,
+    const std::function<bool(Node*)>& filter = [](Node*) { return true; }) {
   return ReplaceWithOr(old_node, absl::MakeConstSpan({new_node}),
-                       combine_literals, name, loc);
+                       combine_literals, name, loc, filter);
 }
 
 // Returns whether the given node is a signed/unsigned comparison operation (for

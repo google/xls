@@ -1196,7 +1196,8 @@ scheduled_block b(x: bits[32], out: bits[32]) {
     x: bits[32] = input_port(name=x, id=3)
     out: () = output_port(x, name=out, id=4)
     active_inputs_valid aiv0: bits[1] = literal(value=1, id=5)
-    ret ov0: bits[1] = identity(aiv0, id=6)
+    active_outputs_ready aor0: bits[1] = literal(value=1, id=6)
+    ret ov0: bits[1] = identity(aiv0, id=7)
   }
 }
 )";
@@ -1209,6 +1210,8 @@ scheduled_block b(x: bits[32], out: bits[32]) {
   EXPECT_EQ(sb->stages()[0].inputs_valid(), sb->GetNode("iv0").value());
   EXPECT_EQ(sb->stages()[0].outputs_valid(), sb->GetNode("ov0").value());
   EXPECT_EQ(sb->stages()[0].active_inputs_valid(), sb->GetNode("aiv0").value());
+  EXPECT_EQ(sb->stages()[0].active_outputs_ready(),
+            sb->GetNode("aor0").value());
   EXPECT_EQ(sb->stages()[0].outputs_ready(), sb->GetNode("or0").value());
   EXPECT_TRUE(sb->stages()[0].contains(sb->GetInputPort("x").value()));
   EXPECT_TRUE(sb->stages()[0].contains(sb->GetOutputPort("out").value()));
@@ -1216,6 +1219,7 @@ scheduled_block b(x: bits[32], out: bits[32]) {
   EXPECT_FALSE(sb->stages()[0].contains(sb->GetNode("or0").value()));
   EXPECT_TRUE(sb->stages()[0].contains(sb->GetNode("ov0").value()));
   EXPECT_TRUE(sb->stages()[0].contains(sb->GetNode("aiv0").value()));
+  EXPECT_TRUE(sb->stages()[0].contains(sb->GetNode("aor0").value()));
 }
 
 TEST(IrParserTest, MultiStageScheduledBlock) {
@@ -1226,14 +1230,16 @@ scheduled_block b(x: bits[32], out: bits[32]) {
   controlled_stage(iv0, or0) {
     x: bits[32] = input_port(name=x, id=3)
     active_inputs_valid aiv0: bits[1] = literal(value=1, id=4)
-    ret ov0: bits[1] = identity(aiv0, id=5)
+    active_outputs_ready aor0: bits[1] = literal(value=1, id=5)
+    ret ov0: bits[1] = identity(aiv0, id=6)
   }
-  iv1: bits[1] = literal(value=1, id=6)
-  or1: bits[1] = literal(value=1, id=7)
+  iv1: bits[1] = literal(value=1, id=7)
+  or1: bits[1] = literal(value=1, id=8)
   controlled_stage(iv1, or1) {
-    out: () = output_port(x, name=out, id=8)
-    active_inputs_valid aiv1: bits[1] = literal(value=1, id=9)
-    ret ov1: bits[1] = identity(aiv1, id=10)
+    out: () = output_port(x, name=out, id=9)
+    active_inputs_valid aiv1: bits[1] = literal(value=1, id=10)
+    active_outputs_ready aor1: bits[1] = literal(value=1, id=11)
+    ret ov1: bits[1] = identity(aiv1, id=12)
   }
 }
 )";
@@ -1265,10 +1271,11 @@ scheduled_block b() {
   or0: bits[1] = literal(value=1, id=2)
   controlled_stage(iv0, or0) {
     active_inputs_valid aiv0: bits[1] = literal(value=1, id=3)
-    __state_1: bits[32] = state_read(state_element=__state, id=4)
-    __state_2: bits[32] = state_read(state_element=__state, id=5)
-    sum: bits[32] = add(__state_1, __state_2, id=6)
-    ret ov0: bits[1] = identity(aiv0, id=7)
+    active_outputs_ready aor0: bits[1] = literal(value=1, id=4)
+    __state_1: bits[32] = state_read(state_element=__state, id=5)
+    __state_2: bits[32] = state_read(state_element=__state, id=6)
+    sum: bits[32] = add(__state_1, __state_2, id=7)
+    ret ov0: bits[1] = identity(aiv0, id=8)
   }
 }
 )";
@@ -1285,7 +1292,8 @@ scheduled_block b() {
   or0: bits[1] = literal(value=1, id=2)
   controlled_stage(iv0, or0) {
     active_inputs_valid aiv0: bits[1] = literal(value=1, id=3)
-    ret ov0: bits[1] = identity(aiv0, id=4)
+    active_outputs_ready aor0: bits[1] = literal(value=1, id=4)
+    ret ov0: bits[1] = identity(aiv0, id=5)
   }
 }
 )";

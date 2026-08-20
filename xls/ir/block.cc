@@ -1158,7 +1158,8 @@ absl::StatusOr<bool> Block::RemoveNodeFromStage(Node* node) {
   }
   int64_t stage_index = it->second;
   Stage& stage = stages_[stage_index];
-  if (stage.active_inputs_valid() == node || stage.outputs_valid() == node) {
+  if (stage.active_inputs_valid() == node ||
+      stage.active_outputs_ready() == node || stage.outputs_valid() == node) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Node %s has implicit uses in stage %d and cannot be removed.",
         node->GetName(), stage_index));
@@ -1667,7 +1668,8 @@ absl::StatusOr<Node*> ScheduledBlock::GetOrCreateStageDone(
       Node * stage_done,
       MakeNodeWithName<NaryOp>(
           SourceInfo(),
-          absl::MakeConstSpan({stage.outputs_valid(), stage.outputs_ready()}),
+          absl::MakeConstSpan({stage.outputs_valid(), stage.outputs_ready(),
+                               stage.active_outputs_ready()}),
           Op::kAnd, absl::StrFormat("p%d_stage_done", stage_index)));
   stage.set_stage_done(stage_done);
   return stage_done;

@@ -74,8 +74,9 @@ TEST_F(BlockFinalizationPassTest, BasicScheduledBlock) {
   BValue data_read = sbb.RegisterRead(data_reg);
   BValue add0 = sbb.Add(in, data_read);
   BValue aiv0 = sbb.Literal(UBits(1, 1));
+  BValue aor0 = sbb.Literal(UBits(1, 1));
   BValue ov0 = sbb.Literal(UBits(1, 1));
-  sbb.EndStage(aiv0, ov0);
+  sbb.EndStage(aiv0, aor0, ov0);
 
   BValue iv1 = sbb.Literal(UBits(1, 1));
   BValue or1 = sbb.Literal(UBits(1, 1));
@@ -86,8 +87,9 @@ TEST_F(BlockFinalizationPassTest, BasicScheduledBlock) {
   BValue out = sbb.OutputPort("out", neg1);
   out.node()->As<OutputPort>()->set_system_verilog_type("my_type");
   BValue aiv1 = sbb.Literal(UBits(1, 1));
+  BValue aor1 = sbb.Literal(UBits(1, 1));
   BValue ov1 = sbb.Literal(UBits(1, 1));
-  sbb.EndStage(aiv1, ov1);
+  sbb.EndStage(aiv1, aor1, ov1);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * scheduled_block, sbb.Build());
   ASSERT_EQ(scheduled_block, sblk);
@@ -128,18 +130,19 @@ TEST_F(BlockFinalizationPassTest, EmptyScheduledBlock) {
   BValue or0 = sbb.Literal(UBits(1, 1));
   sbb.StartStage(iv0, or0);
   BValue aiv0 = sbb.Literal(UBits(1, 1));
+  BValue aor0 = sbb.Literal(UBits(1, 1));
   BValue ov0 = sbb.Literal(UBits(1, 1));
-  sbb.EndStage(aiv0, ov0);
+  sbb.EndStage(aiv0, aor0, ov0);
   XLS_ASSERT_OK_AND_ASSIGN(Block * scheduled_block, sbb.Build());
   ASSERT_TRUE(scheduled_block->IsScheduled());
-  EXPECT_EQ(scheduled_block->node_count(), 4);  // 4 literals for stage signals
+  EXPECT_EQ(scheduled_block->node_count(), 5);  // 5 literals for stage signals
   EXPECT_EQ(scheduled_block->GetPorts().size(), 0);
   EXPECT_EQ(scheduled_block->GetRegisters().size(), 0);
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, p->GetBlock(TestName()));
   ASSERT_FALSE(block->IsScheduled());
-  EXPECT_EQ(block->node_count(), 4);
+  EXPECT_EQ(block->node_count(), 5);
   EXPECT_EQ(block->GetPorts().size(), 0);
   EXPECT_EQ(block->GetRegisters().size(), 0);
 
@@ -163,8 +166,9 @@ TEST_F(BlockFinalizationPassTest, ResetAndPortOrder) {
   BValue or0 = sbb.Literal(UBits(1, 1));
   sbb.StartStage(iv0, or0);
   BValue aiv0 = sbb.Literal(UBits(1, 1));
+  BValue aor0 = sbb.Literal(UBits(1, 1));
   BValue ov0 = sbb.Literal(UBits(1, 1));
-  sbb.EndStage(aiv0, ov0);
+  sbb.EndStage(aiv0, aor0, ov0);
   sbb.OutputPort("out", in);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * scheduled_block, sbb.Build());

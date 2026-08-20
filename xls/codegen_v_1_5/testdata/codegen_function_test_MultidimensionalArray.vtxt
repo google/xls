@@ -58,17 +58,17 @@ module MultidimensionalArray(
   end
 
   // ===== Pipe stage 3:
-  wire [7:0] p3_array_index_55_comb[0:2];
-  assign p3_array_index_55_comb[0] = p1_a[p1_index > 16'h0001 ? 1'h1 : p1_index[0:0]][0];
-  assign p3_array_index_55_comb[1] = p1_a[p1_index > 16'h0001 ? 1'h1 : p1_index[0:0]][1];
-  assign p3_array_index_55_comb[2] = p1_a[p1_index > 16'h0001 ? 1'h1 : p1_index[0:0]][2];
+  wire [7:0] p3_array_index_60_comb[0:2];
+  assign p3_array_index_60_comb[0] = p1_a[p1_index > 16'h0001 ? 1'h1 : p1_index[0:0]][0];
+  assign p3_array_index_60_comb[1] = p1_a[p1_index > 16'h0001 ? 1'h1 : p1_index[0:0]][1];
+  assign p3_array_index_60_comb[2] = p1_a[p1_index > 16'h0001 ? 1'h1 : p1_index[0:0]][2];
 
   // Registers for pipe stage 3:
   reg [7:0] out__output_flop[0:2];
   always @ (posedge clk) begin
-    out__output_flop[0] <= p3_array_index_55_comb[0];
-    out__output_flop[1] <= p3_array_index_55_comb[1];
-    out__output_flop[2] <= p3_array_index_55_comb[2];
+    out__output_flop[0] <= p3_array_index_60_comb[0];
+    out__output_flop[1] <= p3_array_index_60_comb[1];
+    out__output_flop[2] <= p3_array_index_60_comb[2];
   end
   assign out = {out__output_flop[2], out__output_flop[1], out__output_flop[0]};
 endmodule
