@@ -1636,6 +1636,17 @@ class Number : public Expr {
     return text_.starts_with("0x") || text_.starts_with("0b");
   }
 
+  bool IsU32Type() const {
+    if (type_annotation_ == nullptr) {
+      return false;
+    }
+    if (!type_annotation_->IsAnnotation<BuiltinTypeAnnotation>()) {
+      return false;
+    }
+    return type_annotation_->AsAnnotation<BuiltinTypeAnnotation>()
+               ->builtin_type() == BuiltinType::kU32;
+  }
+
  private:
   std::string ToStringInternal() const final;
 

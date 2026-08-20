@@ -166,7 +166,7 @@ TEST(ValueGeneratorTest, GenerateDslxConstantArrayOfBuiltinLessThan64) {
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
                            GenerateDslxConstant(rng, &module, type));
   ASSERT_NE(expr, nullptr);
-  EXPECT_THAT(expr->ToString(), HasSubstr("sN[u32:32]:"));
+  EXPECT_THAT(expr->ToString(), HasSubstr("sN[32]:"));
 }
 
 TEST(ValueGeneratorTest, GenerateDslxConstantArrayOfBuiltinGreaterThan64) {
@@ -188,7 +188,7 @@ TEST(ValueGeneratorTest, GenerateDslxConstantArrayOfBuiltinGreaterThan64) {
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
                            GenerateDslxConstant(rng, &module, type));
   ASSERT_NE(expr, nullptr);
-  EXPECT_THAT(expr->ToString(), HasSubstr("sN[u32:65]:"));
+  EXPECT_THAT(expr->ToString(), HasSubstr("sN[65]:"));
 }
 
 TEST(ValueGeneratorTest, GenerateDslxConstantArrayOfBitsConstructor) {

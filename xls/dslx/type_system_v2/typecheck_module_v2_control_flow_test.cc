@@ -284,7 +284,7 @@ fn foo() {
   } (0);
 }
 )",
-      TypecheckFails(HasTypeMismatch("u32[>= u32:0]", "u32")));
+      TypecheckFails(HasTypeMismatch("u32[>= 0]", "u32")));
 }
 
 TEST(TypecheckV2Test, ForInferenceFromBodyTypeFails) {
