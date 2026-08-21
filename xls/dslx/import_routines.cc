@@ -292,8 +292,10 @@ absl::StatusOr<UseImportResult> DoImportViaUse(
   if (dslx_path.ok()) {
     XLS_ASSIGN_OR_RETURN(ModuleInfo * module_info,
                          to_module_info(attempted.back(), dslx_path.value()));
-    return UseImportResult{.imported_module = module_info,
+    UseImportResult result{.imported_module = module_info,
                            .imported_member = nullptr};
+    import_data->NoteUseImportResult(&subject.use_tree_entry(), result);
+    return result;
   }
 
   // 2. If that is not present, check whether the NameDef refers to an entity
@@ -325,8 +327,10 @@ absl::StatusOr<UseImportResult> DoImportViaUse(
                           name_def_span.ToString(file_table), member_name,
                           import_tokens.ToString()));
     }
-    return UseImportResult{.imported_module = module_info_ptr,
+    UseImportResult result{.imported_module = module_info_ptr,
                            .imported_member = member.value()};
+    import_data->NoteUseImportResult(&subject.use_tree_entry(), result);
+    return result;
   }
 
   return absl::NotFoundError(absl::StrFormat(
