@@ -3914,6 +3914,28 @@ TEST_F(IrConverterTest, ConvertInstanceMethodOnParametricStruct) {
   ExpectIr(converted);
 }
 
+TEST_F(IrConverterTest, ConvertStaticMethodOnParametricStruct) {
+  constexpr std::string_view program = R"(
+  struct S<A: u32> {
+    val: uN[A]
+  }
+
+  impl S<A> {
+    fn make(a: uN[A]) -> Self { S<A>{val: a} }
+  }
+
+  fn main() -> (u16, u32) {
+    const X = S<16>::make(100).val;
+    const Y = S<32>::make(200).val;
+    (X, Y)
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_F(IrConverterTest, ConvertParametricInstanceMethodOnParametricStruct) {
   constexpr std::string_view program = R"(
   struct S<A: u32> {

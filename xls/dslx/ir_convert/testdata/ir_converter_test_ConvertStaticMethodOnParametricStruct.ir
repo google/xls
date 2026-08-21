@@ -1,0 +1,21 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__S_A___make__16(a: bits[16] id=1) -> (bits[16]) {
+  ret tuple.2: (bits[16]) = tuple(a, id=2)
+}
+
+fn __test_module__S_A___make__32(a: bits[32] id=3) -> (bits[32]) {
+  ret tuple.4: (bits[32]) = tuple(a, id=4)
+}
+
+fn __test_module__main() -> (bits[16], bits[32]) {
+  literal.5: bits[16] = literal(value=100, id=5)
+  literal.8: bits[32] = literal(value=200, id=8)
+  invoke.6: (bits[16]) = invoke(literal.5, to_apply=__test_module__S_A___make__16, id=6)
+  invoke.9: (bits[32]) = invoke(literal.8, to_apply=__test_module__S_A___make__32, id=9)
+  X: bits[16] = tuple_index(invoke.6, index=0, id=7)
+  Y: bits[32] = tuple_index(invoke.9, index=0, id=10)
+  ret tuple.11: (bits[16], bits[32]) = tuple(X, Y, id=11)
+}
