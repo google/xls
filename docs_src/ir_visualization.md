@@ -15,6 +15,9 @@ bazel run -c opt //xls/visualization/ir_viz:app -- --delay_model=unit
 
 Then visit [http://localhost:5000](http://localhost:5000) in a browser.
 
+The server binds to `127.0.0.1` by default. To access it from another machine
+(e.g. when running inside a container), pass `--bind=0.0.0.0`.
+
 ## Screenshot
 
 The screenshot below shows a zoomed-in portion of the IR graph for the
