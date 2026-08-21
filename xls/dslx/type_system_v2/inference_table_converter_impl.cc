@@ -1493,7 +1493,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       ti->NoteConstExpr(binding->name_def(), *value);
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<Type> binding_type,
-          Concretize(binding->type_annotation(), std::nullopt));
+          Concretize(binding->type_annotation(), struct_context));
       ti->SetItem(binding->name_def(), *binding_type);
     }
     table_.SetParametricValueExprs(struct_context, std::move(value_exprs));
@@ -2682,9 +2682,24 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // `module`.
       const Span& span =
           binding->owner() == &module ? binding->span() : module.span();
+      const TypeAnnotation* value_type_annotation = binding->type_annotation();
+      if (binding->type_annotation()
+              ->IsAnnotation<TypeVariableTypeAnnotation>() &&
+          binding->type_annotation()
+              ->AsAnnotation<TypeVariableTypeAnnotation>()
+              ->IsGeneric()) {
+        ExprOrType resolved_type = resolved_parametrics.at(
+            binding->type_annotation()
+                ->AsAnnotation<TypeVariableTypeAnnotation>()
+                ->type_variable()
+                ->identifier());
+        XLS_RET_CHECK(std::holds_alternative<TypeAnnotation*>(resolved_type));
+        value_type_annotation = const_cast<const TypeAnnotation*>(
+            std::get<TypeAnnotation*>(resolved_type));
+      }
       XLS_ASSIGN_OR_RETURN(Number * value_expr,
                            MakeTypeCheckedNumber(module, table_, span, value,
-                                                 binding->type_annotation()));
+                                                 value_type_annotation));
       resolved_parametrics.emplace(binding->identifier(), value_expr);
       return absl::OkStatus();
     };
