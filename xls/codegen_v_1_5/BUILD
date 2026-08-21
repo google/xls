@@ -221,12 +221,14 @@ xls_codegen_pass(
     pass_class = "MergePortsPass",
     deps = [
         ":block_conversion_pass",
+        "//xls/codegen:module_signature_cc_proto",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/passes:pass_base",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status:statusor",
+        "@protobuf//:protobuf_lite",
     ],
 )
 
@@ -237,6 +239,8 @@ cc_test(
         ":block_conversion_pass",
         ":merge_ports_pass",
         "//xls/codegen:codegen_options",
+        "//xls/codegen:module_signature_cc_proto",
+        "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -247,6 +251,7 @@ cc_test(
         "//xls/passes:pass_base",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest",
+        "@protobuf",
     ],
 )
 

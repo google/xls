@@ -20,8 +20,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "google/protobuf/text_format.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen_v_1_5/block_conversion_pass.h"
+#include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -37,6 +40,7 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::testing::Optional;
+using ::xls::proto_testing::EqualsProto;
 
 class MergePortsPassTest : public IrTestBase {
  protected:
@@ -732,6 +736,257 @@ TEST_F(MergePortsPassTest, PartiallySharedPortsMerge) {
   EXPECT_EQ(meta_b.data_port, meta_c.data_port);
   EXPECT_THAT(meta_a.data_port,
               Optional(std::string{block->GetOutputPorts().front()->name()}));
+}
+
+TEST_F(MergePortsPassTest, UpdateSignatureStreamingSendDataPorts) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  BValue in = bb.InputPort("in", p->GetBitsType(32));
+  bb.OutputPort("out_a_data", in);
+  bb.OutputPort("out_b_data", in);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK(block->AddChannelPortMetadata(ChannelPortMetadata{
+      .channel_name = "out_a",
+      .type = p->GetBitsType(32),
+      .direction = ChannelDirection::kSend,
+      .channel_kind = ChannelKind::kStreaming,
+      .flop_kind = FlopKind::kNone,
+      .data_port = "out_a_data",
+  }));
+  XLS_ASSERT_OK(block->AddChannelPortMetadata(ChannelPortMetadata{
+      .channel_name = "out_b",
+      .type = p->GetBitsType(32),
+      .direction = ChannelDirection::kSend,
+      .channel_kind = ChannelKind::kStreaming,
+      .flop_kind = FlopKind::kNone,
+      .data_port = "out_b_data",
+  }));
+
+  verilog::ModuleSignatureProto initial_signature;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"pb(
+        module_name: "test_module"
+        data_ports {
+          direction: PORT_DIRECTION_OUTPUT
+          name: "out_a_data"
+          width: 32
+          type { type_enum: BITS bit_count: 32 }
+        }
+        data_ports {
+          direction: PORT_DIRECTION_OUTPUT
+          name: "out_b_data"
+          width: 32
+          type { type_enum: BITS bit_count: 32 }
+        }
+        channel_interfaces {
+          channel_name: "out_a"
+          direction: CHANNEL_DIRECTION_SEND
+          kind: CHANNEL_KIND_STREAMING
+          streaming { data_port_name: "out_a_data" }
+        }
+        channel_interfaces {
+          channel_name: "out_b"
+          direction: CHANNEL_DIRECTION_SEND
+          kind: CHANNEL_KIND_STREAMING
+          streaming { data_port_name: "out_b_data" }
+        }
+      )pb",
+      &initial_signature));
+  block->SetSignature(initial_signature);
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(block->GetSignature(), Optional(EqualsProto(R"pb(
+                module_name: "test_module"
+                data_ports {
+                  direction: PORT_DIRECTION_OUTPUT
+                  name: "out_a_data"
+                  width: 32
+                  type { type_enum: BITS bit_count: 32 }
+                }
+                channel_interfaces {
+                  channel_name: "out_a"
+                  direction: CHANNEL_DIRECTION_SEND
+                  kind: CHANNEL_KIND_STREAMING
+                  streaming { data_port_name: "out_a_data" }
+                }
+                channel_interfaces {
+                  channel_name: "out_b"
+                  direction: CHANNEL_DIRECTION_SEND
+                  kind: CHANNEL_KIND_STREAMING
+                  streaming { data_port_name: "out_a_data" }
+                }
+              )pb")));
+}
+
+TEST_F(MergePortsPassTest, UpdateSignatureReceiveReadyPorts) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  bb.InputPort("in_a_data", p->GetBitsType(32));
+  bb.InputPort("in_b_data", p->GetBitsType(32));
+  BValue rdy = bb.Literal(UBits(1, 1));
+  bb.OutputPort("in_a_rdy", rdy);
+  bb.OutputPort("in_b_rdy", rdy);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK(block->AddChannelPortMetadata(ChannelPortMetadata{
+      .channel_name = "in_a",
+      .type = p->GetBitsType(32),
+      .direction = ChannelDirection::kReceive,
+      .channel_kind = ChannelKind::kStreaming,
+      .flop_kind = FlopKind::kNone,
+      .data_port = "in_a_data",
+      .ready_port = "in_a_rdy",
+  }));
+  XLS_ASSERT_OK(block->AddChannelPortMetadata(ChannelPortMetadata{
+      .channel_name = "in_b",
+      .type = p->GetBitsType(32),
+      .direction = ChannelDirection::kReceive,
+      .channel_kind = ChannelKind::kStreaming,
+      .flop_kind = FlopKind::kNone,
+      .data_port = "in_b_data",
+      .ready_port = "in_b_rdy",
+  }));
+
+  verilog::ModuleSignatureProto initial_signature;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"pb(
+        module_name: "test_module"
+        data_ports {
+          direction: PORT_DIRECTION_OUTPUT
+          name: "in_a_rdy"
+          width: 1
+          type { type_enum: BITS bit_count: 1 }
+        }
+        data_ports {
+          direction: PORT_DIRECTION_OUTPUT
+          name: "in_b_rdy"
+          width: 1
+          type { type_enum: BITS bit_count: 1 }
+        }
+        channel_interfaces {
+          channel_name: "in_a"
+          direction: CHANNEL_DIRECTION_RECEIVE
+          kind: CHANNEL_KIND_STREAMING
+          streaming { data_port_name: "in_a_data" ready_port_name: "in_a_rdy" }
+        }
+        channel_interfaces {
+          channel_name: "in_b"
+          direction: CHANNEL_DIRECTION_RECEIVE
+          kind: CHANNEL_KIND_STREAMING
+          streaming { data_port_name: "in_b_data" ready_port_name: "in_b_rdy" }
+        }
+      )pb",
+      &initial_signature));
+  block->SetSignature(initial_signature);
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      block->GetSignature(), Optional(EqualsProto(R"pb(
+        module_name: "test_module"
+        data_ports {
+          direction: PORT_DIRECTION_OUTPUT
+          name: "in_a_rdy"
+          width: 1
+          type { type_enum: BITS bit_count: 1 }
+        }
+        channel_interfaces {
+          channel_name: "in_a"
+          direction: CHANNEL_DIRECTION_RECEIVE
+          kind: CHANNEL_KIND_STREAMING
+          streaming { data_port_name: "in_a_data" ready_port_name: "in_a_rdy" }
+        }
+        channel_interfaces {
+          channel_name: "in_b"
+          direction: CHANNEL_DIRECTION_RECEIVE
+          kind: CHANNEL_KIND_STREAMING
+          streaming { data_port_name: "in_b_data" ready_port_name: "in_a_rdy" }
+        }
+      )pb")));
+}
+
+TEST_F(MergePortsPassTest, UpdateSignatureSingleValueChannels) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  BValue in = bb.InputPort("in", p->GetBitsType(32));
+  bb.OutputPort("sv_a", in);
+  bb.OutputPort("sv_b", in);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK(block->AddChannelPortMetadata(ChannelPortMetadata{
+      .channel_name = "sv_a",
+      .type = p->GetBitsType(32),
+      .direction = ChannelDirection::kSend,
+      .channel_kind = ChannelKind::kSingleValue,
+      .flop_kind = FlopKind::kNone,
+      .data_port = "sv_a",
+  }));
+  XLS_ASSERT_OK(block->AddChannelPortMetadata(ChannelPortMetadata{
+      .channel_name = "sv_b",
+      .type = p->GetBitsType(32),
+      .direction = ChannelDirection::kSend,
+      .channel_kind = ChannelKind::kSingleValue,
+      .flop_kind = FlopKind::kNone,
+      .data_port = "sv_b",
+  }));
+
+  verilog::ModuleSignatureProto initial_signature;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"pb(
+        module_name: "test_module"
+        data_ports {
+          direction: PORT_DIRECTION_OUTPUT
+          name: "sv_a"
+          width: 32
+          type { type_enum: BITS bit_count: 32 }
+        }
+        data_ports {
+          direction: PORT_DIRECTION_OUTPUT
+          name: "sv_b"
+          width: 32
+          type { type_enum: BITS bit_count: 32 }
+        }
+        channel_interfaces {
+          channel_name: "sv_a"
+          direction: CHANNEL_DIRECTION_SEND
+          kind: CHANNEL_KIND_SINGLE_VALUE
+          single_value { data_port_name: "sv_a" }
+        }
+        channel_interfaces {
+          channel_name: "sv_b"
+          direction: CHANNEL_DIRECTION_SEND
+          kind: CHANNEL_KIND_SINGLE_VALUE
+          single_value { data_port_name: "sv_b" }
+        }
+      )pb",
+      &initial_signature));
+  block->SetSignature(initial_signature);
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(block->GetSignature(), Optional(EqualsProto(R"pb(
+                module_name: "test_module"
+                data_ports {
+                  direction: PORT_DIRECTION_OUTPUT
+                  name: "sv_a"
+                  width: 32
+                  type { type_enum: BITS bit_count: 32 }
+                }
+                channel_interfaces {
+                  channel_name: "sv_a"
+                  direction: CHANNEL_DIRECTION_SEND
+                  kind: CHANNEL_KIND_SINGLE_VALUE
+                  single_value { data_port_name: "sv_a" }
+                }
+                channel_interfaces {
+                  channel_name: "sv_b"
+                  direction: CHANNEL_DIRECTION_SEND
+                  kind: CHANNEL_KIND_SINGLE_VALUE
+                  single_value { data_port_name: "sv_a" }
+                }
+              )pb")));
 }
 
 }  // namespace
