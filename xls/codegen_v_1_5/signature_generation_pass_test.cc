@@ -725,12 +725,112 @@ top block my_block() {
                                      block_instantiation {
                                        instance_name: "generator_inst"
                                        block_name: "generator"
+                                       block_signature {
+                                         module_name: "generator"
+                                         data_ports {
+                                           direction: PORT_DIRECTION_OUTPUT
+                                           name: "out"
+                                           width: 32
+                                           type { type_enum: BITS bit_count: 32 }
+                                         }
+                                         data_ports {
+                                           direction: PORT_DIRECTION_OUTPUT
+                                           name: "out_valid"
+                                           width: 1
+                                           type { type_enum: BITS bit_count: 1 }
+                                         }
+                                         data_ports {
+                                           direction: PORT_DIRECTION_INPUT
+                                           name: "out_ready"
+                                           width: 1
+                                           type { type_enum: BITS bit_count: 1 }
+                                         }
+                                         clock_name: "clk"
+                                         reset {
+                                           name: "rst"
+                                           asynchronous: false
+                                           active_low: false
+                                         }
+                                         pipeline {
+                                           latency: 0
+                                           initiation_interval: 1
+                                           pipeline_control {
+                                             valid {
+                                               input_name: "input_valid"
+                                               output_name: "output_valid"
+                                             }
+                                           }
+                                         }
+                                         channel_interfaces {
+                                           channel_name: "out"
+                                           direction: CHANNEL_DIRECTION_SEND
+                                           type { type_enum: BITS bit_count: 32 }
+                                           kind: CHANNEL_KIND_STREAMING
+                                           streaming {
+                                             flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+                                             data_port_name: "out"
+                                             ready_port_name: "out_ready"
+                                             valid_port_name: "out_valid"
+                                           }
+                                           flop_kind: FLOP_KIND_NONE
+                                         }
+                                       }
                                      }
                                    )pb"),
                                    EqualsProto(R"pb(
                                      block_instantiation {
                                        instance_name: "consumer_inst"
                                        block_name: "consumer"
+                                       block_signature {
+                                         module_name: "consumer"
+                                         data_ports {
+                                           direction: PORT_DIRECTION_INPUT
+                                           name: "in"
+                                           width: 32
+                                           type { type_enum: BITS bit_count: 32 }
+                                         }
+                                         data_ports {
+                                           direction: PORT_DIRECTION_INPUT
+                                           name: "in_valid"
+                                           width: 1
+                                           type { type_enum: BITS bit_count: 1 }
+                                         }
+                                         data_ports {
+                                           direction: PORT_DIRECTION_OUTPUT
+                                           name: "in_ready"
+                                           width: 1
+                                           type { type_enum: BITS bit_count: 1 }
+                                         }
+                                         clock_name: "clk"
+                                         reset {
+                                           name: "rst"
+                                           asynchronous: false
+                                           active_low: false
+                                         }
+                                         pipeline {
+                                           latency: 0
+                                           initiation_interval: 1
+                                           pipeline_control {
+                                             valid {
+                                               input_name: "input_valid"
+                                               output_name: "output_valid"
+                                             }
+                                           }
+                                         }
+                                         channel_interfaces {
+                                           channel_name: "in"
+                                           direction: CHANNEL_DIRECTION_RECEIVE
+                                           type { type_enum: BITS bit_count: 32 }
+                                           kind: CHANNEL_KIND_STREAMING
+                                           streaming {
+                                             flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+                                             data_port_name: "in"
+                                             ready_port_name: "in_ready"
+                                             valid_port_name: "in_valid"
+                                           }
+                                           flop_kind: FLOP_KIND_NONE
+                                         }
+                                       }
                                      }
                                    )pb")));
 }
@@ -805,6 +905,83 @@ top block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
                 block_instantiation {
                   instance_name: "subblock_inst"
                   block_name: "subblock"
+                  block_signature {
+                    module_name: "subblock"
+                    data_ports {
+                      direction: PORT_DIRECTION_INPUT
+                      name: "in"
+                      width: 32
+                      type { type_enum: BITS bit_count: 32 }
+                    }
+                    data_ports {
+                      direction: PORT_DIRECTION_INPUT
+                      name: "in_valid"
+                      width: 1
+                      type { type_enum: BITS bit_count: 1 }
+                    }
+                    data_ports {
+                      direction: PORT_DIRECTION_OUTPUT
+                      name: "in_ready"
+                      width: 1
+                      type { type_enum: BITS bit_count: 1 }
+                    }
+                    data_ports {
+                      direction: PORT_DIRECTION_OUTPUT
+                      name: "out"
+                      width: 32
+                      type { type_enum: BITS bit_count: 32 }
+                    }
+                    data_ports {
+                      direction: PORT_DIRECTION_OUTPUT
+                      name: "out_valid"
+                      width: 1
+                      type { type_enum: BITS bit_count: 1 }
+                    }
+                    data_ports {
+                      direction: PORT_DIRECTION_INPUT
+                      name: "out_ready"
+                      width: 1
+                      type { type_enum: BITS bit_count: 1 }
+                    }
+                    clock_name: "clk"
+                    reset { name: "rst" asynchronous: false active_low: false }
+                    pipeline {
+                      latency: 0
+                      initiation_interval: 1
+                      pipeline_control {
+                        valid {
+                          input_name: "input_valid"
+                          output_name: "output_valid"
+                        }
+                      }
+                    }
+                    channel_interfaces {
+                      channel_name: "in"
+                      direction: CHANNEL_DIRECTION_RECEIVE
+                      type { type_enum: BITS bit_count: 32 }
+                      kind: CHANNEL_KIND_STREAMING
+                      streaming {
+                        flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+                        data_port_name: "in"
+                        ready_port_name: "in_ready"
+                        valid_port_name: "in_valid"
+                      }
+                      flop_kind: FLOP_KIND_NONE
+                    }
+                    channel_interfaces {
+                      channel_name: "out"
+                      direction: CHANNEL_DIRECTION_SEND
+                      type { type_enum: BITS bit_count: 32 }
+                      kind: CHANNEL_KIND_STREAMING
+                      streaming {
+                        flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+                        data_port_name: "out"
+                        ready_port_name: "out_ready"
+                        valid_port_name: "out_valid"
+                      }
+                      flop_kind: FLOP_KIND_NONE
+                    }
+                  }
                 }
               )pb")));
 
