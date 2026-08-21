@@ -176,7 +176,8 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
   // dealt with in `HandleInvocation`.
   absl::Status HandleFunction(const Function* f) override {
     VLOG(5) << "HandleFunction " << f->ToString();
-    if (f->IsParametric() || f->IsInProc() || f->IsMethodOnParametricStruct()) {
+    if (f->IsParametric() || f->IsInProc() ||
+        f->IsFunctionOnParametricStruct()) {
       // TODO: https://github.com/google/xls/issues/1029 - remove module-level
       // proc functions.
       VLOG(5) << "Skipping function " << f->identifier()
@@ -212,7 +213,7 @@ class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
                                       bool handle_for_invocation) {
     XLS_RET_CHECK(module_ == f->owner());
     XLS_RET_CHECK(!f->IsInProc());
-    if (f->IsParametric() || f->IsMethodOnParametricStruct()) {
+    if (f->IsParametric() || f->IsFunctionOnParametricStruct()) {
       XLS_RET_CHECK(!env.empty());
       XLS_RET_CHECK_NE(type_info_->GetRoot(), type_info_);
     } else {
