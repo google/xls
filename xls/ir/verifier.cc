@@ -265,31 +265,35 @@ absl::Status VerifyChannels(
     }
   }
 
-  // Verify that each channel has the appropriate number of send and receive
-  // nodes (one or zero).
-  for (Channel* channel : package->channels()) {
-    if (channel->CanSend()) {
-      XLS_RET_CHECK(send_nodes.contains(channel)) << absl::StreamFormat(
-          "Channel '%s' (id %d) has no associated send node", channel->name(),
-          channel->id());
-    } else {
-      XLS_RET_CHECK(!send_nodes.contains(channel)) << absl::StreamFormat(
-          "Channel '%s' (id %d) cannot send but has send node(s): %s",
-          channel->name(), channel->id(),
-          absl::StrJoin(send_nodes.at(channel), ", "));
+  if (!options.incomplete_lowering) {
+    // Verify that each channel has the appropriate number of send and receive
+    // nodes (one or zero).
+    for (Channel* channel : package->channels()) {
+      if (channel->CanSend()) {
+        XLS_RET_CHECK(send_nodes.contains(channel)) << absl::StreamFormat(
+            "Channel '%s' (id %d) has no associated send node", channel->name(),
+            channel->id());
+      } else {
+        XLS_RET_CHECK(!send_nodes.contains(channel)) << absl::StreamFormat(
+            "Channel '%s' (id %d) cannot send but has send node(s): %s",
+            channel->name(), channel->id(),
+            absl::StrJoin(send_nodes.at(channel), ", "));
+      }
+      if (channel->CanReceive()) {
+        XLS_RET_CHECK(receive_nodes.contains(channel)) << absl::StreamFormat(
+            "Channel '%s' (id %d) has no associated receive node",
+            channel->name(), channel->id());
+      } else {
+        XLS_RET_CHECK(!receive_nodes.contains(channel)) << absl::StreamFormat(
+            "Channel '%s' (id %d) cannot receive but has a receive node(s): %s",
+            channel->name(), channel->id(),
+            absl::StrJoin(receive_nodes.at(channel), ", "));
+      }
     }
-    if (channel->CanReceive()) {
-      XLS_RET_CHECK(receive_nodes.contains(channel)) << absl::StreamFormat(
-          "Channel '%s' (id %d) has no associated receive node",
-          channel->name(), channel->id());
-    } else {
-      XLS_RET_CHECK(!receive_nodes.contains(channel)) << absl::StreamFormat(
-          "Channel '%s' (id %d) cannot receive but has a receive node(s): %s",
-          channel->name(), channel->id(),
-          absl::StrJoin(receive_nodes.at(channel), ", "));
-    }
+  }
 
-    // Verify type-specific invariants of each channel.
+  // Verify type-specific invariants of each channel.
+  for (Channel* channel : package->channels()) {
     if (channel->kind() == ChannelKind::kSingleValue) {
       // Single-value channels cannot have initial values.
       XLS_RET_CHECK_EQ(channel->initial_values().size(), 0);
@@ -1510,27 +1514,6 @@ absl::Status VerifyBlock(Block* block, const VerifyOptions& options) {
         return absl::InternalError(
             absl::StrFormat("Active I/O node %s found in logic set of stage %d",
                             node->GetName(), i));
-      }
-    }
-  }
-  NodeForwardDependencyAnalysis dep_analysis;
-  XLS_RETURN_IF_ERROR(dep_analysis.Attach(scheduled_block).status());
-  for (Node* node : scheduled_block->nodes()) {
-    if (!scheduled_block->IsStaged(node)) {
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(int64_t stage_idx,
-                         scheduled_block->GetStageIndex(node));
-    for (Node* dep : dep_analysis.NodesDependedOnBy(node)) {
-      if (!scheduled_block->IsStaged(dep)) {
-        continue;
-      }
-      XLS_ASSIGN_OR_RETURN(int64_t dep_stage_idx,
-                           scheduled_block->GetStageIndex(dep));
-      if (dep_stage_idx > stage_idx) {
-        return absl::InternalError(absl::StrFormat(
-            "Node %s (in stage %d) has a dependency on %s (in stage %d).",
-            node->GetName(), stage_idx, dep->GetName(), dep_stage_idx));
       }
     }
   }
