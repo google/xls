@@ -317,6 +317,18 @@ absl::Status ValidateFormatMacroArgument(const Type& type, const Span& span,
 
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
+    if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+      const NameDef* name_def = std::get<const NameDef*>(name_ref->name_def());
+      if (name_def->definer() != nullptr &&
+          name_def->definer()->kind() == AstNodeKind::kUseTreeEntry) {
+        UseTreeEntry* use_tree_entry =
+            absl::down_cast<UseTreeEntry*>(name_def->definer());
+        XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
+                             type_info->GetImportedOrError(use_tree_entry));
+        return imported_info->module->GetMemberOrError<Proc>(
+            name_def->identifier());
+      }
+    }
     return name_ref->owner()->GetMemberOrError<Proc>(name_ref->identifier());
   }
 
