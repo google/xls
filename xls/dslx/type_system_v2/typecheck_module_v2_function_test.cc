@@ -508,7 +508,7 @@ TEST(TypecheckV2FunctionTest,
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
 const X = foo<true>(u32:5);
 )",
-              TypecheckFails(HasSignednessMismatch("xN[1][32]", "u32")));
+              TypecheckFails(HasSignednessMismatch("xN[bool:1][32]", "u32")));
 }
 
 TEST(TypecheckV2FunctionTest,

@@ -4322,7 +4322,7 @@ fn f() { priority_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4], u5:0); }
 )")
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasTypeMismatch("xN[0][4]", "u5")));
+                       HasTypeMismatch("xN[bool:0][4]", "u5")));
 }
 
 TEST_F(TypecheckV2Test, OperatorOnParametricBuiltin) {

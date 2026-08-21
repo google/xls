@@ -287,7 +287,7 @@ const_assert!(RES == 0);
 )",
       TypecheckSucceeds(
           AllOf(HasNodeWithType("RES", "uN[32]"),
-                HasNodeWithType("outer<5>",
+                HasNodeWithType("outer<u32:5>",
                                 "typeof(outer { outer_var: uN[32][5] }"))));
 }
 
@@ -691,7 +691,7 @@ TEST(TypecheckV2GenericsTest, ComparisonAsParametricArgumentWithConflictFails) {
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
 const Y = foo<{2 > 1}>(u32:5);
 )",
-              TypecheckFails(HasSignednessMismatch("xN[1][32]", "u32")));
+              TypecheckFails(HasSignednessMismatch("xN[bool:1][32]", "u32")));
 }
 
 TEST(TypecheckV2GenericsTest, ComparisonAndSumAsParametricArguments) {
@@ -712,7 +712,7 @@ const X = u32:1;
 fn foo<S: bool, N: u32>(a: xN[S][N]) -> xN[S][N] { a }
 const Y = foo<{X == 1}, {X + 4}>(s4:3);
 )",
-              TypecheckFails(HasSizeMismatch("xN[1][5]", "s4")));
+              TypecheckFails(HasSizeMismatch("xN[bool:1][5]", "s4")));
 }
 
 TEST(TypecheckV2GenericsTest,
@@ -1654,32 +1654,31 @@ const_assert!(CONST.b == u16:2);
       TypecheckSucceeds(HasNodeWithType("CONST", "S { a: uN[32], b: uN[16]")));
 }
 
-// TODO(erinzmoore): Support this case.
-TEST(TypecheckV2GenericsTest, DISABLED_StructConstantAndTypeUsedInImplFn) {
+TEST(TypecheckV2GenericsTest, StructConstantAndTypeUsedInImplFn) {
   EXPECT_THAT(
       R"(
 #![feature(generics)]
 
-struct lm<T: type, C: T> {}
+struct lm<T_lm: type, C_lm: T_lm> {}
 
-impl lm<T, C> {
-  const CONST : T = C;
+impl lm<T_lm, C_lm> {
+  const CONST : T_lm = C_lm;
 
-  fn call(i: T) -> T {
+  fn call(self, i: T_lm) -> T_lm {
     i + CONST
   }
 }
 
-fn main<T: type>() -> T[5] {
-  const LOCAL_CONST = T:5;
-  map(T:0..5, lm<T, LOCAL_CONST>{}.call)
+fn main<OUTER_T: type, START: u32>() -> OUTER_T[5] {
+  const LOCAL_CONST = START as OUTER_T;
+  map(OUTER_T:0..5, lm<OUTER_T, LOCAL_CONST>{}.call)
 }
 
-const RES = main<u32>();
-const RES2 = main<u16>();
+const RES = main<u32, 5>();
+const RES2 = main<u16, 10>();
 
 const_assert!(RES == [u32:5, 6, 7, 8, 9]);
-const_assert!(RES2 == [u16:5, 6, 7, 8, 9]);
+const_assert!(RES2 == [u16:10, 11, 12, 13, 14]);
 
 )",
       TypecheckSucceeds(HasNodeWithType("RES", "uN[32][5]")));

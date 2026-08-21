@@ -80,8 +80,9 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
 
   VLOG(5) << "Creating type-checked number: " << value.ToString()
           << " of type: " << type_annotation->ToString();
-  Number* number = module.Make<Number>(span, value.ToString(/*humanize=*/true),
-                                       NumberKind::kOther, nullptr);
+  Number* number = module.Make<Number>(
+      span, value.ToString(/*humanize=*/true), NumberKind::kOther,
+      const_cast<TypeAnnotation*>(type_annotation));
   XLS_RETURN_IF_ERROR(table.SetTypeAnnotation(number, type_annotation));
   return number;
 }

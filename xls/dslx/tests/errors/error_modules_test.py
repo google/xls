@@ -952,7 +952,7 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
         'xls/dslx/tests/errors/umin_type_mismatch.x',
     )
     self.assertIn('umin_type_mismatch.x:21:5-21:13', stderr)
-    self._assert_size_mismatch('xN[0][42]', 'u32', stderr)
+    self._assert_size_mismatch('xN[bool:0][42]', 'u32', stderr)
 
   def test_diag_block_with_trailing_semi(self):
     stderr = self._run(
