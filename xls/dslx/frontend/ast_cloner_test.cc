@@ -2320,9 +2320,7 @@ fn divmod() {})*";
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
-// https://github.com/google/xls/issues/2876 - Re-enable when `use` is supported
-// in TIv2.
-TEST(AstClonerTest, DISABLED_Use) {
+TEST(AstClonerTest, Use) {
   constexpr std::string_view kProgram =
       R"(#![feature(use_syntax)]
 
@@ -2429,9 +2427,7 @@ fn main() -> u32 {
   EXPECT_EQ(import->name_def().definer(), import);
 }
 
-// https://github.com/google/xls/issues/2876 - Re-enable when `use` is supported
-// in TIv2.
-TEST(AstClonerTest, DISABLED_UseSetsNameDefDefinerOnClone) {
+TEST(AstClonerTest, UseSetsNameDefDefinerOnClone) {
   // Minimal use of a single module to keep the test crisp while exercising
   // UseTreeEntry leaf definer behavior and typechecking via import.
   constexpr std::string_view kImportedProgram = R"(pub const D = u32:0; )";
