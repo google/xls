@@ -1511,5 +1511,26 @@ fn tuple_match(input: u32, sign: bool) -> u32 {
           HasNodeWithType("tuple_match", "(uN[32], uN[1]) -> uN[32]")));
 }
 
+// Repro for bug where typechecking fails when a match arm contains a const if:
+// "INVALID_ARGUMENT: TypeInferenceError: context_node is required for
+// ResolveConstConditionalType()"
+TEST(TypecheckV2Test, MatchArmWithConstIf) {
+  EXPECT_THAT(
+      R"(
+fn f<N: bool>(x: u32) -> (u32, u32) {
+    match x {
+        u32:0 => (const if N { u32:1 } else { u32:2 }, u32:0),
+        _ => (u32:3, u32:0),
+    }
+}
+fn main() {
+    let a = f<true>(u32:0);
+    let b = f<false>(u32:0);
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("a", "(uN[32], uN[32])"),
+                              HasNodeWithType("b", "(uN[32], uN[32])"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx
