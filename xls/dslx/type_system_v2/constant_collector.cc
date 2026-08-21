@@ -160,6 +160,7 @@ class Visitor : public AstNodeVisitorWithDefault {
           if (value.ok()) {
             trace_.SetResult(*value);
             ti_->NoteConstExpr(name_ref, *value);
+            ti_->NoteConstExpr(name_def, *value);
           }
         }
       }
