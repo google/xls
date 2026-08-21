@@ -1083,11 +1083,51 @@ cc_library(
 )
 
 cc_library(
+    name = "resource_sharing_equivalence",
+    srcs = ["resource_sharing_equivalence.cc"],
+    hdrs = ["resource_sharing_equivalence.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/estimators/area_model:area_estimator",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "resource_sharing_equivalence_test",
+    srcs = ["resource_sharing_equivalence_test.cc"],
+    deps = [
+        ":resource_sharing_equivalence",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/estimators/area_model:area_estimator",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/solvers:ir_equivalence_testutils",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "folding_graph",
     srcs = ["folding_graph.cc"],
     hdrs = ["folding_graph.h"],
     deps = [
         ":node_dependency_analysis",
+        ":resource_sharing_equivalence",
         ":visibility_analysis",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -1124,6 +1164,7 @@ xls_pass(
         ":optimization_pass",
         ":pass_base",
         ":post_dominator_analysis",
+        ":resource_sharing_equivalence",
         ":visibility_analysis",
         ":visibility_expr_builder",
         "//xls/common/status:ret_check",
@@ -4651,13 +4692,12 @@ cc_test(
     name = "folding_graph_test",
     srcs = ["folding_graph_test.cc"],
     deps = [
-        ":bdd_query_engine",
         ":folding_graph",
         ":node_dependency_analysis",
+        ":resource_sharing_equivalence",
         ":visibility_analysis",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
@@ -4679,8 +4719,10 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:events",
         "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/solvers:ir_equivalence_testutils",
         "@abseil-cpp//absl/status:status_matchers",

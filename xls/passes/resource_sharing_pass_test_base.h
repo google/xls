@@ -31,10 +31,12 @@
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/solvers/ir_equivalence_testutils.h"
 
@@ -42,6 +44,8 @@ namespace xls {
 
 using ::absl_testing::IsOkAndHolds;
 using ::xls::solvers::ScopedVerifyEquivalence;
+
+namespace m = ::xls::op_matchers;
 
 inline uint64_t NumberOfNodes(Function* f, absl::Span<const Op> node_types) {
   uint64_t c = 0;
@@ -1474,6 +1478,75 @@ TYPED_TEST_P(ResourceSharingPassTestBase,
   EXPECT_EQ(NumberOfShifts(f), 3);
 }
 
+TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLeftAndRight) {
+  // Test folding Shll and Shrl in both directions.
+  {
+    // Shll -> Shrl
+    auto p = this->CreatePackage();
+    FunctionBuilder fb(this->TestName(), p.get());
+    Type* u16 = p->GetBitsType(16);
+    BValue x = fb.Param("x", u16);
+    BValue y = fb.Param("y", u16);
+    BValue s = fb.Param("s", u16);
+    BValue cond = fb.Param("cond", p->GetBitsType(1));
+
+    BValue shll = fb.Shll(x, s);
+    BValue shrl = fb.Shrl(y, s);
+    BValue sel = fb.Select(cond, {shll, shrl});
+
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+    EXPECT_EQ(NumberOfShifts(f), 2);
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(1));
+    EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
+
+    // Verify resulting IR has one shift with appropriate reverses and select.
+    EXPECT_EQ(NumberOfShifts(f), 1);
+    auto shift =
+        m::Shll(m::PrioritySelect(m::Eq(cond.node(), m::Literal(1)),
+                                  /*cases=*/{m::Reverse(m::Param("y"))},
+                                  /*default=*/m::Param("x")),
+                m::Param("s"));
+    auto matcher1 = m::Select(cond.node(),
+                              /*cases=*/
+                              {shift, m::Reverse(shift)});
+    EXPECT_THAT(f->return_value(), matcher1);
+  }
+
+  {
+    // Shll -> Shrl
+    auto p = this->CreatePackage();
+    FunctionBuilder fb(this->TestName(), p.get());
+    Type* u16 = p->GetBitsType(16);
+    BValue x = fb.Param("x", u16);
+    BValue y = fb.Param("y", u16);
+    BValue s = fb.Param("s", u16);
+    BValue cond = fb.Param("cond", p->GetBitsType(1));
+
+    BValue shrl = fb.Shrl(x, s);
+    BValue shll = fb.Shll(y, s);
+    BValue sel = fb.Select(cond, {shrl, shll});
+
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+    EXPECT_EQ(NumberOfShifts(f), 2);
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(1));
+    EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
+
+    // Verify resulting IR has one shift with appropriate reverses and select.
+    EXPECT_EQ(NumberOfShifts(f), 1);
+    auto shift =
+        m::Shrl(m::PrioritySelect(m::Eq(cond.node(), m::Literal(1)),
+                                  /*cases=*/{m::Reverse(m::Param("y"))},
+                                  /*default=*/m::Param("x")),
+                m::Param("s"));
+    auto matcher2 = m::Select(cond.node(),
+                              /*cases=*/
+                              {shift, m::Reverse(shift)});
+    EXPECT_THAT(f->return_value(), matcher2);
+  }
+}
+
 REGISTER_TYPED_TEST_SUITE_P(
     ResourceSharingPassTestBase, MergeSingleUnsignedMultiplication,
     MergeSingleUnsignedMultiplication2, MergeSingleSignedMultiplication,
@@ -1487,8 +1560,9 @@ REGISTER_TYPED_TEST_SUITE_P(
     MergeSingleUnsignedMultiplicationDifferentBitwidths2, MergeAdds,
     MergeAddsWithDifferentBitwidths, MergeSubs, MergeSubs2,
     MergeSubsWithDifferentBitwidths, MergeAddsAndSubs, MergeShift,
-    MergeMultipliesAndAddsUsedByTwoSelects, PreventCyclesInFoldingChains,
-    PreventCyclesInFoldingChainsNary, PreventCyclesInFoldingChainsIndirect);
+    MergeShiftLeftAndRight, MergeMultipliesAndAddsUsedByTwoSelects,
+    PreventCyclesInFoldingChains, PreventCyclesInFoldingChainsNary,
+    PreventCyclesInFoldingChainsIndirect);
 
 }  // namespace xls
 
