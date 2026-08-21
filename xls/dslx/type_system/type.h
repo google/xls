@@ -32,6 +32,7 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -54,6 +55,7 @@ namespace xls::dslx {
 class BitsType;
 class TupleType;
 class StructType;
+class SumType;
 
 // Represents a parametric binding in a Type, which is either a) a
 // parametric expression or b) evaluated to an InterpValue. When type
@@ -145,6 +147,7 @@ class TypeVisitor {
   virtual absl::Status HandleChannel(const ChannelType& t) = 0;
   virtual absl::Status HandleToken(const TokenType& t) = 0;
   virtual absl::Status HandleStruct(const StructType& t) = 0;
+  virtual absl::Status HandleSum(const SumType& t) = 0;
   virtual absl::Status HandleProc(const ProcType& t) = 0;
   virtual absl::Status HandleTuple(const TupleType& t) = 0;
   virtual absl::Status HandleArray(const ArrayType& t) = 0;
@@ -177,6 +180,7 @@ class TypeVisitorWithDefault : public TypeVisitor {
   absl::Status HandleStruct(const StructType& t) override {
     return absl::OkStatus();
   }
+  absl::Status HandleSum(const SumType& t) override { return absl::OkStatus(); }
   absl::Status HandleProc(const ProcType& t) override {
     return absl::OkStatus();
   }
@@ -315,6 +319,7 @@ class Type {
   bool IsUnit() const;
   bool IsToken() const;
   bool IsStruct() const;
+  bool IsSum() const;
   bool IsProc() const;
   bool IsEnum() const;
   bool IsArray() const;
@@ -325,6 +330,7 @@ class Type {
 
   const ChannelType& AsChannel() const;
   const StructType& AsStruct() const;
+  const SumType& AsSum() const;
   const ProcType& AsProc() const;
   const EnumType& AsEnum() const;
   const ArrayType& AsArray() const;
@@ -755,6 +761,132 @@ class EnumType : public Type {
   std::vector<InterpValue> members_;  // Member values of the enum.
 };
 
+// Represents one constructor inside a fully typed `SumType`.
+//
+// The payload shape is part of the typed value itself, so callers construct
+// unit/tuple/struct variants through the matching named factory instead of
+// providing an unchecked parallel payload vector. The containing `SumType`
+// keeps these variants in canonical `SumDef` order, so variant position
+// remains the source of truth for tag numbering and payload-slot layout.
+class SumTypeVariant {
+  struct TuplePayload {
+    std::vector<std::unique_ptr<Type>> members;
+  };
+
+  struct StructPayload {
+    std::vector<std::unique_ptr<Type>> members;
+  };
+
+  using Payload = std::variant<std::monostate, TuplePayload, StructPayload>;
+
+ public:
+  static SumTypeVariant MakeUnit(const SumVariant& variant);
+  static SumTypeVariant MakeTuple(
+      const SumVariant& variant,
+      std::vector<std::unique_ptr<Type>> payload_members);
+  static SumTypeVariant MakeStruct(
+      const SumVariant& variant,
+      std::vector<std::unique_ptr<Type>> payload_members);
+
+  SumTypeVariant(const SumTypeVariant&) = delete;
+  SumTypeVariant& operator=(const SumTypeVariant&) = delete;
+  SumTypeVariant(SumTypeVariant&&) = default;
+  SumTypeVariant& operator=(SumTypeVariant&&) = delete;
+
+  bool operator==(const SumTypeVariant& other) const;
+  SumTypeVariant Clone() const;
+
+  bool is_unit() const {
+    return std::holds_alternative<std::monostate>(payload_);
+  }
+  bool is_tuple() const {
+    return std::holds_alternative<TuplePayload>(payload_);
+  }
+  bool is_struct() const {
+    return std::holds_alternative<StructPayload>(payload_);
+  }
+
+  const SumVariant& variant() const { return variant_; }
+  int64_t size() const;
+
+  const Type& GetMemberType(int64_t i) const;
+
+  std::string_view GetMemberName(int64_t i) const {
+    CHECK(is_struct());
+    return variant_.struct_members().at(i)->name();
+  }
+
+  std::vector<TypeDim> GetAllDims() const;
+  absl::StatusOr<TypeDim> GetTotalBitCount() const;
+  bool HasEnum() const;
+  bool HasToken() const;
+
+ private:
+  SumTypeVariant(const SumVariant& variant, Payload payload);
+
+  absl::Span<const std::unique_ptr<Type>> payload_members() const;
+
+  const SumVariant& variant_;
+  Payload payload_;
+};
+
+// Represents a semantic sum after typechecking.
+//
+// `variants()` is stored in the same order as the defining `SumDef`. That order
+// determines the dense storage tag, flattened payload-slot layout, and the
+// behavior of positional consumers such as equality, formatting, and
+// serialization. Source-level discriminants are separate from storage tags.
+//
+// Storage contains one tag followed by the payload slots for every variant,
+// including inactive variants. Consequently, `A(u8) | B(u16)` uses 25 bits:
+// one tag bit plus both the eight-bit and sixteen-bit payload slots. The tag
+// always occupies at least one bit, including for sums with zero or one
+// variant.
+class SumType : public Type {
+ public:
+  // `variants` must be in the same declaration order as `sum_def.variants()`.
+  // `SumType` uses the vector order exactly as supplied when deriving tag
+  // numbering and payload-slot layout.
+  SumType(const SumDef& sum_def, std::vector<SumTypeVariant> variants)
+      : sum_def_(sum_def), variants_(std::move(variants)) {
+    CHECK_EQ(variants_.size(), sum_def_.variants().size());
+    for (int64_t i = 0; i < variants_.size(); ++i) {
+      CHECK_EQ(&variants_[i].variant(), sum_def_.variants()[i]);
+    }
+  }
+
+  absl::Status Accept(TypeVisitor& v) const override {
+    return v.HandleSum(*this);
+  }
+
+  bool operator==(const Type& other) const override;
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
+  std::string ToErrorString() const override;
+  std::string ToInlayHintString() const override {
+    return nominal_type().identifier();
+  }
+
+  bool HasEnum() const override;
+  bool HasToken() const override;
+  bool IsAggregate() const override { return true; }
+
+  std::vector<TypeDim> GetAllDims() const override;
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override;
+  std::string GetDebugTypeName() const override { return "sum"; }
+  std::unique_ptr<Type> CloneToUnique() const override;
+
+  const SumDef& nominal_type() const { return sum_def_; }
+  const std::vector<SumTypeVariant>& variants() const { return variants_; }
+
+  int64_t variant_count() const { return variants_.size(); }
+  TypeDim tag_bit_count() const;
+
+ private:
+  const SumDef& sum_def_;
+  std::vector<SumTypeVariant> variants_;
+};
+
 // This represents the type of annotations like:
 //    bits
 //    uN
@@ -1146,6 +1278,10 @@ inline bool IsBool(const Type& t) {
 // Returns whether the given type, which should be either a bits or an enum
 // type, is signed.
 absl::StatusOr<bool> IsSigned(const Type& c);
+
+// Returns whether a type is, or recursively contains, a semantic sum type.
+// Formatting validation uses this to reject unsupported nested sum values.
+bool TypeContainsSemanticSum(const Type& type);
 
 }  // namespace xls::dslx
 

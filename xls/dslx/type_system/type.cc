@@ -46,6 +46,28 @@
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
+namespace {
+
+std::vector<std::unique_ptr<Type>> ClonePayloadMembers(
+    absl::Span<const std::unique_ptr<Type>> members) {
+  std::vector<std::unique_ptr<Type>> cloned_members;
+  cloned_members.reserve(members.size());
+  for (const auto& next : members) {
+    cloned_members.push_back(next->CloneToUnique());
+  }
+  return cloned_members;
+}
+
+void ValidateSumTypeVariantPayload(
+    const SumVariant& variant,
+    absl::Span<const std::unique_ptr<Type>> payload_members) {
+  CHECK_EQ(payload_members.size(), variant.payload_member_count());
+  for (const std::unique_ptr<Type>& member_type : payload_members) {
+    CHECK(!member_type->IsMeta()) << *member_type;
+  }
+}
+
+}  // namespace
 
 Type::~Type() = default;
 
@@ -248,6 +270,10 @@ bool Type::IsStruct() const {
   return dynamic_cast<const StructType*>(this) != nullptr;
 }
 
+bool Type::IsSum() const {
+  return dynamic_cast<const SumType*>(this) != nullptr;
+}
+
 bool Type::IsProc() const {
   return dynamic_cast<const ProcType*>(this) != nullptr;
 }
@@ -295,6 +321,12 @@ const EnumType& Type::AsEnum() const {
 const StructType& Type::AsStruct() const {
   auto* s = dynamic_cast<const StructType*>(this);
   CHECK(s != nullptr) << "Type is not a struct: " << *this;
+  return *s;
+}
+
+const SumType& Type::AsSum() const {
+  auto* s = dynamic_cast<const SumType*>(this);
+  CHECK(s != nullptr) << "Type is not a sum: " << *this;
   return *s;
 }
 
@@ -558,6 +590,230 @@ bool StructTypeBase::operator==(const Type& other) const {
            &struct_def_base_ == &t->struct_def_base_;
   }
   return false;
+}
+
+// -- SumTypeVariant
+
+/* static */ SumTypeVariant SumTypeVariant::MakeUnit(
+    const SumVariant& variant) {
+  return SumTypeVariant(variant, std::monostate{});
+}
+
+/* static */ SumTypeVariant SumTypeVariant::MakeTuple(
+    const SumVariant& variant,
+    std::vector<std::unique_ptr<Type>> payload_members) {
+  return SumTypeVariant(variant,
+                        TuplePayload{.members = std::move(payload_members)});
+}
+
+/* static */ SumTypeVariant SumTypeVariant::MakeStruct(
+    const SumVariant& variant,
+    std::vector<std::unique_ptr<Type>> payload_members) {
+  return SumTypeVariant(variant,
+                        StructPayload{.members = std::move(payload_members)});
+}
+
+SumTypeVariant::SumTypeVariant(const SumVariant& variant, Payload payload)
+    : variant_(variant), payload_(std::move(payload)) {
+  if (is_unit()) {
+    CHECK(variant_.is_unit());
+  } else if (is_tuple()) {
+    CHECK(variant_.is_tuple());
+  } else {
+    CHECK(variant_.is_struct());
+  }
+  ValidateSumTypeVariantPayload(variant_, payload_members());
+}
+
+int64_t SumTypeVariant::size() const { return payload_members().size(); }
+
+const Type& SumTypeVariant::GetMemberType(int64_t i) const {
+  return *payload_members()[i];
+}
+
+absl::Span<const std::unique_ptr<Type>> SumTypeVariant::payload_members()
+    const {
+  if (const auto* payload = std::get_if<TuplePayload>(&payload_)) {
+    return payload->members;
+  }
+  if (const auto* payload = std::get_if<StructPayload>(&payload_)) {
+    return payload->members;
+  }
+  return {};
+}
+
+bool SumTypeVariant::operator==(const SumTypeVariant& other) const {
+  absl::Span<const std::unique_ptr<Type>> members = payload_members();
+  absl::Span<const std::unique_ptr<Type>> other_members =
+      other.payload_members();
+  if (&variant_ != &other.variant_ || members.size() != other_members.size()) {
+    return false;
+  }
+  for (int64_t i = 0; i < members.size(); ++i) {
+    if (*members[i] != *other_members[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+SumTypeVariant SumTypeVariant::Clone() const {
+  if (is_unit()) {
+    return MakeUnit(variant_);
+  } else if (is_tuple()) {
+    return MakeTuple(variant_, ClonePayloadMembers(payload_members()));
+  } else {
+    return MakeStruct(variant_, ClonePayloadMembers(payload_members()));
+  }
+}
+
+std::vector<TypeDim> SumTypeVariant::GetAllDims() const {
+  std::vector<TypeDim> results;
+  for (const auto& member : payload_members()) {
+    std::vector<TypeDim> member_dims = member->GetAllDims();
+    for (TypeDim& dim : member_dims) {
+      results.push_back(std::move(dim));
+    }
+  }
+  return results;
+}
+
+absl::StatusOr<TypeDim> SumTypeVariant::GetTotalBitCount() const {
+  TypeDim sum = TypeDim::CreateU32(0);
+  for (const auto& member : payload_members()) {
+    XLS_ASSIGN_OR_RETURN(TypeDim member_bits, member->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(sum, sum.Add(member_bits));
+  }
+  return sum;
+}
+
+bool SumTypeVariant::HasEnum() const {
+  return absl::c_any_of(payload_members(),
+                        [](const auto& type) { return type->HasEnum(); });
+}
+
+bool SumTypeVariant::HasToken() const {
+  return absl::c_any_of(payload_members(),
+                        [](const auto& type) { return type->HasToken(); });
+}
+
+// -- SumType
+
+bool SumType::operator==(const Type& other) const {
+  if (auto* t = dynamic_cast<const SumType*>(&other)) {
+    if (&sum_def_ != &t->sum_def_ || variants_.size() != t->variants_.size()) {
+      return false;
+    }
+    for (int64_t i = 0; i < variants_.size(); ++i) {
+      if (!(variants_[i] == t->variants_[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+std::string SumType::ToStringInternal(FullyQualify fully_qualify,
+                                      const FileTable* file_table) const {
+  std::string sum_name = sum_def_.identifier();
+  if (fully_qualify == FullyQualify::kYes) {
+    CHECK(file_table != nullptr);
+    sum_name =
+        absl::StrCat(sum_def_.span().GetFilename(*file_table), ":", sum_name);
+  }
+
+  std::string variants_string;
+  for (int64_t i = 0; i < variants_.size(); ++i) {
+    if (i != 0) {
+      absl::StrAppend(&variants_string, " | ");
+    }
+    const SumTypeVariant& variant = variants_[i];
+    if (variant.is_unit()) {
+      absl::StrAppend(&variants_string, variant.variant().identifier());
+    } else if (variant.is_tuple()) {
+      absl::StrAppend(&variants_string, variant.variant().identifier(), "(");
+      for (int64_t member_i = 0; member_i < variant.size(); ++member_i) {
+        if (member_i != 0) {
+          absl::StrAppend(&variants_string, ", ");
+        }
+        absl::StrAppend(&variants_string,
+                        variant.GetMemberType(member_i).ToStringInternal(
+                            fully_qualify, file_table));
+      }
+      absl::StrAppend(&variants_string, ")");
+    } else {
+      if (variant.size() == 0) {
+        absl::StrAppend(&variants_string, variant.variant().identifier(),
+                        " {}");
+        continue;
+      }
+      absl::StrAppend(&variants_string, variant.variant().identifier(), " { ");
+      for (int64_t member_i = 0; member_i < variant.size(); ++member_i) {
+        if (member_i != 0) {
+          absl::StrAppend(&variants_string, ", ");
+        }
+        absl::StrAppendFormat(&variants_string, "%s: %s",
+                              variant.GetMemberName(member_i),
+                              variant.GetMemberType(member_i).ToStringInternal(
+                                  fully_qualify, file_table));
+      }
+      absl::StrAppend(&variants_string, " }");
+    }
+  }
+  return absl::StrCat(sum_name, " { ", variants_string, " }");
+}
+
+std::string SumType::ToErrorString() const {
+  return absl::StrFormat("sum '%s' structure: %s", sum_def_.identifier(),
+                         ToStringInternal(FullyQualify::kNo, nullptr));
+}
+
+bool SumType::HasEnum() const {
+  return absl::c_any_of(variants_, [](const SumTypeVariant& variant) {
+    return variant.HasEnum();
+  });
+}
+
+bool SumType::HasToken() const {
+  return absl::c_any_of(variants_, [](const SumTypeVariant& variant) {
+    return variant.HasToken();
+  });
+}
+
+std::vector<TypeDim> SumType::GetAllDims() const {
+  std::vector<TypeDim> results = {tag_bit_count()};
+  for (const SumTypeVariant& variant : variants_) {
+    std::vector<TypeDim> variant_dims = variant.GetAllDims();
+    for (TypeDim& dim : variant_dims) {
+      results.push_back(std::move(dim));
+    }
+  }
+  return results;
+}
+
+absl::StatusOr<TypeDim> SumType::GetTotalBitCount() const {
+  TypeDim sum = tag_bit_count();
+  for (const SumTypeVariant& variant : variants_) {
+    XLS_ASSIGN_OR_RETURN(TypeDim variant_bits, variant.GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(sum, sum.Add(variant_bits));
+  }
+  return sum;
+}
+
+std::unique_ptr<Type> SumType::CloneToUnique() const {
+  std::vector<SumTypeVariant> variants;
+  variants.reserve(variants_.size());
+  for (const SumTypeVariant& variant : variants_) {
+    variants.push_back(variant.Clone());
+  }
+  return std::make_unique<SumType>(sum_def_, std::move(variants));
+}
+
+TypeDim SumType::tag_bit_count() const {
+  int64_t bit_count =
+      variant_count() <= 1 ? 1 : Bits::MinBitCountUnsigned(variant_count() - 1);
+  return TypeDim::CreateU32(bit_count);
 }
 
 // -- TupleType
@@ -935,6 +1191,46 @@ bool IsKnownU32(const BitsLikeProperties& properties) {
   std::optional<bool> signedness = GetKnownSignedness(properties);
   std::optional<int64_t> bit_count = GetKnownBitCount(properties);
   return signedness == false && bit_count == 32;
+}
+
+bool TypeContainsSemanticSum(const Type& type) {
+  if (type.IsSum()) {
+    return true;
+  } else if (const auto* array_type = dynamic_cast<const ArrayType*>(&type);
+             array_type != nullptr) {
+    return TypeContainsSemanticSum(array_type->element_type());
+  } else if (const auto* tuple_type = dynamic_cast<const TupleType*>(&type);
+             tuple_type != nullptr) {
+    for (int64_t i = 0; i < tuple_type->size(); ++i) {
+      if (TypeContainsSemanticSum(tuple_type->GetMemberType(i))) {
+        return true;
+      }
+    }
+    return false;
+  } else if (const auto* struct_type =
+                 dynamic_cast<const StructTypeBase*>(&type);
+             struct_type != nullptr) {
+    for (int64_t i = 0; i < struct_type->size(); ++i) {
+      if (TypeContainsSemanticSum(struct_type->GetMemberType(i))) {
+        return true;
+      }
+    }
+    return false;
+  } else if (const auto* function_type =
+                 dynamic_cast<const FunctionType*>(&type);
+             function_type != nullptr) {
+    for (const std::unique_ptr<Type>& param : function_type->params()) {
+      if (TypeContainsSemanticSum(*param)) {
+        return true;
+      }
+    }
+    return TypeContainsSemanticSum(function_type->return_type());
+  } else if (const auto* channel_type = dynamic_cast<const ChannelType*>(&type);
+             channel_type != nullptr) {
+    return TypeContainsSemanticSum(channel_type->payload_type());
+  } else {
+    return false;
+  }
 }
 
 }  // namespace xls::dslx

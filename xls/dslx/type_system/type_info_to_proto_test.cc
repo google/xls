@@ -15,19 +15,26 @@
 #include "xls/dslx/type_system/type_info_to_proto.h"
 
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include "absl/strings/str_format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/strings/str_format.h"
 #include "re2/re2.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_info.pb.h"
 
 namespace xls::dslx {
@@ -121,7 +128,240 @@ TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest, MakeEnumFunction) {
 enum E : u32 { A = 42 }
 fn f() -> E { E::A }
 )";
-  DoRun(program);
+  ImportData import_data = CreateImportDataForTest();
+  TypeInfoProto proto;
+  DoRun(program, &proto, &import_data);
+
+  int enum_index = -1;
+  for (int i = 0; i < proto.nodes_size(); ++i) {
+    const AstNodeTypeInfoProto& node = proto.nodes(i);
+    if (node.type().has_enum_type()) {
+      const EnumTypeProto& enum_type = node.type().enum_type();
+      EXPECT_EQ(enum_type.members_size(), 0);
+      enum_index = i;
+    }
+  }
+  ASSERT_GE(enum_index, 0);
+
+  XLS_ASSERT_OK(ToHumanString(proto, import_data, import_data.file_table()));
+
+  TypeInfoProto populated = proto;
+  InterpValueProto* member = populated.mutable_nodes(enum_index)
+                                 ->mutable_type()
+                                 ->mutable_enum_type()
+                                 ->add_members();
+  member->mutable_bits()->set_bit_count(32);
+  member->mutable_bits()->set_is_signed(false);
+  member->mutable_bits()->set_data(std::string("\0\0\0*", 4));
+  XLS_ASSERT_OK(
+      ToHumanString(populated, import_data, import_data.file_table()));
+
+  TypeInfoProto extra_member = populated;
+  EnumTypeProto* extra_enum = extra_member.mutable_nodes(enum_index)
+                                  ->mutable_type()
+                                  ->mutable_enum_type();
+  *extra_enum->add_members() = extra_enum->members(0);
+  EXPECT_THAT(
+      ToHumanString(extra_member, import_data, import_data.file_table()),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          ::testing::HasSubstr("Enum member count mismatch")));
+
+  TypeInfoProto wrong_signedness = populated;
+  wrong_signedness.mutable_nodes(enum_index)
+      ->mutable_type()
+      ->mutable_enum_type()
+      ->mutable_members(0)
+      ->mutable_bits()
+      ->set_is_signed(true);
+  EXPECT_THAT(
+      ToHumanString(wrong_signedness, import_data, import_data.file_table()),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          ::testing::HasSubstr("Enum member type mismatch")));
+
+  TypeInfoProto wrong_value = populated;
+  wrong_value.mutable_nodes(enum_index)
+      ->mutable_type()
+      ->mutable_enum_type()
+      ->mutable_members(0)
+      ->mutable_bits()
+      ->set_data(std::string("\0\0\0+", 4));
+  EXPECT_THAT(ToHumanString(wrong_value, import_data, import_data.file_table()),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  ::testing::HasSubstr("Enum member value mismatch")));
+}
+
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
+       SemanticSumSchemaStoresOnlyConcreteTypeFacts) {
+  EXPECT_EQ(SumTypeProto::descriptor()->field_count(), 2);
+  EXPECT_EQ(SumTypeVariantProto::descriptor()->field_count(), 1);
+  EXPECT_EQ(SumTypeProto::kSumDefSpanFieldNumber, 1);
+  EXPECT_EQ(SumTypeProto::kVariantsFieldNumber, 2);
+  EXPECT_EQ(SumTypeVariantProto::kPayloadMembersFieldNumber, 1);
+  EXPECT_EQ(TypeProto::kSumTypeFieldNumber, 13);
+  EXPECT_EQ(EnumTypeProto::kMembersFieldNumber, 4);
+}
+
+TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
+       RoundTripsSumPayloadTypesUsingCanonicalSourceDeclaration) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck("fn id(x: u32) -> u32 { x }", "fake.x", "fake",
+                        &import_data, nullptr));
+  const Span span = tm.module->span();
+  auto* sum_name = tm.module->Make<NameDef>(span, "Option", nullptr);
+  auto* none_name = tm.module->Make<NameDef>(span, "None", nullptr);
+  auto* some_name = tm.module->Make<NameDef>(span, "Some", nullptr);
+  auto* pair_name = tm.module->Make<NameDef>(span, "Pair", nullptr);
+  auto* u8_annotation = tm.module->Make<BuiltinTypeAnnotation>(
+      span, BuiltinType::kU8,
+      tm.module->GetOrCreateBuiltinNameDef(BuiltinType::kU8));
+  auto* u16_annotation = tm.module->Make<BuiltinTypeAnnotation>(
+      span, BuiltinType::kU16,
+      tm.module->GetOrCreateBuiltinNameDef(BuiltinType::kU16));
+  auto* none = tm.module->Make<SumVariant>(
+      span, none_name, SumVariant::PayloadShape::kUnit,
+      std::vector<TypeAnnotation*>{}, std::vector<StructMemberNode*>{});
+  auto* some = tm.module->Make<SumVariant>(
+      span, some_name, SumVariant::PayloadShape::kTuple,
+      std::vector<TypeAnnotation*>{u8_annotation},
+      std::vector<StructMemberNode*>{});
+  std::vector<StructMemberNode*> pair_fields = {
+      tm.module->Make<StructMemberNode>(
+          span, tm.module->Make<NameDef>(span, "first", nullptr), span,
+          u8_annotation),
+      tm.module->Make<StructMemberNode>(
+          span, tm.module->Make<NameDef>(span, "second", nullptr), span,
+          u16_annotation),
+  };
+  auto* pair = tm.module->Make<SumVariant>(
+      span, pair_name, SumVariant::PayloadShape::kStruct,
+      std::vector<TypeAnnotation*>{}, pair_fields);
+  auto* sum_def = tm.module->Make<SumDef>(
+      span, sum_name, std::vector<ParametricBinding*>{},
+      std::vector<SumVariant*>{none, some, pair}, /*is_public=*/false);
+  sum_name->set_definer(sum_def);
+  XLS_ASSERT_OK(tm.module->AddTop(sum_def, /*make_collision_error=*/nullptr));
+
+  std::vector<SumTypeVariant> variants;
+  variants.push_back(SumTypeVariant::MakeUnit(*none));
+  std::vector<std::unique_ptr<Type>> some_members;
+  some_members.push_back(BitsType::MakeU8());
+  variants.push_back(SumTypeVariant::MakeTuple(*some, std::move(some_members)));
+  std::vector<std::unique_ptr<Type>> pair_members;
+  pair_members.push_back(BitsType::MakeU8());
+  pair_members.push_back(std::make_unique<BitsType>(false, 16));
+  variants.push_back(
+      SumTypeVariant::MakeStruct(*pair, std::move(pair_members)));
+  tm.type_info->SetItem(
+      sum_def, std::make_unique<SumType>(*sum_def, std::move(variants)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto proto,
+                           TypeInfoToProto(*tm.type_info, tm.module));
+  int sum_index = -1;
+  for (int i = 0; i < proto.nodes_size(); ++i) {
+    if (proto.nodes(i).type().has_sum_type()) {
+      sum_index = i;
+      break;
+    }
+  }
+  ASSERT_GE(sum_index, 0);
+
+  std::string wire = proto.SerializeAsString();
+  TypeInfoProto parsed;
+  ASSERT_TRUE(parsed.ParseFromString(wire));
+  const SumTypeProto& sum = parsed.nodes(sum_index).type().sum_type();
+  ASSERT_TRUE(sum.has_sum_def_span());
+  EXPECT_EQ(sum.sum_def_span().start().filename(), "fake.x");
+  ASSERT_EQ(sum.variants_size(), 3);
+  EXPECT_EQ(sum.variants(0).payload_members_size(), 0);
+  EXPECT_EQ(sum.variants(1).payload_members_size(), 1);
+  ASSERT_EQ(sum.variants(2).payload_members_size(), 2);
+  EXPECT_TRUE(sum.variants(2).payload_members(0).has_bits_type());
+  EXPECT_TRUE(sum.variants(2).payload_members(1).has_bits_type());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string human,
+      ToHumanString(parsed, import_data, import_data.file_table()));
+  EXPECT_THAT(human,
+              ::testing::HasSubstr("Pair { first: uN[8], second: uN[16] }"));
+
+  TypeInfoProto wrong_payload_type = proto;
+  *wrong_payload_type.mutable_nodes(sum_index)
+       ->mutable_type()
+       ->mutable_sum_type()
+       ->mutable_variants(1)
+       ->mutable_payload_members(0) =
+      proto.nodes(sum_index).type().sum_type().variants(2).payload_members(1);
+  EXPECT_THAT(
+      ToHumanString(wrong_payload_type, import_data, import_data.file_table()),
+      absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                             ::testing::HasSubstr("payload type mismatch")));
+
+  TypeInfoProto missing_source_span = proto;
+  missing_source_span.mutable_nodes(sum_index)
+      ->mutable_type()
+      ->mutable_sum_type()
+      ->clear_sum_def_span();
+  EXPECT_THAT(
+      ToHumanString(missing_source_span, import_data, import_data.file_table()),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          ::testing::HasSubstr("missing its source definition span")));
+
+  TypeInfoProto missing_payload = proto;
+  missing_payload.mutable_nodes(sum_index)
+      ->mutable_type()
+      ->mutable_sum_type()
+      ->mutable_variants(1)
+      ->clear_payload_members();
+  EXPECT_THAT(
+      ToHumanString(missing_payload, import_data, import_data.file_table()),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          ::testing::HasSubstr("Sum variant payload member count mismatch")));
+
+  TypeInfoProto missing_variant = proto;
+  missing_variant.mutable_nodes(sum_index)
+      ->mutable_type()
+      ->mutable_sum_type()
+      ->mutable_variants()
+      ->RemoveLast();
+  EXPECT_THAT(
+      ToHumanString(missing_variant, import_data, import_data.file_table()),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          ::testing::HasSubstr("Sum variant count mismatch")));
+
+  TypeInfoProto reordered_typed_variants = proto;
+  reordered_typed_variants.mutable_nodes(sum_index)
+      ->mutable_type()
+      ->mutable_sum_type()
+      ->mutable_variants()
+      ->SwapElements(0, 1);
+  EXPECT_THAT(
+      ToHumanString(reordered_typed_variants, import_data,
+                    import_data.file_table()),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          ::testing::HasSubstr("Sum variant payload member count mismatch")));
+
+  TypeInfoProto meta_payload = proto;
+  TypeProto* payload_member = meta_payload.mutable_nodes(sum_index)
+                                  ->mutable_type()
+                                  ->mutable_sum_type()
+                                  ->mutable_variants(1)
+                                  ->mutable_payload_members(0);
+  TypeProto original_member = *payload_member;
+  payload_member->clear_type_oneof();
+  *payload_member->mutable_meta_type()->mutable_wrapped() = original_member;
+  EXPECT_THAT(
+      ToHumanString(meta_payload, import_data, import_data.file_table()),
+      absl_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          ::testing::HasSubstr("invalid meta-type payload member")));
 }
 
 TEST_F(TypeInfoToProtoWithBothTypecheckVersionsTest,
