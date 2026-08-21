@@ -4700,7 +4700,8 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
     // constants transitively so we can visit all dependees.
     XLS_ASSIGN_OR_RETURN(
         std::vector<ConstantDef*> constant_deps,
-        GetConstantDepFreevars(constant_def, *imported.value()->type_info));
+        GetConstantDepFreevars(constant_def, *imported.value()->type_info,
+                               *import_data_));
     for (ConstantDef* dep : constant_deps) {
       XLS_RETURN_IF_ERROR(Visit(dep));
     }
@@ -5591,7 +5592,11 @@ absl::StatusOr<xls::Type*> FunctionConverter::ResolveTypeToIr(
 
 absl::StatusOr<std::optional<ConstantDef*>> TryResolveConstantDef(
     std::string_view identifier, UseTreeEntry* use_tree_entry,
-    TypeInfo& type_info) {
+    TypeInfo& type_info, const ImportData& import_data) {
+  // `use foo;` names the whole module, not a constant within it.
+  if (import_data.GetUseImportedModuleInfo(use_tree_entry).has_value()) {
+    return std::nullopt;
+  }
   XLS_ASSIGN_OR_RETURN(ImportedInfo * info,
                        type_info.GetImportedOrError(use_tree_entry));
   std::optional<ModuleMember*> member =
@@ -5607,7 +5612,7 @@ absl::StatusOr<std::optional<ConstantDef*>> TryResolveConstantDef(
 }
 
 absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(
-    AstNode* node, TypeInfo& type_info) {
+    AstNode* node, TypeInfo& type_info, const ImportData& import_data) {
   Span span = node->GetSpan().value();
   FreeVariables free_variables = GetFreeVariablesByPos(node, &span.start());
   std::vector<std::pair<std::string, AnyNameDef>> freevars =
@@ -5627,26 +5632,28 @@ absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(
 
     AstNode* definer = name_def->definer();
     if (auto* use_tree_entry = dynamic_cast<UseTreeEntry*>(definer)) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<ConstantDef*> constant_def,
-          TryResolveConstantDef(identifier, use_tree_entry, type_info));
+      XLS_ASSIGN_OR_RETURN(std::optional<ConstantDef*> constant_def,
+                           TryResolveConstantDef(identifier, use_tree_entry,
+                                                 type_info, import_data));
       if (constant_def.has_value()) {
-        XLS_ASSIGN_OR_RETURN(
-            auto sub_deps,
-            GetConstantDepFreevars(constant_def.value(), type_info));
+        XLS_ASSIGN_OR_RETURN(auto sub_deps,
+                             GetConstantDepFreevars(constant_def.value(),
+                                                    type_info, import_data));
         constant_deps.insert(constant_deps.end(), sub_deps.begin(),
                              sub_deps.end());
         constant_deps.push_back(constant_def.value());
       }
     } else if (auto* constant_def = dynamic_cast<ConstantDef*>(definer)) {
-      XLS_ASSIGN_OR_RETURN(auto sub_deps,
-                           GetConstantDepFreevars(constant_def, type_info));
+      XLS_ASSIGN_OR_RETURN(
+          auto sub_deps,
+          GetConstantDepFreevars(constant_def, type_info, import_data));
       constant_deps.insert(constant_deps.end(), sub_deps.begin(),
                            sub_deps.end());
       constant_deps.push_back(constant_def);
     } else if (auto* enum_def = dynamic_cast<EnumDef*>(definer)) {
-      XLS_ASSIGN_OR_RETURN(auto sub_deps,
-                           GetConstantDepFreevars(enum_def, type_info));
+      XLS_ASSIGN_OR_RETURN(
+          auto sub_deps,
+          GetConstantDepFreevars(enum_def, type_info, import_data));
       constant_deps.insert(constant_deps.end(), sub_deps.begin(),
                            sub_deps.end());
     } else {
