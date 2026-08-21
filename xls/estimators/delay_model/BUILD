@@ -73,6 +73,24 @@ cc_library(
 )
 
 cc_test(
+    name = "ffi_delay_estimator_test",
+    srcs = ["ffi_delay_estimator_test.cc"],
+    deps = [
+        ":ffi_delay_estimator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:foreign_function_data_cc_proto",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:type",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "delay_estimator_test",
     srcs = ["delay_estimator_test.cc"],
     deps = [
