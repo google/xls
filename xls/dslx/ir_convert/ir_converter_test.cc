@@ -853,9 +853,7 @@ fn test() -> Foo<u32:6, u32:5> {
 
 // This is an example where we use an externally-defined parametric function
 // into module scope and invoke it at module scope.
-// TODO: https://github.com/google/xls/issues/2876 - TIv2 does not yet
-// support "use" syntax.
-TEST_F(IrConverterTest, DISABLED_UseOfClog2InModuleScopedConstantDefinition) {
+TEST_F(IrConverterTest, UseOfClog2InModuleScopedConstantDefinition) {
   constexpr std::string_view program = R"(#![feature(use_syntax)]
 use std::clog2;
 
@@ -4235,9 +4233,7 @@ proc Generator {
                          "config arguments: 'val: u32', 'val2: u32'")));
 }
 
-// TODO: https://github.com/google/xls/issues/2876 - TIv2 does not yet
-// support "use" syntax.
-TEST_F(IrConverterTest, DISABLED_UseTreeEntryCallInParametric) {
+TEST_F(IrConverterTest, UseTreeEntryCallInParametric) {
   constexpr std::string_view program = R"(
   #![feature(use_syntax)]
   use std::is_pow2;
