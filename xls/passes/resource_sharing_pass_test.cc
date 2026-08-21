@@ -201,16 +201,37 @@ TEST_F(ResourceSharingPassTest,
   // Coerce operand index 1 (`d`) of `from_sub` when folding into `to_add`.
   // Since `to_node` is Add and `from_node` is Sub, index 1 needs negation.
   // Since `d` is 4-bit and `to_node` operand 1 (`b`) is 8-bit, it needs
-  // bitwidth extension (here sign-extension since is_signed=true).
+  // bitwidth extension (zero-extension since to_add is not SMul).
   XLS_ASSERT_OK_AND_ASSIGN(
-      Node * coerced,
+      CoercedOperand coerced,
       CoerceOperandForSharing(f, sub_node.node(), add_node.node(),
-                              /*op_id=*/1, /*is_signed=*/true));
+                              /*op_id=*/1));
 
+  EXPECT_TRUE(coerced.required_negation);
   // Check that the ExtendOp is applied to the negated operand.
-  EXPECT_THAT(coerced, xls::op_matchers::SignExt(xls::op_matchers::Neg(
-                           xls::op_matchers::Param("d"))));
-  EXPECT_EQ(coerced->BitCountOrDie(), 8);
+  EXPECT_THAT(coerced.operand, xls::op_matchers::ZeroExt(xls::op_matchers::Neg(
+                                   xls::op_matchers::Param("d"))));
+  EXPECT_EQ(coerced.operand->BitCountOrDie(), 8);
+}
+
+TEST_F(ResourceSharingPassTest, CoerceOperandForSharing_SMul) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(8));
+  BValue c = fb.Param("c", p->GetBitsType(4));
+  BValue d = fb.Param("d", p->GetBitsType(4));
+  BValue smul_to = fb.SMul(a, b, SourceInfo(), "to_smul");
+  BValue smul_from = fb.SMul(c, d, SourceInfo(), "from_smul");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(smul_from));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CoercedOperand coerced,
+      CoerceOperandForSharing(f, smul_from.node(), smul_to.node(),
+                              /*op_id=*/1));
+  EXPECT_THAT(coerced.operand,
+              xls::op_matchers::SignExt(xls::op_matchers::Param("d")));
+  EXPECT_EQ(coerced.operand->BitCountOrDie(), 8);
 }
 
 TEST_F(ResourceSharingPassTest, CoerceOperandForSharing_AlreadyNegated) {
@@ -226,11 +247,12 @@ TEST_F(ResourceSharingPassTest, CoerceOperandForSharing_AlreadyNegated) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sub_neg_node));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Node * coerced,
+      CoercedOperand coerced,
       CoerceOperandForSharing(f, sub_neg_node.node(), add_node.node(),
-                              /*op_id=*/1, /*is_signed=*/false));
-  ASSERT_EQ(coerced->op(), Op::kZeroExt);
-  EXPECT_EQ(coerced->operand(0), d.node());
+                              /*op_id=*/1));
+  EXPECT_FALSE(coerced.required_negation);
+  ASSERT_EQ(coerced.operand->op(), Op::kZeroExt);
+  EXPECT_EQ(coerced.operand->operand(0), d.node());
 }
 
 TEST_F(ResourceSharingPassTest, ReplaceSharedNodeUsesAndRemove_Tests) {

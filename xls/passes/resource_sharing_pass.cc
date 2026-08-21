@@ -1984,13 +1984,12 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
         // Fetch and coerce the operand of the current source of the folding
         // action.
         XLS_ASSIGN_OR_RETURN(
-            Node * from_operand_casted,
-            CoerceOperandForSharing(f, from_node, to_node, op_id,
-                                    folding->IsSigned()));
+            CoercedOperand coerced_from_operand,
+            CoerceOperandForSharing(f, from_node, to_node, op_id));
 
         // Append the current operand of the current source of the folding
         // action
-        operand_select_cases.push_back(from_operand_casted);
+        operand_select_cases.push_back(coerced_from_operand.operand);
       }
 
       // Generate a select between the sources of the folding
@@ -2236,36 +2235,43 @@ int64_t TimingAnalysis::GetDelayIncrease(
   return it->second;
 }
 
-absl::StatusOr<Node*> CoerceOperandForSharing(FunctionBase* f, Node* from_node,
-                                              Node* to_node, int64_t op_id,
-                                              bool is_signed) {
+absl::StatusOr<CoercedOperand> CoerceOperandForSharing(FunctionBase* f,
+                                                       Node* from_node,
+                                                       Node* to_node,
+                                                       int64_t op_id) {
   Node* from_operand = from_node->operand(op_id);
   Node* to_operand = to_node->operand(op_id);
   XLS_RET_CHECK_LE(from_operand->BitCountOrDie(), to_operand->BitCountOrDie())
       << "Illegal bit widths for folding: " << from_node->ToString()
       << " into: " << to_node->ToString();
 
+  const bool may_need_negation = (op_id == 1) &&
+                                 (to_node->op() != from_node->op()) &&
+                                 to_node->OpIn({Op::kAdd, Op::kSub}) &&
+                                 from_node->OpIn({Op::kAdd, Op::kSub});
   Node* from_operand_processed = from_operand;
-  if ((to_node->op() != from_node->op()) &&
-      to_node->OpIn({Op::kAdd, Op::kSub}) &&
-      from_node->OpIn({Op::kAdd, Op::kSub}) && (op_id == 1)) {
+  CoercedOperand result;
+  result.required_negation = false;
+  if (may_need_negation) {
     if (from_operand->op() == Op::kNeg) {
       from_operand_processed = from_operand->operand(0);
     } else {
       XLS_ASSIGN_OR_RETURN(
           from_operand_processed,
           f->MakeNode<UnOp>(to_node->loc(), from_operand_processed, Op::kNeg));
+      result.required_negation = true;
     }
   }
 
   if (from_operand_processed->BitCountOrDie() < to_operand->BitCountOrDie()) {
-    Op extension_op = is_signed ? Op::kSignExt : Op::kZeroExt;
+    Op extension_op = IsSigned(to_node) ? Op::kSignExt : Op::kZeroExt;
     XLS_ASSIGN_OR_RETURN(
         from_operand_processed,
         f->MakeNode<ExtendOp>(to_node->loc(), from_operand_processed,
                               to_operand->BitCountOrDie(), extension_op));
   }
-  return from_operand_processed;
+  result.operand = from_operand_processed;
+  return result;
 }
 
 absl::StatusOr<Node*> ReplaceSharedNodeUsesAndRemove(FunctionBase* f,
