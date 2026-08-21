@@ -2761,6 +2761,23 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     // my_struct as a type
     XLS_ASSIGN_OR_RETURN(lhs, ParseCastOrEnumRefOrStructInstanceOrToken(
                                   outer_bindings, restrictions));
+  } else if (peek->kind() == TokenKind::kIdentifier &&
+             outer_bindings.ResolveNodeIsUseBound(*peek->GetValue())) {
+    // A `use`-bound name may be a type or a value, which is not known until
+    // the import resolves. Try parsing as type and fallback to parsing as value
+    VLOG(5) << "ParseTerm, kind is identifier bound by `use`";
+    Transaction use_type_txn(this, &outer_bindings);
+    absl::StatusOr<Expr*> as_type = ParseCastOrEnumRefOrStructInstanceOrToken(
+        *use_type_txn.bindings(), restrictions);
+    if (as_type.ok()) {
+      use_type_txn.Commit();
+      lhs = *as_type;
+    } else {
+      use_type_txn.Rollback();
+      XLS_ASSIGN_OR_RETURN(auto name_or_colon_ref,
+                           ParseNameOrColonRef(outer_bindings));
+      lhs = ToExprNode(name_or_colon_ref);
+    }
   } else if (peek->kind() == TokenKind::kIdentifier || peek_is_kw_in ||
              peek_is_kw_out || peek_is_kw_self) {
     VLOG(5) << "ParseTerm, kind is identifier but not a known type";

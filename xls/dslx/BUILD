@@ -426,6 +426,7 @@ cc_library(
         "//xls/dslx/type_system_v2:inference_table",
         "//xls/dslx/type_system_v2:inference_table_converter",
         "//xls/dslx/type_system_v2:trait_deriver",
+        "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",

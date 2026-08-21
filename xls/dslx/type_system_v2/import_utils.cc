@@ -143,6 +143,16 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleUseTreeEntry(const UseTreeEntry* use_tree_entry) override {
+    std::optional<UseImportResult> use_import_result =
+        import_data_.GetUseImportResult(use_tree_entry);
+    if (use_import_result.has_value() &&
+        use_import_result->imported_member != nullptr) {
+      return ToAstNode(*use_import_result->imported_member)->Accept(this);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleNameRef(const NameRef* name_ref) override {
     return ToAstNode(name_ref->name_def())->Accept(this);
   }
@@ -238,18 +248,25 @@ GetTypeVariableTypeAnnotationForSubject(const ColonRef* ref,
 absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
     const ColonRef* colon_ref, const ImportData& import_data) {
   std::optional<ImportSubject> subject = colon_ref->ResolveImportSubject();
-  if (subject.has_value() && std::holds_alternative<Import*>(*subject)) {
+  if (!subject.has_value()) {
+    return std::nullopt;
+  }
+  if (std::holds_alternative<Import*>(*subject)) {
     Import* import = std::get<Import*>(*subject);
     return import_data.Get(ImportTokens(import->subject()));
   }
-  return std::nullopt;
+  return import_data.GetUseImportedModuleInfo(
+      std::get<UseTreeEntry*>(*subject));
 }
 
 absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
     const ColonRef* colon_ref, ImportData& import_data,
     const TypecheckModuleFn& typecheck_imported_module) {
   std::optional<ImportSubject> subject = colon_ref->ResolveImportSubject();
-  if (subject.has_value() && std::holds_alternative<Import*>(*subject)) {
+  if (!subject.has_value()) {
+    return std::nullopt;
+  }
+  if (std::holds_alternative<Import*>(*subject)) {
     Import* import = std::get<Import*>(*subject);
     ImportTokens tokens(import->subject());
     if (!import_data.Contains(tokens)) {
@@ -260,7 +277,8 @@ absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
     }
     return import_data.Get(tokens);
   }
-  return std::nullopt;
+  return import_data.GetUseImportedModuleInfo(
+      std::get<UseTreeEntry*>(*subject));
 }
 
 absl::StatusOr<ModuleMember> GetPublicModuleMember(

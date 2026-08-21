@@ -714,6 +714,22 @@ cc_test(
 )
 
 cc_test(
+    name = "typecheck_module_v2_use_test",
+    srcs = ["typecheck_module_v2_use_test.cc"],
+    deps = [
+        ":matchers",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "typecheck_module_v2_trait_test",
     srcs = ["typecheck_module_v2_trait_test.cc"],
     shard_count = 4,
