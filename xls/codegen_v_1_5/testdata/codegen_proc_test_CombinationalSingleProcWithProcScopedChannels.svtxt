@@ -6,11 +6,9 @@ module myleaf(
   output wire [31:0] out,
   output wire out_vld
 );
-  wire p0_stage_done;
-  wire [31:0] add_44;
-  assign p0_stage_done = in_vld & out_rdy;
-  assign add_44 = in + 32'h0000_0001;
-  assign in_rdy = p0_stage_done;
-  assign out = add_44;
+  wire [31:0] add_42;
+  assign add_42 = in + 32'h0000_0001;
+  assign in_rdy = out_rdy;
+  assign out = add_42;
   assign out_vld = in_vld;
 endmodule

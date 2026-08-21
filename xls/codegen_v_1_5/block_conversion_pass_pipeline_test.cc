@@ -1170,9 +1170,8 @@ proc my_proc(st: (), init={()}) {
                                      {m::Literal(0), m::InputPort("in")})));
   EXPECT_THAT(FindNode("in", block), m::InputPort("in"));
   EXPECT_THAT(FindNode("in_vld", block), m::InputPort("in_vld"));
-  EXPECT_THAT(
-      FindNode("in_rdy", block),
-      m::OutputPort("in_rdy", m::And(m::Name("p0_stage_done"), m::Literal(1))));
+  EXPECT_THAT(FindNode("in_rdy", block),
+              m::OutputPort("in_rdy", m::And(m::And(), m::Literal(1))));
 }
 
 TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsFalse) {
@@ -1203,9 +1202,8 @@ proc my_proc(st: (), init={()}) {
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("in", block), m::InputPort("in"));
   EXPECT_THAT(FindNode("in_vld", block), m::InputPort("in_vld"));
-  EXPECT_THAT(
-      FindNode("in_rdy", block),
-      m::OutputPort("in_rdy", m::And(m::Name("p0_stage_done"), m::Literal(1))));
+  EXPECT_THAT(FindNode("in_rdy", block),
+              m::OutputPort("in_rdy", m::And(m::And(), m::Literal(1))));
 }
 
 TEST_F(BlockConversionTest, UnconditionalSendRdyVldProc) {
@@ -1495,6 +1493,78 @@ TEST_F(BlockConversionTest,
                                         Pair("out", 42))));
 }
 
+// Ensure that a non-blocking receive does not assert ready when a blocking
+// receive in the same stage is missing data (which would prematurely consume
+// non-blocking data while the stage is stalled).
+TEST_F(BlockConversionTest, MixedNonblockingAndBlockingReceiveReadySignals) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_blocking,
+                           package.CreateStreamingChannel(
+                               "in_blocking", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_non_blocking,
+      package.CreateStreamingChannel("in_non_blocking",
+                                     ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), &package);
+  BValue tok = pb.Literal(Value::Token());
+
+  BValue rcv_b = pb.Receive(ch_blocking, tok);
+  BValue tok_b = pb.TupleIndex(rcv_b, 0);
+  BValue data_b = pb.TupleIndex(rcv_b, 1);
+
+  BValue rcv_nb = pb.ReceiveNonBlocking(ch_non_blocking, tok_b);
+  BValue tok_nb = pb.TupleIndex(rcv_nb, 0);
+  BValue data_nb = pb.TupleIndex(rcv_nb, 1);
+  BValue vld_nb = pb.TupleIndex(rcv_nb, 2);
+
+  BValue sum = pb.Select(vld_nb, {data_b, pb.Add(data_b, data_nb)});
+  pb.Send(ch_out, tok_nb, sum);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ConvertToBlock(proc, codegen_options().generate_combinational(true)));
+
+  // When the blocking input is invalid (0), the non-blocking receive must NOT
+  // assert ready (which would prematurely consume input from the non-blocking
+  // channel while the stage is stalled).
+  EXPECT_THAT(InterpretCombinationalBlock(block, {{"in_blocking", 10},
+                                                  {"in_blocking_vld", 0},
+                                                  {"in_non_blocking", 42},
+                                                  {"in_non_blocking_vld", 1},
+                                                  {"out_rdy", 1}}),
+              IsOkAndHolds(UnorderedElementsAre(
+                  Pair("in_blocking_rdy", 1), Pair("in_non_blocking_rdy", 0),
+                  Pair("out_vld", 0), Pair("out", _))));
+
+  // When the blocking input is valid (1), the non-blocking receive asserts
+  // ready, the stage executes, and the output is valid.
+  EXPECT_THAT(InterpretCombinationalBlock(block, {{"in_blocking", 10},
+                                                  {"in_blocking_vld", 1},
+                                                  {"in_non_blocking", 42},
+                                                  {"in_non_blocking_vld", 1},
+                                                  {"out_rdy", 1}}),
+              IsOkAndHolds(UnorderedElementsAre(
+                  Pair("in_blocking_rdy", 1), Pair("in_non_blocking_rdy", 1),
+                  Pair("out_vld", 1), Pair("out", 52))));
+
+  // When the blocking input is valid (1) and non-blocking is invalid (0), the
+  // stage executes and produces just data_b (10).
+  EXPECT_THAT(InterpretCombinationalBlock(block, {{"in_blocking", 10},
+                                                  {"in_blocking_vld", 1},
+                                                  {"in_non_blocking", 42},
+                                                  {"in_non_blocking_vld", 0},
+                                                  {"out_rdy", 1}}),
+              IsOkAndHolds(UnorderedElementsAre(
+                  Pair("in_blocking_rdy", 1), Pair("in_non_blocking_rdy", 1),
+                  Pair("out_vld", 1), Pair("out", 10))));
+}
+
 TEST_F(BlockConversionTest, TwoToOneProc) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
@@ -1568,7 +1638,7 @@ TEST_F(BlockConversionTest, TwoToOneProc) {
                                           {"b_vld", 1},
                                           {"out_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 0), Pair("b_rdy", 0),
-                                        Pair("out", 123), Pair("a_rdy", 0))));
+                                        Pair("out", 123), Pair("a_rdy", 1))));
 }
 
 TEST_F(BlockConversionTest, JoinProc) {
@@ -1597,12 +1667,13 @@ TEST_F(BlockConversionTest, JoinProc) {
 
   // A is valid, C is ready, B is not yet valid.
   // a_rdy must be 0 to avoid accidentally consuming from A and losing data.
+  // b_rdy is 1 because A is valid and output is ready.
   EXPECT_THAT(
       InterpretCombinationalBlock(
           block,
           {{"a", 10}, {"a_vld", 1}, {"b", 20}, {"b_vld", 0}, {"out_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 0), Pair("a_rdy", 0),
-                                        Pair("b_rdy", 0), Pair("out", 30))));
+                                        Pair("b_rdy", 1), Pair("out", 30))));
 }
 
 TEST_F(BlockConversionTest, OneToTwoProc) {
@@ -1658,7 +1729,7 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
           block,
           {{"dir", 1}, {"in", 123}, {"in_vld", 0}, {"a_rdy", 1}, {"b_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 0),
-                                        Pair("in_rdy", 0), Pair("a_vld", 0),
+                                        Pair("in_rdy", 1), Pair("a_vld", 0),
                                         Pair("b", 123))));
 
   // Output A selected. Input valid and output ready *not* asserted.
@@ -2063,11 +2134,11 @@ TEST_F(SimplePipelinedProcTest, BasicPipelineWithReadyValid) {
   XLS_ASSERT_OK_AND_ASSIGN(
       running_out_val, SetIncrementingSignalOverCycles(
                            10, 12, "out", running_out_val, expected_outputs));
-  XLS_ASSERT_OK(SetSignalsOverCycles(10, 12, {{"in_rdy", 0}, {"out_vld", 1}},
+  XLS_ASSERT_OK(SetSignalsOverCycles(10, 12, {{"in_rdy", 1}, {"out_vld", 1}},
                                      expected_outputs));
   running_out_val -= 1;
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      13, 19, {{"in_rdy", 0}, {"out_vld", 0}, {"out", running_out_val}},
+      13, 19, {{"in_rdy", 1}, {"out_vld", 0}, {"out", running_out_val}},
       expected_outputs));
 
   // Phase 3, Cycles 20-29: both out_rdy and out_vld are on, continue to
@@ -2357,11 +2428,11 @@ TEST_F(SimplePipelinedProcTest, BasicPipelineWithValidDataOut) {
   XLS_ASSERT_OK_AND_ASSIGN(
       running_out_val, SetIncrementingSignalOverCycles(
                            10, 12, "out", running_out_val, expected_outputs));
-  XLS_ASSERT_OK(SetSignalsOverCycles(10, 12, {{"in_rdy", 0}, {"out_vld", 1}},
+  XLS_ASSERT_OK(SetSignalsOverCycles(10, 12, {{"in_rdy", 1}, {"out_vld", 1}},
                                      expected_outputs));
   running_out_val -= 1;
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      13, 19, {{"in_rdy", 0}, {"out_vld", 0}, {"out", running_out_val}},
+      13, 19, {{"in_rdy", 1}, {"out_vld", 0}, {"out", running_out_val}},
       expected_outputs));
 
   // Phase 3, Cycles 20-29: out_vld flips back on, continue to increment once
@@ -2454,7 +2525,7 @@ TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
   XLS_ASSERT_OK(SetSignalsOverCycles(
       10, 19, {{"rst", 0}, {"in_vld", 0}, {"out_rdy", 1}}, inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      10, 19, {{"in_rdy", 0}, {"out_vld", 0}, {"out", running_out_val}},
+      10, 19, {{"in_rdy", 1}, {"out_vld", 0}, {"out", running_out_val}},
       expected_outputs));
 
   // Returning input_valid, output will reflect valid input upon pipeline delay.
@@ -2492,13 +2563,13 @@ TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
       SetIncrementingSignalOverCycles(36, 39, "in", running_in_val, inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
       36, 39, {{"rst", 0}, {"in_vld", 0}, {"out_rdy", 1}}, inputs));
-  XLS_ASSERT_OK(SetSignalsOverCycles(36, 38, {{"in_rdy", 0}, {"out_vld", 1}},
+  XLS_ASSERT_OK(SetSignalsOverCycles(36, 38, {{"in_rdy", 1}, {"out_vld", 1}},
                                      expected_outputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       running_out_val, SetIncrementingSignalOverCycles(
                            36, 38, "out", running_out_val, expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      39, 39, {{"in_rdy", 0}, {"out_vld", 0}, {"out", running_out_val - 1}},
+      39, 39, {{"in_rdy", 1}, {"out_vld", 0}, {"out", running_out_val - 1}},
       expected_outputs));
 
   // Input rdy becoming true will allow the pipeline to fill.
@@ -2533,7 +2604,7 @@ TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
       40, 41, {{"in_rdy", 1}, {"out_vld", 0}, {"out", prior_running_out_val}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      42, 42, {{"in_rdy", 0}, {"out_vld", 0}, {"out", prior_running_out_val}},
+      42, 42, {{"in_rdy", 1}, {"out_vld", 0}, {"out", prior_running_out_val}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
       43, 43, {{"in_rdy", 1}, {"out_vld", 1}, {"out", running_out_val}},
@@ -3531,7 +3602,7 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
       10, 29, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 0}, {"out_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      10, 29, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      10, 29, {{"in0_rdy", 0}, {"in1_rdy", 1}, {"out_vld", 0}, {"idle", 1}},
       expected_outputs));
 
   //  4. 1 cycle of data on in1 - allows 4-stage pipeline to drain
@@ -3562,7 +3633,7 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
       40, 69, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 1}, {"out_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      40, 69, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      40, 69, {{"in0_rdy", 1}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
       expected_outputs));
 
   //  7. 1 cycle of data on in0 - allows 4-stage pipeline to drain
@@ -7577,7 +7648,7 @@ TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
       0, 9, {{"rst", 1}, {"in_ch_vld", 0}, {"in_ch", 0}, {"out_ch_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      0, 9, {{"in_ch_rdy", 0}, {"out_ch", 0}, {"out_ch_vld", 0}},
+      0, 9, {{"in_ch_rdy", 1}, {"out_ch", 0}, {"out_ch_vld", 0}},
       expected_outputs));
 
   // 11 cycles of incrementing input (starting at 1)
@@ -7625,10 +7696,10 @@ TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
       21, 22, {{"rst", 0}, {"in_ch_vld", 0}, {"in_ch", 0}, {"out_ch_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      21, 21, {{"in_ch_rdy", 0}, {"out_ch", 66}, {"out_ch_vld", 1}},
+      21, 21, {{"in_ch_rdy", 1}, {"out_ch", 66}, {"out_ch_vld", 1}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      22, 22, {{"in_ch_rdy", 0}, {"out_ch", 0}, {"out_ch_vld", 0}},
+      22, 22, {{"in_ch_rdy", 1}, {"out_ch", 0}, {"out_ch_vld", 0}},
       expected_outputs));
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -7707,7 +7778,7 @@ TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithGlobalChannels) {
       0, 9, {{"rst", 1}, {"in_ch_vld", 0}, {"in_ch", 0}, {"out_ch_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      0, 9, {{"in_ch_rdy", 0}, {"out_ch", 0}, {"out_ch_vld", 0}},
+      0, 9, {{"in_ch_rdy", 1}, {"out_ch", 0}, {"out_ch_vld", 0}},
       expected_outputs));
 
   // 11 cycles of incrementing input (starting at 1)
@@ -7755,10 +7826,10 @@ TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithGlobalChannels) {
       21, 22, {{"rst", 0}, {"in_ch_vld", 0}, {"in_ch", 0}, {"out_ch_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      21, 21, {{"in_ch_rdy", 0}, {"out_ch", 66}, {"out_ch_vld", 1}},
+      21, 21, {{"in_ch_rdy", 1}, {"out_ch", 66}, {"out_ch_vld", 1}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      22, 22, {{"in_ch_rdy", 0}, {"out_ch", 0}, {"out_ch_vld", 0}},
+      22, 22, {{"in_ch_rdy", 1}, {"out_ch", 0}, {"out_ch_vld", 0}},
       expected_outputs));
 
   XLS_ASSERT_OK_AND_ASSIGN(
