@@ -263,8 +263,10 @@ class SideEffectExpressionFinder : public AstNodeVisitorWithDefault {
 // user says this or not. This visitor adds it to the `derive` list for each
 // proc where not present, creating the whole `derive` attribute if necessary to
 // achieve this.
-class AddSpawnTraitToProcDefs : public AstNodeVisitorWithDefault {
+class AddSpawnTraitToProcDefs : public AstNodeRecursiveVisitor {
  public:
+  AddSpawnTraitToProcDefs() : AstNodeRecursiveVisitor(/*want_types=*/true) {}
+
   absl::Status HandleProcDef(const ProcDef* node) override {
     std::optional<Attribute*> existing_attribute =
         GetAttribute(node, AttributeKind::kDerive);
@@ -290,22 +292,17 @@ class AddSpawnTraitToProcDefs : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status DefaultHandler(const AstNode* node) override {
-    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
-  }
-
  private:
   static constexpr std::string_view kSpawnTraitName = "Spawn";
 };
 
-class PreTypecheckPass : public AstNodeVisitorWithDefault {
+class PreTypecheckPass : public AstNodeRecursiveVisitor {
  public:
   PreTypecheckPass(WarningCollector& warning_collector,
                    const FileTable& file_table)
-      : warning_collector_(warning_collector), file_table_(file_table) {}
+      : AstNodeRecursiveVisitor(/*want_types=*/true),
+        warning_collector_(warning_collector),
+        file_table_(file_table) {}
 
   absl::Status HandleStatementBlock(const StatementBlock* node) override {
     for (size_t i = 0; i < node->statements().size(); ++i) {
@@ -497,13 +494,6 @@ class PreTypecheckPass : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
-  absl::Status DefaultHandler(const AstNode* node) override {
-    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
-  }
-
  private:
   WarningCollector& warning_collector_;
 
@@ -511,8 +501,10 @@ class PreTypecheckPass : public AstNodeVisitorWithDefault {
   bool in_legacy_proc_ = false;
 };
 
-class CollectUseDef : public AstNodeVisitorWithDefault {
+class CollectUseDef : public AstNodeRecursiveVisitor {
  public:
+  CollectUseDef() : AstNodeRecursiveVisitor(/*want_types=*/true) {}
+
   absl::Status HandleNameDef(const NameDef* node) override {
     // Users can silence unused warnings by prefixing an identifier with an
     // underscore to make it more well documented; e.g.
@@ -536,13 +528,6 @@ class CollectUseDef : public AstNodeVisitorWithDefault {
   absl::Status HandleTypeAlias(const TypeAlias* node) override {
     // Do not mark type alias as unused.
     return node->type_annotation().Accept(this);
-  }
-
-  absl::Status DefaultHandler(const AstNode* node) override {
-    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
   }
 
   const absl::flat_hash_set<const NameDef*>& Defs() const { return defs_; }
@@ -580,7 +565,7 @@ class CollectUseDef : public AstNodeVisitorWithDefault {
 // Replaces the type annotation for proc state members with
 // State<TheOriginalType>. In legacy procs, this affects the next() param nodes.
 // In impl-style procs, it affects the declared state members of the proc.
-class ProcStateVisitor : public AstNodeVisitorWithDefault {
+class ProcStateVisitor : public AstNodeRecursiveVisitor {
  public:
   // Creates a visitor using `import_data` and the given `StructDef` for the
   // builtin `State` struct.
@@ -642,13 +627,6 @@ class ProcStateVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status DefaultHandler(const AstNode* node) override {
-    for (auto child : node->GetChildren(false)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
-  }
-
  private:
   TypeAnnotation* CreateStateTypeAnnotation(Module* module,
                                             TypeAnnotation* underlying_type,
@@ -670,8 +648,11 @@ class ProcStateVisitor : public AstNodeVisitorWithDefault {
 // work itself. The generated `next` function has an attribute of kind
 // `kTrivialNext` for downstream recognition. For example, IR conversion
 // requires the top proc to have a real next function.
-class ProcDefTrivialNextGenerator : public AstNodeVisitorWithDefault {
+class ProcDefTrivialNextGenerator : public AstNodeRecursiveVisitor {
  public:
+  ProcDefTrivialNextGenerator()
+      : AstNodeRecursiveVisitor(/*want_types=*/true) {}
+
   absl::Status HandleProcDef(const ProcDef* node) override {
     if (!node->impl().has_value()) {
       return absl::OkStatus();
@@ -710,13 +691,6 @@ class ProcDefTrivialNextGenerator : public AstNodeVisitorWithDefault {
     next_fn->AddAttribute(trivial_next_attr);
 
     impl->AddMember(next_fn);
-    return absl::OkStatus();
-  }
-
-  absl::Status DefaultHandler(const AstNode* node) override {
-    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
     return absl::OkStatus();
   }
 };
