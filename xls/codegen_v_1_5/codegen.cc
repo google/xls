@@ -21,6 +21,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_metrics.h"
+#include "xls/codegen/codegen_checker.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_residual_data.pb.h"
@@ -66,6 +67,7 @@ std::unique_ptr<verilog::CodegenCompoundPass> CreatePostBlockConversionPipeline(
 
   auto top = std::make_unique<verilog::CodegenCompoundPass>(
       "post_block_conversion", "Post-block-conversion pass pipeline");
+  top->AddInvariantChecker<verilog::CodegenChecker>();
 
   // Rewrite channels that codegen options have labeled as to/from a RAM. This
   // removes ready+valid ports, instead AND-ing the request valid signal with
