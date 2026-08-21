@@ -1011,7 +1011,7 @@ fn main() -> u32 {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
 }
 
-TEST(TypecheckV2FunctionTest, DISABLED_UseFunction) {
+TEST(TypecheckV2FunctionTest, UseFunction) {
   constexpr std::string_view kImported = R"(
 pub fn get_val() -> u5[3] {
   u5[3]:[1, 2, 3]
@@ -1030,8 +1030,39 @@ fn main() -> u5 {
   auto vfs = std::make_unique<FakeFilesystem>(
       files, /*cwd=*/std::filesystem::path("/"));
   ImportData import_data = CreateImportDataForTest(std::move(vfs));
-  EXPECT_THAT(TypecheckV2(kProgram, "fake_main_path", &import_data),
-              IsOkAndHolds(HasTypeInfo(HasNodeWithType("get_val()[1]", "u5"))));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "fake_main_path", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("get_val()[1]", "uN[5]"))));
+}
+
+TEST(TypecheckV2FunctionTest, UseConstantAsConstexprInTypePositions) {
+  constexpr std::string_view kImported = R"(
+pub const WIDTH = u32:16;
+
+pub fn double_n<N: u32>(x: uN[N]) -> uN[N] { x + x }
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::WIDTH;
+use imported::double_n;
+
+type LocalAlias = uN[WIDTH];
+
+fn with_default<N: u32 = {WIDTH}>() -> u32 { N }
+
+fn use_as_type_alias_bitwidth() -> LocalAlias { uN[WIDTH]:1 }
+
+fn use_as_parametric_default() -> u32 { with_default() }
+
+fn use_as_explicit_parametric() -> u16 { double_n<WIDTH>(u16:21) }
+)";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "fake_main_path", &import_data).status());
 }
 
 TEST(TypecheckV2FunctionTest,
@@ -1054,6 +1085,70 @@ proc Foo<N: u32> {
     }
 }
 proc Bar = Foo<16>;)"));
+}
+
+TEST(TypecheckV2FunctionTest, UseProcAlias) {
+  constexpr std::string_view kImported = R"(
+pub proc Foo {
+    c: chan<u32> out;
+    config(output_c: chan<u32> out) {
+        (output_c,)
+    }
+    init {
+        u32:0
+    }
+    next(i: u32) {
+        i
+    }
+}
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::Foo;
+
+proc Bar = Foo;)";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "fake_main_path", &import_data).status());
+}
+
+TEST(TypecheckV2FunctionTest, UseProcSpawned) {
+  constexpr std::string_view kImported = R"(
+pub proc Doubler {
+    in_r: chan<u32> in;
+    out_s: chan<u32> out;
+    config(in_r: chan<u32> in, out_s: chan<u32> out) { (in_r, out_s) }
+    init { }
+    next(state: ()) {
+        let (tok, v) = recv(join(), in_r);
+        send(tok, out_s, v * u32:2);
+    }
+}
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::Doubler;
+
+proc Main {
+    init { }
+    config() {
+        let (in_s, in_r) = chan<u32>("in");
+        let (out_s, out_r) = chan<u32>("out");
+        spawn Doubler(in_r, out_s);
+    }
+    next(state: ()) { () }
+})";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "fake_main_path", &import_data).status());
 }
 
 TEST(TypecheckV2FunctionTest, ProcAliasTargetingBuiltinFails) {

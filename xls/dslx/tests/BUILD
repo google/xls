@@ -709,33 +709,30 @@ xls_dslx_library(
     srcs = ["mod_imported_parameterized_type_alias.x"],
 )
 
-# TODO: https://github.com/google/xls/issues/2876 - Re-enable the following tests when `use` syntax
-# is supported in TIv2.
+xls_dslx_library(
+    name = "mod_use_multi_lib",
+    srcs = ["mod_use_multi.x"],
+    deps = [":mod_imported_multi_const_dslx"],
+)
 
-# xls_dslx_library(
-#     name = "mod_use_multi_lib",
-#     srcs = ["mod_use_multi.x"],
-#     deps = [":mod_imported_multi_const_dslx"],
-# )
+dslx_lang_test(
+    name = "mod_use_multi",
+    dslx_deps = [":mod_use_multi_lib"],
+)
 
-# dslx_lang_test(
-#     name = "mod_use_multi",
-#     dslx_deps = [":mod_use_multi_lib"],
-# )
+dslx_lang_test(name = "mod_use_in_parametric")
 
-# dslx_lang_test(name = "mod_use_in_parametric")
+dslx_lang_test(name = "mod_use_stdlib")
 
-# dslx_lang_test(name = "mod_use_stdlib")
+dslx_lang_test(
+    name = "mod_use_simple_enum",
+    dslx_deps = [":mod_simple_enum_dslx"],
+)
 
-# dslx_lang_test(
-#     name = "mod_use_simple_enum",
-#     dslx_deps = [":mod_simple_enum_dslx"],
-# )
-
-# dslx_lang_test(
-#     name = "mod_use_parameterized_type_alias",
-#     dslx_deps = [":mod_imported_parameterized_type_alias_dslx"],
-# )
+dslx_lang_test(
+    name = "mod_use_parameterized_type_alias",
+    dslx_deps = [":mod_imported_parameterized_type_alias_dslx"],
+)
 
 dslx_lang_test(
     name = "mod_importer",

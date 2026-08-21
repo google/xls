@@ -12,10 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
@@ -23,6 +28,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
@@ -418,6 +424,31 @@ fn main(x: u32) -> u32 {
                                 "ImportEnum")))));
 }
 
+TEST(TypecheckV2Test, UseEnumValue) {
+  constexpr std::string_view kImported = R"(
+pub enum ImportEnum : u16 {
+  A = 1,
+  B = 2,
+}
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::ImportEnum;
+
+fn main() -> u32 {
+  (ImportEnum::A as u32) + (ImportEnum::B as u32)
+})";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(TypecheckV2(kProgram, "fake_main_path", &import_data),
+              IsOkAndHolds(
+                  HasTypeInfo(HasNodeWithType("ImportEnum::A", "ImportEnum"))));
+}
+
 TEST(TypecheckV2Test, InvalidDoubleColonRef) {
   EXPECT_THAT(R"(
 enum Foo: u1 {
@@ -473,6 +504,30 @@ enum MyEnum : u8 {
 const x : MyEnum = u8:1;
 )",
       TypecheckFails(HasTypeMismatch("u8", "MyEnum")));
+}
+
+TEST(TypecheckV2Test, UseEnumAsFunctionParamAndReturn) {
+  constexpr std::string_view kImported = R"(
+pub enum Direction : u2 {
+    NORTH = 0,
+    SOUTH = 1,
+}
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::Direction;
+
+fn identity(d: Direction) -> Direction { d }
+)";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(TypecheckV2(kProgram, "fake_main_path", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("identity", "(Direction) -> Direction"))));
 }
 
 }  // namespace
