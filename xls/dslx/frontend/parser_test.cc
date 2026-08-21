@@ -2421,6 +2421,15 @@ fn main() -> u32 {
 })");
 }
 
+TEST_F(ParserTest, UseFunctionInvokedWithExplicitParametrics) {
+  RoundTrip(R"(#![feature(use_syntax)]
+
+use foo::{bar, N};
+fn main() -> u32 {
+    bar<N>(1)
+})");
+}
+
 TEST_F(ParserTest, UseWithNestedLevels) {
   RoundTrip(R"(#![feature(use_syntax)]
 
