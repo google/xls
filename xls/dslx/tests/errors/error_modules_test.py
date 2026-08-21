@@ -540,6 +540,19 @@ class ImportModuleWithTypeErrorTest(parameterized.TestCase):
     self.assertIn('duplicate_match_arm.x:22:5-22:8', stderr)
     self.assertIn('Exact-duplicate pattern match detected `FOO`', stderr)
 
+  def test_duplicate_enum_match_arm(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/duplicate_enum_match_arm.x',
+    )
+    self.assertIn('duplicate_enum_match_arm.x:19:5-19:15', stderr)
+    self.assertIn('duplicate_enum_match_arm.x:20:18-20:28', stderr)
+    self.assertIn('Exact-duplicate pattern match detected `Example::A`', stderr)
+    self.assertIn(
+        'previously @'
+        ' xls/dslx/tests/errors/duplicate_enum_match_arm.x:19:5-19:15',
+        stderr,
+    )
+
   def test_trace_fmt_empty_err(self):
     stderr = self._run(
         'xls/dslx/tests/errors/trace_fmt_empty.x',
