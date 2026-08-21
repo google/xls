@@ -341,5 +341,42 @@ pub type ArrayOfStructType = StructType[10];
   ExpectEqualToGoldenFile(GoldenFilePath("vtxt"), type_to_verilog.Emit());
 }
 
+TEST_F(DslxToVerilogTest, UseImportedType) {
+  constexpr std::string_view program =
+      R"(#![feature(use_syntax)]
+use a::ArrayOfStructType;
+
+type AType = ArrayOfStructType;
+)";
+
+  constexpr std::string_view a_import =
+      R"(
+struct StructType {
+  x: u16,
+}
+
+pub type ArrayOfStructType = StructType[5];
+)";
+
+  absl::flat_hash_map<std::filesystem::path, std::string> files;
+  files[std::filesystem::path("/a.x")] = a_import;
+  auto vfs =
+      std::make_unique<FakeFilesystem>(files, std::filesystem::path("/"));
+  dslx::ImportData import_data = dslx::CreateImportDataForTest(std::move(vfs));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      dslx::ParseAndTypecheck(program, "test_module.x", "test_module",
+                              &import_data, nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(DslxTypeToVerilogManager type_to_verilog,
+                           DslxTypeToVerilogManager::Create("test_pkg"));
+
+  for (const TypeDefinition& def : tm.module->GetTypeDefinitions()) {
+    XLS_ASSERT_OK(type_to_verilog.AddTypeForTypeDefinition(def, &import_data));
+  }
+
+  ExpectEqualToGoldenFile(GoldenFilePath("vtxt"), type_to_verilog.Emit());
+}
+
 }  // namespace
 }  // namespace xls::dslx
