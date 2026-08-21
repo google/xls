@@ -120,78 +120,76 @@ inline std::ostream& operator<<(std::ostream& os, const TypeDim& ctd) {
   return os;
 }
 
-class EnumType;
-class BitsType;
-class FunctionType;
-class ChannelType;
-class TokenType;
-class StructType;
-class ProcType;
-class TupleType;
+// keep-sorted start
 class ArrayType;
-class MetaType;
 class BitsConstructorType;
+class BitsType;
+class ChannelType;
+class EnumType;
+class FunctionType;
+class MetaType;
 class ModuleType;
+class ProcType;
+class StructType;
+class TokenType;
+class TupleType;
+// keep-sorted end
 
 // Abstract base class for a Type visitor.
 class TypeVisitor {
  public:
   virtual ~TypeVisitor() = default;
 
-  virtual absl::Status HandleEnum(const EnumType& t) = 0;
-  virtual absl::Status HandleBits(const BitsType& t) = 0;
-  virtual absl::Status HandleBitsConstructor(const BitsConstructorType& t) = 0;
-  virtual absl::Status HandleFunction(const FunctionType& t) = 0;
-  virtual absl::Status HandleChannel(const ChannelType& t) = 0;
-  virtual absl::Status HandleToken(const TokenType& t) = 0;
-  virtual absl::Status HandleStruct(const StructType& t) = 0;
-  virtual absl::Status HandleProc(const ProcType& t) = 0;
-  virtual absl::Status HandleTuple(const TupleType& t) = 0;
-  virtual absl::Status HandleArray(const ArrayType& t) = 0;
-  virtual absl::Status HandleMeta(const MetaType& t) = 0;
-  virtual absl::Status HandleModule(const ModuleType& t) = 0;
+  // keep-sorted start
+  virtual absl::Status HandleArray(const ArrayType&) = 0;
+  virtual absl::Status HandleBits(const BitsType&) = 0;
+  virtual absl::Status HandleBitsConstructor(const BitsConstructorType&) = 0;
+  virtual absl::Status HandleChannel(const ChannelType&) = 0;
+  virtual absl::Status HandleEnum(const EnumType&) = 0;
+  virtual absl::Status HandleFunction(const FunctionType&) = 0;
+  virtual absl::Status HandleMeta(const MetaType&) = 0;
+  virtual absl::Status HandleModule(const ModuleType&) = 0;
+  virtual absl::Status HandleProc(const ProcType&) = 0;
+  virtual absl::Status HandleStruct(const StructType&) = 0;
+  virtual absl::Status HandleToken(const TokenType&) = 0;
+  virtual absl::Status HandleTuple(const TupleType&) = 0;
+  // keep-sorted end
 };
 
 class TypeVisitorWithDefault : public TypeVisitor {
  public:
   ~TypeVisitorWithDefault() override = default;
 
-  absl::Status HandleEnum(const EnumType& t) override {
+  // keep-sorted start
+  absl::Status HandleArray(const ArrayType&) override {
     return absl::OkStatus();
   }
-  absl::Status HandleBits(const BitsType& t) override {
+  absl::Status HandleBits(const BitsType&) override { return absl::OkStatus(); }
+  absl::Status HandleBitsConstructor(const BitsConstructorType&) override {
     return absl::OkStatus();
   }
-  absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
+  absl::Status HandleChannel(const ChannelType&) override {
     return absl::OkStatus();
   }
-  absl::Status HandleFunction(const FunctionType& t) override {
+  absl::Status HandleEnum(const EnumType&) override { return absl::OkStatus(); }
+  absl::Status HandleFunction(const FunctionType&) override {
     return absl::OkStatus();
   }
-  absl::Status HandleChannel(const ChannelType& t) override {
+  absl::Status HandleMeta(const MetaType&) override { return absl::OkStatus(); }
+  absl::Status HandleModule(const ModuleType&) override {
     return absl::OkStatus();
   }
-  absl::Status HandleToken(const TokenType& t) override {
+  absl::Status HandleProc(const ProcType&) override { return absl::OkStatus(); }
+  absl::Status HandleStruct(const StructType&) override {
     return absl::OkStatus();
   }
-  absl::Status HandleStruct(const StructType& t) override {
+  absl::Status HandleToken(const TokenType&) override {
     return absl::OkStatus();
   }
-  absl::Status HandleProc(const ProcType& t) override {
+  absl::Status HandleTuple(const TupleType&) override {
     return absl::OkStatus();
   }
-  absl::Status HandleTuple(const TupleType& t) override {
-    return absl::OkStatus();
-  }
-  absl::Status HandleArray(const ArrayType& t) override {
-    return absl::OkStatus();
-  }
-  absl::Status HandleMeta(const MetaType& t) override {
-    return absl::OkStatus();
-  }
-  absl::Status HandleModule(const ModuleType& t) override {
-    return absl::OkStatus();
-  }
+  // keep-sorted end
 };
 
 // Indicates whether we should fully qualify types when converting them to
@@ -311,26 +309,30 @@ class Type {
   // Type equality, but ignores tuple member naming discrepancies.
   bool CompatibleWith(const Type& other) const;
 
-  bool IsChannel() const;
-  bool IsUnit() const;
-  bool IsToken() const;
-  bool IsStruct() const;
-  bool IsProc() const;
-  bool IsEnum() const;
+  // keep-sorted start
   bool IsArray() const;
-  bool IsMeta() const;
-  bool IsTuple() const;
+  bool IsChannel() const;
+  bool IsEnum() const;
   bool IsFunction() const;
+  bool IsMeta() const;
   bool IsModule() const;
+  bool IsProc() const;
+  bool IsStruct() const;
+  bool IsToken() const;
+  bool IsTuple() const;
+  bool IsUnit() const;
+  // keep-sorted end
 
-  const ChannelType& AsChannel() const;
-  const StructType& AsStruct() const;
-  const ProcType& AsProc() const;
-  const EnumType& AsEnum() const;
+  // keep-sorted start
   const ArrayType& AsArray() const;
+  const ChannelType& AsChannel() const;
+  const EnumType& AsEnum() const;
   const FunctionType& AsFunction() const;
   const MetaType& AsMeta() const;
+  const ProcType& AsProc() const;
+  const StructType& AsStruct() const;
   const TupleType& AsTuple() const;
+  // keep-sorted end
 
   virtual std::optional<const ChannelType*> GetDirectOrElementChannelType()
       const {
