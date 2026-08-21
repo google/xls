@@ -67,12 +67,13 @@ namespace {
 // A visitor that walks an AST and populates an `InferenceTable` with the
 // encountered info.
 class PopulateInferenceTableVisitor : public PopulateTableVisitor,
-                                      AstNodeVisitorWithDefault {
+                                      AstNodeRecursiveVisitor {
  public:
   PopulateInferenceTableVisitor(Module& module, InferenceTable& table,
                                 ImportData& import_data,
                                 TypecheckModuleFn typecheck_imported_module)
-      : module_(module),
+      : AstNodeRecursiveVisitor(/*want_types=*/true),
+        module_(module),
         table_(table),
         file_table_(import_data.file_table()),
         import_data_(import_data),
@@ -1984,13 +1985,6 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         node, CreateBoolAnnotation(module_, node->span())));
     XLS_RETURN_IF_ERROR(DefineAndSetTypeVariable(node, "quickcheck"));
     return DefaultHandler(node);
-  }
-
-  absl::Status DefaultHandler(const AstNode* node) override {
-    for (AstNode* child : node->GetChildren(/*want_types=*/true)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
   }
 
  private:

@@ -554,6 +554,7 @@ cc_library(
         ":ast_node",
         ":module",
         ":proc",
+        "//xls/common/status:status_macros",
         "@abseil-cpp//absl/status",
     ],
 )

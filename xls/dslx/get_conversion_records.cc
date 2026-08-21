@@ -87,7 +87,7 @@ absl::StatusOr<ConversionRecord> MakeConversionRecord(
 
 // An AstNodeVisitor that creates ConversionRecords from appropriate AstNodes
 // like Function, QuickCheck, Proc, etc.
-class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
+class ConversionRecordVisitor : public AstNodeRecursiveVisitor {
  public:
   ConversionRecordVisitor(
       Module* module, TypeInfo* type_info, bool include_tests,
@@ -552,13 +552,6 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   OK_HANDLER(TypeAlias)
   // keep-sorted end
 #undef DEFAULT_HANDLE
-
-  absl::Status DefaultHandler(const AstNode* node) override {
-    for (auto child : node->GetChildren(false)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
-  }
 
  private:
   absl::Status CheckIfCalledOnlyFromTestCode(

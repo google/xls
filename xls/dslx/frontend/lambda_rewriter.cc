@@ -174,7 +174,7 @@ class CollectNameRefs : public AstNodeVisitorWithDefault {
   bool in_type_annotation_ = false;
 };
 
-class LambdaRewriter : public AstNodeVisitorWithDefault {
+class LambdaRewriter : public AstNodeRecursiveVisitor {
  public:
   explicit LambdaRewriter(const ImportData& import_data)
       : import_data_(import_data) {}
@@ -357,13 +357,6 @@ class LambdaRewriter : public AstNodeVisitorWithDefault {
     XLS_RETURN_IF_ERROR(module->InsertTopBefore(ToAstNode(*containing_member),
                                                 full_struct_def));
     return module->InsertTopAfter(full_struct_def, impl);
-  }
-
-  absl::Status DefaultHandler(const AstNode* node) override {
-    for (const AstNode* child : node->GetChildren(/*want_types=*/false)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
   }
 
  private:

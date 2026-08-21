@@ -38,7 +38,7 @@ namespace xls::dslx {
 namespace {
 
 // Determines if a given test function calls spawn.
-class SpawnFinder : public AstNodeVisitorWithDefault {
+class SpawnFinder : public AstNodeRecursiveVisitor {
  public:
   // Legacy spawn statement, not trait-based spawn.
   absl::Status HandleSpawn(const Spawn* node) override {
@@ -63,13 +63,6 @@ class SpawnFinder : public AstNodeVisitorWithDefault {
   absl::Status HandleTestFunction(const TestFunction* node) override {
     has_spawn_ = false;
     return DefaultHandler(node);
-  }
-
-  absl::Status DefaultHandler(const AstNode* node) override {
-    for (const auto& child : node->GetChildren(false)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
   }
 
   bool has_spawn() const { return has_spawn_; }

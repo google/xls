@@ -148,17 +148,10 @@ absl::Status MaybePopulateDomainStruct(StructDef* struct_def, Module& module,
 
 // For instances of struct domains, populates "missing members" with the
 // "arbitrary" domain (i.e., empty tuple.)
-class StructInstanceCompleter : public AstNodeVisitorWithDefault {
+class StructInstanceCompleter : public AstNodeRecursiveVisitor {
  public:
   StructInstanceCompleter(Module& module, const ImportData& import_data)
       : module_(module), import_data_(import_data) {}
-
-  absl::Status DefaultHandler(const AstNode* node) override {
-    for (auto* child : node->GetChildren(/*want_types=*/false)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
-  }
 
   absl::Status HandleFuzzTestFunction(const FuzzTestFunction* node) override {
     if (node->domains().has_value()) {

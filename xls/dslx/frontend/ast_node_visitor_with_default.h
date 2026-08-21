@@ -16,6 +16,7 @@
 #define XLS_DSLX_FRONTEND_AST_NODE_VISITOR_WITH_DEFAULT_H_
 
 #include "absl/status/status.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"  // IWYU pragma: export
 #include "xls/dslx/frontend/module.h"    // IWYU pragma: export
@@ -42,6 +43,29 @@ class AstNodeVisitorWithDefault : public AstNodeVisitor {
   }
   XLS_DSLX_AST_NODE_EACH(DECLARE_HANDLER)
 #undef DECLARE_HANDLER
+};
+
+// Subtype of AstNodeVisitorWithDefault that returns ok status (does
+// nothing) for every node type, AND recurses into children in the
+// DefaultHandler.
+//
+// Users can override the default behavior by overriding the DefaultHandler()
+// method.
+class AstNodeRecursiveVisitor : public AstNodeVisitorWithDefault {
+ public:
+  AstNodeRecursiveVisitor(bool want_types = false) : want_types_(want_types) {}
+
+  ~AstNodeRecursiveVisitor() override = default;
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    for (auto* child : node->GetChildren(want_types_)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  const bool want_types_;
 };
 
 // Subtype of abstract ExprVisitor that returns ok status (does nothing) for
