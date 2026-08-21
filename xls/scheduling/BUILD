@@ -512,7 +512,6 @@ cc_library(
         "//xls/passes:pass_base",
         "//xls/solvers:solver",
         "@abseil-cpp//absl/container:btree",
-        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
@@ -778,6 +777,28 @@ cc_library(
         "@abseil-cpp//absl/types:span",
         "@cppitertools",
         "@or-tools//ortools/graph:topologicalsorter",
+    ],
+)
+
+cc_test(
+    name = "schedule_graph_test",
+    srcs = ["schedule_graph_test.cc"],
+    deps = [
+        ":schedule_graph",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:proc_elaboration",
+        "//xls/ir:value",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest",
     ],
 )
 
