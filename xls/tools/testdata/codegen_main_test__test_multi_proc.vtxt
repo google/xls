@@ -18,24 +18,24 @@ module multi_proc__1(
   wire internal_flop_rdy;
   wire p1_stage_done;
   wire stage_outputs_ready_0;
-  wire p0_stage_done;
   wire in_valid_inv;
   wire in_flop_rdy;
+  wire p0_stage_done;
   wire in_load_en;
   wire [31:0] negate;
   wire internal_load_en;
-  wire or_216;
+  wire or_219;
   assign internal_valid_inv = ~__internal_valid_reg;
   assign internal_flop_rdy = internal_rdy | internal_valid_inv;
   assign p1_stage_done = p1_inputs_valid & internal_flop_rdy;
   assign stage_outputs_ready_0 = ~p1_inputs_valid | p1_stage_done;
-  assign p0_stage_done = __in_valid_reg & stage_outputs_ready_0;
   assign in_valid_inv = ~__in_valid_reg;
-  assign in_flop_rdy = p0_stage_done | in_valid_inv;
+  assign in_flop_rdy = stage_outputs_ready_0 | in_valid_inv;
+  assign p0_stage_done = __in_valid_reg & stage_outputs_ready_0;
   assign in_load_en = in_vld & in_flop_rdy;
   assign negate = -p0_data;
   assign internal_load_en = p1_inputs_valid & internal_flop_rdy;
-  assign or_216 = p0_stage_done | p1_stage_done;
+  assign or_219 = p0_stage_done | p1_stage_done;
   always_ff @ (posedge clk) begin
     if (rst) begin
       p0_data <= 32'h0000_0000;
@@ -50,7 +50,7 @@ module multi_proc__1(
       __in_valid_reg <= in_flop_rdy ? in_vld : __in_valid_reg;
       __internal_reg <= internal_load_en ? negate : __internal_reg;
       __internal_valid_reg <= internal_flop_rdy ? p1_inputs_valid : __internal_valid_reg;
-      p1_inputs_valid <= or_216 ? p0_stage_done : p1_inputs_valid;
+      p1_inputs_valid <= or_219 ? p0_stage_done : p1_inputs_valid;
     end
   end
   assign in_rdy = in_flop_rdy;
@@ -79,24 +79,24 @@ module proc1(
   wire out_flop_rdy;
   wire p1_stage_done;
   wire stage_outputs_ready_0;
-  wire p0_stage_done;
   wire internal_valid_inv;
   wire internal_flop_rdy;
+  wire p0_stage_done;
   wire internal_load_en;
   wire [31:0] negate;
   wire out_load_en;
-  wire or_275;
+  wire or_280;
   assign out_valid_inv = ~__out_valid_reg;
   assign out_flop_rdy = out_rdy | out_valid_inv;
   assign p1_stage_done = p1_inputs_valid & out_flop_rdy;
   assign stage_outputs_ready_0 = ~p1_inputs_valid | p1_stage_done;
-  assign p0_stage_done = __internal_valid_reg & stage_outputs_ready_0;
   assign internal_valid_inv = ~__internal_valid_reg;
-  assign internal_flop_rdy = p0_stage_done | internal_valid_inv;
+  assign internal_flop_rdy = stage_outputs_ready_0 | internal_valid_inv;
+  assign p0_stage_done = __internal_valid_reg & stage_outputs_ready_0;
   assign internal_load_en = internal_vld & internal_flop_rdy;
   assign negate = -p0_data;
   assign out_load_en = p1_inputs_valid & out_flop_rdy;
-  assign or_275 = p0_stage_done | p1_stage_done;
+  assign or_280 = p0_stage_done | p1_stage_done;
   always_ff @ (posedge clk) begin
     if (rst) begin
       p0_data <= 32'h0000_0000;
@@ -111,7 +111,7 @@ module proc1(
       __internal_valid_reg <= internal_flop_rdy ? internal_vld : __internal_valid_reg;
       __out_reg <= out_load_en ? negate : __out_reg;
       __out_valid_reg <= out_flop_rdy ? p1_inputs_valid : __out_valid_reg;
-      p1_inputs_valid <= or_275 ? p0_stage_done : p1_inputs_valid;
+      p1_inputs_valid <= or_280 ? p0_stage_done : p1_inputs_valid;
     end
   end
   assign internal_rdy = internal_flop_rdy;
@@ -130,35 +130,35 @@ module multi_proc(
   output wire [31:0] out,
   output wire out_vld
 );
-  wire instantiation_output_156;
-  wire [31:0] instantiation_output_159;
   wire instantiation_output_160;
-  wire instantiation_output_169;
-  wire [31:0] instantiation_output_171;
-  wire instantiation_output_172;
-  wire instantiation_output_163;
-  wire [31:0] instantiation_output_165;
-  wire instantiation_output_166;
+  wire [31:0] instantiation_output_163;
+  wire instantiation_output_164;
+  wire instantiation_output_173;
+  wire [31:0] instantiation_output_175;
+  wire instantiation_output_176;
+  wire instantiation_output_167;
+  wire [31:0] instantiation_output_169;
+  wire instantiation_output_170;
 
   // ===== Instantiations
   multi_proc__1 multi_proc__1_inst0 (
     .rst(rst),
     .in(in),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_163),
-    .in_rdy(instantiation_output_156),
-    .internal(instantiation_output_159),
-    .internal_vld(instantiation_output_160),
+    .internal_rdy(instantiation_output_167),
+    .in_rdy(instantiation_output_160),
+    .internal(instantiation_output_163),
+    .internal_vld(instantiation_output_164),
     .clk(clk)
   );
   proc1 proc1_inst1 (
     .rst(rst),
-    .internal(instantiation_output_165),
-    .internal_vld(instantiation_output_166),
+    .internal(instantiation_output_169),
+    .internal_vld(instantiation_output_170),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_169),
-    .out(instantiation_output_171),
-    .out_vld(instantiation_output_172),
+    .internal_rdy(instantiation_output_173),
+    .out(instantiation_output_175),
+    .out_vld(instantiation_output_176),
     .clk(clk)
   );
   xls_fifo_wrapper #(
@@ -170,14 +170,14 @@ module multi_proc(
   ) fifo_internal (
     .clk(clk),
     .rst(rst),
-    .push_data(instantiation_output_159),
-    .push_valid(instantiation_output_160),
-    .pop_ready(instantiation_output_169),
-    .push_ready(instantiation_output_163),
-    .pop_data(instantiation_output_165),
-    .pop_valid(instantiation_output_166)
+    .push_data(instantiation_output_163),
+    .push_valid(instantiation_output_164),
+    .pop_ready(instantiation_output_173),
+    .push_ready(instantiation_output_167),
+    .pop_data(instantiation_output_169),
+    .pop_valid(instantiation_output_170)
   );
-  assign in_rdy = instantiation_output_156;
-  assign out = instantiation_output_171;
-  assign out_vld = instantiation_output_172;
+  assign in_rdy = instantiation_output_160;
+  assign out = instantiation_output_175;
+  assign out_vld = instantiation_output_176;
 endmodule

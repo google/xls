@@ -59,7 +59,7 @@ module ii_greater_than_one(
   assign in_valid_inv = ~__in_valid_reg;
   assign in_out_load_en = __in_out_vld_buf & in_out_flop_rdy;
   assign out_load_en = __out_vld_buf & out_flop_rdy;
-  assign in_flop_rdy = p1_stage_done | in_valid_inv;
+  assign in_flop_rdy = p1_inputs_valid & active_outputs_ready_1 | in_valid_inv;
   assign or_1170 = p0_stage_done | p1_stage_done;
   assign and_1173 = in_out_load_en & ~p1_stage_done;
   assign or_1174 = in_out_load_en | p1_stage_done;
