@@ -110,6 +110,7 @@ cc_library(
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:proc",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "@abseil-cpp//absl/base",

@@ -38,6 +38,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -139,6 +140,18 @@ class FunctionResolverImpl : public FunctionResolver {
         if (std::optional<const AstNode*> resolved =
                 import_data_.ResolveUseImportedTarget(function_node)) {
           function_node = *resolved;
+        }
+        // A `use`-imported proc member resolves to the proc itself,
+        // so we have to pick out the actual member.
+        if (function_node != nullptr &&
+            function_node->kind() == AstNodeKind::kProc) {
+          auto* proc =
+              const_cast<Proc*>(absl::down_cast<const Proc*>(function_node));
+          std::optional<Function*> member =
+              GetProcMemberBySuffix(proc, name_ref->identifier());
+          if (member.has_value()) {
+            function_node = *member;
+          }
         }
       } else if (std::holds_alternative<BuiltinNameDef*>(
                      name_ref->name_def())) {
