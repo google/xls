@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
@@ -30,6 +31,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
 #include "xls/passes/node_dependency_analysis.h"
+#include "xls/passes/resource_sharing_equivalence.h"
 #include "xls/passes/visibility_analysis.h"
 #include "ortools/graph/graph.h"
 
@@ -124,16 +126,23 @@ class FoldingAction {
 //   r   = umul lhs, rhs
 class BinaryFoldingAction : public FoldingAction {
  public:
-  BinaryFoldingAction(Node* from, Node* to, VisibilityEdges from_edges,
-                      VisibilityEdges to_edges, double area_saved,
+  BinaryFoldingAction(Node* from, Node* to, VisibilityEdges from_edges = {},
+                      VisibilityEdges to_edges = {}, double area_saved = 0.0,
+                      std::unique_ptr<EquivalenceMapping> mapping = nullptr,
                       absl::flat_hash_set<Node*> sinks = {})
       : FoldingAction{to, std::move(to_edges), area_saved, std::move(sinks)},
         from_{from},
-        from_edges_{std::move(from_edges)} {}
+        from_edges_{std::move(from_edges)},
+        mapping_{mapping != nullptr
+                     ? std::move(mapping)
+                     : std::make_unique<IdentityEquivalenceMapping>(from, to)} {
+  }
 
   Node* GetFrom() const { return from_; }
 
   const VisibilityEdges& GetFromVisibilityEdges() const { return from_edges_; }
+
+  const EquivalenceMapping& mapping() const { return *mapping_; }
 
   std::string GetName() const {
     return absl::StrCat(from_->GetName(), "->", GetTo()->GetName());
@@ -142,6 +151,7 @@ class BinaryFoldingAction : public FoldingAction {
  private:
   Node* from_;
   VisibilityEdges from_edges_;
+  std::unique_ptr<EquivalenceMapping> mapping_;
 };
 
 // This class represents a single folding action from a set of IR nodes into
