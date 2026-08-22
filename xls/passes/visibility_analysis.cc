@@ -789,7 +789,7 @@ absl::Status VisibilityAnalysis::MergeWithGiven(
 
 bool VisibilityAnalysis::IsMutuallyExclusive(Node* one, Node* other) const {
   BinaryDecisionDiagram& bdd = bdd_query_engine_->bdd();
-  return bdd.Implies(*GetInfo(one), bdd.Not(*GetInfo(other))) == bdd.one();
+  return bdd.MutuallyExclusive(*GetInfo(one), *GetInfo(other));
 }
 
 absl::StatusOr<bool> IsVisibilityIndependentOf(
@@ -1001,8 +1001,7 @@ bool SingleSelectVisibilityAnalysis::IsMutuallyExclusive(Node* one,
   if (!other_info->source || !one_info->source) {
     return false;
   }
-  return bdd.Implies(one_info->visibility, bdd.Not(other_info->visibility)) ==
-         bdd.one();
+  return bdd.MutuallyExclusive(one_info->visibility, other_info->visibility);
 }
 
 SingleSelectVisibility SingleSelectVisibilityAnalysis::ComputeInfo(

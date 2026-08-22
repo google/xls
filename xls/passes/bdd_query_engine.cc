@@ -205,35 +205,7 @@ bool BddQueryEngine::AssumingQueryEngine::IsTracked(Node* node) const {
 }
 std::optional<SharedLeafTypeTree<TernaryVector>>
 BddQueryEngine::AssumingQueryEngine::GetTernary(Node* node) const {
-  if (!query_engine_->IsTracked(node)) {
-    return std::nullopt;
-  }
-  absl::StatusOr<TernaryTree> ltt = TernaryTree::CreateFromFunction(
-      node->GetType(),
-      [&](Type* leaf_type, absl::Span<const int64_t> tree_index)
-          -> absl::StatusOr<TernaryVector> {
-        TernaryVector ternary(leaf_type->GetFlatBitCount(),
-                              TernaryValue::kUnknown);
-        for (int64_t bit_index = 0; bit_index < leaf_type->GetFlatBitCount();
-             ++bit_index) {
-          std::optional<BddNodeIndex> bit = query_engine_->GetBddNode(
-              TreeBitLocation(node, bit_index, tree_index));
-          if (!bit.has_value()) {
-            continue;
-          }
-          if (query_engine_->Implies(assumption_, *bit)) {
-            ternary[bit_index] = TernaryValue::kKnownOne;
-          } else if (query_engine_->Implies(assumption_,
-                                            query_engine_->bdd().Not(*bit))) {
-            ternary[bit_index] = TernaryValue::kKnownZero;
-          }
-        }
-        return ternary;
-      });
-  if (!ltt.ok()) {
-    return std::nullopt;
-  }
-  return std::move(ltt).value().AsShared();
+  return query_engine_->GetTernary(node, assumption_);
 };
 
 std::unique_ptr<QueryEngine>
@@ -291,13 +263,19 @@ bool BddQueryEngine::AssumingQueryEngine::Implies(
   if (!IsTracked(a.node()) || !IsTracked(b.node())) {
     return false;
   }
+
   std::optional<BddNodeIndex> a_bdd = query_engine_->GetBddNode(a);
   if (!a_bdd.has_value()) {
     return false;
   }
+
   std::optional<BddNodeIndex> b_bdd = query_engine_->GetBddNode(b);
   if (!b_bdd.has_value()) {
     return false;
+  }
+
+  if (assumption_ == query_engine_->bdd().one() || assumption_ == *a_bdd) {
+    return query_engine_->Implies(*a_bdd, *b_bdd);
   }
   return query_engine_->Implies(query_engine_->bdd().And(*a_bdd, assumption_),
                                 *b_bdd);
@@ -391,21 +369,6 @@ class BddNodeEvaluator : public AbstractNodeEvaluator<SaturatingBddEvaluator> {
 };
 
 }  // namespace
-
-std::optional<bool> BddQueryEngine::KnownValue(
-    const TreeBitLocation& bit) const {
-  std::optional<BddNodeIndex> idx = GetBddNode(bit);
-  if (!idx.has_value()) {
-    return std::nullopt;
-  }
-  if (*idx == bdd().one()) {
-    return true;
-  }
-  if (*idx == bdd().zero()) {
-    return false;
-  }
-  return std::nullopt;
-}
 
 BddTree BddQueryEngine::ComputeInfo(
     Node* node, absl::Span<const BddTree* const> operand_infos) const {
@@ -665,10 +628,21 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
     if (value_knowledge.intervals.has_value()) {
       VLOG(3) << "Specializing on " << node->GetName() << " in "
               << value_knowledge.intervals->ToString();
+      if (absl::c_any_of(value_knowledge.intervals->elements(),
+                         [](const IntervalSet& intervals) {
+                           return intervals.IsEmpty();
+                         })) {
+        // One of the interval sets is empty, so this is impossible to satisfy.
+        return std::make_unique<AssumingQueryEngine>(this, bdd().zero());
+      }
       CHECK_OK(leaf_type_tree::ForEachIndex(
           value_knowledge.intervals->AsView(),
           [&](Type*, const IntervalSet& intervals,
               absl::Span<const int64_t> tree_index) -> absl::Status {
+            if (intervals.IsMaximal()) {
+              // No information; we can omit the checks.
+              return absl::OkStatus();
+            }
             std::optional<SharedBddTree> info = GetInfo(node);
             if (!info.has_value()) {
               return absl::OkStatus();
@@ -696,36 +670,55 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
                 continue;
               }
 
-              SaturatingBddNodeIndex lower_bound =
-                  evaluator_->UGreaterThanOrEqual(
-                      bits, evaluator_->BitsToVector(interval.LowerBound()));
-              if (HasTooManyPaths(lower_bound)) {
-                VLOG(3) << "SpecializeGiven exceeded path limit of "
-                        << path_limit_ << " on: " << node->GetName() << " in "
-                        << interval.ToString() << " (lower bound)";
-                // Since one of our checks has too many paths, the result will
-                // also have too many paths - so it will never have any effect.
-                return absl::OkStatus();
+              std::optional<SaturatingBddNodeIndex> lower_bound = std::nullopt;
+              if (!interval.LowerBound().IsZero()) {
+                lower_bound = evaluator_->UGreaterThanOrEqual(
+                    bits, evaluator_->BitsToVector(interval.LowerBound()));
+                if (HasTooManyPaths(*lower_bound)) {
+                  VLOG(3) << "SpecializeGiven exceeded path limit of "
+                          << path_limit_ << " on: " << node->GetName() << " in "
+                          << interval.ToString() << " (lower bound)";
+                  // Since one of our checks has too many paths, the result will
+                  // also have too many paths - so it will never have any
+                  // effect.
+                  return absl::OkStatus();
+                }
               }
-              SaturatingBddNodeIndex upper_bound = evaluator_->ULessThanOrEqual(
-                  bits, evaluator_->BitsToVector(interval.UpperBound()));
-              if (HasTooManyPaths(upper_bound)) {
-                VLOG(3) << "SpecializeGiven exceeded path limit of "
-                        << path_limit_ << " on: " << node->GetName() << " in "
-                        << interval.ToString() << " (upper bound)";
-                // Since one of our checks has too many paths, the result will
-                // also have too many paths - so it will never have any effect.
-                return absl::OkStatus();
+
+              std::optional<SaturatingBddNodeIndex> upper_bound = std::nullopt;
+              if (!interval.UpperBound().IsAllOnes()) {
+                upper_bound = evaluator_->ULessThanOrEqual(
+                    bits, evaluator_->BitsToVector(interval.UpperBound()));
+                if (HasTooManyPaths(*upper_bound)) {
+                  VLOG(3) << "SpecializeGiven exceeded path limit of "
+                          << path_limit_ << " on: " << node->GetName() << " in "
+                          << interval.ToString() << " (upper bound)";
+                  // Since one of our checks has too many paths, the result will
+                  // also have too many paths - so it will never have any
+                  // effect.
+                  return absl::OkStatus();
+                }
               }
-              SaturatingBddNodeIndex in_interval =
-                  evaluator_->And(lower_bound, upper_bound);
-              if (HasTooManyPaths(in_interval)) {
-                VLOG(3) << "SpecializeGiven exceeded path limit of "
-                        << path_limit_ << " on: " << node->GetName() << " in "
-                        << interval.ToString() << " (joint)";
-                // Since one of our checks has too many paths, the result will
-                // also have too many paths - so it will never have any effect.
-                return absl::OkStatus();
+
+              // We should have at least one bound, since the interval set was
+              // not maximal (checked above).
+              XLS_RET_CHECK(lower_bound.has_value() || upper_bound.has_value());
+              SaturatingBddNodeIndex in_interval;
+              if (lower_bound.has_value() && upper_bound.has_value()) {
+                in_interval = evaluator_->And(*lower_bound, *upper_bound);
+                if (HasTooManyPaths(in_interval)) {
+                  VLOG(3) << "SpecializeGiven exceeded path limit of "
+                          << path_limit_ << " on: " << node->GetName() << " in "
+                          << interval.ToString() << " (joint)";
+                  // Since one of our checks has too many paths, the result will
+                  // also have too many paths - so it will never have any
+                  // effect.
+                  return absl::OkStatus();
+                }
+              } else if (lower_bound.has_value()) {
+                in_interval = *lower_bound;
+              } else {
+                in_interval = *upper_bound;
               }
               in_interval_checks.push_back(in_interval);
             }
@@ -771,38 +764,70 @@ bool BddQueryEngine::AtMostOneTrue(
     return false;
   }
 
-  for (const TreeBitLocation& loc : bits) {
-    if (!IsTracked(loc.node())) {
-      return false;
-    }
+  if (bits.size() <= 1) {
+    return true;
   }
 
-  // Check that there is no pair of bits where both can simultaneously be true
-  // (A && B). If there is an assumption check there is no pair of bits where
-  // both the assumption holds and both are true.
-  for (int64_t i = 0; i < bits.size(); ++i) {
-    std::optional<BddNodeIndex> i_bdd = GetBddNode(bits[i]);
-    if (!i_bdd.has_value()) {
+  // Collect all the bits that are not known to be false; while we're at it, see
+  // how many bits we have to assume to be true.
+  std::vector<BddNodeIndex> bdd_bits;
+  bdd_bits.reserve(bits.size());
+  bool has_assumed_one = false;
+  for (const TreeBitLocation& loc : bits) {
+    if (IsTracked(loc.node())) {
+      std::optional<BddNodeIndex> bdd_bit = GetBddNode(loc);
+      if (bdd_bit.has_value()) {
+        std::optional<bool> known_value = KnownValue(*bdd_bit, assumption);
+        if (known_value.has_value() && !*known_value) {
+          // This bit is known to be false, so we can ignore it.
+          continue;
+        }
+        if (!known_value.has_value()) {
+          bdd_bits.push_back(*bdd_bit);
+          continue;
+        }
+      }
+    }
+
+    // This bit either has an unknown value or is known to be true.
+    if (has_assumed_one) {
+      // More than one unknown, so we can't have at most one true.
       return false;
     }
-    for (int64_t j = i + 1; j < bits.size(); ++j) {
-      std::optional<BddNodeIndex> j_bdd = GetBddNode(bits[j]);
-      if (!j_bdd.has_value()) {
-        return false;
+    has_assumed_one = true;
+  }
+
+  if (has_assumed_one) {
+    // There's exactly one bit that is known (or must be assumed) to be set; to
+    // have at most one true, the other bits must all be false... but all the
+    // remaining bits are not statically known, so the answer is true if and
+    // only if there are no remaining bits.
+    return bdd_bits.empty();
+  }
+
+  if (bdd_bits.size() <= 1) {
+    return true;
+  }
+
+  // Finally, we can just check that no two bits are simultaneously true.
+  for (int64_t i = 0; i < bdd_bits.size() - 1; ++i) {
+    BddNodeIndex lhs = bdd_bits[i];
+    if (lhs == bdd().zero()) {
+      continue;
+    }
+    if (assumption.has_value()) {
+      lhs = bdd().And(*assumption, lhs);
+      if (lhs == bdd().zero()) {
+        continue;
       }
-      auto not_i_and_j = bdd().Not(bdd().And(*i_bdd, *j_bdd));
-      if (ExceedsPathLimit(not_i_and_j)) {
+      if (ExceedsPathLimit(lhs)) {
         VLOG(3) << "AtMostOneTrue exceeded path limit of " << path_limit_;
         return false;
       }
-      if (assumption.has_value() && !Implies(*assumption, not_i_and_j)) {
-        VLOG(3) << "AtMostOneTrue bdd values " << i << " and " << j
-                << " can be true simultaneously under the assumption";
-        return false;
-      }
-      if (not_i_and_j != bdd().one()) {
-        VLOG(3) << "AtMostOneTrue bdd values " << i << " and " << j
-                << " can be true simultaneously";
+    }
+
+    for (int64_t j = i + 1; j < bdd_bits.size(); ++j) {
+      if (!MutuallyExclusive(lhs, bdd_bits[j])) {
         return false;
       }
     }
@@ -840,7 +865,7 @@ std::optional<SharedLeafTypeTree<TernaryVector>> BddQueryEngine::GetTernary(
           } else if (*bit == bdd().one()) {
             ternary[bit_index] = TernaryValue::kKnownOne;
           } else if (assumption.has_value() &&
-                     Implies(*assumption, bdd().Not(*bit))) {
+                     MutuallyExclusive(*assumption, *bit)) {
             ternary[bit_index] = TernaryValue::kKnownZero;
           } else if (assumption.has_value() && Implies(*assumption, *bit)) {
             ternary[bit_index] = TernaryValue::kKnownOne;
@@ -862,33 +887,60 @@ bool BddQueryEngine::AtLeastOneTrue(
     absl::Span<TreeBitLocation const> bits,
     std::optional<BddNodeIndex> assumption) const {
   // At least one bit is true is equivalent to an OR-reduction of all the bits.
-  SaturatingBddEvaluator evaluator(path_limit_, &bdd());
-  SaturatingBddNodeVector bdd_bits;
+  std::vector<BddNodeIndex> bdd_bits;
+  bdd_bits.reserve(bits.size());
   for (const TreeBitLocation& location : bits) {
     if (!IsTracked(location.node())) {
-      return false;
+      // Unknown value - but we can still check if the remaining bits must have
+      // at least one true.
+      continue;
     }
     std::optional<BddNodeIndex> bdd_node = GetBddNode(location);
     if (!bdd_node.has_value()) {
-      return false;
+      // Unknown value - but we can still check if the remaining bits must have
+      // at least one true.
+      continue;
+    }
+
+    if (*bdd_node == bdd().one()) {
+      return true;
+    }
+    if (*bdd_node == bdd().zero()) {
+      continue;
     }
     bdd_bits.push_back(*bdd_node);
   }
-  SaturatingBddNodeIndex or_reduce = evaluator.OrReduce(bdd_bits).front();
-  if (HasTooManyPaths(or_reduce)) {
-    VLOG(3) << "AtLeastOneTrue exceeded path limit of " << path_limit_;
+  if (bdd_bits.empty()) {
     return false;
   }
-  BddNodeIndex result = ToBddNode(or_reduce);
-  if (assumption.has_value()) {
-    return Implies(*assumption, result);
+
+  BddNodeIndex or_reduce = bdd_bits.front();
+  for (const BddNodeIndex& bit : absl::MakeConstSpan(bdd_bits).subspan(1)) {
+    SaturatingBddNodeIndex new_or_reduce = evaluator_->Or(or_reduce, bit);
+    if (HasTooManyPaths(new_or_reduce)) {
+      VLOG(3) << "AtLeastOneTrue exceeded path limit of " << path_limit_;
+      // We can still check if the remaining bits force the result to true.
+      continue;
+    }
+    or_reduce = ToBddNode(new_or_reduce);
+    if (or_reduce == bdd().one()) {
+      return true;
+    }
   }
-  return result == bdd().one();
+
+  // If we've gotten here, `or_reduce` isn't identically true - so we only
+  // succeed if the assumption implies `or_reduce`.
+  return assumption.has_value() && Implies(*assumption, or_reduce);
 }
 
 bool BddQueryEngine::Implies(const BddNodeIndex& a,
                              const BddNodeIndex& b) const {
   return bdd().DoesImply(a, b);
+}
+
+bool BddQueryEngine::MutuallyExclusive(const BddNodeIndex& a,
+                                       const BddNodeIndex& b) const {
+  return bdd().MutuallyExclusive(a, b);
 }
 
 bool BddQueryEngine::Implies(const TreeBitLocation& a,
@@ -917,27 +969,11 @@ std::optional<Bits> BddQueryEngine::ImpliedNodeValue(
 std::optional<Bits> BddQueryEngine::ImpliedNodeValue(
     absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
     Node* node, std::optional<BddNodeIndex> assumption) const {
-  std::optional<TernaryVector> implied_ternary =
-      ImpliedNodeTernary(predicate_bit_values, node, assumption);
-  if (!implied_ternary.has_value() ||
-      !ternary_ops::IsFullyKnown(*implied_ternary)) {
-    return std::nullopt;
-  }
-  return ternary_ops::ToKnownBitsValues(*implied_ternary);
-}
-
-std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
-    absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
-    Node* node) const {
-  return ImpliedNodeTernary(predicate_bit_values, node,
-                            /*assumption=*/std::nullopt);
-}
-
-std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
-    absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
-    Node* node, std::optional<BddNodeIndex> assumption) const {
   if (!IsTracked(node) || !node->GetType()->IsBits()) {
     return std::nullopt;
+  }
+  if (node->GetType()->GetFlatBitCount() == 0) {
+    return Bits(0);
   }
 
   // Create a Bdd node for the predicate_bit_values.
@@ -971,19 +1007,82 @@ std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
     return std::nullopt;
   }
 
-  enum class ImpliedValue : std::uint8_t {
-    kNotAnalyzable,
-    kUnknown,
-    kImpliedTrue,
-    kImpliedFalse
-  };
+  // Check if bdd_predicate_bit implies anything about the node.
+  CHECK(node->GetType()->IsBits());
+  InlineBitmap bitmap(node->BitCountOrDie());
+  for (int node_idx = 0; node_idx < node->BitCountOrDie(); ++node_idx) {
+    std::optional<BddNodeIndex> bit =
+        GetBddNode(TreeBitLocation(node, node_idx));
+    if (!bit.has_value()) {
+      return std::nullopt;
+    }
+    std::optional<bool> bit_value = KnownValue(*bit, bdd_predicate_bit);
+    if (!bit_value.has_value()) {
+      return std::nullopt;
+    }
+    bitmap.Set(node_idx, *bit_value);
+  }
+  return Bits::FromBitmap(std::move(bitmap));
+}
+
+std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
+    absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+    Node* node) const {
+  return ImpliedNodeTernary(predicate_bit_values, node,
+                            /*assumption=*/std::nullopt);
+}
+
+std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
+    absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+    Node* node, std::optional<BddNodeIndex> assumption) const {
+  if (!IsTracked(node) || !node->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+
+  // Create a Bdd node for the predicate_bit_values.
+  SaturatingBddNodeVector bdd_predicate_bits;
+  for (const auto& [conjuction_bit_location, conjunction_value] :
+       predicate_bit_values) {
+    std::optional<BddNodeIndex> conjuction_bit =
+        GetBddNode(conjuction_bit_location);
+    if (!conjuction_bit.has_value()) {
+      // Skip this predicate; we don't recognize the node, so we can't see the
+      // effects of assuming it.
+      continue;
+    }
+    bdd_predicate_bits.push_back(
+        conjunction_value ? *conjuction_bit : bdd().Not(*conjuction_bit));
+    if (bdd_predicate_bits.back() == SaturatingBddNodeIndex(bdd().zero())) {
+      // If the predicate evaluates to false, we can't determine
+      // what node value it implies. That is, !predicate || node_bit
+      // evaluates to true for both node_bit == 1 and == 0.
+      return std::nullopt;
+    }
+  }
+  SaturatingBddNodeIndex bdd_predicate =
+      evaluator_->AndReduce(bdd_predicate_bits).front();
+  if (assumption.has_value()) {
+    bdd_predicate = evaluator_->And(bdd_predicate, *assumption);
+  }
+  if (HasTooManyPaths(bdd_predicate)) {
+    return std::nullopt;
+  }
+  BddNodeIndex bdd_predicate_bit = ToBddNode(bdd_predicate);
+
+  // If the predicate evaluates to false, we can't determine
+  // what node value it implies. That is, !predicate || node_bit
+  // evaluates to true for both node_bit == 1 and == 0.
+  if (bdd_predicate_bit == bdd().zero()) {
+    return std::nullopt;
+  }
+
   auto implied_value = [&](int node_idx) -> TernaryValue {
     std::optional<BddNodeIndex> bdd_node_bit =
         GetBddNode(TreeBitLocation(node, node_idx));
     if (!bdd_node_bit.has_value()) {
       return TernaryValue::kUnknown;
     }
-    if (Implies(bdd_predicate_bit, bdd().Not(*bdd_node_bit))) {
+    if (MutuallyExclusive(bdd_predicate_bit, *bdd_node_bit)) {
       return TernaryValue::kKnownZero;
     }
     if (Implies(bdd_predicate_bit, *bdd_node_bit)) {
@@ -1024,11 +1123,18 @@ bool BddQueryEngine::KnownEquals(const TreeBitLocation& a,
   if (!b_bdd.has_value()) {
     return false;
   }
-  SaturatingBddNodeIndex result = evaluator_->Equals({*a_bdd}, {*b_bdd});
-  if (assumption.has_value()) {
-    result = evaluator_->Implies(*assumption, result);
+
+  if (!assumption.has_value()) {
+    // If there is no assumption, we can just compare the BDDs; canonicalization
+    // means they have the same index if and only if they're equal.
+    return *a_bdd == *b_bdd;
   }
-  return result == evaluator_->One();
+
+  SaturatingBddNodeIndex equal = evaluator_->Xnor(*a_bdd, *b_bdd);
+  if (HasTooManyPaths(equal)) {
+    return false;
+  }
+  return Implies(*assumption, ToBddNode(equal));
 }
 
 bool BddQueryEngine::KnownNotEquals(const TreeBitLocation& a,
@@ -1051,19 +1157,22 @@ bool BddQueryEngine::KnownNotEquals(
   if (!b_bdd.has_value()) {
     return false;
   }
-  SaturatingBddNodeIndex result =
-      evaluator_->Not(evaluator_->Equals({*a_bdd}, {*b_bdd}));
-  if (assumption.has_value()) {
-    result = evaluator_->Implies(*assumption, result);
+
+  if (!assumption.has_value()) {
+    // If there is no assumption, we can just compare BDDs; canonicalization
+    // means two expressions have the same index if and only if they're equal.
+    return *a_bdd == bdd().Not(*b_bdd);
   }
-  return result == evaluator_->One();
+
+  SaturatingBddNodeIndex not_equal = evaluator_->Xor(*a_bdd, *b_bdd);
+  if (HasTooManyPaths(not_equal)) {
+    return false;
+  }
+  return Implies(*assumption, ToBddNode(not_equal));
 }
 
 bool BddQueryEngine::IsKnown(const TreeBitLocation& bit,
                              std::optional<BddNodeIndex> assumption) const {
-  if (!assumption.has_value()) {
-    return IsKnown(bit);
-  }
   return KnownValue(bit, assumption).has_value();
 }
 
@@ -1073,10 +1182,33 @@ bool BddQueryEngine::IsFullyUnconstrained(Node* node) const {
 }
 
 std::optional<bool> BddQueryEngine::KnownValue(
-    const TreeBitLocation& bit, std::optional<BddNodeIndex> assumption) const {
-  if (!assumption.has_value()) {
-    return KnownValue(bit);
+    BddNodeIndex bdd_node, std::optional<BddNodeIndex> assumption) const {
+  if (bdd_node == bdd().one()) {
+    return true;
   }
+  if (bdd_node == bdd().zero()) {
+    return false;
+  }
+
+  if (assumption.has_value()) {
+    if (Implies(*assumption, bdd_node)) {
+      return true;
+    }
+    if (MutuallyExclusive(*assumption, bdd_node)) {
+      return false;
+    }
+  }
+
+  return std::nullopt;
+}
+
+std::optional<bool> BddQueryEngine::KnownValue(
+    const TreeBitLocation& bit) const {
+  return KnownValue(bit, /*assumption=*/std::nullopt);
+}
+
+std::optional<bool> BddQueryEngine::KnownValue(
+    const TreeBitLocation& bit, std::optional<BddNodeIndex> assumption) const {
   if (!IsTracked(bit.node())) {
     return std::nullopt;
   }
@@ -1085,55 +1217,54 @@ std::optional<bool> BddQueryEngine::KnownValue(
     return std::nullopt;
   }
 
-  if (assumption.has_value()) {
-    if (evaluator_->Implies(*assumption, *bdd_node) == evaluator_->One()) {
-      return true;
-    }
-    if (evaluator_->Implies(*assumption, evaluator_->Not(*bdd_node)) ==
-        evaluator_->One()) {
-      return false;
-    }
-    return std::nullopt;
-  }
+  return KnownValue(*bdd_node, assumption);
+}
 
-  if (bdd_node == bdd().one()) {
-    return true;
-  } else if (bdd_node == bdd().zero()) {
-    return false;
-  } else {
-    return std::nullopt;
-  }
+std::optional<Value> BddQueryEngine::KnownValue(Node* node) const {
+  return KnownValue(node, /*assumption=*/std::nullopt);
 }
 
 std::optional<Value> BddQueryEngine::KnownValue(
     Node* node, std::optional<BddNodeIndex> assumption) const {
-  if (!assumption.has_value()) {
-    return KnownValue(node);
-  }
-
   if (!IsTracked(node)) {
     return std::nullopt;
   }
 
-  std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
-      GetTernary(node, *assumption);
-  if (!ternary.has_value() ||
-      !absl::c_all_of(ternary->elements(), [](const TernaryVector& v) {
-        return ternary_ops::IsFullyKnown(v);
-      })) {
+  std::optional<SharedLeafTypeTree<SaturatingBddNodeVector>> info =
+      GetInfo(node);
+  if (!info.has_value()) {
     return std::nullopt;
   }
 
+  // Scan to see if we can exit before constructing the full Value tree.
+  for (const SaturatingBddNodeVector& leaf : info->elements()) {
+    for (const SaturatingBddNodeIndex& bit : leaf) {
+      if (std::holds_alternative<TooManyPaths>(bit)) {
+        return std::nullopt;
+      }
+      if (!KnownValue(ToBddNode(bit), assumption).has_value()) {
+        return std::nullopt;
+      }
+    }
+  }
+
   absl::StatusOr<LeafTypeTree<Value>> value =
-      leaf_type_tree::MapIndex<Value, TernaryVector>(
-          ternary->AsView(),
-          [](Type* leaf_type, const TernaryVector& v,
-             absl::Span<const int64_t>) -> absl::StatusOr<Value> {
+      leaf_type_tree::MapIndex<Value, SaturatingBddNodeVector>(
+          info->AsView(),
+          [&](Type* leaf_type, const SaturatingBddNodeVector& leaf,
+              absl::Span<const int64_t>) -> absl::StatusOr<Value> {
             if (leaf_type->IsToken()) {
               return Value::Token();
             }
             CHECK(leaf_type->IsBits());
-            return Value(ternary_ops::ToKnownBitsValues(v));
+            InlineBitmap leaf_bits(leaf_type->GetFlatBitCount());
+            for (auto [bit_index, bit] : iter::enumerate(leaf)) {
+              std::optional<bool> known_value =
+                  KnownValue(ToBddNode(bit), assumption);
+              CHECK(known_value.has_value());
+              leaf_bits.Set(bit_index, *known_value);
+            }
+            return Value(Bits::FromBitmap(std::move(leaf_bits)));
           });
   CHECK_OK(value.status());
   absl::StatusOr<Value> result = LeafTypeTreeToValue(value->AsView());
@@ -1141,51 +1272,102 @@ std::optional<Value> BddQueryEngine::KnownValue(
   return *result;
 }
 
+bool BddQueryEngine::IsAllZeros(Node* n) const {
+  return IsAllZeros(n, /*assumption=*/std::nullopt);
+}
+
 bool BddQueryEngine::IsAllZeros(Node* n,
                                 std::optional<BddNodeIndex> assumption) const {
-  if (!assumption.has_value()) {
-    return IsAllZeros(n);
-  }
   if (!IsTracked(n) || TypeHasToken(n->GetType())) {
     return false;
   }
-  std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
-      GetTernary(n, *assumption);
-  return ternary_value.has_value() &&
-         absl::c_all_of(ternary_value->elements(), [](const TernaryVector& v) {
-           return ternary_ops::IsKnownZero(v);
-         });
+
+  std::optional<SharedLeafTypeTree<SaturatingBddNodeVector>> info = GetInfo(n);
+  if (!info.has_value()) {
+    return false;
+  }
+
+  for (const SaturatingBddNodeVector& leaf : info->elements()) {
+    for (const SaturatingBddNodeIndex& bit : leaf) {
+      if (std::holds_alternative<TooManyPaths>(bit)) {
+        return false;
+      }
+      BddNodeIndex bdd_node = ToBddNode(bit);
+      if (bdd_node != bdd().zero() &&
+          !(assumption.has_value() &&
+            MutuallyExclusive(*assumption, bdd_node))) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool BddQueryEngine::IsAllOnes(Node* n) const {
+  return IsAllOnes(n, /*assumption=*/std::nullopt);
 }
 
 bool BddQueryEngine::IsAllOnes(Node* n,
                                std::optional<BddNodeIndex> assumption) const {
-  if (!assumption.has_value()) {
-    return IsAllOnes(n);
-  }
   if (!IsTracked(n) || TypeHasToken(n->GetType())) {
     return false;
   }
-  std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
-      GetTernary(n, *assumption);
-  return ternary_value.has_value() &&
-         absl::c_all_of(ternary_value->elements(), [](const TernaryVector& v) {
-           return ternary_ops::IsKnownOne(v);
-         });
+
+  std::optional<SharedLeafTypeTree<SaturatingBddNodeVector>> info = GetInfo(n);
+  if (!info.has_value()) {
+    return false;
+  }
+
+  for (const SaturatingBddNodeVector& leaf : info->elements()) {
+    for (const SaturatingBddNodeIndex& bit : leaf) {
+      if (std::holds_alternative<TooManyPaths>(bit)) {
+        return false;
+      }
+      BddNodeIndex bdd_node = ToBddNode(bit);
+      if (bdd_node != bdd().one() &&
+          !(assumption.has_value() && Implies(*assumption, bdd_node))) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
+
+bool BddQueryEngine::IsFullyKnown(Node* n) const {
+  return IsFullyKnown(n, /*assumption=*/std::nullopt);
+}
+
 bool BddQueryEngine::IsFullyKnown(
     Node* n, std::optional<BddNodeIndex> assumption) const {
-  if (!assumption.has_value()) {
-    return IsFullyKnown(n);
-  }
   if (!IsTracked(n) || TypeHasToken(n->GetType())) {
     return false;
   }
-  std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
-      GetTernary(n, *assumption);
-  return ternary_value.has_value() &&
-         absl::c_all_of(ternary_value->elements(), [](const TernaryVector& v) {
-           return ternary_ops::IsFullyKnown(v);
-         });
+
+  std::optional<SharedLeafTypeTree<SaturatingBddNodeVector>> info = GetInfo(n);
+  if (!info.has_value()) {
+    return false;
+  }
+
+  for (const SaturatingBddNodeVector& leaf : info->elements()) {
+    for (const SaturatingBddNodeIndex& bit : leaf) {
+      if (std::holds_alternative<TooManyPaths>(bit)) {
+        return false;
+      }
+      BddNodeIndex bdd_node = ToBddNode(bit);
+      if (bdd_node == bdd().one() || bdd_node == bdd().zero()) {
+        continue;
+      }
+      if (assumption.has_value()) {
+        if (Implies(*assumption, bdd_node) ||
+            MutuallyExclusive(*assumption, bdd_node)) {
+          continue;
+        }
+      }
+      // Since we got here, we can't determine the value of the bit.
+      return false;
+    }
+  }
+  return true;
 }
 
 BddNodeIndex BddQueryEngine::GetVariableFor(TreeBitLocation location) const {

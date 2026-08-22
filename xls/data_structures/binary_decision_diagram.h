@@ -102,11 +102,21 @@ class BinaryDecisionDiagram {
   // Returns the expression a -> b (i.e., (!a || b))
   BddNodeIndex Implies(BddNodeIndex a, BddNodeIndex b);
 
-  // Returns whether a implies b.
+  // Returns whether a implies b; that is, if `b` is always true when `a` is
+  // true.
+  //
   // Equivalent to checking if `Implies(a, b) == one()`. However, this will not
   // create any new BDD nodes & has more early-return conditions, so it's
   // usually faster & more efficient.
   bool DoesImply(BddNodeIndex a, BddNodeIndex b);
+
+  // Returns whether a and b are mutually exclusive; that is, if `!a || !b` is
+  // always true.
+  //
+  // Equivalent to checking if `Implies(a, b) == zero()`. However, this will not
+  // create any new BDD nodes & has more early-return conditions, so it's
+  // usually faster & more efficient.
+  bool MutuallyExclusive(BddNodeIndex a, BddNodeIndex b);
 
   // Returns the leaf node corresponding to zero or one.
   BddNodeIndex zero() const { return BddNodeIndex(0); }

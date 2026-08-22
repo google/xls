@@ -121,19 +121,15 @@ class BddQueryEngine
   bool KnownNotEquals(const TreeBitLocation& a,
                       const TreeBitLocation& b) const override;
 
-  bool IsAllZeros(Node* n) const override { return QueryEngine::IsAllZeros(n); }
-  bool IsAllOnes(Node* n) const override { return QueryEngine::IsAllOnes(n); }
-  bool IsFullyKnown(Node* n) const override {
-    return QueryEngine::IsFullyKnown(n);
-  }
+  bool IsAllZeros(Node* n) const override;
+  bool IsAllOnes(Node* n) const override;
+  bool IsFullyKnown(Node* n) const override;
   bool IsFullyUnconstrained(Node* node) const;
   bool IsKnown(const TreeBitLocation& bit) const override {
     return KnownValue(bit).has_value();
   }
   std::optional<bool> KnownValue(const TreeBitLocation& bit) const override;
-  std::optional<Value> KnownValue(Node* node) const override {
-    return QueryEngine::KnownValue(node);
-  }
+  std::optional<Value> KnownValue(Node* node) const override;
 
   // Returns the underlying BDD. This method is const, but queries on a BDD
   // generally mutate the object. We sneakily avoid conflicts with C++ const
@@ -211,6 +207,10 @@ class BddQueryEngine
 
   bool IsKnown(const TreeBitLocation& bit,
                std::optional<BddNodeIndex> assumption) const;
+
+  std::optional<bool> KnownValue(BddNodeIndex bdd_node,
+                                 std::optional<BddNodeIndex> assumption) const;
+
   std::optional<bool> KnownValue(const TreeBitLocation& bit,
                                  std::optional<BddNodeIndex> assumption) const;
   std::optional<Value> KnownValue(Node* node,
@@ -222,6 +222,9 @@ class BddQueryEngine
 
   // A implies B  <=>  !(A && !B)
   bool Implies(const BddNodeIndex& a, const BddNodeIndex& b) const;
+
+  // !(A && B) <=> A implies !B
+  bool MutuallyExclusive(const BddNodeIndex& a, const BddNodeIndex& b) const;
 
   // Returns true if the expression of the given BDD node exceeds the path
   // limit.
