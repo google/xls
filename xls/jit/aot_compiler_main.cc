@@ -95,6 +95,9 @@ ABSL_FLAG(std::optional<std::string>, output_asm, std::nullopt,
           "Path at which to write the output optimized llvm file.");
 ABSL_FLAG(int64_t, llvm_opt_level, xls::LlvmCompiler::kDefaultOptLevel,
           "The optimization level to use for the LLVM optimizer.");
+ABSL_FLAG(int64_t, max_trace_verbosity, 0,
+          "Maximum verbosity for traces. Traces with higher verbosity are "
+          "stripped from output. 0 by default.");
 
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
 static constexpr bool kHasMsan = true;
@@ -245,6 +248,7 @@ absl::Status RealMain(const std::string& input_ir_path,
       .set_symbol_salt(absl::GetFlag(FLAGS_symbol_salt))
       .set_include_msan(include_msan)
       .set_enable_llvm_coverage(absl::GetFlag(FLAGS_enable_llvm_coverage))
+      .set_max_trace_verbosity(absl::GetFlag(FLAGS_max_trace_verbosity))
       .set_generate_skeleton(generate_skeleton)
       .set_generate_only_unopt_llvm_ir(only_unopt_llvm_ir);
   if (f->IsFunction()) {

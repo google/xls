@@ -95,6 +95,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
                              ir_converter_options.configured_values().end());
   }
 
+  bool emit_positions = ir_converter_options.emit_positions();
   bool emit_assert = ir_converter_options.emit_assert();
   bool verify_ir = ir_converter_options.verify();
   bool convert_tests = ir_converter_options.convert_tests();
@@ -122,7 +123,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
         FifoConfig::FromProto(ir_converter_options.default_fifo_config()));
   }
   const ConvertOptions convert_options = {
-      .emit_positions = true,
+      .emit_positions = emit_positions,
       .emit_assert = emit_assert,
       .emit_trace = emit_trace,
       .emit_cover = emit_cover,
