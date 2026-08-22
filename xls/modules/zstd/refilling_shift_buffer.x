@@ -149,7 +149,7 @@ proc RefillingShiftBufferInternal<
         // snooping logic for the ShiftBuffer control channel
         // recv and immediately send out control packets heading for ShiftBuffer,
         // unless we're flushing, if so we block receiving any new control packets
-        let (_, snoop_ctrl, snoop_ctrl_valid) = recv_if_non_blocking(tok, buffer_ctrl_r, !flushing, zero!<RSBCtrl>());
+        let (tok, snoop_ctrl, snoop_ctrl_valid) = recv_if_non_blocking(tok, buffer_ctrl_r, !flushing, zero!<RSBCtrl>());
         // If we're flushing send our packets for taking out data from the shiftbuffer
         // (that data will then be discarded)
         let ctrl_packet = if (flushing) {
@@ -188,7 +188,7 @@ proc RefillingShiftBufferInternal<
             trace_fmt!("[{:#x}] Sent request for data to memory: {:#x}", INSTANCE, mem_req);
         } else {};
         // receive data from memory
-        let (_, reader_resp, reader_resp_valid) = recv_non_blocking(tok, reader_resp_r, zero!<MemReaderResp>());
+        let (tok, reader_resp, reader_resp_valid) = recv_non_blocking(tok, reader_resp_r, zero!<MemReaderResp>());
         if reader_resp_valid {
             trace_fmt!("[{:#x}] Received data from memory: {:#x}", INSTANCE, reader_resp);
         } else {};
