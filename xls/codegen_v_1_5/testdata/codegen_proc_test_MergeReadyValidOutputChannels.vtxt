@@ -13,45 +13,41 @@ module merge_outputs_proc(
   reg __out0_already_done_reg;
   reg __out1_already_done_reg;
   reg p1_inputs_valid;
-  wire or_79;
-  wire or_80;
   wire active_outputs_ready_0;
-  wire and_96;
+  wire and_94;
   wire p0_stage_done;
-  wire and_98;
+  wire and_96;
+  wire and_99;
   wire and_101;
-  wire and_103;
-  wire and_107;
-  wire or_108;
-  wire and_110;
-  wire or_111;
-  wire or_112;
-  assign or_79 = out0_rdy | __out0_already_done_reg;
-  assign or_80 = out1_rdy | __out1_already_done_reg;
-  assign active_outputs_ready_0 = or_79 & or_80;
-  assign and_96 = in_vld & ~__out0_already_done_reg;
+  wire and_105;
+  wire or_106;
+  wire and_108;
+  wire or_109;
+  wire or_110;
+  assign active_outputs_ready_0 = (out0_rdy | __out0_already_done_reg) & (out1_rdy | __out1_already_done_reg);
+  assign and_94 = in_vld & ~__out0_already_done_reg;
   assign p0_stage_done = in_vld & active_outputs_ready_0;
-  assign and_98 = in_vld & ~__out1_already_done_reg;
-  assign and_101 = and_96 & out0_rdy;
-  assign and_103 = and_98 & out1_rdy;
-  assign and_107 = and_101 & ~p0_stage_done;
-  assign or_108 = and_101 | p0_stage_done;
-  assign and_110 = and_103 & ~p0_stage_done;
-  assign or_111 = and_103 | p0_stage_done;
-  assign or_112 = p0_stage_done | p1_inputs_valid;
+  assign and_96 = in_vld & ~__out1_already_done_reg;
+  assign and_99 = and_94 & out0_rdy;
+  assign and_101 = and_96 & out1_rdy;
+  assign and_105 = and_99 & ~p0_stage_done;
+  assign or_106 = and_99 | p0_stage_done;
+  assign and_108 = and_101 & ~p0_stage_done;
+  assign or_109 = and_101 | p0_stage_done;
+  assign or_110 = p0_stage_done | p1_inputs_valid;
   always @ (posedge clk) begin
     if (rst) begin
       __out0_already_done_reg <= 1'h0;
       __out1_already_done_reg <= 1'h0;
       p1_inputs_valid <= 1'h0;
     end else begin
-      __out0_already_done_reg <= or_108 ? and_107 : __out0_already_done_reg;
-      __out1_already_done_reg <= or_111 ? and_110 : __out1_already_done_reg;
-      p1_inputs_valid <= or_112 ? p0_stage_done : p1_inputs_valid;
+      __out0_already_done_reg <= or_106 ? and_105 : __out0_already_done_reg;
+      __out1_already_done_reg <= or_109 ? and_108 : __out1_already_done_reg;
+      p1_inputs_valid <= or_110 ? p0_stage_done : p1_inputs_valid;
     end
   end
-  assign in_rdy = or_79 & or_80;
+  assign in_rdy = p0_stage_done;
   assign out0 = in;
-  assign out0_vld = and_96;
-  assign out1_vld = and_98;
+  assign out0_vld = and_94;
+  assign out1_vld = and_96;
 endmodule

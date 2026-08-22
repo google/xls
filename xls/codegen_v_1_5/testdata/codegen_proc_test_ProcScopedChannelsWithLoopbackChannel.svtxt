@@ -20,14 +20,14 @@ module myproc(
   wire active_outputs_ready_1;
   wire p1_stage_done;
   wire stage_outputs_ready_0;
-  wire and_126;
-  wire and_128;
+  wire and_127;
+  wire and_129;
   wire p0_stage_done;
-  wire and_135;
-  wire and_137;
-  wire or_142;
-  wire [31:0] add_143;
-  wire or_144;
+  wire and_136;
+  wire and_138;
+  wire or_143;
+  wire [31:0] add_144;
+  wire or_145;
   wire and_149;
   wire or_150;
   wire and_151;
@@ -41,23 +41,23 @@ module myproc(
   assign active_outputs_ready_1 = instantiation_output_50 | __loopback_already_done_reg;
   assign p1_stage_done = p1_inputs_valid & stage_outputs_ready_1 & active_outputs_ready_1;
   assign stage_outputs_ready_0 = ~p1_inputs_valid | p1_stage_done;
-  assign and_126 = p1_inputs_valid & ~__loopback_already_done_reg;
-  assign and_128 = p2_inputs_valid & ~__out_already_done_reg;
+  assign and_127 = p1_inputs_valid & ~__loopback_already_done_reg;
+  assign and_129 = p2_inputs_valid & ~__out_already_done_reg;
   assign p0_stage_done = instantiation_output_52 & stage_outputs_ready_0;
-  assign and_135 = and_126 & instantiation_output_50;
-  assign and_137 = and_128 & out_rdy;
-  assign or_142 = p0_stage_done | rst;
-  assign add_143 = p0_tuple_index_4 + 32'h0000_0001;
-  assign or_144 = p1_stage_done | rst;
-  assign and_149 = and_135 & ~p1_stage_done;
-  assign or_150 = and_135 | p1_stage_done;
-  assign and_151 = and_137 & ~p2_stage_done;
-  assign or_152 = and_137 | p2_stage_done;
+  assign and_136 = and_127 & instantiation_output_50;
+  assign and_138 = and_129 & out_rdy;
+  assign or_143 = p0_stage_done | rst;
+  assign add_144 = p0_tuple_index_4 + 32'h0000_0001;
+  assign or_145 = p1_stage_done | rst;
+  assign and_149 = and_136 & ~p1_stage_done;
+  assign or_150 = and_136 | p1_stage_done;
+  assign and_151 = and_138 & ~p2_stage_done;
+  assign or_152 = and_138 | p2_stage_done;
   assign or_153 = p0_stage_done | p1_stage_done;
   assign or_154 = p1_stage_done | p2_stage_done;
   always_ff @ (posedge clk) begin
-    p0_tuple_index_4 <= or_142 ? instantiation_output_51 : p0_tuple_index_4;
-    p1_add_6 <= or_144 ? add_143 : p1_add_6;
+    p0_tuple_index_4 <= or_143 ? instantiation_output_51 : p0_tuple_index_4;
+    p1_add_6 <= or_145 ? add_144 : p1_add_6;
   end
   always_ff @ (posedge clk) begin
     if (rst) begin
@@ -82,13 +82,13 @@ module myproc(
   ) fifo_loopback (
     .clk(clk),
     .rst(rst),
-    .push_data(add_143),
-    .push_valid(and_126),
-    .pop_ready(stage_outputs_ready_0),
+    .push_data(add_144),
+    .push_valid(and_127),
+    .pop_ready(p0_stage_done),
     .push_ready(instantiation_output_50),
     .pop_data(instantiation_output_51),
     .pop_valid(instantiation_output_52)
   );
   assign out = p1_add_6;
-  assign out_vld = and_128;
+  assign out_vld = and_129;
 endmodule
