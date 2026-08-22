@@ -15,11 +15,8 @@
 #include "xls/codegen_v_1_5/channel_to_port_io_lowering_pass.h"
 
 #include <algorithm>
-#include <bit>
 #include <compare>
-#include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -70,110 +67,6 @@
 namespace xls::codegen {
 
 namespace {
-
-// Helper to AND two nodes that might be nullptr.
-//
-// NOTE: If both a and b are nullptr, returns nullptr.
-absl::StatusOr<Node*> MakeAnd(Block* block, Node* a, Node* b,
-                              const SourceInfo& loc) {
-  if (a == nullptr) {
-    return b;
-  }
-  if (b == nullptr) {
-    return a;
-  }
-  if (a == b) {
-    return a;
-  }
-  return block->MakeNode<NaryOp>(loc, absl::MakeConstSpan({a, b}), Op::kAnd);
-}
-
-struct ConjunctionResult {
-  Node* all;                           // AND(all inputs) including context
-  Node* all_without_context;           // AND(all inputs) without common_context
-  std::vector<Node*> all_except_each;  // AND(all inputs *except* the k-th node)
-                                       //    [including context]
-};
-
-// Computes the full conjunction and all possible all-except-one conjunctions
-// for the given `nodes` and `common_context`.
-//
-// Uses a Brent-Kung parallel-prefix architecture to keep the gate count low
-// and the depth O(log n).
-absl::StatusOr<ConjunctionResult> ComputeConjunctions(
-    Block* block, absl::Span<Node* const> nodes,
-    std::optional<Node*> common_context = std::nullopt,
-    const SourceInfo& loc = SourceInfo()) {
-  if (nodes.empty()) {
-    XLS_ASSIGN_OR_RETURN(Node * one,
-                         block->MakeNode<Literal>(loc, Value(UBits(1, 1))));
-    return ConjunctionResult{
-        .all = common_context.has_value() ? *common_context : one,
-        .all_without_context = one,
-        .all_except_each = std::vector<Node*>({}),
-    };
-  }
-  if (nodes.size() == 1) {
-    XLS_ASSIGN_OR_RETURN(
-        Node * full_conjunction,
-        MakeAnd(block, nodes.front(), common_context.value_or(nullptr), loc));
-    XLS_ASSIGN_OR_RETURN(
-        Node * except_node,
-        common_context.has_value()
-            ? absl::StatusOr<Node*>(*common_context)
-            : block->MakeNode<Literal>(loc, Value(UBits(1, 1))));
-    return ConjunctionResult{
-        .all = full_conjunction,
-        .all_without_context = nodes.front(),
-        .all_except_each = std::vector<Node*>({except_node})};
-  }
-
-  const int64_t n = nodes.size() + (common_context.has_value() ? 1 : 0);
-  const int64_t k = std::bit_ceil(static_cast<size_t>(n));
-  std::vector<Node*> tree(2 * k, nullptr);
-  std::vector<Node*> context(2 * k, nullptr);
-
-  // Populate the leaves of the tree with the input values, the last being
-  // `common_context` (if present).
-  for (int64_t i = 0; i < nodes.size(); ++i) {
-    tree[k + i] = nodes[i];
-  }
-  if (common_context.has_value()) {
-    tree[k + nodes.size()] = *common_context;
-  }
-
-  // 1. Up-Sweep on `tree`: each node is assigned the AND of its children;
-  //    the root (tree[1]) ends up holding the AND of all values.
-  for (int64_t i = k - 1; i >= 1; --i) {
-    XLS_ASSIGN_OR_RETURN(tree[i],
-                         MakeAnd(block, tree[2 * i], tree[2 * i + 1], loc));
-  }
-  // 2. Down-Sweep on `context`; each node is assigned the AND of its parent's
-  //    `context` and its sibling's `tree` value. By induction, this is the AND
-  //    of all `tree` leaves not in the subtree rooted at the corresponding
-  //    `tree` node. In particular, each leaf contains the AND of all inputs
-  //    except its corresponding `tree` leaf.
-  for (int64_t c = 2; c < k + n; ++c) {
-    XLS_ASSIGN_OR_RETURN(context[c],
-                         MakeAnd(block, context[c >> 1], tree[c ^ 1], loc));
-  }
-
-  // The leaves of the `context` tree hold the AND of all inputs except the one
-  // at the leaf, while the root of `tree` holds the AND of all inputs.
-  //
-  // If `common_context` is present, the last leaf of `tree` holds the AND of
-  // all inputs omitting `common_context`.
-  std::vector<Node*> all_except_each(nodes.size());
-  for (int64_t i = 0; i < nodes.size(); ++i) {
-    all_except_each[i] = context[k + i];
-  }
-  return ConjunctionResult{
-      .all = tree[1],
-      .all_without_context =
-          common_context.has_value() ? context[k + nodes.size()] : tree[1],
-      .all_except_each = std::move(all_except_each),
-  };
-}
 
 using DirectedChannelRef = std::pair<ChannelRef, ChannelDirection>;
 
@@ -828,75 +721,60 @@ absl::StatusOr<Node*> MakeStagedUseIfNeeded(Node* operand, int64_t stage_index,
   return block->MakeNodeInStage<UnOp>(stage_index, loc, operand, Op::kIdentity);
 }
 
-absl::StatusOr<Node*> MakeStagedNode(Node* node, int64_t stage_index,
-                                     ScheduledBlock* block,
-                                     SourceInfo loc = SourceInfo()) {
-  if (block->IsStaged(node) && *block->GetStageIndex(node) == stage_index) {
-    return node;
+absl::Status ConnectReceivesToConnector(
+    absl::Span<Node* const> receives, Connector& connector,
+    ScheduledBlock* block, const BlockConversionPassOptions& options) {
+  XLS_RET_CHECK_EQ(connector.direction, ChannelDirection::kReceive);
+
+  std::vector<int64_t> stage_indices;
+  stage_indices.reserve(receives.size());
+  for (Node* receive : receives) {
+    XLS_RET_CHECK(receive->Is<Receive>());
+    XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(receive));
+    stage_indices.push_back(stage_index);
   }
-  return block->MakeNodeInStage<UnOp>(stage_index, loc, node, Op::kIdentity);
-}
 
-// Combines a new condition into an existing stage control signal
-// (active_inputs_valid or active_outputs_ready). If existing_signal is still
-// the initial unsigned one literal placeholder, it replaces it; otherwise,
-// it ANDs the new condition into the existing signal.
-absl::StatusOr<Node*> UpdateStageSignalWithAnd(
-    Node* existing_signal, Node* new_condition, int64_t stage_index,
-    ScheduledBlock* block, SourceInfo loc = SourceInfo(),
-    const std::function<bool(Node*)>& filter = [](Node*) { return true; }) {
-  XLS_ASSIGN_OR_RETURN(Node * staged_condition,
-                       MakeStagedNode(new_condition, stage_index, block, loc));
-  if (IsLiteralUnsignedOne(existing_signal)) {
-    if (existing_signal->HasAssignedName() &&
-        !staged_condition->HasAssignedName() &&
-        !staged_condition->OpIn(
-            {Op::kInputPort, Op::kOutputPort, Op::kParam})) {
-      std::string name = existing_signal->GetName();
-      existing_signal->ClearName();
-      staged_condition->SetNameDirectly(name);
-    }
-    XLS_RETURN_IF_ERROR(existing_signal->ReplaceUsesWith(staged_condition));
-    return staged_condition;
-  }
-  return ReplaceWithAnd(existing_signal, staged_condition,
-                        /*combine_literals=*/false, /*name=*/"", loc, filter);
-}
+  // Connect the data & valid lines to all users (passing tokens through).
+  // Collect each stage's ready signal, and OR them together to form the
+  // connector's ready signal.
+  // In other words, we are ready to receive data from this connector if any
+  // receive is active & ready.
+  std::vector<Node*> ready_signals;
+  ready_signals.reserve(receives.size());
+  for (const auto& [receive, stage_index] :
+       iter::zip(receives, stage_indices)) {
+    Stage& stage = block->stages()[stage_index];
+    Node* token = receive->As<Receive>()->token();
+    bool is_blocking = receive->As<Receive>()->is_blocking();
+    std::optional<Node*> predicate = receive->As<Receive>()->predicate();
 
-struct ReceiveConnection {
-  Receive* receive;
-  Connector* connector;
-};
-
-// Lowers all receives within a single stage to standard block operations,
-// adding the ready signals contributed to each connector to the provided map,
-// and directly updating the commit signal of each connector.
-absl::Status ConnectReceivesForStage(
-    int64_t stage_index, absl::Span<const ReceiveConnection> stage_recvs,
-    ScheduledBlock* block, const BlockConversionPassOptions& options,
-    absl::flat_hash_map<Connector*, std::vector<Node*>>&
-        ready_signals_by_connector) {
-  Stage& stage = block->stages()[stage_index];
-  SourceInfo stage_loc = SourceInfo();
-  std::vector<Node*> blocking_nodes;
-  absl::flat_hash_map<Receive*, int64_t> blocking_node_by_receive;
-  blocking_nodes.reserve(stage_recvs.size());
-  blocking_node_by_receive.reserve(stage_recvs.size());
-
-  for (const ReceiveConnection& recv_conn : stage_recvs) {
-    Receive* receive = recv_conn.receive;
-    stage_loc = stage_loc.Extend(receive->loc());
-    Connector* connector = recv_conn.connector;
-
-    std::optional<Node*> predicate = receive->predicate();
+    // If needed, add identity nodes to signal that the predicate needs to be
+    // available at the receive's stage. (This enables pipeline register
+    // insertion later.)
     if (predicate.has_value()) {
       XLS_ASSIGN_OR_RETURN(predicate,
                            MakeStagedUseIfNeeded(*predicate, stage_index, block,
                                                  receive->loc()));
     }
 
-    if (connector->valid.has_value() && receive->is_blocking()) {
-      Node* recv_valid_or_inactive = *connector->valid;
+    // The ready signal from this receive is:
+    //     (predicate AND stage_done)
+    XLS_ASSIGN_OR_RETURN(Node * stage_done,
+                         block->GetOrCreateStageDone(stage_index));
+    Node* recv_finishing = stage_done;
+    if (predicate.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          recv_finishing,
+          block->MakeNode<NaryOp>(receive->loc(),
+                                  absl::MakeConstSpan({stage_done, *predicate}),
+                                  Op::kAnd));
+    }
+    ready_signals.push_back(recv_finishing);
+
+    if (connector.valid.has_value() && is_blocking) {
+      // This active input is valid iff the receive is inactive (!predicate)
+      // or the valid signal is asserted.
+      Node* recv_valid_or_inactive = *connector.valid;
       if (predicate.has_value()) {
         XLS_ASSIGN_OR_RETURN(
             Node * recv_inactive,
@@ -906,21 +784,25 @@ absl::Status ConnectReceivesForStage(
             recv_valid_or_inactive,
             block->MakeNodeInStage<NaryOp>(
                 stage_index, receive->loc(),
-                absl::MakeConstSpan({*connector->valid, recv_inactive}),
+                absl::MakeConstSpan({*connector.valid, recv_inactive}),
                 Op::kOr));
       }
-      blocking_node_by_receive[receive] = blocking_nodes.size();
-      blocking_nodes.push_back(recv_valid_or_inactive);
+
+      XLS_RETURN_IF_ERROR(ReplaceWithAnd(stage.active_inputs_valid(),
+                                         recv_valid_or_inactive,
+                                         /*combine_literals=*/false)
+                              .status());
     }
 
-    Node* data = connector->data;
+    Node* data = connector.data;
     if (options.codegen_options.gate_recvs()) {
       std::vector<Node*> gate_conditions;
+      gate_conditions.reserve(2);
       if (predicate.has_value()) {
         gate_conditions.push_back(*predicate);
       }
-      if (!receive->is_blocking() && connector->valid.has_value()) {
-        gate_conditions.push_back(*connector->valid);
+      if (!is_blocking && connector.valid.has_value()) {
+        gate_conditions.push_back(*connector.valid);
       }
 
       Node* gate_condition = nullptr;
@@ -936,218 +818,74 @@ absl::Status ConnectReceivesForStage(
         XLS_ASSIGN_OR_RETURN(Node * zero,
                              block->MakeNodeInStage<Literal>(
                                  stage_index, receive->loc(),
-                                 ZeroOfType(connector->data->GetType())));
+                                 ZeroOfType(connector.data->GetType())));
         XLS_ASSIGN_OR_RETURN(data,
                              block->MakeNodeInStage<Select>(
                                  stage_index, receive->loc(), gate_condition,
-                                 absl::MakeConstSpan({zero, connector->data}),
+                                 absl::MakeConstSpan({zero, connector.data}),
                                  /*default_value=*/std::nullopt));
       }
     }
 
-    std::vector<Node*> replacement_elements = {receive->token(), data};
-    if (!receive->is_blocking()) {
+    std::vector<Node*> replacement_elements = {token, data};
+    if (!is_blocking) {
       Node* valid = nullptr;
-      if (connector->valid.has_value()) {
-        valid = *connector->valid;
+      if (connector.valid.has_value()) {
+        valid = *connector.valid;
       } else {
         XLS_ASSIGN_OR_RETURN(
             valid, block->MakeNodeInStage<Literal>(stage_index, receive->loc(),
                                                    Value(UBits(1, 1))));
       }
+
       if (predicate.has_value()) {
         XLS_ASSIGN_OR_RETURN(
             valid, block->MakeNodeInStage<NaryOp>(
                        stage_index, receive->loc(),
                        absl::MakeConstSpan({valid, *predicate}), Op::kAnd));
       }
+
       replacement_elements.push_back(valid);
     }
-
-    XLS_RETURN_IF_ERROR(receive
-                            ->ReplaceUsesWithNewInStage<Tuple>(
-                                stage_index, replacement_elements)
-                            .status());
-  }
-
-  // Compute stage common ready.
-  std::vector<Node*> common_ready_terms = {stage.inputs_valid(),
-                                           stage.outputs_ready()};
-  if (!IsLiteralUnsignedOne(stage.active_inputs_valid())) {
-    // Capture any existing `active_inputs_valid` signals (e.g., from state
-    // reads).
-    common_ready_terms.push_back(stage.active_inputs_valid());
-  }
-  if (!IsLiteralUnsignedOne(stage.active_outputs_ready())) {
-    common_ready_terms.push_back(stage.active_outputs_ready());
-  }
-  XLS_ASSIGN_OR_RETURN(
-      Node * common_ready,
-      JoinWithAnd(block, common_ready_terms, /*combine_literals=*/false));
-
-  // We need the conjunction of *all* the blocking nodes with the common ready
-  // terms to signal on non-blocking receives' ready signals... but each
-  // blocking receive's ready signal needs the conjunction of all *other*
-  // blocking nodes with the common ready terms, and the update to our
-  // `active_inputs_valid` signal needs us to leave out the common ready terms
-  // entirely.
-  //
-  // Thankfully, it turns out it's efficient to compute all of these at once; we
-  // can do it in O(n) gates with O(log n) depth.
-  XLS_ASSIGN_OR_RETURN(
-      ConjunctionResult conj,
-      ComputeConjunctions(block, blocking_nodes, common_ready, stage_loc));
-
-  // Update the `active_inputs_valid` signal to include the conjunction of all
-  // blocking inputs' valid signals.
-  if (conj.all_without_context != nullptr) {
-    XLS_RETURN_IF_ERROR(
-        UpdateStageSignalWithAnd(
-            stage.active_inputs_valid(), conj.all_without_context, stage_index,
-            block, stage_loc, [&](Node* n) { return n != common_ready; })
-            .status());
-  }
-
-  XLS_ASSIGN_OR_RETURN(Node * stage_done,
-                       block->GetOrCreateStageDone(stage_index));
-
-  for (const ReceiveConnection& recv_conn : stage_recvs) {
-    Receive* receive = recv_conn.receive;
-    Connector* connector = recv_conn.connector;
-
-    std::optional<Node*> predicate = receive->predicate();
-    if (predicate.has_value()) {
-      XLS_ASSIGN_OR_RETURN(predicate,
-                           MakeStagedUseIfNeeded(*predicate, stage_index, block,
-                                                 receive->loc()));
-    }
-
-    if (connector->ready.has_value()) {
-      // The ready signal from this stage should be the predicated conjunction
-      // of the `common_ready` signal and all blocking inputs' valid signals,
-      // *except* for its own. (This removes self-loops, while respecting the
-      // ready-valid protocol.)
-      Node* recv_ready = conj.all;
-      if (receive->is_blocking()) {
-        auto it = blocking_node_by_receive.find(receive);
-        CHECK(it != blocking_node_by_receive.end());
-        recv_ready = conj.all_except_each[it->second];
-      }
-      if (predicate.has_value()) {
-        XLS_ASSIGN_OR_RETURN(
-            recv_ready,
-            block->MakeNodeInStage<NaryOp>(
-                stage_index, receive->loc(),
-                absl::MakeConstSpan({recv_ready, *predicate}), Op::kAnd));
-      }
-      ready_signals_by_connector[connector].push_back(recv_ready);
-    }
-
-    Node* recv_commit = stage_done;
-    if (predicate.has_value()) {
-      XLS_ASSIGN_OR_RETURN(
-          recv_commit,
-          block->MakeNodeInStage<NaryOp>(
-              stage_index, receive->loc(),
-              absl::MakeConstSpan({stage_done, *predicate}), Op::kAnd));
-    }
-    if (!connector->commit.has_value()) {
-      connector->commit = recv_commit;
-    } else {
-      XLS_ASSIGN_OR_RETURN(*connector->commit,
-                           ReplaceWithOr(*connector->commit, recv_commit));
-    }
-
-    if (!connector->ready.has_value() && connector->valid.has_value() &&
-        options.codegen_options.assert_on_valid_data_not_ready()) {
+    if (!connector.ready.has_value() &&
+        options.codegen_options.assert_on_valid_data_not_ready() &&
+        connector.valid.has_value()) {
       XLS_ASSIGN_OR_RETURN(Node * not_valid, block->MakeNodeInStage<UnOp>(
                                                  stage_index, receive->loc(),
-                                                 *connector->valid, Op::kNot));
+                                                 *connector.valid, Op::kNot));
       XLS_ASSIGN_OR_RETURN(
-          Node * ready_if_valid,
+          Node * not_valid_or_ready,
           block->MakeNodeInStage<NaryOp>(
               stage_index, receive->loc(),
-              absl::MakeConstSpan({recv_commit, not_valid}), Op::kOr));
+              absl::MakeConstSpan({not_valid, recv_finishing}), Op::kOr));
       XLS_RETURN_IF_ERROR(
           block
               ->MakeNode<Assert>(
-                  recv_commit->loc(), receive->token(), ready_if_valid,
+                  recv_finishing->loc(), token, not_valid_or_ready,
                   absl::StrCat("Unable to receive ", receive->GetName(),
                                " due to not ready signal."),
                   absl::StrCat(receive->GetName(), ".", stage_index),
                   std::nullopt)
               .status());
     }
-
+    XLS_RETURN_IF_ERROR(receive
+                            ->ReplaceUsesWithNewInStage<Tuple>(
+                                stage_index, replacement_elements)
+                            .status());
     XLS_RETURN_IF_ERROR(block->RemoveNode(receive));
   }
-  return absl::OkStatus();
-}
-
-absl::Status ConnectReceives(
-    const absl::btree_map<DirectedChannelRef, std::vector<Node*>,
-                          DirectedNameLessThan>& io_ops,
-    absl::flat_hash_map<DirectedChannelRef, Connector>& connections,
-    ScheduledBlock* block, const BlockConversionPassOptions& options) {
-  // Group receives in the same stage; their signals are related by the stage's
-  // control logic.
-  absl::btree_map<int64_t, std::vector<ReceiveConnection>> receives_by_stage;
-  for (const auto& [directed_channel, io_ops_for_channel] : io_ops) {
-    if (directed_channel.second != ChannelDirection::kReceive) {
-      continue;
-    }
-    auto it = connections.find(directed_channel);
-    XLS_RET_CHECK(it != connections.end())
-        << "Missing connector for channel: "
-        << ChannelRefName(directed_channel.first) << " ("
-        << ChannelDirectionToString(directed_channel.second) << ")";
-    Connector& connector = it->second;
-    for (Node* io_op : io_ops_for_channel) {
-      XLS_RET_CHECK(io_op->Is<Receive>());
-      Receive* receive = io_op->As<Receive>();
-      XLS_ASSIGN_OR_RETURN(int64_t stage_index, block->GetStageIndex(receive));
-
-      receives_by_stage[stage_index].push_back(ReceiveConnection{
-          .receive = receive,
-          .connector = &connector,
-      });
-    }
-  }
-
-  // Process receives stage by stage, collecting ready signals; it's easier to
-  // connect them safely after we know the full set of signals for each
-  // connector.
-  absl::flat_hash_map<Connector*, std::vector<Node*>>
-      ready_signals_by_connector;
-  for (int64_t stage_index = 0; stage_index < block->stages().size();
-       ++stage_index) {
-    auto it = receives_by_stage.find(stage_index);
-    if (it == receives_by_stage.end()) {
-      continue;
-    }
-    XLS_RETURN_IF_ERROR(ConnectReceivesForStage(
-        stage_index, it->second, block, options, ready_signals_by_connector));
-  }
-
-  // Connect ready signals to connectors. We assume that at most one receive is
-  // active on a channel at a time, so we don't need any conflict-resolution
-  // logic.
-  //
-  // NOTE: We iterate over `io_ops`, rather than `ready_signals_by_connector`,
-  //       to guarantee determinism.
-  for (const auto& [directed_channel, _] : io_ops) {
-    Connector& connector = connections.at(directed_channel);
-    auto it = ready_signals_by_connector.find(&connector);
-    if (it == ready_signals_by_connector.end()) {
-      continue;
-    }
-    const std::vector<Node*>& ready_signals = it->second;
+  if (!ready_signals.empty()) {
     XLS_ASSIGN_OR_RETURN(
         Node * ready_signal,
         JoinWithOr(block, ready_signals, /*combine_literals=*/false));
+
     if (connector.ready.has_value()) {
       XLS_RETURN_IF_ERROR(connector.ReplaceReadySignal(ready_signal));
     }
+
+    // The receive is committed exactly when the ready signal is asserted (even
+    // if we don't expose the ready signal).
+    connector.commit = ready_signal;
   }
 
   return absl::OkStatus();
@@ -1179,7 +917,7 @@ absl::Status ConnectSendsToConnector(
   //    In other words, the output is valid if any of our sends is actually
   //    sending valid data.
   // 3. Connect the ready-or-done signal (with appropriate predicate control) to
-  //    each stage's `active_outputs_ready`.
+  //    each stage's `outputs_valid`.
   // 4. Use the predicates and a OneHotSelect to combine the data signals.
   std::vector<Node*> data_signals;
   std::vector<Node*> valid_conditions;
@@ -1218,8 +956,8 @@ absl::Status ConnectSendsToConnector(
     valid_conditions.push_back(valid_condition);
 
     if (connector.ready.has_value()) {
-      // The stage's active outputs aren't ready until we've successfully sent
-      // on the channel.
+      // The stage's output can't be valid until we've successfully sent on the
+      // channel.
       Node* send_done_or_inactive = *connector.ready;
       if (predicate.has_value()) {
         XLS_ASSIGN_OR_RETURN(Node * send_inactive, block->MakeNodeInStage<UnOp>(
@@ -1233,10 +971,9 @@ absl::Status ConnectSendsToConnector(
                 Op::kOr));
       }
 
-      XLS_RETURN_IF_ERROR(UpdateStageSignalWithAnd(stage.active_outputs_ready(),
-                                                   send_done_or_inactive,
-                                                   stage_index, block,
-                                                   send->loc())
+      XLS_RETURN_IF_ERROR(ReplaceWithAnd(stage.active_outputs_ready(),
+                                         send_done_or_inactive,
+                                         /*combine_literals=*/false)
                               .status());
     }
 
@@ -1994,27 +1731,26 @@ absl::StatusOr<bool> LowerIoToPorts(
   }
 
   for (const auto& [directed_channel, io_ops_for_channel] : io_ops) {
-    if (directed_channel.second != ChannelDirection::kSend) {
-      continue;
-    }
     auto it = connections.find(directed_channel);
     XLS_RET_CHECK(it != connections.end())
         << "Missing connector for channel: "
         << ChannelRefName(directed_channel.first) << " ("
         << ChannelDirectionToString(directed_channel.second) << ")";
     Connector& connector = it->second;
-    XLS_RET_CHECK(absl::c_all_of(
-        io_ops_for_channel, [](Node* io_op) { return io_op->Is<Send>(); }));
-    XLS_RETURN_IF_ERROR(
-        ConnectSendsToConnector(io_ops_for_channel, connector, block, options));
-  }
+    if (connector.direction == ChannelDirection::kSend) {
+      XLS_RET_CHECK(absl::c_all_of(
+          io_ops_for_channel, [](Node* io_op) { return io_op->Is<Send>(); }));
+      XLS_RETURN_IF_ERROR(ConnectSendsToConnector(io_ops_for_channel, connector,
+                                                  block, options));
+    } else {
+      XLS_RET_CHECK_EQ(connector.direction, ChannelDirection::kReceive);
+      XLS_RET_CHECK(absl::c_all_of(io_ops_for_channel, [](Node* io_op) {
+        return io_op->Is<Receive>();
+      }));
+      XLS_RETURN_IF_ERROR(ConnectReceivesToConnector(
+          io_ops_for_channel, connector, block, options));
+    }
 
-  XLS_RETURN_IF_ERROR(ConnectReceives(io_ops, connections, block, options));
-
-  for (const auto& [directed_channel, _] : io_ops) {
-    auto it = connections.find(directed_channel);
-    XLS_RET_CHECK(it != connections.end());
-    Connector& connector = it->second;
     // Add any configured I/O flops.
     // However, if this is a RAM channel, then we don't want to add any I/O
     // flops, as RamRewritePass manages the appropriate buffering.

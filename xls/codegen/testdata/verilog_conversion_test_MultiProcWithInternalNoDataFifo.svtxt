@@ -13,22 +13,22 @@ module pipelined_proc__1(
   reg p1_inputs_valid;
   wire internal_valid_inv;
   wire internal_flop_rdy;
-  wire not_165;
+  wire not_166;
   wire p1_stage_done;
   wire stage_outputs_ready_0;
-  wire in_valid_inv;
   wire p0_stage_done;
+  wire in_valid_inv;
   wire in_flop_rdy;
-  wire or_191;
+  wire or_188;
   assign internal_valid_inv = ~__internal_valid_reg;
   assign internal_flop_rdy = internal_rdy | internal_valid_inv;
-  assign not_165 = ~p1_inputs_valid;
+  assign not_166 = ~p1_inputs_valid;
   assign p1_stage_done = p1_inputs_valid & internal_flop_rdy;
-  assign stage_outputs_ready_0 = not_165 | p1_stage_done;
-  assign in_valid_inv = ~__in_valid_reg;
+  assign stage_outputs_ready_0 = not_166 | p1_stage_done;
   assign p0_stage_done = __in_valid_reg & stage_outputs_ready_0;
-  assign in_flop_rdy = stage_outputs_ready_0 | in_valid_inv;
-  assign or_191 = p0_stage_done | p1_stage_done;
+  assign in_valid_inv = ~__in_valid_reg;
+  assign in_flop_rdy = p0_stage_done | in_valid_inv;
+  assign or_188 = p0_stage_done | p1_stage_done;
   always_ff @ (posedge clk) begin
     if (rst) begin
       __in_valid_reg <= 1'h0;
@@ -37,7 +37,7 @@ module pipelined_proc__1(
     end else begin
       __in_valid_reg <= in_flop_rdy ? in_vld : __in_valid_reg;
       __internal_valid_reg <= internal_flop_rdy ? p1_inputs_valid : __internal_valid_reg;
-      p1_inputs_valid <= or_191 ? p0_stage_done : p1_inputs_valid;
+      p1_inputs_valid <= or_188 ? p0_stage_done : p1_inputs_valid;
     end
   end
   assign in_rdy = in_flop_rdy;
@@ -58,22 +58,22 @@ module proc_out(
   reg p1_inputs_valid;
   wire out_valid_inv;
   wire out_flop_rdy;
-  wire not_221;
+  wire not_220;
   wire p1_stage_done;
   wire stage_outputs_ready_0;
-  wire internal_valid_inv;
   wire p0_stage_done;
+  wire internal_valid_inv;
   wire internal_flop_rdy;
-  wire or_247;
+  wire or_242;
   assign out_valid_inv = ~__out_valid_reg;
   assign out_flop_rdy = out_rdy | out_valid_inv;
-  assign not_221 = ~p1_inputs_valid;
+  assign not_220 = ~p1_inputs_valid;
   assign p1_stage_done = p1_inputs_valid & out_flop_rdy;
-  assign stage_outputs_ready_0 = not_221 | p1_stage_done;
-  assign internal_valid_inv = ~__internal_valid_reg;
+  assign stage_outputs_ready_0 = not_220 | p1_stage_done;
   assign p0_stage_done = __internal_valid_reg & stage_outputs_ready_0;
-  assign internal_flop_rdy = stage_outputs_ready_0 | internal_valid_inv;
-  assign or_247 = p0_stage_done | p1_stage_done;
+  assign internal_valid_inv = ~__internal_valid_reg;
+  assign internal_flop_rdy = p0_stage_done | internal_valid_inv;
+  assign or_242 = p0_stage_done | p1_stage_done;
   always_ff @ (posedge clk) begin
     if (rst) begin
       __internal_valid_reg <= 1'h0;
@@ -82,7 +82,7 @@ module proc_out(
     end else begin
       __internal_valid_reg <= internal_flop_rdy ? internal_vld : __internal_valid_reg;
       __out_valid_reg <= out_flop_rdy ? p1_inputs_valid : __out_valid_reg;
-      p1_inputs_valid <= or_247 ? p0_stage_done : p1_inputs_valid;
+      p1_inputs_valid <= or_242 ? p0_stage_done : p1_inputs_valid;
     end
   end
   assign internal_rdy = internal_flop_rdy;
@@ -98,28 +98,28 @@ module pipelined_proc(
   output wire in_rdy,
   output wire out_vld
 );
+  wire instantiation_output_130;
   wire instantiation_output_134;
-  wire instantiation_output_138;
-  wire instantiation_output_147;
-  wire instantiation_output_150;
-  wire instantiation_output_141;
-  wire instantiation_output_144;
+  wire instantiation_output_143;
+  wire instantiation_output_146;
+  wire instantiation_output_137;
+  wire instantiation_output_140;
 
   // ===== Instantiations
   pipelined_proc__1 pipelined_proc__1_inst0 (
     .rst(rst),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_141),
-    .in_rdy(instantiation_output_134),
-    .internal_vld(instantiation_output_138),
+    .internal_rdy(instantiation_output_137),
+    .in_rdy(instantiation_output_130),
+    .internal_vld(instantiation_output_134),
     .clk(clk)
   );
   proc_out proc_out_inst1 (
     .rst(rst),
-    .internal_vld(instantiation_output_144),
+    .internal_vld(instantiation_output_140),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_147),
-    .out_vld(instantiation_output_150),
+    .internal_rdy(instantiation_output_143),
+    .out_vld(instantiation_output_146),
     .clk(clk)
   );
   xls_nodata_fifo_wrapper #(
@@ -130,11 +130,11 @@ module pipelined_proc(
   ) fifo_internal (
     .clk(clk),
     .rst(rst),
-    .push_valid(instantiation_output_138),
-    .pop_ready(instantiation_output_147),
-    .push_ready(instantiation_output_141),
-    .pop_valid(instantiation_output_144)
+    .push_valid(instantiation_output_134),
+    .pop_ready(instantiation_output_143),
+    .push_ready(instantiation_output_137),
+    .pop_valid(instantiation_output_140)
   );
-  assign in_rdy = instantiation_output_134;
-  assign out_vld = instantiation_output_150;
+  assign in_rdy = instantiation_output_130;
+  assign out_vld = instantiation_output_146;
 endmodule

@@ -11,35 +11,33 @@ module merge_outputs_proc(
   reg __out0_already_done_reg;
   reg __out1_already_done_reg;
   reg p1_inputs_valid;
-  wire and_82;
-  wire and_84;
-  wire stage_outputs_ready_0;
-  wire and_92;
-  wire or_93;
-  wire and_95;
-  wire or_96;
-  wire or_97;
-  assign and_82 = in_vld & ~__out0_already_done_reg;
-  assign and_84 = in_vld & ~__out1_already_done_reg;
-  assign stage_outputs_ready_0 = 1'h1;
-  assign and_92 = and_82 & ~in_vld;
-  assign or_93 = and_82 | in_vld;
-  assign and_95 = and_84 & ~in_vld;
-  assign or_96 = and_84 | in_vld;
-  assign or_97 = in_vld | p1_inputs_valid;
+  wire and_81;
+  wire and_83;
+  wire and_90;
+  wire or_91;
+  wire and_93;
+  wire or_94;
+  wire or_95;
+  assign and_81 = in_vld & ~__out0_already_done_reg;
+  assign and_83 = in_vld & ~__out1_already_done_reg;
+  assign and_90 = and_81 & ~in_vld;
+  assign or_91 = and_81 | in_vld;
+  assign and_93 = and_83 & ~in_vld;
+  assign or_94 = and_83 | in_vld;
+  assign or_95 = in_vld | p1_inputs_valid;
   always_ff @ (posedge clk) begin
     if (rst) begin
       __out0_already_done_reg <= 1'h0;
       __out1_already_done_reg <= 1'h0;
       p1_inputs_valid <= 1'h0;
     end else begin
-      __out0_already_done_reg <= or_93 ? and_92 : __out0_already_done_reg;
-      __out1_already_done_reg <= or_96 ? and_95 : __out1_already_done_reg;
-      p1_inputs_valid <= or_97 ? in_vld : p1_inputs_valid;
+      __out0_already_done_reg <= or_91 ? and_90 : __out0_already_done_reg;
+      __out1_already_done_reg <= or_94 ? and_93 : __out1_already_done_reg;
+      p1_inputs_valid <= or_95 ? in_vld : p1_inputs_valid;
     end
   end
-  assign in_rdy = stage_outputs_ready_0;
+  assign in_rdy = in_vld;
   assign out0 = in;
-  assign out0_vld = and_82;
-  assign out1_vld = and_84;
+  assign out0_vld = and_81;
+  assign out1_vld = and_83;
 endmodule
