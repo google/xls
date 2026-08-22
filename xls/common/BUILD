@@ -40,6 +40,16 @@ cc_library(
 )
 
 cc_library(
+    name = "cpp_name_utils",
+    srcs = ["cpp_name_utils.cc"],
+    hdrs = ["cpp_name_utils.h"],
+    deps = [
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_set",
+    ],
+)
+
+cc_library(
     name = "timeout_support",
     srcs = ["timeout_support.cc"],
     hdrs = ["timeout_support.h"],
