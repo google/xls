@@ -473,6 +473,10 @@ bool BinaryDecisionDiagram::DoesImply(BddNodeIndex a, BddNodeIndex b) {
   return IfThenElseConstant(a, b, one()) == true;
 }
 
+bool BinaryDecisionDiagram::MutuallyExclusive(BddNodeIndex a, BddNodeIndex b) {
+  return IfThenElseConstant(a, b, zero()) == false;
+}
+
 absl::StatusOr<bool> BinaryDecisionDiagram::Evaluate(
     BddNodeIndex expr,
     const absl::flat_hash_map<BddNodeIndex, bool>& variable_values) const {
