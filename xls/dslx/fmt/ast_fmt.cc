@@ -63,6 +63,42 @@
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
+namespace {
+
+// Returns the start position in the source of an AST node, in a way that is
+// robust to `node` being possibly fabricated by a formatter subclass.
+Pos GetNodeStartPos(const AstNode* node) {
+  if (node == nullptr) {
+    return Pos(Fileno(0), 0, 0);
+  }
+  std::optional<Pos> start;
+  if (auto* inv = dynamic_cast<const Invocation*>(node)) {
+    start = GetNodeStartPos(inv->callee());
+  } else if (auto* attr = dynamic_cast<const Attr*>(node)) {
+    start = GetNodeStartPos(attr->lhs());
+  } else if (auto* idx = dynamic_cast<const Index*>(node)) {
+    start = GetNodeStartPos(idx->lhs());
+  } else if (auto* tuple_idx = dynamic_cast<const TupleIndex*>(node)) {
+    start = GetNodeStartPos(tuple_idx->lhs());
+  } else if (auto* cast = dynamic_cast<const Cast*>(node)) {
+    start = GetNodeStartPos(cast->expr());
+  } else if (auto* binop = dynamic_cast<const Binop*>(node)) {
+    start = GetNodeStartPos(binop->lhs());
+  } else if (auto* stmt = dynamic_cast<const Statement*>(node)) {
+    start =
+        std::visit([](const auto* wrapped) { return GetNodeStartPos(wrapped); },
+                   stmt->wrapped());
+  }
+  if (std::optional<Span> span = node->GetSpan()) {
+    if (start.has_value() && start->fileno() == span->start().fileno()) {
+      return std::min(*start, span->start());
+    }
+    return start.value_or(span->start());
+  }
+  return start.value_or(Pos(Fileno(0), 0, 0));
+}
+
+}  // namespace
 
 // Note: if a comment doc is emitted (i.e. return value has_value()) it does not
 // have a trailing hard-line. This is for consistency with other emission
@@ -719,6 +755,9 @@ DocRef Formatter::FormatAttr(const Attr& n) {
 
 std::optional<DocRef> Formatter::FormatCommentsNested(const Pos start,
                                                       const Pos limit) {
+  if (start >= limit) {
+    return std::nullopt;
+  }
   std::vector<const CommentData*> items =
       comments_.GetUnplacedComments(Span(start, limit));
   if (items.empty()) {
@@ -726,6 +765,7 @@ std::optional<DocRef> Formatter::FormatCommentsNested(const Pos start,
   }
 
   std::vector<DocRef> pieces;
+  pieces.reserve(4);
   // Add the first comment "in line"
   auto first = FormatCommentsBetween(start, items[0]->span.limit(),
                                      /*last_comment_span=*/nullptr);
@@ -972,7 +1012,7 @@ DocRef Formatter::FormatBlock(const StatementBlock& n,
     // Get the start position for the statement.
     std::optional<Span> stmt_span = stmt->GetSpan();
     CHECK(stmt_span.has_value()) << stmt->ToString();
-    const Pos& stmt_start = stmt_span->start();
+    const Pos stmt_start = GetNodeStartPos(stmt);
     const Pos& stmt_limit = stmt_span->limit();
 
     VLOG(5) << "stmt: `" << stmt->ToString()
@@ -1614,15 +1654,15 @@ DocRef Formatter::FormatStructMembersFlat(
 DocRef Formatter::FormatStructMembersBreak(
     Span struct_span, absl::Span<const std::pair<std::string, Expr*>> members) {
   std::vector<DocRef> pieces;
+  pieces.reserve(members.size() * 5 + 2);
   Pos previous_item_limit = struct_span.start();
   for (size_t i = 0; i < members.size(); ++i) {
     const std::pair<std::string, Expr*>& member = members[i];
     const auto& [field_name, expr] = member;
 
     // If there are comments between the last item and here, insert them.
-    Span comment_span(previous_item_limit, expr->span().start());
     if (std::optional<DocRef> previous_comments = FormatCommentsBetween(
-            comment_span.start(), comment_span.limit(), nullptr)) {
+            previous_item_limit, expr->span().start(), nullptr)) {
       pieces.push_back(previous_comments.value());
       pieces.push_back(arena_.hard_line());
     }
@@ -1681,9 +1721,8 @@ DocRef Formatter::FormatStructMembersBreak(
   }
 
   // Insert comments between the last item and the end of the struct.
-  Span comment_span(previous_item_limit, struct_span.limit());
   if (std::optional<DocRef> previous_comments = FormatCommentsBetween(
-          comment_span.start(), comment_span.limit(), nullptr)) {
+          previous_item_limit, struct_span.limit(), nullptr)) {
     pieces.push_back(arena_.hard_line());
     pieces.push_back(previous_comments.value());
   }
@@ -3708,13 +3747,16 @@ std::optional<Pos> Formatter::FormatTopCopyrightNotice(
   pieces.push_back(arena_.hard_line());
 
   std::optional<Pos> next_pos;
-  if (unbroken_count < unplaced.size() &&
-      (!attr_span.has_value() ||
-       unplaced[unbroken_count]->span.start() < attr_span->start())) {
+  if (attr_span.has_value() && unbroken_count < unplaced.size() &&
+      unplaced[unbroken_count]->span.start() < attr_span->start()) {
     next_pos = unplaced[unbroken_count]->span.start();
-  } else if (n.attributes().empty() && !n.top().empty() &&
-             ToAstNode(n.top()[0])->GetSpan().has_value()) {
-    next_pos = ToAstNode(n.top()[0])->GetSpan()->start();
+  } else if (n.attributes().empty()) {
+    if (unbroken_count < unplaced.size()) {
+      next_pos = unplaced[unbroken_count]->span.start();
+    } else if (!n.top().empty() &&
+               ToAstNode(n.top()[0])->GetSpan().has_value()) {
+      next_pos = ToAstNode(n.top()[0])->GetSpan()->start();
+    }
   }
   if (next_pos.has_value() &&
       next_pos->lineno() >

@@ -3009,6 +3009,25 @@ impl P {}
 )");
 }
 
+TEST_F(ModuleFmtTest, StructImplHeaderWithParametrics) {
+  DoFmt(
+      R"(struct MyStruct<X: u32, Y: u32> { foo: u32, bar: u32 }
+
+impl MyStruct<X, Y> {}
+)");
+}
+
+TEST_F(ModuleFmtTest, ProcImplHeaderWithParametrics) {
+  DoFmt(
+      R"(pub proc P<X: u32, Y: u32> {
+    foo: u32,
+    bar: s16[2],
+}
+
+impl P<X, Y> {}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleParametricProc) {
   DoFmt(
       R"(pub proc p<N: u32> {
