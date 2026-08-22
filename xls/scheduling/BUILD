@@ -789,8 +789,6 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
-        "//xls/ir:channel",
-        "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:proc_elaboration",
