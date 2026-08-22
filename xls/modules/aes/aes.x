@@ -184,23 +184,23 @@ fn test_key_schedule_128() {
             u8:0xb9 ++ u8:0xae ++ u8:0x62 ++ u8:0xe0]);
 }
 
-pub fn encrypt(key: Key, key_width: KeyWidth, block: Block) -> Block {
+pub fn encrypt(key: Key, key_width: KeyWidth, blk: Block) -> Block {
     let num_rounds = get_num_rounds(key_width);
 
     let round_keys = create_key_schedule(key, key_width);
-    let block = aes_common::add_round_key(block, round_keys[0]);
+    let blk = aes_common::add_round_key(blk, round_keys[0]);
 
-    let block = for (round, last_block): (u32, Block) in u32:1..MAX_NUM_ROUNDS {
-        let block = aes_common::sub_bytes(last_block);
-        let block = aes_common::shift_rows(block);
-        let block = aes_common::mix_columns(block);
-        let block = aes_common::add_round_key(block, round_keys[round]);
-        if round < num_rounds { block } else { last_block }
-    }(block);
-    let block = aes_common::sub_bytes(block);
-    let block = aes_common::shift_rows(block);
-    let block = aes_common::add_round_key(block, round_keys[num_rounds]);
-    block
+    let blk = for (round, last_block): (u32, Block) in u32:1..MAX_NUM_ROUNDS {
+        let blk = aes_common::sub_bytes(last_block);
+        let blk = aes_common::shift_rows(blk);
+        let blk = aes_common::mix_columns(blk);
+        let blk = aes_common::add_round_key(blk, round_keys[round]);
+        if round < num_rounds { blk } else { last_block }
+    }(blk);
+    let blk = aes_common::sub_bytes(blk);
+    let blk = aes_common::shift_rows(blk);
+    let blk = aes_common::add_round_key(blk, round_keys[num_rounds]);
+    blk
 }
 
 #[test]
@@ -255,30 +255,30 @@ fn test_encrypt_128() {
     assert_eq(actual, expected)
 }
 
-pub fn decrypt(key: Key, key_width: KeyWidth, block: Block) -> Block {
+pub fn decrypt(key: Key, key_width: KeyWidth, blk: Block) -> Block {
     let num_rounds = get_num_rounds(key_width);
     let round_keys = create_key_schedule(key, key_width);
 
-    let block = aes_common::add_round_key(block, round_keys[num_rounds]);
-    let block = aes_common::inv_shift_rows(block);
-    let block = aes_common::inv_sub_bytes(block);
+    let blk = aes_common::add_round_key(blk, round_keys[num_rounds]);
+    let blk = aes_common::inv_shift_rows(blk);
+    let blk = aes_common::inv_sub_bytes(blk);
 
-    let block = for (i, last_block): (u32, Block) in u32:1..MAX_NUM_ROUNDS {
+    let blk = for (i, last_block): (u32, Block) in u32:1..MAX_NUM_ROUNDS {
         let round = num_rounds - i;
-        let block = if i < num_rounds {
-            let block = aes_common::add_round_key(last_block, round_keys[round]);
-            let block = aes_common::inv_mix_columns(block);
-            let block = aes_common::inv_shift_rows(block);
-            let block = aes_common::inv_sub_bytes(block);
-            block
+        let blk = if i < num_rounds {
+            let blk = aes_common::add_round_key(last_block, round_keys[round]);
+            let blk = aes_common::inv_mix_columns(blk);
+            let blk = aes_common::inv_shift_rows(blk);
+            let blk = aes_common::inv_sub_bytes(blk);
+            blk
         } else {
             last_block
         };
-        block
-    }(block);
+        blk
+    }(blk);
 
-    let block = aes_common::add_round_key(block, round_keys[0]);
-    block
+    let blk = aes_common::add_round_key(blk, round_keys[0]);
+    blk
 }
 
 #[test]
