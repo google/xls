@@ -334,3 +334,72 @@ func.func @collapse_shape(%arg0: tensor<2x2xi32>) -> tensor<4xi32> attributes {x
   %0 = tensor.collapse_shape %arg0 [[0, 1]] : tensor<2x2xi32> into tensor<4xi32>
   return %0 : tensor<4xi32>
 }
+
+// CHECK-LABEL: @bitcast
+// CHECK-DAG: %[[ARG0_0:.*]] = "xls.array_index_static"(%arg0) <{index = 0 : i64}> : (!xls.array<2xbf16>) -> bf16
+// CHECK-DAG: %[[CAST_0:.*]] = arith.bitcast %[[ARG0_0]] : bf16 to i16
+// CHECK-DAG: %[[ARG0_1:.*]] = "xls.array_index_static"(%arg0) <{index = 1 : i64}> : (!xls.array<2xbf16>) -> bf16
+// CHECK-DAG: %[[CAST_1:.*]] = arith.bitcast %[[ARG0_1]] : bf16 to i16
+// CHECK-DAG: %[[RES:.*]] = xls.array %[[CAST_0]], %[[CAST_1]] : (i16, i16) -> !xls.array<2xi16>
+// CHECK-DAG: return %[[RES]] : !xls.array<2xi16>
+func.func @bitcast(%arg0: tensor<2xbf16>) -> tensor<2xi16> attributes {xls = true} {
+  %0 = arith.bitcast %arg0 : tensor<2xbf16> to tensor<2xi16>
+  return %0 : tensor<2xi16>
+}
+
+// CHECK-LABEL: @index_cast
+// CHECK-DAG: %[[ARG0_0:.*]] = "xls.array_index_static"(%arg0) <{index = 0 : i64}> : (!xls.array<2xindex>) -> index
+// CHECK-DAG: %[[CAST_0:.*]] = arith.index_cast %[[ARG0_0]] : index to i32
+// CHECK-DAG: %[[ARG0_1:.*]] = "xls.array_index_static"(%arg0) <{index = 1 : i64}> : (!xls.array<2xindex>) -> index
+// CHECK-DAG: %[[CAST_1:.*]] = arith.index_cast %[[ARG0_1]] : index to i32
+// CHECK-DAG: %[[RES:.*]] = xls.array %[[CAST_0]], %[[CAST_1]] : (i32, i32) -> !xls.array<2xi32>
+// CHECK-DAG: return %[[RES]] : !xls.array<2xi32>
+func.func @index_cast(%arg0: tensor<2xindex>) -> tensor<2xi32> attributes {xls = true} {
+  %0 = arith.index_cast %arg0 : tensor<2xindex> to tensor<2xi32>
+  return %0 : tensor<2xi32>
+}
+
+// CHECK-LABEL: @index_castui
+// CHECK-DAG: %[[ARG0_0:.*]] = "xls.array_index_static"(%arg0) <{index = 0 : i64}> : (!xls.array<2xi32>) -> i32
+// CHECK-DAG: %[[CAST_0:.*]] = arith.index_castui %[[ARG0_0]] : i32 to index
+// CHECK-DAG: %[[ARG0_1:.*]] = "xls.array_index_static"(%arg0) <{index = 1 : i64}> : (!xls.array<2xi32>) -> i32
+// CHECK-DAG: %[[CAST_1:.*]] = arith.index_castui %[[ARG0_1]] : i32 to index
+// CHECK-DAG: %[[RES:.*]] = xls.array %[[CAST_0]], %[[CAST_1]] : (index, index) -> !xls.array<2xindex>
+// CHECK-DAG: return %[[RES]] : !xls.array<2xindex>
+func.func @index_castui(%arg0: tensor<2xi32>) -> tensor<2xindex> attributes {xls = true} {
+  %0 = arith.index_castui %arg0 : tensor<2xi32> to tensor<2xindex>
+  return %0 : tensor<2xindex>
+}
+
+// CHECK-LABEL: @bitcast_2d
+// CHECK: %[[RES:.*]] = xls.array %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : (i16, i16, i16, i16, i16, i16) -> !xls.array<6xi16>
+// CHECK: return %[[RES]] : !xls.array<6xi16>
+func.func @bitcast_2d(%arg0: tensor<2x3xbf16>) -> tensor<2x3xi16> attributes {xls = true} {
+  %0 = arith.bitcast %arg0 : tensor<2x3xbf16> to tensor<2x3xi16>
+  return %0 : tensor<2x3xi16>
+}
+
+// CHECK-LABEL: @bitcast_zero_elements
+// CHECK-NEXT: %[[ZERO:.*]] = "xls.array_zero"() : () -> !xls.array<0xi16>
+// CHECK-NEXT: return %[[ZERO]] : !xls.array<0xi16>
+func.func @bitcast_zero_elements(%arg0: tensor<0xbf16>) -> tensor<0xi16> attributes {xls = true} {
+  %0 = arith.bitcast %arg0 : tensor<0xbf16> to tensor<0xi16>
+  return %0 : tensor<0xi16>
+}
+
+// CHECK-LABEL: @index_cast_2d
+// CHECK: %[[RES:.*]] = xls.array %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : (i32, i32, i32, i32) -> !xls.array<4xi32>
+// CHECK: return %[[RES]] : !xls.array<4xi32>
+func.func @index_cast_2d(%arg0: tensor<2x2xindex>) -> tensor<2x2xi32> attributes {xls = true} {
+  %0 = arith.index_cast %arg0 : tensor<2x2xindex> to tensor<2x2xi32>
+  return %0 : tensor<2x2xi32>
+}
+
+// CHECK-LABEL: @index_cast_zero_elements
+// CHECK-NEXT: %[[ZERO:.*]] = "xls.array_zero"() : () -> !xls.array<0xi32>
+// CHECK-NEXT: return %[[ZERO]] : !xls.array<0xi32>
+func.func @index_cast_zero_elements(%arg0: tensor<0xindex>) -> tensor<0xi32> attributes {xls = true} {
+  %0 = arith.index_cast %arg0 : tensor<0xindex> to tensor<0xi32>
+  return %0 : tensor<0xi32>
+}
+

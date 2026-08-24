@@ -650,6 +650,54 @@ int getArraySize(ValueRange operands) {
   return 0;
 }
 
+// Legalizes tensor arith cast ops (`arith.bitcast`, `arith.index_cast`,
+// `arith.index_castui`) by unpacking array elements, applying scalar casts,
+// and packing them into an array.
+template <typename OpTy>
+class LegalizeArithCastPattern : public OpConversionPattern<OpTy> {
+ public:
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      OpTy op, typename OpTy::Adaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto arrayType = dyn_cast<ArrayType>(adaptor.getIn().getType());
+    if (!arrayType) {
+      return rewriter.notifyMatchFailure(op, "operand is not an array");
+    }
+
+    Type convertedResultType =
+        this->getTypeConverter()->convertType(op.getType());
+    auto resultArrayType = dyn_cast<ArrayType>(convertedResultType);
+    if (!resultArrayType) {
+      return rewriter.notifyMatchFailure(op,
+                                         "converted result is not an array");
+    }
+
+    int size = arrayType.getNumElements();
+    if (size == 0) {
+      rewriter.replaceOpWithNewOp<ArrayZeroOp>(op, resultArrayType);
+      return success();
+    }
+
+    Location loc = op.getLoc();
+    Type resultElementType = resultArrayType.getElementType();
+    SmallVector<Value> results;
+    results.reserve(size);
+
+    for (int i = 0; i < size; ++i) {
+      IntegerAttr i_attr = rewriter.getI64IntegerAttr(i);
+      Value element = ArrayIndexStaticOp::create(
+          rewriter, loc, arrayType.getElementType(), adaptor.getIn(), i_attr);
+      auto newOp = OpTy::create(rewriter, loc, resultElementType, element);
+      results.push_back(newOp.getResult());
+    }
+
+    rewriter.replaceOpWithNewOp<ArrayOp>(op, resultArrayType, results);
+    return success();
+  }
+};
+
 // Legalizes any scalarizable op.
 class LegalizeScalarizableOpPattern
     : public OpTraitConversionPattern<OpTrait::Scalarizable> {
@@ -897,6 +945,9 @@ class ScalarizePass : public impl::ScalarizePassBase<ScalarizePass> {
     patterns.add<
         // clang-format off
         ConvertForOpTypes,
+        LegalizeArithCastPattern<mlir::arith::BitcastOp>,
+        LegalizeArithCastPattern<mlir::arith::IndexCastOp>,
+        LegalizeArithCastPattern<mlir::arith::IndexCastUIOp>,
         LegalizeCallDslxPattern,
         LegalizeChanOpPattern,
         LegalizeConcatPattern,

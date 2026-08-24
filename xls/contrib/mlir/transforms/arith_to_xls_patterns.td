@@ -358,7 +358,8 @@ def : MinMaxPatBase<(Arith_MinUIOp:$op $a, $b), (Xls_UltOp $a, $b)>;
 def : Pat<(SelectOp $selector, $a, $b), (createSelOp2Cases $selector, $b, $a)>;
 
 def GetBitwidthAsI64Attr : NativeCodeCall<
-  "$_builder.getI64IntegerAttr(cast<IntegerType>($0.getType()).getWidth())"
+  "$_builder.getI64IntegerAttr(cast<IntegerType>("
+  "   ::mlir::getElementTypeOrSelf($0.getType())).getWidth())"
 >;
 
 def : Pat<
