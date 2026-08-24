@@ -358,6 +358,45 @@ std::optional<LiftedOpInfo> GetLiftableOperationInfoForOp(
   };
 }
 
+// Returns true if the operation preserves zero, i.e., op(0) == 0.
+// This is the safety requirement for lifting across a OneHotSelect where the
+// selector might be zero.
+bool OpPreservesZero(Op op) {
+  switch (op) {
+    case Op::kAnd:
+    case Op::kUMul:
+    case Op::kSMul:
+    case Op::kZeroExt:
+    case Op::kSignExt:
+    case Op::kTupleIndex:
+    case Op::kReverse:
+    case Op::kOrReduce:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Returns true if the operation distributes over bitwise OR, i.e.,
+//     op(A v B) == op(A) v op(B).
+// This is the safety requirement for lifting across a OneHotSelect where
+// more than one bit might be active.
+bool OpDistributesOverOr(Op op) {
+  switch (op) {
+    case Op::kAnd:
+    case Op::kOr:
+    case Op::kZeroExt:
+    case Op::kSignExt:
+    case Op::kTupleIndex:
+    case Op::kReverse:
+    case Op::kOrReduce:
+    case Op::kConcat:
+      return true;
+    default:
+      return false;
+  }
+}
+
 // Attempts to find a liftable operation in the select cases.
 std::optional<LiftedOpInfo> GetLiftableOperationInfo(
     absl::Span<Node* const> cases, std::optional<Node*> default_case,
@@ -395,16 +434,6 @@ absl::StatusOr<std::optional<LiftedOpInfo>> CanLiftSelect(
     const QueryEngine& query_engine) {
   VLOG(3) << "  Checking the applicability guard";
 
-  if (select_to_optimize.kind() == GenericSelect::Kind::kOneHotSel) {
-    if (!query_engine.ExactlyOneBitTrue(select_to_optimize.selector())) {
-      VLOG(3) << "    OneHotSelect selector is not provably strictly one-hot. "
-                 "Not liftable.";
-      return std::nullopt;
-    }
-    VLOG(3) << "    OneHotSelect selector is provably strictly one-hot. "
-               "Proceeding.";
-  }
-
   absl::Span<Node* const> cases = select_to_optimize.cases();
   std::optional<Node*> default_case = select_to_optimize.default_value();
 
@@ -434,15 +463,49 @@ absl::StatusOr<std::optional<LiftedOpInfo>> CanLiftSelect(
   for (Node* potential_shared : potential_shared_nodes) {
     std::optional<LiftedOpInfo> info =
         GetLiftableOperationInfo(cases, default_case, potential_shared);
-    if (info.has_value()) {
-      return info;
+    if (!info.has_value()) {
+      continue;
     }
+    if (select_to_optimize.AsNode()->op() == Op::kOneHotSel) {
+      if (!OpPreservesZero(info->lifted_op) &&
+          !query_engine.AtLeastOneBitTrue(select_to_optimize.selector())) {
+        VLOG(3) << "    OneHotSelect selector is not provably non-zero, and "
+                << OpToString(info->lifted_op)
+                << " is not safe to commute over a zero selector. Skipping.";
+        continue;  // Try other potential shared nodes
+      }
+      if (!OpDistributesOverOr(info->lifted_op) &&
+          !query_engine.AtMostOneBitTrue(select_to_optimize.selector())) {
+        VLOG(3) << "    OneHotSelect selector could have more than one bit "
+                   "set, and "
+                << OpToString(info->lifted_op)
+                << " is not safe to commute over a selector with multiple "
+                   "bits set. Skipping.";
+        continue;  // Try other potential shared nodes
+      }
+    }
+    return info;
   }
 
   // Check for ArrayIndex lifting opportunity.
   std::optional<Node*> shared_array =
       CheckArrayIndexLiftable(cases, default_case);
   if (shared_array.has_value()) {
+    if (select_to_optimize.AsNode()->op() == Op::kOneHotSel) {
+      if (!query_engine.AtMostOneBitTrue(select_to_optimize.selector())) {
+        VLOG(3)
+            << "    OneHotSelect selector could have more than one bit set, "
+               "and ArrayIndex is not safe to commute over a selector with "
+               "multiple bits set. Skipping.";
+        return std::nullopt;
+      }
+      if (!query_engine.AtLeastOneBitTrue(select_to_optimize.selector())) {
+        VLOG(3) << "    OneHotSelect selector is not provably non-zero, and "
+                   "ArrayIndex is not safe to commute without that guarantee. "
+                   "Skipping.";
+        return std::nullopt;
+      }
+    }
     // Build LiftedOpInfo for ArrayIndex
     std::vector<Node*> index_operands;
     for (Node* case_node : cases) {
