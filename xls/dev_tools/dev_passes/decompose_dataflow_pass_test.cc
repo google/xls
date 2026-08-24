@@ -131,6 +131,26 @@ TEST_F(DecomposeDataflowPassTest, DecoupledProcPassThroughTest) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
+TEST_F(DecomposeDataflowPassTest, MultipleReadPassThroughTest) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
+  BStateElement cond_element = pb.StateElement("cond", Value(UBits(1, 1)));
+  BValue cond = pb.StateRead(cond_element);
+  BValue not_cond = pb.Not(cond);
+
+  BStateElement state_element = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue read1 = pb.StateRead(state_element, cond);
+  BValue read2 = pb.StateRead(state_element, not_cond);
+
+  pb.Next(cond_element, not_cond);
+  pb.Next(state_element, read1);
+  pb.Next(state_element, read2);
+
+  XLS_ASSERT_OK(pb.Build());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 TEST_F(DecomposeDataflowPassTest, OneHotSelect) {
   auto p = CreatePackage();
   FunctionBuilder fb("f", p.get());
