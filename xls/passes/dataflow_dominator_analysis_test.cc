@@ -27,8 +27,6 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 
-namespace m = xls::op_matchers;
-
 namespace xls {
 namespace {
 
