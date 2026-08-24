@@ -1095,6 +1095,195 @@ fn test_simple() {
   EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
 }
 
+TEST_P(ParseAndTestTest, NewStyleTestProc) {
+  if (GetParam() == RunnerType::kIrInterpreter ||
+      GetParam() == RunnerType::kIrJit) {
+    GTEST_SKIP()
+        << "New-style proc tests only supported with proc-scoped channels";
+  }
+  constexpr std::string_view kProgram = R"(
+#[test]
+proc MyNewTestProc {
+  __test__terminator: chan<bool> out,
+}
+
+impl MyNewTestProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    MyNewTestProc { __test__terminator: terminator }
+  }
+  fn next(self) {
+    send(join(), self.__test__terminator, true);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", "test.x", ParseAndTestOptions{}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+}
+
+TEST_P(ParseAndTestTest, NewStyleTestProcMissingNew) {
+  if (GetParam() != RunnerType::kIrInterpreterProcScoped &&
+      GetParam() != RunnerType::kIrJitProcScoped) {
+    GTEST_SKIP()
+        << "Only testing MakeRunner failure modes on proc-scoped IR runners";
+  }
+  constexpr std::string_view kProgram = R"(
+#[test]
+proc MyNewTestProc {
+  __test__terminator: chan<bool> out,
+}
+
+impl MyNewTestProc {
+  // Constructor is named 'create', not 'new'.
+  fn create(terminator: chan<bool> out) -> Self {
+    MyNewTestProc { __test__terminator: terminator }
+  }
+  fn next(self) {
+    send(join(), self.__test__terminator, true);
+  }
+}
+)";
+  EXPECT_THAT(ParseAndTest(kProgram, "test", "test.x", ParseAndTestOptions()),
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("Could not find 'new' method in proc")));
+}
+
+TEST_P(ParseAndTestTest, NewStyleTestProcNoParams) {
+  if (GetParam() != RunnerType::kIrInterpreterProcScoped &&
+      GetParam() != RunnerType::kIrJitProcScoped) {
+    GTEST_SKIP()
+        << "Only testing MakeRunner failure modes on proc-scoped IR runners";
+  }
+  constexpr std::string_view kProgram0 = R"(
+#[test]
+proc MyNewTestProc {}
+
+impl MyNewTestProc {
+  fn new() -> Self {
+    MyNewTestProc {}
+  }
+  fn next(self) {}
+}
+)";
+  EXPECT_THAT(
+      ParseAndTest(kProgram0, "test", "test.x", ParseAndTestOptions()),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("expected 1")));
+}
+
+TEST_P(ParseAndTestTest, NewStyleTestProcTooManyParams) {
+  if (GetParam() != RunnerType::kIrInterpreterProcScoped &&
+      GetParam() != RunnerType::kIrJitProcScoped) {
+    GTEST_SKIP()
+        << "Only testing MakeRunner failure modes on proc-scoped IR runners";
+  }
+  constexpr std::string_view kProgram = R"(
+#[test]
+proc MyNewTestProc {
+  __test__terminator: chan<bool> out,
+  other: chan<u32> in,
+}
+
+impl MyNewTestProc {
+  fn new(terminator: chan<bool> out, other: chan<u32> in) -> Self {
+    MyNewTestProc { __test__terminator: terminator, other: other }
+  }
+  fn next(self) {
+    send(join(), self.__test__terminator, true);
+  }
+}
+)";
+  EXPECT_THAT(
+      ParseAndTest(kProgram, "test", "test.x", ParseAndTestOptions()),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("expected 1")));
+}
+
+TEST_P(ParseAndTestTest, NewStyleTestProcNonProcScoped) {
+  if (GetParam() != RunnerType::kIrInterpreter &&
+      GetParam() != RunnerType::kIrJit) {
+    GTEST_SKIP() << "Only testing non-proc-scoped failure mode on "
+                    "non-proc-scoped IR runners";
+  }
+  constexpr std::string_view kProgram = R"(
+#[test]
+proc MyNewTestProc {
+  __test__terminator: chan<bool> out,
+}
+
+impl MyNewTestProc {
+  fn new(terminator: chan<bool> out) -> Self {
+    MyNewTestProc { __test__terminator: terminator }
+  }
+  fn next(self) {
+    send(join(), self.__test__terminator, true);
+  }
+}
+)";
+  ParseAndTestOptions options;
+  options.convert_options.lower_to_proc_scoped_channels = false;
+  EXPECT_THAT(ParseAndTest(kProgram, "test", "test.x", options),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("Impl-style procs can only be compiled with "
+                                 "proc-scoped channels")));
+}
+
+TEST_P(ParseAndTestTest, NewStyleTestProcWithSpawn) {
+  if (GetParam() == RunnerType::kIrInterpreter ||
+      GetParam() == RunnerType::kIrJit) {
+    GTEST_SKIP()
+        << "New-style proc tests only supported with proc-scoped channels";
+  }
+  constexpr std::string_view kProgram = R"(
+proc Loopback {
+  c_in: chan<u32> in,
+  c_out: chan<u32> out,
+}
+
+impl Loopback {
+  fn new(c_in: chan<u32> in, c_out: chan<u32> out) -> Self {
+    Loopback { c_in, c_out }
+  }
+
+  fn next(self) {
+    let (t, val) = recv(join(), self.c_in);
+    send(t, self.c_out, val);
+  }
+}
+
+#[test]
+proc Main {
+  __test__terminator: chan<bool> out,
+  c_in_from_loopback: chan<u32> in,
+  c_out_to_loopback: chan<u32> out,
+}
+
+impl Main {
+  fn new(terminator: chan<bool> out) -> Self {
+    let (out_to_loopback, loopback_in) = chan<u32>("main_to_loopback");
+    let (loopback_out, in_from_loopback) = chan<u32>("loopback_to_main");
+    Loopback::new(loopback_in, loopback_out).spawn();
+
+    Main {
+      __test__terminator: terminator,
+      c_in_from_loopback: in_from_loopback,
+      c_out_to_loopback: out_to_loopback,
+    }
+  }
+
+  fn next(self) {
+    let tok = send(join(), self.c_out_to_loopback, u32:42);
+    let (tok, loopback_val) = recv(tok, self.c_in_from_loopback);
+    assert_eq(loopback_val, u32:42);
+    send(tok, self.__test__terminator, true);
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", "test.x", ParseAndTestOptions{}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+}
+
 INSTANTIATE_TEST_SUITE_P(RunRoutinesTest, RunRoutinesTest,
                          testing::Values(RunnerType::kDslxInterpreter,
                                          RunnerType::kIrInterpreter,

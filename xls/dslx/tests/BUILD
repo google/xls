@@ -22,6 +22,7 @@ load(
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
+    "xls_dslx_test",
     "xls_ir_opt_ir",
 )
 load("//xls/dslx:strip_comments.bzl", "dslx_strip_comments")
@@ -1395,4 +1396,18 @@ dslx_lang_test(
 dslx_lang_test(
     name = "const_match",
     dslx_entry = "main",
+)
+
+dslx_lang_test(
+    name = "new_style_proc_spawn_test",
+    convert_to_ir = False,
+)
+
+xls_dslx_test(
+    name = "new_style_proc_spawn_test_ir_jit",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    evaluator = "ir-jit",
+    library = ":new_style_proc_spawn_test_dslx",
 )

@@ -224,6 +224,10 @@ absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
 
 absl::StatusOr<std::vector<const NameRef*>> CollectNameRefsUnder(
     const AstNode* root, const NameDef* to);
+absl::StatusOr<absl::flat_hash_set<const NameRef*>> CollectNameRefsUnder(
+    const AstNode* root);
+absl::StatusOr<absl::flat_hash_set<const NameDef*>> CollectNameDefsUnder(
+    const AstNode* root);
 
 absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
                                                          bool want_types);

@@ -17,23 +17,88 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 namespace {
+
+absl::StatusOr<std::string> FindImportAlias(const Module& module,
+                                            const TypeInfo& type_info,
+                                            const Module* target_module,
+                                            std::string_view nominal_type) {
+  for (const auto& [name, import_node] : module.GetImportByName()) {
+    auto imported_info = type_info.GetImported(import_node);
+    if (imported_info.has_value() &&
+        imported_info.value()->module == target_module) {
+      return name;
+    }
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("Could not find import for type %s", nominal_type));
+}
+
+template <typename NominalDefT>
+absl::StatusOr<TypeAnnotation*> CreateNominalTypeAnnotation(
+    Module& new_module, const Module* source_module, const TypeInfo* type_info,
+    const NominalDefT& nominal_type, const Span& span) {
+  const Module* type_owner = nominal_type.owner();
+  if (source_module == nullptr || type_owner == source_module) {
+    XLS_ASSIGN_OR_RETURN(
+        TypeDefinition type_def,
+        new_module.GetTypeDefinition(nominal_type.identifier()));
+    TypeRef* type_ref = new_module.Make<TypeRef>(span, type_def);
+    return new_module.Make<TypeRefTypeAnnotation>(span, type_ref,
+                                                  std::vector<ExprOrType>{});
+  }
+
+  if (type_info == nullptr) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot resolve imported nominal type %s without type info",
+        nominal_type.identifier()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::string import_alias,
+                       FindImportAlias(*source_module, *type_info, type_owner,
+                                       nominal_type.identifier()));
+
+  auto imports = new_module.GetImportByName();
+  auto it = imports.find(import_alias);
+  if (it == imports.end()) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Could not find import %s in new module", import_alias));
+  }
+  Import* new_import = it->second;
+
+  NameRef* subject =
+      new_module.Make<NameRef>(span, import_alias, &new_import->name_def());
+  ColonRef* colon_ref =
+      new_module.Make<ColonRef>(span, subject, nominal_type.identifier());
+  TypeRef* type_ref = new_module.Make<TypeRef>(span, colon_ref);
+  return new_module.Make<TypeRefTypeAnnotation>(span, type_ref,
+                                                std::vector<ExprOrType>{});
+}
+
 class TypeCloner : public TypeVisitorWithDefault {
  public:
-  TypeCloner(Module& new_module, const Span& span)
-      : new_module_(new_module), span_(span) {}
+  TypeCloner(Module& new_module, const Span& span,
+             const Module* source_module = nullptr,
+             const TypeInfo* type_info = nullptr)
+      : new_module_(new_module),
+        span_(span),
+        source_module_(source_module),
+        type_info_(type_info) {}
 
   absl::Status HandleBits(const BitsType& t) override {
     XLS_ASSIGN_OR_RETURN(int64_t width, t.size().GetAsInt64());
@@ -48,7 +113,8 @@ class TypeCloner : public TypeVisitorWithDefault {
   absl::Status HandleChannel(const ChannelType& t) override {
     XLS_ASSIGN_OR_RETURN(
         TypeAnnotation * payload,
-        CreateTypeAnnotation(new_module_, t.payload_type(), span_));
+        CreateTypeAnnotation(new_module_, t.payload_type(), span_,
+                             source_module_, type_info_));
     type_annotation_ = new_module_.Make<ChannelTypeAnnotation>(
         span_, t.direction(), payload, /*dims=*/std::nullopt);
     return absl::OkStatus();
@@ -66,7 +132,8 @@ class TypeCloner : public TypeVisitorWithDefault {
     for (const auto& element_type : t.members()) {
       XLS_ASSIGN_OR_RETURN(
           TypeAnnotation * element_annot,
-          CreateTypeAnnotation(new_module_, *element_type, span_));
+          CreateTypeAnnotation(new_module_, *element_type, span_,
+                               source_module_, type_info_));
       element_annotations.push_back(element_annot);
     }
     type_annotation_ =
@@ -77,7 +144,8 @@ class TypeCloner : public TypeVisitorWithDefault {
   absl::Status HandleArray(const ArrayType& t) override {
     XLS_ASSIGN_OR_RETURN(
         TypeAnnotation * element_annot,
-        CreateTypeAnnotation(new_module_, t.element_type(), span_));
+        CreateTypeAnnotation(new_module_, t.element_type(), span_,
+                             source_module_, type_info_));
     XLS_ASSIGN_OR_RETURN(int64_t size, t.size().GetAsInt64());
     Number* dim_expr = new_module_.Make<Number>(
         span_, absl::StrCat(size), NumberKind::kOther, /*type=*/nullptr);
@@ -87,22 +155,20 @@ class TypeCloner : public TypeVisitorWithDefault {
   }
 
   absl::Status HandleStruct(const StructType& t) override {
-    std::string name = t.nominal_type().identifier();
-    XLS_ASSIGN_OR_RETURN(TypeDefinition type_def,
-                         new_module_.GetTypeDefinition(name));
-    TypeRef* type_ref = new_module_.Make<TypeRef>(span_, type_def);
-    type_annotation_ = new_module_.Make<TypeRefTypeAnnotation>(
-        span_, type_ref, std::vector<ExprOrType>{});
+    XLS_ASSIGN_OR_RETURN(
+        TypeAnnotation * ta,
+        CreateNominalTypeAnnotation(new_module_, source_module_, type_info_,
+                                    t.nominal_type(), span_));
+    type_annotation_ = ta;
     return absl::OkStatus();
   }
 
   absl::Status HandleEnum(const EnumType& t) override {
-    std::string name = t.nominal_type().identifier();
-    XLS_ASSIGN_OR_RETURN(TypeDefinition type_def,
-                         new_module_.GetTypeDefinition(name));
-    TypeRef* type_ref = new_module_.Make<TypeRef>(span_, type_def);
-    type_annotation_ = new_module_.Make<TypeRefTypeAnnotation>(
-        span_, type_ref, std::vector<ExprOrType>{});
+    XLS_ASSIGN_OR_RETURN(
+        TypeAnnotation * ta,
+        CreateNominalTypeAnnotation(new_module_, source_module_, type_info_,
+                                    t.nominal_type(), span_));
+    type_annotation_ = ta;
     return absl::OkStatus();
   }
 
@@ -112,13 +178,15 @@ class TypeCloner : public TypeVisitorWithDefault {
   TypeAnnotation* type_annotation_ = nullptr;
   Module& new_module_;
   const Span& span_;
+  const Module* source_module_;
+  const TypeInfo* type_info_;
 };
 }  // namespace
 
-absl::StatusOr<TypeAnnotation*> CreateTypeAnnotation(Module& new_module,
-                                                     const Type& type,
-                                                     const Span& span) {
-  TypeCloner cloner(new_module, span);
+absl::StatusOr<TypeAnnotation*> CreateTypeAnnotation(
+    Module& new_module, const Type& type, const Span& span,
+    const Module* source_module, const TypeInfo* type_info) {
+  TypeCloner cloner(new_module, span, source_module, type_info);
   XLS_RETURN_IF_ERROR(type.Accept(cloner));
   return cloner.type_annotation();
 }
