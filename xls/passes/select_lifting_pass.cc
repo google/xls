@@ -198,6 +198,25 @@ std::optional<Node*> CheckArrayIndexLiftable(
   return ApplicabilityGuardForArrayIndex(cases, default_case);
 }
 
+// Returns true if the operation has a registered identity literal.
+bool HasIdentityLiteral(Op op) {
+  switch (op) {
+    case Op::kAdd:
+    case Op::kSub:
+    case Op::kOr:
+    case Op::kXor:
+    case Op::kShll:
+    case Op::kShrl:
+    case Op::kShra:
+    case Op::kAnd:
+    case Op::kUMul:
+    case Op::kSMul:
+      return true;
+    default:
+      return false;
+  }
+}
+
 // Creates a Literal node representing the right-identity for the given
 // operation. e.g., 0 for Add/Sub/Xor, -1 for And, 1 for Mul.
 // Note that all operations in kLiftableBinaryOps have a constant
@@ -341,6 +360,14 @@ std::optional<LiftedOpInfo> GetLiftableOperationInfoForOp(
     return std::nullopt;
   }
 
+  if ((!identity_case_indices.empty() || default_is_identity) &&
+      !HasIdentityLiteral(test_op)) {
+    VLOG(3) << "Cannot lift: operation " << OpToString(test_op)
+            << " does not have a registered identity literal, but identity "
+               "cases are present.";
+    return std::nullopt;
+  }
+
   // If the op is commutative, we can always act as if the shared node was on
   // the LHS.
   if (op_is_commutative) {
@@ -359,9 +386,11 @@ std::optional<LiftedOpInfo> GetLiftableOperationInfoForOp(
 }
 
 // Returns true if the operation preserves zero, i.e., op(0) == 0.
-// This is the safety requirement for lifting across a OneHotSelect where the
-// selector might be zero.
-bool OpPreservesZero(Op op) {
+// For comparison and shift operations, this is conditional on the value
+// and position of the shared operand X.
+bool OpPreservesZero(const LiftedOpInfo& info,
+                     const QueryEngine& query_engine) {
+  Op op = info.lifted_op;
   switch (op) {
     case Op::kAnd:
     case Op::kUMul:
@@ -372,6 +401,60 @@ bool OpPreservesZero(Op op) {
     case Op::kReverse:
     case Op::kOrReduce:
       return true;
+
+    // If the select is the value being shifted, then this is always true;
+    // shifting 0 by any amount is 0.
+    //
+    // It's technically also safe if the value being shifted is identically
+    // zero, but that should be simplified to zero elsewhere.
+    case Op::kShll:
+    case Op::kShrl:
+    case Op::kShra: {
+      return !info.shared_is_lhs;
+    }
+
+    // For comparisons, the safety depends on whether the shared node is 0 (and
+    // for inequalities, which side it's on).
+    case Op::kEq: {
+      if (!info.shared_node->GetType()->IsBits()) {
+        return false;
+      }
+      // If the shared node is non-zero, then comparing shared == 0 will be
+      // false - so it returns 0.
+      return query_engine.AtLeastOneBitTrue(info.shared_node);
+    }
+    case Op::kNe: {
+      // If the shared node is zero, then comparing shared != 0 will be false -
+      // so it returns 0.
+      return query_engine.IsAllZeros(info.shared_node);
+    }
+    case Op::kULe: {
+      // If the shared node is the LHS and non-zero, then comparing shared <= 0
+      // will be false - so it returns 0.
+      return info.shared_is_lhs &&
+             query_engine.AtLeastOneBitTrue(info.shared_node);
+    }
+    case Op::kUGe: {
+      // If the shared node is the RHS and non-zero, then comparing 0 <= shared
+      // will be false - so it returns 0.
+      return !info.shared_is_lhs &&
+             query_engine.AtLeastOneBitTrue(info.shared_node);
+    }
+    case Op::kULt: {
+      // If the shared node is the LHS, then comparing shared < 0 will always be
+      // false, so it returns 0.
+      // If it's the RHS, then comparing 0 < shared will
+      // be only be false if shared is 0.
+      return info.shared_is_lhs || query_engine.IsAllZeros(info.shared_node);
+    }
+    case Op::kUGt: {
+      // If the shared node is the RHS, then comparing 0 > shared will always be
+      // false, so it returns 0.
+      // If it's the LHS, then comparing shared > 0 will
+      // be only be false if shared is 0.
+      return !info.shared_is_lhs || query_engine.IsAllZeros(info.shared_node);
+    }
+
     default:
       return false;
   }
@@ -402,8 +485,9 @@ std::optional<LiftedOpInfo> GetLiftableOperationInfo(
     absl::Span<Node* const> cases, std::optional<Node*> default_case,
     Node* potential_shared_node) {
   constexpr Op kLiftableBinaryOps[] = {
-      Op::kAdd,  Op::kSub,  Op::kAnd,  Op::kOr,   Op::kXor,
-      Op::kUMul, Op::kSMul, Op::kShll, Op::kShrl, Op::kShra};
+      Op::kAdd,  Op::kSub,  Op::kAnd,  Op::kOr,   Op::kXor, Op::kUMul,
+      Op::kSMul, Op::kShll, Op::kShrl, Op::kShra, Op::kEq,  Op::kNe,
+      Op::kULe,  Op::kUGe,  Op::kULt,  Op::kUGt};
 
   for (Op test_op : kLiftableBinaryOps) {
     std::optional<LiftedOpInfo> info = GetLiftableOperationInfoForOp(
@@ -427,6 +511,33 @@ std::unique_ptr<QueryEngine> GetQueryEngine(
       UnionQueryEngine::Of(StatelessQueryEngine(),
                            context.SharedQueryEngine<PartialInfoQueryEngine>(f),
                            context.SharedQueryEngine<BddQueryEngine>(f)));
+}
+
+// Returns true if the 0-th element of the array is proven to be all-zeros.
+// Natively supports nested arrays, tuples, and structs by slicing the leaf
+// tree.
+bool IsFirstElementZero(Node* array, const QueryEngine& query_engine) {
+  if (!array->GetType()->IsArray()) {
+    return false;
+  }
+  // Fast-path: If it is structurally an Array node, check its 0-th operand
+  // directly
+  if (array->Is<Array>()) {
+    return query_engine.IsAllZeros(array->operand(0));
+  }
+  // Fallback: Slice the ternary tree at index 0 and check all leaves
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
+      query_engine.GetTernary(array);
+  if (!ternary.has_value()) {
+    return false;
+  }
+  LeafTypeTreeView<TernaryVector> element_view = ternary->AsView({0});
+  for (const TernaryVector& leaf_vector : element_view.elements()) {
+    if (!ternary_ops::IsKnownZero(leaf_vector)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 absl::StatusOr<std::optional<LiftedOpInfo>> CanLiftSelect(
@@ -467,15 +578,25 @@ absl::StatusOr<std::optional<LiftedOpInfo>> CanLiftSelect(
       continue;
     }
     if (select_to_optimize.AsNode()->op() == Op::kOneHotSel) {
-      if (!OpPreservesZero(info->lifted_op) &&
-          !query_engine.AtLeastOneBitTrue(select_to_optimize.selector())) {
+      bool preserves_zero = OpPreservesZero(*info, query_engine);
+      bool at_least_one_bit =
+          query_engine.AtLeastOneBitTrue(select_to_optimize.selector());
+      bool distributes_or = OpDistributesOverOr(info->lifted_op);
+      bool at_most_one_bit =
+          query_engine.AtMostOneBitTrue(select_to_optimize.selector());
+      VLOG(3) << "SelectLifting: Checking Op " << OpToString(info->lifted_op);
+      VLOG(3) << "  preserves_zero: " << preserves_zero
+              << ", at_least_one_bit: " << at_least_one_bit;
+      VLOG(3) << "  distributes_or: " << distributes_or
+              << ", at_most_one_bit: " << at_most_one_bit;
+
+      if (!preserves_zero && !at_least_one_bit) {
         VLOG(3) << "    OneHotSelect selector is not provably non-zero, and "
                 << OpToString(info->lifted_op)
                 << " is not safe to commute over a zero selector. Skipping.";
         continue;  // Try other potential shared nodes
       }
-      if (!OpDistributesOverOr(info->lifted_op) &&
-          !query_engine.AtMostOneBitTrue(select_to_optimize.selector())) {
+      if (!distributes_or && !at_most_one_bit) {
         VLOG(3) << "    OneHotSelect selector could have more than one bit "
                    "set, and "
                 << OpToString(info->lifted_op)
@@ -492,18 +613,19 @@ absl::StatusOr<std::optional<LiftedOpInfo>> CanLiftSelect(
       CheckArrayIndexLiftable(cases, default_case);
   if (shared_array.has_value()) {
     if (select_to_optimize.AsNode()->op() == Op::kOneHotSel) {
-      if (!query_engine.AtMostOneBitTrue(select_to_optimize.selector())) {
-        VLOG(3)
-            << "    OneHotSelect selector could have more than one bit set, "
-               "and ArrayIndex is not safe to commute over a selector with "
-               "multiple bits set. Skipping.";
-        return std::nullopt;
-      }
-      if (!query_engine.AtLeastOneBitTrue(select_to_optimize.selector())) {
-        VLOG(3) << "    OneHotSelect selector is not provably non-zero, and "
-                   "ArrayIndex is not safe to commute without that guarantee. "
-                   "Skipping.";
-        return std::nullopt;
+      if (!query_engine.ExactlyOneBitTrue(select_to_optimize.selector())) {
+        // Class B ArrayIndex lifting requires AtMostOneBitTrue AND A[0] == 0!
+        if (query_engine.AtMostOneBitTrue(select_to_optimize.selector()) &&
+            IsFirstElementZero(shared_array.value(), query_engine)) {
+          VLOG(3) << "    OneHotSelect selector is Class B, and first array "
+                     "element "
+                  << shared_array.value()->ToString()
+                  << "[0] is zero. Proceeding.";
+        } else {
+          VLOG(3) << "    OneHotSelect selector is not Class A, and ArrayIndex "
+                     "is not safe. Skipping.";
+          return std::nullopt;
+        }
       }
     }
     // Build LiftedOpInfo for ArrayIndex
@@ -624,6 +746,21 @@ absl::StatusOr<bool> CheckLatencyIncrease(
         XLS_ASSIGN_OR_RETURN(
             tmp_lifted_op,
             func->MakeNode<BinOp>(SourceInfo(), lhs, rhs, info.lifted_op));
+        break;
+      }
+      case Op::kEq:
+      case Op::kNe:
+      case Op::kULt:
+      case Op::kULe:
+      case Op::kUGt:
+      case Op::kUGe:
+      case Op::kSLt:
+      case Op::kSLe:
+      case Op::kSGt:
+      case Op::kSGe: {
+        XLS_ASSIGN_OR_RETURN(
+            tmp_lifted_op,
+            func->MakeNode<CompareOp>(SourceInfo(), lhs, rhs, info.lifted_op));
         break;
       }
       case Op::kAnd:
@@ -797,30 +934,8 @@ absl::StatusOr<bool> ProfitabilityGuardForBinaryOperation(
     return false;
   }
 
-  // Calculate Cost Before:
-  // Sum of bitwidths of the original select and any single-use non-identity
-  // case nodes.
-  int64_t initial_bitwidths =
-      select_to_optimize.AsNode()->GetType()->GetFlatBitCount();
-  absl::Span<Node* const> cases = select_to_optimize.cases();
-  for (int64_t i = 0; i < cases.size(); ++i) {
-    if (!info.identity_case_indices.contains(i)) {
-      Node* case_node = cases[i];
-      if (HasSingleUse(case_node)) {
-        initial_bitwidths += case_node->GetType()->GetFlatBitCount();
-      }
-    }
-  }
-  std::optional<Node*> default_case = select_to_optimize.default_value();
-  if (default_case.has_value() && !info.default_is_identity) {
-    if (HasSingleUse(*default_case)) {
-      initial_bitwidths += (*default_case)->GetType()->GetFlatBitCount();
-    }
-  }
-
-  // Calculate Cost After:
-  // Bitwidth of the new select + bitwidth of the lifted binary operation
-  // output.
+  // Calculate Cost After first, because we need `new_select_width` for the
+  // cost of comparison ops in "Cost Before".
   Type* other_operand_type = nullptr;
   if (!info.other_operands.empty()) {
     other_operand_type = info.other_operands[0]->GetType();
@@ -832,11 +947,49 @@ absl::StatusOr<bool> ProfitabilityGuardForBinaryOperation(
   }
   int64_t new_select_width = other_operand_type->GetFlatBitCount();
 
-  // The output width of the lifted op is the same as the original select.
-  int64_t lifted_op_output_width =
-      select_to_optimize.AsNode()->GetType()->GetFlatBitCount();
+  bool is_comparison = absl::c_contains(CompareOp::kOps, info.lifted_op);
 
-  int64_t remaining_bitwidths = new_select_width + lifted_op_output_width;
+  // Calculate Cost Before:
+  // Sum of bitwidths of the original select and any single-use non-identity
+  // case nodes.
+  int64_t initial_bitwidths =
+      select_to_optimize.AsNode()->GetType()->GetFlatBitCount();
+  absl::Span<Node* const> cases = select_to_optimize.cases();
+  for (int64_t i = 0; i < cases.size(); ++i) {
+    if (!info.identity_case_indices.contains(i)) {
+      Node* case_node = cases[i];
+      if (HasSingleUse(case_node)) {
+        if (is_comparison) {
+          // For comparisons, the cost of the op is proportional to its input
+          // bitwidth, not its 1-bit output.
+          initial_bitwidths += new_select_width;
+        } else {
+          initial_bitwidths += case_node->GetType()->GetFlatBitCount();
+        }
+      }
+    }
+  }
+  std::optional<Node*> default_case = select_to_optimize.default_value();
+  if (default_case.has_value() && !info.default_is_identity) {
+    if (HasSingleUse(*default_case)) {
+      if (is_comparison) {
+        initial_bitwidths += new_select_width;
+      } else {
+        initial_bitwidths += (*default_case)->GetType()->GetFlatBitCount();
+      }
+    }
+  }
+
+  // The output width of the lifted op. For comparisons, we use the input
+  // bitwidth as a proxy for the cost of the lifted op.
+  int64_t lifted_op_cost = 0;
+  if (is_comparison) {
+    lifted_op_cost = new_select_width;
+  } else {
+    lifted_op_cost = select_to_optimize.AsNode()->GetType()->GetFlatBitCount();
+  }
+
+  int64_t remaining_bitwidths = new_select_width + lifted_op_cost;
 
   VLOG(3) << "    Profitability: Initial bitwidths: " << initial_bitwidths
           << ", Remaining bitwidths: " << remaining_bitwidths;
@@ -1002,6 +1155,21 @@ absl::StatusOr<TransformationResult> LiftSelectForBinaryOperation(
           func->MakeNode<BinOp>(SourceInfo(), lhs, rhs, info.lifted_op));
       break;
     }
+    case Op::kEq:
+    case Op::kNe:
+    case Op::kULe:
+    case Op::kUGe:
+    case Op::kULt:
+    case Op::kUGt:
+    case Op::kSLe:
+    case Op::kSGe:
+    case Op::kSLt:
+    case Op::kSGt: {
+      XLS_ASSIGN_OR_RETURN(
+          new_binop,
+          func->MakeNode<CompareOp>(SourceInfo(), lhs, rhs, info.lifted_op));
+      break;
+    }
     case Op::kAnd:
     case Op::kOr:
     case Op::kXor: {
@@ -1072,6 +1240,12 @@ absl::StatusOr<TransformationResult> LiftSelect(
     case Op::kShll:
     case Op::kShrl:
     case Op::kShra:
+    case Op::kEq:
+    case Op::kNe:
+    case Op::kULe:
+    case Op::kUGe:
+    case Op::kULt:
+    case Op::kUGt:
       return LiftSelectForBinaryOperation(func, select_to_optimize, info);
 
     default:
