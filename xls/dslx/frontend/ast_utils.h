@@ -222,8 +222,14 @@ std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
 absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
                                                    bool want_types);
 
+// Collects all NameRefs under the given root. If `to` is provided, only
+// collects NameRefs that refer to the given NameDef.
 absl::StatusOr<std::vector<const NameRef*>> CollectNameRefsUnder(
-    const AstNode* root, const NameDef* to);
+    const AstNode* root, const NameDef* to = nullptr);
+
+// Collects all NameDefs under the given root.
+absl::StatusOr<absl::flat_hash_set<const NameDef*>> CollectNameDefsUnder(
+    const AstNode* root);
 
 absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
                                                          bool want_types);

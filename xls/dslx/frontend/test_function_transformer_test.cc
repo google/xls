@@ -97,9 +97,7 @@ fn main() {
       absl::StrContains(cloned_code, "#[test]\nproc __test__proc__main"));
 }
 
-// TODO(davidplass): This test currently fails because it's not promoting the
-// variables to fields yet.
-TEST(TestFunctionTransformerTest, DISABLED_TestFunctionWithSetupAndRuntime) {
+TEST(TestFunctionTransformerTest, TestFunctionWithSetupAndRuntime) {
   constexpr std::string_view kProgram = R"(proc P {
     r: chan<u32> in,
 }
@@ -136,7 +134,7 @@ fn main() {
 
   // Runtime statements must be in 'next'
   std::string next_body = impl_code.substr(next_pos);
-  EXPECT_TRUE(absl::StrContains(next_body, "send(token(), s, u32:0)"));
+  EXPECT_TRUE(absl::StrContains(next_body, "send(token(), self.s, u32:0)"));
   EXPECT_TRUE(absl::StrContains(next_body, "self.__test__terminator"));
 }
 
@@ -180,9 +178,7 @@ fn main() {
       "__test__proc__main { __test__terminator: __test__terminator }"));
 }
 
-// TODO(davidplass): This test currently fails because it's not promoting the
-// variables to fields yet.
-TEST(TestFunctionTransformerTest, DISABLED_TestFunctionWithAssertions) {
+TEST(TestFunctionTransformerTest, TestFunctionWithAssertions) {
   constexpr std::string_view kProgram = R"(
 proc P {
 }
@@ -219,13 +215,11 @@ fn main() {
 
   // Runtime and assertions in 'next'
   std::string next_body = impl_code.substr(next_pos);
-  EXPECT_TRUE(absl::StrContains(next_body, "send(token(), tx, u32:42)"));
+  EXPECT_TRUE(absl::StrContains(next_body, "send(token(), self.tx, u32:42)"));
   EXPECT_TRUE(absl::StrContains(next_body, "assert_eq(u32:1, u32:1)"));
 }
 
-// TODO(davidplass): This test currently fails because it's not promoting the
-// variables to fields yet.
-TEST(TestFunctionTransformerTest, DISABLED_TestFunctionMultipleSpawns) {
+TEST(TestFunctionTransformerTest, TestFunctionMultipleSpawns) {
   constexpr std::string_view kProgram = R"(
 proc P {
 }
@@ -268,8 +262,206 @@ fn main() {
 
   // Runtime in 'next'
   std::string next_body = impl_code.substr(next_pos);
-  EXPECT_TRUE(absl::StrContains(next_body, "send(token(), tx1, u32:1)"));
-  EXPECT_TRUE(absl::StrContains(next_body, "send(token(), tx2, u32:2)"));
+  EXPECT_TRUE(absl::StrContains(next_body, "send(token(), self.tx1, u32:1)"));
+  EXPECT_TRUE(absl::StrContains(next_body, "send(token(), self.tx2, u32:2)"));
+}
+
+TEST(TestFunctionTransformerTest, TestFunctionWithDestructuredLets) {
+  constexpr std::string_view kProgram = R"(
+proc P {
+}
+impl P {
+    fn new() -> Self { P {} }
+}
+
+#[test]
+fn main() {
+    let (tx, rx) = chan<u32>("c");
+    let (p, (dummy1, dummy2)) = (P::new(), (u32:1, u32:2));
+    p.spawn();
+    send(token(), tx, u32:42);
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+
+  size_t impl_pos = cloned_code.find("impl __test__proc__main");
+  ASSERT_NE(impl_pos, std::string::npos);
+  std::string impl_code = cloned_code.substr(impl_pos);
+
+  size_t new_pos = impl_code.find("fn new(");
+  size_t next_pos = impl_code.find("fn next(");
+
+  ASSERT_NE(new_pos, std::string::npos);
+  ASSERT_NE(next_pos, std::string::npos);
+
+  // Setup in 'new'
+  std::string new_body = impl_code.substr(new_pos, next_pos - new_pos);
+  EXPECT_TRUE(absl::StrContains(new_body, "let (tx, rx) = chan<u32>(\"c\");"));
+  EXPECT_TRUE(absl::StrContains(
+      new_body, "let (p, (dummy1, dummy2)) = (P::new(), (u32:1, u32:2));"));
+  EXPECT_TRUE(absl::StrContains(new_body, "p.spawn();"));
+
+  // Runtime in 'next'
+  std::string next_body = impl_code.substr(next_pos);
+  // tx must be promoted.
+  EXPECT_TRUE(absl::StrContains(next_body, "send(token(), self.tx, u32:42)"));
+}
+
+TEST(TestFunctionTransformerTest, TestFunctionWithShadowedVariables) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+proc P {
+}
+impl P {
+    fn new() -> Self { P {} }
+}
+
+#[test]
+fn main() {
+    let (tx, rx) = chan<u32>("c");
+    let p = P::new();
+    p.spawn();
+
+    let x = u32:1;
+    send(token(), tx, x);
+
+    let x = u32:2;
+    send(token(), tx, x);
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+
+  size_t impl_pos = cloned_code.find("impl __test__proc__main");
+  ASSERT_NE(impl_pos, std::string::npos);
+  std::string impl_code = cloned_code.substr(impl_pos);
+
+  size_t new_pos = impl_code.find("fn new(");
+  size_t next_pos = impl_code.find("fn next(");
+
+  ASSERT_NE(new_pos, std::string::npos);
+  ASSERT_NE(next_pos, std::string::npos);
+
+  std::string new_body = impl_code.substr(new_pos, next_pos - new_pos);
+  EXPECT_TRUE(absl::StrContains(new_body, "let (tx, rx) = chan<u32>(\"c\");"))
+      << new_body;
+  EXPECT_TRUE(absl::StrContains(new_body, "let x = u32:1;")) << new_body;
+  EXPECT_TRUE(absl::StrContains(new_body, "let __x_1 = u32:2;")) << new_body;
+
+  std::string next_body = impl_code.substr(next_pos);
+  // tx and x and shadowed x must be promoted.
+  EXPECT_TRUE(
+      absl::StrContains(next_body, "send(token(), self.tx, read(self.x))"))
+      << next_body;
+  EXPECT_TRUE(
+      absl::StrContains(next_body, "send(token(), self.tx, read(self.__x_1))"))
+      << next_body;
+}
+
+TEST(TestFunctionTransformerTest, TestFunctionWithForLoop) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+proc P {
+    r: chan<u32> in,
+    s: chan<u32> out,
+}
+impl P {
+    fn new(r: chan<u32> in, s: chan<u32> out) -> Self { P { r, s } }
+    fn next(self) {
+        let (tok, val) = recv(token(), self.r);
+        send(tok, self.s, val + u32:1);
+    }
+}
+
+#[test]
+fn main() {
+    let (tx_in, rx_in) = chan<u32>("in");
+    let (tx_out, rx_out) = chan<u32>("out");
+    P::new(rx_in, tx_out).spawn();
+
+    let tok = token();
+    let (tok, accum) = for (i, (tok, accum)) in u32:0..u32:5 {
+        let tok = send(tok, tx_in, i);
+        let (tok, val) = recv(tok, rx_out);
+        (tok, accum + val)
+    }((tok, u32:0));
+
+    assert_eq(accum, u32:15);
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+
+  size_t impl_pos = cloned_code.find("impl __test__proc__main");
+  ASSERT_NE(impl_pos, std::string::npos);
+  std::string impl_code = cloned_code.substr(impl_pos);
+
+  size_t new_pos = impl_code.find("fn new(");
+  size_t next_pos = impl_code.find("fn next(");
+
+  ASSERT_NE(new_pos, std::string::npos);
+  ASSERT_NE(next_pos, std::string::npos);
+
+  std::string new_body = impl_code.substr(new_pos, next_pos - new_pos);
+  EXPECT_TRUE(
+      absl::StrContains(new_body, "let (tx_in, rx_in) = chan<u32>(\"in\");"))
+      << new_body;
+  EXPECT_TRUE(
+      absl::StrContains(new_body, "let (tx_out, rx_out) = chan<u32>(\"out\");"))
+      << new_body;
+
+  std::string next_body = impl_code.substr(next_pos);
+  // tx_in and rx_out must be promoted and rewritten inside the for loop.
+  EXPECT_TRUE(absl::StrContains(next_body, "send(tok, self.tx_in, i)"))
+      << next_body;
+  EXPECT_TRUE(absl::StrContains(next_body, "recv(tok, self.rx_out)"))
+      << next_body;
+}
+
+TEST(TestFunctionTransformerTest, TestFunctionWithUnrollFor) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+proc P {
+    r: chan<u32> in,
+}
+impl P {
+    fn new(r: chan<u32> in) -> Self { P { r } }
+}
+
+#[test]
+fn main() {
+    let (tx, rx) = chan<u32>("c");
+    P::new(rx).spawn();
+
+    let my_array = unroll_for! (i, accum) in u32:0..u32:4 {
+        accum
+    }([u32:1, u32:2, u32:3, u32:4]);
+
+    send(token(), tx, my_array[u32:0]);
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+
+  size_t impl_pos = cloned_code.find("impl __test__proc__main");
+  ASSERT_NE(impl_pos, std::string::npos);
+  std::string impl_code = cloned_code.substr(impl_pos);
+
+  size_t new_pos = impl_code.find("fn new(");
+  size_t next_pos = impl_code.find("fn next(");
+
+  ASSERT_NE(new_pos, std::string::npos);
+  ASSERT_NE(next_pos, std::string::npos);
+
+  std::string new_body = impl_code.substr(new_pos, next_pos - new_pos);
+  EXPECT_TRUE(absl::StrContains(new_body, "let (tx, rx) = chan<u32>(\"c\");"))
+      << new_body;
+  EXPECT_TRUE(absl::StrContains(new_body, "let my_array = unroll_for!"))
+      << new_body;
+
+  std::string next_body = impl_code.substr(next_pos);
+  // tx and my_array must be promoted.
+  EXPECT_TRUE(absl::StrContains(
+      next_body, "send(token(), self.tx, read(self.my_array)[u32:0])"))
+      << next_body;
 }
 
 // Tests that the statements in the test function are cloned into the new
@@ -302,6 +494,97 @@ fn main() {
   }
   std::string cloned_code = new_module->ToString();
   EXPECT_TRUE(absl::StrContains(cloned_code, "let x = u32:42;"));
+}
+
+TEST(TestFunctionTransformerTest, TestFunctionWithPromotedTuple) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+proc P {
+    c: chan<u32> out,
+}
+impl P {
+    fn new(c: chan<u32> out) -> Self { P { c } }
+}
+
+#[test]
+fn main() {
+    let (tx, rx) = chan<u32>("c");
+    let t = (u32:42, u32:100);
+    P::new(tx).spawn();
+    let tok = send(token(), tx, t.0);
+    send(tok, tx, t.1);
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+
+  size_t impl_pos = cloned_code.find("impl __test__proc__main");
+  ASSERT_NE(impl_pos, std::string::npos);
+  std::string impl_code = cloned_code.substr(impl_pos);
+
+  size_t new_pos = impl_code.find("fn new(");
+  size_t next_pos = impl_code.find("fn next(");
+
+  ASSERT_NE(new_pos, std::string::npos);
+  ASSERT_NE(next_pos, std::string::npos);
+
+  // Setup in 'new'
+  std::string new_body = impl_code.substr(new_pos, next_pos - new_pos);
+  EXPECT_TRUE(absl::StrContains(new_body, "let t = (u32:42, u32:100);"));
+
+  // Runtime in 'next'
+  std::string next_body = impl_code.substr(next_pos);
+  // tx and t must be promoted.
+  EXPECT_TRUE(absl::StrContains(
+      next_body, "let tok = send(token(), self.tx, read(self.t).0);"));
+  EXPECT_TRUE(
+      absl::StrContains(next_body, "send(tok, self.tx, read(self.t).1);"));
+}
+
+TEST(TestFunctionTransformerTest, TestFunctionWithUnpromotedTuple) {
+  constexpr std::string_view kProgram = R"(#![feature(explicit_state_access)]
+proc P {
+    c: chan<u32> out,
+}
+impl P {
+    fn new(c: chan<u32> out) -> Self { P { c } }
+}
+
+#[test]
+fn main() {
+    let (tx, rx) = chan<u32>("c");
+    let my_tuple = (u32:1, u32:2);
+    let sum = my_tuple.0 + my_tuple.1;
+    P::new(tx).spawn();
+    send(token(), tx, sum);
+}
+)";
+  // This test should pass because 'my_tuple' is not promoted (only 'tx' and
+  // 'sum' are).
+  XLS_ASSERT_OK_AND_ASSIGN(std::string cloned_code,
+                           TransformAndTypecheck(kProgram));
+
+  size_t impl_pos = cloned_code.find("impl __test__proc__main");
+  ASSERT_NE(impl_pos, std::string::npos);
+  std::string impl_code = cloned_code.substr(impl_pos);
+
+  size_t new_pos = impl_code.find("fn new(");
+  size_t next_pos = impl_code.find("fn next(");
+
+  ASSERT_NE(new_pos, std::string::npos);
+  ASSERT_NE(next_pos, std::string::npos);
+
+  // Setup in 'new'
+  std::string new_body = impl_code.substr(new_pos, next_pos - new_pos);
+  EXPECT_TRUE(absl::StrContains(new_body, "let my_tuple = (u32:1, u32:2);"));
+  EXPECT_TRUE(
+      absl::StrContains(new_body, "let sum = my_tuple.0 + my_tuple.1;"));
+
+  // Runtime in 'next'
+  std::string next_body = impl_code.substr(next_pos);
+  // tx and sum must be promoted, but my_tuple must NOT be.
+  EXPECT_TRUE(
+      absl::StrContains(next_body, "send(token(), self.tx, read(self.sum))"));
+  EXPECT_FALSE(absl::StrContains(next_body, "self.my_tuple"));
 }
 
 }  // namespace

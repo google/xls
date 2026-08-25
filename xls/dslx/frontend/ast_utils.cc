@@ -38,6 +38,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -69,6 +70,46 @@ BuiltinNameDef* GetBuiltinNameDef(Expr* callee) {
   return std::get<BuiltinNameDef*>(name_ref->name_def());
 }
 
+class NameDefFinder : public AstNodeRecursiveVisitor {
+ public:
+  NameDefFinder(bool want_types = true) : AstNodeRecursiveVisitor(want_types) {}
+
+  absl::Status HandleNameDef(const NameDef* node) override {
+    name_defs_.insert(node);
+    return DefaultHandler(node);
+  }
+
+  const absl::flat_hash_set<const NameDef*>& name_defs() const {
+    return name_defs_;
+  }
+
+ private:
+  absl::flat_hash_set<const NameDef*> name_defs_;
+};
+
+class NameRefFinder : public AstNodeRecursiveVisitor {
+ public:
+  NameRefFinder(bool want_types = true, const NameDef* to = nullptr)
+      : AstNodeRecursiveVisitor(want_types), to_(to) {}
+
+  absl::Status HandleNameRef(const NameRef* node) override {
+    if (!node->IsBuiltin()) {
+      if (to_ == nullptr ||
+          (std::holds_alternative<const NameDef*>(node->name_def()) &&
+           std::get<const NameDef*>(node->name_def()) == to_)) {
+        name_refs_.push_back(node);
+      }
+    }
+
+    return DefaultHandler(node);
+  }
+
+  const std::vector<const NameRef*>& name_refs() const { return name_refs_; }
+
+ private:
+  std::vector<const NameRef*> name_refs_;
+  const NameDef* to_;
+};
 }  // namespace
 
 bool IsParametricFunction(const AstNode* n) {
@@ -523,18 +564,9 @@ absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
 
 absl::StatusOr<std::vector<const NameRef*>> CollectNameRefsUnder(
     const AstNode* root, const NameDef* to) {
-  XLS_ASSIGN_OR_RETURN(std::vector<const AstNode*> nodes,
-                       CollectUnder(root, /*want_types*/ true));
-  std::vector<const NameRef*> results;
-  for (const AstNode* n : nodes) {
-    if (const auto* name_ref = dynamic_cast<const NameRef*>(n);
-        name_ref != nullptr &&
-        std::holds_alternative<const NameDef*>(name_ref->name_def()) &&
-        std::get<const NameDef*>(name_ref->name_def()) == to) {
-      results.push_back(name_ref);
-    }
-  }
-  return results;
+  NameRefFinder ref_finder(/*want_types=*/true, to);
+  XLS_RETURN_IF_ERROR(root->Accept(&ref_finder));
+  return ref_finder.name_refs();
 }
 
 absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
@@ -731,6 +763,13 @@ std::optional<Function*> GetProcNextFunction(const ProcDef* proc) {
   }
 
   return std::nullopt;
+}
+
+absl::StatusOr<absl::flat_hash_set<const NameDef*>> CollectNameDefsUnder(
+    const AstNode* root) {
+  NameDefFinder def_finder;
+  XLS_RETURN_IF_ERROR(root->Accept(&def_finder));
+  return def_finder.name_defs();
 }
 
 }  // namespace xls::dslx
