@@ -1245,6 +1245,7 @@ cc_library(
         "//xls/ir:interval_ops",
         "//xls/ir:node_util",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:ternary",
         "//xls/ir:type",
         "//xls/ir:value",
@@ -1261,6 +1262,7 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
         "@abseil-cpp//absl/types:variant",
+        "@cppitertools",
     ],
     # Temporary until pipeline changes are further along.
     alwayslink = 1,
@@ -3227,6 +3229,7 @@ cc_test(
         "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/ir:value_utils",
         "//xls/solvers:ir_equivalence_testutils",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
