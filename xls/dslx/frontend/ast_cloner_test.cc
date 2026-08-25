@@ -3070,5 +3070,36 @@ TEST(AstClonerTest, CloneModuleRemovingMembersPreservesExternalNodes) {
             ext_struct);
 }
 
+TEST(AstClonerTest, DerivedTrait) {
+  constexpr std::string_view kProgram = R"(
+#[derive(ToBits)]
+struct Point {
+    x: u32,
+    y: u32,
+}
+
+fn main(p: Point) -> u64 {
+  p.to_bits()
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "fake_path.x", "module", &import_data));
+  StructDef* struct_def = tm.module->GetStructDefs()[0];
+  ASSERT_TRUE(struct_def->impl().has_value());
+  Impl* impl = struct_def->impl().value();
+  std::vector<Function*> fns = impl->GetFunctions();
+  ASSERT_EQ(fns.size(), 1);
+  Function* derived_fn = fns[0];
+  ASSERT_TRUE(derived_fn->IsCompilerDerived());
+
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(derived_fn));
+  auto* cloned_fn = absl::down_cast<Function*>(clone);
+  ASSERT_EQ(cloned_fn->identifier(), derived_fn->identifier());
+  EXPECT_TRUE(cloned_fn->IsCompilerDerived());
+}
+
 }  // namespace
 }  // namespace xls::dslx
