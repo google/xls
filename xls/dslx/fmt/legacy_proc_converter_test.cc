@@ -15,6 +15,7 @@
 #include "xls/dslx/fmt/legacy_proc_converter.h"
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -22,6 +23,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
@@ -59,6 +61,50 @@ class LegacyProcConverterTest : public testing::Test {
     // Parse and typecheck the converted/formatted DSLX module to verify it's
     // valid.
     ImportData import_data = CreateImportDataForTest();
+    std::vector<CommentData> dummy_comments;
+    XLS_ASSERT_OK(
+        ParseAndTypecheck(got, "fake.x", "fake", &import_data, &dummy_comments)
+            .status());
+
+    // Re-parse the converted DSLX module cleanly (without typechecking it)
+    // so we can format the original (non-desugared) AST nodes.
+    FileTable file_table_for_fmt;
+    std::vector<CommentData> reparsed_comments_vec;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Module> reparsed_m,
+        ParseModule(got, "fake.x", "fake", file_table_for_fmt,
+                    &reparsed_comments_vec));
+
+    // Format the reparsed converted module using a generic Formatter.
+    Comments reparsed_comments = Comments::Create(reparsed_comments_vec);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::string formatted,
+        AutoFmt(vfs, *reparsed_m, reparsed_comments, got, text_width));
+
+    EXPECT_EQ(formatted, want);
+  }
+
+  void DoLegacyProcConversionFmtWithFiles(
+      std::string input,
+      absl::flat_hash_map<std::filesystem::path, std::string> files,
+      std::string_view want, int64_t text_width = kDslxDefaultTextWidth) {
+    std::vector<CommentData> comments_vec;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Module> m,
+        ParseModule(input, "fake.x", "fake", file_table_, &comments_vec));
+    Comments comments = Comments::Create(comments_vec);
+    DocArena arena(file_table_);
+    std::unique_ptr<Formatter> converter =
+        CreateLegacyProcConverter(comments, arena);
+    FakeFilesystem vfs(files, "");
+    XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                             AutoFmt(vfs, *m, *converter, input, text_width));
+    EXPECT_EQ(got, want);
+
+    // Parse and typecheck the converted/formatted DSLX module to verify it's
+    // valid.
+    ImportData import_data =
+        CreateImportDataForTest(std::make_unique<FakeFilesystem>(files, ""));
     std::vector<CommentData> dummy_comments;
     XLS_ASSERT_OK(
         ParseAndTypecheck(got, "fake.x", "fake", &import_data, &dummy_comments)
@@ -332,6 +378,51 @@ impl Main {
     fn next(self) {
         let state = read(self.state);
         send(join(), self.c, state);
+        write(self.state, state);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, CommentsInInitStateTuple) {
+  DoLegacyProcConversionFmt(
+      R"(proc Main {
+    config() { () }
+    init {
+        (
+            // Init element 0 comment.
+            u32:42,
+            // Init element 1 comment.
+            u32:64
+        )
+    }
+    next(state: (u32, u32)) {
+        state
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Main {
+    state: (u32, u32),
+}
+
+impl Main {
+    fn new() -> Self {
+        Main {
+            state:
+                (
+                    // Init element 0 comment.
+                    u32:42,
+                    // Init element 1 comment.
+                    u32:64
+                ),
+        }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
         write(self.state, state);
     }
 }
@@ -671,6 +762,44 @@ impl MyProc<X, Y> {
     fn next(self) {
         let state = read(self.state);
         send(join(), self.s, state + X + Y);
+        write(self.state, state + 1);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, ParametricProcWithManyParametrics) {
+  DoLegacyProcConversionFmt(
+      R"(proc MyProc<A: u32, B: u32, C: u32, D: u32, E: u32> {
+    s: chan<u32> out;
+    config(s: chan<u32> out) {
+        (s,)
+    }
+    init {
+        u32:0
+    }
+    next(state: u32) {
+        send(join(), s, state + A + B + C + D + E);
+        state + 1
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc MyProc<A: u32, B: u32, C: u32, D: u32, E: u32> {
+    s: chan<u32> out,
+    state: u32,
+}
+
+impl MyProc<A, B, C, D, E> {
+    fn new(s: chan<u32> out) -> Self {
+        MyProc { s, state: u32:0 }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        send(join(), self.s, state + A + B + C + D + E);
         write(self.state, state + 1);
     }
 }
@@ -1216,6 +1345,447 @@ impl Producer {
     }
 }
 )"));
+}
+
+TEST_F(LegacyProcConverterTest, LongNewSignature) {
+  DoLegacyProcConversionFmt(
+      R"(proc MyProc {
+    first_long_channel_input: chan<u32> in;
+    second_long_channel_input: chan<u32> in;
+    third_long_channel_input: chan<u32> in;
+    fourth_long_channel_output: chan<u32> out;
+    config(first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in, third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out) {
+        (first_long_channel_input, second_long_channel_input, third_long_channel_input, fourth_long_channel_output)
+    }
+    init { () }
+    next(state: ()) {
+        let (tok, val) = recv(join(), first_long_channel_input);
+        send(tok, fourth_long_channel_output, val);
+        ()
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc MyProc {
+    first_long_channel_input: chan<u32> in,
+    second_long_channel_input: chan<u32> in,
+    third_long_channel_input: chan<u32> in,
+    fourth_long_channel_output: chan<u32> out,
+}
+
+impl MyProc {
+    fn new
+        (first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in,
+         third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out)
+        -> Self {
+        MyProc {
+            first_long_channel_input,
+            second_long_channel_input,
+            third_long_channel_input,
+            fourth_long_channel_output,
+        }
+    }
+
+    fn next(self) {
+        let (tok, val) = recv(join(), self.first_long_channel_input);
+        send(tok, self.fourth_long_channel_output, val);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, ParametricProcWithDefaults) {
+  DoLegacyProcConversionFmt(
+      R"(proc MyProc<FIRST_PARAM_WIDTH: u32, SECOND_PARAM_SIZE: u32, THIRD_PARAM_ADDR_WIDTH: u32 = {FIRST_PARAM_WIDTH + SECOND_PARAM_SIZE}> {
+    s: chan<bits[FIRST_PARAM_WIDTH]> out;
+    config(s: chan<bits[FIRST_PARAM_WIDTH]> out) {
+        (s,)
+    }
+    init { () }
+    next(state: ()) {
+        send(join(), s, bits[FIRST_PARAM_WIDTH]:0);
+        ()
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc MyProc<FIRST_PARAM_WIDTH: u32, SECOND_PARAM_SIZE: u32,
+            THIRD_PARAM_ADDR_WIDTH: u32 = {FIRST_PARAM_WIDTH + SECOND_PARAM_SIZE}> {
+    s: chan<bits[FIRST_PARAM_WIDTH]> out,
+}
+
+impl MyProc<FIRST_PARAM_WIDTH, SECOND_PARAM_SIZE, THIRD_PARAM_ADDR_WIDTH> {
+    fn new(s: chan<bits[FIRST_PARAM_WIDTH]> out) -> Self {
+        MyProc { s }
+    }
+
+    fn next(self) {
+        send(join(), self.s, bits[FIRST_PARAM_WIDTH]:0);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, LongSpawnStatement) {
+  DoLegacyProcConversionFmt(
+      R"(proc Child {
+    first_long_channel_input: chan<u32> in;
+    second_long_channel_input: chan<u32> in;
+    third_long_channel_input: chan<u32> in;
+    fourth_long_channel_output: chan<u32> out;
+    config(first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in, third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out) {
+        (first_long_channel_input, second_long_channel_input, third_long_channel_input, fourth_long_channel_output)
+    }
+    init { () }
+    next(state: ()) {
+        let (tok, val) = recv(join(), first_long_channel_input);
+        ()
+    }
+}
+
+proc Parent {
+    config(first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in, third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out) {
+        spawn Child(first_long_channel_input, second_long_channel_input, third_long_channel_input, fourth_long_channel_output);
+        ()
+    }
+    init { () }
+    next(state: ()) { () }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc Child {
+    first_long_channel_input: chan<u32> in,
+    second_long_channel_input: chan<u32> in,
+    third_long_channel_input: chan<u32> in,
+    fourth_long_channel_output: chan<u32> out,
+}
+
+impl Child {
+    fn new
+        (first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in,
+         third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out)
+        -> Self {
+        Child {
+            first_long_channel_input,
+            second_long_channel_input,
+            third_long_channel_input,
+            fourth_long_channel_output,
+        }
+    }
+
+    fn next(self) {
+        let (tok, val) = recv(join(), self.first_long_channel_input);
+    }
+}
+
+proc Parent {}
+
+impl Parent {
+    fn new
+        (first_long_channel_input: chan<u32> in, second_long_channel_input: chan<u32> in,
+         third_long_channel_input: chan<u32> in, fourth_long_channel_output: chan<u32> out)
+        -> Self {
+        Child::new(
+            first_long_channel_input, second_long_channel_input, third_long_channel_input,
+            fourth_long_channel_output).spawn(
+            );
+        Parent {}
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, CopyrightNoticeWithFollowingComments) {
+  DoLegacyProcConversionFmt(
+      R"(// Copyright 2026 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+
+// Module comments.
+proc MyProc {
+    config() { () }
+    init { () }
+    next(state: ()) { () }
+}
+)",
+      R"(// Copyright 2026 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+
+#![feature(explicit_state_access)]
+#![feature(generics)]
+
+// Module comments.
+proc MyProc {}
+
+impl MyProc {
+    fn new() -> Self {
+        MyProc {}
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, ParametricAndQualifiedSpawn) {
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {"other_mod.x", R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+pub proc OtherChild<N: u32> {}
+
+impl OtherChild<N> {
+    pub fn new() -> Self {
+        OtherChild {}
+    }
+}
+
+pub proc UnparametricChild {}
+
+impl UnparametricChild {
+    pub fn new() -> Self {
+        UnparametricChild {}
+    }
+}
+)"}};
+
+  DoLegacyProcConversionFmtWithFiles(
+      R"(import other_mod;
+
+proc Child<N: u32> {
+    config() { () }
+    init { () }
+    next(state: ()) { () }
+}
+
+proc Parent {
+    config() {
+        spawn Child<u32:32>();
+        spawn other_mod::OtherChild<u32:64>();
+        spawn other_mod::UnparametricChild();
+        ()
+    }
+    init { () }
+    next(state: ()) { () }
+}
+)",
+      files,
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+import other_mod;
+
+proc Child<N: u32> {}
+
+impl Child<N> {
+    fn new() -> Self {
+        Child {}
+    }
+}
+
+proc Parent {}
+
+impl Parent {
+    fn new() -> Self {
+        Child<u32:32>::new().spawn();
+        other_mod::OtherChild<u32:64>::new().spawn();
+        other_mod::UnparametricChild::new().spawn();
+        Parent {}
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, TestProcWithExpectedFailLabel) {
+  DoLegacyProcConversionFmt(
+      R"(#[test_proc(expected_fail_label = "some_error")]
+proc FailingTest {
+    terminator: chan<bool> out;
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+    init { () }
+    next(state: ()) {
+        send(join(), terminator, true);
+        ()
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+#[test(expected_fail_label="some_error")]
+proc FailingTest {
+    terminator: chan<bool> out,
+}
+
+impl FailingTest {
+    fn new(terminator: chan<bool> out) -> Self {
+        FailingTest { terminator }
+    }
+
+    fn next(self) {
+        send(join(), self.terminator, true);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, MultiStateNonLiteralInitAndNext) {
+  DoLegacyProcConversionFmt(
+      R"(fn init_helper() -> (u32, u32) {
+    (u32:10, u32:20)
+}
+
+fn next_helper(state: (u32, u32)) -> (u32, u32) {
+    (state.0 + u32:1, state.1 + u32:2)
+}
+
+proc MultiState {
+    config() { () }
+    init {
+        init_helper()
+    }
+    next(state: (u32, u32)) {
+        next_helper(state)
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+fn init_helper() -> (u32, u32) { (u32:10, u32:20) }
+
+fn next_helper(state: (u32, u32)) -> (u32, u32) { (state.0 + u32:1, state.1 + u32:2) }
+
+proc MultiState {
+    state: (u32, u32),
+}
+
+impl MultiState {
+    fn new() -> Self {
+        MultiState { state: init_helper() }
+    }
+
+    fn next(self) {
+        let state = read(self.state);
+        write(self.state, next_helper(state));
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, StatelessReturnStateParamName) {
+  DoLegacyProcConversionFmt(
+      R"(proc StatelessProc {
+    s: chan<u32> out;
+    config(s: chan<u32> out) {
+        (s,)
+    }
+    init { () }
+    next(state: ()) {
+        send(join(), s, u32:42);
+        state
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc StatelessProc {
+    s: chan<u32> out,
+}
+
+impl StatelessProc {
+    fn new(s: chan<u32> out) -> Self {
+        StatelessProc { s }
+    }
+
+    fn next(self) {
+        send(join(), self.s, u32:42);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, TransitiveLocalTypeAliases) {
+  DoLegacyProcConversionFmt(
+      R"(proc ChainedAliases {
+    type BaseType = u32;
+    type ArrayType = BaseType[4];
+    data: chan<ArrayType> in;
+    config(data: chan<ArrayType> in) {
+        (data,)
+    }
+    init { () }
+    next(state: ()) {
+        let (tok, val) = recv(join(), data);
+        ()
+    }
+}
+)",
+      R"(#![feature(explicit_state_access)]
+#![feature(generics)]
+
+proc ChainedAliases<BaseType: type = u32, ArrayType: type = BaseType[4]> {
+    data: chan<ArrayType> in,
+}
+
+impl ChainedAliases<BaseType, ArrayType> {
+    fn new(data: chan<ArrayType> in) -> Self {
+        ChainedAliases { data }
+    }
+
+    fn next(self) {
+        let (tok, val) = recv(join(), self.data);
+    }
+}
+)");
+}
+
+TEST_F(LegacyProcConverterTest, ErrorStateParamReferencesLocalConst) {
+  DoLegacyProcConversionFmtError(
+      R"(proc InvalidProc {
+    const SIZE = u32:4;
+    config() { () }
+    init { u32[SIZE]:[0, ...] }
+    next(state: u32[SIZE]) { state }
+}
+)",
+      "Proc state parameter `state` references a constant declared inside the "
+      "proc");
+}
+
+TEST_F(LegacyProcConverterTest, ErrorMemberReferencesLocalConst) {
+  DoLegacyProcConversionFmtError(
+      R"(proc InvalidProc {
+    const SIZE = u32:4;
+    data: chan<u32[SIZE]> in;
+    config(data: chan<u32[SIZE]> in) { (data,) }
+    init { () }
+    next(state: ()) { () }
+}
+)",
+      "Proc member `data` references a constant declared inside the proc");
+}
+
+TEST_F(LegacyProcConverterTest, ErrorConstAssertInsideProc) {
+  DoLegacyProcConversionFmtError(
+      R"(proc InvalidProc<N: u32> {
+    const_assert!(N > u32:0);
+    config() { () }
+    init { () }
+    next(state: ()) { () }
+}
+)",
+      "Const asserts inside a proc are not supported");
 }
 
 }  // namespace

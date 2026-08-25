@@ -1517,6 +1517,21 @@ TEST_F(FunctionFmtTest, SingletonTupleWithTrailingComment) {
 })";
   const std::string_view expected = R"(fn foo() {
     let a = (
+        u32:1,
+        // after first
+    );
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, expected);
+}
+
+TEST_F(FunctionFmtTest, SingletonTupleWithSameLineComment) {
+  const std::string_view original = R"(fn foo() {
+    let a = ( u32  :  1, // after first
+    );
+})";
+  const std::string_view expected = R"(fn foo() {
+    let a = (
         u32:1, // after first
     );
 })";
@@ -3009,6 +3024,25 @@ impl P {}
 )");
 }
 
+TEST_F(ModuleFmtTest, StructImplHeaderWithParametrics) {
+  DoFmt(
+      R"(struct MyStruct<X: u32, Y: u32> { foo: u32, bar: u32 }
+
+impl MyStruct<X, Y> {}
+)");
+}
+
+TEST_F(ModuleFmtTest, ProcImplHeaderWithParametrics) {
+  DoFmt(
+      R"(pub proc P<X: u32, Y: u32> {
+    foo: u32,
+    bar: s16[2],
+}
+
+impl P<X, Y> {}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleParametricProc) {
   DoFmt(
       R"(pub proc p<N: u32> {
@@ -4464,24 +4498,8 @@ TEST_F(ModuleFmtTest, TupleWithMultipleComments_GH_1678) {
   DoFmt(R"(fn foo(bar: u32) {
     let some_data_to_make_single_update_per_line = u32:0xabcdef;
     (
-        // TODO: davidplass - if the previous comment is not on the same line as
-        // the previous element, insert a hard line before the comment.
         bit_slice_update(some_data_to_make_single_update_per_line, 0, u1:1),
         // This is an important comment
-        bit_slice_update(
-            some_data_to_make_single_update_per_line, 1,
-            if bar > u32:0xdeadbeef { u1:1 } else { u1:0 }), // this is yet another comment
-        bit_slice_update(some_data_to_make_single_update_per_line, 2, u1:1)
-    )
-}
-)",
-        R"(fn foo(bar: u32) {
-    let some_data_to_make_single_update_per_line = u32:0xabcdef;
-    (
-        // TODO: davidplass - if the previous comment is not on the same line as
-        // the previous element, insert a hard line before the comment.
-        bit_slice_update(some_data_to_make_single_update_per_line, 0, u1:1), // This is an important
-        // comment
         bit_slice_update(
             some_data_to_make_single_update_per_line, 1,
             if bar > u32:0xdeadbeef { u1:1 } else { u1:0 }), // this is yet another comment
