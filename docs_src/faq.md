@@ -38,8 +38,12 @@ The
 [`cc_xls_ir_jit_wrapper` rule](https://google.github.io/xls/bazel_rules_macros/#cc_xls_ir_jit_wrapper)
 in the Bazel rule set invokes a tool (the
 [JIT wrapper generator](https://github.com/google/xls/tree/main/xls/jit/jit_wrapper_generator_main.py))
-that makes a shim that helpfully JIT compiles the IR to native code (e.g. x64
-code), and provides an object that can be used as a C++ callable.
+that makes a shim that provides an API for running the wrapped code. Despite the
+name the code the wrapper invokes is compiled ahead of time and directly linked
+into the resulting binary.
+
+XLS `fn`, `proc` and `block` targets can all be simulated in this way with
+minimal or no overhead.
 
 As an example, see the
 [float32 multiply test](https://github.com/google/xls/tree/main/xls/dslx/stdlib/test/float32_mul_test.cc),
