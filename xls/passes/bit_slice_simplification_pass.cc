@@ -625,27 +625,34 @@ absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update,
   return true;
 }
 
-bool IsSelectOfLiterals(Node* node, QueryEngine* query_engine) {
+bool IsSelectOfLiterals(GenericSelect sel, QueryEngine* query_engine) {
+  // Only allow OneHotSelect if the selector is actually one-hot.
+  if (sel.kind() == GenericSelect::Kind::kOneHotSel &&
+      !query_engine->ExactlyOneBitTrue(sel.selector())) {
+    return false;
+  }
+
   auto is_literal_or_select_of_literals = [&](Node* node) {
-    return query_engine->IsFullyKnown(node) ||
-           IsSelectOfLiterals(node, query_engine);
+    if (query_engine->IsFullyKnown(node)) {
+      return true;
+    }
+    if (!GenericSelect::IsSelect(node)) {
+      return false;
+    }
+    absl::StatusOr<GenericSelect> node_sel = GenericSelect::From(node);
+    CHECK_OK(node_sel);
+    return IsSelectOfLiterals(*std::move(node_sel), query_engine);
   };
 
-  if (node->Is<Select>()) {
-    Select* sel = node->As<Select>();
-    return sel->AllCases([&](Node* case_value) {
-      return is_literal_or_select_of_literals(case_value);
-    });
+  if (!absl::c_all_of(sel.cases(), [&](Node* case_value) {
+        return is_literal_or_select_of_literals(case_value);
+      })) {
+    return false;
   }
-  if (node->Is<PrioritySelect>()) {
-    PrioritySelect* sel = node->As<PrioritySelect>();
-    return absl::c_all_of(sel->cases(),
-                          [&](Node* case_value) {
-                            return is_literal_or_select_of_literals(case_value);
-                          }) &&
-           is_literal_or_select_of_literals(sel->default_value());
+  if (sel.default_value().has_value()) {
+    return is_literal_or_select_of_literals(*sel.default_value());
   }
-  return false;
+  return true;
 }
 
 absl::StatusOr<Node*> LiftThroughSelectsOfLiterals(
@@ -656,54 +663,24 @@ absl::StatusOr<Node*> LiftThroughSelectsOfLiterals(
     return lift_to_literal(*known_value);
   }
 
-  Node* selector;
-  absl::Span<Node* const> cases;
-  std::optional<Node*> default_value;
-  if (node->Is<Select>()) {
-    Select* sel = node->As<Select>();
-    selector = sel->selector();
-    cases = sel->cases();
-    default_value = sel->default_value();
-  } else if (node->Is<PrioritySelect>()) {
-    PrioritySelect* sel = node->As<PrioritySelect>();
-    selector = sel->selector();
-    cases = sel->cases();
-    default_value = sel->default_value();
-  } else {
-    return absl::InternalError(
-        absl::StrCat("LiftThroughSelectsOfLiterals invoked on a node that was "
-                     "not a select of literals: ",
-                     node->ToString()));
-  }
+  XLS_ASSIGN_OR_RETURN(GenericSelect sel, GenericSelect::From(node));
 
   std::vector<Node*> new_cases;
   std::optional<Node*> new_default_value = std::nullopt;
-  new_cases.reserve(cases.size());
-  for (Node* case_value : cases) {
+  new_cases.reserve(sel.cases().size());
+  for (Node* case_value : sel.cases()) {
     XLS_ASSIGN_OR_RETURN(Node * new_case_value,
                          LiftThroughSelectsOfLiterals(case_value, query_engine,
                                                       lift_to_literal));
     new_cases.push_back(new_case_value);
   }
-  if (default_value.has_value()) {
-    XLS_ASSIGN_OR_RETURN(new_default_value,
-                         LiftThroughSelectsOfLiterals(
-                             *default_value, query_engine, lift_to_literal));
+  if (sel.default_value().has_value()) {
+    XLS_ASSIGN_OR_RETURN(new_default_value, LiftThroughSelectsOfLiterals(
+                                                *sel.default_value(),
+                                                query_engine, lift_to_literal));
   }
 
-  if (node->Is<Select>()) {
-    return node->function_base()->MakeNode<Select>(
-        node->loc(), selector, new_cases, new_default_value);
-  }
-  if (node->Is<PrioritySelect>()) {
-    XLS_RET_CHECK(new_default_value.has_value());
-    return node->function_base()->MakeNode<PrioritySelect>(
-        node->loc(), selector, new_cases, *new_default_value);
-  }
-  XLS_RET_CHECK(node->Is<OneHotSelect>());
-  XLS_RET_CHECK(!new_default_value.has_value());
-  return node->function_base()->MakeNode<OneHotSelect>(node->loc(), selector,
-                                                       new_cases);
+  return sel.CloneSelectLike(sel.selector(), new_cases, new_default_value);
 }
 
 // Hoist bit slice updates above selects of literals, where they can be turned
@@ -711,7 +688,11 @@ absl::StatusOr<Node*> LiftThroughSelectsOfLiterals(
 absl::StatusOr<bool> SimplifySelectOfLiteralsBitSliceUpdate(
     BitSliceUpdate* update, QueryEngine* query_engine) {
   Node* start = update->start();
-  if (!IsSelectOfLiterals(start, query_engine)) {
+  if (!GenericSelect::IsSelect(start)) {
+    return false;
+  }
+  XLS_ASSIGN_OR_RETURN(GenericSelect sel, GenericSelect::From(start));
+  if (!IsSelectOfLiterals(sel, query_engine)) {
     return false;
   }
 
@@ -822,7 +803,11 @@ absl::StatusOr<bool> SimplifyLiteralDynamicBitSlice(DynamicBitSlice* bit_slice,
 absl::StatusOr<bool> SimplifySelectOfLiteralsDynamicBitSlice(
     DynamicBitSlice* bit_slice, QueryEngine* query_engine) {
   Node* start = bit_slice->start();
-  if (!IsSelectOfLiterals(start, query_engine)) {
+  if (!GenericSelect::IsSelect(start)) {
+    return false;
+  }
+  XLS_ASSIGN_OR_RETURN(GenericSelect sel, GenericSelect::From(start));
+  if (!IsSelectOfLiterals(sel, query_engine)) {
     return false;
   }
 
