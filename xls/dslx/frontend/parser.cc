@@ -2500,6 +2500,13 @@ absl::StatusOr<UseTreeEntry*> Parser::ParseUseTreeEntry(Bindings& bindings) {
     auto* use_tree_entry = module_->Make<UseTreeEntry>(name_def, tok.span());
     bindings.Add(name_def->identifier(), use_tree_entry);
     name_def->set_definer(use_tree_entry);
+    // In case this is a proc, bind the member names `spawn` looks up
+    for (std::string_view member_name :
+         {kProcConfigName, kProcNextName, kProcInitName}) {
+      bindings.Add(absl::StrCat(name_def->identifier(), kProcMemberSeparator,
+                                member_name),
+                   use_tree_entry);
+    }
     return use_tree_entry;
   }
 
@@ -2761,6 +2768,23 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     // my_struct as a type
     XLS_ASSIGN_OR_RETURN(lhs, ParseCastOrEnumRefOrStructInstanceOrToken(
                                   outer_bindings, restrictions));
+  } else if (peek->kind() == TokenKind::kIdentifier &&
+             outer_bindings.ResolveNodeIsUseBound(*peek->GetValue())) {
+    // A `use`-bound name may be a type or a value, which is not known until
+    // the import resolves. Try parsing as type and fallback to parsing as value
+    VLOG(5) << "ParseTerm, kind is identifier bound by `use`";
+    Transaction use_type_txn(this, &outer_bindings);
+    absl::StatusOr<Expr*> as_type = ParseCastOrEnumRefOrStructInstanceOrToken(
+        *use_type_txn.bindings(), restrictions);
+    if (as_type.ok()) {
+      use_type_txn.Commit();
+      lhs = *as_type;
+    } else {
+      use_type_txn.Rollback();
+      XLS_ASSIGN_OR_RETURN(auto name_or_colon_ref,
+                           ParseNameOrColonRef(outer_bindings));
+      lhs = ToExprNode(name_or_colon_ref);
+    }
   } else if (peek->kind() == TokenKind::kIdentifier || peek_is_kw_in ||
              peek_is_kw_out || peek_is_kw_self) {
     VLOG(5) << "ParseTerm, kind is identifier but not a known type";
@@ -3386,14 +3410,19 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
     // We avoid name collisions b/w existing functions and Proc config/next fns
     // by using a "." as the separator, which is invalid for function
     // specifications.
-    std::string config_name = absl::StrCat(name_ref->identifier(), ".config");
-    std::string next_name = absl::StrCat(name_ref->identifier(), ".next");
-    std::string init_name = absl::StrCat(name_ref->identifier(), ".init");
+    std::string config_name = absl::StrCat(
+        name_ref->identifier(), kProcMemberSeparator, kProcConfigName);
+    std::string next_name = absl::StrCat(name_ref->identifier(),
+                                         kProcMemberSeparator, kProcNextName);
+    std::string init_name = absl::StrCat(name_ref->identifier(),
+                                         kProcMemberSeparator, kProcInitName);
     XLS_ASSIGN_OR_RETURN(AnyNameDef config_def,
                          bindings.ResolveNameOrError(
                              config_name, spawnee->span(), file_table()));
     if (!std::holds_alternative<const NameDef*>(config_def)) {
-      return absl::InternalError("Proc config should be named \".config\"");
+      return absl::InternalError(absl::StrCat("Proc config should be named \"",
+                                              kProcMemberSeparator,
+                                              kProcConfigName, "\""));
     }
     config_ref =
         module_->Make<NameRef>(name_ref->span(), config_name, config_def);
@@ -3402,7 +3431,9 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
         AnyNameDef next_def,
         bindings.ResolveNameOrError(next_name, spawnee->span(), file_table()));
     if (!std::holds_alternative<const NameDef*>(next_def)) {
-      return absl::InternalError("Proc next should be named \".next\"");
+      return absl::InternalError(absl::StrCat("Proc next should be named \"",
+                                              kProcMemberSeparator,
+                                              kProcNextName, "\""));
     }
     next_ref = module_->Make<NameRef>(name_ref->span(), next_name, next_def);
 
@@ -3410,7 +3441,9 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
         AnyNameDef init_def,
         bindings.ResolveNameOrError(init_name, spawnee->span(), file_table()));
     if (!std::holds_alternative<const NameDef*>(init_def)) {
-      return absl::InternalError("Proc init should be named \".init\"");
+      return absl::InternalError(absl::StrCat("Proc init should be named \"",
+                                              kProcMemberSeparator,
+                                              kProcInitName, "\""));
     }
     init_ref = module_->Make<NameRef>(name_ref->span(), init_name, init_def);
   } else {
@@ -3420,20 +3453,20 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
     // Problem: If naively assigned, the colon_ref subject would end up being a
     // child of both `config_ref` and `next_ref`, which is forbidden. To avoid
     // this, just clone the subject (references are easily clonable).
-    config_ref =
-        module_->Make<ColonRef>(colon_ref->span(), colon_ref->subject(),
-                                absl::StrCat(colon_ref->attr(), ".config"));
+    config_ref = module_->Make<ColonRef>(
+        colon_ref->span(), colon_ref->subject(),
+        absl::StrCat(colon_ref->attr(), kProcMemberSeparator, kProcConfigName));
 
     ColonRef::Subject clone_subject =
         CloneSubject(module_, colon_ref->subject());
-    next_ref =
-        module_->Make<ColonRef>(colon_ref->span(), clone_subject,
-                                absl::StrCat(colon_ref->attr(), ".next"));
+    next_ref = module_->Make<ColonRef>(
+        colon_ref->span(), clone_subject,
+        absl::StrCat(colon_ref->attr(), kProcMemberSeparator, kProcNextName));
 
     clone_subject = CloneSubject(module_, colon_ref->subject());
-    init_ref =
-        module_->Make<ColonRef>(colon_ref->span(), clone_subject,
-                                absl::StrCat(colon_ref->attr(), ".init"));
+    init_ref = module_->Make<ColonRef>(
+        colon_ref->span(), clone_subject,
+        absl::StrCat(colon_ref->attr(), kProcMemberSeparator, kProcInitName));
   }
 
   auto parse_args = [this, &bindings] { return ParseExpression(bindings); };
@@ -3547,10 +3580,10 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   Bindings bindings(&outer_bindings);
   XLS_ASSIGN_OR_RETURN(Token config_tok,
                        PopTokenOrError(TokenKind::kIdentifier));
-  if (!config_tok.IsIdentifier("config")) {
-    return ParseErrorStatus(
-        config_tok.span(),
-        absl::StrCat("Expected 'config', got ", config_tok.ToString()));
+  if (!config_tok.IsIdentifier(kProcConfigName)) {
+    return ParseErrorStatus(config_tok.span(),
+                            absl::StrCat("Expected '", kProcConfigName,
+                                         "', got ", config_tok.ToString()));
   }
 
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> config_params,
@@ -3567,7 +3600,9 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   }
 
   NameDef* name_def = module_->Make<NameDef>(
-      config_tok.span(), absl::StrCat(proc_name, ".config"), nullptr);
+      config_tok.span(),
+      absl::StrCat(proc_name, kProcMemberSeparator, kProcConfigName),
+      /*definer=*/nullptr);
 
   std::vector<TypeAnnotation*> return_elements;
   return_elements.reserve(proc_members.size());
@@ -3603,8 +3638,9 @@ absl::StatusOr<Function*> Parser::ParseProcNextExplicitStateAccess(
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(inner_bindings));
   Span span(oparen.span().start(), GetPos());
-  NameDef* name_def =
-      module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
+  NameDef* name_def = module_->Make<NameDef>(
+      span, absl::StrCat(proc_name, kProcMemberSeparator, kProcNextName),
+      /*definer=*/nullptr);
   Function* next = module_->Make<Function>(
       span, name_def, std::move(parametric_bindings), next_params, return_type,
       body, FunctionTag::kProcNext, is_public,
@@ -3620,9 +3656,10 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   inner_bindings.NoteFunctionScoped();
 
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-  if (!peek->IsIdentifier("next")) {
+  if (!peek->IsIdentifier(kProcNextName)) {
     return ParseErrorStatus(
-        peek->span(), absl::StrCat("Expected 'next', got ", peek->ToString()));
+        peek->span(),
+        absl::StrCat("Expected '", kProcNextName, "', got ", peek->ToString()));
   }
   XLS_RETURN_IF_ERROR(DropToken());
   XLS_ASSIGN_OR_RETURN(Token oparen, PopTokenOrError(TokenKind::kOParen));
@@ -3662,8 +3699,9 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(inner_bindings));
   Span span(oparen.span().start(), GetPos());
-  NameDef* name_def =
-      module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
+  NameDef* name_def = module_->Make<NameDef>(
+      span, absl::StrCat(proc_name, kProcMemberSeparator, kProcNextName),
+      /*definer=*/nullptr);
   Function* next = module_->Make<Function>(
       span, name_def, std::move(parametric_bindings),
       std::vector<Param*>({state_param}), return_type, body,
@@ -3680,14 +3718,17 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
     std::string_view proc_name, bool is_public) {
   Bindings inner_bindings(&bindings);
   XLS_ASSIGN_OR_RETURN(Token init_identifier, PopToken());
-  if (!init_identifier.IsIdentifier("init")) {
-    return ParseErrorStatus(init_identifier.span(),
-                            absl::StrCat("Expected \"init\", got ",
-                                         init_identifier.ToString(), "\"."));
+  if (!init_identifier.IsIdentifier(kProcInitName)) {
+    return ParseErrorStatus(
+        init_identifier.span(),
+        absl::StrCat("Expected \"", kProcInitName, "\", got ",
+                     init_identifier.ToString(), "\"."));
   }
 
   NameDef* name_def = module_->Make<NameDef>(
-      init_identifier.span(), absl::StrCat(proc_name, ".init"), nullptr);
+      init_identifier.span(),
+      absl::StrCat(proc_name, kProcMemberSeparator, kProcInitName),
+      /*definer=*/nullptr);
 
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(inner_bindings));
@@ -3861,7 +3902,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
           ConstantDef * constant,
           ParseConstantDef(GetPos(), /*is_public=*/false, proc_bindings));
       proc_like_body.stmts.push_back(constant);
-    } else if (peek->IsIdentifier("config")) {
+    } else if (peek->IsIdentifier(kProcConfigName)) {
       if (strictness.has_value() || flow_control.has_value()) {
         return ParseErrorStatus(peek->span(),
                                 "Attribute not supported on config function");
@@ -3907,7 +3948,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
 
       XLS_RETURN_IF_ERROR(module_->AddTop(config, make_collision_error));
       proc_like_body.stmts.push_back(config);
-    } else if (peek->IsIdentifier("next")) {
+    } else if (peek->IsIdentifier(kProcNextName)) {
       if (strictness.has_value() || flow_control.has_value()) {
         return ParseErrorStatus(peek->span(),
                                 "Attribute not supported on next function");
@@ -3928,7 +3969,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
       // collisions.
       outer_bindings.Add(next->name_def()->identifier(), next->name_def());
       proc_like_body.stmts.push_back(next);
-    } else if (peek->IsIdentifier("init")) {
+    } else if (peek->IsIdentifier(kProcInitName)) {
       if (strictness.has_value() || flow_control.has_value()) {
         return ParseErrorStatus(peek->span(),
                                 "Attribute not supported on init function");

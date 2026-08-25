@@ -141,6 +141,28 @@ class Visitor : public AstNodeVisitorWithDefault {
         InterpValue value = *ti_->GetConstExprOption(name_def);
         trace_.SetResult(value);
         ti_->NoteConstExpr(name_ref, value);
+        return absl::OkStatus();
+      }
+
+      if (std::optional<const AstNode*> resolved =
+              import_data_.ResolveUseImportedTarget(name_def->definer())) {
+        if ((*resolved)->kind() == AstNodeKind::kConstantDef) {
+          const auto* constant_def =
+              absl::down_cast<const ConstantDef*>(*resolved);
+          XLS_ASSIGN_OR_RETURN(
+              TypeInfo * evaluation_ti,
+              import_data_.GetRootTypeInfoForNode(constant_def));
+          absl::StatusOr<InterpValue> value =
+              ConstexprEvaluator::EvaluateToValue(
+                  &import_data_, evaluation_ti, &warning_collector_,
+                  table_.GetParametricEnv(parametric_context_),
+                  constant_def->value());
+          if (value.ok()) {
+            trace_.SetResult(*value);
+            ti_->NoteConstExpr(name_ref, *value);
+            ti_->NoteConstExpr(name_def, *value);
+          }
+        }
       }
     }
     return absl::OkStatus();
@@ -188,7 +210,18 @@ class Visitor : public AstNodeVisitorWithDefault {
     // imported enum member, by the subject type (the subject type of a member
     // if a ColonRef). An imported enum type itself is problematic, if we try to
     // use enum member logic for it below, so short-circuit that.
-    if (IsImport(direct_colon_ref) && type_.IsEnum() &&
+    //
+    // The subject is a module if it's `import`-bound, or `use`-bound
+    // to a whole module rather than a specific member.
+    std::optional<ImportSubject> import_subject =
+        direct_colon_ref->ResolveImportSubject();
+    bool subject_is_module_import =
+        import_subject.has_value() &&
+        (std::holds_alternative<Import*>(*import_subject) ||
+         import_data_
+             .GetUseImportedModuleInfo(std::get<UseTreeEntry*>(*import_subject))
+             .has_value());
+    if (subject_is_module_import && type_.IsEnum() &&
         std::holds_alternative<NameRef*>(direct_colon_ref->subject()) &&
         !target_is_constant_def) {
       const NameDef* name_def = std::get<const NameDef*>(

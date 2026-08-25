@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
@@ -24,6 +28,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 // Tests for struct definitions, instantiations, member access, and splatting
 // (excluding `impl` blocks).
@@ -855,6 +860,32 @@ fn main() -> u5 {
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   EXPECT_THAT(
       TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("s", "S { x: uN[5][2] }"),
+                                     HasNodeWithType("s.x", "uN[5]")))));
+}
+
+TEST(TypecheckV2StructTest, UseStructAsTypeAnnotation) {
+  constexpr std::string_view kImported = R"(
+pub struct S { x: u5[2] }
+
+pub fn make_s() -> S { S{x: [1, 2]} }
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::{S, make_s};
+
+fn main() -> u5 {
+  let s: S = make_s();
+  s.x[1]
+})";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "fake_main_path", &import_data),
       IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("s", "S { x: uN[5][2] }"),
                                      HasNodeWithType("s.x", "uN[5]")))));
 }
@@ -2500,6 +2531,30 @@ fn create_f_domain() -> MyStruct {
 }
 )",
       TypecheckFails(HasSubstr("is missing member(s): `y`")));
+}
+
+TEST(TypecheckV2StructTest, UseStructImplAssociatedConstant) {
+  constexpr std::string_view kImported = R"(
+pub struct Point { x: u32, y: u32 }
+impl Point {
+    pub const ZERO_X = u32:0;
+}
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::Point;
+
+fn get_zero_x() -> u32 { Point::ZERO_X }
+)";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "fake_main_path", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("get_zero_x", "() -> uN[32]"))));
 }
 
 }  // namespace

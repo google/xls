@@ -295,6 +295,15 @@ std::optional<std::string_view> GetIdentifier(TypeDefinition td);
 // Returns the `next` function of the given proc, if it has one.
 std::optional<Function*> GetProcNextFunction(const ProcDef* proc);
 
+// Keyword names of a proc's `config`/`next`/`init` functions.
+inline constexpr std::string_view kProcConfigName = "config";
+inline constexpr std::string_view kProcNextName = "next";
+inline constexpr std::string_view kProcInitName = "init";
+inline constexpr std::string_view kProcMemberSeparator = ".";
+
+// Returns `proc`'s member matching the identifier or `nullopt` if none match
+std::optional<Function*> GetProcMemberBySuffix(Proc* proc,
+                                               std::string_view identifier);
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

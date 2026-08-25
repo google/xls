@@ -110,6 +110,7 @@ cc_library(
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:proc",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "@abseil-cpp//absl/base",
@@ -710,6 +711,22 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/type_system:typecheck_test_utils",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "typecheck_module_v2_use_test",
+    srcs = ["typecheck_module_v2_use_test.cc"],
+    deps = [
+        ":matchers",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@googletest//:gtest",
     ],
 )

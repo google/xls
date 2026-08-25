@@ -1511,6 +1511,13 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleExternRef(
                 CHECK(value.has_value());
                 return value;
               },
+              [&](Proc* p) -> std::optional<InterpValue> {
+                std::optional<Function*> f =
+                    GetProcMemberBySuffix(p, name_ref.identifier());
+                CHECK(f.has_value()) << p->ToString();
+                return InterpValue::MakeFunction(
+                    InterpValue::UserFnData{(*f)->owner(), *f});
+              },
               [&](auto) -> std::optional<InterpValue> { return std::nullopt; }},
       *member.value());
   if (value.has_value()) {

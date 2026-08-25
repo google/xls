@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -128,6 +129,20 @@ class ImportTokens {
   std::vector<std::string> pieces_;
 };
 
+// The result of resolving a `use` leaf (see `DoImportViaUse`).
+struct UseImportResult {
+  // The `ModuleInfo`s that were imported as we traversed. Note that there can
+  // be more that one if there is a chain of `pub use` statements.
+  ModuleInfo* imported_module;
+
+  // If the `use` statement was referring to an entity inside of the enclosing
+  // module, it is given here.
+  //
+  // If this is nullptr, then it is implied that the module was the entity being
+  // referred to.
+  ModuleMember* imported_member;
+};
+
 // Wrapper around a `{subject: module_info}` mapping that modules can be
 // imported into.
 class ImportData {
@@ -166,6 +181,49 @@ class ImportData {
 
   absl::StatusOr<ModuleInfo*> Put(const ImportTokens& subject,
                                   std::unique_ptr<ModuleInfo> module_info);
+
+  // Records the resolution of a `use` leaf, so that later references to
+  // the bound name can be resolved via lookup
+  void NoteUseImportResult(const UseTreeEntry* leaf, UseImportResult result) {
+    use_import_results_[leaf] = result;
+  }
+
+  // Returns the previously-noted resolution of the given `use` leaf, if any.
+  std::optional<UseImportResult> GetUseImportResult(
+      const UseTreeEntry* leaf) const {
+    auto it = use_import_results_.find(leaf);
+    if (it == use_import_results_.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
+  // If `node` is a `UseTreeEntry` that names a specific member,
+  // returns that member. Otherwise returns `std::nullopt`.
+  std::optional<const AstNode*> ResolveUseImportedTarget(
+      const AstNode* node) const {
+    if (node != nullptr && node->kind() == AstNodeKind::kUseTreeEntry) {
+      const auto* use_tree_entry = absl::down_cast<const UseTreeEntry*>(node);
+      if (std::optional<UseImportResult> result =
+              GetUseImportResult(use_tree_entry);
+          result.has_value() && result->imported_member != nullptr) {
+        return ToAstNode(*result->imported_member);
+      }
+    }
+    return std::nullopt;
+  }
+
+  // If `node` is a `UseTreeEntry`that names a module, return that module's
+  // `ModuleInfo`. Otherwise returns `std::nullopt`
+  std::optional<ModuleInfo*> GetUseImportedModuleInfo(
+      const UseTreeEntry* use_tree_entry) const {
+    if (std::optional<UseImportResult> result =
+            GetUseImportResult(use_tree_entry);
+        result.has_value() && result->imported_member == nullptr) {
+      return result->imported_module;
+    }
+    return std::nullopt;
+  }
 
   // Returns the `TraitDeriver` to use for traits that are declared in the
   // builtins module.
@@ -313,6 +371,7 @@ class ImportData {
 
   FileTable file_table_;
   absl::flat_hash_map<ImportTokens, std::unique_ptr<ModuleInfo>> modules_;
+  absl::flat_hash_map<const UseTreeEntry*, UseImportResult> use_import_results_;
   absl::flat_hash_map<std::string, ModuleInfo*> path_to_module_info_;
   absl::flat_hash_map<Module*, std::unique_ptr<InterpBindings>>
       top_level_bindings_;

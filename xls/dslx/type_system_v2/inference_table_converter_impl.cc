@@ -1147,6 +1147,19 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return absl::OkStatus();
     }
 
+    if (node->kind() == AstNodeKind::kUseTreeEntry) {
+      const auto* use_tree_entry = absl::down_cast<const UseTreeEntry*>(node);
+      std::optional<UseImportResult> use_import_result =
+          import_data_.GetUseImportResult(use_tree_entry);
+      if (use_import_result.has_value()) {
+        base_type_info_->AddImport(
+            const_cast<UseTreeEntry*>(use_tree_entry),
+            &use_import_result->imported_module->module(),
+            use_import_result->imported_module->type_info());
+      }
+      return absl::OkStatus();
+    }
+
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, GetTypeInfo(parametric_context));
 
     if (node->kind() == AstNodeKind::kProcAlias) {
@@ -3093,6 +3106,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
         const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
         target_node = def->definer();
+        if (std::optional<const AstNode*> resolved =
+                import_data_.ResolveUseImportedTarget(target_node)) {
+          target_node = const_cast<AstNode*>(*resolved);
+        }
       } else if (std::holds_alternative<BuiltinNameDef*>(
                      name_ref->name_def())) {
         target_node = const_cast<BuiltinNameDef*>(

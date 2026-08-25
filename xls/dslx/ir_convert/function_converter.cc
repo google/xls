@@ -5547,9 +5547,11 @@ absl::StatusOr<std::optional<ConstantDef*>> TryResolveConstantDef(
                        type_info.GetImportedOrError(use_tree_entry));
   std::optional<ModuleMember*> member =
       info->module->FindMemberWithName(identifier);
-  XLS_RET_CHECK(member.has_value())
-      << "Failed to find constant named: `" << identifier << "` in module: `"
-      << info->module->name() << "`";
+  // No member by that name means `identifier` names the whole imported
+  // module (e.g. `use std;`), not a constant within it.
+  if (!member.has_value()) {
+    return std::nullopt;
+  }
   if (std::holds_alternative<ConstantDef*>(*member.value())) {
     auto* result = std::get<ConstantDef*>(*member.value());
     return result;
