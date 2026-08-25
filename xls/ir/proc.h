@@ -82,6 +82,10 @@ class Proc : public FunctionBase {
 
   // Returns the state element(s).
   absl::Span<StateElement* const> StateElements() const { return state_vec_; }
+  const absl::flat_hash_map<std::string, std::unique_ptr<StateElement>>&
+  StateElementMap() const {
+    return state_elements_;
+  }
   StateElement* GetStateElement(int64_t index) const {
     return StateElements().at(index);
   }

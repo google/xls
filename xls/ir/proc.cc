@@ -203,14 +203,6 @@ std::optional<int64_t> Proc::MaybeGetStateElementIndex(
 
 absl::Status Proc::RemoveStateElement(int64_t index) {
   XLS_RET_CHECK_LT(index, GetStateElementCount());
-  for (auto& [_, state_element] : state_elements_) {
-    CHECK(absl::c_contains(state_vec_, state_element.get()));
-  }
-  for (StateElement* state_element : state_vec_) {
-    CHECK(absl::c_any_of(state_elements_, [&](const auto& entry) {
-      return entry.second.get() == state_element;
-    }));
-  }
 
   StateElement* old_state_element = GetStateElement(index);
   auto old_state_read_it = state_reads_.find(old_state_element);
