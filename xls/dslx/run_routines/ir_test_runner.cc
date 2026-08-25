@@ -246,6 +246,26 @@ absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
         finish_chan_names[name] =
             absl::StrCat(package_data.package->name(), "__", dslx_chan_name);
       }
+    } else if (std::holds_alternative<ProcDef*>(*member)) {
+      ProcDef* pd = std::get<ProcDef*>(*member);
+      std::optional<Function*> new_method = pd->GetImplFunction("new");
+      // ProcDefs that are tests must have a "new" method in the impl.
+      if (!new_method.has_value()) {
+        return absl::NotFoundError(absl::StrFormat(
+            "Could not find 'new' method in proc %s", pd->identifier()));
+      }
+
+      // Validate that the "new" method has a single parameter.
+      XLS_RET_CHECK(test_options.lower_to_proc_scoped_channels);
+      if ((*new_method)->params().size() != 1) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Proc %s has %d parameters in 'new' method, "
+                            "expected 1",
+                            pd->identifier(), (*new_method)->params().size()));
+      }
+      // TODO(davidplass): Validate that the parameter is a bool channel.
+      std::string dslx_chan_name = (*new_method)->params()[0]->identifier();
+      finish_chan_names[name] = absl::StrCat("_", dslx_chan_name);
     }
     packages[name] = std::move(package_data.package);
   }
