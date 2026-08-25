@@ -36,6 +36,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/passes/cse_pass.h"
@@ -102,6 +103,31 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
   old_to_new.reserve(original->node_count());
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> topo_sort_nodes,
                        context.TopoSort(original));
+  absl::flat_hash_map<StateElement*, BStateElement> old_to_new_state_elements;
+  old_to_new_state_elements.reserve(state_elements.size());
+  absl::flat_hash_map<StateElement*, Node*> unconditional_state_reads;
+  unconditional_state_reads.reserve(state_elements.size());
+  for (StateElement* se : state_elements) {
+    BStateElement new_se = pb.StateElement(se->name(), se->initial_value(),
+                                           se->non_synthesizable());
+    old_to_new_state_elements[se] = new_se;
+
+    if (send_state_values) {
+      XLS_ASSIGN_OR_RETURN(Type * ty,
+                           new_pkg->MapTypeFromOtherPackage(se->type()));
+      XLS_ASSIGN_OR_RETURN(Channel * st_chan,
+                           new_pkg->CreateStreamingChannel(
+                               absl::StrFormat("%s_value_chan", se->name()),
+                               ChannelOps::kSendOnly, ty));
+      BValue read = pb.StateRead(new_se);
+      unconditional_state_reads[se] = read.node();
+      pb.Send(st_chan, pb.Literal(Value::Token()), read, SourceInfo(),
+              se->name());
+    }
+  }
+
+  // Maps unextracted state elements to their streaming receive data node.
+  absl::flat_hash_map<StateElement*, Node*> unextracted_state_elements;
   for (Node* n : topo_sort_nodes) {
     // Specific node types to handle specially.
     if (n->Is<Invoke>() || n->Is<Map>() || n->Is<CountedFor>() ||
@@ -134,61 +160,63 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
             chan, new_pkg->CreateStreamingChannel(r->channel_name(),
                                                   ChannelOps::kReceiveOnly,
                                                   map_ty, initial_values));
-        if (r->is_blocking()) {
-          if (r->predicate()) {
-            old_to_new[n] =
-                pb.ReceiveIf(chan, BValue(old_to_new[r->token()], &pb),
-                             BValue(old_to_new[*r->predicate()], &pb))
-                    .node();
-          } else {
-            old_to_new[n] =
-                pb.Receive(chan, BValue(old_to_new[r->token()], &pb)).node();
-          }
+      }
+      if (r->is_blocking()) {
+        if (r->predicate()) {
+          old_to_new[n] =
+              pb.ReceiveIf(chan, BValue(old_to_new[r->token()], &pb),
+                           BValue(old_to_new[*r->predicate()], &pb))
+                  .node();
         } else {
-          if (r->predicate()) {
-            old_to_new[n] = pb.ReceiveIfNonBlocking(
-                                  chan, BValue(old_to_new[r->token()], &pb),
-                                  BValue(old_to_new[*r->predicate()], &pb))
-                                .node();
-          } else {
-            old_to_new[n] =
-                pb.ReceiveNonBlocking(chan, BValue(old_to_new[r->token()], &pb))
-                    .node();
-          }
+          old_to_new[n] =
+              pb.Receive(chan, BValue(old_to_new[r->token()], &pb)).node();
+        }
+      } else {
+        if (r->predicate()) {
+          old_to_new[n] =
+              pb.ReceiveIfNonBlocking(chan, BValue(old_to_new[r->token()], &pb),
+                                      BValue(old_to_new[*r->predicate()], &pb))
+                  .node();
+        } else {
+          old_to_new[n] =
+              pb.ReceiveNonBlocking(chan, BValue(old_to_new[r->token()], &pb))
+                  .node();
         }
       }
     } else if (n->Is<StateRead>()) {
       StateRead* s = n->As<StateRead>();
-      XLS_ASSIGN_OR_RETURN(Type * ty, new_pkg->MapTypeFromOtherPackage(
-                                          s->state_element()->type()));
       if (absl::c_contains(state_elements, s->state_element())) {
-        BValue copied_state = pb.ReadStateElement(
-            s->state_element()->name(), s->state_element()->initial_value(),
-            s->predicate()
-                ? std::make_optional(BValue(old_to_new[*s->predicate()], &pb))
-                : std::nullopt,
-            s->state_element()->non_synthesizable(), n->loc());
-
-        old_to_new[n] = copied_state.node();
         if (send_state_values) {
+          old_to_new[n] = unconditional_state_reads.at(s->state_element());
+        } else {
+          std::optional<BValue> pred =
+              s->predicate().has_value()
+                  ? std::make_optional(
+                        BValue(old_to_new.at(*s->predicate()), &pb))
+                  : std::nullopt;
+          old_to_new[n] =
+              pb.StateRead(old_to_new_state_elements.at(s->state_element()),
+                           pred, s->label(), s->loc())
+                  .node();
+        }
+      } else {
+        auto [it, inserted] =
+            unextracted_state_elements.try_emplace(s->state_element(), nullptr);
+        if (inserted) {
+          XLS_ASSIGN_OR_RETURN(Type * ty, new_pkg->MapTypeFromOtherPackage(
+                                              s->state_element()->type()));
+
           XLS_ASSIGN_OR_RETURN(
               Channel * st_chan,
               new_pkg->CreateStreamingChannel(
-                  absl::StrFormat("%s_value_chan", s->state_element()->name()),
-                  ChannelOps::kSendOnly, ty));
-          pb.Send(st_chan, pb.Literal(Value::Token()), copied_state, n->loc(),
-                  n->HasAssignedName() ? n->GetName() : "");
+                  absl::StrFormat("%s_chan", s->state_element()->name()),
+                  ChannelOps::kReceiveOnly, ty));
+          it->second =
+              pb.TupleIndex(pb.Receive(st_chan, pb.Literal(Value::Token())), 1,
+                            n->loc(), n->HasAssignedName() ? n->GetName() : "")
+                  .node();
         }
-      } else {
-        XLS_ASSIGN_OR_RETURN(
-            Channel * st_chan,
-            new_pkg->CreateStreamingChannel(
-                absl::StrFormat("%s_chan", s->state_element()->name()),
-                ChannelOps::kReceiveOnly, ty));
-        old_to_new[n] =
-            pb.TupleIndex(pb.Receive(st_chan, pb.Literal(Value::Token())), 1,
-                          n->loc(), n->HasAssignedName() ? n->GetName() : "")
-                .node();
+        old_to_new[n] = it->second;
       }
     } else if (n->Is<Next>()) {
       Next* nxt = n->As<Next>();
@@ -199,14 +227,11 @@ absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
                       BValue(old_to_new.at(*nxt->predicate()), &pb))
                 : std::nullopt;
         std::string name = nxt->HasAssignedName() ? nxt->GetName() : "";
-        StateRead* state_read =
-            original->GetStateReadByStateElement(nxt->state_element());
-        StateElement* new_se =
-            old_to_new.at(state_read)->As<StateRead>()->state_element();
-        old_to_new[n] = pb.Next(BStateElement(new_se, &pb),
-                                BValue(old_to_new.at(nxt->value()), &pb), pred,
-                                nxt->label(), nxt->loc(), name)
-                            .node();
+        BStateElement new_se = old_to_new_state_elements[nxt->state_element()];
+        old_to_new[n] =
+            pb.Next(new_se, BValue(old_to_new.at(nxt->value()), &pb), pred,
+                    nxt->label(), nxt->loc(), name)
+                .node();
       }
       // Non-extracted nexts can be dropped.
     } else {

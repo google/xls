@@ -863,6 +863,7 @@ cc_library(
         "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:state_element",
         "//xls/ir:value",
         "//xls/passes:cse_pass",

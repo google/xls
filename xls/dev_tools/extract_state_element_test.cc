@@ -127,5 +127,114 @@ TEST_F(ExtractStateElementTest, SendStateDecoupledNext) {
   RecordProperty("ir", new_pkg->DumpIr());
   ExpectEqualToGoldenFile(TestFilePath(TestName()), new_pkg->DumpIr());
 }
+
+TEST_F(ExtractStateElementTest, MultipleStateReads) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  BReceiveChannel chan = pb.AddInputChannel("inp_chan", p->GetBitsType(32));
+  BStateElement cond_element = pb.StateElement("cond", Value(UBits(1, 1)));
+  BValue cond = pb.StateRead(cond_element);
+  BValue not_cond = pb.Not(cond);
+
+  BStateElement a = pb.StateElement("a", Value(UBits(1, 32)));
+  BStateElement b = pb.StateElement("b", Value(UBits(1, 32)));
+  BStateElement c = pb.StateElement("c", Value(UBits(1, 32)));
+
+  // Multiple reads on extracted state element 'a'.
+  BValue a_read1 = pb.StateRead(a, cond);
+  BValue a_read2 = pb.StateRead(a, not_cond);
+
+  // Multiple reads on non-extracted state element 'b'.
+  BValue b_read1 = pb.StateRead(b, cond);
+  BValue b_read2 = pb.StateRead(b, not_cond);
+
+  // Unused read on non-extracted state element 'c'.
+  pb.StateRead(c);
+
+  pb.Next(cond_element, not_cond);
+  pb.Next(a, pb.Add(a_read1, b_read1), cond);
+  pb.Next(a, pb.Add(a_read2, b_read2), not_cond);
+  pb.Next(b,
+          pb.Add(pb.TupleIndex(pb.Receive(chan, pb.Literal(Value::Token())), 1),
+                 a_read1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto new_pkg, ExtractStateElementsInNewPackage(
+                        proc, {a.state_element(), cond_element.state_element()},
+                        /*send_state_values=*/false));
+  RecordProperty("ir", new_pkg->DumpIr());
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), new_pkg->DumpIr());
+}
+
+TEST_F(ExtractStateElementTest, SendStateMultipleStateReads) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  BReceiveChannel chan = pb.AddInputChannel("inp_chan", p->GetBitsType(32));
+  BStateElement cond_element = pb.StateElement("cond", Value(UBits(1, 1)));
+  BValue cond = pb.StateRead(cond_element);
+  BValue not_cond = pb.Not(cond);
+
+  BStateElement a = pb.StateElement("a", Value(UBits(1, 32)));
+  BStateElement b = pb.StateElement("b", Value(UBits(1, 32)));
+  BStateElement c = pb.StateElement("c", Value(UBits(1, 32)));
+
+  // Multiple reads on extracted state element 'a'.
+  BValue a_read1 = pb.StateRead(a, cond);
+  BValue a_read2 = pb.StateRead(a, not_cond);
+
+  // Multiple reads on non-extracted state element 'b'.
+  BValue b_read1 = pb.StateRead(b, cond);
+  BValue b_read2 = pb.StateRead(b, not_cond);
+
+  // Unused read on non-extracted state element 'c'.
+  pb.StateRead(c);
+
+  pb.Next(cond_element, not_cond);
+  pb.Next(a, pb.Add(a_read1, b_read1), cond);
+  pb.Next(a, pb.Add(a_read2, b_read2), not_cond);
+  pb.Next(b,
+          pb.Add(pb.TupleIndex(pb.Receive(chan, pb.Literal(Value::Token())), 1),
+                 a_read1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto new_pkg, ExtractStateElementsInNewPackage(
+                        proc, {a.state_element(), cond_element.state_element()},
+                        /*send_state_values=*/true));
+  RecordProperty("ir", new_pkg->DumpIr());
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), new_pkg->DumpIr());
+}
+
+TEST_F(ExtractStateElementTest, MultipleReceivesOnSameChannel) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc{}, TestName(), "tkn", p.get());
+  BReceiveChannel chan = pb.AddInputChannel("data_in", p->GetBitsType(32));
+
+  BStateElement cond_element = pb.StateElement("cond", Value(UBits(1, 1)));
+  BValue cond = pb.StateRead(cond_element);
+  BValue not_cond = pb.Not(cond);
+
+  BStateElement st = pb.StateElement("st", Value(UBits(0, 32)));
+
+  // Two separate Receive nodes reading from the same channel with mutually
+  // exclusive predicates:
+  BValue recv1 =
+      pb.TupleIndex(pb.ReceiveIf(chan, pb.Literal(Value::Token()), cond), 1);
+  BValue recv2 = pb.TupleIndex(
+      pb.ReceiveIf(chan, pb.Literal(Value::Token()), not_cond), 1);
+
+  pb.Next(cond_element, not_cond);
+  pb.Next(st, pb.Add(recv1, recv2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto new_pkg,
+      ExtractStateElementsInNewPackage(
+          proc, {st.state_element(), cond_element.state_element()},
+          /*send_state_values=*/false));
+  RecordProperty("ir", new_pkg->DumpIr());
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), new_pkg->DumpIr());
+}
 }  // namespace
 }  // namespace xls

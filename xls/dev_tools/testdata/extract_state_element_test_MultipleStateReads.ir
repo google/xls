@@ -1,0 +1,18 @@
+package MultipleStateReads
+
+chan b_chan(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+top proc MultipleStateReads(a: bits[32], cond: bits[1], init={1, 1}) {
+  literal.2: token = literal(value=token, id=2)
+  cond: bits[1] = state_read(state_element=cond, id=1)
+  receive.7: (token, bits[32]) = receive(literal.2, channel=b_chan, id=7)
+  not.3: bits[1] = not(cond, id=3)
+  a: bits[32] = state_read(state_element=a, predicate=cond, id=5)
+  b: bits[32] = tuple_index(receive.7, index=1, id=8)
+  a__1: bits[32] = state_read(state_element=a, predicate=not.3, id=9)
+  add.11: bits[32] = add(a, b, id=11)
+  add.12: bits[32] = add(a__1, b, id=12)
+  next_value.18: () = next_value(state_element=cond, value=not.3, id=18)
+  next_value.19: () = next_value(state_element=a, value=add.11, predicate=cond, id=19)
+  next_value.20: () = next_value(state_element=a, value=add.12, predicate=not.3, id=20)
+}

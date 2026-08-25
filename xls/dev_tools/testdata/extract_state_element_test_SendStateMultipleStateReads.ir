@@ -1,0 +1,20 @@
+package SendStateMultipleStateReads
+
+chan a_value_chan(bits[32], id=0, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan cond_value_chan(bits[1], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan b_chan(bits[32], id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+top proc SendStateMultipleStateReads(a: bits[32], cond: bits[1], init={1, 1}) {
+  literal.2: token = literal(value=token, id=2)
+  receive.11: (token, bits[32]) = receive(literal.2, channel=b_chan, id=11)
+  cond: bits[1] = state_read(state_element=cond, id=4)
+  a: bits[32] = state_read(state_element=a, id=1)
+  b: bits[32] = tuple_index(receive.11, index=1, id=12)
+  not.8: bits[1] = not(cond, id=8)
+  add.14: bits[32] = add(a, b, id=14)
+  a__1: token = send(literal.2, a, channel=a_value_chan, id=3)
+  cond__1: token = send(literal.2, cond, channel=cond_value_chan, id=6)
+  next_value.21: () = next_value(state_element=cond, value=not.8, id=21)
+  next_value.22: () = next_value(state_element=a, value=add.14, predicate=cond, id=22)
+  next_value.23: () = next_value(state_element=a, value=add.14, predicate=not.8, id=23)
+}

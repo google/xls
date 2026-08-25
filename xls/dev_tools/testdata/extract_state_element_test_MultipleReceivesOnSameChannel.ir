@@ -1,0 +1,16 @@
+package MultipleReceivesOnSameChannel
+
+chan data_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+top proc MultipleReceivesOnSameChannel(st: bits[32], cond: bits[1], init={0, 1}) {
+  cond: bits[1] = state_read(state_element=cond, id=1)
+  literal.2: token = literal(value=token, id=2)
+  not.4: bits[1] = not(cond, id=4)
+  receive.5: (token, bits[32]) = receive(literal.2, predicate=cond, channel=data_in, id=5)
+  receive.6: (token, bits[32]) = receive(literal.2, predicate=not.4, channel=data_in, id=6)
+  tuple_index.7: bits[32] = tuple_index(receive.5, index=1, id=7)
+  tuple_index.8: bits[32] = tuple_index(receive.6, index=1, id=8)
+  add.9: bits[32] = add(tuple_index.7, tuple_index.8, id=9)
+  next_value.11: () = next_value(state_element=cond, value=not.4, id=11)
+  next_value.12: () = next_value(state_element=st, value=add.9, id=12)
+}
