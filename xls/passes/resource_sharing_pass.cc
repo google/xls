@@ -43,7 +43,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "cppitertools/combinations.hpp"
-#include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/union_find.h"
@@ -63,6 +62,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/post_dominator_analysis.h"
+#include "xls/passes/resource_sharing_equivalence.h"
 #include "xls/passes/visibility_analysis.h"
 #include "xls/passes/visibility_expr_builder.h"
 #include "xls/visualization/math_notation.h"
@@ -170,52 +170,6 @@ std::optional<uint32_t> GetSelectCaseNumberOfNode(
   return select_case_number;
 }
 
-// This function check if @node_to_map can be folded into @folding_destination.
-//
-// The current analysis succeeds at declaring the two nodes can be
-// folded together if their types are compatible and if the bit width of the
-// @folding_destination is at least as large as that of @node_to_map.
-bool CanMapOpInto(Node* node_to_map, Node* folding_destination) {
-  // We only handle either nodes of the same types (e.g., umul), or they need to
-  // be either add or sub. This is because sub can be mapped into add (and
-  // vice versa) by negating the second operand.
-  if (node_to_map->op() != folding_destination->op()) {
-    bool can_map_into = false;
-    constexpr std::array<Op, 2> kAddOrSub = {Op::kAdd, Op::kSub};
-    constexpr std::array<Op, 2> kRightShiftOrDynamicBitslice = {
-        Op::kShrl, Op::kDynamicBitSlice};
-    if (node_to_map->OpIn(kAddOrSub) && folding_destination->OpIn(kAddOrSub)) {
-      can_map_into = true;
-    }
-    if (node_to_map->OpIn(kRightShiftOrDynamicBitslice) &&
-        folding_destination->OpIn(kRightShiftOrDynamicBitslice)) {
-      can_map_into = true;
-    }
-    if (!can_map_into) {
-      return false;
-    }
-  }
-
-  if (node_to_map->OpIn(NaryOp::kOps)) {
-    if (node_to_map->operand_count() != folding_destination->operand_count()) {
-      return false;
-    }
-  }
-
-  // Check the source bit-widths are not larger than the destination bit-widths
-  if (node_to_map->BitCountOrDie() > folding_destination->BitCountOrDie()) {
-    return false;
-  }
-  for (auto [operand_from_mul, operand_to_mul] :
-       iter::zip(node_to_map->operands(), folding_destination->operands())) {
-    if (operand_from_mul->BitCountOrDie() > operand_to_mul->BitCountOrDie()) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 // Check if we are currently capable to potentially handle the node given as
 // input for folding.
 bool CanTarget(Node* n) {
@@ -287,7 +241,9 @@ ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
   // CanTarget and ShouldTarget have already been vetted, so all that is left
   // is to see if the types and bit widths are compatible
 
-  if (!CanMapOpInto(from_node, to_node)) {
+  std::optional<std::unique_ptr<EquivalenceMapping>> mapping =
+      GetNodeEquivalenceMapper().ComputeMapping(from_node, to_node);
+  if (!mapping.has_value()) {
     return nullptr;
   }
 
@@ -321,11 +277,29 @@ ResourceSharingPass::GetFoldableActionForMutuallyExclusiveNodes(
     return nullptr;
   }
 
+  // Ensure that none of the visibility edge nodes (the selectors) depend on
+  // from_node or to_node.
+  for (const auto& edge : from_edges) {
+    if (visibility.nda->IsDependent(edge.node, from_node) ||
+        visibility.nda->IsDependent(edge.node, to_node)) {
+      VLOG(4) << "Visibility edge node depends on folded node: " << edge.node;
+      return nullptr;
+    }
+  }
+  for (const auto& edge : to_edges) {
+    if (visibility.nda->IsDependent(edge.node, from_node) ||
+        visibility.nda->IsDependent(edge.node, to_node)) {
+      VLOG(4) << "Visibility edge node depends on folded node: " << edge.node;
+      return nullptr;
+    }
+  }
+
   VLOG(4) << "Adding folding action: " << from_node << " into " << to_node;
   // Only n-ary foldings are evaluated with area saving thresholds, so we
   // defer computing area saved until then
-  return std::make_unique<BinaryFoldingAction>(from_node, to_node, from_edges,
-                                               to_edges, 0.0, sinks);
+  return std::make_unique<BinaryFoldingAction>(
+      from_node, to_node, std::move(from_edges), std::move(to_edges), 0.0,
+      std::move(*mapping), std::move(sinks));
 }
 
 absl::StatusOr<std::vector<std::unique_ptr<BinaryFoldingAction>>>
@@ -642,26 +616,12 @@ absl::StatusOr<NaryFoldEstimate> SelectSubsetOfFolds(
         (area_select * number_of_inputs_that_require_select) +
         selector_cost.area;
 
-    // Add overhead if we need to compensate for having different node types
-    // (e.g., folding a sub into an add) in the folding
-    double area_overhead = area_selects_overhead;
-    if ((from->op() != destination->op()) &&
-        destination->OpIn({Op::kAdd, Op::kSub}) &&
-        from->OpIn({Op::kAdd, Op::kSub})) {
-      // The only case we currently handle where the node types are different
-      // is when folding an add to a sub or vice-versa.
-      // In both cases, we need to negate the second operand.
-      //
-      // Check if the negated value is already available
-      Node* from_operand = from->operand(1);
-      if (from_operand->op() != Op::kNeg) {
-        // We actually need to negate the value
-        XLS_ASSIGN_OR_RETURN(
-            double negate_area,
-            EstimateAreaForNegatingNode(from->operand(1), area_estimator));
-        area_overhead += negate_area;
-      }
-    }
+    // Add overhead incurred by mapping operands and output
+    // e.g. negation when folding between add/sub
+    XLS_ASSIGN_OR_RETURN(double mapping_overhead,
+                         folding->mapping().EstimateAreaOverhead(
+                             area_estimator, from->operands(), from));
+    double area_overhead = area_selects_overhead + mapping_overhead;
 
     // Compute the net area saved
     double area_saved_by_current_folding = area_of_from - area_overhead;
@@ -1039,11 +999,14 @@ ResourceSharingPass::LegalizeSequenceOfFolding(
       XLS_RET_CHECK_NE(prior_folding_destination, to_node);
       bool skip_current_folding = false;
       for (auto& [source, _] : folding->GetFrom()) {
-        if (!mutual_exclusivity.contains({source, prior_folding_destination})) {
-          VLOG(4) << "      Excluding the current n-ary folding f_i because "
-                     "its destination was used by a prior n-ary folding f_j "
-                     "that has a destination that is not mutually exclusive "
-                     "with the following source of f_i";
+        if (!mutual_exclusivity.contains({source, prior_folding_destination}) ||
+            nda.IsDependent(source, prior_folding_destination) ||
+            nda.IsDependent(prior_folding_destination, source)) {
+          VLOG(4)
+              << "      Excluding the current n-ary folding f_i because "
+                 "its destination was used by a prior n-ary folding f_j "
+                 "that has a destination that is not mutually exclusive "
+                 "with the following source of f_i, or would create a cycle";
           VLOG(4) << "        Problematic source of f_i   = "
                   << source->ToString();
           VLOG(4) << "        Prior folding's destination = "
@@ -1840,12 +1803,6 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     }
     return initial;
   };
-  auto renamed_edge = [&](OperandVisibilityAnalysis::OperandNode edge)
-      -> OperandVisibilityAnalysis::OperandNode {
-    return OperandVisibilityAnalysis::OperandNode{
-        /*operand=*/final_renamed_node(edge.operand),
-        /*node=*/final_renamed_node(edge.node)};
-  };
 
   // Precompute visibility expressions for foldings prior to transforming.
   // Constructing these expressions on the unmodified def-use DAG prevents
@@ -1858,6 +1815,12 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
            precomputed_from_used),
       PrecomputeVisibilityExpressions(f, visibility_builder,
                                       folding_actions_to_perform));
+
+  struct FromSource {
+    Node* node;
+    std::unique_ptr<EquivalenceMapping> mapping;
+    std::vector<Node*> coerced_operands;
+  };
 
   // Perform the folding actions specified
   for (const std::unique_ptr<NaryFoldingAction>& folding :
@@ -1886,18 +1849,26 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     to_node = final_renamed_node(to_node);
 
     // Fetch the nodes to fold that have not been folded already
-    std::vector<std::pair<Node*, FoldingAction::VisibilityEdges>> froms_to_use;
-    for (auto& [from_node, from_edges] : folding->GetFrom()) {
+    std::vector<FromSource> froms_to_use;
+    froms_to_use.reserve(folding->GetFrom().size());
+    for (const auto& [from_node, _] : folding->GetFrom()) {
       Node* renamed_node = final_renamed_node(from_node);
-      absl::flat_hash_set<OperandVisibilityAnalysis::OperandNode>
-          replaced_edges;
-      for (auto edge : from_edges) {
-        replaced_edges.insert(renamed_edge(edge));
-      }
 
-      // Register we can fold the current source to the destination of the
-      // folding
-      froms_to_use.push_back(std::make_pair(renamed_node, replaced_edges));
+      std::optional<std::unique_ptr<EquivalenceMapping>> mapping =
+          GetNodeEquivalenceMapper().ComputeMapping(renamed_node, to_node);
+      XLS_RET_CHECK(mapping.has_value())
+          << "No equivalence mapping found for " << renamed_node->ToString()
+          << " -> " << to_node->ToString();
+
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<Node*> coerced_operands,
+          (*mapping)->ApplyToOperands(f, renamed_node->operands()));
+
+      froms_to_use.push_back(FromSource{
+          .node = renamed_node,
+          .mapping = std::move(*mapping),
+          .coerced_operands = std::move(coerced_operands),
+      });
 
       // Keep track of the renaming of the nodes that we are about to perform
       // (from the sources to the destination).
@@ -1910,8 +1881,8 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     // Print the folding we are about to perform
     VLOG(2) << "  Next folding to perform:\n";
     VLOG(2) << "    To: " << to_node->ToString();
-    for (auto& [from_node, _] : froms_to_use) {
-      VLOG(2) << "      From: " << from_node->ToString();
+    for (const FromSource& from : froms_to_use) {
+      VLOG(2) << "      From: " << from.node->ToString();
     }
 
     // Fold
@@ -1953,10 +1924,10 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
       Node* to_operand = to_node->operand(op_id);
 
       // Check if all sources have the same operand of the destination.
-      // In this case, we do not to select which one to forward.
+      // In this case, we do not need to select which one to forward.
       bool we_need_to_select_operand = false;
-      for (const auto& [from_node, _] : froms_to_use) {
-        if (from_node->operand(op_id) != to_operand) {
+      for (const FromSource& from : froms_to_use) {
+        if (from.coerced_operands[op_id] != to_operand) {
           we_need_to_select_operand = true;
           break;
         }
@@ -1978,18 +1949,10 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
       //
       // Generate all select cases, one for each source of the folding action.
       std::vector<Node*> operand_select_cases;
-      for (const auto& [from_node, _] : froms_to_use) {
-        VLOG(4) << "          Source from " << from_node->ToString();
-
-        // Fetch and coerce the operand of the current source of the folding
-        // action.
-        XLS_ASSIGN_OR_RETURN(
-            CoercedOperand coerced_from_operand,
-            CoerceOperandForSharing(f, from_node, to_node, op_id));
-
-        // Append the current operand of the current source of the folding
-        // action
-        operand_select_cases.push_back(coerced_from_operand.operand);
+      operand_select_cases.reserve(froms_to_use.size());
+      for (const FromSource& from : froms_to_use) {
+        VLOG(4) << "          Source from " << from.node->ToString();
+        operand_select_cases.push_back(from.coerced_operands[op_id]);
       }
 
       // Generate a select between the sources of the folding
@@ -2012,9 +1975,9 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
             "in the legalization of folding actions or in visibility analysis",
             folded_node->ToString(), select->ToString()));
       };
-      for (const auto& [from_node, _] : froms_to_use) {
-        if (nda.IsDependent(from_node, new_operand)) {
-          return make_error(from_node, new_operand);
+      for (const FromSource& from : froms_to_use) {
+        if (nda.IsDependent(from.node, new_operand)) {
+          return make_error(from.node, new_operand);
         }
       }
       if (nda.IsDependent(to_node, new_operand)) {
@@ -2032,9 +1995,11 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     // @to_node and remove the dead sources.
     VLOG(3)
         << "      Step 3: update the def-use chains to use the new folded node";
-    for (const auto& [from_node, _] : froms_to_use) {
-      XLS_RETURN_IF_ERROR(
-          ReplaceSharedNodeUsesAndRemove(f, from_node, to_node).status());
+    for (const FromSource& from : froms_to_use) {
+      XLS_ASSIGN_OR_RETURN(Node * replacement,
+                           from.mapping->ApplyToOutput(f, to_node));
+      XLS_RETURN_IF_ERROR(from.node->ReplaceUsesWith(replacement));
+      XLS_RETURN_IF_ERROR(f->RemoveNode(from.node));
     }
     VLOG(3) << "      Folding completed";
   }
@@ -2233,62 +2198,6 @@ int64_t TimingAnalysis::GetDelayIncrease(
   auto it = delay_increase_.find(&folding_action);
   CHECK_NE(it, delay_increase_.end());
   return it->second;
-}
-
-absl::StatusOr<CoercedOperand> CoerceOperandForSharing(FunctionBase* f,
-                                                       Node* from_node,
-                                                       Node* to_node,
-                                                       int64_t op_id) {
-  Node* from_operand = from_node->operand(op_id);
-  Node* to_operand = to_node->operand(op_id);
-  XLS_RET_CHECK_LE(from_operand->BitCountOrDie(), to_operand->BitCountOrDie())
-      << "Illegal bit widths for folding: " << from_node->ToString()
-      << " into: " << to_node->ToString();
-
-  const bool may_need_negation = (op_id == 1) &&
-                                 (to_node->op() != from_node->op()) &&
-                                 to_node->OpIn({Op::kAdd, Op::kSub}) &&
-                                 from_node->OpIn({Op::kAdd, Op::kSub});
-  Node* from_operand_processed = from_operand;
-  CoercedOperand result;
-  result.required_negation = false;
-  if (may_need_negation) {
-    if (from_operand->op() == Op::kNeg) {
-      from_operand_processed = from_operand->operand(0);
-    } else {
-      XLS_ASSIGN_OR_RETURN(
-          from_operand_processed,
-          f->MakeNode<UnOp>(to_node->loc(), from_operand_processed, Op::kNeg));
-      result.required_negation = true;
-    }
-  }
-
-  if (from_operand_processed->BitCountOrDie() < to_operand->BitCountOrDie()) {
-    Op extension_op = IsSigned(to_node) ? Op::kSignExt : Op::kZeroExt;
-    XLS_ASSIGN_OR_RETURN(
-        from_operand_processed,
-        f->MakeNode<ExtendOp>(to_node->loc(), from_operand_processed,
-                              to_operand->BitCountOrDie(), extension_op));
-  }
-  result.operand = from_operand_processed;
-  return result;
-}
-
-absl::StatusOr<Node*> ReplaceSharedNodeUsesAndRemove(FunctionBase* f,
-                                                     Node* from_node,
-                                                     Node* to_node) {
-  Node* to_node_to_use = to_node;
-  if (from_node->GetType()->IsBits() && to_node->GetType()->IsBits()) {
-    XLS_RET_CHECK_LE(from_node->BitCountOrDie(), to_node->BitCountOrDie());
-    if (from_node->BitCountOrDie() < to_node->BitCountOrDie()) {
-      XLS_ASSIGN_OR_RETURN(to_node_to_use,
-                           f->MakeNode<BitSlice>(from_node->loc(), to_node, 0,
-                                                 from_node->BitCountOrDie()));
-    }
-  }
-  XLS_RETURN_IF_ERROR(from_node->ReplaceUsesWith(to_node_to_use));
-  XLS_RETURN_IF_ERROR(f->RemoveNode(from_node));
-  return to_node_to_use;
 }
 
 absl::Status ReplaceOperandsIfChanged(Node* node,

@@ -550,26 +550,6 @@ bool CanFoldTogether(
         mutual_exclusivity,
     const BinaryFoldingAction& next, const BinaryFoldingAction& previous);
 
-// Coerces `from_node`'s operand at `op_id` to match `to_node`'s operand
-// bitwidth and operation requirements (e.g. negation when folding between sub
-// and add). Populates from_operand_required_negation, if provided, setting to
-// true if the from_node operand needed negation.
-struct CoercedOperand {
-  Node* operand = nullptr;
-  bool required_negation = false;
-};
-absl::StatusOr<CoercedOperand> CoerceOperandForSharing(FunctionBase* f,
-                                                       Node* from_node,
-                                                       Node* to_node,
-                                                       int64_t op_id);
-
-// Replaces all uses of `from_node` with `to_node` (inserting a BitSlice if
-// `from_node` has fewer bits than `to_node`) and removes `from_node` from `f`.
-// Returns the node (`to_node` or the new `BitSlice`) that replaced `from_node`.
-absl::StatusOr<Node*> ReplaceSharedNodeUsesAndRemove(FunctionBase* f,
-                                                     Node* from_node,
-                                                     Node* to_node);
-
 // Replaces any operands of `node` that differ from `new_operands`.
 absl::Status ReplaceOperandsIfChanged(Node* node,
                                       absl::Span<Node* const> new_operands);
