@@ -53,6 +53,9 @@ class FakeAreaEstimator : public AreaEstimator {
     if (node->op() == Op::kNeg) {
       return 10.0 * node->BitCountOrDie();
     }
+    if (node->op() == Op::kXor) {
+      return 5.0 * node->BitCountOrDie();
+    }
     return 1.0;
   }
 };
@@ -287,20 +290,33 @@ TEST_F(ResourceSharingEquivalenceTest, AddSubEquivalenceMapping) {
 }
 
 TEST_F(ResourceSharingEquivalenceTest, ShiftEquivalenceMapping) {
-  // different ops
+  // different ops / unsupported mappings
   {
     auto p = CreatePackage();
-    FunctionBuilder fb("shll_to_shrl", p.get());
-    BValue x = fb.Param("x", p->GetBitsType(32));
-    BValue shll = fb.Shll(x, x);
-    BValue shrl = fb.Shrl(x, x);
-    BValue mul = fb.UMul(x, x);
+    FunctionBuilder fb("shift_unsupported_ops", p.get());
+    BValue x32 = fb.Param("x32", p->GetBitsType(32));
+    BValue x16 = fb.Param("x16", p->GetBitsType(16));
+    BValue shll = fb.Shll(x32, x32);
+    BValue shrl = fb.Shrl(x32, x32);
+    BValue shra = fb.Shra(x32, x32);
+    BValue shrl16 = fb.Shrl(x16, x16);
+    BValue mul = fb.UMul(x32, x32);
     XLS_ASSERT_OK(fb.Build());
     EXPECT_FALSE(GetNodeEquivalenceMapper()
                      .ComputeMapping(mul.node(), shll.node())
                      .has_value());
     EXPECT_FALSE(GetNodeEquivalenceMapper()
                      .ComputeMapping(shrl.node(), mul.node())
+                     .has_value());
+    EXPECT_FALSE(GetNodeEquivalenceMapper()
+                     .ComputeMapping(shrl.node(), shra.node())
+                     .has_value());
+    EXPECT_FALSE(GetNodeEquivalenceMapper()
+                     .ComputeMapping(shll.node(), shra.node())
+                     .has_value());
+    // shra (32-bit) -> shrl (16-bit) unsupported because narrowing is invalid
+    EXPECT_FALSE(GetNodeEquivalenceMapper()
+                     .ComputeMapping(shra.node(), shrl16.node())
                      .has_value());
   }
 
@@ -333,15 +349,15 @@ TEST_F(ResourceSharingEquivalenceTest, ShiftEquivalenceMapping) {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::vector<Node*> coerced,
         (*mapping)->ApplyToOperands(f, shll.node()->operands()));
-    EXPECT_THAT(coerced, ElementsAre(m::Reverse(m::Param("x")), m::Param("s")));
+    auto rev_x = m::Reverse(m::Param("x"));
+    EXPECT_THAT(coerced, ElementsAre(rev_x, m::Param("s")));
 
     XLS_ASSERT_OK_AND_ASSIGN(Node * new_shrl,
                              f->MakeNode<BinOp>(shrl.node()->loc(), coerced[0],
                                                 coerced[1], Op::kShrl));
     XLS_ASSERT_OK_AND_ASSIGN(Node * output,
                              (*mapping)->ApplyToOutput(f, new_shrl));
-    EXPECT_THAT(output,
-                m::Reverse(m::Shrl(m::Reverse(m::Param("x")), m::Param("s"))));
+    EXPECT_THAT(output, m::Reverse(m::Shrl(rev_x, m::Param("s"))));
 
     XLS_ASSERT_OK(f->set_return_value(output));
   }
@@ -375,14 +391,308 @@ TEST_F(ResourceSharingEquivalenceTest, ShiftEquivalenceMapping) {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::vector<Node*> coerced,
         (*mapping)->ApplyToOperands(f, shrl.node()->operands()));
-    EXPECT_THAT(coerced, ElementsAre(m::Reverse(m::Param("x")), m::Param("s")));
+    auto rev_x = m::Reverse(m::Param("x"));
+    EXPECT_THAT(coerced, ElementsAre(rev_x, m::Param("s")));
     XLS_ASSERT_OK_AND_ASSIGN(Node * new_shll,
                              f->MakeNode<BinOp>(shll.node()->loc(), coerced[0],
                                                 coerced[1], Op::kShll));
     XLS_ASSERT_OK_AND_ASSIGN(Node * output,
                              (*mapping)->ApplyToOutput(f, new_shll));
-    EXPECT_THAT(output,
-                m::Reverse(m::Shll(m::Reverse(m::Param("x")), m::Param("s"))));
+    EXPECT_THAT(output, m::Reverse(m::Shll(rev_x, m::Param("s"))));
+    XLS_ASSERT_OK(f->set_return_value(output));
+  }
+}
+
+TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMapping) {
+  // shra -> shrl with same width
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("shra_to_shrl_same_width", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(4));
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue shra = fb.Shra(x, s);
+    BValue shrl = fb.Shrl(x, s);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shra));
+
+    auto mapping =
+        GetNodeEquivalenceMapper().ComputeMapping(shra.node(), shrl.node());
+    ASSERT_TRUE(mapping.has_value());
+    EXPECT_TRUE((*mapping)->RequiresOperandTransformation());
+    EXPECT_TRUE((*mapping)->RequiresOutputTransformation());
+
+    // Confirm area estimation (2 * 5.0 * 4 = 40.0)
+    FakeAreaEstimator area_estimator;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double overhead,
+        (*mapping)->EstimateAreaOverhead(area_estimator,
+                                         shra.node()->operands(), shra.node()));
+    EXPECT_EQ(overhead, 40.0);
+
+    // Create mapped node to confirm equivalence
+    ScopedVerifyEquivalence sve(f);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced,
+        (*mapping)->ApplyToOperands(f, shra.node()->operands()));
+    auto msb_mask =
+        m::SignExt(m::BitSlice(m::Param("x"), /*start=*/3, /*width=*/1));
+    auto x_xor_msb = m::Xor(m::Param("x"), msb_mask);
+    EXPECT_THAT(coerced, ElementsAre(x_xor_msb, m::Param("s")));
+
+    XLS_ASSERT_OK_AND_ASSIGN(Node * new_shrl,
+                             f->MakeNode<BinOp>(shrl.node()->loc(), coerced[0],
+                                                coerced[1], Op::kShrl));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             (*mapping)->ApplyToOutput(f, new_shrl));
+    EXPECT_THAT(output, m::Xor(m::Shrl(x_xor_msb, m::Param("s")), msb_mask));
+
+    XLS_ASSERT_OK(f->set_return_value(output));
+  }
+
+  // shra -> shll with same width
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("shra_to_shll_same_width", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(4));
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue shra = fb.Shra(x, s);
+    BValue shll = fb.Shll(x, s);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shra));
+
+    auto mapping =
+        GetNodeEquivalenceMapper().ComputeMapping(shra.node(), shll.node());
+    ASSERT_TRUE(mapping.has_value());
+    EXPECT_TRUE((*mapping)->RequiresOperandTransformation());
+    EXPECT_TRUE((*mapping)->RequiresOutputTransformation());
+
+    // Confirm area estimation (2 * 5.0 * 4 = 40.0)
+    FakeAreaEstimator area_estimator;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double overhead,
+        (*mapping)->EstimateAreaOverhead(area_estimator,
+                                         shra.node()->operands(), shra.node()));
+    EXPECT_EQ(overhead, 40.0);
+
+    // Create mapped node to confirm equivalence
+    ScopedVerifyEquivalence sve(f);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced,
+        (*mapping)->ApplyToOperands(f, shra.node()->operands()));
+    auto msb_mask =
+        m::SignExt(m::BitSlice(m::Param("x"), /*start=*/3, /*width=*/1));
+    auto x_xor_msb = m::Xor(m::Param("x"), msb_mask);
+    EXPECT_THAT(coerced, ElementsAre(m::Reverse(x_xor_msb), m::Param("s")));
+
+    XLS_ASSERT_OK_AND_ASSIGN(Node * new_shll,
+                             f->MakeNode<BinOp>(shll.node()->loc(), coerced[0],
+                                                coerced[1], Op::kShll));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             (*mapping)->ApplyToOutput(f, new_shll));
+    EXPECT_THAT(
+        output,
+        m::Xor(m::Reverse(m::Shll(m::Reverse(x_xor_msb), m::Param("s"))),
+               msb_mask));
+
+    XLS_ASSERT_OK(f->set_return_value(output));
+  }
+}
+
+TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
+  // shra (4-bit) -> shrl (8-bit) widening
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("shra_to_shrl_widening", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(4));
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue shra = fb.Shra(x, s);
+    BValue dummy = fb.Param("dummy", p->GetBitsType(8));
+    BValue shrl = fb.Shrl(dummy, s);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shra));
+
+    auto mapping =
+        GetNodeEquivalenceMapper().ComputeMapping(shra.node(), shrl.node());
+    ASSERT_TRUE(mapping.has_value());
+
+    // Confirm area estimation (2 * 5.0 * 4 = 40.0)
+    FakeAreaEstimator area_estimator;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double overhead,
+        (*mapping)->EstimateAreaOverhead(area_estimator,
+                                         shra.node()->operands(), shra.node()));
+    EXPECT_EQ(overhead, 40.0);
+
+    // Create mapped node to confirm equivalence
+    ScopedVerifyEquivalence sve(f);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced,
+        (*mapping)->ApplyToOperands(f, shra.node()->operands()));
+    auto msb_mask =
+        m::SignExt(m::BitSlice(m::Param("x"), /*start=*/3, /*width=*/1));
+    auto x_xor_msb = m::Xor(m::Param("x"), msb_mask);
+    EXPECT_THAT(coerced, ElementsAre(m::ZeroExt(x_xor_msb), m::Param("s")));
+
+    XLS_ASSERT_OK_AND_ASSIGN(Node * new_shrl,
+                             f->MakeNode<BinOp>(shrl.node()->loc(), coerced[0],
+                                                coerced[1], Op::kShrl));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             (*mapping)->ApplyToOutput(f, new_shrl));
+    EXPECT_THAT(output, m::Xor(m::BitSlice(m::Shrl(m::ZeroExt(), m::Param("s")),
+                                           /*start=*/0, /*width=*/4),
+                               msb_mask));
+
+    XLS_ASSERT_OK(f->set_return_value(output));
+  }
+
+  // shra (4-bit) -> shll (8-bit) widening
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("shra_to_shll_widening", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(4));
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue shra = fb.Shra(x, s);
+    BValue dummy = fb.Param("dummy", p->GetBitsType(8));
+    BValue shll = fb.Shll(dummy, s);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shra));
+
+    auto mapping =
+        GetNodeEquivalenceMapper().ComputeMapping(shra.node(), shll.node());
+    ASSERT_TRUE(mapping.has_value());
+
+    // Create mapped node to confirm equivalence
+    ScopedVerifyEquivalence sve(f);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced,
+        (*mapping)->ApplyToOperands(f, shra.node()->operands()));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * new_shll,
+                             f->MakeNode<BinOp>(shll.node()->loc(), coerced[0],
+                                                coerced[1], Op::kShll));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             (*mapping)->ApplyToOutput(f, new_shll));
+    XLS_ASSERT_OK(f->set_return_value(output));
+  }
+
+  // shll (4-bit) -> shrl (8-bit) widening
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("shll_to_shrl_widening", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(4));
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue shll = fb.Shll(x, s);
+    BValue dummy = fb.Param("dummy", p->GetBitsType(8));
+    BValue shrl = fb.Shrl(dummy, s);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shll));
+
+    auto mapping =
+        GetNodeEquivalenceMapper().ComputeMapping(shll.node(), shrl.node());
+    ASSERT_TRUE(mapping.has_value());
+
+    // Create mapped node to confirm equivalence
+    ScopedVerifyEquivalence sve(f);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced,
+        (*mapping)->ApplyToOperands(f, shll.node()->operands()));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * new_shrl,
+                             f->MakeNode<BinOp>(shrl.node()->loc(), coerced[0],
+                                                coerced[1], Op::kShrl));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             (*mapping)->ApplyToOutput(f, new_shrl));
+    XLS_ASSERT_OK(f->set_return_value(output));
+  }
+
+  // shrl (4-bit) -> shll (8-bit) widening
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("shrl_to_shll_widening", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(4));
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue shrl = fb.Shrl(x, s);
+    BValue dummy = fb.Param("dummy", p->GetBitsType(8));
+    BValue shll = fb.Shll(dummy, s);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shrl));
+
+    auto mapping =
+        GetNodeEquivalenceMapper().ComputeMapping(shrl.node(), shll.node());
+    ASSERT_TRUE(mapping.has_value());
+
+    // Create mapped node to confirm equivalence
+    ScopedVerifyEquivalence sve(f);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced,
+        (*mapping)->ApplyToOperands(f, shrl.node()->operands()));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * new_shll,
+                             f->MakeNode<BinOp>(shll.node()->loc(), coerced[0],
+                                                coerced[1], Op::kShll));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             (*mapping)->ApplyToOutput(f, new_shll));
+    XLS_ASSERT_OK(f->set_return_value(output));
+  }
+
+  // shrl (4-bit) -> shra (8-bit) widening
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("shrl_to_shra_widening", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(4));
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue shrl = fb.Shrl(x, s);
+    BValue dummy = fb.Param("dummy", p->GetBitsType(8));
+    BValue shra = fb.Shra(dummy, s);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shrl));
+
+    auto mapping =
+        GetNodeEquivalenceMapper().ComputeMapping(shrl.node(), shra.node());
+    ASSERT_TRUE(mapping.has_value());
+    EXPECT_TRUE((*mapping)->RequiresOperandTransformation());
+    EXPECT_TRUE((*mapping)->RequiresOutputTransformation());
+
+    // Create mapped node to confirm equivalence
+    ScopedVerifyEquivalence sve(f);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced,
+        (*mapping)->ApplyToOperands(f, shrl.node()->operands()));
+    EXPECT_THAT(coerced, ElementsAre(m::ZeroExt(m::Param("x")), m::Param("s")));
+
+    XLS_ASSERT_OK_AND_ASSIGN(Node * new_shra,
+                             f->MakeNode<BinOp>(shra.node()->loc(), coerced[0],
+                                                coerced[1], Op::kShra));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             (*mapping)->ApplyToOutput(f, new_shra));
+    EXPECT_THAT(output, m::BitSlice(m::Shra(m::ZeroExt(), m::Param("s")),
+                                    /*start=*/0, /*width=*/4));
+    XLS_ASSERT_OK(f->set_return_value(output));
+  }
+
+  // shll (4-bit) -> shra (8-bit) widening
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("shll_to_shra_widening", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(4));
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue shll = fb.Shll(x, s);
+    BValue dummy = fb.Param("dummy", p->GetBitsType(8));
+    BValue shra = fb.Shra(dummy, s);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shll));
+
+    auto mapping =
+        GetNodeEquivalenceMapper().ComputeMapping(shll.node(), shra.node());
+    ASSERT_TRUE(mapping.has_value());
+    EXPECT_TRUE((*mapping)->RequiresOperandTransformation());
+    EXPECT_TRUE((*mapping)->RequiresOutputTransformation());
+
+    // Create mapped node to confirm equivalence
+    ScopedVerifyEquivalence sve(f);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced,
+        (*mapping)->ApplyToOperands(f, shll.node()->operands()));
+    EXPECT_THAT(coerced, ElementsAre(m::ZeroExt(m::Reverse(m::Param("x"))),
+                                     m::Param("s")));
+
+    XLS_ASSERT_OK_AND_ASSIGN(Node * new_shra,
+                             f->MakeNode<BinOp>(shra.node()->loc(), coerced[0],
+                                                coerced[1], Op::kShra));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             (*mapping)->ApplyToOutput(f, new_shra));
+    EXPECT_THAT(output, m::Reverse(m::BitSlice(
+                            m::Shra(m::ZeroExt(m::Reverse()), m::Param("s")),
+                            /*start=*/0, /*width=*/4)));
     XLS_ASSERT_OK(f->set_return_value(output));
   }
 }

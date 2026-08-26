@@ -1096,6 +1096,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:type",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",

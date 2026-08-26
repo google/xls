@@ -15,10 +15,12 @@
 #include "xls/passes/resource_sharing_equivalence.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
@@ -44,25 +46,6 @@ bool BothBitsTyped(const Node* a, const Node* b) {
   return a->GetType()->IsBits() && b->GetType()->IsBits();
 }
 
-// Returns true if both nodes are bits-typed and have the same bitwidth.
-bool HaveSameBitWidth(const Node* a, const Node* b) {
-  return BothBitsTyped(a, b) && a->BitCountOrDie() == b->BitCountOrDie();
-}
-
-// Returns true if all corresponding operands of `a` and `b` are bits-typed
-// and have the same bitwidth.
-bool HaveSameOperandBitWidths(const Node* a, const Node* b) {
-  if (a->operand_count() != b->operand_count()) {
-    return false;
-  }
-  for (int64_t i = 0; i < a->operand_count(); ++i) {
-    if (!HaveSameBitWidth(a->operand(i), b->operand(i))) {
-      return false;
-    }
-  }
-  return true;
-}
-
 // Returns true if `original` and `variant` are bit-typed and `original` is
 // narrower or equal in width to `variant`.
 bool LessThanOrEqualBitwidth(const Node* original, const Node* variant) {
@@ -84,13 +67,12 @@ bool LessThanOrEqualBitwidth(const Node* original, const Node* variant) {
   return true;
 }
 
-absl::StatusOr<double> EstimateAreaForNegatingNode(
-    Node* n, const AreaEstimator& area_estimator) {
+absl::StatusOr<double> EstimateAreaForNodes(
+    const AreaEstimator& area_estimator,
+    std::function<absl::Status(Package* p, FunctionBuilder* fb)> build_fn) {
   Package p("area_check");
   FunctionBuilder fb("area_check", &p);
-  XLS_ASSIGN_OR_RETURN(Type * input_type,
-                       p.MapTypeFromOtherPackage(n->GetType()));
-  fb.Negate(fb.Param("value_to_negate", input_type));
+  XLS_RETURN_IF_ERROR(build_fn(&p, &fb));
   XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
   XLS_ASSIGN_OR_RETURN(
       double area,
@@ -249,33 +231,77 @@ class AddSubEquivalenceMapping : public EquivalenceMapping {
       const AreaEstimator& area_estimator, absl::Span<Node* const> operands,
       const Node* output) const override {
     if (original_->op() != variant_->op()) {
-      if (operands[1]->op() != Op::kNeg) {
-        return EstimateAreaForNegatingNode(operands[1], area_estimator);
+      Node* op_to_negate = operands[1];
+      if (op_to_negate->op() != Op::kNeg) {
+        return EstimateAreaForNodes(
+            area_estimator,
+            [op_to_negate](Package* p, FunctionBuilder* fb) -> absl::Status {
+              XLS_ASSIGN_OR_RETURN(
+                  Type * input_type,
+                  p->MapTypeFromOtherPackage(op_to_negate->GetType()));
+              fb->Negate(fb->Param("value_to_negate", input_type));
+              return absl::OkStatus();
+            });
       }
     }
     return 0.0;
   }
 };
 
-// Equivalence mapping between logical shift left and right.
+// Returns `target` XORed with a sign-extended mask created from the MSB of
+// `msb_source`. Reuses existing BitSlice and SignExt nodes if available.
+absl::StatusOr<Node*> XorWithSignExtendedMsb(FunctionBase* f, Node* target,
+                                             Node* msb_source) {
+  int64_t target_width = target->BitCountOrDie();
+  int64_t source_width = msb_source->BitCountOrDie();
+  XLS_ASSIGN_OR_RETURN(
+      Node * msb,
+      FindOrMakeBitSlice(msb_source, /*start=*/source_width - 1, /*width=*/1));
+
+  Node* mask = nullptr;
+  for (Node* user : msb->users()) {
+    if (user->op() == Op::kSignExt && user->BitCountOrDie() == target_width) {
+      mask = user;
+      break;
+    }
+  }
+  if (mask == nullptr) {
+    XLS_ASSIGN_OR_RETURN(
+        mask,
+        f->MakeNode<ExtendOp>(target->loc(), msb,
+                              /*new_bit_count=*/target_width, Op::kSignExt));
+  }
+
+  return f->MakeNode<NaryOp>(target->loc(), std::vector<Node*>{target, mask},
+                             Op::kXor);
+}
+
+// Equivalence mapping between shift operations (shll, shrl, and shra).
 //
 // y = x << s is equivalent to y = reverse(reverse(x) >> s)
 // y = x >> s is equivalent to y = reverse(reverse(x) << s)
+// y = x >>> s is equivalent to y = ((x xor m) >> s) xor m
+//    where m = sign_ext(msb(x)). If m = 0, then the XORs are no-ops. If m = 1s,
+//    then xors are no-ops on shifted bits, flipping those bits twice, meanwhile
+//    converting all 0s shifted into the MSBs into 1s.
+// y = x >> s is equivalent to y = slice(zero_ext(x, N) >>> s, 0, W) for W < N
+//    where zero-extending (padding) ensures shra shifts in 0s.
 class ShiftEquivalenceMapping : public EquivalenceMapping {
  public:
   static std::optional<std::unique_ptr<EquivalenceMapping>> TryCreate(
       const Node* original, const Node* variant) {
-    bool is_shll_to_shrl =
-        original->op() == Op::kShll && variant->op() == Op::kShrl;
-    bool is_shrl_to_shll =
-        original->op() == Op::kShrl && variant->op() == Op::kShll;
-    if (!is_shll_to_shrl && !is_shrl_to_shll) {
+    if (!original->OpIn({Op::kShll, Op::kShrl, Op::kShra}) ||
+        !variant->OpIn({Op::kShll, Op::kShrl, Op::kShra}) ||
+        original->op() == variant->op()) {
       return std::nullopt;
     }
-    if (!HaveSameBitWidth(original, variant)) {
+    if (!LessThanOrEqualBitwidth(original, variant)) {
       return std::nullopt;
     }
-    if (!HaveSameOperandBitWidths(original, variant)) {
+    // Merging into shra only supported if the original node is strictly smaller
+    // so we can fit the zero-extended original into the shra.
+    if (variant->op() == Op::kShra &&
+        original->BitCountOrDie() >= variant->BitCountOrDie()) {
       return std::nullopt;
     }
     bool same_shift_amount =
@@ -295,25 +321,91 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
       FunctionBase* f,
       absl::Span<Node* const> original_operands) const override {
     XLS_RET_CHECK_EQ(original_operands.size(), 2);
-    XLS_RET_CHECK(original_operands[0]->GetType()->IsBits());
-    XLS_ASSIGN_OR_RETURN(Node * reversed_op0,
-                         f->MakeNode<UnOp>(original_operands[0]->loc(),
-                                           original_operands[0], Op::kReverse));
-    return std::vector<Node*>{reversed_op0, original_operands[1]};
+    Node* op0 = original_operands[0];
+    Node* op1 = original_operands[1];
+    XLS_RET_CHECK(op0->GetType()->IsBits());
+    XLS_RET_CHECK(op1->GetType()->IsBits());
+
+    // If coming from shra, xor with the sign-extended msb.
+    if (original_->op() == Op::kShra) {
+      XLS_ASSIGN_OR_RETURN(
+          op0, XorWithSignExtendedMsb(f, /*target=*/op0, /*msb_source=*/op0));
+    }
+
+    // If going between left and right shifts, reverse bits.
+    if (variant_->op() == Op::kShll || original_->op() == Op::kShll) {
+      XLS_ASSIGN_OR_RETURN(op0,
+                           f->MakeNode<UnOp>(op0->loc(), op0, Op::kReverse));
+    }
+
+    // Extend shifted value to target width if necessary.
+    int64_t target_width = variant_->operand(0)->BitCountOrDie();
+    if (op0->BitCountOrDie() < target_width) {
+      XLS_ASSIGN_OR_RETURN(
+          op0,
+          f->MakeNode<ExtendOp>(op0->loc(), op0,
+                                /*new_bit_count=*/target_width, Op::kZeroExt));
+    }
+
+    // Extend shift amount to target width if necessary.
+    if (op1->BitCountOrDie() < variant_->operand(1)->BitCountOrDie()) {
+      XLS_ASSIGN_OR_RETURN(
+          op1, f->MakeNode<ExtendOp>(op1->loc(), op1,
+                                     variant_->operand(1)->BitCountOrDie(),
+                                     Op::kZeroExt));
+    }
+
+    return std::vector<Node*>{op0, op1};
   }
 
   absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
                                       Node* variant_output) const override {
     XLS_RET_CHECK(variant_output->GetType()->IsBits());
-    return f->MakeNode<UnOp>(variant_output->loc(), variant_output,
-                             Op::kReverse);
+    Node* result = variant_output;
+    int64_t orig_width = original_->BitCountOrDie();
+
+    // If the original node is narrower, bit-slice to the original width.
+    if (result->BitCountOrDie() > orig_width) {
+      XLS_ASSIGN_OR_RETURN(
+          result, f->MakeNode<BitSlice>(result->loc(), result, /*start=*/0,
+                                        /*width=*/orig_width));
+    }
+
+    // If going between left and right shifts, reverse bits.
+    if (variant_->op() == Op::kShll || original_->op() == Op::kShll) {
+      XLS_ASSIGN_OR_RETURN(
+          result, f->MakeNode<UnOp>(result->loc(), result, Op::kReverse));
+    }
+
+    // If coming from shra, xor once again with the sign-extended msb.
+    if (original_->op() == Op::kShra) {
+      XLS_ASSIGN_OR_RETURN(
+          result, XorWithSignExtendedMsb(f, /*target=*/result,
+                                         /*msb_source=*/original_->operand(0)));
+    }
+
+    return result;
   }
 
   absl::StatusOr<double> EstimateAreaOverhead(
       const AreaEstimator& area_estimator,
       absl::Span<Node* const> original_operands,
       const Node* original_node) const override {
-    // kReverse is just a wire reordering in hardware (0 area overhead).
+    if (original_->op() == Op::kShra) {
+      int64_t orig_width = original_->BitCountOrDie();
+      XLS_ASSIGN_OR_RETURN(
+          double xor_area,
+          EstimateAreaForNodes(
+              area_estimator,
+              [orig_width](Package* p, FunctionBuilder* fb) -> absl::Status {
+                Type* input_type = p->GetBitsType(orig_width);
+                fb->Xor(fb->Param("a", input_type), fb->Param("b", input_type));
+                return absl::OkStatus();
+              }));
+      return 2.0 * xor_area;
+    }
+    // kReverse, BitSlice, and ExtendOp are pure wire operations in hardware (0
+    // area overhead).
     return 0.0;
   }
 };
