@@ -29,6 +29,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "re2/re2.h"
@@ -114,31 +115,55 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
   ASSERT_FALSE(bc->has_data());
 }
 
-// Validates emission of AssertEq builtins.
-TEST(BytecodeEmitterTest, AssertEq) {
-  constexpr std::string_view kProgram = R"(
+struct AssertBuiltinCase {
+  std::string builtin_name;
+  std::string rhs_literal;
+};
+
+class BytecodeEmitterAssertTest
+    : public ::testing::TestWithParam<AssertBuiltinCase> {};
+
+TEST_P(BytecodeEmitterAssertTest, EmitsExpectedBytecode) {
+  const AssertBuiltinCase& tc = GetParam();
+  std::string program = absl::StrFormat(R"(
 fn expect_fail() -> u32 {
   let foo = u32:3;
-  assert_eq(foo, u32:2);
+  %s(foo, %s);
   foo
-})";
+})",
+                                        tc.builtin_name, tc.rhs_literal);
 
   ImportData import_data(CreateImportDataForTest());
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      EmitBytecodes(&import_data, kProgram, "expect_fail"));
+      EmitBytecodes(&import_data, program, "expect_fail"));
 
-  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
-                              import_data.file_table()),
-            R"(000 literal u32:3
+  std::string expected = absl::StrFormat(R"(000 literal u32:3
 001 store 0
 002 load 0
-003 literal u32:2
-004 literal builtin:assert_eq
-005 call assert_eq(foo, u32:2)
+003 literal %s
+004 literal builtin:%s
+005 call %s(foo, %s)
 006 pop
-007 load 0)");
+007 load 0)",
+                                         tc.rhs_literal, tc.builtin_name,
+                                         tc.builtin_name, tc.rhs_literal);
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                              import_data.file_table()),
+            expected);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    AssertBuiltins, BytecodeEmitterAssertTest,
+    ::testing::Values(AssertBuiltinCase{"assert_eq", "u32:2"},
+                      AssertBuiltinCase{"assert_ne", "u32:3"},
+                      AssertBuiltinCase{"assert_lt", "u32:2"},
+                      AssertBuiltinCase{"assert_le", "u32:2"},
+                      AssertBuiltinCase{"assert_gt", "u32:4"},
+                      AssertBuiltinCase{"assert_ge", "u32:4"}),
+    [](const ::testing::TestParamInfo<AssertBuiltinCase>& info) {
+      return info.param.builtin_name;
+    });
 
 TEST(BytecodeEmitterTest, DestructuringLet) {
   constexpr std::string_view kProgram = R"(

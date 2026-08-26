@@ -1648,8 +1648,20 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kAssertEq:
       return RunBuiltinAssertEq(bytecode, stack_, frames_.back(), options_,
                                 proc_id());
+    case Builtin::kAssertNe:
+      return RunBuiltinAssertNe(bytecode, stack_, frames_.back(), options_,
+                                proc_id());
     case Builtin::kAssertLt:
       return RunBuiltinAssertLt(bytecode, stack_, frames_.back(), options_,
+                                proc_id());
+    case Builtin::kAssertLe:
+      return RunBuiltinAssertLe(bytecode, stack_, frames_.back(), options_,
+                                proc_id());
+    case Builtin::kAssertGt:
+      return RunBuiltinAssertGt(bytecode, stack_, frames_.back(), options_,
+                                proc_id());
+    case Builtin::kAssertGe:
+      return RunBuiltinAssertGe(bytecode, stack_, frames_.back(), options_,
                                 proc_id());
     case Builtin::kBitSliceUpdate:
       return RunBuiltinBitSliceUpdate(bytecode, stack_);
