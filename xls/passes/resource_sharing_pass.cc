@@ -1916,12 +1916,27 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     // - Step 1: Create a new select for each input
     VLOG(3) << "      Step 1: generate the priority selects, one per input of "
                "the folding target";
+
+    Node* unified_node = to_node;
+    std::unique_ptr<EquivalenceMapping> to_mapping;
+    std::vector<Node*> to_operands(to_node->operands().begin(),
+                                   to_node->operands().end());
+    if (froms_to_use.front().mapping->ModifiesVariantNode()) {
+      XLS_ASSIGN_OR_RETURN(unified_node,
+                           froms_to_use.front().mapping->CreateUnifiedNode(
+                               f, froms_to_use.front().coerced_operands));
+      to_mapping =
+          froms_to_use.front().mapping->GetVariantMapping(unified_node);
+      XLS_ASSIGN_OR_RETURN(to_operands,
+                           to_mapping->ApplyToOperands(f, to_node->operands()));
+    }
+
     std::vector<Node*> new_operands;
-    for (uint32_t op_id = 0; op_id < to_node->operand_count(); op_id++) {
+    for (uint32_t op_id = 0; op_id < to_operands.size(); op_id++) {
       VLOG(4) << "        Operand " << op_id;
 
       // Fetch the current operand for the target of the folding action.
-      Node* to_operand = to_node->operand(op_id);
+      Node* to_operand = to_operands[op_id];
 
       // Check if all sources have the same operand of the destination.
       // In this case, we do not need to select which one to forward.
@@ -1963,7 +1978,7 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
       new_operands.push_back(operand_select);
       VLOG(3) << "          " << operand_select->ToString();
     }
-    XLS_RET_CHECK_EQ(new_operands.size(), to_node->operand_count());
+    XLS_RET_CHECK_EQ(new_operands.size(), to_operands.size());
 
     // Ensure the priority selects do not depend on any of the folded nodes.
     // This is to avoid creating a cycle and producing an unrecoverable error.
@@ -1988,8 +2003,8 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     // - Step 2: Replace the operands of the @to_node to use the results of the
     //           new selectors computed at Step 1.
     VLOG(3) << "      Step 2: update the target of the folding transformation";
-    XLS_RETURN_IF_ERROR(ReplaceOperandsIfChanged(to_node, new_operands));
-    VLOG(3) << "        " << to_node->ToString();
+    XLS_RETURN_IF_ERROR(ReplaceOperandsIfChanged(unified_node, new_operands));
+    VLOG(3) << "        " << unified_node->ToString();
 
     // - Step 3: Replace every source of the folding action with the new
     // @to_node and remove the dead sources.
@@ -1997,9 +2012,21 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
         << "      Step 3: update the def-use chains to use the new folded node";
     for (const FromSource& from : froms_to_use) {
       XLS_ASSIGN_OR_RETURN(Node * replacement,
-                           from.mapping->ApplyToOutput(f, to_node));
+                           from.mapping->ApplyToOutput(f, unified_node));
       XLS_RETURN_IF_ERROR(from.node->ReplaceUsesWith(replacement));
       XLS_RETURN_IF_ERROR(f->RemoveNode(from.node));
+    }
+
+    if (unified_node != to_node) {
+      XLS_RET_CHECK(to_mapping != nullptr);
+      XLS_ASSIGN_OR_RETURN(Node * to_replacement,
+                           to_mapping->ApplyToOutput(f, unified_node));
+      XLS_RETURN_IF_ERROR(to_node->ReplaceUsesWith(to_replacement));
+      XLS_RETURN_IF_ERROR(f->RemoveNode(to_node));
+      renaming_done_by_previous_folding[to_node] = unified_node;
+      for (const FromSource& from : froms_to_use) {
+        renaming_done_by_previous_folding[from.node] = unified_node;
+      }
     }
     VLOG(3) << "      Folding completed";
   }

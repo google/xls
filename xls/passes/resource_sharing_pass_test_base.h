@@ -1497,7 +1497,7 @@ TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLeftAndRight) {
     XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
 
     EXPECT_EQ(NumberOfShifts(f), 2);
-    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(1));
+    ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
     EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
 
     // Verify resulting IR has one shift with appropriate reverses and select.
@@ -1547,6 +1547,38 @@ TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLeftAndRight) {
   }
 }
 
+TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLogicalAndArithmetic) {
+  // fold shrl -> shra of same bit width, where shra has to be widened.
+  auto p = this->CreatePackage();
+  FunctionBuilder fb(this->TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  BValue x = fb.Param("x", u16);
+  BValue y = fb.Param("y", u16);
+  BValue s = fb.Param("s", u16);
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+
+  BValue shrl = fb.Shrl(x, s);
+  BValue shra = fb.Shra(y, s);
+  BValue sel = fb.Select(cond, {shrl, shra});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sel));
+
+  EXPECT_EQ(NumberOfShifts(f), 2);
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
+  EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
+
+  // Verify resulting IR has only one bit-extended shra.
+  EXPECT_EQ(NumberOfShifts(f), 1);
+  auto shift = m::Shra(m::PrioritySelect(m::Eq(cond.node(), m::Literal(0)),
+                                         /*cases=*/{m::ZeroExt(m::Param("x"))},
+                                         /*default=*/m::SignExt(m::Param("y"))),
+                       m::Param("s"));
+  auto sliced_shift = m::BitSlice(shift, /*start=*/0, /*width=*/16);
+  auto matcher = m::Select(cond.node(),
+                           /*cases=*/{sliced_shift, sliced_shift});
+  EXPECT_THAT(f->return_value(), matcher);
+}
+
 REGISTER_TYPED_TEST_SUITE_P(
     ResourceSharingPassTestBase, MergeSingleUnsignedMultiplication,
     MergeSingleUnsignedMultiplication2, MergeSingleSignedMultiplication,
@@ -1560,9 +1592,9 @@ REGISTER_TYPED_TEST_SUITE_P(
     MergeSingleUnsignedMultiplicationDifferentBitwidths2, MergeAdds,
     MergeAddsWithDifferentBitwidths, MergeSubs, MergeSubs2,
     MergeSubsWithDifferentBitwidths, MergeAddsAndSubs, MergeShift,
-    MergeShiftLeftAndRight, MergeMultipliesAndAddsUsedByTwoSelects,
-    PreventCyclesInFoldingChains, PreventCyclesInFoldingChainsNary,
-    PreventCyclesInFoldingChainsIndirect);
+    MergeShiftLeftAndRight, MergeShiftLogicalAndArithmetic,
+    MergeMultipliesAndAddsUsedByTwoSelects, PreventCyclesInFoldingChains,
+    PreventCyclesInFoldingChainsNary, PreventCyclesInFoldingChainsIndirect);
 
 }  // namespace xls
 

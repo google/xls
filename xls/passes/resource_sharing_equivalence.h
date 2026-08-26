@@ -31,9 +31,9 @@
 namespace xls {
 
 // `EquivalenceMapping` is an abstract class representing a concrete plan to
-// map an `original` node into a `variant` node by transforming its operands
-// (and optionally its output) so that the `variant` node produces an equivalent
-// result.
+// map an `original` node onto a `variant` node by transforming some
+// combination of the original node's operands, the node used to unify
+// `original` with `variant`, and/or the output of the unified node.
 //
 // Implementations of this class decide their own internal data structures to
 // represent the required transformations and provide a `TryCreate` static
@@ -55,16 +55,29 @@ class EquivalenceMapping {
   const Node* variant() const { return variant_; }
 
   // Applies this mapping's operand transformations to `original_operands`,
-  // returning a new vector of operands suitable for `variant`.
+  // returning a new vector of operands suitable for `variant`, or the unified
+  // version of `variant` if `variant` itself requires modification too.
   // `original_operands` can be `original()->operands()` or any other vector of
   // operands (e.g. from cloned nodes).
   virtual absl::StatusOr<std::vector<Node*>> ApplyToOperands(
       FunctionBase* f, absl::Span<Node* const> original_operands) const = 0;
 
-  // Applies the output transformation to `variant_output`, returning a node
+  // Applies the output transformation to `unified_output`, returning a node
   // that is functionally equivalent to `original()`.
   virtual absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
-                                              Node* variant_output) const = 0;
+                                              Node* unified_output) const = 0;
+
+  // Returns an EquivalenceMapping that adapts `variant()` to `unified_node`
+  // when `ModifiesVariantNode()` is true, e.g. a bit width extending mapper if
+  // `unified_node` requires more bits than either `original` or `variant`.
+  virtual std::unique_ptr<EquivalenceMapping> GetVariantMapping(
+      const Node* unified_node) const;
+
+  // Creates the unified node given the multiplexed operands.
+  virtual absl::StatusOr<Node*> CreateUnifiedNode(
+      FunctionBase* f, absl::Span<Node* const> operands) const {
+    return variant_->CloneInNewFunction(operands, f);
+  }
 
   // Returns the estimated area overhead incurred by this mapping (e.g.
   // negation logic, bit-extension, output slicing). `operands` and `output`
@@ -79,8 +92,13 @@ class EquivalenceMapping {
   // Returns true if this mapping modifies any of the operands.
   virtual bool RequiresOperandTransformation() const { return true; }
 
-  // Returns true if this mapping modifies the output of the variant node.
+  // Returns true if this mapping modifies the output of the unified node.
   virtual bool RequiresOutputTransformation() const { return false; }
+
+  // Returns true if this mapping modifies variant_ when creating the unified
+  // node, e.g. widening needed to accommodate transformations done to make
+  // `original` and `variant` compatible.
+  virtual bool ModifiesVariantNode() const { return false; }
 
  protected:
   const Node* original_;

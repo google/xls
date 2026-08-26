@@ -308,12 +308,6 @@ TEST_F(ResourceSharingEquivalenceTest, ShiftEquivalenceMapping) {
     EXPECT_FALSE(GetNodeEquivalenceMapper()
                      .ComputeMapping(shrl.node(), mul.node())
                      .has_value());
-    EXPECT_FALSE(GetNodeEquivalenceMapper()
-                     .ComputeMapping(shrl.node(), shra.node())
-                     .has_value());
-    EXPECT_FALSE(GetNodeEquivalenceMapper()
-                     .ComputeMapping(shll.node(), shra.node())
-                     .has_value());
     // shra (32-bit) -> shrl (16-bit) unsupported because narrowing is invalid
     EXPECT_FALSE(GetNodeEquivalenceMapper()
                      .ComputeMapping(shra.node(), shrl16.node())
@@ -693,6 +687,111 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
     EXPECT_THAT(output, m::Reverse(m::BitSlice(
                             m::Shra(m::ZeroExt(m::Reverse()), m::Param("s")),
                             /*start=*/0, /*width=*/4)));
+    XLS_ASSERT_OK(f->set_return_value(output));
+  }
+}
+
+TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingMSBPadding) {
+  // shrl (4-bit) -> shra (4-bit) with variant widening (to 5-bit)
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("shrl_to_shra_same_width", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(4));
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue shrl = fb.Shrl(x, s);
+    BValue shra = fb.Shra(x, s);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shrl));
+
+    auto mapping =
+        GetNodeEquivalenceMapper().ComputeMapping(shrl.node(), shra.node());
+    ASSERT_TRUE(mapping.has_value());
+    EXPECT_TRUE((*mapping)->ModifiesVariantNode());
+
+    Node* unified_node = nullptr;
+    // Verify equivalence for original (shrl)
+    {
+      ScopedVerifyEquivalence sve(f);
+      XLS_ASSERT_OK_AND_ASSIGN(
+          std::vector<Node*> coerced_from,
+          (*mapping)->ApplyToOperands(f, shrl.node()->operands()));
+      auto x_zeroext = m::ZeroExt(m::Param("x"));
+      EXPECT_THAT(coerced_from, ElementsAre(x_zeroext, m::Param("s")));
+
+      XLS_ASSERT_OK_AND_ASSIGN(unified_node,
+                               (*mapping)->CreateUnifiedNode(f, coerced_from));
+      EXPECT_THAT(unified_node, m::Shra(x_zeroext, m::Param("s")));
+      EXPECT_EQ(unified_node->BitCountOrDie(), 5);
+
+      XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                               (*mapping)->ApplyToOutput(f, unified_node));
+      EXPECT_THAT(output, m::BitSlice(m::Shra(x_zeroext, m::Param("s")),
+                                      /*start=*/0, /*width=*/4));
+      XLS_ASSERT_OK(f->set_return_value(output));
+    }
+
+    // Verify equivalence for variant (shra mapped into unified 5-bit shra)
+    {
+      XLS_ASSERT_OK(f->set_return_value(shra.node()));
+      ScopedVerifyEquivalence sve_var(f);
+
+      std::unique_ptr<EquivalenceMapping> to_mapping =
+          (*mapping)->GetVariantMapping(unified_node);
+      ASSERT_NE(to_mapping, nullptr);
+
+      XLS_ASSERT_OK_AND_ASSIGN(
+          std::vector<Node*> coerced_var,
+          to_mapping->ApplyToOperands(f, shra.node()->operands()));
+      EXPECT_THAT(coerced_var,
+                  ElementsAre(m::SignExt(m::Param("x")), m::Param("s")));
+
+      XLS_ASSERT_OK_AND_ASSIGN(
+          Node * unified_var_node,
+          f->MakeNode<BinOp>(shra.node()->loc(), coerced_var[0], coerced_var[1],
+                             Op::kShra));
+      EXPECT_THAT(unified_var_node, m::Shra(m::SignExt(), m::Param("s")));
+      EXPECT_EQ(unified_var_node->BitCountOrDie(), 5);
+
+      XLS_ASSERT_OK_AND_ASSIGN(Node * var_output,
+                               to_mapping->ApplyToOutput(f, unified_var_node));
+      EXPECT_THAT(var_output, m::BitSlice(m::Shra(m::SignExt(), m::Param("s")),
+                                          /*start=*/0, /*width=*/4));
+      XLS_ASSERT_OK(f->set_return_value(var_output));
+    }
+  }
+
+  // shll (4-bit) -> shra (4-bit) with variant widening (to 5-bit)
+  {
+    auto p = CreatePackage();
+    FunctionBuilder fb("shll_to_shra_same_width", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(4));
+    BValue s = fb.Param("s", p->GetBitsType(4));
+    BValue shll = fb.Shll(x, s);
+    BValue shra = fb.Shra(x, s);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(shll));
+
+    auto mapping =
+        GetNodeEquivalenceMapper().ComputeMapping(shll.node(), shra.node());
+    ASSERT_TRUE(mapping.has_value());
+    EXPECT_TRUE((*mapping)->ModifiesVariantNode());
+
+    // Verify equivalence for original (shll)
+    ScopedVerifyEquivalence sve(f);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::vector<Node*> coerced_from,
+        (*mapping)->ApplyToOperands(f, shll.node()->operands()));
+    auto x_rev_zeroext = m::ZeroExt(m::Reverse(m::Param("x")));
+    EXPECT_THAT(coerced_from, ElementsAre(x_rev_zeroext, m::Param("s")));
+
+    XLS_ASSERT_OK_AND_ASSIGN(Node * unified_node,
+                             (*mapping)->CreateUnifiedNode(f, coerced_from));
+    EXPECT_THAT(unified_node, m::Shra(x_rev_zeroext, m::Param("s")));
+    EXPECT_EQ(unified_node->BitCountOrDie(), 5);
+
+    XLS_ASSERT_OK_AND_ASSIGN(Node * output,
+                             (*mapping)->ApplyToOutput(f, unified_node));
+    EXPECT_THAT(output,
+                m::Reverse(m::BitSlice(m::Shra(x_rev_zeroext, m::Param("s")),
+                                       /*start=*/0, /*width=*/4)));
     XLS_ASSERT_OK(f->set_return_value(output));
   }
 }

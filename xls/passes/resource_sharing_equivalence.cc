@@ -14,6 +14,7 @@
 
 #include "xls/passes/resource_sharing_equivalence.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -295,13 +296,15 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
         original->op() == variant->op()) {
       return std::nullopt;
     }
-    if (!LessThanOrEqualBitwidth(original, variant)) {
+    if (!BothBitsTyped(original, variant) ||
+        !BothBitsTyped(original->operand(0), variant->operand(0)) ||
+        !BothBitsTyped(original->operand(1), variant->operand(1))) {
       return std::nullopt;
     }
-    // Merging into shra only supported if the original node is strictly smaller
-    // so we can fit the zero-extended original into the shra.
-    if (variant->op() == Op::kShra &&
-        original->BitCountOrDie() >= variant->BitCountOrDie()) {
+    // If variant is not shra, original must be narrower than or equal to
+    // variant.
+    if (variant->op() != Op::kShra &&
+        !LessThanOrEqualBitwidth(original, variant)) {
       return std::nullopt;
     }
     bool same_shift_amount =
@@ -313,6 +316,21 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
   }
 
   using EquivalenceMapping::EquivalenceMapping;
+
+  int64_t GetTargetWidth() const {
+    if (variant_->op() == Op::kShra &&
+        original_->BitCountOrDie() >= variant_->BitCountOrDie()) {
+      // Requires padding `original` so when we fold into an arithmetic shift
+      // we can shift in 0s.
+      return original_->BitCountOrDie() + 1;
+    }
+    return variant_->BitCountOrDie();
+  }
+
+  bool ModifiesVariantNode() const override {
+    return variant_->op() == Op::kShra &&
+           variant_->BitCountOrDie() < GetTargetWidth();
+  }
 
   bool RequiresOperandTransformation() const override { return true; }
   bool RequiresOutputTransformation() const override { return true; }
@@ -339,7 +357,7 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     }
 
     // Extend shifted value to target width if necessary.
-    int64_t target_width = variant_->operand(0)->BitCountOrDie();
+    int64_t target_width = GetTargetWidth();
     if (op0->BitCountOrDie() < target_width) {
       XLS_ASSIGN_OR_RETURN(
           op0,
@@ -348,10 +366,13 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     }
 
     // Extend shift amount to target width if necessary.
-    if (op1->BitCountOrDie() < variant_->operand(1)->BitCountOrDie()) {
+    int64_t target_shift_width =
+        std::max(original_->operand(1)->BitCountOrDie(),
+                 variant_->operand(1)->BitCountOrDie());
+    if (op1->BitCountOrDie() < target_shift_width) {
       XLS_ASSIGN_OR_RETURN(
           op1, f->MakeNode<ExtendOp>(op1->loc(), op1,
-                                     variant_->operand(1)->BitCountOrDie(),
+                                     /*new_bit_count=*/target_shift_width,
                                      Op::kZeroExt));
     }
 
@@ -359,9 +380,9 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
   }
 
   absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
-                                      Node* variant_output) const override {
-    XLS_RET_CHECK(variant_output->GetType()->IsBits());
-    Node* result = variant_output;
+                                      Node* unified_output) const override {
+    XLS_RET_CHECK(unified_output->GetType()->IsBits());
+    Node* result = unified_output;
     int64_t orig_width = original_->BitCountOrDie();
 
     // If the original node is narrower, bit-slice to the original width.
@@ -387,6 +408,23 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
     return result;
   }
 
+  std::unique_ptr<EquivalenceMapping> GetVariantMapping(
+      const Node* unified_node) const override {
+    if (!ModifiesVariantNode()) {
+      return std::make_unique<IdentityEquivalenceMapping>(variant_,
+                                                          unified_node);
+    }
+    return std::make_unique<BitwidthExtendingEquivalenceMapping>(variant_,
+                                                                 unified_node);
+  }
+
+  absl::StatusOr<Node*> CreateUnifiedNode(
+      FunctionBase* f, absl::Span<Node* const> operands) const override {
+    XLS_RET_CHECK_EQ(operands.size(), 2);
+    return f->MakeNode<BinOp>(variant_->loc(), operands[0], operands[1],
+                              variant_->op());
+  }
+
   absl::StatusOr<double> EstimateAreaOverhead(
       const AreaEstimator& area_estimator,
       absl::Span<Node* const> original_operands,
@@ -404,13 +442,17 @@ class ShiftEquivalenceMapping : public EquivalenceMapping {
               }));
       return 2.0 * xor_area;
     }
-    // kReverse, BitSlice, and ExtendOp are pure wire operations in hardware (0
-    // area overhead).
+    // reverse, slice, and extend ops are pure wire operations.
     return 0.0;
   }
 };
 
 }  // namespace
+
+std::unique_ptr<EquivalenceMapping> EquivalenceMapping::GetVariantMapping(
+    const Node* unified_node) const {
+  return std::make_unique<IdentityEquivalenceMapping>(variant_, unified_node);
+}
 
 void NodeEquivalenceMapper::Register(Factory factory) {
   absl::MutexLock lock(mutex_);
