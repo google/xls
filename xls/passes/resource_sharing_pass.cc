@@ -1921,12 +1921,12 @@ absl::StatusOr<bool> ResourceSharingPass::PerformFoldingActions(
     std::unique_ptr<EquivalenceMapping> to_mapping;
     std::vector<Node*> to_operands(to_node->operands().begin(),
                                    to_node->operands().end());
-    if (froms_to_use.front().mapping->ModifiesVariantNode()) {
+    if (froms_to_use.front().mapping->ModifiesDestinationNode()) {
       XLS_ASSIGN_OR_RETURN(unified_node,
                            froms_to_use.front().mapping->CreateUnifiedNode(
                                f, froms_to_use.front().coerced_operands));
       to_mapping =
-          froms_to_use.front().mapping->GetVariantMapping(unified_node);
+          froms_to_use.front().mapping->GetDestinationMapping(unified_node);
       XLS_ASSIGN_OR_RETURN(to_operands,
                            to_mapping->ApplyToOperands(f, to_node->operands()));
     }

@@ -692,7 +692,7 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingWidening) {
 }
 
 TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingMSBPadding) {
-  // shrl (4-bit) -> shra (4-bit) with variant widening (to 5-bit)
+  // shrl (4-bit) -> shra (4-bit) with dst widening (to 5-bit)
   {
     auto p = CreatePackage();
     FunctionBuilder fb("shrl_to_shra_same_width", p.get());
@@ -705,10 +705,10 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingMSBPadding) {
     auto mapping =
         GetNodeEquivalenceMapper().ComputeMapping(shrl.node(), shra.node());
     ASSERT_TRUE(mapping.has_value());
-    EXPECT_TRUE((*mapping)->ModifiesVariantNode());
+    EXPECT_TRUE((*mapping)->ModifiesDestinationNode());
 
     Node* unified_node = nullptr;
-    // Verify equivalence for original (shrl)
+    // Verify equivalence for src (shrl)
     {
       ScopedVerifyEquivalence sve(f);
       XLS_ASSERT_OK_AND_ASSIGN(
@@ -729,13 +729,13 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingMSBPadding) {
       XLS_ASSERT_OK(f->set_return_value(output));
     }
 
-    // Verify equivalence for variant (shra mapped into unified 5-bit shra)
+    // Verify equivalence for dst (shra mapped into unified 5-bit shra)
     {
       XLS_ASSERT_OK(f->set_return_value(shra.node()));
       ScopedVerifyEquivalence sve_var(f);
 
       std::unique_ptr<EquivalenceMapping> to_mapping =
-          (*mapping)->GetVariantMapping(unified_node);
+          (*mapping)->GetDestinationMapping(unified_node);
       ASSERT_NE(to_mapping, nullptr);
 
       XLS_ASSERT_OK_AND_ASSIGN(
@@ -759,7 +759,7 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingMSBPadding) {
     }
   }
 
-  // shll (4-bit) -> shra (4-bit) with variant widening (to 5-bit)
+  // shll (4-bit) -> shra (4-bit) with dst widening (to 5-bit)
   {
     auto p = CreatePackage();
     FunctionBuilder fb("shll_to_shra_same_width", p.get());
@@ -772,9 +772,9 @@ TEST_F(ResourceSharingEquivalenceTest, ArithShiftEquivalenceMappingMSBPadding) {
     auto mapping =
         GetNodeEquivalenceMapper().ComputeMapping(shll.node(), shra.node());
     ASSERT_TRUE(mapping.has_value());
-    EXPECT_TRUE((*mapping)->ModifiesVariantNode());
+    EXPECT_TRUE((*mapping)->ModifiesDestinationNode());
 
-    // Verify equivalence for original (shll)
+    // Verify equivalence for src (shll)
     ScopedVerifyEquivalence sve(f);
     XLS_ASSERT_OK_AND_ASSIGN(
         std::vector<Node*> coerced_from,

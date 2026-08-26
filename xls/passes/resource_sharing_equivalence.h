@@ -31,58 +31,61 @@
 namespace xls {
 
 // `EquivalenceMapping` is an abstract class representing a concrete plan to
-// map an `original` node onto a `variant` node by transforming some
-// combination of the original node's operands, the node used to unify
-// `original` with `variant`, and/or the output of the unified node.
+// map a source node onto a destination node by transforming some combination
+// of the `src` node's operands, the node that unifies `src` with `dst`, and/or
+// the output of the unified node.
 //
 // Implementations of this class decide their own internal data structures to
 // represent the required transformations and provide a `TryCreate` static
 // method to test if a mapping is supported:
 //
 //   static std::optional<std::unique_ptr<EquivalenceMapping>> TryCreate(
-//       const Node* original, const Node* variant);
+//       const Node* src, const Node* dst);
 //
+// For simple mappings, `dst` is left unchanged, e.g. if `src` inputs need to be
+// bit width extended before they can be used by `dst`. For more complicated
+// mappings, `dst` may require slight modification. Still, the intent is that
+// this mapping leaves `dst` mostly unchanged.
 class EquivalenceMapping {
  public:
-  EquivalenceMapping(const Node* original, const Node* variant)
-      : original_(original), variant_(variant) {}
+  EquivalenceMapping(const Node* src, const Node* dst) : src_(src), dst_(dst) {}
   virtual ~EquivalenceMapping() = default;
 
-  // Returns the original node this mapping was created for.
-  const Node* original() const { return original_; }
+  // Returns the src node this mapping was created for.
+  const Node* src() const { return src_; }
 
-  // Returns the variant node this mapping maps to.
-  const Node* variant() const { return variant_; }
+  // Returns the dst node this mapping maps to.
+  const Node* dst() const { return dst_; }
 
-  // Applies this mapping's operand transformations to `original_operands`,
-  // returning a new vector of operands suitable for `variant`, or the unified
-  // version of `variant` if `variant` itself requires modification too.
-  // `original_operands` can be `original()->operands()` or any other vector of
+  // Applies this mapping's operand transformations to `src_operands`,
+  // returning a new vector of operands suitable for `dst`, or the unified
+  // version of `dst` if `dst` itself requires modification too.
+  // `src_operands` can be `src()->operands()` or any other vector of
   // operands (e.g. from cloned nodes).
   virtual absl::StatusOr<std::vector<Node*>> ApplyToOperands(
-      FunctionBase* f, absl::Span<Node* const> original_operands) const = 0;
+      FunctionBase* f, absl::Span<Node* const> src_operands) const = 0;
 
   // Applies the output transformation to `unified_output`, returning a node
-  // that is functionally equivalent to `original()`.
+  // that is functionally equivalent to `src()`.
   virtual absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
                                               Node* unified_output) const = 0;
 
-  // Returns an EquivalenceMapping that adapts `variant()` to `unified_node`
-  // when `ModifiesVariantNode()` is true, e.g. a bit width extending mapper if
-  // `unified_node` requires more bits than either `original` or `variant`.
-  virtual std::unique_ptr<EquivalenceMapping> GetVariantMapping(
+  // Returns an EquivalenceMapping that adapts `dst()` to `unified_node`
+  // when `ModifiesdstNode()` is true, e.g. a bit width extending mapper if
+  // `unified_node` requires more bits than either `src` or `dst`.
+  virtual std::unique_ptr<EquivalenceMapping> GetDestinationMapping(
       const Node* unified_node) const;
 
   // Creates the unified node given the multiplexed operands.
   virtual absl::StatusOr<Node*> CreateUnifiedNode(
       FunctionBase* f, absl::Span<Node* const> operands) const {
-    return variant_->CloneInNewFunction(operands, f);
+    return dst_->CloneInNewFunction(operands, f);
   }
 
   // Returns the estimated area overhead incurred by this mapping (e.g.
   // negation logic, bit-extension, output slicing). `operands` and `output`
   // allow the mapping to inspect the specific nodes being transformed
-  // (defaulting to `original()->operands()` and `original()`).
+  // (defaulting to `src()->operands()` and `src()`).
   virtual absl::StatusOr<double> EstimateAreaOverhead(
       const AreaEstimator& area_estimator, absl::Span<Node* const> operands,
       const Node* output) const {
@@ -95,14 +98,14 @@ class EquivalenceMapping {
   // Returns true if this mapping modifies the output of the unified node.
   virtual bool RequiresOutputTransformation() const { return false; }
 
-  // Returns true if this mapping modifies variant_ when creating the unified
+  // Returns true if this mapping modifies dst_ when creating the unified
   // node, e.g. widening needed to accommodate transformations done to make
-  // `original` and `variant` compatible.
-  virtual bool ModifiesVariantNode() const { return false; }
+  // `src` and `dst` compatible.
+  virtual bool ModifiesDestinationNode() const { return false; }
 
  protected:
-  const Node* original_;
-  const Node* variant_;
+  const Node* src_;
+  const Node* dst_;
 };
 
 // `NodeEquivalenceMapper` is a thread-safe registry of `EquivalenceMapping`
@@ -111,7 +114,7 @@ class EquivalenceMapping {
 class NodeEquivalenceMapper {
  public:
   using Factory = std::optional<std::unique_ptr<EquivalenceMapping>> (*)(
-      const Node* original, const Node* variant);
+      const Node* src, const Node* dst);
 
   NodeEquivalenceMapper() = default;
   ~NodeEquivalenceMapper() = default;
@@ -134,11 +137,11 @@ class NodeEquivalenceMapper {
     Register(&EqMapping::TryCreate);
   }
 
-  // Returns an `EquivalenceMapping` if `original` can be mapped to `variant`
-  // using any registered `EquivalenceMapping` implementation, or `std::nullopt`
-  // if no mapping applies.
+  // Returns an `EquivalenceMapping` if `src` can be mapped to `dst` using any
+  // registered `EquivalenceMapping` implementation, or `std::nullopt` if no
+  // mapping applies.
   std::optional<std::unique_ptr<EquivalenceMapping>> ComputeMapping(
-      const Node* original, const Node* variant) const;
+      const Node* src, const Node* dst) const;
 
  private:
   mutable absl::Mutex mutex_;
@@ -160,25 +163,23 @@ void RegisterEquivalenceMapping() {
 class IdentityEquivalenceMapping : public EquivalenceMapping {
  public:
   static std::optional<std::unique_ptr<EquivalenceMapping>> TryCreate(
-      const Node* original, const Node* variant) {
-    if (!original->IsDefinitelyEqualTo(variant)) {
+      const Node* src, const Node* dst) {
+    if (!src->IsDefinitelyEqualTo(dst)) {
       return std::nullopt;
     }
-    return std::make_unique<IdentityEquivalenceMapping>(original, variant);
+    return std::make_unique<IdentityEquivalenceMapping>(src, dst);
   }
 
   using EquivalenceMapping::EquivalenceMapping;
 
   absl::StatusOr<std::vector<Node*>> ApplyToOperands(
-      FunctionBase* f,
-      absl::Span<Node* const> original_operands) const override {
-    return std::vector<Node*>(original_operands.begin(),
-                              original_operands.end());
+      FunctionBase* f, absl::Span<Node* const> src_operands) const override {
+    return std::vector<Node*>(src_operands.begin(), src_operands.end());
   }
 
   absl::StatusOr<Node*> ApplyToOutput(FunctionBase* f,
-                                      Node* variant_output) const override {
-    return variant_output;
+                                      Node* dst_output) const override {
+    return dst_output;
   }
 
   bool RequiresOperandTransformation() const override { return false; }
