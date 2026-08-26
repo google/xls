@@ -88,7 +88,23 @@ absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
                                 InterpreterStack& stack, const Frame& frame,
                                 const BytecodeInterpreterOptions& options,
                                 const std::optional<ProcId>& caller_proc_id);
+absl::Status RunBuiltinAssertNe(const Bytecode& bytecode,
+                                InterpreterStack& stack, const Frame& frame,
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id);
 absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
+                                InterpreterStack& stack, const Frame& frame,
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id);
+absl::Status RunBuiltinAssertLe(const Bytecode& bytecode,
+                                InterpreterStack& stack, const Frame& frame,
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id);
+absl::Status RunBuiltinAssertGt(const Bytecode& bytecode,
+                                InterpreterStack& stack, const Frame& frame,
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id);
+absl::Status RunBuiltinAssertGe(const Bytecode& bytecode,
                                 InterpreterStack& stack, const Frame& frame,
                                 const BytecodeInterpreterOptions& options,
                                 const std::optional<ProcId>& caller_proc_id);

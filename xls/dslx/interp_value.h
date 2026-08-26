@@ -261,13 +261,13 @@ class InterpValue {
   static InterpValue MakeU8(uint8_t value) {
     return MakeUBits(/*bit_count=*/8, value);
   }
-  static InterpValue MakeS32(uint32_t value) {
+  static InterpValue MakeS32(int32_t value) {
     return MakeSBits(/*bit_count=*/32, value);
   }
   static InterpValue MakeU32(uint32_t value) {
     return MakeUBits(/*bit_count=*/32, value);
   }
-  static InterpValue MakeS64(uint64_t value) {
+  static InterpValue MakeS64(int64_t value) {
     return MakeSBits(/*bit_count=*/64, value);
   }
   static InterpValue MakeU64(uint64_t value) {
