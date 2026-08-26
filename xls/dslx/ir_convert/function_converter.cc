@@ -2479,8 +2479,23 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleAssertLtBuiltin(const Invocation* node,
+absl::Status FunctionConverter::HandleAssertEqBuiltin(const Invocation* node,
                                                       BValue lhs, BValue rhs) {
+  BValue cmp = function_builder_->Eq(lhs, rhs);
+  return HandleAssertBuiltin(
+      node, cmp, module_->Make<String>(node->span(), node->ToInlineString()));
+}
+
+absl::Status FunctionConverter::HandleAssertNeBuiltin(const Invocation* node,
+                                                      BValue lhs, BValue rhs) {
+  BValue cmp = function_builder_->Ne(lhs, rhs);
+  return HandleAssertBuiltin(
+      node, cmp, module_->Make<String>(node->span(), node->ToInlineString()));
+}
+
+absl::Status FunctionConverter::HandleRelationalAssertBuiltin(
+    const Invocation* node, BValue lhs, BValue rhs, xls::Op signed_op,
+    xls::Op unsigned_op) {
   std::optional<Type*> lhs_type = current_type_info_->GetItem(node->args()[0]);
   std::optional<Type*> rhs_type = current_type_info_->GetItem(node->args()[1]);
   XLS_RET_CHECK(lhs_type.has_value());
@@ -2496,21 +2511,34 @@ absl::Status FunctionConverter::HandleAssertLtBuiltin(const Invocation* node,
   XLS_ASSIGN_OR_RETURN(bool is_rhs_signed,
                        rhs_bits_like->is_signed.GetAsBool());
   XLS_RET_CHECK_EQ(is_lhs_signed, is_rhs_signed);
-  BValue cmp;
-  if (is_lhs_signed) {
-    cmp = function_builder_->SLt(lhs, rhs);
-  } else {
-    cmp = function_builder_->ULt(lhs, rhs);
-  }
+  BValue cmp = function_builder_->AddCompareOp(
+      is_lhs_signed ? signed_op : unsigned_op, lhs, rhs);
   return HandleAssertBuiltin(
       node, cmp, module_->Make<String>(node->span(), node->ToInlineString()));
 }
 
-absl::Status FunctionConverter::HandleAssertEqBuiltin(const Invocation* node,
+absl::Status FunctionConverter::HandleAssertLtBuiltin(const Invocation* node,
                                                       BValue lhs, BValue rhs) {
-  BValue cmp = function_builder_->Eq(lhs, rhs);
-  return HandleAssertBuiltin(
-      node, cmp, module_->Make<String>(node->span(), node->ToInlineString()));
+  return HandleRelationalAssertBuiltin(node, lhs, rhs, xls::Op::kSLt,
+                                       xls::Op::kULt);
+}
+
+absl::Status FunctionConverter::HandleAssertLeBuiltin(const Invocation* node,
+                                                      BValue lhs, BValue rhs) {
+  return HandleRelationalAssertBuiltin(node, lhs, rhs, xls::Op::kSLe,
+                                       xls::Op::kULe);
+}
+
+absl::Status FunctionConverter::HandleAssertGtBuiltin(const Invocation* node,
+                                                      BValue lhs, BValue rhs) {
+  return HandleRelationalAssertBuiltin(node, lhs, rhs, xls::Op::kSGt,
+                                       xls::Op::kUGt);
+}
+
+absl::Status FunctionConverter::HandleAssertGeBuiltin(const Invocation* node,
+                                                      BValue lhs, BValue rhs) {
+  return HandleRelationalAssertBuiltin(node, lhs, rhs, xls::Op::kSGe,
+                                       xls::Op::kUGe);
 }
 
 absl::Status FunctionConverter::HandleAssertBuiltin(const Invocation* node,
@@ -2847,6 +2875,12 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
     }
     return values;
   };
+  auto accept_two_args = [&]() -> absl::StatusOr<std::vector<BValue>> {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
+    XLS_RET_CHECK_EQ(args.size(), 2)
+        << called_name << " builtin requires two arguments";
+    return args;
+  };
 
   if (std::optional<xls::Function*> f = package()->TryGetFunction(called_name);
       f.has_value()) {
@@ -2856,34 +2890,40 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
 
   // A few builtins are handled specially.
   if (called_name == "assert!") {
-    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
-    XLS_RET_CHECK_EQ(args.size(), 2)
-        << called_name << " builtin requires two arguments";
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_two_args());
     return HandleAssertBuiltin(node, /*predicate=*/args[0],
                                /*label_expr=*/node->args()[1]);
   }
   if (called_name == "assert_eq") {
-    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
-    XLS_RET_CHECK_EQ(args.size(), 2)
-        << called_name << " builtin requires two arguments";
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_two_args());
     return HandleAssertEqBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
   }
+  if (called_name == "assert_ne") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_two_args());
+    return HandleAssertNeBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
+  }
   if (called_name == "assert_lt") {
-    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
-    XLS_RET_CHECK_EQ(args.size(), 2)
-        << called_name << " builtin requires two arguments";
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_two_args());
     return HandleAssertLtBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
   }
+  if (called_name == "assert_le") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_two_args());
+    return HandleAssertLeBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
+  }
+  if (called_name == "assert_gt") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_two_args());
+    return HandleAssertGtBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
+  }
+  if (called_name == "assert_ge") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_two_args());
+    return HandleAssertGeBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
+  }
   if (called_name == "cover!") {
-    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
-    XLS_RET_CHECK_EQ(args.size(), 2)
-        << called_name << " builtin requires two arguments";
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_two_args());
     return HandleCoverBuiltin(node, args[1]);
   }
   if (called_name == "fail!") {
-    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
-    XLS_RET_CHECK_EQ(args.size(), 2)
-        << called_name << " builtin requires two arguments";
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_two_args());
     return HandleFailBuiltin(node, /*label_expr=*/node->args()[0],
                              /*arg=*/args[1]);
   }
