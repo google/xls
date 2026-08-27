@@ -1549,7 +1549,7 @@ TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLeftAndRight) {
 }
 
 TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLogicalAndArithmetic) {
-  // fold shrl -> shra of same bit width, where shra has to be widened.
+  // Test folding shra -> shrl of same bit width.
   auto p = this->CreatePackage();
   FunctionBuilder fb(this->TestName(), p.get());
   Type* u16 = p->GetBitsType(16);
@@ -1568,15 +1568,17 @@ TYPED_TEST_P(ResourceSharingPassTestBase, MergeShiftLogicalAndArithmetic) {
   ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(10));
   EXPECT_THAT(this->Run(f), IsOkAndHolds(true));
 
-  // Verify resulting IR has only one bit-extended shra.
+  // Verify resulting IR has only one shrl with XOR masks.
   EXPECT_EQ(NumberOfShifts(f), 1);
-  auto shift = m::Shra(m::PrioritySelect(m::Eq(cond.node(), m::Literal(0)),
-                                         /*cases=*/{m::ZeroExt(m::Param("x"))},
-                                         /*default=*/m::SignExt(m::Param("y"))),
-                       m::Param("s"));
-  auto sliced_shift = m::BitSlice(shift, /*start=*/0, /*width=*/16);
-  auto matcher = m::Select(cond.node(),
-                           /*cases=*/{sliced_shift, sliced_shift});
+  auto msb_mask =
+      m::SignExt(m::BitSlice(m::Param("y"), /*start=*/15, /*width=*/1));
+  auto shift =
+      m::Shrl(m::PrioritySelect(m::Eq(cond.node(), m::Literal(1)),
+                                /*cases=*/{m::Xor(m::Param("y"), msb_mask)},
+                                /*default=*/m::Param("x")),
+              m::Param("s"));
+  auto shra_out = m::Xor(shift, msb_mask);
+  auto matcher = m::Select(cond.node(), /*cases=*/{shift, shra_out});
   EXPECT_THAT(f->return_value(), matcher);
 }
 
